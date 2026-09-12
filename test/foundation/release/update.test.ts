@@ -289,6 +289,47 @@ describe("A1 self-update orchestration", () => {
     expect(harness.stdout.join("")).toContain("a1 updated successfully: 1.3.0");
   });
 
+  it("keeps the update active through maintenance and publishes success only afterward", async () => {
+    const harness = createHarness({ responses: [success("1.3.0\n"), success(`${resolve("fixtures", "global")}\n`), success(), success()] });
+    const observed: string[] = [];
+    const finish = vi.spyOn(harness.transactionStore, "finish");
+
+    await expect(runSelfUpdate({
+      ...harness,
+      maintenance: async () => {
+        observed.push((await harness.transactionStore.read())!.status);
+        expect(finish).not.toHaveBeenCalled();
+      },
+    })).resolves.toBe(0);
+
+    expect(observed).toEqual(["active"]);
+    expect(finish).toHaveBeenCalledWith("completed");
+  });
+
+  it("does not publish success when maintenance fails after supervisor verification", async () => {
+    const harness = createHarness({ responses: [success("1.3.0\n"), success(`${resolve("fixtures", "global")}\n`), success(), success()] });
+    const finish = vi.spyOn(harness.transactionStore, "finish");
+    await expect(runSelfUpdate({ ...harness, maintenance: async () => { throw new Error("maintenance failed"); } })).resolves.toBe(1);
+    expect(finish).not.toHaveBeenCalledWith("completed");
+    expect((await harness.transactionStore.read())?.status).toBe("failed");
+    expect(harness.stdout.join("")).not.toContain("updated successfully");
+  });
+
+  it("resumes unfinished activation even if the target supervisor already responds", async () => {
+    const harness = createHarness({ transactionPhase: "active-reference-committed", responses: [success("1.3.0\n"), success(`${resolve("fixtures", "global")}\n`), success()] });
+    harness.lifecycle.targetIsActive = async () => true;
+    await expect(runSelfUpdate(harness)).resolves.toBe(0);
+    expect(harness.lifecycleCalls).toContain(`activate:${harness.packageRoot}:1.3.0`);
+    expect(harness.stdout.join("")).not.toContain("no update needed");
+  });
+
+  it("does not roll back published success just because journal removal fails", async () => {
+    const harness = createHarness({ responses: [success("1.3.0\n"), success(`${resolve("fixtures", "global")}\n`), success(), success()] });
+    harness.transactionStore.clearCompleted = async () => { throw new Error("sharing violation"); };
+    await expect(runSelfUpdate(harness)).resolves.toBe(0);
+    expect((await harness.transactionStore.read())?.status).toBe("completed");
+  });
+
   it("routes production package replacement through the protected coordinator", async () => {
     const harness = createHarness({ responses: [success("1.3.0\n"), success(`${resolve("fixtures", "global")}\n`), success()] });
     const packageReplacement = vi.fn(async () => ({

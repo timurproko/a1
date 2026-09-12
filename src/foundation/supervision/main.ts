@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { appendFileSync, mkdirSync } from "node:fs";
 import { resolve } from "node:path";
-import { assertImmutableExecutionRoot, CohortStateStore, readCertifiedReleaseManifest, recordParentCertifiedRelease } from "../release/index.js";
+import { assertImmutableExecutionRoot, CohortStateStore, readCertifiedReleaseManifest, recordParentCertifiedRelease, selectSupervisorLaunchReleaseId, UpdateTransactionStore } from "../release/index.js";
 import { publishSupervisorStartupResult, supervisorStartupFailure, supervisorStartupReady, supervisorStartupResultPath } from "../lifecycle/index.js";
 import { ControlStore } from "../storage/index.js";
 import { resolveCohortEndpoint, resolveProductPaths } from "./paths.js";
@@ -50,7 +50,10 @@ export async function runSupervisor(arguments_: readonly string[] = []): Promise
       undefined,
       undefined,
       undefined,
-      async () => (await cohortState.read()).references.active,
+      async () => {
+        const transaction = await new UpdateTransactionStore(paths.dataDir).read();
+        return selectSupervisorLaunchReleaseId(await cohortState.read(), transaction);
+      },
     );
     stage = "endpoint-listen";
     await server.listen();

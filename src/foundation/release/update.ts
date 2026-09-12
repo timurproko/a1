@@ -10,9 +10,8 @@ import {
   probeOwnership,
   readEndpointMetadata,
   removeEndpointArtifacts,
-  startSupervisor,
+  ensureSupervisor,
   waitForProcessExit,
-  waitForVerifiedEndpoint,
 } from "./bootstrap.js";
 import { resolveCohortEndpoint, resolveProductPaths, type CohortEndpointPaths, type ProductPaths } from "../lifecycle/index.js";
 import { encodeFrame, LineFrameDecoder } from "../protocol/index.js";
@@ -272,13 +271,13 @@ export function createUpdateLifecycleCoordinator(
       const diagnostics = await certifyMaterializedRelease(candidate, paths.dataDir);
       await stateStore.approve(candidate.releaseId, diagnostics);
       await phase("certified");
-      await stateStore.activate(candidate.releaseId);
-      await phase("active-reference-committed");
       onWarmup?.("started");
       await warmMaterializedRelease(candidate, environment);
       onWarmup?.("completed");
-      const startup = await startSupervisor(candidate, environment);
-      await waitForVerifiedEndpoint(resolveCohortEndpoint(paths, candidate.releaseId, environment).endpointMetadataPath, candidate, 8_000, startup);
+      await ensureSupervisor(candidate, environment);
+      // Invariant: warmup and authenticated readiness precede changing the active reference.
+      await stateStore.activate(candidate.releaseId);
+      await phase("active-reference-committed");
     },
   };
 }
@@ -479,11 +478,7 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
     : async () => await scheduleReleaseCleanup(paths.dataDir, paths));
   let transaction = await transactionStore.read();
   try {
-    if (await lifecycle.targetIsActive(targetVersion)) {
-      if (transaction?.status === "active") {
-        await transactionStore.advance("supervisor-verified");
-        await transactionStore.finish("completed");
-      }
+    if ((!transaction || transaction.status === "completed") && await lifecycle.targetIsActive(targetVersion)) {
       await maintenance();
       await transactionStore.clearCompleted();
       output.stdout(`${PRODUCT_TEXT.commandName} is up to date — no update needed.\n`);
@@ -614,12 +609,13 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
     options.onPhaseTiming?.({ phase: "supervisor-verified", durationMs: Math.max(0, now() - activationPhaseStartedAt) });
     const transactionStartedAt = now();
     await transactionStore.advance("supervisor-verified");
-    await transactionStore.finish("completed");
     if (transaction.recovery?.capsulePath) await removeUpdateRecoveryCapsule(paths.dataDir, transaction.transactionId);
     // Invariant: successful output follows the durable cleanup disposition. Slow recursive
     // removal belongs to the detached worker started by this maintenance coordinator.
     await maintenance();
-    await transactionStore.clearCompleted();
+    // Concurrency: this is the launch cutover. No failure-prone update work follows success.
+    await transactionStore.finish("completed");
+    await transactionStore.clearCompleted().catch(() => undefined);
     options.onPhaseTiming?.({ phase: "transaction-complete", durationMs: Math.max(0, now() - transactionStartedAt) });
     progress.finish();
     output.stdout(`${PRODUCT_TEXT.commandName} updated successfully: ${targetVersion}\n`);
@@ -695,11 +691,8 @@ async function rollbackPriorCohort(dataDir: string, environment: NodeJS.ProcessE
     else throw new Error(`prior release ${priorReleaseId} is not the recorded rollback cohort`);
   }
   const release = await readMaterializedRelease(prior.releaseRoot);
-  const paths = resolveProductPaths(environment);
-  // Invariant: rollback re-points the active reference and starts the prior cohort on its own endpoint;
-  // a cohort that survived the update keeps serving the work it already had.
-  const startup = await startSupervisor(release, environment);
-  await waitForVerifiedEndpoint(resolveCohortEndpoint(paths, release.releaseId, environment).endpointMetadataPath, release, 8_000, startup);
+  // Invariant: rollback reuses a surviving prior cohort rather than racing its occupied endpoint.
+  await ensureSupervisor(release, environment);
   return "rolled back";
 }
 

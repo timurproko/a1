@@ -10,6 +10,7 @@ export * from "./release-store.js";
 export * from "./restart-certification.js";
 export * from "./stable-release.js";
 export * from "./update.js";
+export * from "./update-launch.js";
 export * from "./update-recovery.js";
 export * from "./update-transaction.js";
 export * from "./warmup.js";
