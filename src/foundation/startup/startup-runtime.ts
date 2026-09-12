@@ -57,13 +57,14 @@ export interface StartupTraceEvent {
 export function initializeStartupTrace(environment: NodeJS.ProcessEnv, profileId: string, startedAtMs = performance.timeOrigin + performance.now()): void {
   const configured = environment[PRODUCT_IDENTITY.environment.startupTrace];
   if (!configured || parseContext(configured) !== null) return;
+  const launch = readLaunchContext(environment);
   const context: StartupTraceContext = {
     path: resolve(configured),
     traceId: randomUUID(),
     startedAtMs,
     profileId,
-    releaseId: readLaunchContext(environment).releaseId ?? null,
-    dependencyLayerIds: parseLayerIds(readLaunchContext(environment).releaseLayers),
+    releaseId: launch.releaseId ?? null,
+    dependencyLayerIds: parseLayerIds(launch.releaseLayers),
   };
   environment[PRODUCT_IDENTITY.environment.startupTrace] = JSON.stringify(context);
 }
@@ -72,17 +73,18 @@ export function initializeStartupTrace(environment: NodeJS.ProcessEnv, profileId
 export async function markStartupPhase(environment: NodeJS.ProcessEnv, phase: StartupPhase): Promise<void> {
   const context = parseContext(environment[PRODUCT_IDENTITY.environment.startupTrace]);
   if (context === null) return;
+  const elapsedMs = Math.max(0, performance.timeOrigin + performance.now() - context.startedAtMs);
+  const launch = readLaunchContext(environment);
+  const dependencyLayerIds = parseLayerIds(launch.releaseLayers);
   const event: StartupTraceEvent = {
     schema: PRODUCT_IDENTITY.evidence.startupTraceSchema,
     traceId: context.traceId,
     phase,
-    elapsedMs: Math.max(0, performance.timeOrigin + performance.now() - context.startedAtMs),
+    elapsedMs,
     processId: process.pid,
     profileId: context.profileId,
-    releaseId: readLaunchContext(environment).releaseId ?? context.releaseId,
-    dependencyLayerIds: parseLayerIds(readLaunchContext(environment).releaseLayers).length > 0
-      ? parseLayerIds(readLaunchContext(environment).releaseLayers)
-      : context.dependencyLayerIds,
+    releaseId: launch.releaseId ?? context.releaseId,
+    dependencyLayerIds: dependencyLayerIds.length > 0 ? dependencyLayerIds : context.dependencyLayerIds,
     nodeVersion: process.version,
     fileReadOperations: process.resourceUsage().fsRead,
   };
@@ -101,11 +103,8 @@ export function enableEnvironmentCompileCache(environment: NodeJS.ProcessEnv): s
     ?? (platform() === "win32"
       ? resolve(environment.LOCALAPPDATA ?? home, PRODUCT_IDENTITY.state.windowsControlDirectory)
       : resolve(environment.XDG_DATA_HOME ?? resolve(home, ".local", "share"), PRODUCT_IDENTITY.state.unixControlDirectory)));
-  return enableStartupCompileCache(
-    dataDir,
-    readLaunchContext(environment).releaseId ?? null,
-    parseLayerIds(readLaunchContext(environment).releaseLayers),
-  );
+  const launch = readLaunchContext(environment);
+  return enableStartupCompileCache(dataDir, launch.releaseId ?? null, parseLayerIds(launch.releaseLayers));
 }
 
 /** Enable Node's supported persistent compile cache in an immutable-identity namespace. */

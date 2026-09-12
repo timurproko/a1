@@ -35,6 +35,14 @@ The `Internal naming validation` PR job is required by the current-head aggregat
 
 The nightly release workflow selects `full-release`, whose mandatory commands now include `internal-naming-full`. This is a whole tracked-source audit without PR selection, including when nightly work verifies an existing immutable package. A regression test checks the workflow, full-release command ownership, publication gating, and detection in unchanged code.
 
+## CI failure follow-up
+
+Run `34690036288` on `f42f39a0` passed naming, changed-file documentation, rendering, Unix containment/package checks, and Windows Node 24 startup. Fast validation failed on two stale governance assertions: the docs-job slice included its new neighboring naming job, and the owner-list fixture omitted `launch-context`. Windows Node 22 reached readiness but exceeded the unchanged warm-start budget for the Pi profile: 3,227 ms versus 3,000 ms, with UI module loading the dominant interval. The preceding develop run passed that budget; the end-to-end excess is not established as solely attributable to context lookup overhead.
+
+The follow-up fixes the job-region assertion and explicit owner fixture without weakening either policy. It also removes overhead introduced by this refactor: private context lookup fetches only relevant values, and each startup trace/cache operation takes one context snapshot. Tests cover unread unrelated getters, one read per current field, inherited/non-enumerable field exclusion, Windows casing conflicts, and the unchanged 3,000/3,001 ms acceptance boundary.
+
+Focused follow-up validation passed all 106 selected tests, build, typechecking, the full naming audit, documentation governance, and identity governance. A local Windows/Node 24 benchmark of 3,000 context reads measured 684 to 232 ms with no private fields and 739 to 256 ms with populated private fields. This is a reader benchmark, not an end-to-end startup result. No budget or timeout was increased and no automatic retry was added. Fresh required CI, especially Windows Node 22 startup, remains necessary.
+
 ## Remaining handoff
 
 Use the implementation worktree for local validation; build before launching through `./scripts/dev` or `./scripts/dev pi`. Do not attempt the first global cutover through an old `a1 update` or old recovery launcher. The accepted published version and any separately approved disposable-state reset paths must be supplied at the actual installation handoff. Settings, sessions, history, credentials, and `.a1` user data are not reset candidates.

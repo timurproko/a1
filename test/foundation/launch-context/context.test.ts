@@ -18,6 +18,27 @@ describe("neutral private launch contract", () => {
     expect(Object.values(PRIVATE_ENVIRONMENT).every(key => !/a1/i.test(key))).toBe(true);
   });
 
+  it.each(["win32", "linux", "darwin"] as const)("reads only current private values once on %s", platform => {
+    const expected = { ...release, immutableWarmup: "1" as const };
+    const environment = withLaunchContext({}, expected, platform);
+    const reads = new Map<string, number>();
+    for (const [key, value] of Object.entries(environment)) {
+      Object.defineProperty(environment, key, { enumerable: true, get: () => { reads.set(key, (reads.get(key) ?? 0) + 1); return value; } });
+    }
+    for (let index = 0; index < 200; index++) {
+      Object.defineProperty(environment, `UNRELATED_${index}`, { enumerable: true, get: () => { throw new Error("unrelated environment value was read"); } });
+    }
+    expect(readLaunchContext(environment, "warmup", platform)).toEqual(expected);
+    expect([...reads.values()]).toEqual(Object.keys(PRIVATE_ENVIRONMENT).map(() => 1));
+  });
+
+  it.each(["win32", "linux", "darwin"] as const)("ignores inherited and non-enumerable private fields on %s", platform => {
+    const environment = Object.create({ [PRIVATE_ENVIRONMENT.launchProfile]: "pi" }) as NodeJS.ProcessEnv;
+    Object.defineProperty(environment, PRIVATE_ENVIRONMENT.releaseId, { value: "hidden", enumerable: false });
+    expect(readLaunchContext(environment, "optional", platform)).toEqual({});
+    expect(() => readLaunchContext(environment, "profile", platform)).toThrow(/required current-contract field/);
+  });
+
   it("does not translate obsolete-only input or use a default release", () => {
     const obsolete = JSON.parse('{"A1_RELEASE_ROOT":"old","A1_RELEASE_ID":"old","A1_IMMUTABLE_WARMUP":"1","A1_LAUNCH_PROFILE":"pi"}');
     expect(readLaunchContext(obsolete)).toEqual({});

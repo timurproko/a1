@@ -9,6 +9,9 @@ export const PRIVATE_ENVIRONMENT = Object.freeze({
   launchProfile: "LAUNCH_CONTEXT_PROFILE",
   immutableWarmup: "LAUNCH_CONTEXT_WARMUP",
 });
+const PRIVATE_ENTRIES = Object.entries(PRIVATE_ENVIRONMENT);
+const PRIVATE_KEYS = new Set<string>(Object.values(PRIVATE_ENVIRONMENT));
+const LOGICAL_KEYS = new Map<string, string>(PRIVATE_ENTRIES.map(([logical, key]) => [key, logical]));
 
 export interface LaunchContext {
   readonly releaseRoot?: string;
@@ -28,15 +31,16 @@ export function readLaunchContext(
   platform: NodeJS.Platform = process.platform,
 ): LaunchContext {
   const values: Record<string, string> = {};
-  const entries = Object.entries(environment);
-  for (const [logical, key] of Object.entries(PRIVATE_ENVIRONMENT)) {
-    const matches = entries.filter(([name, value]) => value !== undefined
-      && (platform === "win32" ? name.toUpperCase() === key : name === key));
-    if (matches.length === 0) continue;
-    const value = matches[0]![1]!;
-    if (matches.some(([, candidate]) => candidate !== value)) throw invalidContext(logical, "conflicting environment key casing");
-    if (value.includes("\0") || (value.length === 0 && logical !== "releaseLayers")) throw invalidContext(logical, "invalid value");
-    values[logical] = value;
+  // Performance: enumerate names only for Windows casing; never fetch unrelated environment values.
+  if (platform === "win32") {
+    for (const name of Object.keys(environment)) {
+      const logical = LOGICAL_KEYS.get(name.toUpperCase());
+      if (logical !== undefined) acceptValue(values, logical, environment[name]);
+    }
+  } else {
+    for (const [logical, key] of PRIVATE_ENTRIES) {
+      if (Object.prototype.propertyIsEnumerable.call(environment, key)) acceptValue(values, logical, environment[key]);
+    }
   }
   if (values.launchProfile !== undefined && values.launchProfile !== "a1" && values.launchProfile !== "pi") {
     throw invalidContext("launchProfile", "unsupported profile");
@@ -56,7 +60,7 @@ export function withLaunchContext(
   platform: NodeJS.Platform = process.platform,
 ): NodeJS.ProcessEnv {
   const result = withoutLaunchContext(environment, platform);
-  for (const [logical, key] of Object.entries(PRIVATE_ENVIRONMENT)) {
+  for (const [logical, key] of PRIVATE_ENTRIES) {
     const value = context[logical as keyof LaunchContext];
     if (value !== undefined) result[key] = value;
   }
@@ -66,8 +70,7 @@ export function withLaunchContext(
 
 /** Remove only this implementation's private keys, leaving user and integration settings intact. */
 export function withoutLaunchContext(environment: NodeJS.ProcessEnv, platform: NodeJS.Platform = process.platform): NodeJS.ProcessEnv {
-  const keys = new Set<string>(Object.values(PRIVATE_ENVIRONMENT));
-  return Object.fromEntries(Object.entries(environment).filter(([key]) => !keys.has(platform === "win32" ? key.toUpperCase() : key)));
+  return Object.fromEntries(Object.entries(environment).filter(([key]) => !PRIVATE_KEYS.has(platform === "win32" ? key.toUpperCase() : key)));
 }
 
 /** Reject unsupported target metadata instead of negotiating or rewriting an older contract. */
@@ -75,6 +78,13 @@ export function assertCurrentLaunchContract(value: { readonly launchContract?: u
   if (value.launchContract !== PRIVATE_LAUNCH_CONTRACT) {
     throw new Error("Unsupported private launch contract. Stop existing processes and install the current package directly with npm; review disposable runtime/release state before any manual reset. User settings, sessions, and history must be preserved.");
   }
+}
+
+function acceptValue(values: Record<string, string>, logical: string, value: string | undefined): void {
+  if (value === undefined) return;
+  if (values[logical] !== undefined && values[logical] !== value) throw invalidContext(logical, "conflicting environment key casing");
+  if (typeof value !== "string" || value.includes("\0") || (value.length === 0 && logical !== "releaseLayers")) throw invalidContext(logical, "invalid value");
+  values[logical] = value;
 }
 
 function requireFields(values: Record<string, string>, fields: readonly string[]): void {
