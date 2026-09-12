@@ -5,7 +5,7 @@ import { PRODUCT_IDENTITY } from "../../product-identity.js";
 import { assertPromptHistorySubmission, PROMPT_HISTORY_MAX_ENTRY_BYTES, PROMPT_HISTORY_MAX_TEXT_BYTES, type PromptHistoryFailure, type PromptHistorySnapshot, type PromptHistorySubmission } from "../../contracts/owned-ui/index.js";
 
 export class HistoryStorageError extends Error {
-  constructor(readonly code: PromptHistoryFailure) { super(`Prompt history ${code}`); }
+  constructor(readonly code: PromptHistoryFailure, readonly certainty: "uncommitted" | "unknown" = "uncommitted") { super(`Prompt history ${code}`); }
 }
 
 const MAX_STORAGE_BYTES = 64 * 1024 * 1024;
@@ -81,9 +81,15 @@ export class PromptHistoryStore {
   close(): void { this.#database.close(); }
 
   #transaction(work: () => void): void {
-    this.#database.exec("BEGIN IMMEDIATE");
+    try { this.#database.exec("BEGIN IMMEDIATE"); }
+    catch (error) { throw new HistoryStorageError(classifyHistoryError(error), "uncommitted"); }
     try { work(); this.#database.exec("COMMIT"); }
-    catch (error) { this.#database.exec("ROLLBACK"); throw error; }
+    catch (error) {
+      // Invariant: only a successful rollback proves that replay cannot advance recency twice.
+      try { this.#database.exec("ROLLBACK"); }
+      catch { throw new HistoryStorageError(classifyHistoryError(error), "unknown"); }
+      throw new HistoryStorageError(classifyHistoryError(error), "uncommitted");
+    }
   }
 
   #prune(limit: number): void {

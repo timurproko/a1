@@ -514,6 +514,9 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
    * walk of the whole transcript.
    */
   applyTranscriptBlock(block: OwnedUiSessionViewModel["transcript"][number]): void {
+    const current = this.#blocksById.get(block.id);
+    // Invariant: a full-view/final presentation may preempt queued partials. Never revive an older revision.
+    if (current !== undefined && (current.revision > block.revision || current.status === "finalized" && block.status === "live")) return;
     this.#blocksById.set(block.id, block);
     const component = this.#transcript.get(block.id);
     if (component === undefined) {

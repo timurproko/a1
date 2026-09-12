@@ -1,5 +1,8 @@
 import { memoryHistory } from "./prompt-history-fixture.js";
 import { PromptHistoryService } from "../../../../src/features/prompt-history/index.js";
+import { PromptHistoryStore } from "../../../../src/features/prompt-history/store.js";
+import { resolvePromptHistoryPath } from "../../../../src/features/prompt-history/paths.js";
+import { holdHistoryLock } from "../../../support/history-lock.js";
 import type { AgentSessionRuntime, ExtensionUIContext } from "@earendil-works/pi-coding-agent";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -228,6 +231,80 @@ async function nextImmediate(): Promise<void> {
 }
 
 describe("OwnedUiSessionShell", () => {
+  it("quietly recovers combined history contention and a 16,384-update assistant/tool burst with interactive input", async () => {
+    const root = await mkdtemp(join(tmpdir(), "combined-history-pressure-"));
+    const options = { dataDir: root, profileRoot: join(root, "profile"), limit: 100 };
+    const store = new PromptHistoryService(options);
+    expect(await store.record({ id: "seed", text: "saved seed", kind: "prompt", timestamp: 0 })).toBe("committed");
+    const phases: Array<{ phase: string; pendingDepth: number }> = [];
+    const { shell, terminal, engine, adapter } = await fixture([], [], true, undefined, undefined, undefined,
+      { onEvent: event => phases.push(event) }, undefined, { store, limit: 100 });
+    const notifications = vi.spyOn(shell.root, "addExtensionNotification");
+    const stdout = vi.spyOn(process.stdout, "write"); const stderr = vi.spyOn(process.stderr, "write");
+    const location = resolvePromptHistoryPath(options.dataDir, options.profileRoot);
+    let lock: Awaited<ReturnType<typeof holdHistoryLock>> | undefined;
+    try {
+      await adapter.flushEvents();
+      lock = await holdHistoryLock(location.path);
+      await shell.submit("saved during contention");
+      await vi.waitFor(() => expect(store.diagnostics().failures.busy).toBeGreaterThan(0), { timeout: 2500 });
+      shell.root.editor.setText("draft");
+      terminal.input("\u001b[A"); terminal.input("\u001b[A");
+      await vi.waitFor(() => expect(shell.root.editor.getText()).toBe("saved during contention"));
+      terminal.input("\u001b[B");
+      await vi.waitFor(() => expect(shell.root.editor.getText()).toBe("draft"));
+      terminal.input("\u001b[F"); await nextImmediate();
+      engine.session.isStreaming = true;
+      engine.session.emit({ type: "agent_start" });
+      const messages = Array.from({ length: 16 }, (_, index) => ({ role: "assistant", timestamp: index + 100, content: [{ type: "text", text: "" }] }));
+      const tools = Array.from({ length: 16 }, (_, index) => ({ id: `load-${index}`, text: "" }));
+      for (let burst = 0; burst < 8; burst++) {
+        for (let offset = 0; offset < 2048; offset++) {
+          const index = burst * 2048 + offset;
+          if (index % 32 < 16) {
+            const message = messages[index % 16]!; message.content[0]!.text += ` ${index}`;
+            engine.session.emit({ type: "message_update", message });
+          } else {
+            const tool = tools[index % 16]!; tool.text += ` ${index}`;
+            engine.session.emit({ type: "tool_execution_update", toolCallId: tool.id, toolName: "bash", partialResult: { content: [{ type: "text", text: tool.text }] } });
+          }
+        }
+        terminal.input("x"); terminal.input("\u001b[<35;10;3M");
+        await nextImmediate(); shell.runtime.renderNow();
+        expect(shell.root.editor.getText()).toBe(`draft${"x".repeat(burst + 1)}`);
+      }
+      terminal.input("\u001b"); await vi.waitFor(() => expect(engine.session.calls).toContain("abort"));
+      for (const message of messages) engine.session.emit({ type: "message_end", message });
+      for (const tool of tools) engine.session.emit({ type: "tool_execution_end", toolCallId: tool.id, toolName: "bash", result: { content: [{ type: "text", text: tool.text }] } });
+      engine.session.emit({ type: "agent_settled" });
+      await adapter.flushEvents(); await nextImmediate(); shell.runtime.renderNow();
+      expect(adapter.view().transcript.map(block => block.text).sort()).toEqual([...messages.map(message => message.content[0]!.text), ...tools.map(tool => tool.text)].sort());
+      expect(adapter.view().lifecycle).toBe("ready");
+      expect(phases.at(-1)?.pendingDepth).toBe(0);
+      expect(adapter.deliveryDiagnostics().superseded).toBeGreaterThan(15_000);
+      expect(adapter.deliveryDiagnostics()).toMatchObject({ overloads: 0, pending: 0, bytes: 0 });
+      expect(adapter.deliveryDiagnostics().peakNodes).toBeLessThanOrEqual(1024);
+      expect(adapter.deliveryDiagnostics().peakBytes).toBeLessThanOrEqual(8 * 1024 * 1024);
+      await lock.released;
+      await vi.waitFor(() => expect(store.diagnostics().pending).toBe(0), { timeout: 10_000 });
+      const saved = new PromptHistoryStore(location.path, location.profileId, 100);
+      try { expect(saved.snapshot().entries.map(entry => entry.text)).toEqual(["saved during contention", "saved seed"]); }
+      finally { saved.close(); }
+      expect(store.diagnostics().recoveries).toBeGreaterThan(0);
+      expect(store.diagnostics().timers).toBeLessThanOrEqual(3);
+      await shell.dispose();
+      expect(store.diagnostics()).toMatchObject({ state: "closed", pending: 0, timers: 0 });
+      expect(notifications).not.toHaveBeenCalled();
+      const output = JSON.stringify([terminal.writes, adapter.view().status, adapter.view().diagnostics, stdout.mock.calls, stderr.mock.calls]);
+      expect(output).not.toMatch(/prompt history|backpressure|coalesc|recover(y|ing)|could not finish saving/i);
+      expect(stdout).not.toHaveBeenCalled(); expect(stderr).not.toHaveBeenCalled();
+    } finally {
+      stdout.mockRestore(); stderr.mockRestore();
+      await lock?.stop(); await shell.dispose(); await store.close();
+      await rm(root, { recursive: true, force: true });
+    }
+  }, 20_000);
+
   it.each(["shortcut", "terminal", "right-click"])("renders large text as one chip through %s and records the full prompt", async gesture => {
     const history = memoryHistory();
     const payload = Array.from({ length: 136 }, (_, index) => `line ${index} 日本語 [paste #999 1001 chars]`).join("\n");
@@ -2912,6 +2989,23 @@ describe("OwnedUiSessionShell", () => {
   });
 
 
+  it("does not apply a queued partial after a full-view final presentation preempts it", async () => {
+    const { shell, adapter, engine } = await fixture([], [], true);
+    try {
+      const message = { role: "assistant", timestamp: 100, content: [{ type: "text", text: "obsolete partial" }] };
+      engine.session.emit({ type: "message_update", message });
+      const partial = adapter.view().transcript[0]!;
+      message.content[0]!.text = "complete final content";
+      engine.session.emit({ type: "message_end", message });
+      shell.root.update(adapter.view());
+      shell.root.applyTranscriptBlock(partial);
+      shell.runtime.renderNow();
+      expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("complete final content");
+      expect(stripTerminalSequences(shell.root.render(100).join("\n"))).not.toContain("obsolete partial");
+      await adapter.flushEvents();
+    } finally { await shell.dispose(); }
+  });
+
   it("applies a streamed chunk through the named block and keeps the document in order", async () => {
     const { engine, adapter, shell } = await fixture();
     const rowsOf = () => shell.root.render(80).map(row => stripTerminalSequences(row).trimEnd());
@@ -3183,6 +3277,42 @@ describe("OwnedUiSessionShell", () => {
     terminal.input("\x1b");
     expect(shell.root.usesDefaultInputSurface()).toBe(true);
     await shell.dispose();
+  });
+
+  it("retains the draft and local-only recall through exceptional delivery reconciliation", async () => {
+    const history = memoryHistory();
+    vi.mocked(history.store.record).mockResolvedValue("skipped");
+    const { shell, terminal, adapter, engine } = await fixture([], [], true, undefined, undefined, undefined, undefined, undefined,
+      { store: history.store, limit: 100 });
+    try {
+      await shell.submit("local survivor"); shell.root.editor.setText("draft");
+      await adapter.flushEvents();
+      const binding = adapter.sessionBindingGeneration;
+      for (let index = 0; index < 2048; index++) engine.session.emit({ type: "agent_start" });
+      await expect(adapter.flushEvents()).rejects.toThrow("Engine delivery did not complete");
+      expect(adapter.sessionBindingGeneration).toBe(binding);
+      expect(shell.root.editor.getText()).toBe("draft");
+      terminal.input("\u001b[A"); terminal.input("\u001b[A");
+      await vi.waitFor(() => expect(shell.root.editor.getText()).toBe("local survivor"));
+      terminal.input("\u001b[B");
+      await vi.waitFor(() => expect(shell.root.editor.getText()).toBe("draft"));
+    } finally { await shell.dispose(); }
+  });
+
+  it("keeps every classified history outcome and rejected shutdown out of normal output", async () => {
+    const history = memoryHistory();
+    const { shell, terminal, adapter } = await fixture([], [], true, undefined, undefined, undefined, undefined, undefined,
+      { store: history.store, limit: 100 });
+    const notify = vi.spyOn(shell.root, "addExtensionNotification");
+    vi.mocked(history.store.record).mockResolvedValue("skipped");
+    try {
+      await shell.submit("local only");
+      for (const code of ["busy", "unavailable", "capacity", "oversized", "schema", "corrupt", "shutdown"] as const) history.fail(code);
+      vi.mocked(history.store.close).mockImplementation(async () => { history.fail("shutdown"); throw new Error("private sentinel"); });
+      await shell.dispose();
+      expect(notify).not.toHaveBeenCalled();
+      expect(JSON.stringify([terminal.writes, adapter.view().status, adapter.view().diagnostics])).not.toMatch(/history|private sentinel|recover|capacity|unavailable|shutdown/i);
+    } finally { await shell.dispose(); }
   });
 
   it("captures eligible user input once and never persists replay or workflow navigation", async () => {

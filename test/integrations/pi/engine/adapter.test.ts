@@ -526,7 +526,7 @@ describe("Pi engine adapter", () => {
     const transcript = adapter.view().transcript;
     expect(transcript.find(block => block.kind === "assistant")).toMatchObject({ text: "Hello world", status: "finalized" });
     expect(transcript.find(block => block.kind === "tool-result")).toMatchObject({ status: "finalized", text: "passed" });
-    expect(events.filter(event => event.type === "transcript-block").length).toBeGreaterThanOrEqual(5);
+    expect(events.filter(event => event.type === "transcript-block").length).toBe(4);
     expect(events.filter(event => event.type === "assistant-message-completed")).toEqual([
       expect.objectContaining({
         sessionGeneration: adapter.sessionGeneration,
@@ -567,7 +567,7 @@ describe("Pi engine adapter", () => {
     expect(events.filter(event => event.type === "transcript-block").length).toBe(blockEventsBefore);
   });
 
-  it("reports one block update per streamed chunk", async () => {
+  it("supersedes pending complete block updates without losing accumulated content", async () => {
     const runtime = new FakeRuntime(new FakeSession("pi-session-1"));
     const { adapter, events } = await adapterWithRuntime(runtime);
     const session = runtime.session as FakeSession;
@@ -587,7 +587,7 @@ describe("Pi engine adapter", () => {
     session.emit({ type: "message_update", message: message("one two"), assistantMessageEvent: { delta: " two" } });
     await adapter.flushEvents();
 
-    expect(events.filter(event => event.type === "transcript-block").length - before).toBe(2);
+    expect(events.filter(event => event.type === "transcript-block").length - before).toBe(1);
     expect(adapter.view().transcript.at(-1)?.text).toBe("one two");
   });
 
@@ -844,6 +844,7 @@ describe("Pi engine adapter", () => {
     const runtime = new FakeRuntime(new FakeSession("pi-session-1"));
     const { adapter, events } = await adapterWithRuntime(runtime);
     const session = runtime.session as FakeSession;
+    await adapter.flushEvents();
     const before = events.length;
 
     for (let index = 0; index < 20; index += 1) session.emit({ type: "agent_start" });
@@ -853,17 +854,100 @@ describe("Pi engine adapter", () => {
     await adapter.flushEvents();
   });
 
-  it("coalesces high-rate engine events under a bounded queue without terminal failures", async () => {
+  it("cancels and reconciles protected-only saturation without evicting admitted controls or printing pressure", async () => {
     const runtime = new FakeRuntime(new FakeSession("pi-session-1"));
     const { adapter, events } = await adapterWithRuntime(runtime);
     const session = runtime.session as FakeSession;
 
-    for (let index = 0; index < 2_048; index += 1) session.emit({ type: "agent_start" });
     await adapter.flushEvents();
+    for (let index = 0; index < 2_048; index += 1) session.emit({ type: "agent_start" });
+    expect(await adapter.execute(command("abort", "during-overload"))).toEqual({ outcome: "rejected", diagnostic: null });
+    expect(await adapter.executeWorkflow({ command: "quit", argument: "" })).toMatchObject({ outcome: "cancelled", message: "", messageKind: "silent" });
+    await expect(adapter.flushEvents()).rejects.toThrow("Engine delivery did not complete");
 
     expect(events.length).toBeLessThanOrEqual(1_100);
-    expect(adapter.view().diagnostics.some(diagnostic => diagnostic.code === "event-backpressure")).toBe(true);
-    expect(adapter.view().lifecycle).toBe("busy");
+    expect(events.filter(event => event.type === "agent-run-started")).toHaveLength(512);
+    expect(adapter.deliveryDiagnostics()).toMatchObject({ overloads: 1, pending: 0, bytes: 0, recovering: false });
+    expect(adapter.view().diagnostics.some(diagnostic => diagnostic.code === "event-backpressure")).toBe(false);
+    expect(adapter.view().status.diagnostics).toEqual(["runtime ready", "service warning"]);
+    expect(session.calls).toContain("abort");
+    expect(adapter.view().lifecycle).toBe("ready");
+    await adapter.flushEvents();
+  });
+
+  it("delivers a 16,384-update burst across 32 blocks with final content and no exceptional recovery", async () => {
+    const runtime = new FakeRuntime(new FakeSession("pi-session-1"));
+    const { adapter, events } = await adapterWithRuntime(runtime);
+    const session = runtime.session as FakeSession;
+    const messages = Array.from({ length: 32 }, (_, index) => ({ role: "assistant", timestamp: index + 100, content: [{ type: "text", text: "" }] }));
+    for (let index = 0; index < 16_384; index++) {
+      const message = messages[index % 32]!;
+      message.content[0]!.text += ` ${index}`;
+      session.emit({ type: "message_update", message });
+      if (index % 2048 === 2047) session.emit({ type: "queue_update", steering: [], followUp: [] });
+    }
+    for (const message of messages) session.emit({ type: "message_end", message });
+    await adapter.flushEvents();
+    expect(adapter.deliveryDiagnostics().superseded).toBeGreaterThan(16_000);
+    expect(adapter.deliveryDiagnostics().overloads).toBe(0);
+    expect(adapter.deliveryDiagnostics().peakBytes).toBeLessThanOrEqual(8 * 1024 * 1024);
+    for (const message of messages) expect(adapter.view().transcript.some(block => block.text === message.content[0]!.text)).toBe(true);
+    const sequences = events.map(event => event.sequence);
+    expect(sequences).toEqual([...sequences].sort((a, b) => a - b));
+    expect(events.filter(event => event.type === "assistant-message-completed")).toHaveLength(32);
+    expect(adapter.view().status.diagnostics).toEqual(["runtime ready", "service warning"]);
+  });
+
+  it("settles a stalled admitted command exactly once on saturation without fabricating success", async () => {
+    const runtime = new FakeRuntime(new FakeSession("pi-session-1"));
+    const { adapter, events } = await adapterWithRuntime(runtime);
+    const session = runtime.session as FakeSession;
+    let finish!: () => void;
+    session.prompt = async () => new Promise<void>(resolve => { finish = resolve; });
+    const pending = adapter.execute(command("prompt", "stalled", { text: "test prompt" }));
+    for (let index = 0; index < 2048; index++) session.emit({ type: "agent_start" });
+    expect(await pending).toEqual({ outcome: "failed", diagnostic: null });
+    await expect(adapter.flushEvents()).rejects.toThrow("Engine delivery did not complete");
+    expect(adapter.view().lifecycle).toBe("failed");
+    expect(events.filter(event => event.type === "command-outcome" && event.correlationId === "stalled").map(event => event.type === "command-outcome" && event.outcome)).toEqual(["accepted", "failed"]);
+    finish(); await new Promise<void>(resolve => setImmediate(resolve));
+    await adapter.flushEvents();
+    expect(adapter.deliveryDiagnostics().pendingCommands).toBe(0);
+    expect(adapter.deliveryDiagnostics().reservedOutcomes).toBe(0);
+  });
+
+  it("invalidates queued state and settles old operations when a session is replaced", async () => {
+    const runtime = new FakeRuntime(new FakeSession("old"));
+    const { adapter, events } = await adapterWithRuntime(runtime);
+    const old = runtime.session as FakeSession;
+    let finish!: () => void;
+    old.prompt = async () => new Promise<void>(resolve => { finish = resolve; });
+    const pending = adapter.execute(command("prompt", "old-prompt", { text: "old prompt" }));
+    old.emit({ type: "message_update", message: { role: "assistant", timestamp: 1, content: [{ type: "text", text: "old".repeat(100_000) }] } });
+    const start = events.length;
+    expect((await adapter.execute(command("new-session", "replace"))).outcome).toBe("completed");
+    expect((await pending).outcome).toBe("failed");
+    await adapter.flushEvents();
+    expect(adapter.view().transcript).toEqual([]);
+    expect(events.slice(start).filter(event => event.type === "transcript-block")).toEqual([]);
+    finish(); old.emit({ type: "agent_start" }); await adapter.flushEvents();
+    expect(adapter.view().lifecycle).toBe("ready");
+  });
+
+  it("contains listener failure and supports reentrant production with explicit flush failure", async () => {
+    const runtime = new FakeRuntime(new FakeSession("pi-session-1"));
+    const { adapter } = await adapterWithRuntime(runtime);
+    const session = runtime.session as FakeSession;
+    let reentered = false;
+    const detach = adapter.onEvent(event => {
+      if (event.type !== "transcript-block") return;
+      if (!reentered) { reentered = true; session.emit({ type: "agent_start" }); }
+      throw new Error("listener failed");
+    });
+    session.emit({ type: "message_update", message: { role: "assistant", timestamp: 1, content: [{ type: "text", text: "test" }] } });
+    await expect(adapter.flushEvents()).rejects.toThrow("Engine delivery did not complete");
+    expect(reentered).toBe(true); detach();
+    await adapter.flushEvents();
   });
 
   it("fails startup without producing a partial session and resets transient state on replacement", async () => {

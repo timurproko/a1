@@ -22,15 +22,13 @@ export class PromptHistoryController {
     fallback: readonly string[];
     active(): boolean;
     render(): void;
-    failure(message: string): void;
   }) {
     if (options.editor.recall === undefined) throw new Error("The selected editor does not expose typed history");
     this.#snapshot = { revision: 0, limit: options.limit, entries: [] };
     this.#fallback = boundedTexts([...options.fallback].reverse(), options.limit);
     this.#unsubscribeSnapshot = this.#subscribeSnapshot();
-    this.#unsubscribeFailure = options.store.onFailure(code => {
+    this.#unsubscribeFailure = options.store.onFailure(() => {
       if (this.#disposed) this.#closeFailed = true;
-      else options.failure(`Prompt history ${code}; current-session recall remains available.`);
     });
     this.#unsubscribe = [
       options.editor.recall.observe(() => {
@@ -58,9 +56,7 @@ export class PromptHistoryController {
       local.committed = true;
       if (this.#snapshot.entries.some(entry => entry.submissionId === id)) this.#local.delete(id);
       this.synchronize();
-    }).catch(() => {
-      if (!this.#disposed) this.options.failure("Prompt history unavailable; current-session recall remains available.");
-    });
+    }).catch(() => { /* Security: background storage cannot publish user notifications. Local recall remains honest. */ });
   }
 
   rememberRecovery(text: string): void {
@@ -109,7 +105,7 @@ export class PromptHistoryController {
       if (this.#disposed || generation !== this.#generation || snapshot.revision < this.#snapshot.revision) return;
       this.#snapshot = snapshot;
       for (const [id, entry] of this.#local) {
-        if (entry.committed) this.#local.delete(id);
+        if (entry.committed || snapshot.entries.some(saved => saved.submissionId === id)) this.#local.delete(id);
       }
       this.synchronize();
     });

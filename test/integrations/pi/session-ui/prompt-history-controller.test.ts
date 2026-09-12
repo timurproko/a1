@@ -26,7 +26,7 @@ describe("history snapshot lifecycle", () => {
         record: () => new Promise(resolve => { resolveWrite = resolve; }),
       };
       const input = await editor(root);
-      controller = new PromptHistoryController({ editor: input, store, limit: 100, fallback: ["loaded"], active: () => true, render() {}, failure() {} });
+      controller = new PromptHistoryController({ editor: input, store, limit: 100, fallback: ["loaded"], active: () => true, render() {} });
       input.setText("draft");
       controller.capture("old input", "prompt", root, "old-session");
       controller.reset(["new fallback"]);
@@ -53,7 +53,7 @@ describe("history snapshot lifecycle", () => {
       const candidate: PromptHistorySubmission = { id: "restart", text, timestamp: 1, kind: "prompt" };
       expect(await first.record(candidate)).toBe("committed"); await first.close();
       const input = await editor(root);
-      controller = new PromptHistoryController({ editor: input, store: second, limit: 100, fallback: [], active: () => true, render() {}, failure: message => { throw new Error(message); } });
+      controller = new PromptHistoryController({ editor: input, store: second, limit: 100, fallback: [], active: () => true, render() {} });
       controller.start();
       await vi.waitFor(() => expect(input.recall?.position().total).toBe(1));
       input.handleInput?.("\x1b[A");
