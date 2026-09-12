@@ -228,6 +228,9 @@ describe("transcript viewport", () => {
     expect(() => assertTranscriptViewportFrameDescriptor({ ...valid, nextDocumentRange: { start: -1, end: 7 } })).toThrow(/next document range/);
     expect(() => assertTranscriptViewportFrameDescriptor({ ...valid, selectionRevision: -1 })).toThrow(/selection revision/);
     expect(() => assertTranscriptViewportFrameDescriptor({ ...valid, selectionDamagedRows: [2, 2] })).toThrow(/selection damage/);
+    for (const liveTailRows of [-1, 1.5, 5, Number.NaN]) {
+      expect(() => assertTranscriptViewportFrameDescriptor({ ...valid, liveTailRows })).toThrow(/live tail/);
+    }
   });
 
   it("keeps a detached row fixed while output grows and resumes at the end", () => {

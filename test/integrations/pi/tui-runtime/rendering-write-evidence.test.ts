@@ -41,7 +41,7 @@ function fixture() {
 
 async function matrix(result: RenderingProducerResult): Promise<RenderingMatrixResult> {
   return {
-    schema: "a1-rendering-stability-matrix-v1", workloadId: "link-bearing-prose", geometry: { columns: 40, rows: 8 },
+    schema: "a1-rendering-stability-matrix-v1", workloadId: "streamed-prose", geometry: { columns: 40, rows: 8 },
     defaultMode: [await summarizeRenderingProducer(result, "regular")], fullscreenMode: [],
     comparisonSemanticParity: { regular: true, fullscreen: true },
     findings: { customViewportMaximumRowClearsPerStreamCheckpoint: 0, customViewportUnexpectedFullScreenClears: 0, safeShiftCheckpoints: [], dockGeometry: [] },
@@ -49,7 +49,7 @@ async function matrix(result: RenderingProducerResult): Promise<RenderingMatrixR
 }
 
 describe("write-local rendering evidence", () => {
-  it("keeps an allowed cleanup associated with its write after a cursor-only frame overwrites lastDecision", async () => {
+  it("keeps a bounded cleanup associated with its write after a cursor-only frame overwrites lastDecision", async () => {
     const { adapter, result } = fixture();
     adapter.requestHyperlinkCleanup();
     adapter.arm(descriptor(2), SAFE);
@@ -60,9 +60,9 @@ describe("write-local rendering evidence", () => {
 
     const captured = await matrix(result());
     const settled = captured.defaultMode[0]!.checkpoints[1]!;
-    expect(settled.paint.fullScreenClears).toBe(1);
+    expect(settled.paint.fullScreenClears).toBe(0);
     expect(settled.writePaints?.map(write => [write.writeIndex, write.paint.fullScreenClears, write.damageDecision?.reason]))
-      .toEqual([[1, 1, "hyperlink-cleanup"], [2, 0, "unsafe-frame"]]);
+      .toEqual([[1, 0, "hyperlink-cleanup"], [2, 0, "unsafe-frame"]]);
     expect(evaluateRenderingBudgets(captured)).toEqual({ passed: true, violations: [] });
   });
 
@@ -79,8 +79,13 @@ describe("write-local rendering evidence", () => {
     expect(adapter.lastDecision.reason).toBe("hyperlink-cleanup");
     const captured = await matrix(result());
     const violations = evaluateRenderingBudgets(captured).violations;
-    expect(violations).toHaveLength(1);
-    expect(violations[0]).toContain(`/write-${order === "before" ? 1 : 2}: unexpected full-screen clear`);
+    const label = "streamed-prose/bare-a1/regular/link-tail-settled";
+    expect(violations).toEqual([
+      // Invariant: a bypassed direct clear can also leave a blank frame now that
+      // legitimate cleanup no longer republishes unrelated unchanged rows.
+      ...(order === "before" ? [`${label}: blank final cell frame`] : []),
+      `${label}/write-${order === "before" ? 1 : 2}: unexpected full-screen clear`,
+    ]);
   });
 
   it("does not use a checkpoint-level cleanup label when the clearing write lacks attribution", async () => {
@@ -89,10 +94,12 @@ describe("write-local rendering evidence", () => {
     adapter.arm(descriptor(2), SAFE);
     adapter.write(rowsWrite(ROWS));
     const raw = result();
-    const captured = await matrix({ ...raw, writes: raw.writes.map(({ damageDecision: _decision, ...write }) => write) });
+    const captured = await matrix({ ...raw, writes: raw.writes.map(({ damageDecision: _decision, ...write }, index) => index !== 1 ? write : {
+      ...write, data: rowsWrite(ROWS).replace("\u001b[?2026h", "\u001b[?2026h\u001b[2J"),
+    }) });
     expect(captured.defaultMode[0]!.checkpoints[1]!.damageDecision?.reason).toBe("hyperlink-cleanup");
     expect(evaluateRenderingBudgets(captured).violations).toEqual([
-      "link-bearing-prose/bare-a1/regular/link-tail-settled/write-1: unexpected full-screen clear",
+      "streamed-prose/bare-a1/regular/link-tail-settled/write-1: unexpected full-screen clear",
     ]);
   });
 
@@ -108,7 +115,7 @@ describe("write-local rendering evidence", () => {
       ...checkpoint, writePaints: checkpoint.writePaints!.slice(1),
     }) }] };
     expect(evaluateRenderingBudgets(corrupted).violations).toEqual([
-      "link-bearing-prose/bare-a1/regular/link-tail-settled: missing or inconsistent per-write paint evidence",
+      "streamed-prose/bare-a1/regular/link-tail-settled: missing or inconsistent per-write paint evidence",
     ]);
   });
 
@@ -125,20 +132,29 @@ describe("write-local rendering evidence", () => {
       ...write, damageDecision: { ...write.damageDecision!, shiftRows: 3, paintedRows: [] },
     }) };
     expect(evaluateRenderingBudgets(await matrix(corrupted)).violations).toEqual([
-      "link-bearing-prose/bare-a1/regular/link-tail-settled/write-1: transformed shift disagrees with terminal movement",
-      "link-bearing-prose/bare-a1/regular/link-tail-settled/write-1: transformed paint cleared undeclared rows",
-      "link-bearing-prose/bare-a1/regular/link-tail-settled/write-1: transformed paint addressed undeclared rows",
+      "streamed-prose/bare-a1/regular/link-tail-settled/write-1: transformed shift disagrees with terminal movement",
+      "streamed-prose/bare-a1/regular/link-tail-settled/write-1: transformed paint cleared undeclared rows",
+      "streamed-prose/bare-a1/regular/link-tail-settled/write-1: transformed paint addressed undeclared rows",
     ]);
   });
 
-  it("keeps the existing workload-specific cleanup allowance instead of permitting every clear", async () => {
+  it("rejects cleanup-tagged clears for code and paths while retaining structural resize allowance", async () => {
     const { adapter, result } = fixture();
     adapter.requestHyperlinkCleanup();
     adapter.arm(descriptor(2), SAFE);
     adapter.write(rowsWrite(ROWS));
-    const captured = await matrix(result());
-    expect(evaluateRenderingBudgets({ ...captured, workloadId: "streamed-prose" }).passed).toBe(false);
-    const structural = await matrix(result("resize-structural"));
+    const withClear = (name?: string): RenderingProducerResult => {
+      const raw = result(name);
+      return { ...raw, writes: raw.writes.map((write, index) => index !== 1 ? write : {
+        ...write, data: rowsWrite(ROWS).replace("\u001b[?2026h", "\u001b[?2026h\u001b[2J"),
+      }) };
+    };
+    const captured = await matrix(withClear());
+    for (const workloadId of ["streamed-prose", "streamed-code-block", "link-bearing-prose"]) {
+      expect(evaluateRenderingBudgets({ ...captured, workloadId }).violations
+        .some(message => message.includes("write-1: unexpected full-screen clear"))).toBe(true);
+    }
+    const structural = await matrix(withClear("resize-structural"));
     expect(evaluateRenderingBudgets({ ...structural, workloadId: "resize-during-stream" }).passed).toBe(true);
   });
 
@@ -149,7 +165,8 @@ describe("write-local rendering evidence", () => {
     adapter.write(rowsWrite(ROWS));
     const raw = result();
     const corrupted = { ...raw, writes: raw.writes.map((write, index) => index !== 1 ? write : {
-      ...write, damageDecision: { ...write.damageDecision!, reason: "suppressed-redundant-clear" },
+      ...write, data: rowsWrite(ROWS).replace("\u001b[?2026h", "\u001b[?2026h\u001b[2J"),
+      damageDecision: { ...write.damageDecision!, reason: "suppressed-redundant-clear" },
     }) };
     expect(evaluateRenderingBudgets(await matrix(corrupted)).violations.some(message => message.includes("redundant clear was not suppressed"))).toBe(true);
   });

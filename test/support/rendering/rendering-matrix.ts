@@ -1,6 +1,7 @@
 import {
   classifyTerminalPaint,
   replayTerminalCheckpoints,
+  replayTerminalPaint,
   type TerminalCellFrame,
   type TerminalPaintClassification,
 } from "./terminal-paint-evidence.js";
@@ -45,6 +46,8 @@ export interface RenderingMatrixResult {
   readonly defaultMode: readonly RenderingMatrixProducerResult[];
   readonly fullscreenMode: readonly RenderingMatrixProducerResult[];
   readonly comparisonSemanticParity: { readonly regular: boolean; readonly fullscreen: boolean };
+  /** Code/path workloads replay the same captured bytes under both synchronization models. */
+  readonly synchronizedReplayParity?: boolean;
   readonly findings: {
     readonly customViewportMaximumRowClearsPerStreamCheckpoint: number;
     readonly customViewportUnexpectedFullScreenClears: number;
@@ -82,6 +85,9 @@ export async function runRenderingMatrix(workloadId: string): Promise<RenderingM
       regular: sameTranscript(defaultRaw[1]!, defaultRaw[2]!),
       fullscreen: sameTranscript(fullscreenRaw[1]!, fullscreenRaw[2]!),
     },
+    ...(["streamed-code-block", "link-bearing-prose", "tall-live-tail"].includes(workloadId)
+      ? { synchronizedReplayParity: await compareSynchronizationModels(fullscreenRaw[0]!) }
+      : {}),
     findings: {
       customViewportMaximumRowClearsPerStreamCheckpoint: Math.max(0, ...tailFreeStreamPaint.map(checkpoint => checkpoint.paint.rowClears)),
       customViewportUnexpectedFullScreenClears: streamPaint.reduce((total, checkpoint) => total + checkpoint.paint.fullScreenClears, 0),
@@ -98,6 +104,14 @@ export async function runRenderingMatrix(workloadId: string): Promise<RenderingM
           }]),
     },
   };
+}
+
+/** Reuses captured producer bytes instead of launching duplicate producers for paint replay. */
+async function compareSynchronizationModels(result: RenderingProducerResult): Promise<boolean> {
+  const options = { columns: result.state.columns, rows: result.state.rows };
+  const honored = await replayTerminalPaint(result.writes, { ...options, synchronizedUpdates: "honor" });
+  const ignored = await replayTerminalPaint(result.writes, { ...options, synchronizedUpdates: "ignore" });
+  return JSON.stringify(honored.final) === JSON.stringify(ignored.final);
 }
 
 async function runMode(

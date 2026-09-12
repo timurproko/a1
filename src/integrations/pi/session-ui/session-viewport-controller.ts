@@ -16,8 +16,8 @@ export interface SessionViewportControllerOptions {
   readonly enabled: boolean;
   readonly editor: PiShellEditorPort;
   readonly requestRender: (force?: boolean) => void;
-  readonly requestHyperlinkCleanup?: () => void;
-  /** Whether mutable editor URL chips need an immediate forced repaint on deletion. */
+  readonly requestHyperlinkCleanup?: (rows?: readonly number[]) => void;
+  /** Whether mutable editor URL chips need targeted link-cell cleanup on deletion. */
   readonly hasEditorLinks?: () => boolean;
 }
 
@@ -37,7 +37,7 @@ export class SessionViewportController {
   readonly #editor: PiShellEditorPort;
   readonly #requestRender: (force?: boolean) => void;
   readonly #hasEditorLinks: () => boolean;
-  readonly #requestHyperlinkCleanup: () => void;
+  readonly #requestHyperlinkCleanup: (rows?: readonly number[]) => void;
   readonly #viewport = new TranscriptViewport();
   #config: OwnedUiViewportSettings = {
     scrollbarAppearance: "auto",
@@ -128,8 +128,8 @@ export class SessionViewportController {
       if (this.#hoveredHyperlinkKey !== undefined && next !== this.#hoveredHyperlinkKey) {
         // Platform: Windows Terminal can leave its solid native-hover underline behind
         // when a following viewport moves the link away from a stationary pointer.
-        this.#requestHyperlinkCleanup();
-        this.#requestRender(true);
+        this.#requestHyperlinkCleanup([this.#pointerPosition.row]);
+        this.#requestRender();
       }
       this.#hoveredHyperlinkKey = next;
     }
@@ -202,7 +202,7 @@ export class SessionViewportController {
     // Platform: URL chip deletion must overwrite terminal link cells in the same frame.
     if (EDITOR_LINK_DELETION_INPUTS.has(data) && this.#hasEditorLinks()) {
       this.#requestHyperlinkCleanup();
-      this.#requestRender(true);
+      this.#requestRender();
     }
     // Invariant: content shortcuts never reach the prompt, even before the first frame
     // or when scrolling is a no-op. Plain Home/End remain editor line navigation.
@@ -281,8 +281,7 @@ export class SessionViewportController {
         const nextHyperlink = this.#hyperlinkKeyAt(frame, event.column, event.row);
         if (this.#hoveredHyperlinkKey !== undefined && nextHyperlink !== this.#hoveredHyperlinkKey) {
           // Platform: overwrite Windows Terminal's cached native-hover underline exactly once.
-          this.#requestHyperlinkCleanup();
-          forceRepaint = true;
+          this.#requestHyperlinkCleanup(previousPointer === undefined ? undefined : [previousPointer.row]);
           repaint = true;
         }
         this.#hoveredHyperlinkKey = nextHyperlink;

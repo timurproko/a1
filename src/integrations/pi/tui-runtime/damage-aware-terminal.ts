@@ -94,6 +94,8 @@ export class DamageAwareTerminalAdapter implements PiTuiTerminalPort {
   readonly #rows = new Map<number, string>();
   readonly #links = new Map<number, ReturnType<DamageAwareTerminalOptions["inspectHyperlinks"]>>();
   #cleanupRevision = 0;
+  readonly #cleanupRows = new Set<number>();
+  #cleanupNeedsCompleteFrame = false;
   #cleanedRevision = 0;
   #recoveryRevision = 0;
   #epoch = 0;
@@ -120,8 +122,19 @@ export class DamageAwareTerminalAdapter implements PiTuiTerminalPort {
   get lastDecision(): PiTuiDamageDecision { return this.#decision; }
   get hyperlinkCleanupPending(): boolean { return this.#cleanupRevision > this.#cleanedRevision; }
 
-  /** Latches cleanup through composition/coalescing until a complete write covers it. */
-  requestHyperlinkCleanup(): void { this.#cleanupRevision += 1; }
+  /** Latches the former link rows, including rows whose replacement contains no link. */
+  requestHyperlinkCleanup(rows?: readonly number[]): void {
+    this.#cleanupRevision += 1;
+    if (rows !== undefined) {
+      for (const row of rows) {
+        if (Number.isSafeInteger(row) && row >= 1 && row <= this.rows) this.#cleanupRows.add(row);
+      }
+    } else {
+      // Invariant: no known pointer is not proof of no host-hover decoration. Unscoped
+      // removal/invalidation repairs every previously linked row, not every screen row.
+      for (const [row, state] of this.#links) if (state.ranges.length > 0) this.#cleanupRows.add(row);
+    }
+  }
 
   arm(descriptor: PiTuiDamageFrameDescriptor, safety: PiTuiDamageFrameSafety): void {
     this.#armed = { descriptor, safety };
@@ -141,6 +154,8 @@ export class DamageAwareTerminalAdapter implements PiTuiTerminalPort {
     this.#epoch += 1;
     this.#armed = undefined;
     this.#cleanupRevision = this.#cleanedRevision = this.#recoveryRevision = 0;
+    this.#cleanupRows.clear();
+    this.#cleanupNeedsCompleteFrame = false;
     this.#lastConsumedFrameId = 0;
     this.#invalidateRows();
     this.inner.stop();
@@ -163,24 +178,18 @@ export class DamageAwareTerminalAdapter implements PiTuiTerminalPort {
     if (!sameGeometry || unknownPaint) this.#invalidatePresentation();
     if (unknownPaint && !this.hyperlinkCleanupPending && this.options.inspectHyperlinks(data).ranges.length > 0) {
       this.requestHyperlinkCleanup();
+      this.#cleanupNeedsCompleteFrame = true;
     }
-    if (parsed !== null && !this.hyperlinkCleanupPending) {
-      for (const row of parsed.rows) {
-        const previous = this.#links.get(row.row);
-        if (previous === undefined || this.#rows.get(row.row) === row.content
-          || (previous.replaySafe && previous.ranges.length === 0)) continue;
-        const next = this.options.inspectHyperlinks(row.content);
-        if (previous.ranges.length > 0 && previous.signature !== next.signature) {
-          this.requestHyperlinkCleanup();
-          break;
-        }
-      }
-    }
+    // Invariant: a deliberate same-geometry reset discards presented link state. Ordinary streamed
+    // row changes are not cleanup requests: candidate-looking text is not terminal state.
+    if (sameGeometry && parsed?.structuralPrefix === "\u001b[2J"
+      && hasCompleteScreenRows(parsed.rows, this.rows) && !this.hyperlinkCleanupPending
+      && !this.#hasSameHyperlinkState(parsed.rows)) this.requestHyperlinkCleanup();
     const decision = this.#decide(armed, parsed);
+    const coveredRevision = this.#cleanupRevision;
     const cleanup = this.hyperlinkCleanupPending && parsed !== null
       && (armed === undefined || (armed.descriptor.width === this.columns && armed.descriptor.height === this.rows))
-      ? this.#completeCleanupFrame(parsed) : null;
-    const coveredRevision = this.#cleanupRevision;
+      ? this.#boundedCleanupFrame(parsed) : null;
     const epoch = this.#epoch;
     let output = data;
     if (cleanup !== null) {
@@ -191,18 +200,25 @@ export class DamageAwareTerminalAdapter implements PiTuiTerminalPort {
       };
     } else {
       this.#decision = decision;
-      if (decision.reason === "suppressed-redundant-clear" && parsed !== null) output = buildClearlessWrite(parsed);
-      else if (decision.transformed && armed !== undefined && parsed !== null) {
+      if (decision.reason === "suppressed-redundant-clear" && parsed !== null) {
+        output = buildClearlessWrite(parsed, this.#rows);
+      } else if (decision.transformed && armed !== undefined && parsed !== null) {
         output = buildDamageWrite(parsed, armed.descriptor, new Set(decision.paintedRows), this.#rows);
       }
     }
     this.inner.write(output);
     if (epoch !== this.#epoch
       || (armed !== undefined && this.#lastConsumedFrameId !== armed.descriptor.frameId)) return;
-    // Invariant: cache invalidation follows forwarded bytes, not a clear which
-    // was stripped from the input. A synthesized cleanup publishes every row.
+    // Invariant: cache invalidation follows forwarded bytes, not a suppressed clear.
+    // A bounded cleanup preserves prior rows and publishes all changed or invalidated rows.
     this.#rememberFrame(armed?.descriptor, cleanup ?? parsed, output);
-    if (cleanup !== null) this.#cleanedRevision = Math.max(this.#cleanedRevision, coveredRevision);
+    if (cleanup !== null) {
+      this.#cleanedRevision = Math.max(this.#cleanedRevision, coveredRevision);
+      if (this.#cleanupRevision === coveredRevision) {
+        this.#cleanupRows.clear();
+        this.#cleanupNeedsCompleteFrame = false;
+      }
+    }
     this.#scheduleCleanupRecovery();
   }
 
@@ -254,7 +270,7 @@ export class DamageAwareTerminalAdapter implements PiTuiTerminalPort {
     if (parsed === null) return { ...base, reason: "grammar-mismatch" };
     if (parsed.structuralPrefix.length > 0
       || hasUnsafeTerminalContent(parsed, this.options.inspectHyperlinks, descriptor.transcript)
-      || this.#hasLinkRisk(descriptor.transcript) || this.#hasUnsafeRows(descriptor.transcript)) {
+      || this.#hasExplicitLinkRisk(descriptor.transcript) || this.#hasUnsafeRows(descriptor.transcript)) {
       return { ...base, reason: "unsafe-terminal-content" };
     }
 
@@ -328,10 +344,9 @@ export class DamageAwareTerminalAdapter implements PiTuiTerminalPort {
     });
   }
 
-  #hasLinkRisk(region?: { readonly rowStart: number; readonly rowEnd: number }): boolean {
+  #hasExplicitLinkRisk(region: { readonly rowStart: number; readonly rowEnd: number }): boolean {
     for (const [row, state] of this.#links) {
-      if (region !== undefined && (row < region.rowStart || row > region.rowEnd)) continue;
-      if (state.hasExplicitLink || state.ranges.length > 0) return true;
+      if (row >= region.rowStart && row <= region.rowEnd && state.hasExplicitLink) return true;
     }
     return false;
   }
@@ -343,19 +358,37 @@ export class DamageAwareTerminalAdapter implements PiTuiTerminalPort {
     return false;
   }
 
-  #completeCleanupFrame(parsed: ParsedFullscreenWrite): ParsedFullscreenWrite | null {
-    const desired = parsed.structuralPrefix.length === 0 ? new Map(this.#rows) : new Map<number, string>();
-    for (const row of parsed.rows) desired.set(row.row, row.content);
-    if (desired.size !== this.rows) return null;
+  #boundedCleanupFrame(parsed: ParsedFullscreenWrite): ParsedFullscreenWrite | null {
+    const sameGeometry = this.#cacheWidth === this.columns && this.#cacheHeight === this.rows;
+    const complete = hasCompleteScreenRows(parsed.rows, this.rows);
+    if (this.#cleanupNeedsCompleteFrame && !complete) return null;
+    const suppressReset = sameGeometry && !this.#cleanupNeedsCompleteFrame
+      && parsed.structuralPrefix === "\u001b[2J" && complete;
+    const structuralPrefix = suppressReset ? "" : parsed.structuralPrefix;
+    const desired = structuralPrefix.length === 0 ? new Map(this.#rows) : new Map<number, string>();
+    const dirty = new Set([...this.#cleanupRows].filter(row => row <= this.rows));
+    for (const row of parsed.rows) {
+      if (row.row > this.rows) return null;
+      desired.set(row.row, row.content);
+      if (structuralPrefix.length > 0 || this.#cleanupNeedsCompleteFrame
+        || this.#rows.get(row.row) !== row.content) dirty.add(row.row);
+    }
+    // Invariant: validate all incoming rows before dropping an apparent redundant reset. Unknown
+    // content must pass through unchanged, never become a partially transformed frame.
+    for (const row of parsed.rows) {
+      const state = row.content === this.#rows.get(row.row) ? this.#links.get(row.row) : this.options.inspectHyperlinks(row.content);
+      if (state?.replaySafe !== true || state.width > this.columns) return null;
+    }
     const rows: ParsedRow[] = [];
-    for (let row = 1; row <= this.rows; row += 1) {
+    for (const row of [...dirty].sort((left, right) => left - right)) {
       const content = desired.get(row);
       if (content === undefined) return null;
       const state = content === this.#rows.get(row) ? this.#links.get(row) : this.options.inspectHyperlinks(content);
       if (state?.replaySafe !== true || state.width > this.columns) return null;
       rows.push({ row, content, segment: `\u001b[${row};1H\u001b[2K${content}` });
     }
-    return { structuralPrefix: "\u001b[2J", rows, cursorSuffix: parsed.cursorSuffix };
+    // Invariant: only preserve a structural clear supplied by Pi; cleanup never manufactures one.
+    return { structuralPrefix, rows, cursorSuffix: parsed.cursorSuffix };
   }
 
   #scheduleCleanupRecovery(): void {
@@ -371,7 +404,12 @@ export class DamageAwareTerminalAdapter implements PiTuiTerminalPort {
   }
 
   #invalidatePresentation(): void {
-    if (this.#hasLinkRisk() && !this.hyperlinkCleanupPending) this.requestHyperlinkCleanup();
+    if ([...this.#links.values()].some(state => state.ranges.length > 0) && !this.hyperlinkCleanupPending) {
+      this.requestHyperlinkCleanup();
+    }
+    // Invariant: after unknown paint or geometry loss, exact former row locations are no longer
+    // authoritative. Wait for a complete safe frame instead of guessing a partial repair.
+    if (this.hyperlinkCleanupPending) this.#cleanupNeedsCompleteFrame = true;
     this.#invalidateRows();
   }
 
@@ -419,7 +457,7 @@ function hasUnsafeTerminalContent(
   return parsed.rows.some(row => {
     if (linkRegion !== undefined && (row.row < linkRegion.rowStart || row.row > linkRegion.rowEnd)) return false;
     const state = inspect(row.content);
-    return !state.replaySafe || state.hasExplicitLink || state.ranges.length > 0;
+    return !state.replaySafe || state.hasExplicitLink;
   });
 }
 
@@ -443,13 +481,14 @@ function buildDamageWrite(
   return `${BEGIN_SYNCHRONIZED_OUTPUT}${regionShift}${rowPaint}${parsed.cursorSuffix}`;
 }
 
-/** Keeps the clear and all current rows in the same synchronized transaction. */
+/** Keeps required cleanup rows and current content in one synchronized transaction. */
 function buildCompleteWrite(parsed: ParsedFullscreenWrite): string {
   return `${BEGIN_SYNCHRONIZED_OUTPUT}${parsed.structuralPrefix}${parsed.rows.map(row => row.segment).join("")}${parsed.cursorSuffix}`;
 }
 
-function buildClearlessWrite(parsed: ParsedFullscreenWrite): string {
-  return `${BEGIN_SYNCHRONIZED_OUTPUT}${parsed.rows.map(row => row.segment).join("")}${parsed.cursorSuffix}`;
+function buildClearlessWrite(parsed: ParsedFullscreenWrite, previousRows: ReadonlyMap<number, string>): string {
+  const changed = parsed.rows.filter(row => previousRows.get(row.row) !== row.content);
+  return `${BEGIN_SYNCHRONIZED_OUTPUT}${changed.map(row => row.segment).join("")}${parsed.cursorSuffix}`;
 }
 
 function hasCompleteScreenRows(rows: readonly ParsedRow[], height: number): boolean {

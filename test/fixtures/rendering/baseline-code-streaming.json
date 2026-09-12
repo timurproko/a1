@@ -1,0 +1,3118 @@
+{
+  "schema": "code-streaming-evidence-v1",
+  "phase": "baseline",
+  "sourceCommit": "6c5af810ea78887f3c5dc9774e87211bfa85362d",
+  "productionDiff": [],
+  "repeatedCaptures": 2,
+  "workloads": [
+    {
+      "id": "streamed-code-block",
+      "geometry": {
+        "columns": 48,
+        "rows": 14
+      },
+      "budget": {
+        "passed": false,
+        "violations": [
+          "streamed-code-block/bare-a1/regular/code-chunk-4: unexpected full-screen clear",
+          "streamed-code-block/bare-a1/regular/code-chunk-6: unexpected full-screen clear",
+          "streamed-code-block/bare-a1/regular/code-settled: unexpected full-screen clear",
+          "streamed-code-block/bare-a1/fullscreen/code-chunk-4: unexpected full-screen clear",
+          "streamed-code-block/bare-a1/fullscreen/code-chunk-6: unexpected full-screen clear",
+          "streamed-code-block/bare-a1/fullscreen/code-settled: unexpected full-screen clear",
+          "streamed-code-block/code-chunk-3: link-resembling text blocked bounded painting (unsafe-terminal-content)",
+          "streamed-code-block/code-chunk-3: proven safe shift did not use bounded movement (unsafe-terminal-content)",
+          "streamed-code-block/code-chunk-4: link-resembling text blocked bounded painting (hyperlink-cleanup)",
+          "streamed-code-block/code-chunk-4: proven safe shift did not use bounded movement (hyperlink-cleanup)",
+          "streamed-code-block/code-chunk-6: link-resembling text blocked bounded painting (hyperlink-cleanup)",
+          "streamed-code-block/code-chunk-6: proven safe shift did not use bounded movement (hyperlink-cleanup)",
+          "streamed-code-block/code-settled: link-resembling text blocked bounded painting (hyperlink-cleanup)"
+        ]
+      },
+      "parity": {
+        "regular": true,
+        "fullscreen": true
+      },
+      "producers": [
+        {
+          "producer": "bare-a1",
+          "mode": "regular",
+          "effectiveMode": "fullscreen",
+          "checkpoints": [
+            {
+              "name": "initial",
+              "fullScreenClears": 2,
+              "rowClears": 14,
+              "addressedRows": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14
+              ],
+              "decision": {
+                "frameId": 1,
+                "transformed": false,
+                "shiftRows": 0,
+                "paintedRows": [],
+                "reason": "unsafe-frame"
+              },
+              "cells": "2123cdeae742d2e3d7dcaedb3adb4dfd41e2546b37923cbc4d51a215bac08bed"
+            },
+            {
+              "name": "code-start",
+              "fullScreenClears": 0,
+              "rowClears": 1,
+              "addressedRows": [
+                8
+              ],
+              "decision": {
+                "frameId": 2,
+                "transformed": false,
+                "shiftRows": 0,
+                "paintedRows": [],
+                "reason": "unsafe-frame"
+              },
+              "cells": "3da71d879680e165caf3693271c0d6d060b1ae859b00d10f907ae494dcde1810"
+            },
+            {
+              "name": "code-message-start",
+              "fullScreenClears": 0,
+              "rowClears": 1,
+              "addressedRows": [
+                2
+              ],
+              "decision": {
+                "frameId": 3,
+                "transformed": false,
+                "shiftRows": 0,
+                "paintedRows": [],
+                "reason": "unsafe-frame"
+              },
+              "cells": "9e2a5efd4d16b773060aab06f3eadee79f255b1a7238bae05cb6fc4cb494ee2d"
+            },
+            {
+              "name": "code-chunk-1",
+              "fullScreenClears": 0,
+              "rowClears": 2,
+              "addressedRows": [
+                4,
+                6
+              ],
+              "decision": {
+                "frameId": 4,
+                "transformed": false,
+                "shiftRows": 0,
+                "paintedRows": [],
+                "reason": "unsafe-frame"
+              },
+              "cells": "c7759dc0669c5762aa6fca06f2f81eb055a7289f340a7b53b5c1a20a53a7d3d5"
+            },
+            {
+              "name": "code-chunk-2",
+              "fullScreenClears": 0,
+              "rowClears": 1,
+              "addressedRows": [
+                5
+              ],
+              "decision": {
+                "frameId": 5,
+                "transformed": false,
+                "shiftRows": 0,
+                "paintedRows": [],
+                "reason": "unsafe-frame"
+              },
+              "cells": "333385d7f62cca04a43bcbddf53dd87ecc4c899ed0c99eec95452aeb22685889"
+            },
+            {
+              "name": "code-chunk-3",
+              "fullScreenClears": 0,
+              "rowClears": 7,
+              "addressedRows": [
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8
+              ],
+              "decision": {
+                "frameId": 6,
+                "transformed": false,
+                "shiftRows": 2,
+                "paintedRows": [],
+                "reason": "unsafe-terminal-content"
+              },
+              "cells": "ce3a99b3bba7c09ddf67f82389c2550f678889f124543e80bb860252228b7833"
+            },
+            {
+              "name": "code-chunk-4",
+              "fullScreenClears": 1,
+              "rowClears": 14,
+              "addressedRows": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14
+              ],
+              "decision": {
+                "frameId": 7,
+                "transformed": true,
+                "reason": "hyperlink-cleanup",
+                "shiftRows": 0,
+                "paintedRows": [
+                  1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7,
+                  8,
+                  9,
+                  10,
+                  11,
+                  12,
+                  13,
+                  14
+                ]
+              },
+              "cells": "5c7f1bbcea3f5ec3d87a22a1c58abd1837c802e9e70923e66e32a33137ab95d2"
+            },
+            {
+              "name": "code-chunk-5",
+              "fullScreenClears": 0,
+              "rowClears": 0,
+              "addressedRows": [],
+              "decision": {
+                "frameId": 8,
+                "transformed": false,
+                "shiftRows": 0,
+                "paintedRows": [],
+                "reason": "unsafe-frame"
+              },
+              "cells": "5c7f1bbcea3f5ec3d87a22a1c58abd1837c802e9e70923e66e32a33137ab95d2"
+            },
+            {
+              "name": "code-chunk-6",
+              "fullScreenClears": 1,
+              "rowClears": 14,
+              "addressedRows": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14
+              ],
+              "decision": {
+                "frameId": 9,
+                "transformed": true,
+                "reason": "hyperlink-cleanup",
+                "shiftRows": 0,
+                "paintedRows": [
+                  1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7,
+                  8,
+                  9,
+                  10,
+                  11,
+                  12,
+                  13,
+                  14
+                ]
+              },
+              "cells": "591d5718cb43fe88fb5b8e0fc037cf6fb05c2c0cd1c847f2486fe773bfce86d1"
+            },
+            {
+              "name": "code-complete",
+              "fullScreenClears": 0,
+              "rowClears": 0,
+              "addressedRows": [],
+              "decision": {
+                "frameId": 10,
+                "transformed": false,
+                "shiftRows": 0,
+                "paintedRows": [],
+                "reason": "unsafe-frame"
+              },
+              "cells": "591d5718cb43fe88fb5b8e0fc037cf6fb05c2c0cd1c847f2486fe773bfce86d1"
+            },
+            {
+              "name": "code-settled",
+              "fullScreenClears": 1,
+              "rowClears": 14,
+              "addressedRows": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14
+              ],
+              "decision": {
+                "frameId": 11,
+                "transformed": true,
+                "reason": "hyperlink-cleanup",
+                "shiftRows": 0,
+                "paintedRows": [
+                  1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7,
+                  8,
+                  9,
+                  10,
+                  11,
+                  12,
+                  13,
+                  14
+                ]
+              },
+              "cells": "51659e1823affaefdbcd23631bfcc590e9967d4a2ff542d524feb8a7df943c68"
+            }
+          ]
+        },
+        {
+          "producer": "a1-pi",
+          "mode": "regular",
+          "effectiveMode": "regular",
+          "checkpoints": [
+            {
+              "name": "initial",
+              "fullScreenClears": 0,
+              "rowClears": 0,
+              "addressedRows": [],
+              "decision": null,
+              "cells": "9e083e8835aeaa5c21fbe635426664a220d331689f808ff4dad170a3dcf72ef1"
+            },
+            {
+              "name": "code-start",
+              "fullScreenClears": 0,
+              "rowClears": 7,
+              "addressedRows": [],
+              "decision": null,
+              "cells": "b0f07ce05b8431d01eb73675e8cb0b5c9aa42ca4dcd42eb729a985e2ea8bd1c2"
+            },
+            {
+              "name": "code-message-start",
+              "fullScreenClears": 0,
+              "rowClears": 10,
+              "addressedRows": [],
+              "decision": null,
+              "cells": "9ad0eb17e6005e0d264c47d5c8edbe713c7fce67fce30cf5d3c6e525bb07ba6d"
+            },
+            {
+              "name": "code-chunk-1",
+              "fullScreenClears": 0,
+              "rowClears": 13,
+              "addressedRows": [],
+              "decision": null,
+              "cells": "2370aedb3a6a528b67ab18fa09eb799861b96e62d01c34d2b579c86c34d421f2"
+            },
+            {
+              "name": "code-chunk-2",
+              "fullScreenClears": 0,
+              "rowClears": 1,
+              "addressedRows": [],
+              "decision": null,
+              "cells": "ff658fe23653827181895c24e4ee05c3bc35aa46396588fd9a6f66265ae5ed23"
+            },
+            {
+              "name": "code-chunk-3",
+              "fullScreenClears": 0,
+              "rowClears": 11,
+              "addressedRows": [],
+              "decision": null,
+              "cells": "c33579c774dbc2fd9165561b404722df7643920d1cf166b13ae84e055fd4bf07"
+            },
+            {
+              "name": "code-chunk-4",
+              "fullScreenClears": 0,
+              "rowClears": 10,
+              "addressedRows": [],
+              "decision": null,
+              "cells": "a93a7b9a6f9a9a71dd6eadcbde68db29c872f48e3e966b34175754fa1f09c6dc"
+            },
+            {
+              "name": "code-chunk-5",
+              "fullScreenClears": 0,
+              "rowClears": 0,
+              "addressedRows": [],
+              "decision": null,
+              "cells": "a93a7b9a6f9a9a71dd6eadcbde68db29c872f48e3e966b34175754fa1f09c6dc"
+            },
+            {
+              "name": "code-chunk-6",
+              "fullScreenClears": 0,
+              "rowClears": 11,
+              "addressedRows": [],
+              "decision": null,
+              "cells": "ab4c54c45a8203a7698d2818bc0c99585796258f5e615863e699b2108e18e6a6"
+            },
+            {
+              "name": "code-complete",
+              "fullScreenClears": 0,
+              "rowClears": 0,
+              "addressedRows": [],
+              "decision": null,
+              "cells": "ab4c54c45a8203a7698d2818bc0c99585796258f5e615863e699b2108e18e6a6"
+            },
+            {
+              "name": "code-settled",
+              "fullScreenClears": 0,
+              "rowClears": 7,
+              "addressedRows": [],
+              "decision": null,
+              "cells": "5c59c2b36e3eee1f2d20ab36c0f6c482b8facbbd64d7acce2a00cc64e6cfac2f"
+            }
+          ]
+        },
+        {
+          "producer": "pinned-pi",
+          "mode": "regular",
+          "effectiveMode": "regular",
+          "checkpoints": [
+            {
+              "name": "initial",
+              "fullScreenClears": 0,
+              "rowClears": 0,
+              "addressedRows": [],
+              "decision": null,
+              "cells": "441c243405ec21acb97fdc36affbcdd378f5da77181f787e036d94bccedb8520"
+            },
+            {
+              "name": "code-start",
+              "fullScreenClears": 0,
+              "rowClears": 4,
+              "addressedRows": [],
+              "decision": null,
+              "cells": "7fa12cb2c44ed598d61493676f897861d83f755232e1292f74ce9121d85721fc"
+            },
+            {
+              "name": "code-message-start",
+              "fullScreenClears": 0,
+              "rowClears": 6,
+              "addressedRows": [],
+              "decision": null,
+              "cells": "bdcb527d3f5e4f5328111b2835a089147e2d43cafa6c34f88de041a926e8b796"
+            },
+            {
+              "name": "code-chunk-1",
+              "fullScreenClears": 0,
+              "rowClears": 9,
+              "addressedRows": [],
+              "decision": null,
+              "cells": "ff44513779861de10fd7cac3eba732452971b20ca2944589b5999a882c529bfa"
+            },
+            {
+              "name": "code-chunk-2",
+              "fullScreenClears": 0,
+              "rowClears": 1,
+              "addressedRows": [],
+              "decision": null,
+              "cells": "4ba0efb18ba7ba6d17b797a80bbf6735185dc23ba4a5095e6ca8b57b8f5e0323"
+            },
+            {
+              "name": "code-chunk-3",
+              "fullScreenClears": 0,
+              "rowClears": 7,
+              "addressedRows": [],
+              "decision": null,
+              "cells": "2d5b8b5058a992eaba8345f36013a37779b09907f01d292f3e6f29c20ef9e8f1"
+            },
+            {
+              "name": "code-chunk-4",
+              "fullScreenClears": 0,
+              "rowClears": 6,
+              "addressedRows": [],
+              "decision": null,
+              "cells": "292a338e0a00c884827bfd6f8bb4b0ffd6e5c25b9dee4ed8e806ce674a25af25"
+            },
+            {
+              "name": "code-chunk-5",
+              "fullScreenClears": 0,
+              "rowClears": 0,
+              "addressedRows": [],
+              "decision": null,
+              "cells": "292a338e0a00c884827bfd6f8bb4b0ffd6e5c25b9dee4ed8e806ce674a25af25"
+            },
+            {
+              "name": "code-chunk-6",
+              "fullScreenClears": 0,
+              "rowClears": 7,
+              "addressedRows": [],
+              "decision": null,
+              "cells": "5317a01b0859b15f0aa57bcc69237c32629f31609aab1bf4b24d0708fbb61d18"
+            },
+            {
+              "name": "code-complete",
+              "fullScreenClears": 0,
+              "rowClears": 0,
+              "addressedRows": [],
+              "decision": null,
+              "cells": "5317a01b0859b15f0aa57bcc69237c32629f31609aab1bf4b24d0708fbb61d18"
+            },
+            {
+              "name": "code-settled",
+              "fullScreenClears": 0,
+              "rowClears": 4,
+              "addressedRows": [],
+              "decision": null,
+              "cells": "8b289b99845263956096762d99333d11fb9fd3be0470e79e518734623b5764e0"
+            }
+          ]
+        },
+        {
+          "producer": "bare-a1",
+          "mode": "fullscreen",
+          "effectiveMode": "fullscreen",
+          "checkpoints": [
+            {
+              "name": "initial",
+              "fullScreenClears": 2,
+              "rowClears": 14,
+              "addressedRows": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14
+              ],
+              "decision": {
+                "frameId": 1,
+                "transformed": false,
+                "shiftRows": 0,
+                "paintedRows": [],
+                "reason": "unsafe-frame"
+              },
+              "cells": "2123cdeae742d2e3d7dcaedb3adb4dfd41e2546b37923cbc4d51a215bac08bed"
+            },
+            {
+              "name": "code-start",
+              "fullScreenClears": 0,
+              "rowClears": 1,
+              "addressedRows": [
+                8
+              ],
+              "decision": {
+                "frameId": 2,
+                "transformed": false,
+                "shiftRows": 0,
+                "paintedRows": [],
+                "reason": "unsafe-frame"
+              },
+              "cells": "3da71d879680e165caf3693271c0d6d060b1ae859b00d10f907ae494dcde1810"
+            },
+            {
+              "name": "code-message-start",
+              "fullScreenClears": 0,
+              "rowClears": 1,
+              "addressedRows": [
+                2
+              ],
+              "decision": {
+                "frameId": 3,
+                "transformed": false,
+                "shiftRows": 0,
+                "paintedRows": [],
+                "reason": "unsafe-frame"
+              },
+              "cells": "9e2a5efd4d16b773060aab06f3eadee79f255b1a7238bae05cb6fc4cb494ee2d"
+            },
+            {
+              "name": "code-chunk-1",
+              "fullScreenClears": 0,
+              "rowClears": 2,
+              "addressedRows": [
+                4,
+                6
+              ],
+              "decision": {
+                "frameId": 4,
+                "transformed": false,
+                "shiftRows": 0,
+                "paintedRows": [],
+                "reason": "unsafe-frame"
+              },
+              "cells": "c7759dc0669c5762aa6fca06f2f81eb055a7289f340a7b53b5c1a20a53a7d3d5"
+            },
+            {
+              "name": "code-chunk-2",
+              "fullScreenClears": 0,
+              "rowClears": 1,
+              "addressedRows": [
+                5
+              ],
+              "decision": {
+                "frameId": 5,
+                "transformed": false,
+                "shiftRows": 0,
+                "paintedRows": [],
+                "reason": "unsafe-frame"
+              },
+              "cells": "333385d7f62cca04a43bcbddf53dd87ecc4c899ed0c99eec95452aeb22685889"
+            },
+            {
+              "name": "code-chunk-3",
+              "fullScreenClears": 0,
+              "rowClears": 7,
+              "addressedRows": [
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8
+              ],
+              "decision": {
+                "frameId": 6,
+                "transformed": false,
+                "shiftRows": 2,
+                "paintedRows": [],
+                "reason": "unsafe-terminal-content"
+              },
+              "cells": "ce3a99b3bba7c09ddf67f82389c2550f678889f124543e80bb860252228b7833"
+            },
+            {
+              "name": "code-chunk-4",
+              "fullScreenClears": 1,
+              "rowClears": 14,
+              "addressedRows": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14
+              ],
+              "decision": {
+                "frameId": 7,
+                "transformed": true,
+                "reason": "hyperlink-cleanup",
+                "shiftRows": 0,
+                "paintedRows": [
+                  1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7,
+                  8,
+                  9,
+                  10,
+                  11,
+                  12,
+                  13,
+                  14
+                ]
+              },
+              "cells": "5c7f1bbcea3f5ec3d87a22a1c58abd1837c802e9e70923e66e32a33137ab95d2"
+            },
+            {
+              "name": "code-chunk-5",
+              "fullScreenClears": 0,
+              "rowClears": 0,
+              "addressedRows": [],
+              "decision": {
+                "frameId": 8,
+                "transformed": false,
+                "shiftRows": 0,
+                "paintedRows": [],
+                "reason": "unsafe-frame"
+              },
+              "cells": "5c7f1bbcea3f5ec3d87a22a1c58abd1837c802e9e70923e66e32a33137ab95d2"
+            },
+            {
+              "name": "code-chunk-6",
+              "fullScreenClears": 1,
+              "rowClears": 14,
+              "addressedRows": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14
+              ],
+              "decision": {
+                "frameId": 9,
+                "transformed": true,
+                "reason": "hyperlink-cleanup",
+                "shiftRows": 0,
+                "paintedRows": [
+                  1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7,
+                  8,
+                  9,
+                  10,
+                  11,
+                  12,
+                  13,
+                  14
+                ]
+              },
+              "cells": "591d5718cb43fe88fb5b8e0fc037cf6fb05c2c0cd1c847f2486fe773bfce86d1"
+            },
+            {
+              "name": "code-complete",
+              "fullScreenClears": 0,
+              "rowClears": 0,
+              "addressedRows": [],
+              "decision": {
+                "frameId": 10,
+                "transformed": false,
+                "shiftRows": 0,
+                "paintedRows": [],
+                "reason": "unsafe-frame"
+              },
+              "cells": "591d5718cb43fe88fb5b8e0fc037cf6fb05c2c0cd1c847f2486fe773bfce86d1"
+            },
+            {
+              "name": "code-settled",
+              "fullScreenClears": 1,
+              "rowClears": 14,
+              "addressedRows": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14
+              ],
+              "decision": {
+                "frameId": 11,
+                "transformed": true,
+                "reason": "hyperlink-cleanup",
+                "shiftRows": 0,
+                "paintedRows": [
+                  1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7,
+                  8,
+                  9,
+                  10,
+                  11,
+                  12,
+                  13,
+                  14
+                ]
+              },
+              "cells": "51659e1823affaefdbcd23631bfcc590e9967d4a2ff542d524feb8a7df943c68"
+            }
+          ]
+        },
+        {
+          "producer": "a1-pi",
+          "mode": "fullscreen",
+          "effectiveMode": "fullscreen",
+          "checkpoints": [
+            {
+              "name": "initial",
+              "fullScreenClears": 2,
+              "rowClears": 14,
+              "addressedRows": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14
+              ],
+              "decision": null,
+              "cells": "9e083e8835aeaa5c21fbe635426664a220d331689f808ff4dad170a3dcf72ef1"
+            },
+            {
+              "name": "code-start",
+              "fullScreenClears": 0,
+              "rowClears": 8,
+              "addressedRows": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8
+              ],
+              "decision": null,
+              "cells": "b0f07ce05b8431d01eb73675e8cb0b5c9aa42ca4dcd42eb729a985e2ea8bd1c2"
+            },
+            {
+              "name": "code-message-start",
+              "fullScreenClears": 0,
+              "rowClears": 6,
+              "addressedRows": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6
+              ],
+              "decision": null,
+              "cells": "9ad0eb17e6005e0d264c47d5c8edbe713c7fce67fce30cf5d3c6e525bb07ba6d"
+            },
+            {
+              "name": "code-chunk-1",
+              "fullScreenClears": 0,
+              "rowClears": 6,
+              "addressedRows": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6
+              ],
+              "decision": null,
+              "cells": "2370aedb3a6a528b67ab18fa09eb799861b96e62d01c34d2b579c86c34d421f2"
+            },
+            {
+              "name": "code-chunk-2",
+              "fullScreenClears": 0,
+              "rowClears": 1,
+              "addressedRows": [
+                5
+              ],
+              "decision": null,
+              "cells": "ff658fe23653827181895c24e4ee05c3bc35aa46396588fd9a6f66265ae5ed23"
+            },
+            {
+              "name": "code-chunk-3",
+              "fullScreenClears": 0,
+              "rowClears": 5,
+              "addressedRows": [
+                1,
+                2,
+                3,
+                4,
+                5
+              ],
+              "decision": null,
+              "cells": "c33579c774dbc2fd9165561b404722df7643920d1cf166b13ae84e055fd4bf07"
+            },
+            {
+              "name": "code-chunk-4",
+              "fullScreenClears": 0,
+              "rowClears": 5,
+              "addressedRows": [
+                1,
+                2,
+                3,
+                4,
+                5
+              ],
+              "decision": null,
+              "cells": "a93a7b9a6f9a9a71dd6eadcbde68db29c872f48e3e966b34175754fa1f09c6dc"
+            },
+            {
+              "name": "code-chunk-5",
+              "fullScreenClears": 0,
+              "rowClears": 0,
+              "addressedRows": [],
+              "decision": null,
+              "cells": "a93a7b9a6f9a9a71dd6eadcbde68db29c872f48e3e966b34175754fa1f09c6dc"
+            },
+            {
+              "name": "code-chunk-6",
+              "fullScreenClears": 0,
+              "rowClears": 6,
+              "addressedRows": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6
+              ],
+              "decision": null,
+              "cells": "ab4c54c45a8203a7698d2818bc0c99585796258f5e615863e699b2108e18e6a6"
+            },
+            {
+              "name": "code-complete",
+              "fullScreenClears": 0,
+              "rowClears": 0,
+              "addressedRows": [],
+              "decision": null,
+              "cells": "ab4c54c45a8203a7698d2818bc0c99585796258f5e615863e699b2108e18e6a6"
+            },
+            {
+              "name": "code-settled",
+              "fullScreenClears": 0,
+              "rowClears": 8,
+              "addressedRows": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8
+              ],
+              "decision": null,
+              "cells": "073a796feef320d661eb60734519156de2ee8575ac9acd01136aefe22fc2adb0"
+            }
+          ]
+        },
+        {
+          "producer": "pinned-pi",
+          "mode": "fullscreen",
+          "effectiveMode": "fullscreen",
+          "checkpoints": [
+            {
+              "name": "initial",
+              "fullScreenClears": 2,
+              "rowClears": 14,
+              "addressedRows": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14
+              ],
+              "decision": null,
+              "cells": "30c2c01b1641979a16b2752965c483f4f2c702fd9c328b2496e2c476dfd01287"
+            },
+            {
+              "name": "code-start",
+              "fullScreenClears": 0,
+              "rowClears": 4,
+              "addressedRows": [
+                1,
+                2,
+                3,
+                4
+              ],
+              "decision": null,
+              "cells": "7fa12cb2c44ed598d61493676f897861d83f755232e1292f74ce9121d85721fc"
+            },
+            {
+              "name": "code-message-start",
+              "fullScreenClears": 0,
+              "rowClears": 6,
+              "addressedRows": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6
+              ],
+              "decision": null,
+              "cells": "bdcb527d3f5e4f5328111b2835a089147e2d43cafa6c34f88de041a926e8b796"
+            },
+            {
+              "name": "code-chunk-1",
+              "fullScreenClears": 0,
+              "rowClears": 8,
+              "addressedRows": [
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "decision": null,
+              "cells": "ff44513779861de10fd7cac3eba732452971b20ca2944589b5999a882c529bfa"
+            },
+            {
+              "name": "code-chunk-2",
+              "fullScreenClears": 0,
+              "rowClears": 1,
+              "addressedRows": [
+                5
+              ],
+              "decision": null,
+              "cells": "4ba0efb18ba7ba6d17b797a80bbf6735185dc23ba4a5095e6ca8b57b8f5e0323"
+            },
+            {
+              "name": "code-chunk-3",
+              "fullScreenClears": 0,
+              "rowClears": 7,
+              "addressedRows": [
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12
+              ],
+              "decision": null,
+              "cells": "2d5b8b5058a992eaba8345f36013a37779b09907f01d292f3e6f29c20ef9e8f1"
+            },
+            {
+              "name": "code-chunk-4",
+              "fullScreenClears": 0,
+              "rowClears": 6,
+              "addressedRows": [
+                8,
+                9,
+                10,
+                11,
+                12,
+                13
+              ],
+              "decision": null,
+              "cells": "292a338e0a00c884827bfd6f8bb4b0ffd6e5c25b9dee4ed8e806ce674a25af25"
+            },
+            {
+              "name": "code-chunk-5",
+              "fullScreenClears": 0,
+              "rowClears": 0,
+              "addressedRows": [],
+              "decision": null,
+              "cells": "292a338e0a00c884827bfd6f8bb4b0ffd6e5c25b9dee4ed8e806ce674a25af25"
+            },
+            {
+              "name": "code-chunk-6",
+              "fullScreenClears": 0,
+              "rowClears": 14,
+              "addressedRows": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14
+              ],
+              "decision": null,
+              "cells": "5317a01b0859b15f0aa57bcc69237c32629f31609aab1bf4b24d0708fbb61d18"
+            },
+            {
+              "name": "code-complete",
+              "fullScreenClears": 0,
+              "rowClears": 0,
+              "addressedRows": [],
+              "decision": null,
+              "cells": "5317a01b0859b15f0aa57bcc69237c32629f31609aab1bf4b24d0708fbb61d18"
+            },
+            {
+              "name": "code-settled",
+              "fullScreenClears": 0,
+              "rowClears": 11,
+              "addressedRows": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "decision": null,
+              "cells": "9347414d777516e376653975bb9d8cae509f3c1abebb28c29742b1f51d65c343"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "link-bearing-prose",
+      "geometry": {
+        "columns": 50,
+        "rows": 14
+      },
+      "budget": {
+        "passed": false,
+        "violations": [
+          "link-bearing-prose/bare-a1/regular/link-tail-chunk-2: unexpected full-screen clear",
+          "link-bearing-prose/bare-a1/regular/link-tail-chunk-3: unexpected full-screen clear",
+          "link-bearing-prose/bare-a1/regular/link-tail-settled: unexpected full-screen clear",
+          "link-bearing-prose/bare-a1/fullscreen/link-tail-chunk-2: unexpected full-screen clear",
+          "link-bearing-prose/bare-a1/fullscreen/link-tail-chunk-3: unexpected full-screen clear",
+          "link-bearing-prose/bare-a1/fullscreen/link-tail-settled: unexpected full-screen clear",
+          "link-bearing-prose/link-tail-chunk-2: link-resembling text blocked bounded painting (hyperlink-cleanup)",
+          "link-bearing-prose/link-tail-chunk-2: proven safe shift did not use bounded movement (hyperlink-cleanup)",
+          "link-bearing-prose/link-tail-chunk-3: link-resembling text blocked bounded painting (hyperlink-cleanup)",
+          "link-bearing-prose/link-tail-chunk-3: proven safe shift did not use bounded movement (hyperlink-cleanup)",
+          "link-bearing-prose/link-tail-settled: link-resembling text blocked bounded painting (hyperlink-cleanup)"
+        ]
+      },
+      "parity": {
+        "regular": true,
+        "fullscreen": true
+      },
+      "producers": [
+        {
+          "producer": "bare-a1",
+          "mode": "regular",
+          "effectiveMode": "fullscreen",
+          "checkpoints": [
+            {
+              "name": "initial",
+              "fullScreenClears": 2,
+              "rowClears": 14,
+              "addressedRows": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14
+              ],
+              "decision": {
+                "frameId": 1,
+                "transformed": false,
+                "shiftRows": 0,
+                "paintedRows": [],
+                "reason": "unsafe-frame"
+              },
+              "cells": "2bfd005ed39c5dacfe1dd409cc63b1233cb6f8ee989441876c944adb5172735f"
+            },
+            {
+              "name": "link-tail-start",
+              "fullScreenClears": 0,
+              "rowClears": 8,
+              "addressedRows": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8
+              ],
+              "decision": {
+                "frameId": 42,
+                "transformed": true,
+                "reason": "transformed",
+                "shiftRows": 2,
+                "paintedRows": [
+                  1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7,
+                  8
+                ]
+              },
+              "cells": "7668fce1e8be6a4aece5ec30d904061cbf28dfff70a23ebfa839418b32894473"
+            },
+            {
+              "name": "link-tail-message-start",
+              "fullScreenClears": 0,
+              "rowClears": 5,
+              "addressedRows": [
+                1,
+                5,
+                6,
+                7,
+                8
+              ],
+              "decision": {
+                "frameId": 43,
+                "transformed": true,
+                "reason": "transformed",
+                "shiftRows": 2,
+                "paintedRows": [
+                  1,
+                  5,
+                  6,
+                  7,
+                  8
+                ]
+              },
+              "cells": "348b02a2e06894868345655ae53cd9be0d8e2ef564f8415e7ee501d3fedb97c6"
+            },
+            {
+              "name": "link-tail-chunk-1",
+              "fullScreenClears": 0,
+              "rowClears": 1,
+              "addressedRows": [
+                6
+              ],
+              "decision": {
+                "frameId": 44,
+                "transformed": false,
+                "shiftRows": 0,
+                "paintedRows": [],
+                "reason": "unsafe-frame"
+              },
+              "cells": "e6acd3231f33a975fd96598e0b5c8b2893fd5008bd7d84c8a08f97ec2e5425e5"
+            },
+            {
+              "name": "link-tail-chunk-2",
+              "fullScreenClears": 1,
+              "rowClears": 14,
+              "addressedRows": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14
+              ],
+              "decision": {
+                "frameId": 45,
+                "transformed": true,
+                "reason": "hyperlink-cleanup",
+                "shiftRows": 0,
+                "paintedRows": [
+                  1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7,
+                  8,
+                  9,
+                  10,
+                  11,
+                  12,
+                  13,
+                  14
+                ]
+              },
+              "cells": "595d4375a2390679077f8fbc62e257fa0388ee872ad721b6c33922ce237856d3"
+            },
+            {
+              "name": "link-tail-chunk-3",
+              "fullScreenClears": 1,
+              "rowClears": 14,
+              "addressedRows": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14
+              ],
+              "decision": {
+                "frameId": 46,
+                "transformed": true,
+                "reason": "hyperlink-cleanup",
+                "shiftRows": 0,
+                "paintedRows": [
+                  1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7,
+                  8,
+                  9,
+                  10,
+                  11,
+                  12,
+                  13,
+                  14
+                ]
+              },
+              "cells": "66a63d30e7575d0096dadc07755e6e5528181ac9eca2f02a676f3bb43ee7619c"
+            },
+            {
+              "name": "link-tail-complete",
+              "fullScreenClears": 0,
+              "rowClears": 0,
+              "addressedRows": [],
+              "decision": {
+                "frameId": 47,
+                "transformed": false,
+                "shiftRows": 0,
+                "paintedRows": [],
+                "reason": "unsafe-frame"
+              },
+              "cells": "66a63d30e7575d0096dadc07755e6e5528181ac9eca2f02a676f3bb43ee7619c"
+            },
+            {
+              "name": "link-tail-settled",
+              "fullScreenClears": 1,
+              "rowClears": 14,
+              "addressedRows": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14
+              ],
+              "decision": {
+                "frameId": 48,
+                "transformed": true,
+                "reason": "hyperlink-cleanup",
+                "shiftRows": 0,
+                "paintedRows": [
+                  1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7,
+                  8,
+                  9,
+                  10,
+                  11,
+                  12,
+                  13,
+                  14
+                ]
+              },
+              "cells": "38f0e2141a8547c956f41d7e7c0300cefcbf12eebb4f1d89e3e4535377b0d1ce"
+            }
+          ]
+        },
+        {
+          "producer": "a1-pi",
+          "mode": "regular",
+          "effectiveMode": "regular",
+          "checkpoints": [
+            {
+              "name": "initial",
+              "fullScreenClears": 0,
+              "rowClears": 0,
+              "addressedRows": [],
+              "decision": null,
+              "cells": "f25b9c9cec17abe2aec83a25def0aa810fd602e0fa323a97c610244fd141c3e0"
+            },
+            {
+              "name": "link-tail-start",
+              "fullScreenClears": 0,
+              "rowClears": 7,
+              "addressedRows": [],
+              "decision": null,
+              "cells": "cefe15ffc14243979e7f7758e9bc0c697513171d699adc6b6c12d588bf6d76f9"
+            },
+            {
+              "name": "link-tail-message-start",
+              "fullScreenClears": 0,
+              "rowClears": 10,
+              "addressedRows": [],
+              "decision": null,
+              "cells": "99c4c5cf63bf7a0b8fe882c5764753ec1cc1460c77589605a6e54ff9c2ec963d"
+            },
+            {
+              "name": "link-tail-chunk-1",
+              "fullScreenClears": 0,
+              "rowClears": 1,
+              "addressedRows": [],
+              "decision": null,
+              "cells": "f9e8aa13ed9bd1b6a5fc47c3ed717e029a8a968a7e7069d8cf7252b540bb76e8"
+            },
+            {
+              "name": "link-tail-chunk-2",
+              "fullScreenClears": 0,
+              "rowClears": 10,
+              "addressedRows": [],
+              "decision": null,
+              "cells": "69a2008579b20c6644dd382f65ddff76acb138686a162c6cb189576cd3004d69"
+            },
+            {
+              "name": "link-tail-chunk-3",
+              "fullScreenClears": 0,
+              "rowClears": 11,
+              "addressedRows": [],
+              "decision": null,
+              "cells": "5e617055df8e47353de24b917f0dc3d59c63b7a9e8c8c9be78ddb05e3093f948"
+            },
+            {
+              "name": "link-tail-complete",
+              "fullScreenClears": 0,
+              "rowClears": 0,
+              "addressedRows": [],
+              "decision": null,
+              "cells": "5e617055df8e47353de24b917f0dc3d59c63b7a9e8c8c9be78ddb05e3093f948"
+            },
+            {
+              "name": "link-tail-settled",
+              "fullScreenClears": 0,
+              "rowClears": 7,
+              "addressedRows": [],
+              "decision": null,
+              "cells": "8ad890e71e9256abbac610ac72f013e2bd5bff7cc75bc253339c11218ff7ddfb"
+            }
+          ]
+        },
+        {
+          "producer": "pinned-pi",
+          "mode": "regular",
+          "effectiveMode": "regular",
+          "checkpoints": [
+            {
+              "name": "initial",
+              "fullScreenClears": 0,
+              "rowClears": 0,
+              "addressedRows": [],
+              "decision": null,
+              "cells": "d2d5c7cfdbdc50a20d902dae68a9ac41908e37558d8bb628bd19d8171ec62aef"
+            },
+            {
+              "name": "link-tail-start",
+              "fullScreenClears": 0,
+              "rowClears": 4,
+              "addressedRows": [],
+              "decision": null,
+              "cells": "b36d19eafdb317db5ed20bf08e98cb1cbbfb39b20dd05f829bf5d49320a16409"
+            },
+            {
+              "name": "link-tail-message-start",
+              "fullScreenClears": 0,
+              "rowClears": 6,
+              "addressedRows": [],
+              "decision": null,
+              "cells": "1e77010d5ffd8dfa5b6e6c07ea1d8a724979ec31255a0cb9c5800c21a9a8f430"
+            },
+            {
+              "name": "link-tail-chunk-1",
+              "fullScreenClears": 0,
+              "rowClears": 1,
+              "addressedRows": [],
+              "decision": null,
+              "cells": "465088139eecf367ea8c4b4282b4c7812647071c800de42f44802f54c3435327"
+            },
+            {
+              "name": "link-tail-chunk-2",
+              "fullScreenClears": 0,
+              "rowClears": 6,
+              "addressedRows": [],
+              "decision": null,
+              "cells": "843c261a28458d1b8d8fee9dadac98e5802d64a6616fb1876866e2ac1f084745"
+            },
+            {
+              "name": "link-tail-chunk-3",
+              "fullScreenClears": 0,
+              "rowClears": 7,
+              "addressedRows": [],
+              "decision": null,
+              "cells": "39ac88f4f3600390b5ad733e52575c1c7539b4a8265819fc8866a524694a1e3b"
+            },
+            {
+              "name": "link-tail-complete",
+              "fullScreenClears": 0,
+              "rowClears": 0,
+              "addressedRows": [],
+              "decision": null,
+              "cells": "39ac88f4f3600390b5ad733e52575c1c7539b4a8265819fc8866a524694a1e3b"
+            },
+            {
+              "name": "link-tail-settled",
+              "fullScreenClears": 0,
+              "rowClears": 4,
+              "addressedRows": [],
+              "decision": null,
+              "cells": "474f44bab15633c2cd2dca1e234d94acb1d4b794787ebf706d72ea3c43b8f0dd"
+            }
+          ]
+        },
+        {
+          "producer": "bare-a1",
+          "mode": "fullscreen",
+          "effectiveMode": "fullscreen",
+          "checkpoints": [
+            {
+              "name": "initial",
+              "fullScreenClears": 2,
+              "rowClears": 14,
+              "addressedRows": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14
+              ],
+              "decision": {
+                "frameId": 1,
+                "transformed": false,
+                "shiftRows": 0,
+                "paintedRows": [],
+                "reason": "unsafe-frame"
+              },
+              "cells": "2bfd005ed39c5dacfe1dd409cc63b1233cb6f8ee989441876c944adb5172735f"
+            },
+            {
+              "name": "link-tail-start",
+              "fullScreenClears": 0,
+              "rowClears": 8,
+              "addressedRows": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8
+              ],
+              "decision": {
+                "frameId": 42,
+                "transformed": true,
+                "reason": "transformed",
+                "shiftRows": 2,
+                "paintedRows": [
+                  1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7,
+                  8
+                ]
+              },
+              "cells": "7668fce1e8be6a4aece5ec30d904061cbf28dfff70a23ebfa839418b32894473"
+            },
+            {
+              "name": "link-tail-message-start",
+              "fullScreenClears": 0,
+              "rowClears": 5,
+              "addressedRows": [
+                1,
+                5,
+                6,
+                7,
+                8
+              ],
+              "decision": {
+                "frameId": 43,
+                "transformed": true,
+                "reason": "transformed",
+                "shiftRows": 2,
+                "paintedRows": [
+                  1,
+                  5,
+                  6,
+                  7,
+                  8
+                ]
+              },
+              "cells": "348b02a2e06894868345655ae53cd9be0d8e2ef564f8415e7ee501d3fedb97c6"
+            },
+            {
+              "name": "link-tail-chunk-1",
+              "fullScreenClears": 0,
+              "rowClears": 1,
+              "addressedRows": [
+                6
+              ],
+              "decision": {
+                "frameId": 44,
+                "transformed": false,
+                "shiftRows": 0,
+                "paintedRows": [],
+                "reason": "unsafe-frame"
+              },
+              "cells": "e6acd3231f33a975fd96598e0b5c8b2893fd5008bd7d84c8a08f97ec2e5425e5"
+            },
+            {
+              "name": "link-tail-chunk-2",
+              "fullScreenClears": 1,
+              "rowClears": 14,
+              "addressedRows": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14
+              ],
+              "decision": {
+                "frameId": 45,
+                "transformed": true,
+                "reason": "hyperlink-cleanup",
+                "shiftRows": 0,
+                "paintedRows": [
+                  1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7,
+                  8,
+                  9,
+                  10,
+                  11,
+                  12,
+                  13,
+                  14
+                ]
+              },
+              "cells": "595d4375a2390679077f8fbc62e257fa0388ee872ad721b6c33922ce237856d3"
+            },
+            {
+              "name": "link-tail-chunk-3",
+              "fullScreenClears": 1,
+              "rowClears": 14,
+              "addressedRows": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14
+              ],
+              "decision": {
+                "frameId": 46,
+                "transformed": true,
+                "reason": "hyperlink-cleanup",
+                "shiftRows": 0,
+                "paintedRows": [
+                  1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7,
+                  8,
+                  9,
+                  10,
+                  11,
+                  12,
+                  13,
+                  14
+                ]
+              },
+              "cells": "66a63d30e7575d0096dadc07755e6e5528181ac9eca2f02a676f3bb43ee7619c"
+            },
+            {
+              "name": "link-tail-complete",
+              "fullScreenClears": 0,
+              "rowClears": 0,
+              "addressedRows": [],
+              "decision": {
+                "frameId": 47,
+                "transformed": false,
+                "shiftRows": 0,
+                "paintedRows": [],
+                "reason": "unsafe-frame"
+              },
+              "cells": "66a63d30e7575d0096dadc07755e6e5528181ac9eca2f02a676f3bb43ee7619c"
+            },
+            {
+              "name": "link-tail-settled",
+              "fullScreenClears": 1,
+              "rowClears": 14,
+              "addressedRows": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14
+              ],
+              "decision": {
+                "frameId": 48,
+                "transformed": true,
+                "reason": "hyperlink-cleanup",
+                "shiftRows": 0,
+                "paintedRows": [
+                  1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7,
+                  8,
+                  9,
+                  10,
+                  11,
+                  12,
+                  13,
+                  14
+                ]
+              },
+              "cells": "38f0e2141a8547c956f41d7e7c0300cefcbf12eebb4f1d89e3e4535377b0d1ce"
+            }
+          ]
+        },
+        {
+          "producer": "a1-pi",
+          "mode": "fullscreen",
+          "effectiveMode": "fullscreen",
+          "checkpoints": [
+            {
+              "name": "initial",
+              "fullScreenClears": 2,
+              "rowClears": 14,
+              "addressedRows": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14
+              ],
+              "decision": null,
+              "cells": "f25b9c9cec17abe2aec83a25def0aa810fd602e0fa323a97c610244fd141c3e0"
+            },
+            {
+              "name": "link-tail-start",
+              "fullScreenClears": 0,
+              "rowClears": 5,
+              "addressedRows": [
+                1,
+                3,
+                5,
+                7,
+                8
+              ],
+              "decision": null,
+              "cells": "cefe15ffc14243979e7f7758e9bc0c697513171d699adc6b6c12d588bf6d76f9"
+            },
+            {
+              "name": "link-tail-message-start",
+              "fullScreenClears": 0,
+              "rowClears": 4,
+              "addressedRows": [
+                1,
+                3,
+                5,
+                6
+              ],
+              "decision": null,
+              "cells": "99c4c5cf63bf7a0b8fe882c5764753ec1cc1460c77589605a6e54ff9c2ec963d"
+            },
+            {
+              "name": "link-tail-chunk-1",
+              "fullScreenClears": 0,
+              "rowClears": 1,
+              "addressedRows": [
+                6
+              ],
+              "decision": null,
+              "cells": "f9e8aa13ed9bd1b6a5fc47c3ed717e029a8a968a7e7069d8cf7252b540bb76e8"
+            },
+            {
+              "name": "link-tail-chunk-2",
+              "fullScreenClears": 0,
+              "rowClears": 6,
+              "addressedRows": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6
+              ],
+              "decision": null,
+              "cells": "69a2008579b20c6644dd382f65ddff76acb138686a162c6cb189576cd3004d69"
+            },
+            {
+              "name": "link-tail-chunk-3",
+              "fullScreenClears": 0,
+              "rowClears": 5,
+              "addressedRows": [
+                2,
+                3,
+                4,
+                5,
+                6
+              ],
+              "decision": null,
+              "cells": "5e617055df8e47353de24b917f0dc3d59c63b7a9e8c8c9be78ddb05e3093f948"
+            },
+            {
+              "name": "link-tail-complete",
+              "fullScreenClears": 0,
+              "rowClears": 0,
+              "addressedRows": [],
+              "decision": null,
+              "cells": "5e617055df8e47353de24b917f0dc3d59c63b7a9e8c8c9be78ddb05e3093f948"
+            },
+            {
+              "name": "link-tail-settled",
+              "fullScreenClears": 0,
+              "rowClears": 7,
+              "addressedRows": [
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8
+              ],
+              "decision": null,
+              "cells": "dfe033226030393875c9effdba14c01601efd59c2dc2faa335bf818d1b72f878"
+            }
+          ]
+        },
+        {
+          "producer": "pinned-pi",
+          "mode": "fullscreen",
+          "effectiveMode": "fullscreen",
+          "checkpoints": [
+            {
+              "name": "initial",
+              "fullScreenClears": 2,
+              "rowClears": 14,
+              "addressedRows": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14
+              ],
+              "decision": null,
+              "cells": "df21168533763e21b9f99bcf3f913d0f6e624f9eb10d5b5cf9a94ed59b46d556"
+            },
+            {
+              "name": "link-tail-start",
+              "fullScreenClears": 0,
+              "rowClears": 8,
+              "addressedRows": [
+                1,
+                3,
+                4,
+                6,
+                7,
+                9,
+                10,
+                11
+              ],
+              "decision": null,
+              "cells": "27d5056ea1cd55355f0bb5488943a2186ac17ffe0454ef9bd32189e8227555b2"
+            },
+            {
+              "name": "link-tail-message-start",
+              "fullScreenClears": 0,
+              "rowClears": 7,
+              "addressedRows": [
+                1,
+                3,
+                4,
+                6,
+                7,
+                9,
+                10
+              ],
+              "decision": null,
+              "cells": "b2ecf578abaccf9e3334b5d14cbba3e060b540da2ee395f2627b178e5946db56"
+            },
+            {
+              "name": "link-tail-chunk-1",
+              "fullScreenClears": 0,
+              "rowClears": 1,
+              "addressedRows": [
+                10
+              ],
+              "decision": null,
+              "cells": "465088139eecf367ea8c4b4282b4c7812647071c800de42f44802f54c3435327"
+            },
+            {
+              "name": "link-tail-chunk-2",
+              "fullScreenClears": 0,
+              "rowClears": 8,
+              "addressedRows": [
+                1,
+                3,
+                4,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "decision": null,
+              "cells": "3bc523286de25721b4e462d9f8675801c6d260b76f54d2b7a537b3adbb0961a2"
+            },
+            {
+              "name": "link-tail-chunk-3",
+              "fullScreenClears": 0,
+              "rowClears": 8,
+              "addressedRows": [
+                1,
+                3,
+                4,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "decision": null,
+              "cells": "037aba78e4096a56efc0891267c9731fc6451294d27c4f8170170bc64e43ce0d"
+            },
+            {
+              "name": "link-tail-complete",
+              "fullScreenClears": 0,
+              "rowClears": 0,
+              "addressedRows": [],
+              "decision": null,
+              "cells": "037aba78e4096a56efc0891267c9731fc6451294d27c4f8170170bc64e43ce0d"
+            },
+            {
+              "name": "link-tail-settled",
+              "fullScreenClears": 0,
+              "rowClears": 9,
+              "addressedRows": [
+                1,
+                2,
+                4,
+                5,
+                6,
+                7,
+                8,
+                10,
+                11
+              ],
+              "decision": null,
+              "cells": "34586852f1802ab1e481620f72bbbf5c3ca88ab4e7f92a66354181a6d1a4121b"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "tall-live-tail",
+      "geometry": {
+        "columns": 50,
+        "rows": 14
+      },
+      "budget": {
+        "passed": true,
+        "violations": []
+      },
+      "parity": {
+        "regular": true,
+        "fullscreen": true
+      },
+      "producers": [
+        {
+          "producer": "bare-a1",
+          "mode": "regular",
+          "effectiveMode": "fullscreen",
+          "checkpoints": [
+            {
+              "name": "initial",
+              "fullScreenClears": 2,
+              "rowClears": 14,
+              "addressedRows": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14
+              ],
+              "decision": {
+                "frameId": 1,
+                "transformed": false,
+                "shiftRows": 0,
+                "paintedRows": [],
+                "reason": "unsafe-frame"
+              },
+              "cells": "2bfd005ed39c5dacfe1dd409cc63b1233cb6f8ee989441876c944adb5172735f"
+            },
+            {
+              "name": "tall-tail-start",
+              "fullScreenClears": 0,
+              "rowClears": 8,
+              "addressedRows": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8
+              ],
+              "decision": {
+                "frameId": 42,
+                "transformed": true,
+                "reason": "transformed",
+                "shiftRows": 2,
+                "paintedRows": [
+                  1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7,
+                  8
+                ]
+              },
+              "cells": "7668fce1e8be6a4aece5ec30d904061cbf28dfff70a23ebfa839418b32894473"
+            },
+            {
+              "name": "tall-tail-message-start",
+              "fullScreenClears": 0,
+              "rowClears": 5,
+              "addressedRows": [
+                1,
+                5,
+                6,
+                7,
+                8
+              ],
+              "decision": {
+                "frameId": 43,
+                "transformed": true,
+                "reason": "transformed",
+                "shiftRows": 2,
+                "paintedRows": [
+                  1,
+                  5,
+                  6,
+                  7,
+                  8
+                ]
+              },
+              "cells": "aeda9e51b9a0e05149d6dcc1e955db120998476d4c5a0d59b889ae0e8b107cb1"
+            },
+            {
+              "name": "tall-tail-chunk-1",
+              "fullScreenClears": 0,
+              "rowClears": 5,
+              "addressedRows": [
+                1,
+                5,
+                6,
+                7,
+                8
+              ],
+              "decision": {
+                "frameId": 44,
+                "transformed": true,
+                "reason": "transformed",
+                "shiftRows": 1,
+                "paintedRows": [
+                  1,
+                  5,
+                  6,
+                  7,
+                  8
+                ]
+              },
+              "cells": "c3e74de8d03f3e40460d698b1b24d9286bd502994c17ce88cebc6a0cf0a1fd7b"
+            },
+            {
+              "name": "tall-tail-chunk-2",
+              "fullScreenClears": 0,
+              "rowClears": 5,
+              "addressedRows": [
+                1,
+                5,
+                6,
+                7,
+                8
+              ],
+              "decision": {
+                "frameId": 45,
+                "transformed": true,
+                "reason": "transformed",
+                "shiftRows": 1,
+                "paintedRows": [
+                  1,
+                  5,
+                  6,
+                  7,
+                  8
+                ]
+              },
+              "cells": "41ba2c5577f78b0099e192fd4e8335f1bbf604099c96fc7a959c6499d8dfb41b"
+            },
+            {
+              "name": "tall-tail-chunk-3",
+              "fullScreenClears": 0,
+              "rowClears": 5,
+              "addressedRows": [
+                1,
+                5,
+                6,
+                7,
+                8
+              ],
+              "decision": {
+                "frameId": 46,
+                "transformed": true,
+                "reason": "transformed",
+                "shiftRows": 1,
+                "paintedRows": [
+                  1,
+                  5,
+                  6,
+                  7,
+                  8
+                ]
+              },
+              "cells": "23ccb7f25c773525c11882e6e9da499bda982c18f69e0d77af689575b1ca6a7e"
+            },
+            {
+              "name": "tall-tail-chunk-4",
+              "fullScreenClears": 0,
+              "rowClears": 5,
+              "addressedRows": [
+                1,
+                5,
+                6,
+                7,
+                8
+              ],
+              "decision": {
+                "frameId": 47,
+                "transformed": true,
+                "reason": "transformed",
+                "shiftRows": 1,
+                "paintedRows": [
+                  1,
+                  5,
+                  6,
+                  7,
+                  8
+                ]
+              },
+              "cells": "6cc35e895e098a75511cf5151b6c2f48aeef3cc56e86de7e150cb32c2012655c"
+            },
+            {
+              "name": "tall-tail-chunk-5",
+              "fullScreenClears": 0,
+              "rowClears": 5,
+              "addressedRows": [
+                1,
+                5,
+                6,
+                7,
+                8
+              ],
+              "decision": {
+                "frameId": 48,
+                "transformed": true,
+                "reason": "transformed",
+                "shiftRows": 1,
+                "paintedRows": [
+                  1,
+                  5,
+                  6,
+                  7,
+                  8
+                ]
+              },
+              "cells": "bc292409b045e244fa6443164285d070afd23376a84091c97dfda3406af1cdca"
+            },
+            {
+              "name": "tall-tail-complete",
+              "fullScreenClears": 0,
+              "rowClears": 0,
+              "addressedRows": [],
+              "decision": {
+                "frameId": 49,
+                "transformed": false,
+                "shiftRows": 0,
+                "paintedRows": [],
+                "reason": "unsafe-frame"
+              },
+              "cells": "bc292409b045e244fa6443164285d070afd23376a84091c97dfda3406af1cdca"
+            },
+            {
+              "name": "tall-tail-settled",
+              "fullScreenClears": 0,
+              "rowClears": 8,
+              "addressedRows": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8
+              ],
+              "decision": {
+                "frameId": 50,
+                "transformed": false,
+                "shiftRows": -2,
+                "paintedRows": [],
+                "reason": "unsafe-frame"
+              },
+              "cells": "54f484de8df9fb9e7a8fd33d290574b693add672d588adf1422a7bfdb8fb8428"
+            }
+          ]
+        },
+        {
+          "producer": "a1-pi",
+          "mode": "regular",
+          "effectiveMode": "regular",
+          "checkpoints": [
+            {
+              "name": "initial",
+              "fullScreenClears": 0,
+              "rowClears": 0,
+              "addressedRows": [],
+              "decision": null,
+              "cells": "f25b9c9cec17abe2aec83a25def0aa810fd602e0fa323a97c610244fd141c3e0"
+            },
+            {
+              "name": "tall-tail-start",
+              "fullScreenClears": 0,
+              "rowClears": 7,
+              "addressedRows": [],
+              "decision": null,
+              "cells": "cefe15ffc14243979e7f7758e9bc0c697513171d699adc6b6c12d588bf6d76f9"
+            },
+            {
+              "name": "tall-tail-message-start",
+              "fullScreenClears": 0,
+              "rowClears": 10,
+              "addressedRows": [],
+              "decision": null,
+              "cells": "0a05cbca57b8f744ed6697759329d6c0b64921739a88cf15a850159ac64c4a9a"
+            },
+            {
+              "name": "tall-tail-chunk-1",
+              "fullScreenClears": 0,
+              "rowClears": 10,
+              "addressedRows": [],
+              "decision": null,
+              "cells": "9f11adcfcada16851e945fb433b065ec2d39eafe9af4827cc8033cd366ad2fb2"
+            },
+            {
+              "name": "tall-tail-chunk-2",
+              "fullScreenClears": 0,
+              "rowClears": 10,
+              "addressedRows": [],
+              "decision": null,
+              "cells": "7b40fc42ebd4155677d36ef3d851baef635fd6407ce13ad57c10dc48e530f232"
+            },
+            {
+              "name": "tall-tail-chunk-3",
+              "fullScreenClears": 0,
+              "rowClears": 10,
+              "addressedRows": [],
+              "decision": null,
+              "cells": "e22402fe045fd4947618b9de4d4bfb5e41e8f378c0ab843a483efb0dba8f9883"
+            },
+            {
+              "name": "tall-tail-chunk-4",
+              "fullScreenClears": 0,
+              "rowClears": 10,
+              "addressedRows": [],
+              "decision": null,
+              "cells": "abba21f24538d5871406b211cde1d7385e0bc7f831eec3ec6f9c34637a97c425"
+            },
+            {
+              "name": "tall-tail-chunk-5",
+              "fullScreenClears": 0,
+              "rowClears": 10,
+              "addressedRows": [],
+              "decision": null,
+              "cells": "15aa1e2ba91b04af098c9130ff4c4a855066580ca36e73f1edd9cf61fe1a56d4"
+            },
+            {
+              "name": "tall-tail-complete",
+              "fullScreenClears": 0,
+              "rowClears": 0,
+              "addressedRows": [],
+              "decision": null,
+              "cells": "15aa1e2ba91b04af098c9130ff4c4a855066580ca36e73f1edd9cf61fe1a56d4"
+            },
+            {
+              "name": "tall-tail-settled",
+              "fullScreenClears": 0,
+              "rowClears": 7,
+              "addressedRows": [],
+              "decision": null,
+              "cells": "d987bbb92daf1f6964c1908f2895e14f5a306b93c38d8e03b614c58993278339"
+            }
+          ]
+        },
+        {
+          "producer": "pinned-pi",
+          "mode": "regular",
+          "effectiveMode": "regular",
+          "checkpoints": [
+            {
+              "name": "initial",
+              "fullScreenClears": 0,
+              "rowClears": 0,
+              "addressedRows": [],
+              "decision": null,
+              "cells": "d2d5c7cfdbdc50a20d902dae68a9ac41908e37558d8bb628bd19d8171ec62aef"
+            },
+            {
+              "name": "tall-tail-start",
+              "fullScreenClears": 0,
+              "rowClears": 4,
+              "addressedRows": [],
+              "decision": null,
+              "cells": "b36d19eafdb317db5ed20bf08e98cb1cbbfb39b20dd05f829bf5d49320a16409"
+            },
+            {
+              "name": "tall-tail-message-start",
+              "fullScreenClears": 0,
+              "rowClears": 6,
+              "addressedRows": [],
+              "decision": null,
+              "cells": "02ce9f29939b362e74eb845c103c206f8c742a81e2c71ceace092e0ff2181e52"
+            },
+            {
+              "name": "tall-tail-chunk-1",
+              "fullScreenClears": 0,
+              "rowClears": 6,
+              "addressedRows": [],
+              "decision": null,
+              "cells": "3d08859f8d26acd578976774cc8d77d4a6b14652ec5178ec48aa26f8e125a715"
+            },
+            {
+              "name": "tall-tail-chunk-2",
+              "fullScreenClears": 0,
+              "rowClears": 6,
+              "addressedRows": [],
+              "decision": null,
+              "cells": "cc2bf2f9c436cf26e5db7691a1abd36b17d48fdcf92099ee1736fce7266f1fda"
+            },
+            {
+              "name": "tall-tail-chunk-3",
+              "fullScreenClears": 0,
+              "rowClears": 6,
+              "addressedRows": [],
+              "decision": null,
+              "cells": "619583f170d9d77134b0b47d290d546c92481869d238c763bfebbd3c0417afd9"
+            },
+            {
+              "name": "tall-tail-chunk-4",
+              "fullScreenClears": 0,
+              "rowClears": 6,
+              "addressedRows": [],
+              "decision": null,
+              "cells": "5a4f6932e72b926d9a86b6950058cfafe91199b3a2a494ae6be194467363e461"
+            },
+            {
+              "name": "tall-tail-chunk-5",
+              "fullScreenClears": 0,
+              "rowClears": 6,
+              "addressedRows": [],
+              "decision": null,
+              "cells": "9f81777bbe09b40ac8f4da6e300fc7e5e5eaf431e64553b56215c1d55b76eef2"
+            },
+            {
+              "name": "tall-tail-complete",
+              "fullScreenClears": 0,
+              "rowClears": 0,
+              "addressedRows": [],
+              "decision": null,
+              "cells": "9f81777bbe09b40ac8f4da6e300fc7e5e5eaf431e64553b56215c1d55b76eef2"
+            },
+            {
+              "name": "tall-tail-settled",
+              "fullScreenClears": 0,
+              "rowClears": 4,
+              "addressedRows": [],
+              "decision": null,
+              "cells": "94c153f00e554ca9f0e90460c0b99dd1c894ac9266b21f5f3c77b6c3d6b6a580"
+            }
+          ]
+        },
+        {
+          "producer": "bare-a1",
+          "mode": "fullscreen",
+          "effectiveMode": "fullscreen",
+          "checkpoints": [
+            {
+              "name": "initial",
+              "fullScreenClears": 2,
+              "rowClears": 14,
+              "addressedRows": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14
+              ],
+              "decision": {
+                "frameId": 1,
+                "transformed": false,
+                "shiftRows": 0,
+                "paintedRows": [],
+                "reason": "unsafe-frame"
+              },
+              "cells": "2bfd005ed39c5dacfe1dd409cc63b1233cb6f8ee989441876c944adb5172735f"
+            },
+            {
+              "name": "tall-tail-start",
+              "fullScreenClears": 0,
+              "rowClears": 8,
+              "addressedRows": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8
+              ],
+              "decision": {
+                "frameId": 42,
+                "transformed": true,
+                "reason": "transformed",
+                "shiftRows": 2,
+                "paintedRows": [
+                  1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7,
+                  8
+                ]
+              },
+              "cells": "7668fce1e8be6a4aece5ec30d904061cbf28dfff70a23ebfa839418b32894473"
+            },
+            {
+              "name": "tall-tail-message-start",
+              "fullScreenClears": 0,
+              "rowClears": 5,
+              "addressedRows": [
+                1,
+                5,
+                6,
+                7,
+                8
+              ],
+              "decision": {
+                "frameId": 43,
+                "transformed": true,
+                "reason": "transformed",
+                "shiftRows": 2,
+                "paintedRows": [
+                  1,
+                  5,
+                  6,
+                  7,
+                  8
+                ]
+              },
+              "cells": "aeda9e51b9a0e05149d6dcc1e955db120998476d4c5a0d59b889ae0e8b107cb1"
+            },
+            {
+              "name": "tall-tail-chunk-1",
+              "fullScreenClears": 0,
+              "rowClears": 5,
+              "addressedRows": [
+                1,
+                5,
+                6,
+                7,
+                8
+              ],
+              "decision": {
+                "frameId": 44,
+                "transformed": true,
+                "reason": "transformed",
+                "shiftRows": 1,
+                "paintedRows": [
+                  1,
+                  5,
+                  6,
+                  7,
+                  8
+                ]
+              },
+              "cells": "c3e74de8d03f3e40460d698b1b24d9286bd502994c17ce88cebc6a0cf0a1fd7b"
+            },
+            {
+              "name": "tall-tail-chunk-2",
+              "fullScreenClears": 0,
+              "rowClears": 5,
+              "addressedRows": [
+                1,
+                5,
+                6,
+                7,
+                8
+              ],
+              "decision": {
+                "frameId": 45,
+                "transformed": true,
+                "reason": "transformed",
+                "shiftRows": 1,
+                "paintedRows": [
+                  1,
+                  5,
+                  6,
+                  7,
+                  8
+                ]
+              },
+              "cells": "41ba2c5577f78b0099e192fd4e8335f1bbf604099c96fc7a959c6499d8dfb41b"
+            },
+            {
+              "name": "tall-tail-chunk-3",
+              "fullScreenClears": 0,
+              "rowClears": 5,
+              "addressedRows": [
+                1,
+                5,
+                6,
+                7,
+                8
+              ],
+              "decision": {
+                "frameId": 46,
+                "transformed": true,
+                "reason": "transformed",
+                "shiftRows": 1,
+                "paintedRows": [
+                  1,
+                  5,
+                  6,
+                  7,
+                  8
+                ]
+              },
+              "cells": "23ccb7f25c773525c11882e6e9da499bda982c18f69e0d77af689575b1ca6a7e"
+            },
+            {
+              "name": "tall-tail-chunk-4",
+              "fullScreenClears": 0,
+              "rowClears": 5,
+              "addressedRows": [
+                1,
+                5,
+                6,
+                7,
+                8
+              ],
+              "decision": {
+                "frameId": 47,
+                "transformed": true,
+                "reason": "transformed",
+                "shiftRows": 1,
+                "paintedRows": [
+                  1,
+                  5,
+                  6,
+                  7,
+                  8
+                ]
+              },
+              "cells": "6cc35e895e098a75511cf5151b6c2f48aeef3cc56e86de7e150cb32c2012655c"
+            },
+            {
+              "name": "tall-tail-chunk-5",
+              "fullScreenClears": 0,
+              "rowClears": 5,
+              "addressedRows": [
+                1,
+                5,
+                6,
+                7,
+                8
+              ],
+              "decision": {
+                "frameId": 48,
+                "transformed": true,
+                "reason": "transformed",
+                "shiftRows": 1,
+                "paintedRows": [
+                  1,
+                  5,
+                  6,
+                  7,
+                  8
+                ]
+              },
+              "cells": "bc292409b045e244fa6443164285d070afd23376a84091c97dfda3406af1cdca"
+            },
+            {
+              "name": "tall-tail-complete",
+              "fullScreenClears": 0,
+              "rowClears": 0,
+              "addressedRows": [],
+              "decision": {
+                "frameId": 49,
+                "transformed": false,
+                "shiftRows": 0,
+                "paintedRows": [],
+                "reason": "unsafe-frame"
+              },
+              "cells": "bc292409b045e244fa6443164285d070afd23376a84091c97dfda3406af1cdca"
+            },
+            {
+              "name": "tall-tail-settled",
+              "fullScreenClears": 0,
+              "rowClears": 8,
+              "addressedRows": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8
+              ],
+              "decision": {
+                "frameId": 50,
+                "transformed": false,
+                "shiftRows": -2,
+                "paintedRows": [],
+                "reason": "unsafe-frame"
+              },
+              "cells": "54f484de8df9fb9e7a8fd33d290574b693add672d588adf1422a7bfdb8fb8428"
+            }
+          ]
+        },
+        {
+          "producer": "a1-pi",
+          "mode": "fullscreen",
+          "effectiveMode": "fullscreen",
+          "checkpoints": [
+            {
+              "name": "initial",
+              "fullScreenClears": 2,
+              "rowClears": 14,
+              "addressedRows": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14
+              ],
+              "decision": null,
+              "cells": "f25b9c9cec17abe2aec83a25def0aa810fd602e0fa323a97c610244fd141c3e0"
+            },
+            {
+              "name": "tall-tail-start",
+              "fullScreenClears": 0,
+              "rowClears": 5,
+              "addressedRows": [
+                1,
+                3,
+                5,
+                7,
+                8
+              ],
+              "decision": null,
+              "cells": "cefe15ffc14243979e7f7758e9bc0c697513171d699adc6b6c12d588bf6d76f9"
+            },
+            {
+              "name": "tall-tail-message-start",
+              "fullScreenClears": 0,
+              "rowClears": 4,
+              "addressedRows": [
+                1,
+                3,
+                5,
+                6
+              ],
+              "decision": null,
+              "cells": "0a05cbca57b8f744ed6697759329d6c0b64921739a88cf15a850159ac64c4a9a"
+            },
+            {
+              "name": "tall-tail-chunk-1",
+              "fullScreenClears": 0,
+              "rowClears": 6,
+              "addressedRows": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6
+              ],
+              "decision": null,
+              "cells": "9f11adcfcada16851e945fb433b065ec2d39eafe9af4827cc8033cd366ad2fb2"
+            },
+            {
+              "name": "tall-tail-chunk-2",
+              "fullScreenClears": 0,
+              "rowClears": 6,
+              "addressedRows": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6
+              ],
+              "decision": null,
+              "cells": "7b40fc42ebd4155677d36ef3d851baef635fd6407ce13ad57c10dc48e530f232"
+            },
+            {
+              "name": "tall-tail-chunk-3",
+              "fullScreenClears": 0,
+              "rowClears": 6,
+              "addressedRows": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6
+              ],
+              "decision": null,
+              "cells": "e22402fe045fd4947618b9de4d4bfb5e41e8f378c0ab843a483efb0dba8f9883"
+            },
+            {
+              "name": "tall-tail-chunk-4",
+              "fullScreenClears": 0,
+              "rowClears": 6,
+              "addressedRows": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6
+              ],
+              "decision": null,
+              "cells": "abba21f24538d5871406b211cde1d7385e0bc7f831eec3ec6f9c34637a97c425"
+            },
+            {
+              "name": "tall-tail-chunk-5",
+              "fullScreenClears": 0,
+              "rowClears": 6,
+              "addressedRows": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6
+              ],
+              "decision": null,
+              "cells": "15aa1e2ba91b04af098c9130ff4c4a855066580ca36e73f1edd9cf61fe1a56d4"
+            },
+            {
+              "name": "tall-tail-complete",
+              "fullScreenClears": 0,
+              "rowClears": 0,
+              "addressedRows": [],
+              "decision": null,
+              "cells": "15aa1e2ba91b04af098c9130ff4c4a855066580ca36e73f1edd9cf61fe1a56d4"
+            },
+            {
+              "name": "tall-tail-settled",
+              "fullScreenClears": 0,
+              "rowClears": 8,
+              "addressedRows": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8
+              ],
+              "decision": null,
+              "cells": "cfd32d429363a62c2796649f5f6234739ee5be938f7cfffb7f33331ccaa2f5c5"
+            }
+          ]
+        },
+        {
+          "producer": "pinned-pi",
+          "mode": "fullscreen",
+          "effectiveMode": "fullscreen",
+          "checkpoints": [
+            {
+              "name": "initial",
+              "fullScreenClears": 2,
+              "rowClears": 14,
+              "addressedRows": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14
+              ],
+              "decision": null,
+              "cells": "df21168533763e21b9f99bcf3f913d0f6e624f9eb10d5b5cf9a94ed59b46d556"
+            },
+            {
+              "name": "tall-tail-start",
+              "fullScreenClears": 0,
+              "rowClears": 8,
+              "addressedRows": [
+                1,
+                3,
+                4,
+                6,
+                7,
+                9,
+                10,
+                11
+              ],
+              "decision": null,
+              "cells": "27d5056ea1cd55355f0bb5488943a2186ac17ffe0454ef9bd32189e8227555b2"
+            },
+            {
+              "name": "tall-tail-message-start",
+              "fullScreenClears": 0,
+              "rowClears": 7,
+              "addressedRows": [
+                1,
+                3,
+                4,
+                6,
+                7,
+                9,
+                10
+              ],
+              "decision": null,
+              "cells": "dd0c9c2024975ab4b10ffbc2e94e930bb91b9210aa302dfa6b1fc73b111ddafa"
+            },
+            {
+              "name": "tall-tail-chunk-1",
+              "fullScreenClears": 0,
+              "rowClears": 8,
+              "addressedRows": [
+                1,
+                3,
+                4,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "decision": null,
+              "cells": "55cef77926c3def3f049e4e21b764290880808a707f6d3f7edcac653708709df"
+            },
+            {
+              "name": "tall-tail-chunk-2",
+              "fullScreenClears": 0,
+              "rowClears": 8,
+              "addressedRows": [
+                2,
+                3,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "decision": null,
+              "cells": "9135458ed3309b0932ff020c2e76c3cd412c2350cd7a88307f339d0b9a96128e"
+            },
+            {
+              "name": "tall-tail-chunk-3",
+              "fullScreenClears": 0,
+              "rowClears": 9,
+              "addressedRows": [
+                1,
+                2,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "decision": null,
+              "cells": "e34c26d460e13b32bcf5617ef7401a5c2cc908170faba9bee4ed35e69f5fc483"
+            },
+            {
+              "name": "tall-tail-chunk-4",
+              "fullScreenClears": 0,
+              "rowClears": 9,
+              "addressedRows": [
+                1,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "decision": null,
+              "cells": "9bb27fe37237a2a782a40be49684752cf690342f42452de92ee25256b2d64490"
+            },
+            {
+              "name": "tall-tail-chunk-5",
+              "fullScreenClears": 0,
+              "rowClears": 9,
+              "addressedRows": [
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "decision": null,
+              "cells": "f66d938a1ddcbac902e971d47866793d2d91711ce35eecb3f4468fad041568c5"
+            },
+            {
+              "name": "tall-tail-complete",
+              "fullScreenClears": 0,
+              "rowClears": 0,
+              "addressedRows": [],
+              "decision": null,
+              "cells": "f66d938a1ddcbac902e971d47866793d2d91711ce35eecb3f4468fad041568c5"
+            },
+            {
+              "name": "tall-tail-settled",
+              "fullScreenClears": 0,
+              "rowClears": 10,
+              "addressedRows": [
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "decision": null,
+              "cells": "d05bf58bbad5be3a2185b0d19c208c068a0a02405b564f3303fdeb369657b298"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

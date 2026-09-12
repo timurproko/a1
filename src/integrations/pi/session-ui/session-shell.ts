@@ -179,7 +179,7 @@ export class OwnedUiSessionShell {
       getColumns: () => runtime?.viewport().columns ?? options.terminal?.columns ?? 80,
       getRows: () => runtime?.viewport().rows ?? options.terminal?.rows ?? 24,
       requestRender: force => runtime?.requestRender(force),
-      requestHyperlinkCleanup: () => damageTerminal?.requestHyperlinkCleanup(),
+      requestHyperlinkCleanup: rows => damageTerminal?.requestHyperlinkCleanup(rows),
       onViewportFrame: frame => damageTerminal?.arm(frame.descriptor, {
         overlayActive: runtime?.hasOverlay() ?? false,
         selectionActive: this.root.hasActiveSelection(),
