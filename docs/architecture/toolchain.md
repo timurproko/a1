@@ -82,10 +82,18 @@ These paths are A1 control and release state, not Pi profile roots. All are over
 | Purpose | Override | Windows default | Unix default |
 |---|---|---|---|
 | Config | `A1_CONFIG_DIR` | `%APPDATA%\\a1` | `$XDG_CONFIG_HOME/a1` or `~/.config/a1` |
-| Durable data | `A1_DATA_DIR` | `%LOCALAPPDATA%\\a1` | `$XDG_DATA_HOME/a1` or `~/.local/share/a1` |
+| Control/release data | `A1_DATA_DIR` | `%LOCALAPPDATA%\\a1` | `$XDG_DATA_HOME/a1` or `~/.local/share/a1` |
 | Runtime | `A1_RUNTIME_DIR` | `%LOCALAPPDATA%\\a1\\runtime` | `$XDG_RUNTIME_DIR/a1` or `<data>/runtime` |
 | Database | `A1_DATABASE_PATH` | `<data>/control.sqlite3` | `<data>/control.sqlite3` |
 | Endpoint | `A1_ENDPOINT` | runtime-scoped `a1-*` named pipe | `<runtime>/supervisor.sock` |
+
+Prompt history has a separate default: `<effective-home>/.a1/data/history/<profile-id>.sqlite3`
+on Windows, Linux, and macOS. The effective home follows launch-profile resolution
+(`A1_PROFILE_HOME` or the OS home), not `XDG_DATA_HOME`. An explicit `A1_DATA_DIR`
+continues to select `<A1_DATA_DIR>/history` as well as the control/release data root.
+The home-based history default does not relocate the paths above or the compile
+cache at `<data>/cache/compile`. See [prompt history](../features/prompt-history.md)
+for the deliberate fresh start without migration, privacy, and manual removal.
 
 ### Identity hard cut and cleanup
 
