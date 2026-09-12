@@ -387,6 +387,26 @@ describe("A1 self-update orchestration", () => {
     expect(percents).toEqual([...percents].sort((left, right) => left - right));
   });
 
+  it("aligns the 40-column progress bar with the development update text", async () => {
+    const harness = createHarness({
+      current: "0.1.8-dev.322",
+      responses: [success("0.1.8-dev.332\n"), success(`${resolve("fixtures", "global")}\n`), success(), success()],
+    });
+
+    await expect(runSelfUpdate({ ...harness, channel: "next", progress: true })).resolves.toBe(0);
+
+    const text = harness.stdout.join("");
+    const heading = text.split(NEWLINE)[0];
+    const bars = [...text.matchAll(/\r([█░]+) \d+%/g)].map(match => match[1]);
+    expect(heading).toBe("a1 update: 0.1.8-dev.322 → 0.1.8-dev.332");
+    expect(bars.length).toBeGreaterThan(0);
+    for (const bar of bars) {
+      expect(bar).toHaveLength(40);
+      expect(bar).toHaveLength(heading!.length);
+    }
+    expect(text).toContain(`${RETURN}${" ".repeat(46)}${RETURN}a1 updated successfully:`);
+  });
+
   it("gives the progress row back to the line that says what was installed", async () => {
     const harness = createHarness({ responses: [success("1.3.0\n"), success(`${resolve("fixtures", "global")}\n`), success(), success()] });
 
