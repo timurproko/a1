@@ -11,6 +11,7 @@ import {
   type ReleaseIdentity,
 } from "./release.js";
 import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../../product-identity.js";
+import { assertCurrentLaunchContract, readLaunchContext } from "../launch-context/index.js";
 import { mapWithConcurrency } from "./concurrency.js";
 import { assertImmutableFileMode } from "./immutable-platform.js";
 import {
@@ -67,6 +68,7 @@ export async function materializeRelease(packageRoot: string, dataDir: string, o
   const payload = await discoverReleasePayload(packageRoot, {
     onSourceRead: (path, bytes) => options.onOperation?.({ operation: "source-read", path, bytes }),
   });
+  assertCurrentLaunchContract(payload);
   const storeRoot = resolve(dataDir, "releases");
   await mkdir(storeRoot, { recursive: true, mode: 0o700 });
   const dependencyPaths = payload.paths.filter(path => path.startsWith("node_modules/"));
@@ -112,7 +114,7 @@ export async function materializeRelease(packageRoot: string, dataDir: string, o
       return releaseFileIdentity(path, bytes, (metadata.mode & 0o111) !== 0);
     });
 
-    const identity = createReleaseIdentity(payload.packageRoot, payload.packageVersion, files, layerReferences);
+    const identity = createReleaseIdentity(payload.packageRoot, payload.packageVersion, files, layerReferences, payload.launchContract);
     if (layer !== null) {
       const binding = resolveWithin(candidate, "node_modules");
       const target = resolveWithin(layer.layerRoot, "node_modules");
@@ -198,7 +200,7 @@ export async function verifyMaterializedRelease(
   await mapWithConcurrency(manifest.files, RELEASE_FILE_IO_CONCURRENCY, async file => {
     await verifyFile(canonical, file, options);
   });
-  const recomputed = createReleaseIdentity(manifest.packageRoot, manifest.packageVersion, manifest.files, manifest.dependencyLayers ?? []).contentDigest;
+  const recomputed = createReleaseIdentity(manifest.packageRoot, manifest.packageVersion, manifest.files, manifest.dependencyLayers ?? [], manifest.launchContract).contentDigest;
   if (recomputed !== manifest.contentDigest) throw new Error(`release content digest mismatch for ${manifest.releaseId}`);
   await verifyReleaseDependencies(canonical, canonicalStoreRoot, manifest.dependencyLayers ?? [], true, options);
   return { ...manifest, releaseRoot: canonical };
@@ -207,13 +209,14 @@ export async function verifyMaterializedRelease(
 export async function assertImmutableExecutionRoot(release: MaterializedRelease, dataDir: string): Promise<void> {
   const storeRoot = await realpath(resolve(dataDir, "releases"));
   assertContained(storeRoot, release.releaseRoot, "release root is outside the selected release store");
-  const selectedRoot = process.env[PRODUCT_IDENTITY.environment.releaseRoot];
+  const selectedRoot = readLaunchContext(process.env, "release").releaseRoot;
   if (!selectedRoot) throw new Error(PRODUCT_TEXT.diagnostic("persistent process has no immutable release root"));
   const selected = await realpath(selectedRoot);
   if (selected !== release.releaseRoot) throw new Error(PRODUCT_TEXT.diagnostic("persistent process selected a different immutable release root"));
 }
 
 export async function resolveReleaseEntryPoint(release: MaterializedRelease, entryPoint: string): Promise<string> {
+  assertCurrentLaunchContract(release);
   const normalized = entryPoint.split("\\").join("/").replace(/^\.\//, "");
   if (!release.files.some(file => file.path === normalized)) throw new Error(`entry point is not in the verified release manifest: ${entryPoint}`);
   const path = resolveWithin(release.releaseRoot, normalized);
@@ -263,6 +266,7 @@ function certificationReadyRelease(release: MaterializedRelease): MaterializedRe
 }
 
 function validateManifest(value: ReleaseIdentity): void {
+  assertCurrentLaunchContract(value);
   if (value.packageName !== PRODUCT_PACKAGE_NAME || typeof value.packageVersion !== "string") throw new Error(PRODUCT_TEXT.diagnostic("release manifest metadata is invalid"));
   if (!/^[a-f0-9]{64}$/.test(value.contentDigest) || !/^[0-9A-Za-z.+_-]+-[a-f0-9]{20}$/.test(value.releaseId)) throw new Error(PRODUCT_TEXT.diagnostic("release identity is invalid"));
   if (!Array.isArray(value.files) || value.files.length === 0) throw new Error("release manifest contains no files");
@@ -277,6 +281,8 @@ function validateManifest(value: ReleaseIdentity): void {
     }
     if (!Number.isSafeInteger(file.bytes) || file.bytes < 0 || !/^[a-f0-9]{64}$/.test(file.sha256)) throw new Error(`invalid release manifest file identity: ${file.path}`);
   }
+  const expected = createReleaseIdentity(value.packageRoot, value.packageVersion, value.files, value.dependencyLayers ?? [], value.launchContract);
+  if (expected.contentDigest !== value.contentDigest) throw new Error("release manifest content/contract digest mismatch");
 }
 
 function assertContained(parent: string, child: string, message: string): void {

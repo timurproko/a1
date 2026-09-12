@@ -140,6 +140,7 @@ async function runRecoveredCommand(value, arguments_) {
 
 async function readCapsule(path) {
   const value = JSON.parse(await readFile(path, "utf8"));
+  if (value.launchContract !== "neutral-launch-v1") throw new Error("Unsupported private recovery contract; stop existing processes and install directly with npm. Preserve settings, sessions, and history.");
   if (value.schema !== SCHEMA || typeof value.transactionId !== "string" || typeof value.packageName !== "string"
     || typeof value.packageName !== "string" || !value.packageName.includes("/") || typeof value.targetVersion !== "string" || typeof value.packageRoot !== "string" || typeof value.globalRoot !== "string"
     || typeof value.launcherRoot !== "string" || !Array.isArray(value.launchers) || typeof value.priorReleaseId !== "string" || typeof value.priorReleaseRoot !== "string"
@@ -178,6 +179,7 @@ async function readCapsule(path) {
   assertDirectChild(releasesRoot, priorReleaseRoot);
   if (priorReleaseRoot.split(sep).at(-1) !== value.priorReleaseId) throw new Error("A1 update recovery prior release identity is invalid");
   const priorManifest = JSON.parse(await readFile(resolve(priorReleaseRoot, value.releaseManifestName), "utf8"));
+  if (priorManifest.launchContract !== "neutral-launch-v1") throw new Error("Unsupported prior private launch contract; manual cutover is required.");
   if (priorManifest.releaseId !== value.priorReleaseId || priorManifest.contentDigest !== value.priorContentDigest) {
     throw new Error("A1 update recovery prior release manifest is invalid");
   }
@@ -190,7 +192,7 @@ async function installedTargetEntry(value) {
   try {
     const manifest = JSON.parse(await readFile(resolve(value.packageRoot, "package.json"), "utf8"));
     const entry = resolve(value.packageRoot, "bin", "cli.js");
-    if (manifest.name !== value.packageName || manifest.version !== value.targetVersion || !(await lstat(entry)).isFile()) return null;
+    if (manifest.privateLaunchContract !== "neutral-launch-v1" || manifest.name !== value.packageName || manifest.version !== value.targetVersion || !(await lstat(entry)).isFile()) return null;
     return entry;
   } catch { return null; }
 }

@@ -97,6 +97,10 @@ The obsolete npm package `@timurproko/addone` is deprecated with the registry me
 
 The launch-profile feature separately owns A1's `~/.a1/agent` root and preserves ordinary Pi resolution through `~/.pi/agent`.
 
+## Internal naming validation
+
+The required PR naming job inspects complete new and changed source files. `npm run check:names` performs the full tracked audit, also required by nightly full-release validation. See [internal naming and clean cutover](internal-naming.md) for public/private environment ownership, required checks, and protected user data.
+
 ### Prompt history
 
 Prompt history has a separate default: `<effective-home>/.a1/data/history/<profile-id>.sqlite3`

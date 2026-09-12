@@ -5,6 +5,7 @@ import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../../product-identity.js";
 import { processIsAlive } from "./process-cleanup.js";
+import { PRIVATE_LAUNCH_CONTRACT, assertCurrentLaunchContract } from "../launch-context/index.js";
 import type { UpdateTransaction, UpdateRecoveryState } from "./update-transaction.js";
 
 export const UPDATE_RECOVERY_SCHEMA = "a1-update-recovery-v1" as const;
@@ -13,6 +14,7 @@ const POLL_MS = 50;
 
 export interface UpdateRecoveryCapsule {
   readonly schema: typeof UPDATE_RECOVERY_SCHEMA;
+  readonly launchContract: typeof PRIVATE_LAUNCH_CONTRACT;
   readonly transactionId: string;
   readonly packageName: string;
   readonly targetVersion: string;
@@ -76,6 +78,7 @@ export function updateLauncherPaths(globalRoot: string, platform: NodeJS.Platfor
 /** Validate transaction-scoped recovery authority without trusting npm temporary names. */
 export async function readUpdateRecoveryCapsule(manifestPath: string, platform: NodeJS.Platform = process.platform): Promise<UpdateRecoveryCapsule> {
   const capsule = JSON.parse(await readFile(manifestPath, "utf8")) as UpdateRecoveryCapsule;
+  assertCurrentLaunchContract(capsule);
   if (capsule.schema !== UPDATE_RECOVERY_SCHEMA || !/^[0-9a-f-]{36}$/i.test(capsule.transactionId) || typeof capsule.targetVersion !== "string"
     || capsule.packageName !== PRODUCT_TEXT.packageName || typeof capsule.packageRoot !== "string" || typeof capsule.globalRoot !== "string"
     || typeof capsule.launcherRoot !== "string" || !Array.isArray(capsule.launchers) || typeof capsule.priorReleaseId !== "string"
@@ -111,6 +114,7 @@ export async function readUpdateRecoveryCapsule(manifestPath: string, platform: 
   assertDirectChild(releasesRoot, priorReleaseRoot);
   if (priorReleaseRoot.split(sep).at(-1) !== capsule.priorReleaseId) throw new Error("recovery prior release identity is invalid");
   const priorManifest = JSON.parse(await readFile(resolve(priorReleaseRoot, capsule.releaseManifestName), "utf8")) as Record<string, unknown>;
+  assertCurrentLaunchContract(priorManifest);
   if (priorManifest.releaseId !== capsule.priorReleaseId || priorManifest.contentDigest !== capsule.priorContentDigest) {
     throw new Error("recovery prior release manifest differs from the capsule");
   }
@@ -144,6 +148,7 @@ export async function prepareUpdateRecoveryCapsule(options: ProtectedPackageRepl
     const npmCli = await resolveNpmCli(canonicalGlobal, options.environment ?? process.env);
     const capsule: UpdateRecoveryCapsule = {
       schema: UPDATE_RECOVERY_SCHEMA,
+      launchContract: PRIVATE_LAUNCH_CONTRACT,
       transactionId: options.transaction.transactionId,
       packageName: PRODUCT_TEXT.packageName,
       targetVersion: options.transaction.targetVersion,

@@ -60,8 +60,8 @@ if (event.workflow_run && !context.validationComplete) {
 }
 
 async function processPullRequest(number, run) {
-  const attempts = boundedPollingNumber("A1_AUTO_MERGE_POLL_ATTEMPTS", process.env.A1_AUTO_MERGE_POLL_ATTEMPTS, 30);
-  const delayMs = boundedPollingNumber("A1_AUTO_MERGE_POLL_MS", process.env.A1_AUTO_MERGE_POLL_MS, 2000);
+  const attempts = boundedPollingNumber("DOCS_AUTO_MERGE_POLL_ATTEMPTS", process.env.DOCS_AUTO_MERGE_POLL_ATTEMPTS, 30);
+  const delayMs = boundedPollingNumber("DOCS_AUTO_MERGE_POLL_MS", process.env.DOCS_AUTO_MERGE_POLL_MS, 2000);
   let expectedHead;
   let expectedId;
   let reason = "waiting for mergeability";

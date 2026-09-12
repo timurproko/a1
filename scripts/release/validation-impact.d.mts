@@ -1,3 +1,4 @@
+import type { NamingSelection } from "../governance/naming-source-policy.mjs";
 export type RenderingImpactTier = "none" | "smoke" | "full";
 
 export interface ValidationChange {
@@ -22,6 +23,7 @@ export interface ValidationImpact {
     readonly fallbacks: readonly string[];
     readonly changedPaths: readonly string[];
   };
+  readonly naming: NamingSelection;
   readonly documentation: { readonly required: boolean; readonly paths: readonly string[] };
   readonly timing: { readonly classifierMs: number };
 }

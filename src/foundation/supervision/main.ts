@@ -6,7 +6,8 @@ import { publishSupervisorStartupResult, supervisorStartupFailure, supervisorSta
 import { ControlStore } from "../storage/index.js";
 import { resolveCohortEndpoint, resolveProductPaths } from "./paths.js";
 import { SupervisorServer } from "./server.js";
-import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../../product-identity.js";
+import { PRODUCT_TEXT } from "../../product-identity.js";
+import { readLaunchContext } from "../launch-context/index.js";
 
 export async function runSupervisor(arguments_: readonly string[] = []): Promise<void> {
   const productPaths = resolveProductPaths();
@@ -14,9 +15,10 @@ export async function runSupervisor(arguments_: readonly string[] = []): Promise
   mkdirSync(productPaths.endpointsDir, { recursive: true, mode: 0o700 });
   let paths = productPaths;
   const log = (message: string) => appendFileSync(paths.supervisorLogPath, `${new Date().toISOString()} ${message}\n`);
-  const releaseRoot = process.env[PRODUCT_IDENTITY.environment.releaseRoot];
-  const releaseId = process.env[PRODUCT_IDENTITY.environment.releaseId];
-  const contentDigest = process.env[PRODUCT_IDENTITY.environment.releaseDigest];
+  const context = readLaunchContext(process.env, "release");
+  const releaseRoot = context.releaseRoot;
+  const releaseId = context.releaseId;
+  const contentDigest = context.releaseDigest;
   const attemptId = startupAttempt(arguments_);
   const resultPath = attemptId ? supervisorStartupResultPath(productPaths.runtimeDir, attemptId) : null;
   let stage = "release-environment";
@@ -28,10 +30,8 @@ export async function runSupervisor(arguments_: readonly string[] = []): Promise
     const release = await readCertifiedReleaseManifest(
       { releaseRoot, releaseId, contentDigest },
       resolve(paths.dataDir, "releases"),
-      { allowLegacyParentCertification: true },
     );
-    // Compatibility: an older updater may have written release evidence before restart seals
-    // existed, even when its layer certification has already been upgraded by a retry.
+    // Invariant: readiness follows current-contract certification, never an old-updater upgrade path.
     await recordParentCertifiedRelease(release, paths.dataDir);
     stage = "immutable-root";
     await assertImmutableExecutionRoot(release, paths.dataDir);

@@ -3,13 +3,14 @@
 const startup = await import("../dist/foundation/startup/index.js");
 startup.enableEnvironmentCompileCache(process.env);
 await startup.markStartupPhase(process.env, "guardian-start");
-const { fileURLToPath } = await import("node:url");
 const { resolve } = await import("node:path");
 const { parseSessionSelection } = await import("../dist/foundation/lifecycle/index.js");
 const { runLaunchGuardian } = await import("../dist/foundation/launch-guardian/index.js");
 
-const releaseRoot = process.env.A1_RELEASE_ROOT ?? fileURLToPath(new URL("..", import.meta.url));
-const profileId = process.env.A1_LAUNCH_PROFILE ?? "a1";
+const { readLaunchContext } = await import("../dist/foundation/launch-context/index.js");
+const launchContext = readLaunchContext(process.env, "release");
+const releaseRoot = launchContext.releaseRoot;
+const profileId = readLaunchContext(process.env, "profile").launchProfile;
 
 Promise.resolve().then(() => runLaunchGuardian({
   sessionSelection: parseSessionSelection(process.argv.slice(2)),

@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { PRODUCT_IDENTITY } from "../../product-identity.js";
+import { readLaunchContext } from "../launch-context/index.js";
 import { resolve } from "node:path";
 import type { LaunchInstanceOutcome, LaunchInstanceStopIntent, LaunchInstanceStopReason, LaunchProfileId, NativeProcessIdentity, SupervisorCommand } from "../lifecycle/index.js";
 import { assertLaunchProfileId, sessionSelectionArguments, type SessionSelection } from "../lifecycle/index.js";
@@ -55,10 +55,11 @@ export async function runLaunchGuardian(options: LaunchGuardianOptions): Promise
   const guardianIdentity = await inspector.observe(process.pid);
   if (!guardianIdentity) throw diagnosticError("launch guardian cannot verify its own native process identity", "PROCESS_IDENTITY_UNAVAILABLE");
 
-  const client = options.control ?? new SupervisorClient(environment[PRODUCT_IDENTITY.environment.releaseId]);
+  const context = readLaunchContext(environment);
+  const client = options.control ?? new SupervisorClient(context.releaseId);
   // Invariant: an instance belongs to the cohort that launched it and talks to that cohort's endpoint
   // for its whole life, whatever release becomes the active one meanwhile.
-  const releaseId = environment[PRODUCT_IDENTITY.environment.releaseId];
+  const releaseId = context.releaseId;
   const endpoint = releaseId
     ? resolveCohortEndpoint(paths, releaseId, environment).endpoint
     : paths.endpoint;

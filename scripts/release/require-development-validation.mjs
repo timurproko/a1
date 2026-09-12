@@ -4,6 +4,11 @@ import { fileURLToPath } from "node:url";
 export function requireDevelopmentValidation(value) {
   requireResult(value.changesResult, "change classification");
   if (!/^[0-9a-f]{40}$/u.test(value.selectedHead ?? "") || value.selectedHead !== value.expectedHead) throw new Error("validation selection is stale or has an invalid head");
+  if (value.namingRequired === "true") {
+    requireResult(value.namingResult, "internal naming validation");
+    if (value.namingHead !== value.expectedHead) throw new Error("naming validation result is stale or missing its head");
+  } else if (value.namingRequired === "false") requireSkipped(value.namingResult, "internal naming validation");
+  else throw new Error("naming validation selection is missing");
   if (value.docsOnly === "true") {
     requireResult(value.docsResult, "documentation governance");
     requireSkipped(value.documentationResult, "changed-file documentation");
@@ -42,6 +47,9 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   const value = Object.fromEntries(Object.entries({
     changesResult: "CHANGES_RESULT",
     docsResult: "DOCS_RESULT",
+    namingResult: "NAMING_RESULT",
+    namingRequired: "NAMING_REQUIRED",
+    namingHead: "NAMING_HEAD",
     documentationResult: "DOCUMENTATION_RESULT",
     validateResult: "VALIDATE_RESULT",
     renderingResult: "RENDERING_RESULT",

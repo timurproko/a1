@@ -155,7 +155,7 @@ function options(control: FakeControl, containment: ProcessContainment, inspecto
     profileId: "pi" as const,
     releaseRoot: "D:/release",
     uiEntry: "D:/release/bin/ui.js",
-    environment: { A1_ENDPOINT: "test-endpoint", A1_RELEASE_ID: "release-1" },
+    environment: { A1_ENDPOINT: "test-endpoint", LAUNCH_CONTEXT_RELEASE_ID: "release-1" },
     cwd: "D:/workspace",
     helperPath: "guardian-fixture",
     control,

@@ -297,7 +297,7 @@ fn fixture_pane(argument: &str) -> Result<(), String> {
     let session_id = env::var("A1_TERMINAL_SESSION_ID")
         .map_err(|_| "fixture terminal-session identity is unavailable".to_owned())?;
     let token =
-        env::var("A1_FIXTURE_TOKEN").map_err(|_| "fixture token is unavailable".to_owned())?;
+        env::var("TERMINAL_FIXTURE_TOKEN").map_err(|_| "fixture token is unavailable".to_owned())?;
     if token != argument {
         return Err("fixture exact argument did not match its environment".to_owned());
     }
@@ -312,7 +312,7 @@ fn fixture_pane(argument: &str) -> Result<(), String> {
     std::io::stdout()
         .flush()
         .map_err(|error| format!("flush fixture identity: {error}"))?;
-    let expected_input = env::var("A1_FIXTURE_INPUT")
+    let expected_input = env::var("TERMINAL_FIXTURE_INPUT")
         .map_err(|_| "fixture input identity is unavailable".to_owned())?;
     let mut command = String::new();
     std::io::stdin()
@@ -367,9 +367,9 @@ fn probe_two_by_two() -> Result<(), String> {
                 arguments: vec!["--fixture-pane".to_owned(), token.clone()],
                 cwd: Some(cwd),
                 environment: vec![
-                    ("A1_FIXTURE_TOKEN".to_owned(), token),
+                    ("TERMINAL_FIXTURE_TOKEN".to_owned(), token),
                     (
-                        "A1_FIXTURE_INPUT".to_owned(),
+                        "TERMINAL_FIXTURE_INPUT".to_owned(),
                         format!("focused-input-{}", index + 1),
                     ),
                 ],

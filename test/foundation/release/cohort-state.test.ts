@@ -199,6 +199,7 @@ function approvedState(first: MaterializedRelease, second: MaterializedRelease):
       releaseId: candidate.releaseId,
       releaseRoot: candidate.releaseRoot,
       packageVersion: candidate.packageVersion,
+      launchContract: "neutral-launch-v1",
       contentDigest: candidate.contentDigest,
       approval: "approved" as const,
       materializedAt: timestamp,
@@ -213,6 +214,7 @@ function release(version: string, seed: string): MaterializedRelease {
   const digest = seed.repeat(64).slice(0, 64);
   return {
     packageName: "@timurproko/a1",
+    launchContract: "neutral-launch-v1",
     packageVersion: version,
     contentDigest: digest,
     releaseId: `${version}-${digest.slice(0, 20)}`,

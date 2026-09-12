@@ -2,14 +2,16 @@
 
 const startup = await import("../dist/foundation/startup/index.js");
 startup.enableEnvironmentCompileCache(process.env);
-const profile = process.env.A1_LAUNCH_PROFILE ?? "a1";
+const { readLaunchContext } = await import("../dist/foundation/launch-context/index.js");
+const launchContext = readLaunchContext(process.env, "profile");
+const profile = launchContext.launchProfile;
 const { installFatalExit } = await import("../dist/foundation/terminal-cleanup/index.js");
 const { resolveProductPaths } = await import("../dist/foundation/lifecycle/index.js");
 const { join } = await import("node:path");
 let runningApplication;
 const fatal = profile === "a1" ? installFatalExit({
   directory: join(resolveProductPaths().runtimeDir, "crashes"),
-  releaseId: process.env.A1_RELEASE_ID,
+  releaseId: launchContext.releaseId,
   dispose: () => runningApplication?.dispose(),
 }) : undefined;
 // Performance: begin the exact launch graph together while the trace write is pending.

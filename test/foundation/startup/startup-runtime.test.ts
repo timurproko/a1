@@ -12,6 +12,7 @@ import {
   startupCompileCachePath,
 } from "../../../src/foundation/startup/index.js";
 import { PRODUCT_IDENTITY } from "../../../src/product-identity.js";
+import { PRIVATE_ENVIRONMENT } from "../../../src/foundation/launch-context/index.js";
 
 const roots: string[] = [];
 afterEach(async () => Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))));
@@ -23,8 +24,8 @@ describe("opt-in startup evidence and compile cache", () => {
     const path = resolve(root, "trace.jsonl");
     const environment: NodeJS.ProcessEnv = {
       [PRODUCT_IDENTITY.environment.startupTrace]: path,
-      [PRODUCT_IDENTITY.environment.releaseId]: "1.0.0-aaaaaaaaaaaaaaaaaaaa",
-      [PRODUCT_IDENTITY.environment.releaseLayers]: "dependencies-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      ["LAUNCH_CONTEXT_RELEASE_ID"]: "1.0.0-aaaaaaaaaaaaaaaaaaaa",
+      ["LAUNCH_CONTEXT_RELEASE_LAYERS"]: "dependencies-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
       SECRET_TOKEN: "must-not-appear",
       PROMPT: "private prompt",
     };
@@ -49,6 +50,24 @@ describe("opt-in startup evidence and compile cache", () => {
     ].sort());
     expect(source).not.toContain("must-not-appear");
     expect(source).not.toContain("private prompt");
+  });
+
+  it("takes one private-context snapshot per startup trace operation", async () => {
+    const root = await mkdtemp(resolve(tmpdir(), "startup-context-reads-"));
+    roots.push(root);
+    const environment: NodeJS.ProcessEnv = { [PRODUCT_IDENTITY.environment.startupTrace]: resolve(root, "trace.jsonl") };
+    const reads = { releaseId: 0, releaseLayers: 0 };
+    Object.defineProperty(environment, PRIVATE_ENVIRONMENT.releaseId, {
+      enumerable: true, get: () => { reads.releaseId++; return "1.0.0-aaaaaaaaaaaaaaaaaaaa"; },
+    });
+    Object.defineProperty(environment, PRIVATE_ENVIRONMENT.releaseLayers, {
+      enumerable: true, get: () => { reads.releaseLayers++; return "dependencies-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"; },
+    });
+    initializeStartupTrace(environment, "pi");
+    expect(reads).toEqual({ releaseId: 1, releaseLayers: 1 });
+    reads.releaseId = reads.releaseLayers = 0;
+    await markStartupPhase(environment, "ui-modules-loaded");
+    expect(reads).toEqual({ releaseId: 1, releaseLayers: 1 });
   });
 
   it("performs no trace I/O for an ordinary launch", async () => {
@@ -84,6 +103,12 @@ describe("opt-in startup evidence and compile cache", () => {
       launchKind: "no-live-supervisor",
       events: [event("command-invoked", 0), event("ui-modules-loaded", 5_500), event("first-input-ready-render", 6_000)],
     })).toThrow(/no-live-supervisor/);
+    expect(() => assertStartupPerformanceBudget({
+      profileId: "pi", launchKind: "warm", events: [event("first-input-ready-render", 3_000)],
+    })).not.toThrow();
+    expect(() => assertStartupPerformanceBudget({
+      profileId: "pi", launchKind: "warm", events: [event("first-input-ready-render", 3_001)],
+    })).toThrow(/3001ms exceeds 3000ms/);
   });
 
   it("falls back without behavior changes when cache storage is unavailable", async () => {

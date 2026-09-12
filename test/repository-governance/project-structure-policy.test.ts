@@ -11,7 +11,7 @@ import {
 describe("project structure ownership policy", () => {
   it("declares every production and test owner with one public entry", () => {
     expect(Object.keys(PROJECT_OWNERS)).toEqual([
-      "product-identity", "cli", "composition", "launch", "workspace", "owned-ui", "prompt-history", "terminal-cleanup", "startup", "lifecycle", "process-containment", "launch-guardian", "protocol", "release", "storage", "structured-agent-runtime", "native-host-protocol", "owned-ui-contracts", "ui-components", "ui-apps", "owned-ui-settings", "agent-engine-contracts", "presentation-contracts", "pi-engine-adapter", "pi-component-adapter", "pi-tui-runtime-adapter", "pi-session-ui-integration", "supervision", "workspace-contracts",
+      "product-identity", "cli", "composition", "launch", "workspace", "owned-ui", "prompt-history", "terminal-cleanup", "launch-context", "startup", "lifecycle", "process-containment", "launch-guardian", "protocol", "release", "storage", "structured-agent-runtime", "native-host-protocol", "owned-ui-contracts", "ui-components", "ui-apps", "owned-ui-settings", "agent-engine-contracts", "presentation-contracts", "pi-engine-adapter", "pi-component-adapter", "pi-tui-runtime-adapter", "pi-session-ui-integration", "supervision", "workspace-contracts",
     ]);
     for (const owner of Object.values(PROJECT_OWNERS)) {
       if (owner.id === "product-identity") {
@@ -38,6 +38,16 @@ describe("project structure ownership policy", () => {
     })).toEqual([
       "src/foundation/launch-guardian/main.ts: launch-guardian may not import terminal-cleanup (../terminal-cleanup/index.js)",
     ]);
+  });
+
+  it("keeps private launch context dependency-free behind its public entry", () => {
+    expect(PROJECT_OWNERS["launch-context"]).toMatchObject({
+      layer: "foundation", publicEntry: "src/foundation/launch-context/index.ts", testRoot: "test/foundation/launch-context", mayImport: [],
+    });
+    expect(inspectProjectStructureImports({
+      "src/foundation/startup/startup-runtime.ts": "import { readLaunchContext } from '../launch-context/index.js';",
+      "src/foundation/release/bootstrap.ts": "import { withLaunchContext } from '../launch-context/index.js';",
+    })).toEqual([]);
   });
 
   it("rejects declared owners whose source, public entry, or test root is absent", () => {

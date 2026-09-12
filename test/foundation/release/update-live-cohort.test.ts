@@ -40,6 +40,7 @@ async function liveCohort(kind: "retained" | "mutable-install") {
   await mkdir(resolve(root, "releases"), { recursive: true });
   const release: MaterializedRelease = {
     packageName: "@timurproko/a1",
+    launchContract: "neutral-launch-v1",
     packageVersion: "1.2.0",
     contentDigest: digest,
     releaseId,
@@ -71,6 +72,7 @@ async function liveCohort(kind: "retained" | "mutable-install") {
       releaseId,
       releaseRoot,
       packageVersion: release.packageVersion,
+      launchContract: "neutral-launch-v1",
       contentDigest: digest,
       approval: "approved",
       materializedAt: timestamp,

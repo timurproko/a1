@@ -196,6 +196,7 @@ async function fixturePackage(root: string, name: string, version: string, produ
   await mkdir(resolve(dependencyRoot, "dist"), { recursive: true });
   await writeFile(resolve(packageRoot, "package.json"), JSON.stringify({
     name: "@timurproko/a1",
+    privateLaunchContract: "neutral-launch-v1",
     version,
     files: ["dist"],
     dependencies: { "fixture-dependency": "1.0.0" },

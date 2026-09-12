@@ -5,6 +5,9 @@ const head = "a".repeat(40);
 const valid = {
   changesResult: "success",
   docsResult: "skipped",
+  namingRequired: "false",
+  namingResult: "skipped",
+  namingHead: head,
   documentationResult: "skipped",
   validateResult: "success",
   renderingResult: "skipped",
@@ -23,6 +26,7 @@ describe("development validation aggregate", () => {
   it("accepts exact docs, version, ordinary, smoke, and full selections", () => {
     expect(requireDevelopmentValidation({ ...valid, docsOnly: "true", docsResult: "success", validateResult: "skipped", startupResult: "skipped" })).toMatchObject({ mode: "docs" });
     expect(requireDevelopmentValidation({ ...valid, versionOnly: "true", validateResult: "skipped", startupResult: "skipped" })).toMatchObject({ mode: "version" });
+    expect(requireDevelopmentValidation({ ...valid, namingRequired: "true", namingResult: "success" })).toMatchObject({ mode: "code" });
     expect(requireDevelopmentValidation(valid)).toMatchObject({ mode: "code", renderingTier: "none" });
     expect(requireDevelopmentValidation({ ...valid, documentationRequired: "true", documentationResult: "success", renderingTier: "smoke", renderingResult: "success" })).toMatchObject({ mode: "code", renderingTier: "smoke" });
     expect(requireDevelopmentValidation({ ...valid, renderingTier: "full", renderingResult: "success" })).toMatchObject({ mode: "code", renderingTier: "full" });
@@ -40,6 +44,11 @@ describe("development validation aggregate", () => {
     ["failed full", { renderingTier: "full", renderingResult: "failure" }],
     ["unexpected rendering", { renderingTier: "none", renderingResult: "success" }],
     ["unknown rendering tier", { renderingTier: "partial" }],
+    ["missing naming selection", { namingRequired: undefined }],
+    ["skipped naming", { namingRequired: "true", namingResult: "skipped" }],
+    ["failed naming", { namingRequired: "true", namingResult: "failure" }],
+    ["stale naming", { namingRequired: "true", namingResult: "success", namingHead: "b".repeat(40) }],
+    ["unexpected naming", { namingRequired: "false", namingResult: "success" }],
   ])("rejects %s", (_label, override) => {
     expect(() => requireDevelopmentValidation({ ...valid, ...override })).toThrow();
   });

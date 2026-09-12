@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
+import { selectNamingImpact } from "../../scripts/governance/naming-source-policy.mjs";
 
 const execFileAsync = promisify(execFile);
 const checker = "scripts/governance/check-code-documentation.mjs";
@@ -34,6 +35,7 @@ function selection(path: string) {
     openspecTouched: false,
     ordinaryScopes: ["fast"],
     rendering: { tier: "none", reasons: [], fallbacks: [], changedPaths: [path] },
+    naming: selectNamingImpact([{ status: "M", path }]),
     documentation: { required: true, paths: [path] },
     timing: { classifierMs: 1 },
   };
