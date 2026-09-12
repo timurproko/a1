@@ -5,18 +5,16 @@ export interface RenderingBudgetResult {
   readonly violations: readonly string[];
 }
 
-// Rationale: `streamed-code-block` and `link-bearing-prose` capture evidence but cannot be
-// budgeted yet. Their content is link-resembling text, which the accepted hyperlink-cleanup
-// contract still treats as movement-unsafe; relaxing that needs physical Windows Terminal
-// acceptance, so only the link-free tall live tail asserts bounded movement here.
-const BOUNDED_MOVEMENT_WORKLOADS = new Set(["tall-live-tail"]);
+// Invariant: candidate text has no authority to disable a proven source-row shift.
+// Physical host-hover acceptance remains separate from these deterministic paint budgets.
+const BOUNDED_MOVEMENT_WORKLOADS = new Set(["streamed-code-block", "link-bearing-prose", "tall-live-tail"]);
 
 const LINK_BLOCKED_REASONS = new Set(["unsafe-terminal-content", "hyperlink-cleanup", "pending-hyperlink-cleanup"]);
-
-// Rationale: these two workloads reproduce the reported code-block symptom. Their mid-stream
-// full-screen clears are hyperlink-cleanup frames the accepted contract still requires, so they
-// are recorded rather than asserted until that contract is revisited with physical acceptance.
-const CLEANUP_CLEAR_EVIDENCE_WORKLOADS = new Set(["streamed-code-block", "link-bearing-prose"]);
+const FINAL_VISIBLE_MARKERS: Readonly<Record<string, string>> = {
+  "streamed-code-block": "config.json once.",
+  "link-bearing-prose": "wrapped row.",
+  "tall-live-tail": "step six",
+};
 
 /** Evaluates logical damage rather than a terminal- or color-specific byte threshold. */
 export function evaluateRenderingBudgets(matrix: RenderingMatrixResult): RenderingBudgetResult {
@@ -31,10 +29,8 @@ export function evaluateRenderingBudgets(matrix: RenderingMatrixResult): Renderi
           violations.push(`${label}: blank final cell frame`);
         }
         const structuralResize = checkpoint.name.includes("resize-structural");
-        const cleanupEvidence = CLEANUP_CLEAR_EVIDENCE_WORKLOADS.has(matrix.workloadId)
-          && checkpoint.damageDecision?.reason === "hyperlink-cleanup";
         if (producer.producer === "bare-a1" && checkpoint.name !== "initial"
-          && !structuralResize && !cleanupEvidence && checkpoint.paint.fullScreenClears > 0) {
+          && !structuralResize && checkpoint.paint.fullScreenClears > 0) {
           violations.push(`${label}: unexpected full-screen clear`);
         }
         if (checkpoint.damageDecision?.reason === "suppressed-redundant-clear" && checkpoint.paint.fullScreenClears > 0) {
@@ -62,9 +58,17 @@ export function evaluateRenderingBudgets(matrix: RenderingMatrixResult): Renderi
     violations.push(`${matrix.workloadId}: comparison semantic parity failed`);
   }
   if (BOUNDED_MOVEMENT_WORKLOADS.has(matrix.workloadId)) {
+    if (matrix.synchronizedReplayParity !== true) {
+      violations.push(`${matrix.workloadId}: missing or divergent synchronized/unsynchronized replay`);
+    }
     const bare = matrix.fullscreenMode.find(producer => producer.producer === "bare-a1");
     if (bare === undefined || bare.checkpoints.length === 0) {
       violations.push(`${matrix.workloadId}: missing bare-A1 fullscreen checkpoints`);
+    }
+    const final = bare?.checkpoints.at(-1);
+    if (final === undefined || !final.name.endsWith("-settled")
+      || !final.cellFrame.rows.join(" ").replace(/\s+/gu, " ").includes(FINAL_VISIBLE_MARKERS[matrix.workloadId]!)) {
+      violations.push(`${matrix.workloadId}: stale or missing settled content`);
     }
     for (const checkpoint of bare?.checkpoints ?? []) {
       const label = `${matrix.workloadId}/${checkpoint.name}`;
@@ -87,6 +91,13 @@ export function evaluateRenderingBudgets(matrix: RenderingMatrixResult): Renderi
       const allowed = decision.shiftRows + Math.max(1, checkpoint.viewport.liveTailRows ?? 1) + 1;
       if (transcriptPaints > allowed) {
         violations.push(`${label}: painted ${transcriptPaints} transcript rows beyond the live-tail allowance of ${allowed}`);
+      }
+      // Invariant: a generous live-tail count does not authorize repaint of settled rows.
+      // Exposed rows, the live/transient suffix, and the sticky first row are separate damage.
+      const suffix = Math.max(decision.shiftRows,
+        (checkpoint.viewport.liveTailRows ?? 0) + checkpoint.viewport.transientTailRows);
+      if (decision.paintedRows.some(row => row > region.rowStart && row <= region.rowEnd - suffix)) {
+        violations.push(`${label}: repainted a stable settled row outside the live tail`);
       }
     }
   }

@@ -1,3 +1,4 @@
+import { mock } from "node:test";
 import type { AgentSessionRuntime } from "@earendil-works/pi-coding-agent";
 import {
   AssistantMessageComponent,
@@ -137,7 +138,14 @@ class RecordingTerminal implements PiTuiTerminalPort {
   #cause: string | undefined;
 
   constructor(public columns: number, public rows: number) {}
-  setClock(atMs: number, cause: string): void { this.#atMs = atMs; this.#cause = cause; }
+  setClock(atMs: number, cause: string): void {
+    const elapsed = Math.max(0, atMs - this.#atMs);
+    this.#atMs = atMs;
+    this.#cause = cause;
+    // Rationale: animate and schedule frames from the script, never cold-import wall time.
+    // All producers get the same clock; cooperative immediate/event delivery stays real.
+    mock.timers.tick(elapsed);
+  }
   start(input: (data: string) => void, resize: () => void): void { this.#input = input; this.#resize = resize; }
   stop(): void { this.#input = undefined; this.#resize = undefined; }
   async drainInput(): Promise<void> {}
@@ -344,9 +352,10 @@ async function main(): Promise<void> {
   process.send?.({ type: "ready" });
   if (request.testBehavior === "hang") await hangForever();
   if (request.testBehavior === "fail") throw new Error("requested producer failure");
-  const result = request.producer === "pinned-pi"
-    ? await runPinned(request, workload.steps)
-    : await runOwned(request, workload.steps);
+  mock.timers.enable({ apis: ["Date", "setInterval", "setTimeout"], now: 1_700_000_000_000 });
+  const result = await (request.producer === "pinned-pi"
+    ? runPinned(request, workload.steps)
+    : runOwned(request, workload.steps)).finally(() => mock.timers.reset());
   await new Promise<void>((resolve, reject) => {
     process.stdout.write(JSON.stringify(result), error => error ? reject(error) : resolve());
   });

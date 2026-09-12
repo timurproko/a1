@@ -1396,7 +1396,8 @@ describe("OwnedUiSessionShell", () => {
     expect(shell.runtime.fullRedraws).toBe(redrawsBeforeHover);
     terminal.input(`\u001b[<35;1;${firstRowIndex + 1}M`);
     shell.runtime.renderNow();
-    expect(shell.runtime.fullRedraws).toBeGreaterThan(redrawsBeforeHover);
+    expect(shell.runtime.fullRedraws).toBe(redrawsBeforeHover);
+    expect(shell.damagePresentationDecision()).toMatchObject({ reason: "hyperlink-cleanup", paintedRows: [firstRowIndex + 1] });
 
     terminal.input(`\u001b[<35;${firstColumn};${firstRowIndex + 1}M`);
     shell.runtime.renderNow();
@@ -1405,7 +1406,7 @@ describe("OwnedUiSessionShell", () => {
     shell.runtime.requestRender();
     shell.runtime.renderNow();
     shell.runtime.renderNow();
-    expect(shell.runtime.fullRedraws).toBeGreaterThan(redrawsBeforeShift);
+    expect(shell.runtime.fullRedraws).toBe(redrawsBeforeShift);
     await shell.dispose();
   });
 
@@ -1439,15 +1440,20 @@ describe("OwnedUiSessionShell", () => {
           }
           shell.runtime.renderNow();
           const paints = terminal.writes.slice(before).filter(write => write.includes("\u001b[?2026h"));
-          const cleanups = paints.filter(write => write.includes("\u001b[2J"));
-          expect(cleanups.length).toBeGreaterThan(0);
-          for (const write of cleanups) {
-            expect(classifyTerminalPaint([{ data: write, atMs: 0 }])).toMatchObject({
-              fullScreenClears: 1, rowClears: 54, synchronizedUpdates: { begins: 1, ends: 1, balanced: true },
-            });
-          }
-          expect(shell.root.render(192).some(line => stripTerminalSequences(line).includes(label))).toBe(false);
-          expect(cleanups.at(-1)).not.toContain("https://example.test/target");
+          expect(paints.length).toBeGreaterThan(0);
+          const damage = classifyTerminalPaint(paints.map((data, atMs) => ({ data, atMs })));
+          expect(damage.fullScreenClears).toBe(0);
+          expect(damage.synchronizedUpdates.balanced).toBe(true);
+          expect(damage.addressedRowWrites).toContain(row + 1);
+          const viewportEnd = shell.root.viewportFrameDescriptor()!.transcript!.rowEnd;
+          expect(damage.addressedRowWrites.every(painted => painted <= viewportEnd)).toBe(true);
+          const expected = shell.root.render(192).map(line => stripTerminalSequences(line).trimEnd());
+          const replay = await replayTerminalPaint(terminal.writes.map((data, atMs) => ({ data, atMs })), {
+            columns: 192, rows: 54, synchronizedUpdates: "honor",
+          });
+          expect(replay.final.rows.map(line => line.trimEnd())).toEqual(expected);
+          expect(expected.some(line => line.includes(label))).toBe(false);
+          expect(paints.at(-1)).not.toContain("https://example.test/target");
         } finally { await shell.dispose(); }
       }
     });
@@ -1466,7 +1472,9 @@ describe("OwnedUiSessionShell", () => {
           render: width => Array.from({ length: 50 }, () => "covered".padEnd(width)), invalidate() {},
         }, { anchor: "top-left", width: 192 });
         shell.runtime.renderNow();
-        const cleanup = terminal.writes.slice(before).find(write => write.includes("\u001b[2J"));
+        const overlayWrites = terminal.writes.slice(before);
+        expect(overlayWrites.some(write => write.includes("\u001b[2J"))).toBe(false);
+        const cleanup = overlayWrites.find(write => write.includes("covered"));
         expect(cleanup).toBeDefined();
         expect(cleanup).toContain("covered");
         expect(cleanup).not.toContain("https://example.test/target");
@@ -1492,7 +1500,8 @@ describe("OwnedUiSessionShell", () => {
       await adapter.flushEvents();
       shell.runtime.renderNow();
       const changed = terminal.writes.slice(before);
-      expect(changed.some(write => write.includes("\u001b[2J") && write.includes("latest row 89"))).toBe(true);
+      expect(changed.some(write => write.includes("\u001b[2J"))).toBe(false);
+      expect(changed.some(write => write.includes("latest row 89"))).toBe(true);
       expect(shell.root.render(192).join("\n")).not.toContain(first);
       const settled = terminal.writes.length;
       await nextImmediate();
@@ -1551,7 +1560,9 @@ describe("OwnedUiSessionShell", () => {
       const releaseStart = terminal.writes.length;
       terminal.input("\u001b[<0;5;1m");
       shell.runtime.renderNow();
-      const release = terminal.writes.slice(releaseStart).find(write => write.includes("\u001b[2J"));
+      const releaseWrites = terminal.writes.slice(releaseStart);
+      expect(releaseWrites.some(write => write.includes("\u001b[2J"))).toBe(false);
+      const release = releaseWrites.find(write => write.includes(`\u001b]8;;${url}\u001b\\`));
       expect(release).toContain(`\u001b]8;;${url}\u001b\\`);
       expect(release).not.toContain("\uFE0E");
       terminal.input("\u0003");
@@ -2173,9 +2184,10 @@ describe("OwnedUiSessionShell", () => {
     await nextImmediate();
     shell.runtime.renderNow();
     const chipDeletionWrites = terminal.writes.slice(writesBeforeChipDelete);
-    // Platform: removing the last chip must preserve its hover cleanup, with
-    // the clear and complete current content in one synchronized transaction.
-    const cleanupWrites = chipDeletionWrites.filter(write => write.includes("\u001b[2J"));
+    // Invariant: deleting the last chip overwrites its former link row in the current
+    // transaction without clearing unrelated transcript rows.
+    expect(chipDeletionWrites.some(write => write.includes("\u001b[2J"))).toBe(false);
+    const cleanupWrites = chipDeletionWrites.filter(write => write.includes("\u001b[2K"));
     expect(cleanupWrites.length).toBeGreaterThan(0);
     expect(cleanupWrites.every(write => write.startsWith("\u001b[?2026h") && write.endsWith("\u001b[?2026l"))).toBe(true);
     expect(chipDeletionWrites.some(write => write.includes("\u001b[2K"))).toBe(true);
@@ -2218,7 +2230,8 @@ describe("OwnedUiSessionShell", () => {
     terminal.input(`\u001b[<0;${chipColumn + 1};${chipRow}m`);
     shell.runtime.renderNow();
     const draggedChip = shell.root.render(60).join("\n");
-    expect(terminal.writes.slice(writesBeforeRelease).some(write => write.includes("\u001b[2J"))).toBe(true);
+    expect(terminal.writes.slice(writesBeforeRelease).some(write => write.includes("\u001b[2J"))).toBe(false);
+    expect(terminal.writes.slice(writesBeforeRelease).some(write => write.includes("\u001b]8;;https://example.com/a/very/useful/resource\u001b\\"))).toBe(true);
     expect(draggedChip).toContain("\u001b[27m\u001b[48;2;38;79;120m");
     expect(draggedChip).toContain("\u001b]8;;https://example.com/a/very/useful/resource\u001b\\");
     terminal.input("\u007f");
