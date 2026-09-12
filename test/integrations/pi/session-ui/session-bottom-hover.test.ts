@@ -100,7 +100,7 @@ describe("bottom-control composition provenance", () => {
       f.hover(f.render(), true);
       expect(f.root.viewportPresentationEvidence().scrollTop).toBe(top - 3);
       f.root.handleInput("c");
-      f.root.handleViewportPreInput("\u001b[F");
+      f.root.handleViewportPreInput("\u001b[1;5F");
       expect(f.render().some(line => line.includes("Jump to bottom"))).toBe(false);
       expect(f.root.viewportPresentationEvidence().followingEnd).toBe(true);
       // Invariant: reverse ordering (hover before keyboard receipt) is also current.
@@ -116,7 +116,7 @@ describe("bottom-control composition provenance", () => {
       f.mouse(64); f.render();
       f.root.handleInput("x"); f.root.noteCompletedAssistantMessage();
       let rows = f.render();
-      expect(rows.some(line => stripAnsi(line).includes("1 new message (End)"))).toBe(true);
+      expect(rows.some(line => stripAnsi(line).includes("1 new message (Ctrl+End) ↓"))).toBe(true);
       f.hover(rows, true);
       f.root.handleInput("y"); f.root.editor.setText("one\ntwo\nthree"); f.hover(f.render(), false);
       f.root.editor.setText(""); f.hover(f.render(), true);

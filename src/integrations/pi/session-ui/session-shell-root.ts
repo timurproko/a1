@@ -938,7 +938,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     }
     if (result.command === "hotkeys" && result.outcome === "completed") {
       this.#lastWorkflowStatusId = undefined;
-      const hotkeys = createPiShellHotkeys(this.editor.keybindingConfig(), bindings => this.#extensionRenderers.getShortcuts?.(bindings) ?? []);
+      const hotkeys = createPiShellHotkeys(this.editor.keybindingConfig(), bindings => this.#extensionRenderers.getShortcuts?.(bindings) ?? [], this.#customViewport ? "a1" : "pi");
       this.#appendAnchoredWorkflowComponent(width => hotkeys.render(width), () => hotkeys.dispose?.());
       return;
     }
