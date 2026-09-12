@@ -72,11 +72,23 @@ describe("correlated supervisor startup result", () => {
     expect(retained).toHaveLength(16);
   });
 
+  it("bounds collision recovery when no matching owner ever publishes metadata", async () => {
+    const root = await temporaryRoot();
+    const attempt = await createSupervisorStartupAttempt(root, "release-a");
+    await publishSupervisorStartupResult(attempt.resultPath, supervisorStartupFailure(
+      Object.assign(new Error("occupied endpoint"), { code: "EADDRINUSE" }), attempt.attemptId, attempt.releaseId, "endpoint-listen",
+    ));
+    await expect(waitForVerifiedEndpoint(resolve(root, "missing.json"), { releaseId: attempt.releaseId } as MaterializedRelease, 50, {
+      ...attempt, childOutcome: Promise.resolve({ exitCode: 1, signal: null }),
+    })).rejects.toMatchObject({ code: "EADDRINUSE" });
+  });
+
+  // Compatibility: workflow-evidence governance references this stable test title.
   it("surfaces a matching startup failure before the endpoint timeout", async () => {
     const root = await temporaryRoot();
     const attempt = await createSupervisorStartupAttempt(root, "release-a");
     await publishSupervisorStartupResult(attempt.resultPath, supervisorStartupFailure(
-      Object.assign(new Error("cannot bind endpoint"), { code: "EADDRINUSE" }),
+      Object.assign(new Error("cannot bind endpoint"), { code: "EACCES" }),
       attempt.attemptId,
       attempt.releaseId,
       "endpoint-listen",
@@ -84,7 +96,7 @@ describe("correlated supervisor startup result", () => {
     const startup: SupervisorStartupAttempt = { ...attempt, childOutcome: new Promise(() => undefined) };
     const release = { releaseId: attempt.releaseId } as MaterializedRelease;
     await expect(waitForVerifiedEndpoint(resolve(root, "missing-endpoint.json"), release, 2_000, startup))
-      .rejects.toMatchObject({ code: "EADDRINUSE", message: expect.stringContaining("endpoint-listen: cannot bind endpoint") });
+      .rejects.toMatchObject({ code: "EACCES", message: expect.stringContaining("endpoint-listen: cannot bind endpoint") });
   });
 });
 
