@@ -1,5 +1,5 @@
 import { memoryHistory } from "./prompt-history-fixture.js";
-import { PromptHistoryService } from "../../../../src/features/prompt-history/service.js";
+import { PromptHistoryService } from "../../../../src/features/prompt-history/index.js";
 import { PromptHistoryStore } from "../../../../src/features/prompt-history/store.js";
 import { resolvePromptHistoryPath } from "../../../../src/features/prompt-history/paths.js";
 import { holdHistoryLock } from "../../../support/history-lock.js";
@@ -304,6 +304,123 @@ describe("OwnedUiSessionShell", () => {
       await rm(root, { recursive: true, force: true });
     }
   }, 20_000);
+
+  it.each(["shortcut", "terminal", "right-click"])("renders large text as one chip through %s and records the full prompt", async gesture => {
+    const history = memoryHistory();
+    const payload = Array.from({ length: 136 }, (_, index) => `line ${index} 日本語 [paste #999 1001 chars]`).join("\n");
+    const { shell, terminal, engine } = await fixture([], [], true, undefined, { readText: async () => payload },
+      undefined, undefined, undefined, { store: history.store, limit: 100 });
+    try {
+      terminal.resize(80, 24); shell.root.editor.setText("before "); shell.runtime.renderNow();
+      if (gesture === "shortcut") terminal.input("\x16");
+      else if (gesture === "terminal") terminal.input(`\x1b[200~${payload}\x1b[201~`);
+      else {
+        const row = shell.root.render(80).map(stripTerminalSequences).findIndex(line => line.includes("before ")) + 1;
+        terminal.input(`\x1b[<2;8;${row}M\x1b[<2;8;${row}m`);
+      }
+      await vi.waitFor(() => expect(shell.root.editor.getText()).toBe("before [paste #1 +136 lines]"));
+      const frame = stripTerminalSequences(shell.root.editor.render(80).join("\n"));
+      expect(frame).toContain("[paste #1 +136 lines]"); expect(frame).not.toContain("line 135");
+      terminal.input(" after"); await nextImmediate(); terminal.input("\r");
+      await vi.waitFor(() => expect(engine.session.calls.filter(call => call.startsWith("prompt:"))).toEqual([`prompt:before ${payload} after`]));
+      expect(engine.session.promptOptions).toHaveLength(1);
+      expect(engine.session.promptOptions[0] ?? {}).not.toHaveProperty("images");
+      expect(history.submitted.map(item => item.text)).toEqual([`before ${payload} after`]);
+    } finally { await shell.dispose(); }
+  });
+
+  it.each(["ordinary", "steer", "follow-up", "compaction", "compaction-follow-up"])("waits for a pending large text %s submission and sends its captured payload once", async mode => {
+    let release!: (text: string) => void;
+    const read = new Promise<string>(resolve => { release = resolve; });
+    const payload = "original payload 👩‍💻\n".repeat(12).trim();
+    const { shell, terminal, engine, adapter } = await fixture([], [], true, undefined, { readText: () => read });
+    try {
+      if (mode.startsWith("compaction")) engine.session.emit({ type: "compaction_start", reason: "manual" });
+      else if (mode !== "ordinary") engine.session.emit({ type: "agent_start" });
+      await adapter.flushEvents();
+      terminal.input("before "); terminal.input("\x16");
+      const draft = shell.root.editor.getText();
+      const pending = mode.endsWith("follow-up") ? shell.queueFollowUp() : shell.submit(draft);
+      const duplicate = mode.endsWith("follow-up") ? pending : shell.submit(draft);
+      shell.root.editor.setText("newer draft");
+      expect(engine.session.promptOptions).toHaveLength(0);
+      release(payload); expect((await pending).outcome).toBe("completed"); await duplicate;
+      if (mode.startsWith("compaction")) {
+        expect(engine.session.promptOptions).toHaveLength(0);
+        engine.session.emit({ type: "compaction_end", reason: "manual", result: {}, aborted: false, willRetry: false });
+        await adapter.flushEvents(); await nextImmediate();
+      }
+      expect(engine.session.calls.filter(call => call.startsWith("prompt:"))).toEqual([`prompt:before ${payload}`]);
+      expect(engine.session.promptOptions).toHaveLength(1);
+      expect(engine.session.promptOptions[0] ?? {}).not.toHaveProperty("images");
+      if (mode !== "ordinary") expect(engine.session.promptOptions[0]).toMatchObject({ streamingBehavior: mode.endsWith("follow-up") ? "followUp" : "steer" });
+      expect(shell.root.editor.getText()).toBe("newer draft");
+    } finally { await shell.dispose(); }
+  });
+
+  it.each(["delete", "cancel", "session", "dispose"])("does not resurrect or dispatch a pending large text paste after %s", async action => {
+    let release!: (text: string) => void;
+    const read = new Promise<string>(resolve => { release = resolve; });
+    const { shell, terminal, engine, adapter } = await fixture([], [], true, undefined, { readText: () => read });
+    try {
+      terminal.input("\x16"); await nextImmediate();
+      let pending: Promise<unknown> | undefined;
+      if (action === "delete") { terminal.input("\x01"); terminal.input("\x7f"); }
+      if (action === "cancel") { pending = shell.submit(shell.root.editor.getText()); await shell.interrupt(); }
+      if (action === "session") { await engine.rebindSession?.(new Session()); await adapter.flushEvents(); }
+      if (action === "dispose") await shell.dispose();
+      await nextImmediate(); shell.root.editor.setText("newer");
+      release("large late payload\n".repeat(136)); await pending; await nextImmediate(); await nextImmediate();
+      expect(shell.root.editor.getText()).toBe("newer"); expect(engine.session.promptOptions).toHaveLength(0);
+    } finally { await shell.dispose(); }
+  });
+
+  it.each(["waiting", "compaction"])("recovers a large text %s queue without losing or double-expanding its payload", async mode => {
+    let release!: (text: string) => void;
+    const read = new Promise<string>(resolve => { release = resolve; });
+    const payload = "literal [paste #999 1001 chars]\n".repeat(12).trim();
+    const { shell, terminal, engine, adapter } = await fixture([], [], true, undefined, { readText: () => read });
+    try {
+      if (mode === "compaction") { engine.session.emit({ type: "compaction_start", reason: "manual" }); await adapter.flushEvents(); }
+      terminal.input("\x16"); const draft = shell.root.editor.getText();
+      const pending = shell.submit(draft);
+      if (mode === "compaction") { release(payload); await pending; }
+      shell.restoreQueuedInput();
+      if (mode === "waiting") { release(payload); await pending; }
+      await vi.waitFor(() => expect(shell.root.hasPendingPastes(draft)).toBe(false));
+      expect(engine.session.promptOptions).toHaveLength(0);
+      const restored = shell.root.preparePromptSubmission(shell.root.editor.getText()).text;
+      expect(restored).toBe(mode === "waiting" ? `${payload}\nqueued steer\nqueued follow` : `queued steer\nqueued follow\n${payload}`);
+      if (mode === "compaction") {
+        engine.session.emit({ type: "compaction_end", reason: "manual", result: {}, aborted: false, willRetry: false });
+        await adapter.flushEvents(); await nextImmediate();
+      }
+      await shell.submit(shell.root.editor.getText());
+      expect(engine.session.calls.filter(call => call.startsWith("prompt:"))).toEqual([`prompt:${restored}`]);
+    } finally { await shell.dispose(); }
+  });
+
+  it("recalls expanded large pasted text using a fresh durable history worker and chip store", async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), "text-paste-history-"));
+    const options = { dataDir, profileRoot: join(dataDir, "profile"), limit: 100 };
+    const payload = "日本語 👩‍💻 [📷 literal] [paste #999 1001 chars]\n  indented\n".repeat(12).trim();
+    let shell: OwnedUiSessionShell | undefined;
+    try {
+      const first = await fixture([], [], true, undefined, { readText: async () => payload }, undefined, undefined, undefined,
+        { store: new PromptHistoryService(options), limit: 100 });
+      shell = first.shell; first.terminal.input("\x16");
+      await vi.waitFor(() => expect(shell!.root.editor.getText()).toMatch(/^\[paste #1 /u));
+      await shell.submit(shell.root.editor.getText()); await shell.dispose(); shell = undefined;
+      const second = await fixture([], [], true, undefined, undefined, undefined, undefined, undefined,
+        { store: new PromptHistoryService(options), limit: 100 });
+      shell = second.shell;
+      await vi.waitFor(() => expect(shell!.root.editor.recall?.position().total).toBe(1));
+      second.terminal.input("\x1b[A");
+      await vi.waitFor(() => expect(shell!.root.editor.getText()).toBe(payload));
+      await shell.submit(shell.root.editor.getText());
+      expect(second.engine.session.calls.filter(call => call.startsWith("prompt:"))).toEqual([`prompt:${payload}`]);
+    } finally { await shell?.dispose(); await rm(dataDir, { recursive: true, force: true }); }
+  });
 
   it.each(["shortcut", "terminal", "right-click"])("pastes text without flashing a screenshot chip through %s", async gesture => {
     let release!: (text: string) => void;

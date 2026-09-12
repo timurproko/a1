@@ -1,6 +1,6 @@
 {
   "schema": "a1-product-identity-v1",
-  "displayName": "A1",
+  "displayName": "a1",
   "commandName": "a1",
   "packageName": "@timurproko/a1",
   "filesystem": {

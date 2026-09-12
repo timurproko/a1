@@ -79,7 +79,10 @@ function fixtureMatrix(): RenderingMatrixResult {
     requestedMode: "regular" as const,
     effectiveMode: name === "bare-a1" ? "fullscreen" as const : "regular" as const,
     state: { profileId: name === "bare-a1" ? "a1" as const : "pi" as const, cwd: ".", theme: "dark" as const, columns: 1, rows: 1, synchronizedUpdates: true },
-    checkpoints: [{ ...checkpoint, name: "initial" }, checkpoint],
+    checkpoints: [{ ...checkpoint, name: "initial" }, checkpoint].map((entry, index) => ({
+      ...entry,
+      ...(name !== "bare-a1" ? {} : { writePaints: [{ writeIndex: index, paint: entry.paint }] }),
+    })),
   });
   const defaultMode = [producer("bare-a1", 1), producer("a1-pi", 2), producer("pinned-pi", 3)];
   return {

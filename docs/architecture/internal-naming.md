@@ -71,11 +71,13 @@ The old environment registry included `fixture` and `inputAcknowledgement`, but 
 
 `certificationTarball`, `internalPackaging`, `nativePi`, `piParityIntentionalMutation`, `protocolVersion`, `structuredFlowLimits`, `terminalArgumentsJson`, and `terminalExecutable` had no active runtime consumer in the reviewed tree. They are removed from the current environment authority, not renamed into new settings. Rejection patterns and immutable historical evidence remain factual.
 
-## Clean cutover and protected state
+## Negotiated handoff and protected state
 
-The first new-contract installation is intentionally not an old-to-new `a1 update` path. Stop existing A1 sessions, supervisors, and workers first. Install the **accepted published version** explicitly with `npm install --global @timurproko/a1@<accepted-version>`; the implementation/release handoff must replace the placeholder with the actual accepted version. Do not execute an old recovery launcher to bridge the cutover.
+An update is performed by the release that is already installed, so the contract is negotiated rather than cut over. `neutral-launch-v1` is the only contract this build **writes** for its own releases, and the superseded `A1_RELEASE_*`/`A1_IMMUTABLE_WARMUP` keys are still **read** when an older launcher starts this build, and still **written** when this build starts a retained release that declares no contract. An installation therefore stays launchable across the cutover in both directions, and no user is asked to stop processes and reinstall by hand.
 
-Old-contract targets are rejected with a cutover diagnostic. No reset or migration runs automatically. If disposable state blocks installation, inspect its resolved paths and obtain separate approval before removal. A supported rollback must also use `neutral-launch-v1`; no eligible target means an explicit unavailable rollback, not a fallback to older code.
+Metadata that predates contract declaration is stale, never fatal. A pre-cutover active record does not stop a launch: it is ignored, the installed payload is materialized, and ordinary cohort selection activates it. A launch that cannot take the installed payload at all — an installation being replaced right now — starts the retained active release instead of failing, and leaves activation to the next launch. What still requires `neutral-launch-v1` outright is narrow and never blocks a launch: the installed package's own manifest must declare it, and an update recovery capsule is never translated.
+
+`test/foundation/release/update-predecessor.integration.test.ts` is the gate for this. It installs each of the most recent published releases and drives the candidate through **that release's own** materialization and warmup, because a fixture built from the candidate would only prove the candidate agrees with itself. No reset or migration runs automatically. If disposable state blocks installation, inspect its resolved paths and obtain separate approval before removal.
 
 | State | Treatment |
 | --- | --- |

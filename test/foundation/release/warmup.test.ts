@@ -42,7 +42,7 @@ describe("side-effect-free immutable warmup", () => {
     await expect(warmMaterializedRelease(release, {}, 2_000)).resolves.toBeUndefined();
 
     const failed = await fakeRelease(resolve(root, "failed"), "throw new Error('graph unavailable')");
-    await expect(warmMaterializedRelease(failed, {}, 2_000)).rejects.toThrow(/status 1/);
+    await expect(warmMaterializedRelease(failed, {}, 2_000)).rejects.toThrow(/status 1.*graph unavailable/s);
   });
 });
 

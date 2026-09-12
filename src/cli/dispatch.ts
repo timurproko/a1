@@ -233,7 +233,7 @@ function pinnedPiUpdateError(): CliCommand {
     message: [
       PRODUCT_TEXT.diagnostic("pins its certified Pi runtime and cannot update it independently."),
       "Use:",
-      `  ${PRODUCT_TEXT.commandName} update                    Update A1`,
+      `  ${PRODUCT_TEXT.commandName} update                    Update a1`,
       `  ${PRODUCT_TEXT.commandName} pi update --extensions    Update Pi-compatible packages`,
       `  ${PRODUCT_TEXT.commandName} pi update --models        Refresh model catalogs`,
     ].join("\n"),
