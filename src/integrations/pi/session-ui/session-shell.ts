@@ -156,11 +156,13 @@ export class OwnedUiSessionShell {
   #lastEscapeTime = 0;
   #activeLoginDialog: PiShellLoginDialogPort | undefined;
   #sessionGeneration: number;
+  #sessionBindingGeneration: number;
   #suggestionModelKey: string;
 
   constructor(options: OwnedUiSessionShellOptions) {
     this.backend = options.backend;
     this.#sessionGeneration = this.backend.sessionGeneration;
+    this.#sessionBindingGeneration = this.backend.sessionBindingGeneration;
     this.#suggestionModelKey = modelKey(this.backend.view());
     this.#cwd = options.cwd;
     this.#routeHost = options.routeHost ?? null;
@@ -425,7 +427,6 @@ export class OwnedUiSessionShell {
         fallback: this.view().transcript.flatMap(block => block.kind === "user" ? [block.text] : []),
         active: () => this.root.usesDefaultInputSurface(),
         render: () => this.runtime.requestRender(),
-        failure: message => this.root.addExtensionNotification(message, "warning"),
       });
     }
     this.#extensionBridge = createPiExtensionUiBridge({
@@ -1363,8 +1364,7 @@ export class OwnedUiSessionShell {
     attempt(() => this.#extensionBridge.dispose());
     // Invariant: terminal restoration precedes any potentially stalled backend teardown.
     await this.runtime.dispose().catch(error => failures.push(error));
-    const historySaved = await historyCleanup.catch(() => false);
-    if (!historySaved) this.runtime.writeAfterStop("Prompt history could not finish saving before exit.\n");
+    await historyCleanup.catch(() => false); // Security: background durability outcomes never enter terminal output.
     await boundedCleanup(() => pasteCleanup).catch(error => failures.push(error));
     await boundedCleanup(() => this.backend.unbindExtensionUi()).catch(error => failures.push(error));
     if (failures.length > 0) throw new AggregateError(failures, "Owned UI disposal failed");
@@ -1399,7 +1399,11 @@ export class OwnedUiSessionShell {
       this.root.resetPendingPastes();
       this.#promptSuggestions?.invalidate();
       this.#sessionGeneration = this.backend.sessionGeneration;
-      this.#promptHistory?.reset(view.transcript.flatMap(block => block.kind === "user" ? [block.text] : []));
+      // Invariant: delivery recovery invalidates callbacks, not same-session local recall or its draft.
+      if (this.#sessionBindingGeneration !== this.backend.sessionBindingGeneration) {
+        this.#sessionBindingGeneration = this.backend.sessionBindingGeneration;
+        this.#promptHistory?.reset(view.transcript.flatMap(block => block.kind === "user" ? [block.text] : []));
+      }
       this.#activeLoginDialog = undefined;
       this.#extensionBridge.reset();
       // Invariant: a replaced session takes its transient viewport and owned-route state with it.

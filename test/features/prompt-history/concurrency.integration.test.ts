@@ -3,7 +3,10 @@ import { once } from "node:events";
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { PromptHistoryService } from "../../../src/features/prompt-history/service.js";
+import { resolvePromptHistoryPath } from "../../../src/features/prompt-history/paths.js";
+import { holdHistoryLock } from "../../support/history-lock.js";
 import { PromptHistoryStore } from "../../../src/features/prompt-history/store.js";
 
 async function child(code: string, args: string[]): Promise<void> {
@@ -13,6 +16,36 @@ async function child(code: string, args: string[]): Promise<void> {
 }
 
 describe("multi-process prompt history", () => {
+  it("recovers admitted writes in the same instance after a three-second independent-process lock", async () => {
+    const root = await mkdtemp(join(tmpdir(), "history-live-recovery-"));
+    const options = { dataDir: root, profileRoot: join(root, "profile"), limit: 100 };
+    const service = new PromptHistoryService(options);
+    const submit = (id: string, text = id) => service.record({ id, text, timestamp: 0, kind: "prompt" });
+    let lock: Awaited<ReturnType<typeof holdHistoryLock>> | undefined;
+    try {
+      expect(await submit("seed")).toBe("committed");
+      const location = resolvePromptHistoryPath(options.dataDir, options.profileRoot);
+      lock = await holdHistoryLock(location.path);
+      const first = submit("first", "repeated"); const second = submit("second");
+      await vi.waitFor(() => expect(service.diagnostics().failures.busy).toBeGreaterThan(0), { timeout: 2500 });
+      const generation = service.diagnostics().generation;
+      await lock.released;
+      expect(await first).toBe("committed"); expect(await second).toBe("committed");
+      expect(service.diagnostics().generation).toBe(generation);
+      const concurrent = new PromptHistoryStore(location.path, location.profileId, 100);
+      concurrent.record({ id: "other-process", text: "repeated", timestamp: 0, kind: "prompt" });
+      const repeated = concurrent.snapshot();
+      expect(repeated.entries.map(entry => entry.submissionId)).toEqual(["other-process", "second", "seed"]);
+      concurrent.close();
+      await service.close();
+      const reopened = new PromptHistoryStore(location.path, location.profileId, 100);
+      try { expect(reopened.snapshot().entries).toEqual(repeated.entries); } finally { reopened.close(); }
+    } finally {
+      await lock?.stop(); await service.close();
+      await rm(root, { recursive: true, force: true });
+    }
+  }, 15_000);
+
   it("serializes simultaneous first-open, writes and pruning", async () => {
     const root = await mkdtemp(join(tmpdir(), "history-concurrency-"));
     const path = join(root, "history.sqlite3");

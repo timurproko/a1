@@ -79,6 +79,12 @@ import type { PiSettingOwnerHandlers } from "./settings-effects.js";
 import type { PiProjectTrustPreflightPrompt } from "./project-trust-preflight.js";
 import type { AgentJsonValue, AgentSettingOwner } from "../../../contracts/agent-engine/index.js";
 
+import { PendingEngineDelivery } from "./pending-delivery.js";
+
+/** Explicit flush failure when required delivery was interrupted rather than completed. */
+export class EngineDeliveryError extends Error {
+  constructor() { super("Engine delivery did not complete"); this.name = "EngineDeliveryError"; }
+}
 const execFileAsync = promisify(execFile);
 
 /**
@@ -90,7 +96,6 @@ const execFileAsync = promisify(execFile);
 // be expensive in long sessions; a larger synchronous batch starves terminal
 // input and makes an in-progress mouse selection appear frozen.
 const EVENT_DELIVERY_BATCH = 1;
-const TOOL_UPDATE_COALESCE_MS = 50;
 const AUTH_REFRESH_TIMEOUT_MS = 15_000;
 
 // Provenance: Pi 0.84.2 core/model-resolver.ts defaultModelPerProvider.
@@ -292,7 +297,7 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
   readonly #sessionForkPrompt: PiSessionForkPrompt | undefined;
   readonly #workflowHost: PiWorkflowHost;
   #workflowInteraction: PiWorkflowInteractionHost;
-  readonly #listeners = new Set<(event: OwnedUiEvent) => void>();
+  readonly #listeners = new Map<(event: OwnedUiEvent) => void, number>();
   #runtime: PiRuntimeApi | undefined;
   #session: PiSessionApi | undefined;
   #unsubscribe: (() => void) | undefined;
@@ -308,6 +313,7 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
     submitEnabled: false,
   };
   #sessionGeneration = 0;
+  #sessionBindingGeneration = 0;
   #status: OwnedUiStatusView = {
     title: "Pi",
     workingMessage: null,
@@ -326,14 +332,20 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
   readonly #messageFallbackIds = new Map<string, string[]>();
   readonly #toolBlockIds = new Map<string, string>();
   readonly #transcriptImageAssets = new Map<string, OwnedUiImageAttachment>();
-  readonly #pendingToolUpdates = new Map<string, Record<string, unknown>>();
-  #toolUpdateFlush: ReturnType<typeof setTimeout> | null = null;
   #usageCache: OwnedUiUsageView | undefined;
   #nextBlockSequence = 0;
   #diagnostics: OwnedUiDiagnostics[] = [];
-  readonly #eventQueue: OwnedUiEvent[] = [];
+  readonly #eventQueue = new PendingEngineDelivery();
   #eventQueueProcessing: Promise<void> | undefined;
-  #droppedEventCount = 0;
+  #overload: Promise<boolean> | undefined;
+  #overloads = 0;
+  #deliveryFailed = false;
+  #admissionStopped = false;
+  #runningCommands = 0;
+  #invalidatedEvents = 0;
+  readonly #pendingCommands = new Map<string, { type: OwnedUiCommand["type"]; cancel(): void }>();
+  readonly #reservedOutcomes = new Map<string, AdapterCommandResult>();
+  readonly #pendingWorkflows = new Set<() => void>();
   #agentRunActive = false;
   #agentRunSequence = 0;
   #assistantResponseSequence = 0;
@@ -381,6 +393,9 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
     return this.#sessionGeneration;
   }
 
+  /** Actual session replacements, excluding delivery-only invalidation of callbacks. */
+  get sessionBindingGeneration(): number { return this.#sessionBindingGeneration; }
+
   get cwd(): string {
     return this.#runtime?.cwd ?? this.#cwd;
   }
@@ -423,7 +438,7 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
     const session = this.#session;
     const runtime = this.#runtime;
     const activeModel = this.#activeModel;
-    if (this.#disposed || session === undefined || runtime === undefined || request.signal.aborted
+    if (this.#disposed || this.#overload !== undefined || this.#admissionStopped || session === undefined || runtime === undefined || request.signal.aborted
       || identity.sessionId !== this.#sessionId
       || identity.sessionGeneration !== this.#sessionGeneration
       || identity.runSequence !== this.#agentRunSequence
@@ -507,6 +522,7 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
       hardwareCursor: runtime.services.settingsManager?.getShowHardwareCursor?.() ?? this.#terminal.hardwareCursor,
     };
     runtime.setRebindSession(async session => {
+      if (this.#overload !== undefined || this.#admissionStopped || this.#disposed) return;
       this.#bindSession(session);
       this.#emitView();
     });
@@ -572,14 +588,24 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
   }
 
   onEvent(listener: (event: OwnedUiEvent) => void): () => void {
-    this.#listeners.add(listener);
-    listener(this.#event({ type: "session-view", view: this.view() }));
+    const initial = this.#event({ type: "session-view", view: this.view() });
+    this.#listeners.set(listener, initial.sequence);
+    listener(initial);
     return () => this.#listeners.delete(listener);
   }
 
+  /** Developer-only pressure evidence; never mirrored into visible diagnostic/status arrays. */
+  deliveryDiagnostics() {
+    return { ...this.#eventQueue.diagnostics(), overloads: this.#overloads, recovering: this.#overload !== undefined,
+      pendingCommands: this.#pendingCommands.size + this.#pendingWorkflows.size, reservedOutcomes: this.#reservedOutcomes.size, invalidatedEvents: this.#invalidatedEvents };
+  }
+
   async flushEvents(): Promise<void> {
-    this.#flushPendingToolUpdates();
+    const failed = this.#deliveryFailed;
     while (this.#eventQueueProcessing) await this.#eventQueueProcessing;
+    if (failed || this.#deliveryFailed || this.#disposed && this.#lifecycle !== "stopped") {
+      this.#deliveryFailed = false; throw new EngineDeliveryError();
+    }
   }
 
   nonVisualResources(): readonly OwnedPiResourceSummary[] {
@@ -1258,6 +1284,18 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
   }
 
   async executeWorkflow(request: PiWorkflowRequest): Promise<PiWorkflowResult> {
+    const cancelled = workflowResult(request.command, "cancelled", "");
+    if (this.#overload !== undefined || this.#admissionStopped || this.#disposed
+      || this.#pendingCommands.size + this.#pendingWorkflows.size >= 32) return cancelled;
+    let cancel!: () => void;
+    const cancellation = new Promise<PiWorkflowResult>(resolve => { cancel = () => resolve(cancelled); });
+    this.#pendingWorkflows.add(cancel); this.#runningCommands++;
+    const operation = this.#runWorkflow(request).finally(() => { this.#runningCommands--; });
+    try { return await Promise.race([operation, cancellation]); }
+    finally { this.#pendingWorkflows.delete(cancel); }
+  }
+
+  async #runWorkflow(request: PiWorkflowRequest): Promise<PiWorkflowResult> {
     try {
       return await this.#performWorkflow(request);
     } catch (error) {
@@ -1326,6 +1364,8 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
     if (this.#disposed || !this.#runtime || !this.#session) {
       return this.#finishCommand(command, "rejected", "engine adapter is not running");
     }
+    // Invariant: the bounded out-of-band cancellation path has one slot per admitted command.
+    if (this.#overload !== undefined || this.#admissionStopped || this.#pendingCommands.size + this.#pendingWorkflows.size >= 32) return { outcome: "rejected", diagnostic: null };
     const existing = this.#completedCommands.get(command.correlationId);
     if (existing) return existing;
     if (this.#activeCommandIds.includes(command.correlationId)) {
@@ -1333,32 +1373,42 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
     }
 
     this.#activeCommandIds.push(command.correlationId);
-    this.#emitEvent({
-      type: "command-outcome",
-      correlationId: command.correlationId,
-      outcome: "accepted",
-      diagnostic: null,
+    const generation = this.#sessionGeneration;
+    let cancelled = false;
+    const cancellation = new Promise<AdapterCommandResult>(resolve => {
+      this.#pendingCommands.set(command.correlationId, { type: command.type, cancel: () => {
+        if (cancelled) return;
+        cancelled = true;
+        resolve(this.#recordCommand(command, "failed", null));
+      } });
     });
-    try {
-      await this.#perform(command);
-      this.#emitView();
-      return this.#recordCommand(command, "completed", null);
-    } catch (error) {
-      const diagnostic = error instanceof Error ? error.message : String(error);
-      this.#addDiagnostic("error", "engine-command", diagnostic, true);
-      this.#emitView();
-      return this.#recordCommand(command, "failed", diagnostic);
-    }
+    this.#emitEvent({ type: "command-outcome", correlationId: command.correlationId, outcome: "accepted", diagnostic: null });
+    const operation = async (): Promise<AdapterCommandResult> => {
+      try {
+        if (cancelled) return { outcome: "failed", diagnostic: null };
+        this.#runningCommands++;
+        try { await this.#perform(command); } finally { this.#runningCommands--; }
+        if (cancelled) return { outcome: "failed", diagnostic: null };
+        if (generation === this.#sessionGeneration) this.#emitView();
+        if (cancelled) return { outcome: "failed", diagnostic: null };
+        return this.#recordCommand(command, "completed", null);
+      } catch (error) {
+        if (cancelled) return { outcome: "failed", diagnostic: null };
+        const diagnostic = error instanceof Error ? error.message : String(error);
+        this.#addDiagnostic("error", "engine-command", diagnostic, true);
+        if (generation === this.#sessionGeneration) this.#emitView();
+        return this.#recordCommand(command, "failed", diagnostic);
+      }
+    };
+    try { return await Promise.race([operation(), cancellation]); }
+    finally { this.#pendingCommands.delete(command.correlationId); }
   }
 
   async dispose(): Promise<void> {
     if (this.#disposed) return;
     this.#disposed = true;
-    if (this.#toolUpdateFlush !== null) {
-      clearTimeout(this.#toolUpdateFlush);
-      this.#toolUpdateFlush = null;
-    }
-    this.#pendingToolUpdates.clear();
+    for (const pending of this.#pendingCommands.values()) if (pending.type !== "shutdown") pending.cancel();
+    for (const cancel of this.#pendingWorkflows) cancel();
     this.#transcriptImageAssets.clear();
     this.#extensionBound = false;
     this.#extensionUi = undefined;
@@ -1371,7 +1421,7 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
     this.#lifecycle = "stopped";
     this.#emitEvent({ type: "session-lifecycle", lifecycle: "stopped", reason: null });
     this.#emitView();
-    await this.flushEvents();
+    try { await this.flushEvents(); } catch (error) { if (!(error instanceof EngineDeliveryError)) throw error; }
   }
 
   async #performWorkflow(request: PiWorkflowRequest): Promise<PiWorkflowResult> {
@@ -2015,6 +2065,7 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
   async #perform(command: OwnedUiCommand): Promise<void> {
     const runtime = this.#runtime;
     const session = this.#session;
+    const generation = this.#sessionGeneration;
     if (!runtime || !session) throw new Error("engine session is unavailable");
 
     switch (command.type) {
@@ -2047,7 +2098,7 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
           throw new Error(`model is unavailable: ${command.model.providerId}/${command.model.modelId}`);
         }
         await session.setModel(model);
-        this.#activeModel = { ...command.model };
+        if (generation === this.#sessionGeneration && this.#overload === undefined && !this.#admissionStopped) this.#activeModel = { ...command.model };
         return;
       }
       case "set-thinking-level":
@@ -2076,7 +2127,12 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
 
   #bindSession(session: PiSessionApi): void {
     this.#unsubscribe?.();
+    for (const pending of this.#pendingCommands.values()) {
+      if (pending.type !== "new-session" && pending.type !== "resume-session") pending.cancel();
+    }
     this.#sessionGeneration += 1;
+    this.#sessionBindingGeneration += 1;
+    this.#invalidatedEvents += this.#eventQueue.discardObsolete(this.#sessionGeneration);
     this.#session = session;
     this.#activeCommandIds = [];
     this.#completedCommands.clear();
@@ -2099,7 +2155,10 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
     this.#thinkingLevel = readThinkingLevel(session.thinkingLevel);
     this.#transcriptImageAssets.clear();
     this.#rebuildTranscript(session.messages, "finalized");
-    this.#unsubscribe = session.subscribe(event => this.#handlePiEvent(event));
+    const generation = this.#sessionGeneration;
+    this.#unsubscribe = session.subscribe(event => {
+      if (generation === this.#sessionGeneration && !this.#disposed) this.#handlePiEvent(event);
+    });
     if (this.#extensionUi !== undefined) void this.#bindExtensionUiToSession();
   }
 
@@ -2258,14 +2317,11 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
         return;
       case "tool_execution_start":
       case "tool_execution_end": {
-        // Concurrency: the end supersedes any update still waiting on the coalescing timer.
-        const toolCallId = stringValue(event.toolCallId);
-        if (toolCallId !== undefined) this.#pendingToolUpdates.delete(toolCallId);
         this.#upsertToolExecutionBlock(event);
         return;
       }
       case "tool_execution_update":
-        this.#coalesceToolExecutionUpdate(event);
+        this.#upsertToolExecutionBlock(event);
         return;
       case "agent_settled":
       case "agent_end": {
@@ -2274,7 +2330,7 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
           ? event.messages
           : this.#session?.messages ?? [];
         if (finalMessages.length > 0) this.#rebuildTranscript(finalMessages, "finalized");
-        else this.#setTranscript(this.#transcript.map(block => block.status === "live" ? { ...block, status: "finalized" } : block));
+        else this.#setTranscript(this.#transcript.map(block => block.status === "live" ? { ...block, status: "finalized", revision: block.revision + 1 } : block));
         // Compatibility: ending a turn leaves the working state, as the recorded pinned baseline does, but
         // it leaves only that state: a compaction or retry being shown outlives the turn
         // that ended under it. Settlement ends the run, and with it every state — the
@@ -2599,28 +2655,6 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
     return references;
   }
 
-  // Performance: coalescing each tool to its newest chunk bounds work by frames, not stream events.
-  #coalesceToolExecutionUpdate(event: Record<string, unknown>): void {
-    const toolCallId = stringValue(event.toolCallId);
-    if (!toolCallId) return;
-    this.#pendingToolUpdates.set(toolCallId, event);
-    this.#toolUpdateFlush ??= setTimeout(() => {
-      this.#toolUpdateFlush = null;
-      if (!this.#disposed) this.#flushPendingToolUpdates();
-    }, TOOL_UPDATE_COALESCE_MS);
-  }
-
-  #flushPendingToolUpdates(): void {
-    if (this.#toolUpdateFlush !== null) {
-      clearTimeout(this.#toolUpdateFlush);
-      this.#toolUpdateFlush = null;
-    }
-    if (this.#pendingToolUpdates.size === 0) return;
-    const pending = [...this.#pendingToolUpdates.values()];
-    this.#pendingToolUpdates.clear();
-    for (const update of pending) this.#upsertToolExecutionBlock(update);
-  }
-
   #upsertToolExecutionBlock(event: Record<string, unknown>): void {
     const toolCallId = stringValue(event.toolCallId);
     if (!toolCallId) return;
@@ -2653,6 +2687,8 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
     const index = this.#transcriptIndex.get(block.id);
     if (index !== undefined) {
       const existing = this.#transcript[index];
+      // Invariant: an obsolete partial cannot revive finalized content after a completion barrier.
+      if (existing?.status === "finalized" && block.status === "live") return;
       // Performance: nothing is emitted for a block that repeats itself, and keeping the
       // revision keeps the rows it already rendered.
       if (existing !== undefined && sameBlockContent(existing, block)) return;
@@ -2768,60 +2804,109 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
   }
 
   #enqueueEvent(event: OwnedUiEvent): void {
-    const capacity = 1_024;
-    if (this.#eventQueue.length >= capacity) {
-      const coalescible = this.#eventQueue.findIndex(queued =>
-        queued.type === "session-view"
-        || queued.type === "status"
-        || queued.type === "editor-state"
-        || queued.type === "transcript-block"
-      );
-      if (coalescible >= 0) this.#eventQueue.splice(coalescible, 1);
-      else this.#eventQueue.shift();
-      this.#droppedEventCount += 1;
-      if (this.#droppedEventCount === 1 || this.#droppedEventCount % 128 === 0) {
-        this.#recordDiagnostic(
-          "warning",
-          "event-backpressure",
-          `owned UI coalesced ${this.#droppedEventCount} engine events under backpressure`,
-          true,
-        );
+    if (this.#overload !== undefined) {
+      if (event.type === "command-outcome" && event.outcome !== "accepted" && this.#pendingCommands.has(event.correlationId)) {
+        this.#reservedOutcomes.set(event.correlationId, { outcome: event.outcome, diagnostic: event.diagnostic });
+      }
+      return;
+    }
+    if (!this.#eventQueue.push(event, this.#sessionGeneration, event.type === "transcript-block"
+      ? this.#blockReconciliation(event.block.id, event.sequence) : undefined)) {
+      this.#beginOverload();
+      if (event.type === "command-outcome" && event.outcome !== "accepted" && this.#pendingCommands.has(event.correlationId)
+        && !this.#reservedOutcomes.has(event.correlationId)) {
+        this.#reservedOutcomes.set(event.correlationId, { outcome: event.outcome, diagnostic: event.diagnostic });
       }
     }
-    this.#eventQueue.push(event);
     this.#eventQueueProcessing ??= Promise.resolve().then(() => this.#processEventQueue());
+  }
+
+  // Performance: capture only identity, not the complete block/event retained by an earlier revision.
+  #blockReconciliation(id: string, sequence: number): () => OwnedUiEvent {
+    return () => ({ type: "transcript-block", sessionId: this.#sessionId, sequence, block: this.#transcriptBlock(id)! });
+  }
+
+  #beginOverload(): void {
+    if (this.#overload !== undefined) return;
+    this.#overloads = Math.min(Number.MAX_SAFE_INTEGER, this.#overloads + 1);
+    this.#deliveryFailed = true;
+    // Concurrency: reserve before cancellation; outcomes produced reentrantly must not enter the saturated queue.
+    this.#overload = Promise.resolve(false);
+    for (const pending of this.#pendingCommands.values()) pending.cancel();
+    for (const cancel of this.#pendingWorkflows) cancel();
+    const session = this.#session;
+    this.#overload = new Promise<boolean>(resolve => {
+      const timer = setTimeout(() => resolve(false), 2000);
+      void Promise.resolve().then(() => session?.abort()).then(() => {
+        clearTimeout(timer); resolve(true);
+      }, () => { clearTimeout(timer); resolve(false); });
+    });
+  }
+
+  #deliver(event: OwnedUiEvent): void {
+    for (const [listener, subscribedAt] of this.#listeners) {
+      if (event.sequence <= subscribedAt) continue;
+      try { listener(event); }
+      catch (error) {
+        this.#deliveryFailed = true;
+        this.#recordDiagnostic("warning", "event-listener", error instanceof Error ? error.message : String(error), true);
+      }
+    }
+  }
+
+  async #reconcileOverload(): Promise<void> {
+    const cancelled = await this.#overload;
+    const canResume = cancelled === true && this.#runningCommands === 0;
+    this.#admissionStopped = !canResume;
+    this.#unsubscribe?.(); this.#unsubscribe = undefined;
+    ++this.#sessionGeneration;
+    this.#agentRunActive = false; this.#statusKind = null;
+    this.#status = { ...this.#status, workingMessage: null };
+    this.#lifecycle = this.#disposed ? "stopped" : canResume ? "ready" : "failed";
+    this.#editor = { ...this.#editor, submitEnabled: canResume && !this.#disposed };
+    this.#viewRevision += 1;
+    this.#setTranscript(this.#transcript.map(block => block.status === "live" ? { ...block, status: "finalized", revision: block.revision + 1 } : block));
+    for (const [correlationId, result] of this.#reservedOutcomes) {
+      this.#deliver(this.#event({ type: "command-outcome", correlationId, ...result }));
+      await new Promise<void>(resolve => setImmediate(resolve));
+    }
+    this.#reservedOutcomes.clear();
+    // Invariant: one out-of-band authoritative reconciliation, not an emergency transcript/event log.
+    this.#deliver(this.#event({ type: "session-view", view: this.view() }));
+    if (this.#disposed) this.#deliver(this.#event({ type: "session-lifecycle", lifecycle: "stopped", reason: null }));
+    if (canResume && !this.#disposed && this.#session !== undefined) {
+      const generation = this.#sessionGeneration;
+      this.#unsubscribe = this.#session.subscribe(event => {
+        if (generation === this.#sessionGeneration && !this.#disposed) this.#handlePiEvent(event);
+      });
+    }
+    this.#overload = undefined;
   }
 
   async #processEventQueue(): Promise<void> {
     try {
       let deliveredSinceYield = 0;
-      while (this.#eventQueue.length > 0) {
-        const event = this.#eventQueue.shift();
-        if (!event) continue;
-        for (const listener of this.#listeners) {
-          try {
-            listener(event);
-          } catch (error) {
-            this.#recordDiagnostic(
-              "warning",
-              "event-listener",
-              error instanceof Error ? error.message : String(error),
-              true,
-            );
-          }
+      while (this.#eventQueue.size > 0) {
+        const pending = this.#eventQueue.shift();
+        if (pending === undefined) continue;
+        if (pending.generation !== this.#sessionGeneration && pending.event.type !== "command-outcome") {
+          this.#invalidatedEvents = Math.min(Number.MAX_SAFE_INTEGER, this.#invalidatedEvents + 1);
+          continue;
         }
+        this.#deliver(pending.event);
         deliveredSinceYield += 1;
         // Concurrency: a microtask chain runs to exhaustion before the loop turns, so a streaming
         // burst would hold typed input, pointer reports, and timed indicators until it
         // drained. Yielding on a macrotask hands those their turn between batches.
-        if (deliveredSinceYield >= EVENT_DELIVERY_BATCH && this.#eventQueue.length > 0) {
+        if (deliveredSinceYield >= EVENT_DELIVERY_BATCH && this.#eventQueue.size > 0) {
           deliveredSinceYield = 0;
           await new Promise<void>(resolve => { setImmediate(resolve); });
         }
       }
+      if (this.#overload !== undefined) await this.#reconcileOverload();
     } finally {
       this.#eventQueueProcessing = undefined;
-      if (this.#eventQueue.length > 0) {
+      if (this.#eventQueue.size > 0) {
         this.#eventQueueProcessing = Promise.resolve().then(() => this.#processEventQueue());
       }
     }

@@ -123,21 +123,22 @@ describe("owned history storage composition", () => {
     expect(existsSync(join(root, ".a1"))).toBe(false);
   });
 
-  it("reports an unavailable home store without falling back to the populated old store", async () => {
+  it("quietly preserves recall with an unavailable home store without falling back to the old store", async () => {
     const assertOldUntouched = seedOldStore();
     mkdirSync(join(root, ".a1"));
     writeFileSync(join(root, ".a1", "data"), "not a directory");
     const composition = await compose();
     const store = observed.shells.at(-1)!.promptHistory!.store;
     const failure = vi.fn();
+    store.onFailure(failure);
     const replace = vi.fn();
     const controller = new PromptHistoryController({
       editor: { recall: { replace, observe: () => () => {} } } as never,
-      store, limit: 100, fallback: ["synthetic loaded fallback"], active: () => true, render() {}, failure,
+      store, limit: 100, fallback: ["synthetic loaded fallback"], active: () => true, render() {},
     });
     try {
       controller.capture("synthetic private prompt", "prompt", root, "test-session");
-      await vi.waitFor(() => expect(failure).toHaveBeenCalledWith("Prompt history unavailable; current-session recall remains available."));
+      await vi.waitFor(() => expect(failure).toHaveBeenCalledWith("unavailable"));
       controller.synchronize();
       expect(replace).toHaveBeenLastCalledWith(["synthetic private prompt", "synthetic loaded fallback"]);
       controller.capture("synthetic later prompt", "prompt", root, "test-session");
