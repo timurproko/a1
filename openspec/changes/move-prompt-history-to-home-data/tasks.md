@@ -22,4 +22,5 @@ The maintainer's one-time removal of the old local profile database and matching
 
 - Focused path/composition tests cover all platform defaults, effective-home/data overrides, stable identities, old-store preservation, failed persistence with retained local recall, and disabled/comparison guards.
 - Existing history store/service/concurrency tests and the focused release-cleanup preservation case pass locally; TypeScript typechecking, build, architecture boundaries, code-documentation governance, and strict OpenSpec validation pass.
-- Required CI and the maintainer's manual acceptance remain pending. No real user history has been deleted.
+- The first CI run stopped before tests because the toolchain documentation insertion shifted line-bound legacy identity approvals. Moving the new history subsection below those unchanged occurrences fixes the failure without changing approvals; the complete `npm run check:architecture` command passes locally.
+- Required CI on the corrected revision and the maintainer's manual acceptance remain pending. No real user history has been deleted.

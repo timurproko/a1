@@ -87,14 +87,6 @@ These paths are A1 control and release state, not Pi profile roots. All are over
 | Database | `A1_DATABASE_PATH` | `<data>/control.sqlite3` | `<data>/control.sqlite3` |
 | Endpoint | `A1_ENDPOINT` | runtime-scoped `a1-*` named pipe | `<runtime>/supervisor.sock` |
 
-Prompt history has a separate default: `<effective-home>/.a1/data/history/<profile-id>.sqlite3`
-on Windows, Linux, and macOS. The effective home follows launch-profile resolution
-(`A1_PROFILE_HOME` or the OS home), not `XDG_DATA_HOME`. An explicit `A1_DATA_DIR`
-continues to select `<A1_DATA_DIR>/history` as well as the control/release data root.
-The home-based history default does not relocate the paths above or the compile
-cache at `<data>/cache/compile`. See [prompt history](../features/prompt-history.md)
-for the deliberate fresh start without migration, privacy, and manual removal.
-
 ### Identity hard cut and cleanup
 
 A1 does not read or migrate legacy `ADDONE_*` variables, `AddOne`/`addone` control-state directories, release manifests, database schemas, endpoint records, or protocol frames. Remove obsolete control state only after stopping old processes: `%APPDATA%\\AddOne` and `%LOCALAPPDATA%\\AddOne` on Windows, or the former `addone` directories under XDG config, data, and runtime roots on Unix. This cleanup is manual and never imports data into A1.
@@ -104,3 +96,13 @@ Do **not** remove `~/.a1/agent`; it is A1's current Pi profile root. `~/.pi/agen
 The obsolete npm package `@timurproko/addone` is deprecated with the registry message `This package is obsolete. Use @timurproko/a1 instead.` It is not a current identity, compatibility channel, or rollback source. Whole-package unpublication was rejected by npm policy; any later removal is owner-controlled registry administration and does not change the A1 runtime contract.
 
 The launch-profile feature separately owns A1's `~/.a1/agent` root and preserves ordinary Pi resolution through `~/.pi/agent`.
+
+### Prompt history
+
+Prompt history has a separate default: `<effective-home>/.a1/data/history/<profile-id>.sqlite3`
+on Windows, Linux, and macOS. The effective home follows launch-profile resolution
+(`A1_PROFILE_HOME` or the OS home), not `XDG_DATA_HOME`. An explicit `A1_DATA_DIR`
+continues to select `<A1_DATA_DIR>/history` as well as the control/release data root.
+The home-based history default does not relocate the paths above or the compile
+cache at `<data>/cache/compile`. See [prompt history](../features/prompt-history.md)
+for the deliberate fresh start without migration, privacy, and manual removal.
