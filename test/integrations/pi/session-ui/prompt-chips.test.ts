@@ -12,28 +12,49 @@ afterEach(async () => {
 });
 
 describe("PromptChipStore", () => {
-  it("shows an atomic screenshot chip immediately while keeping readiness internal", async () => {
+  it("hides an unknown paste and reveals its screenshot chip before image preparation finishes", async () => {
     const store = new PromptChipStore();
     const data = screenshotPng(4, 4).toString("base64");
     let release!: (content: { kind: "image"; data: string; mimeType: string }) => void;
     const errors: unknown[] = [];
     const content = new Promise<{ kind: "image"; data: string; mimeType: string }>(resolve => { release = resolve; });
-    const paste = store.beginPaste("", () => content, error => errors.push(error));
+    let imageNotifications = 0;
+    const paste = store.beginPaste("", () => content, error => errors.push(error), () => {
+      imageNotifications++;
+      expect(store.hiddenRanges(paste.marker)).toEqual([]);
+      expect(store.hasPending(paste.marker)).toBe(true);
+    });
     try {
       expect(paste.marker).toMatch(/^\[📷 screenshot-[a-f0-9]+\]$/u);
       expect(paste.marker).not.toContain("preparing");
       expect(store.atomicRanges(paste.marker)).toEqual([{ start: 0, end: paste.marker.length }]);
       expect(store.hasPending(paste.marker)).toBe(true);
+      expect(store.hiddenRanges(paste.marker)).toEqual([{ start: 0, end: paste.marker.length }]);
       expect(() => store.prepareSubmission(paste.marker)).toThrow("still preparing");
       release({ kind: "image", data, mimeType: "image/png" });
       const ready = await paste.result;
       expect(ready).toBe(paste.marker);
+      expect(imageNotifications).toBe(1);
+      expect(store.hiddenRanges(ready)).toEqual([]);
       expect(store.hasPending(paste.marker)).toBe(false);
       expect(store.prepareSubmission(`${paste.marker} ${ready}`)).toEqual({
         text: `${ready} ${ready}`,
         images: [{ type: "image", data, mimeType: "image/png" }],
       });
       expect(errors).toEqual([]);
+    } finally { await store.dispose(); }
+  });
+
+  it.each(["plain text", "two\nlines", "", null])("never reveals a screenshot marker for text or empty content: %s", async text => {
+    const store = new PromptChipStore();
+    let imageNotifications = 0;
+    try {
+      const paste = store.beginPaste("", async () => text === null ? null : { kind: "text", text }, () => {}, () => { imageNotifications++; });
+      expect(store.hiddenRanges(paste.marker)).toHaveLength(1);
+      expect(await paste.result).toBe(text ?? "");
+      // Invariant: even the settlement-to-editor-replacement interval cannot paint the provisional chip.
+      expect(store.hiddenRanges(paste.marker)).toHaveLength(1);
+      expect(imageNotifications).toBe(0);
     } finally { await store.dispose(); }
   });
 
