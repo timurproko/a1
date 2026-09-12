@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Pull requests enforce brand-neutral names and classified environment contracts
-Development validation SHALL inspect the complete head contents of every added, modified, copied, and renamed-to first-party naming-policy input in the complete pull-request merge-base-to-head change. The policy SHALL cover owned production code, entry points, tooling, tests, and native source, plus environment definitions and uses in owned configuration and workflows. It SHALL enforce the product-identity naming and environment-classification requirements without changing external product identity.
+Development validation SHALL inspect the complete head contents of every added, modified, copied, and renamed-to first-party naming-policy input in the complete pull-request merge-base-to-head change. The policy SHALL cover owned production code, entry points, tooling, tests, and native source, plus environment definitions and uses in owned configuration and workflows. It SHALL enforce the product-identity naming and environment-classification requirements without changing supported external product identity. Only declared public/integration boundary uses and exact unresolved exposure-review entries SHALL receive external-name exceptions; a confirmed private key SHALL NOT gain an exemption for legacy compatibility. Runtime aliases, dual reads/writes, or fallback key definitions that restore obsolete private spellings SHALL fail governance.
 
 Identifier findings SHALL be derived from language-aware source inspection, not a raw text search. Coverage SHALL include private identifiers, local aliases, binding patterns, type members, quoted or statically known computed member names, and equivalent supported native-language forms. Environment-key inspection SHALL include string-valued definitions and supported accesses, not only identifier tokens. Comments, ordinary user-facing strings, and source snippets that exist solely as test data SHALL NOT be misreported as declarations; actual environment-contract fixtures SHALL be classified explicitly. External dependencies, immutable vendored sources, build output, and other worktrees SHALL be excluded through explicit ownership rules rather than whole first-party subtrees being silently ignored.
 
@@ -24,8 +24,13 @@ Identifier findings SHALL be derived from language-aware source inspection, not 
 - **AND** a rename to another supported owned-source location SHALL NOT evade inspection
 
 #### Scenario: A private environment key is hidden in a string
-- **WHEN** a selected input defines or uses an unclassified product-branded private environment key as a string value
-- **THEN** environment-contract governance SHALL reject it even when the surrounding variable names are neutral
+- **WHEN** a selected input defines or uses a product-branded private environment key as an active string-valued setting or fallback
+- **THEN** environment-contract governance SHALL reject it even when the surrounding variable names are neutral or it is labeled as a legacy compatibility exception
+
+#### Scenario: A private legacy exception is proposed
+- **WHEN** a pull request changes classification data to permit an obsolete private key for runtime use
+- **THEN** the exception validation and full policy audit SHALL fail
+- **AND** explicit negative-test data containing the obsolete spelling SHALL NOT make it a supported setting
 
 #### Scenario: A fixture describes forbidden code
 - **WHEN** a governance test contains a source snippet as test data rather than as an executable declaration in that file
