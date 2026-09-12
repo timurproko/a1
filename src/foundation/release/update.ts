@@ -283,7 +283,7 @@ export function createUpdateLifecycleCoordinator(
   };
 }
 
-const PROGRESS_BAR_WIDTH = 39;
+const PROGRESS_BAR_WIDTH = 40;
 const PROGRESS_TICK_MS = 200;
 /**
  * Copying the release owns 78–92 and is reported file by file, so the bar crosses
@@ -299,10 +299,15 @@ const ACTIVATION_PROGRESS: Readonly<Record<UpdateActivationPhase, { at: number; 
 
 interface UpdateProgress { set(percent: number, creepTo?: number): void; finish(): void; clear(): void }
 
-function renderProgressBar(percent: number): string {
+/** Renders the terminal-only update meter; the visual preview shares this exact frame. */
+export function renderUpdateProgressBar(percent: number): string {
   const bounded = Math.min(100, Math.max(0, Math.round(percent)));
   const filled = Math.round((bounded / 100) * PROGRESS_BAR_WIDTH);
-  return `${"█".repeat(filled)}${"░".repeat(PROGRESS_BAR_WIDTH - filled)} ${bounded}%`;
+  // Rationale: a gray line, a darker gray track, and one space before the percentage.
+  // Explicit RGB keeps both grays neutral even when the terminal remaps its ANSI palette.
+  const gray = "\u001b[38;2;128;128;128m";
+  const track = "\u001b[38;2;102;102;102m";
+  return `${gray}${"━".repeat(filled)}${track}${"─".repeat(PROGRESS_BAR_WIDTH - filled)}${gray} ${bounded}%\u001b[39m`;
 }
 
 function createUpdateProgress(output: UpdateOutput, enabled: boolean): UpdateProgress {
@@ -315,7 +320,7 @@ function createUpdateProgress(output: UpdateOutput, enabled: boolean): UpdatePro
     if (rounded === shown) return;
     shown = rounded;
     visible = true;
-    output.stdout(`\r${renderProgressBar(rounded)}`);
+    output.stdout(`\r${renderUpdateProgressBar(rounded)}`);
   };
   const stopCreep = () => {
     if (timer !== null) { clearInterval(timer); timer = null; }
