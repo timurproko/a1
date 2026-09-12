@@ -4,6 +4,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { PRODUCT_IDENTITY } from "../../../src/product-identity.js";
 import { runBootstrap } from "../../../src/foundation/release/bootstrap.js";
 import { CohortStateStore } from "../../../src/foundation/release/cohort-state.js";
 import { selectSupervisorLaunchReleaseId, selectUpdateLaunchRelease } from "../../../src/foundation/release/update-launch.js";
@@ -37,7 +38,10 @@ const sockets: string[] = [];
 beforeEach(async () => {
   vi.clearAllMocks();
   root = await mkdtemp(resolve(tmpdir(), "a1-update-launch-"));
-  environment = { A1_DATA_DIR: root, A1_RUNTIME_DIR: resolve(root, "runtime") };
+  environment = {
+    [PRODUCT_IDENTITY.environment.dataDir]: root,
+    [PRODUCT_IDENTITY.environment.runtimeDir]: resolve(root, "runtime"),
+  };
   previous = release("1.0.0", "a");
   target = release("1.1.0", "b");
   store = new CohortStateStore(root);

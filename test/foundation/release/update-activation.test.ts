@@ -2,6 +2,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { PRODUCT_IDENTITY } from "../../../src/product-identity.js";
 import { certifyMaterializedRelease, ensureSupervisor } from "../../../src/foundation/release/bootstrap.js";
 import { CohortStateStore } from "../../../src/foundation/release/cohort-state.js";
 import { materializeRelease, type MaterializedRelease } from "../../../src/foundation/release/release-store.js";
@@ -50,7 +51,7 @@ describe("update candidate activation", () => {
       phases.push("readiness");
       if (outcome === "supervisor-failure") throw new Error(outcome);
     });
-    const coordinator = createUpdateLifecycleCoordinator({ A1_DATA_DIR: root });
+    const coordinator = createUpdateLifecycleCoordinator({ [PRODUCT_IDENTITY.environment.dataDir]: root });
     const activation = coordinator.activateInstalled(target.packageRoot, target.packageVersion, async phase => { phases.push(phase); });
     if (outcome === "success") {
       await activation;
