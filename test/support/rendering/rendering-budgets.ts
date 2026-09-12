@@ -1,4 +1,4 @@
-import type { RenderingMatrixResult } from "./rendering-matrix.js";
+import type { RenderingMatrixCheckpoint, RenderingMatrixResult } from "./rendering-matrix.js";
 
 export interface RenderingBudgetResult {
   readonly passed: boolean;
@@ -23,6 +23,7 @@ export function evaluateRenderingBudgets(matrix: RenderingMatrixResult): Renderi
   const violations: string[] = [];
   for (const mode of [matrix.defaultMode, matrix.fullscreenMode]) {
     for (const producer of mode) {
+      let nextWriteIndex = 0;
       for (const checkpoint of producer.checkpoints) {
         const label = `${matrix.workloadId}/${producer.producer}/${producer.requestedMode}/${checkpoint.name}`;
         if (!checkpoint.paint.synchronizedUpdates.balanced) violations.push(`${label}: unbalanced synchronized output`);
@@ -31,29 +32,38 @@ export function evaluateRenderingBudgets(matrix: RenderingMatrixResult): Renderi
           violations.push(`${label}: blank final cell frame`);
         }
         const structuralResize = checkpoint.name.includes("resize-structural");
-        const cleanupEvidence = CLEANUP_CLEAR_EVIDENCE_WORKLOADS.has(matrix.workloadId)
-          && checkpoint.damageDecision?.reason === "hyperlink-cleanup";
-        if (producer.producer === "bare-a1" && checkpoint.name !== "initial"
-          && !structuralResize && !cleanupEvidence && checkpoint.paint.fullScreenClears > 0) {
-          violations.push(`${label}: unexpected full-screen clear`);
-        }
-        if (checkpoint.damageDecision?.reason === "suppressed-redundant-clear" && checkpoint.paint.fullScreenClears > 0) {
-          violations.push(`${label}: redundant clear was not suppressed`);
-        }
-        if (checkpoint.damageDecision?.reason === "transformed") {
-          if (checkpoint.paint.scrollUpRows !== checkpoint.damageDecision.shiftRows) {
-            violations.push(`${label}: transformed shift disagrees with terminal movement`);
+        if (producer.producer === "bare-a1") {
+          if (!hasCompleteWriteEvidence(checkpoint, nextWriteIndex)) {
+            violations.push(`${label}: missing or inconsistent per-write paint evidence`);
           }
-          if (checkpoint.paint.rowClears !== checkpoint.damageDecision.paintedRows.length) {
-            violations.push(`${label}: transformed paint cleared undeclared rows`);
-          }
-          if (JSON.stringify(checkpoint.paint.addressedRowWrites) !== JSON.stringify(checkpoint.damageDecision.paintedRows)) {
-            violations.push(`${label}: transformed paint addressed undeclared rows`);
+          for (const write of checkpoint.writePaints ?? []) {
+            const writeLabel = `${label}/write-${write.writeIndex}`;
+            const cleanupEvidence = CLEANUP_CLEAR_EVIDENCE_WORKLOADS.has(matrix.workloadId)
+              && write.damageDecision?.reason === "hyperlink-cleanup";
+            if (checkpoint.name !== "initial" && !structuralResize && !cleanupEvidence && write.paint.fullScreenClears > 0) {
+              violations.push(`${writeLabel}: unexpected full-screen clear`);
+            }
+            if (write.damageDecision?.reason === "suppressed-redundant-clear" && write.paint.fullScreenClears > 0) {
+              violations.push(`${writeLabel}: redundant clear was not suppressed`);
+            }
+            if (write.damageDecision?.reason === "transformed") {
+              if (write.paint.scrollUpRows !== write.damageDecision.shiftRows) {
+                violations.push(`${writeLabel}: transformed shift disagrees with terminal movement`);
+              }
+              if (write.paint.rowClears !== write.damageDecision.paintedRows.length) {
+                violations.push(`${writeLabel}: transformed paint cleared undeclared rows`);
+              }
+              if (JSON.stringify(write.paint.addressedRowWrites) !== JSON.stringify(write.damageDecision.paintedRows)) {
+                violations.push(`${writeLabel}: transformed paint addressed undeclared rows`);
+              }
+            }
           }
         }
+        nextWriteIndex += checkpoint.paint.writes;
       }
       if (producer.producer !== "bare-a1"
-        && producer.checkpoints.some(checkpoint => checkpoint.damageDecision !== undefined)) {
+        && producer.checkpoints.some(checkpoint => checkpoint.damageDecision !== undefined
+          || checkpoint.writePaints?.some(write => write.damageDecision !== undefined))) {
         violations.push(`${matrix.workloadId}/${producer.producer}: comparison producer entered A1 damage path`);
       }
     }
@@ -127,6 +137,20 @@ export function evaluateRenderingBudgets(matrix: RenderingMatrixResult): Renderi
     }
   }
   return { passed: violations.length === 0, violations };
+}
+
+function hasCompleteWriteEvidence(checkpoint: RenderingMatrixCheckpoint, firstWrite: number): boolean {
+  const writes = checkpoint.writePaints;
+  if (writes === undefined || writes.length !== checkpoint.paint.writes
+    || writes.some((write, offset) => write.writeIndex !== firstWrite + offset || write.paint.writes !== 1)) return false;
+  // Invariant: omissions or altered aggregate counts must fail, not hide an unclassified clear.
+  const totals = ["bytes", "frames", "fullScreenClears", "rowClears", "scrollUpRows", "scrollDownRows"] as const;
+  return totals.every(key => writes.reduce((sum, write) => sum + write.paint[key], 0) === checkpoint.paint[key])
+    && ["begins", "ends"].every(key => {
+      const field = key as "begins" | "ends";
+      return writes.reduce((sum, write) => sum + write.paint.synchronizedUpdates[field], 0) === checkpoint.paint.synchronizedUpdates[field];
+    })
+    && JSON.stringify(writes.flatMap(write => write.paint.addressedRowWrites)) === JSON.stringify(checkpoint.paint.addressedRowWrites);
 }
 
 export function assertRenderingBudgets(matrix: RenderingMatrixResult): void {
