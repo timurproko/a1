@@ -12,6 +12,7 @@ import {
   type UpdateTransaction,
 } from "../../../src/foundation/release/index.js";
 import { resolveProductPaths } from "../../../src/foundation/lifecycle/index.js";
+import { resolvePromptHistoryDataDir } from "../../../src/features/launch/index.js";
 
 const roots: string[] = [];
 afterEach(async () => Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))));
@@ -22,12 +23,17 @@ describe("bounded immutable release cleanup", () => {
   it("never treats profile history databases or sidecars as release or dependency cache", async () => {
     const fixture = await releaseFixture(3);
     await activateAll(fixture.store, fixture.releases);
-    const history = resolve(fixture.dataDir, "history");
-    await mkdir(history, { recursive: true });
-    for (const suffix of ["", "-wal", "-shm"]) await writeFile(resolve(history, `profile.sqlite3${suffix}`), "private-history-sentinel");
+    const homeData = resolvePromptHistoryDataDir({ home: resolve(fixture.root, "home"), environment: {} });
+    const histories = [resolve(homeData, "history"), resolve(fixture.dataDir, "history")];
+    for (const history of histories) {
+      await mkdir(history, { recursive: true });
+      for (const suffix of ["", "-wal", "-shm"]) await writeFile(resolve(history, `profile.sqlite3${suffix}`), "private-history-sentinel");
+    }
     await runBoundedReleaseCleanup(fixture.dataDir, undefined, { transactionStore: noTransaction });
-    for (const suffix of ["", "-wal", "-shm"]) {
-      expect(await readFile(resolve(history, `profile.sqlite3${suffix}`), "utf8")).toBe("private-history-sentinel");
+    for (const history of histories) {
+      for (const suffix of ["", "-wal", "-shm"]) {
+        expect(await readFile(resolve(history, `profile.sqlite3${suffix}`), "utf8")).toBe("private-history-sentinel");
+      }
     }
   });
 

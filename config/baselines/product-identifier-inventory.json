@@ -220,6 +220,26 @@
       "identifier": "A1_CONFIG_DIR"
     },
     {
+      "path": "test/features/launch/prompt-history-paths.test.ts",
+      "line": 30,
+      "identifier": "A1_PROFILE_HOME"
+    },
+    {
+      "path": "test/features/launch/prompt-history-paths.test.ts",
+      "line": 33,
+      "identifier": "A1_PROFILE_HOME"
+    },
+    {
+      "path": "test/features/launch/prompt-history-paths.test.ts",
+      "line": 39,
+      "identifier": "A1_DATA_DIR"
+    },
+    {
+      "path": "test/features/launch/prompt-history-paths.test.ts",
+      "line": 39,
+      "identifier": "A1_PROFILE_HOME"
+    },
+    {
       "path": "test/foundation/launch-guardian/concurrency.integration.test.ts",
       "line": 84,
       "identifier": "A1_ENDPOINT"
@@ -401,17 +421,17 @@
     },
     {
       "path": "test/foundation/release/release-gc.test.ts",
-      "line": 458,
+      "line": 464,
       "identifier": "A1_DATA_DIR"
     },
     {
       "path": "test/foundation/release/release-gc.test.ts",
-      "line": 459,
+      "line": 465,
       "identifier": "A1_RUNTIME_DIR"
     },
     {
       "path": "test/foundation/release/release-gc.test.ts",
-      "line": 460,
+      "line": 466,
       "identifier": "A1_RELEASE_CLEANUP_RUN_ID"
     },
     {

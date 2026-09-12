@@ -56,10 +56,14 @@ remains stored in A1's profile, and `a1 pi` is unchanged.
 ## Prompt history
 
 Bare A1 recalls recent unique prompts across sessions with Up/Down. History is
-stored in a separate profile-local SQLite database under A1's application-data
-root, not `~/.a1/agent` or disposable caches. `/settings` → History controls
-persistence and the 10-100-entry limit (default 100), effective on next start.
-History is unencrypted user text; images are not reattached. See
+stored in a separate profile-local SQLite database at
+`~/.a1/data/history/<profile-id>.sqlite3`, or under `<A1_DATA_DIR>/history` when
+explicitly overridden. Other application data stays in its existing location.
+`/settings` → History controls persistence and the 10-100-entry limit (default
+100), effective on next start. The new default starts fresh: old platform history
+is neither imported nor automatically deleted. Ordinary upgrades and npm
+uninstall/reinstall preserve saved history. History is unencrypted user text;
+images are not reattached. See
 [prompt history](docs/features/prompt-history.md) for privacy, storage, and removal.
 
 ## Extensions

@@ -2,6 +2,7 @@ import { homedir } from "node:os";
 import { posix, win32, type PlatformPath } from "node:path";
 import type { LaunchProfileId } from "./intent.js";
 import { PRODUCT_IDENTITY } from "../../product-identity.js";
+import { resolveProductPaths } from "../../foundation/lifecycle/index.js";
 
 export interface LaunchProfilePaths {
   readonly home: string;
@@ -27,6 +28,17 @@ export function resolveLaunchProfilePaths(options: LaunchProfilePathOptions = {}
     managedStateRoot: path.dirname(agentProfile),
     agentProfile,
   });
+}
+
+/** Select history storage without relocating control state or probing former stores. */
+export function resolvePromptHistoryDataDir(options: LaunchProfilePathOptions = {}): string {
+  const environment = options.environment ?? process.env;
+  const platform = options.platform ?? process.platform;
+  if (environment[PRODUCT_IDENTITY.environment.dataDir] !== undefined) {
+    return resolveProductPaths(environment, platform).dataDir;
+  }
+  const path = platform === "win32" ? win32 : posix;
+  return path.join(resolveLaunchProfilePaths(options).managedStateRoot, "data");
 }
 
 export function configurationRootForProfile(

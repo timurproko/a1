@@ -36,9 +36,22 @@ imported automatically.
 
 | Platform | Default durable location |
 |---|---|
-| Windows | `%LOCALAPPDATA%/a1/history/<profile-id>.sqlite3` |
-| Current Unix policy (including macOS) | `$XDG_DATA_HOME/a1/history/<profile-id>.sqlite3`, or `~/.local/share/a1/history/<profile-id>.sqlite3` |
+| Windows | `%USERPROFILE%/.a1/data/history/<profile-id>.sqlite3` |
+| Linux and macOS | `~/.a1/data/history/<profile-id>.sqlite3` |
 | Explicit override | `<A1_DATA_DIR>/history/<profile-id>.sqlite3` |
+
+The default uses A1's effective profile home: `A1_PROFILE_HOME` when set, otherwise
+the operating-system home. A custom agent-profile directory changes the history
+identity, not this default root. `A1_DATA_DIR` takes precedence for storage;
+`XDG_DATA_HOME` does not redirect default history. Control metadata, settings,
+agent resources, releases, logs, runtime files, and caches keep their existing
+locations.
+
+**The home-based default starts fresh.** Previous versions used
+`%LOCALAPPDATA%/a1/history` on Windows, or `$XDG_DATA_HOME/a1/history` /
+`~/.local/share/a1/history` on Unix. A1 does not probe, import, merge, delete, or
+fall back to those stores. Explicit `A1_DATA_DIR` selections still work normally.
+Old and new releases using different roots do not synchronize history.
 
 The profile filename is `a1-` followed by a SHA-256 digest of a versioned tuple
 containing the launch kind and normalized effective agent-profile path. It is
@@ -48,13 +61,16 @@ files. Moving a profile, unresolved symlink aliases, or selecting a different
 data root can select a different history; A1 never silently merges or imports it.
 
 The database is separate from `control.sqlite3`, agent resources, and disposable
-caches. Upgrades, release rollback, cache cleanup, and conversation deletion do
-not clear it. SQLite may keep `-wal` and `-shm` sidecars beside the database.
+caches. Upgrades, ordinary npm uninstall/reinstall, release rollback, cache cleanup,
+and conversation deletion do not clear it. Reusing saved history requires the
+same profile and history root; explicitly deleting user data still removes it.
+SQLite may keep `-wal` and `-shm` sidecars beside the database.
 
 **History is unencrypted potentially sensitive user text.** Owner permissions
-are restricted where supported; Windows uses the account's application-data
-ACLs. These protections do not make it safe to submit secrets. Credential files,
-image data, arbitrary environment values, assistant/tool output, and terminal
+are restricted where supported; Windows uses inherited ACLs at the selected
+history directory. Review parent-directory permissions if you customize your home
+or override root. These protections do not make it safe to submit secrets.
+Credential files, image data, arbitrary environment values, assistant/tool output, and terminal
 streams are not copied into this store. Prompt content and private provenance
 must not appear in history diagnostics or test evidence.
 
@@ -96,15 +112,27 @@ two seconds and reports an incomplete flush without preventing exit.
 
 First close **every instance using the selected profile**. Then remove only that
 profile's `.sqlite3` file and its matching `-wal` and `-shm` sidecars, if present.
-Do not delete an open database or the whole application-data root. Disabling the
-setting alone is not an erase operation. There is no interactive clear/export
-command in this release.
+Do not delete an open database, the whole `.a1` directory, or the whole
+application-data root. Disabling the setting alone is not an erase operation.
+There is no interactive clear/export command in this release.
+
+Removing a former default store is likewise a one-time manual cleanup, not an
+application feature. Wait until you have switched to the new version and closed
+all instances using the old store; an older running version can otherwise keep
+using or recreate it. Remove only the identified old profile database and matching
+sidecars, not other profiles or either application's caches.
 
 ## Manual acceptance
 
 Build the checkout, then launch it through `./scripts/dev`. Use an isolated
 `A1_DATA_DIR` for disposable history checks; keep that same directory on each
-restart and in both concurrent terminals. Test:
+restart and in both concurrent terminals. The development launcher always sets
+an isolated `A1_DATA_DIR`; to try the home-based location in that launcher,
+explicitly select `A1_DATA_DIR=<effective-home>/.a1/data` and keep
+`A1_DATABASE_PATH` in a separate disposable directory so control metadata is not
+placed beside history. For a history-only review, `NODE_DISABLE_COMPILE_CACHE=1`
+also avoids creating compile-cache files under that explicitly overridden root.
+The focused path/composition tests cover normal no-override selection. Test:
 
 1. Submit two text prompts and one repeated prompt; start `/new`, then restart.
    The latest unique prompts remain recallable.

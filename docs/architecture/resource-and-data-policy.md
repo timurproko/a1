@@ -47,8 +47,10 @@ Sanitization must classify before logging or storing. Unknown or untyped values 
 
 The `prompt-history` feature owns only reusable interactive user input, not
 structured-message archives. It stores one independent profile database under
-`<dataDir>/history`, never agent resources or cache/release directories. Text is
-unencrypted and potentially sensitive. Retain up to 100 unique entries (configured
+`<effective-home>/.a1/data/history`, or `<A1_DATA_DIR>/history` when explicitly
+overridden, never agent resources or cache/release directories. The default home
+follows launch-profile resolution, including `A1_PROFILE_HOME`; other product
+data paths are unchanged. Text is unencrypted and potentially sensitive. Retain up to 100 unique entries (configured
 10-100), at most 1 MiB per entry and 8 MiB total canonical text. Background queues
 are limited to 32 writes/8 MiB per instance; reads are coalesced, lock retries are
 bounded to one second off-thread, and graceful shutdown drains for at most two
@@ -59,8 +61,11 @@ Only typed canonical text, submission identity, recency/timestamp, input kind,
 and bounded cwd/session provenance are allowed. No image bytes, transformed
 agent prompts, environment/credential copies, tool results, terminal streams, or
 private input in diagnostics are permitted. Disabling persistence is next-start
-and does not erase data or stop other live instances. Cache and release cleanup
-must not touch history. See [prompt history](../features/prompt-history.md) for
+and does not erase data or stop other live instances. Upgrades, ordinary npm
+uninstall/reinstall, and cache/release cleanup must not touch history. The new
+default starts fresh without probing, importing, or deleting the old platform
+store. Any old-store removal is a separate manual operation after its users have
+stopped, not startup or cleanup behavior. See [prompt history](../features/prompt-history.md) for
 retention, failure semantics, profile identity, and stopped-instance removal.
 
 ## Required architectural outcomes
