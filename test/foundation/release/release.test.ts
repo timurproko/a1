@@ -105,7 +105,7 @@ describe("package-derived release identity", () => {
     const manifestPath = resolve(root, "package.json");
     const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as Record<string, unknown>;
     await writeFile(manifestPath, JSON.stringify({ ...manifest, name: "@timurproko/addone" }));
-    await expect(deriveReleaseIdentity(root)).rejects.toThrow(/unexpected A1 package name/);
+    await expect(deriveReleaseIdentity(root)).rejects.toThrow(/unexpected a1 package name/);
   });
 });
 

@@ -4,7 +4,18 @@
     "planning": {
       "kind": "commands",
       "commands": [
-        { "id": "openspec-strict", "executable": "npx", "arguments": ["--yes", "@fission-ai/openspec@1.8.0", "validate", "--all", "--strict", "--no-interactive"] }
+        {
+          "id": "openspec-strict",
+          "executable": "npx",
+          "arguments": [
+            "--yes",
+            "@fission-ai/openspec@1.8.0",
+            "validate",
+            "--all",
+            "--strict",
+            "--no-interactive"
+          ]
+        }
       ]
     },
     "fast": {
@@ -44,7 +55,8 @@
         "test/foundation/release/package-install.integration.test.ts",
         "test/foundation/release/update-performance.integration.test.ts",
         "test/foundation/release/update-transition.integration.test.ts",
-        "test/foundation/structured-agent-runtime/runtime.integration.test.ts"
+        "test/foundation/structured-agent-runtime/runtime.integration.test.ts",
+        "test/foundation/release/update-predecessor.integration.test.ts"
       ]
     },
     "full-release": {
@@ -64,7 +76,8 @@
         "structured-runtime-integration",
         "package-smoke",
         "package-install",
-        "dependency-policy"
+        "dependency-policy",
+        "update-predecessor"
       ]
     }
   },
@@ -72,36 +85,76 @@
     "typecheck": {
       "kind": "commands",
       "commands": [
-        { "id": "typecheck", "executable": "npm", "arguments": ["run", "typecheck"] }
+        {
+          "id": "typecheck",
+          "executable": "npm",
+          "arguments": [
+            "run",
+            "typecheck"
+          ]
+        }
       ]
     },
     "architecture": {
       "kind": "commands",
       "commands": [
-        { "id": "architecture", "executable": "npm", "arguments": ["run", "check:architecture"] }
+        {
+          "id": "architecture",
+          "executable": "npm",
+          "arguments": [
+            "run",
+            "check:architecture"
+          ]
+        }
       ]
     },
     "naming-full": {
       "kind": "commands",
       "commands": [
-        { "id": "internal-naming-full", "executable": "npm", "arguments": ["run", "check:names"] }
+        {
+          "id": "internal-naming-full",
+          "executable": "npm",
+          "arguments": [
+            "run",
+            "check:names"
+          ]
+        }
       ]
     },
     "documentation-changed": {
       "kind": "commands",
       "commands": [
-        { "id": "code-documentation-changed", "executable": "node", "arguments": ["scripts/release/run-changed-documentation.mjs"] }
+        {
+          "id": "code-documentation-changed",
+          "executable": "node",
+          "arguments": [
+            "scripts/release/run-changed-documentation.mjs"
+          ]
+        }
       ]
     },
     "documentation-full": {
       "kind": "commands",
       "commands": [
-        { "id": "code-documentation-full", "executable": "npm", "arguments": ["run", "check:code-documentation"] }
+        {
+          "id": "code-documentation-full",
+          "executable": "npm",
+          "arguments": [
+            "run",
+            "check:code-documentation"
+          ]
+        }
       ]
     },
     "rendering-smoke": {
       "kind": "vitest-isolated",
-      "evidence": { "workloadCaptures": 4, "deliberateRepeatCaptures": 0, "matrixProducerLaunches": 15, "protocolProducerLaunches": 0, "totalProducerLaunches": 15 },
+      "evidence": {
+        "workloadCaptures": 4,
+        "deliberateRepeatCaptures": 0,
+        "matrixProducerLaunches": 15,
+        "protocolProducerLaunches": 0,
+        "totalProducerLaunches": 15
+      },
       "tests": [
         "test/integrations/pi/tui-runtime/rendering-smoke.test.ts",
         "test/integrations/pi/tui-runtime/input-responsiveness-smoke.test.ts"
@@ -109,7 +162,13 @@
     },
     "rendering-stability": {
       "kind": "vitest-isolated",
-      "evidence": { "workloadCaptures": 14, "deliberateRepeatCaptures": 0, "matrixProducerLaunches": 51, "protocolProducerLaunches": 10, "totalProducerLaunches": 61 },
+      "evidence": {
+        "workloadCaptures": 14,
+        "deliberateRepeatCaptures": 0,
+        "matrixProducerLaunches": 51,
+        "protocolProducerLaunches": 10,
+        "totalProducerLaunches": 61
+      },
       "tests": [
         "test/integrations/pi/tui-runtime/rendering-budgets.test.ts",
         "test/integrations/pi/tui-runtime/rendering-producer.test.ts",
@@ -144,7 +203,13 @@
         "test/integrations/pi/engine/session-integration.test.ts"
       ],
       "commands": [
-        { "id": "candidate-engine-conformance-report", "executable": "node", "arguments": ["scripts/pi/run-pi-engine-conformance.mjs"] }
+        {
+          "id": "candidate-engine-conformance-report",
+          "executable": "node",
+          "arguments": [
+            "scripts/pi/run-pi-engine-conformance.mjs"
+          ]
+        }
       ]
     },
     "release-update": {
@@ -185,13 +250,32 @@
     "dependency-policy": {
       "kind": "commands",
       "commands": [
-        { "id": "deprecated-dependencies", "executable": "npm", "arguments": ["run", "check:deprecated"] }
+        {
+          "id": "deprecated-dependencies",
+          "executable": "npm",
+          "arguments": [
+            "run",
+            "check:deprecated"
+          ]
+        }
+      ]
+    },
+    "update-predecessor": {
+      "kind": "vitest-files",
+      "requiresBuild": true,
+      "consumesPackage": true,
+      "tests": [
+        "test/foundation/release/update-predecessor.integration.test.ts"
       ]
     }
   },
   "fullReleaseSupersedes": {
-    "documentation-full": ["documentation-changed"],
-    "rendering-stability": ["rendering-smoke"]
+    "documentation-full": [
+      "documentation-changed"
+    ],
+    "rendering-stability": [
+      "rendering-smoke"
+    ]
   },
   "releaseContracts": {
     "architecture": "architecture",
@@ -203,6 +287,7 @@
     "extension-behavior": "fast",
     "architecture-independent-n-minus-one-update-transition": "release-update",
     "post-update-startup-performance": "package-install",
-    "immutable-dependency-layer-compatibility": "package-install"
+    "immutable-dependency-layer-compatibility": "package-install",
+    "published-predecessor-update": "update-predecessor"
   }
 }

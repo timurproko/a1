@@ -9,6 +9,6 @@ describe("launch profile identity", () => {
   });
 
   it.each([undefined, "agent", "unknown", 1])("rejects %j", value => {
-    expect(() => assertLaunchProfileId(value)).toThrow(/A1 launch profile is invalid/);
+    expect(() => assertLaunchProfileId(value)).toThrow(/a1 launch profile is invalid/);
   });
 });

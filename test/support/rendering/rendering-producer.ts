@@ -20,6 +20,19 @@ export interface RenderingProducerRequest {
   readonly testBehavior?: "run" | "fail" | "hang" | "startup-hang";
 }
 
+export interface RenderingDamageDecision {
+  readonly frameId: number | null;
+  readonly transformed: boolean;
+  readonly reason: string;
+  readonly shiftRows: number;
+  readonly paintedRows: readonly number[];
+}
+
+export interface RenderingProducerWrite extends TimedTerminalWrite {
+  /** Decision captured synchronously for these emitted bytes, never a later checkpoint snapshot. */
+  readonly damageDecision?: RenderingDamageDecision;
+}
+
 export interface RenderingProducerCheckpoint {
   readonly name: string;
   readonly atMs: number;
@@ -27,13 +40,8 @@ export interface RenderingProducerCheckpoint {
   readonly columns: number;
   readonly rows: number;
   readonly transcript: readonly { readonly kind: string; readonly status: string; readonly text: string }[];
-  readonly damageDecision?: {
-    readonly frameId: number | null;
-    readonly transformed: boolean;
-    readonly reason: string;
-    readonly shiftRows: number;
-    readonly paintedRows: readonly number[];
-  };
+  /** Latest state for checkpoint/viewport context; not authority for earlier terminal writes. */
+  readonly damageDecision?: RenderingDamageDecision;
   readonly viewport?: {
     readonly frameId: number;
     readonly transcript: { readonly rowStart: number; readonly rowEnd: number } | null;
@@ -58,7 +66,7 @@ export interface RenderingProducerResult {
   readonly processId: number;
   readonly effectiveMode: RenderingMode;
   readonly state: RenderingProducerRequest["state"];
-  readonly writes: readonly TimedTerminalWrite[];
+  readonly writes: readonly RenderingProducerWrite[];
   readonly checkpoints: readonly RenderingProducerCheckpoint[];
   readonly timings?: { readonly startupMs: number; readonly completionMs: number };
 }
@@ -233,8 +241,19 @@ function isRenderingProducerResult(value: unknown): value is RenderingProducerRe
     && typeof result.processId === "number"
     && (result.effectiveMode === "regular" || result.effectiveMode === "fullscreen")
     && Array.isArray(result.writes) && result.writes.every(write => typeof write === "object" && write !== null
-      && typeof (write as TimedTerminalWrite).data === "string" && typeof (write as TimedTerminalWrite).atMs === "number")
+      && typeof (write as TimedTerminalWrite).data === "string" && typeof (write as TimedTerminalWrite).atMs === "number"
+      && ((write as RenderingProducerWrite).damageDecision === undefined || isRenderingDamageDecision((write as RenderingProducerWrite).damageDecision)))
     && Array.isArray(result.checkpoints);
+}
+
+/** Reject malformed per-write evidence instead of interpreting it as a cleanup exemption. */
+export function isRenderingDamageDecision(value: unknown): value is RenderingDamageDecision {
+  if (typeof value !== "object" || value === null) return false;
+  const decision = value as Partial<RenderingDamageDecision>;
+  return (decision.frameId === null || Number.isSafeInteger(decision.frameId))
+    && typeof decision.transformed === "boolean" && typeof decision.reason === "string"
+    && Number.isSafeInteger(decision.shiftRows) && Array.isArray(decision.paintedRows)
+    && decision.paintedRows.every(row => Number.isSafeInteger(row) && row > 0);
 }
 
 function isReadyMessage(value: unknown): value is { readonly type: "ready" } {

@@ -35,6 +35,7 @@ describe("validation tier planning", () => {
       "package-smoke",
       "package-install",
       "dependency-policy",
+      "update-predecessor",
     ]);
     expect(plan.vitest).toMatchObject({
       mode: "full-deduplicated",
@@ -58,7 +59,7 @@ describe("validation tier planning", () => {
       "deprecated-dependencies",
     ]);
     expect(new Set(plan.commands.map(command => command.id)).size).toBe(plan.commands.length);
-    expect(Object.keys(plan.releaseContracts ?? {})).toHaveLength(10);
+    expect(Object.keys(plan.releaseContracts ?? {})).toHaveLength(11);
   });
 
   it("runs ordinary fast validation without any build or package installation", async () => {

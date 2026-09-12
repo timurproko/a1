@@ -21,7 +21,6 @@ import { cleanupVerifiedOwner, processIsAlive } from "./process-cleanup.js";
 import { materializeRelease, readMaterializedRelease } from "./release-store.js";
 import { scheduleReleaseCleanup } from "./release-gc.js";
 import { warmMaterializedRelease } from "./warmup.js";
-import { assertCurrentLaunchContract } from "../launch-context/index.js";
 import { UpdateTransactionStore, type UpdateRecoveryState, type UpdateTransaction, type UpdateTransactionPhase } from "./update-transaction.js";
 import { removeUpdateRecoveryCapsule, runProtectedPackageReplacement, type ProtectedPackageReplacementResult } from "./update-recovery.js";
 
@@ -196,7 +195,6 @@ export function createUpdateLifecycleCoordinator(
     async targetIsActive(targetVersion) {
       const state = await stateStore.read();
       const activeId = state.references.active;
-      if (activeId) assertCurrentLaunchContract(state.releases[activeId] ?? {});
       if (!activeId || state.releases[activeId]?.packageVersion !== targetVersion) return false;
       const endpoint = await readActiveEndpoint(paths, activeId, environment);
       return endpoint?.metadata.releaseId === activeId && await probeOwnership(endpoint.metadata) === "live-verified";
@@ -204,7 +202,6 @@ export function createUpdateLifecycleCoordinator(
     async shutdownVerifiedOwners(targetVersion) {
       const state = await stateStore.read();
       const activeId = state.references.active;
-      if (activeId) assertCurrentLaunchContract(state.releases[activeId] ?? {});
       const priorActiveVersion = activeId ? state.releases[activeId]?.packageVersion ?? null : null;
       const owner = await readActiveEndpoint(paths, activeId, environment);
       if (!owner) return { priorActiveVersion };
@@ -552,7 +549,7 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
         if (replacement.outcome === "installed") transaction = await transactionStore.advance("package-installed");
         if (replacement.cancelled) {
           progress.clear();
-          output.stderr(`${PRODUCT_TEXT.diagnostic("update cancelled safely; the A1 launcher is available and the transaction can be resumed.")}\n`);
+          output.stderr(`${PRODUCT_TEXT.diagnostic("update cancelled safely; the launcher is available and the transaction can be resumed.")}\n`);
           return 130;
         }
         if (replacement.outcome !== "installed") {

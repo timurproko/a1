@@ -14,11 +14,19 @@ import {
 } from "./rendering-producer.js";
 import { STREAM_RENDERING_WORKLOADS } from "./streaming-workloads.js";
 
+export interface RenderingWritePaint {
+  readonly writeIndex: number;
+  readonly paint: TerminalPaintClassification;
+  readonly damageDecision?: RenderingProducerResult["writes"][number]["damageDecision"];
+}
+
 export interface RenderingMatrixCheckpoint {
   readonly name: string;
   readonly paint: TerminalPaintClassification;
   readonly cellFrame: TerminalCellFrame;
   readonly damageDecision?: RenderingProducerResult["checkpoints"][number]["damageDecision"];
+  /** Bare-A1 write-local classifications; checkpoint-wide lastDecision is not clear authority. */
+  readonly writePaints?: readonly RenderingWritePaint[];
   readonly viewport?: RenderingProducerResult["checkpoints"][number]["viewport"];
 }
 
@@ -57,8 +65,8 @@ export async function runRenderingMatrix(workloadId: string): Promise<RenderingM
   if (workload === undefined) throw new TypeError(`unknown rendering workload: ${workloadId}`);
   const defaultRaw = await runMode(workloadId, "regular", workload.columns, workload.rows);
   const fullscreenRaw = await runMode(workloadId, "fullscreen", workload.columns, workload.rows);
-  const defaultMode = await Promise.all(defaultRaw.map(result => summarize(result, "regular")));
-  const fullscreenMode = await Promise.all(fullscreenRaw.map(result => summarize(result, "fullscreen")));
+  const defaultMode = await Promise.all(defaultRaw.map(result => summarizeRenderingProducer(result, "regular")));
+  const fullscreenMode = await Promise.all(fullscreenRaw.map(result => summarizeRenderingProducer(result, "fullscreen")));
   const bare = fullscreenMode.find(result => result.producer === "bare-a1")!;
   const streamCheckpoints = new Set(workload.steps
     .filter(step => step.action.type === "event" && step.action.value.type === "message_update")
@@ -133,7 +141,11 @@ async function runMode(
   return results;
 }
 
-async function summarize(result: RenderingProducerResult, requestedMode: RenderingMode): Promise<RenderingMatrixProducerResult> {
+/** Keep per-write causes aligned with raw write indexes while replaying checkpoint-wide final cells. */
+export async function summarizeRenderingProducer(result: RenderingProducerResult, requestedMode: RenderingMode): Promise<RenderingMatrixProducerResult> {
+  if (result.producer !== "bare-a1" && result.writes.some(write => write.damageDecision !== undefined)) {
+    throw new TypeError(`${result.producer}: comparison producer entered A1 damage path`);
+  }
   const cellFrames = await replayTerminalCheckpoints(result.writes, result.checkpoints.map(checkpoint => ({
     writeEnd: checkpoint.writeEnd,
     columns: checkpoint.columns,
@@ -147,12 +159,20 @@ async function summarize(result: RenderingProducerResult, requestedMode: Renderi
     effectiveMode: result.effectiveMode,
     state: result.state,
     checkpoints: result.checkpoints.map((checkpoint, index) => {
-      const writes = result.writes.slice(writeStart, checkpoint.writeEnd);
+      const firstWrite = writeStart;
+      const writes = result.writes.slice(firstWrite, checkpoint.writeEnd);
       writeStart = checkpoint.writeEnd;
       return {
         name: checkpoint.name,
         paint: classifyTerminalPaint(writes),
         cellFrame: cellFrames[index]!,
+        ...(result.producer !== "bare-a1" ? {} : {
+          writePaints: writes.map((write, offset) => ({
+            writeIndex: firstWrite + offset,
+            paint: classifyTerminalPaint([write]),
+            ...(write.damageDecision === undefined ? {} : { damageDecision: write.damageDecision }),
+          })),
+        }),
         ...(checkpoint.damageDecision === undefined ? {} : { damageDecision: checkpoint.damageDecision }),
         ...(checkpoint.viewport === undefined ? {} : { viewport: checkpoint.viewport }),
       };
