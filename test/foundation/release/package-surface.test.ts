@@ -42,6 +42,11 @@ describe("exact packed npm command surface", () => {
     ]));
     expect(paths.some(path => /addone/i.test(path))).toBe(false);
     expect(paths.some(path => path.startsWith("scripts/") || path.endsWith(".map"))).toBe(false);
+    expect(paths).toEqual(expect.arrayContaining([
+      "dist/integrations/pi/engine/changelog.js",
+      "dist/integrations/pi/engine/resources/changelog.json",
+      "dist/integrations/pi/components/upstream/assets/earendil-image.json",
+    ]));
   });
 
   it("records every packed native process guardian as executable", () => {

@@ -161,6 +161,8 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
   return {
     render: width => editorUx?.render(width) ?? editor.render(width),
     activateKeybindings: () => setKeybindings(keybindings),
+    keybindingConfig: () => keybindings.getEffectiveConfig(),
+    reloadKeybindings: () => { keybindings.reload(); setKeybindings(keybindings); },
     matchesTerminalKey: (data, key) => matchesKey(data, key),
     handleInput: data => {
       if (editorUx === undefined) editor.handleInput(data);

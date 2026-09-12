@@ -76,6 +76,7 @@ import {
   onPiThemeChange,
   piShellVisibleWidth,
   piTheme,
+  renderPiShellCommandMessage,
   renderPiShellPackageUpdateNotice,
   renderPiShellStartupDiagnostic,
   renderPiShellStatusText,
@@ -884,7 +885,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     }
     const id = this.#appendAnchoredWorkflowComponent(width => [
       "",
-      ...renderPiShellStatusText(this.#workflowStatusMessages.get(id) ?? message, width, this.#outputPad),
+      ...renderPiShellStatusText(this.#workflowStatusMessages.get(id) ?? message, width),
     ]);
     this.#workflowStatusMessages.set(id, message);
     this.#lastWorkflowStatusId = id;
@@ -896,10 +897,8 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       return;
     }
     this.#lastWorkflowStatusId = undefined;
-    const prefix = message.kind === "warning" ? "Warning" : message.kind === "error" ? "Error" : undefined;
-    const color = message.kind === "accent" ? "accent" : message.kind;
-    const text = prefix === undefined ? message.message : `${prefix}: ${message.message}`;
-    this.#appendAnchoredWorkflowComponent(() => ["", ` ${piTheme().fg(color, text)}`]);
+    const presentation = { kind: message.kind, message: message.message };
+    this.#appendAnchoredWorkflowComponent(width => renderPiShellCommandMessage(presentation, width, this.#outputPad));
   }
 
   appendWorkflowResult(result: PiWorkflowResult): void {
@@ -920,7 +919,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     }
     if (result.command === "hotkeys" && result.outcome === "completed") {
       this.#lastWorkflowStatusId = undefined;
-      const hotkeys = createPiShellHotkeys();
+      const hotkeys = createPiShellHotkeys(this.editor.keybindingConfig(), bindings => this.#extensionRenderers.getShortcuts?.(bindings) ?? []);
       this.#appendAnchoredWorkflowComponent(width => hotkeys.render(width), () => hotkeys.dispose?.());
       return;
     }
@@ -938,26 +937,10 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       return;
     }
     if (result.outcome === "completed" && (result.command === "quit" || result.command === "compact")) return;
-    if (result.command === "new" && result.outcome === "completed") {
-      this.appendWorkflowMessage({ kind: "accent", message: result.message });
-      return;
-    }
-    if (result.command === "name" && result.outcome === "completed") {
+    if (result.outcome === "completed" && (result.command === "new" || result.command === "name" || result.command === "debug")) {
       this.#lastWorkflowStatusId = undefined;
-      this.#appendAnchoredWorkflowComponent(() => [
-        ...(result.detail ? ["", ` ${piTheme().fg("warning", `Warning: ${result.detail}`)}`] : []),
-        "",
-        ` ${piTheme().fg("dim", result.message)}`,
-      ]);
-      return;
-    }
-    if (result.command === "debug" && result.outcome === "completed") {
-      this.#lastWorkflowStatusId = undefined;
-      this.#appendAnchoredWorkflowComponent(() => [
-        "",
-        ` ${piTheme().fg("accent", result.message)}`,
-        ...(result.detail ? [` ${piTheme().fg("muted", result.detail)}`] : []),
-      ]);
+      const presentation = { kind: result.command, message: result.message, ...(result.detail === undefined ? {} : { detail: result.detail }) };
+      this.#appendAnchoredWorkflowComponent(width => renderPiShellCommandMessage(presentation, width, this.#outputPad));
       return;
     }
     if (result.command === "arminsayshi" && result.outcome === "completed") {
@@ -1066,9 +1049,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       this.appendWorkflowStatus(message);
       return;
     }
-    this.#lastWorkflowStatusId = undefined;
-    const prefix = type === "warning" ? "Warning" : "Error";
-    this.#appendAnchoredWorkflowComponent(() => ["", ` ${piTheme().fg(type, `${prefix}: ${message}`)}`]);
+    this.appendWorkflowMessage({ kind: type, message });
   }
 
   extensionFooterData(): unknown {
