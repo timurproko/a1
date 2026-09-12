@@ -240,7 +240,7 @@ describe("transcript viewport", () => {
     expect(detached.followingEnd).toBe(false);
     expect(detached.scrollTop).toBe(detachedTop);
     expect(viewport.newMessages).toBe(2);
-    expect(stripAnsi(detached.rows[4] ?? "")).toContain("2 new messages (End)");
+    expect(stripAnsi(detached.rows[4] ?? "")).toContain("2 new messages (Ctrl+End) ↓");
 
     viewport.scrollToEnd(103);
     const followed = viewport.compose({ documentRows: rows(14), dockRows: ["dock"], promptAnchors: [], width: 40, height: 6, now: 104 });
@@ -268,7 +268,40 @@ describe("transcript viewport", () => {
       now: 103,
     });
     expect(notified.hits.bottom?.row).toBe(7);
-    expect(stripAnsi(notified.rows[6] ?? "")).toContain("Jump to bottom (End)");
+    expect(stripAnsi(notified.rows[6] ?? "")).toContain("Jump to bottom (Ctrl+End) ↓");
+  });
+
+  it.each([0, 1, 3, 100])("renders the exact downward-arrow label with %i new messages", count => {
+    const viewport = new TranscriptViewport();
+    viewport.setConfig({ scrollbarAppearance: "hidden", scrollbarStyle: "thin" });
+    const input = { documentRows: rows(20), dockRows: ["dock"], promptAnchors: [], width: 60, height: 6, now: 100 };
+    viewport.compose(input);
+    viewport.scrollTo(0, 101);
+    for (let index = 0; index < count; index += 1) viewport.noteNewMessage();
+    const frame = viewport.compose(input);
+    const label = count === 0 ? " Jump to bottom (Ctrl+End) ↓ " : ` ${count} new message${count === 1 ? "" : "s"} (Ctrl+End) ↓ `;
+    expect(stripAnsi(frame.rows[4]!)).toContain(label);
+    expect(frame.hits.bottom).toEqual({ row: 5, columnStart: Math.floor((60 - label.length) / 2) + 1, columnEnd: Math.floor((60 - label.length) / 2) + label.length });
+    expect(frame.rows).toHaveLength(6);
+    viewport.scrollToEnd(102);
+    expect(viewport.compose(input).hits.bottom).toBeNull();
+  });
+
+  it("falls back to the full arrow label or omits both painting and hit target at narrow widths", () => {
+    const viewport = new TranscriptViewport();
+    viewport.setConfig({ scrollbarAppearance: "hidden", scrollbarStyle: "thin" });
+    const label = " Jump to bottom (Ctrl+End) ↓ ";
+    const input = { documentRows: rows(20), dockRows: ["dock"], promptAnchors: [], height: 6, now: 100 };
+    viewport.compose({ ...input, width: 60 });
+    viewport.scrollTo(0, 101);
+    for (let index = 0; index < 100; index += 1) viewport.noteNewMessage();
+    const fallback = viewport.compose({ ...input, width: label.length });
+    expect(stripAnsi(fallback.rows[4]!)).toBe(label);
+    expect(fallback.hits.bottom).toEqual({ row: 5, columnStart: 1, columnEnd: label.length });
+    const omitted = viewport.compose({ ...input, width: label.length - 1 });
+    expect(omitted.hits.bottom).toBeNull();
+    expect(omitted.rows.every(row => !stripAnsi(row).includes("↓"))).toBe(true);
+    expect(omitted.rows).toHaveLength(6);
   });
 
   it("jumps between submitted prompts in both directions", () => {

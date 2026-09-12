@@ -345,6 +345,20 @@ describe("Pi shell public component adapters", () => {
     expect(rows).toContain("Ctrl+O");
   });
 
+  it("reports prompt and content boundaries only in owned hotkey tables", () => {
+    const owned = stripTerminalSequences(createPiShellHotkeys(undefined, undefined, "a1").render(120).join("\n"));
+    const pinned = stripTerminalSequences(createPiShellHotkeys().render(120).join("\n"));
+    for (const [key, action] of [["Home", "Start of prompt line"], ["End", "End of prompt line"], ["Ctrl+Home", "Start of content"], ["Ctrl+End", "End of content / follow output"]]) {
+      const row = owned.split("\n").find(line => line.includes(action!));
+      expect(row).toContain(key);
+      if (action!.includes("prompt")) expect(row).not.toContain("Ctrl+Home");
+      if (action!.includes("prompt")) expect(row).not.toContain("Ctrl+End");
+    }
+    expect(pinned).not.toContain("Start of content");
+    expect(pinned.split("\n").find(line => line.includes("Start of line"))).toContain("Ctrl+Home");
+    expect(pinned.split("\n").find(line => line.includes("End of line"))).toContain("Ctrl+End");
+  });
+
   it("renders pinned compact and expanded startup resource sections with diagnostics", () => {
     const resources = createPiShellLoadedResources([
       { section: "Context", label: "AGENTS.md", sourcePath: "D:/work/AGENTS.md" },

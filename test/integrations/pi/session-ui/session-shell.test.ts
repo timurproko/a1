@@ -953,7 +953,7 @@ describe("OwnedUiSessionShell", () => {
     const detached = detachedRaw.map(row => stripTerminalSequences(row));
     expect(detached).toHaveLength(12);
     expect(detachedRaw[0]).toContain(piTheme().fg("userMessageText", "11:57"));
-    expect(detached.some(row => row.includes("Jump to bottom (End)"))).toBe(true);
+    expect(detached.some(row => row.includes("Jump to bottom (Ctrl+End) ↓"))).toBe(true);
     expect(detached[0]).not.toContain("│");
     expect(detached.slice(1, -4).some(row => row.includes("│"))).toBe(true);
     expect(detachedRaw.some(row => row.includes(piTheme().fg("accent", "│")))).toBe(true);
@@ -967,17 +967,17 @@ describe("OwnedUiSessionShell", () => {
     engine.session.emit({ type: "message_start", message: completedReply });
     engine.session.emit({ type: "message_end", message: completedReply });
     await shell.backend.flushEvents();
-    expect(shell.root.render(60).some(row => stripTerminalSequences(row).includes("1 new message (End)"))).toBe(true);
+    expect(shell.root.render(60).some(row => stripTerminalSequences(row).includes("1 new message (Ctrl+End) ↓"))).toBe(true);
 
     engine.session.emit({ type: "message_end", message: { role: "tool", content: [{ type: "text", text: "tool result" }] } });
     await shell.backend.flushEvents();
-    expect(shell.root.render(60).some(row => stripTerminalSequences(row).includes("1 new message (End)"))).toBe(true);
+    expect(shell.root.render(60).some(row => stripTerminalSequences(row).includes("1 new message (Ctrl+End) ↓"))).toBe(true);
 
     // Compatibility: v2 resumes follow at the exact agent_start boundary, which also clears
     // the completed-message count on the next frame.
     engine.session.emit({ type: "agent_start" });
     await shell.backend.flushEvents();
-    expect(shell.root.render(60).every(row => !stripTerminalSequences(row).includes("new message (End)"))).toBe(true);
+    expect(shell.root.render(60).every(row => !stripTerminalSequences(row).includes("new message (Ctrl+End) ↓"))).toBe(true);
     engine.session.emit({ type: "agent_settled" });
     await shell.backend.flushEvents();
 
@@ -1178,7 +1178,7 @@ describe("OwnedUiSessionShell", () => {
       terminal.resize(60, 12);
       shell.root.render(60);
       const row = shell.root.viewportFrameDescriptor()!.transcript!.rowEnd;
-      const label = " Jump to bottom (End) ";
+      const label = " Jump to bottom (Ctrl+End) ↓ ";
       const expectControl = (hovered: boolean) => {
         const frame = shell.root.render(60);
         const control = frame.find(line => stripTerminalSequences(line).includes(label));
@@ -1194,7 +1194,7 @@ describe("OwnedUiSessionShell", () => {
         terminal.input(`\u001b[<65;30;${row}M`);
         expectHidden();
       }
-      terminal.input("\u001b[1;1H");
+      terminal.input("\u001b[1;5H");
       await nextImmediate();
       expectControl(true);
       terminal.input(`\u001b[<0;30;${row}M`);
@@ -1202,7 +1202,7 @@ describe("OwnedUiSessionShell", () => {
       terminal.input(`\u001b[<0;30;${row}m`);
       // Invariant: an unclaimed non-motion report while hidden replaces the remembered position.
       terminal.input(`\u001b[<1;1;${row}M`);
-      terminal.input("\u001b[1;1H");
+      terminal.input("\u001b[1;5H");
       await nextImmediate();
       expectControl(false);
       terminal.input(`\u001b[<0;1;${row}M`);
@@ -1234,7 +1234,7 @@ describe("OwnedUiSessionShell", () => {
       terminal.resize(60, 16);
       shell.root.render(60);
       const row = shell.root.viewportFrameDescriptor()!.transcript!.rowEnd;
-      const label = " Jump to bottom (End) ";
+      const label = " Jump to bottom (Ctrl+End) ↓ ";
       const expectControl = (width: number, hovered: boolean) => {
         const frame = shell.root.render(width);
         const control = frame.find(line => stripTerminalSequences(line).includes(label));
@@ -1421,7 +1421,7 @@ describe("OwnedUiSessionShell", () => {
           terminal.resize(192, 54);
           shell.root.setViewportConfig({ scrollbarAppearance: "always", scrollbarStyle: "thin", scrollbarSpeed: "normal" });
           shell.runtime.renderNow();
-          terminal.input("\u001b[1;1H");
+          terminal.input("\u001b[1;5H");
           shell.runtime.renderNow();
           const initial = shell.root.render(192);
           const row = initial.findIndex(line => stripTerminalSequences(line).includes(label));
@@ -1432,7 +1432,7 @@ describe("OwnedUiSessionShell", () => {
           shell.runtime.renderNow();
           const before = terminal.writes.length;
           if (navigation === "wheel") terminal.input("\u001b[<65;5;3M");
-          else if (navigation === "keyboard") terminal.input("\u001b[1;1F");
+          else if (navigation === "keyboard") terminal.input("\u001b[1;5F");
           else {
             const bottom = shell.root.viewportFrameDescriptor()!.transcript!.rowEnd;
             terminal.input(`\u001b[<0;192;${bottom}M\u001b[<0;192;${bottom}m`);
@@ -1609,7 +1609,7 @@ describe("OwnedUiSessionShell", () => {
       expect(wheelWrites.length).toBeGreaterThan(0);
       expect(wheelWrites.some(write => write.includes("\u001b[2K"))).toBe(true);
       expect(shell.root.render(60).some(row => stripTerminalSequences(row).includes("Working"))).toBe(false);
-      terminal.input("\u001b[1;1F");
+      terminal.input("\u001b[1;5F");
       shell.runtime.renderNow();
       expect(shell.root.render(60).some(row => stripTerminalSequences(row).includes("Working"))).toBe(true);
     } finally {
@@ -1648,8 +1648,8 @@ describe("OwnedUiSessionShell", () => {
       expect(detached.some(row => row.includes("Steering: second"))).toBe(false);
       expect(detached.some(row => row.includes("Alt+Up to edit all queued messages"))).toBe(false);
       expect(detached.some(row => row.includes("Working"))).toBe(false);
-      expect(detached.some(row => row.includes("Jump to bottom (End)"))).toBe(true);
-      terminal.input("\u001b[1;1F");
+      expect(detached.some(row => row.includes("Jump to bottom (Ctrl+End) ↓"))).toBe(true);
+      terminal.input("\u001b[1;5F");
       const followed = shell.root.render(60).map(row => stripTerminalSequences(row));
       expect(followed.some(row => row.includes("Steering: first"))).toBe(true);
       expect(followed.some(row => row.includes("Working"))).toBe(true);
@@ -1756,7 +1756,7 @@ describe("OwnedUiSessionShell", () => {
       shell.runtime.renderNow();
       expect(plainRows().some(row => row.includes("Still indexing"))).toBe(false);
       expect(plainRows().some(row => row.includes("Indexing sources"))).toBe(false);
-      terminal.input("\u001b[1;1F");
+      terminal.input("\u001b[1;5F");
       shell.runtime.renderNow();
       expect(plainRows().some(row => row.includes("Still indexing..."))).toBe(true);
 
@@ -1922,28 +1922,149 @@ describe("OwnedUiSessionShell", () => {
     }
   });
 
-  it("keeps Ctrl+Home/End and A1 editing aliases in Pi's editor", async () => {
+  it.each([
+    ["\u001b[H", "\u001b[F"], ["\u001bOH", "\u001bOF"],
+    ["\u001b[1~", "\u001b[4~"], ["\u001b[7~", "\u001b[8~"],
+    ["\u001b[1;1H", "\u001b[1;1F"], ["\u001b[1;1:1H", "\u001b[1;1:1F"],
+  ])("keeps Home/End and A1 editing aliases in the prompt (%j, %j)", async (home, end) => {
     const { terminal, shell } = await fixture([], [], true);
-    terminal.resize(60, 12);
-    shell.root.render(60);
+    try {
+      terminal.resize(60, 12);
+      shell.root.render(60);
+      shell.root.editor.setText("alpha beta");
+      terminal.input(home); terminal.input("start ");
+      terminal.input(end); terminal.input(" end");
+      await nextImmediate();
+      expect(shell.root.editor.getText()).toBe("start alpha beta end");
+      terminal.input("\u001b[127;5u");
+      expect(shell.root.editor.getText()).toBe("start alpha beta ");
+      terminal.input(home); terminal.input("\u001b[3;5~");
+      expect(shell.root.editor.getText()).toBe(" alpha beta ");
+      terminal.input("\u001a");
+      expect(shell.root.editor.getText()).toBe("start alpha beta ");
+    } finally { await shell.dispose(); }
+  });
 
-    shell.root.editor.setText("alpha beta");
-    terminal.input("\u001b[1;5H");
-    terminal.input("start ");
-    terminal.input("\u001b[1;5F");
-    terminal.input(" end");
-    await nextImmediate();
-    expect(shell.root.editor.getText()).toBe("start alpha beta end");
+  it("paints standalone prompt Home/End without requiring subsequent typing", async () => {
+    const { terminal, shell } = await fixture([], [], true);
+    try {
+      terminal.resize(60, 12);
+      shell.root.editor.setText("standalone cursor movement");
+      shell.runtime.renderNow();
+      const atEnd = shell.root.editor.render(60);
+      for (const input of ["\u001b[H", "\u001b[F"]) {
+        const before = terminal.writes.length;
+        terminal.input(input);
+        await vi.waitFor(() => expect(terminal.writes.length).toBeGreaterThan(before));
+        expect(shell.root.editor.getText()).toBe("standalone cursor movement");
+        if (input.endsWith("H")) expect(shell.root.editor.render(60)).not.toEqual(atEnd);
+        else expect(shell.root.editor.render(60)).toEqual(atEnd);
+      }
+    } finally { await shell.dispose(); }
+  });
 
-    terminal.input("\u001b[127;5u");
-    expect(shell.root.editor.getText()).toBe("start alpha beta ");
-    terminal.input("\u001b[1;5H");
-    terminal.input("\u001b[3;5~");
-    expect(shell.root.editor.getText()).toBe(" alpha beta ");
-    terminal.input("\u001a");
-    expect(shell.root.editor.getText()).toBe("start alpha beta ");
+  it.each(["first\nmiddle line\nlast", "one long logical line that wraps across several terminal rows"])("uses logical prompt boundaries without navigating detached content: %s", async draft => {
+    const { terminal, shell } = await fixture(Array.from({ length: 20 }, (_, index) => ({
+      role: "assistant", content: [{ type: "text", text: `content-${index}` }], timestamp: index + 1,
+    })), [], true);
+    try {
+      terminal.resize(30, 16);
+      shell.root.editor.setText(draft);
+      shell.root.render(30);
+      terminal.input("\u001b[1;5H");
+      shell.root.render(30);
+      if (draft.includes("\n")) terminal.input("\u001b[A");
+      const before = shell.root.viewportFrameDescriptor()!;
+      terminal.input("\u001b[H"); terminal.input("!");
+      terminal.input("\u001b[F"); terminal.input("?");
+      await nextImmediate();
+      shell.root.render(30);
+      expect(shell.root.editor.getText()).toBe(draft.includes("\n") ? "first\n!middle line?\nlast" : `!${draft}?`);
+      expect(shell.root.viewportFrameDescriptor()!.nextDocumentRange.start).toBe(before.nextDocumentRange.start);
+      expect(shell.root.viewportFrameDescriptor()!.followingEnd).toBe(false);
+    } finally { await shell.dispose(); }
+  });
 
-    await shell.dispose();
+  it.each([
+    ["\u001b[1;5H", "\u001b[1;5F"], ["\u001b[7;5~", "\u001b[8;5~"],
+    ["\u001b[1;5:1H", "\u001b[1;5:1F"],
+  ])("navigates content with Ctrl+Home/End while preserving the draft and cursor (%j, %j)", async (home, end) => {
+    for (const length of [0, 1, 20]) {
+      const { terminal, shell, engine } = await fixture(Array.from({ length }, (_, index) => ({
+        role: "assistant", content: [{ type: "text", text: `content-${index}` }], timestamp: index + 1,
+      })), [], true);
+      try {
+        terminal.resize(60, 12);
+        shell.root.editor.setText("keep this draft");
+        terminal.input("\u001b[D");
+        await nextImmediate();
+        shell.root.render(60);
+        const cursor = shell.root.editor.render(60);
+        for (let press = 0; press < 2; press += 1) {
+          terminal.input(home); shell.root.render(60);
+          expect(shell.root.viewportFrameDescriptor()!.nextDocumentRange.start).toBe(0);
+          expect(shell.root.editor.render(60)).toEqual(cursor);
+        }
+        if (length === 20) {
+          engine.session.emit({ type: "message_start", message: {
+            role: "assistant", content: [{ type: "text", text: "new streamed content" }], timestamp: 50,
+          } });
+          await shell.backend.flushEvents();
+          shell.root.render(60);
+          expect(shell.root.viewportFrameDescriptor()!.nextDocumentRange.start).toBe(0);
+          expect(shell.root.viewportFrameDescriptor()!.followingEnd).toBe(false);
+        }
+        for (let press = 0; press < 2; press += 1) {
+          terminal.input(end); shell.root.render(60);
+          expect(shell.root.viewportFrameDescriptor()!.followingEnd).toBe(true);
+          expect(shell.root.editor.render(60)).toEqual(cursor);
+        }
+        terminal.input("!");
+        await nextImmediate();
+        expect(shell.root.editor.getText()).toBe("keep this draf!t");
+      } finally { await shell.dispose(); }
+    }
+  });
+
+  it.each(["\u001b[1;2H", "\u001b[1;3F", "\u001b[1;6H", "\u001b[1;7F"])("does not confuse additional modifiers with content shortcuts: %j", async data => {
+    const { shell } = await fixture([], [], true);
+    try { expect(shell.root.handleViewportPreInput(data)).toEqual({ data, consumed: false }); }
+    finally { await shell.dispose(); }
+  });
+
+  it.each(["replacement", "overlay"])("leaves boundary shortcuts with the active %s", async surfaceKind => {
+    const { terminal, shell } = await fixture([], [], true);
+    try {
+      const received: string[] = [];
+      const surface = { render: () => ["active selector/dialog"], invalidate() {}, handleInput: (data: string) => { received.push(data); } };
+      if (surfaceKind === "replacement") shell.root.setInputSurface(surface);
+      else shell.runtime.showOverlay(surface, { anchor: "top-left", width: 30 });
+      const inputs = ["\u001b[H", "\u001b[F", "\u001b[1;5H", "\u001b[1;5F"];
+      for (const input of inputs) terminal.input(input);
+      expect(received).toEqual(inputs);
+    } finally { await shell.dispose(); }
+  });
+
+  it("keeps comparison Ctrl+Home/End editor bindings unchanged", async () => {
+    const { terminal, shell } = await fixture();
+    try {
+      shell.root.editor.setText("draft");
+      terminal.input("\u001b[1;5H"); terminal.input("start ");
+      terminal.input("\u001b[1;5F"); terminal.input(" end");
+      expect(shell.root.editor.getText()).toBe("start draft end");
+    } finally { await shell.dispose(); }
+  });
+
+  it.each([false, true])("shows the effective boundary shortcuts in hotkeys (custom=%s)", async custom => {
+    const { terminal, shell } = await fixture([], [], custom);
+    try {
+      terminal.resize(160, 100);
+      shell.root.appendWorkflowResult({ command: "hotkeys", outcome: "completed", message: "" });
+      const text = stripTerminalSequences(shell.root.render(160).join("\n"));
+      expect(text.includes("Start of content")).toBe(custom);
+      expect(text.includes("Start of prompt line")).toBe(custom);
+      expect(text).toContain("Ctrl+Home");
+    } finally { await shell.dispose(); }
   });
 
   it("intercepts owned prompt selection, clipboard, undo, redo, and shift selection actions", async () => {
@@ -2278,7 +2399,7 @@ describe("OwnedUiSessionShell", () => {
     terminal.input("\u001b[C");
 
     shell.root.editor.setText(adjacent);
-    terminal.input("\u001b[1;5H"); // Invariant: focus the first chip through the native cursor.
+    terminal.input("\u001b[H"); // Invariant: focus the first chip through the native cursor.
     terminal.input(" ");
     await nextImmediate();
     expect(shell.root.editor.getText()).toBe(` ${adjacent}`);
@@ -2295,7 +2416,8 @@ describe("OwnedUiSessionShell", () => {
     expect(shell.root.editor.hasSelection()).toBe(false);
 
     shell.root.editor.setText(adjacent);
-    terminal.input("\u001b[1;5H"); // Invariant: native editor cursor starts at the first atomic segment.
+    terminal.input("\u001b[H"); // Invariant: native editor cursor starts at the first atomic segment.
+    await nextImmediate();
     expect(shell.root.editor.hasSelection()).toBe(true);
     terminal.input("\u001b[C"); // Invariant: move to the second chip rather than reselecting the first.
     clipboardText = "";
@@ -2368,7 +2490,7 @@ describe("OwnedUiSessionShell", () => {
     await shell.dispose();
   });
 
-  it("uses Home/End for transcript boundaries and Shift+Up/Down between prompts", async () => {
+  it("uses Ctrl+Home/End for transcript boundaries and Shift+Up/Down between prompts", async () => {
     const messages = ["one", "two", "three"].flatMap((prompt, index) => [
       { role: "user", content: [{ type: "text", text: prompt }], timestamp: Date.now() + index * 2 },
       { role: "assistant", content: [{ type: "text", text: Array.from({ length: 15 }, (_, row) => `reply-${prompt}-${row + 1}`).join("\n") }], timestamp: Date.now() + index * 2 + 1 },
@@ -2380,7 +2502,7 @@ describe("OwnedUiSessionShell", () => {
     const rows = () => shell.root.render(60).map(row => stripTerminalSequences(row));
     const top = () => rows()[0] ?? "";
     const bottomRows = rows();
-    terminal.input("\u001b[1;1H");
+    terminal.input("\u001b[1;5H");
     expect(top().trim()).toBe("");
     expect(rows()[1]).toContain("❯ one");
 
@@ -2415,7 +2537,7 @@ describe("OwnedUiSessionShell", () => {
     expect(top().trim()).toBe("");
     expect(rows()[1]).toContain("❯ one");
 
-    terminal.input("\u001b[1;1F");
+    terminal.input("\u001b[1;5F");
     expect(rows()).toEqual(bottomRows);
     expect(shell.root.editor.getText()).toBe("keep this draft");
 
