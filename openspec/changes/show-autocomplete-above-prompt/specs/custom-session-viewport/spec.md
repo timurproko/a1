@@ -53,6 +53,14 @@ The list and its top line SHALL remain transient, non-transcript presentation. I
 - **AND** the menu SHALL neither become transcript content nor force an otherwise valid detached position to follow the end
 - **AND** the prompt and footer SHALL remain stable when their own geometry is unchanged
 
+### Requirement: History uses a compact numeric border label
+While bare A1 is recalling saved prompt history, the existing history border label SHALL show its position/total without the literal `History` title, for example `1/100`. Its four-cell inset, dim color, count calculation, visibility, optional editor-scroll suffix, clipping, and border width SHALL remain unchanged. This wording change SHALL NOT alter history navigation, draft restoration, storage, or input geometry.
+
+#### Scenario: Recall and leave saved history
+- **WHEN** the user navigates saved prompt history
+- **THEN** the border SHALL show the existing position/total without `History`, in the same position and color
+- **AND** leaving recall SHALL remove the indicator and restore the draft as before
+
 ### Requirement: Above-prompt autocomplete preserves existing sizing and input geometry
 Moving autocomplete above the input SHALL preserve the existing menu size limits, selection window, pagination, and `autocompleteMaxVisible` setting behavior. The existing terminal clipping and resize policy SHALL remain in force. This placement change SHALL NOT introduce a terminal-space-derived item limit, a one-row menu mode, special zero-capacity completion state, or a different pagination policy.
 

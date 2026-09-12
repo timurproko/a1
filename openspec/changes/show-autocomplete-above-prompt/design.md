@@ -48,6 +48,8 @@ Apply body decoration/selection using body-relative coordinates before final com
 
 Reordering rows without updating their body offset was rejected: it could look right while the prompt prefix, selected text, border indicators, or mouse coordinates remained attached to old row indices.
 
+The approved history-label refinement also removes the literal `History ` title from the history editor's own border label. Format it as `─── 1/100 ─…`, retaining the existing four-cell inset, dim style, position/total calculation, optional editor-scroll suffix, clipping, and border width. This is text-only: recall, draft restoration, storage, editor choice, and the comparison profile do not change.
+
 ### 3. Preserve menu sizing rather than introduce a new clipping policy
 
 Move the existing candidate rows as a block. The top line is dock decoration, not a completion item: it absorbs the existing trailing counter when that row is emitted, otherwise it adds one row. Keep the current item limit, selection window, setting-application behavior, and terminal clipping policy. Counter relocation does not change which candidates are visible or reinterpret the counter as a page number. Resize updates the same layout and pointer offsets as before; it does not compute a new completion-item budget or write `autocompleteMaxVisible`.
@@ -58,7 +60,7 @@ The earlier proposal's selection-aware one-row clipping and special zero-capacit
 
 Enable the changed composition only for bare A1's default editor, independent of persistent history. Keep comparison mode and extension-owned replacement editors on their existing presentation path. All default-editor completion providers share this layout, so command, argument, path/resource, and extension completions cannot diverge.
 
-Comparison evidence should continue to assert candidate content, styles, navigation, completion outcomes, cancellation, and current state. Accept only the declared row-order, matching top-line decoration and counter relocation, and resulting anchor differences for bare A1; do not normalize away arbitrary rendering differences or modify the untouched producer.
+Comparison evidence should continue to assert candidate content, styles, navigation, completion outcomes, cancellation, and current state. Accept only the declared row-order, matching top-line decoration and counter relocation, compact history-label wording, and resulting anchor differences for bare A1; do not normalize away arbitrary rendering differences or modify the untouched producer.
 
 ### 5. Validate geometry and behavior, not only row order
 
@@ -78,4 +80,4 @@ Use both existing editor paths as regression coverage, not as a history redesign
 
 There is no data migration or setting change. After this specification is reviewed and merged, implementation will be a separate change stream referencing `show-autocomplete-above-prompt`. Ship only after automated checks and physical-terminal acceptance of the exact build. Reverting the implementation restores the previous placement without changing user data.
 
-Physical review should use the built color-preserving shell entry in Windows Terminal/Git Bash, type `/`, filter and navigate suggestions, press Escape, exercise a multiline draft, and resize the terminal. The typing row must not jump when only the menu changes. The top line should match the prompt border's color and width and disappear with suggestions. Its `1/24` counter should occupy the history-label position in the same dim color, update with navigation/filtering, and no longer appear below the menu. The menu should retain its original unshaded background. The comparison profile should retain its existing below-prompt list without the new line.
+Physical review should use the built color-preserving shell entry in Windows Terminal/Git Bash, type `/`, filter and navigate suggestions, press Escape, exercise a multiline draft, and resize the terminal. The typing row must not jump when only the menu changes. The top line should match the prompt border's color and width and disappear with suggestions. Its `1/24` counter should occupy the history-label position in the same dim color, update with navigation/filtering, and no longer appear below the menu. Recalling a saved prompt should show only the history position/total (for example `1/100`) without the `History` title, in the same inset and color. The menu should retain its original unshaded background. The comparison profile should retain its existing below-prompt list without the new line.

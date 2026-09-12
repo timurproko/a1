@@ -10,7 +10,7 @@ Autocomplete currently appears below bare A1's prompt, so opening the slash-comm
 - Keep the prompt, caret, below-editor widgets, and footer at the same terminal rows when only autocomplete visibility or height changes; allocate list space upward from the transcript viewport.
 - Preserve the existing menu's ordering, selection, descriptions, pagination, keyboard actions, asynchronous completion behavior, and `autocompleteMaxVisible` setting behavior. Apply the same placement to command, argument, path/resource, and extension-provided completions in the default editor.
 - Retain existing menu sizing and terminal clipping behavior; do not add a new capacity budget, one-row menu mode, or special handling for zero available menu rows.
-- Keep history behavior and the existing editor implementation chosen by each history mode unchanged. Leave extension-owned replacement editors, other menus/dialogs, `a1 pi`, and installed Pi packages unchanged.
+- Compact the bare-A1 history border label from `History 1/100` to `1/100`, keeping its inset, dim color, count meaning, and overflow suffix. Keep history behavior and the existing editor implementation chosen by each history mode unchanged. Leave extension-owned replacement editors, other menus/dialogs, `a1 pi`, and installed Pi packages unchanged.
 
 ## Capabilities
 

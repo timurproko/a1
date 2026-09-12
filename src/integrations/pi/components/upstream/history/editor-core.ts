@@ -612,7 +612,7 @@ export class HistoryEditorCore implements Component, Focusable {
 		// Render top border (with scroll indicator if scrolled down)
 		if (this.persistentHistory && this.historyIndex >= 0) {
 			const overflow = this.scrollOffset > 0 ? ` · ↑ ${this.scrollOffset} more` : "";
-			const label = `─── History ${this.history.length - this.historyIndex}/${this.history.length}${overflow} `;
+			const label = `─── ${this.history.length - this.historyIndex}/${this.history.length}${overflow} `;
 			const shown = truncateToWidth(label, width);
 			const remaining = Math.max(0, width - visibleWidth(shown));
 			result.push(this.borderColor(shown.slice(0, 4))

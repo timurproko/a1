@@ -13,6 +13,8 @@
 
 - [x] 2.5 Relocate the existing trailing completion counter into the top line as `1/24`, without parentheses, at the history-label inset and in the same dim color. Capture counter-row ownership through the select-list presentation callback without private completion-state access or rendered-frame parsing; remove the original counter row. Verify original values/visibility, both history modes, navigation/filtering/async updates, narrow widths, prompt stability, and no stale or duplicate counter.
 
+- [x] 2.6 Remove the `History` title from the bare-A1 history border label while preserving count meaning, inset, dim color, overflow suffix, clipping, and recall/draft behavior; update source provenance and focused core/shell regressions.
+
 ## 3. Verify lifecycle and integration
 
 - [x] 3.1 Add shell and final-terminal-cell coverage for open/filter/page/Escape/no-match cycles and asynchronous result arrival/cancellation; verify unchanged prompt/footer coordinates and removal of stale menu rows for empty, long, detached, and streaming transcripts, including widgets above and below the editor.

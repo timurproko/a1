@@ -39,7 +39,11 @@ snapshot installation and observation methods preserve input and undo state,
 freeze an active browse cycle, and change caret placement only in that mode.
 The editor renders position/overflow in its existing border. The position label
 uses an injected neutral status-text style (`dim`), while the surrounding rules
-retain the active input-border color, as clarified during manual review. Recall temporarily
+retain the active input-border color, as clarified during manual review. The approved
+`show-autocomplete-above-prompt` review refinement omits the literal `History` title:
+`─── 1/100 ─…` keeps the same four-cell inset, count calculation, dim color, optional
+scroll-overflow suffix, and clipping. Core and shell regressions verify numbering,
+100-entry recall, draft restoration, and the absence of the title. Recall temporarily
 separates the draft's live paste backing from recalled literal text, restoring it
 on return; ordinary pinned mode remains source-equivalent.
 

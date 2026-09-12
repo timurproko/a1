@@ -3520,7 +3520,7 @@ describe("OwnedUiSessionShell", () => {
       shell.root.editor.setText("draft"); history.emit(["newest", "older"]);
       terminal.input("\x1b[A"); terminal.input("\x1b[A");
       await vi.waitFor(() => expect(shell.root.editor.getText()).toBe("newest"));
-      expect(stripTerminalSequences(shell.root.editor.render(80).join("\n"))).toContain("History 2/2");
+      expect(stripTerminalSequences(shell.root.editor.render(80)[0]!)).toMatch(/^─── 2\/2 /u);
       history.emit(["remote", "newest", "older"]);
       expect(shell.root.editor.recall?.position()).toEqual({ index: 0, total: 2 });
       terminal.input("\x1b[B");
