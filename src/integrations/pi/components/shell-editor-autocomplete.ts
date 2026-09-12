@@ -7,10 +7,11 @@ import {
 } from "#pi-tui";
 import { PROMPT_HISTORY_EDITOR_REPLACEMENT, type OwnedUiThinkingLevel } from "../../../contracts/owned-ui/index.js";
 import { KeybindingsManager } from "./upstream/adjacent/core/keybindings.js";
-import { OwnedEditor } from "./upstream/components/owned-editor.js";
+import { OwnedEditor, type ShellEditorInstance } from "./upstream/components/owned-editor.js";
 import {
   OwnedEditorUxInterception,
   createPromptSelectionInterceptor,
+  editorVisualLineCount,
 } from "./owned-editor-ux.js";
 import {
   PINNED_PI_LAYOUT,
@@ -61,7 +62,7 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
     throw new Error("Persistent history requires the loaded owned editor");
   }
   const EditorClass = options.keybindingProfile === "a1" && options.persistentHistory === true ? options.historyEditor! : OwnedEditor;
-  const editor = new EditorClass(tui, {
+  const editor: ShellEditorInstance = new EditorClass(tui, {
     borderColor: (value: string) => piTheme().fg("borderMuted", value),
     selectList: getSelectListTheme(),
   }, keybindings, {
@@ -69,11 +70,14 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
     autocompleteMaxVisible: PINNED_PI_LAYOUT.autocompleteMaxVisible,
     persistentHistory: options.persistentHistory === true,
     styleHistoryLabel: text => piTheme().fg("dim", text),
+    ...(options.keybindingProfile === "a1" ? {
+      terminalRows: options.getRows,
+      getVisualLineCount: (width: number) => editorVisualLineCount(editor, width),
+    } : {}),
     ...(options.keybindingProfile === "a1" && options.promptPresentation !== undefined ? {
       promptPrefix: options.promptPresentation.prefix,
       styleSuggestion: options.promptPresentation.styleSuggestion,
       styleSuggestionCaret: options.promptPresentation.styleSuggestionCaret,
-      terminalRows: options.getRows,
     } : {}),
   });
   const editorUx = options.keybindingProfile === "a1"
@@ -159,8 +163,20 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
   if (options.onPromptSuggestionAccepted !== undefined) {
     editor.onPromptSuggestionAccepted = options.onPromptSuggestionAccepted;
   }
+  let bodyGeometry = { rowOffset: 0, rowCount: 0 };
   return {
-    render: width => editorUx?.render(width) ?? editor.render(width),
+    ...(editorUx === undefined ? {} : { bodyGeometry: () => bodyGeometry }),
+    render: width => {
+      const rows = editorUx?.render(width) ?? editor.render(width);
+      if (editorUx === undefined) return rows;
+      const rowCount = editor.getRenderedBodyRowCount();
+      const menu = rows.slice(rowCount);
+      const topLine = menu.length === 0 ? [] : [editor.borderColor("─".repeat(width))];
+      bodyGeometry = { rowOffset: topLine.length + menu.length, rowCount };
+      // Invariant: decorate/select in body coordinates first, then move the whole menu.
+      // Completion state, sizing, styles, and pagination still belong to the editor.
+      return [...topLine, ...menu, ...rows.slice(0, rowCount)];
+    },
     activateKeybindings: () => setKeybindings(keybindings),
     keybindingConfig: () => keybindings.getEffectiveConfig(),
     reloadKeybindings: () => { keybindings.reload(); setKeybindings(keybindings); },
