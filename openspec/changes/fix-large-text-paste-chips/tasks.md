@@ -3,6 +3,7 @@
 - Implements the specification accepted in PR #327 (`e656d405`).
 - Local debugging validation: 263 focused tests passed across text-paste policy, semantic chips, editor interactions/parity, session-shell dispatch/lifecycle, and durable history. Typechecking, build, strict change validation, and whitespace checks passed.
 - Runnable handoff: `D:/Git/a1/.worktrees/implement-large-text-paste-chips`, branch `fix/large-text-paste-chips`; build with `npm run build` and launch with `./scripts/dev` (comparison: `./scripts/dev pi`). The implementation PR carries the commit and manual checklist.
+- CI correction: PR #330's first run failed `DOC005` for two unprefixed test comments. Both comments now use the required categories; the exact changed-file documentation check using that CI run's impact artifact and all 20 editor text-paste tests pass locally. Runtime behavior is unchanged by this correction.
 - Required CI and physical acceptance remain pending; this change is not accepted or archived.
 
 ## 1. Add one owned text-paste representation

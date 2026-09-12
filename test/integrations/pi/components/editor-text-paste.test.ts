@@ -91,7 +91,7 @@ describe.each([false, true])("large text chips with history=%s", history => {
 
   it("uses the terminal framing boundary for arbitrary splits in opening and closing delimiters", async () => {
     const test = await fixture(history);
-    // Same public framing API and paste rewrapping as pinned ProcessTerminal.
+    // Compatibility: use the same public framing API and paste rewrapping as pinned ProcessTerminal.
     const stdin = new StdinBuffer();
     stdin.on("data", test.input); stdin.on("paste", text => test.input(framed(text)));
     try {
@@ -121,7 +121,7 @@ describe.each([false, true])("large text chips with history=%s", history => {
       expect(test.editor.getText()).toBe("left X");
       test.input("\x1a"); expect(test.text()).toBe("left X" + payload);
       test.input("\x19"); expect(test.editor.getText()).toBe("left X");
-      // Undo restores the cut's selection-start caret, already at the chip boundary.
+      // Invariant: undo restores the cut's selection-start caret, already at the chip boundary.
       test.input("\x1a"); test.input("\x1b[3~"); expect(test.editor.getText()).toBe("left X");
       test.input("\x1a"); test.input(framed("b".repeat(1001)));
       expect(test.text()).toContain(payload); expect(test.text()).toContain("b".repeat(1001));
