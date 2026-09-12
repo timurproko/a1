@@ -1,5 +1,7 @@
 import { resolve } from "node:path";
+import { stripVTControlCharacters } from "node:util";
 import { describe, expect, it, vi } from "vitest";
+import { renderUpdateProgressBar } from "../../../src/foundation/release/update.js";
 import {
   PRODUCT_PACKAGE,
   runSelfUpdate,
@@ -132,6 +134,27 @@ const installArguments = (version: string) => [
   "--no-audit",
   `${PRODUCT_PACKAGE}@${version}`,
 ];
+
+describe("update progress presentation", () => {
+  it.each([
+    [-10, 0, 0],
+    [0, 0, 0],
+    [25, 25, 10],
+    [49.6, 50, 20],
+    [100, 100, 40],
+    [110, 100, 40],
+  ])("renders %s as a gray line with one space before the percentage", (input, percent, filled) => {
+    const frame = renderUpdateProgressBar(input);
+    const bar = "━".repeat(filled) + "─".repeat(40 - filled);
+
+    expect(stripVTControlCharacters(frame)).toBe(`${bar} ${percent}%`);
+    expect(frame).toBe(
+      `\u001b[38;2;128;128;128m${"━".repeat(filled)}`
+      + `\u001b[38;2;102;102;102m${"─".repeat(40 - filled)}`
+      + `\u001b[38;2;128;128;128m ${percent}%\u001b[39m`,
+    );
+  });
+});
 
 describe("A1 self-update orchestration", () => {
   it.each([
@@ -331,6 +354,7 @@ describe("A1 self-update orchestration", () => {
 
     await expect(runSelfUpdate({
       ...harness,
+      progress: true,
       packageReplacement: async () => ({
         schema: "a1-update-recovery-v1",
         transactionId: "test-update",
@@ -347,6 +371,7 @@ describe("A1 self-update orchestration", () => {
 
     expect(harness.stdout.join("")).not.toContain("updated successfully");
     expect(harness.stderr.join("")).toContain("update cancelled safely; the launcher is available");
+    expect(harness.stdout.at(-1)).toBe(`${RETURN}${" ".repeat(46)}${RETURN}`);
     expect(harness.invocations.some(call => call.arguments[0] === "install")).toBe(false);
   });
 
@@ -357,9 +382,10 @@ describe("A1 self-update orchestration", () => {
       throw new Error("immutable startup warmup failed");
     };
 
-    await expect(runSelfUpdate(harness)).resolves.toBe(1);
+    await expect(runSelfUpdate({ ...harness, progress: true })).resolves.toBe(1);
 
     expect(harness.stdout.join("")).not.toContain("updated successfully");
+    expect(harness.stdout.at(-1)).toBe(`${RETURN}${" ".repeat(46)}${RETURN}`);
     expect(harness.stderr.join("")).toContain("immutable startup warmup failed");
     expect(harness.stderr.join("")).toContain("previous test lifecycle retained");
   });
@@ -397,12 +423,16 @@ describe("A1 self-update orchestration", () => {
 
     const text = harness.stdout.join("");
     const heading = text.split(NEWLINE)[0];
-    const bars = [...text.matchAll(/\r([█░]+) \d+%/g)].map(match => match[1]);
+    const frames = harness.stdout.filter(frame => frame.startsWith(RETURN) && frame.includes("%"));
     expect(heading).toBe("a1 update: 0.1.8-dev.322 → 0.1.8-dev.332");
-    expect(bars.length).toBeGreaterThan(0);
-    for (const bar of bars) {
-      expect(bar).toHaveLength(40);
+    expect(frames.length).toBeGreaterThan(0);
+    for (const frame of frames) {
+      const visible = stripVTControlCharacters(frame);
+      // Invariant: every frame stays on one row, with no counts or extra percentage spacing.
+      expect(visible).toMatch(/^\r[━─]{40} \d+%$/);
+      const bar = visible.slice(1, visible.indexOf(" "));
       expect(bar).toHaveLength(heading!.length);
+      expect(frame.endsWith("\u001b[39m")).toBe(true);
     }
     expect(text).toContain(`${RETURN}${" ".repeat(46)}${RETURN}a1 updated successfully:`);
   });
@@ -413,7 +443,7 @@ describe("A1 self-update orchestration", () => {
     await expect(runSelfUpdate({ ...harness, progress: true })).resolves.toBe(0);
 
     const text = harness.stdout.join("");
-    expect(text).toContain("░");
+    expect(text).toContain("─");
     // Invariant: the bar is erased rather than left completed, so what remains is the two
     // lines a reader keeps: what is being installed, and what now is.
     expect(text).not.toContain("100%");
