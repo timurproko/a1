@@ -2,7 +2,9 @@ import { randomUUID } from "node:crypto";
 import { chmod, lstat, mkdir, readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, posix, relative, resolve, sep } from "node:path";
 import { mapWithConcurrency } from "./concurrency.js";
-import { assertImmutableFileMode, immutablePlatformPolicy } from "./immutable-platform.js";
+import { assertImmutableFileMode } from "./immutable-platform.js";
+import { readDependencyCertification, writeDependencyCertification as writeLayerCertification, type ReadDependencyCertificationOptions } from "./dependency-certification.js";
+export { dependencyLayerCertificationPath, legacyDependencyLayerCertificationPath } from "./dependency-certification.js";
 import { digestManifestFiles, releaseFileIdentity, resolveWithin, type ReleaseFileIdentity } from "./release.js";
 import { PRODUCT_IDENTITY } from "../../product-identity.js";
 
@@ -51,10 +53,7 @@ export interface DependencyLayerOperationEvent {
   readonly bytes: number;
 }
 
-export interface ReadCertifiedDependencyLayerOptions {
-  /** Accept and replace certification written by the immediately preceding updater format. */
-  readonly allowLegacyParentCertification?: boolean;
-}
+export interface ReadCertifiedDependencyLayerOptions extends ReadDependencyCertificationOptions {}
 
 export interface SelectedRuntimePayload {
   readonly paths: readonly string[];
@@ -355,19 +354,8 @@ export async function readCertifiedDependencyLayer(
   if (expected && (expected.layerId !== manifest.layerId || expected.contentDigest !== manifest.contentDigest)) {
     throw new Error(`dependency layer identity mismatch: ${layerId}`);
   }
-  const certification = JSON.parse(await readFile(certificationPath(dataDir, layerId), "utf8")) as Record<string, unknown>;
-  const identityMatches = certification.schema === PRODUCT_IDENTITY.evidence.dependencyLayerCertificationSchema
-    && certification.layerId === manifest.layerId && certification.contentDigest === manifest.contentDigest;
-  const currentPlatformEvidence = certification.platform === process.platform && certification.platformPolicy === immutablePlatformPolicy();
-  // Compatibility: the updater that introduced layers certified these exact identities but did
-  // not record platform fields. Only an authenticated parent-started supervisor opts into this
-  // transition; durable/reuse readers remain strict and cannot treat the legacy marker as authority.
-  const legacyParentCertification = options.allowLegacyParentCertification === true
-    && certification.platform === undefined && certification.platformPolicy === undefined;
-  if (!identityMatches || (!currentPlatformEvidence && !legacyParentCertification)) {
-    throw new Error(`dependency layer certification differs from manifest: ${layerId}`);
-  }
-  if (legacyParentCertification) await writeLayerCertification(dataDir, manifest);
+  if (manifest.layerId !== layerId) throw new Error(`dependency layer identity mismatch: ${layerId}`);
+  await readDependencyCertification(dataDir, manifest, options);
   return { ...manifest, layerRoot };
 }
 
@@ -402,14 +390,6 @@ export function dependencyReference(layer: MaterializedDependencyLayer): Depende
   return { layerId: layer.layerId, contentDigest: layer.contentDigest, binding: "node_modules" };
 }
 
-export function dependencyLayerCertificationPath(dataDir: string, layerId: string): string {
-  return certificationPath(dataDir, layerId);
-}
-
-function certificationPath(dataDir: string, layerId: string): string {
-  return resolve(dataDir, `dependency-layer-certification-${layerId}.json`);
-}
-
 async function reuseDependencyLayer(dataDir: string, identity: DependencyLayerIdentity): Promise<Omit<MaterializedDependencyLayer, "reused">> {
   try {
     return await readCertifiedDependencyLayer(dataDir, identity.layerId, identity);
@@ -418,23 +398,6 @@ async function reuseDependencyLayer(dataDir: string, identity: DependencyLayerId
     if (verified.layerId !== identity.layerId || verified.contentDigest !== identity.contentDigest) throw error;
     return verified;
   }
-}
-
-async function writeLayerCertification(dataDir: string, identity: DependencyLayerIdentity): Promise<void> {
-  const path = certificationPath(dataDir, identity.layerId);
-  const temporary = `${path}.${process.pid}.${randomUUID()}.tmp`;
-  await writeFile(temporary, JSON.stringify({
-    schema: PRODUCT_IDENTITY.evidence.dependencyLayerCertificationSchema,
-    layerId: identity.layerId,
-    contentDigest: identity.contentDigest,
-    platform: process.platform,
-    platformPolicy: immutablePlatformPolicy(),
-    certifiedAt: new Date().toISOString(),
-  }, null, 2), { flag: "wx", mode: 0o400 });
-  await chmod(path, 0o600).catch(() => {});
-  await rm(path, { force: true });
-  await rename(temporary, path);
-  await chmod(path, 0o400);
 }
 
 function validateLayerManifest(value: DependencyLayerIdentity): void {

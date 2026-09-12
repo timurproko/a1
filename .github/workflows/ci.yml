@@ -435,6 +435,8 @@ jobs:
         run: npx vitest run test/features/prompt-history --maxWorkers=1 --minWorkers=1
       - name: Validate the current private contract on Unix
         run: npx vitest run test/foundation/launch-context test/foundation/release/update-transition.integration.test.ts --maxWorkers=1 --minWorkers=1
+      - name: Validate dependency certification migration on Unix
+        run: npx vitest run test/foundation/release/dependency-certification.test.ts test/foundation/release/dependency-layer.test.ts test/foundation/release/restart-certification.test.ts test/foundation/release/release-gc.test.ts --maxWorkers=1 --minWorkers=1
       - name: Validate packaged Unix supervision and containment
         shell: bash
         env:

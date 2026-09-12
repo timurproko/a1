@@ -17,7 +17,9 @@ import { liveReleaseIds } from "./endpoints.js";
 import type { ProductPaths } from "../lifecycle/index.js";
 import { resolveProductPaths } from "../lifecycle/index.js";
 import { RELEASE_MANIFEST_FILENAME } from "./release-store.js";
-import { DEPENDENCY_LAYER_MANIFEST, dependencyLayerCertificationPath } from "./dependency-layer.js";
+import { DEPENDENCY_LAYER_MANIFEST, readCertifiedDependencyLayer } from "./dependency-layer.js";
+import { dependencyCertificationDirectory, managedDependencyCertificationPath } from "./dependency-certification.js";
+import { dependencyCertificationProtection, type DependencyCertificationProtection } from "./dependency-certification-retention.js";
 import { UpdateTransactionStore, type UpdateTransaction } from "./update-transaction.js";
 import { cleanupUpdateRecoveryCapsules } from "./update-recovery.js";
 import { PRODUCT_IDENTITY } from "../../product-identity.js";
@@ -571,11 +573,15 @@ async function collectUnreferencedDependencyLayers(
   maxItems: number,
   options: ReleaseCleanupOptions,
 ): Promise<{ readonly attempted: number; readonly completed: number }> {
+  const transactionStore = options.transactionStore ?? new UpdateTransactionStore(dataDir);
+  if ((await transactionStore.read())?.status === "active") return { attempted: 0, completed: 0 };
+  const protection = await dependencyCertificationProtection(dataDir, Object.keys((await store.read()).releases));
+  if (protection.uncertain) return { attempted: 0, completed: 0 };
+  const { referenced } = protection;
   const layersRoot = resolve(dataDir, "dependency-layers");
   const layersMetadata = await lstat(layersRoot).catch(error => missingOrThrow(error));
-  if (layersMetadata === null) return { attempted: 0, completed: 0 };
+  if (layersMetadata === null) return await collectDependencyCertificationRecords(store, dataDir, protection, maxItems, options);
   if (!layersMetadata.isDirectory() || layersMetadata.isSymbolicLink()) throw new Error("dependency-layer store is not a managed directory");
-  const referenced = await referencedDependencyLayerIds(dataDir);
   const trashRoot = resolve(layersRoot, ".trash");
   await mkdir(trashRoot, { recursive: true, mode: 0o700 });
   let attempted = 0;
@@ -598,7 +604,11 @@ async function collectUnreferencedDependencyLayers(
   for (const entry of await readdir(trashRoot, { withFileTypes: true })) {
     candidates.push({ path: resolve(trashRoot, entry.name), layerId: entry.name.split("--", 1)[0] ?? null, inTrash: true });
   }
-  for (const candidate of candidates.slice(0, maxItems)) {
+  const certificates = await collectDependencyCertificationRecords(store, dataDir, protection, Math.min(1, maxItems), options);
+  attempted += certificates.attempted;
+  completed += certificates.completed;
+  for (const candidate of candidates.slice(0, maxItems - attempted)) {
+    if ((await transactionStore.read())?.status === "active") break;
     if (candidate.layerId !== null && referenced.has(candidate.layerId)) continue;
     attempted += 1;
     try {
@@ -621,7 +631,10 @@ async function collectUnreferencedDependencyLayers(
       }
       await (options.operations?.remove ?? rm)(removalPath, { recursive: true, force: false, maxRetries: 0 });
       if (candidate.layerId !== null && /^dependencies-[a-f0-9]{32}$/.test(candidate.layerId)) {
-        await rm(dependencyLayerCertificationPath(dataDir, candidate.layerId), { force: true });
+        for (const legacy of [false, true]) {
+          const certificate = await managedDependencyCertificationPath(dataDir, candidate.layerId, legacy);
+          if (certificate !== null) await (options.operations?.remove ?? rm)(certificate, { force: true });
+        }
       }
       completed += 1;
     } catch (error) {
@@ -630,18 +643,57 @@ async function collectUnreferencedDependencyLayers(
     }
   }
   if (attempted < maxItems) {
-    for (const entry of await readdir(dataDir, { withFileTypes: true })) {
-      const match = /^dependency-layer-certification-(dependencies-[a-f0-9]{32})\.json$/.exec(entry.name);
-      if (!match || !entry.isFile() || referenced.has(match[1]!)) continue;
-      if (await lstat(resolve(layersRoot, match[1]!)).catch(error => missingOrThrow(error)) !== null) continue;
-      attempted += 1;
-      try {
-        await (options.operations?.remove ?? rm)(resolve(dataDir, entry.name), { force: true });
-        completed += 1;
-      } catch (error) {
-        await store.recordCleanupFailure(match[1]!, "dependency-layer-certification", error);
+    const remaining = await collectDependencyCertificationRecords(store, dataDir, protection, maxItems - attempted, options);
+    attempted += remaining.attempted;
+    completed += remaining.completed;
+  }
+  return { attempted, completed };
+}
+
+async function collectDependencyCertificationRecords(
+  store: CohortStateStore,
+  dataDir: string,
+  protection: DependencyCertificationProtection,
+  maxItems: number,
+  options: ReleaseCleanupOptions,
+): Promise<{ attempted: number; completed: number }> {
+  const candidates = new Map<string, { layerId: string; legacy: boolean }>();
+  for (const entry of await readdir(dataDir, { withFileTypes: true })) {
+    const match = /^dependency-layer-certification-(dependencies-[a-f0-9]{32})\.json$/.exec(entry.name);
+    if (match && entry.isFile()) candidates.set(resolve(dataDir, entry.name), { layerId: match[1]!, legacy: true });
+  }
+  try {
+    const directory = await dependencyCertificationDirectory(dataDir);
+    if (directory !== null) {
+      for (const entry of await readdir(directory, { withFileTypes: true })) {
+        const match = /^(dependencies-[a-f0-9]{32})\.json$/.exec(entry.name);
+        if (match && entry.isFile()) candidates.set(resolve(directory, entry.name), { layerId: match[1]!, legacy: false });
       }
-      if (attempted >= maxItems) break;
+    }
+  } catch (error) {
+    await store.recordCleanupFailure("dependency-certifications", "certification-discovery", error);
+    return { attempted: 0, completed: 0 };
+  }
+  const transactionStore = options.transactionStore ?? new UpdateTransactionStore(dataDir);
+  let attempted = 0;
+  let completed = 0;
+  for (const candidate of sortArtifacts([...candidates.keys()], await store.read())) {
+    if (attempted >= maxItems || (await transactionStore.read())?.status === "active") break;
+    const { layerId, legacy } = candidates.get(candidate)!;
+    if (legacy ? protection.legacyRequired.has(layerId) : protection.referenced.has(layerId)) continue;
+    const layerExists = await lstat(resolve(dataDir, "dependency-layers", layerId)).catch(missingOrThrow) !== null;
+    if (!legacy && layerExists) continue;
+    try {
+      if (legacy && (layerExists || protection.referenced.has(layerId))) {
+        // Security: a duplicate is disposable only with validated canonical evidence, never fallback.
+        await readCertifiedDependencyLayer(dataDir, layerId, undefined, { canonicalOnly: true });
+      }
+      attempted += 1;
+      const path = await managedDependencyCertificationPath(dataDir, layerId, legacy);
+      if (path !== null) await (options.operations?.remove ?? rm)(path, { force: true });
+      completed += 1;
+    } catch (error) {
+      await store.recordCleanupFailure(artifactName(candidate), "dependency-layer-certification", error);
     }
   }
   return { attempted, completed };
@@ -659,26 +711,6 @@ async function protectedCompileCachePaths(dataDir: string, state: CohortState): 
     }
   }
   return paths;
-}
-
-async function referencedDependencyLayerIds(dataDir: string): Promise<Set<string>> {
-  const referenced = new Set<string>();
-  const releasesRoot = resolve(dataDir, "releases");
-  const roots: string[] = [];
-  for (const entry of await readdir(releasesRoot, { withFileTypes: true }).catch(() => [])) {
-    if (entry.name === ".trash") {
-      for (const trash of await readdir(resolve(releasesRoot, entry.name), { withFileTypes: true }).catch(() => [])) {
-        if (trash.isDirectory()) roots.push(resolve(releasesRoot, entry.name, trash.name));
-      }
-    } else if (entry.isDirectory() && !entry.name.startsWith(".candidate-")) roots.push(resolve(releasesRoot, entry.name));
-  }
-  for (const root of roots) {
-    try {
-      const manifest = JSON.parse(await readFile(resolve(root, RELEASE_MANIFEST_FILENAME), "utf8")) as { dependencyLayers?: Array<{ layerId?: unknown }> };
-      for (const layer of manifest.dependencyLayers ?? []) if (typeof layer.layerId === "string") referenced.add(layer.layerId);
-    } catch {}
-  }
-  return referenced;
 }
 
 function assertDirectChild(parent: string, child: string): void {

@@ -3,7 +3,8 @@ import { lstat, readFile, realpath, stat } from "node:fs/promises";
 import { basename, isAbsolute, relative, resolve, sep } from "node:path";
 import { PRODUCT_IDENTITY } from "../../product-identity.js";
 import { PRIVATE_LAUNCH_CONTRACT, launchContractTarget } from "../launch-context/index.js";
-import { DEPENDENCY_LAYER_MANIFEST, dependencyLayerCertificationPath, type DependencyLayerReference } from "./dependency-layer.js";
+import { DEPENDENCY_LAYER_MANIFEST, dependencyLayerCertificationPath, legacyDependencyLayerCertificationPath, readCertifiedDependencyLayer, type DependencyLayerReference } from "./dependency-layer.js";
+import { managedDependencyCertificationPath } from "./dependency-certification.js";
 import { immutablePlatformPolicy, type ImmutablePlatformPolicy } from "./immutable-platform.js";
 import { PRODUCT_PACKAGE_NAME, type ReleaseFileIdentity } from "./release.js";
 import { RELEASE_MANIFEST_FILENAME, type CertifiedReleaseRecord, type MaterializedRelease } from "./release-store.js";
@@ -84,6 +85,7 @@ export async function createRestartSeal(release: MaterializedRelease, dataDir: s
   const layersRoot = release.dependencyLayers?.length ? await realpath(resolve(canonicalData, "dependency-layers")) : null;
   const dependencyLayers = await Promise.all((release.dependencyLayers ?? []).map(async reference => {
     if (layersRoot === null) throw new Error("restart certification has no dependency-layer root");
+    await readCertifiedDependencyLayer(canonicalData, reference.layerId, reference);
     const layerRoot = await realpath(resolve(layersRoot, reference.layerId));
     assertDirectChild(layersRoot, layerRoot, reference.layerId, "dependency layer");
     const bindingPath = resolve(releaseRoot, reference.binding);
@@ -184,6 +186,12 @@ export async function readRestartCertifiedRelease(
     assertDirectChild(layersRoot, layerRoot, layer.layerId, "dependency layer");
     await assertPathEvidence(layer.layerRoot, onEvent);
     await assertPathEvidence(layer.manifest, onEvent);
+    const legacyPath = legacyDependencyLayerCertificationPath(canonicalData, layer.layerId);
+    const canonicalPath = dependencyLayerCertificationPath(canonicalData, layer.layerId);
+    if (layer.certification.path !== legacyPath && layer.certification.path !== canonicalPath) {
+      throw new Error("restart dependency certification path is outside managed storage");
+    }
+    await managedDependencyCertificationPath(canonicalData, layer.layerId, layer.certification.path === legacyPath);
     await assertPathEvidence(layer.certification, onEvent);
     await assertPathEvidence(layer.bindingEvidence, onEvent, true);
     const bindingTarget = await observedRealpath(layer.bindingEvidence.path, onEvent);
