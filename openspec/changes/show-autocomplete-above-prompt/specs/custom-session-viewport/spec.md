@@ -22,7 +22,7 @@ The list SHALL remain transient, non-transcript presentation. It SHALL NOT enter
 - **AND** a canceled or superseded result SHALL NOT reopen or repaint an obsolete menu
 
 #### Scenario: Navigate suggestions without changing height
-- **WHEN** keyboard navigation changes the active item or page while the visible menu height remains unchanged
+- **WHEN** keyboard navigation changes the active item or page while the menu fits within the terminal and its visible height remains unchanged
 - **THEN** the prompt SHALL remain stationary and the active item SHALL be visible
 - **AND** established transcript rows SHALL retain the existing bounded dock-only rendering behavior
 
@@ -37,27 +37,20 @@ The list SHALL remain transient, non-transcript presentation. It SHALL NOT enter
 - **AND** the menu SHALL neither become transcript content nor force an otherwise valid detached position to follow the end
 - **AND** the prompt and footer SHALL remain stable when their own geometry is unchanged
 
-### Requirement: Above-prompt autocomplete fits available space and preserves input geometry
-The autocomplete menu SHALL fit within the current terminal dimensions after the existing non-menu dock allocation is determined. It SHALL honor the effective `autocompleteMaxVisible` limit, further reducing visible choices when terminal space requires it. When at least one menu row fits, the selected item SHALL remain visible and every completion SHALL remain reachable through existing navigation. If no menu row fits, the menu SHALL remain unpainted rather than displace or cover the input/footer; its current completion state and established key behavior SHALL remain intact. Restoring space SHALL reveal the current list and selection. Auxiliary pagination rows SHALL yield to an active-choice row when necessary.
+### Requirement: Above-prompt autocomplete preserves existing sizing and input geometry
+Moving autocomplete above the input SHALL preserve the existing menu size limits, selection window, pagination, and `autocompleteMaxVisible` setting behavior. The existing terminal clipping and resize policy SHALL remain in force. This placement change SHALL NOT introduce a terminal-space-derived item limit, a one-row menu mode, special zero-capacity completion state, or a different pagination policy.
 
 Rendering, cursor placement, prompt selection, and pointer hit regions SHALL agree on the editor body's actual position. Menu rows SHALL NOT be interpreted as prompt text or exposed transcript rows. Resizing or changing the visible list height SHALL update affected geometry in the same frame.
 
-#### Scenario: Resize to a short terminal
-- **WHEN** the terminal has less space above the non-menu dock than the configured list needs
-- **THEN** the menu SHALL show only the choices that fit, including the active choice when any menu row is available
-- **AND** the complete frame SHALL stay within bounds without moving the editor or footer relative to their no-menu allocation at that size
+#### Scenario: Resize with autocomplete visible
+- **WHEN** the terminal is resized while autocomplete is open
+- **THEN** the existing menu and terminal sizing/clipping rules SHALL apply to the new geometry with the menu positioned above the input
+- **AND** the placement change SHALL NOT modify the completion selection, configured item limit, or pagination behavior
 
-#### Scenario: No room remains for a menu
-- **WHEN** the existing dock consumes all available terminal rows
-- **THEN** autocomplete SHALL NOT add rows or obscure the input
-- **AND** its completion state and existing key semantics SHALL remain intact until dismissal, application, or a new result
-- **WHEN** additional space becomes available
-- **THEN** the current menu selection SHALL reappear above the prompt
-
-#### Scenario: Update the visible-item setting
-- **WHEN** the effective `autocompleteMaxVisible` setting changes while a menu is active
-- **THEN** the next frame SHALL apply the new limit, subject to terminal capacity, without restarting the shell
-- **AND** only autocomplete allocation SHALL change if the other geometry is unchanged
+#### Scenario: Use the visible-item setting
+- **WHEN** autocomplete renders with a configured `autocompleteMaxVisible` value
+- **THEN** its existing visible-item and setting-application behavior SHALL be preserved
+- **AND** moving the list above the input SHALL NOT write or override that setting
 
 #### Scenario: Select and copy prompt text with a menu visible
 - **WHEN** the user clicks or drags across visible prompt text while autocomplete is open

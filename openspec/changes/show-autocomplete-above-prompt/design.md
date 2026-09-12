@@ -15,6 +15,7 @@ See `proposal.md` for the user-visible problem. The current owned editor renders
 - A general popup system, a new selectable-list implementation, reverse-order completion navigation, or a menu-position preference.
 - Repositioning settings menus, selectors, dialogs, extension replacement editors, or contextual ghost text.
 - Changing the terminal renderer, transcript navigation policy, persistent-history storage, or installed dependency exports.
+- Replacing either editor implementation, adding a menu-capacity budget, changing list minimums, or introducing one-row/zero-capacity behavior for tiny terminals.
 
 ## Decisions
 
@@ -32,35 +33,37 @@ This is preferable to reserving the maximum list height permanently, which waste
 
 Extend the owned editor presentation boundary with typed body/menu information and the body offset used by consumers. Keep the prompt prefix, history labels, scroll indicators, cursor marker, and selection painting attached to the body. Do not infer row ownership by searching for border glyphs, command labels, ANSI styles, or English descriptions in the final shell frame.
 
-The existing owned wrapper already calculates visible editor layout from public logical lines, width, padding, prefix width, and terminal height. Consolidate that geometry rather than introducing another independent approximation. Where the source-traced history core supplies geometry, expose it through its owned typed interface. The pinned-backed path must retain public API use and its existing history semantics; no reflection into private autocomplete state or dependency patch is allowed. Keep any necessary source-traced presentation adaptation inside the established component boundary and reconcile its provenance evidence.
+The existing owned wrapper already calculates visible editor layout from public logical lines, width, padding, prefix width, and terminal height. Reuse that body-boundary information to separate the already-rendered body and trailing menu rows, then move the complete menu block before the body. Consolidate the geometry used by prefix, selection, and pointer handling rather than introducing another independent approximation. Preserve source attribution and test boundary cases such as wrapping, scroll indicators, and paste chips.
+
+This does not require access to the private completion list, its selected index, or its windowing logic: those remain owned by the current editor, and its menu rows are moved without re-rendering individual choices. Keep the pinned-backed history-disabled path and the local history-enabled path. Do not replace either editor, inspect private autocomplete state, or patch a dependency.
 
 Apply body decoration/selection using body-relative coordinates before final composition, or explicitly translate by the same body offset. Pass the actual body start/end to shell pointer routing. Treat menu rows as non-text dock chrome for pointer sequences; this change does not add pointer-based completion selection.
 
-A raw `unshift` of trailing rows was rejected: it could look right while the prompt prefix, selected text, border indicators, or mouse coordinates remained attached to old row indices.
+Reordering rows without updating their body offset was rejected: it could look right while the prompt prefix, selected text, border indicators, or mouse coordinates remained attached to old row indices.
 
-### 3. Budget menu capacity after non-menu dock layout
+### 3. Preserve menu sizing rather than introduce a new clipping policy
 
-Measure the ordinary dock without autocomplete first. Remaining terminal rows, capped by the effective visible-item setting, determine menu capacity. Distinguish choice rows from an optional pagination indicator, using the existing list's selection-aware windowing so the selected choice remains visible. Give the last available row to a choice rather than a counter. Do not simply truncate the start or end of a list and risk removing the active choice.
+Move the existing menu as a block, including its existing pagination row. Keep the current item limit, selection window, setting-application behavior, and terminal clipping policy. Resize updates the same layout and pointer offsets as before; it does not compute a new completion-item budget or write `autocompleteMaxVisible`.
 
-Capacity is a presentation limit, not a persisted setting change: do not write `autocompleteMaxVisible` while resizing. With zero available menu rows, retain current completion state and key handling without painting it. Restoring capacity renders the current result, never a cached superseded one. Width/height changes must update body/menu geometry and pointer regions together.
+The earlier proposal's selection-aware one-row clipping and special zero-capacity handling were extra requirements, not necessary for the requested placement change. They are removed, not deferred implementation tasks. Accessing private list state or replacing the history-disabled editor to support those extras would enlarge the change for no user-requested benefit.
 
 ### 4. Declare the exception without widening parity tolerance
 
 Enable the changed composition only for bare A1's default editor, independent of persistent history. Keep comparison mode and extension-owned replacement editors on their existing presentation path. All default-editor completion providers share this layout, so command, argument, path/resource, and extension completions cannot diverge.
 
-Comparison evidence should continue to assert candidate content, styles, navigation, completion outcomes, cancellation, and current state. Accept only the declared row-order, capacity, and resulting anchor differences for bare A1; do not normalize away arbitrary rendering differences or modify the untouched producer.
+Comparison evidence should continue to assert candidate content, styles, navigation, completion outcomes, cancellation, and current state. Accept only the declared row-order and resulting anchor differences for bare A1; do not normalize away arbitrary rendering differences or modify the untouched producer.
 
 ### 5. Validate geometry and behavior, not only row order
 
 Focused tests should compare terminal coordinates across closed, open, filtered, paged, canceled, and asynchronously updated list states. Hold editor layout and non-menu dock content constant for the no-jump assertion. Separately cover genuine reflow from multiline editing and resize.
 
-Use both history modes; command/argument/path/extension completions; Unicode and narrow widths; small heights including one and zero menu rows; live visible-item changes; below/above-editor widgets; prompt selection/copy; extension replacement/restore; and detached or streaming transcripts. Inspect final terminal cells after shrinking and closing to catch stale rows. Fixed-height list navigation must preserve existing dock-only transcript reuse. Maintain an independent `a1 pi`/pinned comparison proving no upstream presentation change.
+Use both existing editor paths as regression coverage, not as a history redesign. Cover command/argument/path/extension completions; Unicode and narrow widths; resize under the existing clipping rules; existing visible-item setting behavior; below/above-editor widgets; prompt selection/copy; extension replacement/restore; and detached or streaming transcripts. Inspect final terminal cells after shrinking and closing to catch stale rows. Fixed-height list navigation must preserve existing dock-only transcript reuse. Maintain an independent `a1 pi`/pinned comparison proving no upstream presentation change.
 
 ## Risks / Trade-offs
 
 - **Body/menu geometry drifts between editor paths** → Share owned layout metadata, test persistence on and off, and fail explicit geometry assertions rather than searching styled rows heuristically.
 - **Moving rows breaks selection or cursor placement** → Reuse the body offset for all painting and pointer transforms and verify actual terminal cells and copied text.
-- **A short terminal hides the active choice** → Use selection-aware capacity limits, omit auxiliary rows first, and test all list positions with one available row.
+- **A short terminal clips menu content** → Preserve the existing terminal policy and ensure row movement does not introduce stale cells or incorrect pointer regions; a new tiny-terminal menu policy is outside this change.
 - **Menu growth changes transcript extent or transient-tail placement** → Keep it dock-owned and use existing viewport reallocation, detached-position clamping, and follow policy; do not freeze transcript geometry artificially.
 - **Unrelated work lands before implementation** → Rebase the design against current accepted editor/viewport behavior at apply time; do not revive an older queue or working-status layout while changing autocomplete.
 
