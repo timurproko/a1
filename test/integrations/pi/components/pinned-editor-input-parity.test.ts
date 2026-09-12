@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import type { AutocompleteProvider } from "#pi-tui";
 import {
   KeybindingsManager,
   applyPiTheme,
@@ -14,6 +15,37 @@ function tuiOptions() {
 }
 
 describe("pinned editor and input parity", () => {
+  it("keeps comparison autocomplete below the input and byte-identical to an independently run pinned editor", async () => {
+    const agentDir = await mkdtemp(join(tmpdir(), "comparison-autocomplete-"));
+    try {
+      const upstream = await createPinnedEditorHarness(agentDir);
+      const actual = createPiShellEditor({ ...tuiOptions(), keybindingProfile: "pi", agentDir, onSubmit() {} });
+      const provider: AutocompleteProvider = {
+        getSuggestions: async () => ({ prefix: "/", items: Array.from({ length: 9 }, (_, index) => ({
+          value: `/command-${index}`, label: `command-${index}`, description: `Description ${index}`,
+        })) }),
+        applyCompletion: (_lines, _line, _col, item) => ({ lines: [item.value], cursorLine: 0, cursorCol: item.value.length }),
+      };
+      actual.addAutocompleteProvider(() => provider);
+      upstream.editor.setAutocompleteProvider(provider);
+      actual.setFocused?.(true); upstream.editor.focused = true;
+      expect(actual.bodyGeometry).toBeUndefined();
+      for (const finish of ["\t", "\r", "\u001b"]) {
+        actual.setText(""); upstream.editor.setText("");
+        actual.handleInput?.("/"); upstream.editor.handleInput("/");
+        await expect.poll(() => upstream.editor.isShowingAutocomplete()).toBe(true);
+        await expect.poll(() => actual.render(48).length).toBeGreaterThan(3);
+        for (const input of ["\u001b[B", "\u001b[A", "\u001b[A", finish]) {
+          expect(actual.render(48)).toEqual(upstream.editor.render(48));
+          expect(actual.render(48)[3]).toContain("command-");
+          actual.handleInput?.(input); upstream.editor.handleInput(input);
+        }
+        expect(actual.render(48)).toEqual(upstream.editor.render(48));
+        expect(actual.getText()).toEqual(upstream.editor.getExpandedText());
+      }
+    } finally { await rm(agentDir, { recursive: true, force: true }); }
+  });
+
   it("matches configured keybindings, editing, Unicode, paste, autocomplete, app actions, queues, clipboard hooks, and cancellation", async () => {
     const agentDir = await mkdtemp(join(tmpdir(), "a1-pi-editor-"));
     await mkdir(agentDir, { recursive: true });

@@ -47,6 +47,29 @@ its own `core` facade layer; A1 is a product, so the port adapts imports and kee
 
 ## Deliberate differences
 
+- **Above-prompt autocomplete.** The accepted `show-autocomplete-above-prompt` change
+  moves the existing default-editor completion block above the prompt in bare A1.
+  `src/integrations/pi/components/upstream/components/owned-editor.ts` exposes its
+  border-inclusive body height using the existing atomic-aware layout boundary;
+  `shell-editor-autocomplete.ts` moves rows only after prefix/selection decoration
+  and adds one top line using the editor's current border-color function.
+  The accepted refinement (#343) restores this line instead of panel shading.
+  The user-approved review refinement in #344 moves the existing trailing counter
+  into that line without parentheses, at the history-label inset and in the same dim
+  color. The select-list `scrollInfo` callback identifies its final counter row;
+  private selection state and rendered-frame parsing are not used. Counter meaning
+  and visibility remain unchanged, and candidate ANSI styling/padding stay intact. The line is
+  included in the body offset, disappears with the menu, and is non-text chrome.
+  Theme/mode/resize tests verify matching line color and width; terminal background
+  replay verifies the menu has no added shading.
+  The session shell uses the resulting body offset for pointer routing. Neither
+  editor implementation, history mode, menu sizing, completion state, nor installed
+  Pi package changes. `a1 pi` remains below-prompt and byte-identical to the independently
+  run pinned editor in `test/integrations/pi/components/pinned-editor-input-parity.test.ts`.
+  Placement and whole-menu ANSI evidence is in `editor-autocomplete-placement.test.ts`;
+  shell checkpoint replay covers final cells, cursor rows, resizing, detached/streaming
+  transcripts, widgets, pointer selection, and extension-editor restoration. Physical
+  acceptance of the exact build remains required before merging the implementation.
 - **Owned in-session routes are overlays.** The A1 UI reference owns its surface and can switch screens; A1 renders in-session owned routes through the pinned Pi TUI as full-viewport overlays. The pre-resource trust selector is separate and uses a bounded alternate startup surface solely so every completion path can restore the untouched parent terminal before engine activation or a fail-closed diagnostic.
 - **Colour is a port, not an import.** The reference takes a Pi `Theme` directly. A1 defines
   `UiTheme` so the component layer never imports a Pi adapter and can be rendered plainly in

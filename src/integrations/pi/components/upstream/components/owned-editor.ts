@@ -2,7 +2,7 @@
  * Adapted from @earendil-works/pi-coding-agent 0.84.2
  * packages/coding-agent/src/modes/interactive/components/custom-editor.ts (MIT).
  * Modifications: A1-owned class name, synchronized keybinding contract, and a semantic
- * bare-A1 prompt-prefix/contextual-suggestion presentation branch.
+ * bare-A1 prompt-prefix/contextual-suggestion presentation branch with explicit body geometry.
  */
 import {
   CURSOR_MARKER,
@@ -26,6 +26,8 @@ export interface OwnedEditorOptions extends EditorOptions {
   readonly styleSuggestion?: (text: string) => string;
   readonly styleSuggestionCaret?: (text: string) => string;
   readonly terminalRows?: () => number;
+  /** Reuses the editor's established atomic-aware visual layout when available. */
+  readonly getVisualLineCount?: (width: number) => number | undefined;
 }
 
 export interface ShellEditorInstance extends EditorSurface {
@@ -35,6 +37,8 @@ export interface ShellEditorInstance extends EditorSurface {
   onPasteImage?: () => void;
   onExtensionShortcut?: (data: string) => boolean;
   onPromptSuggestionAccepted?: (text: string) => void;
+  /** Border-inclusive body height from the most recent render, excluding autocomplete. */
+  getRenderedBodyRowCount(): number;
   setPromptSuggestion(text: string | null): void;
   canPresentPromptSuggestion(): boolean;
   onAction(action: AppKeybinding, handler: () => void): void;
@@ -56,6 +60,8 @@ return class extends Base {
   readonly #styleSuggestion: (text: string) => string;
   readonly #styleSuggestionCaret: (text: string) => string;
   readonly #terminalRows: () => number;
+  readonly #getVisualLineCount: ((width: number) => number | undefined) | undefined;
+  #renderedBodyRowCount = 0;
 
   constructor(tui: TUI, theme: EditorTheme, private readonly keybindings: KeybindingsManager, options: OwnedEditorOptions = {}) {
     super(tui, theme, options);
@@ -63,7 +69,10 @@ return class extends Base {
     this.#styleSuggestion = options.styleSuggestion ?? (text => text);
     this.#styleSuggestionCaret = options.styleSuggestionCaret ?? (text => `\u001b[7m${text}\u001b[27m`);
     this.#terminalRows = options.terminalRows ?? (() => 24);
+    this.#getVisualLineCount = options.getVisualLineCount;
   }
+
+  getRenderedBodyRowCount(): number { return this.#renderedBodyRowCount; }
 
   setPromptSuggestion(text: string | null): void {
     this.#promptSuggestion = text;
@@ -83,9 +92,15 @@ return class extends Base {
   }
 
   override render(width: number): string[] {
-    if (this.#promptPrefix.length === 0) return super.render(width);
+    if (this.#promptPrefix.length === 0) {
+      const rows = super.render(width);
+      this.#renderedBodyRowCount = this.#getVisualLineCount === undefined ? rows.length : this.#measureBodyRows(width);
+      return rows;
+    }
     if (this.#promptSuggestion !== null && this.canPresentPromptSuggestion()) {
-      return this.#renderSuggestion(width);
+      const rows = this.#renderSuggestion(width);
+      this.#renderedBodyRowCount = rows.length;
+      return rows;
     }
     return this.#renderPrefixedEditor(width);
   }
@@ -169,17 +184,22 @@ return class extends Base {
     const prefixWidth = visibleWidth(this.#promptPrefix);
     const innerWidth = Math.max(1, width - prefixWidth);
     const rows = super.render(innerWidth);
-    const maxPadding = Math.max(0, Math.floor((innerWidth - 1) / 2));
-    const paddingX = Math.min(this.getPaddingX(), maxPadding);
-    const contentWidth = Math.max(1, innerWidth - paddingX * 2);
-    const layoutWidth = Math.max(1, contentWidth - (paddingX ? 0 : 1));
-    const layoutCount = this.getLines().flatMap(line => wrapTextWithAnsi(line, layoutWidth)).length || 1;
-    const visibleCount = Math.min(layoutCount, Math.max(5, Math.floor(this.#terminalRows() * 0.3)));
-    const bottomBorder = visibleCount + 1;
+    this.#renderedBodyRowCount = this.#measureBodyRows(innerWidth);
+    const bottomBorder = this.#renderedBodyRowCount - 1;
     return rows.map((row, index) => {
       if (index === 0 || index === bottomBorder) return `${row}${this.borderColor("─".repeat(prefixWidth))}`;
       return `${index === 1 ? this.#promptPrefix : " ".repeat(prefixWidth)}${row}`;
     });
+  }
+
+  #measureBodyRows(width: number): number {
+    const padding = Math.min(this.getPaddingX(), Math.max(0, Math.floor((width - 1) / 2)));
+    const contentWidth = Math.max(1, width - padding * 2);
+    const layoutWidth = Math.max(1, contentWidth - (padding ? 0 : 1));
+    // Invariant: split by editor layout, never by styled border or completion text.
+    const lineCount = this.#getVisualLineCount?.(layoutWidth)
+      ?? this.getLines().reduce((count, line) => count + wrapTextWithAnsi(line, layoutWidth).length, 0);
+    return Math.min(Math.max(1, lineCount), Math.max(5, Math.floor(this.#terminalRows() * 0.3))) + 2;
   }
 };
 }

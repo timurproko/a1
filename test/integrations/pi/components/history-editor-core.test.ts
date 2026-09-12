@@ -78,10 +78,10 @@ describe("typed persistent recall transitions", () => {
     const editor = new HistoryEditorCore(tui(), theme, { persistentHistory: true, styleHistoryLabel: text => `<${neutral}>${text}</${neutral}>` });
     editor.replaceHistoryEntries(["line\n".repeat(12).trim()]);
     editor.handleInput(older);
-    expect(editor.render(80)[0]).toContain("<dim>History 1/1 · ↑ 5 more </dim>");
+    expect(editor.render(80)[0]).toContain("<dim>1/1 · ↑ 5 more </dim>");
     neutral = "updated";
     editor.invalidate();
-    expect(editor.render(80)[0]).toContain("<updated>History 1/1 · ↑ 5 more </updated>");
+    expect(editor.render(80)[0]).toContain("<updated>1/1 · ↑ 5 more </updated>");
 
     const plain = create();
     plain.handleInput(older);
@@ -89,18 +89,33 @@ describe("typed persistent recall transitions", () => {
       const row = plain.render(width)[0]!;
       expect(visibleWidth(row)).toBeLessThanOrEqual(width);
       expect(stripTerminalSequences(row)).not.toContain("undefined");
+      expect(stripTerminalSequences(row)).not.toContain("History");
     }
+  });
+
+  it("shows a compact 1/100 counter and restores the draft without a title", () => {
+    const editor = create();
+    editor.replaceHistoryEntries(Array.from({ length: 100 }, (_, index) => `saved ${index}`));
+    editor.setText("draft");
+    editor.handleInput(older);
+    expect(stripTerminalSequences(editor.render(80)[0]!)).toBe("─── 100/100 " + "─".repeat(68));
+    for (let index = 1; index < 100; index++) editor.handleInput(older);
+    expect(stripTerminalSequences(editor.render(80)[0]!)).toBe("─── 1/100 " + "─".repeat(70));
+    expect(editor.getText()).toBe("saved 99");
+    for (let index = 0; index < 100; index++) editor.handleInput(newer);
+    expect(editor.getText()).toBe("draft");
+    expect(stripTerminalSequences(editor.render(80)[0]!)).toBe("─".repeat(80));
   });
 
   it("uses v2 directional caret placement and newest=total numbering", () => {
     const editor = create();
     editor.handleInput(older);
     expect(editor.getCursor()).toEqual({ line: 0, col: 6 });
-    expect(editor.render(80)[0]).toContain("History 3/3");
+    expect(editor.render(80)[0]).toContain("─── 3/3 ");
     editor.handleInput(older);
     expect(editor.getCursor()).toEqual({ line: 1, col: 11 });
     editor.handleInput(older);
-    expect(editor.render(80)[0]).toContain("History 1/3");
+    expect(editor.render(80)[0]).toContain("─── 1/3 ");
     editor.handleInput(older);
     expect(editor.getCursor()).toEqual({ line: 0, col: 6 });
     editor.handleInput(newer);
@@ -118,7 +133,7 @@ describe("typed persistent recall transitions", () => {
     editor.handleInput(newer); editor.handleInput(newer);
     expect(editor.getText()).toBe("draft");
     expect(editor.getCursor()).toEqual({ line: 0, col: 4 });
-    expect(editor.render(80)[0]).not.toContain("History");
+    expect(stripTerminalSequences(editor.render(80)[0]!)).toBe("─".repeat(80));
     editor.handleInput(older);
     expect(editor.getText()).toBe("latest");
     editor.handleInput(older);

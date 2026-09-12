@@ -2,6 +2,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { describe, expect, it } from "vitest";
+import { stripTerminalSequences } from "#pi-tui";
 import { createPiShellEditor, loadHistoryEditor, piTheme, type PiShellEditorOptions } from "../../../../src/integrations/pi/components/index.js";
 
 describe("history editor component boundary", () => {
@@ -19,13 +20,15 @@ describe("history editor component boundary", () => {
         editor.setThinkingLevel(level);
         const rows = editor.render(80);
         const bar = text.startsWith("!") ? piTheme().getBashModeBorderColor() : piTheme().getThinkingBorderColor(level);
-        expect(rows[0]).toContain(piTheme().fg("dim", "History 1/1 "));
+        expect(rows[0]).toContain(piTheme().fg("dim", "1/1 "));
+        expect(rows[0]).not.toContain("History");
+        expect(stripTerminalSequences(rows[0]!).indexOf("1/1")).toBe(4);
         expect(rows[0]).toContain(bar("─── "));
-        expect(rows[0]).not.toContain(bar("History 1/1 "));
+        expect(rows[0]).not.toContain(bar("1/1 "));
         expect(rows[rows.length - 1]).toContain(bar("─"));
       }
       editor.handleInput?.("\x1b[B");
-      expect(editor.render(80)[0]).not.toContain("History");
+      expect(stripTerminalSequences(editor.render(80)[0]!)).toBe("─".repeat(80));
     } finally { await rm(root, { recursive: true, force: true }); }
   });
 
@@ -55,7 +58,7 @@ describe("history editor component boundary", () => {
       }
       owned.recall!.replace(["saved"]); owned.setText(""); owned.handleInput?.("\x1b[A");
       expect(owned.getText()).toBe("saved");
-      expect(owned.render(50)[0]).toContain("History 1/1");
+      expect(owned.render(50)[0]).toContain(piTheme().fg("dim", "1/1 "));
     } finally { await rm(root, { recursive: true, force: true }); }
   });
 });
