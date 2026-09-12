@@ -9,7 +9,7 @@ const modelRuntimeSource = `
 export class CredentialSynchronizationError extends Error {}
 export class ModelRuntime {
   static async create() {
-    const scenario = JSON.parse(process.env.A1_MESSAGE_SCENARIO);
+    const scenario = JSON.parse(process.env.PACKAGE_MESSAGE_SCENARIO);
     if (scenario.kind === "creation-error") throw new Error(scenario.detail);
     if (scenario.kind === "non-error") throw "not an Error";
     return { async refresh() {
@@ -53,7 +53,7 @@ for (const entry of cases) {
   stdout = "";
   stderr = "";
   process.exitCode = 0;
-  process.env.A1_MESSAGE_SCENARIO = JSON.stringify(entry.scenario ?? {});
+  process.env.PACKAGE_MESSAGE_SCENARIO = JSON.stringify(entry.scenario ?? {});
   if (entry.settings) {
     await mkdir(join(home, ".a1", "agent"), { recursive: true });
     await writeFile(join(home, ".a1", "agent", "settings.json"), `${JSON.stringify(entry.settings, null, 2)}\n`);

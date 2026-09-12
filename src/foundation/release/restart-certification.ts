@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { lstat, readFile, realpath, stat } from "node:fs/promises";
 import { basename, isAbsolute, relative, resolve, sep } from "node:path";
 import { PRODUCT_IDENTITY } from "../../product-identity.js";
+import { assertCurrentLaunchContract } from "../launch-context/index.js";
 import { DEPENDENCY_LAYER_MANIFEST, dependencyLayerCertificationPath, type DependencyLayerReference } from "./dependency-layer.js";
 import { immutablePlatformPolicy, type ImmutablePlatformPolicy } from "./immutable-platform.js";
 import { PRODUCT_PACKAGE_NAME, type ReleaseFileIdentity } from "./release.js";
@@ -35,6 +36,7 @@ interface LayerRestartEvidence extends DependencyLayerReference {
 
 interface RestartSealCore {
   readonly version: typeof RESTART_SEAL_VERSION;
+  readonly launchContract: string;
   readonly platform: NodeJS.Platform;
   readonly platformPolicy: ImmutablePlatformPolicy;
   readonly releaseId: string;
@@ -69,6 +71,7 @@ export interface RestartValidationEvent {
 
 /** Build compact restart authority after complete content verification established read-only payload files. */
 export async function createRestartSeal(release: MaterializedRelease, dataDir: string): Promise<RestartSeal | null> {
+  assertCurrentLaunchContract(release);
   const policy = immutablePlatformPolicy();
   if (policy === null) return null;
   const canonicalData = await realpath(dataDir);
@@ -99,6 +102,7 @@ export async function createRestartSeal(release: MaterializedRelease, dataDir: s
   }));
   const core: RestartSealCore = {
     version: RESTART_SEAL_VERSION,
+    launchContract: release.launchContract!,
     platform: process.platform,
     platformPolicy: policy,
     releaseId: release.releaseId,
@@ -139,6 +143,7 @@ export async function readRestartCertifiedRelease(
     throw new Error("restart certification differs from the approved release record");
   }
   const seal = normalizeRestartSeal(certification.restartSeal);
+  assertCurrentLaunchContract(seal);
   if (seal.platform !== process.platform || seal.platformPolicy !== immutablePlatformPolicy()) {
     throw new Error("restart certification platform immutability evidence is unsupported");
   }
@@ -187,6 +192,7 @@ export async function readRestartCertifiedRelease(
 
   return {
     packageName: PRODUCT_PACKAGE_NAME,
+    launchContract: seal.launchContract,
     packageVersion: seal.packageVersion,
     contentDigest: seal.contentDigest,
     releaseId: seal.releaseId,

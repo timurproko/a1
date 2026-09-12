@@ -81,7 +81,7 @@ function launch(harness: Awaited<ReturnType<typeof createHarness>>, profileId: L
     profileId,
     releaseRoot: "/release",
     uiEntry: "/release/bin/ui.js",
-    environment: { A1_ENDPOINT: harness.paths.endpoint, A1_RELEASE_ID: "release-1" },
+    environment: { A1_ENDPOINT: harness.paths.endpoint, LAUNCH_CONTEXT_RELEASE_ID: "release-1" },
     helperPath: "fixture-helper",
     containment,
     inspector,

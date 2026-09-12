@@ -9,7 +9,7 @@ const roots: string[] = [];
 afterEach(async () => Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))));
 
 const windowsIt = process.platform === "win32"
-  && process.env.A1_RUN_PROCESS_CONTAINMENT_INTEGRATION === "1"
+  && process.env.RUN_PROCESS_CONTAINMENT_INTEGRATION === "1"
   && process.env.A1_PROCESS_GUARDIAN_PATH ? it : it.skip;
 
 describe("Windows Job Object process guardian", () => {

@@ -90,6 +90,8 @@ describe("validation suite ownership", () => {
     });
     expect(suites.tiers["fast"]!.resourceSensitiveTests).toEqual([
       "test/repository-governance/validation-impact.test.ts",
+      "test/repository-governance/naming-selection.test.ts",
+      "test/foundation/launch-context/cutover.test.ts",
       "test/repository-governance/code-documentation.test.ts",
       "test/foundation/storage/storage.test.ts",
       "test/foundation/release/cohort-state.test.ts",

@@ -28,7 +28,7 @@ const verdictPath = resolve(verdictDirectory, `${platform()}-${arch()}.json`);
 await writeFile(verdictPath, JSON.stringify({
   schema: identity.evidence.previewPlatformVerdictSchema,
   platform: platform(), architecture: arch(), osRelease: release(),
-  runnerLabel: process.env[identity.environment.releaseRunnerLabel] ?? null,
+  runnerLabel: process.env.RELEASE_RUNNER_LABEL ?? null,
   startedAt, completedAt: new Date().toISOString(), passed: failure === undefined,
   channel: "next", certificationStatus: "uncertified-development-preview", terminalCapability: "transparent",
   physicalHostCertification: "deferred", crossPlatformCertification: "deferred", stableReleaseEligible: false,

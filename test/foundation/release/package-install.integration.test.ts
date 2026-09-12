@@ -84,7 +84,7 @@ describe("clean installation of the exact candidate", () => {
     await writeFile(resolve(packageRoot, "package.json"), JSON.stringify({ name: "@timurproko/a1", version: "1.0.0" }));
     await writeFile(resolve(packageRoot, "bin", "cli.js"), "// prior package");
     await writeFile(resolve(priorReleaseRoot, "bin", "cli.js"), "// prior immutable release");
-    await writeFile(resolve(priorReleaseRoot, ".a1-release.json"), JSON.stringify({ releaseId: priorReleaseId, contentDigest: "a".repeat(64) }));
+    await writeFile(resolve(priorReleaseRoot, ".a1-release.json"), JSON.stringify({ launchContract: "neutral-launch-v1", releaseId: priorReleaseId, contentDigest: "a".repeat(64) }));
     for (const launcher of launchers) { await mkdir(dirname(launcher), { recursive: true }); await writeFile(launcher, "prior launcher"); }
     await writeFile(npmCli, `
       const { rm } = require("node:fs/promises");
@@ -158,7 +158,7 @@ describe("clean installation of the exact candidate", () => {
     await writeFile(resolve(packageRoot, "package.json"), JSON.stringify({ name: "@timurproko/a1", version: "1.0.0" }));
     await writeFile(resolve(packageRoot, "bin", "cli.js"), "// prior package");
     await writeFile(resolve(priorReleaseRoot, "bin", "cli.js"), "// prior immutable release");
-    await writeFile(resolve(priorReleaseRoot, ".a1-release.json"), JSON.stringify({ releaseId: priorReleaseId, contentDigest: "b".repeat(64) }));
+    await writeFile(resolve(priorReleaseRoot, ".a1-release.json"), JSON.stringify({ launchContract: "neutral-launch-v1", releaseId: priorReleaseId, contentDigest: "b".repeat(64) }));
     for (const launcher of launchers) { await mkdir(dirname(launcher), { recursive: true }); await writeFile(launcher, "prior launcher"); }
     await writeFile(npmCli, `
       const { chmod, mkdir, rm, writeFile } = require("node:fs/promises");
@@ -169,7 +169,7 @@ describe("clean installation of the exact candidate", () => {
         for (const launcher of launchers) await rm(launcher, { force: true });
         await new Promise(resolvePromise => setTimeout(resolvePromise, 1000));
         await mkdir(resolve(packageRoot, "bin"), { recursive: true });
-        await writeFile(resolve(packageRoot, "package.json"), JSON.stringify({ name: "@timurproko/a1", version: "1.1.0" }));
+        await writeFile(resolve(packageRoot, "package.json"), JSON.stringify({ name: "@timurproko/a1", privateLaunchContract: "neutral-launch-v1", version: "1.1.0" }));
         await writeFile(resolve(packageRoot, "bin", "cli.js"), "// target");
         for (const launcher of launchers) {
           await mkdir(dirname(launcher), { recursive: true });
@@ -258,8 +258,8 @@ describe("clean installation of the exact candidate", () => {
       ...process.env,
       A1_DATA_DIR: dataDir,
       A1_RUNTIME_DIR: runtimeDir,
-      A1_RELEASE_CLEANUP_RUN_ID: "exact-package-cleanup",
-      A1_RELEASE_CLEANUP_HOLDS: JSON.stringify([{ authority: "migration", releaseId: releases[39]!.releaseId }]),
+      RELEASE_CLEANUP_RUN_ID: "exact-package-cleanup",
+      RELEASE_CLEANUP_HOLDS: JSON.stringify([{ authority: "migration", releaseId: releases[39]!.releaseId }]),
     };
 
     const before = await treeUsage(resolve(dataDir, "releases"));
@@ -319,7 +319,7 @@ describe("clean installation of the exact candidate", () => {
       ...process.env,
       A1_DATA_DIR: dataDir,
       A1_RUNTIME_DIR: resolve(dataDir, "runtime"),
-      A1_RELEASE_CLEANUP_RUN_ID: "broken-import",
+      RELEASE_CLEANUP_RUN_ID: "broken-import",
     });
     const preserved = JSON.parse(await readFile(statePath, "utf8")) as typeof state;
 

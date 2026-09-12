@@ -5,6 +5,7 @@ import { dirname, resolve } from "node:path";
 import { homedir, platform } from "node:os";
 import { performance } from "node:perf_hooks";
 import { PRODUCT_IDENTITY } from "../../product-identity.js";
+import { readLaunchContext } from "../launch-context/index.js";
 
 export type StartupPhase =
   | "command-invoked"
@@ -61,8 +62,8 @@ export function initializeStartupTrace(environment: NodeJS.ProcessEnv, profileId
     traceId: randomUUID(),
     startedAtMs,
     profileId,
-    releaseId: environment[PRODUCT_IDENTITY.environment.releaseId] ?? null,
-    dependencyLayerIds: parseLayerIds(environment[PRODUCT_IDENTITY.environment.releaseLayers]),
+    releaseId: readLaunchContext(environment).releaseId ?? null,
+    dependencyLayerIds: parseLayerIds(readLaunchContext(environment).releaseLayers),
   };
   environment[PRODUCT_IDENTITY.environment.startupTrace] = JSON.stringify(context);
 }
@@ -78,9 +79,9 @@ export async function markStartupPhase(environment: NodeJS.ProcessEnv, phase: St
     elapsedMs: Math.max(0, performance.timeOrigin + performance.now() - context.startedAtMs),
     processId: process.pid,
     profileId: context.profileId,
-    releaseId: environment[PRODUCT_IDENTITY.environment.releaseId] ?? context.releaseId,
-    dependencyLayerIds: parseLayerIds(environment[PRODUCT_IDENTITY.environment.releaseLayers]).length > 0
-      ? parseLayerIds(environment[PRODUCT_IDENTITY.environment.releaseLayers])
+    releaseId: readLaunchContext(environment).releaseId ?? context.releaseId,
+    dependencyLayerIds: parseLayerIds(readLaunchContext(environment).releaseLayers).length > 0
+      ? parseLayerIds(readLaunchContext(environment).releaseLayers)
       : context.dependencyLayerIds,
     nodeVersion: process.version,
     fileReadOperations: process.resourceUsage().fsRead,
@@ -90,9 +91,7 @@ export async function markStartupPhase(environment: NodeJS.ProcessEnv, phase: St
 }
 
 export function assertImmutableWarmupEnvironment(environment: NodeJS.ProcessEnv): void {
-  if (environment[PRODUCT_IDENTITY.environment.immutableWarmup] !== "1") {
-    throw new Error("warmup entry is private to verified update activation");
-  }
+  readLaunchContext(environment, "warmup");
 }
 
 /** Enable the compile cache directly from launch environment without loading profile services. */
@@ -104,8 +103,8 @@ export function enableEnvironmentCompileCache(environment: NodeJS.ProcessEnv): s
       : resolve(environment.XDG_DATA_HOME ?? resolve(home, ".local", "share"), PRODUCT_IDENTITY.state.unixControlDirectory)));
   return enableStartupCompileCache(
     dataDir,
-    environment[PRODUCT_IDENTITY.environment.releaseId] ?? null,
-    parseLayerIds(environment[PRODUCT_IDENTITY.environment.releaseLayers]),
+    readLaunchContext(environment).releaseId ?? null,
+    parseLayerIds(readLaunchContext(environment).releaseLayers),
   );
 }
 

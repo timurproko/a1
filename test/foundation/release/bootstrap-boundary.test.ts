@@ -30,7 +30,7 @@ describe("mutable bootstrap boundary", () => {
   it("carries selected launch identity without importing terminal implementation", async () => {
     const bootstrap = await readFile(resolve(repository, "src/foundation/release/bootstrap.ts"), "utf8");
     expect(bootstrap).toContain("options.launchIntent?.profileId");
-    expect(bootstrap).toContain("environment[PRODUCT_IDENTITY.environment.launchProfile] = launchProfileId");
+    expect(bootstrap).toContain("withLaunchContext(options.environment ?? process.env");
     expect(bootstrap).not.toMatch(/foundation\/transparent-terminal/);
   });
 
@@ -59,16 +59,15 @@ describe("mutable bootstrap boundary", () => {
     expect(start).toBeGreaterThan(supervisorStart);
   });
 
-  it("upgrades the preceding updater's certification before publishing supervisor readiness", async () => {
+  it("requires current certification before readiness without an old-updater upgrade path", async () => {
     const supervisor = await readFile(resolve(repository, "src/foundation/supervision/main.ts"), "utf8");
     const certifiedRead = supervisor.indexOf("await readCertifiedReleaseManifest");
-    const migrationOptIn = supervisor.indexOf("allowLegacyParentCertification: true", certifiedRead);
-    const certificationRecord = supervisor.indexOf("await recordParentCertifiedRelease", migrationOptIn);
+    const certificationRecord = supervisor.indexOf("await recordParentCertifiedRelease", certifiedRead);
     const endpointListen = supervisor.indexOf("await server.listen()", certificationRecord);
 
     expect(certifiedRead).toBeGreaterThan(0);
-    expect(migrationOptIn).toBeGreaterThan(certifiedRead);
-    expect(certificationRecord).toBeGreaterThan(migrationOptIn);
+    expect(supervisor).not.toContain("allowLegacyParentCertification: true");
+    expect(certificationRecord).toBeGreaterThan(certifiedRead);
     expect(endpointListen).toBeGreaterThan(certificationRecord);
   });
 

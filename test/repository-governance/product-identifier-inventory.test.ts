@@ -1,19 +1,15 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
-import { inspectProductIdentifiers, inspectTypeScript } from "../../scripts/governance/product-identifier-policy.mjs";
+import { inspectTypeScript } from "../../scripts/governance/product-identifier-policy.mjs";
 
 describe("repository-global semantic identifier inventory", () => {
-  it("reproduces the checked inventory and preserves the cleanup baseline", async () => {
+  it("preserves historical cleanup evidence without repeating the full PR audit", async () => {
     const evidence = JSON.parse(await readFile("config/baselines/product-identifier-inventory.json", "utf8"));
-    const current = await inspectProductIdentifiers(".");
-    expect(current).toEqual({
-      schema: evidence.schema,
-      roots: evidence.roots,
-      internalIdentifiers: evidence.internalIdentifiers,
-      externalIdentityIdentifiers: evidence.externalIdentityIdentifiers,
-    });
+    expect(evidence.schema).toBe("product-semantic-identifier-inventory-v1");
     expect(evidence.baselineInternalIdentifiers.length).toBeGreaterThan(0);
-  }, 20_000);
+    // Provenance: the required naming job owns the current-head audit; this record is historical evidence.
+    expect(evidence.internalIdentifiers).toEqual([]);
+  });
 
   it("rejects product-prefixed class, variable, field, and constant mutations", () => {
     const result = inspectTypeScript("mutation.ts", `

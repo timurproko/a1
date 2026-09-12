@@ -23,8 +23,8 @@ describe("opt-in startup evidence and compile cache", () => {
     const path = resolve(root, "trace.jsonl");
     const environment: NodeJS.ProcessEnv = {
       [PRODUCT_IDENTITY.environment.startupTrace]: path,
-      [PRODUCT_IDENTITY.environment.releaseId]: "1.0.0-aaaaaaaaaaaaaaaaaaaa",
-      [PRODUCT_IDENTITY.environment.releaseLayers]: "dependencies-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      ["LAUNCH_CONTEXT_RELEASE_ID"]: "1.0.0-aaaaaaaaaaaaaaaaaaaa",
+      ["LAUNCH_CONTEXT_RELEASE_LAYERS"]: "dependencies-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
       SECRET_TOKEN: "must-not-appear",
       PROMPT: "private prompt",
     };

@@ -24,7 +24,8 @@ const command = parseCliCommand(inspectedArguments, cliCapabilities(release.vers
 const directProfile = command.kind === "launch" ? command.profileId : null;
 const childArguments = command.kind === "launch" ? sessionSelectionArguments(command.sessionSelection) : inspectedArguments;
 const prepared = directProfile === null ? null : await prepareDirectProfile(directProfile, environment);
-const childEnvironment = prepared === null ? environment : { ...prepared.environment, A1_LAUNCH_PROFILE: directProfile };
+const { withLaunchContext } = await import("../../dist/foundation/launch-context/index.js");
+const childEnvironment = prepared === null ? environment : withLaunchContext(prepared.environment, { launchProfile: directProfile });
 
 if (launchArguments[0] === "--print-environment") {
   process.stdout.write(`${JSON.stringify({ checkoutId, instanceId, releaseId: release.releaseId, developmentRoot, launchArguments: inspectedArguments, childArguments, directProfile, profileConfigurationRoot: prepared?.configurationRoot ?? null, environment: {

@@ -3,6 +3,7 @@ import { mkdir, open, readFile, rename, rm, stat } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import type { MaterializedRelease } from "./release-store.js";
 import { PRODUCT_IDENTITY } from "../../product-identity.js";
+import { assertCurrentLaunchContract } from "../launch-context/index.js";
 
 export const RELEASE_COHORT_SCHEMA = PRODUCT_IDENTITY.protocol.releaseCohortSchema;
 const RELEASE_ID_PATTERN = /^[0-9A-Za-z.+_-]+-[a-f0-9]{20}$/;
@@ -14,6 +15,7 @@ export interface ReleaseRecord {
   readonly releaseRoot: string;
   readonly packageVersion: string;
   readonly contentDigest: string;
+  readonly launchContract?: string;
   readonly approval: ReleaseApproval;
   readonly materializedAt: string;
   readonly certifiedAt: string | null;
@@ -234,6 +236,7 @@ export class CohortStateStore {
         releaseRoot: release.releaseRoot,
         packageVersion: release.packageVersion,
         contentDigest: release.contentDigest,
+        ...(release.launchContract === undefined ? {} : { launchContract: release.launchContract }),
         approval: "candidate",
         materializedAt: new Date().toISOString(),
         certifiedAt: null,
@@ -266,6 +269,7 @@ export class CohortStateStore {
     return await this.update(current => {
       const release = requiredRelease(current, releaseId);
       if (release.approval !== "approved") throw new Error(`cannot activate unverified release ${releaseId}`);
+      assertCurrentLaunchContract(release);
       const prior = current.references.active;
       return {
         ...current,
@@ -292,6 +296,7 @@ export class CohortStateStore {
       if (!rollbackId) throw new Error("no rollback release is recorded");
       const rollback = requiredRelease(current, rollbackId);
       if (rollback.approval !== "approved") throw new Error(`cannot roll back to unverified release ${rollbackId}`);
+      assertCurrentLaunchContract(rollback);
       return {
         ...current,
         references: {

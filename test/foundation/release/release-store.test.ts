@@ -112,6 +112,7 @@ async function fixture(): Promise<{ packageRoot: string; dataDir: string }> {
   await mkdir(resolve(packageRoot, "dist"), { recursive: true });
   await writeFile(resolve(packageRoot, "package.json"), JSON.stringify({
     name: "@timurproko/a1",
+    privateLaunchContract: "neutral-launch-v1",
     version: "2.0.0",
     files: ["dist"],
   }));

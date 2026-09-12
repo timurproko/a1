@@ -24,6 +24,7 @@ describe("validation tier planning", () => {
       "architecture",
       "fast",
       "documentation-full",
+      "naming-full",
       "rendering-stability",
       "dist-integration",
       "launch-integration",
@@ -52,6 +53,7 @@ describe("validation tier planning", () => {
       "typecheck",
       "architecture",
       "code-documentation-full",
+      "internal-naming-full",
       "candidate-engine-conformance-report",
       "deprecated-dependencies",
     ]);
