@@ -83,7 +83,8 @@ describe("correlated supervisor startup result", () => {
     })).rejects.toMatchObject({ code: "EADDRINUSE" });
   });
 
-  it("surfaces unrelated startup failures without waiting for another owner", async () => {
+  // Compatibility: workflow-evidence governance references this stable test title.
+  it("surfaces a matching startup failure before the endpoint timeout", async () => {
     const root = await temporaryRoot();
     const attempt = await createSupervisorStartupAttempt(root, "release-a");
     await publishSupervisorStartupResult(attempt.resultPath, supervisorStartupFailure(
