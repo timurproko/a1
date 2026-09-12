@@ -116,19 +116,25 @@ describe("maintainer publication commands", () => {
   });
 
   it("makes stable publication an explicit waited dispatch before reopening develop", async () => {
-    const script = await readFile("scripts/release/release.mjs", "utf8");
-    const landed = script.indexOf("await landVersion(version,");
-    const dispatched = script.indexOf('await dispatchPublication("stable"');
-    const reopened = script.indexOf("open ${opening}");
+    const entry = await readFile("scripts/release/release.mjs", "utf8");
+    const script = await readFile("scripts/release/release-workflow.mjs", "utf8");
+    expect(entry).toContain("./release-workflow.mjs");
+    const landed = script.indexOf("source = await prepareVersion(");
+    const dispatched = script.indexOf("await r.publish(source, plan.version)");
+    const reopened = script.indexOf("const reopened = await prepareVersion(");
     expect(landed).toBeGreaterThan(0);
     expect(dispatched).toBeGreaterThan(landed);
     expect(reopened).toBeGreaterThan(dispatched);
+    expect(script).toContain('dispatchPublication("stable", source, version)');
     expect(script).not.toMatch(/npm publish|npm pack/);
     expect(script).not.toMatch(/git\(\["tag"/);
+    expect(script).not.toContain('"--auto"');
+    expect(script).not.toContain('["pr", "merge"');
+    expect(script).not.toContain('"--hard"');
   });
 
   it("moves only this package's version", async () => {
-    const script = await readFile("scripts/release/release.mjs", "utf8");
+    const script = await readFile("scripts/release/release-workflow.mjs", "utf8");
     expect(script).not.toContain("replaceAll");
     expect(script).toContain('lock.packages[""].version = version');
   });

@@ -160,18 +160,29 @@ a1 update --develop 0.1.8-dev.107       # install that exact full preview versio
 ### Stable
 
 ```sh
-npm run release -- patch     # 0.1.1 -> 0.1.2
-npm run release -- minor     # 0.1.1 -> 0.2.0
-npm run release -- major     # 0.1.1 -> 1.0.0
-npm run release -- 0.4.0     # an exact version
+npm run release -- patch     # 0.1.8-dev -> 0.1.8; already-stable 0.1.8 -> 0.1.9
+npm run release -- minor     # 0.1.8-dev -> 0.2.0
+npm run release -- major     # 0.1.8-dev -> 1.0.0
+npm run release -- 0.4.0     # an exact stable version
 ```
 
-The command lands the version on `develop` through a self-merging pull request,
-dispatches publication for that exact commit, and waits for success. CI validates
-the packed release on Windows, Linux, and macOS, publishes to npm `latest` with
-provenance, then writes the `v<version>` tag and the GitHub Release. `master`
-fast-forwards to the released commit, so it always points at what npm `latest`
-serves. A failed release leaves nothing behind: no tag, no GitHub Release, no
-moved branch.
+Run from the repository root on a clean `develop` matching `origin/develop`.
+A target is required; bare `npm run release` displays usage and releases nothing.
+`patch` promotes the current prerelease rather than skipping its stable version.
+
+The command prepares a version-only PR in an isolated detached worktree, prints
+its URL, and waits for you to validate and **merge it manually**. Neither this PR
+nor the next-development PR is auto-merged, and green CI alone does not advance
+the release. After the stable PR merges, the command dispatches publication for
+that exact authoritative commit and waits for success. CI validates the packed
+release on Windows, Linux, and macOS, publishes to npm `latest` with provenance,
+then writes the `v<version>` tag and GitHub Release and fast-forwards `master`.
+
+Only after confirmed publication of `0.1.8` does the command prepare the separate
+`0.1.9-dev` PR. It reports development reopened only after you manually merge that
+PR too. Work added to your checkout during either wait is preserved, not reset.
+If publication fails or is uncertain, no reopening PR is prepared. If publication
+succeeded but reopening failed, inspect the reported phase and PR; do not republish
+the immutable stable version.
 
 `docs/ci-release-runbook.md` has the full picture.
