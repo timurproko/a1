@@ -10,6 +10,8 @@ import { assertLaunchProfileId, createSupervisorStartupAttempt, readSupervisorSt
 import { encodeFrame, LineFrameDecoder } from "../protocol/index.js";
 import { cleanupProvenIdleOwner, processIsAlive } from "./process-cleanup.js";
 import { sweepDeadEndpoints } from "./endpoints.js";
+import { UpdateTransactionStore } from "./update-transaction.js";
+import { selectUpdateLaunchRelease } from "./update-launch.js";
 import { consumeMaterializationProof, materializeRelease, readCertifiedReleaseManifest, readMaterializedRelease, resolveReleaseEntryPoint, verifyMaterializedRelease, type MaterializedRelease, type VerifyMaterializedReleaseOptions } from "./release-store.js";
 import { scheduleReleaseCleanup } from "./release-gc.js";
 import { createRestartSeal, readRestartCertifiedRelease, releaseCertificationDocument } from "./restart-certification.js";
@@ -49,6 +51,18 @@ export async function runBootstrap(options: BootstrapOptions): Promise<number> {
 
   const stateStore = new CohortStateStore(paths.dataDir);
   let state = await stateStore.read();
+  const launchDuringUpdate = async (): Promise<number | null> => {
+    // Concurrency: read the journal before touching npm's mutable tree, including package.json.
+    const transaction = await new UpdateTransactionStore(paths.dataDir).read();
+    if (!transaction || transaction.status === "completed") return null;
+    const prior = selectUpdateLaunchRelease(await stateStore.read(), transaction);
+    if (!prior) return null;
+    const retained = await readCertifiedReleaseManifest(prior, resolve(paths.dataDir, "releases"));
+    await ensureSupervisor(retained, environment);
+    return await launchUi(retained, environment, sessionArgs);
+  };
+  const duringUpdate = await launchDuringUpdate();
+  if (duringUpdate !== null) return duringUpdate;
   // Invariant: records left by cohorts whose processes are gone say nothing about ownership, and there
   // can now be several of them. Clearing them first keeps the decision below about what is
   // actually running.
@@ -99,10 +113,8 @@ export async function runBootstrap(options: BootstrapOptions): Promise<number> {
         return verified;
       });
       await markStartupPhase(environment, "durable-validation-complete");
-      const retainedPaths = resolveCohortEndpoint(paths, retained.releaseId, environment);
       await markStartupPhase(environment, "replacement-supervisor-start");
-      const startup = await startSupervisor(retained, environment);
-      await waitForVerifiedEndpoint(retainedPaths.endpointMetadataPath, retained, 8_000, startup);
+      await ensureSupervisor(retained, environment);
       await markStartupPhase(environment, "replacement-supervisor-ready");
       return await launchUi(retained, environment, sessionArgs);
     }
@@ -120,6 +132,9 @@ export async function runBootstrap(options: BootstrapOptions): Promise<number> {
     if (fallback === null) throw error;
     return fallback;
   }
+  // Concurrency: an update may have begun while this launch was reading the installed payload.
+  const afterMaterialization = await launchDuringUpdate();
+  if (afterMaterialization !== null) return afterMaterialization;
   await stateStore.recordCandidate(candidate);
   state = await stateStore.read();
   if (!state.references.active) {
@@ -211,8 +226,7 @@ export async function runBootstrap(options: BootstrapOptions): Promise<number> {
     selected = await readMaterializedRelease(decision.releaseRoot);
   }
 
-  const startup = await startSupervisor(selected, environment);
-  await waitForVerifiedEndpoint(resolveCohortEndpoint(paths, selected.releaseId, environment).endpointMetadataPath, selected, 8_000, startup);
+  await ensureSupervisor(selected, environment);
   return await launchUi(selected, environment, sessionArgs);
 }
 
@@ -234,13 +248,7 @@ async function launchRetainedActive(
   if (!active || active.approval !== "approved") return null;
   try {
     const retained = await readCertifiedReleaseManifest(active, resolve(paths.dataDir, "releases"));
-    const retainedPaths = resolveCohortEndpoint(paths, retained.releaseId, environment);
-    const endpoint = await readEndpointMetadata(retainedPaths.endpointMetadataPath);
-    if (!endpoint || await probeOwnership(endpoint) !== "live-verified") {
-      if (endpoint) await removeEndpointArtifacts(retainedPaths.endpointMetadataPath, retainedPaths.endpoint);
-      const startup = await startSupervisor(retained, environment);
-      await waitForVerifiedEndpoint(retainedPaths.endpointMetadataPath, retained, 8_000, startup);
-    }
+    await ensureSupervisor(retained, environment);
     output.write(`${PRODUCT_TEXT.diagnostic(`installation is being replaced; starting the retained release ${retained.packageVersion}`)}\n`);
     return await launchUi(retained, environment, sessionArgs);
   } catch {
@@ -279,6 +287,26 @@ export async function recordParentCertifiedRelease(release: MaterializedRelease,
 
 export interface SupervisorStartupAttempt extends SupervisorStartupAttemptIdentity {
   readonly childOutcome: Promise<{ readonly exitCode: number | null; readonly signal: NodeJS.Signals | null }>;
+}
+
+/** Reuse a verified owner, or join the winner if another launch starts the same cohort first. */
+export async function ensureSupervisor(release: MaterializedRelease, environment: NodeJS.ProcessEnv): Promise<void> {
+  const paths = resolveCohortEndpoint(resolveProductPaths(environment), release.releaseId, environment);
+  const metadata = await readEndpointMetadata(paths.endpointMetadataPath);
+  if (metadata) {
+    const probe = await probeOwnership(metadata);
+    if (probe !== "dead") {
+      if (probe === "live-verified" && endpointMatchesRelease(metadata, release)) return;
+      throw new Error(PRODUCT_TEXT.diagnostic(`refused duplicate supervisor startup: existing ownership is ${probe}`));
+    }
+  }
+  const startup = await startSupervisor(release, environment);
+  await waitForVerifiedEndpoint(paths.endpointMetadataPath, release, 8_000, startup);
+}
+
+function endpointMatchesRelease(metadata: SupervisorEndpointMetadata, release: MaterializedRelease): boolean {
+  return metadata.releaseId === release.releaseId && metadata.releaseRoot === release.releaseRoot
+    && metadata.contentDigest === release.contentDigest;
 }
 
 export async function startSupervisor(release: MaterializedRelease, environment: NodeJS.ProcessEnv): Promise<SupervisorStartupAttempt> {
@@ -341,24 +369,29 @@ export async function waitForVerifiedEndpoint(
 ): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   let childOutcome: { readonly exitCode: number | null; readonly signal: NodeJS.Signals | null } | null = null;
+  let collision: Error | null = null;
   void startup?.childOutcome.then(outcome => { childOutcome = outcome; });
   while (Date.now() < deadline) {
     const metadata = await readEndpointMetadata(path);
-    if (metadata && metadata.releaseId === release.releaseId && await probeOwnership(metadata) === "live-verified") {
+    if (metadata && endpointMatchesRelease(metadata, release) && await probeOwnership(metadata) === "live-verified") {
       if (startup) await rm(startup.resultPath, { force: true });
       return;
     }
     if (startup) {
       const result = await readSupervisorStartupResult(startup.resultPath, startup.attemptId, startup.releaseId);
       if (result?.outcome === "failure") {
-        throw Object.assign(new Error(PRODUCT_TEXT.diagnostic(`supervisor startup failed at ${result.stage}: ${result.message}`)), {
+        const error = Object.assign(new Error(PRODUCT_TEXT.diagnostic(`supervisor startup failed at ${result.stage}: ${result.message}`)), {
           code: result.code ?? "SUPERVISOR_STARTUP_FAILED",
         });
+        if (result.code !== "EADDRINUSE") throw error;
+        // Concurrency: the winning process may not have published its authenticated metadata yet.
+        collision = error;
       }
     }
-    if (childOutcome) throw new Error(PRODUCT_TEXT.diagnostic(`supervisor exited before readiness: ${JSON.stringify(childOutcome)}`));
+    if (childOutcome && !collision) throw new Error(PRODUCT_TEXT.diagnostic(`supervisor exited before readiness: ${JSON.stringify(childOutcome)}`));
     await new Promise(resolvePromise => setTimeout(resolvePromise, 40));
   }
+  if (collision) throw collision;
   throw new Error(PRODUCT_TEXT.diagnostic(`supervisor did not publish verified endpoint metadata within ${timeoutMs}ms`));
 }
 
@@ -451,8 +484,7 @@ async function activatePendingAfterBlockerExit(
   if (!await releaseVerifiedIdleOwner(endpoint, paths.dataDir)) return;
   await removeEndpointArtifacts(paths.endpointMetadataPath, paths.endpoint);
   await stateStore.activate(candidate.releaseId);
-  const startup = await startSupervisor(candidate, environment);
-  await waitForVerifiedEndpoint(resolveCohortEndpoint(paths, candidate.releaseId, environment).endpointMetadataPath, candidate, 8_000, startup);
+  await ensureSupervisor(candidate, environment);
 }
 
 export async function releaseVerifiedIdleOwner(

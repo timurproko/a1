@@ -50,7 +50,7 @@ describe("mutable bootstrap boundary", () => {
     const restartRead = bootstrap.indexOf("await readRestartCertifiedRelease");
     const completeFallback = bootstrap.indexOf("await readMaterializedRelease(active.releaseRoot");
     const supervisorStart = bootstrap.indexOf('"replacement-supervisor-start"');
-    const start = bootstrap.indexOf("await startSupervisor(retained");
+    const start = bootstrap.indexOf("await ensureSupervisor(retained", supervisorStart);
 
     expect(validationStart).toBeGreaterThan(0);
     expect(restartRead).toBeGreaterThan(validationStart);

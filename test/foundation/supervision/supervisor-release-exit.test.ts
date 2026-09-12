@@ -1,9 +1,10 @@
 import { randomUUID } from "node:crypto";
-import { mkdtemp, readFile, rename, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { releaseVerifiedIdleOwner } from "../../../src/foundation/release/index.js";
+import { ensureSupervisor, probeOwnership, readEndpointMetadata, releaseVerifiedIdleOwner, waitForVerifiedEndpoint } from "../../../src/foundation/release/index.js";
+import { createSupervisorStartupAttempt, publishSupervisorStartupResult, resolveProductPaths, supervisorStartupFailure } from "../../../src/foundation/lifecycle/index.js";
 import type { SupervisorEndpointMetadata } from "../../../src/foundation/release/index.js";
 import type { MaterializedRelease } from "../../../src/foundation/release/index.js";
 import { ControlStore } from "../../../src/foundation/storage/index.js";
@@ -49,6 +50,80 @@ describe("supervisor endpoint metadata publication", () => {
     expect(replace).toHaveBeenCalledOnce();
     expect(wait).not.toHaveBeenCalled();
     await expect(readFile(`${path}.${process.pid}.tmp`, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+  });
+});
+
+describe("competing supervisor startup", () => {
+  it("admits one owner when two cold starts race", async () => {
+    const root = await mkdtemp(resolve(tmpdir(), "a1-supervisor-cold-race-"));
+    cleanupRoots.push(root);
+    const paths = resolveProductPaths({ A1_DATA_DIR: root, A1_ENDPOINT: process.platform === "win32"
+      ? `\\\\.\\pipe\\a1-cold-race-${randomUUID()}` : resolve(tmpdir(), `a1-cr-${randomUUID().slice(0, 8)}.sock`) });
+    if (process.platform !== "win32") cleanupRoots.push(paths.endpoint);
+    const contenders = ["one", "two"].map(nonce => new SupervisorServer(new ControlStore(":memory:", nonce), paths, release(), nonce));
+    try {
+      const results = await Promise.allSettled(contenders.map(server => server.listen()));
+      expect(results.filter(result => result.status === "fulfilled")).toHaveLength(1);
+      for (let index = 0; index < results.length; index++) {
+        if (results[index]!.status === "rejected") await contenders[index]!.close(true);
+      }
+      const owner = await readEndpointMetadata(paths.endpointMetadataPath);
+      expect(owner).not.toBeNull();
+      expect(await probeOwnership(owner!)).toBe("live-verified");
+    } finally {
+      await Promise.all(contenders.map(server => server.close()));
+    }
+  });
+
+  it("preserves the winning endpoint and reuses it after the losing startup closes", async () => {
+    const root = await mkdtemp(resolve(tmpdir(), "a1-supervisor-race-"));
+    cleanupRoots.push(root);
+    const environment = { A1_DATA_DIR: root, A1_RUNTIME_DIR: resolve(root, "runtime"), A1_ENDPOINT: process.platform === "win32"
+      ? `\\\\.\\pipe\\a1-race-${randomUUID()}` : resolve(tmpdir(), `a1-race-${randomUUID().slice(0, 8)}.sock`) };
+    const paths = resolveProductPaths(environment);
+    if (process.platform !== "win32") cleanupRoots.push(paths.endpoint);
+    const winner = new SupervisorServer(new ControlStore(":memory:", "winner"), paths, release());
+    const loser = new SupervisorServer(new ControlStore(":memory:", "loser"), paths, release());
+    try {
+      await winner.listen();
+      const before = await readFile(paths.endpointMetadataPath, "utf8");
+      await expect(loser.listen()).rejects.toMatchObject({ code: "EADDRINUSE" });
+      await loser.close(true);
+      await loser.close(true);
+      expect(await readFile(paths.endpointMetadataPath, "utf8")).toBe(before);
+      const metadata = await readEndpointMetadata(paths.endpointMetadataPath);
+      expect(await probeOwnership(metadata!)).toBe("live-verified");
+      await expect(ensureSupervisor(release(), environment)).resolves.toBeUndefined();
+
+      const attempt = await createSupervisorStartupAttempt(paths.runtimeDir, release().releaseId);
+      await publishSupervisorStartupResult(attempt.resultPath, supervisorStartupFailure(
+        Object.assign(new Error("competing owner"), { code: "EADDRINUSE" }), attempt.attemptId, attempt.releaseId, "endpoint-listen",
+      ));
+      await expect(waitForVerifiedEndpoint(paths.endpointMetadataPath, release(), 500, {
+        ...attempt, childOutcome: Promise.resolve({ exitCode: 1, signal: null }),
+      })).resolves.toBeUndefined();
+      expect(await readFile(paths.endpointMetadataPath, "utf8")).toBe(before);
+
+      // Concurrency: a losing child can exit before the winner finishes publishing metadata.
+      await rm(paths.endpointMetadataPath);
+      await publishSupervisorStartupResult(attempt.resultPath, supervisorStartupFailure(
+        Object.assign(new Error("winner still publishing"), { code: "EADDRINUSE" }), attempt.attemptId, attempt.releaseId, "endpoint-listen",
+      ));
+      const publication = new Promise<void>(resolvePromise => setTimeout(resolvePromise, 80))
+        .then(async () => { await writeFile(paths.endpointMetadataPath, before); });
+      try {
+        await expect(waitForVerifiedEndpoint(paths.endpointMetadataPath, release(), 1_000, {
+          ...attempt, childOutcome: Promise.resolve({ exitCode: 1, signal: null }),
+        })).resolves.toBeUndefined();
+      } finally {
+        await publication;
+      }
+      await expect(waitForVerifiedEndpoint(paths.endpointMetadataPath, { ...release(), contentDigest: "b".repeat(64) }, 50))
+        .rejects.toThrow("did not publish verified endpoint");
+    } finally {
+      await loser.close().catch(() => undefined);
+      await winner.close();
+    }
   });
 });
 

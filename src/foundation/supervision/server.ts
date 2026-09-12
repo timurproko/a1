@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { chmod, lstat, mkdir, rename, rm, writeFile } from "node:fs/promises";
+import { chmod, lstat, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { createConnection, createServer, type Server, type Socket } from "node:net";
 import { platform } from "node:os";
 import { dirname } from "node:path";
@@ -67,6 +67,7 @@ export class SupervisorServer {
   readonly startedAt = new Date().toISOString();
   readonly paths: ProductPaths;
   #server: Server | null = null;
+  #ownsEndpoint = false;
   #instances = new Map<string, LaunchInstance>();
   #instanceOwners = new Map<string, Socket>();
   #clientIds = new Map<Socket, string>();
@@ -118,14 +119,23 @@ export class SupervisorServer {
     await mkdir(this.paths.endpointsDir, { recursive: true, mode: 0o700 });
     if (platform() !== "win32") {
       if (this.paths.endpointDirectory) await ensureManagedEndpointDirectory(dirname(this.paths.endpoint));
-      if (await endpointIsLive(this.paths.endpoint)) throw new Error(PRODUCT_TEXT.diagnostic(`supervisor already owns ${this.paths.endpoint}`));
-      await rm(this.paths.endpoint, { force: true });
+      const existing = await lstat(this.paths.endpoint).catch(error => {
+        if (error.code === "ENOENT") return null;
+        throw error;
+      });
+      if (existing) {
+        if (await endpointIsLive(this.paths.endpoint)) {
+          throw Object.assign(new Error(PRODUCT_TEXT.diagnostic(`supervisor already owns ${this.paths.endpoint}`)), { code: "EADDRINUSE" });
+        }
+        await rm(this.paths.endpoint, { force: true });
+      }
     }
     const server = createServer(socket => this.#attach(socket));
     this.#server = server;
     await new Promise<void>((resolve, reject) => {
       server.once("error", reject);
       server.listen(this.paths.endpoint, () => {
+        this.#ownsEndpoint = true;
         server.off("error", reject);
         resolve();
       });
@@ -159,19 +169,33 @@ export class SupervisorServer {
   }
 
   async close(stopAgents = false): Promise<void> {
-    if (stopAgents && !await this.#drainInstances("update", this.shutdownDeadlineMs)) {
+    if (this.#closing) return;
+    if (stopAgents && this.#ownsEndpoint && !await this.#drainInstances("update", this.shutdownDeadlineMs)) {
       throw new Error("active launch instances did not release ownership within the shutdown deadline");
     }
     this.#closing = true;
     if (this.#supersededPoll) clearInterval(this.#supersededPoll);
     this.#supersededPoll = null;
     for (const client of this.#clients) client.destroy();
-    if (this.#server) await new Promise<void>(resolve => this.#server?.close(() => resolve()));
-    this.#server = null;
-    this.store.close();
-    await this.#metadataWrites;
-    await rm(this.paths.endpointMetadataPath, { force: true });
-    if (platform() !== "win32") await rm(this.paths.endpoint, { force: true });
+    try {
+      await this.#metadataWrites.catch(() => undefined);
+      if (this.#ownsEndpoint) {
+        // Concurrency: remove only our publication, before releasing the listening endpoint.
+        // A contender that failed to bind must never erase the successful owner's discovery file.
+        const metadata = await readFile(this.paths.endpointMetadataPath, "utf8").then(source => JSON.parse(source)).catch(() => null);
+        if (metadata?.supervisorId === this.id && metadata.bootNonce === this.bootNonce) {
+          await rm(this.paths.endpointMetadataPath, { force: true });
+        }
+        // Platform: Node unlinks its Unix socket when the server closes; unlinking it early would
+        // let a replacement bind before the old server finishes releasing that path.
+      }
+    } finally {
+      // Platform: a metadata sharing error must not leave a bound but undiscoverable listener.
+      if (this.#server) await new Promise<void>(resolve => this.#server?.close(() => resolve()));
+      this.#server = null;
+      this.#ownsEndpoint = false;
+      this.store.close();
+    }
   }
 
   async closeForReleaseReplacement(stopAgents: boolean): Promise<void> {
@@ -472,6 +496,7 @@ export class SupervisorServer {
   }
 
   #writeEndpointMetadata(): Promise<void> {
+    if (this.#closing) return Promise.resolve();
     const liveInstanceIds = this.#liveInstanceIds();
     const metadata = {
       schema: PRODUCT_IDENTITY.protocol.supervisorSchema,
