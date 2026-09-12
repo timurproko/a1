@@ -1215,8 +1215,15 @@
       "localDestination": "src/integrations/pi/components/upstream/components/owned-editor.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "A1-owned class name and synchronized A1 keybinding contract replace the nominal private upstream keybinding constructor dependency; bare A1 also adds a semantic prompt prefix and transient contextual-suggestion branch.",
-      "approvedDeviations": [],
+      "modifications": "A1-owned class name and synchronized A1 keybinding contract replace the nominal private upstream keybinding constructor dependency; bare A1 also adds a semantic prompt prefix, transient contextual-suggestion branch, and explicit body height for above-prompt autocomplete composition.",
+      "approvedDeviations": [
+        {
+          "id": "above-prompt-autocomplete-placement",
+          "reason": "The accepted show-autocomplete-above-prompt change moves the existing menu above bare A1's input without changing either editor implementation or completion semantics.",
+          "upstreamBehavior": "The comparison editor retains pinned below-input row order. Bare A1 moves the complete existing menu after body decoration and uses its body offset for pointer routing; sizing, pagination, history, and key handling remain unchanged.",
+          "acceptanceTest": "test/integrations/pi/components/editor-autocomplete-placement.test.ts"
+        }
+      ],
       "behaviorCategories": [
         "editor",
         "autocomplete",
@@ -1239,7 +1246,7 @@
         "test/integrations/pi/components/shell-components.test.ts",
         "test/integrations/pi/session-ui/session-shell.test.ts"
       ],
-      "localSha256": "c5e873f191899e9ca0b8ce507f5916fad8d465b191683efcb92cbd437ffad8fb"
+      "localSha256": "9cc1b430e67994fdcb262a83c2c81fc44aedbebd65dd4c2300525a6bef647c38"
     },
     {
       "id": "pi-coding-agent:src/modes/interactive/components/custom-entry",

@@ -231,6 +231,142 @@ async function nextImmediate(): Promise<void> {
 }
 
 describe("OwnedUiSessionShell", () => {
+  it.each([false, true])("anchors slash autocomplete above the shell input (history=%s)", async persistent => {
+    const history = memoryHistory();
+    const { shell, terminal } = await fixture([], [], true, undefined, undefined, undefined, undefined, undefined,
+      persistent ? { store: history.store, limit: 100 } : undefined);
+    try {
+      terminal.resize(80, 24);
+      const position = () => {
+        const rows = shell.root.render(80);
+        const prompt = rows.findIndex(row => stripTerminalSequences(row).startsWith("❯ "));
+        return { prompt, upper: prompt - 1, lower: prompt + 1,
+          cursor: rows.findIndex(row => row.includes(CURSOR_MARKER)), footer: rows.slice(-2) };
+      };
+      const closed = position();
+      terminal.input("/");
+      await nextImmediate(); await nextImmediate();
+      expect(shell.root.render(80).join("\n")).toContain("settings");
+      expect(position()).toEqual(closed);
+      terminal.input("mo");
+      await nextImmediate(); await nextImmediate();
+      expect(position()).toEqual(closed);
+      terminal.input("\u001b");
+      expect(position()).toEqual(closed);
+    } finally { await shell.dispose(); }
+  });
+
+  it.each([false, true].flatMap(history => ["empty", "long", "detached", "streaming"].map(state => ({ history, state }))))(
+    "paints stable autocomplete checkpoints ($state, history=$history)", async ({ history, state }) => {
+      const messages = state === "empty" ? [] : Array.from({ length: 40 }, (_, index) => ({
+        role: "assistant", content: [{ type: "text", text: `settled paragraph ${index}` }], timestamp: index + 1,
+      }));
+      const saved = memoryHistory();
+      const { shell, terminal, engine, adapter } = await fixture(messages, [], true, undefined, undefined, undefined, undefined, undefined,
+        history ? { store: saved.store, limit: 100 } : undefined);
+      try {
+        terminal.resize(80, 24);
+        shell.root.setExtensionWidget("above", { render: () => ["above widget"], invalidate() {} }, "aboveEditor");
+        shell.root.setExtensionWidget("below", { render: () => ["below widget"], invalidate() {} }, "belowEditor");
+        if (state === "streaming") { engine.session.emit({ type: "agent_start" }); await adapter.flushEvents(); }
+        shell.runtime.renderNow();
+        if (state === "detached") terminal.input("\u001b[<64;20;3M");
+        const checkpoints: Array<{ writeEnd: number; columns: number; rows: number }> = [];
+        const expected: Array<{ rows: string[]; cursorRow: number }> = [];
+        const capture = async () => {
+          await nextImmediate(); await nextImmediate(); shell.runtime.renderNow();
+          const frame = shell.root.render(terminal.columns);
+          checkpoints.push({ writeEnd: terminal.writes.length, columns: terminal.columns, rows: terminal.rows });
+          expected.push({ rows: frame.map(row => stripTerminalSequences(row).trimEnd()),
+            cursorRow: frame.findIndex(row => row.includes(CURSOR_MARKER)) + 1 });
+          return expected.at(-1)!;
+        };
+        const before = await capture();
+        const detachedTop = shell.root.viewportPresentationEvidence().scrollTop;
+        terminal.input("/");
+        await capture();
+        expect(shell.root.editor.bodyGeometry!().rowOffset).toBeGreaterThan(0);
+        if (state === "detached") {
+          expect(shell.root.viewportFrameDescriptor()?.followingEnd).toBe(false);
+          expect(shell.root.viewportPresentationEvidence().scrollTop).toBe(detachedTop);
+        }
+        if (state !== "streaming") {
+          const work = shell.root.viewportCompositionEvidence();
+          terminal.input("\u001b[B"); await nextImmediate(); await nextImmediate();
+          expect(shell.root.viewportCompositionEvidence().full).toBe(work.full);
+          expect(shell.root.viewportCompositionEvidence().dockOnly).toBeGreaterThan(work.dockOnly);
+        }
+        await capture();
+        terminal.input("mo"); await capture();
+        terminal.input("\u007f"); terminal.input("\u007f"); await capture();
+        terminal.input("zzzz-no-match"); await capture();
+        expect(shell.root.editor.bodyGeometry!().rowOffset).toBe(0);
+        shell.root.editor.setText(""); terminal.input("/"); await capture();
+        if (state === "streaming") {
+          const message = { role: "assistant", content: [{ type: "text", text: "new streamed reply" }], timestamp: 100 };
+          engine.session.emit({ type: "message_start", message });
+          engine.session.emit({ type: "message_end", message });
+          await adapter.flushEvents(); await capture();
+        }
+        terminal.input("\u001b"); await capture();
+        for (const frame of expected) {
+          expect(frame.cursorRow).toBe(before.cursorRow);
+          expect(frame.rows.slice(before.cursorRow)).toEqual(before.rows.slice(before.cursorRow));
+        }
+        terminal.resize(40, 12); await capture();
+        terminal.input("\u007f"); terminal.input("/"); await capture();
+        terminal.input("\u001b"); await capture();
+        const writes = terminal.writes.map((data, atMs) => ({ data, atMs }));
+        const painted = await replayTerminalCheckpoints(writes, checkpoints);
+        for (const [index, frame] of painted.entries()) {
+          expect(frame.rows.map(row => row.trimEnd()), `checkpoint ${index}`).toEqual(expected[index]!.rows);
+          expect(frame.cursor.row, `cursor ${index}`).toBe(expected[index]!.cursorRow);
+        }
+      } finally { await shell.dispose(); }
+    });
+
+  it.each([false, true])("routes autocomplete body pointers and restores extension editors (history=%s)", async persistent => {
+    const history = memoryHistory();
+    const copied: string[] = [];
+    const readText = vi.fn(async () => "clipboard text");
+    const { shell, terminal, engine } = await fixture([], [], true, undefined, { readText, writeText: async text => { copied.push(text); } },
+      undefined, undefined, undefined, persistent ? { store: history.store, limit: 100 } : undefined);
+    try {
+      terminal.resize(80, 24);
+      terminal.input("/"); terminal.input("mo"); await nextImmediate(); await nextImmediate();
+      const frame = shell.root.render(80);
+      const row = frame.findIndex(line => stripTerminalSequences(line).startsWith("❯ ")) + 1;
+      const menuRow = row - 2;
+      expect(shell.root.editor.bodyGeometry!().rowOffset).toBeGreaterThan(0);
+      terminal.input(`\u001b[<0;3;${menuRow}M`);
+      terminal.input(`\u001b[<32;6;${row}M`);
+      terminal.input(`\u001b[<0;6;${row}m`);
+      expect(shell.root.hasActiveSelection()).toBe(false);
+      terminal.input(`\u001b[<2;3;${menuRow}M`);
+      terminal.input(`\u001b[<2;3;${menuRow}m`);
+      expect(readText).not.toHaveBeenCalled();
+      expect(shell.root.editor.getText()).toBe("/mo");
+      terminal.input(`\u001b[<0;3;${row}M`);
+      terminal.input(`\u001b[<32;6;${row}M`);
+      terminal.input(`\u001b[<0;6;${row}m`);
+      expect(shell.root.hasActiveSelection()).toBe(true);
+      terminal.input("\u0003"); await nextImmediate();
+      expect(copied).toEqual(["/mo"]);
+      const ui = (engine.session.extensionBindings as { uiContext: ExtensionUIContext }).uiContext;
+      ui.setEditorComponent(tui => new Editor(tui, {
+        borderColor: text => text,
+        selectList: { selectedPrefix: text => text, selectedText: text => text, description: text => text, scrollInfo: text => text, noMatch: text => text },
+      }));
+      expect(shell.root.usesDefaultInputSurface()).toBe(false);
+      expect(shell.root.render(80).some(line => stripTerminalSequences(line).startsWith("❯ "))).toBe(false);
+      ui.setEditorComponent(undefined);
+      shell.root.editor.setText(""); terminal.input("/"); await nextImmediate(); await nextImmediate();
+      const restored = shell.root.render(80);
+      expect(restored.findIndex(line => stripTerminalSequences(line).startsWith("❯ ")) + 1).toBe(row);
+      expect(shell.root.editor.bodyGeometry!().rowOffset).toBeGreaterThan(0);
+    } finally { await shell.dispose(); }
+  });
+
   it("quietly recovers combined history contention and a 16,384-update assistant/tool burst with interactive input", async () => {
     const root = await mkdtemp(join(tmpdir(), "combined-history-pressure-"));
     const options = { dataDir: root, profileRoot: join(root, "profile"), limit: 100 };
