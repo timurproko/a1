@@ -166,15 +166,40 @@ work.
 
 ## Cutting a stable release
 
-From a clean `develop` matching its remote:
+From the repository root on clean `develop` matching `origin/develop`:
 
 ```sh
-npm run release -- patch     # or minor, major, or an exact x.y.z
+npm run release -- patch     # 0.1.8-dev -> 0.1.8; already-stable 0.1.8 -> 0.1.9
+npm run release -- minor     # 0.1.8-dev -> 0.2.0
+npm run release -- major     # 0.1.8-dev -> 1.0.0
+npm run release -- 0.4.0     # exact stable target
 ```
 
-The command lands `x.y.z` through its version pull request, explicitly dispatches
-stable publication for that exact current `origin/develop` commit, and waits. Only
-after success does it land `x.y.(z+1)-dev`.
+A target is required: `npm run release` alone is a mutation-free usage error.
+`patch` preserves prerelease-aware semantics, including `0.1.8-dev.123 -> 0.1.8`.
+The command reports its source, stable target, and prospective reopening before
+preparing anything.
+
+1. The stable-version edit is committed in an owned detached worktree beneath
+   `.worktrees/`. Only this package's manifest and root lockfile version change.
+2. Follow the printed PR URL, wait for required CI, perform local validation, and
+   **merge manually after acceptance**. The helper does not merge PRs or enable
+   auto-merge. It polls for actual merge with a bounded 30-minute wait.
+3. The helper verifies the merged version and source SHA against authoritative
+   develop, then explicitly dispatches stable publication for that exact source.
+   A changed source is an error, not permission to substitute a newer commit.
+4. Only after verified publication of `0.1.8` does it prepare a separate PR for
+   `0.1.9-dev`. Validate and manually merge that PR as well. Until then the helper
+   reports development reopening as incomplete.
+
+Closed PRs, timeout, cancellation, and query failures retain identifiable phase
+work for inspection. Conflicting existing branches/PRs are not overwritten;
+matching pending PRs can be observed again without replacing them. Worktrees
+retained by an earlier attempt are not removed by a later invocation. Cleanup
+only removes clean, owned, confirmed-merged phase worktrees and unchanged remote
+phase branches. The caller is never hard-reset: a final fast-forward is attempted
+only when its branch, original HEAD, and cleanliness remain unchanged. Otherwise
+preserve local work and synchronize manually with the reported remote state.
 
 Stable publication builds the process guardian on all supported platforms, packs
 once, runs the complete suite against those exact bytes on Windows, Linux, and
@@ -200,8 +225,21 @@ Rules that do not bend:
   path, and use the confirmed apply mode only for an accepted mutable policy change.
 - **Nightly documentation review fails:** inspect the reported paths and rules, identify the introducing merge from the nightly interval, and repair the invariant before unrelated work proceeds.
 - **Development publication fails:** fix the cause and rerun `npm run develop`; an npm version that already exists is never overwritten.
-- **Stable publication fails before npm accepts bytes:** no tag, release, or moved branch exists. Fix the cause and release the next version.
-- **Stable publication is uncertain after npm accepted bytes:** stop and inspect registry version, digest, tag, and release. Never republish immutable bytes.
+- **Stable preparation stops before dispatch:** inspect the reported version PR/worktree. After preserving work, an exact matching pending PR can be observed again. If develop already declares the prepared stable version, use its exact target (for example `npm run release -- 0.1.8`) only after verifying that source's merged PR and confirming the registry/tag guards still permit it. Do not use `patch` from stable develop to retry the same version: that deliberately selects the next patch.
+- **Stable publication fails or is uncertain:** inspect the workflow, registry version/digest, tag, and release before choosing recovery. No reopening PR is prepared. Never republish immutable bytes or move a release tag.
+- **Stable publication succeeded but reopening stops:** the stable version is already published. Inspect and finish the reported next-development PR manually; do not repeat stable publication. If no reopening PR was created, prepare the next-development version through a separately validated manual PR after inspecting remote state.
+
+## Safe release-command validation
+
+Use the isolated harness rather than a live release to validate changes to this command:
+
+```sh
+npm exec --no -- vitest run test/repository-governance/release-target.test.ts test/repository-governance/release-command.test.ts --maxWorkers=1 --minWorkers=1
+```
+
+It uses disposable local Git repositories and fake GitHub, registry, and publication
+services. It does not publish a package or create production version PRs. A real
+release remains a separate deliberate operation.
 
 ## Branch protection rationale
 

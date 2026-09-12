@@ -35,6 +35,7 @@
         "test/integrations/pi/session-ui/command-outcome-parity.test.ts"
       ],
       "exclude": [
+        "test/repository-governance/release-command.test.ts",
         "test/cli/update-cli.test.ts",
         "test/features/launch/development-launch.test.ts",
         "test/features/launch/exact-pi-entry.integration.test.ts",
@@ -215,7 +216,8 @@
     "release-update": {
       "kind": "vitest-files",
       "tests": [
-        "test/foundation/release/update-transition.integration.test.ts"
+        "test/foundation/release/update-transition.integration.test.ts",
+        "test/repository-governance/release-command.test.ts"
       ]
     },
     "update-performance": {

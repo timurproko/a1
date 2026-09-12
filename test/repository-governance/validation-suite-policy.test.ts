@@ -102,6 +102,8 @@ describe("validation suite ownership", () => {
       "test/integrations/pi/session-ui/command-outcome-parity.test.ts",
     ]);
     expect(Object.keys(suites.tiers["fast"]!).filter(key => key.toLowerCase().includes("timeout"))).toEqual([]);
+    expect(suites.tiers["fast"]!.exclude).toContain("test/repository-governance/release-command.test.ts");
+    expect(suites.scopes["release-update"]!.tests).toContain("test/repository-governance/release-command.test.ts");
     expect(suites.scopes["typecheck"]!.commands?.map(command => command.id)).toEqual(["typecheck"]);
     expect(suites.scopes["architecture"]!.commands?.map(command => command.id)).toEqual(["architecture"]);
     expect(suites.scopes["package-smoke"]!.tests).toEqual([
