@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync, statSync, truncateSyn
 import { tmpdir } from "node:os";
 import { DatabaseSync } from "node:sqlite";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { PromptHistoryStore } from "../../../src/features/prompt-history/store.js";
 import { resolvePromptHistoryPath, PromptHistoryService } from "../../../src/features/prompt-history/index.js";
 import { type PromptHistorySubmission } from "../../../src/contracts/owned-ui/index.js";
@@ -19,6 +19,25 @@ function open(path = join(root(), "history.sqlite3"), limit = 100) { const value
 const prompt = (id: string, text = id): PromptHistorySubmission => ({ id, text, timestamp: 1, kind: "prompt" });
 
 describe("profile history store", () => {
+  it.each([false, true])("reports truthful certainty when COMMIT acknowledgement is lost (committed=%s)", committed => {
+    const store = open();
+    store.record(prompt("seed"));
+    const before = store.snapshot().revision;
+    const original = DatabaseSync.prototype.exec;
+    const intercept = vi.spyOn(DatabaseSync.prototype, "exec").mockImplementation(function (this: DatabaseSync, sql: string) {
+      if (sql === "COMMIT") {
+        if (committed) original.call(this, sql);
+        throw Object.assign(new Error("private SQL sentinel"), { errcode: 5 });
+      }
+      return original.call(this, sql);
+    });
+    try {
+      expect(() => store.record(prompt("candidate"))).toThrow(expect.objectContaining({ code: "busy", certainty: committed ? "unknown" : "uncommitted" }));
+    } finally { intercept.mockRestore(); }
+    expect(store.snapshot().revision).toBe(before + (committed ? 1 : 0));
+    expect(store.snapshot().entries.map(entry => entry.submissionId)).toEqual(committed ? ["candidate", "seed"] : ["seed"]);
+  });
+
   it("keeps exact unique text in committed recency order across writers and reopen", () => {
     const path = join(root(), "history.sqlite3");
     const first = open(path); const second = open(path);

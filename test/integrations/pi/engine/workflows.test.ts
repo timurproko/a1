@@ -467,6 +467,34 @@ describe("pinned Pi command and input workflows", () => {
     await adapter.dispose();
   });
 
+  it("lets quit finish disposal while silently cancelling another admitted workflow", async () => {
+    let finishRead!: (text: string) => void;
+    const read = new Promise<string>(resolve => { finishRead = resolve; });
+    const { adapter, runtime } = await fixture(host({ readChangelog: () => read }));
+    let finishDispose!: () => void;
+    const disposing = new Promise<void>(resolve => { finishDispose = resolve; });
+    vi.spyOn(runtime, "dispose").mockImplementation(() => disposing);
+    const other = adapter.executeWorkflow({ command: "changelog", argument: "" });
+    let quitSettled = false;
+    const quit = adapter.executeWorkflow({ command: "quit", argument: "" }).then(result => {
+      quitSettled = true;
+      return result;
+    });
+    try {
+      await expect(other).resolves.toMatchObject({ outcome: "cancelled", message: "", messageKind: "silent" });
+      expect(quitSettled).toBe(false);
+      expect(adapter.view().lifecycle).toBe("stopping");
+      expect(adapter.deliveryDiagnostics().pendingCommands).toBe(1);
+      finishDispose();
+      await expect(quit).resolves.toMatchObject({ outcome: "completed", message: "Shutdown complete" });
+      expect(adapter.view().lifecycle).toBe("stopped");
+      expect(adapter.deliveryDiagnostics().pendingCommands).toBe(0);
+    } finally {
+      finishRead("late changelog"); finishDispose();
+      await quit;
+    }
+  });
+
   it("publishes model refresh progress before completion and discards late results after disposal", async () => {
     const { adapter, runtime } = await fixture();
     let finish!: (value: unknown) => void;

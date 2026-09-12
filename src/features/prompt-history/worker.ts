@@ -1,7 +1,7 @@
 import { parentPort, workerData } from "node:worker_threads";
 import { setTimeout as delay } from "node:timers/promises";
 import type { PromptHistorySubmission } from "../../contracts/owned-ui/index.js";
-import { PromptHistoryStore, classifyHistoryError } from "./store.js";
+import { HistoryStorageError, PromptHistoryStore, classifyHistoryError } from "./store.js";
 
 export type HistoryWorkerRequest = { id: number; kind: "read" | "close" } | { id: number; kind: "record"; submission: PromptHistorySubmission };
 const port = parentPort;
@@ -20,7 +20,10 @@ if (port !== null) {
         }
         const value = await retry(() => request.kind === "record" ? store!.record(request.submission) : store!.snapshot());
         port.postMessage({ id: request.id, ok: true, value });
-      } catch (error) { port.postMessage({ id: request.id, ok: false, code: classifyHistoryError(error) }); }
+      } catch (error) {
+        port.postMessage({ id: request.id, ok: false, code: classifyHistoryError(error),
+          certainty: error instanceof HistoryStorageError ? error.certainty : "unknown" });
+      }
     });
   });
 }
@@ -30,7 +33,9 @@ async function retry<T>(operation: () => T): Promise<T> {
   for (;;) {
     try { return operation(); }
     catch (error) {
-      if (classifyHistoryError(error) !== "busy" || performance.now() >= deadline) throw error;
+      if (classifyHistoryError(error) !== "busy"
+        || error instanceof HistoryStorageError && error.certainty === "unknown"
+        || performance.now() >= deadline) throw error;
       await delay(25);
     }
   }
