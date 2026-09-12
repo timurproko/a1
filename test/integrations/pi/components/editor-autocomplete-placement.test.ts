@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { CURSOR_MARKER, stripTerminalSequences, visibleWidth, type AutocompleteProvider } from "#pi-tui";
 import { describe, expect, it } from "vitest";
 import { createPiShellEditor, loadHistoryEditor, type PiShellEditorOptions } from "../../../../src/integrations/pi/components/index.js";
-import { applyPiTheme, currentPiThemeName } from "../../../../src/integrations/pi/components/theme.js";
+import { applyPiTheme, currentPiThemeName, piTheme } from "../../../../src/integrations/pi/components/theme.js";
 
 import { replayTerminalBackgroundCells } from "../../../support/rendering/terminal-paint-evidence.js";
 
@@ -42,7 +42,8 @@ function parts(editor: ReturnType<typeof createPiShellEditor>, width: number) {
   expect(body.rowOffset).toBeGreaterThanOrEqual(0);
   expect(rows.length).toBe(body.rowOffset + body.rowCount);
   if (body.rowOffset > 0) {
-    expect(stripTerminalSequences(rows[0]!)).toBe("─".repeat(width));
+    expect(stripTerminalSequences(rows[0]!)).toMatch(/^(?:─+|─── \d+\/\d+ ─*)$/u);
+    expect(visibleWidth(rows[0]!)).toBe(width);
     expect(body.rowOffset).toBeGreaterThan(1);
   }
   return { rows, menu: rows.slice(body.rowOffset > 0 ? 1 : 0, body.rowOffset), body: rows.slice(body.rowOffset), geometry: body };
@@ -89,9 +90,8 @@ describe.each([false, true])("above-prompt autocomplete (history=%s)", history =
           for (const width of [12, 40, 80]) {
             const frame = parts(editor, width);
             const border = frame.body[0]!;
-            // Compatibility: the prompt prefix extends the border with a second color run.
-            expect(frame.rows[0]).toBe(border.slice(0, border.indexOf("─"))
-              + "─".repeat(width) + border.slice(border.lastIndexOf("─") + 1));
+            expect(frame.rows[0]!.slice(0, frame.rows[0]!.indexOf("─"))).toBe(border.slice(0, border.indexOf("─")));
+            expect(frame.rows[0]).toContain(piTheme().fg("dim", "1/12 "));
             colors.add(frame.rows[0]!.replace(/─/gu, ""));
             expect(await replayTerminalBackgroundCells([
               { data: frame.rows.join("\r\n"), atMs: 0 },
@@ -106,7 +106,7 @@ describe.each([false, true])("above-prompt autocomplete (history=%s)", history =
       expect(bash.rows[0]!.split("─")[0]).toBe(bash.body[0]!.split("─")[0]);
       height(10); editor.handleInput?.("\u001b"); editor.setText("line\n".repeat(14)); editor.handleInput?.("@");
       await expect.poll(() => parts(editor, 40).menu.length).toBeGreaterThan(0);
-      expect(stripTerminalSequences(parts(editor, 40).rows[0]!)).toBe("─".repeat(40));
+      expect(stripTerminalSequences(parts(editor, 40).rows[0]!)).toBe("─── 1/12 " + "─".repeat(31));
       editor.handleInput?.("\u001b");
       expect(parts(editor, 40).geometry.rowOffset).toBe(0);
     } finally { applyPiTheme(originalTheme); await dispose(); }
@@ -175,7 +175,13 @@ describe.each([false, true])("above-prompt autocomplete (history=%s)", history =
             height(8);
             const actual = parts(editor, width);
             const expected = reference.editor.render(width - 2).slice(3).map(row => `  ${row}`);
+            const counter = limit < items.length ? expected.pop() : undefined;
             expect(actual.menu).toEqual(expected);
+            if (counter !== undefined) {
+              const value = /^\((\d+\/\d+)\)$/u.exec(stripTerminalSequences(counter).trim())?.[1];
+              if (value !== undefined) expect(actual.rows[0]).toContain(piTheme().fg("dim", `${value} `));
+              else expect(stripTerminalSequences(actual.rows[0]!)).toBe("─".repeat(width));
+            } else expect(stripTerminalSequences(actual.rows[0]!)).toBe("─".repeat(width));
           }
           for (const target of [editor, reference.editor]) {
             target.activateKeybindings(); target.handleInput?.("\u001b[B");
@@ -183,11 +189,48 @@ describe.each([false, true])("above-prompt autocomplete (history=%s)", history =
         }
         // Compatibility: keep the existing active-list setting semantics as well as future-list sizing.
         editor.setAutocompleteMaxVisible(8); reference.editor.setAutocompleteMaxVisible(8);
-        expect(parts(editor, 80).menu).toEqual(reference.editor.render(78).slice(3).map(row => `  ${row}`));
+        const referenceRows = reference.editor.render(78).slice(3).map(row => `  ${row}`);
+        if (limit < items.length) referenceRows.pop();
+        expect(parts(editor, 80).menu).toEqual(referenceRows);
         for (const target of [editor, reference.editor]) target.handleInput?.("\t");
         expect(editor.getText()).toBe(reference.editor.getText());
       }
     } finally { await dispose(); await reference.dispose(); }
+  });
+
+  it("relocates the counter without stale values, duplicate rows, or narrow-width overflow", async () => {
+    const { editor, dispose } = await fixture(history);
+    try {
+      if (history) {
+        editor.recall!.replace(["saved"]); editor.handleInput?.("\u001b[A");
+        const recalled = editor.render(80)[0]!;
+        expect(stripTerminalSequences(recalled).indexOf("History")).toBe(4);
+        expect(recalled).toContain(piTheme().fg("dim", "History 1/1 "));
+      }
+      editor.setText(""); editor.addAutocompleteProvider(() => provider); editor.handleInput?.("@");
+      await expect.poll(() => parts(editor, 80).menu.length).toBe(5);
+      expect(parts(editor, 80).geometry.rowOffset).toBe(6);
+      expect(parts(editor, 80).rows[0]).toContain(piTheme().fg("dim", "1/12 "));
+      editor.handleInput?.("\u001b[B");
+      expect(stripTerminalSequences(parts(editor, 80).rows[0]!)).toBe("─── 2/12 " + "─".repeat(71));
+      expect(parts(editor, 80).menu.join("\n")).not.toContain("(2/12)");
+      for (const width of [6, 8, 12, 80]) {
+        const frame = parts(editor, width);
+        expect(frame.menu).toHaveLength(5);
+        if (width < 9) expect(stripTerminalSequences(frame.rows[0]!)).toBe("─".repeat(width));
+        else expect(frame.rows[0]).toContain("2/12");
+      }
+      editor.handleInput?.("\u001b");
+      editor.addAutocompleteProvider(() => ({ ...provider, getSuggestions: async () => ({ prefix: "@", items: [
+        { value: "one", label: "(1/24)", description: "counter-like candidate" },
+      ] }) }));
+      editor.setText(""); editor.handleInput?.("@");
+      await expect.poll(() => parts(editor, 80).menu.length).toBe(1);
+      expect(stripTerminalSequences(parts(editor, 80).rows[0]!)).toBe("─".repeat(80));
+      expect(parts(editor, 80).menu[0]).toContain("(1/24)");
+      editor.handleInput?.("\u001b");
+      expect(parts(editor, 80).geometry.rowOffset).toBe(0);
+    } finally { await dispose(); }
   });
 
   it("keeps body-relative pointer selection, copy, custom keys, Tab, and Enter intact", async () => {
@@ -233,8 +276,13 @@ describe.each([false, true])("above-prompt autocomplete (history=%s)", history =
       }));
       editor.handleInput?.("@");
       await expect.poll(() => parts(editor, 80).menu.length).toBeGreaterThan(0);
+      expect(parts(editor, 80).rows[0]).toContain("1/12");
       editor.handleInput?.("a");
       await expect.poll(() => typeof deliver).toBe("function");
+      deliver({ prefix: "@", items: items.slice(0, 8) });
+      await expect.poll(() => parts(editor, 80).rows[0]).toContain("1/8");
+      editor.handleInput?.("b");
+      await expect.poll(() => requests).toBe(3);
       editor.handleInput?.("\u001b");
       deliver({ prefix: "@", items }); await settle();
       expect(parts(editor, 80).menu).toHaveLength(0);

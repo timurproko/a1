@@ -3,6 +3,7 @@ import {
   CombinedAutocompleteProvider,
   matchesKey,
   setKeybindings,
+  visibleWidth,
   type AutocompleteProvider,
 } from "#pi-tui";
 import { PROMPT_HISTORY_EDITOR_REPLACEMENT, type OwnedUiThinkingLevel } from "../../../contracts/owned-ui/index.js";
@@ -61,10 +62,20 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
   if (options.persistentHistory === true && options.keybindingProfile === "a1" && options.historyEditor === undefined) {
     throw new Error("Persistent history requires the loaded owned editor");
   }
+  const scrollInfo: { emitted: boolean; counter: string | undefined } = { emitted: false, counter: undefined };
+  const selectListTheme = getSelectListTheme();
   const EditorClass = options.keybindingProfile === "a1" && options.persistentHistory === true ? options.historyEditor! : OwnedEditor;
   const editor: ShellEditorInstance = new EditorClass(tui, {
     borderColor: (value: string) => piTheme().fg("borderMuted", value),
-    selectList: getSelectListTheme(),
+    selectList: options.keybindingProfile !== "a1" ? selectListTheme : {
+      ...selectListTheme,
+      scrollInfo: text => {
+        // Protocol: the pinned list emits its final counter row through this callback.
+        scrollInfo.emitted = true;
+        scrollInfo.counter = /^  \((\d+\/\d+)\)$/u.exec(text)?.[1];
+        return selectListTheme.scrollInfo(text);
+      },
+    },
   }, keybindings, {
     paddingX: PINNED_PI_LAYOUT.editorPaddingX,
     autocompleteMaxVisible: PINNED_PI_LAYOUT.autocompleteMaxVisible,
@@ -167,11 +178,19 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
   return {
     ...(editorUx === undefined ? {} : { bodyGeometry: () => bodyGeometry }),
     render: width => {
+      scrollInfo.emitted = false;
+      scrollInfo.counter = undefined;
       const rows = editorUx?.render(width) ?? editor.render(width);
       if (editorUx === undefined) return rows;
       const rowCount = editor.getRenderedBodyRowCount();
-      const menu = rows.slice(rowCount);
-      const topLine = menu.length === 0 ? [] : [editor.borderColor("─".repeat(width))];
+      const menu = rows.slice(rowCount, scrollInfo.emitted ? -1 : undefined);
+      const label = scrollInfo.counter === undefined ? "" : `${scrollInfo.counter} `;
+      // Compatibility: match the history border's four-cell inset and dim label style.
+      const border = label.length > 0 && 4 + visibleWidth(label) <= width
+        ? editor.borderColor("─── ") + piTheme().fg("dim", label)
+          + editor.borderColor("─".repeat(width - 4 - visibleWidth(label)))
+        : editor.borderColor("─".repeat(width));
+      const topLine = menu.length === 0 ? [] : [border];
       bodyGeometry = { rowOffset: topLine.length + menu.length, rowCount };
       // Invariant: decorate/select in body coordinates first, then move the whole menu.
       // Completion state, sizing, styles, and pagination still belong to the editor.

@@ -52,9 +52,13 @@ its own `core` facade layer; A1 is a product, so the port adapts imports and kee
   `src/integrations/pi/components/upstream/components/owned-editor.ts` exposes its
   border-inclusive body height using the existing atomic-aware layout boundary;
   `shell-editor-autocomplete.ts` moves rows only after prefix/selection decoration
-  and adds one plain top line using the editor's current border-color function.
-  The accepted refinement (#343) restores this line instead of panel shading;
-  candidate/pagination ANSI styling and padding remain unchanged. The line is
+  and adds one top line using the editor's current border-color function.
+  The accepted refinement (#343) restores this line instead of panel shading.
+  The user-approved review refinement in #344 moves the existing trailing counter
+  into that line without parentheses, at the history-label inset and in the same dim
+  color. The select-list `scrollInfo` callback identifies its final counter row;
+  private selection state and rendered-frame parsing are not used. Counter meaning
+  and visibility remain unchanged, and candidate ANSI styling/padding stay intact. The line is
   included in the body offset, disappears with the menu, and is non-text chrome.
   Theme/mode/resize tests verify matching line color and width; terminal background
   replay verifies the menu has no added shading.

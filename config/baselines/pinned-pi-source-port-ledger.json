@@ -1220,7 +1220,7 @@
         {
           "id": "above-prompt-autocomplete-placement",
           "reason": "The accepted show-autocomplete-above-prompt change moves the existing menu above bare A1's input with a matching top line, without changing either editor implementation or completion semantics.",
-          "upstreamBehavior": "The comparison editor retains pinned below-input row order. Bare A1 moves the complete existing menu after body decoration, adds one line matching the prompt border color/width, and includes that row in the body offset for pointer routing. Candidate backgrounds, padding, sizing, pagination, history, and key handling remain unchanged; no panel shading is applied.",
+          "upstreamBehavior": "The comparison editor retains pinned below-input row order. Bare A1 moves the complete existing menu after body decoration, adds one line matching the prompt border color/width, and relocates the existing counter into that line at the history-label inset in dim color without parentheses or a duplicate trailing row. The select-list presentation callback supplies counter-row ownership; body offsets include only the resulting rows. Candidate backgrounds, padding, sizing, selection-window semantics, history, and key handling remain unchanged; no panel shading is applied.",
           "acceptanceTest": "test/integrations/pi/components/editor-autocomplete-placement.test.ts"
         }
       ],

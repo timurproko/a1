@@ -3,7 +3,7 @@
 ### Requirement: Default-editor autocomplete grows above a stable prompt
 Bare A1 SHALL render the default editor's autocomplete list immediately above the editor's upper border, after any above-editor widgets, rather than below the editor. At unchanged terminal dimensions, editor text layout, and other dock content, opening, closing, filtering, paging, or asynchronously updating autocomplete SHALL NOT change the terminal rows occupied by the editor borders, prompt text, caret, below-editor widgets, or footer. The menu SHALL consume space upward from the transcript viewport, not from below the prompt, and SHALL NOT reserve empty menu rows after it closes.
 
-While the menu has rendered rows, bare A1 SHALL render exactly one horizontal line immediately above it, after above-editor widgets and without a blank spacer. The line SHALL match the input prompt border's horizontal glyph, full rendered width, and current color, including theme or editor-mode color changes. It SHALL contain no history or scroll labels. The existing prompt upper border SHALL remain between the menu and input. The top line SHALL be included in the upward allocation and body offset so its appearance or disappearance does not move the input or footer. The menu SHALL retain its original background and padding; no panel shading SHALL be added.
+While the menu has rendered rows, bare A1 SHALL render exactly one horizontal line immediately above it, after above-editor widgets and without a blank spacer. The line SHALL match the input prompt border's horizontal glyph, full rendered width, and current color, including theme or editor-mode color changes. It SHALL contain no copied history or editor-scroll labels. When the existing completion list emits its trailing counter, bare A1 SHALL instead show that counter in the top line as `1/24`, without parentheses, at the history border label's four-cell inset and in its dim color. The original counter row SHALL be removed without a blank replacement. Counter values, updates, and visibility conditions SHALL remain those of the existing list; fitting lists without a counter retain a plain top line. If a complete counter cannot be obtained or fitted at a narrow width, its label SHALL be omitted rather than misrepresented. The existing prompt upper border SHALL remain between the menu and input. The top line SHALL be included in the upward allocation and body offset so its appearance or disappearance does not move the input or footer. The menu SHALL retain its original background and padding; no panel shading SHALL be added.
 
 The list and its top line SHALL remain transient, non-transcript presentation. It SHALL NOT enter scrollback history, transcript selection, copied prompt text, or submitted text. Changes unrelated to autocomplete, including prompt wrapping, terminal resizing, and widget or footer height changes, SHALL retain their existing reflow behavior.
 
@@ -15,10 +15,16 @@ The list and its top line SHALL remain transient, non-transcript presentation. I
 
 #### Scenario: Match the menu top line to the prompt
 - **WHEN** the default editor displays autocomplete, including after a theme, editor-mode color, or terminal-width change
-- **THEN** exactly one plain horizontal line SHALL appear directly above the suggestions with the prompt border's current color, glyph, and width
+- **THEN** exactly one horizontal line SHALL appear directly above the suggestions with the prompt border's current color, glyph, and width
 - **AND** the original prompt upper border SHALL remain below the suggestions
-- **AND** the top line SHALL NOT replace a candidate or pagination row
-- **AND** candidate and pagination rows SHALL retain their original background and padding without menu-panel shading
+- **AND** the top line SHALL NOT replace any candidate row
+- **AND** candidate rows SHALL retain their original background and padding without menu-panel shading
+
+#### Scenario: Relocate the existing completion counter
+- **WHEN** the existing list would display a trailing counter such as `(1/24)`
+- **THEN** the same value SHALL appear as `1/24` in the top line at the history label inset and in the same dim color
+- **AND** the trailing counter row SHALL be absent, not duplicated or left blank
+- **AND** navigation, filtering, and asynchronous results SHALL update the top counter using the existing list semantics without moving the prompt
 
 #### Scenario: Filter and dismiss suggestions
 - **WHEN** filtering reduces or grows the visible list without changing prompt wrapping, or Escape or a no-match result closes it
@@ -50,7 +56,7 @@ The list and its top line SHALL remain transient, non-transcript presentation. I
 ### Requirement: Above-prompt autocomplete preserves existing sizing and input geometry
 Moving autocomplete above the input SHALL preserve the existing menu size limits, selection window, pagination, and `autocompleteMaxVisible` setting behavior. The existing terminal clipping and resize policy SHALL remain in force. This placement change SHALL NOT introduce a terminal-space-derived item limit, a one-row menu mode, special zero-capacity completion state, or a different pagination policy.
 
-Rendering, cursor placement, prompt selection, and pointer hit regions SHALL agree on the editor body's actual position. Menu rows and the top line SHALL NOT be interpreted as prompt text or exposed transcript rows. The decorative line SHALL add one dock row without modifying completion-item limits or pagination. Resizing or changing the visible list height SHALL update affected geometry in the same frame.
+Rendering, cursor placement, prompt selection, and pointer hit regions SHALL agree on the editor body's actual position. Menu rows and the top line SHALL NOT be interpreted as prompt text or exposed transcript rows. The decorative line SHALL absorb the existing counter row when present, or add one dock row when absent, without modifying completion-item limits or selection-window behavior. Resizing or changing the visible list height SHALL update affected geometry in the same frame.
 
 #### Scenario: Resize with autocomplete visible
 - **WHEN** the terminal is resized while autocomplete is open
