@@ -24,7 +24,9 @@ import {
   type OwnedUiSessionShellOptions,
 } from "../../../../src/integrations/pi/session-ui/index.js";
 import { TestPresentationTerminal } from "../../../features/owned-ui/neutral-port-doubles.js";
-import { classifyTerminalPaint, replayTerminalBackgroundCells } from "../../../support/rendering/terminal-paint-evidence.js";
+import { classifyTerminalPaint, replayTerminalBackgroundCells, replayTerminalCheckpoints, replayTerminalPaint } from "../../../support/rendering/terminal-paint-evidence.js";
+import { withPiParityColorMode } from "../../../support/pi-terminal-capabilities.js";
+import { BottomHoverEvidence, classifyBottomHoverFinding, type BottomHoverState } from "../../../support/rendering/bottom-hover-evidence.js";
 import type {
   OwnedUiPromptSuggestionGeneratorPort,
   OwnedUiViewportSettings,
@@ -929,6 +931,184 @@ describe("OwnedUiSessionShell", () => {
     await shell.dispose();
     expect(terminal.writes.some(write => write.includes("[?1003l"))).toBe(true);
   });
+
+  it.each([true, false])("paints the first editor-then-hover frame with hovered=%s", async hovered => {
+    await withPiParityColorMode("truecolor", async () => {
+      applyPiTheme("dark", false, "truecolor");
+      const messages = Array.from({ length: 20 }, (_, index) => ({
+        role: "assistant", content: [{ type: "text", text: `hover-row-${index}` }], timestamp: index + 1,
+      }));
+      const scheduler = new InputImmediateScheduler();
+      const { shell, terminal } = await fixture(messages, [], true, undefined, undefined, undefined, { scheduler });
+      try {
+        terminal.resize(60, 16);
+        shell.runtime.renderNow();
+        const row = shell.root.viewportFrameDescriptor()!.transcript!.rowEnd;
+        terminal.input(`\u001b[<64;${hovered ? 1 : 30};${row}M`);
+        // Invariant: setup ends here. No diagnostic render is allowed after the interleaving.
+        await nextImmediate();
+        const before = terminal.writes.length;
+        terminal.input("x");
+        terminal.input(`\u001b[<35;${hovered ? 30 : 1};${row}M`);
+        await nextImmediate();
+        const firstPaint = terminal.writes.findIndex((write, index) => index >= before && write.includes("\u001b[?2026h"));
+        expect(firstPaint).toBeGreaterThanOrEqual(before);
+        const writes = terminal.writes.slice(0, firstPaint + 1).map((data, atMs) => ({ data, atMs }));
+        const cells = await replayTerminalBackgroundCells(writes, { columns: 60, rows: 16 });
+        // Provenance: the oracle is the pinned dark truecolor palette, not the production hover predicate.
+        expect(cells.find(cell => cell.row === row && cell.column === 30)).toMatchObject({
+          mode: "rgb", color: hovered ? 0x3a3a4a : 0x282832,
+        });
+        const [painted] = await replayTerminalCheckpoints(writes, [{ columns: 60, rows: 16, writeEnd: writes.length }]);
+        expect(painted!.rows.slice(row).some(line => line.includes("x"))).toBe(true);
+        expect(shell.root.editor.getText()).toBe("x");
+        const reuseBefore = shell.root.viewportCompositionEvidence();
+        const settledRenders = shell.root.transcriptRenderCount();
+        const nextStart = terminal.writes.length;
+        terminal.input("y"); scheduler.flush(); await nextImmediate();
+        expect(shell.root.viewportCompositionEvidence()).toEqual({ full: reuseBefore.full, dockOnly: reuseBefore.dockOnly + 1 });
+        expect(shell.root.transcriptRenderCount()).toBe(settledRenders);
+        const dockPaint = classifyTerminalPaint(terminal.writes.slice(nextStart).map((data, atMs) => ({ data, atMs })));
+        expect(dockPaint.fullScreenClears).toBe(0);
+        expect(dockPaint.addressedRowWrites.every(paintedRow => paintedRow > row)).toBe(true);
+        const nextCells = await replayTerminalBackgroundCells(terminal.writes.map((data, atMs) => ({ data, atMs })), { columns: 60, rows: 16 });
+        expect(nextCells.find(cell => cell.row === row && cell.column === 30)?.color).toBe(hovered ? 0x3a3a4a : 0x282832);
+      } finally { await shell.dispose(); }
+    }, { hyperlinks: false });
+  });
+
+  it.each([60, 192].flatMap(columns => ["none", "assistant", "tool"].map(stream => ({
+    columns, rows: columns === 60 ? 16 : 54, stream,
+  }))))("paints scroll-only hover checkpoints at $columns x $rows during $stream output", async ({ columns, rows, stream }) => {
+    await withPiParityColorMode("truecolor", async () => {
+      applyPiTheme("dark", false, "truecolor");
+      const messages = Array.from({ length: 80 }, (_, index) => ({
+        role: "assistant", content: [{ type: "text", text: `settled-hover-${index}` }], timestamp: index + 1,
+      }));
+      const { shell, terminal, engine, adapter } = await fixture(messages, [], true);
+      const trace = new BottomHoverEvidence({ enabled: true });
+      const checkpoints: Array<{ name: string; end: number; start: number; expected: boolean | null; state: BottomHoverState }> = [];
+      const paintedStates = new Map<number, BottomHoverState>();
+      const route = shell.root.handleViewportPreInput.bind(shell.root);
+      const inputSpy = vi.spyOn(shell.root, "handleViewportPreInput").mockImplementation((data, allowWheel, now) => {
+        const routed = route(data, allowWheel, now);
+        trace.input(data, routed.consumed, shell.root.viewportPresentationEvidence());
+        return routed;
+      });
+      const writeSpy = vi.spyOn(terminal, "write").mockImplementation(data => {
+        terminal.writes.push(data);
+        if (!data.includes("\u001b[?2026h")) return;
+        const state = shell.root.viewportPresentationEvidence();
+        paintedStates.set(terminal.writes.length, state);
+        trace.composition(state);
+      });
+      let captured: string[] = [];
+      try {
+        terminal.resize(columns, rows);
+        shell.runtime.renderNow();
+        await nextImmediate();
+        vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout", "setInterval", "clearInterval"] });
+        const tick = async (ms = 16) => { await nextImmediate(); await vi.advanceTimersByTimeAsync(ms); };
+        const assistant = (text: string, stopReason = "pending") => ({
+          role: "assistant", content: [{ type: "text", text }], timestamp: 900, stopReason,
+        });
+        if (stream !== "none") {
+          engine.session.emit({ type: "agent_start" });
+          engine.session.emit(stream === "assistant"
+            ? { type: "message_start", message: assistant("stream begins") }
+            : { type: "tool_execution_start", toolCallId: "hover-tool", toolName: "bash", args: { command: "fixture" } });
+          await adapter.flushEvents(); await tick();
+        }
+        const row = shell.root.viewportFrameDescriptor()!.transcript!.rowEnd;
+        const column = Math.floor(columns / 2);
+        const mouse = (code: number, x = column) => terminal.input(`\u001b[<${code};${x};${row}M`);
+        let chunks = 0;
+        const burst = async () => {
+          if (stream === "none") return;
+          for (let index = 0; index < 3; index++) {
+            const text = Array.from({ length: ++chunks }, (_, line) => `stream line ${line}`).join("\n");
+            engine.session.emit(stream === "assistant"
+              ? { type: "message_update", message: assistant(text), assistantMessageEvent: { type: "text_delta", delta: text } }
+              : { type: "tool_execution_update", toolCallId: "hover-tool", toolName: "bash", partialResult: { content: [{ type: "text", text }] } });
+            await adapter.flushEvents();
+          }
+        };
+        const checkpoint = async (name: string, expected: boolean | null, action: () => void | Promise<void>) => {
+          const start = terminal.writes.length;
+          await action(); await tick();
+          const firstPaint = terminal.writes.findIndex((data, index) => index >= start && data.includes("\u001b[?2026h"));
+          expect(firstPaint, name).toBeGreaterThanOrEqual(start);
+          const end = firstPaint + 1;
+          const state = paintedStates.get(end)!;
+          expect(state.composedRevision, name).toBe(state.currentRevision);
+          expect(state.composedPointer, name).toEqual(state.currentPointer);
+          checkpoints.push({ name, end, start, expected, state });
+        };
+        // Invariant: no editor input; streaming bursts precede hover, wheel reports own hide/reveal.
+        await checkpoint("wheel-reveal", true, () => mouse(64));
+        let top = shell.root.viewportPresentationEvidence().scrollTop;
+        await checkpoint("hover-leave-with-stream-pending", false, async () => { await burst(); mouse(35, 1); });
+        expect(shell.root.viewportPresentationEvidence().scrollTop).toBe(top);
+        await checkpoint("hover-enter-with-stream-pending", true, async () => { await burst(); mouse(35); });
+        expect(shell.root.viewportPresentationEvidence().scrollTop).toBe(top);
+        for (let cycle = 0; cycle < 2; cycle++) {
+          await checkpoint(`stationary-hide-${cycle}`, null, () => {
+            const state = shell.root.viewportPresentationEvidence();
+            for (let step = 0; step < Math.ceil((state.maxScroll - state.scrollTop) / 3); step++) mouse(65);
+          });
+          await checkpoint(`stationary-reveal-${cycle}`, true, () => mouse(64));
+        }
+        if (stream !== "none") {
+          // Concurrency: advance status and coalescer timers without sending another pointer report.
+          await checkpoint("spinner-and-stream-flush", true, () => tick(85));
+          top = shell.root.viewportPresentationEvidence().scrollTop;
+          await checkpoint("completion", true, async () => {
+            engine.session.emit(stream === "assistant"
+              ? { type: "message_end", message: assistant(Array.from({ length: chunks }, (_, line) => `stream line ${line}`).join("\n"), "stop") }
+              : { type: "tool_execution_end", toolCallId: "hover-tool", toolName: "bash", result: { content: [{ type: "text", text: Array.from({ length: chunks }, (_, line) => `stream line ${line}`).join("\n") }] }, isError: false });
+            await adapter.flushEvents();
+          });
+          expect(shell.root.viewportPresentationEvidence().scrollTop).toBe(top);
+        }
+        expect(shell.root.editor.getText()).toBe("");
+        captured = [...terminal.writes];
+      } finally {
+        inputSpy.mockRestore(); writeSpy.mockRestore();
+        await shell.dispose(); vi.useRealTimers();
+      }
+      const writes = captured.map((data, atMs) => ({ data, atMs }));
+      for (const point of checkpoints) {
+        const prefix = writes.slice(0, point.end);
+        const cells = await replayTerminalBackgroundCells(prefix, { columns, rows });
+        const target = cells.find(cell => cell.row === point.state.bottom?.row && cell.column === Math.floor(columns / 2));
+        if (point.expected === null) expect(point.state.bottom, point.name).toBeNull();
+        else expect(target, point.name).toMatchObject({ mode: "rgb", color: point.expected ? 0x3a3a4a : 0x282832 });
+        trace.paint(point.state, point.expected === null ? null : target?.color === 0x3a3a4a);
+        const damage = classifyTerminalPaint(writes.slice(point.start, point.end));
+        if (point.name.startsWith("hover-")) {
+          expect(damage.fullScreenClears, point.name).toBe(0);
+          // Concurrency: damage from changing transcript/status rows is independent of hover.
+          if (stream === "none") expect(damage.addressedRowWrites, point.name).toEqual([point.state.bottom!.row]);
+        }
+        const [text] = await replayTerminalCheckpoints(prefix, [{ columns, rows, writeEnd: prefix.length }]);
+        if (point.expected === null) expect(text!.rows.join("\n")).not.toContain("Jump to bottom");
+        else expect(text!.rows.join("\n")).toMatch(/Jump to bottom|new message/);
+      }
+      // Performance: replay one real hover transaction token-by-token in both synchronization modes.
+      // Whole-session backgrounds above use complete-write replay; replaying every ANSI
+      // token in every wheel full-frame would add irrelevant per-token timer overhead.
+      const transition = checkpoints.find(point => point.name.startsWith("hover-"))!;
+      const hoverWrites = writes.slice(transition.start, transition.end);
+      const honored = await replayTerminalPaint(hoverWrites, { columns, rows, synchronizedUpdates: "honor" });
+      const ignored = await replayTerminalPaint(hoverWrites, { columns, rows, synchronizedUpdates: "ignore" });
+      expect(honored.final).toEqual(ignored.final);
+      const evidence = trace.snapshot();
+      expect(evidence.truncated).toBe(false);
+      expect(evidence.events.some(event => event.phase === "input" && event.mouse?.kind === "motion")).toBe(true);
+      expect(classifyBottomHoverFinding({ complete: !evidence.truncated, failureObserved: false,
+        reportObserved: true, compositionMatches: true, paintMatches: true })).toBe("inconclusive");
+    }, { hyperlinks: false });
+  }, 20_000);
 
   it("hovers the first reappearing bottom-control frame beneath a stationary cursor", async () => {
     const messages = Array.from({ length: 20 }, (_, index) => ({
