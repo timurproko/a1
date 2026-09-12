@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   certifyMaterializedRelease,
+  dependencyLayerCertificationPath,
   materializeRelease,
   readCertifiedReleaseManifest,
   readMaterializedRelease,
@@ -61,7 +62,7 @@ describe("durable restart certification", () => {
 
     const layerFixture = await certifiedFixture(1);
     const layer = layerFixture.release.dependencyLayers![0]!;
-    const layerCertification = resolve(layerFixture.dataDir, `dependency-layer-certification-${layer.layerId}.json`);
+    const layerCertification = dependencyLayerCertificationPath(layerFixture.dataDir, layer.layerId);
     await chmod(layerCertification, 0o600);
     await expect(readRestartCertifiedRelease(layerFixture.record, layerFixture.dataDir)).rejects.toThrow(/path evidence changed|file is writable/);
 
@@ -101,7 +102,7 @@ describe("durable restart certification", () => {
   it("upgrades certification written by the immediately preceding updater before supervisor readiness", async () => {
     const fixture = await certifiedFixture(1);
     const layer = fixture.release.dependencyLayers![0]!;
-    const layerCertificationPath = resolve(fixture.dataDir, `dependency-layer-certification-${layer.layerId}.json`);
+    const layerCertificationPath = dependencyLayerCertificationPath(fixture.dataDir, layer.layerId);
     const currentLayerCertification = JSON.parse(await readFile(layerCertificationPath, "utf8")) as Record<string, unknown>;
     const { platform: _platform, platformPolicy: _platformPolicy, ...legacyLayerCertification } = currentLayerCertification;
     await chmod(layerCertificationPath, 0o600);
