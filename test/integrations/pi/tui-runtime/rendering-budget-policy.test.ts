@@ -25,12 +25,15 @@ function paint(overrides: Partial<TerminalPaintClassification> = {}): TerminalPa
 }
 
 function chunk(overrides: Partial<RenderingMatrixCheckpoint> = {}): RenderingMatrixCheckpoint {
-  return {
+  const checkpoint = {
     name: "long-tail-chunk-1",
     paint: paint(),
     cellFrame: { rows: ["content"], cursor: { row: 1, column: 1 } },
     ...overrides,
   };
+  return { ...checkpoint, writePaints: [{ writeIndex: 0, paint: checkpoint.paint,
+    ...(checkpoint.damageDecision === undefined ? {} : { damageDecision: checkpoint.damageDecision }),
+  }] };
 }
 
 function matrix(chunks: readonly RenderingMatrixCheckpoint[]): RenderingMatrixResult {
@@ -51,7 +54,7 @@ function matrix(chunks: readonly RenderingMatrixCheckpoint[]): RenderingMatrixRe
   });
   // Rationale: comparison producers never enter the A1 damage path, so their checkpoints
   // carry no decision; only bare A1 receives the workload's chunk fixtures.
-  const comparison = chunks.map(({ damageDecision: _drop, ...rest }) => rest);
+  const comparison = chunks.map(({ damageDecision: _drop, writePaints: _writes, ...rest }) => rest);
   return {
     schema: "a1-rendering-stability-matrix-v1",
     workloadId: "long-transcript-follow",

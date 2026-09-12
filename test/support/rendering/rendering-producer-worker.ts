@@ -15,7 +15,7 @@ import {
 import { applyPiTheme } from "../../../src/integrations/pi/components/index.js";
 import { createPiEngineAdapter } from "../../../src/integrations/pi/engine/index.js";
 import { OwnedUiSessionShell } from "../../../src/integrations/pi/session-ui/index.js";
-import type { PiTuiTerminalPort } from "../../../src/integrations/pi/tui-runtime/index.js";
+import { RecordingRenderingTerminal as RecordingTerminal } from "./recording-rendering-terminal.js";
 import type { TranscriptViewportFrameDescriptor } from "../../../src/ui/components/index.js";
 import type {
   RenderingProducerCheckpoint,
@@ -42,6 +42,7 @@ async function runOwned(
     terminal,
     ...(producerRequest.producer === "bare-a1" ? { sessionLayout: "custom-viewport" as const } : {}),
   });
+  terminal.observeDamageDecisions(() => shell.damagePresentationDecision());
   const checkpoints: RenderingProducerCheckpoint[] = [];
   try {
     terminal.setClock(0, "initial");
@@ -126,32 +127,6 @@ async function runPinned(
   } finally {
     tui.stop({ preserveScreen: true });
   }
-}
-
-class RecordingTerminal implements PiTuiTerminalPort {
-  readonly kittyProtocolActive = false;
-  readonly writes: Array<{ data: string; atMs: number; cause?: string }> = [];
-  #input: ((data: string) => void) | undefined;
-  #resize: (() => void) | undefined;
-  #atMs = 0;
-  #cause: string | undefined;
-
-  constructor(public columns: number, public rows: number) {}
-  setClock(atMs: number, cause: string): void { this.#atMs = atMs; this.#cause = cause; }
-  start(input: (data: string) => void, resize: () => void): void { this.#input = input; this.#resize = resize; }
-  stop(): void { this.#input = undefined; this.#resize = undefined; }
-  async drainInput(): Promise<void> {}
-  write(data: string): void { this.writes.push({ data, atMs: this.#atMs, ...(this.#cause === undefined ? {} : { cause: this.#cause }) }); }
-  input(data: string): void { this.#input?.(data); }
-  resize(columns: number, rows: number): void { this.columns = columns; this.rows = rows; this.#resize?.(); }
-  moveBy(lines: number): void { if (lines > 0) this.write(`\u001b[${lines}B`); else if (lines < 0) this.write(`\u001b[${-lines}A`); }
-  hideCursor(): void { this.write("\u001b[?25l"); }
-  showCursor(): void { this.write("\u001b[?25h"); }
-  clearLine(): void { this.write("\u001b[K"); }
-  clearFromCursor(): void { this.write("\u001b[J"); }
-  clearScreen(): void { this.write("\u001b[2J\u001b[H"); }
-  setTitle(): void {}
-  setProgress(): void {}
 }
 
 class ScriptedSession {
