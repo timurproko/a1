@@ -862,6 +862,7 @@ describe("Pi engine adapter", () => {
     await adapter.flushEvents();
     for (let index = 0; index < 2_048; index += 1) session.emit({ type: "agent_start" });
     expect(await adapter.execute(command("abort", "during-overload"))).toEqual({ outcome: "rejected", diagnostic: null });
+    expect(await adapter.executeWorkflow({ command: "quit", argument: "" })).toMatchObject({ outcome: "cancelled", message: "", messageKind: "silent" });
     await expect(adapter.flushEvents()).rejects.toThrow("Engine delivery did not complete");
 
     expect(events.length).toBeLessThanOrEqual(1_100);

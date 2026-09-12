@@ -345,7 +345,7 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
   #invalidatedEvents = 0;
   readonly #pendingCommands = new Map<string, { type: OwnedUiCommand["type"]; cancel(): void }>();
   readonly #reservedOutcomes = new Map<string, AdapterCommandResult>();
-  readonly #pendingWorkflows = new Set<() => void>();
+  readonly #pendingWorkflows = new Set<{ command: PiWorkflowRequest["command"]; cancel(): void }>();
   #agentRunActive = false;
   #agentRunSequence = 0;
   #assistantResponseSequence = 0;
@@ -1284,15 +1284,16 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
   }
 
   async executeWorkflow(request: PiWorkflowRequest): Promise<PiWorkflowResult> {
-    const cancelled = workflowResult(request.command, "cancelled", "");
+    const cancelled = workflowResult(request.command, "cancelled", "", undefined, "silent");
     if (this.#overload !== undefined || this.#admissionStopped || this.#disposed
       || this.#pendingCommands.size + this.#pendingWorkflows.size >= 32) return cancelled;
     let cancel!: () => void;
     const cancellation = new Promise<PiWorkflowResult>(resolve => { cancel = () => resolve(cancelled); });
-    this.#pendingWorkflows.add(cancel); this.#runningCommands++;
+    const pending = { command: request.command, cancel };
+    this.#pendingWorkflows.add(pending); this.#runningCommands++;
     const operation = this.#runWorkflow(request).finally(() => { this.#runningCommands--; });
     try { return await Promise.race([operation, cancellation]); }
-    finally { this.#pendingWorkflows.delete(cancel); }
+    finally { this.#pendingWorkflows.delete(pending); }
   }
 
   async #runWorkflow(request: PiWorkflowRequest): Promise<PiWorkflowResult> {
@@ -1408,7 +1409,8 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
     if (this.#disposed) return;
     this.#disposed = true;
     for (const pending of this.#pendingCommands.values()) if (pending.type !== "shutdown") pending.cancel();
-    for (const cancel of this.#pendingWorkflows) cancel();
+    // Compatibility: /quit owns normal disposal and must report its actual completion, not cancel itself.
+    for (const pending of this.#pendingWorkflows) if (pending.command !== "quit") pending.cancel();
     this.#transcriptImageAssets.clear();
     this.#extensionBound = false;
     this.#extensionUi = undefined;
@@ -2833,7 +2835,7 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
     // Concurrency: reserve before cancellation; outcomes produced reentrantly must not enter the saturated queue.
     this.#overload = Promise.resolve(false);
     for (const pending of this.#pendingCommands.values()) pending.cancel();
-    for (const cancel of this.#pendingWorkflows) cancel();
+    for (const pending of this.#pendingWorkflows) pending.cancel();
     const session = this.#session;
     this.#overload = new Promise<boolean>(resolve => {
       const timer = setTimeout(() => resolve(false), 2000);
