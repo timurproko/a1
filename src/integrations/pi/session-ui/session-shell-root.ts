@@ -26,6 +26,7 @@ import {
   type TranscriptPromptAnchor,
   type TranscriptViewportFrame,
   type TranscriptViewportFrameDescriptor,
+  type TranscriptViewportFrameInput,
   type TranscriptViewportTheme,
 } from "../../../ui/components/index.js";
 import {
@@ -208,14 +209,8 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   #inputSurfaceCoordination: PiTuiInputSurfaceKind = "editor";
   readonly #dockInputReuseEnabled: boolean;
   #dockInputCandidate = false;
-  #dockInputSnapshot: {
-    readonly documentRows: readonly string[];
-    readonly transientSignature: string;
-    readonly promptAnchors: readonly TranscriptPromptAnchor[];
-    readonly inputSurface: PiShellComponentPort;
-    readonly viewportRevision: number;
-    readonly selectionRevision: number;
-  } | undefined;
+  // Invariant: receipt-time eligibility is evidence, never authorization for composition-time reuse.
+  #dockInputRevision: number | undefined;
   #visibleViewportSnapshot: {
     readonly width: number;
     readonly height: number;
@@ -226,6 +221,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     readonly inputSurface: PiShellComponentPort;
     readonly viewportRevision: number;
     readonly selectionRevision: number;
+    readonly pointerPosition: TranscriptViewportFrameInput["pointerPosition"];
   } | undefined;
   #fullViewportCompositions = 0;
   #dockOnlyViewportCompositions = 0;
@@ -553,13 +549,12 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     const transientSignature = transientRowsSignature(steeringRows, statusRows);
     const snapshot = this.#visibleViewportSnapshot;
     const dockInputCandidate = this.#dockInputCandidate;
-    const dockInputSnapshot = dockInputCandidate ? this.#dockInputSnapshot : undefined;
-    const dockInputTransientSignature = dockInputCandidate
-      ? dockInputSnapshot?.transientSignature ?? transientSignature
-      : transientSignature;
-    // Invariant: pending Steering and live Working rows share one non-selectable
-    // viewport tail; only non-working status, widgets, input, and footer stay docked.
-    const scrollRows = [...document.rows, ...steeringRows, ...statusRows];
+    // Concurrency: input may change after a keyboard receipt but before its paint.
+    // Capture only the live inputs this composition will actually represent.
+    const viewportRevision = this.#viewportController.presentationRevision;
+    const selectionRevision = this.#viewportController.selectionRevision;
+    const pointerPosition = this.#viewportController.pointerPosition;
+    const inputSurface = this.#inputSurface;
     const dockRows = dock.rows;
     const selectableDocumentRowCount = document.rows.length;
     const dockStartRow = height - dockRows.length + 1;
@@ -575,21 +570,20 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       && snapshot !== undefined
       && snapshot.width === width
       && snapshot.height === height
-      && snapshot.documentRows === (dockInputSnapshot?.documentRows ?? scrollRows)
-      && snapshot.transientSignature === dockInputTransientSignature
-      && snapshot.promptAnchors === (dockInputSnapshot?.promptAnchors ?? document.promptAnchors)
+      && snapshot.documentRows === document.rows
+      && snapshot.transientSignature === transientSignature
+      && snapshot.promptAnchors === document.promptAnchors
       && snapshot.dockLength === dockRows.length
-      && snapshot.inputSurface === (dockInputSnapshot?.inputSurface ?? this.#inputSurface)
-      && snapshot.viewportRevision === (dockInputSnapshot?.viewportRevision ?? this.#viewportController.presentationRevision)
-      && snapshot.selectionRevision === (dockInputSnapshot?.selectionRevision ?? this.#viewportController.selectionRevision)
+      && snapshot.inputSurface === inputSurface
+      && snapshot.viewportRevision === viewportRevision
+      && snapshot.selectionRevision === selectionRevision
       ? this.#viewportController.composeDockOnly(dockRows, width, height)
       : null;
-    // Performance: a spinner tick or queue update can race the input-triggered
-    // render. Recompute the complete transient signature before reusing rows.
-    if (frame !== null && dockInputTransientSignature !== transientSignature) frame = null;
     if (frame === null) {
       frame = this.#viewportController.compose({
-        documentRows: scrollRows,
+        // Performance: do not copy the complete document on unchanged dock-only input.
+        // Steering and Working retain their one non-selectable viewport-tail ownership.
+        documentRows: [...document.rows, ...steeringRows, ...statusRows],
         ...(this.#viewportController.transcriptPointerSelecting
           ? { paintDocumentRow: heldNativeHyperlinkStyle }
           : {}),
@@ -611,13 +605,16 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.#visibleViewportSnapshot = {
       width,
       height,
-      documentRows: scrollRows,
+      documentRows: document.rows,
       transientSignature,
       promptAnchors: document.promptAnchors,
       dockLength: dockRows.length,
-      inputSurface: this.#inputSurface,
-      viewportRevision: this.#viewportController.presentationRevision,
-      selectionRevision: this.#viewportController.selectionRevision,
+      inputSurface,
+      // Invariant: a callback during composition cannot bless older rows with its
+      // newer revision. Its ordinary pending render will publish the newer state.
+      viewportRevision,
+      selectionRevision: frame.descriptor.selectionRevision,
+      pointerPosition,
     };
     this.#onViewportFrame?.(frame);
     return frame.rows;
@@ -625,6 +622,26 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
 
   viewportFrameDescriptor(): TranscriptViewportFrameDescriptor | null {
     return this.#viewportController.frame?.descriptor ?? null;
+  }
+
+  /** Read-only, payload-free evidence; observing a pending frame must never render or repair it. */
+  viewportPresentationEvidence() {
+    const frame = this.#viewportController.frame;
+    const snapshot = this.#visibleViewportSnapshot;
+    return {
+      candidate: this.#dockInputCandidate,
+      candidateRevision: this.#dockInputCandidate ? this.#dockInputRevision ?? null : null,
+      currentRevision: this.#viewportController.presentationRevision,
+      composedRevision: snapshot?.viewportRevision ?? null,
+      currentPointer: this.#viewportController.pointerPosition ?? null,
+      composedPointer: snapshot?.pointerPosition ?? null,
+      frameId: frame?.descriptor.frameId ?? null,
+      bottom: frame?.hits.bottom ?? null,
+      followingEnd: frame?.followingEnd ?? true,
+      scrollTop: frame?.scrollTop ?? 0,
+      maxScroll: frame?.maxScroll ?? 0,
+      cause: frame?.descriptor.cause ?? null,
+    };
   }
 
   /** Visible non-selectable Steering, alignment, and Working rows, for rendering evidence. */
@@ -1120,31 +1137,13 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   handleInput(data: string): void {
     this.#dockInputCandidate = this.#customViewport && this.#dockInputReuseEnabled
       && classifyPiTuiInput(data, this.#inputSurfaceCoordination) === "safe";
-    if (this.#dockInputCandidate) this.#captureDockInputSnapshot();
+    this.#dockInputRevision = this.#dockInputCandidate ? this.#viewportController.presentationRevision : undefined;
     try {
       this.#inputSurface.handleInput?.(data);
     } catch (error) {
       this.#dockInputCandidate = false;
       throw error;
     }
-  }
-
-  #captureDockInputSnapshot(): void {
-    const width = Math.max(1, this.#componentRuntime.getColumns());
-    const steeringRows = this.#renderQueued(width);
-    const statusRows = this.#renderStatus(width);
-    const transientSignature = transientRowsSignature(steeringRows, statusRows);
-    const snapshot = this.#visibleViewportSnapshot;
-    this.#dockInputSnapshot = snapshot === undefined
-      ? undefined
-      : {
-          documentRows: snapshot.documentRows,
-          transientSignature,
-          promptAnchors: snapshot.promptAnchors,
-          inputSurface: this.#inputSurface,
-          viewportRevision: this.#viewportController.presentationRevision,
-          selectionRevision: this.#viewportController.selectionRevision,
-        };
   }
 
   invalidate(): void {
@@ -1174,7 +1173,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.#documentLayouts.clear();
     this.#visibleViewportSnapshot = undefined;
     this.#dockInputCandidate = false;
-    this.#dockInputSnapshot = undefined;
+    this.#dockInputRevision = undefined;
     if (this.#inputSurface !== this.editor) this.#inputSurface.dispose?.();
     this.#extensionHeader?.dispose?.();
     this.#extensionFooter?.dispose?.();
