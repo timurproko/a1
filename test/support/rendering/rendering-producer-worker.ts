@@ -1,3 +1,4 @@
+import { mock } from "node:test";
 import type { AgentSessionRuntime } from "@earendil-works/pi-coding-agent";
 import {
   AssistantMessageComponent,
@@ -15,7 +16,7 @@ import {
 import { applyPiTheme } from "../../../src/integrations/pi/components/index.js";
 import { createPiEngineAdapter } from "../../../src/integrations/pi/engine/index.js";
 import { OwnedUiSessionShell } from "../../../src/integrations/pi/session-ui/index.js";
-import { RecordingRenderingTerminal as RecordingTerminal } from "./recording-rendering-terminal.js";
+import { RecordingRenderingTerminal } from "./recording-rendering-terminal.js";
 import type { TranscriptViewportFrameDescriptor } from "../../../src/ui/components/index.js";
 import type {
   RenderingProducerCheckpoint,
@@ -126,6 +127,20 @@ async function runPinned(
     };
   } finally {
     tui.stop({ preserveScreen: true });
+  }
+}
+
+/** Advances the scripted clock while retaining the shared recorder's write-local decisions. */
+class RecordingTerminal extends RecordingRenderingTerminal {
+  #atMs = 0;
+
+  override setClock(atMs: number, cause: string): void {
+    const elapsed = Math.max(0, atMs - this.#atMs);
+    this.#atMs = atMs;
+    super.setClock(atMs, cause);
+    // Rationale: label timer-driven writes before advancing the shared scripted clock.
+    // Cooperative immediate/event delivery remains real for every independent producer.
+    mock.timers.tick(elapsed);
   }
 }
 
@@ -319,9 +334,10 @@ async function main(): Promise<void> {
   process.send?.({ type: "ready" });
   if (request.testBehavior === "hang") await hangForever();
   if (request.testBehavior === "fail") throw new Error("requested producer failure");
-  const result = request.producer === "pinned-pi"
-    ? await runPinned(request, workload.steps)
-    : await runOwned(request, workload.steps);
+  mock.timers.enable({ apis: ["Date", "setInterval", "setTimeout"], now: 1_700_000_000_000 });
+  const result = await (request.producer === "pinned-pi"
+    ? runPinned(request, workload.steps)
+    : runOwned(request, workload.steps)).finally(() => mock.timers.reset());
   await new Promise<void>((resolve, reject) => {
     process.stdout.write(JSON.stringify(result), error => error ? reject(error) : resolve());
   });

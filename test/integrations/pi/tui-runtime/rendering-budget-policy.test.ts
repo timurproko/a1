@@ -75,6 +75,49 @@ const REGION = { rowStart: 1, rowEnd: 8 };
 const transformed = { frameId: 1, transformed: true, reason: "transformed", shiftRows: 1, paintedRows: [8] };
 const fallback = { frameId: 1, transformed: false, reason: "excessive-real-damage", shiftRows: 1, paintedRows: [] };
 
+describe("code-streaming rendering budgets", () => {
+  function codeMatrix(overrides: Partial<RenderingMatrixCheckpoint> = {}): RenderingMatrixResult {
+    const checkpoint = chunk({
+      name: "code-settled",
+      cellFrame: { rows: ["That reads config.json once."], cursor: { row: 1, column: 1 } },
+      damageDecision: transformed,
+      paint: paint({ rowClears: 1, addressedRowWrites: [8], scrollUpRows: 1 }),
+      viewport: { frameId: 1, transcript: REGION, dock: null, followingEnd: true, verticalShiftRows: 1,
+        safeVerticalShift: true, cause: "follow-shift", transientTailRows: 0, liveTailRows: 1 },
+      ...overrides,
+    });
+    return { ...matrix([checkpoint]), workloadId: "streamed-code-block", synchronizedReplayParity: true };
+  }
+
+  it("accepts bounded movement but rejects candidate-only fallbacks and cleanup clears", () => {
+    expect(evaluateRenderingBudgets(codeMatrix()).passed).toBe(true);
+    for (const reason of ["unsafe-terminal-content", "hyperlink-cleanup", "pending-hyperlink-cleanup"]) {
+      const result = evaluateRenderingBudgets(codeMatrix({
+        damageDecision: { ...fallback, reason }, paint: paint({ fullScreenClears: 1 }),
+      }));
+      expect(result.violations.some(value => value.includes("unexpected full-screen clear"))).toBe(true);
+      expect(result.violations.some(value => value.includes(`(${reason})`))).toBe(true);
+    }
+  });
+
+  it("rejects repaint of a settled row even when the row count fits the allowance", () => {
+    const result = evaluateRenderingBudgets(codeMatrix({
+      damageDecision: { ...transformed, paintedRows: [2, 8] },
+      paint: paint({ rowClears: 2, addressedRowWrites: [2, 8], scrollUpRows: 1 }),
+    }));
+    expect(result.violations).toContain("streamed-code-block/code-settled: repainted a stable settled row outside the live tail");
+  });
+
+  it("requires equal final cells with synchronization honored and ignored", () => {
+    expect(evaluateRenderingBudgets({ ...codeMatrix(), synchronizedReplayParity: false }).passed).toBe(false);
+  });
+
+  it("rejects a stale final cell frame independently of reported semantic progress", () => {
+    expect(evaluateRenderingBudgets(codeMatrix({ cellFrame: { rows: ["old partial"], cursor: { row: 1, column: 1 } } })).violations)
+      .toContain("streamed-code-block: stale or missing settled content");
+  });
+});
+
 describe("long-transcript-follow rendering budget", () => {
   it("requires bounded movement for tail-free followed prose", () => {
     const tailFree = chunk({

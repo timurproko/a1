@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { backgroundSgrSpan, stripAnsi } from "../../../../src/ui/components/index.js";
 import type { PiShellEditorPointerEvent, PiShellEditorPort } from "../../../../src/integrations/pi/components/index.js";
 import { SessionViewportController } from "../../../../src/integrations/pi/session-ui/session-viewport-controller.js";
@@ -45,7 +45,10 @@ function frame(controller: SessionViewportController, length = 20): readonly str
 
 function hoverFixture() {
   const renders: (boolean | undefined)[] = [];
-  const target = new SessionViewportController({ enabled: true, editor: editor(), requestRender: force => renders.push(force) });
+  const cleanups = vi.fn();
+  const target = new SessionViewportController({
+    enabled: true, editor: editor(), requestRender: force => renders.push(force), requestHyperlinkCleanup: cleanups,
+  });
   const input = {
     documentRows: Array.from({ length: 30 }, (_, index) => `row-${index}`),
     dockRows: ["dock"], promptAnchors: [], width: 40, height: 8,
@@ -60,7 +63,7 @@ function hoverFixture() {
   };
   const compose = () => target.compose(input);
   compose();
-  return { target, input, compose, renders };
+  return { target, input, compose, renders, cleanups };
 }
 
 describe("session viewport interaction controller", () => {
@@ -417,12 +420,14 @@ describe("session viewport interaction controller", () => {
     }
   });
 
-  it("forces one repaint when native hyperlink hover leaves or moves under a stationary pointer", () => {
+  it("requests targeted cleanup and one non-forced repaint when native hyperlink hover leaves or moves", () => {
     const renders: (boolean | undefined)[] = [];
+    const cleanups = vi.fn();
     const target = new SessionViewportController({
       enabled: true,
       editor: editor(),
       requestRender: force => renders.push(force),
+      requestHyperlinkCleanup: cleanups,
     });
     const url = "https://example.com/full";
     const linked = `\u001b]8;;${url}\u001b\\link\u001b]8;;\u001b\\`;
@@ -436,22 +441,32 @@ describe("session viewport interaction controller", () => {
 
     compose([linked, "plain"]);
     target.handlePreInput("\u001b[<35;2;1M");
+    expect(cleanups).not.toHaveBeenCalled();
     renders.length = 0;
     target.handlePreInput("\u001b[<35;2;2M");
-    expect(renders).toContain(true);
+    expect(cleanups.mock.calls).toEqual([[[1]]]);
+    expect(renders.map(Boolean)).toEqual([false]);
 
     target.handlePreInput("\u001b[<35;2;1M");
     renders.length = 0;
+    cleanups.mockClear();
     compose(["plain", linked]);
-    expect(renders).toContain(true);
+    expect(cleanups.mock.calls).toEqual([[[1]]]);
+    expect(renders.map(Boolean)).toEqual([false]);
+    compose(["plain", linked]);
+    expect(cleanups).toHaveBeenCalledTimes(1);
+    expect(renders).toHaveLength(1);
+    target.clearPointerState();
   });
 
   it("requests cleanup when the same hovered target changes its column bounds", () => {
     const renders: (boolean | undefined)[] = [];
+    const cleanups = vi.fn();
     const target = new SessionViewportController({
       enabled: true,
       editor: editor(),
       requestRender: force => renders.push(force),
+      requestHyperlinkCleanup: cleanups,
     });
     const link = (label: string) => `\u001b]8;;https://example.test/full\u001b\\${label}\u001b]8;;\u001b\\`;
     const compose = (row: string) => target.compose({
@@ -464,7 +479,8 @@ describe("session viewport interaction controller", () => {
     // Invariant: column 3 still hits the same URL on row 1, but the old
     // underline's cells outside [2, 6) now need explicit cleanup.
     compose(`  ${link("link")}`);
-    expect(renders).toContain(true);
+    expect(cleanups.mock.calls).toEqual([[[1]]]);
+    expect(renders.map(Boolean)).toEqual([false]);
     target.clearPointerState();
   });
 
@@ -473,39 +489,46 @@ describe("session viewport interaction controller", () => {
     "\u001b]8;;https://example.test\u0007long label\u001b]8;;\u0007",
   ])("keeps motion inside one occurrence cheap and latches cleanup on leave: %s", linked => {
     const renders: (boolean | undefined)[] = [];
-    let cleanups = 0;
+    const cleanups = vi.fn();
     const target = new SessionViewportController({
       enabled: true, editor: editor(), requestRender: force => renders.push(force),
-      requestHyperlinkCleanup: () => { cleanups += 1; },
+      requestHyperlinkCleanup: cleanups,
     });
     target.compose({ documentRows: [linked, "plain"], dockRows: [], promptAnchors: [], width: 80, height: 2 });
     target.handlePreInput("\u001b[<35;2;1M");
     target.handlePreInput("\u001b[<35;3;1M");
-    expect(cleanups).toBe(0);
+    expect(cleanups).not.toHaveBeenCalled();
     expect(renders).not.toContain(true);
+    renders.length = 0;
     target.compose({ documentRows: [linked.replaceAll("example.test", "changed.test"), "plain"], dockRows: [], promptAnchors: [], width: 80, height: 2 });
-    expect(cleanups).toBe(1);
+    expect(cleanups.mock.calls).toEqual([[[1]]]);
+    expect(renders.map(Boolean)).toEqual([false]);
+    renders.length = 0;
     target.handlePreInput("\u001b[<35;3;2M");
-    expect(cleanups).toBe(2);
-    expect(renders).toContain(true);
+    expect(cleanups.mock.calls).toEqual([[[1]], [[1]]]);
+    expect(renders.map(Boolean)).toEqual([false]);
     target.handlePreInput("\u001b[<35;4;2M");
-    expect(cleanups).toBe(2);
+    expect(cleanups).toHaveBeenCalledTimes(2);
+    expect(renders).not.toContain(true);
     target.clearPointerState();
   });
 
   it("cleans up native hyperlink hover when a non-motion report relocates the pointer", () => {
-    const { target, input, renders } = hoverFixture();
+    const { target, input, renders, cleanups } = hoverFixture();
     try {
       const linked = "\u001b]8;;https://example.com\u001b\\link\u001b]8;;\u001b\\";
-      const plain = { ...input, documentRows: [linked, "plain"] };
+      const plain = { ...input, documentRows: ["plain", linked, "plain"] };
       target.compose(plain);
-      target.handlePreInput("\u001b[<35;2;1M");
+      target.handlePreInput("\u001b[<35;2;2M");
+      expect(cleanups).not.toHaveBeenCalled();
       renders.length = 0;
-      const data = "\u001b[<1;2;2M";
+      const data = "\u001b[<1;2;3M";
       expect(target.handlePreInput(data)).toEqual({ data, consumed: false });
-      expect(renders).toEqual([true]);
+      expect(cleanups.mock.calls).toEqual([[[2]]]);
+      expect(renders.map(Boolean)).toEqual([false]);
       target.compose(plain);
-      expect(renders).toEqual([true]);
+      expect(cleanups).toHaveBeenCalledTimes(1);
+      expect(renders.map(Boolean)).toEqual([false]);
     } finally {
       target.clearPointerState();
     }
