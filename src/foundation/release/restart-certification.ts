@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { lstat, readFile, realpath, stat } from "node:fs/promises";
 import { basename, isAbsolute, relative, resolve, sep } from "node:path";
 import { PRODUCT_IDENTITY } from "../../product-identity.js";
-import { assertCurrentLaunchContract } from "../launch-context/index.js";
+import { PRIVATE_LAUNCH_CONTRACT, launchContractTarget } from "../launch-context/index.js";
 import { DEPENDENCY_LAYER_MANIFEST, dependencyLayerCertificationPath, type DependencyLayerReference } from "./dependency-layer.js";
 import { immutablePlatformPolicy, type ImmutablePlatformPolicy } from "./immutable-platform.js";
 import { PRODUCT_PACKAGE_NAME, type ReleaseFileIdentity } from "./release.js";
@@ -71,7 +71,6 @@ export interface RestartValidationEvent {
 
 /** Build compact restart authority after complete content verification established read-only payload files. */
 export async function createRestartSeal(release: MaterializedRelease, dataDir: string): Promise<RestartSeal | null> {
-  assertCurrentLaunchContract(release);
   const policy = immutablePlatformPolicy();
   if (policy === null) return null;
   const canonicalData = await realpath(dataDir);
@@ -102,7 +101,7 @@ export async function createRestartSeal(release: MaterializedRelease, dataDir: s
   }));
   const core: RestartSealCore = {
     version: RESTART_SEAL_VERSION,
-    launchContract: release.launchContract!,
+    launchContract: launchContractTarget(release),
     platform: process.platform,
     platformPolicy: policy,
     releaseId: release.releaseId,
@@ -143,7 +142,11 @@ export async function readRestartCertifiedRelease(
     throw new Error("restart certification differs from the approved release record");
   }
   const seal = normalizeRestartSeal(certification.restartSeal);
-  assertCurrentLaunchContract(seal);
+  // Invariant: a seal is restart authority only for a handoff this build can still
+  // perform, which is the contract it emits or the pre-cutover one it retains.
+  if (seal.launchContract !== PRIVATE_LAUNCH_CONTRACT && seal.launchContract !== "superseded") {
+    throw new Error(`restart seal declares an unsupported launch contract: ${String(seal.launchContract)}`);
+  }
   if (seal.platform !== process.platform || seal.platformPolicy !== immutablePlatformPolicy()) {
     throw new Error("restart certification platform immutability evidence is unsupported");
   }
