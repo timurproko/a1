@@ -9,6 +9,13 @@ export interface VisibleHyperlinkRange {
 
 export interface VisibleHyperlinkRow {
   readonly ranges: readonly VisibleHyperlinkRange[];
+  /**
+   * Whether the row declares a terminal hyperlink of its own. Only a declared link gives the
+   * terminal per-cell link identity that moving the row can misattribute, so movement safety
+   * asks this rather than counting ranges: a candidate range is host-hover text such as
+   * `obj.method` or `./src/index.ts`, which ordinary code produces on nearly every row.
+   */
+  readonly hasExplicitLink: boolean;
   /** False for unclosed links, malformed escapes, images, or row-moving controls. */
   readonly replaySafe: boolean;
   readonly width: number;
@@ -68,6 +75,7 @@ export function readVisibleHyperlinks(
   ranges.sort((left, right) => left.from - right.from);
   return {
     ranges,
+    hasExplicitLink: ranges.some(range => range.kind === "explicit"),
     replaySafe,
     width: column,
     // Rationale: a path with spaces or a wrapped host match may extend beyond

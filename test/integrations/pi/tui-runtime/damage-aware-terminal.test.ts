@@ -36,7 +36,12 @@ class RecordingTerminal implements PiTuiTerminalPort {
   setProgress(): void {}
 }
 
-function descriptor(frameId: number, shift = 0, safe = false): PiTuiDamageFrameDescriptor {
+function descriptor(
+  frameId: number,
+  shift = 0,
+  safe = false,
+  extra: Partial<PiTuiDamageFrameDescriptor> = {},
+): PiTuiDamageFrameDescriptor {
   return {
     frameId,
     width: 40,
@@ -46,6 +51,7 @@ function descriptor(frameId: number, shift = 0, safe = false): PiTuiDamageFrameD
     verticalShiftRows: shift,
     safeVerticalShift: safe,
     cause: safe ? "follow-shift" : "initial",
+    ...extra,
   };
 }
 
@@ -449,5 +455,32 @@ describe("A1-owned damage-aware terminal adapter", () => {
     cold.write(broad);
     expect(cold.lastDecision.reason).toBe("incomplete-prior-frame");
     expect(terminal.writes.at(-1)).toBe(broad);
+  });
+
+  it("allows a declared live tail to repaint its own rows and still rejects settled damage", () => {
+    const withTail = initialized();
+    const reflowed = fullscreenWrite(["B", "tail 1", "tail 2", "tail 3", "tail 4", "tail 5"]);
+    withTail.adapter.arm({ ...descriptor(2, 1, true), liveTailRows: 5 }, SAFE);
+    withTail.adapter.write(reflowed);
+    expect(withTail.adapter.lastDecision).toMatchObject({ transformed: true, reason: "transformed", shiftRows: 1 });
+
+    const withoutTail = initialized();
+    withoutTail.adapter.arm(descriptor(2, 1, true), SAFE);
+    withoutTail.adapter.write(reflowed);
+    expect(withoutTail.adapter.lastDecision).toMatchObject({ transformed: false, reason: "excessive-real-damage" });
+    expect(withoutTail.terminal.writes.at(-1)).toBe(reflowed);
+  });
+
+  it("treats an absent live tail as the historical one-row allowance", () => {
+    const declared = initialized();
+    const reflowed = fullscreenWrite(["styled B", "C", "D", "E", "F", "G"]);
+    declared.adapter.arm({ ...descriptor(2, 1, true), liveTailRows: 0 }, SAFE);
+    declared.adapter.write(reflowed);
+    expect(declared.adapter.lastDecision).toMatchObject({ transformed: true, paintedRows: [1, 6] });
+
+    const absent = initialized();
+    absent.adapter.arm(descriptor(2, 1, true), SAFE);
+    absent.adapter.write(reflowed);
+    expect(absent.adapter.lastDecision).toMatchObject({ transformed: true, paintedRows: [1, 6] });
   });
 });

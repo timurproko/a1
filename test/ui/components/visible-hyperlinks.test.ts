@@ -73,4 +73,27 @@ describe("visible hyperlink geometry and host candidates", () => {
     expect(overlaid).not.toContain(`${ESC}[4m`);
     expect(overlaid).not.toContain(`${ESC}[4:4m`);
   });
+
+  it.each([
+    "const parsed = JSON.parse(raw);",
+    "await readFile(\"./src/config.json\")",
+    "see package.json for details",
+    "C:/work/source.ts",
+  ])("reports ordinary code text as host-hover candidates rather than declared links: %j", text => {
+    const row = readVisibleHyperlinks(text);
+    expect(row.hasExplicitLink).toBe(false);
+    expect(row.ranges.every(range => range.kind === "candidate")).toBe(true);
+  });
+
+  it("reports a declared terminal hyperlink separately from surrounding candidate text", () => {
+    const row = readVisibleHyperlinks(`see ${open("https://example.test/full")}label${CLOSE} in package.json`);
+    expect(row.hasExplicitLink).toBe(true);
+    expect(row.ranges.map(range => range.kind)).toEqual(["explicit", "candidate"]);
+  });
+
+  it("reports no link of either kind for plain prose", () => {
+    expect(readVisibleHyperlinks("plain prose without any dotted token")).toMatchObject({
+      hasExplicitLink: false, ranges: [],
+    });
+  });
 });
