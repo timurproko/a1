@@ -39,11 +39,12 @@ describe("neutral private launch contract", () => {
     expect(() => readLaunchContext(environment, "profile", platform)).toThrow(/required current-contract field/);
   });
 
-  it("does not translate obsolete-only input or use a default release", () => {
+  it("accepts a superseded handoff without relaxing the required fields", () => {
     const obsolete = JSON.parse('{"A1_RELEASE_ROOT":"old","A1_RELEASE_ID":"old","A1_IMMUTABLE_WARMUP":"1","A1_LAUNCH_PROFILE":"pi"}');
-    expect(readLaunchContext(obsolete)).toEqual({});
-    for (const required of ["profile", "release", "warmup"] as const) {
-      expect(() => readLaunchContext(obsolete, required)).toThrow(/required current-contract field/);
+    expect(readLaunchContext(obsolete)).toEqual({ releaseRoot: "old", releaseId: "old", immutableWarmup: "1", launchProfile: "pi" });
+    expect(readLaunchContext(obsolete, "profile").launchProfile).toBe("pi");
+    for (const required of ["release", "warmup"] as const) {
+      expect(() => readLaunchContext(obsolete, required)).toThrow(/releaseDigest/);
     }
   });
 

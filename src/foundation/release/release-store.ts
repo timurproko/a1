@@ -11,7 +11,7 @@ import {
   type ReleaseIdentity,
 } from "./release.js";
 import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../../product-identity.js";
-import { assertCurrentLaunchContract, readLaunchContext } from "../launch-context/index.js";
+import { assertCurrentLaunchContract, isCurrentLaunchContract, readLaunchContext } from "../launch-context/index.js";
 import { mapWithConcurrency } from "./concurrency.js";
 import { assertImmutableFileMode } from "./immutable-platform.js";
 import {
@@ -59,6 +59,8 @@ export interface CertifiedReleaseRecord {
   readonly releaseRoot: string;
   readonly packageVersion?: string;
   readonly contentDigest: string;
+  /** Absent on records written before releases declared a handoff contract. */
+  readonly launchContract?: string;
 }
 
 /** Process-authority compatibility controls for metadata-only release loading. */
@@ -216,7 +218,6 @@ export async function assertImmutableExecutionRoot(release: MaterializedRelease,
 }
 
 export async function resolveReleaseEntryPoint(release: MaterializedRelease, entryPoint: string): Promise<string> {
-  assertCurrentLaunchContract(release);
   const normalized = entryPoint.split("\\").join("/").replace(/^\.\//, "");
   if (!release.files.some(file => file.path === normalized)) throw new Error(`entry point is not in the verified release manifest: ${entryPoint}`);
   const path = resolveWithin(release.releaseRoot, normalized);
@@ -266,7 +267,9 @@ function certificationReadyRelease(release: MaterializedRelease): MaterializedRe
 }
 
 function validateManifest(value: ReleaseIdentity): void {
-  assertCurrentLaunchContract(value);
+  if (value.launchContract !== undefined && !isCurrentLaunchContract(value)) {
+    throw new Error(PRODUCT_TEXT.diagnostic(`release manifest declares an unsupported launch contract: ${String(value.launchContract)}`));
+  }
   if (value.packageName !== PRODUCT_PACKAGE_NAME || typeof value.packageVersion !== "string") throw new Error(PRODUCT_TEXT.diagnostic("release manifest metadata is invalid"));
   if (!/^[a-f0-9]{64}$/.test(value.contentDigest) || !/^[0-9A-Za-z.+_-]+-[a-f0-9]{20}$/.test(value.releaseId)) throw new Error(PRODUCT_TEXT.diagnostic("release identity is invalid"));
   if (!Array.isArray(value.files) || value.files.length === 0) throw new Error("release manifest contains no files");

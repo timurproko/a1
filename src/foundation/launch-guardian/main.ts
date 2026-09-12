@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { PRODUCT_TEXT } from "../../product-identity.js";
 import { readLaunchContext } from "../launch-context/index.js";
 import { resolve } from "node:path";
 import type { LaunchInstanceOutcome, LaunchInstanceStopIntent, LaunchInstanceStopReason, LaunchProfileId, NativeProcessIdentity, SupervisorCommand } from "../lifecycle/index.js";
@@ -223,5 +224,5 @@ function exitCode(outcome: LaunchInstanceOutcome): number {
 }
 
 function diagnosticError(message: string, code: string): Error & { code: string } {
-  return Object.assign(new Error(`A1: ${message}`), { code });
+  return Object.assign(new Error(`${PRODUCT_TEXT.displayName}: ${message}`), { code });
 }

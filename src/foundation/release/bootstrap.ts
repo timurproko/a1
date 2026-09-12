@@ -5,7 +5,7 @@ import { connect } from "node:net";
 import { platform } from "node:os";
 import { resolve } from "node:path";
 import { selectCohortLaunch, type OwnershipProbe } from "./cohort-selection.js";
-import { CohortStateStore, type SupervisorEndpointMetadata } from "./cohort-state.js";
+import { CohortStateStore, type CohortState, type SupervisorEndpointMetadata } from "./cohort-state.js";
 import { assertLaunchProfileId, createSupervisorStartupAttempt, readSupervisorStartupResult, resolveCohortEndpoint, resolveProductPaths, sessionSelectionArguments, type SessionSelection, type LaunchProfileId, type SupervisorStartupAttemptIdentity } from "../lifecycle/index.js";
 import { encodeFrame, LineFrameDecoder } from "../protocol/index.js";
 import { cleanupProvenIdleOwner, processIsAlive } from "./process-cleanup.js";
@@ -15,7 +15,7 @@ import { scheduleReleaseCleanup } from "./release-gc.js";
 import { createRestartSeal, readRestartCertifiedRelease, releaseCertificationDocument } from "./restart-certification.js";
 import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../../product-identity.js";
 import { markStartupPhase } from "../startup/index.js";
-import { assertCurrentLaunchContract, readLaunchContext, withLaunchContext } from "../launch-context/index.js";
+import { launchContractTarget, readLaunchContext, withLaunchContext } from "../launch-context/index.js";
 
 export interface BootstrapOptions {
   readonly packageRoot: string;
@@ -49,8 +49,6 @@ export async function runBootstrap(options: BootstrapOptions): Promise<number> {
 
   const stateStore = new CohortStateStore(paths.dataDir);
   let state = await stateStore.read();
-  const activeRecord = state.references.active === null ? undefined : state.releases[state.references.active];
-  if (activeRecord) assertCurrentLaunchContract(activeRecord);
   // Invariant: records left by cohorts whose processes are gone say nothing about ownership, and there
   // can now be several of them. Clearing them first keeps the decision below about what is
   // actually running.
@@ -110,7 +108,18 @@ export async function runBootstrap(options: BootstrapOptions): Promise<number> {
     }
   }
 
-  const candidate = await materializeRelease(options.packageRoot, paths.dataDir);
+  // Concurrency: an installation being replaced is not a reason to refuse a launch. While
+  // npm is rewriting the package tree the candidate cannot be read consistently, so a
+  // launch that cannot take the installed payload starts the retained active release
+  // instead and leaves activation to the launch that follows the replacement.
+  let candidate: MaterializedRelease;
+  try {
+    candidate = await materializeRelease(options.packageRoot, paths.dataDir);
+  } catch (error) {
+    const fallback = await launchRetainedActive(state, paths, environment, sessionArgs, output);
+    if (fallback === null) throw error;
+    return fallback;
+  }
   await stateStore.recordCandidate(candidate);
   state = await stateStore.read();
   if (!state.references.active) {
@@ -207,6 +216,38 @@ export async function runBootstrap(options: BootstrapOptions): Promise<number> {
   return await launchUi(selected, environment, sessionArgs);
 }
 
+/**
+ * Start the retained active cohort when the installed payload cannot be taken. The
+ * release already carries certified evidence, so this reuses it rather than
+ * certifying anything new, and reports no selection when there is nothing safe
+ * to fall back to.
+ */
+async function launchRetainedActive(
+  state: CohortState,
+  paths: ReturnType<typeof resolveProductPaths>,
+  environment: NodeJS.ProcessEnv,
+  sessionArgs: readonly string[],
+  output: Pick<NodeJS.WriteStream, "write">,
+): Promise<number | null> {
+  const activeId = state.references.active;
+  const active = activeId === null ? undefined : state.releases[activeId];
+  if (!active || active.approval !== "approved") return null;
+  try {
+    const retained = await readCertifiedReleaseManifest(active, resolve(paths.dataDir, "releases"));
+    const retainedPaths = resolveCohortEndpoint(paths, retained.releaseId, environment);
+    const endpoint = await readEndpointMetadata(retainedPaths.endpointMetadataPath);
+    if (!endpoint || await probeOwnership(endpoint) !== "live-verified") {
+      if (endpoint) await removeEndpointArtifacts(retainedPaths.endpointMetadataPath, retainedPaths.endpoint);
+      const startup = await startSupervisor(retained, environment);
+      await waitForVerifiedEndpoint(retainedPaths.endpointMetadataPath, retained, 8_000, startup);
+    }
+    output.write(`${PRODUCT_TEXT.diagnostic(`installation is being replaced; starting the retained release ${retained.packageVersion}`)}\n`);
+    return await launchUi(retained, environment, sessionArgs);
+  } catch {
+    return null;
+  }
+}
+
 async function readInstalledVersion(packageRoot: string): Promise<string> {
   const manifest = JSON.parse(await readFile(resolve(packageRoot, "package.json"), "utf8")) as { version?: unknown };
   if (typeof manifest.version !== "string" || manifest.version.length === 0) {
@@ -220,7 +261,6 @@ export async function certifyMaterializedRelease(
   dataDir: string,
   verification: VerifyMaterializedReleaseOptions = {},
 ): Promise<string> {
-  assertCurrentLaunchContract(release);
   if (!consumeMaterializationProof(release)) {
     await verifyMaterializedRelease(release.releaseRoot, release, resolve(dataDir, "releases"), verification);
   }
@@ -229,7 +269,6 @@ export async function certifyMaterializedRelease(
 
 /** Persist current-format evidence after an authenticated parent has certified the exact release. */
 export async function recordParentCertifiedRelease(release: MaterializedRelease, dataDir: string): Promise<string> {
-  assertCurrentLaunchContract(release);
   const path = resolve(dataDir, `certification-${release.releaseId}.json`);
   const restartSeal = await createRestartSeal(release, dataDir);
   await chmod(path, 0o600).catch(() => {});
@@ -279,15 +318,19 @@ async function launchUi(release: MaterializedRelease, environment: NodeJS.Proces
   });
 }
 
+/**
+ * Hand a release the key set its own build reads. A retained pre-cutover release is
+ * still startable this way, which is what lets a launch fall back to the previous
+ * version instead of failing while an installation is being replaced.
+ */
 export function releaseEnvironment(environment: NodeJS.ProcessEnv, release: MaterializedRelease, profile?: LaunchProfileId): NodeJS.ProcessEnv {
-  assertCurrentLaunchContract(release);
   return withLaunchContext(environment, {
     releaseId: release.releaseId,
     releaseLayers: (release.dependencyLayers ?? []).map(layer => layer.layerId).join(","),
     releaseRoot: release.releaseRoot,
     releaseDigest: release.contentDigest,
     ...(profile === undefined ? {} : { launchProfile: profile }),
-  });
+  }, process.platform, launchContractTarget(release));
 }
 
 export async function waitForVerifiedEndpoint(
