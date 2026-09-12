@@ -1215,8 +1215,15 @@
       "localDestination": "src/integrations/pi/components/upstream/components/owned-editor.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "A1-owned class name and synchronized A1 keybinding contract replace the nominal private upstream keybinding constructor dependency; bare A1 also adds a semantic prompt prefix and transient contextual-suggestion branch.",
-      "approvedDeviations": [],
+      "modifications": "A1-owned class name and synchronized A1 keybinding contract replace the nominal private upstream keybinding constructor dependency; bare A1 also adds a semantic prompt prefix, transient contextual-suggestion branch, and explicit body height for above-prompt autocomplete composition.",
+      "approvedDeviations": [
+        {
+          "id": "above-prompt-autocomplete-placement",
+          "reason": "The accepted show-autocomplete-above-prompt change moves the existing menu above bare A1's input with a matching top line, without changing either editor implementation or completion semantics.",
+          "upstreamBehavior": "The comparison editor retains pinned below-input row order. Bare A1 moves the complete existing menu after body decoration, adds one line matching the prompt border color/width, and relocates the existing counter into that line at the history-label inset in dim color without parentheses or a duplicate trailing row. The select-list presentation callback supplies counter-row ownership; body offsets include only the resulting rows. Candidate backgrounds, padding, sizing, selection-window semantics, history, and key handling remain unchanged; no panel shading is applied.",
+          "acceptanceTest": "test/integrations/pi/components/editor-autocomplete-placement.test.ts"
+        }
+      ],
       "behaviorCategories": [
         "editor",
         "autocomplete",
@@ -1239,7 +1246,7 @@
         "test/integrations/pi/components/shell-components.test.ts",
         "test/integrations/pi/session-ui/session-shell.test.ts"
       ],
-      "localSha256": "c5e873f191899e9ca0b8ce507f5916fad8d465b191683efcb92cbd437ffad8fb"
+      "localSha256": "9cc1b430e67994fdcb262a83c2c81fc44aedbebd65dd4c2300525a6bef647c38"
     },
     {
       "id": "pi-coding-agent:src/modes/interactive/components/custom-entry",
@@ -3150,9 +3157,15 @@
       "localDestination": "src/integrations/pi/components/upstream/history/editor-core.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Owned editor core or minimal editor-local helper subset; public imports, strict types, typed persistent-history hooks, and semantic border state. Public terminal runtime/exports remain shared and unchanged. See docs/architecture/history-editor-provenance.md.",
-      "localSha256": "cbd87fc380da6fdb9029849910b77d54849fc51cfc8b38b7a133f573735b3f69",
+      "modifications": "Owned editor core or minimal editor-local helper subset; public imports, strict types, typed persistent-history hooks, and semantic border state with the user-approved numeric-only history label. Public terminal runtime/exports remain shared and unchanged. See docs/architecture/history-editor-provenance.md.",
+      "localSha256": "111f0363a5e1a6464af7c9de79f8d12bc6807d4835581c954c095cf226492026",
       "approvedDeviations": [
+        {
+          "id": "compact-history-counter-label",
+          "reason": "The approved show-autocomplete-above-prompt review refinement removes only the History title from the bare-A1 history border label.",
+          "upstreamBehavior": "Preserve numeric value, inset, dim color, overflow suffix, clipping, and recall behavior; pinned comparison rendering remains unchanged.",
+          "acceptanceTest": "test/integrations/pi/components/history-editor-core.test.ts"
+        },
         {
           "id": "persistent-history-owned-editor-boundary",
           "reason": "The accepted persistent-prompt-history change owns the editor state machine rather than mutating private Pi fields; only enabled bare-A1 default-editor history is customized.",

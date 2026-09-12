@@ -988,6 +988,11 @@ function numericProperty(target: object, key: string): number {
   return typeof value === "number" ? value : 0;
 }
 
+/** Shares the existing atomic-aware body layout with prompt/menu composition. */
+export function editorVisualLineCount(editor: Editor, width: number): number | undefined {
+  return editorVisualLineMap(editor, width)?.length;
+}
+
 function editorVisualLineMap(editor: Editor, width: number): VisualLine[] | undefined {
   if (editor.interaction !== undefined) return editor.interaction.visualLines(width);
   const builder: unknown = Reflect.get(editor, "buildVisualLineMap");
