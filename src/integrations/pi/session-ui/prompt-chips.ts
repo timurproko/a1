@@ -10,6 +10,7 @@ import { canonicalizeClipboardImage } from "./clipboard-image.js";
 import { assertImageEncodedSize, assertPromptImages, ImageAttachmentError } from "../../../contracts/owned-ui/index.js";
 import { ImagePreparationClient, type ImagePasteJob } from "./image-preparation-client.js";
 import type { PreparedImage } from "./image-preparation.js";
+import { prepareTextPaste } from "./text-paste.js";
 
 export interface PromptImageAttachment {
   readonly type: "image";
@@ -23,6 +24,7 @@ export interface PreparedPrompt {
 }
 
 type PromptChip =
+  | { readonly kind: "text"; readonly tag: string; readonly text: string }
   | { readonly kind: "folder" | "file"; readonly tag: string; readonly path: string }
   | { readonly kind: "url"; readonly tag: string; readonly label: string; readonly url: string }
   | { readonly kind: "image"; readonly tag: string; readonly image: PromptImageAttachment };
@@ -37,7 +39,7 @@ interface PendingPaste {
   error?: ImageAttachmentError;
 }
 
-const CHIP_PATTERN = /\[(?:📷 [^\]]+|📁 [^\]]+|📄 [^\]]+|🖼 {1,2}[^\]]+|🔗 [^\]]+)\]/gu;
+const CHIP_PATTERN = /\[(?:paste #\d+ (?:\+\d+ lines|\d+ chars)|📷 [^\]]+|📁 [^\]]+|📄 [^\]]+|🖼 {1,2}[^\]]+|🔗 [^\]]+)\]/gu;
 const IMAGE_EXTENSION = /\.(?:jpe?g|png|webp|gif|bmp|tiff?)$/iu;
 const URL_PATTERN = /^https?:\/\/[^\s\u0000-\u001f\u007f]+$/iu;
 const URL_DISPLAY_LENGTH = 40;
@@ -45,6 +47,8 @@ const URL_DISPLAY_LENGTH = 40;
 /** Owns semantic chips and bounded pending paste references; cancels background work on reset or disposal. */
 export class PromptChipStore {
   readonly #chips = new Map<string, PromptChip>();
+  // Invariant: clearing the editor never recycles a recoverable text chip's identity.
+  #textCounter = 0;
   readonly #pending = new Map<string, PendingPaste>();
   #preparation = new ImagePreparationClient();
   readonly #stopping = new Set<Promise<void>>();
@@ -127,7 +131,11 @@ export class PromptChipStore {
     return remaining;
   }
 
-  async dispose(): Promise<void> { await Promise.all([this.#preparation.dispose(), ...this.#stopping]); }
+  async dispose(): Promise<void> {
+    await Promise.all([this.#preparation.dispose(), ...this.#stopping]);
+    this.#chips.clear();
+    this.#pending.clear();
+  }
 
   #imageCount(text: string): number {
     const tags = new Set([...this.#chips.values()].filter(chip => chip.kind === "image" && text.includes(chip.tag)).map(chip => chip.tag));
@@ -172,7 +180,13 @@ export class PromptChipStore {
       return this.#recordUnique({ kind: "url", tag: `[🔗 ${label}]`, label, url });
     }
     const paths = pathsFromClipboard(text);
-    if (paths.length === 0) return text;
+    if (paths.length === 0) {
+      const paste = prepareTextPaste(text);
+      if (paste.label === undefined) return paste.text;
+      const tag = `[paste #${++this.#textCounter} ${paste.label}]`;
+      this.#chips.set(tag, Object.freeze({ kind: "text", tag, text: paste.text }));
+      return tag;
+    }
     return paths.map(item => {
       const label = pathLabel(item.fullPath);
       if (item.kind === "folder") {
@@ -198,7 +212,7 @@ export class PromptChipStore {
   }
 
   atomicRanges(line: string): readonly PiShellEditorTextRange[] {
-    return [...line.matchAll(CHIP_PATTERN)].map(match => ({
+    return [...line.matchAll(CHIP_PATTERN)].filter(match => !match[0].startsWith("[paste #") || this.#chips.has(match[0])).map(match => ({
       start: match.index,
       end: match.index + match[0].length,
     }));
@@ -227,7 +241,7 @@ export class PromptChipStore {
   }
 
   prepareHistoryText(text: string): string {
-    return this.#replaceResolvable(text, false).text.replace(CHIP_PATTERN, tag => this.#chips.get(tag)?.kind === "image" ? "" : tag).trim();
+    return this.#replaceResolvable(text, false, true).text.trim();
   }
 
   prepareSubmission(text: string): PreparedPrompt {
@@ -235,30 +249,30 @@ export class PromptChipStore {
     return { text: expanded.text, images: expanded.images };
   }
 
-  #replaceResolvable(text: string, includeImages: boolean): PreparedPrompt {
-    let expanded = text;
-    for (const entry of this.#pending.values()) {
-      if (!expanded.includes(entry.marker) && !expanded.includes(entry.marker.replace("screenshot-", "failed-"))) continue;
-      if (includeImages && entry.error !== undefined) throw entry.error;
-      if (includeImages && entry.replacement === undefined) throw new ImageAttachmentError("image-pending");
-      if (entry.replacement !== undefined) expanded = expanded.replaceAll(entry.marker, entry.replacement);
-    }
+  #replaceResolvable(text: string, includeImages: boolean, omitImages = false): PreparedPrompt {
     const images: PromptImageAttachment[] = [];
     const seenImages = new Set<string>();
-    for (const match of expanded.matchAll(CHIP_PATTERN)) {
-      const tag = match[0];
+    const resolveChip = (tag: string): string => {
       const chip = this.#chips.get(tag);
-      if (chip === undefined) continue;
+      if (chip === undefined) return tag;
+      if (chip.kind === "text") return chip.text;
       if (chip.kind === "image") {
         if (includeImages && !seenImages.has(tag)) {
           images.push(chip.image);
           seenImages.add(tag);
         }
-        continue;
+        return omitImages ? "" : tag;
       }
-      const value = chip.kind === "url" ? chip.url : chip.path;
-      expanded = expanded.replaceAll(tag, value);
-    }
+      return chip.kind === "url" ? chip.url : chip.path;
+    };
+    // Invariant: scan only draft tokens (and resolved reservation tokens), never emitted payloads.
+    const expanded = text.replace(CHIP_PATTERN, tag => {
+      const entry = this.#pending.get(tag) ?? this.#pending.get(tag.replace("failed-", "screenshot-"));
+      if (entry === undefined) return resolveChip(tag);
+      if (includeImages && entry.error !== undefined) throw entry.error;
+      if (includeImages && entry.replacement === undefined) throw new ImageAttachmentError("image-pending");
+      return entry.replacement === undefined ? tag : entry.replacement.replace(CHIP_PATTERN, resolveChip);
+    });
     return { text: expanded, images };
   }
 

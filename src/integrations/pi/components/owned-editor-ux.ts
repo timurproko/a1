@@ -18,7 +18,7 @@ import type {
  * Pi editor port and gives future interactions one registration point.
  */
 export interface OwnedEditorUxInterceptor {
-  handleInput(data: string, next: () => void): void;
+  handleInput(data: string, next: (data?: string) => void): void;
   render(width: number, next: () => string[]): string[];
   reset(): void;
   handlePointer?(event: OwnedEditorPointerEvent): boolean;
@@ -43,15 +43,15 @@ export class OwnedEditorUxInterception {
   ) {}
 
   handleInput(data: string): void {
-    const invoke = (index: number): void => {
+    const invoke = (index: number, input: string): void => {
       const interceptor = this.interceptors[index];
       if (interceptor === undefined) {
-        this.fallback.handleInput(data);
+        this.fallback.handleInput(input);
         return;
       }
-      interceptor.handleInput(data, () => invoke(index + 1));
+      interceptor.handleInput(input, (replacement = input) => invoke(index + 1, replacement));
     };
-    invoke(0);
+    invoke(0, data);
   }
 
   render(width: number): string[] {
@@ -165,6 +165,7 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
   #redoStack: EditorSnapshot[] = [];
   #selectionRevision = 0;
   #pasteGeneration = 0;
+  #terminalPaste: string | undefined;
   #wordDirection: WordDirection | undefined;
   #geometry: {
     width: number;
@@ -185,7 +186,8 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
     installAtomicSegmentation(editor, options.atomicRanges, () => this.#wordDirection);
   }
 
-  handleInput(data: string, next: () => void): void {
+  handleInput(data: string, next: (data?: string) => void): void {
+    if (this.#handleTerminalPaste(data, next)) return;
     if (this.keybindings.matches(data, "owned.editor.selectAll")) {
       this.#selectAll();
       return;
@@ -215,22 +217,6 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
     if (this.keybindings.matches(data, "owned.editor.redo")) {
       this.#redo();
       return;
-    }
-
-    const terminalPaste = bracketedPasteContent(data);
-    if (terminalPaste !== undefined) {
-      if (terminalPaste.length === 0) {
-        this.pasteClipboard();
-        return;
-      }
-      const transformed = this.options.transformPastedContent({ kind: "text", text: terminalPaste });
-      if (transformed !== terminalPaste) {
-        if (this.#orderedSelection() !== undefined) this.#replaceSelection(transformed);
-        else this.editor.insertTextAtCursor(transformed);
-        this.#redoStack = [];
-        this.#requestRender();
-        return;
-      }
     }
 
     if (this.keybindings.matches(data, "tui.editor.undo")) {
@@ -397,7 +383,10 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
     this.#selectionRevision += 1;
   }
 
-  cancelPendingPastes(): void { this.#pasteGeneration += 1; }
+  cancelPendingPastes(): void {
+    this.#pasteGeneration += 1;
+    this.#terminalPaste = undefined;
+  }
 
   hasSelection(): boolean {
     return this.#activeRange() !== undefined;
@@ -545,6 +534,40 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
     this.#lastClick = undefined;
     this.#selectionRevision += 1;
     this.#requestRender();
+  }
+
+  #handleTerminalPaste(data: string, next: (data?: string) => void): boolean {
+    const start = data.indexOf("\x1b[200~");
+    if (this.#terminalPaste === undefined) {
+      if (start < 0) return false;
+      if (start > 0) {
+        const before = data.slice(0, start);
+        this.handleInput(before, (replacement = before) => next(replacement));
+      }
+      this.#terminalPaste = "";
+      data = data.slice(start + 6);
+    }
+    // Compatibility: the terminal's StdinBuffer assembles split opening delimiters;
+    // retain the body here too so editor-level chunks cannot allocate a native paste ID.
+    this.#terminalPaste += data;
+    const end = this.#terminalPaste.indexOf("\x1b[201~");
+    if (end < 0) return true;
+    const text = this.#terminalPaste.slice(0, end);
+    const remaining = this.#terminalPaste.slice(end + 6);
+    this.#terminalPaste = undefined;
+    if (text.length === 0) this.pasteClipboard();
+    else {
+      const transformed = this.options.transformPastedContent({ kind: "text", text });
+      if (transformed === text && this.#orderedSelection() === undefined) next(`\x1b[200~${text}\x1b[201~`);
+      else {
+        if (this.#orderedSelection() !== undefined) this.#replaceSelection(transformed);
+        else this.editor.insertTextAtCursor(transformed);
+        this.#redoStack = [];
+        this.#requestRender();
+      }
+    }
+    if (remaining.length > 0) this.handleInput(remaining, (replacement = remaining) => next(replacement));
+    return true;
   }
 
   #pasteFromClipboard(): void {
@@ -894,12 +917,6 @@ function isEditorSegment(value: unknown): value is EditorSegment {
   const index = Reflect.get(value, "index");
   const input = Reflect.get(value, "input");
   return typeof segment === "string" && typeof index === "number" && typeof input === "string";
-}
-
-function bracketedPasteContent(data: string): string | undefined {
-  const start = data.indexOf("\u001b[200~");
-  const end = data.indexOf("\u001b[201~", start + 6);
-  return start < 0 || end < 0 ? undefined : data.slice(start + 6, end);
 }
 
 function insertedText(data: string): string | undefined {
