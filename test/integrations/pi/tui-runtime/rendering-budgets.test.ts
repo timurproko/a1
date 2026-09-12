@@ -9,7 +9,7 @@ const workloadIds = STREAM_RENDERING_WORKLOADS.map(workload => workload.id);
 describe("full rendering stability gate", () => {
   it("captures every workload once and preserves product-facing matrix contracts", async () => {
     const captured = await captureRenderingGate(workloadIds);
-    expect(captured.structure).toEqual({ workloadCaptures: 8, deliberateRepeatCaptures: 0, producerLaunches: 48 });
+    expect(captured.structure).toEqual({ workloadCaptures: 11, deliberateRepeatCaptures: 0, producerLaunches: 66 });
     const violations: string[] = [];
     for (const matrix of captured.matrices.values()) {
       const budget = evaluateRenderingBudgets(matrix);
@@ -61,6 +61,23 @@ describe("full rendering stability gate", () => {
     expect(fittingQueued.viewport?.transientRowCount).toBeGreaterThan(fittingUser.viewport!.transientRowCount!);
     expect(boundaryCheckpoints.some(checkpoint => checkpoint.viewport?.transientAlignmentGapRows === 0
       && (checkpoint.viewport?.transientRowCount ?? 0) > 0)).toBe(true);
+
+    // Rationale: a live tail taller than the historical slack must repaint its own rows through
+    // bounded movement. Code and path-bearing workloads still capture evidence only; the
+    // accepted hyperlink-cleanup contract keeps their frames conservative until it is revisited.
+    const tall = captured.matrices.get("tall-live-tail")!;
+    const tallCheckpoints = tall.fullscreenMode.find(entry => entry.producer === "bare-a1")!.checkpoints;
+    expect(tall.findings.customViewportUnexpectedFullScreenClears).toBe(0);
+    expect(tallCheckpoints.some(entry => (entry.viewport?.liveTailRows ?? 0) > 2)).toBe(true);
+    for (const entry of tallCheckpoints) {
+      if (entry.viewport?.safeVerticalShift !== true) continue;
+      expect([entry.name, entry.damageDecision?.reason]).toEqual([entry.name, "transformed"]);
+    }
+    for (const workloadId of ["streamed-code-block", "link-bearing-prose"]) {
+      const captureOnly = captured.matrices.get(workloadId)!;
+      const entries = captureOnly.fullscreenMode.find(entry => entry.producer === "bare-a1")!.checkpoints;
+      expect(entries.some(entry => entry.damageDecision !== undefined)).toBe(true);
+    }
 
     const producer = prose.defaultMode[0]!;
     const checkpoint = producer.checkpoints.find(candidate => candidate.name !== "initial")!;

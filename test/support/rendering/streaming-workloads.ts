@@ -70,6 +70,46 @@ const proseValues = [
   "Stable prose grows across one wrapped viewport row without repainting settled rows.",
 ];
 
+/** Grows one value at a time so each entry is the complete accumulated message text. */
+function accumulate(first: string, additions: readonly string[]): string[] {
+  const values = [first];
+  for (const addition of additions) values.push(`${values.at(-1)}${addition}`);
+  return values;
+}
+
+// Rationale: a host underlines link-looking text from its own heuristic, so these fixtures
+// deliberately contain dotted identifiers and relative paths without any OSC 8 sequence.
+const codeBlockValues = accumulate("Here is the loader:", [
+  "\n\n```ts",
+  "\nimport { readFile } from \"node:fs/promises\";",
+  "\nconst raw = await readFile(\"./lib/config.json\", \"utf8\");",
+  "\nconst parsed = JSON.parse(raw);",
+  "\n```",
+  "\n\nThat reads config.json once.",
+]);
+
+const linkBearingProseValues = accumulate("The loader reads", [
+  " ./lib/config.json",
+  " ./lib/config.json before it resolves",
+  " ./lib/config.json before it resolves parsed.value and continues past one wrapped row.",
+]);
+
+const tallLiveTailValues = accumulate("step one", [
+  "\nstep two",
+  "\nstep three",
+  "\nstep four",
+  "\nstep five",
+  "\nstep six",
+]);
+
+/** Settled prompts that fill the viewport so a following stream must shift. */
+function settledPrompts(id: string, count: number): RenderingWorkloadStep[] {
+  return Array.from({ length: count }, (_unused, index) => event(`${id}-user-${index}`, index, {
+    type: "message_start",
+    message: { role: "user", content: [{ type: "text", text: `historical prompt ${index}` }], timestamp: index },
+  }));
+}
+
 export const STREAM_RENDERING_WORKLOADS: readonly RenderingWorkload[] = Object.freeze([
   {
     id: "streamed-prose",
@@ -84,6 +124,33 @@ export const STREAM_RENDERING_WORKLOADS: readonly RenderingWorkload[] = Object.f
     columns: 44,
     rows: 12,
     steps: assistantStream("markdown", ["- first", "- first\n- sec", "- first\n- second item", "- first\n- second item\n\nDone."]),
+  },
+  {
+    id: "streamed-code-block",
+    description: "A fenced code block with path-like tokens opens, grows, closes, and settles while following.",
+    columns: 48,
+    rows: 14,
+    steps: assistantStream("code", codeBlockValues),
+  },
+  {
+    id: "link-bearing-prose",
+    description: "Followed prose containing a relative path and a dotted identifier crosses a wrapped row.",
+    columns: 50,
+    rows: 14,
+    steps: [
+      ...settledPrompts("link", 40),
+      ...assistantStream("link-tail", linkBearingProseValues, 50),
+    ],
+  },
+  {
+    id: "tall-live-tail",
+    description: "A live tail taller than the stable-row slack reflows every one of its rows while following.",
+    columns: 50,
+    rows: 14,
+    steps: [
+      ...settledPrompts("tall", 40),
+      ...assistantStream("tall-tail", tallLiveTailValues, 50),
+    ],
   },
   {
     id: "streamed-thinking",
