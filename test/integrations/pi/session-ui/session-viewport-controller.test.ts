@@ -90,12 +90,12 @@ describe("session viewport interaction controller", () => {
     try {
       const inside = `\u001b[<${button};20;7${suffix}`;
       expect(target.handlePreInput(inside).consumed).toBe(consumed);
-      target.handlePreInput("home");
+      target.handlePreInput("ctrl+home");
       expect(compose().rows[6]).toContain("\u001b[46m");
-      target.handlePreInput("end");
+      target.handlePreInput("ctrl+end");
       expect(compose().hits.bottom).toBeNull();
       target.handlePreInput(`\u001b[<${button};1;7${suffix}`);
-      target.handlePreInput("home");
+      target.handlePreInput("ctrl+home");
       expect(compose().rows[6]).toContain("\u001b[45m");
     } finally {
       target.clearPointerState();
@@ -105,13 +105,13 @@ describe("session viewport interaction controller", () => {
   it.each(["reset", "clearPointerState"] as const)("clears bottom hover through %s and preserves unknown-position styling", lifecycle => {
     const { target, compose } = hoverFixture();
     try {
-      target.handlePreInput("home");
+      target.handlePreInput("ctrl+home");
       expect(compose().rows[6]).toContain("\u001b[45m");
       target.handlePreInput("\u001b[<35;20;7M");
       expect(compose().rows[6]).toContain("\u001b[46m");
       target[lifecycle]();
       compose();
-      target.handlePreInput("home");
+      target.handlePreInput("ctrl+home");
       expect(compose().rows[6]).toContain("\u001b[45m");
     } finally {
       target.clearPointerState();
@@ -121,7 +121,7 @@ describe("session viewport interaction controller", () => {
   it("invalidates presentation on unclaimed hover transitions without forced or follow-up renders", () => {
     const { target, compose, renders } = hoverFixture();
     try {
-      target.handlePreInput("home");
+      target.handlePreInput("ctrl+home");
       compose();
       for (const [column, hovered] of [[20, true], [1, false]] as const) {
         renders.length = 0;
@@ -230,10 +230,34 @@ describe("session viewport interaction controller", () => {
     }
   });
 
+  it.each([0, 1, 3])("hovers and activates the arrow as part of the bottom block with %i new messages", count => {
+    const { target, compose } = hoverFixture();
+    try {
+      target.handlePreInput("ctrl+home");
+      for (let index = 0; index < count; index += 1) target.noteCompletedAssistantMessage();
+      const initial = compose();
+      const hit = initial.hits.bottom!;
+      const arrowColumn = stripAnsi(initial.rows[hit.row - 1]!).indexOf("↓") + 1;
+      expect(arrowColumn).toBeGreaterThan(hit.columnStart);
+      expect(arrowColumn).toBeLessThanOrEqual(hit.columnEnd);
+      target.handlePreInput(`\u001b[<35;${hit.columnEnd + 1};${hit.row}M`);
+      expect(compose().rows[hit.row - 1]).toContain("\u001b[45m");
+      target.handlePreInput(`\u001b[<0;${hit.columnEnd + 1};${hit.row}M`);
+      target.handlePreInput(`\u001b[<0;${hit.columnEnd + 1};${hit.row}m`);
+      expect(compose().followingEnd).toBe(false);
+      target.handlePreInput(`\u001b[<35;${arrowColumn};${hit.row}M`);
+      expect(compose().rows[hit.row - 1]).toContain("\u001b[46m");
+      target.handlePreInput(`\u001b[<0;${arrowColumn};${hit.row}M`);
+      const followed = compose();
+      expect(followed.followingEnd).toBe(true);
+      expect(followed.hits.bottom).toBeNull();
+    } finally { target.clearPointerState(); }
+  });
+
   it("uses moved control geometry for hover and clicks, not the previous hit region", () => {
     const { target, input, compose } = hoverFixture();
     try {
-      target.handlePreInput("home");
+      target.handlePreInput("ctrl+home");
       compose();
       target.handlePreInput("\u001b[<35;20;7M");
       expect(compose().rows[6]).toContain("\u001b[46m");
@@ -252,7 +276,51 @@ describe("session viewport interaction controller", () => {
 
   it("does not claim input when the custom viewport is disabled", () => {
     const target = new SessionViewportController({ enabled: false, editor: editor(), requestRender() {} });
-    expect(target.handlePreInput("home")).toEqual({ data: "home", consumed: false });
+    expect(target.handlePreInput("ctrl+home")).toEqual({ data: "ctrl+home", consumed: false });
+  });
+
+  it.each(["ctrl+home", "ctrl+end"])("consumes %s before the first frame and at fitting or repeated boundaries", data => {
+    const target = new SessionViewportController({ enabled: true, editor: editor(), requestRender() {} });
+    try {
+      expect(target.handlePreInput(data)).toEqual({ data: "", consumed: true });
+      for (const length of [0, 3, 20]) {
+        frame(target, length);
+        for (let press = 0; press < 2; press += 1) {
+          expect(target.handlePreInput(data)).toEqual({ data: "", consumed: true });
+          frame(target, length);
+          const current = target.frame!;
+          expect(current.scrollTop).toBe(data === "ctrl+home" ? 0 : current.maxScroll);
+          expect(current.followingEnd).toBe(data === "ctrl+end" || current.maxScroll === 0);
+        }
+      }
+    } finally { target.clearPointerState(); }
+  });
+
+  it.each(["home", "end", "shift+home", "alt+end", "ctrl+shift+home", "ctrl+alt+end"])("leaves %s to the editor without viewport movement", data => {
+    const target = new SessionViewportController({ enabled: true, editor: editor(), requestRender() {} });
+    try {
+      frame(target);
+      target.handlePreInput("ctrl+home");
+      frame(target);
+      const before = target.frame!;
+      expect(target.handlePreInput(data)).toEqual({ data, consumed: false });
+      frame(target);
+      expect(target.frame!.scrollTop).toBe(before.scrollTop);
+      expect(target.frame!.followingEnd).toBe(before.followingEnd);
+    } finally { target.clearPointerState(); }
+  });
+
+  it.each(["ctrl+home", "ctrl+end"])("respects disabled navigation for %s before and after composition", data => {
+    const target = new SessionViewportController({ enabled: true, editor: editor(), requestRender() {} });
+    try {
+      expect(target.handlePreInput(data, false)).toEqual({ data, consumed: false });
+      frame(target);
+      const before = target.frame!;
+      expect(target.handlePreInput(data, false)).toEqual({ data, consumed: false });
+      frame(target);
+      expect(target.frame!.scrollTop).toBe(before.scrollTop);
+      expect(target.frame!.followingEnd).toBe(before.followingEnd);
+    } finally { target.clearPointerState(); }
   });
 
   it("advances an explicit presentation revision for viewport-invalidating interaction", () => {
@@ -284,9 +352,9 @@ describe("session viewport interaction controller", () => {
     expect(frame(target)[0]).toBe("row-12");
     expect(renders).toContain(true);
 
-    expect(target.handlePreInput("home", true, 1_001)).toEqual({ data: "", consumed: true });
+    expect(target.handlePreInput("ctrl+home", true, 1_001)).toEqual({ data: "", consumed: true });
     expect(frame(target)[0]).toBe("row-0");
-    expect(target.handlePreInput("end", true, 1_002)).toEqual({ data: "", consumed: true });
+    expect(target.handlePreInput("ctrl+end", true, 1_002)).toEqual({ data: "", consumed: true });
     expect(frame(target)[0]).toBe("row-15");
   });
 
@@ -337,7 +405,7 @@ describe("session viewport interaction controller", () => {
     };
     try {
       target.compose(input);
-      if (enabled) target.handlePreInput("home");
+      if (enabled) target.handlePreInput("ctrl+home");
       const before = target.compose(input);
       const data = "\u001b[1;2B";
       expect(target.handlePreInput(data, allowNavigation)).toEqual({ data, consumed: false });

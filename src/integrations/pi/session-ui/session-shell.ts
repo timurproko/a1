@@ -339,6 +339,16 @@ export class OwnedUiSessionShell {
     this.#removeViewportPreInput = this.#customViewport
       ? this.runtime.addPreInputListener(data => {
           if (options.inputPresentation?.coordination === false) this.#streamPresentation.noteImmediatePresentation();
+          // Compatibility: Pi's fullscreen renderer also intercepts plain Home/End.
+          // Deliver them to the focused owned input before that outer scroll handler;
+          // overlays retain Pi's normal dispatch, and comparison profiles never enter here.
+          if (!this.runtime.hasOverlay() && (this.root.editor.matchesTerminalKey(data, "home")
+            || this.root.editor.matchesTerminalKey(data, "end"))) {
+            if (this.root.usesDefaultInputSurface()) this.root.handleViewportPreInput(data, true);
+            this.root.handleInput(data);
+            this.runtime.requestRender();
+            return { consume: true };
+          }
           // Invariant: an overlay or editor-replacement screen owns its entire pointer
           // surface. Letting the transcript pre-router inspect those reports
           // steals settings value menus and numeric +/- controls before the

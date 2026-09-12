@@ -204,6 +204,23 @@ export class SessionViewportController {
       this.#requestHyperlinkCleanup();
       this.#requestRender(true);
     }
+    // Invariant: content shortcuts never reach the prompt, even before the first frame
+    // or when scrolling is a no-op. Plain Home/End remain editor line navigation.
+    if (allowWheel && this.#editor.matchesTerminalKey(data, "ctrl+home")) {
+      if (this.#viewport.scrollTo(0, now)) {
+        this.#scheduleActivityExpiry();
+        this.#requestRender();
+      }
+      return { data: "", consumed: true };
+    }
+    if (allowWheel && this.#editor.matchesTerminalKey(data, "ctrl+end")) {
+      if (!this.#viewport.followingEnd) {
+        this.#viewport.scrollToEnd(now);
+        this.#scheduleActivityExpiry();
+        this.#requestRender();
+      }
+      return { data: "", consumed: true };
+    }
     if (this.#viewport.frame === null) {
       // Invariant: a not-yet-painted A1 screen is not Pi's selection surface.
       return routeMouseInput(data, event => {
@@ -223,21 +240,6 @@ export class SessionViewportController {
           return { data: "", consumed: true, copyText };
         }
       }
-    }
-    if (allowWheel && this.#editor.matchesTerminalKey(data, "home")) {
-      if (this.#viewport.scrollTo(0, now)) {
-        this.#scheduleActivityExpiry();
-        this.#requestRender();
-      }
-      return { data: "", consumed: true };
-    }
-    if (allowWheel && this.#editor.matchesTerminalKey(data, "end")) {
-      if (!this.#viewport.followingEnd) {
-        this.#viewport.scrollToEnd(now);
-        this.#scheduleActivityExpiry();
-        this.#requestRender();
-      }
-      return { data: "", consumed: true };
     }
     if (allowWheel && (SHIFT_UP_INPUTS.has(data) || SHIFT_DOWN_INPUTS.has(data))) {
       const scrolled = SHIFT_UP_INPUTS.has(data)
