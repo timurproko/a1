@@ -66,12 +66,12 @@
     },
     {
       "path": "scripts/governance/manage-documentation-auto-merge.mjs",
-      "line": 122,
+      "line": 63,
       "identifier": "A1_AUTO_MERGE_POLL_ATTEMPTS"
     },
     {
       "path": "scripts/governance/manage-documentation-auto-merge.mjs",
-      "line": 123,
+      "line": 64,
       "identifier": "A1_AUTO_MERGE_POLL_MS"
     },
     {
@@ -511,12 +511,12 @@
     },
     {
       "path": "test/repository-governance/documentation-auto-merge.test.ts",
-      "line": 306,
+      "line": 584,
       "identifier": "A1_AUTO_MERGE_POLL_ATTEMPTS"
     },
     {
       "path": "test/repository-governance/documentation-auto-merge.test.ts",
-      "line": 307,
+      "line": 585,
       "identifier": "A1_AUTO_MERGE_POLL_MS"
     },
     {

@@ -38,11 +38,17 @@ export function classifyDocumentationAutoMerge(files) {
   };
 }
 
-export function planDocumentationAutoMerge({ validation, autoMergeArmed, mergeableState }) {
-  if (autoMergeArmed) return "unchanged";
-  if (validation === "failure") return "wait";
-  if (validation === "success" && mergeableState === "clean") return "merge";
-  return "arm";
+export function planDocumentationAutoMerge({ validation, autoMergeArmed, mergeableState, mergeable }) {
+  if (validation === "failure" || mergeable !== true) return "wait";
+  if (mergeableState === "clean" || mergeableState === "unstable") {
+    // Invariant: a non-required check does not replace current-head validation or branch protection.
+    if (validation === "success") return "merge";
+    return autoMergeArmed ? "unchanged" : "wait";
+  }
+  if (mergeableState === "blocked" || mergeableState === "behind") {
+    return autoMergeArmed ? "unchanged" : "arm";
+  }
+  return "wait";
 }
 
 function validPath(value) {
