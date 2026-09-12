@@ -303,7 +303,7 @@ interface UpdateProgress { set(percent: number, creepTo?: number): void; finish(
 export function renderUpdateProgressBar(percent: number): string {
   const bounded = Math.min(100, Math.max(0, Math.round(percent)));
   const filled = Math.round((bounded / 100) * PROGRESS_BAR_WIDTH);
-  // Presentation: a gray line, a darker gray track, and one space before the percentage.
+  // Rationale: a gray line, a darker gray track, and one space before the percentage.
   // Explicit RGB keeps both grays neutral even when the terminal remaps its ANSI palette.
   const gray = "\u001b[38;2;128;128;128m";
   const track = "\u001b[38;2;102;102;102m";
