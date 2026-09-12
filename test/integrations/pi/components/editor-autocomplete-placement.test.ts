@@ -136,7 +136,7 @@ describe.each([false, true])("above-prompt autocomplete (history=%s)", history =
             target.activateKeybindings(); target.handleInput?.("\u001b[B");
           }
         }
-        // Keep the existing active-list setting semantics as well as future-list sizing.
+        // Compatibility: keep the existing active-list setting semantics as well as future-list sizing.
         editor.setAutocompleteMaxVisible(8); reference.editor.setAutocompleteMaxVisible(8);
         expect(parts(editor, 80).menu).toEqual(reference.editor.render(78).slice(3).map(row => `  ${row}`));
         for (const target of [editor, reference.editor]) target.handleInput?.("\t");
@@ -171,7 +171,7 @@ describe.each([false, true])("above-prompt autocomplete (history=%s)", history =
       expect(submitted).toEqual(["/choice-1"]);
       editor.setText(""); editor.addAutocompleteProvider(() => provider); editor.handleInput?.("@");
       await expect.poll(() => parts(editor, 80).menu.length).toBeGreaterThan(0);
-      editor.handleInput?.("\r"); // Non-slash completion confirms without submitting.
+      editor.handleInput?.("\r"); // Compatibility: non-slash completion confirms without submitting.
       expect(editor.getText()).toBe("/choice-0");
       expect(submitted).toHaveLength(1);
     } finally { await dispose(); }

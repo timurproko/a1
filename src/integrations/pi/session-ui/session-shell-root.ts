@@ -702,7 +702,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     const transientRows = [...queued, ...statusRows];
     const aboveWidgets = this.#renderWidgets("aboveEditor", width);
     const input = this.#inputSurface.render(width);
-    // Pointer rows describe the body, not the autocomplete block now preceding it.
+    // Invariant: pointer rows describe the body, not the autocomplete block now preceding it.
     const body = this.usesDefaultInputSurface() ? this.editor.bodyGeometry?.() : undefined;
     const belowWidgets = this.#renderWidgets("belowEditor", width);
     const footer = this.#renderFooter(width);
