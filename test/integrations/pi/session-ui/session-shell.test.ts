@@ -227,7 +227,66 @@ async function nextImmediate(): Promise<void> {
 }
 
 describe("OwnedUiSessionShell", () => {
-  it("acknowledges paste before acquisition and waits once on Enter without replacing newer input", async () => {
+  it.each(["shortcut", "terminal", "right-click"])("pastes text without flashing a screenshot chip through %s", async gesture => {
+    let release!: (text: string) => void;
+    const read = new Promise<string>(resolve => { release = resolve; });
+    const { shell, terminal } = await fixture([], [], true, undefined, { readText: () => read });
+    try {
+      terminal.resize(40, 16);
+      shell.root.editor.setText("before ");
+      shell.runtime.renderNow();
+      const before = shell.root.editor.render(40);
+      const start = terminal.writes.length;
+      if (gesture === "shortcut") terminal.input("\u0016");
+      else if (gesture === "terminal") terminal.input("\u001b[200~\u001b[201~");
+      else {
+        const frame = shell.root.render(40).map(stripTerminalSequences);
+        const row = frame.findIndex(line => line.includes("before ")) + 1;
+        terminal.input(`\u001b[<2;8;${row}M\u001b[<2;8;${row}m`);
+      }
+      // Concurrency: force real presentation while clipboard acquisition is still unresolved.
+      shell.runtime.renderNow();
+      expect(shell.root.editor.render(40)).toEqual(before);
+      terminal.input("after");
+      await nextImmediate();
+      shell.runtime.renderNow();
+      expect(stripTerminalSequences(shell.root.editor.render(40).join("\n"))).toContain("before after");
+      release("pasted\ntext");
+      await vi.waitFor(() => expect(shell.root.editor.getText()).toBe("before pasted\ntextafter"));
+      shell.runtime.renderNow();
+      expect(terminal.writes.slice(start).join("")).not.toMatch(/screenshot-|preparing/u);
+      terminal.input("!");
+      await nextImmediate();
+      expect(shell.root.editor.getText()).toBe("before pasted\ntextafter!");
+    } finally { await shell.dispose(); }
+  });
+
+  it("keeps repeated text pastes invisible and ordered when the second read finishes first", async () => {
+    let first!: (text: string) => void;
+    let second!: (text: string) => void;
+    const readText = vi.fn().mockImplementationOnce(() => new Promise(resolve => { first = resolve; }))
+      .mockImplementationOnce(() => new Promise(resolve => { second = resolve; }));
+    const { shell, terminal } = await fixture([], [], true, undefined, { readText });
+    try {
+      shell.root.editor.setText("left ");
+      terminal.input("\u0016");
+      terminal.input("middle ");
+      terminal.input("\u0016");
+      terminal.input("right");
+      await vi.waitFor(() => expect(readText).toHaveBeenCalledTimes(2));
+      const frame = () => stripTerminalSequences(shell.root.editor.render(40).join("\n"));
+      expect(frame()).toContain("left middle right");
+      expect(frame()).not.toContain("screenshot-");
+      second("second ");
+      await vi.waitFor(() => expect(frame()).toContain("left middle second right"));
+      expect(frame()).not.toContain("screenshot-");
+      first("first ");
+      await vi.waitFor(() => expect(shell.root.editor.getText()).toBe("left first middle second right"));
+      expect(frame()).not.toContain("screenshot-");
+    } finally { await shell.dispose(); }
+  });
+
+  it("reserves paste before acquisition and waits once on Enter without replacing newer input", async () => {
     let release!: (value: { data: string; mimeType: string }) => void;
     const source = screenshotPng().toString("base64");
     const read = new Promise<{ data: string; mimeType: string }>(resolve => { release = resolve; });
@@ -239,7 +298,7 @@ describe("OwnedUiSessionShell", () => {
       expect(shell.root.hasPendingPastes(chip)).toBe(true);
       shell.runtime.renderNow();
       const frame = stripTerminalSequences(shell.root.render(100).join("\n"));
-      expect(frame).toContain(chip);
+      expect(frame).not.toContain(chip);
       expect(frame).not.toContain("preparing");
       terminal.input(" inspect this");
       await nextImmediate();

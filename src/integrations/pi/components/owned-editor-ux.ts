@@ -138,6 +138,7 @@ export interface PromptSelectionUxOptions {
   readonly beginClipboardPaste?: () => { readonly marker: string; readonly result: Promise<string> };
   readonly transformPastedContent: (content: PiShellClipboardContent) => string;
   readonly atomicRanges: (line: string) => readonly PiShellEditorTextRange[];
+  readonly hiddenRanges?: (line: string) => readonly PiShellEditorTextRange[];
   readonly expandCopiedText: (text: string) => string;
   readonly paintSelection: (line: string, from: number, to: number, atomic: boolean) => string;
   readonly decorateRow: (row: string, width: number) => string;
@@ -172,6 +173,8 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
     visualLines: VisualLine[];
     scrollOffset: number;
     textRows: number;
+    lines?: readonly string[];
+    hiddenRanges: readonly (readonly PiShellEditorTextRange[])[];
   } | undefined;
 
   constructor(
@@ -308,6 +311,43 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
   }
 
   render(width: number, next: () => string[]): string[] {
+    const state = editorState(this.editor);
+    const hidden = state.lines.map(line => this.options.hiddenRanges?.(line) ?? []);
+    if (!hidden.some(ranges => ranges.length > 0)) return this.#renderVisible(width, next);
+    const original = { ...state, lines: [...state.lines] };
+    const selection = this.#selection;
+    const project = (position: Position): Position => ({
+      line: position.line,
+      col: hideColumn(position.col, hidden[position.line] ?? []),
+    });
+    const lines = state.lines.map((line, index) => {
+      for (const range of [...(hidden[index] ?? [])].reverse()) line = line.slice(0, range.start) + line.slice(range.end);
+      return line;
+    });
+    // Rationale: project pending clipboard identities out before layout, not after painting.
+    // Keep the semantic draft/undo/submission markers intact and restore them even if rendering throws.
+    try {
+      this.#setRenderState(lines, project({ line: original.cursorLine, col: original.cursorCol }));
+      if (selection !== undefined) this.#selection = { anchor: project(selection.anchor), head: project(selection.head) };
+      const rows = this.#renderVisible(width, next);
+      if (this.#geometry !== undefined) {
+        this.#geometry.hiddenRanges = hidden;
+        this.#geometry.lines = lines;
+      }
+      return rows;
+    } finally {
+      this.#setRenderState(original.lines, { line: original.cursorLine, col: original.cursorCol });
+      this.#selection = selection;
+    }
+  }
+
+  #setRenderState(lines: string[], cursor: Position): void {
+    if (this.editor.interaction !== undefined) this.editor.interaction.replaceLines(lines);
+    else editorState(this.editor).lines = lines;
+    this.#setCursor(cursor);
+  }
+
+  #renderVisible(width: number, next: () => string[]): string[] {
     const rows = next().map(row => row.replaceAll(ATOMIC_SPACE_SENTINEL, " "));
     const maxPadding = Math.max(0, Math.floor((width - 1) / 2));
     const padding = Math.min(this.editor.getPaddingX(), maxPadding);
@@ -320,7 +360,7 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
     const scrollOffset = this.editor.interaction?.scrollOffset() ?? numericProperty(this.editor, "scrollOffset");
     const maxVisibleLines = Math.max(5, Math.floor(this.options.getRows() * 0.3));
     const textRows = Math.max(0, Math.min(visualLines.length - scrollOffset, maxVisibleLines, rows.length - 2));
-    this.#geometry = { width, padding, layoutWidth, visualLines, scrollOffset, textRows };
+    this.#geometry = { width, padding, layoutWidth, visualLines, scrollOffset, textRows, hiddenRanges: [] };
 
     if (this.#atomicFocus() !== undefined) {
       for (let row = 0; row < rows.length; row += 1) {
@@ -443,12 +483,12 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
     if (textRow < 0 || textRow >= geometry.textRows) return undefined;
     const visual = geometry.visualLines[geometry.scrollOffset + textRow];
     if (visual === undefined) return undefined;
-    const line = editorState(this.editor).lines[visual.logicalLine] ?? "";
+    const line = (geometry.lines ?? editorState(this.editor).lines)[visual.logicalLine] ?? "";
     const segment = line.slice(visual.startCol, visual.startCol + visual.length);
     const displayColumn = Math.max(0, column - 1 - geometry.padding - (this.options.promptPrefixWidth ?? 0));
     return {
       line: visual.logicalLine,
-      col: visual.startCol + indexAtDisplayWidth(segment, displayColumn),
+      col: restoreColumn(visual.startCol + indexAtDisplayWidth(segment, displayColumn), geometry.hiddenRanges[visual.logicalLine] ?? []),
     };
   }
 
@@ -898,6 +938,16 @@ function samePosition(left: Position, right: Position): boolean {
 
 function sameSnapshot(left: EditorSnapshot, right: EditorSnapshot): boolean {
   return left.text === right.text && samePosition(left.cursor, right.cursor);
+}
+
+function hideColumn(column: number, ranges: readonly PiShellEditorTextRange[]): number {
+  return column - ranges.reduce((removed, range) => removed + Math.max(0, Math.min(column, range.end) - range.start), 0);
+}
+
+function restoreColumn(column: number, ranges: readonly PiShellEditorTextRange[]): number {
+  let restored = column;
+  for (const range of ranges) if (restored >= range.start) restored += range.end - range.start;
+  return restored;
 }
 
 function editorState(editor: Editor): EditorState {

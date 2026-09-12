@@ -319,8 +319,10 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
         this.editor.getText(),
         signal => handlers.readClipboardContent?.(signal) ?? Promise.resolve(null),
         error => handlers.onPasteRejected?.(error),
+        () => handlers.requestRender(),
       ) } : {}),
       editorAtomicRanges: line => this.#promptChips.atomicRanges(line),
+      editorHiddenRanges: line => this.#promptChips.hiddenRanges(line),
       decorateEditorRow: (row, width) => {
         const plain = stripAnsi(row);
         const ranges = this.#promptChips.hyperlinkRanges(plain);
