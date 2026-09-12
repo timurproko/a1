@@ -1,4 +1,5 @@
 import { PromptHistoryService } from "../features/prompt-history/index.js";
+import { resolvePromptHistoryDataDir } from "../features/launch/index.js";
 import { resolveProductPaths, type SessionSelection } from "../foundation/lifecycle/index.js";
 import { applyConfiguredPiTheme, getAvailablePiThemes, loadHistoryEditor } from "../integrations/pi/components/index.js";
 import {
@@ -84,7 +85,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
   const promptHistory = settings === null || !ownedSurfaces || settings.value("promptHistoryEnabled") === false ? null : {
     limit: typeof historyLimit === "number" ? historyLimit : 100,
     store: new PromptHistoryService({
-      dataDir: resolveProductPaths().dataDir,
+      dataDir: resolvePromptHistoryDataDir(),
       profileRoot: adapter.agentDir,
       limit: typeof historyLimit === "number" ? historyLimit : 100,
     }),
