@@ -1,8 +1,8 @@
 import { DynamicBorder, getMarkdownTheme } from "@earendil-works/pi-coding-agent";
-import { Container, Markdown, Spacer, Text } from "#pi-tui";
+import { Container, Markdown, Spacer, Text, type KeybindingsConfig } from "#pi-tui";
 import { KeybindingsManager } from "./upstream/adjacent/core/keybindings.js";
 import { PINNED_PI_LAYOUT, piTheme } from "./theme.js";
-import { componentPort, ensureTheme, formatSessionTokens, type PiShellComponentPort } from "./shell-shared-facade.js";
+import { componentPort, ensureTheme, formatSessionTokens, type PiShellComponentPort, type PiShellExtensionRendererResolver } from "./shell-shared-facade.js";
 
 export interface PiShellSessionInfoPresentation {
   readonly sessionName?: string;
@@ -19,6 +19,33 @@ export interface PiShellSessionInfoPresentation {
 export function renderPiShellStatusText(message: string, width: number, outputPad: 0 | 1 = PINNED_PI_LAYOUT.outputPad): readonly string[] {
   ensureTheme();
   return new Text(piTheme().fg("dim", message), outputPad, 0).render(width);
+}
+
+export interface PiShellCommandMessagePresentation {
+  readonly kind: "error" | "warning" | "accent" | "new" | "name" | "debug";
+  readonly message: string;
+  readonly detail?: string;
+}
+
+export function renderPiShellCommandMessage(
+  presentation: PiShellCommandMessagePresentation,
+  width: number,
+  outputPad: 0 | 1 = PINNED_PI_LAYOUT.outputPad,
+): readonly string[] {
+  ensureTheme();
+  const { kind, message, detail } = presentation;
+  const prefix = kind === "error" ? "Error: " : kind === "warning" ? "Warning: " : "";
+  const color = kind === "name" ? "dim" : kind === "error" || kind === "warning" ? kind : "accent";
+  const content = piTheme().fg(color, `${prefix}${message}`)
+    + (kind === "debug" && detail ? `\n${piTheme().fg("muted", detail)}` : "");
+  // Compatibility: pinned errors honor outputPad; warnings and command notices retain
+  // one-cell padding. New-session/debug notices also own one vertical padding row.
+  const text = new Text(content, kind === "error" ? outputPad : 1, kind === "new" || kind === "debug" ? 1 : 0);
+  return [
+    ...(kind === "name" && detail ? renderPiShellCommandMessage({ kind: "warning", message: detail }, width) : []),
+    ...new Spacer(1).render(width),
+    ...text.render(width),
+  ];
 }
 
 export function createPiShellSessionInfo(presentation: PiShellSessionInfoPresentation): PiShellComponentPort {
@@ -66,12 +93,28 @@ export function createPiShellChangelog(markdown: string): PiShellComponentPort {
   return componentPort(container);
 }
 
-export function createPiShellHotkeys(): PiShellComponentPort {
+function shortcutDisplay(key: string): string {
+  // Platform: pinned Pi labels Alt as Option on macOS, including extension shortcuts.
+  return key.split("/").map(binding => binding.split("+").map(part => {
+    const label = process.platform === "darwin" && part.toLowerCase() === "alt" ? "option" : part;
+    return label.charAt(0).toUpperCase() + label.slice(1);
+  }).join("+")).join("/");
+}
+
+export function createPiShellHotkeys(
+  bindings?: KeybindingsConfig,
+  getShortcuts: NonNullable<PiShellExtensionRendererResolver["getShortcuts"]> = () => [],
+): PiShellComponentPort {
   ensureTheme();
-  const keys = new KeybindingsManager();
-  const display = (action: Parameters<typeof keys.getKeys>[0]) => keys.getKeys(action).map(key => key.split("+").map(part => part.charAt(0).toUpperCase() + part.slice(1)).join("+")).join("/");
+  const keys = new KeybindingsManager(bindings);
+  const display = (action: Parameters<typeof keys.getKeys>[0]) => keys.getKeys(action).map(shortcutDisplay).join("/");
   const row = (actions: readonly Parameters<typeof keys.getKeys>[0][], description: string) => `| ${actions.map(action => `\`${display(action)}\``).join(" / ")} | ${description} |`;
-  const markdown = ["**Navigation**", "| Key | Action |", "|-----|--------|", row(["tui.editor.cursorUp", "tui.editor.cursorDown", "tui.editor.cursorLeft", "tui.editor.cursorRight"], "Move cursor / browse history"), row(["tui.editor.cursorWordLeft", "tui.editor.cursorWordRight"], "Move by word"), row(["tui.editor.cursorLineStart"], "Start of line"), row(["tui.editor.cursorLineEnd"], "End of line"), row(["tui.editor.jumpForward"], "Jump forward to character"), row(["tui.editor.jumpBackward"], "Jump backward to character"), row(["tui.editor.pageUp", "tui.editor.pageDown"], "Scroll by page"), "", "**Editing**", "| Key | Action |", "|-----|--------|", row(["tui.input.submit"], "Send message"), row(["tui.input.newLine"], `New line${process.platform === "win32" ? " (Ctrl+Enter on Windows Terminal)" : ""}`), row(["tui.editor.deleteWordBackward"], "Delete word backwards"), row(["tui.editor.deleteWordForward"], "Delete word forwards"), row(["tui.editor.deleteToLineStart"], "Delete to start of line"), row(["tui.editor.deleteToLineEnd"], "Delete to end of line"), row(["tui.editor.yank"], "Paste the most-recently-deleted text"), row(["tui.editor.yankPop"], "Cycle through the deleted text after pasting"), row(["tui.editor.undo"], "Undo"), "", "**Other**", "| Key | Action |", "|-----|--------|", row(["tui.input.tab"], "Path completion / accept autocomplete"), row(["app.interrupt"], "Cancel autocomplete / abort streaming"), row(["app.clear"], "Clear editor (first) / exit (second)"), row(["app.exit"], "Exit (when editor is empty)"), row(["app.suspend"], "Suspend to background"), row(["app.thinking.cycle"], "Cycle thinking level"), row(["app.model.cycleForward", "app.model.cycleBackward"], "Cycle models"), row(["app.model.select"], "Open model selector"), row(["app.tools.expand"], "Toggle tool output expansion"), row(["app.thinking.toggle"], "Toggle thinking block visibility"), row(["app.editor.external"], "Edit message in external editor"), row(["app.message.copy"], "Copy last assistant message"), row(["app.message.followUp"], "Queue follow-up message"), row(["app.message.dequeue"], "Restore queued messages"), row(["app.clipboard.pasteImage"], "Paste image or text from clipboard"), "| `/` | Slash commands |", "| `!` | Run bash command |", "| `!!` | Run bash command (excluded from context) |"].join("\n");
+  let markdown = ["**Navigation**", "| Key | Action |", "|-----|--------|", row(["tui.editor.cursorUp", "tui.editor.cursorDown", "tui.editor.cursorLeft", "tui.editor.cursorRight"], "Move cursor / browse history"), row(["tui.editor.cursorWordLeft", "tui.editor.cursorWordRight"], "Move by word"), row(["tui.editor.cursorLineStart"], "Start of line"), row(["tui.editor.cursorLineEnd"], "End of line"), row(["tui.editor.jumpForward"], "Jump forward to character"), row(["tui.editor.jumpBackward"], "Jump backward to character"), row(["tui.editor.pageUp", "tui.editor.pageDown"], "Scroll by page"), "", "**Editing**", "| Key | Action |", "|-----|--------|", row(["tui.input.submit"], "Send message"), row(["tui.input.newLine"], `New line${process.platform === "win32" ? " (Ctrl+Enter on Windows Terminal)" : ""}`), row(["tui.editor.deleteWordBackward"], "Delete word backwards"), row(["tui.editor.deleteWordForward"], "Delete word forwards"), row(["tui.editor.deleteToLineStart"], "Delete to start of line"), row(["tui.editor.deleteToLineEnd"], "Delete to end of line"), row(["tui.editor.yank"], "Paste the most-recently-deleted text"), row(["tui.editor.yankPop"], "Cycle through the deleted text after pasting"), row(["tui.editor.undo"], "Undo"), "", "**Other**", "| Key | Action |", "|-----|--------|", row(["tui.input.tab"], "Path completion / accept autocomplete"), row(["app.interrupt"], "Cancel autocomplete / abort streaming"), row(["app.clear"], "Clear editor (first) / exit (second)"), row(["app.exit"], "Exit (when editor is empty)"), row(["app.suspend"], "Suspend to background"), row(["app.thinking.cycle"], "Cycle thinking level"), row(["app.model.cycleForward", "app.model.cycleBackward"], "Cycle models"), row(["app.model.select"], "Open model selector"), row(["app.tools.expand"], "Toggle tool output expansion"), row(["app.thinking.toggle"], "Toggle thinking block visibility"), row(["app.editor.external"], "Edit message in external editor"), row(["app.message.copy"], "Copy last assistant message"), row(["app.message.followUp"], "Queue follow-up message"), row(["app.message.dequeue"], "Restore queued messages"), row(["app.clipboard.pasteImage"], "Paste image or text from clipboard"), "| `/` | Slash commands |", "| `!` | Run bash command |", "| `!!` | Run bash command (excluded from context) |"].join("\n");
+  const shortcuts = getShortcuts(bindings ?? keys.getEffectiveConfig());
+  if (shortcuts.length > 0) {
+    markdown += "\n\n**Extensions**\n| Key | Action |\n|-----|--------|\n";
+    markdown += shortcuts.map(shortcut => `| \`${shortcutDisplay(shortcut.key)}\` | ${shortcut.description} |`).join("\n");
+  }
   const container = new Container(); container.addChild(new Spacer(1)); container.addChild(new DynamicBorder()); container.addChild(new Text(piTheme().bold(piTheme().fg("accent", "Keyboard Shortcuts")), 1, 0)); container.addChild(new Spacer(1)); container.addChild(new Markdown(markdown, 1, 1, getMarkdownTheme())); container.addChild(new DynamicBorder());
   return componentPort(container);
 }

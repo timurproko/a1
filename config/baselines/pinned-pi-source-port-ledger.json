@@ -38,8 +38,8 @@
     "sourceModules": 105,
     "assets": 4,
     "classifications": {
-      "public-api-reuse": 54,
-      "owned-presentation": 28,
+      "public-api-reuse": 53,
+      "owned-presentation": 29,
       "host-adaptation": 27
     },
     "requiredBehaviorIds": 29,
@@ -877,11 +877,12 @@
       "sourceMap": null,
       "bytes": 539053,
       "sha256": "169acd0dfe6fbb8d8742ed24a3fc654fd0b2e2d4223c733249c5493723f1b72d",
-      "classification": "public-api-reuse",
-      "localDestination": "src/integrations/pi/components/upstream/components/earendil-announcement.ts",
-      "implementationStatus": "available-through-pinned-package",
+      "classification": "owned-presentation",
+      "localDestination": "src/integrations/pi/components/upstream/assets/earendil-image.json",
+      "implementationStatus": "owned-port-present",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Read the unchanged bundled asset through the public package directory boundary; do not copy, transform, or patch installed package content.",
+      "modifications": "Unchanged image bytes are losslessly encoded in an attributed owned JSON resource by scripts/pi/update-command-resources.mjs. Source bytes and digest are verified against this pinned asset authority; runtime reads only the owned resource, never the dependency directory.",
+      "localSha256": "f92f8484710c40578f5975694e5e21d146e6713df3ceb086ab4f06cbb19fdfd2",
       "approvedDeviations": [],
       "behaviorCategories": [
         "stateful-components"
@@ -1438,8 +1439,8 @@
       "localDestination": "src/integrations/pi/components/upstream/components/earendil-announcement.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Mechanical pinned source port with private imports remapped to public package-root types/APIs and A1-owned theme boundaries; behavior remains acceptance-tested.",
-      "localSha256": "cdfa2be1793026ad1b7893f26c845e179f5a08a0bfaa7423c9779fd1d8632910",
+      "modifications": "Mechanical pinned source port with private imports remapped to public package-root types/APIs and A1-owned theme boundaries. The unchanged image is loaded lazily from its attributed, verified owned resource, preserving pinned image/fallback rows without runtime dependency-directory reads or package mutation. Command-outcome parity exercises the restored presentation.",
+      "localSha256": "5b6d1b8331c8d7f710a88e727de839ac4f5317acce37ada2b60128309e4a40ca",
       "approvedDeviations": [],
       "behaviorCategories": [
         "startup-composition",

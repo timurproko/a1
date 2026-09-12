@@ -223,8 +223,10 @@ export interface PiWorkflowInteractionHost {
 
 export interface PiWorkflowHost {
   copyText(text: string): Promise<void>;
+  // Protocol: resolve only on exit zero; reject process failures with their native code,
+  // signal and stderr. Stderr content alone does not indicate a failed command.
   runCommand(command: string, arguments_: readonly string[], options?: { readonly signal?: AbortSignal }): Promise<{ readonly stdout: string; readonly stderr: string }>;
-  readChangelog(): Promise<string>;
+  readChangelog(sinceVersion?: string): Promise<string>;
 }
 
 export interface PiBashWorkflowResult {

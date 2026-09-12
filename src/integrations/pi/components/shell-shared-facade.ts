@@ -4,6 +4,7 @@ import {
   type AutocompleteProvider,
   type Component,
   type Focusable,
+  type KeybindingsConfig,
   type TUI,
 } from "#pi-tui";
 import type {
@@ -49,6 +50,8 @@ export interface PiShellEditorPort extends PiShellComponentPort {
   readonly historyReplacement?: typeof import("../../../contracts/owned-ui/index.js").PROMPT_HISTORY_EDITOR_REPLACEMENT;
   /** Restores this editor's profile after another Pi component changed the global manager. */
   activateKeybindings(): void;
+  keybindingConfig(): KeybindingsConfig;
+  reloadKeybindings(): void;
   /** Uses Pi's terminal decoder rather than assuming one terminal escape spelling. */
   matchesTerminalKey(data: string, key: "home" | "end" | "ctrl+v"): boolean;
   getText(): string;
@@ -123,6 +126,7 @@ export interface PiShellImageAssetResolver {
 export interface PiShellExtensionRendererResolver {
   getMessageRenderer(customType: string): unknown;
   getToolDefinition(toolName: string): unknown;
+  getShortcuts?(bindings: KeybindingsConfig): readonly { readonly key: string; readonly description: string }[];
 }
 
 export interface PiShellTranscriptComponentPort extends PiShellComponentPort {

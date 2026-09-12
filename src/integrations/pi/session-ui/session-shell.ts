@@ -238,6 +238,7 @@ export class OwnedUiSessionShell {
     }, this.backend.agentDir, {
       getMessageRenderer: customType => this.backend.pinnedMessageRenderer(customType),
       getToolDefinition: toolName => this.backend.pinnedToolDefinition(toolName),
+      getShortcuts: bindings => this.backend.pinnedShortcutDescriptions(bindings),
     }, options.sessionLayout, {
       resolve: assetId => this.backend.resolveTranscriptImage(assetId),
     });
@@ -896,8 +897,7 @@ export class OwnedUiSessionShell {
   showLoginMethodSelector(providerReference: string): void {
     const method = this.backend.pinnedLoginMethodOptions(providerReference);
     if (method.options.length === 0) {
-      this.root.appendWorkflowResult({ command: "login", outcome: "failed", message: `No authentication methods available for ${providerReference}` });
-      this.runtime.requestRender();
+      this.showLoginProviderSelector(undefined, providerReference);
       return;
     }
     if (method.options.length === 1) {
@@ -938,6 +938,20 @@ export class OwnedUiSessionShell {
       initialFilterMode: context.filterMode,
       ...(initialSelectedId === undefined ? {} : { initialSelectedId }),
       onLabelChange: context.appendLabelChange,
+      onCopy: text => {
+        if (!text) {
+          this.root.appendWorkflowResult({ command: "tree", outcome: "failed", message: "Selected entry has no text to copy" });
+          this.runtime.requestRender();
+          return;
+        }
+        void this.backend.copyWorkflowText(text).then(() => {
+          this.root.appendWorkflowStatus("Copied selected message to clipboard");
+          this.runtime.requestRender();
+        }).catch(error => {
+          this.root.appendWorkflowResult({ command: "tree", outcome: "failed", message: error instanceof Error ? error.message : String(error) });
+          this.runtime.requestRender();
+        });
+      },
       onCancel: close,
       onSelect: entryId => {
         close();
@@ -972,10 +986,10 @@ export class OwnedUiSessionShell {
     this.runtime.requestRender();
   }
 
-  showLoginProviderSelector(authType: "oauth" | "api_key"): void {
+  showLoginProviderSelector(authType?: "oauth" | "api_key", initialSearchInput?: string): void {
     const options = this.backend.pinnedLoginOptions(authType);
     if (options.length === 0) {
-      this.root.appendWorkflowStatus(authType === "oauth" ? "No subscription providers available." : "No API key providers available.");
+      this.root.appendWorkflowStatus(authType === "oauth" ? "No subscription providers available." : authType === "api_key" ? "No API key providers available." : "No login providers available.");
       this.runtime.requestRender();
       return;
     }
@@ -988,8 +1002,8 @@ export class OwnedUiSessionShell {
       void this.runWorkflow({ command: "login", argument: "", selection: id });
     }, () => {
       close();
-      this.showLoginAuthTypeSelector();
-    });
+      if (authType !== undefined) this.showLoginAuthTypeSelector();
+    }, initialSearchInput);
     this.root.setInputSurface(component);
     this.runtime.requestRender();
   }
@@ -1070,6 +1084,24 @@ export class OwnedUiSessionShell {
   }
 
   async runWorkflow(request: PiWorkflowRequest): Promise<AdapterCommandResult> {
+    if (request.command === "login" && request.selection !== undefined) {
+      const setup = this.backend.pinnedAmbientAuthentication(request.selection);
+      if (setup) {
+        const close = () => {
+          this.root.setInputSurface(null);
+          this.runtime.requestRender();
+        };
+        const dialog = createPiShellLoginDialog({
+          getColumns: () => this.runtime.viewport().columns,
+          getRows: () => this.runtime.viewport().rows,
+          requestRender: () => this.runtime.requestRender(),
+        }, setup.providerId, close, setup.providerName, setup.title);
+        dialog.showInfo(setup.message, [], true);
+        this.root.setInputSurface(dialog);
+        this.runtime.requestRender();
+        return { outcome: "completed", diagnostic: null };
+      }
+    }
     if (request.command === "scoped-models" && request.selection === undefined && request.confirmed === undefined) {
       this.showScopedModelsSelector();
       return { outcome: "completed", diagnostic: null };
@@ -1108,8 +1140,13 @@ export class OwnedUiSessionShell {
       return { outcome: "completed", diagnostic: null };
     }
     if (request.command === "reload") {
+      const blocked = this.backend.reloadBlockedResult();
+      if (blocked) {
+        this.root.appendWorkflowResult(blocked);
+        this.runtime.requestRender();
+        return workflowAdapterResult(blocked);
+      }
       this.root.resetExtensionUi();
-      this.root.resetWorkflowPresentation();
     }
     const shareSurface = request.command === "share"
       ? createPiShellOperationLoader({
@@ -1158,6 +1195,8 @@ export class OwnedUiSessionShell {
       return { outcome: "failed", diagnostic: `Owned controller missing for ${request.command}` };
     }
     if (request.command === "reload" && result.outcome === "completed") {
+      this.root.resetWorkflowPresentation();
+      this.root.editor.reloadKeybindings();
       this.root.editor.setAutocompleteCommands(this.backend.workflowAutocompleteCommands());
     }
     this.root.appendWorkflowResult(result);

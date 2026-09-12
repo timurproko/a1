@@ -15,8 +15,13 @@ const originalResourceSensitiveTests = [
   "test/features/workspace/reconciliation.test.ts",
 ];
 
-// Provenance: archived incident evidence keeps its original partition; new heavy stores join only the active partition.
-const resourceSensitiveTests = [...originalResourceSensitiveTests, "test/features/prompt-history/store.test.ts"];
+// Provenance: archived incident evidence keeps its original partition; new storage and isolated-producer workloads join only the active partition.
+const resourceSensitiveTests = [
+  ...originalResourceSensitiveTests,
+  "test/features/prompt-history/store.test.ts",
+  "test/integrations/pi/session-ui/command-message-parity.test.ts",
+  "test/integrations/pi/session-ui/command-outcome-parity.test.ts",
+];
 
 function invocation(plan: Awaited<ReturnType<typeof createTierPlan>>, id: string) {
   const found = plan.vitest?.invocations.find(candidate => candidate.id === id);
