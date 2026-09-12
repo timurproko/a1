@@ -84,6 +84,7 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
           ...(options.beginClipboardPaste === undefined ? {} : { beginClipboardPaste: options.beginClipboardPaste }),
           transformPastedContent: options.transformPastedContent ?? (content => content.kind === "text" ? content.text : ""),
           atomicRanges: options.editorAtomicRanges ?? (() => []),
+          hiddenRanges: options.editorHiddenRanges ?? (() => []),
           expandCopiedText: options.expandCopiedEditorText ?? (text => text),
           paintSelection: options.paintEditorSelection ?? (line => line),
           decorateRow: options.decorateEditorRow ?? (row => row),

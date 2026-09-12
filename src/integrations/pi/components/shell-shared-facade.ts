@@ -177,6 +177,7 @@ export interface PiShellEditorOptions {
   readonly onCopyText?: (text: string) => void;
   readonly readClipboardContent?: (signal?: AbortSignal) => Promise<PiShellClipboardContent | null>;
   readonly beginClipboardPaste?: () => { readonly marker: string; readonly result: Promise<string> };
+  readonly editorHiddenRanges?: (line: string) => readonly PiShellEditorTextRange[];
   readonly transformPastedContent?: (content: PiShellClipboardContent) => string;
   readonly editorAtomicRanges?: (line: string) => readonly PiShellEditorTextRange[];
   readonly expandCopiedEditorText?: (text: string) => string;

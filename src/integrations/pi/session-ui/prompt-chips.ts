@@ -53,14 +53,18 @@ export class PromptChipStore {
     currentText: string,
     read: (signal: AbortSignal) => Promise<PiShellClipboardContent | null>,
     onError: (error: unknown) => void,
+    onImage: () => void = () => {},
   ): { marker: string; result: Promise<string> } {
     const id = randomBytes(5).toString("hex");
-    // Rationale: acknowledge paste with its screenshot label while readiness stays in the pending state.
+    // Invariant: reserve paste identity immediately, but only display a screenshot after identifying an image.
     const marker = `[📷 screenshot-${id}]`;
     const job = this.#preparation.start(async signal => {
       const content = await read(signal);
       entry.kind = content?.kind === "image" ? "image" : "text";
-      if (content?.kind === "image" && this.#imageCount(currentText) >= 8) throw new ImageAttachmentError("image-count");
+      if (content?.kind === "image") {
+        onImage();
+        if (this.#imageCount(currentText) >= 8) throw new ImageAttachmentError("image-count");
+      }
       return content;
     });
     const entry: PendingPaste = { marker, job, references: 0, kind: "unknown", completion: job.result.then(content => {
@@ -177,6 +181,20 @@ export class PromptChipStore {
       const icon = IMAGE_EXTENSION.test(item.fullPath) ? "🖼 " : "📄";
       return this.#recordUnique({ kind: "file", tag: `[${icon} ${label}]`, path: item.fullPath });
     }).join("");
+  }
+
+  /** Hide provisional clipboard identities until the read identifies an actual image. */
+  hiddenRanges(line: string): readonly PiShellEditorTextRange[] {
+    const ranges: PiShellEditorTextRange[] = [];
+    for (const entry of this.#pending.values()) {
+      if (entry.kind === "image") continue;
+      let from = 0;
+      while ((from = line.indexOf(entry.marker, from)) >= 0) {
+        ranges.push({ start: from, end: from + entry.marker.length });
+        from += entry.marker.length;
+      }
+    }
+    return ranges.sort((left, right) => left.start - right.start);
   }
 
   atomicRanges(line: string): readonly PiShellEditorTextRange[] {
