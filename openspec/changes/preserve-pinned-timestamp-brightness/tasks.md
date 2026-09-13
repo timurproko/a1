@@ -1,15 +1,14 @@
-## 1. Timestamp-only quiet-style exemption
+## 1. Restore shared baseline styling
 
-- [ ] 1.1 Identify the actual timestamp span from shared layout metadata and exempt it from additional quiet-row faint styling for ordinary prompts and completed compactions; verify a focused regression fails before the change and passes afterward while prefix/content remain quiet.
-- [ ] 1.2 Preserve source/prominent metadata color and brightness, row backgrounds, and style boundaries; verify decoded terminal-cell foreground and faint/bold attributes across source, prominent, quiet, hover, and reverse-scroll transitions for both block types.
+- [x] 1.1 Remove the timestamp-column API and intensity exemption, restoring the original prompt-source helper and quiet painter; verify those implementations against develop `53e924c8` without reverting compaction anchors or unrelated renderer changes.
+- [x] 1.2 Replace constant-timestamp-brightness assertions with baseline-state terminal-cell regressions; verify normal prompts and compactions match, source metadata stays unchanged, prominent/hovered text and timestamps use the normal foreground, and the entire quiet row dims.
 
-## 2. Layout and compatibility
+## 2. Compatibility and validation
 
-- [ ] 2.1 Cover missing/invalid timestamps, insufficient widths, scrollbar appearances, resize, anchor replacement, and clock-like prompt text; verify only actual timestamp glyphs are exempted and no style leaks into neighboring cells or rows.
-- [ ] 2.2 Run focused navigation, click-to-source, selection/copy, native-link, cache-reuse, and comparison-route regressions; verify the styling refinement does not alter these behaviors or increase stable-input rendering work.
+- [x] 2.1 Retain and run edge-case coverage for missing/invalid metadata, widths, scrollbars, resize, clock-like content, anchor replacement, and style boundaries; verify there is no special timestamp span or stale styling.
+- [x] 2.2 Run focused presenter, viewport, shell, content-retention, and input-render-budget checks, typechecking, documentation governance, strict OpenSpec validation, diff checks, and build; record exact results without weakened budgets or broad local tiers.
 
-## 3. Validation and review
+## 3. Review handoff
 
-- [ ] 3.1 Run focused viewport/session suites, applicable typechecking, strict OpenSpec validation, and diff checks; record exact results without broad local test tiers or weakened rendering budgets.
-- [ ] 3.2 Push a separate implementation PR citing this merged proposal, report required CI results, and verify code auto-merge remains disabled.
-- [ ] 3.3 Provide an exact built candidate and color-preserving review command; record user visual acceptance that timestamps retain their pre-dimming appearance while the rest of the pinned row fades, before seeking explicit merge authorization. Keep the earlier compaction acceptance finding open until validated rather than treating this plan as acceptance.
+- [x] 3.1 Push the user-approved specification/implementation revision to existing PR #368, update its description, and report current required CI with auto-merge disabled.
+- [ ] 3.2 Provide an exact built candidate and color-preserving launch command; obtain user visual acceptance of baseline ordinary-prompt styling reused for compactions, including hover, before explicit merge authorization. Keep earlier compaction acceptance unrecorded until validated.
