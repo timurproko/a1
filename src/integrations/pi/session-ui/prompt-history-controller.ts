@@ -8,6 +8,7 @@ export class PromptHistoryController {
   readonly #unsubscribe: Array<() => void>;
   #snapshot: PromptHistorySnapshot;
   #fallback: string[];
+  #rehydrateCache: Map<string, string>;
   #disposed = false;
   #generation = 0;
   #unsubscribeSnapshot: () => void;
@@ -22,9 +23,14 @@ export class PromptHistoryController {
     fallback: readonly string[];
     active(): boolean;
     render(): void;
+    /** Applied to every recall text before it enters the editor recall list. Callers use this
+     * to re-classify durable chip content back into atomic chips; the identity map returned by
+     * default keeps historical behavior for callers that opt out. */
+    rehydrate?: (text: string) => string;
   }) {
     if (options.editor.recall === undefined) throw new Error("The selected editor does not expose typed history");
     this.#snapshot = { revision: 0, limit: options.limit, entries: [] };
+    this.#rehydrateCache = new Map();
     this.#fallback = boundedTexts([...options.fallback].reverse(), options.limit);
     this.#unsubscribeSnapshot = this.#subscribeSnapshot();
     this.#unsubscribeFailure = options.store.onFailure(() => {
@@ -71,10 +77,31 @@ export class PromptHistoryController {
 
   synchronize(): void {
     if (this.#disposed || !this.options.active()) return;
-    const values = [...this.#local.values()].reverse().map(item => item.text)
-      .concat(this.#snapshot.entries.map(item => item.text), this.#fallback);
+    const local = [...this.#local.values()].reverse().map(item => item.text);
+    const saved = this.#snapshot.entries.map(item => item.text);
+    const values = this.#rehydrateAll(local.concat(saved, this.#fallback));
     this.options.editor.recall!.replace(boundedTexts(values, this.#snapshot.limit));
     this.options.render();
+  }
+
+  #rehydrateAll(values: readonly string[]): string[] {
+    const rehydrate = this.options.rehydrate;
+    if (rehydrate === undefined) return [...values];
+    const cache = this.#rehydrateCache;
+    const results: string[] = [];
+    for (const value of values) {
+      const cached = cache.get(value);
+      if (cached !== undefined) { results.push(cached); continue; }
+      const rendered = rehydrate(value);
+      cache.set(value, rendered);
+      results.push(rendered);
+    }
+    if (cache.size > 512) {
+      // Performance: keep the cache bounded so long sessions cannot grow it without limit.
+      const keys = [...cache.keys()].slice(0, cache.size - 256);
+      for (const key of keys) cache.delete(key);
+    }
+    return results;
   }
 
   reset(fallback: readonly string[]): void {
@@ -83,6 +110,7 @@ export class PromptHistoryController {
     this.#unsubscribeSnapshot = this.#subscribeSnapshot();
     this.#fallback = boundedTexts([...fallback].reverse(), this.options.limit);
     this.#local.clear();
+    this.#rehydrateCache.clear();
     this.options.editor.recall!.reset();
     this.synchronize();
     this.options.store.refresh();

@@ -121,6 +121,7 @@ export class OwnedUiSessionShell {
   readonly #unsubscribePromptSuggestions: () => void;
   readonly #promptSuggestions: ContextualPromptSuggestionController | null;
   #promptHistory: PromptHistoryController | null = null;
+  #promptHistoryImageSidecar: import("../../../contracts/owned-ui/index.js").PromptHistoryImageSidecarPort | undefined;
   readonly #extensionBridge: PiExtensionUiBridge;
   readonly #stopped: Promise<void>;
   #resolveStopped: (() => void) | undefined;
@@ -419,6 +420,8 @@ export class OwnedUiSessionShell {
       } },
     });
     if (this.#customViewport && options.promptHistory !== undefined) {
+      this.#promptHistoryImageSidecar = options.promptHistory.imageSidecar;
+      const sidecar = this.#promptHistoryImageSidecar;
       this.#promptHistory = new PromptHistoryController({
         editor: this.root.editor,
         store: options.promptHistory.store,
@@ -426,6 +429,7 @@ export class OwnedUiSessionShell {
         fallback: this.view().transcript.flatMap(block => block.kind === "user" ? [block.text] : []),
         active: () => this.root.usesDefaultInputSurface(),
         render: () => this.runtime.requestRender(),
+        rehydrate: value => this.root.rehydrateHistoryText(value, id => sidecar?.readAttachment(id) ?? null),
       });
     }
     this.#extensionBridge = createPiExtensionUiBridge({
@@ -597,7 +601,20 @@ export class OwnedUiSessionShell {
     if (this.#promptHistory !== null) {
       const reusable = this.root.prepareHistoryText(text);
       if (reusable.length === 0) this.#promptHistory.rememberRecovery(text);
-      else this.#promptHistory.capture(reusable, kind, this.#cwd, this.backend.sessionId);
+      else {
+        this.#persistImageSidecars(text);
+        this.#promptHistory.capture(reusable, kind, this.#cwd, this.backend.sessionId);
+      }
+    }
+  }
+
+  // Rationale: write the image chip payloads referenced by an editor draft to the sidecar
+  // directory before their history row commits. Missing sidecar dependency = silent skip; the
+  // recall path treats an absent sidecar the same as a corrupt one.
+  #persistImageSidecars(text: string): void {const sidecar = this.#promptHistoryImageSidecar;
+    if (sidecar === undefined) return;
+    for (const record of this.root.imageChipAttachmentsFromEditor(text)) {
+      sidecar.write(record.id, { tag: record.tag, data: record.image.data, mimeType: record.image.mimeType, savedAt: new Date().toISOString() });
     }
   }
 

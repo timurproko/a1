@@ -3,6 +3,7 @@ import { chmodSync, closeSync, lstatSync, mkdirSync, openSync, statSync } from "
 import { dirname } from "node:path";
 import { PRODUCT_IDENTITY } from "../../product-identity.js";
 import { assertPromptHistorySubmission, PROMPT_HISTORY_MAX_ENTRY_BYTES, PROMPT_HISTORY_MAX_TEXT_BYTES, type PromptHistoryFailure, type PromptHistorySnapshot, type PromptHistorySubmission } from "../../contracts/owned-ui/index.js";
+import { collectImageChipIdentifiers, PromptImageSidecar } from "./image-sidecar.js";
 
 export class HistoryStorageError extends Error {
   constructor(readonly code: PromptHistoryFailure, readonly certainty: "uncommitted" | "unknown" = "uncommitted") { super(`Prompt history ${code}`); }
@@ -12,8 +13,10 @@ const MAX_STORAGE_BYTES = 64 * 1024 * 1024;
 
 export class PromptHistoryStore {
   readonly #database: DatabaseSync;
-  constructor(readonly path: string, readonly profileId: string, limit: number) {
+  readonly #sidecar: PromptImageSidecar | undefined;
+  constructor(readonly path: string, readonly profileId: string, limit: number, imagesDir?: string) {
     if (!Number.isInteger(limit) || limit < 10 || limit > 100 || limit % 10 !== 0) throw new HistoryStorageError("schema");
+    this.#sidecar = imagesDir === undefined ? undefined : new PromptImageSidecar(imagesDir);
     mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
     if (lstatSync(dirname(path)).isSymbolicLink()) throw new HistoryStorageError("unavailable");
     if (process.platform !== "win32") chmodSync(dirname(path), 0o700);
@@ -43,6 +46,10 @@ export class PromptHistoryStore {
       });
       this.#database.exec("PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA wal_autocheckpoint=128; PRAGMA journal_size_limit=8388608; PRAGMA max_page_count=8192;");
     } catch (error) { this.#database.close(); throw error; }
+    // Rationale: opportunistically reclaim any sidecar whose row was pruned in a prior process
+    // crash or by another concurrent opener. Bounded by the number of files on disk minus the
+    // surviving reference set; failures are swallowed to preserve honest history behavior.
+    this.#sweepOrphanedSidecars();
   }
 
   record(input: PromptHistorySubmission): void {
@@ -95,10 +102,41 @@ export class PromptHistoryStore {
   #prune(limit: number): void {
     const rows = this.#database.prepare("SELECT sequence,bytes FROM prompts ORDER BY sequence DESC").all();
     let bytes = 0;
+    const dropped: number[] = [];
     for (const [index, row] of rows.entries()) {
       bytes += Number(row.bytes);
-      if (index >= limit || bytes > PROMPT_HISTORY_MAX_TEXT_BYTES) this.#database.prepare("DELETE FROM prompts WHERE sequence=?").run(row.sequence!);
+      if (index >= limit || bytes > PROMPT_HISTORY_MAX_TEXT_BYTES) dropped.push(row.sequence as number);
     }
+    if (dropped.length === 0) return;
+    // Invariant: sidecar reap uses text still referenced by SURVIVING rows so a row still
+    // referencing an id shared with a pruned row keeps the file. Collect surviving ids before
+    // deleting so a concurrent snapshot cannot see a live row whose sidecar is already gone.
+    const droppedTexts = dropped.map(sequence =>
+      this.#database.prepare("SELECT text FROM prompts WHERE sequence=?").get(sequence)?.text).filter((value): value is string => typeof value === "string");
+    for (const sequence of dropped) this.#database.prepare("DELETE FROM prompts WHERE sequence=?").run(sequence);
+    if (this.#sidecar === undefined) return;
+    const survivingIds = this.#collectReferencedIdentifiers();
+    for (const text of droppedTexts) {
+      for (const id of collectImageChipIdentifiers(text)) {
+        if (!survivingIds.has(id)) this.#sidecar.unlink(id);
+      }
+    }
+  }
+
+  #collectReferencedIdentifiers(): Set<string> {
+    const identifiers = new Set<string>();
+    const rows = this.#database.prepare("SELECT text FROM prompts").all();
+    for (const row of rows) {
+      if (typeof row.text !== "string") continue;
+      for (const id of collectImageChipIdentifiers(row.text)) identifiers.add(id);
+    }
+    return identifiers;
+  }
+
+  #sweepOrphanedSidecars(): void {
+    if (this.#sidecar === undefined) return;
+    try { this.#sidecar.sweep(this.#collectReferencedIdentifiers()); }
+    catch { /* Rationale: sidecar sweep never blocks history readiness. */ }
   }
 
   #checkSize(maintain = false): void {

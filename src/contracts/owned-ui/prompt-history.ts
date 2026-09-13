@@ -34,6 +34,27 @@ export interface PromptHistoryPort {
   close(): Promise<void>;
 }
 
+export interface PromptHistoryImageSidecarAttachment {
+  readonly type: "image";
+  readonly data: string;
+  readonly mimeType: string;
+}
+
+export interface PromptHistoryImageSidecarRecord {
+  readonly tag: string;
+  readonly data: string;
+  readonly mimeType: string;
+  readonly savedAt: string;
+}
+
+/** Per-profile durable payload store for image chip attachments referenced by history text.
+ * Writes MUST be idempotent and MUST NOT block a history row commit on failure; reads MUST
+ * treat every failure as "attachment unavailable" so rehydration silently strips the chip. */
+export interface PromptHistoryImageSidecarPort {
+  write(id: string, record: PromptHistoryImageSidecarRecord): void;
+  readAttachment(id: string): PromptHistoryImageSidecarAttachment | null;
+}
+
 export const PROMPT_HISTORY_MAX_ENTRY_BYTES = 1024 * 1024;
 export const PROMPT_HISTORY_MAX_TEXT_BYTES = 8 * 1024 * 1024;
 export const PROMPT_HISTORY_MAX_PENDING = 32;

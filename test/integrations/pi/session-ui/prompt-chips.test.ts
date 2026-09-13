@@ -74,14 +74,16 @@ describe("PromptChipStore", () => {
     } finally { await store.dispose(); }
   });
 
-  it("serializes reusable history text and removes only registered image chips", async () => {
+  it("preserves authored image chip tags in reusable history text and still expands other chips", async () => {
     const store = new PromptChipStore();
     try {
       const image = store.transformPastedContent({ kind: "image", data: screenshotPng(4, 4).toString("base64"), mimeType: "image/png" });
       const url = store.transformPastedContent({ kind: "text", text: "https://example.com/path" });
+      // Invariant: image chip tags now round-trip verbatim so the sidecar-backed rehydration path can rebuild a live chip. URL chips still expand to their resolved value; literal `[📷 …]` text authored by the user stays as text.
       expect(store.prepareHistoryText(`  explain ${image}\n${url}\n[📷 literal.png]  `))
-        .toBe("explain \nhttps://example.com/path\n[📷 literal.png]");
-      expect(store.prepareHistoryText(image)).toBe("");
+        .toBe(`explain ${image}\nhttps://example.com/path\n[📷 literal.png]`);
+      // Invariant: an image-only prompt keeps its chip tag rather than collapsing to an empty durable value.
+      expect(store.prepareHistoryText(image)).toBe(image);
       expect(store.prepareHistoryText("/skill:test\n  untouched 👩‍💻"))
         .toBe("/skill:test\n  untouched 👩‍💻");
     } finally { await store.dispose(); }
@@ -182,5 +184,54 @@ describe("PromptChipStore", () => {
     const chip = store.transformPastedContent({ kind: "image", data: "data:image/png;base64,aW1hZ2U=", mimeType: "image/png" });
     expect(chip).toBe("");
     expect(store.prepareSubmission("unchanged")).toEqual({ text: "unchanged", images: [] });
+  });
+
+  it("extracts image chip attachments from an editor draft in occurrence order", () => {
+    const store = new PromptChipStore();
+    const first = store.transformPastedContent({ kind: "image", data: "aW1hZ2Ux", mimeType: "image/png" });
+    const second = store.transformPastedContent({ kind: "image", data: "aW1hZ2Uy", mimeType: "image/jpeg" });
+    const attachments = store.imageChipAttachments(`${second} then ${first} then ${first}`);
+    expect(attachments.map(item => item.tag)).toEqual([second, first]);
+    expect(attachments.map(item => item.id.length)).toEqual([10, 10]);
+    expect(attachments.map(item => item.image)).toEqual([
+      { type: "image", data: "aW1hZ2Uy", mimeType: "image/jpeg" },
+      { type: "image", data: "aW1hZ2Ux", mimeType: "image/png" },
+    ]);
+  });
+
+  it("rehydrates recall text: preserves image tags via sidecar and re-registers URL chips inline", () => {
+    const store = new PromptChipStore();
+    const chip = store.transformPastedContent({ kind: "image", data: "aW1hZ2U=", mimeType: "image/png" });
+    const identifier = chip.match(/screenshot-([a-f0-9]+)/u)?.[1] ?? "";
+    // Rationale: a fresh store simulates a recall in a new process: neither `chip` nor its URL is registered.
+    const recall = new PromptChipStore();
+    const rehydrated = recall.rehydrateHistoryText(`explain ${chip} vs https://example.com/`, id => {
+      if (id !== identifier) return null;
+      return { type: "image", data: "aW1hZ2U=", mimeType: "image/png" };
+    });
+    expect(rehydrated).toMatch(new RegExp(`^explain \\[📷 screenshot-${identifier}\\] vs \\[🔗 https:\/\/example\\.com\/\\]$`, "u"));
+    const prepared = recall.prepareSubmission(rehydrated);
+    expect(prepared.text).toBe("explain [📷 screenshot-" + identifier + "] vs https://example.com/");
+    expect(prepared.images).toEqual([{ type: "image", data: "aW1hZ2U=", mimeType: "image/png" }]);
+  });
+
+  it("silently strips an image chip on recall when its sidecar payload is missing", () => {
+    const store = new PromptChipStore();
+    const output = store.rehydrateHistoryText("hello [📷 screenshot-deadbeef] world", () => null);
+    expect(output).toBe("hello  world");
+    expect(store.prepareSubmission(output).images).toEqual([]);
+  });
+
+  it("re-chips a large single-block recall as a paste chip using the same paste-time threshold", () => {
+    const store = new PromptChipStore();
+    const body = Array.from({ length: 12 }, (_, index) => `line-${index}`).join("\n");
+    const rehydrated = store.rehydrateHistoryText(body, () => null);
+    expect(rehydrated).toMatch(/^\[paste #\d+ \+12 lines\]$/u);
+    expect(store.prepareSubmission(rehydrated).text).toBe(body);
+  });
+
+  it("leaves short prose recall values as-is", () => {
+    const store = new PromptChipStore();
+    expect(store.rehydrateHistoryText("just a normal prompt", () => null)).toBe("just a normal prompt");
   });
 });
