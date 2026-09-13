@@ -67,6 +67,147 @@ function hoverFixture() {
 }
 
 describe("session viewport interaction controller", () => {
+  it.each(["replacement", "overlay"])("keeps transcript selection and wheel ownership with a %s open", kind => {
+    const hiddenEditor = editor({ pasteClipboard: vi.fn(() => true), hasSelection: () => true, activateKeybindings: vi.fn() });
+    const received: string[] = [];
+    const component = { render: () => ["modal"], invalidate() {}, handleInput: (data: string) => received.push(data) };
+    const target = new SessionViewportController({ enabled: true, editor: hiddenEditor, requestRender() {} });
+    const region = { component, rowStart: 4, rowEnd: 5, columnStart: 1, columnEnd: 20 };
+    if (kind === "replacement") target.setInputSurfaceFrame(region);
+    else target.setOverlaySurfaces([region]);
+    frame(target, 30);
+    const input = (data: string) => target.handlePreInput(data, true, Date.now(), false);
+    const before = target.frame!.scrollTop;
+    expect(input("\u001b[<64;2;2M").consumed).toBe(true);
+    frame(target, 30);
+    expect(target.frame!.scrollTop).toBe(before - 3);
+    input("\u001b[<64;2;4M");
+    expect(received).toEqual(["\u001b[<64;2;4M"]);
+    expect(input("ctrl+v").consumed).toBe(false);
+    expect(hiddenEditor.pasteClipboard).not.toHaveBeenCalled();
+    expect(hiddenEditor.activateKeybindings).not.toHaveBeenCalled();
+    const normal = new SessionViewportController({ enabled: true, editor: editor(), requestRender() {} });
+    frame(normal, 30);
+    normal.handlePreInput("\u001b[<64;2;2M");
+    frame(normal, 30);
+    const gesture = "\u001b[<0;1;2M\u001b[<32;2;2M\u001b[<0;2;2m";
+    normal.handlePreInput(gesture);
+    input(gesture);
+    expect(input("\u0003")).toEqual(normal.handlePreInput("\u0003"));
+    normal.clearPointerState();
+    expect(input("\u0003").consumed).toBe(false);
+    expect(received).toHaveLength(1);
+    target.clearPointerState();
+  });
+
+  it.each([
+    ["forward", "\u001b[<0;2;2M\u001b[<32;3;2M\u001b[<0;3;2m"],
+    ["reverse", "\u001b[<0;3;2M\u001b[<32;2;2M\u001b[<0;2;2m"],
+    ["multiline", "\u001b[<0;2;2M\u001b[<32;12;4M\u001b[<0;12;4m"],
+    ["word", "\u001b[<0;3;2M\u001b[<0;3;2m\u001b[<0;3;2M\u001b[<0;3;2m"],
+    ["line", "\u001b[<0;3;2M\u001b[<0;3;2m\u001b[<0;3;2M\u001b[<0;3;2m\u001b[<0;3;2M\u001b[<0;3;2m"],
+  ])("keeps normal %s selection cells, source colors, copy, and render cadence with a modal", (_kind, gesture) => {
+    const normal = hoverFixture();
+    const modal = hoverFixture();
+    try {
+      const theme = { ...normal.input.theme, selection: (line: string, from: number, to: number) => backgroundSgrSpan(line, from, to) };
+      const input = { ...normal.input, width: 192, height: 54, theme,
+        documentRows: Array.from({ length: 120 }, () => "\u001b[38;2;255;120;20malpha 界 é beta\u001b[0m") };
+      modal.target.setInputSurfaceFrame({ component: { render: () => [], invalidate() {} }, columnStart: 1, columnEnd: 192, rowStart: 54, rowEnd: 54 });
+      normal.target.compose(input);
+      modal.target.compose(input);
+      normal.renders.length = 0;
+      modal.renders.length = 0;
+      normal.target.handlePreInput(gesture!, true, 1000);
+      modal.target.handlePreInput(gesture!, true, 1000, false);
+      expect(modal.renders).toEqual(normal.renders);
+      expect(modal.target.compose(input).rows).toEqual(normal.target.compose(input).rows);
+      const copy = normal.target.handlePreInput("\u0003");
+      expect(copy.consumed).toBe(true);
+      expect(modal.target.handlePreInput("\u0003", true, 1001, false)).toEqual(copy);
+    } finally { normal.target.clearPointerState(); modal.target.clearPointerState(); }
+  });
+
+  it("latches both gesture directions and drains a gesture across a nested transition", () => {
+    const { target, compose } = hoverFixture();
+    const received: string[] = [];
+    const component = { render: () => ["modal"], invalidate() {}, handleInput: (data: string) => received.push(data) };
+    const region = { component, rowStart: 4, rowEnd: 5, columnStart: 10, columnEnd: 30 };
+    target.setOverlaySurfaces([region]);
+    compose();
+    target.handlePreInput("\u001b[<0;11;4M\u001b[<32;1;2M\u001b[<0;1;2m", true, 0, false);
+    expect(received).toEqual(["\u001b[<0;11;4M", "\u001b[<32;1;2M", "\u001b[<0;1;2m"]);
+    expect(target.hasSelection).toBe(false);
+    received.length = 0;
+    target.handlePreInput("\u001b[<0;1;2M\u001b[<32;11;4M\u001b[<0;11;4m", true, 1, false);
+    expect(received).toEqual([]);
+    expect(target.hasSelection).toBe(true);
+    target.handlePreInput("\u001b[<0;1;2M", true, 1000, false);
+    target.setOverlaySurfaces([{ ...region, rowStart: 2 }]);
+    compose();
+    target.handlePreInput("\u001b[<32;11;4M\u001b[<0;11;4m", true, 1001, false);
+    expect(received).toEqual([]);
+    expect(target.hasSelection).toBe(false);
+    target.handlePreInput("\u001b[<0;11;4M\u001b[<0;11;4m", true, 1002, false);
+    expect(received).toHaveLength(2);
+    target.clearPointerState();
+  });
+
+  it.each(["normal", "fast", "high"] as const)("preserves %s wheel and edge auto-scroll behind a modal", speed => {
+    vi.useFakeTimers();
+    const { target, compose } = hoverFixture();
+    const normal = hoverFixture();
+    try {
+      normal.target.setConfig({ scrollbarAppearance: "always", scrollbarStyle: "thick", scrollbarSpeed: speed });
+      normal.compose();
+      target.setConfig({ scrollbarAppearance: "always", scrollbarStyle: "thick", scrollbarSpeed: speed });
+      const modal = { component: { render: () => [], invalidate() {} }, columnStart: 1, columnEnd: 40, rowStart: 8, rowEnd: 8 };
+      target.setInputSurfaceFrame(modal);
+      compose();
+      const distance = { normal: 3, fast: 6, high: 9 }[speed];
+      const start = target.frame!.scrollTop;
+      target.handlePreInput("\u001b[<64;2;2M", true, 0, false);
+      compose();
+      expect(target.frame!.scrollTop).toBe(start - distance);
+      normal.target.handlePreInput("\u001b[<64;2;2M", true, 0);
+      normal.compose();
+      target.handlePreInput("\u001b[<0;1;2M\u001b[<32;2;8M", true, 1, false);
+      normal.target.handlePreInput("\u001b[<0;1;2M\u001b[<32;2;8M", true, 1);
+      vi.advanceTimersByTime(30);
+      compose();
+      normal.compose();
+      expect(target.frame!.scrollTop).toBe(normal.target.frame!.scrollTop);
+      const afterTick = target.frame!.scrollTop;
+      target.setOverlaySurfaces(null);
+      vi.advanceTimersByTime(90);
+      compose();
+      expect(target.frame!.scrollTop).toBe(afterTick);
+      expect(target.hasSelection).toBe(false);
+    } finally { target.clearPointerState(); normal.target.clearPointerState(); vi.useRealTimers(); }
+  });
+
+  it.each(["auto", "always", "hidden"] as const)("keeps %s scrollbar policy and navigation controls behind a modal", appearance => {
+    const { target, compose } = hoverFixture();
+    try {
+      target.setConfig({ scrollbarAppearance: appearance, scrollbarStyle: "thin", scrollbarSpeed: "normal" });
+      target.setInputSurfaceFrame({ component: { render: () => [], invalidate() {} }, columnStart: 1, columnEnd: 40, rowStart: 8, rowEnd: 8 });
+      compose();
+      target.handlePreInput("\u001b[<64;2;2M", true, Date.now(), false);
+      let result = compose();
+      expect(result.hits.rail === null).toBe(appearance === "hidden");
+      if (result.hits.rail !== null) {
+        const rail = result.hits.rail;
+        const thumbRow = rail.rowStart + rail.geometry.thumbTop;
+        target.handlePreInput(`\u001b[<0;${rail.column};${thumbRow}M\u001b[<32;${rail.column};1M\u001b[<0;${rail.column};1m`, true, Date.now(), false);
+        result = compose();
+        expect(result.scrollTop).toBe(0);
+      }
+      const bottom = result.hits.bottom!;
+      target.handlePreInput(`\u001b[<0;${bottom.columnStart};${bottom.row}M\u001b[<0;${bottom.columnStart};${bottom.row}m`, true, Date.now(), false);
+      expect(compose().followingEnd).toBe(true);
+    } finally { target.clearPointerState(); }
+  });
+
   it("suppresses no-frame selection through content arrival while preserving keyboard bytes", () => {
     const target = new SessionViewportController({ enabled: true, editor: editor(), requestRender() {} });
     try {

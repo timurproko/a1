@@ -216,6 +216,8 @@ export const KEYBINDINGS = {
 /** Pi actions with bare-A1 aliases; the comparison profile keeps KEYBINDINGS unchanged. */
 const OWNED_INPUT_KEYBINDINGS = {
 	...KEYBINDINGS,
+	"app.thinking.cycle": { ...KEYBINDINGS["app.thinking.cycle"], defaultKeys: "ctrl+l" },
+	"app.model.select": { ...KEYBINDINGS["app.model.select"], defaultKeys: [] },
 	"tui.editor.deleteWordBackward": {
 		...KEYBINDINGS["tui.editor.deleteWordBackward"],
 		defaultKeys: [...KEYBINDINGS["tui.editor.deleteWordBackward"].defaultKeys, "ctrl+backspace"],
@@ -386,6 +388,10 @@ export class KeybindingsManager extends TuiKeybindingsManager {
 
 	static create(agentDir: string = getAgentDir()): KeybindingsManager {
 		return KeybindingsManager.createWithDefinitions(agentDir, KEYBINDINGS);
+	}
+
+	static fromOwnedBindings(bindings: KeybindingsConfig = {}): KeybindingsManager {
+		return new KeybindingsManager(bindings, undefined, OWNED_INPUT_KEYBINDINGS);
 	}
 
 	static createForOwnedInput(agentDir: string = getAgentDir()): KeybindingsManager {

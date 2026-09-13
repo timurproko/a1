@@ -1,4 +1,5 @@
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { promptInputPresentation } from "../../../support/prompt-input-presentation.js";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { StdinBuffer, stripTerminalSequences, visibleWidth } from "#pi-tui";
@@ -27,7 +28,7 @@ async function fixture(history: boolean, fallback = false) {
     transformPastedContent: content => chips.transformPastedContent(content),
     editorAtomicRanges: line => chips.atomicRanges(line), editorHiddenRanges: line => chips.hiddenRanges(line),
     expandCopiedEditorText: text => chips.expandCopiedText(text),
-    promptPresentation: { prefix: "❯ ", styleSuggestion: text => text, styleSuggestionCaret: text => text },
+    promptPresentation: promptInputPresentation(),
   });
   editor.setFocused?.(true);
   editor.render(80);

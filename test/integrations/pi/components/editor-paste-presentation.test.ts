@@ -1,4 +1,5 @@
 import { mkdtemp, rm } from "node:fs/promises";
+import { promptInputPresentation } from "../../../support/prompt-input-presentation.js";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { stripTerminalSequences } from "#pi-tui";
@@ -21,7 +22,7 @@ async function fixture(history: boolean) {
     editorAtomicRanges: line => [...line.matchAll(/\[📷 [^\]]+\]/gu)].map(match => ({ start: match.index, end: match.index + match[0].length })),
     editorHiddenRanges: line => [...line.matchAll(/\[📷 screenshot-pending\]/gu)].map(match => ({ start: match.index, end: match.index + match[0].length })),
     decorateEditorRow: row => { if (failRender) throw new Error("render failed"); return row; },
-    promptPresentation: { prefix: "❯ ", styleSuggestion: text => text, styleSuggestionCaret: text => text },
+    promptPresentation: promptInputPresentation(),
   });
   editor.setFocused?.(true);
   return {

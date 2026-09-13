@@ -109,10 +109,25 @@ Presentation invalidation SHALL preserve semantic identity and SHALL NOT manufac
 - **THEN** its next visible presentation SHALL be current
 - **AND** the invalidation SHALL NOT force every historical block to render immediately
 
+### Requirement: Agent content presentation follows pinned Pi outside declared product differences
+For equivalent supported inputs and visibility settings, the owned shell SHALL preserve pinned Pi's displayable content boundaries, tool-result presentation, text styling and spacing, and execution/renderer lifecycle behavior outside existing documented A1 product differences. It SHALL NOT replace supported structured tool presentation with a text approximation or introduce avoidable content disappearance or flashing through its adaptations.
+
+This requirement SHALL preserve existing bounded delivery, payload validation, asset ownership, error isolation, and viewport/editor/modal/selection behavior. It SHALL NOT require removing documented A1 features, showing superseded partial snapshots, or modifying the pinned comparison route. Existing link-specific defects tracked separately in issue #353 SHALL NOT be represented as intentional content differences or as repaired by this parity claim.
+
+#### Scenario: Present ordinary text and tool output
+- **WHEN** equivalent assistant text, thinking, fenced code, and text-only tool output are presented in A1 and the independent pinned reference
+- **THEN** content boundaries and styled presentation SHALL match outside documented A1 differences
+- **AND** A1 SHALL NOT omit a required surface or add artificial blank or argument-only replacement states
+
+#### Scenario: Present structured tool results through a simplified adapter
+- **WHEN** a content-rendering adaptation is simplified and equivalent supported edit or extension results are compared with pinned Pi
+- **THEN** the actual result presentation and lifecycle behavior SHALL remain faithful to pinned Pi
+- **AND** payload limits, attachment ownership, visible fallbacks, and unrelated transcript content SHALL remain protected
+
 ### Requirement: Content-retention evidence uses production lifecycle and presentation boundaries
 Rendering acceptance SHALL exercise the pinned production event ordering, including assistant argument completion before tool execution, multiple messages and invocations, run-local completion collections, delayed settlement, and asynchronous renderer callbacks. It SHALL verify complete semantic state, component output, cached document output, and emitted terminal results at intermediate as well as final checkpoints.
 
-Evidence SHALL include ordinary scheduled presentation and coalesced bursts rather than force a render after every event in every workload. Tool-rendering parity SHALL use independent pinned renderers or the untouched pinned process with equivalent input, not an A1-authored text approximation. Assertions SHALL detect omitted content, stale presentation, loss of structured results, and resurrection of completed output separately from terminal damage and native hover behavior.
+Evidence SHALL include ordinary scheduled presentation and coalesced bursts rather than force a render after every event in every workload. Tool-rendering parity SHALL use independent pinned renderers or the untouched pinned process with equivalent input, not an A1-authored text approximation, and SHALL identify existing documented A1 differences. Assertions SHALL detect omitted content, stale presentation, loss of structured results, resurrection of completed output, and artificial blank or stale intermediate frames separately from terminal damage and native hover behavior. Matching final text or reducing paint counts alone SHALL NOT establish content stability.
 
 #### Scenario: Exercise the argument-to-execution boundary
 - **WHEN** a production-ordered tool workload completes arguments, emits accumulated output, and settles with an older conversation present
@@ -128,10 +143,15 @@ Evidence SHALL include ordinary scheduled presentation and coalesced bursts rath
 - **THEN** equivalent complete payloads SHALL drive the independent actual tool renderers
 - **AND** text-only substitute renderers or expectations derived solely from A1 SHALL NOT establish parity
 
-#### Scenario: A physical content omission contradicts automated evidence
-- **WHEN** the exact candidate still loses a displayable block or requires resize/reopen to reveal current output during user-controlled review
+#### Scenario: Detect transient presentation faults
+- **WHEN** a test-only negative control drops a required surface, exposes an artificial blank frame, or restores stale rows before later recovering the correct final text
+- **THEN** the corresponding intermediate or scheduled-presentation gate SHALL fail
+- **AND** the eventual correct final snapshot SHALL NOT hide the fault
+
+#### Scenario: Physical content instability contradicts automated evidence
+- **WHEN** the exact candidate still loses a displayable block, requires resize/reopen to reveal current output, or exhibits unexplained A1-induced block flashing during user-controlled review
 - **THEN** content-rendering acceptance SHALL remain incomplete
-- **AND** evidence SHALL identify the earliest boundary where the required content or presentation became stale or absent
+- **AND** evidence SHALL identify the earliest boundary where required content, presentation, or stability diverged from the pinned reference outside documented A1 differences
 
 ## MODIFIED Requirements
 

@@ -45,6 +45,18 @@ a1 pi                                   # vanilla Pi oracle: ~/.pi/agent
 Unsupported commands exit quietly without launching anything. The removed
 `update:<preview>` forms are not aliases; use `update --develop`.
 
+## Agent input
+
+The agent prompt and Settings search share one input component: neutral white
+bars and an undimmed arrow matching submitted prompts. Thinking-level color is
+shown on the level name in the status bar, not on the input bars.
+
+In bare A1, **Ctrl+L cycles the thinking level**. **Shift+Tab is unassigned** and
+performs no agent-input action, including while a suggestion is visible. Model
+selection has **no default shortcut**; use `/model`. Explicit keybinding overrides
+remain configurable, and `/hotkeys` shows the resolved bindings. The `a1 pi`
+comparison profile keeps its original presentation and shortcuts.
+
 ## Prompt suggestions
 
 Bare A1's `/settings` → Agent → Prompt suggestions controls faint next-prompt

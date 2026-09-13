@@ -13,6 +13,8 @@ import {
   type TuiAltScreenOptions,
   visibleWidth,
 } from "#pi-tui";
+import { MouseReportInput } from "./mouse-report-input.js";
+import { GeometryObservedAltScreen, OverlayGeometryTracker } from "./overlay-geometry.js";
 import { boundedCleanup, EMERGENCY_TERMINAL_RESET } from "../../../foundation/terminal-cleanup/index.js";
 import {
   InputPresentationCoordinator,
@@ -143,6 +145,7 @@ export class PiTuiRuntimeAdapter {
   readonly #bridges = new WeakMap<PiTuiComponentPort, ComponentBridge>();
   readonly #mountedComponents = new Set<PiTuiComponentPort>();
   readonly #scrollViews = new Map<string, ScrollView>();
+  readonly #overlayGeometry: OverlayGeometryTracker | undefined;
   readonly #overlayDisposers = new Set<() => void>();
   readonly #overlayInputCoordination = new Map<ComponentBridge, "owned" | "opaque">();
   readonly #inputListeners = new Map<PiTuiInputListener, () => void>();
@@ -158,6 +161,7 @@ export class PiTuiRuntimeAdapter {
 
   constructor(options: PiTuiRuntimeAdapterOptions) {
     this.#root = options.root;
+    this.#overlayGeometry = options.onOverlayGeometry === undefined ? undefined : new OverlayGeometryTracker(options.onOverlayGeometry);
     this.#terminal = options.terminal ?? new ProcessTerminal();
     this.#inputDiagnostics = options.inputDiagnostics;
     this.#diagnosticNow = options.inputDiagnostics?.now ?? (() => performance.now());
@@ -184,11 +188,12 @@ export class PiTuiRuntimeAdapter {
           }),
         });
     this.#tuiTerminal = this.#inputCoordinator === undefined
-      ? preInputTerminal(decoratedTerminal, data => this.#routePreInput(data))
+      ? preInputTerminal(decoratedTerminal, data => this.#routePreInput(data), this.#overlayGeometry !== undefined)
       : coordinatedInputTerminal(
           decoratedTerminal,
           this.#inputCoordinator,
           sink => { this.#inputSink = sink; },
+          this.#overlayGeometry !== undefined,
         );
     this.#layoutRoot = options.layoutRoot;
     this.#logDirectory = options.logDirectory;
@@ -301,6 +306,7 @@ export class PiTuiRuntimeAdapter {
 
   setFocus(component: PiTuiComponentPort | null): void {
     this.#assertRunning("focus");
+    if (this.#overlayInputCoordination.size > 0) this.#overlayGeometry?.invalidate();
     this.#tui.setFocus(this.#bridgeFor(component));
   }
 
@@ -309,6 +315,7 @@ export class PiTuiRuntimeAdapter {
     if (this.#bridges.has(component)) throw new TypeError("Pi TUI component is already mounted");
     const bridge = new ComponentBridge(component);
     this.#bridges.set(component, bridge);
+    this.#overlayGeometry?.ports.set(bridge, component);
     let hidden = false;
     const dispose = () => {
       if (hidden) return;
@@ -326,6 +333,11 @@ export class PiTuiRuntimeAdapter {
 
   hasOverlay(): boolean {
     return this.#tui.hasOverlay();
+  }
+
+  /** Keyboard capture is independent of a passive overlay's visible pointer region. */
+  hasFocusedOverlay(): boolean {
+    return this.#tui instanceof GeometryObservedAltScreen ? this.#tui.overlayFocused : this.#focusedOverlayInputCoordination() !== undefined;
   }
 
   /**
@@ -478,9 +490,11 @@ export class PiTuiRuntimeAdapter {
   }
 
   #createTui(mode: "regular" | "fullscreen", hardwareCursor: boolean): TUI {
-    return mode === "fullscreen"
-      ? new TuiAltScreen(this.#tuiTerminal, hardwareCursor, this.#logDirectory, this.#tuiOptions)
-      : new TuiMainScreen(this.#tuiTerminal, hardwareCursor, this.#logDirectory);
+    if (mode !== "fullscreen") return new TuiMainScreen(this.#tuiTerminal, hardwareCursor, this.#logDirectory);
+    if (this.#overlayGeometry === undefined) return new TuiAltScreen(this.#tuiTerminal, hardwareCursor, this.#logDirectory, this.#tuiOptions);
+    const screen = new GeometryObservedAltScreen(this.#tuiTerminal, hardwareCursor, this.#logDirectory, this.#tuiOptions);
+    screen.geometry = this.#overlayGeometry;
+    return screen;
   }
 
   #routePreInput(data: string): string {
@@ -640,20 +654,24 @@ function coordinatedInputTerminal(
   terminal: PiTuiTerminalPort,
   coordinator: InputPresentationCoordinator,
   setSink: (sink: ((data: string) => void) | undefined) => void,
+  frameMouse: boolean,
 ): PiTuiTerminalPort {
+  const mouse = frameMouse ? new MouseReportInput(data => coordinator.accept(data)) : undefined;
   return {
     get columns() { return terminal.columns; },
     get rows() { return terminal.rows; },
     get kittyProtocolActive() { return terminal.kittyProtocolActive; },
     start(onInput, onResize) {
       setSink(onInput);
-      terminal.start(data => coordinator.accept(data), () => {
+      terminal.start(data => mouse === undefined ? coordinator.accept(data) : mouse.accept(data), () => {
         coordinator.flush();
+        mouse?.reset();
         onResize();
       });
     },
     stop() {
       coordinator.flush();
+      mouse?.reset();
       setSink(undefined);
       terminal.stop();
     },
@@ -700,18 +718,24 @@ function diagnosticTerminal(
   };
 }
 
-function preInputTerminal(terminal: PiTuiTerminalPort, route: (data: string) => string): PiTuiTerminalPort {
+function preInputTerminal(terminal: PiTuiTerminalPort, route: (data: string) => string, frameMouse: boolean): PiTuiTerminalPort {
+  let mouse: MouseReportInput | undefined;
   return {
     get columns() { return terminal.columns; },
     get rows() { return terminal.rows; },
     get kittyProtocolActive() { return terminal.kittyProtocolActive; },
     start(onInput, onResize) {
-      terminal.start(data => {
+      const deliver = (data: string) => {
         const routed = route(data);
         if (routed.length > 0) onInput(routed);
-      }, onResize);
+      };
+      mouse = frameMouse ? new MouseReportInput(deliver) : undefined;
+      terminal.start(data => mouse === undefined ? deliver(data) : mouse.accept(data), () => {
+        mouse?.reset();
+        onResize();
+      });
     },
-    stop: () => terminal.stop(),
+    stop: () => { mouse?.reset(); terminal.stop(); },
     drainInput: (maxMs, idleMs) => terminal.drainInput(maxMs, idleMs),
     write: data => terminal.write(data),
     moveBy: lines => terminal.moveBy(lines),

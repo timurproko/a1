@@ -1,4 +1,5 @@
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { promptInputPresentation } from "../../../support/prompt-input-presentation.js";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CURSOR_MARKER, stripTerminalSequences, visibleWidth, type AutocompleteProvider } from "#pi-tui";
@@ -28,7 +29,7 @@ async function fixture(history: boolean, extra: Partial<PiShellEditorOptions> = 
     agentDir: root, cwd: root, getColumns: () => 80, getRows: () => height,
     requestRender() {}, onSubmit: text => submitted.push(text), onCopyText: text => copied.push(text),
     paintEditorSelection: (row, from, to) => `${row.slice(0, from)}\u001b[44m${row.slice(from, to)}\u001b[49m${row.slice(to)}`,
-    promptPresentation: { prefix: "❯ ", styleSuggestion: text => text, styleSuggestionCaret: text => text },
+    promptPresentation: promptInputPresentation(),
     ...extra,
   });
   editor.setFocused?.(true);
@@ -42,11 +43,12 @@ function parts(editor: ReturnType<typeof createPiShellEditor>, width: number) {
   expect(body.rowOffset).toBeGreaterThanOrEqual(0);
   expect(rows.length).toBe(body.rowOffset + body.rowCount);
   if (body.rowOffset > 0) {
-    expect(stripTerminalSequences(rows[0]!)).toMatch(/^(?:─+|─── \d+\/\d+ ─*)$/u);
-    expect(visibleWidth(rows[0]!)).toBe(width);
-    expect(body.rowOffset).toBeGreaterThan(1);
+    // Rationale: the counter/border sits at the top of the body (the row directly above
+    // the input prompt), not above the menu, so assertions inspect body[0] instead.
+    expect(stripTerminalSequences(rows[body.rowOffset]!)).toMatch(/^(?:─+|─── \d+\/\d+ ─*)$/u);
+    expect(visibleWidth(rows[body.rowOffset]!)).toBe(width);
   }
-  return { rows, menu: rows.slice(body.rowOffset > 0 ? 1 : 0, body.rowOffset), body: rows.slice(body.rowOffset), geometry: body };
+  return { rows, menu: rows.slice(0, body.rowOffset), body: rows.slice(body.rowOffset), geometry: body };
 }
 
 describe.each([false, true])("above-prompt autocomplete (history=%s)", history => {
@@ -90,9 +92,8 @@ describe.each([false, true])("above-prompt autocomplete (history=%s)", history =
           for (const width of [12, 40, 80]) {
             const frame = parts(editor, width);
             const border = frame.body[0]!;
-            expect(frame.rows[0]!.slice(0, frame.rows[0]!.indexOf("─"))).toBe(border.slice(0, border.indexOf("─")));
-            expect(frame.rows[0]).toContain(piTheme().fg("dim", "1/12 "));
-            colors.add(frame.rows[0]!.replace(/─/gu, ""));
+            expect(border).toContain(piTheme().fg("dim", "1/12 "));
+            colors.add(border.replace(/─/gu, ""));
             expect(await replayTerminalBackgroundCells([
               { data: frame.rows.join("\r\n"), atMs: 0 },
             ], { columns: width, rows: frame.rows.length })).toEqual([]);
@@ -103,10 +104,10 @@ describe.each([false, true])("above-prompt autocomplete (history=%s)", history =
       editor.handleInput?.("\u001b"); editor.setText("! "); editor.handleInput?.("@");
       await expect.poll(() => parts(editor, 40).menu.length).toBeGreaterThan(0);
       const bash = parts(editor, 40);
-      expect(bash.rows[0]!.split("─")[0]).toBe(bash.body[0]!.split("─")[0]);
+      expect(bash.body[0]!.split("─")[0]).toBe(bash.body[0]!.split("─")[0]);
       height(10); editor.handleInput?.("\u001b"); editor.setText("line\n".repeat(14)); editor.handleInput?.("@");
       await expect.poll(() => parts(editor, 40).menu.length).toBeGreaterThan(0);
-      expect(stripTerminalSequences(parts(editor, 40).rows[0]!)).toBe("─── 1/12 " + "─".repeat(31));
+      expect(stripTerminalSequences(parts(editor, 40).body[0]!)).toBe("─── 1/12 " + "─".repeat(31));
       editor.handleInput?.("\u001b");
       expect(parts(editor, 40).geometry.rowOffset).toBe(0);
     } finally { applyPiTheme(originalTheme); await dispose(); }
@@ -138,7 +139,10 @@ describe.each([false, true])("above-prompt autocomplete (history=%s)", history =
         editor.handleInput?.("\u001b");
         for (const frame of frames) {
           height(frame.height);
-          expect(parts(editor, frame.width).body).toEqual(frame.body);
+          // Rationale: with the counter now on body[0] above the input, the top border
+          // toggles between counter and plain as the menu opens and closes. Compare
+          // the input rows and bottom border, which must stay stable.
+          expect(parts(editor, frame.width).body.slice(1)).toEqual(frame.body.slice(1));
           expect(editor.bodyGeometry!().rowOffset).toBe(0);
         }
       }
@@ -179,9 +183,9 @@ describe.each([false, true])("above-prompt autocomplete (history=%s)", history =
             expect(actual.menu).toEqual(expected);
             if (counter !== undefined) {
               const value = /^\((\d+\/\d+)\)$/u.exec(stripTerminalSequences(counter).trim())?.[1];
-              if (value !== undefined) expect(actual.rows[0]).toContain(piTheme().fg("dim", `${value} `));
-              else expect(stripTerminalSequences(actual.rows[0]!)).toBe("─".repeat(width));
-            } else expect(stripTerminalSequences(actual.rows[0]!)).toBe("─".repeat(width));
+              if (value !== undefined) expect(actual.body[0]).toContain(piTheme().fg("dim", `${value} `));
+              else expect(stripTerminalSequences(actual.body[0]!)).toBe("─".repeat(width));
+            } else expect(stripTerminalSequences(actual.body[0]!)).toBe("─".repeat(width));
           }
           for (const target of [editor, reference.editor]) {
             target.activateKeybindings(); target.handleInput?.("\u001b[B");
@@ -210,16 +214,16 @@ describe.each([false, true])("above-prompt autocomplete (history=%s)", history =
       }
       editor.setText(""); editor.addAutocompleteProvider(() => provider); editor.handleInput?.("@");
       await expect.poll(() => parts(editor, 80).menu.length).toBe(5);
-      expect(parts(editor, 80).geometry.rowOffset).toBe(6);
-      expect(parts(editor, 80).rows[0]).toContain(piTheme().fg("dim", "1/12 "));
+      expect(parts(editor, 80).geometry.rowOffset).toBe(5);
+      expect(parts(editor, 80).body[0]).toContain(piTheme().fg("dim", "1/12 "));
       editor.handleInput?.("\u001b[B");
-      expect(stripTerminalSequences(parts(editor, 80).rows[0]!)).toBe("─── 2/12 " + "─".repeat(71));
+      expect(stripTerminalSequences(parts(editor, 80).body[0]!)).toBe("─── 2/12 " + "─".repeat(71));
       expect(parts(editor, 80).menu.join("\n")).not.toContain("(2/12)");
       for (const width of [6, 8, 12, 80]) {
         const frame = parts(editor, width);
         expect(frame.menu).toHaveLength(5);
-        if (width < 9) expect(stripTerminalSequences(frame.rows[0]!)).toBe("─".repeat(width));
-        else expect(frame.rows[0]).toContain("2/12");
+        if (width < 9) expect(stripTerminalSequences(frame.body[0]!)).toBe("─".repeat(width));
+        else expect(frame.body[0]).toContain("2/12");
       }
       editor.handleInput?.("\u001b");
       editor.addAutocompleteProvider(() => ({ ...provider, getSuggestions: async () => ({ prefix: "@", items: [
@@ -227,7 +231,7 @@ describe.each([false, true])("above-prompt autocomplete (history=%s)", history =
       ] }) }));
       editor.setText(""); editor.handleInput?.("@");
       await expect.poll(() => parts(editor, 80).menu.length).toBe(1);
-      expect(stripTerminalSequences(parts(editor, 80).rows[0]!)).toBe("─".repeat(80));
+      expect(stripTerminalSequences(parts(editor, 80).body[0]!)).toBe("─".repeat(80));
       expect(parts(editor, 80).menu[0]).toContain("(1/24)");
       editor.handleInput?.("\u001b");
       expect(parts(editor, 80).geometry.rowOffset).toBe(0);
@@ -277,11 +281,11 @@ describe.each([false, true])("above-prompt autocomplete (history=%s)", history =
       }));
       editor.handleInput?.("@");
       await expect.poll(() => parts(editor, 80).menu.length).toBeGreaterThan(0);
-      expect(parts(editor, 80).rows[0]).toContain("1/12");
+      expect(parts(editor, 80).body[0]).toContain("1/12");
       editor.handleInput?.("a");
       await expect.poll(() => typeof deliver).toBe("function");
       deliver({ prefix: "@", items: items.slice(0, 8) });
-      await expect.poll(() => parts(editor, 80).rows[0]).toContain("1/8");
+      await expect.poll(() => parts(editor, 80).body[0]).toContain("1/8");
       editor.handleInput?.("b");
       await expect.poll(() => requests).toBe(3);
       editor.handleInput?.("\u001b");
