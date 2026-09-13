@@ -379,6 +379,14 @@ describe("prompt-style compaction in the real engine and shell", () => {
         const timeColumn = stripTerminalSequences(frames[1]![0]!).indexOf("14:35");
         expect(labelColumn).toBeGreaterThanOrEqual(0);
         expect(timeColumn).toBeGreaterThan(labelColumn);
+        const sourceTimeColumn = stripTerminalSequences(frames[0]![1]!).indexOf("14:35");
+        expect(sourceTimeColumn).toBeGreaterThanOrEqual(0);
+        const sourceTimeColor = rendered[0]![1]![sourceTimeColumn]!.foreground!.slice(0, 2);
+        // Invariant: pinning must retain the dim source timestamp color, independently of whole-row fading.
+        for (const state of [1, 2]) {
+          expect(rendered[state]![0]![timeColumn]!.foreground!.slice(0, 2)).toEqual(sourceTimeColor);
+        }
+        expect(rendered[1]![0]![labelColumn]!.foreground!.slice(0, 2)).not.toEqual(sourceTimeColor);
         for (const column of [labelColumn, timeColumn]) {
           expect(rendered[1]![0]![column]!.foreground![2]).toBe(0);
           expect(rendered[2]![0]![column]!.foreground![2]).not.toBe(0);
@@ -1815,7 +1823,8 @@ describe("OwnedUiSessionShell", () => {
     const detachedRaw = shell.root.render(60);
     const detached = detachedRaw.map(row => stripTerminalSequences(row));
     expect(detached).toHaveLength(12);
-    expect(detachedRaw[0]).toContain(piTheme().fg("userMessageText", "11:57"));
+    expect(detachedRaw[0]).toContain(piTheme().fg("dim", "11:57"));
+    expect(detachedRaw[0]).not.toContain(piTheme().fg("userMessageText", "11:57"));
     expect(detached.some(row => row.includes("Jump to bottom (Ctrl+End) ↓"))).toBe(true);
     expect(detached[0]).not.toContain("│");
     expect(detached.slice(1, -4).some(row => row.includes("│"))).toBe(true);

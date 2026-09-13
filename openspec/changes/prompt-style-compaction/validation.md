@@ -31,6 +31,18 @@ The user clarified that compactions must have no special purple fill: full and p
 
 Removed the synthetic end-marker sentence from the review-session generator. The fixture regression now verifies the last actual summary section remains present and the unwanted marker is absent; actual session summaries are not filtered. The synthetic retained tail now includes answer rows before the next prompt, providing a visible interval where the compaction header becomes quiet instead of being immediately replaced by the next prompt. A fresh marker-free local review session is available at `.artifacts/compaction-v3.jsonl`, without modifying the user's already-open review file.
 
+### Develop merge and timestamp-color correction
+
+Required CI run `34754183825` passed for `0dde4ab5`. The branch then conflicted with `develop` after the renderer-content repairs merged. Merge commit `f2861ec0` integrates develop `53e924c8`, combining the compaction expansion exemption with the renderer's guarded mutation path rather than dropping either change. Structured tool results, late attachments, asynchronous refresh/disposal safeguards, and automatically merged shell changes remain intact.
+
+The user's renewed white-timestamp report exposed a gap in the earlier parity check: both normal prompts and compactions inherited the same incorrect source-to-pinned recoloring. The stronger regression compares each timestamp's actual source color with its prominent and quiet pinned colors. Before the correction, it failed with pinned `#d4d4d4` versus source `#666666`. The shared pinned-row helper now uses the source's `dim` metadata role, not `userMessageText`. Both prompt types retain that metadata color while whole-row faint styling still applies after the entire block scrolls out. The old normal-prompt test that explicitly expected the white timestamp was updated to require the dim metadata role and reject the old color.
+
+Validation after the merge and correction:
+
+- `env -u PI_OFFLINE npx vitest run test/integrations/pi/components/compaction-prompt.test.ts test/integrations/pi/components/shell-components.test.ts test/integrations/pi/session-ui/session-shell.test.ts test/ui/components/submitted-prompt.test.ts test/ui/components/transcript-viewport.test.ts test/integrations/pi/session-ui/transcript-content-retention.test.ts test/integrations/pi/engine/tool-rendering.test.ts`: **343 passed, 0 failed**.
+- Typecheck, full documentation governance, strict OpenSpec validation, diff checks, and build passed.
+- No broad local validation tier was run. The updated candidate still requires CI and user visual acceptance; resolving conflicts is not authorization to merge this code PR.
+
 ## Candidate review
 
 Worktree: `D:/Git/a1/.worktrees/prompt-style-compaction-impl`
@@ -43,6 +55,6 @@ Build and launch the synthetic compaction session from that worktree:
 npm run build && session_file="$(command node scripts/pi/create-compaction-review-session.mjs)" && test -n "$session_file" && ./scripts/dev --session "$session_file"
 ```
 
-Starting at the bottom, use Shift+Up repeatedly to reach the earlier ordinary prompt and the compaction. The first compaction has the ordinary opening breathing row. Scroll within its long summary to pin the normal prompt-style header and timestamp; click that pinned row to return to its source. Scroll past the entire summary to see quiet pinned context. Use Shift+Down to move through the same anchors and return to following the live bottom. Ctrl+O must not hide the compaction; its full source header must not be bold, while deliberate emphasis inside the summary remains intact. Resize and select/copy summary text. The example file link is deliberately illustrative and does not require a real target file.
+Starting at the bottom, use Shift+Up repeatedly to reach the earlier ordinary prompt and the compaction. The first compaction has the ordinary opening breathing row. Scroll within its long summary to pin the normal prompt-style header; its timestamp must retain the source's dim metadata color rather than turn white. Click that pinned row to return to its source. Scroll past the entire summary to see quiet pinned context. Use Shift+Down to move through the same anchors and return to following the live bottom. Ctrl+O must not hide the compaction; its full source header must not be bold, while deliberate emphasis inside the summary remains intact. Resize and select/copy summary text. The example file link is deliberately illustrative and does not require a real target file.
 
 The script creates a new review session under `.artifacts/compaction-review/` on each invocation; the user does not need to submit a prompt or invoke compaction against a model. Physical visual acceptance remains pending. Headless checks do not establish native terminal hover acceptance or repair the unrelated ghost-link/flicker issues. The implementation PR must remain open until the user validates the exact candidate and explicitly authorizes its merge.
