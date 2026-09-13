@@ -9,6 +9,7 @@ import { promisify } from "node:util";
 import { PRODUCT_IDENTITY } from "../../../product-identity.js";
 import { configureOwnedHttpDispatcher } from "./http-dispatcher.js";
 import { readPinnedCommandChangelog } from "./changelog.js";
+import { toolRenderingInput } from "./tool-rendering.js";
 import {
   copyToClipboard,
   CredentialSynchronizationError,
@@ -29,6 +30,8 @@ import {
   OWNED_UI_EXTENSION_UI_CALLBACKS,
   OWNED_UI_EXTENSION_UI_PROPERTIES,
   CONTEXTUAL_PROMPT_SUGGESTION_INSTRUCTION,
+  acceptsTranscriptUpdate,
+  transcriptToolState,
   assertOwnedUiCommand,
   assertOwnedUiExtensionUiPort,
   assertOwnedUiPromptSuggestionRequest,
@@ -2164,6 +2167,8 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
     this.#reconcileActiveModelAvailability();
     this.#thinkingLevel = readThinkingLevel(session.thinkingLevel);
     this.#transcriptImageAssets.clear();
+    // Invariant: a new binding cannot inherit arguments/results from a reused invocation id.
+    this.#setTranscript([]);
     this.#rebuildTranscript(session.messages, "finalized");
     const generation = this.#sessionGeneration;
     this.#unsubscribe = session.subscribe(event => {
@@ -2293,6 +2298,7 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
       }
       case "message_end":
         this.#upsertMessageBlock(event.message, "finalized");
+        this.#settleFailedDeclarations(event.message);
         // Compatibility: preserve the same semantic boundary v2 counted. Transcript block
         // finalization is intentionally not a substitute: rebuilds, retries,
         // thinking parts, and tool rows can all finalize independently.
@@ -2336,11 +2342,16 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
       case "agent_settled":
       case "agent_end": {
         if (event.type === "agent_end" && event.willRetry === true) return;
-        const finalMessages = Array.isArray(event.messages) && event.messages.length > 0
-          ? event.messages
-          : this.#session?.messages ?? [];
-        if (finalMessages.length > 0) this.#rebuildTranscript(finalMessages, "finalized");
-        else this.#setTranscript(this.#transcript.map(block => block.status === "live" ? { ...block, status: "finalized", revision: block.revision + 1 } : block));
+        // Protocol: agent_end is run-local; only settlement reads the complete session scope.
+        const finalMessages = event.type === "agent_settled"
+          ? this.#session?.messages ?? []
+          : Array.isArray(event.messages) ? event.messages : [];
+        if (event.type === "agent_end") this.#mergeRunTranscript(finalMessages);
+        else if (finalMessages.length > 0) this.#rebuildTranscript(finalMessages, "finalized");
+        // Invariant: missing final messages must not erase accumulated content or invent tool outcomes.
+        if (finalMessages.length === 0) this.#setTranscript(this.#transcript.map(block =>
+          block.status === "live" && transcriptToolState(block) === undefined
+            ? { ...block, status: "finalized", revision: block.revision + 1 } : block));
         // Compatibility: ending a turn leaves the working state, as the recorded pinned baseline does, but
         // it leaves only that state: a compaction or retry being shown outlives the turn
         // that ended under it. Settlement ends the run, and with it every state — the
@@ -2455,6 +2466,30 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
     };
   }
 
+  // Invariant: run-local completion may restate messages, but never owns transcript membership.
+  #mergeRunTranscript(messages: readonly unknown[]): void {
+    const positions = new Map<unknown, { index: number; occurrence: number }>();
+    const sessionOccurrences = new Map<string, number>();
+    for (const [index, message] of (this.#session?.messages ?? []).entries()) {
+      const key = messageFallbackKey(message, index);
+      const occurrence = sessionOccurrences.get(key) ?? 0;
+      sessionOccurrences.set(key, occurrence + 1);
+      positions.set(message, { index, occurrence });
+    }
+    const runOccurrences = new Map<string, number>();
+    for (const [index, message] of messages.entries()) {
+      const key = messageFallbackKey(message, index);
+      const occurrence = runOccurrences.get(key) ?? 0;
+      runOccurrences.set(key, occurrence + 1);
+      const position = positions.get(message) ?? { index, occurrence };
+      for (const block of this.#messageBlocks(message, "finalized", position.index, position.occurrence)) {
+        this.#upsertTranscriptBlock(block);
+      }
+      this.#settleFailedDeclarations(message);
+    }
+  }
+
+  // Invariant: full replacement is reserved for session-authoritative scope (bind/settlement).
   #rebuildTranscript(messages: readonly unknown[], status: OwnedUiTranscriptBlock["status"]): void {
     const blocks: OwnedUiTranscriptBlock[] = [];
     const blockIndexes = new Map<string, number>();
@@ -2463,7 +2498,8 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
       const key = messageFallbackKey(message, index);
       const occurrence = occurrences.get(key) ?? 0;
       occurrences.set(key, occurrence + 1);
-      for (const block of this.#messageBlocks(message, status, index, occurrence)) {
+      for (const block of this.#messageBlocks(message, status, index, occurrence,
+        id => blocks[blockIndexes.get(id) ?? -1] ?? this.#transcriptBlock(id))) {
         const existingIndex = blockIndexes.get(block.id);
         if (existingIndex === undefined) {
           blockIndexes.set(block.id, blocks.length);
@@ -2487,7 +2523,8 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
     // it — otherwise every turn that ends re-renders the whole session.
     this.#setTranscript(blocks.map(block => {
       const existing = this.#transcriptBlock(block.id);
-      return existing !== undefined && sameBlockContent(existing, block) ? existing : block;
+      const next = existing === undefined ? block : retainCompletedArguments(existing, block);
+      return existing !== undefined && sameBlockContent(existing, next) ? existing : next;
     }));
   }
 
@@ -2506,6 +2543,7 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
     status: OwnedUiTranscriptBlock["status"],
     fallbackIndex: number,
     occurrence?: number,
+    currentBlock: (id: string) => OwnedUiTranscriptBlock | undefined = id => this.#transcriptBlock(id),
   ): OwnedUiTranscriptBlock[] {
     if (!isRecord(message) || typeof message.role !== "string") return [];
     const baseId = this.#messageBlockId(message, fallbackIndex, status, occurrence);
@@ -2584,25 +2622,24 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
         ? baseId
         : this.#toolBlockIds.get(toolCallId) ?? `tool-${toolCallId}`;
       if (toolCallId !== undefined) this.#toolBlockIds.set(toolCallId, blockId);
-      const existing = this.#transcriptBlock(blockId);
+      const existing = currentBlock(blockId);
       const existingPayload = isRecord(existing?.payload) ? existing.payload : undefined;
+      const payload = {
+        role: "toolResult", toolCallId: toolCallId ?? null,
+        toolName: stringValue(message.toolName) ?? stringValue(existingPayload?.toolName) ?? "unknown",
+        argsComplete: true, partialResult: status === "live", isError: message.isError === true,
+      };
+      const rendering = toolRenderingInput({ args: undefined, previousArgs: existing?.toolRendering,
+        result: message, payload, image: part => this.#imageReferences([part], "tool-result")[0] });
       return [{
         id: blockId,
         kind: "tool-result",
         status,
+        toolState: { argsComplete: true, execution: status === "live" ? "running" : message.isError === true ? "failed" : "succeeded" },
         revision: this.#nextBlockRevision(blockId),
         title: stringValue(message.toolName) ?? existing?.title ?? "Tool result",
-        text: textFromContent(message.content),
-        imageReferences: this.#imageReferences(message.content, "tool-result"),
-        payload: {
-          ...(existingPayload ?? {}),
-          role: "toolResult",
-          toolCallId: toolCallId ?? null,
-          toolName: stringValue(message.toolName) ?? stringValue(existingPayload?.toolName) ?? "unknown",
-          argsComplete: true,
-          isError: message.isError === true,
-          details: jsonSummary(message.details),
-        },
+        ...rendering,
+        payload,
       }];
     }
     if (message.role !== "assistant" || !Array.isArray(message.content)) return [];
@@ -2631,22 +2668,58 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
       const toolCallId = stringValue(item.id) ?? `${baseId}:${blocks.length}`;
       const blockId = this.#toolBlockIds.get(toolCallId) ?? `tool-${toolCallId}`;
       this.#toolBlockIds.set(toolCallId, blockId);
+      const failure = status === "finalized" ? this.#declarationFailure(message) : undefined;
+      const payload = { toolCallId, toolName: stringValue(item.name) ?? "unknown",
+        argsComplete: failure === undefined && status === "finalized",
+        ...(failure === undefined ? {} : { isError: true }) };
+      const rendering = toolRenderingInput({ args: item.arguments, payload,
+        ...(failure === undefined ? {} : { result: { content: [{ type: "text", text: failure.text }] } }),
+        image: () => undefined });
       blocks.push({
         id: blockId,
-        kind: "tool-call",
-        status,
+        kind: failure === undefined ? "tool-call" : "tool-result",
+        status: failure === undefined ? "live" : "finalized",
+        toolState: {
+          argsComplete: failure === undefined && status === "finalized",
+          execution: failure?.execution ?? "pending",
+        },
         revision: this.#nextBlockRevision(blockId),
         title: stringValue(item.name) ?? "Tool",
-        text: jsonSummary(item.arguments).summary,
-        payload: {
-          toolCallId,
-          toolName: stringValue(item.name) ?? "unknown",
-          arguments: jsonSummary(item.arguments),
-          argsComplete: status === "finalized",
-        },
+        ...rendering,
+        text: failure?.text ?? jsonSummary(item.arguments).summary,
+        payload,
       });
     }
     return blocks;
+  }
+
+  #declarationFailure(message: Record<string, unknown>): { execution: "failed" | "aborted"; text: string } | undefined {
+    // Provenance: pinned interactive-mode message_end and history reconstruction settle pending tools.
+    if (message.role !== "assistant") return undefined;
+    if (message.stopReason === "aborted") {
+      const attempts = this.#session?.retryAttempt ?? 0;
+      return { execution: "aborted", text: attempts > 0
+        ? `Aborted after ${attempts} retry attempt${attempts > 1 ? "s" : ""}` : "Operation aborted" };
+    }
+    return message.stopReason === "error"
+      ? { execution: "failed", text: stringValue(message.errorMessage) || "Error" } : undefined;
+  }
+
+  #settleFailedDeclarations(message: unknown): void {
+    if (!isRecord(message)) return;
+    const failure = this.#declarationFailure(message);
+    if (failure === undefined) return;
+    for (const block of this.#transcript) {
+      const state = transcriptToolState(block);
+      if (state === undefined || state.execution !== "pending" && state.execution !== "running") continue;
+      const payload = { ...(isRecord(block.payload) ? block.payload : {}), partialResult: false, isError: true };
+      this.#upsertTranscriptBlock({
+        ...block, kind: "tool-result", status: "finalized", revision: block.revision + 1,
+        ...toolRenderingInput({ args: undefined, previousArgs: block.toolRendering, payload,
+          result: { content: [{ type: "text", text: failure.text }] }, image: () => undefined }),
+        toolState: { ...state, execution: failure.execution }, payload,
+      });
+    }
   }
 
   #imageReferences(content: unknown, source: OwnedUiTranscriptImageReference["source"]): readonly OwnedUiTranscriptImageReference[] {
@@ -2671,25 +2744,25 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
     const blockId = this.#toolBlockIds.get(toolCallId) ?? `tool-${toolCallId}`;
     this.#toolBlockIds.set(toolCallId, blockId);
     const ended = event.type === "tool_execution_end";
+    const existing = this.#transcriptBlock(blockId);
+    const state = existing === undefined ? undefined : transcriptToolState(existing);
+    // Invariant: duplicate starts cannot blank accumulated output; late events cannot reopen a settled invocation.
+    if (state !== undefined && (state.execution !== "pending" && state.execution !== "running"
+      || event.type === "tool_execution_start" && state.execution === "running")) return;
     const source = ended ? event.result : event.partialResult;
+    const payload = { toolCallId, toolName: stringValue(event.toolName) ?? "unknown",
+      partialResult: event.type === "tool_execution_update", argsComplete: true, isError: event.isError === true };
+    const rendering = toolRenderingInput({ args: event.args, previousArgs: existing?.toolRendering, result: source,
+      payload, image: part => this.#imageReferences([part], "tool-result")[0] });
     this.#upsertTranscriptBlock({
       id: blockId,
       kind: ended ? "tool-result" : "tool-call",
       status: ended ? "finalized" : "live",
+      toolState: { argsComplete: true, execution: ended ? event.isError === true ? "failed" : "succeeded" : "running" },
       revision: this.#nextBlockRevision(blockId),
       title: stringValue(event.toolName) ?? "Tool",
-      text: textFromContent(isRecord(source) ? source.content : source),
-      payload: {
-        toolCallId,
-        toolName: stringValue(event.toolName) ?? "unknown",
-        arguments: jsonSummary(event.args),
-        // Performance: a partial result repeats the whole accumulated output on every chunk;
-        // summarizing it each time would cost quadratic work over the stream.
-        result: ended ? jsonSummary(source) : { summary: "", json: null },
-        partialResult: event.type === "tool_execution_update",
-        argsComplete: ended,
-        isError: event.isError === true,
-      },
+      ...rendering,
+      payload,
     });
   }
 
@@ -2697,8 +2770,9 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
     const index = this.#transcriptIndex.get(block.id);
     if (index !== undefined) {
       const existing = this.#transcript[index];
-      // Invariant: an obsolete partial cannot revive finalized content after a completion barrier.
-      if (existing?.status === "finalized" && block.status === "live") return;
+      // Invariant: argument completion is not execution finality; stale phases still stay rejected.
+      if (existing !== undefined && !acceptsTranscriptUpdate(existing, block)) return;
+      if (existing !== undefined) block = retainCompletedArguments(existing, block);
       // Performance: nothing is emitted for a block that repeats itself, and keeping the
       // revision keeps the rows it already rendered.
       if (existing !== undefined && sameBlockContent(existing, block)) return;
@@ -2875,6 +2949,9 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
     this.#lifecycle = this.#disposed ? "stopped" : canResume ? "ready" : "failed";
     this.#editor = { ...this.#editor, submitEnabled: canResume && !this.#disposed };
     this.#viewRevision += 1;
+    // Invariant: overload publishes one authoritative view; settle tool phases before finalizing other live blocks.
+    this.#settleFailedDeclarations({ role: "assistant", stopReason: cancelled ? "aborted" : "error",
+      errorMessage: "Tool result unavailable after UI delivery overload" });
     this.#setTranscript(this.#transcript.map(block => block.status === "live" ? { ...block, status: "finalized", revision: block.revision + 1 } : block));
     for (const [correlationId, result] of this.#reservedOutcomes) {
       this.#deliver(this.#event({ type: "command-outcome", correlationId, ...result }));
@@ -3479,6 +3556,16 @@ function compactResourceLabel(path: string): string {
   return segments.at(-1) ?? path;
 }
 
+/** A later error may restate a declaration, but cannot make completed arguments incomplete. */
+function retainCompletedArguments(current: OwnedUiTranscriptBlock, next: OwnedUiTranscriptBlock): OwnedUiTranscriptBlock {
+  if (current.toolState?.argsComplete !== true || next.toolState === undefined || next.toolState.argsComplete) return next;
+  return { ...next, toolState: { ...next.toolState, argsComplete: true },
+    ...(next.toolRendering === undefined || current.toolRendering === undefined ? {} : {
+      toolRendering: { ...next.toolRendering, arguments: current.toolRendering.arguments },
+    }),
+    payload: { ...(isRecord(next.payload) ? next.payload : {}), argsComplete: true } };
+}
+
 /**
  * Whether two blocks say the same thing. A block that says what it already said is not a
  * new revision: the shell renders a block once per revision, so bumping one it did not
@@ -3489,6 +3576,8 @@ function sameBlockContent(left: OwnedUiTranscriptBlock, right: OwnedUiTranscript
     && left.status === right.status
     && left.title === right.title
     && left.text === right.text
+    && sameValue(left.toolState, right.toolState)
+    && sameValue(left.toolRendering, right.toolRendering)
     && sameValue(left.payload, right.payload)
     && sameValue(left.imageReferences ?? [], right.imageReferences ?? []);
 }

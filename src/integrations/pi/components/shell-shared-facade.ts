@@ -146,6 +146,7 @@ export interface PiShellExtensionRendererResolver {
 export interface PiShellTranscriptComponentPort extends PiShellComponentPort {
   readonly id: string;
   readonly revision: number;
+  readonly presentationRevision?: number;
   update(block: OwnedUiTranscriptBlock): void;
   setExpanded(expanded: boolean): void;
   setOutputPad(padding: 0 | 1): void;
