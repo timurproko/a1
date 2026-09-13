@@ -52,7 +52,7 @@ export class PromptImageSidecar {
       // idempotent because sidecar payloads are keyed to a chip tag whose id already collided.
       const temporary = `${target}.tmp`;
       writeFileSync(temporary, JSON.stringify(record), { encoding: "utf8", mode: 0o600, flag: "w" });
-      try { if (process.platform !== "win32") chmodSync(temporary, 0o600); } catch { /* Portability: chmod is best-effort where the platform ignores it. */ }
+      try { if (process.platform !== "win32") chmodSync(temporary, 0o600); } catch { /* Compatibility: chmod is best-effort where the platform ignores it. */ }
       renameSync(temporary, target);
     } catch {
       // Security: sidecar write failures never propagate into shell diagnostics or history rows.
@@ -99,7 +99,7 @@ export class PromptImageSidecar {
   unlink(id: string): void {
     if (!isValidId(id)) return;
     try { unlinkSync(this.#pathFor(id)); }
-    catch { /* Reliability: ENOENT / EBUSY is indistinguishable from a already-reaped sidecar. */ }
+    catch { /* Compatibility: ENOENT / EBUSY is indistinguishable from an already-reaped sidecar. */ }
   }
 
   /** Delete sidecars whose identifier is not present in `keep`. Used both by retention pruning
@@ -116,7 +116,7 @@ export class PromptImageSidecar {
       mkdirSync(this.#directory, { recursive: true, mode: 0o700 });
       if (process.platform !== "win32") chmodSync(this.#directory, 0o700);
     } catch {
-      // Reliability: the directory may already exist with a different mode we cannot change.
+      // Compatibility: the directory may already exist with a different mode we cannot change.
     }
   }
 

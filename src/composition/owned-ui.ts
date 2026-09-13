@@ -82,19 +82,18 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     onChange: (listener: (enabled: boolean) => void) => settings.onChange(() => listener(settings.value("promptSuggestions") !== false)),
   };
   const historyLimit = settings?.value("promptHistoryMaxItems");
-  const promptHistory = settings === null || !ownedSurfaces || settings.value("promptHistoryEnabled") === false ? null : (() => {
-    const dataDir = resolvePromptHistoryDataDir();
-    const location = resolvePromptHistoryPath(dataDir, adapter.agentDir);
-    return {
+  const historyProfileLocation = settings === null || !ownedSurfaces || settings.value("promptHistoryEnabled") === false
+    ? null
+    : resolvePromptHistoryPath(resolvePromptHistoryDataDir(), adapter.agentDir);
+  const promptHistory = historyProfileLocation === null ? null : {
+    limit: typeof historyLimit === "number" ? historyLimit : 100,
+    store: new PromptHistoryService({
+      dataDir: resolvePromptHistoryDataDir(),
+      profileRoot: adapter.agentDir,
       limit: typeof historyLimit === "number" ? historyLimit : 100,
-      store: new PromptHistoryService({
-        dataDir,
-        profileRoot: adapter.agentDir,
-        limit: typeof historyLimit === "number" ? historyLimit : 100,
-      }),
-      imageSidecar: new PromptImageSidecar(location.imagesDir),
-    };
-  })();
+    }),
+    imageSidecar: new PromptImageSidecar(historyProfileLocation.imagesDir),
+  };
   const shell = new OwnedUiSessionShell({
     backend: adapter,
     cwd: adapter.cwd,

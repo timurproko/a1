@@ -34,7 +34,7 @@ describe("PromptImageSidecar", () => {
     sidecar.write("aaaaaaaa", { tag: "[📷 screenshot-aaaaaaaa]", data: "aA==", mimeType: "image/png", savedAt: "2026-01-01T00:00:00Z" });
     await writeFile(path.join(dir, "aaaaaaaa.json"), "not-json", "utf8");
     expect(sidecar.read("aaaaaaaa")).toBeNull();
-    // Missing required fields are also treated as unavailable so the recall path silently strips.
+    // Invariant: missing required fields are also treated as unavailable so the recall path silently strips.
     await writeFile(path.join(dir, "bbbbbbbb.json"), JSON.stringify({ tag: "[📷 screenshot-bbbbbbbb]" }), "utf8");
     expect(sidecar.read("bbbbbbbb")).toBeNull();
   });
@@ -63,7 +63,7 @@ describe("PromptImageSidecar", () => {
     expect(existsSync(dir)).toBe(false);
     sidecar.write("dd", { tag: "[📷 screenshot-dd]", data: "aA==", mimeType: "image/png", savedAt: "t" });
     expect(existsSync(dir)).toBe(true);
-    // Second write is idempotent: file exists and read still succeeds.
+    // Invariant: second write is idempotent -- file exists and read still succeeds.
     sidecar.write("dd", { tag: "[📷 screenshot-dd]", data: "aA==", mimeType: "image/png", savedAt: "t" });
     expect(sidecar.read("dd")).not.toBeNull();
     sidecar.unlink("dd");
@@ -80,7 +80,7 @@ describe("PromptImageSidecar", () => {
     expect(dirStat.mode & 0o777).toBe(0o700);
     const fileStat = await stat(path.join(dir, "ee.json"));
     expect(fileStat.mode & 0o777).toBe(0o600);
-    // Restore write access so the temp cleanup can remove the tree.
+    // Rationale: restore write access so the temp cleanup can remove the tree.
     await chmod(dir, 0o700);
   });
 });
