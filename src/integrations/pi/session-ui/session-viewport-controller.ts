@@ -1,3 +1,5 @@
+import type { PresentationPointerSurface } from "../../../contracts/presentation/index.js";
+import { samePointerSurfaces } from "../tui-runtime/overlay-geometry.js";
 import type { OwnedUiViewportSettings } from "../../../contracts/owned-ui/index.js";
 import {
   TranscriptViewport,
@@ -45,6 +47,10 @@ export class SessionViewportController {
     scrollbarSpeed: "normal",
   };
   #dragGrabOffset: number | null = null;
+  #inputSurface: PresentationPointerSurface | undefined;
+  #inputSurfacePending = false;
+  #overlays: readonly PresentationPointerSurface[] | null = [];
+  #pointerOwner: PresentationPointerSurface | "viewport" | "drain" | undefined;
   // Invariant: a left-button sequence begun in dock chrome remains owned by the dock.
   #dockPointerSuppressed = false;
   // Invariant: a left-button sequence begun in non-selectable transcript tail chrome is held there.
@@ -109,7 +115,35 @@ export class SessionViewportController {
     this.#editorPointerFrame = frame;
   }
 
+  /** Replacement input changed before its new bounds have been painted. */
+  invalidateInputSurface(): void {
+    this.#inputSurfacePending = true;
+    this.#cancelGesture();
+  }
+
+  setInputSurfaceFrame(surface: PresentationPointerSurface | undefined): void {
+    if (!samePointerSurfaces(this.#inputSurface === undefined ? [] : [this.#inputSurface], surface === undefined ? [] : [surface])) {
+      this.#cancelGesture();
+    }
+    this.#inputSurface = surface;
+    this.#inputSurfacePending = false;
+  }
+
+  setOverlaySurfaces(surfaces: readonly PresentationPointerSurface[] | null): void {
+    if (surfaces === this.#overlays || surfaces !== null && this.#overlays !== null && samePointerSurfaces(surfaces, this.#overlays)) return;
+    this.#cancelGesture();
+    this.#overlays = surfaces;
+  }
+
+  get inputGeometryReady(): boolean {
+    return !this.#inputSurfacePending && this.#overlays !== null;
+  }
+
   compose(input: Omit<TranscriptViewportFrameInput, "pointerPosition">): TranscriptViewportFrame {
+    const previous = this.#viewport.frame;
+    if ((this.#inputSurface !== undefined || this.#overlays === null || this.#overlays.length > 0)
+      && previous !== null && (previous.rows.length !== input.height || previous.descriptor.width !== input.width
+      || previous.hits.viewportHeight !== Math.max(0, input.height - input.dockRows.length))) this.#cancelGesture();
     this.#viewport.setConfig(this.#config);
     const selectionRevision = this.#viewport.selectionRevision;
     const frame = this.#viewport.compose({
@@ -172,6 +206,10 @@ export class SessionViewportController {
     this.#pointerPosition = undefined;
     this.#hoveredHyperlinkKey = undefined;
     this.#viewport.reset();
+    this.#pointerOwner = undefined;
+    this.#dragGrabOffset = null;
+    this.#dockPointerSuppressed = false;
+    this.#tailPointerSuppressed = false;
   }
 
   clearPointerState(): void {
@@ -187,33 +225,47 @@ export class SessionViewportController {
     this.#stopSelectionAutoScroll();
     this.#viewport.clearSelection();
     this.#viewport.clearTransient();
+    this.#pointerOwner = undefined;
   }
 
-  handlePreInput(data: string, allowWheel = true, now = Date.now()): SessionViewportInputResult {
+  #cancelGesture(): void {
+    const held = this.#pointerOwner !== undefined || this.#viewport.selectionActive || this.#editorPointerSelecting;
+    const repaint = this.#viewport.hasSelection || held;
+    if (!repaint && this.#pointerPosition === undefined && this.#hoveredHyperlinkKey === undefined) return;
+    const editorFrame = this.#editorPointerFrame;
+    this.clearPointerState();
+    this.#editorPointerFrame = editorFrame;
+    if (held) this.#pointerOwner = "drain";
+    if (repaint) this.#requestRender();
+  }
+
+  handlePreInput(data: string, allowWheel = true, now = Date.now(), editorActive = true): SessionViewportInputResult {
     if (!this.#enabled) return { data, consumed: false };
     // Compatibility: Pi components share one keybinding manager. Restore bare A1's aliases
     // before the focused vanilla editor handles this input.
-    this.#editor.activateKeybindings();
+    if (editorActive) this.#editor.activateKeybindings();
+    // Protocol: bracketed paste is opaque input, even if its text resembles mouse reports.
+    if (data.startsWith("\u001b[200~")) return { data, consumed: false };
     // Platform: handle the physical paste chord at the pre-input boundary. Windows
     // terminals vary between forwarding Ctrl+V and terminal-owned bracketed paste.
-    if (this.#editor.matchesTerminalKey(data, "ctrl+v") && this.#editor.pasteClipboard()) {
+    if (editorActive && this.#editor.matchesTerminalKey(data, "ctrl+v") && this.#editor.pasteClipboard()) {
       return { data: "", consumed: true };
     }
     // Platform: URL chip deletion must overwrite terminal link cells in the same frame.
-    if (EDITOR_LINK_DELETION_INPUTS.has(data) && this.#hasEditorLinks()) {
+    if (editorActive && EDITOR_LINK_DELETION_INPUTS.has(data) && this.#hasEditorLinks()) {
       this.#requestHyperlinkCleanup();
       this.#requestRender();
     }
     // Invariant: content shortcuts never reach the prompt, even before the first frame
     // or when scrolling is a no-op. Plain Home/End remain editor line navigation.
-    if (allowWheel && this.#editor.matchesTerminalKey(data, "ctrl+home")) {
+    if (editorActive && allowWheel && this.#editor.matchesTerminalKey(data, "ctrl+home")) {
       if (this.#viewport.scrollTo(0, now)) {
         this.#scheduleActivityExpiry();
         this.#requestRender();
       }
       return { data: "", consumed: true };
     }
-    if (allowWheel && this.#editor.matchesTerminalKey(data, "ctrl+end")) {
+    if (editorActive && allowWheel && this.#editor.matchesTerminalKey(data, "ctrl+end")) {
       if (!this.#viewport.followingEnd) {
         this.#viewport.scrollToEnd(now);
         this.#scheduleActivityExpiry();
@@ -230,7 +282,7 @@ export class SessionViewportController {
       });
     }
     if (data === "\u0003") {
-      if (this.#editor.hasSelection()) {
+      if (editorActive && this.#editor.hasSelection()) {
         if (this.#viewport.clearSelection()) this.#requestRender();
       } else {
         const copyText = this.#viewport.selectedText();
@@ -241,7 +293,7 @@ export class SessionViewportController {
         }
       }
     }
-    if (allowWheel && (SHIFT_UP_INPUTS.has(data) || SHIFT_DOWN_INPUTS.has(data))) {
+    if (editorActive && allowWheel && (SHIFT_UP_INPUTS.has(data) || SHIFT_DOWN_INPUTS.has(data))) {
       const scrolled = SHIFT_UP_INPUTS.has(data)
         ? this.#viewport.scrollToPreviousPrompt(now)
         : this.#viewport.scrollToNextPrompt(now);
@@ -259,14 +311,37 @@ export class SessionViewportController {
     let repaint = false;
     let forceRepaint = false;
     let activity = false;
-    const routed = routeMouseInput(data, event => {
+    const routed = routeMouseInput(data, (event, report) => {
       const hits = frame.hits;
-      const overRail = hits.rail !== null
+      const overModal = this.#modalAt(event.column, event.row);
+      const wheel = event.kind === "wheel-up" || event.kind === "wheel-down";
+      // Invariant: ownership is latched for a complete gesture. Modal reports bypass the outer
+      // fullscreen selection layer without ever invoking the hidden ordinary editor.
+      if (this.#pointerOwner === "drain" || !this.inputGeometryReady) {
+        if (event.kind === "release") this.#pointerOwner = undefined;
+        else if (event.kind === "press") this.#pointerOwner = "drain";
+        return true;
+      }
+      const owner = !wheel && this.#pointerOwner !== undefined ? this.#pointerOwner : overModal;
+      if (owner !== undefined && owner !== "viewport") {
+        if (event.kind === "press") this.#pointerOwner = owner;
+        if (event.kind === "release") this.#pointerOwner = undefined;
+        if (event.kind === "press" && this.#viewport.clearSelection()) repaint = true;
+        this.#viewport.setRailHovered(false);
+        this.#viewport.setStickyHovered(false);
+        this.#pointerPosition = undefined;
+        owner.component.handleInput?.(report);
+        repaint = true;
+        return true;
+      }
+      if (event.kind === "press") this.#pointerOwner = "viewport";
+      if (event.kind === "release") this.#pointerOwner = undefined;
+      const overRail = overModal === undefined && hits.rail !== null
         && event.column === hits.rail.column
         && event.row >= hits.rail.rowStart
         && event.row < hits.rail.rowStart + hits.rail.trackHeight;
-      const overSticky = hits.sticky !== null && event.row === hits.sticky.row && event.column <= hits.sticky.width;
-      const overBottom = hits.bottom !== null && event.row === hits.bottom.row
+      const overSticky = overModal === undefined && hits.sticky !== null && event.row === hits.sticky.row && event.column <= hits.sticky.width;
+      const overBottom = overModal === undefined && hits.bottom !== null && event.row === hits.bottom.row
         && event.column >= hits.bottom.columnStart && event.column <= hits.bottom.columnEnd;
 
       const previousPointer = this.#pointerPosition;
@@ -291,7 +366,7 @@ export class SessionViewportController {
         this.#viewport.setRailHovered(overRail);
         this.#viewport.setStickyHovered(overSticky);
         repaint = true;
-        if (this.#editor.ownsPointer() && this.#editorPointerFrame !== undefined) {
+        if (editorActive && this.#editor.ownsPointer() && this.#editorPointerFrame !== undefined) {
           this.#editor.handlePointer({
             kind: "motion",
             button: event.button,
@@ -325,7 +400,7 @@ export class SessionViewportController {
         return true;
       }
       if (event.kind === "press") {
-        const editorFrame = this.#editorPointerFrame;
+        const editorFrame = editorActive ? this.#editorPointerFrame : undefined;
         if (event.button === 2 && editorFrame !== undefined
           && event.row >= editorFrame.rowStart && event.row <= editorFrame.rowEnd) {
           this.#stopSelectionAutoScroll();
@@ -395,7 +470,7 @@ export class SessionViewportController {
         return true;
       }
       if (event.kind === "release") {
-        if (this.#editor.ownsPointer() && this.#editorPointerFrame !== undefined) {
+        if (editorActive && this.#editor.ownsPointer() && this.#editorPointerFrame !== undefined) {
           const wasEditorSelecting = this.#editorPointerSelecting;
           this.#editor.handlePointer({
             kind: "release",
@@ -439,6 +514,13 @@ export class SessionViewportController {
       this.#requestRender(forceRepaint);
     }
     return routed;
+  }
+
+  #modalAt(column: number, row: number): PresentationPointerSurface | undefined {
+    const contains = (surface: PresentationPointerSurface) => column >= surface.columnStart && column <= surface.columnEnd
+      && row >= surface.rowStart && row <= surface.rowEnd;
+    const overlay = this.#overlays?.findLast(contains);
+    return overlay ?? (this.#inputSurface !== undefined && contains(this.#inputSurface) ? this.#inputSurface : undefined);
   }
 
   #hyperlinkKeyAt(frame: TranscriptViewportFrame, column: number, row: number): string | undefined {
