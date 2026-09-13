@@ -1,3 +1,5 @@
+> Archived with unresolved gaps by explicit maintainer authorization. See [acceptance.md](acceptance.md). Checkboxes below preserve the implementation record; checked items are not independent verification of all scenarios. The three unchecked tasks remain incomplete, and delta-spec synchronization was skipped.
+
 ## 1. Preserve chip-tagged text in history
 
 - [x] 1.1 Change `PromptChipStore.prepareHistoryText` to return the trimmed authored text with every chip tag preserved verbatim, and verify each chip kind (text-paste, URL, file, folder, Houdini, image) survives the round-trip through `PromptHistoryController.capture`, adjacent-duplicate policy, in-memory recovery, and steer/follow-up/compaction routing.
