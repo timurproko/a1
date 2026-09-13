@@ -292,8 +292,9 @@ export class SessionViewportController {
         }
       }
     }
-    if (editorActive && allowWheel && (SHIFT_UP_INPUTS.has(data) || SHIFT_DOWN_INPUTS.has(data))) {
-      const scrolled = SHIFT_UP_INPUTS.has(data)
+    const previousPrompt = SHIFT_UP_INPUTS.has(data) || this.#editor.matchesTerminalKey(data, "alt+home");
+    if (editorActive && allowWheel && (previousPrompt || SHIFT_DOWN_INPUTS.has(data))) {
+      const scrolled = previousPrompt
         ? this.#viewport.scrollToPreviousPrompt(now)
         : this.#viewport.scrollToNextPrompt(now);
       if (scrolled) {

@@ -80,6 +80,7 @@ import {
   createPiShellTrustSelector,
   createPiShellUserMessageSelector,
   onPiThemeChange,
+  isPiPromptStyleCompaction,
   piShellVisibleWidth,
   piShellTruncateToWidth,
   piTheme,
@@ -876,14 +877,16 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       const id = this.#transcriptOrder[index]!;
       const block = this.#blocksById.get(id);
       if (!this.#thinkingVisible && block?.kind === "thinking") continue;
+      const promptLike = block !== undefined
+        && (block.kind === "user" || this.#customViewport && isPiPromptStyleCompaction(block));
       const blockWidth = this.#customViewport
-        && block?.kind === "user"
+        && promptLike
         && this.#viewportController.config.scrollbarAppearance !== "hidden"
         && width > 1
         ? width - 1
         : width;
       const blockRows = this.#blockRows(id, block, blockWidth);
-      if (block?.kind === "user") {
+      if (promptLike) {
         // Compatibility: the first natural prompt gets one breathing row at the document top.
         // Once scrolling advances, the prompt itself reaches row zero and then
         // becomes sticky there, so the spacer is never pinned with it.
@@ -895,7 +898,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
         liveTailStartRow = firstRow;
       }
       rows.push(...blockRows);
-      if (block?.kind === "user" && blockRows[0] !== undefined) {
+      if (promptLike && blockRows[0] !== undefined) {
         promptAnchors.push({
           id: block.id,
           firstRow,
@@ -975,7 +978,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     for (const id of this.#transcriptOrder) {
       const block = this.#blocksById.get(id);
       if (block === undefined || (!this.#thinkingVisible && block.kind === "thinking")) continue;
-      if (rows.length > 0 && block.kind === "user") rows.push("");
+      if (rows.length > 0 && (block.kind === "user" || this.#customViewport && isPiPromptStyleCompaction(block))) rows.push("");
       rows.push(...this.#blockRows(id, block, width).map(sanitizeExitTranscriptRow));
     }
     while (rows.at(-1) === "") rows.pop();
@@ -1408,7 +1411,7 @@ function withoutTerminalBackground(text: string): string {
   return text.replace(TERMINAL_BACKGROUND, "");
 }
 
-/** A pinned timestamp is content now, not secondary transcript metadata. */
+/** Pinning preserves the source timestamp's metadata color independently of whole-row dimming. */
 function pinnedPromptSourceRow(
   block: OwnedUiSessionViewModel["transcript"][number],
   sourceRow: string,
@@ -1426,7 +1429,7 @@ function pinnedPromptSourceRow(
     sourceRow,
     rowWidth - timestampWidth,
     rowWidth,
-    piTheme().fg("userMessageText", timestamp),
+    piTheme().fg("dim", timestamp),
   );
 }
 
