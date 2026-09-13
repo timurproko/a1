@@ -14,6 +14,7 @@ src/
     launch/                        launch profiles, profile paths, and runtime selection
     owned-ui/                      owned screens, settings application, diagnostics, and runtime lifecycle
     prompt-history/                profile-isolated prompt retention and bounded SQLite worker lifecycle
+    prompt-suggestions/            opt-in bounded metadata capture and local diagnostic snapshots
     workspace/                     multi-agent presentation, reducer state, routing, and persistence orchestration
   contracts/
     agent-engine/                  dependency-free agent engine, session, package, and capability ports
