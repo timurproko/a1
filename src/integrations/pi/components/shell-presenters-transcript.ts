@@ -10,6 +10,7 @@ import {
   UserMessageComponent,
 } from "@earendil-works/pi-coding-agent";
 import { SkillInvocationMessageComponent } from "./upstream/components/skill-invocation-message.js";
+import { piToolArguments as toolArguments, updatePiToolResult as updateToolResult } from "./tool-result-adapter.js";
 import { createMermaidMarkdownTransformer, type MermaidRenderingMode } from "./upstream/components/mermaid.js";
 import {
   Container,
@@ -51,6 +52,7 @@ export function createPiShellTranscriptComponent(
   initialShowImages = true,
   initialImageWidthCells = 80,
   imageAssets?: PiShellImageAssetResolver,
+  presentation?: { readonly getColumns: () => number; readonly getRows: () => number; readonly changed: () => void },
 ): PiShellTranscriptComponentPort {
   ensureTheme();
   let block = initial;
@@ -60,29 +62,56 @@ export function createPiShellTranscriptComponent(
   let mermaidRenderingMode = initialMermaidRenderingMode;
   let showImages = initialShowImages;
   let imageWidthCells = initialImageWidthCells;
-  const rebuild = () => withTranscriptImages(
-    transcriptComponent(
+  let disposed = false;
+  let mount = 0;
+  let updating = false;
+  let dirty = false;
+  let presentationRevision = 0;
+  const mutate = <T>(action: () => T): T => {
+    const previous = updating;
+    updating = true;
+    try { return action(); } finally { updating = previous; }
+  };
+  const rebuild = (): Component => {
+    const token = ++mount;
+    const requestRender = () => {
+      if (disposed || updating || token !== mount || dirty) return;
+      dirty = true;
+      presentationRevision++;
+      presentation?.changed();
+    };
+    return mutate(() => withTranscriptImages(transcriptComponent(
       block, cwd, expanded, extensions, submittedPrompt, outputPad, hideThinkingBlock, mermaidRenderingMode,
-      showImages, imageWidthCells,
-    ),
-    block, imageAssets, showImages, imageWidthCells,
-  );
+      showImages, imageWidthCells, imageAssets,
+      createTuiFacade({ getColumns: presentation?.getColumns ?? (() => 80),
+        getRows: presentation?.getRows ?? (() => 24), requestRender }),
+    ), block, imageAssets, showImages, imageWidthCells));
+  };
   let component = rebuild();
   return {
     get id() { return block.id; },
     get revision() { return block.revision; },
-    render: width => renderWithOutputPad(component, block.kind, width, outputPad),
-    invalidate: () => component.invalidate(),
+    get presentationRevision() { return presentationRevision; },
+    render: width => {
+      dirty = false;
+      const rows = mutate(() => renderWithOutputPad(component, block.kind, width, outputPad));
+      const warning = block.toolRendering?.unavailable;
+      return warning === undefined ? rows : [...rows, ...new Text(piTheme().fg("warning", warning), outputPad, 0).render(width)];
+    },
+    invalidate: () => mutate(() => component.invalidate()),
+    dispose: () => { disposed = true; mount++; },
     update(next) {
       if (next.id !== block.id) throw new TypeError("Pi transcript component identity cannot change");
       const previous = block;
       block = next;
-      if (!updateTranscriptComponent(component, previous, next, expanded)) component = rebuild();
+      if (!mutate(() => updateTranscriptComponent(component, previous, next, expanded, imageAssets))) component = rebuild();
     },
     setExpanded(next) {
       if (expanded === next) return;
       expanded = next;
-      if ("setExpanded" in component && typeof component.setExpanded === "function") component.setExpanded(expanded);
+      if ("setExpanded" in component && typeof component.setExpanded === "function") mutate(() => {
+        if ("setExpanded" in component && typeof component.setExpanded === "function") component.setExpanded(expanded);
+      });
       else component = rebuild();
     },
     setOutputPad(padding) {
@@ -104,8 +133,8 @@ export function createPiShellTranscriptComponent(
       showImages = show;
       imageWidthCells = width;
       if (component instanceof ToolExecutionComponent) {
-        component.setShowImages(show);
-        component.setImageWidthCells(width);
+        const tool = component;
+        mutate(() => { tool.setShowImages(show); tool.setImageWidthCells(width); });
       } else component = rebuild();
     },
   };
@@ -118,6 +147,8 @@ function withTranscriptImages(
   showImages: boolean,
   imageWidthCells: number,
 ): Component {
+  // Pi owns tool images and renderer state, including references introduced after the call header.
+  if (component instanceof ToolExecutionComponent) return component;
   const references = block.imageReferences ?? [];
   if (references.length === 0) return component;
   const container = new Container();
@@ -210,6 +241,8 @@ function transcriptComponent(
   mermaidRenderingMode: MermaidRenderingMode,
   showImages: boolean,
   imageWidthCells: number,
+  imageAssets?: PiShellImageAssetResolver,
+  tui?: ReturnType<typeof createTuiFacade>,
 ): Component {
   switch (block.kind) {
     case "user": {
@@ -229,7 +262,7 @@ function transcriptComponent(
       return assistantComponent(block, outputPad, hideThinkingBlock, mermaidRenderingMode);
     case "tool-call":
     case "tool-result": {
-      const component = toolComponent(block, cwd, extensions, showImages, imageWidthCells);
+      const component = toolComponent(block, cwd, extensions, showImages, imageWidthCells, imageAssets, tui);
       component.setExpanded(expanded);
       return component;
     }
@@ -252,7 +285,7 @@ function transcriptComponent(
     case "custom":
       return customMessageComponent(block, expanded, extensions, outputPad);
     case "bash":
-      return bashExecutionComponent(block, cwd, expanded);
+      return bashExecutionComponent(block, cwd, expanded, tui);
   }
 }
 
@@ -261,6 +294,7 @@ function updateTranscriptComponent(
   previous: OwnedUiTranscriptBlock,
   next: OwnedUiTranscriptBlock,
   expanded: boolean,
+  imageAssets?: PiShellImageAssetResolver,
 ): boolean {
   if (component instanceof AssistantMessageComponent && next.kind === previous.kind
     && (next.kind === "assistant" || next.kind === "thinking")) {
@@ -270,18 +304,9 @@ function updateTranscriptComponent(
   if (component instanceof ToolExecutionComponent
     && (next.kind === "tool-call" || next.kind === "tool-result")
     && (previous.kind === "tool-call" || previous.kind === "tool-result")) {
-    const payload = blockPayload(next);
-    component.updateArgs(toolArguments(payload));
-    applyToolState(component, next);
-    if (payload.partialResult === true) {
-      component.updateResult({ content: [{ type: "text", text: next.text }], isError: false }, true);
-    } else if (next.kind === "tool-result") {
-      component.updateResult({
-        content: [{ type: "text", text: next.text }],
-        isError: payload.isError === true,
-      }, next.status === "live");
-    }
-    component.setExpanded(expanded);
+    if (toolArguments(previous) !== toolArguments(next)) component.updateArgs(toolArguments(next));
+    applyToolState(component, next, previous);
+    updateToolResult(component, next, imageAssets);
     return true;
   }
   if (component instanceof BashExecutionComponent && next.kind === "bash" && previous.kind === "bash") {
@@ -386,38 +411,35 @@ function toolComponent(
   extensions: PiShellExtensionRendererResolver | undefined,
   showImages: boolean,
   imageWidthCells: number,
+  imageAssets?: PiShellImageAssetResolver,
+  tui?: ReturnType<typeof createTuiFacade>,
 ): ToolExecutionComponent {
   const payload = blockPayload(block);
   const toolCallId = stringPayload(payload, "toolCallId") ?? block.id;
   const toolName = stringPayload(payload, "toolName") ?? block.title ?? "tool";
-  const argumentsPayload = toolArguments(payload);
+  const argumentsPayload = toolArguments(block);
   const component = new ToolExecutionComponent(
     toolName,
     toolCallId,
     argumentsPayload,
     { showImages, imageWidthCells },
     validatedToolDefinition(extensions?.getToolDefinition(toolName)),
-    createTuiFacade({ getColumns: () => 80, getRows: () => 24, requestRender() {}, onSubmit() {} }),
+    tui ?? createTuiFacade({ getColumns: () => 80, getRows: () => 24, requestRender() {} }),
     cwd,
   );
   applyToolState(component, block);
-  if (payload.partialResult === true) {
-    component.updateResult({ content: [{ type: "text", text: block.text }], isError: false }, true);
-  } else if (block.kind === "tool-result") {
-    component.updateResult({
-      content: [{ type: "text", text: block.text }],
-      isError: payload.isError === true,
-    });
-  }
+  updateToolResult(component, block, imageAssets);
   return component;
 }
 
 /** The public renderer's argument-complete and execution-started flags are independent. */
-function applyToolState(component: ToolExecutionComponent, block: OwnedUiTranscriptBlock): void {
-  const state = block.toolState;
-  const payload = blockPayload(block);
-  if (state?.execution === "running" || state === undefined && block.status === "live") component.markExecutionStarted();
-  if (state?.argsComplete ?? (block.status === "finalized" || payload.argsComplete === true)) component.setArgsComplete();
+function applyToolState(component: ToolExecutionComponent, block: OwnedUiTranscriptBlock, previous?: OwnedUiTranscriptBlock): void {
+  const started = (value: OwnedUiTranscriptBlock) => value.toolState?.execution === "running"
+    || value.toolState === undefined && value.status === "live";
+  const complete = (value: OwnedUiTranscriptBlock) => value.toolState?.argsComplete
+    ?? (value.status === "finalized" || blockPayload(value).argsComplete === true);
+  if (started(block) && (previous === undefined || !started(previous))) component.markExecutionStarted();
+  if (complete(block) && (previous === undefined || !complete(previous))) component.setArgsComplete();
 }
 
 function customMessageComponent(
@@ -441,11 +463,11 @@ function customMessageComponent(
   return component;
 }
 
-function bashExecutionComponent(block: OwnedUiTranscriptBlock, cwd: string, expanded: boolean): BashExecutionComponent {
+function bashExecutionComponent(block: OwnedUiTranscriptBlock, cwd: string, expanded: boolean, tui?: ReturnType<typeof createTuiFacade>): BashExecutionComponent {
   const payload = blockPayload(block);
   const component = new BashExecutionComponent(
     stringPayload(payload, "command") ?? block.title ?? "",
-    createTuiFacade({ getColumns: () => 80, getRows: () => 24, requestRender() {} }),
+    tui ?? createTuiFacade({ getColumns: () => 80, getRows: () => 24, requestRender() {} }),
     payload.excludeFromContext === true,
   );
   if (block.text) component.appendOutput(block.text);
@@ -474,10 +496,6 @@ function completeBashComponent(component: BashExecutionComponent, block: OwnedUi
     } : undefined,
     stringPayload(payload, "fullOutputPath"),
   );
-}
-
-function toolArguments(payload: Record<string, unknown>): unknown {
-  return isRecord(payload.arguments) && "json" in payload.arguments ? payload.arguments.json : payload.arguments ?? {};
 }
 
 function transcriptText(block: OwnedUiTranscriptBlock): string {

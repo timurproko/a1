@@ -177,7 +177,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   readonly #cwd: string;
   readonly #transcript = new Map<string, PiShellTranscriptComponentPort>();
   readonly #blocksById = new Map<string, OwnedUiSessionViewModel["transcript"][number]>();
-  readonly #renderedRows = new Map<string, Map<number, { readonly revision: number; readonly rows: readonly string[] }>>();
+  readonly #renderedRows = new Map<string, Map<number, { readonly revision: number; readonly presentationRevision: number; readonly rows: readonly string[] }>>();
   // Performance: document layouts are shared by wheel, rail, jump, and selection frames.
   readonly #documentLayouts = new Map<number, { readonly rows: readonly string[]; readonly promptAnchors: readonly TranscriptPromptAnchor[]; readonly liveTailStartRow: number | undefined }>();
   readonly #themeUnsubscribe: () => void;
@@ -515,7 +515,8 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.#syncTranscript(view.transcript);
     this.editor.setSubmitEnabled(view.lifecycle !== "stopping" && view.lifecycle !== "stopped" && view.lifecycle !== "failed");
     this.editor.setThinkingLevel(view.thinkingLevel);
-    this.invalidate();
+    // Semantic updates already invalidate affected transcript blocks. Chrome is a separate authority.
+    this.#invalidateChrome();
   }
 
   /**
@@ -530,12 +531,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.#blocksById.set(block.id, block);
     const component = this.#transcript.get(block.id);
     if (component === undefined) {
-      const created = createPiShellTranscriptComponent(
-        block, this.#cwd, this.#extensionRenderers, this.#submittedPromptComposer,
-        this.#outputPad, !this.#thinkingVisible, this.#mermaidRenderingMode,
-        this.#showImages, this.#imageWidthCells, this.#imageAssets,
-      );
-      created.setExpanded(this.#toolsExpanded);
+      const created = this.#mountTranscript(block);
       this.#transcript.set(block.id, created);
       this.#transcriptOrder.push(block.id);
     } else if (component.revision !== block.revision) {
@@ -545,6 +541,25 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     // Invalidating the whole shell here would re-wrap the entire transcript per chunk.
     this.#renderedRows.delete(block.id);
     this.#documentLayouts.clear();
+  }
+
+  #mountTranscript(block: OwnedUiSessionViewModel["transcript"][number]): PiShellTranscriptComponentPort {
+    const created = createPiShellTranscriptComponent(
+      block, this.#cwd, this.#extensionRenderers, this.#submittedPromptComposer,
+      this.#outputPad, !this.#thinkingVisible, this.#mermaidRenderingMode,
+      this.#showImages, this.#imageWidthCells, this.#imageAssets,
+      { ...this.#componentRuntime, changed: () => {
+        if (this.#transcript.get(block.id) !== created) return;
+        this.#renderedRows.delete(block.id);
+        this.#documentLayouts.clear();
+        this.#visibleViewportSnapshot = undefined;
+        this.#dockInputCandidate = false;
+        this.#dockInputRevision = undefined;
+        this.#componentRuntime.requestRender();
+      } },
+    );
+    created.setExpanded(this.#toolsExpanded);
+    return created;
   }
 
   render(width: number): readonly string[] {
@@ -912,13 +927,14 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
 
     let byWidth = this.#renderedRows.get(id);
     const cached = byWidth?.get(width);
-    if (cached?.revision === block.revision) return cached.rows;
+    const presentationRevision = component.presentationRevision ?? 0;
+    if (cached?.revision === block.revision && cached.presentationRevision === presentationRevision) return cached.rows;
     const rows = render();
     if (byWidth === undefined) {
       byWidth = new Map();
       this.#renderedRows.set(id, byWidth);
     }
-    byWidth.set(width, { revision: block.revision, rows });
+    byWidth.set(width, { revision: block.revision, presentationRevision, rows });
     // Invariant: bare A1 probes full width before reserving the overflowing rail column;
     // retain both widths without turning resize history into an unbounded cache.
     while (byWidth.size > 2) byWidth.delete(byWidth.keys().next().value!);
@@ -1180,9 +1196,15 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   }
 
   invalidate(): void {
+    this.#renderedRows.clear();
+    this.#documentLayouts.clear();
+    for (const component of this.#transcript.values()) component.invalidate();
+    this.#invalidateChrome();
+  }
+
+  #invalidateChrome(): void {
     this.header.invalidate();
     this.resources.invalidate();
-    for (const component of this.#transcript.values()) component.invalidate();
     this.editor.invalidate();
     if (this.#inputSurface !== this.editor) this.#inputSurface.invalidate();
     this.#invalidateExtensions();
@@ -1243,12 +1265,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     for (const block of blocks) {
       const component = this.#transcript.get(block.id);
       if (component === undefined) {
-        const created = createPiShellTranscriptComponent(
-          block, this.#cwd, this.#extensionRenderers, this.#submittedPromptComposer,
-          this.#outputPad, !this.#thinkingVisible, this.#mermaidRenderingMode,
-          this.#showImages, this.#imageWidthCells, this.#imageAssets,
-        );
-        created.setExpanded(this.#toolsExpanded);
+        const created = this.#mountTranscript(block);
         this.#transcript.set(block.id, created);
       } else if (component.revision !== block.revision) {
         component.update(block);
