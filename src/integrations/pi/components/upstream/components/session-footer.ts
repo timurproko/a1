@@ -1,7 +1,8 @@
 /**
  * Adapted from @earendil-works/pi-coding-agent 0.84.2
  * packages/coding-agent/src/modes/interactive/components/footer.ts (MIT).
- * Modifications: consumes neutral owned-UI view data rather than a concrete AgentSession.
+ * Modifications: consumes neutral owned-UI view data rather than a concrete AgentSession;
+ * bare A1 colors the effective level-name span while the comparison profile retains pinned styling.
  */
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import { truncateToWidth, visibleWidth, type Component } from "#pi-tui";
@@ -9,7 +10,11 @@ import type { OwnedUiSessionViewModel } from "../../../../../contracts/owned-ui/
 import { piTheme } from "../../theme.js";
 
 export class SessionFooter implements Component {
-  constructor(private readonly getView: () => OwnedUiSessionViewModel, private readonly cwd: string) {}
+  constructor(
+    private readonly getView: () => OwnedUiSessionViewModel,
+    private readonly cwd: string,
+    private readonly profile: "pi" | "a1" = "pi",
+  ) {}
   invalidate(): void {}
   dispose(): void {}
 
@@ -52,12 +57,14 @@ export class SessionFooter implements Component {
     if (leftWidth > width) { left = truncateToWidth(left, width, "..."); leftWidth = visibleWidth(left); }
 
     const modelName = view.activeModel?.modelId ?? "no-model";
-    const rightWithoutProvider = view.activeModel === null || view.thinkingLevel === "off"
-      ? modelName
-      : `${modelName} • ${view.thinkingLevel}`;
+    const rightWithoutProvider = this.profile === "a1"
+      ? view.activeModel === null ? theme.fg("dim", modelName)
+        : theme.fg("dim", `${modelName} • `) + theme.getThinkingBorderColor(view.thinkingLevel)(view.thinkingLevel)
+      : view.activeModel === null || view.thinkingLevel === "off" ? modelName : `${modelName} • ${view.thinkingLevel}`;
     let right = rightWithoutProvider;
     if ((view.status.footer?.availableProviderCount ?? 1) > 1 && view.activeModel) {
-      right = `(${view.activeModel.providerId}) ${rightWithoutProvider}`;
+      const provider = `(${view.activeModel.providerId}) `;
+      right = (this.profile === "a1" ? theme.fg("dim", provider) : provider) + rightWithoutProvider;
       if (leftWidth + 2 + visibleWidth(right) > width) right = rightWithoutProvider;
     }
 
@@ -75,7 +82,7 @@ export class SessionFooter implements Component {
 
     const lines = [
       truncateToWidth(theme.fg("dim", pwd), width, theme.fg("dim", "...")),
-      theme.fg("dim", left) + theme.fg("dim", line.slice(left.length)),
+      theme.fg("dim", left) + (this.profile === "a1" ? line.slice(left.length) : theme.fg("dim", line.slice(left.length))),
     ];
     const statuses = view.status.footer?.extensionStatuses ?? [];
     if (statuses.length > 0) {

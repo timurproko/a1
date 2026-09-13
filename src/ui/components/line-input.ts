@@ -1,4 +1,6 @@
 import { displayWidth, faint, truncateToWidth } from "./text.js";
+import { PromptInput } from "./prompt-input.js";
+import type { UiTheme } from "./theme.js";
 
 export type LineInputOutcome =
   | { readonly kind: "editing" }
@@ -214,13 +216,6 @@ export function handleLineInputKey(input: LineInput, data: string): LineInputOut
   return { kind: "editing" };
 }
 
-/** Draws the reference prompt rule foreground-only so underlying cells survive. */
-export function promptRule(width: number): string {
-  return `\u001b[38;2;154;160;166m${"─".repeat(Math.max(0, width))}\u001b[39m`;
-}
-
-export const PROMPT_GLYPH = `\u001b[38;2;154;160;166m❯\u001b[39m `;
-
 /**
  * The caret the reference draws: the cell under it is reversed rather than given
  * a colour of its own, so it reads as a block in whatever theme is in use.
@@ -234,6 +229,7 @@ export interface InputRowOptions {
   readonly placeholder?: string;
   /** Rules above and below, in the prompt's own grey. Default true. */
   readonly ruled?: boolean;
+  readonly theme?: Pick<UiTheme, "fg">;
 }
 
 export interface InputRow {
@@ -243,8 +239,8 @@ export interface InputRow {
 
 /** The input row as the reference draws one, padded to exactly the width. */
 export function renderInputRow(input: LineInput, width: number, options: InputRowOptions = {}): InputRow {
-  const inner = Math.max(0, width - 2);
-  const view = input.view(inner);
+  const presentation = new PromptInput(options.theme);
+  const view = input.view(Math.max(0, width - presentation.geometry(width).prefixWidth));
   const placeholder = options.placeholder ?? "";
   const empty = view.text.length === 0 && placeholder.length > 0;
 
@@ -257,18 +253,5 @@ export function renderInputRow(input: LineInput, width: number, options: InputRo
   const body = empty
     ? `${caretCell(placeholder.slice(0, 1))}${faint(placeholder.slice(1))}`
     : `${before}${caretCell(under)}${after}`;
-  const plain = empty
-    ? placeholder
-    : `${view.text}${view.caretColumn >= view.text.length ? " " : ""}`;
-
-  const row = padVisible(truncateToWidth(`${PROMPT_GLYPH}${body}`, width), width, `❯ ${plain}`);
-  if (options.ruled === false) return { lines: [row] };
-  const rule = promptRule(width);
-  return { lines: [rule, row, rule] };
-}
-
-/** Pads by visible width, so styling escapes do not shift the layout. */
-function padVisible(line: string, width: number, raw: string): string {
-  const visible = displayWidth(raw);
-  return visible >= width ? line : line + " ".repeat(width - visible);
+  return { lines: presentation.render(width, () => ({ rows: [body] }), options.ruled) };
 }

@@ -4082,6 +4082,34 @@ describe("OwnedUiSessionShell", () => {
     await shell.dispose();
   });
 
+  it("cycles levels only in the owned agent input and keeps model selection command-accessible", async () => {
+    const { terminal, shell } = await fixture([], [], true);
+    const cycle = vi.spyOn(shell, "cycleThinkingLevel");
+    const select = vi.spyOn(shell, "showModelSelector");
+    try {
+      shell.root.editor.setText("draft");
+      terminal.input("\u001b[Z");
+      expect(cycle).not.toHaveBeenCalled();
+      expect(select).not.toHaveBeenCalled();
+      expect(shell.root.editor.getText()).toBe("draft");
+      terminal.input("\u000c");
+      await vi.waitFor(() => expect(cycle).toHaveBeenCalledOnce());
+      expect(select).not.toHaveBeenCalled();
+      await shell.submit("/model");
+      expect(select).toHaveBeenCalledOnce();
+      const frame = stripTerminalSequences(shell.root.render(100).join("\n"));
+      expect(frame).toContain("gpt-5");
+      cycle.mockClear();
+      terminal.input("\u000c");
+      await nextImmediate();
+      expect(cycle).not.toHaveBeenCalled();
+      terminal.input("\u001b");
+      await nextImmediate();
+      terminal.input("\u000c");
+      await vi.waitFor(() => expect(cycle).toHaveBeenCalledOnce());
+    } finally { await shell.dispose(); }
+  });
+
   it("opens the model selector with the original search after a command-owned refresh misses", async () => {
     const { adapter, shell } = await fixture();
     vi.spyOn(adapter, "executeWorkflow").mockResolvedValue({

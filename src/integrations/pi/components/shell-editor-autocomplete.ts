@@ -55,6 +55,7 @@ export const PINNED_PI_BUILTIN_SLASH_COMMANDS = [
 export function createPiShellEditor(options: PiShellEditorOptions): PiShellEditorPort {
   ensureTheme();
   const tui = createTuiFacade(options);
+  const inputPresentation = options.keybindingProfile === "a1" ? options.promptPresentation?.input : undefined;
   const keybindings = options.keybindingProfile === "a1"
     ? KeybindingsManager.createForOwnedInput(options.agentDir)
     : KeybindingsManager.create(options.agentDir);
@@ -66,7 +67,7 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
   const selectListTheme = getSelectListTheme();
   const EditorClass = options.keybindingProfile === "a1" && options.persistentHistory === true ? options.historyEditor! : OwnedEditor;
   const editor: ShellEditorInstance = new EditorClass(tui, {
-    borderColor: (value: string) => piTheme().fg("borderMuted", value),
+    borderColor: (value: string) => inputPresentation === undefined ? piTheme().fg("borderMuted", value) : inputPresentation.styleRule(value),
     selectList: options.keybindingProfile !== "a1" ? selectListTheme : {
       ...selectListTheme,
       scrollInfo: text => {
@@ -86,7 +87,7 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
       getVisualLineCount: (width: number) => editorVisualLineCount(editor, width),
     } : {}),
     ...(options.keybindingProfile === "a1" && options.promptPresentation !== undefined ? {
-      promptPrefix: options.promptPresentation.prefix,
+      ...(inputPresentation === undefined ? {} : { inputPresentation }),
       styleSuggestion: options.promptPresentation.styleSuggestion,
       styleSuggestionCaret: options.promptPresentation.styleSuggestionCaret,
     } : {}),
@@ -105,7 +106,7 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
           decorateRow: options.decorateEditorRow ?? (row => row),
           requestRender: options.requestRender,
           getRows: options.getRows,
-          ...(options.promptPresentation === undefined ? {} : { promptPrefixWidth: 2 }),
+          ...(inputPresentation === undefined ? {} : { promptGeometry: (width: number, padding: number) => inputPresentation.geometry(width, padding) }),
         }),
       ], {
         render: width => editor.render(width),
@@ -115,9 +116,9 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
   let thinkingLevel: OwnedUiThinkingLevel = "off";
   let isBashMode = false;
   const updateBorderColor = () => {
-    editor.borderColor = isBashMode
-      ? piTheme().getBashModeBorderColor()
-      : piTheme().getThinkingBorderColor(thinkingLevel);
+    editor.borderColor = inputPresentation !== undefined
+      ? text => inputPresentation.styleRule(text)
+      : isBashMode ? piTheme().getBashModeBorderColor() : piTheme().getThinkingBorderColor(thinkingLevel);
     tui.requestRender();
   };
   let autocompleteProvider: AutocompleteProvider;
@@ -201,6 +202,10 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
     reloadKeybindings: () => { keybindings.reload(); setKeybindings(keybindings); },
     matchesTerminalKey: (data, key) => matchesKey(data, key),
     handleInput: data => {
+      // Compatibility: an unassigned reverse Tab must not clear selection or reach autocomplete fallback.
+      if (editorUx !== undefined && matchesKey(data, "shift+tab")
+        && !Object.values(keybindings.getEffectiveConfig()).some(keys =>
+          (Array.isArray(keys) ? keys : [keys]).some(key => key !== undefined && matchesKey(data, key)))) return;
       if (editorUx === undefined) editor.handleInput(data);
       else editorUx.handleInput(data);
     },

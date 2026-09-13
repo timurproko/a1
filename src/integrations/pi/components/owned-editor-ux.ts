@@ -145,7 +145,13 @@ export interface PromptSelectionUxOptions {
   readonly requestRender: () => void;
   readonly getRows: () => number;
   /** Presentation-only columns reserved before semantic editor text. */
-  readonly promptPrefixWidth?: number;
+  readonly promptGeometry?: (width: number, padding: number) => {
+    readonly prefixWidth: number;
+    readonly innerWidth: number;
+    readonly paddingX: number;
+    readonly contentWidth: number;
+    readonly layoutWidth: number;
+  };
 }
 
 const GRAPHEMES = new Intl.Segmenter(undefined, { granularity: "grapheme" });
@@ -170,6 +176,7 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
   #geometry: {
     width: number;
     padding: number;
+    prefixWidth: number;
     layoutWidth: number;
     visualLines: VisualLine[];
     scrollOffset: number;
@@ -335,18 +342,17 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
 
   #renderVisible(width: number, next: () => string[]): string[] {
     const rows = next().map(row => row.replaceAll(ATOMIC_SPACE_SENTINEL, " "));
-    const maxPadding = Math.max(0, Math.floor((width - 1) / 2));
-    const padding = Math.min(this.editor.getPaddingX(), maxPadding);
-    const prefixWidth = this.options.promptPrefixWidth ?? 0;
-    const innerWidth = Math.max(1, width - prefixWidth);
-    const contentWidth = Math.max(1, innerWidth - padding * 2);
-    const layoutWidth = Math.max(1, contentWidth - (padding ? 0 : 1));
+    const shared = this.options.promptGeometry?.(width, this.editor.getPaddingX());
+    const padding = shared?.paddingX ?? Math.min(this.editor.getPaddingX(), Math.max(0, Math.floor((width - 1) / 2)));
+    const prefixWidth = shared?.prefixWidth ?? 0;
+    const contentWidth = shared?.contentWidth ?? Math.max(1, width - padding * 2);
+    const layoutWidth = shared?.layoutWidth ?? Math.max(1, contentWidth - (padding ? 0 : 1));
     const visualLines = editorVisualLineMap(this.editor, layoutWidth)
       ?? buildVisualLineMap(editorState(this.editor).lines, layoutWidth);
     const scrollOffset = this.editor.interaction?.scrollOffset() ?? numericProperty(this.editor, "scrollOffset");
     const maxVisibleLines = Math.max(5, Math.floor(this.options.getRows() * 0.3));
     const textRows = Math.max(0, Math.min(visualLines.length - scrollOffset, maxVisibleLines, rows.length - 2));
-    this.#geometry = { width, padding, layoutWidth, visualLines, scrollOffset, textRows, hiddenRanges: [] };
+    this.#geometry = { width, padding, prefixWidth, layoutWidth, visualLines, scrollOffset, textRows, hiddenRanges: [] };
 
     if (this.#atomicFocus() !== undefined) {
       for (let row = 0; row < rows.length; row += 1) {
@@ -474,7 +480,7 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
     if (visual === undefined) return undefined;
     const line = (geometry.lines ?? editorState(this.editor).lines)[visual.logicalLine] ?? "";
     const segment = line.slice(visual.startCol, visual.startCol + visual.length);
-    const displayColumn = Math.max(0, column - 1 - geometry.padding - (this.options.promptPrefixWidth ?? 0));
+    const displayColumn = Math.max(0, column - 1 - geometry.padding - geometry.prefixWidth);
     return {
       line: visual.logicalLine,
       col: restoreColumn(visual.startCol + indexAtDisplayWidth(segment, displayColumn), geometry.hiddenRanges[visual.logicalLine] ?? []),

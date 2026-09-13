@@ -446,14 +446,20 @@
       "localDestination": "src/integrations/pi/components/upstream/adjacent/core/keybindings.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Mechanical source port with Node import prefixes, public package-root agent-directory resolution, and an opt-in bare-A1 input alias profile.",
-      "localSha256": "b3c76e7a117885a0adac52889392cba062089321791c0d785edd3d16ba25719a",
+      "modifications": "Mechanical source port with Node import prefixes, public package-root agent-directory resolution, and an opt-in bare-A1 input profile including Ctrl+L level cycling and unbound model selection.",
+      "localSha256": "5785a5c29e2c76f1dc86b16f8fc1441ae0fde60d661df9c12a8bcb8a13d3f7f0",
       "approvedDeviations": [
         {
           "id": "keybindings-public-config-boundary",
           "reason": "Resolve the agent configuration directory through the documented package-root API instead of a private config import.",
           "upstreamBehavior": "Complete pinned defaults, migrations, user overrides, conflict detection, matching, and effective-config behavior remain unchanged.",
           "acceptanceTest": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+        },
+        {
+          "id": "owned-level-cycle-shortcut",
+          "reason": "Accepted unify-prompt-input-ux assigns Ctrl+L to level cycling, leaves Shift+Tab unassigned, and removes the default model-selector shortcut in bare A1.",
+          "upstreamBehavior": "Pinned defaults, user override resolution, and modal-local bindings remain unchanged; model selection remains reachable through /model.",
+          "acceptanceTest": "test/integrations/pi/components/prompt-input-ux.test.ts"
         },
         {
           "id": "owned-input-keybinding-aliases",
@@ -1215,8 +1221,14 @@
       "localDestination": "src/integrations/pi/components/upstream/components/owned-editor.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "A1-owned class name and synchronized A1 keybinding contract replace the nominal private upstream keybinding constructor dependency; bare A1 also adds a semantic prompt prefix, transient contextual-suggestion branch, and explicit body height for above-prompt autocomplete composition.",
+      "modifications": "A1-owned class name and synchronized A1 keybinding contract replace the nominal private upstream keybinding constructor dependency; bare A1 injects the shared Settings/agent input frame, transient contextual-suggestion branch, and explicit body geometry for selection and above-prompt autocomplete.",
       "approvedDeviations": [
+        {
+          "id": "owned-shared-input-frame",
+          "reason": "Accepted unify-prompt-input-ux shares neutral bars and undimmed prompt-prefix composition between Settings search and the bare-A1 editor through an injected presentation port.",
+          "upstreamBehavior": "The comparison editor keeps pinned rows and borders. Owned editing state, history and scroll annotations, paste, and suggestions retain semantic layout boundaries; narrow frames clip safe virtual editor rows.",
+          "acceptanceTest": "test/integrations/pi/components/prompt-input-ux.test.ts"
+        },
         {
           "id": "above-prompt-autocomplete-placement",
           "reason": "The accepted show-autocomplete-above-prompt change moves the existing menu above bare A1's input with a matching top line, without changing either editor implementation or completion semantics.",
@@ -1246,7 +1258,7 @@
         "test/integrations/pi/components/shell-components.test.ts",
         "test/integrations/pi/session-ui/session-shell.test.ts"
       ],
-      "localSha256": "9cc1b430e67994fdcb262a83c2c81fc44aedbebd65dd4c2300525a6bef647c38"
+      "localSha256": "5e9954bc6cd74445c09f9119818a30014a342e37a5ba98fa3e2f976066678a24"
     },
     {
       "id": "pi-coding-agent:src/modes/interactive/components/custom-entry",
@@ -1651,8 +1663,15 @@
       "localDestination": "src/integrations/pi/components/upstream/components/session-footer.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Consumes neutral owned-UI view data instead of a fabricated concrete AgentSession while preserving footer layout and formatting.",
-      "approvedDeviations": [],
+      "modifications": "Consumes neutral owned-UI view data instead of a fabricated concrete AgentSession; an explicit bare-A1 profile colors the thinking-level name while preserving the remaining footer layout and formatting.",
+      "approvedDeviations": [
+        {
+          "id": "owned-status-level-color",
+          "reason": "Accepted unify-prompt-input-ux moves the existing thinking-level border color to the bare-A1 footer level-name span, including a visible off label for a selected model.",
+          "upstreamBehavior": "The comparison footer is unchanged. Owned provider omission, width fitting, usage, and extension rows preserve existing behavior; a missing model has no fabricated level.",
+          "acceptanceTest": "test/integrations/pi/components/prompt-input-ux.test.ts"
+        }
+      ],
       "behaviorCategories": [
         "footer-status",
         "events",
@@ -1672,7 +1691,7 @@
         "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
         "test/integrations/pi/session-ui/session-shell.test.ts"
       ],
-      "localSha256": "3172cc8c7025ad85eb334246a0f60ee8c3d15af4d4b4fe8e54f5b745b54f173b"
+      "localSha256": "25fcc339c82890a142e1fc3e0cc29e9b713e9537cdf8ba849374779d8e50f184"
     },
     {
       "id": "pi-coding-agent:src/modes/interactive/components/index",

@@ -720,7 +720,7 @@ export class SettingsApp implements UiApp {
     const status = renderStatusLine({ hint, report: this.#notice }, width, theme);
     const input = this.#filter;
     if (input === null) return [status];
-    return [...renderInputRow(input, width, { placeholder: SEARCH_PLACEHOLDER }).lines, status];
+    return [...renderInputRow(input, width, { placeholder: SEARCH_PLACEHOLDER, theme }).lines, status];
   }
 }
 

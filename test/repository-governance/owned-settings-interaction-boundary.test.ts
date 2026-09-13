@@ -10,7 +10,7 @@ const REFERENCE = "docs/architecture/ui-reference-provenance.md";
 describe("owned settings interaction boundary", () => {
   it("composes explicit search from shared input and shortcut authorities", async () => {
     const source = await readFile(SETTINGS_APP, "utf8");
-    expect(source).toContain("renderInputRow(input, width, { placeholder: SEARCH_PLACEHOLDER })");
+    expect(source).toContain("renderInputRow(input, width, { placeholder: SEARCH_PLACEHOLDER, theme })");
     expect(source).toContain("SETTINGS_SHORTCUTS.hint(SCOPE)");
     expect(source).toContain('key: "/"');
     expect(source).not.toContain('key: "printable"');

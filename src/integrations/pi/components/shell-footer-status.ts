@@ -9,6 +9,7 @@ import type {
   OwnedUiSessionViewModel,
 } from "../../../contracts/owned-ui/index.js";
 import { SessionFooter } from "./upstream/components/session-footer.js";
+import { KeybindingsManager, type KeybindingsConfig } from "./upstream/adjacent/core/keybindings.js";
 import { WorkingStatusIndicator } from "./upstream/components/status-indicator.js";
 import {
   PINNED_PI_LAYOUT,
@@ -41,6 +42,7 @@ export function createPiShellHeader(options: PiShellHeaderOptions = {}): PiShell
     setExpanded(value) { expanded = value; },
     render(width) {
       if (options.quiet) return [];
+      if (expanded && options.getKeybindings !== undefined) full.setText(expandedHeaderText(options.getKeybindings()));
       return [
         ...new Spacer(1).render(width),
         ...(expanded ? full : compact).render(width),
@@ -139,9 +141,9 @@ export function createPiShellStatus(
   };
 }
 
-export function createPiShellFooter(view: OwnedUiSessionViewModel, cwd: string): PiShellViewComponentPort {
+export function createPiShellFooter(view: OwnedUiSessionViewModel, cwd: string, profile: "pi" | "a1" = "pi"): PiShellViewComponentPort {
   ensureTheme();
-  const footer = new SessionFooter(() => view, cwd);
+  const footer = new SessionFooter(() => view, cwd, profile);
   return {
     render: width => footer.render(width),
     invalidate: () => footer.invalidate(),
@@ -235,7 +237,8 @@ function compactHeaderText(): string {
   return `${logo}\n${instructions}\n${compactOnboarding}\n\n${onboarding}`;
 }
 
-function expandedHeaderText(): string {
+function expandedHeaderText(bindings?: KeybindingsConfig): string {
+  const keys = bindings === undefined ? undefined : KeybindingsManager.fromOwnedBindings(bindings);
   const instructions = [
     rawKeyHint("escape", "to interrupt"),
     rawKeyHint("ctrl+c", "to clear"),
@@ -243,9 +246,9 @@ function expandedHeaderText(): string {
     rawKeyHint("ctrl+d", "to exit (empty)"),
     rawKeyHint(process.platform === "win32" ? "" : "ctrl+z", "to suspend"),
     rawKeyHint("ctrl+k", "to delete to end"),
-    rawKeyHint("shift+tab", "to cycle thinking level"),
+    rawKeyHint(keys?.getKeys("app.thinking.cycle").join("/") ?? "shift+tab", "to cycle thinking level"),
     rawKeyHint("ctrl+p/shift+ctrl+p", "to cycle models"),
-    rawKeyHint("ctrl+l", "to select model"),
+    rawKeyHint(keys === undefined ? "ctrl+l" : keys.getKeys("app.model.select").join("/") || "/model", "to select model"),
     rawKeyHint("ctrl+o", "to expand tools"),
     rawKeyHint("ctrl+t", "to expand thinking"),
     rawKeyHint("ctrl+g", "for external editor"),
