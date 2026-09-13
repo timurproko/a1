@@ -1,6 +1,7 @@
 import {
   setKeybindings,
   visibleWidth,
+  truncateToWidth,
   type AutocompleteProvider,
   type Component,
   type Focusable,
@@ -14,6 +15,7 @@ import type {
   OwnedUiTranscriptBlock,
 } from "../../../contracts/owned-ui/index.js";
 import type { HistoryEditorConstructor } from "./history-editor-loader.js";
+import type { PiShellPromptInputPresentation } from "./prompt-input-port.js";
 import type { EditorRecallPort } from "./editor-interaction.js";
 import type { PresentationComponentPort } from "../../../contracts/presentation/index.js";
 import {
@@ -25,6 +27,7 @@ import {
 
 /** Terminal-cell width authority used by Pi-rendered component rows. */
 export const piShellVisibleWidth = visibleWidth;
+export const piShellTruncateToWidth = (text: string, width: number): string => truncateToWidth(text, width, "");
 
 export interface PiShellComponentPort extends PresentationComponentPort {}
 
@@ -155,6 +158,7 @@ export interface PiShellStartupNotice {
 }
 
 export interface PiShellHeaderOptions {
+  readonly getKeybindings?: () => KeybindingsConfig;
   readonly quiet?: boolean;
   readonly expanded?: boolean;
   readonly notices?: readonly PiShellStartupNotice[];
@@ -200,7 +204,7 @@ export interface PiShellEditorOptions {
   readonly agentDir?: string;
   readonly autocompleteCommands?: readonly PiShellAutocompleteCommand[];
   readonly promptPresentation?: {
-    readonly prefix: string;
+    readonly input: PiShellPromptInputPresentation;
     readonly styleSuggestion: (text: string) => string;
     readonly styleSuggestionCaret: (text: string) => string;
   };

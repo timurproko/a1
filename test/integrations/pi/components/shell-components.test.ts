@@ -4,7 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import type { OwnedUiDialog, OwnedUiSessionViewModel, OwnedUiTranscriptBlock } from "../../../../src/contracts/owned-ui/index.js";
-import { PROMPT_GLYPH, caretCell, faint } from "../../../../src/ui/components/index.js";
+import { promptInputPresentation } from "../../../support/prompt-input-presentation.js";
+import { piTheme } from "../../../../src/integrations/pi/components/theme.js";
 import {
   createPiShellDialog,
   createPiShellEditor,
@@ -28,7 +29,7 @@ function block(kind: OwnedUiTranscriptBlock["kind"], text: string, payload: unkn
   return { id: `${kind}-1`, kind, status: "finalized", revision: 1, title: kind.startsWith("tool") ? "read" : null, text, payload };
 }
 
-const PROMPT_PRESENTATION = { prefix: PROMPT_GLYPH, styleSuggestion: faint, styleSuggestionCaret: caretCell };
+const PROMPT_PRESENTATION = promptInputPresentation();
 
 function canonicalProgressStatus(message: string): string {
   return `${message.replace(/(?:…|\.+)$/u, "")}...`;
@@ -100,7 +101,7 @@ describe("Pi shell public component adapters", () => {
     editor.setPromptSuggestion("go ahead and merge it");
     const ghost = editor.render(40).join("\n");
     expect(stripTerminalSequences(ghost)).toContain("❯ go ahead and merge it");
-    expect(ghost).toContain("\u001b[38;2;154;160;166m❯\u001b[39m");
+    expect(ghost).toContain(piTheme().fg("muted", "❯ "));
     expect(ghost).toContain("\u001b[2m");
     expect(editor.getText()).toBe("");
 

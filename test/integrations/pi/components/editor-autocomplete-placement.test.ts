@@ -1,4 +1,5 @@
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { promptInputPresentation } from "../../../support/prompt-input-presentation.js";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CURSOR_MARKER, stripTerminalSequences, visibleWidth, type AutocompleteProvider } from "#pi-tui";
@@ -28,7 +29,7 @@ async function fixture(history: boolean, extra: Partial<PiShellEditorOptions> = 
     agentDir: root, cwd: root, getColumns: () => 80, getRows: () => height,
     requestRender() {}, onSubmit: text => submitted.push(text), onCopyText: text => copied.push(text),
     paintEditorSelection: (row, from, to) => `${row.slice(0, from)}\u001b[44m${row.slice(from, to)}\u001b[49m${row.slice(to)}`,
-    promptPresentation: { prefix: "❯ ", styleSuggestion: text => text, styleSuggestionCaret: text => text },
+    promptPresentation: promptInputPresentation(),
     ...extra,
   });
   editor.setFocused?.(true);
