@@ -81,7 +81,7 @@ describe("transcript content retention across renderer boundaries", () => {
     const { emit, backend, shell } = await fixture();
     const message = assistantCall();
     await emit({ type: "message_start", message: { ...message, stopReason: "pending" } });
-    // The final message may omit the partially generated declaration; pinned settles all pending tools.
+    // Compatibility: the final message may omit the partially generated declaration; pinned settles all pending tools.
     await emit({ type: "message_end", message: { ...message, content: [], stopReason, errorMessage: "PROVIDER_FAILED" } });
     const result = backend.view().transcript.find(block => block.id === "tool-call-1")!;
     expect(result).toMatchObject({ kind: "tool-result", status: "finalized", toolState: {
@@ -432,7 +432,7 @@ describe("transcript content retention across renderer boundaries", () => {
     expect(textRows(shell.root.render(80))).toMatch(/\[Image/);
   });
 
-  // Known failure retained verbatim under the accepted scope split (PR #355 / issue #353).
+  // Rationale: retain this known failure under the accepted scope split (PR #355 / issue #353).
   // Vitest must fail this test if the defect unexpectedly passes, so follow-up cannot forget to promote it.
   it.fails("retains full URL targets on wrapped tool-output segments [known: #353]", async () => {
     const url = "https://example.invalid/very-long-directory/another-directory/resource?query=value";

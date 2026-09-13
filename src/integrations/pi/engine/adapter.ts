@@ -2159,7 +2159,7 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
     this.#reconcileActiveModelAvailability();
     this.#thinkingLevel = readThinkingLevel(session.thinkingLevel);
     this.#transcriptImageAssets.clear();
-    // Authority: a new binding cannot inherit arguments/results from a reused invocation id.
+    // Invariant: a new binding cannot inherit arguments/results from a reused invocation id.
     this.#setTranscript([]);
     this.#rebuildTranscript(session.messages, "finalized");
     const generation = this.#sessionGeneration;
@@ -2334,13 +2334,13 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
       case "agent_settled":
       case "agent_end": {
         if (event.type === "agent_end" && event.willRetry === true) return;
-        // Authority: agent_end is run-local; only settlement reads the complete session scope.
+        // Protocol: agent_end is run-local; only settlement reads the complete session scope.
         const finalMessages = event.type === "agent_settled"
           ? this.#session?.messages ?? []
           : Array.isArray(event.messages) ? event.messages : [];
         if (event.type === "agent_end") this.#mergeRunTranscript(finalMessages);
         else if (finalMessages.length > 0) this.#rebuildTranscript(finalMessages, "finalized");
-        // Missing final messages must not erase accumulated content or invent tool outcomes.
+        // Invariant: missing final messages must not erase accumulated content or invent tool outcomes.
         if (finalMessages.length === 0) this.#setTranscript(this.#transcript.map(block =>
           block.status === "live" && transcriptToolState(block) === undefined
             ? { ...block, status: "finalized", revision: block.revision + 1 } : block));
@@ -2458,7 +2458,7 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
     };
   }
 
-  /** Run-local completion may restate messages, but never owns transcript membership. */
+  // Invariant: run-local completion may restate messages, but never owns transcript membership.
   #mergeRunTranscript(messages: readonly unknown[]): void {
     const positions = new Map<unknown, { index: number; occurrence: number }>();
     const sessionOccurrences = new Map<string, number>();
@@ -2481,7 +2481,7 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
     }
   }
 
-  /** Full replacement is reserved for session-authoritative scope (bind/settlement). */
+  // Invariant: full replacement is reserved for session-authoritative scope (bind/settlement).
   #rebuildTranscript(messages: readonly unknown[], status: OwnedUiTranscriptBlock["status"]): void {
     const blocks: OwnedUiTranscriptBlock[] = [];
     const blockIndexes = new Map<string, number>();
@@ -2738,7 +2738,7 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
     const ended = event.type === "tool_execution_end";
     const existing = this.#transcriptBlock(blockId);
     const state = existing === undefined ? undefined : transcriptToolState(existing);
-    // Duplicate starts cannot blank accumulated output; late events cannot reopen a settled invocation.
+    // Invariant: duplicate starts cannot blank accumulated output; late events cannot reopen a settled invocation.
     if (state !== undefined && (state.execution !== "pending" && state.execution !== "running"
       || event.type === "tool_execution_start" && state.execution === "running")) return;
     const source = ended ? event.result : event.partialResult;
@@ -2941,7 +2941,7 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
     this.#lifecycle = this.#disposed ? "stopped" : canResume ? "ready" : "failed";
     this.#editor = { ...this.#editor, submitEnabled: canResume && !this.#disposed };
     this.#viewRevision += 1;
-    // Overload publishes one authoritative view; settle tool phases before finalizing other live blocks.
+    // Invariant: overload publishes one authoritative view; settle tool phases before finalizing other live blocks.
     this.#settleFailedDeclarations({ role: "assistant", stopReason: cancelled ? "aborted" : "error",
       errorMessage: "Tool result unavailable after UI delivery overload" });
     this.#setTranscript(this.#transcript.map(block => block.status === "live" ? { ...block, status: "finalized", revision: block.revision + 1 } : block));

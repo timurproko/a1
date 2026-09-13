@@ -24,7 +24,7 @@ export function acceptsTranscriptUpdate(current: OwnedUiTranscriptBlock, next: O
     const rank = (state: OwnedUiToolState) => state.execution === "pending" ? 0 : state.execution === "running" ? 1 : 2;
     if (rank(after) < rank(before)) return false;
     if (before.argsComplete && !after.argsComplete && rank(after) < 2) return false;
-    // A legacy finalized call declaration only closed arguments. Actual result finality is a barrier.
+    // Compatibility: a legacy finalized call declaration only closed arguments. Actual result finality is a barrier.
     return !(current.status === "finalized" && next.status === "live" && before.execution !== "pending");
   }
   return !(current.status === "finalized" && next.status === "live");

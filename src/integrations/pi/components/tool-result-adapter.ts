@@ -24,7 +24,7 @@ export function updatePiToolResult(component: ToolExecutionComponent, block: Own
 
 export function piToolArguments(block: OwnedUiTranscriptBlock): unknown {
   if (block.toolRendering !== undefined) return block.toolRendering.arguments;
-  // Compatibility for existing owned blocks and component consumers, not new engine output.
+  // Compatibility: existing owned blocks and component consumers may lack rendering metadata.
   const payload = isRecord(block.payload) ? block.payload : {};
   return isRecord(payload.arguments) && "json" in payload.arguments ? payload.arguments.json : payload.arguments ?? {};
 }

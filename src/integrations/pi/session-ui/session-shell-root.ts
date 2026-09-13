@@ -515,7 +515,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.#syncTranscript(view.transcript);
     this.editor.setSubmitEnabled(view.lifecycle !== "stopping" && view.lifecycle !== "stopped" && view.lifecycle !== "failed");
     this.editor.setThinkingLevel(view.thinkingLevel);
-    // Semantic updates already invalidate affected transcript blocks. Chrome is a separate authority.
+    // Performance: semantic updates already invalidate affected transcript blocks. Chrome is a separate authority.
     this.#invalidateChrome();
   }
 

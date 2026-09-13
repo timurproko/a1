@@ -22,7 +22,7 @@ function renderingJson(value: unknown): unknown {
 }
 
 function jsonStringBytes(value: string): number {
-  // Reject very large strings before allocating their escaped representation.
+  // Performance: reject very large strings before allocating their escaped representation.
   if (value.length > MAX_METADATA_BYTES) throw new RangeError("metadata exceeds the supported payload limit");
   return Buffer.byteLength(JSON.stringify(value));
 }
@@ -93,7 +93,7 @@ export function toolRenderingInput(options: {
     toolRendering = { ...toolRendering, arguments: {} };
   }
   if (!fits()) {
-    // Too many content boundaries: retain text and images, explicitly declaring this bounded fallback.
+    // Rationale: too many content boundaries exceed the metadata budget; retain text/images with an explicit fallback.
     warnings.add("Tool content boundaries unavailable: rendering metadata exceeds the supported payload limit.");
     toolRendering = { ...toolRendering, result: { content: [
       { type: "text", start: 0, end: text.length },

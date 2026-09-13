@@ -147,7 +147,7 @@ function withTranscriptImages(
   showImages: boolean,
   imageWidthCells: number,
 ): Component {
-  // Pi owns tool images and renderer state, including references introduced after the call header.
+  // Compatibility: Pi owns tool images and renderer state, including references introduced after the call header.
   if (component instanceof ToolExecutionComponent) return component;
   const references = block.imageReferences ?? [];
   if (references.length === 0) return component;
