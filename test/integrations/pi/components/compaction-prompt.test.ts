@@ -7,7 +7,7 @@ import type { OwnedUiTranscriptBlock } from "../../../../src/contracts/owned-ui/
 import { createPiShellTranscriptComponent } from "../../../../src/integrations/pi/components/index.js";
 import { composeSubmittedPromptRows, formatSubmittedPromptTime, submittedPromptLayout } from "../../../../src/ui/components/index.js";
 
-// Pi owns a nested Chalk instance; set its capability explicitly rather than the checkout's copy.
+// Provenance: Pi owns a nested Chalk instance; set its capability explicitly rather than the checkout's copy.
 const pinnedRequire = createRequire(new URL("../../../../node_modules/@earendil-works/pi-coding-agent/dist/index.js", import.meta.url));
 const { default: chalk } = await import(pathToFileURL(pinnedRequire.resolve("chalk")).href) as typeof import("chalk");
 const composer = { layout: submittedPromptLayout, compose: composeSubmittedPromptRows };
@@ -19,7 +19,7 @@ const summary: OwnedUiTranscriptBlock = {
 };
 const plain = (rows: readonly string[]) => rows.map(stripTerminalSequences);
 
-// This uses the same injected geometry as the custom shell; omission is the comparison route.
+// Provenance: use the same injected geometry as the custom shell; omission is the comparison route.
 function mount(block = summary, owned = true) {
   return createPiShellTranscriptComponent(block, "D:/work", undefined, owned ? composer : undefined);
 }

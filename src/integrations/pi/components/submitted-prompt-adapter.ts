@@ -30,7 +30,7 @@ export function createPiSubmittedPromptComponent(
   heading?: string,
 ): Component {
   const timestamp = numericTimestamp(block);
-  // Presentation-only chrome stays outside the summary's Markdown parser and stored text.
+  // Invariant: presentation-only chrome stays outside the summary's Markdown parser and stored text.
   const header = heading === undefined ? undefined : new Text(heading, 0, 0);
   const markdown = new Markdown(
     block.text,

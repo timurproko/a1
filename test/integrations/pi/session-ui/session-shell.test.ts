@@ -310,7 +310,7 @@ describe("prompt-style compaction in the real engine and shell", () => {
       terminal.input("\u001b[<0;5;1M");
       terminal.input("\u001b[<0;5;1m");
       frame = rows();
-      // The reserved scrollbar cell is naturally blank on viewport row zero.
+      // Invariant: the reserved scrollbar cell is naturally blank on viewport row zero.
       expect(frame[0]!.slice(0, -1)).toBe(header.slice(0, -1));
       expect(frame[2]).toContain("summary-0 alpha beta");
       expect(shell.root.viewportPresentationEvidence().followingEnd).toBe(false);
