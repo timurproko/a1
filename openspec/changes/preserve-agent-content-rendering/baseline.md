@@ -64,7 +64,7 @@ Focused validation of this checkpoint:
 - Typechecking and strict OpenSpec validation passed. No `test:fast`, `test:full`, or `test:release` tier was run.
 - No implementation CI or acceptance is claimed. The implementation is incomplete and must not be merged.
 
-## Opt-in native-hover experiment (physical result pending)
+## Opt-in native-hover experiment: grouping passed, ECH failed
 
 The standalone probe additionally accepts `--group-wrapped --row-erase ech`:
 
@@ -74,4 +74,22 @@ The standalone probe additionally accepts `--group-wrapped --row-erase ech`:
 - This fixture still requests complete row frames. Even if its hover review passes, production adoption would require bounding erasure to affected rows and preserving existing scheduling/paint budgets. No such adoption is included in this checkpoint.
 - The fixture tests pass **13/13**, covering default controls, stable wrapped IDs, unchanged styling/labels/targets, absence of hidden display clears in forwarded ECH frames, and final text/cursor replay with synchronization honored and ignored. Native hover is outside that replay's model.
 
-Next physical check: keep `CLEAR:OFF`; hover both segments of the explicit long URL and report whether they highlight together. Then press `2`, hover the plain auto-detected link and scroll with a stationary pointer; record `y` if ghosts remain or `n` if clean, then quit with `q`. The outcome is pending and no bounded native cleanup has been selected yet.
+### User-controlled result at `7379f3a1`
+
+The user answered **yes** to both questions: both explicit wrapped rows now highlight together, and auto-detected links still leave ghost underlines on scroll. Thus shared native occurrence IDs passed this probe's hover-grouping check; ECH failed the ghost-cleanup check. Neither result establishes production acceptance or repairs the production post-wrap target-construction defect.
+
+Local trace `run-SMYqwq/trace.jsonl` identifies clean commit `7379f3a1c95d312d4ed1ca46517fe49c8b012693`, `groupWrappedLinks: true`, `rowErase: ech`, and 171-by-40 geometry. At inspection it contains 41 frames (17 explicit, 24 auto-detected), 42 terminal writes, 41 ECH-bearing writes, and **zero display-clear commands**. All 41 decisions report `pending-hyperlink-cleanup`, rather than a recognized optimized cleanup. There are no `human-observation` markers, so the visual verdict comes from the user's conversation report, not automated interpretation of the trace. Its version/settings CLI metadata says `unknown`; retain the independently queried running-host facts above rather than rewriting it.
+
+### Source-backed host diagnosis
+
+Inspected Microsoft Windows Terminal release tag `v1.24.11911.0`, resolved to commit `5a830b2bf7c053d5c7ac22208fe5a346cb5dd3dc`. Public source copies are local under `.artifacts/terminal-host-source/1.24.11911.0/`; no installed terminal or dependency was modified.
+
+- `src/cascadia/TerminalControl/ControlCore.cpp:188–214,2176–2197`: output schedules a trailing, debounced 100 ms idle callback. On this ordinary output path, that callback recomputes the visible URL-pattern tree. Continuous application repainting can keep postponing it.
+- `src/terminal/adapter/adaptDispatch.cpp:739–851`: ECH and EL both erase via `_FillRect`; neither invalidates the terminal's URL-pattern tree. Changing between them therefore does not address that cache lifetime.
+- `src/terminal/adapter/adaptDispatch.cpp:3167–3215` and `src/cascadia/TerminalCore/TerminalApi.cpp:383–417`: ED2's `_EraseAll` can rotate the backing buffer and calls `NotifyBufferRotation`; that explicitly empties the pattern tree. In the probe's full-height alternate buffer containing nonblank rows, this explains the meaningful difference from row erasure.
+- `src/cascadia/TerminalCore/Terminal.cpp:1219–1238` and `src/renderer/base/renderer.cpp:1167–1195`: URL-pattern recomputation invalidates old/new pattern ranges, while native hovered underline rendering consults both the cached hovered interval and the current pattern tree. Correctly rewritten text/attributes alone do not make cached native detection current.
+- The release includes the scroll-hover refresh associated with [Windows Terminal #20219](https://github.com/microsoft/terminal/issues/20219), but that does not make application-controlled alternate-screen repainting equivalent to terminal viewport scrolling. The separate open report [Windows Terminal #17728](https://github.com/microsoft/terminal/issues/17728), including the maintainers' discussion of deferring URL scanning, describes this class of TUI underline artifact.
+
+These source paths support the host-cache explanation and agree with the physical EL/ECH/full-clear comparisons. They are not an instrumented Windows Terminal trace, proof of a precise physical 100 ms duration, or proof that every possible compliant native invalidation strategy is impossible.
+
+ECH is **not selected for production**. No verified bounded native cleanup has been established. Do not replace it with ordinary full-screen clears, buffer-switch/rotation tricks, terminal-setting changes, or altered labels/activation without an explicitly approved strategy. The implementation remains at 10/32 tasks; renderer-input, asynchronous-presentation, pre-layout URL, end-to-end, CI, and exact-candidate acceptance work remains incomplete. A host-side change or an alternative that exceeds the accepted strategy requires separate scope approval; this finding does not silently waive the native-ghost acceptance gate.
