@@ -19,5 +19,5 @@
 ## 4. Validation and acceptance
 
 - [x] 4.1 Run focused presenter, viewport, and session regression suites plus applicable typechecking, `openspec validate prompt-style-compaction --strict`, and diff checks; record exact commands/results without running broad local test tiers unless requested.
-- [ ] 4.2 Push a separate implementation PR citing the merged planning change and report required CI results without foreground watching; verify the PR remains open with code auto-merge disabled.
+- [x] 4.2 Push a separate implementation PR citing the merged planning change and report required CI results without foreground watching; verify the PR remains open with code auto-merge disabled.
 - [ ] 4.3 Provide an exact built candidate and color-preserving launch command; obtain and record user visual acceptance of normal-weight full heading, prompt-style pinned header/timestamp, full-summary click navigation, and Shift+Up/Down before requesting explicit implementation merge authorization. Do not commit private screenshots or raw transcripts.

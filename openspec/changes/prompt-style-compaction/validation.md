@@ -23,6 +23,14 @@ Coverage includes actual terminal bold attributes with Pi's own Chalk instance e
 
 The new review-session script is also tested through the real public Pi session manager and engine/shell. It creates a fresh disposable JSONL session using synthetic content, a real compaction entry, and two retained ordinary prompts. It neither calls a model nor reads a private conversation. The same-timestamp navigation fixture covers distinct loaded anchors; it is not evidence that this change repairs unrelated engine live-event timestamp collisions.
 
+### Prompt-style review clarification
+
+Required CI run `34753384301` passed for `1d9ea849`, including the previously timed-out fast check. The PR remains open without auto-merge; physical acceptance is still outstanding.
+
+The user clarified that compactions must have no special purple fill: full and pinned states must follow normal prompt styles, including dimming the entire pinned row once its full source block is above the viewport. A new real-shell/headless-cell comparison verifies identical backgrounds and visible-glyph foreground, bold, and dim attributes for normal prompts and compactions in source, prominent-pinned, and quiet-pinned states. It explicitly checks that both label and timestamp become dim only in the final state. Existing shared prompt rendering already satisfies this comparison; no special compaction palette or ordinary-prompt behavior change was introduced. All 22 compaction-focused tests pass after this review-fixture refinement, along with typechecking, full documentation governance, strict OpenSpec validation, and diff checks.
+
+Removed the synthetic end-marker sentence from the review-session generator. The fixture regression now verifies the last actual summary section remains present and the unwanted marker is absent; actual session summaries are not filtered. The synthetic retained tail now includes answer rows before the next prompt, providing a visible interval where the compaction header becomes quiet instead of being immediately replaced by the next prompt. A fresh marker-free local review session is available at `.artifacts/compaction-v3.jsonl`, without modifying the user's already-open review file.
+
 ## Candidate review
 
 Worktree: `D:/Git/a1/.worktrees/prompt-style-compaction-impl`

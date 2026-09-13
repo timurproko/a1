@@ -17,7 +17,7 @@ const assistant = text => manager.appendMessage({
 manager.appendSessionInfo("Prompt-style compaction visual review (synthetic)");
 user("Synthetic earlier conversation to compact.");
 assistant("Synthetic earlier answer.");
-const kept = user("First ordinary prompt after the compaction checkpoint.");
+const kept = assistant(Array.from({ length: 32 }, (_, index) => `Retained answer row ${index + 1}: after the full summary scrolls above the viewport, its pinned header and timestamp become dim until the next prompt.`).join("\n\n"));
 const summary = [
   "## Visual review",
   "This is synthetic review content, not a private conversation. The Compacted from 281,483 tokens header above must not be bold.",
@@ -26,9 +26,9 @@ const summary = [
   "Summary **bold emphasis** and `inline code` should keep their own styling.",
   "[Web link](https://example.com/compaction-review) and [file link](file:///D:/example/compaction-review.md) keep normal web/file colors. The file target is illustrative; do not expect it to exist.",
   ...Array.from({ length: 24 }, (_, index) => `### Summary section ${index + 1}\n\nSynthetic retained detail ${index + 1}. Select and copy this text, resize the terminal, and verify that normal prompt spacing and background continue through the full summary.`),
-  "END OF FULL COMPACTION SUMMARY",
 ].join("\n\n");
 manager.appendCompaction(summary, kept, 281483);
+user("First ordinary prompt after the compaction checkpoint.");
 assistant(Array.from({ length: 32 }, (_, index) => `Post-compaction response row ${index + 1}: scroll back to review the summary.`).join("\n\n"));
 user("Last ordinary prompt: use Shift+Up to return to the earlier prompt and compaction.");
 assistant(Array.from({ length: 32 }, (_, index) => `Final response row ${index + 1}: this gives the pinned header room to become quiet.`).join("\n\n"));

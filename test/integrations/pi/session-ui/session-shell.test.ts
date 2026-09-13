@@ -1,4 +1,5 @@
 import { memoryHistory } from "./prompt-history-fixture.js";
+import HeadlessXterm from "@xterm/headless";
 import { PromptHistoryService } from "../../../../src/features/prompt-history/index.js";
 import { PromptHistoryStore } from "../../../../src/features/prompt-history/store.js";
 import { resolvePromptHistoryPath } from "../../../../src/features/prompt-history/paths.js";
@@ -250,9 +251,11 @@ describe("prompt-style compaction in the real engine and shell", () => {
       try {
         const source = adapter.view().transcript.find(block => block.kind === "compaction")!;
         expect(source.payload).toMatchObject({ role: "compactionSummary", tokensBefore: 281483 });
+        expect(adapter.view().transcript.slice(0, 3).map(block => block.kind)).toEqual(["compaction", "assistant", "user"]);
         const rows = shell.root.transcriptComponent(source.id)!.render(80).map(stripTerminalSequences);
         expect(rows[0]).toContain("Compacted from 281,483 tokens");
-        expect(rows.join("\n")).toContain("END OF FULL COMPACTION SUMMARY");
+        expect(rows.join("\n")).toContain("Synthetic retained detail 24.");
+        expect(rows.join("\n")).not.toContain("END OF FULL COMPACTION SUMMARY");
         expect(adapter.view().transcript.filter(block => block.kind === "user")).toHaveLength(2);
       } finally { await shell.dispose(); }
     } finally { await rm(directory, { recursive: true, force: true }); }
@@ -333,6 +336,51 @@ describe("prompt-style compaction in the real engine and shell", () => {
       expect((await key("\u001b[1;3H"))[1]).toBe(header);
       expect(shell.root.editor.getText()).toBe("keep draft");
     } finally { await shell.dispose(); }
+  });
+
+  it("matches normal prompt cell styles and dims the entire pinned row only after the full block scrolls out", async () => {
+    const snapshots = [];
+    for (const kind of ["compaction", "user"] as const) {
+      const summary = compaction();
+      const message = kind === "compaction" ? summary : user(`Compacted from 281,483 tokens\n\n${summary.summary}`);
+      const { terminal, shell } = await fixture([message, reply("tail")], [], true);
+      try {
+        terminal.resize(80, 14);
+        shell.root.setViewportConfig({ scrollbarAppearance: "hidden", scrollbarStyle: "thin", scrollbarSpeed: "normal" });
+        shell.root.render(80);
+        const frames = [];
+        for (const data of ["\u001b[1;5H", "\u001b[<65;3;3M", "\u001b[1;5F"]) {
+          terminal.input(data);
+          await nextImmediate();
+          frames.push(shell.root.render(80).slice(0, 8));
+        }
+        const rendered = [];
+        for (const rows of frames) {
+          const screen = new HeadlessXterm.Terminal({ cols: 80, rows: rows.length + 1, allowProposedApi: true });
+          try {
+            await new Promise<void>(resolve => screen.write(rows.map(row => `${row}\u001b[0m`).join("\r\n"), resolve));
+            rendered.push(rows.map((_, row) => Array.from({ length: 80 }, (_, column) => {
+              const cell = screen.buffer.active.getLine(row)!.getCell(column)!;
+              return {
+                text: cell.getChars(), background: [cell.getBgColorMode(), cell.getBgColor()],
+                // Provenance: foreground attributes on blank padding cannot affect visible glyphs.
+                foreground: cell.getChars().trim() ? [cell.getFgColorMode(), cell.getFgColor(), cell.isDim(), cell.isBold()] : null,
+              };
+            })));
+          } finally { screen.dispose(); }
+        }
+        const labelColumn = stripTerminalSequences(frames[1]![0]!).indexOf("Compacted");
+        const timeColumn = stripTerminalSequences(frames[1]![0]!).indexOf("14:35");
+        expect(labelColumn).toBeGreaterThanOrEqual(0);
+        expect(timeColumn).toBeGreaterThan(labelColumn);
+        for (const column of [labelColumn, timeColumn]) {
+          expect(rendered[1]![0]![column]!.foreground![2]).toBe(0);
+          expect(rendered[2]![0]![column]!.foreground![2]).not.toBe(0);
+        }
+        snapshots.push(rendered);
+      } finally { await shell.dispose(); }
+    }
+    expect(snapshots[0]).toEqual(snapshots[1]);
   });
 
   it("uses quiet compaction context after the full summary and preserves selector input ownership", async () => {
