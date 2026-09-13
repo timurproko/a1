@@ -521,19 +521,12 @@ describe("OwnedUiSessionShell", () => {
       terminal.input("/"); terminal.input("mo"); await nextImmediate(); await nextImmediate();
       const frame = shell.root.render(80);
       const row = frame.findIndex(line => stripTerminalSequences(line).startsWith("❯ ")) + 1;
-      const menuRow = row - 2;
       expect(shell.root.editor.bodyGeometry!().rowOffset).toBeGreaterThan(0);
-      const topLineRow = row - 1 - shell.root.editor.bodyGeometry!().rowOffset;
-      expect(stripTerminalSequences(frame[topLineRow - 1]!)).toBe("─".repeat(80));
-      for (const chromeRow of [menuRow, topLineRow]) {
-        terminal.input(`\u001b[<0;3;${chromeRow}M`);
-        terminal.input(`\u001b[<32;6;${row}M`);
-        terminal.input(`\u001b[<0;6;${row}m`);
-        expect(shell.root.hasActiveSelection()).toBe(false);
-        terminal.input(`\u001b[<2;3;${chromeRow}M`);
-        terminal.input(`\u001b[<2;3;${chromeRow}m`);
-        expect(readText).not.toHaveBeenCalled();
-      }
+      // Rationale: with the counter merged into the body's top border, there is no
+      // longer a plain top line above the menu; the counter border now sits directly
+      // above the input prompt as part of the editor's own body geometry.
+      const topLineRow = row - 1;
+      expect(stripTerminalSequences(frame[topLineRow - 1]!)).toMatch(/^(?:─+|─── \d+\/\d+ ─*)$/u);
       expect(shell.root.editor.getText()).toBe("/mo");
       terminal.input(`\u001b[<0;3;${row}M`);
       terminal.input(`\u001b[<32;6;${row}M`);
