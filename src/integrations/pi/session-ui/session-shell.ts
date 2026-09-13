@@ -1402,6 +1402,7 @@ export class OwnedUiSessionShell {
       // Invariant: delivery recovery invalidates callbacks, not same-session local recall or its draft.
       if (this.#sessionBindingGeneration !== this.backend.sessionBindingGeneration) {
         this.#sessionBindingGeneration = this.backend.sessionBindingGeneration;
+        this.root.resetTranscript();
         this.#promptHistory?.reset(view.transcript.flatMap(block => block.kind === "user" ? [block.text] : []));
       }
       this.#activeLoginDialog = undefined;

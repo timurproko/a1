@@ -35,6 +35,7 @@ const MAX_STATUS_DIAGNOSTICS = 32;
 const MAX_ACTIVE_COMMANDS = 64;
 
 const IMAGE_REFERENCE_SOURCES = new Set(["user", "tool-result"]);
+const TOOL_EXECUTIONS = new Set(["pending", "running", "succeeded", "failed", "aborted"]);
 
 const BLOCK_KINDS = new Set([
   "user",
@@ -287,6 +288,13 @@ export function assertOwnedUiTranscriptBlock(block: OwnedUiTranscriptBlock): voi
   assertOptionalText(block.title, "owned-UI transcript block title", MAX_LABEL_LENGTH);
   assertPossiblyEmptyText(block.text, "owned-UI transcript block text", MAX_TEXT_BYTES);
   assertJsonValue(block.payload, "owned-UI transcript block payload", MAX_PAYLOAD_BYTES);
+  if (block.toolState !== undefined) {
+    if (block.kind !== "tool-call" && block.kind !== "tool-result") throw new TypeError("owned-UI tool state requires a tool block");
+    if (typeof block.toolState.argsComplete !== "boolean") throw new TypeError("owned-UI tool argument completion is invalid");
+    assertEnum(block.toolState.execution, TOOL_EXECUTIONS, "owned-UI tool execution state");
+    const settled = block.toolState.execution !== "pending" && block.toolState.execution !== "running";
+    if (settled !== (block.status === "finalized")) throw new TypeError("owned-UI tool execution finality is inconsistent");
+  }
   if (block.imageReferences !== undefined) {
     assertCollection(block.imageReferences, "owned-UI transcript image references", 16);
     for (const reference of block.imageReferences) {

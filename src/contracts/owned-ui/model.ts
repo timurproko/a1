@@ -155,6 +155,12 @@ export interface OwnedUiTranscriptImageReference {
   readonly source: "user" | "tool-result";
 }
 
+/** Argument generation and execution have distinct completion boundaries on one invocation. */
+export interface OwnedUiToolState {
+  readonly argsComplete: boolean;
+  readonly execution: "pending" | "running" | "succeeded" | "failed" | "aborted";
+}
+
 export interface OwnedUiTranscriptBlock {
   readonly id: OwnedUiEntityId;
   readonly kind: OwnedUiTranscriptBlockKind;
@@ -163,6 +169,8 @@ export interface OwnedUiTranscriptBlock {
   readonly title: string | null;
   readonly text: string;
   readonly payload: unknown;
+  /** Tool-call message completion alone must not settle execution. */
+  readonly toolState?: OwnedUiToolState;
   /** Bounded opaque references; image bytes remain in the session-scoped engine asset store. */
   readonly imageReferences?: readonly OwnedUiTranscriptImageReference[];
 }

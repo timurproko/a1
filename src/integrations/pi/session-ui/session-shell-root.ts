@@ -1,3 +1,4 @@
+import { acceptsTranscriptUpdate } from "../../../contracts/owned-ui/index.js";
 import type {
   OwnedUiCommand,
   OwnedUiDialog,
@@ -516,7 +517,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   applyTranscriptBlock(block: OwnedUiSessionViewModel["transcript"][number]): void {
     const current = this.#blocksById.get(block.id);
     // Invariant: a full-view/final presentation may preempt queued partials. Never revive an older revision.
-    if (current !== undefined && (current.revision > block.revision || current.status === "finalized" && block.status === "live")) return;
+    if (current !== undefined && !acceptsTranscriptUpdate(current, block)) return;
     this.#blocksById.set(block.id, block);
     const component = this.#transcript.get(block.id);
     if (component === undefined) {
@@ -670,6 +671,16 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
 
   noteCompletedAssistantMessage(): void {
     this.#viewportController.noteCompletedAssistantMessage();
+  }
+
+  /** A new session binding owns new mounts even when it reuses semantic invocation ids. */
+  resetTranscript(): void {
+    for (const component of this.#transcript.values()) component.dispose?.();
+    this.#transcript.clear();
+    this.#blocksById.clear();
+    this.#transcriptOrder = [];
+    this.#renderedRows.clear();
+    this.#documentLayouts.clear();
   }
 
   resetViewport(): void {

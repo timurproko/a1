@@ -16,18 +16,22 @@ export function ghostLinkDocument(
   mode: GhostLinkFixtureMode,
   fileTarget: string,
   short = false,
+  groupWrappedLinks = false,
 ): readonly string[] {
   const available = Math.max(1, width - 2);
-  const linked = (label: string, target: string) => mode === "explicit"
-    ? `\u001b]8;;${target}\u001b\\\u001b[38;2;97;175;239m${label}${ROW_RESET}`
+  const linked = (label: string, target: string, occurrence?: string) => mode === "explicit"
+    ? `\u001b]8;${occurrence === undefined ? "" : `id=${occurrence}`};${target}\u001b\\\u001b[38;2;97;175;239m${label}${ROW_RESET}`
     : label;
   // Rationale: ASCII labels make fixture wrapping independent of the parser
   // being repaired. Grapheme-aware production ranges have separate regressions.
   const longUrl = GHOST_FIXTURE_URL + "segment/".repeat(24);
+  let wrappedOccurrence = 0;
   const wrapped = (label: string, target: string): string[] => {
+    // Diagnostic variant: one native occurrence id, independent of width and fragment count.
+    const occurrence = groupWrappedLinks ? `a1-probe-wrapped-${wrappedOccurrence++}` : undefined;
     const rows: string[] = [];
     for (let column = 0; column < label.length; column += available) {
-      rows.push(`  ${linked(label.slice(column, column + available), target)}`);
+      rows.push(`  ${linked(label.slice(column, column + available), target, occurrence)}`);
     }
     return rows;
   };
@@ -73,9 +77,16 @@ export function ghostLinkScreen(
   ];
 }
 
-/** Emits the adapter's pinned complete-row grammar without running an agent or Pi UI. */
-export function ghostLinkWrite(rows: readonly string[], force: boolean): string {
-  const body = rows.map((row, index) => `\u001b[${index + 1};1H\u001b[2K${row}`).join("");
+/** Defaults to the pinned complete-row grammar; ECH is a separately labelled host probe. */
+export function ghostLinkWrite(
+  rows: readonly string[],
+  force: boolean,
+  rowErase: "line" | "ech" = "line",
+  width = Math.max(1, ...rows.map(row => stripAnsi(row).length)),
+): string {
+  // ECH is an opt-in host experiment, not an extension of the production damage grammar.
+  const erase = rowErase === "ech" ? `\u001b[${Math.max(1, width)}X` : "\u001b[2K";
+  const body = rows.map((row, index) => `\u001b[${index + 1};1H${erase}${row}`).join("");
   return `\u001b[?2026h${force ? "\u001b[2J" : ""}${body}\u001b[${rows.length};1H\u001b[?25l\u001b[?2026l`;
 }
 

@@ -1,18 +1,18 @@
 ## 1. Establish Failing Evidence Before Remediation
 
-- [ ] 1.1 Recheck the accepted implementation base and trace pinned message, tool, run, and settlement ordering; verify a source-referenced event fixture completes assistant arguments before execution and preserves intervening modal/editor/selection changes.
-- [ ] 1.2 Convert the argument-finality and run-local transcript-replacement probes into deterministic engine/shell regressions; verify the baseline rejects required live output and loses earlier history at the intermediate checkpoint, not merely at final settlement.
-- [ ] 1.3 Add component-to-root regressions for missing result details, unchanged-semantic-revision asynchronous invalidation, and attachments arriving after the call header; verify the first two reproduce the observed failures and record the attachment case's actual baseline without assuming it fails.
-- [ ] 1.4 Add narrow-width bare-URL, styled/explicit-link, and wrapped-file fixtures; verify the current bare-URL path exposes a truncated target or unlinked continuation while the file path preserves its full target.
-- [ ] 1.5 Identify the affected runtime and Windows Terminal environment and record a bounded physical baseline for disappearing content and URL/file/host-only hover cases; verify the record includes build, terminal version, geometry, settings, raw-write context, content category, and explicitly unreproduced cases without publishing private transcript data.
+- [x] 1.1 Recheck the accepted implementation base and trace pinned message, tool, run, and settlement ordering; verify a source-referenced event fixture completes assistant arguments before execution and preserves intervening modal/editor/selection changes.
+- [x] 1.2 Convert the argument-finality and run-local transcript-replacement probes into deterministic engine/shell regressions; verify the baseline rejects required live output and loses earlier history at the intermediate checkpoint, not merely at final settlement.
+- [x] 1.3 Add component-to-root regressions for missing result details, unchanged-semantic-revision asynchronous invalidation, and attachments arriving after the call header; verify the first two reproduce the observed failures and record the attachment case's actual baseline without assuming it fails.
+- [x] 1.4 Add narrow-width bare-URL, styled/explicit-link, and wrapped-file fixtures; verify the current bare-URL path exposes a truncated target or unlinked continuation while the file path preserves its full target.
+- [x] 1.5 Identify the affected runtime and Windows Terminal environment and record a bounded physical baseline for disappearing content and URL/file/host-only hover cases; verify the record includes build, terminal version, geometry, settings, raw-write context, content category, and explicitly unreproduced cases without publishing private transcript data. See `baseline.md` for the identified protocol reproduction and the original-content cases that remain unverified.
 
 ## 2. Repair Execution State and Transcript Continuity
 
-- [ ] 2.1 Separate argument completion from execution disposition in owned block state and its validated component mapping; verify production-ordered start/update/end and abort/error cases keep one invocation surface and show live output after arguments finish.
-- [ ] 2.2 Update engine and shell stale-update guards to use the correct lifecycle phase plus revision/generation; verify genuine post-execution partials stay rejected while valid running updates survive queued and full-view paths.
-- [ ] 2.3 Merge repeated message/turn call declarations without downgrading final results; verify serial/parallel tool fixtures retain result data, errors, arguments, attachments, identity, and order without intermediate argument-only replacement.
-- [ ] 2.4 Distinguish run-local completion collections from full session-authoritative replacement; verify prior history remains continuously present during delayed settlement, unchanged blocks keep identity, and explicit session/branch/compaction reconciliation still follows existing scope rules.
-- [ ] 2.5 Exercise bounded delivery across those corrected phases; verify same-invocation coalescing, independent concurrent blocks, protected outcomes, generation replacement, overload recovery, and final-state flush preserve the existing queue and responsiveness guarantees.
+- [x] 2.1 Separate argument completion from execution disposition in owned block state and its validated component mapping; verify production-ordered start/update/end and abort/error cases keep one invocation surface and show live output after arguments finish.
+- [x] 2.2 Update engine and shell stale-update guards to use the correct lifecycle phase plus revision/generation; verify genuine post-execution partials stay rejected while valid running updates survive queued and full-view paths.
+- [x] 2.3 Merge repeated message/turn call declarations without downgrading final results; verify serial/parallel tool fixtures retain result data, errors, arguments, attachments, identity, and order without intermediate argument-only replacement.
+- [x] 2.4 Distinguish run-local completion collections from full session-authoritative replacement; verify prior history remains continuously present during delayed settlement, unchanged blocks keep identity, and explicit session/branch/compaction reconciliation still follows existing scope rules.
+- [x] 2.5 Exercise bounded delivery across those corrected phases; verify same-invocation coalescing, independent concurrent blocks, protected outcomes, generation replacement, overload recovery, and final-state flush preserve the existing queue and responsiveness guarantees.
 
 ## 3. Preserve Complete Renderer Inputs
 

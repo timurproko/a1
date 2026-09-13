@@ -272,8 +272,7 @@ function updateTranscriptComponent(
     && (previous.kind === "tool-call" || previous.kind === "tool-result")) {
     const payload = blockPayload(next);
     component.updateArgs(toolArguments(payload));
-    if (next.status === "live") component.markExecutionStarted();
-    if (next.status === "finalized" || payload.argsComplete === true) component.setArgsComplete();
+    applyToolState(component, next);
     if (payload.partialResult === true) {
       component.updateResult({ content: [{ type: "text", text: next.text }], isError: false }, true);
     } else if (next.kind === "tool-result") {
@@ -401,8 +400,7 @@ function toolComponent(
     createTuiFacade({ getColumns: () => 80, getRows: () => 24, requestRender() {}, onSubmit() {} }),
     cwd,
   );
-  if (block.status === "live") component.markExecutionStarted();
-  if (block.status === "finalized" || payload.argsComplete === true) component.setArgsComplete();
+  applyToolState(component, block);
   if (payload.partialResult === true) {
     component.updateResult({ content: [{ type: "text", text: block.text }], isError: false }, true);
   } else if (block.kind === "tool-result") {
@@ -412,6 +410,14 @@ function toolComponent(
     });
   }
   return component;
+}
+
+/** The public renderer's argument-complete and execution-started flags are independent. */
+function applyToolState(component: ToolExecutionComponent, block: OwnedUiTranscriptBlock): void {
+  const state = block.toolState;
+  const payload = blockPayload(block);
+  if (state?.execution === "running" || state === undefined && block.status === "live") component.markExecutionStarted();
+  if (state?.argsComplete ?? (block.status === "finalized" || payload.argsComplete === true)) component.setArgsComplete();
 }
 
 function customMessageComponent(

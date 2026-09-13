@@ -45,6 +45,9 @@ class ProbeTerminal implements PiTuiTerminalPort {
 /** Captures fixture state and adapter decisions; human observations remain explicitly separate. */
 async function main(): Promise<void> {
   const interactive = !process.argv.includes("--capture");
+  const groupWrappedLinks = process.argv.includes("--group-wrapped");
+  const rowErase = option("--row-erase") ?? "line";
+  if (rowErase !== "line" && rowErase !== "ech") throw new Error("--row-erase must be line or ech");
   if (interactive && (!process.stdin.isTTY || !process.stdout.isTTY)) {
     throw new Error("A terminal is required. Use --capture for byte evidence without physical observations.");
   }
@@ -69,12 +72,15 @@ async function main(): Promise<void> {
   const render = (action: string, bypass = preserveClears) => {
     const width = terminal.columns;
     const height = terminal.rows;
-    const document = ghostLinkDocument(width, mode, fileTarget, short);
+    const document = ghostLinkDocument(width, mode, fileTarget, short, groupWrappedLinks);
     scrollTop = Math.max(0, Math.min(scrollTop, Math.max(0, document.length - (height - 2))));
-    const status = `${mode} | CLEAR:${preserveClears ? "ON" : "OFF"} (p toggles) | ${blank ? "blank" : short ? "short" : "original"} | scroll ${scrollTop} | ${action}`;
+    const variant = groupWrappedLinks || rowErase !== "line" ? ` | WRAP-ID:${groupWrappedLinks ? "shared" : "anonymous"} | ERASE:${rowErase}` : "";
+    const status = `${mode} | CLEAR:${preserveClears ? "ON" : "OFF"}${variant || " (p toggles)"} | ${blank ? "blank" : short ? "short" : "original"} | scroll ${scrollTop} | ${action}`;
     const rows = ghostLinkScreen(document, width, height, scrollTop, blank, status);
-    const input = ghostLinkWrite(rows, true);
-    record({ type: "frame-request", frameId: ++frameId, mode, preserveClears, blank, short, scrollTop, width, height, action, bypass, data: input });
+    // An unrecognized ECH frame is forwarded fail-closed. It MUST NOT inherit a screen clear
+    // that would make a successful full-clear control masquerade as row-local cleanup.
+    const input = ghostLinkWrite(rows, rowErase === "line" || bypass, rowErase, width);
+    record({ type: "frame-request", frameId: ++frameId, mode, preserveClears, groupWrappedLinks, rowErase, blank, short, scrollTop, width, height, action, bypass, data: input });
     if (bypass) {
       // Protocol: restart the adapter cache after a direct host clear. The
       // bypass is labelled and must never be mistaken for production behavior.
@@ -96,7 +102,7 @@ async function main(): Promise<void> {
   const key = (data: string) => {
     if (data === "q" || data === "\u0003") { finish(); return; }
     if (data === "y" || data === "n") {
-      record({ type: "human-observation", mode, preserveClears, bypass: previousBypass, blank, short, scrollTop, action: previousAction, ghost: data === "y" });
+      record({ type: "human-observation", mode, preserveClears, groupWrappedLinks, rowErase, bypass: previousBypass, blank, short, scrollTop, action: previousAction, ghost: data === "y" });
       render(data === "y" ? "recorded GHOST" : "recorded CLEAN");
       return;
     }
@@ -127,7 +133,7 @@ async function main(): Promise<void> {
   let entered = false;
   try {
     record({
-      type: "metadata", formatVersion: 2, interactive, mode, preserveClears,
+      type: "metadata", formatVersion: 2, interactive, mode, preserveClears, groupWrappedLinks, rowErase,
       commit: execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim(),
       dirty: execFileSync("git", ["status", "--porcelain"], { encoding: "utf8" }).trim(),
       terminalVersion: option("--terminal-version") ?? "unknown",
