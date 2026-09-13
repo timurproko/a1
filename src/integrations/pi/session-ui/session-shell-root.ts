@@ -7,7 +7,7 @@ import type {
   OwnedUiViewportSettings,
   OwnedUiViewportSettingsPort,
 } from "../../../contracts/owned-ui/index.js";
-import type { PresentationPointerSurface } from "../../../contracts/presentation/index.js";
+import type { PiTuiPointerSurface } from "../tui-runtime/index.js";
 import type { UiRouteHost } from "../../../ui/apps/index.js";
 import {
   PROMPT_GLYPH,
@@ -688,7 +688,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.#viewportController.clearPointerState();
   }
 
-  setViewportOverlaySurfaces(surfaces: readonly PresentationPointerSurface[] | null): void {
+  setViewportOverlaySurfaces(surfaces: readonly PiTuiPointerSurface[] | null): void {
     this.#viewportController.setOverlaySurfaces(surfaces);
   }
 

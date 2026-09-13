@@ -1,5 +1,4 @@
-import type { PresentationPointerSurface } from "../../../contracts/presentation/index.js";
-import { samePointerSurfaces } from "../tui-runtime/overlay-geometry.js";
+import { samePointerSurfaces, type PiTuiPointerSurface } from "../tui-runtime/index.js";
 import type { OwnedUiViewportSettings } from "../../../contracts/owned-ui/index.js";
 import {
   TranscriptViewport,
@@ -47,10 +46,10 @@ export class SessionViewportController {
     scrollbarSpeed: "normal",
   };
   #dragGrabOffset: number | null = null;
-  #inputSurface: PresentationPointerSurface | undefined;
+  #inputSurface: PiTuiPointerSurface | undefined;
   #inputSurfacePending = false;
-  #overlays: readonly PresentationPointerSurface[] | null = [];
-  #pointerOwner: PresentationPointerSurface | "viewport" | "drain" | undefined;
+  #overlays: readonly PiTuiPointerSurface[] | null = [];
+  #pointerOwner: PiTuiPointerSurface | "viewport" | "drain" | undefined;
   // Invariant: a left-button sequence begun in dock chrome remains owned by the dock.
   #dockPointerSuppressed = false;
   // Invariant: a left-button sequence begun in non-selectable transcript tail chrome is held there.
@@ -121,7 +120,7 @@ export class SessionViewportController {
     this.#cancelGesture();
   }
 
-  setInputSurfaceFrame(surface: PresentationPointerSurface | undefined): void {
+  setInputSurfaceFrame(surface: PiTuiPointerSurface | undefined): void {
     if (!samePointerSurfaces(this.#inputSurface === undefined ? [] : [this.#inputSurface], surface === undefined ? [] : [surface])) {
       this.#cancelGesture();
     }
@@ -129,7 +128,7 @@ export class SessionViewportController {
     this.#inputSurfacePending = false;
   }
 
-  setOverlaySurfaces(surfaces: readonly PresentationPointerSurface[] | null): void {
+  setOverlaySurfaces(surfaces: readonly PiTuiPointerSurface[] | null): void {
     if (surfaces === this.#overlays || surfaces !== null && this.#overlays !== null && samePointerSurfaces(surfaces, this.#overlays)) return;
     this.#cancelGesture();
     this.#overlays = surfaces;
@@ -516,8 +515,8 @@ export class SessionViewportController {
     return routed;
   }
 
-  #modalAt(column: number, row: number): PresentationPointerSurface | undefined {
-    const contains = (surface: PresentationPointerSurface) => column >= surface.columnStart && column <= surface.columnEnd
+  #modalAt(column: number, row: number): PiTuiPointerSurface | undefined {
+    const contains = (surface: PiTuiPointerSurface) => column >= surface.columnStart && column <= surface.columnEnd
       && row >= surface.rowStart && row <= surface.rowEnd;
     const overlay = this.#overlays?.findLast(contains);
     return overlay ?? (this.#inputSurface !== undefined && contains(this.#inputSurface) ? this.#inputSurface : undefined);
