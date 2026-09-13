@@ -1,6 +1,6 @@
 ## Context
 
-See `proposal.md` for motivation and the two delta specs for observable requirements. A design is necessary because the failure crosses engine lifecycle, event delivery, component payloads, independent presentation invalidation, viewport caches, and host-specific terminal decoration.
+See `proposal.md` for motivation and the two delta specs for observable requirements. The high-priority content failure crosses engine lifecycle, event delivery, component payloads, independent presentation invalidation, viewport caches, and terminal publication. Native-link ghosts and wrapped-target repair are a separate stream in [issue #353](https://github.com/timurproko/a1/issues/353), not prerequisites for content acceptance.
 
 The current path is:
 
@@ -9,7 +9,7 @@ Pi message/tool events
   --> owned engine block state --> bounded delivery queue
   --> shell component updates --> stream/input scheduler
   --> Pi transcript/tool rendering --> owned block/document caches
-  --> row-local URL decoration --> viewport/selection/control composition
+  --> existing link policy --> viewport/selection/control composition
   --> Pi fullscreen differential --> owned damage adapter
   --> terminal cells and native hover decoration
 ```
@@ -22,12 +22,12 @@ Read-only probes against `c3bf0d2d` established the following. These are investi
 | Run reconciliation | `agent_end.messages` contains newly generated messages, but `#rebuildTranscript` replaces the whole transcript with it. A probe lost its earlier user block until `agent_settled` read the complete session messages. | Reproduced intermediate semantic deletion. Whether both states paint depends on scheduling; do not label it proven permanent history loss. |
 | Renderer payload | A supplied result `details.diff` did not reach the registered renderer because the facade supplied only text content and error state. | Reproduced payload loss. Pinned edit result rendering depends on that metadata. |
 | Presentation invalidation | A custom renderer changed from BEFORE to AFTER and invalidated; direct component rows showed AFTER, the root retained BEFORE, and the real render-request count stayed zero. | Reproduced facade/cache failure at unchanged semantic revision. |
-| Link construction | At width 40, a wrapped bare URL gained a truncated first-row target and an unlinked continuation; a prelinked file label retained its complete target on both rows. | Reproduced target-boundary defect, not proof of the ghost's native cause. |
+| Link construction (deferred) | At width 40, a wrapped bare URL gained a truncated first-row target and an unlinked continuation; a prelinked file label retained its complete target on both rows. | Reproduced target-boundary defect; retained under issue #353, not a content-stream completion gate or proof of the ghost's native cause. |
 | Terminal transformation | 240 generated pinned-shaped frame transitions matched original-write replay for cell text, colors, underline attributes, and cursor. | Limited negative evidence against content loss in those tested transformations. Does not exercise Windows Terminal hover, every grammar, overlays, images, or resize. |
 
-The screenshot `links underlines.png` shows decoration beneath unrelated replacement text; `no such problem with files links.png` supplies the file-link comparison. Neither identifies the exact runtime build or distinguishes stale OSC 8 metadata, SGR state, and host URL detection. Do not embed private session payloads or copy the screenshots into the repository by default.
+Subsequent physical probes found that shared OSC 8 occurrence IDs improve wrapped hover grouping, while ordinary row erasure and ECH still leave auto-detected ghosts. Persistent full clears remove the observed ghosts but are not an approved remedy. Issue #353 records the Windows Terminal 1.24.11911.0 source-backed deferred-pattern-cache explanation and upstream reports. Neither that explanation nor correct cell replay establishes a production fix. Keep these findings and private screenshot/transcript material out of claims of content acceptance; do not publish private payloads by default.
 
-The planning base is `fa29f8bd`. The implicated paths are unchanged except an unrelated editor-body geometry adjustment. Preserve it and any subsequently integrated modal/selection refinements when implementing.
+The initial planning base was `fa29f8bd`; PR #348 accepted the combined plan. This approved scope amendment is based on `33465f56`. Preserve intervening prompt/editor geometry, modal, and selection refinements. Existing local implementation and evidence remain isolated; integrate this amendment coherently before resuming under its revised acceptance gate.
 
 ## Goals / Non-Goals
 
@@ -35,15 +35,18 @@ The planning base is `fa29f8bd`. The implicated paths are unchanged except an un
 
 - Make execution state, semantic transcript membership, renderer data, and presentation dirtiness separate authorities with explicit lifetimes.
 - Keep source identity and content stable while permitting bounded presentation coalescing and legitimate Markdown reflow.
-- Reuse complete-target native hyperlink rendering for file and URL content; keep damage decisions downstream of semantic rendering.
-- Produce evidence that locates the first failing boundary instead of inferring semantic correctness from a final screenshot.
+- Match vanilla pinned Pi's content, tool surfaces, styling, and lifecycle behavior outside documented A1 differences, using actual components rather than presentation approximations.
+- Remove proven redundant or faulty content-rendering paths while retaining necessary ownership, validation, caching, and responsiveness safeguards.
+- Eliminate A1-induced blank, missing, argument-only replacement, and stale-repaint transitions rather than tuning paint to conceal them.
+- Produce evidence that locates the first failing boundary and distinguishes legitimate reflow from unnecessary flashing, rather than inferring correctness from a final screenshot.
 
 **Non-Goals:**
 
 - Retaining every token or tool-progress snapshot forever, expanding collapsed tools, revealing deliberately hidden thinking, or overriding existing branch/compaction history policy.
 - A new terminal runtime, a general ANSI semantic parser, a dependency upgrade, installed-package changes, private-field access, or prototype patches.
-- Replacing native link activation/hover with an A1-owned click or underline system, changing labels to hide URLs, or modifying terminal settings. Such a strategy requires a separately approved design revision if native-link acceptance proves unattainable.
-- Tuning frame rate to conceal missing content, globally disabling caches, or increasing event capacity to mask lifecycle defects.
+- Link-only repair: pre-layout complete URL targets, wrapped native occurrence grouping, and explicit/host-only ghost cleanup belong to issue #353. Do not alter link recognition, labels, colors, activation, or terminal settings as a content workaround.
+- A broad renderer rewrite or removal of unrelated A1 viewport, prompt/editor, modal, or selection features.
+- Tuning frame rate to conceal missing content, delaying output until settlement, globally disabling caches, increasing event capacity, or adding ordinary-streaming full-screen clears, separate blank frames, or buffer-switch/rotation tricks to mask defects.
 
 ## Decisions
 
@@ -89,35 +92,29 @@ A callback from a disposed/replaced component is ignored using its mount token, 
 
 Alternative rejected: bump semantic block revision for every asynchronous visual change. That contaminates event ordering, completion counts, and authoritative content state. Alternative rejected: remove finalized-row caching. It restores neither missing scheduler notifications nor bounded long-session performance.
 
-### 5. Construct complete link identity before width-dependent layout
+### 5. Prefer pinned content rendering and remove proven redundant paths
 
-`nativeTranscriptLinkColor` already distinguishes web blue from file accent. The repair is to move bare HTTP/HTTPS target recognition to the owned text/span input before wrapping or splitting styles, then carry the complete target through rendering as the existing explicit-file-link path does. Final visible-row inspection continues to measure geometry and cleanup risk; it must not reconstruct a semantic target from row fragments.
+Keep the pinned public transcript/tool components as the presentation authority. Supply their complete supported inputs, lifecycle flags, attachment resolution, and render notifications through the smallest coherent owned adapter. Do not replace a real edit/tool renderer with an A1 text approximation, reproduce its layout in parallel, or add another scheduling or geometry authority to compensate for missing data.
 
-Use one owned pre-layout link decoration policy for supported transcript text paths: submitted text, assistant Markdown, and built-in/generic tool text. Preserve Markdown labels and pre-existing OSC 8 targets rather than recognizing nested URLs inside them. Preserve supported trailing-punctuation rules, repeated occurrence identity, Unicode display bounds, and semantic source/copy text. Explicit links emitted by extension components retain their authoritative targets; an opaque row-only renderer does not license guessing a longer hidden target. Provide the same complete-target path at the owned renderer boundary when source text is available.
+Audit touched content adapters and caches for duplicate result reconstruction, competing lifecycle decisions, dead invalidation paths, and redundant layout transformations. Remove or consolidate a path only when source-faithful tests show that it is unnecessary or causes the confirmed failure. Record the reason and independent parity evidence for each simplification; if a path is necessary for bounded delivery, session ownership, sanitization, stable-row reuse, or a documented A1 feature, retain it. This is a targeted refactor, not a mandate to remove every cache or the owned viewport.
 
-At the Pi component boundary, use documented renderer injection/public components to place this transform before text wrapping. Where a built-in renderer strips ANSI before constructing its text component, inserting OSC 8 into raw tool output would be ineffective: keep sanitization first and adapt the minimum coherent, attributed text-renderer closure needed to apply link spans afterward but before layout. Do not port the entire fullscreen renderer, inspect private children, or patch shared Text/Markdown prototypes. Conformance and independent rows must show that this limited adaptation leaves non-link styles and spacing unchanged.
+Use documented renderer injection and public components first. If the public surface cannot preserve a supported content behavior, keep any necessary source-derived adaptation minimal, attributed, and within the Pi integration, with independent styled-row and lifecycle comparisons. Do not inspect private children, patch shared prototypes, modify installed packages, or port the fullscreen renderer. Keep the explicit pinned comparison route untouched.
 
-Ordinary idle labels and native activation stay unchanged. The existing held-selection paint remains transient and separate from semantic copy; this change does not extend detector-breaking characters into normal source text. A file/URL color-only adjustment or another post-wrap regex is not an implementation of this decision.
+Compose the newest eligible content with current viewport, selection, modal, and dock state through the existing scheduler. Renderer changes must not expose an artificial blank frame, remove an otherwise visible surface, or allow an older pending frame to restore stale rows. Keep damage decisions downstream of semantic rendering and retain existing bounded cleanup and conservative movement safeguards. Ordinary streaming is not a reason for a full clear; established unsafe-paint recovery remains distinct and must not be broadened to hide content defects.
 
-### 6. Repair explicit presented-link transitions without reinstating candidate-driven screen clears
+Alternative rejected: a large renderer rewrite that might incidentally reduce flashing. It obscures the first failing boundary and risks unrelated UI behavior. Alternative rejected: masking omissions with repaint frequency or unconditional clears. It cannot restore discarded payloads and adds perceptual instability.
 
-Retain the owned damage adapter and its finite pinned grammar. Reconcile exact previously presented and desired explicit-link occurrences at the publication boundary, including moves/removals not accompanied by an observed hover. Treat obsolete explicit occurrences as discarded presented link state with bounded dirty rows; distinguish them from changes to arbitrary dotted/path-like candidate text. Candidate-only streaming must not regain the broad signature-driven cleanup removed by `eliminate-code-block-streaming-flicker`.
-
-Combine required old-link row cleanup and current changed rows in the same synchronized transaction. Acknowledge only the cleanup actually forwarded, keep newer pending intent across coalescing, and preserve a full current recovery when unknown paint makes cached rows non-authoritative. Do not manufacture a full-screen clear for ordinary streaming. Keep explicit-link movement fail-closed: unifying link construction does not itself prove regional scrolling safe for OSC 8 state. Safe link-free/candidate-only shifts and stable dock typing remain optimized.
-
-Record SGR underline and OSC 8 closure separately from host-only URL detection. If a physically reproduced native decoration needs a different bounded overwrite sequence, establish that with captured bytes and exact-host review before selecting it; do not infer success from a render request or headless cells. If no compliant native-link cleanup resolves the original case, stop acceptance and request a revised strategy rather than silently changing link semantics.
-
-Alternative rejected: unconditional force render/full clear on every URL or pointer report. It recreates flashing and still does not prove host-hover invalidation. Alternative rejected: assume that correctly closed OSC 8 sequences exclude a separate native auto-detection defect.
-
-### 7. Test the pipeline with source-faithful events and real renderers
+### 6. Test the pipeline with source-faithful events and real renderers
 
 Turn the read-only probes into failing deterministic regressions before changing production code. Use production ordering, multiple assistant messages, serial and parallel tools, real result details, existing history, and delayed settlement. Test final result restatement, stale partial delivery, same-session reconciliation, and actual generation changes. For asynchronous renderers, assert not only the callback but the root's next rows and terminal output, including off-screen invalidation and replacement/disposal races.
 
 Extend the existing evidence harness instead of treating simplified `Text` output as a pinned tool oracle. Run independent actual tool components or the untouched pinned process with equivalent deterministic inputs. Keep both explicitly stepped diagnostic cases and ordinary scheduled/burst cases without a `renderNow()` after every event. The former locates a bad transition; the latter proves it is not hidden by the harness's artificial paint boundaries.
 
-Record bounded correlations between source event/invocation IDs, semantic revision, presentation revision, document/visible range, write-local damage decision, emitted writes, and checked cells. Use isolated public/example targets and synthetic tool data by default; bound and sanitize diagnostics and do not print telemetry into normal transcript/status output. Add negative controls that deliberately reintroduce rejected live output, run-local replacement, discarded details, stale row caches, and truncated URL targets so each gate proves it can fail.
+Record bounded correlations between source event/invocation IDs, semantic revision, presentation revision, document/visible range, write-local damage decision, emitted writes, and checked cells. Use isolated public/example targets and synthetic tool data by default; bound and sanitize diagnostics and do not print telemetry into normal transcript/status output. Add negative controls that deliberately reintroduce rejected live output, run-local replacement, discarded details, stale row caches, and artificial blank/stale intermediate presentation so each content gate proves it can fail. Preserve link-only counterexamples and probe findings as explicitly unresolved evidence associated with issue #353, not as passing content-fix claims or silently deleted regressions.
 
-Physical review covers URL/file links and missing blocks together, on the exact built artifact at representative sizes including 192 by 54 and a narrow wrapping size. Record whether a missing surface is assistant text, thinking, code, live tool output, or an edit diff; compare source/session content, desired rows, and physical cells before declaring the cause. Both correctness and original-symptom acceptance must pass.
+Physical content review uses the exact built artifact at representative sizes including 192 by 54 and a narrow wrapping size, through ordinary streaming and user input rather than only forced diagnostic paints. Compare actual pinned content/tool rendering with equivalent inputs and document existing A1 differences. Record whether a missing or flashing surface is assistant text, thinking, code, live tool output, an edit diff, or an attachment; compare source/session content, component rows, desired rows, writes, and physical cells before declaring the cause. Both automated correctness and user-controlled content stability must pass; fewer clears or matching final text alone is insufficient.
+
+The user-approved scope split allows content acceptance while the pre-existing native ghosts or wrapped-target defects remain explicitly open in issue #353. It does not permit a new link regression, waive other changes' contracts, or declare overall native-link correctness. Closing this change must reference the remaining link issue and must not close it. Any surviving content omission, resize/reopen dependency, or unexplained A1-induced flashing still blocks content acceptance.
 
 ## Risks / Trade-offs
 
@@ -125,21 +122,22 @@ Physical review covers URL/file links and missing blocks together, on the exact 
 - [A semantic-finality repair lets old updates revive results] -> Test execution-specific barriers, repeated declarations, monotonic revisions, and component/session generations at both engine and shell boundaries.
 - [New presentation callbacks create render loops or invalidate everything] -> Coalesce dirty notices by mounted block, retain separate semantic/presentation revisions, and measure unchanged-block reuse and off-screen work.
 - [A preview completes after a final authoritative diff] -> Prefer final result data and reject obsolete preview/instance callbacks so stale filesystem-derived state cannot overwrite the result.
-- [Pre-layout link adaptation changes non-link rendering] -> Keep the source-derived closure minimal, use public renderer injection, preserve sanitization, and compare exact independent styled rows for built-in and extension cases.
-- [Correct terminal cells still leave a Windows Terminal ghost] -> Require host/version-specific reproduction and acceptance; keep the native strategy unaccepted if it fails rather than broadening scope silently.
+- [Refactoring changes pinned content layout or removes necessary safeguards] -> Prefer public components, compare independent styled rows and lifecycle behavior, document each retained A1 difference, and remove only proven redundant/faulty paths.
+- [Correct final cells hide transient flashing or omissions] -> Exercise intermediate and ordinarily scheduled presentations plus exact-candidate physical review; do not accept lower frame/clear counts as a substitute.
+- [The scope split is mistaken for a link fix] -> Keep issue #353 open with the physical findings and known target regression; report it at handoff without making host-only cleanup a content gate. Preserve existing link behavior and reject newly introduced link regressions.
 - [Other active changes touch selection, modal input, or damage metadata] -> Re-read the current integration base and keep their ownership and bounded scheduling contracts; do not reset their artifacts or acceptance claims in this planning change.
 
 ## Migration Plan
 
-1. Establish source-faithful failing evidence and record the physical baseline, distinguishing unreproduced host cases.
-2. Repair execution phase handling and run-local reconciliation before changing link paint so content-level improvements can be attributed independently.
-3. Preserve renderer payloads and wire presentation revision/invalidation through the caches and real scheduler.
-4. Move bare-URL target construction before wrapping, then validate bounded cleanup of discarded presented occurrences against the physical reproduction.
-5. Run the focused correctness, scheduling, parity, and paint evidence; retain CI and user-controlled exact-artifact acceptance as separate gates.
+1. Integrate this OpenSpec-only scope amendment after acceptance. Reconcile local implementation task progress by description; removed link tasks belong to issue #353 and are not completed content tasks.
+2. Preserve source-faithful failing evidence and the corrected execution/reconciliation work. Record known content baseline facts and explicitly unreproduced physical cases without waiting for host cleanup.
+3. Preserve renderer payloads and attachment presentation, then wire presentation revision/invalidation through the caches and real scheduler. Simplify proven redundant content paths alongside these repairs.
+4. Run focused correctness, scheduling, independent pinned parity, bounded-work, and terminal-presentation evidence, retaining link fixtures as non-regression coverage and separately identified known defects.
+5. Obtain required CI and user-controlled exact-candidate content acceptance. Leave the implementation PR open until the user reports acceptance and explicitly authorizes merging; report issue #353 as a separate unresolved follow-up.
 
-No persisted session-format or settings migration is needed. Rollback uses the isolated implementation commits and restores existing contract adapters without rewriting session files. If native-link acceptance fails, retain the evidence and the unaccepted implementation for diagnosis; a partial pass does not mark the whole change complete.
+No persisted session-format or settings migration is needed. Rollback uses the isolated implementation commits and restores existing contract adapters without rewriting session files. A remaining content omission or unnecessary A1-induced flashing prevents completion. A separately tracked pre-existing link defect does not prevent content acceptance under this approved split, but is not repaired or waived by it.
 
 ## Open Questions
 
-- Which exact installed/build artifact, Windows Terminal version, geometry, and URL-detection settings produced the supplied screenshots? Record during baseline reproduction, without requiring a settings change.
+- Which exact installed/build artifact and environment produced the original disappearing-content screenshots? Known probe facts do not identify that original content candidate. Record during content baseline reproduction without requiring a terminal-settings change.
 - Which category of generated content vanished in the reported session, and did resizing/reopening restore it? This selects the physical reproduction cases among the already scoped semantic and presentation failures; it does not gate the confirmed regressions.
