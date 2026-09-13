@@ -41,6 +41,7 @@ import {
   type OwnedUiEditorState,
   type OwnedUiImageAttachment,
   type OwnedUiPromptSuggestionGeneratorPort,
+  type OwnedUiPromptSuggestionReasoning,
   type OwnedUiPromptSuggestionRequest,
   type OwnedUiPromptSuggestionResult,
   type OwnedUiTranscriptImageReference,
@@ -432,6 +433,16 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
     return this.#disposed;
   }
 
+  suggestionReasoningPolicy(): OwnedUiPromptSuggestionReasoning {
+    const session = this.#session;
+    if (!session?.model) return "unavailable";
+    if (!session.model.reasoning) return "ordinary";
+    const levels = session.getAvailableThinkingLevels?.() ?? [];
+    // Compatibility: capability order, not the user's current setting or a provider-name heuristic.
+    return (["off", "minimal", "low", "medium", "high", "xhigh", "max"] as const)
+      .find(level => levels.includes(level)) ?? "unavailable";
+  }
+
   async generate(request: OwnedUiPromptSuggestionRequest): Promise<OwnedUiPromptSuggestionResult> {
     assertOwnedUiPromptSuggestionRequest(request);
     const identity = request.identity;
@@ -446,55 +457,52 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
       || activeModel === null
       || identity.model.providerId !== activeModel.providerId
       || identity.model.modelId !== activeModel.modelId) {
-      return { identity, text: null };
+      return { identity, outcome: request.signal.aborted ? "cancelled" : "unavailable", text: null };
     }
 
     const model = session.model;
     const agentState = session.agent.state;
-    if (model === undefined || typeof runtime.services.modelRuntime.completeSimple !== "function") {
-      return { identity, text: null };
+    const policy = this.suggestionReasoningPolicy();
+    if (model === undefined || policy === "unavailable" || typeof runtime.services.modelRuntime.completeSimple !== "function") {
+      return { identity, outcome: "unavailable", text: null };
     }
     const messages = agentState.messages.filter(message =>
       message.role === "user" || message.role === "assistant" || message.role === "toolResult",
     );
-    const reasoning = session.thinkingLevel === "minimal"
-      || session.thinkingLevel === "low"
-      || session.thinkingLevel === "medium"
-      || session.thinkingLevel === "high"
-      || session.thinkingLevel === "xhigh"
-      || session.thinkingLevel === "max"
-      ? session.thinkingLevel
-      : undefined;
-    const response = await runtime.services.modelRuntime.completeSimple(model, {
-      systemPrompt: agentState.systemPrompt,
-      messages: [
-        ...messages,
-        { role: "user", content: CONTEXTUAL_PROMPT_SUGGESTION_INSTRUCTION, timestamp: Date.now() },
-      ],
-      tools: agentState.tools,
-    }, {
-      signal: request.signal,
-      ...(reasoning === undefined ? {} : { reasoning }),
-    });
-    if (isRecord(response)
-      && (stringValue(response.errorMessage) !== undefined
-        || stringValue(response.stopReason) === "error"
-        || stringValue(response.stopReason) === "aborted")) {
-      const result = { identity, text: null };
-      assertOwnedUiPromptSuggestionResult(result);
-      return result;
+    const reasoning = policy === "ordinary" || policy === "off" ? undefined : policy;
+    let response: unknown;
+    try {
+      response = await runtime.services.modelRuntime.completeSimple(model, {
+        systemPrompt: agentState.systemPrompt,
+        messages: [
+          ...messages,
+          { role: "user", content: CONTEXTUAL_PROMPT_SUGGESTION_INSTRUCTION, timestamp: Date.now() },
+        ],
+        tools: agentState.tools,
+      }, {
+        signal: request.signal,
+        ...(reasoning === undefined ? {} : { reasoning }),
+      });
+    } catch {
+      return { identity, outcome: request.signal.aborted ? "cancelled" : "provider-failure", text: null };
+    }
+    if (request.signal.aborted || (isRecord(response) && response.stopReason === "aborted")) {
+      return { identity, outcome: "cancelled", text: null };
+    }
+    if (!isRecord(response) || stringValue(response.errorMessage) !== undefined || response.stopReason === "error") {
+      return { identity, outcome: "provider-failure", text: null };
     }
     const content = Array.isArray(response.content) ? response.content : [];
-    if (content.some(block => isRecord(block) && block.type === "toolCall")) {
-      const result = { identity, text: null };
-      assertOwnedUiPromptSuggestionResult(result);
-      return result;
+    if (response.stopReason === "length" || content.some(block => isRecord(block) && block.type === "toolCall")) {
+      return { identity, outcome: "rejected", text: null };
     }
-    const textBlock = content.find(block => isRecord(block) && block.type === "text" && typeof block.text === "string");
-    const result: OwnedUiPromptSuggestionResult = {
-      identity,
-      text: normalizePromptSuggestionCandidate(isRecord(textBlock) && typeof textBlock.text === "string" ? textBlock.text : null),
-    };
+    // Security: validate all text, not just the first block of a multi-part response.
+    const rawText = content.filter(block => isRecord(block) && block.type === "text")
+      .map(block => stringValue(block.text) ?? "").join("\n");
+    const text = normalizePromptSuggestionCandidate(rawText);
+    const result: OwnedUiPromptSuggestionResult = text === null
+      ? { identity, outcome: rawText.trim() ? "rejected" : "empty", text: null }
+      : { identity, outcome: "candidate", text };
     assertOwnedUiPromptSuggestionResult(result);
     return result;
   }

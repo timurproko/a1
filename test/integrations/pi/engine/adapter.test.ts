@@ -1,3 +1,5 @@
+import { SUGGESTION_CONVERSATIONS } from "../../../fixtures/prompt-suggestion-conversations.js";
+import { CONTEXTUAL_PROMPT_SUGGESTION_INSTRUCTION } from "../../../../src/contracts/owned-ui/index.js";
 import type { AgentSessionRuntime } from "@earendil-works/pi-coding-agent";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -15,6 +17,8 @@ class FakeSession {
   readonly sessionId: string;
   model: unknown = { provider: "openai", id: "gpt-5", name: "GPT-5" };
   thinkingLevel: unknown = "medium";
+  availableThinkingLevels = ["off", "minimal", "low", "medium", "high"];
+  getAvailableThinkingLevels(): string[] { return this.availableThinkingLevels; }
   isStreaming = false;
   readonly isIdle = true;
   isRetrying = false;
@@ -380,6 +384,7 @@ describe("Pi engine adapter", () => {
     };
     await expect(adapter.generate({ identity, signal: new AbortController().signal })).resolves.toEqual({
       identity,
+      outcome: "candidate",
       text: "run the tests",
     });
     expect(runtime.suggestionCalls).toHaveLength(1);
@@ -390,6 +395,79 @@ describe("Pi engine adapter", () => {
     });
     expect(JSON.stringify(session.messages)).toBe(before);
     expect(session.calls).toEqual([]);
+  });
+
+  it.each(Object.entries(SUGGESTION_CONVERSATIONS))("supplies the complete %s context and conservative next-action guidance", async (_name, fixture) => {
+    const session = new FakeSession("prediction-fixture");
+    session.setMessages(fixture.messages);
+    const runtime = new FakeRuntime(session);
+    runtime.suggestionResponse = { content: fixture.expected === null ? [] : [{ type: "text", text: fixture.expected }] };
+    const { adapter } = await adapterWithRuntime(runtime);
+    try {
+      const identity = { sessionId: adapter.sessionId, sessionGeneration: adapter.sessionGeneration, runSequence: 0, responseSequence: 0, model: adapter.view().activeModel! };
+      const result = await adapter.generate({ identity, signal: new AbortController().signal });
+      expect(result).toMatchObject({ outcome: fixture.expected === null ? "empty" : "candidate", text: fixture.expected });
+      expect(runtime.suggestionCalls[0]?.context).toMatchObject({ messages: [
+        ...fixture.messages, { role: "user", content: CONTEXTUAL_PROMPT_SUGGESTION_INSTRUCTION, timestamp: expect.any(Number) },
+      ] });
+      expect(CONTEXTUAL_PROMPT_SUGGESTION_INSTRUCTION).toContain("optional alternative alone");
+      expect(CONTEXTUAL_PROMPT_SUGGESTION_INSTRUCTION).toContain("testing remains outstanding");
+      expect(CONTEXTUAL_PROMPT_SUGGESTION_INSTRUCTION).toContain("equally unresolved choices");
+      expect(session.messages).toEqual(fixture.messages);
+      expect(session.calls).toEqual([]);
+    } finally { await adapter.dispose(); }
+  });
+
+  it.each([
+    [false, ["off"], "ordinary", undefined],
+    [true, ["off", "low", "high"], "off", undefined],
+    [true, ["low", "medium", "high"], "low", "low"],
+    [true, ["minimal", "low", "high"], "minimal", "minimal"],
+  ] as const)("isolates high main thinking from model reasoning %s / %j", async (reasoning, levels, policy, effort) => {
+    const session = new FakeSession("reasoning-fixture");
+    session.model = { provider: "openai", id: "gpt-5", name: "GPT-5", reasoning };
+    session.availableThinkingLevels = [...levels];
+    session.thinkingLevel = "high";
+    const runtime = new FakeRuntime(session);
+    const { adapter } = await adapterWithRuntime(runtime);
+    try {
+      const identity = { sessionId: adapter.sessionId, sessionGeneration: adapter.sessionGeneration, runSequence: 0, responseSequence: 0, model: adapter.view().activeModel! };
+      expect(adapter.suggestionReasoningPolicy()).toBe(policy);
+      for (const stopReason of ["stop", "error", "aborted"]) {
+        runtime.suggestionResponse = { stopReason, content: [{ type: "text", text: "archive it" }] };
+        await adapter.generate({ identity, signal: new AbortController().signal });
+        const call = runtime.suggestionCalls.at(-1)!;
+        expect(call.model).toBe(session.model);
+        if (effort === undefined) expect(call.options).not.toHaveProperty("reasoning");
+        else expect(call.options).toHaveProperty("reasoning", effort);
+        expect(session.thinkingLevel).toBe("high");
+        expect(session.calls).toEqual([]);
+      }
+    } finally { await adapter.dispose(); }
+  });
+
+  it.each([
+    [{ content: [] }, "empty"],
+    [{ content: [{ type: "text", text: "" }] }, "empty"],
+    [{ content: [{ type: "text", text: "I'll do it" }] }, "rejected"],
+    [{ content: [{ type: "text", text: "archive it" }, { type: "text", text: "then deploy it" }] }, "rejected"],
+    [{ content: [{ type: "toolCall", name: "bash", arguments: { secret: "private" } }] }, "rejected"],
+    [{ stopReason: "error", errorMessage: "private provider response", content: [] }, "provider-failure"],
+    [{ stopReason: "aborted", content: [] }, "cancelled"],
+    [{ stopReason: "length", content: [{ type: "text", text: "archive it" }] }, "rejected"],
+  ])("classifies provider result %j without persisting raw data", async (response, outcome) => {
+    const session = new FakeSession("outcome-fixture");
+    const runtime = new FakeRuntime(session);
+    runtime.suggestionResponse = response;
+    const { adapter } = await adapterWithRuntime(runtime);
+    try {
+      const before = JSON.stringify(adapter.view().transcript);
+      const identity = { sessionId: adapter.sessionId, sessionGeneration: adapter.sessionGeneration, runSequence: 0, responseSequence: 0, model: adapter.view().activeModel! };
+      expect(await adapter.generate({ identity, signal: new AbortController().signal })).toEqual({ identity, outcome, text: null });
+      expect(JSON.stringify(adapter.view().transcript)).toBe(before);
+      expect(session.agent.state.messages).toEqual([]);
+      expect(session.calls).toEqual([]);
+    } finally { await adapter.dispose(); }
   });
 
   it("rejects stale generation identities, tool calls, and filtered text", async () => {

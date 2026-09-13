@@ -204,7 +204,12 @@ export function assertOwnedUiPromptSuggestionRequest(request: OwnedUiPromptSugge
 
 export function assertOwnedUiPromptSuggestionResult(result: OwnedUiPromptSuggestionResult): void {
   assertOwnedUiPromptSuggestionIdentity(result.identity);
-  assertPromptSuggestionText(result.text, true);
+  if (result.outcome === "candidate") {
+    assertPromptSuggestionText(result.text, false);
+    if (!result.text.trim()) throw new TypeError("prompt-suggestion candidate is empty");
+  } else if (!["empty", "rejected", "provider-failure", "unavailable", "cancelled"].includes(result.outcome) || result.text !== null) {
+    throw new TypeError("prompt-suggestion outcome is invalid");
+  }
 }
 
 export function assertOwnedUiPromptSuggestionState(state: OwnedUiPromptSuggestionState): void {

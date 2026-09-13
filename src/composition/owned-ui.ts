@@ -1,3 +1,5 @@
+import { SuggestionDiagnosticCapture } from "../features/prompt-suggestions/index.js";
+import { PRODUCT_IDENTITY } from "../product-identity.js";
 import { PromptHistoryService, PromptImageSidecar, resolvePromptHistoryPath } from "../features/prompt-history/index.js";
 import { resolvePromptHistoryDataDir } from "../features/launch/index.js";
 import { resolveProductPaths, type SessionSelection } from "../foundation/lifecycle/index.js";
@@ -34,6 +36,8 @@ export interface OwnedUiCompositionOptions {
    */
   readonly ownedSurfaces?: "on" | "off";
   readonly projectTrustPrompt?: PiProjectTrustPreflightPrompt;
+  /** Explicit local diagnostic destination; ignored by comparison/settings-free compositions. */
+  readonly suggestionDiagnosticsPath?: string;
 }
 
 export interface OwnedUiComposition {
@@ -76,7 +80,11 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     snapshot: () => viewportSettingsSnapshot(settings),
     onChange: listener => settings.onChange(() => listener(viewportSettingsSnapshot(settings))),
   };
+  const diagnosticDestination = options.suggestionDiagnosticsPath ?? process.env[PRODUCT_IDENTITY.environment.suggestionDiagnostics];
+  const suggestionDiagnostics = settings !== null && ownedSurfaces && diagnosticDestination?.trim()
+    ? new SuggestionDiagnosticCapture({ enabled: true, destination: diagnosticDestination }) : null;
   const promptSuggestions = settings === null || !ownedSurfaces ? null : {
+    ...(suggestionDiagnostics === null ? {} : { diagnostics: suggestionDiagnostics }),
     generator: adapter,
     enabled: () => settings.value("promptSuggestions") !== false,
     onChange: (listener: (enabled: boolean) => void) => settings.onChange(() => listener(settings.value("promptSuggestions") !== false)),
@@ -109,7 +117,9 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     start: () => shell.start(),
     flush: () => adapter.flushEvents(),
     waitUntilStopped: () => shell.waitUntilStopped(),
-    dispose: () => shell.dispose(),
+    dispose: async () => {
+      try { await shell.dispose(); } finally { suggestionDiagnostics?.dispose(); }
+    },
   };
   return { application, settings };
 }
