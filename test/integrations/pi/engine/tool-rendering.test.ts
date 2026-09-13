@@ -70,6 +70,44 @@ describe("bounded authoritative tool rendering data", () => {
     } finally { stringify.mockRestore(); }
   });
 
+  it.each(["x".repeat(256 * 1024 + 1), "界".repeat(90_000)])("declares oversized text unavailable without losing other content or details", text => {
+    const result = prepare({}, { content: [{ type: "text", text }, { type: "text", text: "KEEP_SMALL_RESULT" }],
+      details: { outcome: "success" } });
+    expect(result.text).toBe("KEEP_SMALL_RESULT");
+    expect(result.toolRendering.unavailable).toContain("Tool text unavailable");
+    expect(result.toolRendering.result?.details).toEqual({ outcome: "success" });
+    expect(() => assertOwnedUiTranscriptBlock(block(result))).not.toThrow();
+  });
+
+  it("enforces the combined UTF-8 text budget including content separators", () => {
+    const result = prepare({}, { content: [{ type: "text", text: "x".repeat(256 * 1024) }, { type: "text", text: "" }] });
+    expect(result.text.length).toBe(256 * 1024);
+    expect(result.toolRendering.unavailable).toContain("Tool text unavailable");
+    expect(() => assertOwnedUiTranscriptBlock(block(result))).not.toThrow();
+  });
+
+  it("declares excessive content boundaries while keeping their supported text", () => {
+    const texts = Array.from({ length: 3000 }, (_, n) => `row-${n}`);
+    const encode = JSON.stringify;
+    const stringify = vi.spyOn(JSON, "stringify");
+    try {
+      const result = prepare({}, { content: texts.map(text => ({ type: "text", text })) });
+      expect(result.text).toBe(texts.join("\n"));
+      expect(result.toolRendering.unavailable).toContain("Tool content boundaries unavailable");
+      expect(() => assertOwnedUiTranscriptBlock(block(result))).not.toThrow();
+      for (const [input] of stringify.mock.calls) {
+        const encoded = (input as { toolRendering?: { result?: { content: unknown[] } } } | null)?.toolRendering?.result?.content;
+        if (encoded !== undefined) expect(Buffer.byteLength(encode(encoded))).toBeLessThanOrEqual(64 * 1024);
+      }
+    } finally { stringify.mockRestore(); }
+  });
+
+  it.each([null, {}, 17])("declares malformed result content instead of silently omitting it", result => {
+    const prepared = prepare({}, result);
+    expect(prepared.toolRendering.unavailable).toContain("malformed result");
+    expect(() => assertOwnedUiTranscriptBlock(block(prepared))).not.toThrow();
+  });
+
   it("validates references and charges renderer fields to the payload budget", () => {
     const value = block(prepare({}, { content: [{ type: "text", text: "abc" }] }));
     expect(() => assertOwnedUiTranscriptBlock({ ...value, toolRendering: { arguments: {}, result: {

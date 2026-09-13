@@ -21,6 +21,7 @@ type Node = {
   key: string | null; generation: number;
   event?: OwnedUiEvent; resolve?: (() => OwnedUiEvent) | undefined;
   bytes: number;
+  release?: (() => void) | undefined;
 };
 
 /** Intrusive FIFO + segment index: replacement unlinks in O(1), never changes source ordering. */
@@ -36,6 +37,8 @@ export class PendingEngineDelivery {
   #peakNodes = 0;
   #peakBytes = 0;
 
+  constructor(private readonly retain?: (event: OwnedUiEvent) => () => void) {}
+
   get size(): number { return this.#size; }
   diagnostics() {
     return { pending: this.#size, bytes: this.#bytes, protected: this.#protected,
@@ -46,7 +49,7 @@ export class PendingEngineDelivery {
   push(event: OwnedUiEvent, generation: number, reconcile?: () => OwnedUiEvent): boolean {
     const key = replaceableEventKey(event);
     if (generation !== this.#generation || key === null) {
-      if (!this.#seal()) return false;
+      if (!this.seal()) return false;
       this.#generation = generation;
     }
     const prior = key === null ? undefined : this.#replaceable.get(key);
@@ -55,8 +58,8 @@ export class PendingEngineDelivery {
     if (marker) bytes = 128;
     if (this.#size - (prior === undefined ? 0 : 1) >= MAX_PENDING_EVENTS
       || this.#bytes - (prior?.bytes ?? 0) + bytes > MAX_PENDING_EVENT_BYTES) return false;
+    const node: Node = { key, generation, bytes, ...(marker ? { resolve: reconcile } : { event, release: this.retain?.(event) }) };
     if (prior !== undefined) { this.#unlink(prior); this.#superseded = Math.min(Number.MAX_SAFE_INTEGER, this.#superseded + 1); }
-    const node: Node = { key, generation, bytes, ...(marker ? { resolve: reconcile } : { event }) };
     node.previous = this.#tail;
     if (this.#tail !== undefined) this.#tail.next = node; else this.#head = node;
     this.#tail = node;
@@ -79,29 +82,33 @@ export class PendingEngineDelivery {
     return discarded;
   }
 
-  shift(): { event: OwnedUiEvent; generation: number } | undefined {
+  shift(): { event: OwnedUiEvent; generation: number; release?: (() => void) | undefined } | undefined {
     const node = this.#head;
     if (node === undefined) return undefined;
     const event = node.event ?? node.resolve!();
-    this.#unlink(node);
-    return { event, generation: node.generation };
+    const release = node.release ?? this.retain?.(event);
+    this.#unlink(node, false);
+    // Invariant: a consumed snapshot retains its assets through synchronous listener delivery, including reentrant production.
+    return { event, generation: node.generation, ...(release === undefined ? {} : { release }) };
   }
 
   // Invariant: a barrier freezes lazy authoritative markers before a later segment can change them.
-  #seal(): boolean {
+  seal(): boolean {
     for (const node of this.#replaceable.values()) {
       if (node.resolve === undefined) continue;
       const event = node.resolve();
       const bytes = retainedEventBytes(event);
       if (this.#bytes - node.bytes + bytes > MAX_PENDING_EVENT_BYTES) return false;
       this.#bytes += bytes - node.bytes; node.bytes = bytes; node.event = event; node.resolve = undefined;
+      node.release = this.retain?.(event);
       this.#peakBytes = Math.max(this.#peakBytes, this.#bytes);
     }
     this.#replaceable.clear();
     return true;
   }
 
-  #unlink(node: Node): void {
+  #unlink(node: Node, release = true): void {
+    if (release) node.release?.();
     if (node.previous !== undefined) node.previous.next = node.next; else this.#head = node.next;
     if (node.next !== undefined) node.next.previous = node.previous; else this.#tail = node.previous;
     this.#size--; this.#bytes -= node.bytes;
