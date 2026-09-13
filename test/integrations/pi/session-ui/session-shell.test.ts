@@ -231,6 +231,191 @@ async function nextImmediate(): Promise<void> {
 }
 
 describe("OwnedUiSessionShell", () => {
+  it.each([
+    ["/scoped-models", "Model Configuration"],
+    ["/model", "Select model"],
+    ["/settings", "Auto-compact"],
+    ["/fork", "Fork"],
+    ["/login", "Login"],
+    ["/logout", "Logout"],
+  ])("preserves normal transcript scroll and copy behind %s", async (command, _heading) => {
+    const messages = [{ role: "assistant", content: [{ type: "text", text: Array.from({ length: 120 }, (_, i) => `transcript-${i} alpha beta gamma`).join("\n\n") }] }];
+    const { shell, terminal, engine } = await fixture(messages, [], true);
+    try {
+      terminal.resize(80, 54);
+      shell.runtime.renderNow();
+      await shell.submit(command!);
+      await nextImmediate();
+      shell.runtime.renderNow();
+      expect(shell.root.usesDefaultInputSurface()).toBe(false);
+      const previous = shell.root.viewportPresentationEvidence().scrollTop;
+      const calls = [...engine.session.calls];
+      terminal.input("\u001b[<64;3;3M");
+      shell.runtime.renderNow();
+      expect(shell.root.viewportPresentationEvidence().scrollTop).toBe(previous - 3);
+      expect(engine.session.calls).toEqual(calls);
+      const selectedRow = shell.root.render(80).findIndex(row => stripTerminalSequences(row).includes("transcript-")) + 1;
+      expect(selectedRow).toBeGreaterThan(0);
+      const before = terminal.writes.length;
+      terminal.input(`\u001b[<0;2;${selectedRow}M\u001b[<32;7;${selectedRow}M\u001b[<0;7;${selectedRow}m\u0003`);
+      shell.runtime.renderNow();
+      const output = terminal.writes.slice(before).join("");
+      const copies = [...output.matchAll(/\u001b\]52;c;([^\u0007]*)\u0007/g)];
+      expect(copies).toHaveLength(1);
+      expect(Buffer.from(copies[0]![1]!, "base64").toString()).not.toContain("\u001b");
+      expect(output).not.toContain("Copied");
+      expect(shell.root.usesDefaultInputSurface()).toBe(false);
+      expect(engine.session.calls).toEqual(calls);
+      terminal.input("\u001b");
+      await nextImmediate();
+      shell.runtime.renderNow();
+      expect(shell.root.usesDefaultInputSurface()).toBe(true);
+    } finally { await shell.dispose(); }
+  });
+
+  it.each(["replacement", "overlay"])("routes an unlisted extension %s by painted bounds and preserves mixed input order", async kind => {
+    const { shell, terminal, engine } = await fixture([{ role: "assistant", content: [{ type: "text", text: "alpha beta gamma\n\n".repeat(100) }] }], [], true);
+    const received: string[] = [];
+    let done: (() => void) | undefined;
+    try {
+      terminal.resize(80, 40);
+      const context = (engine.session.extensionBindings as { uiContext: ExtensionUIContext }).uiContext;
+      const result = context.custom<void>((_tui, _theme, _keys, finish) => {
+        done = () => finish();
+        return { render: (width: number) => ["EXTENSION".padEnd(width), " ".repeat(width), " ".repeat(width)],
+          invalidate() {}, handleInput(data: string) { received.push(data); } };
+      }, kind === "overlay" ? { overlay: true, overlayOptions: { width: 20, row: 8, col: 10 } } : undefined);
+      await nextImmediate();
+      shell.runtime.renderNow();
+      const modalRow = kind === "overlay" ? 9 : shell.root.render(80).findIndex(row => row.includes("EXTENSION")) + 1;
+      const modalCol = kind === "overlay" ? 11 : 1;
+      const top = shell.root.viewportPresentationEvidence().scrollTop;
+      terminal.input("\u001b[<64;2;3M");
+      shell.runtime.renderNow();
+      expect(shell.root.viewportPresentationEvidence().scrollTop).toBe(top - 3);
+      expect(received).toEqual([]);
+      terminal.input(`x\u001b[<0;${modalCol};${modalRow}M\u001b[<32;2;3M\u001b[<0;2;3my`);
+      await nextImmediate();
+      expect(received).toEqual(["x", `\u001b[<0;${modalCol};${modalRow}M`, "\u001b[<32;2;3M", "\u001b[<0;2;3m", "y"]);
+      received.length = 0;
+      const selectedRow = shell.root.render(80).findIndex(row => stripTerminalSequences(row).includes("alpha")) + 1;
+      terminal.input("\u001b[<0;2;");
+      terminal.input(`${selectedRow}M\u001b[<32;7;${selectedRow}M\u001b[<0;7;${selectedRow}m`);
+      const copyAt = terminal.writes.length;
+      terminal.input("\u0003");
+      expect(terminal.writes.slice(copyAt).join("")).toContain("\u001b]52;c;");
+      expect(received).toEqual([]);
+      done!();
+      await result;
+      shell.runtime.renderNow();
+      expect(shell.root.usesDefaultInputSurface()).toBe(true);
+      expect(shell.runtime.hasOverlay()).toBe(false);
+    } finally { done?.(); await shell.dispose(); }
+  });
+
+  it.each(["select", "confirm", "input", "editor", "custom-editor"])("preserves viewport interaction during extension %s", async kind => {
+    const { shell, terminal, engine } = await fixture([{ role: "assistant", content: [{ type: "text", text: "alpha beta gamma\n\n".repeat(100) }] }], [], true);
+    const context = (engine.session.extensionBindings as { uiContext: ExtensionUIContext }).uiContext;
+    let pending: Promise<unknown> | undefined;
+    try {
+      terminal.resize(80, 54);
+      if (kind === "select") pending = context.select("Extension choices", ["One", "Two"]);
+      else if (kind === "confirm") pending = context.confirm("Permission", "Allow this operation?");
+      else if (kind === "input") pending = context.input("Extension input");
+      else if (kind === "editor") pending = context.editor("Extension editor", "draft");
+      else context.setEditorComponent(() => ({ render: () => ["Custom editor"], invalidate() {}, handleInput() {}, getText: () => "", setText() {}, insertTextAtCursor() {}, addToHistory() {} }));
+      await nextImmediate();
+      shell.runtime.renderNow();
+      const before = shell.root.viewportPresentationEvidence().scrollTop;
+      terminal.input("\u001b[<64;2;3M");
+      shell.runtime.renderNow();
+      expect(shell.root.viewportPresentationEvidence().scrollTop).toBe(before - 3);
+      const row = shell.root.render(80).findIndex(line => stripTerminalSequences(line).includes("alpha")) + 1;
+      const copyAt = terminal.writes.length;
+      terminal.input(`\u001b[<0;2;${row}M\u001b[<32;7;${row}M\u001b[<0;7;${row}m\u0003`);
+      expect(terminal.writes.slice(copyAt).join("")).toContain("\u001b]52;c;");
+      expect(shell.root.usesDefaultInputSurface()).toBe(false);
+      if (kind === "custom-editor") context.setEditorComponent(undefined);
+      else terminal.input("\u001b");
+      await pending;
+      expect(shell.root.usesDefaultInputSurface()).toBe(true);
+    } finally { await shell.dispose(); }
+  });
+
+  it("keeps nested settings and post-resize transcript hit regions independent", async () => {
+    const { shell, terminal } = await fixture([{ role: "assistant", content: [{ type: "text", text: "alpha beta gamma\n\n".repeat(100) }] }], [], true);
+    try {
+      terminal.resize(80, 54);
+      await shell.submit("/settings");
+      terminal.input("thinking");
+      terminal.input("\r");
+      await nextImmediate();
+      shell.runtime.renderNow();
+      expect(shell.root.render(80).join("\n")).toContain("Thinking Level");
+      terminal.input("\u001b[<64;2;3M".repeat(4));
+      shell.runtime.renderNow();
+      const top = shell.root.viewportPresentationEvidence().scrollTop;
+      const row = shell.root.render(80).findIndex(line => stripTerminalSequences(line).includes("alpha")) + 1;
+      terminal.input(`\u001b[<0;2;${row}M\u001b[<32;7;${row}M`);
+      terminal.resize(70, 48);
+      terminal.input("\u001b[<32;3;2M\u001b[<0;3;2m");
+      expect(shell.root.hasActiveSelection()).toBe(false);
+      shell.runtime.renderNow();
+      expect(shell.root.viewportPresentationEvidence().scrollTop).toBe(top);
+      terminal.input("\u001b");
+      await nextImmediate();
+      shell.runtime.renderNow();
+      expect(shell.root.render(70).join("\n")).not.toContain("Select reasoning depth");
+      expect(shell.root.usesDefaultInputSurface()).toBe(false);
+      terminal.input("\u001b");
+      await nextImmediate();
+      shell.runtime.renderNow();
+      expect(shell.root.usesDefaultInputSurface()).toBe(true);
+      expect(shell.root.viewportPresentationEvidence().scrollTop).toBe(top);
+    } finally { await shell.dispose(); }
+  });
+
+  it("keeps overlay paint above transcript selection while streaming and blocks full-cover click-through", async () => {
+    const { shell, terminal, engine } = await fixture([{ role: "assistant", content: [{ type: "text", text: "alpha beta gamma\n\n".repeat(100) }] }], [], true);
+    try {
+      terminal.resize(80, 40);
+      const received: string[] = [];
+      const component = { render: (width: number) => Array.from({ length: 4 }, () => "#".repeat(width)),
+        invalidate() {}, handleInput: (data: string) => received.push(data) };
+      const overlay = shell.runtime.showOverlay(component, { width: 20, row: 5, col: 10 });
+      engine.session.emit({ type: "agent_start" });
+      await shell.backend.flushEvents();
+      shell.runtime.renderNow();
+      terminal.input("\u001b[<64;3;3M");
+      shell.runtime.renderNow();
+      const top = shell.root.viewportPresentationEvidence().scrollTop;
+      const selectedRow = shell.root.render(80).findIndex(row => stripTerminalSequences(row).includes("alpha")) + 1;
+      terminal.input(`\u001b[<0;2;${selectedRow}M\u001b[<32;15;8M`);
+      engine.session.emit({ type: "message_start", message: { role: "assistant", content: [{ type: "text", text: "new streamed output" }], timestamp: 5 } });
+      await shell.backend.flushEvents();
+      shell.runtime.renderNow();
+      expect(shell.root.viewportPresentationEvidence().scrollTop).toBe(top);
+      const replay = await replayTerminalPaint(terminal.writes.map(data => ({ data, atMs: 0 })), { columns: 80, rows: 40, synchronizedUpdates: "honor" });
+      expect(replay.final.rows[5]!.slice(10, 30)).toBe("#".repeat(20));
+      const backgrounds = await replayTerminalBackgroundCells(terminal.writes.map(data => ({ data, atMs: 0 })), { columns: 80, rows: 40 });
+      expect(backgrounds.some(cell => cell.color === 0x264f78)).toBe(true);
+      expect(backgrounds.filter(cell => cell.row >= 6 && cell.row <= 9 && cell.column >= 11 && cell.column <= 30)
+        .some(cell => cell.color === 0x264f78)).toBe(false);
+      expect(received).toEqual([]);
+      terminal.input("\u001b[<0;15;8m");
+      overlay.hide();
+      const full = shell.runtime.showOverlay({ ...component, render: (width: number) => Array.from({ length: 40 }, () => "#".repeat(width)) }, { width: "100%", anchor: "top-left" });
+      shell.runtime.renderNow();
+      terminal.input("\u001b[<64;3;3M\u001b[<0;2;3M\u001b[<32;7;3M\u001b[<0;7;3m");
+      shell.runtime.renderNow();
+      expect(shell.root.viewportPresentationEvidence().scrollTop).toBe(top);
+      expect(received).toHaveLength(4);
+      full.hide();
+      shell.runtime.renderNow();
+      expect(shell.root.viewportPresentationEvidence().scrollTop).toBe(top);
+    } finally { await shell.dispose(); }
+  });
+
   it.each([false, true])("anchors slash autocomplete above the shell input (history=%s)", async persistent => {
     const history = memoryHistory();
     const { shell, terminal } = await fixture([], [], true, undefined, undefined, undefined, undefined, undefined,

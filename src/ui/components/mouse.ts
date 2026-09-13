@@ -53,14 +53,15 @@ export interface RoutedMouseInput {
  */
 export function routeMouseInput(
   data: string,
-  claim: (event: PaneMouseEvent) => boolean,
+  claim: (event: PaneMouseEvent, report: string) => boolean,
 ): RoutedMouseInput {
   if (!data.includes("\u001b[<")) return { data, consumed: false };
   let output = "";
   let index = 0;
   let consumed = false;
-  SGR_PATTERN.lastIndex = 0;
-  for (let match = SGR_PATTERN.exec(data); match !== null; match = SGR_PATTERN.exec(data)) {
+  // Concurrency: reentrant routing may deliver a report to another component using this parser.
+  const pattern = new RegExp(SGR_PATTERN.source, "g");
+  for (let match = pattern.exec(data); match !== null; match = pattern.exec(data)) {
     output += data.slice(index, match.index);
     index = match.index + match[0].length;
     const event = toEvent(
@@ -69,7 +70,7 @@ export function routeMouseInput(
       Number.parseInt(match[3] ?? "", 10),
       match[4] === "m",
     );
-    if (event !== null && claim(event)) consumed = true;
+    if (event !== null && claim(event, match[0])) consumed = true;
     else output += match[0];
   }
   output += data.slice(index);
