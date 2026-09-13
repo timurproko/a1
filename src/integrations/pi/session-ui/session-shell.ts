@@ -10,6 +10,7 @@ import type {
   OwnedUiPromptSuggestionIdentity,
   OwnedUiSessionViewModel,
   OwnedUiThinkingLevel,
+  SuggestionDecision,
 } from "../../../contracts/owned-ui/index.js";
 import type { UiRouteHost } from "../../../ui/apps/index.js";
 import { ContextualPromptSuggestionController } from "./prompt-suggestion-controller.js";
@@ -301,8 +302,10 @@ export class OwnedUiSessionShell {
     promptSuggestionController = promptSuggestionOptions === undefined ? null : new ContextualPromptSuggestionController({
       generator: promptSuggestionOptions.generator,
       enabled: promptSuggestionOptions.enabled(),
+      ...(promptSuggestionOptions.diagnostics === undefined ? {} : { diagnostics: promptSuggestionOptions.diagnostics }),
       surface: {
-        canPresent: identity => this.#canPresentPromptSuggestion(identity),
+        canPresent: identity => this.#promptSuggestionPresentationBlockReason(identity) === null,
+        presentationBlockReason: identity => this.#promptSuggestionPresentationBlockReason(identity),
         present: text => {
           if (!this.root.canPresentPromptSuggestion()) return false;
           this.root.setPromptSuggestion(text);
@@ -479,19 +482,20 @@ export class OwnedUiSessionShell {
       }
       if (event.type === "assistant-message-completed") {
         this.root.noteCompletedAssistantMessage();
-        if (event.model !== null) {
-          this.#promptSuggestions?.consider({
-            sessionId: event.sessionId,
-            sessionGeneration: event.sessionGeneration,
-            runSequence: event.runSequence,
-            responseSequence: event.responseSequence,
-            model: event.model,
-          }, event.successful
-            && event.stopReason === "stop"
-            && !event.toolContinuation
-            && event.assistantMessageCount >= 2
-            && this.root.canPreparePromptSuggestion());
-        }
+        const identity = {
+          sessionId: event.sessionId,
+          sessionGeneration: event.sessionGeneration,
+          runSequence: event.runSequence,
+          responseSequence: event.responseSequence,
+          model: event.model,
+        };
+        if (event.model === null) this.#promptSuggestions?.skip(identity, "no-model");
+        else this.#promptSuggestions?.consider({ ...identity, model: event.model },
+          !event.successful ? "failed-response"
+            : event.toolContinuation || event.stopReason === "toolUse" ? "tool-continuation"
+            : event.stopReason !== "stop" ? "incomplete-response"
+            : event.assistantMessageCount < 2 ? "early-conversation"
+            : this.root.promptSuggestionPrepareBlockReason());
       }
       const semanticOnly = event.type === "agent-run-started" || event.type === "assistant-message-completed";
       const view = event.type === "transcript-block" && this.#sessionGeneration === this.backend.sessionGeneration
@@ -525,13 +529,12 @@ export class OwnedUiSessionShell {
     return this.backend.view();
   }
 
-  #canPresentPromptSuggestion(identity: OwnedUiPromptSuggestionIdentity): boolean {
+  #promptSuggestionPresentationBlockReason(identity: OwnedUiPromptSuggestionIdentity): SuggestionDecision {
     const view = this.view();
-    return !this.#disposed
-      && identity.sessionId === view.sessionId
-      && identity.sessionGeneration === this.backend.sessionGeneration
-      && modelKey(view) === `${identity.model.providerId}/${identity.model.modelId}`
-      && this.root.canPresentPromptSuggestion();
+    if (this.#disposed) return "disposed";
+    if (identity.sessionId !== view.sessionId || identity.sessionGeneration !== this.backend.sessionGeneration
+      || modelKey(view) !== `${identity.model.providerId}/${identity.model.modelId}`) return "stale-identity";
+    return this.root.promptSuggestionPresentationBlockReason();
   }
 
   damagePresentationDecision(): PiTuiDamageDecision | null {

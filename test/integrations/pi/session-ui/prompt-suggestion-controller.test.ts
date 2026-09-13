@@ -5,6 +5,8 @@ import {
   type OwnedUiPromptSuggestionGeneratorPort,
   type OwnedUiPromptSuggestionIdentity,
   type OwnedUiPromptSuggestionResult,
+  type SuggestionDiagnosticRecord,
+  SUGGESTION_DECISION_REASONS,
 } from "../../../../src/contracts/owned-ui/index.js";
 import { ContextualPromptSuggestionController } from "../../../../src/integrations/pi/session-ui/prompt-suggestion-controller.js";
 
@@ -25,7 +27,7 @@ function deferredGenerator() {
       return new Promise<OwnedUiPromptSuggestionResult>(done => { resolve = done; });
     }),
   };
-  return { generator, resolve: (result: OwnedUiPromptSuggestionResult) => resolve(result), signal: () => signal };
+  return { generator, resolve: (result: { identity: OwnedUiPromptSuggestionIdentity; text: string }) => resolve({ ...result, outcome: "candidate" }), signal: () => signal };
 }
 
 function surface() {
@@ -57,6 +59,7 @@ describe("contextual prompt suggestion candidates", () => {
   it.each([
     [" go ahead and merge it ", "go ahead and merge it"],
     ["run the tests", "run the tests"],
+    ["archive it", "archive it"],
     ["yes", "yes"],
     ["/compact", "/compact"],
   ])("accepts %j as %j", (candidate, expected) => {
@@ -141,7 +144,7 @@ describe("ContextualPromptSuggestionController", () => {
   it("fails closed when a generator violates the result contract", async () => {
     const target = surface();
     const generator: OwnedUiPromptSuggestionGeneratorPort = {
-      generate: async request => ({ identity: request.identity, text: "x".repeat(100) }),
+      generate: async request => ({ identity: request.identity, outcome: "candidate", text: "x".repeat(100) }),
     };
     const controller = new ContextualPromptSuggestionController({ generator, surface: target.port, enabled: true });
     controller.consider(IDENTITY, true);
@@ -184,5 +187,131 @@ describe("ContextualPromptSuggestionController", () => {
     controller.consider({ ...IDENTITY, runSequence: 4 }, true);
     controller.setEnabled(false);
     expect(pending.signal()?.aborted).toBe(true);
+  });
+});
+
+describe("suggestion lifecycle diagnostics", () => {
+  function observed(generator: OwnedUiPromptSuggestionGeneratorPort, enabled = true) {
+    const records: SuggestionDiagnosticRecord[] = [];
+    const target = surface();
+    const controller = new ContextualPromptSuggestionController({
+      generator, enabled, surface: target.port, diagnostics: { record: value => records.push(value) },
+    });
+    return { controller, records, target };
+  }
+
+  it.each(["empty", "rejected", "provider-failure", "unavailable", "cancelled"] as const)("preserves %s rather than mislabeling null", async outcome => {
+    const { controller, records, target } = observed({
+      suggestionReasoningPolicy: () => "low",
+      generate: async request => ({ identity: request.identity, outcome, text: null }),
+    });
+    controller.consider(IDENTITY, null);
+    controller.settle(IDENTITY);
+    await tick();
+    expect(records.map(record => record.event)).toEqual(["started", outcome]);
+    expect(records.every(record => record.reasoning === "low")).toBe(true);
+    expect(target.text()).toBeNull();
+    expect(JSON.stringify(records)).not.toContain(IDENTITY.sessionId);
+    controller.dispose();
+    expect(records).toHaveLength(2);
+  });
+
+  it.each(SUGGESTION_DECISION_REASONS)("records eligibility reason %s without a request", reason => {
+    const generator = { generate: vi.fn() };
+    const { controller, records } = observed(generator);
+    if (reason === "no-model") controller.skip({ ...IDENTITY, model: null }, reason);
+    else controller.consider(IDENTITY, reason);
+    expect(generator.generate).not.toHaveBeenCalled();
+    expect(records).toMatchObject([{ event: "skipped", reason, request: 0 }]);
+  });
+
+  it("distinguishes disabled from provider abstention", () => {
+    const { controller, records } = observed({ generate: vi.fn() }, false);
+    controller.consider(IDENTITY, null);
+    expect(records).toMatchObject([{ event: "skipped", reason: "disabled" }]);
+  });
+
+  it("retires timeout before an ignored abort returns a late result", async () => {
+    vi.useFakeTimers();
+    try {
+      const pending = deferredGenerator();
+      const { controller, records, target } = observed(pending.generator);
+      controller.consider(IDENTITY, null);
+      controller.settle(IDENTITY);
+      await vi.advanceTimersByTimeAsync(15000);
+      pending.resolve({ identity: IDENTITY, text: "archive it" });
+      await tick();
+      expect(records.map(record => record.event)).toEqual(["started", "timeout", "late-result-discarded"]);
+      expect(records[1]?.elapsedMs).toBe(15000);
+      expect(target.text()).toBeNull();
+      expect(pending.generator.generate).toHaveBeenCalledTimes(1);
+      controller.dispose();
+    } finally { vi.useRealTimers(); }
+  });
+
+  it.each([false, true])("owns cancellation for prepared=%s without a second terminal outcome", async prepared => {
+    const pending = deferredGenerator();
+    const { controller, records, target } = observed(pending.generator);
+    controller.consider(IDENTITY, null);
+    if (prepared) { pending.resolve({ identity: IDENTITY, text: "archive it" }); await tick(); }
+    controller.invalidate();
+    if (!prepared) { pending.resolve({ identity: IDENTITY, text: "archive it" }); await tick(); }
+    controller.settle(IDENTITY);
+    expect(records.map(record => record.event)).toEqual(prepared
+      ? ["started", "cancelled"] : ["started", "cancelled", "late-result-discarded"]);
+    expect(target.text()).toBeNull();
+    controller.dispose();
+  });
+
+  it("records blocked presentation rather than empty output", async () => {
+    const records: SuggestionDiagnosticRecord[] = [];
+    const target = surface();
+    const controller = new ContextualPromptSuggestionController({
+      enabled: true, generator: { generate: async request => ({ identity: request.identity, outcome: "candidate", text: "archive it" }) },
+      surface: { ...target.port, presentationBlockReason: () => "autocomplete" },
+      diagnostics: { record: record => records.push(record) },
+    });
+    controller.consider(IDENTITY, null);
+    controller.settle(IDENTITY);
+    await tick();
+    expect(records).toMatchObject([{ event: "started" }, { event: "presentation-blocked", reason: "autocomplete" }]);
+    expect(target.text()).toBeNull();
+    controller.dispose();
+  });
+
+  it("distinguishes mismatched identity and invalid contract from provider failures", async () => {
+    for (const [result, expected] of [
+      [{ identity: { ...IDENTITY, sessionGeneration: 99 }, outcome: "candidate", text: "archive it" }, "stale-result"],
+      [{ identity: IDENTITY, outcome: "candidate", text: "I'll do it" }, "rejected"],
+      [{ identity: IDENTITY, outcome: "empty", text: "archive it" }, "rejected"],
+    ] as const) {
+      const { controller, records } = observed({ generate: async () => result as OwnedUiPromptSuggestionResult });
+      controller.consider(IDENTITY, null);
+      await tick();
+      expect(records.map(record => record.event)).toEqual(["started", expected]);
+      controller.dispose();
+    }
+  });
+
+  it("isolates throwing observers and synchronous/asynchronous generator failures", async () => {
+    for (const generate of [() => { throw Error("private"); }, async () => { throw Error("private"); }]) {
+      const { controller, records } = observed({ generate });
+      controller.consider(IDENTITY, null);
+      await tick();
+      expect(records.map(record => record.event)).toEqual(["started", "provider-failure"]);
+      expect(JSON.stringify(records)).not.toContain("private");
+      controller.dispose();
+    }
+    const target = surface();
+    const controller = new ContextualPromptSuggestionController({
+      enabled: true, surface: target.port,
+      generator: { generate: async request => ({ identity: request.identity, outcome: "candidate", text: "archive it" }) },
+      diagnostics: { record() { throw Error("private sink error"); } },
+    });
+    controller.consider(IDENTITY, null);
+    controller.settle(IDENTITY);
+    await tick();
+    expect(target.text()).toBe("archive it");
+    controller.dispose();
   });
 });

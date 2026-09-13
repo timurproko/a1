@@ -13,6 +13,7 @@ import type {
   OwnedUiSessionViewModel,
   OwnedUiThinkingLevel,
   OwnedUiTranscriptBlock,
+  SuggestionDecision,
 } from "../../../contracts/owned-ui/index.js";
 import type { HistoryEditorConstructor } from "./history-editor-loader.js";
 import type { PiShellPromptInputPresentation } from "./prompt-input-port.js";
@@ -80,6 +81,7 @@ export interface PiShellEditorPort extends PiShellComponentPort {
   setThinkingLevel(level: OwnedUiThinkingLevel): void;
   setPromptSuggestion(text: string | null): void;
   canPresentPromptSuggestion(): boolean;
+  promptSuggestionBlockReason?(): SuggestionDecision;
   hasSelection(): boolean;
   ownsPointer(): boolean;
   handlePointer(event: PiShellEditorPointerEvent): boolean;
