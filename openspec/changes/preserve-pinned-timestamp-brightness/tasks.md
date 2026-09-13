@@ -11,5 +11,5 @@
 ## 3. Validation and review
 
 - [x] 3.1 Run focused viewport/session suites, applicable typechecking, strict OpenSpec validation, and diff checks; record exact results without broad local test tiers or weakened rendering budgets.
-- [ ] 3.2 Push a separate implementation PR citing this merged proposal, report required CI results, and verify code auto-merge remains disabled.
+- [x] 3.2 Push a separate implementation PR citing this merged proposal, report required CI results, and verify code auto-merge remains disabled.
 - [ ] 3.3 Provide an exact built candidate and color-preserving review command; record user visual acceptance that timestamps retain their pre-dimming appearance while the rest of the pinned row fades, before seeking explicit merge authorization. Keep the earlier compaction acceptance finding open until validated rather than treating this plan as acceptance.

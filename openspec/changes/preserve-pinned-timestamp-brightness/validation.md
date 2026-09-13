@@ -21,6 +21,10 @@ Coverage includes both normal prompts and completed compactions; all scrollbar a
 - `npm run build`: passed.
 - No local `test:fast`, `test:full`, or `test:release` tier was run. Synthetic diagnostic/session artifacts are not committed.
 
+## PR handoff
+
+Implementation PR: #368. The first implementation commit is `2e8af2e0`; CI run `34757417696` was in progress when checked. GitHub confirmed the PR open and conflict-free, with `auto_merge: null`. Required implementation CI remains pending; the final handoff-record commit starts a fresh candidate check. Task 3.3 remains incomplete until user visual acceptance is recorded.
+
 ## Manual review pending
 
 Worktree: `D:/Git/a1/.worktrees/pinned-timestamp-brightness-impl`
