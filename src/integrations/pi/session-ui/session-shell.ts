@@ -206,7 +206,6 @@ export class OwnedUiSessionShell {
       onEditorChange: () => { this.#editorRevision++; promptSuggestionController?.invalidate(); },
       onPromptSuggestionAccepted: () => promptSuggestionController?.accept(),
       onInputSurfaceChanged: () => {
-        this.root.clearViewportPointerState();
         promptSuggestionController?.invalidate();
         this.#promptHistory?.synchronize();
       },
@@ -253,6 +252,7 @@ export class OwnedUiSessionShell {
       root: this.root,
       mode: tuiMode,
       ...(this.#customViewport ? {
+        onOverlayGeometry: surfaces => this.root.setViewportOverlaySurfaces(surfaces),
         decorateTerminal: (terminal: PiTuiTerminalPort) => {
           damageTerminal = new DamageAwareTerminalAdapter(terminal, {
             regionalScroll: process.env.TERM !== "dumb",
@@ -351,15 +351,14 @@ export class OwnedUiSessionShell {
             this.runtime.requestRender();
             return { consume: true };
           }
-          // Invariant: an overlay or editor-replacement screen owns its entire pointer
-          // surface. Letting the transcript pre-router inspect those reports
-          // steals settings value menus and numeric +/- controls before the
-          // settings app can receive them.
-          if (this.runtime.hasOverlay() || !this.root.usesDefaultInputSurface()) {
-            if (data.includes("\u001b[<")) this.root.clearViewportPointerState();
-            return undefined;
+          // Invariant: geometry must belong to the painted frame, including newly opened/nested
+          // surfaces. Steady pointer input does not trigger a synchronous composition.
+          const viewport = this.runtime.viewport();
+          if (data.includes("\u001b[<") && !this.root.viewportInputGeometryReady(viewport.columns, viewport.rows)) {
+            this.runtime.renderNow();
           }
-          const routed = this.root.handleViewportPreInput(data, true);
+          const routed = this.root.handleViewportPreInput(data, true, Date.now(),
+            this.root.usesDefaultInputSurface() && !this.runtime.hasFocusedOverlay());
           if (routed.copyText !== undefined) {
             this.runtime.writeControl(`\u001b]52;c;${Buffer.from(routed.copyText, "utf8").toString("base64")}\u0007`);
           }

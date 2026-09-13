@@ -7,6 +7,7 @@ import type {
   OwnedUiViewportSettings,
   OwnedUiViewportSettingsPort,
 } from "../../../contracts/owned-ui/index.js";
+import type { PiTuiPointerSurface } from "../tui-runtime/index.js";
 import type { UiRouteHost } from "../../../ui/apps/index.js";
 import {
   PROMPT_GLYPH,
@@ -557,20 +558,27 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     const dockInputCandidate = this.#dockInputCandidate;
     // Concurrency: input may change after a keyboard receipt but before its paint.
     // Capture only the live inputs this composition will actually represent.
-    const viewportRevision = this.#viewportController.presentationRevision;
-    const selectionRevision = this.#viewportController.selectionRevision;
-    const pointerPosition = this.#viewportController.pointerPosition;
     const inputSurface = this.#inputSurface;
     const dockRows = dock.rows;
     const selectableDocumentRowCount = document.rows.length;
     const dockStartRow = height - dockRows.length + 1;
     const editorOffset = dock.editorOffset;
+    this.#viewportController.setInputSurfaceFrame(this.usesDefaultInputSurface() ? undefined : {
+      component: this.#inputSurface,
+      columnStart: 1,
+      columnEnd: width,
+      rowStart: Math.max(1, dockStartRow + editorOffset),
+      rowEnd: Math.min(height, dockStartRow + editorOffset + dock.inputRows - 1),
+    });
     this.#viewportController.setEditorPointerFrame(this.usesDefaultInputSurface()
       ? {
           rowStart: dockStartRow + editorOffset,
           rowEnd: dockStartRow + editorOffset + dock.inputRows - 1,
         }
       : undefined);
+    const viewportRevision = this.#viewportController.presentationRevision;
+    const selectionRevision = this.#viewportController.selectionRevision;
+    const pointerPosition = this.#viewportController.pointerPosition;
     this.#dockInputCandidate = false;
     let frame = dockInputCandidate
       && snapshot !== undefined
@@ -680,12 +688,21 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.#viewportController.clearPointerState();
   }
 
-  handleViewportPreInput(data: string, allowWheel = true, now = Date.now()): {
+  setViewportOverlaySurfaces(surfaces: readonly PiTuiPointerSurface[] | null): void {
+    this.#viewportController.setOverlaySurfaces(surfaces);
+  }
+
+  viewportInputGeometryReady(width: number, height: number): boolean {
+    const frame = this.#viewportController.frame;
+    return this.#viewportController.inputGeometryReady && frame?.descriptor.width === width && frame.descriptor.height === height;
+  }
+
+  handleViewportPreInput(data: string, allowWheel = true, now = Date.now(), editorActive = this.usesDefaultInputSurface()): {
     readonly data: string;
     readonly consumed: boolean;
     readonly copyText?: string;
   } {
-    return this.#viewportController.handlePreInput(data, allowWheel, now);
+    return this.#viewportController.handlePreInput(data, allowWheel, now, editorActive);
   }
 
   #renderDock(width: number): readonly string[] {
@@ -1121,6 +1138,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       return;
     }
     this.#dockInputCandidate = false;
+    this.#viewportController.invalidateInputSurface();
     this.#inputSurface.setFocused?.(false);
     if (disposePrevious && this.#inputSurface !== this.editor) this.#inputSurface.dispose?.();
     this.#inputSurface = next;

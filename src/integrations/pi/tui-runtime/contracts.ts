@@ -1,4 +1,4 @@
-import type { PresentationComponentPort } from "../../../contracts/presentation/index.js";
+import type { PresentationComponentPort, PresentationPointerSurface } from "../../../contracts/presentation/index.js";
 import type {
   PiTuiInputCoordinationDecision,
   PiTuiInputCoordinationScheduler,
@@ -18,6 +18,8 @@ export interface PiTuiScrollState {
   readonly followingEnd: boolean;
   readonly scrollbarVisible: boolean;
 }
+
+export type PiTuiPointerSurface = PresentationPointerSurface;
 
 export interface PiTuiComponentPort extends PresentationComponentPort {
   readonly wantsKeyRelease?: boolean;
@@ -149,6 +151,8 @@ export interface PiTuiInputDiagnosticsEvent {
 
 export interface PiTuiRuntimeAdapterOptions {
   readonly root: PiTuiComponentPort;
+  /** Bare viewport only: painted overlays in back-to-front order; null while geometry is stale. */
+  readonly onOverlayGeometry?: (surfaces: readonly PiTuiPointerSurface[] | null) => void;
   readonly mode?: "regular" | "fullscreen";
   readonly layoutRoot?: PiTuiLayoutNode;
   readonly terminal?: PiTuiTerminalPort;
