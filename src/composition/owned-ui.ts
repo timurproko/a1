@@ -1,4 +1,4 @@
-import { PromptHistoryService } from "../features/prompt-history/index.js";
+import { PromptHistoryService, PromptImageSidecar, resolvePromptHistoryPath } from "../features/prompt-history/index.js";
 import { resolvePromptHistoryDataDir } from "../features/launch/index.js";
 import { resolveProductPaths, type SessionSelection } from "../foundation/lifecycle/index.js";
 import { applyConfiguredPiTheme, getAvailablePiThemes, loadHistoryEditor } from "../integrations/pi/components/index.js";
@@ -82,14 +82,19 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     onChange: (listener: (enabled: boolean) => void) => settings.onChange(() => listener(settings.value("promptSuggestions") !== false)),
   };
   const historyLimit = settings?.value("promptHistoryMaxItems");
-  const promptHistory = settings === null || !ownedSurfaces || settings.value("promptHistoryEnabled") === false ? null : {
-    limit: typeof historyLimit === "number" ? historyLimit : 100,
-    store: new PromptHistoryService({
-      dataDir: resolvePromptHistoryDataDir(),
-      profileRoot: adapter.agentDir,
+  const promptHistory = settings === null || !ownedSurfaces || settings.value("promptHistoryEnabled") === false ? null : (() => {
+    const dataDir = resolvePromptHistoryDataDir();
+    const location = resolvePromptHistoryPath(dataDir, adapter.agentDir);
+    return {
       limit: typeof historyLimit === "number" ? historyLimit : 100,
-    }),
-  };
+      store: new PromptHistoryService({
+        dataDir,
+        profileRoot: adapter.agentDir,
+        limit: typeof historyLimit === "number" ? historyLimit : 100,
+      }),
+      imageSidecar: new PromptImageSidecar(location.imagesDir),
+    };
+  })();
   const shell = new OwnedUiSessionShell({
     backend: adapter,
     cwd: adapter.cwd,

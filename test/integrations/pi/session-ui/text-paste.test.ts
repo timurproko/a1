@@ -69,7 +69,7 @@ describe("owned text-paste policy", () => {
       expect(chips.prepareHistoryText(token)).toBe(payload.trim());
       expect(chips.prepareSubmission(token)).toEqual({ text: payload, images: [] });
       expect(chips.prepareSubmission(token + image)).toEqual({ text: payload + image, images: [{ type: "image", data: "aW1hZ2U=", mimeType: "image/png" }] });
-      expect(chips.prepareHistoryText(token + image)).toBe(payload.trim());
+      expect(chips.prepareHistoryText(token + image)).toBe(payload + image);
     }
     expect(chips.prepareSubmission("[paste #999 1001 chars]").text).toBe("[paste #999 1001 chars]");
   });

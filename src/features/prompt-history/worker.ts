@@ -8,8 +8,8 @@ const port = parentPort;
 if (port !== null) {
   let store: PromptHistoryStore | undefined;
   let chain = Promise.resolve();
-  const options = workerData as { path: string; profileId: string; limit: number };
-  const open = retry(() => { store = new PromptHistoryStore(options.path, options.profileId, options.limit); });
+  const options = workerData as { path: string; profileId: string; limit: number; imagesDir?: string };
+  const open = retry(() => { store = new PromptHistoryStore(options.path, options.profileId, options.limit, options.imagesDir); });
   void open.then(() => port.postMessage({ id: 0, ok: true }), error => port.postMessage({ id: 0, ok: false, code: classifyHistoryError(error) }));
   port.on("message", (request: HistoryWorkerRequest) => {
     chain = chain.then(async () => {

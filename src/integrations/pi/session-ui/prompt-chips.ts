@@ -42,7 +42,14 @@ interface PendingPaste {
 const CHIP_PATTERN = /\[(?:paste #\d+ (?:\+\d+ lines|\d+ chars)|📷 [^\]]+|📁 [^\]]+|📄 [^\]]+|🖼 {1,2}[^\]]+|🔗 [^\]]+)\]/gu;
 const IMAGE_EXTENSION = /\.(?:jpe?g|png|webp|gif|bmp|tiff?)$/iu;
 const URL_PATTERN = /^https?:\/\/[^\s\u0000-\u001f\u007f]+$/iu;
+const URL_SUBSTRING_PATTERN = /https?:\/\/[^\s\u0000-\u001f\u007f\]]+/giu;
+const IMAGE_CHIP_IDENTIFIER_PATTERN = /^\[📷 screenshot-([a-f0-9]+)(?:-resized)?\]$/u;
 const URL_DISPLAY_LENGTH = 40;
+
+function imageChipIdentifier(tag: string): string | null {
+  const match = IMAGE_CHIP_IDENTIFIER_PATTERN.exec(tag);
+  return match === null ? null : match[1] ?? null;
+}
 
 /** Owns semantic chips and bounded pending paste references; cancels background work on reset or disposal. */
 export class PromptChipStore {
@@ -240,8 +247,115 @@ export class PromptChipStore {
     return this.#replaceResolvable(text, false).text;
   }
 
+  /**
+   * Recall-safe history text. Text / URL / file / folder chips expand to their resolved value
+   * so a restart can reuse them without the originating chip cache. Image chip tags are
+   * preserved verbatim so the sidecar-backed rehydration path can re-render them into live
+   * chips carrying the original attachment bytes.
+   */
   prepareHistoryText(text: string): string {
-    return this.#replaceResolvable(text, false, true).text.trim();
+    return this.#replaceResolvable(text, false, false).text.trim();
+  }
+
+  /**
+   * Extract the image chip attachments referenced by an editor draft in occurrence order,
+   * paired with their sidecar identifier. Callers use this to persist image sidecars before a
+   * history row commits, so a fresh process can rehydrate the same chip layout. Unresolved
+   * pending pastes and non-image chips are skipped; caller is responsible for waiting on
+   * pending readiness before this point.
+   */
+  imageChipAttachments(text: string): { readonly id: string; readonly tag: string; readonly image: PromptImageAttachment }[] {
+    const results: { readonly id: string; readonly tag: string; readonly image: PromptImageAttachment }[] = [];
+    const seen = new Set<string>();
+    for (const match of text.matchAll(CHIP_PATTERN)) {
+      const tag = match[0];
+      if (seen.has(tag)) continue;
+      const chip = this.#chips.get(tag);
+      if (chip === undefined || chip.kind !== "image") continue;
+      const identifier = imageChipIdentifier(tag);
+      if (identifier === null) continue;
+      seen.add(tag);
+      results.push({ id: identifier, tag, image: chip.image });
+    }
+    return results;
+  }
+
+  /**
+   * Rehydrate a durable recall value into an editor-ready draft: image chip tags are looked up
+   * against a caller-supplied sidecar resolver, and detectable URL / file / folder / large text
+   * substrings are re-registered as atomic chips through the same identity rules the paste path
+   * uses. Image chips whose sidecar returns null are silently stripped without a placeholder.
+   *
+   * Every chip returned is registered in the session `#chips` map so atomic-range,
+   * hyperlink-range, and submission-expansion paths behave identically to a freshly typed draft.
+   * Callers should treat the returned string as programmatic editor text, not another draft to
+   * scan.
+   */
+  rehydrateHistoryText(text: string, resolveImage: (id: string) => PromptImageAttachment | null): string {
+    if (!text) return text;
+    // Rationale: resolve image chip tags in-place before further classification. Sidecar hits
+    // register a live image chip; misses silently strip the tag (no placeholder, no notice) per
+    // the durability contract.
+    CHIP_PATTERN.lastIndex = 0;
+    const resolvedImages = text.replace(CHIP_PATTERN, tag => {
+      const identifier = imageChipIdentifier(tag);
+      if (identifier === null) return tag;
+      const attachment = resolveImage(identifier);
+      if (attachment === null) return "";
+      this.#chips.set(tag, { kind: "image", tag, image: attachment });
+      return tag;
+    });
+    // Rationale: split around any surviving image tags so paste-time classification runs on the
+    // intervening prose exactly as it would on a fresh clipboard payload, plus a substring URL
+    // scan so embedded links become atomic chips even in the middle of surrounding text.
+    CHIP_PATTERN.lastIndex = 0;
+    const segments: string[] = [];
+    let cursor = 0;
+    for (const match of resolvedImages.matchAll(CHIP_PATTERN)) {
+      const index = match.index ?? cursor;
+      if (index > cursor) segments.push(resolvedImages.slice(cursor, index));
+      segments.push(match[0]);
+      cursor = index + match[0].length;
+    }
+    if (cursor < resolvedImages.length) segments.push(resolvedImages.slice(cursor));
+    CHIP_PATTERN.lastIndex = 0;
+    return segments.map(segment => {
+      if (segment.length === 0 || CHIP_PATTERN.test(segment)) { CHIP_PATTERN.lastIndex = 0; return segment; }
+      CHIP_PATTERN.lastIndex = 0;
+      // Invariant: preserve original whitespace framing so the concatenated recall value
+      // remains stable across rehydration.
+      const leading = segment.match(/^\s+/)?.[0] ?? "";
+      const trailing = segment.match(/\s+$/)?.[0] ?? "";
+      const body = segment.slice(leading.length, segment.length - trailing.length);
+      if (body.length === 0) return segment;
+      // Rationale: substring URL rehydration reuses paste-time URL classification and identity
+      // rules, producing a URL chip whenever a bare http(s) URL appears in the prose. Whole-text
+      // classification runs afterwards to catch path / large-paste candidates that consume the
+      // entire remaining body.
+      const withUrlChips = this.#rehydrateUrlSubstrings(body);
+      if (withUrlChips !== body) return `${leading}${withUrlChips}${trailing}`;
+      const classified = this.transformPastedContent({ kind: "text", text: body });
+      return `${leading}${classified}${trailing}`;
+    }).join("");
+  }
+
+  #rehydrateUrlSubstrings(body: string): string {
+    let output = "";
+    let cursor = 0;
+    URL_SUBSTRING_PATTERN.lastIndex = 0;
+    for (;;) {
+      const match = URL_SUBSTRING_PATTERN.exec(body);
+      if (match === null) break;
+      const url = match[0];
+      if (match.index > cursor) output += body.slice(cursor, match.index);
+      const label = url.length <= URL_DISPLAY_LENGTH ? url : `${url.slice(0, URL_DISPLAY_LENGTH)}…`;
+      output += this.#recordUnique({ kind: "url", tag: `[🔗 ${label}]`, label, url });
+      cursor = match.index + url.length;
+    }
+    URL_SUBSTRING_PATTERN.lastIndex = 0;
+    if (cursor === 0) return body;
+    if (cursor < body.length) output += body.slice(cursor);
+    return output;
   }
 
   prepareSubmission(text: string): PreparedPrompt {

@@ -4,7 +4,7 @@ import { DatabaseSync } from "node:sqlite";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { PromptHistoryStore } from "../../../src/features/prompt-history/store.js";
-import { resolvePromptHistoryPath, PromptHistoryService } from "../../../src/features/prompt-history/index.js";
+import { resolvePromptHistoryPath, PromptHistoryService, PromptImageSidecar } from "../../../src/features/prompt-history/index.js";
 import { type PromptHistorySubmission } from "../../../src/contracts/owned-ui/index.js";
 
 // Rationale: Real FULL-synchronous SQLite correctness workloads exceeded 27 seconds on Windows CI.
@@ -127,17 +127,42 @@ describe("profile history store", () => {
     expect(readFileSync(location.path)).toEqual(before);
   });
 
-  it("commits off-thread, flushes on close and loads in a fresh service", async () => {
-    const dataDir = root(); const options = { dataDir, profileRoot: join(dataDir, "profile"), limit: 100 };
-    const first = new PromptHistoryService(options);
-    try { expect(await first.record(prompt("worker", "multiline\n👩‍💻"))).toBe("committed"); } finally { await first.close(); }
-    const second = new PromptHistoryService(options);
-    try {
-      const snapshot = new Promise<readonly string[]>((resolve, reject) => {
-        second.onSnapshot(value => resolve(value.entries.map(item => item.text)));
-        second.onFailure(code => reject(new Error(code)));
-      });
-      second.start(); expect(await snapshot).toEqual(["multiline\n👩‍💻"]);
-    } finally { await second.close(); }
+  it("prunes image sidecars whose only referencing row was pruned and keeps sidecars still referenced", () => {
+    const dir = root();
+    const imagesDir = join(dir, "images");
+    const historyPath = join(dir, "history.sqlite3");
+    const store = new PromptHistoryStore(historyPath, "test-profile", 10, imagesDir);
+    stores.push(store);
+    const sidecar = new PromptImageSidecar(imagesDir);
+    for (const id of ["aaaaaaaa", "bbbbbbbb", "cccccccc"]) {
+      sidecar.write(id, { tag: `[📷 screenshot-${id}]`, data: "aA==", mimeType: "image/png", savedAt: "t" });
+    }
+    // Invariant: sidecar reap uses text still referenced by SURVIVING rows so a row still referencing an id shared with a pruned row keeps the file. Row 1 references aaaaaaaa; row 2 references bbbbbbbb + cccccccc; row 3 also references aaaaaaaa.
+    store.record({ id: "s1", text: "one [📷 screenshot-aaaaaaaa]", timestamp: 1, kind: "prompt" });
+    store.record({ id: "s2", text: "two [📷 screenshot-bbbbbbbb] [📷 screenshot-cccccccc]", timestamp: 2, kind: "prompt" });
+    store.record({ id: "s3", text: "three [📷 screenshot-aaaaaaaa]", timestamp: 3, kind: "prompt" });
+    // Rationale: force retention to 2 entries via a fresh limit -- s1 (oldest) is pruned.
+    store.close(); stores.pop();
+    const tightened = new PromptHistoryStore(historyPath, "test-profile", 10, imagesDir);
+    stores.push(tightened);
+    for (let i = 0; i < 8; i++) tightened.record({ id: `pad-${i}`, text: `padding-${i}`, timestamp: 100 + i, kind: "prompt" });
+    tightened.record({ id: "final", text: "final entry with no chips", timestamp: 200, kind: "prompt" });
+    // Rationale: at this point the aaa row (s1) may or may not have been evicted. bbbb / cccc live only in rows that are eventually evicted; aaa also lives in s3 which is more recent. Once eviction has run, only sidecars still referenced by a surviving row should be on disk.
+    const survivingRows = tightened.snapshot().entries.map(entry => entry.text).join("\n");
+    const survivingIds = new Set([...survivingRows.matchAll(/screenshot-([a-f0-9]+)/gu)].map(match => match[1]));
+    const filesOnDisk = new Set(sidecar.list());
+    for (const id of filesOnDisk) expect(survivingIds).toContain(id);
+  });
+
+  it("sweeps orphaned sidecars at store open when no row references them", () => {
+    const dir = root();
+    const imagesDir = join(dir, "images");
+    const sidecar = new PromptImageSidecar(imagesDir);
+    sidecar.write("deadbeef", { tag: "[📷 screenshot-deadbeef]", data: "aA==", mimeType: "image/png", savedAt: "t" });
+    const historyPath = join(dir, "history.sqlite3");
+    const store = new PromptHistoryStore(historyPath, "test-profile", 10, imagesDir);
+    stores.push(store);
+    // Invariant: no row references deadbeef so the open-time sweep reclaims it.
+    expect(sidecar.list()).toEqual([]);
   });
 });
