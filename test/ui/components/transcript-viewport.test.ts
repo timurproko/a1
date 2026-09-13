@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   assertTranscriptViewportFrameDescriptor,
   backgroundSgrSpan,
@@ -12,6 +12,30 @@ const rows = (count: number) => Array.from({ length: count }, (_, index) => `row
 const overflowingRows = (value: readonly string[]) => value.map(row => stripAnsi(row).trimEnd());
 
 describe("transcript viewport", () => {
+  it("passes only the governing semantic timestamp span to quiet painting without stale cache metadata", () => {
+    const viewport = new TranscriptViewport();
+    const quietSticky = vi.fn((text: string, _columns?: { readonly from: number; readonly to: number }) => text);
+    const identity = (text: string) => text;
+    const input = {
+      documentRows: rows(10), dockRows: ["dock"], width: 30, height: 4,
+      theme: { track: identity, thumb: identity, sticky: identity, quietSticky, bottomControl: identity, selection: identity },
+    };
+    const anchor = { id: "first", firstRow: 0, lastRow: 1, sourceRow: "14:35 content       15:40" };
+    const timestampColumns = { from: 19, to: 24 };
+    viewport.compose({ ...input, promptAnchors: [{ ...anchor, timestampColumns }] });
+    expect(quietSticky).toHaveBeenLastCalledWith(anchor.sourceRow, timestampColumns);
+    quietSticky.mockClear();
+    viewport.setStickyHovered(true);
+    viewport.compose({ ...input, promptAnchors: [{ ...anchor, timestampColumns }] });
+    expect(quietSticky).not.toHaveBeenCalled();
+    viewport.setStickyHovered(false);
+    viewport.compose({ ...input, promptAnchors: [anchor] });
+    expect(quietSticky).toHaveBeenLastCalledWith(anchor.sourceRow, undefined);
+    const next = { ...anchor, id: "second", firstRow: 3, lastRow: 4, timestampColumns: { from: 20, to: 25 } };
+    viewport.compose({ ...input, promptAnchors: [anchor, next] });
+    expect(quietSticky).toHaveBeenLastCalledWith(next.sourceRow, next.timestampColumns);
+  });
+
   it("returns an exact-height transcript-above-dock frame and leaves one line above the rail", () => {
     const viewport = new TranscriptViewport();
     viewport.setConfig(ALWAYS);

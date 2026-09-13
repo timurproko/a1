@@ -29,6 +29,8 @@ export interface TranscriptPromptAnchor {
   readonly lastRow: number;
   /** The source first row, including its submitted-prompt styling and timestamp. */
   readonly sourceRow: string;
+  /** Zero-based metadata columns [from, to), exempt from additional quiet intensity. */
+  readonly timestampColumns?: { readonly from: number; readonly to: number };
 }
 
 export interface TranscriptViewportConfig {
@@ -40,7 +42,7 @@ export interface TranscriptViewportTheme {
   readonly track: (text: string) => string;
   readonly thumb: (text: string, active: boolean) => string;
   readonly sticky: (text: string, hovered: boolean) => string;
-  readonly quietSticky: (text: string) => string;
+  readonly quietSticky: (text: string, timestampColumns?: TranscriptPromptAnchor["timestampColumns"]) => string;
   readonly bottomControl: (text: string, hovered: boolean) => string;
   readonly selection: (line: string, from: number, to: number) => string;
 }
@@ -459,7 +461,7 @@ export class TranscriptViewport {
       );
       if (!source.reused) paintRecomputedRows.add(0);
       const sticky = theme.sticky(source.value, this.#stickyHovered);
-      visible[0] = quiet && !this.#stickyHovered ? theme.quietSticky(sticky) : sticky;
+      visible[0] = quiet && !this.#stickyHovered ? theme.quietSticky(sticky, governing.timestampColumns) : sticky;
     }
 
     const selectionPainterId = this.#functionId(theme.selection);
