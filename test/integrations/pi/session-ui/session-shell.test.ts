@@ -3,7 +3,9 @@ import { PromptHistoryService } from "../../../../src/features/prompt-history/in
 import { PromptHistoryStore } from "../../../../src/features/prompt-history/store.js";
 import { resolvePromptHistoryPath } from "../../../../src/features/prompt-history/paths.js";
 import { holdHistoryLock } from "../../../support/history-lock.js";
-import type { AgentSessionRuntime, ExtensionUIContext } from "@earendil-works/pi-coding-agent";
+import { SessionManager, type AgentSessionRuntime, type ExtensionUIContext } from "@earendil-works/pi-coding-agent";
+import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -229,6 +231,202 @@ class InputImmediateScheduler {
 async function nextImmediate(): Promise<void> {
   await new Promise<void>(resolve => setImmediate(resolve));
 }
+
+describe("prompt-style compaction in the real engine and shell", () => {
+  const time = new Date(2026, 8, 13, 14, 35).getTime();
+  const compaction = (tokensBefore = 281483, summary = Array.from({ length: 24 }, (_, i) => `summary-${i} alpha beta`).join("\n\n")) => ({
+    role: "compactionSummary", summary, tokensBefore, timestamp: time,
+  });
+  const user = (text: string) => ({ role: "user", content: [{ type: "text", text }], timestamp: time });
+  const reply = (name: string) => ({ role: "assistant", content: [{ type: "text", text: Array.from({ length: 30 }, (_, i) => `${name}-${i}`).join("\n\n") }], timestamp: time + 1 });
+
+  it("loads the disposable visual-review session through Pi's real session manager", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "compaction-review-"));
+    try {
+      const script = fileURLToPath(new URL("../../../../scripts/pi/create-compaction-review-session.mjs", import.meta.url));
+      const path = execFileSync(process.execPath, [script, directory], { encoding: "utf8" }).trim();
+      const manager = SessionManager.open(path);
+      const { adapter, shell } = await fixture(manager.buildSessionContext().messages, [], true);
+      try {
+        const source = adapter.view().transcript.find(block => block.kind === "compaction")!;
+        expect(source.payload).toMatchObject({ role: "compactionSummary", tokensBefore: 281483 });
+        const rows = shell.root.transcriptComponent(source.id)!.render(80).map(stripTerminalSequences);
+        expect(rows[0]).toContain("Compacted from 281,483 tokens");
+        expect(rows.join("\n")).toContain("END OF FULL COMPACTION SUMMARY");
+        expect(adapter.view().transcript.filter(block => block.kind === "user")).toHaveLength(2);
+      } finally { await shell.dispose(); }
+    } finally { await rm(directory, { recursive: true, force: true }); }
+  });
+
+  it("keeps resumed and newly completed summary data through settlement without adding prompt recall entries", async () => {
+    const messages: unknown[] = [compaction(), user("real prompt"), reply("answer")];
+    const { engine, adapter, terminal, shell } = await fixture(messages, [], true);
+    try {
+      const original = adapter.view().transcript.find(block => block.kind === "compaction")!;
+      expect(original).toMatchObject({ text: compaction().summary, payload: { role: "compactionSummary", tokensBefore: 281483, timestamp: time } });
+      const source = shell.root.transcriptComponent(original.id)!;
+      expect(stripTerminalSequences(source.render(80).join("\n"))).toContain("summary-23 alpha beta");
+      const next = { ...compaction(300001, "Fresh **summary** content."), timestamp: time + 2 };
+      messages.push(next);
+      engine.session.emit({ type: "message_end", message: next });
+      await adapter.flushEvents();
+      const latest = adapter.view().transcript.filter(block => block.kind === "compaction").at(-1)!;
+      expect(latest.id).not.toBe(original.id);
+      expect(latest).toMatchObject({ text: next.summary, payload: { tokensBefore: 300001, timestamp: next.timestamp } });
+      expect(stripTerminalSequences(shell.root.transcriptComponent(latest.id)!.render(80).join("\n"))).toContain("Compacted from 300,001 tokens");
+      engine.session.emit({ type: "agent_settled", messages });
+      await adapter.flushEvents();
+      expect(adapter.view().transcript.filter(block => block.kind === "compaction").map(block => block.text)).toEqual([compaction().summary, next.summary]);
+      shell.root.editor.setText("draft");
+      for (let i = 0; i < 5; i++) { terminal.input("\u001b[A"); await nextImmediate(); }
+      expect(shell.root.editor.getText()).toBe("real prompt");
+      expect(engine.session.calls.some(call => call.startsWith("prompt:"))).toBe(false);
+    } finally { await shell.dispose(); }
+  });
+
+  it.each(["always", "hidden", "auto"] as const)("pins and navigates one mixed sequence with a %s scrollbar", async scrollbarAppearance => {
+    const { terminal, shell } = await fixture([compaction(), user("middle prompt"), reply("middle"), compaction(300001), user("last prompt"), reply("last")], [], true);
+    try {
+      terminal.resize(80, 14);
+      shell.root.editor.setText("keep draft");
+      shell.root.setViewportConfig({ scrollbarAppearance, scrollbarStyle: "thin", scrollbarSpeed: "normal" });
+      const rows = () => shell.root.render(80).map(stripTerminalSequences);
+      const key = async (data: string) => { terminal.input(data); await nextImmediate(); return rows(); };
+      const bottom = rows();
+      let frame = await key("\u001b[1;5H");
+      expect(frame[0]!.trim()).toBe("");
+      expect(frame[1]).toContain("❯ Compacted from 281,483 tokens");
+      const header = frame[1]!;
+      const firstExtent = shell.root.viewportPresentationEvidence().maxScroll;
+      frame = await key("\u001b[<65;3;3M");
+      expect(frame[0]).toContain("❯ Compacted from 281,483 tokens");
+      expect(frame[0]).toContain("14:35");
+      expect(shell.root.render(80)[0]).not.toContain("\u001b[2m");
+      expect(frame.filter(row => row.includes("Compacted from 281,483 tokens"))).toHaveLength(1);
+      expect(shell.root.viewportPresentationEvidence().maxScroll).toBe(firstExtent);
+      const whilePinned = shell.root.exitTranscript(80);
+      await key("\u000f");
+      expect(shell.root.exitTranscript(80)).toBe(whilePinned);
+      terminal.input("\u001b[<0;5;1M");
+      terminal.input("\u001b[<0;5;1m");
+      frame = rows();
+      // The reserved scrollbar cell is naturally blank on viewport row zero.
+      expect(frame[0]!.slice(0, -1)).toBe(header.slice(0, -1));
+      expect(frame[2]).toContain("summary-0 alpha beta");
+      expect(shell.root.viewportPresentationEvidence().followingEnd).toBe(false);
+      expect((await key("\u001b[1;2B"))[0]).toContain("❯ middle prompt");
+      expect((await key("\u001b[1;2B"))[0]).toContain("❯ Compacted from 300,001 tokens");
+      expect((await key("\u001b[1;2B"))[0]).toContain("❯ last prompt");
+      expect((await key("\u001b[1;2B")).map(row => row.slice(0, 79))).toEqual(bottom.map(row => row.slice(0, 79)));
+      expect(shell.root.viewportPresentationEvidence().followingEnd).toBe(true);
+      expect((await key("\u001b[1;2A"))[0]).toContain("❯ last prompt");
+      expect((await key("\u001b[1;2A"))[0]).toContain("❯ Compacted from 300,001 tokens");
+      expect((await key("\u001b[1;2A"))[0]).toContain("❯ middle prompt");
+      frame = await key("\u001b[1;2A");
+      expect(frame[0]!.trim()).toBe("");
+      expect(frame[1]).toBe(header);
+      expect(await key("\u001b[1;2A")).toEqual(frame);
+      await key("\u001b[1;5F");
+      expect((await key("\u001b[1;3H"))[0]).toContain("❯ last prompt");
+      expect((await key("\u001b[1;3H"))[0]).toContain("❯ Compacted from 300,001 tokens");
+      expect((await key("\u001b[1;3H"))[0]).toContain("❯ middle prompt");
+      expect((await key("\u001b[1;3H"))[1]).toBe(header);
+      expect(shell.root.editor.getText()).toBe("keep draft");
+    } finally { await shell.dispose(); }
+  });
+
+  it("uses quiet compaction context after the full summary and preserves selector input ownership", async () => {
+    const { terminal, shell } = await fixture([compaction(281483, "Short summary."), reply("long reply")], [], true);
+    try {
+      terminal.resize(80, 14);
+      const frame = shell.root.render(80);
+      expect(stripTerminalSequences(frame[0]!)).toContain("Compacted from 281,483 tokens");
+      expect(frame[0]).toContain("\u001b[2m");
+      await shell.submit("/model");
+      shell.runtime.renderNow();
+      const top = shell.root.viewportPresentationEvidence().scrollTop;
+      terminal.input("\u001b[1;2A");
+      await nextImmediate();
+      shell.runtime.renderNow();
+      expect(shell.root.viewportPresentationEvidence().scrollTop).toBe(top);
+      expect(shell.root.usesDefaultInputSurface()).toBe(false);
+    } finally { await shell.dispose(); }
+  });
+
+  it("retains cached long summary rows, links and selection while later output streams and the viewport resizes", async () => {
+    await withPinnedHyperlinks(async () => {
+      const text = "copyable alpha beta\n\n[web](https://example.com/summary) [file](file:///D:/work/summary.md)\n\n" + compaction().summary.repeat(25);
+      const { engine, adapter, terminal, shell } = await fixture([compaction(281483, text), reply("tail")], [], true);
+      try {
+        terminal.resize(80, 16);
+        shell.root.editor.setText("unsubmitted draft");
+        shell.root.render(80);
+        terminal.input("\u001b[1;5H");
+        const rows = shell.root.render(80);
+        const source = adapter.view().transcript.find(block => block.kind === "compaction")!;
+        const renderer = shell.root.transcriptComponent(source.id)!;
+        const spy = vi.spyOn(renderer, "render");
+        const linkRow = rows.find(row => stripTerminalSequences(row).includes("web"))!;
+        const linkText = stripTerminalSequences(linkRow);
+        expect(getPinnedPiTuiLinkAtColumn(linkRow, linkText.indexOf("web"))).toBe("https://example.com/summary");
+        expect(getPinnedPiTuiLinkAtColumn(linkRow, linkText.indexOf("file"))).toBe("file:///D:/work/summary.md");
+        expect(linkRow).toContain(piTheme().fg("mdLink", "web"));
+        expect(linkRow).toContain(piTheme().fg("accent", "file"));
+        const row = rows.findIndex(line => stripTerminalSequences(line).includes("copyable alpha beta")) + 1;
+        terminal.input(`\u001b[<0;3;${row}M`);
+        terminal.input(`\u001b[<32;21;${row}M`);
+        terminal.input(`\u001b[<0;21;${row}m`);
+        expect(shell.root.hasActiveSelection()).toBe(true);
+        for (let i = 0; i < 8; i++) {
+          const message = { role: "assistant", timestamp: time + 5, content: [{ type: "text", text: `stream ${i}` }] };
+          engine.session.emit({ type: "message_update", message, assistantMessageEvent: { type: "text_delta", delta: String(i) } });
+          await adapter.flushEvents();
+          shell.runtime.renderNow();
+        }
+        expect(spy).not.toHaveBeenCalled();
+        expect(shell.root.viewportPresentationEvidence().scrollTop).toBe(0);
+        expect(shell.root.hasActiveSelection()).toBe(true);
+        for (const width of [40, 100, 80]) {
+          terminal.resize(width, 16);
+          const resized = shell.root.render(width);
+          expect(resized.every(line => visibleWidth(line) <= width)).toBe(true);
+          expect(shell.root.viewportPresentationEvidence().followingEnd).toBe(false);
+          expect(shell.root.viewportPresentationEvidence().scrollTop).toBe(0);
+        }
+        expect(shell.root.hasActiveSelection()).toBe(true);
+        terminal.input("\u0003");
+        expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from("copyable alpha beta").toString("base64")}\u0007`);
+        expect(stripTerminalSequences(renderer.render(80).join("\n"))).toContain("summary-23 alpha beta");
+        expect(shell.root.editor.getText()).toBe("unsubmitted draft");
+        expect(adapter.view().transcript.find(block => block.id === source.id)?.text).toBe(text);
+      } finally { await shell.dispose(); }
+    });
+  });
+
+  it("keeps branch summaries, compaction working status and the comparison route unchanged", async () => {
+    const branch = { role: "branchSummary", summary: "Branch body.", fromId: "branch-1", timestamp: time };
+    for (const custom of [false, true]) {
+      const { engine, adapter, terminal, shell } = await fixture([compaction(), branch, reply("tail")], [], custom);
+      try {
+        terminal.resize(80, 16);
+        const before = shell.root.exitTranscript(80);
+        if (!custom) {
+          expect(before).toContain("ctrl+o");
+          expect(before).not.toContain("summary-23 alpha beta");
+        }
+        const branchBlock = adapter.view().transcript.find(block => (block.payload as { role?: string }).role === "branchSummary")!;
+        expect(stripTerminalSequences(shell.root.transcriptComponent(branchBlock.id)!.render(80).join("\n"))).toContain("ctrl+o");
+        engine.session.emit({ type: "compaction_start", reason: "manual" });
+        await adapter.flushEvents();
+        expect(stripTerminalSequences(shell.root.render(80).join("\n"))).toContain("Compacting");
+        engine.session.emit({ type: "compaction_end", reason: "manual", result: {}, aborted: false, willRetry: false });
+        await adapter.flushEvents();
+        expect(shell.root.exitTranscript(80)).toBe(before);
+        expect(adapter.view().transcript.filter(block => block.kind === "compaction")).toHaveLength(2);
+      } finally { await shell.dispose(); }
+    }
+  });
+});
 
 describe("OwnedUiSessionShell", () => {
   it.each([

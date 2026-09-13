@@ -65,7 +65,7 @@ export interface PiShellEditorPort extends PiShellComponentPort {
   keybindingConfig(): KeybindingsConfig;
   reloadKeybindings(): void;
   /** Uses Pi's terminal decoder rather than assuming one terminal escape spelling. */
-  matchesTerminalKey(data: string, key: "home" | "end" | "ctrl+home" | "ctrl+end" | "ctrl+v"): boolean;
+  matchesTerminalKey(data: string, key: "home" | "end" | "ctrl+home" | "ctrl+end" | "alt+home" | "ctrl+v"): boolean;
   getText(): string;
   setText(text: string): void;
   insertText(text: string): void;
