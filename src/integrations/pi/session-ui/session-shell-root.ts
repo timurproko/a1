@@ -1411,7 +1411,7 @@ function withoutTerminalBackground(text: string): string {
   return text.replace(TERMINAL_BACKGROUND, "");
 }
 
-/** Pinning preserves the source timestamp's metadata color independently of whole-row dimming. */
+/** A pinned timestamp is content now, not secondary transcript metadata. */
 function pinnedPromptSourceRow(
   block: OwnedUiSessionViewModel["transcript"][number],
   sourceRow: string,
@@ -1429,7 +1429,7 @@ function pinnedPromptSourceRow(
     sourceRow,
     rowWidth - timestampWidth,
     rowWidth,
-    piTheme().fg("dim", timestamp),
+    piTheme().fg("userMessageText", timestamp),
   );
 }
 
