@@ -345,7 +345,7 @@ describe("prompt-style compaction in the real engine and shell", () => {
     } finally { await shell.dispose(); }
   });
 
-  it.each(["hidden", "always", "auto"] as const)("preserves timestamp brightness when the pinned content dims with a %s scrollbar", async appearance => {
+  it.each(["hidden", "always", "auto"] as const)("reuses baseline prompt colors and whole-row dimming for compactions with a %s scrollbar", async appearance => {
     const snapshots = [];
     for (const kind of ["compaction", "user"] as const) {
       const summary = compaction();
@@ -384,10 +384,10 @@ describe("prompt-style compaction in the real engine and shell", () => {
         expect(sourceTimeColumn).toBeGreaterThanOrEqual(0);
         const sourceTimeStyle = rendered[0]![1]![sourceTimeColumn]!.foreground!;
         const sourceTimeColor = sourceTimeStyle.slice(0, 2);
-        // Invariant: metadata intensity and color stay fixed through quiet, hover, and reverse scrolling.
+        // Compatibility: baseline pinned metadata follows the text, including quiet and hover intensity.
         for (const state of [1, 2, 3, 4, 6]) {
           for (let column = timeColumn; column < timeColumn + 5; column++) {
-            expect(rendered[state]![0]![column]!.foreground).toEqual(sourceTimeStyle);
+            expect(rendered[state]![0]![column]!.foreground).toEqual(rendered[state]![0]![labelColumn]!.foreground);
             expect(rendered[state]![0]![column]!.background).toEqual(rendered[state]![0]![labelColumn]!.background);
           }
         }
@@ -397,14 +397,15 @@ describe("prompt-style compaction in the real engine and shell", () => {
         expect(rendered[1]![0]![labelColumn]!.foreground!.slice(0, 2)).not.toEqual(sourceTimeColor);
         expect(rendered[1]![0]![labelColumn]!.foreground![2]).toBe(0);
         expect(rendered[2]![0]![labelColumn]!.foreground![2]).not.toBe(0);
-        expect(rendered[2]![0]![timeColumn]!.foreground).toEqual(rendered[1]![0]![timeColumn]!.foreground);
+        expect(rendered[3]![0]![timeColumn]!.foreground).toEqual(rendered[1]![0]![timeColumn]!.foreground);
+        expect(rendered[5]![1]![sourceTimeColumn]!.foreground).toEqual(sourceTimeStyle);
         snapshots.push(rendered);
       } finally { await shell.dispose(); }
     }
     expect(snapshots[0]).toEqual(snapshots[1]);
   });
 
-  it.each([undefined, null, Number.NaN, 8.64e15 + 1, time])("isolates quiet timestamp styling through resize and unavailable metadata (%s)", async timestamp => {
+  it.each([undefined, null, Number.NaN, 8.64e15 + 1, time])("retains baseline quiet styling through resize and unavailable metadata (%s)", async timestamp => {
     for (const kind of ["user", "compaction"] as const) {
       const message = { ...(kind === "user" ? user("14:35 clock-like content") : compaction(281483, "Short summary.")), timestamp };
       const { adapter, terminal, shell } = await fixture([message, reply("tail")], [], true);
@@ -426,7 +427,7 @@ describe("prompt-style compaction in the real engine and shell", () => {
               const cell = line.getCell(column)!;
               if (!cell.getChars().trim()) continue;
               const isTimestamp = hasTimestamp && column >= width - 5;
-              expect(cell.isDim() !== 0, `${kind} width=${width} column=${column}`).toBe(!isTimestamp);
+              expect(cell.isDim() !== 0, `${kind} width=${width} column=${column}`).toBe(true);
               if (isTimestamp) expect(cell.isBold()).toBe(0);
               expect(cell.getBgColor()).toBe(line.getCell(0)!.getBgColor());
             }
@@ -437,7 +438,7 @@ describe("prompt-style compaction in the real engine and shell", () => {
     }
   });
 
-  it("replaces quiet timestamp metadata without fading clock-like content incorrectly or leaking intensity", async () => {
+  it("replaces quiet timestamp metadata while dimming the whole row without leaking intensity", async () => {
     const later = { ...user("14:35 is content, not metadata"), timestamp: time + 60_000 };
     const { terminal, shell } = await fixture([compaction(281483, "Short summary."), reply("first"), later, reply("tail")], [], true);
     try {
@@ -458,7 +459,7 @@ describe("prompt-style compaction in the real engine and shell", () => {
           await new Promise<void>(resolve => screen.write(`${frame[0]}\r\nsentinel`, resolve));
           const row = screen.buffer.active.getLine(0)!;
           expect(row.translateToString().slice(74, 79)).toBe(expected);
-          for (let column = 74; column < 79; column++) expect(row.getCell(column)!.isDim()).toBe(0);
+          for (let column = 74; column < 79; column++) expect(row.getCell(column)!.isDim()).not.toBe(0);
           expect(row.getCell(2)!.isDim()).not.toBe(0);
           expect(row.getCell(73)!.isDim()).not.toBe(0);
           expect(screen.buffer.active.getLine(1)!.getCell(0)!.isDim()).toBe(0);
@@ -1894,10 +1895,7 @@ describe("OwnedUiSessionShell", () => {
     const detachedRaw = shell.root.render(60);
     const detached = detachedRaw.map(row => stripTerminalSequences(row));
     expect(detached).toHaveLength(12);
-    // Invariant: intensity resets may separate the timestamp's foreground escape from its glyphs.
-    const pinnedColors = detachedRaw[0]!.replaceAll("\u001b[22m", "");
-    expect(pinnedColors).toContain(piTheme().fg("dim", "11:57"));
-    expect(pinnedColors).not.toContain(piTheme().fg("userMessageText", "11:57"));
+    expect(detachedRaw[0]).toContain(piTheme().fg("userMessageText", "11:57"));
     expect(detached.some(row => row.includes("Jump to bottom (Ctrl+End) ↓"))).toBe(true);
     expect(detached[0]).not.toContain("│");
     expect(detached.slice(1, -4).some(row => row.includes("│"))).toBe(true);

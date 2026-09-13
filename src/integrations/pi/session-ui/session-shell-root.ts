@@ -20,6 +20,7 @@ import {
   promptArrow,
   displayWidth,
   faint,
+  formatSubmittedPromptTime,
   heldNativeHyperlinkStyle,
   hyperlinkSgrSpan,
   nativeHyperlinkStyle,
@@ -410,13 +411,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
         hovered ? "selectedBg" : "toolPendingBg",
         piTheme().fg("text", withoutTerminalBackground(text)),
       ),
-      quietSticky: (text, timestampColumns) => {
-        const quiet = `\u001b[2m${text.replace(/\u001b\[(?:0|22)m/g, "$&\u001b[2m")}\u001b[22m`;
-        // Invariant: exempt only semantic timestamp glyphs after quiet resets have been reinstated.
-        return timestampColumns === undefined ? quiet : backgroundSgrSpan(
-          quiet, timestampColumns.from, timestampColumns.to, "\u001b[22m", "",
-        );
-      },
+      quietSticky: text => `\u001b[2m${text.replace(/\u001b\[(?:0|22)m/g, "$&\u001b[2m")}\u001b[22m`,
       bottomControl: (text, hovered) => piTheme().bg(hovered ? "selectedBg" : "toolPendingBg", piTheme().fg("text", text)),
       selection: (line, from, to) => backgroundSgrSpan(
         line,
@@ -908,7 +903,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
           id: block.id,
           firstRow,
           lastRow: Math.max(firstRow, rows.length - 1),
-          ...pinnedPromptSource(block, blockRows[0], blockWidth),
+          sourceRow: pinnedPromptSourceRow(block, blockRows[0], blockWidth),
         });
       }
     }
@@ -1416,22 +1411,26 @@ function withoutTerminalBackground(text: string): string {
   return text.replace(TERMINAL_BACKGROUND, "");
 }
 
-/** Pinning preserves the source timestamp's metadata color independently of whole-row dimming. */
-function pinnedPromptSource(
+/** A pinned timestamp is content now, not secondary transcript metadata. */
+function pinnedPromptSourceRow(
   block: OwnedUiSessionViewModel["transcript"][number],
   sourceRow: string,
   width: number,
-): Pick<TranscriptPromptAnchor, "sourceRow" | "timestampColumns"> {
-  if (typeof block.payload !== "object" || block.payload === null) return { sourceRow };
+): string {
+  if (typeof block.payload !== "object" || block.payload === null) return sourceRow;
   const value = (block.payload as Record<string, unknown>).timestamp;
-  if (typeof value !== "number" || !Number.isFinite(value)) return { sourceRow };
-  const { timestamp } = submittedPromptLayout(width, value);
-  if (timestamp === null || displayWidth(sourceRow) < width) return { sourceRow };
-  const timestampColumns = { from: width - displayWidth(timestamp), to: width };
-  return {
-    sourceRow: overlaySpan(sourceRow, timestampColumns.from, timestampColumns.to, piTheme().fg("dim", timestamp)),
-    timestampColumns,
-  };
+  if (typeof value !== "number" || !Number.isFinite(value)) return sourceRow;
+  const timestamp = formatSubmittedPromptTime(value);
+  if (timestamp === null || submittedPromptLayout(width, value).timestamp === null) return sourceRow;
+  const rowWidth = displayWidth(sourceRow);
+  const timestampWidth = displayWidth(timestamp);
+  if (rowWidth < timestampWidth) return sourceRow;
+  return overlaySpan(
+    sourceRow,
+    rowWidth - timestampWidth,
+    rowWidth,
+    piTheme().fg("userMessageText", timestamp),
+  );
 }
 
 function layoutPort(

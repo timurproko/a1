@@ -1,38 +1,35 @@
 ## Context
 
-See proposal.md for the reported readability problem and specs/custom-session-viewport/spec.md for the confirmed behavior. On base `3e9e5dae` (merged PR #360), `pinnedPromptSourceRow` preserves the timestamp's `dim` metadata foreground. The shell's `quietSticky` painter then wraps the entire row in SGR faint and reinstates faint after resets, dimming the already-gray timestamp a second time. Matching raw foreground RGB alone is therefore insufficient to prove matching visible brightness.
+See proposal.md for the approved correction. The styling reference is develop `53e924c8`, immediately before #360. Its `pinnedPromptSourceRow` uses `userMessageText` for the pinned timestamp. Its shared `quietSticky` painter applies faint to the whole row; hover uses the full prominent row. The default dark theme therefore shows white prominent/hovered text and timestamp and dims both in quiet context. Naturally visible source timestamps remain metadata-colored.
 
-The earlier compaction delta remains unsynchronized while its visual acceptance is outstanding. This follow-up adds a separately named timestamp invariant to the same capability, so later synchronization must preserve both the compaction anchor requirements and this explicit quiet-timestamp exception. Do not archive or mark the earlier acceptance complete based on this plan.
+#360 changed the pinned timestamp to `dim`. The first #368 implementation additionally introduced `timestampColumns` and excluded those glyphs from quiet fading. Both deviations are now rejected by the user. Preserve the compaction presentation/navigation additions and all unrelated develop changes while restoring only the original shared style path.
 
 ## Goals / Non-Goals
 
-**Goals:** Isolate the timestamp span from additional quiet styling while retaining the existing prominent metadata role and shared prompt/compaction behavior.
+**Goals:** Restore the baseline ordinary-prompt appearance and propagate it unchanged to completed compactions in every viewport state.
 
-**Non-Goals:** No palette adjustment, hardcoded replacement gray, white timestamp restoration, global quiet-style removal, persisted metadata change, renderer scheduling repair, or comparison-route customization. Issue #366 remains a separate investigation; do not weaken rendering budgets to land this change.
+**Non-Goals:** No timestamp-specific styling API, protected metadata span, new palette, hardcoded white RGB, prompt-layout redesign, rendering-budget change, compaction collapse mechanism, or comparison-route change. Issue #366 remains separate.
 
 ## Decisions
 
-### Protect a semantic timestamp span at sticky composition
+### Restore the baseline instead of creating another exception
 
-Use timestamp layout metadata to distinguish the actual timestamp from row content, rather than a regular expression over clock-like text or a guessed rightmost suffix. Apply quiet styling to the remaining row while preserving the timestamp's pre-dimming foreground and intensity. If the neutral viewport needs optional timestamp-span metadata, retain unchanged behavior for anchors without that metadata; keep the theme color decision in the owned shell.
+Remove optional timestamp columns from neutral anchors and quiet-painter arguments. Restore the previous owned prompt-source helper and one-argument quiet painter, including `userMessageText` for pinned timestamps. Reuse existing theme roles rather than compensating with RGB values or new intensity resets. No compaction-specific color branch is needed: the anchor classification from #360 already sends both block types through the same path.
 
-A reset inserted before the timestamp at source-render time is insufficient because the current quiet painter deliberately reinstates faint after resets. The exemption must take effect at or after quiet-row composition, retain the row background, and restore surrounding style state without bleeding into padding, the rail, or later rows. Do not globally disable faint: the prefix and content must still become quiet.
+Restore only these style changes, not entire old source files containing unrelated newer renderer behavior. Verify the resulting helper and quiet painter against `53e924c8` and check that the neutral viewport has no remaining diff from its pre-exemption version.
 
-### Preserve colors instead of compensating for fading
+### Compare state behavior rather than enforcing constant metadata brightness
 
-Keep the current source/prominent `dim` metadata role, resolving through the active theme. Removing only the added quiet intensity preserves the user's chosen pre-dimming appearance across palettes. Raising RGB values or using the foreground text role was rejected because it would alter the prominent timestamp or revive the white-timestamp complaint.
+Replace the rejected invariant tests with explicit baseline-state assertions: source metadata color is unchanged; prominent and hovered timestamps use the normal prompt foreground with normal intensity; quiet prefix, content, and timestamp all use existing faint styling. Compare equivalent ordinary prompts and compactions across full rows, hover, reverse scrolling, and scrollbar appearances, preserving backgrounds and summary-internal semantics.
 
-### Validate effective terminal attributes
-
-Extend real-shell/headless-cell comparisons for both normal prompts and compactions. Compare timestamp foreground and faint/bold attributes across source, prominent-pinned, quiet-pinned, and hover transitions, while independently asserting prefix/content fading. Existing tests that expect both label and timestamp to become faint must be updated to the confirmed exception, not removed. Cover clock-like prompt text, missing/invalid timestamps, narrow widths, resize, and anchor replacement so only real timestamp glyphs are exempted.
+Retain edge-case coverage for metadata availability, narrow widths, resize, clock-like content, anchor replacement, and style leakage. Remove tests that exist solely to exercise the deleted timestamp-column API. Do not weaken compatibility or rendering-budget assertions.
 
 ## Risks / Trade-offs
 
-- [Faint escapes override a timestamp reset] → Validate decoded terminal-cell attributes after final composition, not just emitted escape substrings.
-- [A clock-like body substring is mistaken for metadata] → Carry or derive a semantic span from the shared timestamp layout; add a collision fixture.
-- [Timestamp styling leaks into selection, rail, or subsequent rows] → Exercise backgrounds, hover, width bounds, adjacent cells, and semantic copy in focused regressions.
-- [Independent spec synchronization loses earlier compaction behavior] → Keep this separately named invariant and verify it alongside the earlier compaction delta during eventual archive.
+- [Matching two equally restyled implementations misses baseline drift] → Compare restored source helpers with the pinned historical commit and assert the known baseline foreground/intensity transitions in real terminal cells.
+- [A broad revert drops compaction navigation or renderer fixes] → Use targeted edits; review production diffs against both current develop and the baseline.
+- [Old planning/evidence still asserts a timestamp exception] → Supersede all active artifacts coherently and label earlier validation as rejected, not current acceptance.
 
 ## Migration Plan
 
-After this OpenSpec-only proposal merges and the user requests implementation, use a new detached implementation worktree and separate PR. Run focused viewport/session checks, typechecking, strict specification validation, and required CI. Supply an exact built, color-preserving local review command and obtain visual acceptance of unchanged timestamp brightness while the rest of the pinned row fades. No data migration is required; rollback affects only the timestamp styling exemption and its tests.
+The user explicitly approved revising the specification and implementation together within open PR #368. Validate the revised artifacts before applying the code correction, then run focused suites, typechecking, strict validation, and required CI. Keep the PR open with auto-merge disabled for an exact-candidate visual comparison to baseline ordinary prompts. No data migration is needed. Earlier compaction acceptance and archive remain pending.

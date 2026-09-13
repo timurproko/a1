@@ -1,13 +1,14 @@
 ## Why
 
-After PR #360, a pinned timestamp keeps its normal gray metadata color but receives additional whole-row faint styling when its source block scrolls out, making it barely visible. The user confirmed that the timestamp must remain exactly as it looks before the row dims, while only the rest of the pinned row fades.
+The timestamp-specific changes in #360 and the first #368 candidate restyled ordinary prompts instead of simply reusing their existing behavior for compactions. During review the user explicitly approved restoring pre-#360 prompt styling, including white text and timestamp on hover, and applying that unchanged behavior to compactions.
 
 ## What Changes
 
-- Exempt the timestamp glyphs from the additional quiet-state fading on bare-A1 pinned user prompts and completed compactions.
-- Retain the current pre-dimming metadata color and brightness; do not restore the former white timestamp or introduce a brighter palette.
-- Keep the prefix and content quiet after the full source block scrolls out, with unchanged hover behavior for the rest of the row.
-- Preserve timestamp formatting, original event time, width omission, normal source rows, prompt navigation, click-to-source, selection/copy, links, caches, and the `a1 pi` comparison route.
+- Restore ordinary submitted-prompt source, prominent-pinned, quiet-pinned, and hover styling from develop `53e924c8`, immediately before #360.
+- Reuse that same styling for completed compactions; retain their full inline summary, normal-weight generated header, anchors, and navigation.
+- Remove #368's timestamp-column metadata and quiet-intensity exemption. Quiet styling again applies to the whole pinned row, including its timestamp; hovering restores the baseline prominent row.
+- Undo #360's pinned timestamp recoloring to the `dim` metadata role. Naturally visible source timestamps retain their baseline metadata styling; pinned timestamps use the existing prompt foreground role, white in the default dark theme.
+- Preserve layout, original event times, width omission, selection/copy, native links, caches, input ownership, and the comparison route.
 
 ## Capabilities
 
@@ -17,8 +18,8 @@ None.
 
 ### Modified Capabilities
 
-- `custom-session-viewport`: Specify invariant pinned-timestamp brightness as an explicit exception to quiet-row fading.
+- `custom-session-viewport`: Require compactions to reuse the established submitted-prompt state styling, without timestamp-specific exceptions or ordinary-prompt restyling.
 
 ## Impact
 
-The expected implementation surface is the owned sticky-row timestamp composition and quiet-style boundary, with focused viewport and real-shell cell-attribute regressions. No dependency, session format, theme palette, or compaction-generation changes are intended. This is a follow-up to merged PR #360, not evidence that its outstanding visual acceptance passed; the earlier change remains unarchived pending resolution of this finding.
+This user-approved review revision supersedes the original timestamp-exemption proposal from #367. Keep the existing change identifier, worktree, and open implementation PR #368; revise planning artifacts before applying the correction. No dependency, session-format, compaction-generation, unrelated renderer, or palette changes are intended. Earlier compaction acceptance remains unrecorded; this revision is not evidence of acceptance.
