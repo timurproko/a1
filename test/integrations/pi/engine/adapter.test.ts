@@ -570,7 +570,8 @@ describe("Pi engine adapter", () => {
     expect(transcript.find(block => block.kind === "tool-result")).toMatchObject({
       id: "tool-call-1",
       text: "file summary",
-      payload: { toolCallId: "call-1", toolName: "read", arguments: { json: { path: "README.md" } } },
+      payload: { toolCallId: "call-1", toolName: "read" },
+      toolRendering: { arguments: { path: "README.md" } },
     });
     expect(transcript.find(block => block.kind === "bash")).toMatchObject({ title: "printf ok", text: "ok" });
     expect(transcript.find(block => block.kind === "custom")).toMatchObject({ title: "notice", text: "extension notice" });

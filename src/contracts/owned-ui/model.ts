@@ -159,6 +159,24 @@ export interface OwnedUiTranscriptImageReference {
   readonly source: "user" | "tool-result";
 }
 
+/** Argument generation and execution have distinct completion boundaries on one invocation. */
+export interface OwnedUiToolState {
+  readonly argsComplete: boolean;
+  readonly execution: "pending" | "running" | "succeeded" | "failed" | "aborted";
+}
+
+/** Vendor-neutral rendering metadata; text and image bytes are not duplicated here. */
+export type OwnedUiToolResultPart =
+  | { readonly type: "text"; readonly start: number; readonly end: number }
+  | { readonly type: "image"; readonly imageIndex: number };
+
+export interface OwnedUiToolRendering {
+  readonly arguments: unknown;
+  readonly result?: { readonly content: readonly OwnedUiToolResultPart[]; readonly details?: unknown };
+  /** Visible bounded fallback, never a substitute operation outcome. */
+  readonly unavailable?: string;
+}
+
 export interface OwnedUiTranscriptBlock {
   readonly id: OwnedUiEntityId;
   readonly kind: OwnedUiTranscriptBlockKind;
@@ -167,6 +185,10 @@ export interface OwnedUiTranscriptBlock {
   readonly title: string | null;
   readonly text: string;
   readonly payload: unknown;
+  /** Tool-call message completion alone must not settle execution. */
+  readonly toolState?: OwnedUiToolState;
+  /** Authoritative renderer inputs, separate from diagnostic payloads. */
+  readonly toolRendering?: OwnedUiToolRendering;
   /** Bounded opaque references; image bytes remain in the session-scoped engine asset store. */
   readonly imageReferences?: readonly OwnedUiTranscriptImageReference[];
 }
