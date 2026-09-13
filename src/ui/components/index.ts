@@ -2,6 +2,7 @@ export * from "./dialog-panel.js";
 export * from "./frame.js";
 export * from "./label.js";
 export * from "./line-input.js";
+export * from "./prompt-input.js";
 export * from "./list-block.js";
 export * from "./list-view.js";
 export * from "./mouse.js";

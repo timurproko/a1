@@ -1,9 +1,12 @@
 import { mkdtemp, rm } from "node:fs/promises";
+import { promptInputPresentation } from "../../../support/prompt-input-presentation.js";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { describe, expect, it } from "vitest";
 import { stripTerminalSequences } from "#pi-tui";
 import { createPiShellEditor, loadHistoryEditor, piTheme, type PiShellEditorOptions } from "../../../../src/integrations/pi/components/index.js";
+
+import { promptRuleText } from "../../../../src/ui/components/index.js";
 
 describe("history editor component boundary", () => {
   it.each(["ordinary prompt", "!echo test"])("uses neutral status grey for history while preserving the input bars for %s", async text => {
@@ -12,14 +15,14 @@ describe("history editor component boundary", () => {
       const editor = createPiShellEditor({
         keybindingProfile: "a1", persistentHistory: true, historyEditor: await loadHistoryEditor(), agentDir: root, cwd: root,
         getColumns: () => 80, getRows: () => 24, requestRender() {}, onSubmit() {},
-        promptPresentation: { prefix: "❯ ", styleSuggestion: value => value, styleSuggestionCaret: value => value },
+        promptPresentation: promptInputPresentation(),
       });
       editor.recall!.replace([text]);
       editor.handleInput?.("\x1b[A");
       for (const level of ["low", "high"] as const) {
         editor.setThinkingLevel(level);
         const rows = editor.render(80);
-        const bar = text.startsWith("!") ? piTheme().getBashModeBorderColor() : piTheme().getThinkingBorderColor(level);
+        const bar = promptRuleText;
         expect(rows[0]).toContain(piTheme().fg("dim", "1/1 "));
         expect(rows[0]).not.toContain("History");
         expect(stripTerminalSequences(rows[0]!).indexOf("1/1")).toBe(4);
@@ -41,7 +44,7 @@ describe("history editor component boundary", () => {
         getColumns: () => 50, getRows: () => 24, requestRender() {},
         onSubmit: text => actions[index]!.push(`submit:${text}`), onCopyText: text => actions[index]!.push(`copy:${text}`),
         onInterrupt: () => actions[index]!.push("interrupt"),
-        promptPresentation: { prefix: "❯ ", styleSuggestion: text => text, styleSuggestionCaret: text => text },
+        promptPresentation: promptInputPresentation(),
       });
       const pinned = createPiShellEditor(options(0));
       const owned = createPiShellEditor({ ...options(1), persistentHistory: true, historyEditor: await loadHistoryEditor() });

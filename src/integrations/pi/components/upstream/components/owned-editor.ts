@@ -2,12 +2,11 @@
  * Adapted from @earendil-works/pi-coding-agent 0.84.2
  * packages/coding-agent/src/modes/interactive/components/custom-editor.ts (MIT).
  * Modifications: A1-owned class name, synchronized keybinding contract, and a semantic
- * bare-A1 prompt-prefix/contextual-suggestion presentation branch with explicit body geometry.
+ * injected bare-A1 input-frame/contextual-suggestion presentation with explicit body geometry.
  */
 import {
   CURSOR_MARKER,
   Editor,
-  truncateToWidth,
   visibleWidth,
   wrapTextWithAnsi,
   type EditorOptions,
@@ -16,13 +15,14 @@ import {
 } from "#pi-tui";
 import type { AppKeybinding, KeybindingsManager } from "../adjacent/core/keybindings.js";
 import type { EditorSurface } from "../../editor-interaction.js";
+import type { PiShellPromptInputPresentation } from "../../prompt-input-port.js";
 
 const PROMPT_GRAPHEMES = new Intl.Segmenter(undefined, { granularity: "grapheme" });
 
 export interface OwnedEditorOptions extends EditorOptions {
   readonly persistentHistory?: boolean;
   readonly styleHistoryLabel?: (text: string) => string;
-  readonly promptPrefix?: string;
+  readonly inputPresentation?: PiShellPromptInputPresentation;
   readonly styleSuggestion?: (text: string) => string;
   readonly styleSuggestionCaret?: (text: string) => string;
   readonly terminalRows?: () => number;
@@ -56,7 +56,7 @@ return class extends Base {
   onExtensionShortcut?: (data: string) => boolean;
   onPromptSuggestionAccepted?: (text: string) => void;
   #promptSuggestion: string | null = null;
-  readonly #promptPrefix: string;
+  readonly #inputPresentation: PiShellPromptInputPresentation | undefined;
   readonly #styleSuggestion: (text: string) => string;
   readonly #styleSuggestionCaret: (text: string) => string;
   readonly #terminalRows: () => number;
@@ -65,7 +65,7 @@ return class extends Base {
 
   constructor(tui: TUI, theme: EditorTheme, private readonly keybindings: KeybindingsManager, options: OwnedEditorOptions = {}) {
     super(tui, theme, options);
-    this.#promptPrefix = options.promptPrefix ?? "";
+    this.#inputPresentation = options.inputPresentation;
     this.#styleSuggestion = options.styleSuggestion ?? (text => text);
     this.#styleSuggestionCaret = options.styleSuggestionCaret ?? (text => `\u001b[7m${text}\u001b[27m`);
     this.#terminalRows = options.terminalRows ?? (() => 24);
@@ -79,7 +79,7 @@ return class extends Base {
   }
 
   canPresentPromptSuggestion(): boolean {
-    return this.#promptPrefix.length > 0
+    return this.#inputPresentation !== undefined
       && this.focused
       && !this.disableSubmit
       && this.getText().length === 0
@@ -92,7 +92,7 @@ return class extends Base {
   }
 
   override render(width: number): string[] {
-    if (this.#promptPrefix.length === 0) {
+    if (this.#inputPresentation === undefined) {
       const rows = super.render(width);
       this.#renderedBodyRowCount = this.#getVisualLineCount === undefined ? rows.length : this.#measureBodyRows(width);
       return rows;
@@ -150,16 +150,11 @@ return class extends Base {
   }
 
   #renderSuggestion(width: number): string[] {
-    const prefixWidth = visibleWidth(this.#promptPrefix);
-    const innerWidth = Math.max(1, width - prefixWidth);
-    const maxPadding = Math.max(0, Math.floor((innerWidth - 1) / 2));
-    const paddingX = Math.min(this.getPaddingX(), maxPadding);
-    const contentWidth = Math.max(1, innerWidth - paddingX * 2);
-    const layoutWidth = Math.max(1, contentWidth - (paddingX ? 0 : 1));
+    const presentation = this.#inputPresentation!;
+    const { paddingX, contentWidth, layoutWidth } = presentation.geometry(width, this.getPaddingX());
     const chunks = wrapTextWithAnsi(this.#promptSuggestion ?? "", layoutWidth).map(text => ({ text }));
     const maxVisible = Math.max(5, Math.floor(this.#terminalRows() * 0.3));
     const visible = chunks.slice(0, maxVisible);
-    const horizontal = this.borderColor("─".repeat(Math.max(0, width)));
     const leftPadding = " ".repeat(paddingX);
     const rightPadding = leftPadding;
     const rows = visible.map((chunk, index) => {
@@ -174,22 +169,23 @@ return class extends Base {
       }
       const plainWidth = visibleWidth(chunk.text);
       const padding = " ".repeat(Math.max(0, contentWidth - plainWidth));
-      const prefix = index === 0 ? this.#promptPrefix : " ".repeat(prefixWidth);
-      return truncateToWidth(`${prefix}${leftPadding}${content}${padding}${rightPadding}`, width);
+      return `${leftPadding}${content}${padding}${rightPadding}`;
     });
-    return [horizontal, ...rows, horizontal];
+    return presentation.render(width, () => ({ rows }));
   }
 
   #renderPrefixedEditor(width: number): string[] {
-    const prefixWidth = visibleWidth(this.#promptPrefix);
-    const innerWidth = Math.max(1, width - prefixWidth);
-    const rows = super.render(innerWidth);
-    this.#renderedBodyRowCount = this.#measureBodyRows(innerWidth);
-    const bottomBorder = this.#renderedBodyRowCount - 1;
-    return rows.map((row, index) => {
-      if (index === 0 || index === bottomBorder) return `${row}${this.borderColor("─".repeat(prefixWidth))}`;
-      return `${index === 1 ? this.#promptPrefix : " ".repeat(prefixWidth)}${row}`;
-    });
+    return this.#inputPresentation!.render(width, innerWidth => {
+      const rows = super.render(innerWidth);
+      this.#renderedBodyRowCount = this.#measureBodyRows(innerWidth);
+      const bottomBorder = this.#renderedBodyRowCount - 1;
+      return {
+        rows: rows.slice(1, bottomBorder),
+        topRule: rows[0],
+        bottomRule: rows[bottomBorder],
+        after: rows.slice(bottomBorder + 1),
+      };
+    }, true, this.getPaddingX());
   }
 
   #measureBodyRows(width: number): number {

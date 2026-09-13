@@ -9,10 +9,11 @@ import type {
 } from "../../../contracts/owned-ui/index.js";
 import type { UiRouteHost } from "../../../ui/apps/index.js";
 import {
-  PROMPT_GLYPH,
   backgroundSgrSpan,
   caretCell,
   composeSubmittedPromptRows,
+  PromptInput,
+  promptArrow,
   displayWidth,
   faint,
   formatSubmittedPromptTime,
@@ -76,6 +77,7 @@ import {
   createPiShellUserMessageSelector,
   onPiThemeChange,
   piShellVisibleWidth,
+  piShellTruncateToWidth,
   piTheme,
   renderPiShellCommandMessage,
   renderPiShellPackageUpdateNotice,
@@ -278,7 +280,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.#submittedPromptComposer = this.#customViewport
       ? {
           layout: submittedPromptLayout,
-          compose: (rows, width, source, style) => composeSubmittedPromptRows(rows, width, source, style)
+          compose: (rows, width, source, style) => composeSubmittedPromptRows(rows, width, source, { ...style, prefix: text => promptArrow(text, piTheme()) })
             .map(row => nativeHyperlinkStyle(row, nativeTranscriptLinkColor)),
         }
       : undefined;
@@ -289,10 +291,13 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.#onViewportFrame = handlers.onViewportFrame;
     this.#onInputSurfaceChanged = handlers.onInputSurfaceChanged;
     this.#dockInputReuseEnabled = handlers.enableDockInputReuse ?? true;
-    this.header = createPiShellHeader(startup);
+    this.header = createPiShellHeader({
+      ...startup,
+      ...(this.#customViewport ? { getKeybindings: () => this.editor.keybindingConfig() } : {}),
+    });
     this.resources = createPiShellLoadedResources(startup.resources ?? [], startup.expanded ?? false);
     this.#status = createPiShellStatus(view, progressStatusText, handlers);
-    this.#footer = createPiShellFooter(this.#viewWithExtensionStatuses(view), cwd);
+    this.#footer = createPiShellFooter(this.#viewWithExtensionStatuses(view), cwd, this.#customViewport ? "a1" : "pi");
     this.#queued = createPiQueuedInputStatus(
       view.editor.queuedSubmissions,
       this.#customViewport ? "custom-viewport" : "pinned",
@@ -361,7 +366,10 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       onToolsExpand: () => this.#setToolsExpanded(!this.#toolsExpanded),
       ...(this.#customViewport ? {
         promptPresentation: {
-          prefix: PROMPT_GLYPH,
+          input: new PromptInput({ fg: (token, text) => piTheme().fg(token, text) }, {
+            measure: piShellVisibleWidth,
+            truncate: piShellTruncateToWidth,
+          }),
           styleSuggestion: faint,
           styleSuggestionCaret: caretCell,
         },
