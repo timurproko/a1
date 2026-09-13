@@ -10,5 +10,5 @@
 
 ## 3. Review handoff
 
-- [ ] 3.1 Push the user-approved specification/implementation revision to existing PR #368, update its description, and report current required CI with auto-merge disabled.
+- [x] 3.1 Push the user-approved specification/implementation revision to existing PR #368, update its description, and report current required CI with auto-merge disabled.
 - [ ] 3.2 Provide an exact built candidate and color-preserving launch command; obtain user visual acceptance of baseline ordinary-prompt styling reused for compactions, including hover, before explicit merge authorization. Keep earlier compaction acceptance unrecorded until validated.

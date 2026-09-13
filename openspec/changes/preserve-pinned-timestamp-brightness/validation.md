@@ -23,6 +23,10 @@ Retained edge cases cover unavailable/invalid timestamps, the engine's existing 
 - Typecheck, full code-documentation governance, strict OpenSpec validation, diff checks, and build passed.
 - No local `test:fast`, `test:full`, or `test:release` tier was run. Synthetic sessions and diagnostic logs remain local artifacts.
 
+## Revised PR handoff
+
+Correction `8e719c6f` was pushed to existing PR #368 with its title and description updated to the baseline-restoration contract. GitHub confirmed the PR open and conflict-free with `auto_merge: null`; fresh CI was starting when checked. The handoff-record commit carries no runtime changes. Required CI and physical acceptance remain pending.
+
 ## Manual acceptance pending
 
 Worktree: `D:/Git/a1/.worktrees/pinned-timestamp-brightness-impl`
