@@ -65,6 +65,12 @@ with the selected model for eligible turns. Disabling it takes effect immediatel
 Tab accepts a suggestion as editable text; Enter submits it afterward. The setting
 remains stored in A1's profile, and `a1 pi` is unchanged.
 
+Suggestions use the selected model's lowest supported reasoning effort without
+changing your main thinking level. Clear next actions such as `archive it` are
+preferred when consistent with your intent; genuinely unclear cases can remain
+empty. [Private diagnostic capture](docs/architecture/prompt-suggestions.md)
+explains how to distinguish skipped, empty, rejected, and timed-out suggestions.
+
 ## Prompt history
 
 Bare A1 recalls recent unique prompts across sessions with Up/Down. History is

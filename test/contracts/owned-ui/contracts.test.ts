@@ -154,10 +154,18 @@ describe("owned UI command, event, and snapshot contracts", () => {
       successful: true,
     }))).not.toThrow();
     expect(() => assertOwnedUiPromptSuggestionRequest({ identity, signal: new AbortController().signal })).not.toThrow();
-    expect(() => assertOwnedUiPromptSuggestionResult({ identity, text: "run the tests" })).not.toThrow();
+    expect(() => assertOwnedUiPromptSuggestionResult({ identity, outcome: "candidate", text: "run the tests" })).not.toThrow();
     expect(() => assertOwnedUiPromptSuggestionState({ status: "prepared", identity, text: "run the tests" })).not.toThrow();
     expect(() => assertOwnedUiPromptSuggestionState({ status: "available", identity, text: "run the tests" })).not.toThrow();
-    expect(() => assertOwnedUiPromptSuggestionResult({ identity, text: "x".repeat(100) })).toThrow(/suggestion text/);
+    expect(() => assertOwnedUiPromptSuggestionResult({ identity, outcome: "candidate", text: "x".repeat(100) })).toThrow(/suggestion text/);
+    for (const outcome of ["empty", "rejected", "provider-failure", "unavailable", "cancelled"] as const) {
+      expect(() => assertOwnedUiPromptSuggestionResult({ identity, outcome, text: null })).not.toThrow();
+      expect(() => assertOwnedUiPromptSuggestionResult({ identity, outcome, text: "archive it" } as never)).toThrow(/outcome/);
+    }
+    for (const text of [null, "", " "]) {
+      expect(() => assertOwnedUiPromptSuggestionResult({ identity, outcome: "candidate", text } as never)).toThrow();
+    }
+    expect(() => assertOwnedUiPromptSuggestionResult({ identity, text: "archive it" } as never)).toThrow(/outcome/);
     expect(() => assertOwnedUiPromptSuggestionState({ status: "generating", identity: { ...identity, runSequence: -1 }, settled: false })).toThrow(/run sequence/);
     expect(() => assertOwnedUiEvent(event({
       type: "assistant-message-completed",

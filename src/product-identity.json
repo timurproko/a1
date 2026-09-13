@@ -22,6 +22,7 @@
     "profileHome": "A1_PROFILE_HOME",
     "runtimeDir": "A1_RUNTIME_DIR",
     "startupTrace": "A1_STARTUP_TRACE",
+    "suggestionDiagnostics": "A1_SUGGESTION_DIAGNOSTICS",
     "terminalSessionId": "A1_TERMINAL_SESSION_ID"
   },
   "state": {

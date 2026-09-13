@@ -49,10 +49,12 @@ export interface OwnedUiPromptSuggestionRequest {
   readonly signal: AbortSignal;
 }
 
-export interface OwnedUiPromptSuggestionResult {
-  readonly identity: OwnedUiPromptSuggestionIdentity;
-  readonly text: string | null;
-}
+export type OwnedUiPromptSuggestionReasoning = "ordinary" | "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "unavailable";
+
+export type OwnedUiPromptSuggestionResult = { readonly identity: OwnedUiPromptSuggestionIdentity } & (
+  | { readonly outcome: "candidate"; readonly text: string }
+  | { readonly outcome: "empty" | "rejected" | "provider-failure" | "unavailable" | "cancelled"; readonly text: null }
+);
 
 export type OwnedUiPromptSuggestionState =
   | { readonly status: "idle" }
@@ -61,6 +63,8 @@ export type OwnedUiPromptSuggestionState =
   | { readonly status: "available"; readonly identity: OwnedUiPromptSuggestionIdentity; readonly text: string };
 
 export interface OwnedUiPromptSuggestionGeneratorPort {
+  /** Request-local policy; never changes the primary session's thinking setting. */
+  suggestionReasoningPolicy?(): OwnedUiPromptSuggestionReasoning;
   generate(request: OwnedUiPromptSuggestionRequest): Promise<OwnedUiPromptSuggestionResult>;
 }
 

@@ -1,3 +1,5 @@
+import { SUGGESTION_CONVERSATIONS } from "../../../fixtures/prompt-suggestion-conversations.js";
+import { SuggestionDiagnosticCapture } from "../../../../src/features/prompt-suggestions/index.js";
 import { memoryHistory } from "./prompt-history-fixture.js";
 import { PromptHistoryService } from "../../../../src/features/prompt-history/index.js";
 import { PromptHistoryStore } from "../../../../src/features/prompt-history/store.js";
@@ -79,6 +81,7 @@ class Session {
 
 class Runtime {
   readonly session: Session;
+  completeSuggestion: () => Promise<unknown> = async () => ({ content: [{ type: "text", text: "archive it" }] });
   enabledModels: readonly string[] | undefined;
   doubleEscapeAction: "fork" | "tree" | "none" = "tree";
   loginPromptKind: "select" | "optional-text" = "select";
@@ -104,6 +107,7 @@ class Runtime {
       getExtensions: () => ({ extensions: this.extensionResources, errors: [] }),
     },
     modelRuntime: {
+      completeSimple: vi.fn((_model: unknown, _context: unknown, _options: unknown) => this.completeSuggestion()),
       getModel: (provider: string, id: string) => this.availableModels.find(model => model.provider === provider && model.id === id),
       getAvailableSnapshot: () => this.availableModels.filter(model => this.providerAuthStatus.get(model.provider)?.configured === true),
       getProviders: () => [{ id: "openai", name: "OpenAI Codex", auth: { oauth: {}, apiKey: {} } }],
@@ -188,8 +192,10 @@ async function fixture(
   inputPresentation?: OwnedUiSessionShellOptions["inputPresentation"],
   promptSuggestions?: OwnedUiSessionShellOptions["promptSuggestions"],
   promptHistory?: Omit<NonNullable<OwnedUiSessionShellOptions["promptHistory"]>, "editor">,
+  configureEngine?: (engine: Runtime) => void,
 ) {
   const engine = new Runtime(messages);
+  configureEngine?.(engine);
   engine.extensionResources = extensions;
   const adapter = await createPiEngineAdapter({ cwd: "D:/work", sessionId: "owned-shell", createRuntime: async () => engine as unknown as AgentSessionRuntime });
   const terminal = new TestPresentationTerminal();
@@ -1118,6 +1124,104 @@ describe("OwnedUiSessionShell", () => {
     } finally { await shell.dispose(); }
   });
 
+  it.each([false, true])("round-trips the archive fixture through the real adapter/controller/editor (late=%s)", async late => {
+    let backend!: OwnedUiPromptSuggestionGeneratorPort;
+    let finish!: () => void;
+    const directory = await mkdtemp(join(tmpdir(), "suggestion-shell-"));
+    const diagnostics = new SuggestionDiagnosticCapture({ enabled: true, destination: join(directory, "diagnostics.json") });
+    const target = await fixture(SUGGESTION_CONVERSATIONS.archive.messages, [], true, undefined, undefined, undefined, undefined, {
+      generator: { generate: request => backend.generate(request), suggestionReasoningPolicy: () => backend.suggestionReasoningPolicy!() },
+      enabled: () => true, onChange: () => () => {}, diagnostics,
+    });
+    backend = target.adapter;
+    target.engine.session.thinkingLevel = "high";
+    if (late) target.engine.completeSuggestion = () => new Promise(resolve => { finish = () => resolve({ content: [{ type: "text", text: "archive it" }] }); });
+    try {
+      const before = JSON.stringify(target.engine.session.agent.state.messages);
+      target.engine.session.emit({ type: "agent_start" });
+      target.engine.session.emit({ type: "message_end", message: SUGGESTION_CONVERSATIONS.archive.messages.at(-1) });
+      await target.adapter.flushEvents();
+      await nextImmediate();
+      expect(stripTerminalSequences(target.shell.root.editor.render(60).join("\n"))).not.toContain("archive it");
+      target.engine.session.emit({ type: "agent_settled" });
+      await target.adapter.flushEvents();
+      if (late) finish();
+      await nextImmediate();
+      expect(stripTerminalSequences(target.shell.root.editor.render(60).join("\n"))).toContain("❯ archive it");
+      expect(target.shell.root.editor.getText()).toBe("");
+      expect(target.engine.services.modelRuntime.completeSimple).toHaveBeenCalledTimes(1);
+      expect(JSON.stringify(target.engine.session.agent.state.messages)).toBe(before);
+      expect(target.engine.session.thinkingLevel).toBe("high");
+      target.shell.root.editor.handleInput?.("\r");
+      expect(target.engine.session.calls).not.toContain("prompt:archive it");
+      target.shell.root.editor.handleInput?.("\t");
+      expect(target.shell.root.editor.getText()).toBe("archive it");
+      expect(target.engine.session.calls).not.toContain("prompt:archive it");
+      target.shell.root.editor.handleInput?.("\r");
+      await nextImmediate();
+      expect(target.engine.session.calls.filter(call => call === "prompt:archive it")).toHaveLength(1);
+      await diagnostics.flush();
+      const snapshot = JSON.parse(await readFile(join(directory, "diagnostics.json"), "utf8"));
+      expect(snapshot.records.map((record: { event: string }) => record.event)).toEqual(["started", "displayed"]);
+      expect(JSON.stringify(snapshot)).not.toContain("archive it");
+    } finally { await target.shell.dispose(); diagnostics.dispose(); await rm(directory, { recursive: true, force: true }); }
+  });
+
+  it.each(["disabled", "early-conversation", "no-model", "failed-response", "incomplete-response", "tool-continuation", "draft", "replacement-input"])("reports the actual shell eligibility reason %s", async reason => {
+    const diagnostics = new SuggestionDiagnosticCapture({ enabled: true });
+    const messages = reason === "early-conversation" ? SUGGESTION_CONVERSATIONS.archive.messages.slice(-1) : SUGGESTION_CONVERSATIONS.archive.messages;
+    const generate = vi.fn();
+    const target = await fixture(messages, [], true, undefined, undefined, undefined, undefined, {
+      generator: { generate }, enabled: () => reason !== "disabled", onChange: () => () => {}, diagnostics,
+    }, undefined, engine => { if (reason === "no-model") engine.session.model = undefined; });
+    try {
+      if (reason === "draft") target.shell.root.editor.setText("my draft");
+      if (reason === "replacement-input") target.shell.root.setInputSurface({ render: () => [], invalidate() {} });
+      target.engine.session.emit({ type: "agent_start" });
+      target.engine.session.emit({ type: "message_end", message: {
+        ...messages.at(-1), stopReason: reason === "failed-response" ? "error"
+          : reason === "incomplete-response" ? "length" : reason === "tool-continuation" ? "toolUse" : "stop",
+      } });
+      await target.adapter.flushEvents();
+      expect(generate).not.toHaveBeenCalled();
+      expect(diagnostics.snapshot()).toMatchObject([{ event: "skipped", reason, request: 0 }]);
+    } finally { await target.shell.dispose(); diagnostics.dispose(); }
+  });
+
+  it("exposes modal, readiness, and focus presentation reasons without altering the draft", async () => {
+    const target = await fixture([], [], true);
+    try {
+      const view = target.adapter.view();
+      target.shell.root.update({ ...view, dialog: { id: "modal", title: "Choice", kind: "choice", payload: null } });
+      expect(target.shell.root.promptSuggestionPrepareBlockReason()).toBe("modal");
+      target.shell.root.update({ ...view, lifecycle: "busy" });
+      expect(target.shell.root.promptSuggestionPresentationBlockReason()).toBe("not-ready");
+      target.shell.root.update(view);
+      target.shell.root.editor.setFocused?.(false);
+      expect(target.shell.root.promptSuggestionPresentationBlockReason()).toBe("not-focused");
+      expect(target.shell.root.editor.getText()).toBe("");
+    } finally { await target.shell.dispose(); }
+  });
+
+  it.each(["empty", "error"])("does not extract an archive fallback after %s", async outcome => {
+    let backend!: OwnedUiPromptSuggestionGeneratorPort;
+    const diagnostics = new SuggestionDiagnosticCapture({ enabled: true });
+    const target = await fixture(SUGGESTION_CONVERSATIONS.archive.messages, [], true, undefined, undefined, undefined, undefined, {
+      generator: { generate: request => backend.generate(request) }, enabled: () => true, onChange: () => () => {}, diagnostics,
+    });
+    backend = target.adapter;
+    target.engine.completeSuggestion = async () => ({ stopReason: outcome === "error" ? "error" : "stop", content: [] });
+    try {
+      target.engine.session.emit({ type: "agent_start" });
+      target.engine.session.emit({ type: "message_end", message: SUGGESTION_CONVERSATIONS.archive.messages.at(-1) });
+      target.engine.session.emit({ type: "agent_settled" });
+      await target.adapter.flushEvents();
+      await nextImmediate();
+      expect(stripTerminalSequences(target.shell.root.editor.render(60).join("\n"))).not.toContain("archive it");
+      expect(diagnostics.snapshot().map(record => record.event)).toEqual(["started", outcome === "error" ? "provider-failure" : "empty"]);
+    } finally { await target.shell.dispose(); diagnostics.dispose(); }
+  });
+
   it("prefetches before settlement, reveals atomically at settlement, and requires Tab before Enter", async () => {
     const messages = [
       { role: "user", content: "fix it", timestamp: 1 },
@@ -1129,7 +1233,7 @@ describe("OwnedUiSessionShell", () => {
     const generator: OwnedUiPromptSuggestionGeneratorPort = {
       generate: async request => {
         calls.push(`suggest:${request.identity.runSequence}:${request.identity.responseSequence}`);
-        return { identity: request.identity, text: "go ahead and merge it" };
+        return { identity: request.identity, outcome: "candidate", text: "go ahead and merge it" };
       },
     };
     const target = await fixture(messages, [], true, undefined, undefined, undefined, undefined, {
@@ -1170,7 +1274,7 @@ describe("OwnedUiSessionShell", () => {
     ];
     let finish: ((text: string) => void) | undefined;
     const generator: OwnedUiPromptSuggestionGeneratorPort = {
-      generate: request => new Promise(resolve => { finish = text => resolve({ identity: request.identity, text }); }),
+      generate: request => new Promise(resolve => { finish = text => resolve({ identity: request.identity, outcome: "candidate", text }); }),
     };
     const target = await fixture(messages, [], true, undefined, undefined, undefined, undefined, {
       generator, enabled: () => true, onChange: () => () => {},
@@ -1193,7 +1297,7 @@ describe("OwnedUiSessionShell", () => {
     ];
     let settingListener: ((value: boolean) => void) | undefined;
     const generator: OwnedUiPromptSuggestionGeneratorPort = {
-      generate: vi.fn(async request => ({ identity: request.identity, text: "run the tests" })),
+      generate: vi.fn(async request => ({ identity: request.identity, outcome: "candidate" as const, text: "run the tests" })),
     };
     const target = await fixture(messages, [], true, undefined, undefined, undefined, undefined, {
       generator,
@@ -1232,7 +1336,7 @@ describe("OwnedUiSessionShell", () => {
       { role: "assistant", content: [{ type: "text", text: "Second" }], stopReason: "stop" },
     ];
     const generator: OwnedUiPromptSuggestionGeneratorPort = {
-      generate: vi.fn(async request => ({ identity: request.identity, text: "run the tests" })),
+      generate: vi.fn(async request => ({ identity: request.identity, outcome: "candidate" as const, text: "run the tests" })),
     };
     const target = await fixture(messages, [], false, undefined, undefined, undefined, undefined, {
       generator, enabled: () => true, onChange: () => () => {},
@@ -1256,7 +1360,7 @@ describe("OwnedUiSessionShell", () => {
     const generator: OwnedUiPromptSuggestionGeneratorPort = {
       generate: request => {
         observedSignal = request.signal;
-        return new Promise(resolve => { finish = text => resolve({ identity: request.identity, text }); });
+        return new Promise(resolve => { finish = text => resolve({ identity: request.identity, outcome: "candidate", text }); });
       },
     };
     const suggestionOptions = { generator, enabled: () => true, onChange: () => () => {} };
@@ -1273,7 +1377,7 @@ describe("OwnedUiSessionShell", () => {
     await typing.shell.dispose();
 
     const blockedGenerator: OwnedUiPromptSuggestionGeneratorPort = {
-      generate: vi.fn(async request => ({ identity: request.identity, text: "run the tests" })),
+      generate: vi.fn(async request => ({ identity: request.identity, outcome: "candidate" as const, text: "run the tests" })),
     };
     const blocked = await fixture(messages, [], true, undefined, undefined, undefined, undefined, {
       generator: blockedGenerator, enabled: () => true, onChange: () => () => {},
@@ -1287,7 +1391,7 @@ describe("OwnedUiSessionShell", () => {
     await blocked.shell.dispose();
 
     const toolGenerator: OwnedUiPromptSuggestionGeneratorPort = {
-      generate: vi.fn(async request => ({ identity: request.identity, text: "continue" })),
+      generate: vi.fn(async request => ({ identity: request.identity, outcome: "candidate" as const, text: "continue" })),
     };
     const tools = await fixture(messages, [], true, undefined, undefined, undefined, undefined, {
       generator: toolGenerator, enabled: () => true, onChange: () => () => {},

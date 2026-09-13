@@ -82,6 +82,14 @@
       "semantics": "Explicit helper executable override; retain pending caller exposure review"
     },
     {
+      "role": "suggestionDiagnostics",
+      "key": "A1_SUGGESTION_DIAGNOSTICS",
+      "exposure": "review",
+      "owner": "src/composition/owned-ui.ts",
+      "evidence": "docs/architecture/prompt-suggestions.md",
+      "semantics": "Explicit local bounded suggestion diagnostic snapshot destination; disabled by default"
+    },
+    {
       "role": "probeTrace",
       "key": "A1_PROBE_TRACE",
       "exposure": "review",

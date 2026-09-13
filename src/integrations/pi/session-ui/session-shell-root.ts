@@ -6,6 +6,8 @@ import type {
   OwnedUiThinkingLevel,
   OwnedUiViewportSettings,
   OwnedUiViewportSettingsPort,
+  SuggestionDecision,
+  SuggestionDiagnosticObserver,
 } from "../../../contracts/owned-ui/index.js";
 import type { PiTuiPointerSurface } from "../tui-runtime/index.js";
 import type { UiRouteHost } from "../../../ui/apps/index.js";
@@ -161,6 +163,7 @@ export interface OwnedUiSessionShellOptions {
   };
   /** Optional deterministic seam for keyboard scheduling and phase evidence. */
   readonly promptSuggestions?: {
+    readonly diagnostics?: SuggestionDiagnosticObserver;
     readonly generator: OwnedUiPromptSuggestionGeneratorPort;
     readonly enabled: () => boolean;
     readonly onChange: (listener: (enabled: boolean) => void) => () => void;
@@ -501,18 +504,24 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     return this.#promptChips.dispose();
   }
 
-  canPreparePromptSuggestion(): boolean {
-    return this.usesDefaultInputSurface()
-      && this.#view.dialog === null
-      && this.#view.overlay === null
-      && this.editor.getText().length === 0;
+  promptSuggestionPrepareBlockReason(): SuggestionDecision {
+    if (!this.usesDefaultInputSurface()) return "replacement-input";
+    if (this.#view.dialog !== null || this.#view.overlay !== null) return "modal";
+    if (this.editor.getText().length > 0) return "draft";
+    return null;
   }
 
-  canPresentPromptSuggestion(): boolean {
-    return this.canPreparePromptSuggestion()
-      && this.#view.lifecycle === "ready"
-      && this.editor.canPresentPromptSuggestion();
+  canPreparePromptSuggestion(): boolean { return this.promptSuggestionPrepareBlockReason() === null; }
+
+  promptSuggestionPresentationBlockReason(): SuggestionDecision {
+    const reason = this.promptSuggestionPrepareBlockReason();
+    if (reason !== null) return reason;
+    if (this.#view.lifecycle !== "ready") return "not-ready";
+    return this.editor.promptSuggestionBlockReason?.()
+      ?? (this.editor.canPresentPromptSuggestion() ? null : "presentation-unavailable");
   }
+
+  canPresentPromptSuggestion(): boolean { return this.promptSuggestionPresentationBlockReason() === null; }
 
   setPromptSuggestion(text: string | null): void {
     this.editor.setPromptSuggestion(text);

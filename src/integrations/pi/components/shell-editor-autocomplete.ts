@@ -262,6 +262,13 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
       editor.invalidate();
     },
     canPresentPromptSuggestion: () => editor.canPresentPromptSuggestion(),
+    promptSuggestionBlockReason: () => {
+      if (!editor.focused) return "not-focused";
+      if (editor.disableSubmit) return "not-ready";
+      if (editor.getText().length > 0) return "draft";
+      if (editor.isShowingAutocomplete()) return "autocomplete";
+      return editor.canPresentPromptSuggestion() ? null : "prompt-mode";
+    },
     hasSelection: () => editorUx?.hasSelection() ?? false,
     ownsPointer: () => editorUx?.ownsPointer() ?? false,
     handlePointer: event => editorUx?.handlePointer(event) ?? false,
