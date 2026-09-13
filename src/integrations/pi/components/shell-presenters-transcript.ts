@@ -22,9 +22,10 @@ import type { OwnedUiTranscriptBlock } from "../../../contracts/owned-ui/index.j
 import { PRODUCT_TEXT } from "../../../product-identity.js";
 import {
   createPiSubmittedPromptComponent,
+  isPiPromptStyleCompaction,
   type PiShellSubmittedPromptComposer,
 } from "./submitted-prompt-adapter.js";
-export type { PiShellSubmittedPromptComposer } from "./submitted-prompt-adapter.js";
+export { isPiPromptStyleCompaction, type PiShellSubmittedPromptComposer } from "./submitted-prompt-adapter.js";
 import {
   PINNED_PI_LAYOUT,
   piTheme,
@@ -82,6 +83,7 @@ export function createPiShellTranscriptComponent(
     setExpanded(next) {
       if (expanded === next) return;
       expanded = next;
+      if (submittedPrompt !== undefined && isPiPromptStyleCompaction(block)) return;
       if ("setExpanded" in component && typeof component.setExpanded === "function") component.setExpanded(expanded);
       else component = rebuild();
     },
@@ -234,6 +236,10 @@ function transcriptComponent(
       return component;
     }
     case "compaction": {
+      if (submittedPrompt !== undefined && isPiPromptStyleCompaction(block)) {
+        const tokens = numericPayload(block, "tokensBefore").toLocaleString("en-US");
+        return createPiSubmittedPromptComponent(block, submittedPrompt, `Compacted from ${tokens} tokens`);
+      }
       const component = new CompactionSummaryMessageComponent({
         role: "compactionSummary",
         summary: block.text,
