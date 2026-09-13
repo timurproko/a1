@@ -60,4 +60,32 @@ describe("history snapshot lifecycle", () => {
       expect(input.getText()).toBe(text);
     } finally { await first.close(); await controller?.close(); await second.close(); await rm(root, { recursive: true, force: true }); }
   });
+
+  it("applies the caller-supplied rehydrate function to every recall entry once and caches the result", async () => {
+    const root = await mkdtemp(join(tmpdir(), "history-rehydrate-"));
+    let controller: PromptHistoryController | undefined;
+    try {
+      let snapshotListener: (snapshot: PromptHistorySnapshot) => void = () => {};
+      const store: PromptHistoryPort = {
+        start() {}, refresh() {}, close: async () => {}, onFailure: () => () => {},
+        onSnapshot: callback => { snapshotListener = callback; return () => {}; },
+        record: () => Promise.resolve("skipped"),
+      };
+      const input = await editor(root);
+      const rehydrate = vi.fn((value: string) => `HYDRATED(${value})`);
+      controller = new PromptHistoryController({ editor: input, store, limit: 100, fallback: ["first", "second"], active: () => true, render() {}, rehydrate });
+      // Invariant: constructor calls synchronize which rehydrates both fallback entries once each.
+      expect(rehydrate).toHaveBeenCalledTimes(2);
+      expect(rehydrate.mock.calls.map(call => call[0]).sort()).toEqual(["first", "second"]);
+      rehydrate.mockClear();
+      snapshotListener({ revision: 1, limit: 100, entries: [{ text: "alpha", submissionId: "a" }, { text: "beta", submissionId: "b" }] });
+      // Invariant: two new snapshot entries rehydrate; fallback served from cache.
+      expect(rehydrate).toHaveBeenCalledTimes(2);
+      expect(rehydrate.mock.calls.map(call => call[0])).toEqual(["alpha", "beta"]);
+      rehydrate.mockClear();
+      controller.synchronize();
+      // Invariant: repeated synchronize does not re-run rehydrate for entries the cache already knows.
+      expect(rehydrate).not.toHaveBeenCalled();
+    } finally { await controller?.close(); await rm(root, { recursive: true, force: true }); }
+  });
 });

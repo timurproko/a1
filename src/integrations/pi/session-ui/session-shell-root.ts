@@ -130,7 +130,15 @@ export interface OwnedUiClipboardPort {
 }
 
 export interface OwnedUiSessionShellOptions {
-  readonly promptHistory?: { readonly store: import("../../../contracts/owned-ui/index.js").PromptHistoryPort; readonly limit: number; readonly editor: import("../components/index.js").HistoryEditorConstructor };
+  readonly promptHistory?: {
+    readonly store: import("../../../contracts/owned-ui/index.js").PromptHistoryPort;
+    readonly limit: number;
+    readonly editor: import("../components/index.js").HistoryEditorConstructor;
+    /** Optional per-profile filesystem sidecar for image chip payloads. When present, submit
+     * writes each referenced attachment and recall reads them back to rehydrate live chips.
+     * When absent, image chips silently strip on recall, matching the missing-sidecar path. */
+    readonly imageSidecar?: import("../../../contracts/owned-ui/index.js").PromptHistoryImageSidecarPort;
+  };
   readonly backend: OwnedUiBackendPort;
   readonly cwd: string;
   readonly terminal?: OwnedUiTerminalPort;
@@ -463,6 +471,14 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
 
   prepareHistoryText(text: string): string {
     return this.#promptChips.prepareHistoryText(text);
+  }
+
+  rehydrateHistoryText(text: string, resolveImage: (id: string) => import("../../../contracts/owned-ui/index.js").PromptHistoryImageSidecarAttachment | null): string {
+    return this.#promptChips.rehydrateHistoryText(text, resolveImage);
+  }
+
+  imageChipAttachmentsFromEditor(text: string): { readonly id: string; readonly tag: string; readonly image: { readonly type: "image"; readonly data: string; readonly mimeType: string } }[] {
+    return this.#promptChips.imageChipAttachments(text);
   }
 
   preparePromptSubmission(text: string): PreparedPrompt {
