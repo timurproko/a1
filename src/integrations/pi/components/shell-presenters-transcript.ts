@@ -11,6 +11,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { SkillInvocationMessageComponent } from "./upstream/components/skill-invocation-message.js";
 import { piToolArguments as toolArguments, updatePiToolResult as updateToolResult } from "./tool-result-adapter.js";
+import { createTranscriptImageResolver } from "./transcript-image-resolver.js";
 import { createMermaidMarkdownTransformer, type MermaidRenderingMode } from "./upstream/components/mermaid.js";
 import {
   Container,
@@ -57,6 +58,7 @@ export function createPiShellTranscriptComponent(
 ): PiShellTranscriptComponentPort {
   ensureTheme();
   let block = initial;
+  const retainedImages = createTranscriptImageResolver(imageAssets, initial);
   let expanded = false;
   let outputPad = initialOutputPad;
   let hideThinkingBlock = initialHideThinkingBlock;
@@ -83,10 +85,10 @@ export function createPiShellTranscriptComponent(
     };
     return mutate(() => withTranscriptImages(transcriptComponent(
       block, cwd, expanded, extensions, submittedPrompt, outputPad, hideThinkingBlock, mermaidRenderingMode,
-      showImages, imageWidthCells, imageAssets,
+      showImages, imageWidthCells, retainedImages,
       createTuiFacade({ getColumns: presentation?.getColumns ?? (() => 80),
         getRows: presentation?.getRows ?? (() => 24), requestRender }),
-    ), block, imageAssets, showImages, imageWidthCells));
+    ), block, retainedImages, showImages, imageWidthCells));
   };
   let component = rebuild();
   return {
@@ -100,12 +102,13 @@ export function createPiShellTranscriptComponent(
       return warning === undefined ? rows : [...rows, ...new Text(piTheme().fg("warning", warning), outputPad, 0).render(width)];
     },
     invalidate: () => mutate(() => component.invalidate()),
-    dispose: () => { disposed = true; mount++; },
+    dispose: () => { disposed = true; mount++; retainedImages.dispose(); },
     update(next) {
       if (next.id !== block.id) throw new TypeError("Pi transcript component identity cannot change");
       const previous = block;
       block = next;
-      if (!mutate(() => updateTranscriptComponent(component, previous, next, expanded, imageAssets))) component = rebuild();
+      retainedImages.update(next);
+      if (!mutate(() => updateTranscriptComponent(component, previous, next, expanded, retainedImages))) component = rebuild();
     },
     setExpanded(next) {
       if (expanded === next) return;

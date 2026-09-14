@@ -1,5 +1,4 @@
 import { execFile } from "node:child_process";
-import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import type { PiSessionForkPrompt, PiSessionSelection } from "./session-selection.js";
 import { mkdir, rm, writeFile } from "node:fs/promises";
@@ -10,6 +9,7 @@ import { PRODUCT_IDENTITY } from "../../../product-identity.js";
 import { configureOwnedHttpDispatcher } from "./http-dispatcher.js";
 import { readPinnedCommandChangelog } from "./changelog.js";
 import { toolRenderingInput } from "./tool-rendering.js";
+import { TranscriptImageAssets } from "./transcript-image-assets.js";
 import {
   copyToClipboard,
   CredentialSynchronizationError,
@@ -335,11 +335,11 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
   readonly #messageBlockIds = new WeakMap<object, string>();
   readonly #messageFallbackIds = new Map<string, string[]>();
   readonly #toolBlockIds = new Map<string, string>();
-  readonly #transcriptImageAssets = new Map<string, OwnedUiImageAttachment>();
+  readonly #transcriptImageAssets = new TranscriptImageAssets();
   #usageCache: OwnedUiUsageView | undefined;
   #nextBlockSequence = 0;
   #diagnostics: OwnedUiDiagnostics[] = [];
-  readonly #eventQueue = new PendingEngineDelivery();
+  readonly #eventQueue = new PendingEngineDelivery(event => this.#transcriptImageAssets.retainEvent(event));
   #eventQueueProcessing: Promise<void> | undefined;
   #overload: Promise<boolean> | undefined;
   #overloads = 0;
@@ -409,7 +409,7 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
   }
 
   resolveTranscriptImage(assetId: string): OwnedUiImageAttachment | null {
-    return this.#transcriptImageAssets.get(assetId) ?? null;
+    return this.#transcriptImageAssets.resolve(assetId);
   }
 
   currentSessionFile(): string | null {
@@ -2224,13 +2224,14 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
 
   // Performance: replacing the transcript rebuilds its index so block lookup stays constant-time.
   #setTranscript(blocks: OwnedUiTranscriptBlock[]): void {
+    // Invariant: lazy delivery snapshots must freeze before their authoritative source can be removed.
+    if (!this.#eventQueue.seal()) { this.#beginOverload(); return; }
+    for (const block of blocks) this.#transcriptImageAssets.retain(block);
+    for (const block of this.#transcript) this.#transcriptImageAssets.release(block);
     this.#transcript = blocks;
     this.#transcriptIndex.clear();
     for (const [index, block] of blocks.entries()) this.#transcriptIndex.set(block.id, index);
-    const retainedAssets = new Set(blocks.flatMap(block => block.imageReferences?.map(reference => reference.assetId) ?? []));
-    for (const assetId of this.#transcriptImageAssets.keys()) {
-      if (!retainedAssets.has(assetId)) this.#transcriptImageAssets.delete(assetId);
-    }
+    this.#transcriptImageAssets.discardUnowned();
     this.#transcriptSnapshot = undefined;
   }
 
@@ -2268,6 +2269,11 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
   }
 
   #handlePiEvent(event: unknown): void {
+    try { this.#applyPiEvent(event); }
+    finally { this.#transcriptImageAssets.discardUnowned(); }
+  }
+
+  #applyPiEvent(event: unknown): void {
     if (!isRecord(event) || typeof event.type !== "string") return;
     // Invariant: usage moves at message and lifecycle boundaries, not with stream chunks, so the
     // two streaming event kinds keep the memo and everything else drops it.
@@ -2726,14 +2732,9 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
     if (!Array.isArray(content)) return [];
     const references: OwnedUiTranscriptImageReference[] = [];
     for (const item of content) {
-      if (references.length >= 16 || !isRecord(item) || item.type !== "image"
-        || typeof item.data !== "string" || item.data.length === 0
-        || typeof item.mimeType !== "string" || !/^image\/[a-z0-9.+-]+$/i.test(item.mimeType)) continue;
-      const byteLength = Buffer.from(item.data, "base64").byteLength;
-      if (byteLength < 1 || byteLength > 20 * 1024 * 1024) continue;
-      const assetId = `image-${createHash("sha256").update(item.mimeType).update("\0").update(item.data).digest("hex").slice(0, 24)}`;
-      this.#transcriptImageAssets.set(assetId, { type: "image", data: item.data, mimeType: item.mimeType });
-      references.push({ assetId, mimeType: item.mimeType, byteLength, source });
+      if (references.length >= 16) break;
+      const reference = this.#transcriptImageAssets.reference(item, source);
+      if (reference !== undefined) references.push(reference);
     }
     return references;
   }
@@ -2776,8 +2777,11 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
       // Performance: nothing is emitted for a block that repeats itself, and keeping the
       // revision keeps the rows it already rendered.
       if (existing !== undefined && sameBlockContent(existing, block)) return;
+      this.#transcriptImageAssets.retain(block);
+      if (existing !== undefined) this.#transcriptImageAssets.release(existing);
       this.#transcript[index] = block;
     } else {
+      this.#transcriptImageAssets.retain(block);
       this.#transcriptIndex.set(block.id, this.#transcript.length);
       this.#transcript.push(block);
     }
@@ -2978,9 +2982,11 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
         if (pending === undefined) continue;
         if (pending.generation !== this.#sessionGeneration && pending.event.type !== "command-outcome") {
           this.#invalidatedEvents = Math.min(Number.MAX_SAFE_INTEGER, this.#invalidatedEvents + 1);
+          pending.release?.();
           continue;
         }
-        this.#deliver(pending.event);
+        try { this.#deliver(pending.event); }
+        finally { pending.release?.(); }
         deliveredSinceYield += 1;
         // Concurrency: a microtask chain runs to exhaustion before the loop turns, so a streaming
         // burst would hold typed input, pointer reports, and timed indicators until it

@@ -1,6 +1,7 @@
 import type { OwnedUiToolRendering, OwnedUiToolResultPart, OwnedUiTranscriptImageReference } from "../../../contracts/owned-ui/index.js";
 
 const MAX_METADATA_BYTES = 64 * 1024;
+const MAX_TEXT_BYTES = 256 * 1024;
 
 /** Copy JSON metadata without diagnostic depth/array truncation or traversing result text/images. */
 function renderingJson(value: unknown): unknown {
@@ -47,24 +48,43 @@ export function toolRenderingInput(options: {
 
   const imageReferences: OwnedUiTranscriptImageReference[] = [];
   const content: OwnedUiToolResultPart[] = [];
+  let contentBytes = 2;
+  let excessBoundaries = false;
+  const addPart = (part: OwnedUiToolResultPart) => {
+    if (excessBoundaries) return;
+    // Performance: these ASCII-only offsets/indexes are budgeted before retaining or encoding an oversized boundary array.
+    contentBytes += JSON.stringify(part).length + (content.length > 0 ? 1 : 0);
+    if (contentBytes > MAX_METADATA_BYTES) excessBoundaries = true;
+    else content.push(part);
+  };
   const texts: string[] = [];
   let length = 0;
+  let textBytes = 0;
   const source = isRecord(options.result) ? options.result : undefined;
   const rawContent = source === undefined ? options.result : source.content;
   const parts = typeof rawContent === "string" ? [{ type: "text", text: rawContent }] : rawContent;
   if (Array.isArray(parts)) {
     for (const part of parts) {
       if (isRecord(part) && part.type === "text" && typeof part.text === "string") {
+        const separatorBytes = texts.length > 0 ? 1 : 0;
+        // Performance: length rejects huge strings before the bounded UTF-8 count; never serialize accumulated text.
+        const partBytes = part.text.length + textBytes + separatorBytes > MAX_TEXT_BYTES
+          ? MAX_TEXT_BYTES + 1 : Buffer.byteLength(part.text);
+        if (partBytes + textBytes + separatorBytes > MAX_TEXT_BYTES) {
+          warnings.add("Tool text unavailable: result exceeds the supported 256 KiB text limit.");
+          continue;
+        }
+        textBytes += partBytes + separatorBytes;
         if (texts.length > 0) length++;
         const start = length;
         texts.push(part.text);
         length += part.text.length;
-        content.push({ type: "text", start, end: length });
+        addPart({ type: "text", start, end: length });
       } else if (isRecord(part) && part.type === "image") {
         const reference = imageReferences.length < 16 ? options.image(part) : undefined;
         if (reference === undefined) warnings.add("Image unavailable: unsupported data or attachment limit exceeded.");
         else {
-          content.push({ type: "image", imageIndex: imageReferences.length });
+          addPart({ type: "image", imageIndex: imageReferences.length });
           imageReferences.push(reference);
         }
       } else warnings.add("Tool content unavailable: unsupported content part.");
@@ -81,7 +101,7 @@ export function toolRenderingInput(options: {
     ...(options.result === undefined ? {} : { result: { content, ...(details === undefined ? {} : { details }) } }),
   };
   const warning = () => [...warnings].join(" ");
-  const fits = () => Buffer.byteLength(JSON.stringify({ payload: options.payload, toolRendering: {
+  const fits = () => !excessBoundaries && Buffer.byteLength(JSON.stringify({ payload: options.payload, toolRendering: {
     ...toolRendering, ...(warnings.size === 0 ? {} : { unavailable: warning() }),
   } })) <= MAX_METADATA_BYTES;
   if (!fits()) {
