@@ -252,3 +252,248 @@ SHALL fail before registry discovery or installation.
 #### Scenario: Extra selector is supplied
 - **WHEN** the user runs `a1 update --develop 107 108`
 - **THEN** A1 SHALL fail without registry or installation work
+
+### Requirement: Model refresh command transcripts match pinned Pi
+For equivalent profile contents and refresh results, `a1 update --models` and `a1 pi update --models` SHALL emit identical transcripts matching the repository's pinned Pi `update --models` command. Parity SHALL include wording, punctuation, line breaks, stdout/stderr destination, terminal-aware ANSI styling, and exit status. A1 SHALL NOT append its profile root, prepend product branding, or add an advisory to these summaries. A1 self-update and development-preview output SHALL remain outside this model-refresh contract.
+
+#### Scenario: Model refresh succeeds
+- **WHEN** either alias completes model-catalog refresh successfully
+- **THEN** stdout SHALL contain exactly green `Model catalogs refreshed` followed by one newline, stderr SHALL be empty, and the exit status SHALL be zero
+- **AND** there SHALL be no period, checkmark, product prefix, path suffix, or additional blank line
+
+#### Scenario: Model refresh times out
+- **WHEN** the refresh reaches its pinned timeout and reports an aborted result
+- **THEN** stderr SHALL contain red `Error: Model catalog refresh timed out.` followed by one newline and the exit status SHALL be one
+- **AND** stdout SHALL NOT contain a success summary
+
+#### Scenario: Provider catalogs fail to refresh
+- **WHEN** refresh returns one or more provider errors
+- **THEN** stderr SHALL contain red `Error: Could not refresh model catalogs: <details>` followed by one newline, with each detail formatted as `<provider>: <message>` in pinned order and joined by `; `
+- **AND** the command SHALL exit with status one without reporting success
+
+#### Scenario: Model refresh throws another error
+- **WHEN** model-runtime creation or refresh throws
+- **THEN** the command SHALL use pinned Pi's `Error: <message>` formatting and `Unknown model catalog refresh error` fallback for a non-Error thrown value
+- **AND** it SHALL preserve the displayed error message rather than whitespace-normalizing or truncating it independently
+
+#### Scenario: Color is disabled or output is redirected
+- **WHEN** both producers run with equivalent terminal and color-control settings
+- **THEN** A1 SHALL follow pinned Pi's color-enablement behavior, including plain text without escape sequences when color is disabled
+- **AND** changing color availability SHALL NOT change wording, streams, or newline count
+
+#### Scenario: Refresh remains profile-local and non-interactive
+- **WHEN** either model-refresh alias runs
+- **THEN** it SHALL use only A1's selected profile and SHALL NOT update packages, update either executable, launch the UI, or contact the supervisor
+
+### Requirement: Successful update initiates bounded release cleanup
+Before reporting a completed update, A1 SHALL durably commit the protected release set and a restart-safe cleanup disposition for obsolete releases. Potentially long physical deletion MAY continue after that commit, but the update SHALL start background maintenance that continues ordinary eligible work to completion without requiring another user command. Update and later maintenance entry points SHALL resume interrupted or temporarily blocked cleanup without requiring manual state or directory deletion, and SHALL retain bounded evidence of worker progress, continuation, and top-level failure.
+
+#### Scenario: Update activates a new release
+- **WHEN** the new release is certified, active, and served by a verified supervisor
+- **THEN** the update SHALL commit retention of the active, rollback, pending, live, and externally held releases
+- **AND** SHALL initiate collection of every other known release
+
+#### Scenario: Historical append-only state exists
+- **WHEN** the first cleanup-aware update reads a valid older cohort state whose retention list contains every previously activated release
+- **THEN** A1 SHALL migrate it to the bounded protected set without deleting a release used by a verified live cohort or rollback
+
+#### Scenario: Physical deletion is slow
+- **WHEN** removing an obsolete release tree would materially delay return to the invoking shell
+- **THEN** A1 SHALL preserve the committed cleanup disposition and continue deletion through bounded background maintenance rather than retaining the release indefinitely
+
+#### Scenario: Backlog exceeds one maintenance allowance
+- **WHEN** a successful update leaves more eligible obsolete content than one bounded maintenance batch can process
+- **THEN** background maintenance SHALL continue or arrange its own continuation until the eligible backlog is drained without requiring another launch or update
+
+#### Scenario: Preparation consumes the batch allowance
+- **WHEN** discovery, ownership checks, or durable state preparation consume the nominal duration of a non-empty maintenance batch
+- **THEN** the background worker SHALL still attempt eligible cleanup work and SHALL NOT repeatedly exit with zero progress
+
+#### Scenario: Cleanup cannot delete one release
+- **WHEN** an obsolete contained release cannot be moved or deleted because of a transient filesystem failure
+- **THEN** the successful activation SHALL remain authoritative, A1 SHALL retain actionable cleanup diagnostics, other eligible items SHALL remain able to progress, and bounded maintenance SHALL retry safely
+
+#### Scenario: Detached worker fails unexpectedly
+- **WHEN** a scheduled cleanup worker exits before recording successful completion
+- **THEN** A1 SHALL retain every incomplete disposition, record bounded worker failure or incomplete-run evidence, and resume safely through its continuation or the next maintenance entry point
+
+### Requirement: Abandoned release artifacts are reconciled
+A1 SHALL eventually remove abandoned candidate directories, managed trash, and certification evidence that no protected release or active transaction references. Reconciliation SHALL remain bounded during interactive launch and SHALL not delete profile settings, credentials, sessions, extensions, skills, prompts, themes, or unrelated files.
+
+#### Scenario: Update was interrupted before candidate commit
+- **WHEN** a private candidate directory remains from an update process that is no longer live and no active transaction can commit it
+- **THEN** bounded cleanup SHALL remove that candidate
+
+#### Scenario: Old certification evidence remains
+- **WHEN** its release record and immutable root have been safely detached and no protected reference names the release
+- **THEN** A1 SHALL remove the corresponding obsolete certification evidence
+
+#### Scenario: Legacy Windows path casing differs
+- **WHEN** valid legacy state spells the managed Windows data directory with different letter casing from the current canonical path
+- **THEN** A1 SHALL recognize the same managed identity, remove only the canonical obsolete evidence, and SHALL NOT authorize deletion outside the managed data directory
+
+#### Scenario: Interactive launch encounters a large backlog
+- **WHEN** launch discovers more obsolete content than its bounded scheduling allowance can remove
+- **THEN** launch SHALL continue toward the interactive UI and SHALL start or signal background maintenance with enough durable cleanup state to finish
+
+#### Scenario: Several artifact classes remain
+- **WHEN** detached releases, managed trash, stale candidates, obsolete certifications, dependency artifacts, or caches are simultaneously eligible
+- **THEN** bounded maintenance SHALL make fair progress without allowing one repeatedly failing identity or artifact class to starve the others
+
+### Requirement: Private runtime execution uses one supported launch contract
+Launch, warmup, update activation, retained-release execution, rollback, and recovery SHALL use the single current neutral private environment contract. Pre-cutover runtimes, updaters, rollback targets, and recovery capsules are outside this contract. The implementation SHALL NOT supply legacy private aliases, translate obsolete private input, negotiate an older encoding, rewrite historical runtime payloads, or provide migration helpers to make those components executable.
+
+Runtime-target eligibility SHALL be established from verified target metadata before execution or activation; a missing or different private-contract identity SHALL make a target ineligible. Package-version ordering alone SHALL NOT establish eligibility. An unsupported retained or recovery target SHALL NOT be silently executed as a fallback. When no safe current-contract selection is available, the operation SHALL stop with an actionable diagnostic rather than changing encoding or deleting state.
+
+#### Scenario: A current-contract target is activated
+- **WHEN** a verified installed candidate uses the current private contract
+- **THEN** its warmup and supervision SHALL receive the required neutral launch context and satisfy the existing readiness and verification requirements
+
+#### Scenario: A pre-cutover retained target is selected
+- **WHEN** a launch candidate lacks the current private-contract identity
+- **THEN** that target SHALL be rejected before its entry point is executed or its activation is committed
+- **AND** the implementation SHALL NOT select a legacy key writer to make it launchable
+
+#### Scenario: An old active reference blocks launch
+- **WHEN** stale runtime references prevent a safe current-contract launch selection
+- **THEN** launch SHALL report the unsupported state and required cutover action without executing or automatically migrating the old runtime
+
+#### Scenario: No supported rollback target exists
+- **WHEN** activation fails and all available rollback candidates are outside the current private contract
+- **THEN** rollback SHALL report that no eligible target is available
+- **AND** it SHALL NOT execute a pre-cutover target or silently declare rollback successful
+
+### Requirement: The initial private-contract cutover protects user data
+The first installation adopting the neutral private contract SHALL be a deliberate clean cutover, not a supported old-to-new self-update or migration path. Its handoff SHALL instruct the maintainer to stop existing application, supervisor, and worker processes and install the accepted new package directly through npm. It SHALL NOT rely on an old `a1 update` command or old recovery launcher completing the cutover.
+
+Any required reset SHALL be restricted to individually identified disposable runtime/release state after affected processes stop. The handoff SHALL identify exact resolved paths and their purpose and require separate explicit confirmation before removal. The application SHALL NOT automatically delete or convert existing state to resolve an unsupported contract. Whole configuration/data-root deletion SHALL NOT be used as a shortcut when user and disposable data coexist.
+
+The public command, package identity, supported user-facing environment settings, user-directory resolution, settings, credentials, session data, prompt history, and `.a1` user data SHALL remain unchanged by this cutover. No user-data relocation or format migration is authorized. Returning to a pre-cutover build is a separate deliberate manual installation/reset, not a supported in-application rollback route.
+
+#### Scenario: The maintainer installs the first new-contract build
+- **WHEN** installation instructions are delivered for the initial cutover
+- **THEN** they SHALL name the accepted package version, direct npm installation command, and stop-process prerequisite
+- **AND** they SHALL distinguish this one-time path from subsequent supported `a1 update` operations
+
+#### Scenario: Disposable-state reset is necessary
+- **WHEN** unsupported runtime/release records must be reset before the new installation can run
+- **THEN** the exact disposable paths and their purpose SHALL be presented for separate confirmation
+- **AND** no application-driven migration or automatic deletion SHALL occur
+
+#### Scenario: Disposable and user data share a root
+- **WHEN** a reset candidate is located beneath a root that also stores settings, sessions, or history
+- **THEN** the reset SHALL exclude those user-data paths and SHALL NOT remove the whole root
+
+#### Scenario: Old recovery state is encountered
+- **WHEN** a pre-cutover recovery capsule would otherwise resume package replacement or launch an old runtime
+- **THEN** the new implementation SHALL reject that recovery path and provide the manual cutover guidance
+- **AND** it SHALL NOT translate the capsule or activate an obsolete runtime
+
+### Requirement: Current-contract lifecycle behavior retains its safety guarantees
+After the clean cutover, different release versions using the same private contract SHALL support normal launch, comparison launch, update activation, retained-session continuity, rollback, and interrupted-update recovery under the existing lifecycle rules. The naming refactor SHALL NOT weaken immutable-root verification, content certification, ownership checks, containment, public-setting validation, or existing startup/update budgets.
+
+Owned outgoing context SHALL be reconstructed from the verified selected target and current launch intent rather than stale inherited private values. Required fields SHALL form a coherent current context, and invalid or missing fields SHALL fail before use without falling back to another release or default path. Platform-specific casing SHALL NOT permit ambiguous duplicate private keys. Diagnostics SHALL identify the logical setting without dumping unrelated environment values.
+
+Acceptance SHALL include executable tests for current-contract lifecycle operations, rejection of obsolete-only private input and unsupported targets, and preservation of protected user data. Successful pre-cutover interoperability tests are not required and SHALL NOT be replaced with compatibility behavior merely to make historical fixtures pass.
+
+#### Scenario: A supported session remains active during update
+- **WHEN** an update installs another release using the current private contract while a retained session on that contract is working
+- **THEN** the session SHALL retain its release, transcript, input, containment, and cohort connection
+- **AND** subsequent launches SHALL select the appropriate installed release
+
+#### Scenario: Rollback or recovery uses the current contract
+- **WHEN** rollback selects a verified current-contract release or interrupted replacement resumes through current-contract recovery state
+- **THEN** the operation SHALL retain its existing verification, readiness, and launcher-availability guarantees
+
+#### Scenario: A new-contract launch inherits stale private values
+- **WHEN** a launcher selects a verified target while inheriting context from another session
+- **THEN** it SHALL reconstruct the owned outgoing context from the selected target and current intent
+- **AND** unrelated public and third-party settings SHALL remain unchanged
+
+#### Scenario: Required current context is absent or ambiguous
+- **WHEN** a private entry lacks required neutral fields or receives conflicting case-equivalent private keys
+- **THEN** it SHALL fail validation before using that context
+- **AND** obsolete branded keys SHALL NOT satisfy the missing fields
+
+#### Scenario: Acceptance is reviewed
+- **WHEN** the clean-cutover implementation is proposed for acceptance
+- **THEN** evidence SHALL cover current-contract packaged launch/update/rollback/recovery, unsupported-input and target rejection, protected user-data sentinels, public overrides, supported platforms, and unchanged budgets
+
+### Requirement: Global package replacement is cancellation safe
+Before allowing npm to mutate the globally managed A1 package or its launchers, the self-update workflow SHALL durably prepare verified recovery evidence and delegate the destructive replacement interval to an independently surviving owner. An ordinary cancellation request SHALL be recorded and coordinated at a safe boundary rather than delivered as an uncontrolled termination of npm. Every success, failure, or acknowledged-cancellation result SHALL satisfy a launcher postcondition proving that the platform's complete public launcher set resolves to a verified recovery release or a completely installed target.
+
+#### Scenario: Cancellation precedes package mutation
+- **WHEN** cancellation is requested before npm begins changing the global package
+- **THEN** A1 SHALL stop without starting package replacement and SHALL leave the existing launchers and active release unchanged
+
+#### Scenario: Cancellation occurs inside the destructive interval
+- **WHEN** cancellation is requested after npm may have renamed the package or any launcher
+- **THEN** A1 SHALL stop or finish npm only through the recovery owner, restore or verify the complete launcher set, durably record the safe disposition, and only then acknowledge cancellation
+
+#### Scenario: Updater exits while replacement continues
+- **WHEN** the invoking updater exits after handing package replacement to the recovery owner
+- **THEN** the recovery owner SHALL remain able to finish or contain npm and SHALL establish the launcher postcondition independently of the updater
+
+#### Scenario: npm replacement fails
+- **WHEN** npm exits unsuccessfully after changing the package root or launchers
+- **THEN** the recovery owner SHALL preserve npm diagnostics, restore a verified callable launcher, and retain a transaction that the next invocation can safely continue or roll back
+
+#### Scenario: Target installation completes after cancellation
+- **WHEN** npm has completely installed and verified the selected target before coordinated cancellation reaches its safe boundary
+- **THEN** A1 MAY retain the installed target launchers while leaving activation to the durable transaction recovery path
+
+### Requirement: Recovery evidence is narrow, durable, and disposable
+Update recovery evidence SHALL bind one transaction identity, canonical npm global root, package root, complete launcher path set, prior verified release identity, target version, and recovery payload digest. It SHALL be committed before destructive replacement, consumed only within those bounds, and removed after the transaction and launcher disposition are complete. The recovery mechanism SHALL NOT add another public command, trust arbitrary npm temporary paths, or weaken immutable release validation.
+
+#### Scenario: Recovery capsule is prepared
+- **WHEN** A1 is ready to begin global package replacement
+- **THEN** it SHALL commit the bounded recovery payload and identity before npm can remove a public launcher
+
+#### Scenario: Concurrent or stale recovery owner appears
+- **WHEN** another worker or a later invocation observes recovery evidence for the same transaction
+- **THEN** A1 SHALL use verified process identity and durable disposition to converge on one recovery owner without racing launcher writes
+
+#### Scenario: Recovery completes
+- **WHEN** the package transaction and launcher postcondition are durably complete
+- **THEN** A1 SHALL retire the recovery worker and make its transaction-scoped capsule eligible for bounded cleanup
+
+### Requirement: Update materializes a validated minimal runtime payload
+The immutable payload selected by update SHALL contain every executable module, package manifest, native binary, and runtime asset required by supported A1 commands and profiles, and SHALL omit files classified as development-only only when generated payload evidence and exact-package validation prove they are not runtime inputs.
+
+#### Scenario: Development-only package content is present
+- **WHEN** installed dependencies contain declarations, source maps, source trees, examples, tests, or documentation that no supported runtime path reads
+- **THEN** immutable materialization SHALL exclude those files from executable release and dependency-layer payloads
+
+#### Scenario: Runtime loads a non-code asset
+- **WHEN** a supported command loads a theme, template, provider catalog, native module, WebAssembly module, license-required resource, or other declared asset
+- **THEN** generated payload evidence SHALL include that file and exact-package validation SHALL fail if it is absent or changed
+
+#### Scenario: Runtime payload classification is uncertain
+- **WHEN** A1 cannot prove that an installed file is development-only
+- **THEN** materialization SHALL retain it rather than risk a delayed runtime failure
+
+### Requirement: Update reuses unchanged certified runtime content
+When an installed target selects runtime dependency content identical to an existing certified layer, update SHALL reuse that layer without writing another complete copy. Update evidence SHALL distinguish source discovery, reused files and bytes, newly written files and bytes, and verification reads.
+
+#### Scenario: Preview changes only product code
+- **WHEN** consecutive exact previews select the same dependency-layer identity
+- **THEN** update SHALL write only release-specific product content and metadata and SHALL leave the shared layer path unchanged
+
+#### Scenario: Existing layer trust is incomplete
+- **WHEN** matching layer files exist without valid certification bound to their complete runtime identity
+- **THEN** A1 SHALL verify or rematerialize them before reuse
+
+### Requirement: Post-activation warmup is bounded and side-effect free
+Where required to satisfy first-launch performance, update SHALL warm the common immutable startup graph before reporting success. Warmup SHALL be represented as update progress, SHALL finish within a declared bound, and SHALL NOT attach a terminal, create or mutate a session, prompt for project trust, execute an extension, load project-local executable resources, mutate profile settings, or perform network access.
+
+#### Scenario: Newly activated content is cold
+- **WHEN** startup evidence requires warmup for the next launch to meet its budget
+- **THEN** update SHALL complete the isolated warmup against the exact active release before reporting success
+
+#### Scenario: Warmup detects an unusable release
+- **WHEN** the exact active startup graph cannot be imported or validated without forbidden side effects
+- **THEN** update SHALL fail safely with bounded diagnostics and retain or restore a verified rollback release
+
+#### Scenario: Warmup is unnecessary
+- **WHEN** measured exact-package evidence proves the next launch budget without warmup
+- **THEN** update MAY omit the warmup phase

@@ -218,12 +218,12 @@ reported as what it said rather than as what it was expected to say.
 - **THEN** the change SHALL NOT be described as passing
 
 ### Requirement: Documentation-only changes merge on their own
-Repository automation SHALL arrange automatic squash integration only when every changed and renamed-from path is under `openspec/**`, under `docs/**`, or is exactly the root `README.md`. It MAY arm an eligible pull request while required validation is pending because protected `develop` remains the merge gate. If validation finishes before automation can arm the pull request and GitHub already reports it clean, automation MAY merge only when the successful validation belongs to the current head and the merge request enforces that expected head SHA.
+Repository automation SHALL arrange automatic squash integration only for non-draft, non-implementation-bound PRs when every changed and renamed-from path is under `openspec/**`, under `docs/**`, or is exactly the root `README.md`. An implementation association or introduction of a new active change SHALL hold the PR for manual integration even with an OpenSpec-only diff; malformed or unavailable lifecycle data SHALL fail closed. Removing a marker SHALL NOT bypass the authoritative base/head check. Ordinary docs, standalone existing-change revisions, and verified archive follow-ups SHALL retain eligibility. It MAY arm an eligible pull request while required validation is pending because protected `develop` remains the merge gate. After successful validation for the current head, automation SHALL reconcile that head when GitHub reports `clean` or positively mergeable `unstable` state through a normal protected squash-merge request enforcing that expected head SHA. A specifically recognized unstable-status rejection when arming SHALL be handled by bounded re-evaluation or an explicit deferred outcome, not by creating another failed check solely for that state transition.
 
-An eligible pull request SHALL pass documentation-sensitive governance and, when OpenSpec is touched, strict OpenSpec validation. A pull request containing any other path SHALL remain open for local maintainer validation and manual merge, including behavior-preserving refactors and mixed documentation-plus-code changes. CI success SHALL NOT substitute for local maintainer acceptance of code. Failed validation or successful validation for an older head SHALL NOT authorize direct integration.
+An eligible pull request SHALL pass documentation-sensitive governance and, when OpenSpec is touched, strict OpenSpec validation. A pull request containing any other path SHALL remain open for local maintainer validation and manual merge, including behavior-preserving refactors and mixed documentation-plus-code changes. CI success SHALL NOT substitute for local maintainer acceptance of code. Failed validation or successful validation for an older head SHALL NOT authorize direct integration. State recovery SHALL NOT change required checks, grant bypass authority, or turn unrelated API failures into success.
 
 #### Scenario: Complete diff is auto-merge eligible
-- **WHEN** every changed and renamed-from path is under `openspec/**`, under `docs/**`, or is the root `README.md`
+- **WHEN** a non-draft, non-implementation-bound PR has every changed and renamed-from path under `openspec/**`, under `docs/**`, or exactly at the root `README.md`
 - **THEN** automation SHALL arrange squash integration behind the required validation gate
 
 #### Scenario: Maintained docs change is validated
@@ -240,7 +240,7 @@ An eligible pull request SHALL pass documentation-sensitive governance and, when
 
 #### Scenario: Eligible pull request is already clean
 - **WHEN** successful required validation belongs to the current head and GitHub already reports that head clean
-- **THEN** automation MAY squash-merge using that exact head SHA
+- **THEN** automation SHALL reconcile squash integration using that exact head SHA
 
 #### Scenario: Successful validation belongs to an older head
 - **WHEN** the pull request head differs from the head that passed required validation
@@ -254,6 +254,20 @@ An eligible pull request SHALL pass documentation-sensitive governance and, when
 #### Scenario: Documentation and code are mixed
 - **WHEN** a pull request contains both an allowed documentation path and a path outside the allowlist
 - **THEN** the entire pull request SHALL follow the manual code path
+
+#### Scenario: Validation passes while the policy check is unstable
+- **WHEN** an eligible current head passes required validation while a pending or failed non-required check leaves GitHub reporting a positively mergeable unstable head
+- **THEN** automation SHALL attempt normal protected squash integration with the validated head SHA
+- **AND** a failed attempt to arm auto-merge SHALL NOT be a prerequisite to that attempt
+
+#### Scenario: Arming reports an unstable-state transition
+- **WHEN** GitHub specifically rejects arming because the pull request is in unstable status
+- **THEN** automation SHALL refresh state and re-evaluate its eligibility and current-head validation within a bounded recovery attempt
+- **AND** if safe integration cannot yet be established it SHALL report deferral without claiming the pull request merged or that required validation passed
+
+#### Scenario: Real validation or API failure remains visible
+- **WHEN** required validation fails or the automation encounters an authentication, permission, transport, malformed-response, or unrelated API error
+- **THEN** that failure SHALL remain visible and SHALL NOT be reclassified as a successful unstable-state recovery
 
 ### Requirement: Resource-sensitive fast validation is partitioned deterministically
 The fast validation tier SHALL declare tests whose subprocess, temporary-repository, storage, or release-cohort workloads require protection from shared runner contention. Every declared resource-sensitive test SHALL be excluded from the parallel remainder, SHALL execute exactly once in a non-file-parallel partition under the existing fast-tier test timeout, and SHALL retain all of its semantic assertions. Pull-request validation and exact-package validation SHALL derive the same partition from the same authoritative suite configuration on every platform. The ordinary remainder and resource-sensitive partition SHALL report separate planned commands, elapsed time, outcomes, and available subprocess or fixture timing. A failed assertion, process error, missing or duplicate test owner, or timeout SHALL fail the tier without automatically retrying the test. Resource isolation SHALL NOT increase a test, suite, platform, or workflow timeout; a test that remains too slow after isolation SHALL have its fixture or subprocess workload optimized before it can pass.
@@ -280,3 +294,217 @@ The fast validation tier SHALL declare tests whose subprocess, temporary-reposit
 - **WHEN** a maintainer reads the validation plan or outcomes
 - **THEN** the ordinary remainder and resource-sensitive partition SHALL have distinct identifiers, commands, durations, and results
 - **AND** available subprocess or fixture timing SHALL identify whether resource setup, child execution, or assertions consumed the elapsed time
+
+### Requirement: Pull requests enforce brand-neutral names and classified environment contracts
+Development validation SHALL inspect the complete head contents of every added, modified, copied, and renamed-to first-party naming-policy input in the complete pull-request merge-base-to-head change. The policy SHALL cover owned production code, entry points, tooling, tests, and native source, plus environment definitions and uses in owned configuration and workflows. It SHALL enforce the product-identity naming and environment-classification requirements without changing supported external product identity. Only declared public/integration boundary uses and exact unresolved exposure-review entries SHALL receive external-name exceptions; a confirmed private key SHALL NOT gain an exemption for legacy compatibility. Runtime aliases, dual reads/writes, or fallback key definitions that restore obsolete private spellings SHALL fail governance.
+
+Identifier findings SHALL be derived from language-aware source inspection, not a raw text search. Coverage SHALL include private identifiers, local aliases, binding patterns, type members, quoted or statically known computed member names, and equivalent supported native-language forms. Environment-key inspection SHALL include string-valued definitions and supported accesses, not only identifier tokens. Comments, ordinary user-facing strings, and source snippets that exist solely as test data SHALL NOT be misreported as declarations; actual environment-contract fixtures SHALL be classified explicitly. External dependencies, immutable vendored sources, build output, and other worktrees SHALL be excluded through explicit ownership rules rather than whole first-party subtrees being silently ignored.
+
+#### Scenario: A new file introduces a branded constant
+- **WHEN** a pull request adds a first-party source file with a forbidden internal constant name
+- **THEN** the naming check SHALL fail and report the path, line, name, and violated rule
+
+#### Scenario: An unchanged line in a modified file violates the policy
+- **WHEN** a pull request changes a file containing a forbidden internal name outside the edited lines
+- **THEN** governance SHALL inspect the entire selected file and report that violation
+
+#### Scenario: A file is copied or renamed into policy scope
+- **WHEN** a pull request copies or renames a file into a first-party policy location
+- **THEN** governance SHALL inspect the complete destination content at the current head
+- **AND** the source path SHALL participate in ownership and full-scan invalidation decisions
+
+#### Scenario: A file is removed or renamed out of scope
+- **WHEN** a selected source path no longer exists at the head
+- **THEN** governance SHALL account for its deletion or rename without attempting to parse missing content or inventing a successful scan
+- **AND** a rename to another supported owned-source location SHALL NOT evade inspection
+
+#### Scenario: A private environment key is hidden in a string
+- **WHEN** a selected input defines or uses a product-branded private environment key as an active string-valued setting or fallback
+- **THEN** environment-contract governance SHALL reject it even when the surrounding variable names are neutral or it is labeled as a legacy compatibility exception
+
+#### Scenario: A private legacy exception is proposed
+- **WHEN** a pull request changes classification data to permit an obsolete private key for runtime use
+- **THEN** the exception validation and full policy audit SHALL fail
+- **AND** explicit negative-test data containing the obsolete spelling SHALL NOT make it a supported setting
+
+#### Scenario: A fixture describes forbidden code
+- **WHEN** a governance test contains a source snippet as test data rather than as an executable declaration in that file
+- **THEN** the naming check SHALL not count the snippet as the test file's own declarations
+- **AND** regression tests SHALL independently prove that inspecting the snippet as source detects its violations
+
+#### Scenario: A public identity value is retained
+- **WHEN** a selected input uses a declared public setting or serialization spelling at its approved boundary
+- **THEN** governance SHALL accept that boundary use without permitting similarly spelled internal declarations elsewhere
+
+### Requirement: Naming validation is fail-closed and bound to the current change
+Naming validation SHALL use the authoritative PR head and its resolved merge base, with rename and deletion information intact. A missing base, unavailable diff, unreadable selected file, invalid policy input, unsupported owned-source syntax, or inspection failure SHALL prevent a successful changed-file naming result; it SHALL NOT silently fall back to an empty diff or skip an unclassified input. A successfully completed conservative full scan SHALL be allowed when changed-file classification is insufficient and the authoritative head is known.
+
+Changes to the naming policy, environment classifications, exception definitions, source-ownership rules, parser dependencies, or naming-check selection and integration SHALL require a full tracked-source naming/environment audit and policy regression tests. Full validation SHALL retain the full audit. An ordinary PR with unchanged policy SHALL be eligible for the changed-file audit without a duplicate complete audit solely for this rule. Documentation-only changes outside naming-policy inputs SHALL retain the existing no-product-build/no-product-test path; documentation that is explicitly an input to exception validation SHALL receive the applicable lightweight consistency check.
+
+The required development aggregate SHALL require the applicable naming result and bind it to the current head. Evidence SHALL identify the base and head, changed or full mode, selected and inspected inputs, explicit exclusions, escalation reasons, findings, elapsed time, and result. A missing, stale, failed, or unexpectedly skipped required naming result SHALL block integration.
+
+#### Scenario: The PR base cannot be resolved
+- **WHEN** naming selection cannot establish the authoritative merge base and no complete authoritative-head audit succeeds
+- **THEN** naming validation SHALL fail rather than inspect no files and report success
+
+#### Scenario: A parser cannot inspect a selected input
+- **WHEN** a selected owned source cannot be read or analyzed under the supported syntax policy
+- **THEN** validation SHALL fail with an actionable input-specific diagnostic
+
+#### Scenario: A policy change affects unchanged source
+- **WHEN** a pull request changes identifier matching, environment exceptions, ownership rules, or check selection
+- **THEN** validation SHALL run the policy regression tests and the full tracked-source audit
+- **AND** violations in otherwise unchanged files SHALL block integration
+
+#### Scenario: A prior head passed naming validation
+- **WHEN** the pull-request head changes after the naming result was produced
+- **THEN** the required aggregate SHALL reject that stale result for the new head
+
+#### Scenario: A required naming job is skipped
+- **WHEN** the current selection requires naming validation but its result is absent or skipped
+- **THEN** the required aggregate SHALL fail
+
+#### Scenario: Only non-policy documentation changes
+- **WHEN** every changed path is documentation or specification material outside naming-policy inputs
+- **THEN** naming validation SHALL record an explicit not-applicable result or selection-authorized skip without product execution
+- **AND** existing documentation-sensitive and strict OpenSpec gates SHALL remain required as applicable
+
+### Requirement: macOS release validation proves packaged supervision and containment
+Pull-request and exact-package validation for changes affecting supervision, containment, release startup, or native guardian artifacts SHALL exercise the supported macOS path rather than accepting build success alone. Exact-package preview publication SHALL remain ineligible unless the macOS package starts a correlated supervisor, launches the packaged public command through certified Darwin containment, completes representative resume and cleanup behavior, and reports actionable startup diagnostics on injected failure.
+
+#### Scenario: macOS supervisor starts from exact packaged bytes
+- **WHEN** the macOS exact-package lane materializes and launches a preview candidate
+- **THEN** the selected supervisor SHALL publish verified endpoint metadata for the candidate and the packaged public launch chain SHALL reach input-ready state
+
+#### Scenario: Darwin native containment regresses
+- **WHEN** process identity, process-group creation, foreground transfer, parent-loss cleanup, artifact support, or guardian integrity fails on macOS
+- **THEN** a required pull-request or exact-package macOS check SHALL fail before publication
+
+#### Scenario: Detached supervisor fails before listening
+- **WHEN** a macOS validation fixture injects a pre-listen supervisor failure
+- **THEN** validation SHALL observe the bounded correlated diagnostic rather than waiting for an undifferentiated endpoint timeout
+
+#### Scenario: Development publication is accepted
+- **WHEN** `npm run develop` selects a new authoritative candidate after this correction merges
+- **THEN** Windows Node 22/24, Linux Node 24, and macOS Node 24 exact-package lanes, the npm publisher, the aggregate result, and registry `next` verification SHALL all succeed for the same package bytes
+
+### Requirement: Exact packages carry a spawn-capable native process guardian
+The exact packed package SHALL record each bundled platform's native process guardian with an executable file mode, regardless of which operating system packed it, so that posix installation and immutable release materialization preserve a spawn-eligible helper. Packing SHALL derive each guardian entry's executability from the per-platform guardian build manifest packed beside the binary, not from the pack host's filesystem permissions. Exact package surface validation SHALL assert every packed native guardian entry is executable on every lane that runs it, including lanes whose host cannot represent posix permissions. Executable mode SHALL NOT override the manifest's independent supported/unsupported capability decision.
+
+#### Scenario: Packed on a host without posix permissions
+- **WHEN** the exact package is packed on a host whose filesystem cannot record posix executable permission
+- **THEN** the packed native process guardian entries for every bundled platform SHALL still carry an executable mode
+
+#### Scenario: Executability is bound to certified build bytes
+- **WHEN** packing records a native process guardian entry as executable
+- **THEN** the entry bytes SHALL match the digest declared by that platform's guardian build manifest packed beside the binary
+
+#### Scenario: Surface validation proves executability on any host
+- **WHEN** exact package surface validation runs on any platform lane, including Windows
+- **THEN** it SHALL fail unless every packed native process guardian entry is recorded executable
+
+#### Scenario: Posix materialization preserves guardian executability
+- **WHEN** the exact package is installed and materialized on Linux or Darwin
+- **THEN** every bundled native guardian file SHALL remain executable
+- **AND** a guardian whose manifest declares supported capability SHALL be spawn-eligible for the packaged public launch chain
+
+#### Scenario: Executable artifact remains unsupported
+- **WHEN** a bundled guardian has executable mode but its certified manifest declares the current platform unsupported
+- **THEN** launch SHALL continue to reject that containment provider until a separate platform-capability change certifies it
+
+### Requirement: Patch releases preserve prerelease-aware version semantics
+Invoking `npm run release -- patch` SHALL promote a valid current prerelease version to its stable core without incrementing that core, and SHALL increment the patch number when the current version is already stable. The command SHALL report the source version, selected stable target, and prospective next development version before mutations.
+
+The release command SHALL continue to require a target. It SHALL reject a missing target, invalid version, unknown target, invalid exact target, or extra positional arguments with actionable errors and no version, branch, PR, or publication mutation. No separate no-argument release mode SHALL be introduced. The existing `minor`, `major`, and exact stable-version commands SHALL remain available, with minor/major core-version arithmetic unchanged by this patch fix. Existing stable registry versions and tags SHALL remain protected against reuse or movement.
+
+#### Scenario: Release the current development version with patch
+- **WHEN** the repository declares `0.1.8-dev` and the maintainer invokes `npm run release -- patch`
+- **THEN** the selected stable target SHALL be `0.1.8`
+- **AND** the prospective development reopening SHALL be `0.1.9-dev`
+- **AND** the command SHALL NOT select `0.1.9` as the stable target
+
+#### Scenario: Promote a numbered development version
+- **WHEN** the current version is `0.1.8-dev.123` and the target is `patch`
+- **THEN** the stable target SHALL be `0.1.8`, not a version incremented from the preview number
+
+#### Scenario: Increment an already-stable patch
+- **WHEN** the repository declares stable `0.1.8` and the maintainer invokes `npm run release -- patch`
+- **THEN** the selected stable target SHALL be `0.1.9`
+- **AND** its prospective development reopening SHALL be `0.1.10-dev`
+
+#### Scenario: Promote another valid prerelease with patch
+- **WHEN** the current version is `0.1.8-rc.1` and the target is `patch`
+- **THEN** the stable target SHALL be `0.1.8`, following the same prerelease-aware patch rule
+
+#### Scenario: Retain minor and major targets
+- **WHEN** the current version is `0.1.8-dev` and the maintainer explicitly supplies `minor` or `major`
+- **THEN** the stable target SHALL be `0.2.0` or `1.0.0` respectively
+
+#### Scenario: Request an exact stable target
+- **WHEN** the maintainer supplies the valid exact target `0.4.0`
+- **THEN** the selected stable target SHALL be `0.4.0` and its prospective development reopening SHALL be `0.4.1-dev`
+- **AND** the existing registry and tag guards SHALL still apply
+
+#### Scenario: Omit the required target
+- **WHEN** the maintainer invokes `npm run release` without a target
+- **THEN** the command SHALL display usage requiring `patch`, `minor`, `major`, or an exact stable version
+- **AND** it SHALL make no release mutations
+
+### Requirement: Release version pull requests require manual integration
+Both the stable-version PR and the next-development-version PR SHALL remain subject to required validation, local maintainer acceptance, and manual merge. The release command SHALL NOT enable auto-merge, directly merge either PR, relax branch protection, or treat CI success alone as permission to advance. It SHALL display each PR's URL and phase-specific manual steps and verify its actual merge before continuing beyond that gate.
+
+Version preparation SHALL preserve the caller's checkout, staged/unstaged work, and unrelated worktrees. Version edits SHALL affect only this package's manifest and root lockfile version fields, not dependency versions. Pending or failed phase work SHALL remain identifiable without destructive resets or silent replacement of a conflicting branch/PR.
+
+#### Scenario: Prepare the stable version PR
+- **WHEN** the command prepares `0.1.8` from `0.1.8-dev`
+- **THEN** it SHALL present the stable-version PR for manual validation and merge
+- **AND** publication SHALL not begin merely because the PR exists or its CI passed
+
+#### Scenario: A version PR is not merged
+- **WHEN** either version PR is closed without merging, cannot be verified, or remains pending beyond the bounded wait
+- **THEN** the command SHALL stop that phase and report its PR identity and incomplete state
+- **AND** it SHALL neither merge automatically nor claim that develop has advanced
+
+#### Scenario: Local work appears while a release waits
+- **WHEN** the caller's checkout changes while release orchestration is awaiting a PR or publication
+- **THEN** those changes SHALL be preserved
+- **AND** any unsafe local synchronization SHALL be declined with the authoritative remote state reported
+
+### Requirement: Development reopens only after verified stable publication
+The command SHALL prepare the next patch development version only after successful publication of the selected stable version is confirmed through the existing exact-source publication authority. It SHALL verify that the stable PR's merged version and SHA correspond to the authoritative publication source, and SHALL fail rather than silently substitute a newer source SHA.
+
+For released `x.y.z`, the reopening target SHALL be `x.y.(z+1)-dev`. Reopening SHALL be reported complete only after its separate PR is manually merged and the remote version is verified. Failed or uncertain publication SHALL not trigger reopening. Successful publication followed by incomplete reopening SHALL be reported as two distinct outcomes without republishing or altering immutable release records.
+
+#### Scenario: Finish the current release cycle
+- **WHEN** the stable `0.1.8` PR is manually merged and exact-source publication is confirmed successful
+- **THEN** the command SHALL prepare a separate PR for `0.1.9-dev`
+- **AND** it SHALL report develop reopened at `0.1.9-dev` only after that PR is manually merged and verified
+
+#### Scenario: Publication fails or remains uncertain
+- **WHEN** stable publication fails, times out, or cannot be confirmed
+- **THEN** no next-development-version PR SHALL be created by that attempt
+- **AND** the command SHALL provide inspection guidance without claiming release success
+
+#### Scenario: The publication source becomes stale
+- **WHEN** authoritative develop no longer matches the selected stable PR's verified publication source
+- **THEN** the command SHALL stop with the mismatch
+- **AND** it SHALL not publish a newly selected SHA without a fresh deliberate release decision
+
+#### Scenario: Reopening is incomplete after publication
+- **WHEN** `0.1.8` is confirmed published but the `0.1.9-dev` PR fails or is not merged
+- **THEN** the command SHALL distinguish published `0.1.8` from pending development reopening
+- **AND** it SHALL not republish `0.1.8`, move its tag, or falsely report develop at `0.1.9-dev`
+
+### Requirement: Maintainer release documentation matches the command
+The README release section, release runbook, and command help SHALL document `npm run release -- patch` with distinct prerelease and already-stable examples, retain accurate minor/major/exact-version examples, and explain both manual version-PR gates. They SHALL state that a target is required and SHALL NOT advertise a no-argument release mode. They SHALL state that `0.1.9-dev` follows confirmed `0.1.8` publication and manual reopening, not initial invocation. They SHALL not describe version PRs as self-merging. These documentation changes SHALL accompany the implemented behavior.
+
+#### Scenario: Follow the README example
+- **WHEN** a maintainer reads the release instructions for a checkout declaring `0.1.8-dev`
+- **THEN** the primary example SHALL be `npm run release -- patch` selecting stable `0.1.8`
+- **AND** a separate example SHALL show the same command selecting `0.1.9` only when its input is already-stable `0.1.8`
+- **AND** the instructions SHALL identify manual merge requirements and publication-before-reopening order
+
+#### Scenario: Read recovery guidance
+- **WHEN** a release stops before publication or after publication but before reopening
+- **THEN** the runbook SHALL distinguish those phases and their safe inspection/recovery steps
+- **AND** it SHALL not recommend republishing an existing stable version or using `patch` from stable develop to retry the same release

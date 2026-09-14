@@ -134,14 +134,9 @@ The immutable interactive launcher SHALL establish the same non-detachable launc
 - **THEN** it SHALL create another independent instance rather than acquiring a product-wide foreground slot
 
 ### Requirement: Help is explicit and unsupported commands are quiet
-The installed application SHALL expose equivalent `a1 --help` and `a1 -h` forms
-that print the complete commands supported by that build and exit successfully.
-A1 SHALL NOT append that help to command failures.
+The installed application SHALL expose equivalent `a1 --help` and `a1 -h` forms that print the complete commands supported by that build and exit successfully. Explicit `--help` and `-h` on recognized `a1 pi install`, `remove`, `uninstall`, `list`, and `update` commands SHALL print focused command help for A1's supported subset without executing the command. A1 SHALL NOT append the complete application or command help to command failures; a focused syntax diagnostic MAY include pinned-style usage guidance for the affected supported command.
 
-A word outside the supported command grammar SHALL be a silent successful no-op.
-It SHALL write nothing to stdout or stderr and SHALL NOT start an interactive
-runtime, supervisor, shell, update, package operation, or model refresh. A malformed
-invocation whose leading command is recognized MAY fail with one focused diagnostic.
+A word outside the supported command grammar SHALL be a silent successful no-op. It SHALL write nothing to stdout or stderr and SHALL NOT start an interactive runtime, supervisor, shell, update, package operation, or model refresh. A malformed invocation whose leading command is recognized MAY fail with one focused diagnostic and applicable usage guidance. A1-only update-selector errors SHALL retain their focused product-specific diagnostics.
 
 #### Scenario: Help is requested
 - **WHEN** the user runs `a1 --help` or `a1 -h`
@@ -158,3 +153,54 @@ invocation whose leading command is recognized MAY fail with one focused diagnos
 #### Scenario: Recognized command is malformed
 - **WHEN** the user gives conflicting options to `a1 update`
 - **THEN** A1 SHALL fail before any operation with one concise diagnostic and without the complete help text
+
+#### Scenario: Package command help is explicitly requested
+- **WHEN** the user runs `a1 pi install --help`, `a1 pi remove -h`, `a1 pi uninstall --help`, `a1 pi list --help`, or `a1 pi update --help`
+- **THEN** A1 SHALL print the respective supported command help and exit successfully without profile preparation, package/model work, or runtime launch
+- **AND** help SHALL NOT advertise project-local packages, independent Pi updates, or other unsupported operations or options
+
+#### Scenario: Focused package syntax guidance is needed
+- **WHEN** a recognized Pi-compatible package command has a missing source, unexpected argument, or genuinely unknown option
+- **THEN** A1 SHALL emit its pinned-style diagnostic and focused usage guidance rather than the complete command help
+
+### Requirement: Interrupted update preserves the public command
+After an update accepts cancellation or loses its invoking updater or terminal process, A1 SHALL automatically leave or restore the complete platform launcher set needed to invoke `a1`. The recovered command SHALL execute either the prior verified immutable release or the completely installed target and SHALL retain the durable update transaction needed to continue or roll back. Recovery SHALL require no manual npm installation, launcher reconstruction, process termination, or A1 state deletion.
+
+#### Scenario: User cancels during global package replacement
+- **WHEN** the user interrupts `a1 update` while the package manager has removed or renamed a public launcher
+- **THEN** A1 SHALL coordinate cancellation and SHALL NOT return an acknowledged cancellation to the shell until the complete platform launcher set is callable
+
+#### Scenario: Invoking updater or terminal exits
+- **WHEN** the invoking updater or its terminal process exits during global package replacement
+- **THEN** an independently surviving recovery owner SHALL complete a safe package boundary or restore a verified recovery launcher without user intervention
+
+#### Scenario: User invokes a restored recovery launcher
+- **WHEN** package replacement did not leave a complete installed target and the user next invokes `a1`
+- **THEN** the launcher SHALL use verified recovery evidence to run the prior immutable release or continue the recorded transaction to one verified active or rollback cohort
+
+#### Scenario: Recovery authority is invalid
+- **WHEN** launcher recovery evidence names an unexpected path, package, transaction, release identity, or changed launcher payload
+- **THEN** A1 SHALL reject that evidence and SHALL NOT execute or install content from it
+
+### Requirement: Installed interactive startup is measurable and bounded
+A1 SHALL measure invocation-to-first-usable-frame startup without changing normal terminal output. A first usable frame means the selected owned UI has painted and its editor accepts input. On the accepted Windows release runner, the first `a1` or `a1 pi` launch after a completed exact-package update or after loss of the active release's live supervisor SHALL reach that state within 5 seconds, and a subsequent warm launch SHALL reach it within 3 seconds.
+
+#### Scenario: Launch follows a successful update
+- **WHEN** the exact packaged updater reports success and the user starts either supported interactive profile on the accepted Windows release runner
+- **THEN** the selected UI SHALL paint an input-ready frame within 5 seconds of command invocation
+
+#### Scenario: Launch follows supervisor loss or machine restart
+- **WHEN** an approved active release remains installed but its previously verified supervisor is absent or dead after process loss, sign-out, or machine restart
+- **THEN** either supported interactive profile SHALL validate the selected immutable content and paint an input-ready frame within 5 seconds of command invocation
+
+#### Scenario: Launch uses warmed immutable content
+- **WHEN** the same active release has already completed one interactive startup or update warmup on the accepted Windows release runner
+- **THEN** another supported interactive launch SHALL paint an input-ready frame within 3 seconds
+
+#### Scenario: Startup tracing is enabled
+- **WHEN** an isolated diagnostic run explicitly enables startup timing evidence
+- **THEN** A1 SHALL report bounded durations for bootstrap, durable release validation, supervisor startup, guardian startup, UI module loading, Pi services, resource loading, session creation, and first render without exposing credentials or prompt/session content
+
+#### Scenario: Startup tracing is not enabled
+- **WHEN** the user performs an ordinary interactive launch
+- **THEN** A1 SHALL not print startup timing detail or an additional loading transcript

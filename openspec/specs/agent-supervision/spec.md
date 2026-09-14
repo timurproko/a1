@@ -155,3 +155,211 @@ An ownership-safe update SHALL enumerate all verified active launch instances in
 #### Scenario: One instance cannot release ownership
 - **WHEN** one affected instance cannot be stopped or verified within the update deadline
 - **THEN** A1 SHALL fail or defer replacement safely without falsely marking the cohort idle
+
+### Requirement: Immutable release retention is bounded by current ownership needs
+A1 SHALL compute the retained immutable release set from the active release, the verified rollback release, any pending update transaction releases, every release used by a verified live cohort, and explicit external holds. Historical activation alone SHALL NOT retain a release after it leaves that protected set.
+
+#### Scenario: Successful updates accumulate historical releases
+- **WHEN** a successful update activates a new release and older releases have no live cohort, rollback, pending transaction, or external hold
+- **THEN** A1 SHALL retain only the current protected set and make the remaining historical releases collectible
+
+#### Scenario: Superseded release still has a live session
+- **WHEN** an update activates a new release while a verified older cohort still owns one or more launch instances
+- **THEN** A1 SHALL retain the older release until its final instance and cohort exit
+
+#### Scenario: Rollback remains available
+- **WHEN** a new release becomes active successfully
+- **THEN** A1 SHALL retain one verified prior release as the rollback target even when no cohort currently runs from it
+
+#### Scenario: Explicit external hold exists
+- **WHEN** an agent, migration, or other declared authority holds a known release identity
+- **THEN** reconciliation SHALL retain that release until the authority removes the hold
+
+### Requirement: Release collection is reference-safe and restart-safe
+Before physical deletion, A1 SHALL prove that a release is outside every protected set, canonically contained directly beneath the managed release store, and not represented by a verified live endpoint. A1 SHALL detach obsolete selectors and records atomically before deleting content, and interruption SHALL leave only recoverable unselected content or managed trash.
+
+#### Scenario: Collection is interrupted after state detachment
+- **WHEN** the collector stops after removing an obsolete release from durable state but before deleting all of its files
+- **THEN** the next cleanup reconciliation SHALL recognize and finish deleting the unselected managed content without making it selectable
+
+#### Scenario: Recorded path escapes the release store
+- **WHEN** an obsolete record or filesystem entry resolves outside the canonical managed release store or through an unapproved link
+- **THEN** A1 SHALL refuse deletion, preserve the external path, and record a bounded diagnostic
+
+#### Scenario: Release becomes protected during reconciliation
+- **WHEN** concurrent ownership or transaction reconciliation shows that a candidate release is protected before detachment commits
+- **THEN** collection SHALL leave its state and content intact
+
+#### Scenario: Obsolete content is deleted
+- **WHEN** a release is proven unreferenced and contained
+- **THEN** A1 SHALL NOT perform a complete payload hash pass solely as a prerequisite to deleting that release
+
+### Requirement: Supervisor startup is bounded and diagnosable
+When bootstrap starts a detached supervisor for a verified immutable release, supervisor readiness or failure SHALL be correlated to that exact startup attempt and observed within a bounded interval. A failure before endpoint publication SHALL preserve a bounded, sanitized diagnostic and process outcome rather than being reported only as a generic readiness timeout. Startup evidence SHALL NOT expose credentials, prompts, session content, or unrelated environment values.
+
+#### Scenario: Supervisor publishes its endpoint
+- **WHEN** a detached supervisor validates its release, opens its cohort endpoint, and publishes matching endpoint metadata
+- **THEN** bootstrap SHALL recognize readiness for that exact release and continue without retaining a false failure record
+
+#### Scenario: Supervisor exits before readiness
+- **WHEN** the detached supervisor fails release validation, storage initialization, endpoint binding, or another pre-listen operation
+- **THEN** bootstrap SHALL fail within the startup bound with the correlated exit outcome and sanitized startup diagnostic
+
+#### Scenario: Stale startup evidence exists
+- **WHEN** a prior supervisor attempt left success or failure evidence under the same runtime root
+- **THEN** a new attempt SHALL NOT accept that evidence unless its unguessable attempt identity and selected release identity match
+
+### Requirement: Darwin launch instances use certified native containment
+On supported macOS systems, every A1-owned interactive launch instance SHALL use a verified Darwin-native guardian that creates an independently addressable process group, publishes the root process start identity and containment identity, transfers foreground-terminal ownership when applicable, and terminates the owned group after root exit, owner loss, or bounded shutdown. The Darwin guardian artifact SHALL be marked supported only when its platform, architecture, bytes, native protocol, process identity, and containment behavior are certified.
+
+#### Scenario: Darwin interactive root starts
+- **WHEN** a verified macOS cohort launches `a1` or `a1 pi`
+- **THEN** the native guardian SHALL spawn the selected root in its own process group, publish stable process and containment identities, and transfer foreground ownership without shell interpretation
+
+#### Scenario: Darwin owner disappears
+- **WHEN** the authenticated launch owner exits or disconnects while its Darwin process group remains live
+- **THEN** A1 SHALL perform bounded group cleanup and SHALL preserve unrelated launch instances
+
+#### Scenario: Darwin root exits normally
+- **WHEN** the contained root process exits
+- **THEN** the guardian SHALL clean remaining members of that owned process group, restore prior terminal foreground ownership when applicable, and report the root outcome
+
+#### Scenario: Darwin artifact is unsupported or inconsistent
+- **WHEN** the packed guardian manifest is unsupported, names the wrong platform or architecture, or does not match the guardian bytes
+- **THEN** launch SHALL fail before creating a launch instance and SHALL NOT downgrade to uncontained execution
+
+### Requirement: Certification publication releases ownership safely under filesystem contention
+Dependency certification publication SHALL retry transient sharing or access contention encountered while releasing its publication lease within a finite deadline. Release SHALL act only on the publisher's own lease generation and its private retired artifacts. It SHALL NOT remove, rename, or reclaim another live publisher's lease. Retrying release SHALL NOT rewrite a valid canonical certification, mutate protected legacy evidence, or repeat payload-wide verification. Non-retryable errors and exhausted deadlines SHALL remain observable failures rather than false success.
+
+#### Scenario: Lease release encounters a transient sharing failure
+- **WHEN** publication has validated or published canonical evidence and lease release encounters a transient filesystem sharing failure that clears within the deadline
+- **THEN** the operation SHALL complete without requiring a caller retry
+- **AND** the canonical evidence and protected legacy evidence SHALL remain unchanged by the release retries
+
+#### Scenario: Lease release cannot finish safely
+- **WHEN** contention persists beyond the deadline or release encounters a non-retryable error
+- **THEN** publication SHALL terminate with a diagnosable failure within the bounded release budget
+- **AND** complete certification evidence SHALL remain intact for subsequent validated recovery
+
+#### Scenario: A successor owns the publication path
+- **WHEN** a delayed release attempt observes a different lease generation at the active publication path
+- **THEN** it SHALL preserve the successor's lease and SHALL NOT treat ownership uncertainty as permission to delete or rename it
+
+#### Scenario: Independent publishers recover an abandoned lease
+- **WHEN** independent processes concurrently recover the same proven-abandoned lease and contend to publish one certification
+- **THEN** they SHALL converge on one valid read-only canonical record once transient contention clears within their deadlines
+- **AND** a delayed reclaimer SHALL NOT steal a replacement lease, and valid protected restart evidence SHALL remain usable
+
+### Requirement: Dependency certifications use a dedicated managed directory
+A1 SHALL write new dependency-layer certification records to `<dataDir>/dependency-certifications/<layerId>.json`, where `<layerId>` retains the existing `dependencies-<32-hex>` identity. Record placement SHALL NOT change the layer's full content digest, certification schema, platform policy, immutable payload path, or release identity. New writers SHALL NOT create root-level dependency certification records.
+
+#### Scenario: A dependency layer is certified for the first time
+- **WHEN** A1 certifies a dependency layer and the dedicated directory does not yet exist
+- **THEN** A1 SHALL create the managed directory and publish the record at `dependency-certifications/<layerId>.json`
+- **AND** no root-level `dependency-layer-certification-<layerId>.json` SHALL be created by that writer
+
+#### Scenario: A previously certified layer is reused
+- **WHEN** a valid record already exists in the dedicated directory for the expected layer identity and current platform
+- **THEN** A1 SHALL reuse it without a payload-wide verification pass solely to resolve its storage location
+
+### Requirement: Legacy dependency certification migration preserves validation authority
+A1 SHALL continue to recognize a legacy `<dataDir>/dependency-layer-certification-<layerId>.json` record when the canonical record is absent. Legacy records SHALL pass the same identity, manifest, and platform validation required for canonical records before reuse or migration. Successful migration SHALL publish a complete canonical record before any eligible legacy copy is removed and SHALL NOT require payload-wide reads solely for relocation. Migration SHALL be retryable after interruption or concurrent attempts. A present but invalid canonical record SHALL NOT be bypassed by falling back to a legacy record.
+
+#### Scenario: A valid legacy-only installation is used
+- **WHEN** A1 reuses a layer with a valid legacy record and no canonical record
+- **THEN** A1 SHALL publish the validated certification in the dedicated directory without changing the layer identity or reading all payload bytes
+- **AND** the legacy copy SHALL remain until no protected consumer needs it
+
+#### Scenario: Legacy evidence does not match the layer
+- **WHEN** the legacy record has an incorrect schema, layer identity, content digest, or platform evidence
+- **THEN** relocation SHALL NOT turn that record into trusted certification
+- **AND** A1 SHALL fail safely or use its existing complete-verification recovery before executing uncertified content
+
+#### Scenario: Canonical and legacy records disagree
+- **WHEN** a canonical record exists but fails validation and a legacy record is also present
+- **THEN** A1 SHALL reject the canonical evidence or recover through complete verification rather than silently selecting the legacy record
+
+#### Scenario: Migration is interrupted or performed concurrently
+- **WHEN** migration stops before publication or another process publishes the same canonical record
+- **THEN** a later attempt SHALL recover using validated complete evidence without accepting a partial file or deleting the only valid legacy record
+
+### Requirement: Certification relocation preserves retained cohort restart evidence
+A1 SHALL keep legacy certification files unchanged while a protected retained release, live cohort, or active transaction still requires their legacy paths, including paths embedded in durable restart seals. New restart seals SHALL bind canonical certification paths after successful canonical publication. Moving records SHALL NOT invalidate otherwise valid protected legacy restart evidence or bypass identity, path, binding, and platform checks.
+
+#### Scenario: An older retained release references the legacy file
+- **WHEN** a dependency record is migrated while a retained rollback release or live cohort still requires its legacy path
+- **THEN** A1 SHALL preserve the legacy file and its recorded evidence
+- **AND** that release SHALL remain restartable under its existing certification rules
+
+#### Scenario: A new release receives a restart seal
+- **WHEN** A1 seals a release whose dependency certification has been published in the dedicated directory
+- **THEN** the seal SHALL reference `dependency-certifications/<layerId>.json`
+- **AND** a later restart with unchanged evidence SHALL not need payload-wide verification solely because of the directory change
+
+### Requirement: Dependency certification cleanup handles both layouts safely
+A1 SHALL include the dedicated directory and legacy root-level records in bounded, retryable managed cleanup. It SHALL preserve records required by retained releases, live cohorts, or active transactions, and SHALL eventually remove obsolete legacy copies once valid canonical evidence exists and no protected consumer requires the legacy path. Once a dependency layer is safely removed, cleanup SHALL remove its obsolete records from both layouts. Unknown files and paths outside managed storage SHALL remain untouched.
+
+#### Scenario: A migrated legacy copy is no longer needed
+- **WHEN** valid canonical certification exists and no protected release, cohort, or transaction requires the legacy record
+- **THEN** bounded cleanup SHALL remove the obsolete root-level copy without removing the canonical record
+
+#### Scenario: An unreferenced dependency layer is collected
+- **WHEN** A1 safely removes an unreferenced dependency layer with records in both layouts
+- **THEN** cleanup SHALL remove both obsolete records, retrying transient failures without blocking interactive startup
+
+#### Scenario: Cleanup encounters an absent directory or unrelated entry
+- **WHEN** the dedicated directory is absent or contains unknown files, subdirectories, or symbolic links
+- **THEN** cleanup SHALL tolerate absence and SHALL NOT treat unrelated entries or link targets as owned certification records
+
+#### Scenario: A managed certification path escapes the data root
+- **WHEN** a certification directory or record resolves through a link outside managed storage
+- **THEN** A1 SHALL refuse to trust, migrate, overwrite, or delete that external target as managed certification evidence
+
+### Requirement: Releases may reuse certified immutable dependency content
+A materialized release MAY bind release-specific product content to one or more separately certified immutable dependency layers. Layer identity SHALL derive from its complete selected runtime content, every release SHALL bind the exact layer identities it executes, and no mutable installation path SHALL remain a runtime dependency after activation.
+
+#### Scenario: Consecutive releases use identical dependency content
+- **WHEN** a newly installed release selects dependency-layer content identical to an existing certified layer
+- **THEN** A1 SHALL reuse the existing immutable layer and stable dependency path rather than copy it into another release-specific dependency tree
+
+#### Scenario: Dependency content changes
+- **WHEN** any selected dependency module, package metadata, native binary, or declared runtime asset differs
+- **THEN** A1 SHALL derive and certify a different layer identity before the new release can execute it
+
+#### Scenario: A release binds a shared layer
+- **WHEN** A1 validates, activates, rolls back, or launches a layered release
+- **THEN** it SHALL verify that the release manifest, layer manifest, content identities, and managed paths agree before selecting its entry point
+
+#### Scenario: A layer remains referenced
+- **WHEN** any retained release or verified live cohort binds a dependency layer
+- **THEN** garbage collection SHALL preserve that layer
+
+#### Scenario: No release references a layer
+- **WHEN** bounded retention removes the final release reference and no live cohort executes the layer
+- **THEN** A1 SHALL make the layer eligible for ownership-safe collection
+
+### Requirement: Certified immutable content remains safely restartable
+A1 SHALL preserve bounded durable certification evidence for an approved immutable release and its dependency layers so loss of the certifying supervisor does not by itself require payload-wide content reads before the next launch. Restart validation SHALL bind the selected release record, complete content identities, canonical managed paths, dependency bindings, and platform immutability evidence. A1 SHALL execute no selected release content when that evidence is stale, ambiguous, unsupported, or inconsistent until complete verification succeeds.
+
+#### Scenario: Approved release loses its supervisor
+- **WHEN** the active approved release has valid durable certification but no live verified supervisor
+- **THEN** A1 SHALL validate that certification with work bounded independently of the number and total bytes of payload files before starting a replacement supervisor
+
+#### Scenario: Restart certification is inconsistent
+- **WHEN** the release record, manifest, dependency binding, managed path, content identity, or platform immutability evidence differs from durable certification
+- **THEN** A1 SHALL reject the restart fast path and SHALL NOT execute selected release content unless complete verification succeeds
+
+#### Scenario: Platform cannot prove durable immutability
+- **WHEN** the current platform cannot establish that certified release and layer content remained immutable while no supervisor was live
+- **THEN** A1 SHALL use a safe bounded alternative or complete verification rather than treating prior process authority as current authority
+
+### Requirement: Existing full-copy releases remain valid compatibility cohorts
+Introducing layered releases SHALL NOT invalidate an existing certified full-copy release satisfying the current private launch contract that remains selected for rollback or used by a live cohort. New launches SHALL follow the active release layout, while each existing process SHALL continue using the layout from which it started.
+
+#### Scenario: Update occurs while an old full-copy cohort is live
+- **WHEN** a layered release becomes active while a verified current-contract full-copy release still serves live instances
+- **THEN** the older cohort SHALL continue without path rewriting and its full release root SHALL remain retained until retirement
+
+#### Scenario: Layered activation fails
+- **WHEN** dependency-layer materialization, certification, binding, or startup fails
+- **THEN** rollback SHALL select a verified compatible release as a whole and SHALL NOT combine product files from one release with dependencies from another
