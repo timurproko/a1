@@ -8,6 +8,7 @@ export interface CommandOutcomeCase {
   readonly inputs?: readonly string[];
   readonly prefixStatus?: string;
   readonly keybindings?: Readonly<Record<string, string | readonly string[]>>;
+  readonly trust?: { readonly path: "alias" | "canonical"; readonly saved?: "trusted" | "denied" | "parent" | "ancestor" };
 }
 
 const cases = (command: string, conditions: readonly string[], argument?: string): CommandOutcomeCase[] => conditions.map(condition => ({
@@ -20,6 +21,17 @@ const scopedModelBindings = {
   "app.models.reorderUp": ["alt+up", "ctrl+up"], "app.models.reorderDown": "alt+down",
   "app.models.save": ["alt+s", "ctrl+s"],
 } as const;
+
+const trustCases: readonly CommandOutcomeCase[] = (["alias", "canonical"] as const).flatMap(path => [
+  { id: `trust/${path}-open`, command: "trust", condition: "open", trust: { path } },
+  ...(["trusted", "denied", "parent", "ancestor"] as const).map(saved => ({
+    id: `trust/${path}-saved-${saved}`, command: "trust", condition: "open", trust: { path, saved },
+  })),
+  { id: `trust/${path}-save-project`, command: "trust", condition: "success", trust: { path }, input: "\r" },
+  { id: `trust/${path}-deny`, command: "trust", condition: "success", trust: { path }, inputs: ["j", "j", "\r"] },
+  { id: `trust/${path}-save-parent`, command: "trust", condition: "success", trust: { path, saved: "denied" }, inputs: ["k", "\r"] },
+  { id: `trust/${path}-cancel`, command: "trust", condition: "cancelled", trust: { path, saved: "parent" }, input: "\u001b" },
+]);
 
 export const COMMAND_OUTCOME_CASES: readonly CommandOutcomeCase[] = [
   ...cases("share", ["missing", "unauthenticated", "permission", "auth-stderr", "export-failure", "gist-failure", "gist-empty-failure", "gist-signal", "gist-spawn-failure", "gist-non-error", "malformed", "malformed-stderr", "cancelled", "success"]),
@@ -60,6 +72,7 @@ export const COMMAND_OUTCOME_CASES: readonly CommandOutcomeCase[] = [
   ...cases("trust", ["open"]),
   ...cases("trust", ["success"]).map(entry => ({ ...entry, input: "\r" })),
   ...cases("trust", ["cancelled"]).map(entry => ({ ...entry, input: "\u001b" })),
+  ...trustCases,
   ...cases("reload", ["success", "failure", "non-error", "streaming", "compacting", "model-config-error"]).map(entry => ({ ...entry, prefixStatus: "Earlier command report" })),
   ...cases("hotkeys", ["success", "extensions", "custom-bindings", "disk-change", "reload-bindings"]),
   ...cases("arminsayshi", ["success"]),

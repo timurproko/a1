@@ -7,6 +7,7 @@ import { pathToFileURL } from "node:url";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { createCommandOutcomeState } from "./command-outcome-state.mjs";
+import { prepareCommandTrustFixture } from "./command-trust-fixture.mjs";
 
 const [producer, home, mode, encodedCases] = process.argv.slice(2);
 if (mode === "timeout-probe") {
@@ -115,6 +116,13 @@ for (const theme of ["dark", "light"]) {
       }
       const state = createCommandOutcomeState(home, entry, { ...api, MissingSessionCwdError: cwdErrors.MissingSessionCwdError });
       state.entry = entry;
+      const trustFixture = await prepareCommandTrustFixture(home, entry, api);
+      const cwd = trustFixture?.cwd ?? home;
+      if (trustFixture) {
+        state.manager.getCwd = () => cwd;
+        state.runtime.cwd = cwd;
+        state.runtime.services.resourceLoader.reload = () => { throw new Error("Trust selection must not load project resources"); };
+      }
       active = state;
       state.settingsManager.setOutputPad(padding);
       state.settingsManager.setTheme(theme);
@@ -212,8 +220,8 @@ for (const theme of ["dark", "light"]) {
             await owner.handleModelCommand(entry.argument);
           } else throw new Error(`Unmapped pinned outcome command: ${entry.command}`);
         } else {
-          adapter = await engine.createPiEngineAdapter({ cwd: home, agentDir, createRuntime: async () => state.runtime, workflowHost: state.host });
-          shell = new owned.OwnedUiSessionShell({ backend: adapter, cwd: home, terminal: new terminalModule.TestPresentationTerminal(), startup: { quiet: true } });
+          adapter = await engine.createPiEngineAdapter({ cwd, agentDir, createRuntime: async () => state.runtime, workflowHost: state.host });
+          shell = new owned.OwnedUiSessionShell({ backend: adapter, cwd, terminal: new terminalModule.TestPresentationTerminal(), startup: { quiet: true } });
           shell.root.editor.setText("preserved draft");
           state.onCancel = () => shell.root.handleInput("\u001b");
           state.onMissingCwd = () => setImmediate(() => shell.root.handleInput(entry.condition === "missing-cwd-declined" ? "\u001b" : "\r"));
@@ -267,9 +275,10 @@ for (const theme of ["dark", "light"]) {
             : entry.command === "scoped-models" ? ["tui.select.confirm", "app.models.enableAll", "app.models.clearAll", "app.models.toggleProvider", "app.models.reorderUp", "app.models.reorderDown", "app.models.save"] : undefined;
           const bindings = bindingNames ? shell ? shell.root.editor.keybindingConfig() : owner.keybindings.getEffectiveConfig() : undefined;
           const activeBindings = bindings ? Object.fromEntries(bindingNames.map(key => [key, bindings[key]])) : null;
-          results.push({ id: `${theme}/${padding}/${entry.id}/${width}`, activeBindings, rows, surfaceOpen, surfaceRows, progressRows: progressRows ?? [], calls: [...state.calls], remainingExports: state.exportedFiles.filter(path => existsSync(path)).length, fatalExit: fatalExit ?? null, active: adapter ? adapter.view().lifecycle !== "stopped" : fatalExit === undefined && !normalExit, ...(exceptionReferenceRows === undefined ? {} : { exceptionReferenceRows }) });
+          results.push({ id: `${theme}/${padding}/${entry.id}/${width}`, trust: trustFixture?.capture(state.settingsManager) ?? null, activeBindings, rows, surfaceOpen, surfaceRows, progressRows: progressRows ?? [], calls: [...state.calls], remainingExports: state.exportedFiles.filter(path => existsSync(path)).length, fatalExit: fatalExit ?? null, active: adapter ? adapter.view().lifecycle !== "stopped" : fatalExit === undefined && !normalExit, ...(exceptionReferenceRows === undefined ? {} : { exceptionReferenceRows }) });
         }
       } finally {
+        trustFixture?.restore();
         owner?.disposeActiveSelector?.();
         for (const child of chat?.children ?? []) child.dispose?.();
         await shell?.dispose();
