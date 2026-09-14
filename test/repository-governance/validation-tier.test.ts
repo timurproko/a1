@@ -90,7 +90,7 @@ describe("validation tier planning", () => {
       }),
     ]);
     expect(smoke.structuralEvidence).toEqual({
-      "rendering-smoke": { workloadCaptures: 4, deliberateRepeatCaptures: 0, matrixProducerLaunches: 15, protocolProducerLaunches: 0, totalProducerLaunches: 15 },
+      "rendering-smoke": { workloadCaptures: 6, deliberateRepeatCaptures: 0, matrixProducerLaunches: 19, protocolProducerLaunches: 0, totalProducerLaunches: 19 },
     });
     const full = await createTierPlan(["rendering-stability"]);
     expect(full.vitest?.invocations[0]?.arguments).toEqual(expect.arrayContaining([
@@ -100,7 +100,7 @@ describe("validation tier planning", () => {
       "test/integrations/pi/tui-runtime/input-producer.test.ts",
     ]));
     expect(full.structuralEvidence).toEqual({
-      "rendering-stability": { workloadCaptures: 14, deliberateRepeatCaptures: 0, matrixProducerLaunches: 51, protocolProducerLaunches: 10, totalProducerLaunches: 61 },
+      "rendering-stability": { workloadCaptures: 16, deliberateRepeatCaptures: 0, matrixProducerLaunches: 55, protocolProducerLaunches: 10, totalProducerLaunches: 65 },
     });
   });
 

@@ -3,9 +3,14 @@ import { evaluateRenderingBudgets } from "../../../support/rendering/rendering-b
 import { captureRenderingGate } from "../../../support/rendering/rendering-gate.js";
 import type { RenderingMatrixResult } from "../../../support/rendering/rendering-matrix.js";
 
+import { CONTENT_RENDERING_WORKLOADS } from "../../../support/rendering/content-workloads.js";
+import { verifyScheduledContent } from "../../../support/rendering/content-producer-checks.js";
+
 const smokeWorkloads = ["streamed-prose", "long-transcript-follow"] as const;
 
 describe("rendering smoke gate", () => {
+  it.each(CONTENT_RENDERING_WORKLOADS)("checks scheduled content at $columns x $rows", verifyScheduledContent, 120_000);
+
   it("covers independent producers, both modes, replay, parity, status, and followed damage", async () => {
     const captured = await captureRenderingGate(smokeWorkloads);
     expect(captured.structure).toEqual({ workloadCaptures: 2, deliberateRepeatCaptures: 0, producerLaunches: 12 });

@@ -5,7 +5,7 @@
  * colour.
  */
 
-const ANSI_PATTERN = /\[[0-9;:?]*[ -/]*[@-~]|\][^]*(?:|\\)|[@-Z\\-_]/g;
+const ANSI_PATTERN = /\[[0-9;:?]*[ -/]*[@-~]|[\]_][^]*(?:|\\)|[@-Z\\-_]/g;
 const SEGMENTER = new Intl.Segmenter(undefined, { granularity: "grapheme" });
 const WORD_SEGMENTER = new Intl.Segmenter(undefined, { granularity: "word" });
 

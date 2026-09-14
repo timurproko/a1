@@ -54,6 +54,15 @@ describe("terminal paint evidence", () => {
     expect(ignored.final).toEqual(honored.final);
   });
 
+  it("retains every queued erase and repaint observation in exact parser order", async () => {
+    const writes = Array.from({ length: 32 }, (_, n) => frame(`\u001b[1;1H\u001b[2K字_${n}`, n));
+    const ignored = await replayTerminalPaint(writes, { columns: 40, rows: 3, synchronizedUpdates: "ignore" });
+    const honored = await replayTerminalPaint(writes, { columns: 40, rows: 3, synchronizedUpdates: "honor" });
+    expect(ignored.states.map(state => state.rows[0])).toEqual(writes.flatMap((_, n) => ["", `字_${n}`]));
+    expect(honored.states.map(state => state.rows[0])).toEqual(writes.map((_, n) => `字_${n}`));
+    expect(ignored.final).toEqual(honored.final);
+  });
+
   it("records bounded selection row damage and final truecolor background cells", async () => {
     const writes = [
       frame("\u001b[1;1H\u001b[2Kabcdef", 0, "initial"),
@@ -69,6 +78,20 @@ describe("terminal paint evidence", () => {
       mode: "rgb",
       color: (38 << 16) | (79 << 8) | 120,
     }]);
+  });
+
+  it("compares final styles across synchronization modes, including colored blank cells", async () => {
+    const writes = [frame("\u001b[1;4;38;2;1;2;3;48;2;4;5;6mX \u001b[0mZ")];
+    const options = { columns: 40, rows: 3, captureStyles: true };
+    const honored = await replayTerminalPaint(writes, { ...options, synchronizedUpdates: "honor" });
+    const ignored = await replayTerminalPaint(writes, { ...options, synchronizedUpdates: "ignore" });
+    expect(ignored.final).toEqual(honored.final);
+    expect(ignored.finalStyles).toEqual(honored.finalStyles);
+    expect(honored.finalStyles?.map(cell => cell.column)).toEqual([1, 2]);
+    expect(honored.finalStyles?.every(cell => cell.colors[1] === 0x010203 && cell.colors[3] === 0x040506 && cell.flags[0] !== 0 && cell.flags[3] !== 0)).toBe(true);
+    const stripped = await replayTerminalPaint(writes.map(write => ({ ...write, data: write.data.replace(/\u001b\[[0-9;]*m/gu, "") })), { ...options, synchronizedUpdates: "ignore" });
+    expect(stripped.final).toEqual(honored.final);
+    expect(stripped.finalStyles).not.toEqual(honored.finalStyles);
   });
 
   it("rejects malformed synchronized streams and evidence beyond its byte bound", async () => {

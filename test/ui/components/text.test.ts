@@ -5,6 +5,13 @@ const RESET = "[0m";
 const RED = "[31m";
 
 describe("display width", () => {
+  it("keeps Kitty payloads opaque and zero-column during width, truncation, and copy", () => {
+    const image = "\u001b_Ga=T,f=100;AQID\u001b\\";
+    expect(displayWidth(image + "hello")).toBe(5);
+    expect(stripAnsi(image + "hello")).toBe("hello");
+    expect(truncateToWidth(image + "hello", 4)).toBe(image + "hell\u001b[0m");
+  });
+
   it("counts ordinary text by character", () => {
     expect(displayWidth("")).toBe(0);
     expect(displayWidth("hello")).toBe(5);
