@@ -19,6 +19,7 @@ function open(path = join(root(), "history.sqlite3"), limit = 100) { const value
 const prompt = (id: string, text = id): PromptHistorySubmission => ({ id, text, timestamp: 1, kind: "prompt" });
 
 describe("profile history store", () => {
+  // Rationale: acknowledgement fault injection still performs real durable setup and COMMITs, not a latency benchmark.
   it.each([false, true])("reports truthful certainty when COMMIT acknowledgement is lost (committed=%s)", committed => {
     const store = open();
     store.record(prompt("seed"));
@@ -36,7 +37,7 @@ describe("profile history store", () => {
     } finally { intercept.mockRestore(); }
     expect(store.snapshot().revision).toBe(before + (committed ? 1 : 0));
     expect(store.snapshot().entries.map(entry => entry.submissionId)).toEqual(committed ? ["candidate", "seed"] : ["seed"]);
-  });
+  }, DURABLE_STORE_TEST_TIMEOUT_MS);
 
   it("keeps exact unique text in committed recency order across writers and reopen", () => {
     const path = join(root(), "history.sqlite3");
