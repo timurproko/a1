@@ -1,4 +1,4 @@
-import type { ToolExecutionComponent } from "@earendil-works/pi-coding-agent";
+import type { ToolExecutionComponent } from "./upstream/components/tool-execution.js";
 import type { OwnedUiTranscriptBlock } from "../../../contracts/owned-ui/index.js";
 import { isRecord, type PiShellImageAssetResolver } from "./shell-shared-facade.js";
 

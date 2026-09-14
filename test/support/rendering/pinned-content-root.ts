@@ -89,8 +89,10 @@ export class PinnedContentRoot implements Component {
 }
 
 function record(value: unknown): value is Record<string, unknown> { return typeof value === "object" && value !== null; }
+// Compatibility: match the existing text-only diagnostic summary, not the rendering payload.
+// AssistantMessageComponent receives the original message, including every thinking part above.
 function contentText(value: unknown): string {
   if (typeof value === "string") return value;
   if (!Array.isArray(value)) return "";
-  return value.map(part => record(part) ? typeof part.text === "string" ? part.text : typeof part.thinking === "string" ? part.thinking : "" : "").join("");
+  return value.map(part => record(part) && typeof part.text === "string" ? part.text : "").join("");
 }

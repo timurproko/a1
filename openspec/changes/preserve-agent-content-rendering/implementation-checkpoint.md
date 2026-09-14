@@ -20,6 +20,16 @@ Base: merged PR #370, `421ceb5042d9da1d69a787ceb6f809ce483f66fb`. Worktree: `D:/
 - Build, typecheck, architecture/product identity, source provenance, and strict OpenSpec validation passed. Final changed-file documentation and exact-head CI remain handoff gates.
 - The optional focused `rendering-budgets.test.ts` run hit the local command's **300-second timeout** before producing a result. It is not counted as passing or as an assertion failure. No `test:fast`, `test:full`, or `test:release` local tier was run. The isolated CI rendering scopes now include the new producer cases; ordinary fast validation excludes that expensive process/replay suite.
 
+## Ready-for-review CI follow-up
+
+The user requested #388 be marked ready. Run `34860397132` then executed rather than skipping the draft. Startup (Node 22/24), containment (Linux/macOS), naming and changed-file documentation passed. Fast validation found two change-caused failures: an inherited `as any` escape in the port and duplicate executable suite ownership for the producer test. Rendering validation exposed one changed diagnostic mismatch for thinking-only messages. Corrections use the actual public result-content type without copying payloads, share content assertions between separately owned smoke/full files, and retain the original text-only diagnostic summary while still passing complete thinking content to the real renderer and checking its displayed text.
+
+The remaining diagnostic hash failure also reproduces with the public pinned tool component substituted as an independent test control. It is isolated in [#392](https://github.com/timurproko/a1/issues/392); its existing test and capture code remain unchanged here. No skip, baseline regeneration or weaker assertion was used. Required CI must still pass on the updated head.
+
+Replay investigation identified a timer turn per ANSI token in the test helper. Queuing public xterm writes preserves callback-order snapshots, including every intermediate erase/repaint, and avoids that redundant waiting. Eight old/new comparisons at 40/192 columns and 16/54 rows preserved all 128 checked states and final cursors; a permanent 32-transaction regression checks exact ignored/honored observation order. The scheduled producer pair dropped from roughly 75 seconds to 13 seconds locally. The full 11-workload matrix now completes in roughly three minutes rather than timing out at 300 seconds; all budget checks except the corrected thinking diagnostic passed in that investigative capture. Final full-matrix rerun remains required.
+
+The focused correction run passed 69 tests in eight suites, including actual public tool/image parity, shared smoke content gates, replay order and governance. Task checkboxes remain at 22/28 pending the broader audit and exact-head validation.
+
 ## Still open
 
 **22/28 tasks are checked.** Tasks 4.5 and 6.4 remain open for the complete presentation/budget audit and broader acceptance matrix; their passing subsets do not establish full completion. Tasks 7.1–7.4 remain open for exact-head automated validation, complete runnable handoff, user-controlled Windows Terminal content review, and recorded acceptance.

@@ -159,7 +159,6 @@
       },
       "tests": [
         "test/integrations/pi/tui-runtime/rendering-smoke.test.ts",
-        "test/integrations/pi/tui-runtime/content-producer.test.ts",
         "test/integrations/pi/tui-runtime/input-responsiveness-smoke.test.ts"
       ]
     },

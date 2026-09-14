@@ -250,8 +250,7 @@ export async function replayTerminalPaint(
         }
         if (token === END_SYNCHRONIZED_OUTPUT) {
           if (options.synchronizedUpdates === "honor") {
-            await terminalWrite(terminal, transaction);
-            states.push(snapshot(terminal, options.rows));
+            terminal.write(transaction, () => states.push(snapshot(terminal, options.rows)));
           }
           transaction = "";
           synchronized = false;
@@ -261,10 +260,13 @@ export async function replayTerminalPaint(
           transaction += token;
           continue;
         }
-        await terminalWrite(terminal, token);
-        if (hasVisiblePaint(token)) states.push(snapshot(terminal, options.rows));
+        // Invariant: xterm invokes each write callback after parsing that write and before
+        // parsing the next. Queue tokens without introducing one timer turn per token;
+        // preserve every intermediate observation, including exposed erase states.
+        terminal.write(token, () => { if (hasVisiblePaint(token)) states.push(snapshot(terminal, options.rows)); });
       }
     }
+    await new Promise<void>(resolve => terminal.write("", resolve));
     return {
       final: snapshot(terminal, options.rows),
       states,

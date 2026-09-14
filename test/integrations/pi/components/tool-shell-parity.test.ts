@@ -25,8 +25,8 @@ describe("source-derived tool shell with independent actual pinned renderers", (
     const check = () => { for (const width of [40, 80, 192]) expect(owned.render(width)).toEqual(pinned.render(width)); };
     check();
     for (const tool of [owned, pinned]) { tool.updateArgs(args); tool.setArgsComplete(); tool.markExecutionStarted(); }
-    const content = [{ type: "text", text: "\u001b[31mred\u001b[0m\r\nwide 字🙂\t\u0000\uFFF9" },
-      { type: "text", text: Array.from({ length: 20 }, (_, n) => `line ${n}`).join("\n") }];
+    const content = [{ type: "text" as const, text: "\u001b[31mred\u001b[0m\r\nwide 字🙂\t\u0000\uFFF9" },
+      { type: "text" as const, text: Array.from({ length: 20 }, (_, n) => `line ${n}`).join("\n") }];
     for (const partial of [true, false]) {
       for (const tool of [owned, pinned]) tool.updateResult({ content, details: { diff: "-1 old\n+1 new", firstChangedLine: 1 }, isError: !partial }, partial);
       check();
@@ -51,7 +51,7 @@ describe("source-derived tool shell with independent actual pinned renderers", (
       },
     } as unknown as ConstructorParameters<typeof PinnedTool>[4];
     const { owned, pinned } = pair("extension", { keep: true }, definition);
-    const result = { content: [{ type: "text", text: "result" }, { type: "image", mimeType: "image/jpeg", data: "AQID" }], details: { retained: true }, isError: false };
+    const result = { content: [{ type: "text" as const, text: "result" }, { type: "image" as const, mimeType: "image/jpeg", data: "AQID" }], details: { retained: true }, isError: false };
     for (const tool of [owned, pinned]) { tool.setArgsComplete(); tool.markExecutionStarted(); tool.updateResult(result, true); }
     expect(owned.render(80)).toEqual(pinned.render(80));
     expect(received).toEqual([{ content: result.content, details: result.details }, { content: result.content, details: result.details }]);

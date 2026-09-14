@@ -54,6 +54,15 @@ describe("terminal paint evidence", () => {
     expect(ignored.final).toEqual(honored.final);
   });
 
+  it("retains every queued erase and repaint observation in exact parser order", async () => {
+    const writes = Array.from({ length: 32 }, (_, n) => frame(`\u001b[1;1H\u001b[2K字_${n}`, n));
+    const ignored = await replayTerminalPaint(writes, { columns: 40, rows: 3, synchronizedUpdates: "ignore" });
+    const honored = await replayTerminalPaint(writes, { columns: 40, rows: 3, synchronizedUpdates: "honor" });
+    expect(ignored.states.map(state => state.rows[0])).toEqual(writes.flatMap((_, n) => ["", `字_${n}`]));
+    expect(honored.states.map(state => state.rows[0])).toEqual(writes.map((_, n) => `字_${n}`));
+    expect(ignored.final).toEqual(honored.final);
+  });
+
   it("records bounded selection row damage and final truecolor background cells", async () => {
     const writes = [
       frame("\u001b[1;1H\u001b[2Kabcdef", 0, "initial"),
