@@ -9,6 +9,8 @@ export interface RenderingProducerRequest {
   readonly producer: RenderingProducerId;
   readonly mode: RenderingMode;
   readonly workloadId: string;
+  /** Ordinary scheduled frames, or the existing per-step diagnostic mode. */
+  readonly presentation?: "scheduled" | "stepped";
   readonly state: {
     readonly profileId: "a1" | "pi";
     readonly cwd: string;
@@ -61,6 +63,15 @@ export interface RenderingProducerCheckpoint {
   };
 }
 
+/** Bounded synthetic evidence captured during actual composition, never by rendering a probe. */
+export interface ContentPresentation {
+  readonly frameId: number | null;
+  readonly writeStart: number;
+  readonly rows: readonly string[];
+  readonly blocks: readonly { readonly id: string; readonly semanticRevision: number; readonly presentationRevision: number }[];
+  readonly documentRange: { readonly start: number; readonly end: number } | null;
+}
+
 export interface RenderingProducerResult {
   readonly producer: RenderingProducerId;
   readonly processId: number;
@@ -68,6 +79,7 @@ export interface RenderingProducerResult {
   readonly state: RenderingProducerRequest["state"];
   readonly writes: readonly RenderingProducerWrite[];
   readonly checkpoints: readonly RenderingProducerCheckpoint[];
+  readonly presentations?: readonly ContentPresentation[];
   readonly timings?: { readonly startupMs: number; readonly completionMs: number };
 }
 

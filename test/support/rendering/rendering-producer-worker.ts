@@ -1,24 +1,16 @@
 import { mock } from "node:test";
 import type { AgentSessionRuntime } from "@earendil-works/pi-coding-agent";
-import {
-  AssistantMessageComponent,
-  UserMessageComponent,
-  getMarkdownTheme,
-  initTheme,
-} from "@earendil-works/pi-coding-agent";
-import {
-  Container,
-  Text,
-  TuiAltScreen,
-  TuiMainScreen,
-  type Component,
-} from "#pi-tui";
+import { initTheme } from "@earendil-works/pi-coding-agent";
+import { TuiAltScreen, TuiMainScreen } from "#pi-tui";
+import { PinnedContentRoot } from "./pinned-content-root.js";
+import { CONTENT_RENDERING_WORKLOADS } from "./content-workloads.js";
 import { applyPiTheme } from "../../../src/integrations/pi/components/index.js";
 import { createPiEngineAdapter } from "../../../src/integrations/pi/engine/index.js";
 import { OwnedUiSessionShell } from "../../../src/integrations/pi/session-ui/index.js";
 import { RecordingRenderingTerminal } from "./recording-rendering-terminal.js";
 import type { TranscriptViewportFrameDescriptor } from "../../../src/ui/components/index.js";
 import type {
+  ContentPresentation,
   RenderingProducerCheckpoint,
   RenderingProducerRequest,
   RenderingProducerResult,
@@ -36,7 +28,7 @@ async function runOwned(
     sessionId: `render-${producerRequest.producer}`,
     createRuntime: async () => runtime as unknown as AgentSessionRuntime,
   });
-  const terminal = new RecordingTerminal(producerRequest.state.columns, producerRequest.state.rows);
+  const terminal = new RecordingTerminal(producerRequest.state.columns, producerRequest.state.rows, producerRequest.presentation === "scheduled");
   const shell = new OwnedUiSessionShell({
     backend: adapter,
     cwd: producerRequest.state.cwd,
@@ -45,6 +37,23 @@ async function runOwned(
   });
   terminal.observeDamageDecisions(() => shell.damagePresentationDecision());
   const checkpoints: RenderingProducerCheckpoint[] = [];
+  const presentations: ContentPresentation[] = [];
+  if (producerRequest.presentation === "scheduled") {
+    const render = shell.root.render.bind(shell.root);
+    shell.root.render = width => {
+      const rows = render(width);
+      const descriptor = shell.root.viewportFrameDescriptor();
+      if (presentations.length >= 64 || rows.length > 256 || Buffer.byteLength(rows.join("")) > 128 * 1024) {
+        throw new Error("content presentation evidence exceeds its bounded synthetic capture");
+      }
+      presentations.push({ frameId: descriptor?.frameId ?? null, writeStart: terminal.writes.length, rows: [...rows],
+        blocks: shell.view().transcript.slice(-64).map(block => ({ id: block.id,
+          semanticRevision: shell.root.transcriptComponent(block.id)?.revision ?? block.revision,
+          presentationRevision: shell.root.transcriptComponent(block.id)?.presentationRevision ?? 0 })),
+        documentRange: descriptor?.nextDocumentRange ?? null });
+      return rows;
+    };
+  }
   try {
     terminal.setClock(0, "initial");
     shell.start();
@@ -59,13 +68,16 @@ async function runOwned(
       shell.damagePresentationDecision(),
       shell.root.viewportTransientTailRowCount(),
     ));
-    for (const step of steps) {
-      terminal.setClock(step.atMs, step.checkpoint);
+    for (const [index, step] of steps.entries()) {
+      if (producerRequest.presentation === "scheduled" && steps[index - 1]?.atMs !== step.atMs) await terminal.advanceTo(step.atMs, step.checkpoint);
+      else terminal.setClock(step.atMs, step.checkpoint);
       if (step.action.type === "event") runtime.session.emit(step.action.value);
       else if (step.action.type === "resize") terminal.resize(step.action.columns, step.action.rows);
       else terminal.input(step.action.data);
+      if (producerRequest.presentation === "scheduled" && steps[index + 1]?.atMs === step.atMs) continue;
       await adapter.flushEvents();
-      shell.runtime.renderNow();
+      if (producerRequest.presentation === "scheduled") await new Promise<void>(resolve => setImmediate(resolve));
+      else shell.runtime.renderNow();
       checkpoints.push(ownedCheckpoint(
         step.checkpoint,
         step.atMs,
@@ -76,7 +88,14 @@ async function runOwned(
         shell.root.viewportTransientTailRowCount(),
       ));
     }
+    if (producerRequest.presentation === "scheduled") {
+      await terminal.advanceTo((steps.at(-1)?.atMs ?? 0) + 100, "scheduled-drain");
+      await adapter.flushEvents();
+      checkpoints.push(ownedCheckpoint("scheduled-drain", (steps.at(-1)?.atMs ?? 0) + 100, terminal,
+        shell.view().transcript, shell.root.viewportFrameDescriptor(), shell.damagePresentationDecision(), shell.root.viewportTransientTailRowCount()));
+    }
     return {
+      ...(producerRequest.presentation === "scheduled" ? { presentations } : {}),
       producer: producerRequest.producer,
       processId: process.pid,
       effectiveMode: shell.runtime.mode,
@@ -95,11 +114,11 @@ async function runPinned(
   steps: readonly RenderingWorkloadStep[],
 ): Promise<RenderingProducerResult> {
   initTheme(producerRequest.state.theme, false);
-  const terminal = new RecordingTerminal(producerRequest.state.columns, producerRequest.state.rows);
-  const root = new PinnedRoot();
+  const terminal = new RecordingTerminal(producerRequest.state.columns, producerRequest.state.rows, producerRequest.presentation === "scheduled");
   const tui = producerRequest.mode === "fullscreen"
     ? new TuiAltScreen(terminal, false, undefined, { mouse: false })
     : new TuiMainScreen(terminal, false);
+  const root = new PinnedContentRoot(tui, producerRequest.state.cwd);
   const checkpoints: RenderingProducerCheckpoint[] = [];
   try {
     tui.addChild(root);
@@ -108,14 +127,20 @@ async function runPinned(
     tui.start();
     tui.renderNow();
     checkpoints.push(pinnedCheckpoint("initial", 0, terminal, root.transcript));
-    for (const step of steps) {
-      terminal.setClock(step.atMs, step.checkpoint);
+    for (const [index, step] of steps.entries()) {
+      if (producerRequest.presentation === "scheduled" && steps[index - 1]?.atMs !== step.atMs) await terminal.advanceTo(step.atMs, step.checkpoint);
+      else terminal.setClock(step.atMs, step.checkpoint);
       if (step.action.type === "event") root.applyEvent(step.action.value);
       else if (step.action.type === "resize") terminal.resize(step.action.columns, step.action.rows);
       else terminal.input(step.action.data);
+      if (producerRequest.presentation === "scheduled" && steps[index + 1]?.atMs === step.atMs) continue;
       tui.requestRender();
-      tui.renderNow();
+      if (producerRequest.presentation !== "scheduled") tui.renderNow();
       checkpoints.push(pinnedCheckpoint(step.checkpoint, step.atMs, terminal, root.transcript));
+    }
+    if (producerRequest.presentation === "scheduled") {
+      await terminal.advanceTo((steps.at(-1)?.atMs ?? 0) + 100, "scheduled-drain");
+      checkpoints.push(pinnedCheckpoint("scheduled-drain", (steps.at(-1)?.atMs ?? 0) + 100, terminal, root.transcript));
     }
     return {
       producer: "pinned-pi",
@@ -134,13 +159,23 @@ async function runPinned(
 class RecordingTerminal extends RecordingRenderingTerminal {
   #atMs = 0;
 
+  constructor(columns: number, rows: number, private readonly scheduled = false) { super(columns, rows); }
+
+  async advanceTo(atMs: number, cause: string): Promise<void> {
+    const elapsed = Math.max(0, atMs - this.#atMs);
+    // Concurrency: scheduled producers use the actual nextTick/timer/monotonic-clock chain.
+    // The stepped diagnostic path retains its historical mock clock and forced checkpoints.
+    if (this.scheduled && elapsed > 0) await new Promise<void>(resolve => setTimeout(resolve, elapsed));
+    this.setClock(atMs, cause);
+  }
+
   override setClock(atMs: number, cause: string): void {
     const elapsed = Math.max(0, atMs - this.#atMs);
     this.#atMs = atMs;
     super.setClock(atMs, cause);
     // Rationale: label timer-driven writes before advancing the shared scripted clock.
     // Cooperative immediate/event delivery remains real for every independent producer.
-    mock.timers.tick(elapsed);
+    if (!this.scheduled) mock.timers.tick(elapsed);
   }
 }
 
@@ -190,68 +225,6 @@ class ScriptedRuntime {
   async newSession(): Promise<void> {}
   async switchSession(): Promise<void> {}
   async dispose(): Promise<void> {}
-}
-
-class PinnedRoot implements Component {
-  readonly #document = new Container();
-  readonly #dock = new Container();
-  readonly transcript: Array<{ kind: string; status: string; text: string }> = [];
-  #assistant: AssistantMessageComponent | undefined;
-  #assistantIndex = -1;
-  #working = false;
-
-  constructor() { this.#rebuildDock(); }
-  render(width: number): string[] { return [...this.#document.render(width), ...this.#dock.render(width)]; }
-  invalidate(): void { this.#document.invalidate(); this.#dock.invalidate(); }
-  handleInput(): void {}
-  applyEvent(event: Readonly<Record<string, unknown>>): void {
-    if (event.type === "agent_start") this.#working = true;
-    else if (event.type === "agent_settled" || event.type === "agent_end") {
-      this.#working = false;
-      for (const [index, entry] of this.transcript.entries()) {
-        if (entry.status === "live") this.transcript[index] = { ...entry, status: "finalized" };
-      }
-    }
-    else if (event.type === "message_start" || event.type === "message_update" || event.type === "message_end") {
-      const message = event.message;
-      if (isRecord(message) && message.role === "user" && event.type === "message_start") {
-        const text = textFromContent(message.content);
-        this.#document.addChild(new UserMessageComponent(text));
-        this.transcript.push({ kind: "user", status: "live", text });
-      } else if (isRecord(message) && message.role === "assistant") {
-        const status = event.type === "message_end" ? "finalized" : "live";
-        const text = textFromContent(message.content);
-        const delta = event.type === "message_update" && isRecord(event.assistantMessageEvent)
-          && typeof event.assistantMessageEvent.delta === "string"
-          ? event.assistantMessageEvent.delta
-          : undefined;
-        const semanticText = delta !== undefined && !text.endsWith(delta) ? `${text}${delta}` : text;
-        if (this.#assistant === undefined) {
-          this.#assistant = new AssistantMessageComponent(undefined, false, getMarkdownTheme());
-          this.#assistantIndex = this.transcript.length;
-          this.#document.addChild(this.#assistant);
-          this.transcript.push({ kind: "assistant", status, text: semanticText });
-        } else this.transcript[this.#assistantIndex] = { kind: "assistant", status, text: semanticText };
-        this.#assistant.updateContent(message as never, status === "live");
-      }
-    } else if (event.type === "tool_execution_start" || event.type === "tool_execution_update" || event.type === "tool_execution_end") {
-      const status = event.type === "tool_execution_end" ? "finalized" : "live";
-      const source = event.type === "tool_execution_end" ? event.result : event.partialResult;
-      const text = isRecord(source) ? textFromContent(source.content) : "";
-      const existing = this.transcript.findIndex(item => item.kind.startsWith("tool"));
-      const entry = { kind: status === "finalized" ? "tool-result" : "tool-call", status, text };
-      if (existing < 0) {
-        this.transcript.push(entry);
-        this.#document.addChild(new Text(` ${String(event.toolName ?? "tool")}: ${text}`, 0, 0));
-      } else this.transcript[existing] = entry;
-    }
-    this.#rebuildDock();
-  }
-  #rebuildDock(): void {
-    this.#dock.clear();
-    if (this.#working) this.#dock.addChild(new Text(" Working...", 0, 0));
-    this.#dock.addChild(new Text("\n> \n fixture • gpt-5", 0, 0));
-  }
 }
 
 function ownedCheckpoint(
@@ -317,16 +290,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-function textFromContent(value: unknown): string {
-  if (typeof value === "string") return value;
-  if (!Array.isArray(value)) return "";
-  return value.map(item => isRecord(item) && typeof item.text === "string" ? item.text : "").join("");
-}
-
 async function main(): Promise<void> {
   const request = await readRequest();
   if (request.testBehavior === "startup-hang") await hangForever();
-  const workload = STREAM_RENDERING_WORKLOADS.find(candidate => candidate.id === request.workloadId);
+  const workload = [...STREAM_RENDERING_WORKLOADS, ...CONTENT_RENDERING_WORKLOADS].find(candidate => candidate.id === request.workloadId);
   if (workload === undefined) throw new Error(`unknown workload: ${request.workloadId}`);
   if (workload.columns !== request.state.columns || workload.rows !== request.state.rows) {
     throw new Error("producer state geometry does not match workload geometry");
@@ -334,10 +301,10 @@ async function main(): Promise<void> {
   process.send?.({ type: "ready" });
   if (request.testBehavior === "hang") await hangForever();
   if (request.testBehavior === "fail") throw new Error("requested producer failure");
-  mock.timers.enable({ apis: ["Date", "setInterval", "setTimeout"], now: 1_700_000_000_000 });
+  if (request.presentation !== "scheduled") mock.timers.enable({ apis: ["Date", "setInterval", "setTimeout"], now: 1_700_000_000_000 });
   const result = await (request.producer === "pinned-pi"
     ? runPinned(request, workload.steps)
-    : runOwned(request, workload.steps)).finally(() => mock.timers.reset());
+    : runOwned(request, workload.steps)).finally(() => { if (request.presentation !== "scheduled") mock.timers.reset(); });
   await new Promise<void>((resolve, reject) => {
     process.stdout.write(JSON.stringify(result), error => error ? reject(error) : resolve());
   });

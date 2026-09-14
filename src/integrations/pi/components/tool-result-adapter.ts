@@ -1,9 +1,9 @@
-import type { ToolExecutionComponent } from "@earendil-works/pi-coding-agent";
+import type { ToolExecutionComponent } from "./upstream/components/tool-execution.js";
 import type { OwnedUiTranscriptBlock } from "../../../contracts/owned-ui/index.js";
 import { isRecord, type PiShellImageAssetResolver } from "./shell-shared-facade.js";
 
 /** Reconstruct public Pi inputs once at the component boundary, never from diagnostic summaries. */
-export function updatePiToolResult(component: ToolExecutionComponent, block: OwnedUiTranscriptBlock, assets?: PiShellImageAssetResolver): void {
+export function updatePiToolResult(component: Pick<ToolExecutionComponent, "updateResult">, block: OwnedUiTranscriptBlock, assets?: PiShellImageAssetResolver): void {
   const payload = isRecord(block.payload) ? block.payload : {};
   if (block.kind !== "tool-result" && payload.partialResult !== true) return;
   type Result = Parameters<ToolExecutionComponent["updateResult"]>[0];

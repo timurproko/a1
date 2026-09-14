@@ -288,6 +288,19 @@ describe("PiTuiRuntimeAdapter", () => {
     await comparison.stop({ drainInput: false, preserveScreen: true });
   });
 
+  it("accepts Kitty image payloads but still rejects excess ordinary columns on the same row", async () => {
+    const terminal = new TestTerminal();
+    terminal.columns = 5;
+    const image = "\u001b_Ga=T,f=100;AQID\u001b\\";
+    const root = new TestComponent([image + "12345"]);
+    const runtime = new PiTuiRuntimeAdapter({ root, terminal });
+    runtime.start();
+    expect(() => runtime.renderNow()).not.toThrow();
+    root.render = () => [image + "123456"];
+    expect(() => runtime.renderNow()).toThrow("exceeds available width 5");
+    await runtime.stop();
+  });
+
   it("rejects over-width component rows instead of silently rewriting source layout", async () => {
     const terminal = new TestTerminal();
     terminal.columns = 5;
