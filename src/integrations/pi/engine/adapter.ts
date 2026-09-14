@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, realpathSync } from "node:fs";
 import type { PiSessionForkPrompt, PiSessionSelection } from "./session-selection.js";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -1006,17 +1006,22 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
     const runtime = this.#runtime;
     if (!runtime) throw new Error("engine runtime is unavailable");
     const cwd = resolve(this.#cwd);
-    const parent = dirname(cwd);
+    let trustPath = cwd;
+    try { trustPath = realpathSync(cwd); } catch {
+      // Compatibility: pinned Pi retains the resolved path when real-path lookup fails.
+    }
+    // Security: trust the target's parent, not the parent containing a directory alias.
+    const parent = dirname(trustPath);
     const trustStore = new ProjectTrustStore(this.#agentDir);
     const trustOptions: PiProjectTrustContext["trustOptions"] = [
-      { label: "Trust", trusted: true, updates: [{ path: cwd, decision: true }], savedPath: cwd },
-      ...(parent === cwd ? [] : [{
+      { label: "Trust", trusted: true, updates: [{ path: trustPath, decision: true }], savedPath: trustPath },
+      ...(parent === trustPath ? [] : [{
         label: `Trust parent folder (${parent})`,
         trusted: true,
-        updates: [{ path: parent, decision: true }, { path: cwd, decision: null }],
+        updates: [{ path: parent, decision: true }, { path: trustPath, decision: null }],
         savedPath: parent,
       }]),
-      { label: "Do not trust", trusted: false, updates: [{ path: cwd, decision: false }], savedPath: cwd },
+      { label: "Do not trust", trusted: false, updates: [{ path: trustPath, decision: false }], savedPath: trustPath },
     ];
     return {
       cwd,
