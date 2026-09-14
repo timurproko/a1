@@ -52,6 +52,11 @@ Evidence SHALL identify source commit, merged-PR/version identity, package integ
 - **THEN** recovery SHALL remain incomplete with the failed stage and available cause evidence recorded
 - **AND** further correction SHALL preserve the gate and receive the applicable scope approval before implementation
 
+#### Scenario: A retained regression still consumes a retired copy result
+- **WHEN** a retained transcript-lifetime regression uses a retired copy-result representation after a reviewed ownership change
+- **THEN** the test SHALL consume the current selection snapshot through the existing copy serialization contract
+- **AND** it SHALL retain its exact independent expected copied text and all original lifecycle assertions without modifying production clipboard behavior or adding an exception
+
 #### Scenario: The implementation is merged but nightly is pending
 - **WHEN** accepted implementation has merged but the numbered-package nightly outcome is missing, failed, or incomplete
 - **THEN** completed-change archival and retained-worktree cleanup SHALL remain blocked

@@ -44,7 +44,11 @@ Cover output draining/chunk boundaries, the existing output cap, spawn failure, 
 
 Then run the actual published-predecessor scope under its declared package preconditions and capture source/version/digest plus bounded phase timings. Focused synthetic tests establish the mechanism, not full nightly recovery or the historical worker's identity.
 
-### 4. Validate the merged recovery, not an obsolete branch
+### 4. Repair the approved stale test consumer without changing clipboard behavior
+
+Implementation typecheck exposed a merged integration mismatch: #388's transcript lifetime test still reads `.copyText`, while #385 changed the viewport result to a `copySelection` snapshot. The maintainer requested continuation after the narrowly scoped adaptation was proposed. Change that test to serialize the returned snapshot's rows with the existing `selectionCopyRowText`, exactly as current viewport-controller tests do. Keep `COPY_CURRENT` as the independent expected string, fail if the snapshot is absent, and retain every geometry/lifetime case. Do not change production code, snapshot semantics, or the expected clipboard content. Verify the focused lifetime suite and repository typecheck.
+
+### 5. Validate the merged recovery, not an obsolete branch
 
 After the approved implementation is complete, push and make this same PR ready before normal PR CI, as explicitly requested by the maintainer and documented in policy PR #401. Do not duplicate ordinary CI through a draft dispatch. Obtain four-lane Full regression on the candidate containing all relevant fixes. Keep every failed run; no silent retries, skips, or timeout inflation.
 
@@ -54,7 +58,7 @@ After actual maintainer validation and explicit manual implementation merge, req
 
 Record the nightly run's `mode=nightly`, exact source/merged-PR number, package version, integrity/shasum, four successful full-release outcomes, and successful aggregate Publication result; where publication occurs, verify the registry serves exactly the validated bytes and the intended `next` tag. A branch tarball or manual reduced-scope publication cannot substitute. No old numbered package is mutated or republished.
 
-### 5. Close only after the requested outcome exists
+### 6. Close only after the requested outcome exists
 
 The maintainer's implementation review and merge are an integration checkpoint; nightly acceptance remains a separate substantive task afterward. Record final recovery acceptance only from actual evidence, including review of the canonical-spec baseline. Do not manufacture an archive-eligible acceptance record before the post-merge nightly task completes.
 

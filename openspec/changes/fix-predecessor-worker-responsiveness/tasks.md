@@ -1,19 +1,21 @@
 ## 1. Authorization and original evidence
 
-- [ ] 1.1 After plan approval and a separate implementation request, resume this same worktree/branch/PR; record authorization and verify the source contains merged #398/#390, version-2 linkage is intact, and no unrelated changes are present.
-- [ ] 1.2 Record the original run/source/jobs, Windows Node 24 RPC error and phase durations, final Windows Node 22 outcome when available, and earlier lane results; verify the evidence distinguishes confirmed synchronous blocking from unproven attribution of the historical worker timeout.
+- [x] 1.1 After plan approval and a separate implementation request, resume this same worktree/branch/PR; record authorization and verify the source contains merged #398/#390, version-2 linkage is intact, and no unrelated changes are present.
+- [x] 1.2 Record the original run/source/jobs, Windows Node 24 RPC error and phase durations, final Windows Node 22 outcome when available, and earlier lane results; verify the evidence distinguishes confirmed synchronous blocking from unproven attribution of the historical worker timeout.
 
 ## 2. Responsive and bounded subprocess handling
 
-- [ ] 2.1 Add a deterministic parent/child handshake regression that requires the worker to process an event before child exit; verify it fails for the synchronous wait and passes for asynchronous waiting without sleep-based success, production-length RPC waits, or leaked fixture children.
-- [ ] 2.2 Implement the narrowly scoped asynchronous test runner; verify chunked output is fully drained before success and spawn errors, nonzero exits, signals, cancellation, and overflow of the retained 1 MiB bound fail without unbounded buffers or multiple settlement.
-- [ ] 2.3 Connect child lifetime and cancellation to existing fixture deadlines and teardown; verify owned process/output closure precedes installation removal, listeners/timers are released, primary errors survive cleanup failures, and unrelated process/path controls remain untouched without increasing any timeout.
+- [x] 2.1 Add a deterministic parent/child handshake regression that requires the worker to process an event before child exit; verify it fails for the synchronous wait and passes for asynchronous waiting without sleep-based success, production-length RPC waits, or leaked fixture children.
+- [x] 2.2 Implement the narrowly scoped asynchronous test runner; verify chunked output is fully drained before success and spawn errors, nonzero exits, signals, cancellation, and overflow of the retained 1 MiB bound fail without unbounded buffers or multiple settlement.
+- [x] 2.3 Connect child lifetime and cancellation to existing fixture deadlines and teardown; verify owned process/output closure precedes installation removal, listeners/timers are released, primary errors survive cleanup failures, and unrelated process/path controls remain untouched without increasing any timeout.
 
 ## 3. Preserve real predecessor validation
 
-- [ ] 3.1 Replace every synchronous command wait in the predecessor suite with awaited execution, including registry listing and proxy synchronization; verify ordering, Windows command/path quoting, npm environment sanitation, exact candidate selection, publication ordering, default/override count semantics, supported-entry checks, and predecessor-owned materialization/warmup are unchanged.
-- [ ] 3.2 Add bounded phase/version/timing/error diagnostics and prerequisite failure tests; verify malformed registry JSON and failed synchronization cannot continue into dependent phases and arbitrary subprocess output or credentials are not exposed.
-- [ ] 3.3 Exercise the actual declared published-predecessor scope with a prepared exact package; record source/version/digest and phase timings, verify real published predecessors are exercised, and keep synthetic responsiveness proof distinct from actual compatibility evidence.
+- [x] 3.1 Replace every synchronous command wait in the predecessor suite with awaited execution, including registry listing and proxy synchronization; verify ordering, Windows command/path quoting, npm environment sanitation, exact candidate selection, publication ordering, default/override count semantics, supported-entry checks, and predecessor-owned materialization/warmup are unchanged.
+- [x] 3.2 Add bounded phase/version/timing/error diagnostics and prerequisite failure tests; verify malformed registry JSON and failed synchronization cannot continue into dependent phases and arbitrary subprocess output or credentials are not exposed.
+- [x] 3.3 Exercise the actual declared published-predecessor scope with a prepared exact package; record source/version/digest and phase timings, verify real published predecessors are exercised, and keep synthetic responsiveness proof distinct from actual compatibility evidence.
+
+- [x] 3.4 Adapt the stale transcript-lifetime copy assertion to the current selection snapshot using the existing serializer; verify the exact `COPY_CURRENT` oracle, both geometry cases, all lifetime scenarios, and repository typecheck pass without production clipboard changes.
 
 ## 4. PR CI and complete native regression
 

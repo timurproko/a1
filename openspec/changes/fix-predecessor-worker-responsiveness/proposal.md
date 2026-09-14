@@ -25,6 +25,7 @@ None.
 ## Impact
 
 - `test/foundation/release/update-predecessor.integration.test.ts`, a narrowly scoped test-support subprocess helper if needed, and focused regression fixtures/tests.
+- Approved integration refinement: adapt the stale `.copyText` assertion in `test/integrations/pi/session-ui/transcript-presentation-lifetime.test.ts` to the current selection-snapshot API using the existing copy serializer. Preserve the exact `COPY_CURRENT` oracle and all lifecycle scenarios; no production clipboard change or new rendering exception.
 - No production updater, published predecessor code, dependency, source ledger, baseline, workflow, or validation-scope configuration change is planned. If asynchronous waiting does not resolve the failure, preserve the evidence and seek a scope refinement rather than weakening a gate.
 - Planning base `586c48f8cda30ad89358a16160528746b4446253` already includes merged input-accounting #398 and trust-path #390. Their acceptance/archive and older merged-package obligations remain separate; this plan does not claim them complete.
 - OpenSpec-only planning in one draft PR. After approval and a separate implementation request, implement in that same PR, then use the maintainer-approved ready-before-CI sequence; do not merge the plan or archive it ahead of implementation.
