@@ -4,6 +4,7 @@
 
 - Accepted planning PR: [#371](https://github.com/timurproko/a1/pull/371), merged as `6f906271f22c890b055c4021cc93b4f31c7c6c02`, with required CI passing.
 - Implementation base: that current `origin/develop` commit, in `D:/Git/a1/.worktrees/implement-nightly-platform-validation`.
+- Implementation PR: [#374](https://github.com/timurproko/a1/pull/374), branch `fix/nightly-platform-validation`, implementation commit `70c5207d`. Auto-merge is disabled; the PR remains open for acceptance.
 - Original [nightly run 34825707734](https://github.com/timurproko/a1/actions/runs/34825707734), source `ffdf7b92465a5e4e19bc6621d4b496c2d8197f3e`, immutable package `0.1.8-dev.368`.
 - [Darwin job 103917595348](https://github.com/timurproko/a1/actions/runs/34825707734/job/103917595348): `prompt-input-ux.test.ts` / `derives startup and shortcut help from live resolved bindings` expected `alt+m`, received `option+m`.
 - [Windows Node 22 job 103917595423](https://github.com/timurproko/a1/actions/runs/34825707734/job/103917595423): `dependency-certification.test.ts` / `coordinates independent publishers recovering the same abandoned lease` failed with `EPERM` at the release rename; `pi-event-frame-parity.test.ts` / `produces one truecolor diagnostic hash under opposing ambient capabilities` observed two hashes.

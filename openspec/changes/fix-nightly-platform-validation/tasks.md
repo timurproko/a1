@@ -1,6 +1,6 @@
 ## 1. Establish implementation and regression evidence
 
-- [ ] 1.1 After this planning PR merges and implementation is explicitly requested, create a fresh detached worktree from current `origin/develop` and a separate code PR citing this change; verify the base, accepted specification, and absence of unrelated changes.
+- [x] 1.1 After this planning PR merges and implementation is explicitly requested, create a fresh detached worktree from current `origin/develop` and a separate code PR citing this change; verify the base, accepted specification, and absence of unrelated changes.
 - [x] 1.2 Preserve run `34825707734` and its three failing test names in implementation evidence, distinguishing confirmed causes from hypotheses; verify the implementation report links the source SHA, package version, and failed jobs.
 
 ## 2. Correct platform-specific shortcut expectations
