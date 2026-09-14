@@ -2,6 +2,8 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import type { PiTuiInputDiagnosticsEvent } from "../../../src/integrations/pi/tui-runtime/index.js";
 import type { RenderingProducerId } from "../rendering/rendering-producer.js";
+import type { InputCheckpointFrames } from "./input-frame-evidence.js";
+import { assertInputFrameEvidence } from "./input-frame-validation.js";
 
 export interface InputProducerState {
   readonly cwd: string;
@@ -26,6 +28,7 @@ export interface InputProducerBatchRequest {
 }
 
 export interface InputProducerCheckpoint {
+  readonly frameEvidence: InputCheckpointFrames | null;
   readonly name: string;
   readonly writeStart: number;
   readonly writeEnd: number;
@@ -42,7 +45,7 @@ export interface InputProducerCheckpoint {
 }
 
 export interface InputProducerResult {
-  readonly schema: "a1-input-responsiveness-producer-v1";
+  readonly schema: "a1-input-responsiveness-producer-v2";
   readonly producer: RenderingProducerId;
   readonly processId: number;
   readonly workloadId: string;
@@ -55,7 +58,7 @@ export interface InputProducerResult {
 }
 
 export interface InputProducerBatchResult {
-  readonly schema: "a1-input-responsiveness-batch-v1";
+  readonly schema: "a1-input-responsiveness-batch-v2";
   readonly producer: RenderingProducerId;
   readonly processId: number;
   readonly results: readonly InputProducerResult[];
@@ -211,19 +214,23 @@ async function runInputWorker<T extends object>(
 function isResult(value: unknown): value is InputProducerResult {
   if (typeof value !== "object" || value === null) return false;
   const result = value as Partial<InputProducerResult>;
-  return result.schema === "a1-input-responsiveness-producer-v1"
+  if (!(result.schema === "a1-input-responsiveness-producer-v2"
     && (result.producer === "bare-a1" || result.producer === "a1-pi" || result.producer === "pinned-pi")
     && typeof result.processId === "number" && typeof result.workloadId === "string"
     && (result.variant === "candidate" || result.variant === "baseline")
     && Array.isArray(result.phases) && Array.isArray(result.writes)
     && Array.isArray(result.checkpoints) && result.checkpoints.length > 0
-    && result.restored === true;
+    && result.restored === true)) return false;
+  try {
+    assertInputFrameEvidence(result.checkpoints, result.writes, result.producer === "bare-a1");
+    return true;
+  } catch { return false; }
 }
 
 function isBatchResult(value: unknown): value is InputProducerBatchResult {
   if (typeof value !== "object" || value === null) return false;
   const result = value as Partial<InputProducerBatchResult>;
-  return result.schema === "a1-input-responsiveness-batch-v1"
+  return result.schema === "a1-input-responsiveness-batch-v2"
     && (result.producer === "bare-a1" || result.producer === "a1-pi" || result.producer === "pinned-pi")
     && typeof result.processId === "number" && Array.isArray(result.results) && result.results.every(isResult)
     && result.results.every(entry => entry.processId === result.processId && entry.producer === result.producer);
