@@ -1,3 +1,52 @@
+## MODIFIED Requirements
+
+### Requirement: Documentation auto-merge remains exact and current-head-bound
+Only a non-draft same-repository pull request into `develop` whose complete diff is under `openspec/**`, under `docs/**`, and/or exactly root `README.md`, and which is not implementation-bound, SHALL be automatically squash-integrated. Both sides of renames SHALL be classified. Required validation SHALL gate the merge, and any direct clean-state reconciliation SHALL require successful validation for the current head and enforce that expected SHA.
+
+An implementation association or introduction of a new active OpenSpec change SHALL exclude a PR from documentation auto-merge, independently of its draft status or currently documentation-only diff. Complete diff and authoritative base/head state SHALL identify newly introduced active changes even when their association is removed. Archived change directories SHALL NOT be mistaken for newly introduced active plans. Missing, malformed, or ambiguous classification inputs SHALL fail closed. Lifecycle association edits SHALL trigger reconciliation, and an excluded PR SHALL have any armed auto-merge disabled. Ordinary standalone documentation, existing-change planning revisions without an implementation association, and eligible archive follow-ups SHALL retain their automatic path.
+
+#### Scenario: OpenSpec-only pull request passes
+- **WHEN** an eligible OpenSpec-only standalone revision's current head passes required validation
+- **THEN** repository automation SHALL squash-integrate it without maintainer merge action
+
+#### Scenario: Maintained documentation-only pull request passes
+- **WHEN** an eligible `docs/**`-only current head passes required validation
+- **THEN** repository automation SHALL squash-integrate it without maintainer merge action
+
+#### Scenario: Root README-only pull request passes
+- **WHEN** an eligible root-README-only current head passes required validation
+- **THEN** repository automation SHALL squash-integrate it without maintainer merge action
+
+#### Scenario: Allowed documentation surfaces are mixed
+- **WHEN** a current head changes only paths under `openspec/**`, paths under `docs/**`, and/or root `README.md`, without a draft or implementation-bound exclusion
+- **THEN** repository automation SHALL preserve its documentation-only eligibility
+
+#### Scenario: New plan is accidentally made ready
+- **WHEN** a new active OpenSpec change's planning PR becomes ready while its diff remains OpenSpec-only
+- **THEN** repository automation SHALL hold the PR and disable any armed auto-merge
+- **AND** removing the PR's implementation association SHALL NOT bypass the hold
+
+#### Scenario: PR association changes without a new commit
+- **WHEN** a PR body edit introduces an implementation association
+- **THEN** repository automation SHALL reconcile the existing head's eligibility and disable any armed auto-merge
+
+#### Scenario: Classification data is ambiguous
+- **WHEN** lifecycle metadata or required base/head or changed-file data cannot be safely classified
+- **THEN** repository automation SHALL leave auto-merge disabled and report the blocker
+
+#### Scenario: Archive-only follow-up passes
+- **WHEN** an eligible archive PR moves a completed change out of the active directory and updates its declared main specs
+- **THEN** repository automation SHALL allow automatic integration behind current-head required validation
+- **AND** SHALL NOT hold it merely because the archive contains planning artifacts
+
+#### Scenario: Mixed pull request passes CI
+- **WHEN** any changed or renamed-from path is outside the exact allowlist
+- **THEN** auto-merge SHALL remain disabled and the pull request SHALL await manual acceptance
+
+#### Scenario: Successful validation is stale
+- **WHEN** successful validation names a head other than the current pull-request head
+- **THEN** automation SHALL NOT directly integrate the current head
+
 ## ADDED Requirements
 
 ### Requirement: Post-merge archival executes only trusted repository policy
@@ -69,13 +118,17 @@ A closed, unmerged archive PR SHALL be treated as an explicit stop requiring mai
 - **AND** remote cleanup SHALL use the existing exact-head safety rules without touching local worktrees
 
 ### Requirement: Archive automation acceptance proves the live end-to-end lifecycle
-Acceptance of the archive automation implementation SHALL include live evidence that a maintainer-accepted implementation merge caused a separate OpenSpec-only archive PR, that its publication triggered ordinary current-head required validation, and that existing automation squash-integrated it without another archive command or manual archive-PR merge. Evidence SHALL identify the linked change, source acceptance/head/merge, archive PR/head, validation run, resulting target commit, and remote-branch cleanup outcome.
+Acceptance of the revised delivery and archive automation SHALL include live evidence that a new plan stayed unmerged in a draft PR, explicit approval led to implementation in that same PR, and its maintainer-accepted manual merge caused a separate OpenSpec-only archive PR. Archive publication SHALL trigger ordinary current-head required validation, and existing automation SHALL squash-integrate it without another archive command or manual archive-PR merge. Evidence SHALL identify the linked change, source acceptance/head/merge, archive PR/head, validation run, resulting target commit, and remote-branch cleanup outcome.
 
 Fixtures SHALL additionally verify eligibility refusals, dry-run non-mutation, retry convergence, and protection of human edits. Unit-test success or API creation responses alone SHALL NOT establish live acceptance. Bootstrap validation of the automation itself SHALL not require it to archive its own still-unaccepted implementation.
 
-#### Scenario: Automatic lifecycle succeeds
-- **WHEN** an isolated eligible change exercises the deployed trusted workflow
-- **THEN** acceptance evidence SHALL trace implementation merge through archive PR validation, automatic squash integration, and cleanup
+#### Scenario: Single-PR lifecycle succeeds
+- **WHEN** an isolated new change exercises the deployed trusted workflow
+- **THEN** acceptance evidence SHALL trace draft planning, explicit implementation approval, same-PR refinement and implementation, final-head acceptance, and manual merge through archive PR validation, automatic squash integration, and cleanup
+
+#### Scenario: Planning and rejection holds are exercised
+- **WHEN** an isolated planning PR is marked ready before implementation and is subsequently rejected and closed unmerged
+- **THEN** evidence SHALL show no automatic planning merge, no completed-change archive, and no integration of its artifacts into `develop`
 
 #### Scenario: Bot PR exists but CI never starts
 - **WHEN** PR creation succeeds without ordinary required validation being triggered

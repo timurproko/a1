@@ -3,7 +3,7 @@ import { dirname, posix } from "node:path";
 export const PROJECT_OWNERS = Object.freeze({
   "product-identity": Object.freeze({ id: "product-identity", layer: "foundation", sourceRoot: "src", testRoot: "test/product-identity", publicEntry: "src/product-identity.ts", mayImport: Object.freeze([]) }),
   cli: owner("cli", "entry", "src/cli", "test/cli", ["launch", "release", "agent-engine-contracts"]),
-  composition: owner("composition", "entry", "src/composition", "test/composition", ["agent-engine-contracts", "presentation-contracts", "owned-ui-contracts", "owned-ui-settings", "lifecycle", "pi-engine-adapter", "pi-component-adapter", "pi-tui-runtime-adapter", "pi-session-ui-integration", "ui-apps", "ui-components", "owned-ui", "prompt-history", "launch"]),
+  composition: owner("composition", "entry", "src/composition", "test/composition", ["agent-engine-contracts", "presentation-contracts", "owned-ui-contracts", "owned-ui-settings", "lifecycle", "pi-engine-adapter", "pi-component-adapter", "pi-tui-runtime-adapter", "pi-session-ui-integration", "ui-apps", "ui-components", "owned-ui", "prompt-history", "prompt-suggestions", "launch"]),
   launch: owner("launch", "feature", "src/features/launch", "test/features/launch", ["lifecycle"]),
   workspace: owner("workspace", "feature", "src/features/workspace", "test/features/workspace", [
     "storage", "workspace-contracts", "structured-agent-runtime", "native-host-protocol", "agent-engine-contracts", "presentation-contracts",
@@ -11,6 +11,7 @@ export const PROJECT_OWNERS = Object.freeze({
   "owned-ui": owner("owned-ui", "feature", "src/features/owned-ui", "test/features/owned-ui", [
     "owned-ui-contracts", "owned-ui-settings", "ui-components", "ui-apps", "agent-engine-contracts", "presentation-contracts", "startup", "terminal-cleanup",
   ]),
+  "prompt-suggestions": owner("prompt-suggestions", "feature", "src/features/prompt-suggestions", "test/features/prompt-suggestions", ["owned-ui-contracts"]),
   "prompt-history": owner("prompt-history", "feature", "src/features/prompt-history", "test/features/prompt-history", ["owned-ui-contracts"]),
   "terminal-cleanup": owner("terminal-cleanup", "foundation", "src/foundation/terminal-cleanup", "test/foundation/terminal-cleanup", []),
   "launch-context": owner("launch-context", "foundation", "src/foundation/launch-context", "test/foundation/launch-context", []),

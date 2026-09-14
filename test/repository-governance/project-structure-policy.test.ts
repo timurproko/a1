@@ -11,7 +11,7 @@ import {
 describe("project structure ownership policy", () => {
   it("declares every production and test owner with one public entry", () => {
     expect(Object.keys(PROJECT_OWNERS)).toEqual([
-      "product-identity", "cli", "composition", "launch", "workspace", "owned-ui", "prompt-history", "terminal-cleanup", "launch-context", "startup", "lifecycle", "process-containment", "launch-guardian", "protocol", "release", "storage", "structured-agent-runtime", "native-host-protocol", "owned-ui-contracts", "ui-components", "ui-apps", "owned-ui-settings", "agent-engine-contracts", "presentation-contracts", "pi-engine-adapter", "pi-component-adapter", "pi-tui-runtime-adapter", "pi-session-ui-integration", "supervision", "workspace-contracts",
+      "product-identity", "cli", "composition", "launch", "workspace", "owned-ui", "prompt-suggestions", "prompt-history", "terminal-cleanup", "launch-context", "startup", "lifecycle", "process-containment", "launch-guardian", "protocol", "release", "storage", "structured-agent-runtime", "native-host-protocol", "owned-ui-contracts", "ui-components", "ui-apps", "owned-ui-settings", "agent-engine-contracts", "presentation-contracts", "pi-engine-adapter", "pi-component-adapter", "pi-tui-runtime-adapter", "pi-session-ui-integration", "supervision", "workspace-contracts",
     ]);
     for (const owner of Object.values(PROJECT_OWNERS)) {
       if (owner.id === "product-identity") {
@@ -25,6 +25,17 @@ describe("project structure ownership policy", () => {
       expect(testOwnerForPath(`${owner.testRoot}/contract.test.ts`)).toBe(owner.id);
     }
     expect(testOwnerForPath("test/repository-governance/policy.test.ts")).toBe("repository-governance");
+  });
+
+  it("keeps suggestion capture neutral and wired only through composition", () => {
+    expect(PROJECT_OWNERS["prompt-suggestions"]?.mayImport).toEqual(["owned-ui-contracts"]);
+    expect(inspectProjectStructureImports({
+      "src/composition/owned-ui.ts": "import { SuggestionDiagnosticCapture } from '../features/prompt-suggestions/index.js';",
+      "src/features/prompt-suggestions/diagnostics.ts": "import type { SuggestionDiagnosticObserver } from '../../contracts/owned-ui/index.js';",
+    })).toEqual([]);
+    expect(inspectPiFeatureBoundaryImports({
+      "src/features/prompt-suggestions/diagnostics.ts": "import { ModelRuntime } from '@earendil-works/pi-coding-agent';",
+    })).toHaveLength(1);
   });
 
   it("keeps terminal cleanup dependency-free and outside the launch guardian", () => {

@@ -1,6 +1,7 @@
+import { mock } from "node:test";
 import type { AgentSessionRuntime } from "@earendil-works/pi-coding-agent";
 import { createPiEngineAdapter } from "../../../src/integrations/pi/engine/index.js";
-import { applyPiTheme } from "../../../src/integrations/pi/components/index.js";
+import { applyPiTheme, applyPiThemeInstance, piTheme } from "../../../src/integrations/pi/components/index.js";
 import type { PiTuiTerminalPort } from "../../../src/integrations/pi/tui-runtime/index.js";
 import { OwnedUiSessionShell } from "../../../src/integrations/pi/session-ui/index.js";
 import { withPiParityColorMode } from "../../support/pi-terminal-capabilities.js";
@@ -54,17 +55,37 @@ export const SCRIPTED_PI_EVENTS: readonly { readonly stage: string; readonly eve
   },
 ];
 
-export async function buildEventFrameParityResult(): Promise<EventFrameParityResult> {
-  return await withPiParityColorMode(EVENT_FRAME_PARITY_COLOR_MODE, async () => {
-    applyPiTheme("dark", false, EVENT_FRAME_PARITY_COLOR_MODE);
-    const engine = new ScriptedRuntime();
-    const adapter = await createPiEngineAdapter({
-      cwd: "D:/parity",
-      sessionId: "event-frame-parity",
-      createRuntime: async () => engine as unknown as AgentSessionRuntime,
-    });
+/** Capture a non-concurrent event workload with explicit paint checkpoints and scoped host state. */
+export async function buildEventFrameParityResult(options: {
+  readonly beforeEvent?: (stage: string) => void | Promise<void>;
+} = {}): Promise<EventFrameParityResult> {
+  const previousTheme = piTheme();
+  // Invariant: this diagnostic declares event checkpoints, not elapsed animation time.
+  // Keep cooperative nextTick/immediate delivery real but prevent wall-clock paint timers
+  // from stealing a checkpoint or making cursor housekeeping count as its completed paint.
+  mock.timers.enable({ apis: ["Date", "setTimeout", "setInterval"], now: 1_700_000_000_000 });
+  try {
+    return await withPiParityColorMode(EVENT_FRAME_PARITY_COLOR_MODE, () => captureEventFrames(options), { hyperlinks: true });
+  } finally {
+    mock.timers.reset();
+    applyPiTheme(previousTheme.name ?? "dark", false, previousTheme.getColorMode());
+    applyPiThemeInstance(previousTheme);
+  }
+}
+
+async function captureEventFrames(options: { readonly beforeEvent?: (stage: string) => void | Promise<void> }): Promise<EventFrameParityResult> {
+  applyPiTheme("dark", false, EVENT_FRAME_PARITY_COLOR_MODE);
+  const engine = new ScriptedRuntime();
+  const adapter = await createPiEngineAdapter({
+    cwd: "D:/parity",
+    sessionId: "event-frame-parity",
+    createRuntime: async () => engine as unknown as AgentSessionRuntime,
+  });
+  let ownedShell: OwnedUiSessionShell | undefined;
+  try {
     const physical = new CapturingTerminal(64, 18);
     const shell = new OwnedUiSessionShell({ backend: adapter, cwd: "D:/parity", terminal: physical });
+    ownedShell = shell;
     const states: EventStateParityEntry[] = [];
     const frames: TerminalFrameParityEntry[] = [];
     let writeOffset = 0;
@@ -98,25 +119,24 @@ export async function buildEventFrameParityResult(): Promise<EventFrameParityRes
       captureRendered(stage, captureFrame);
     };
 
-    try {
-      shell.start();
-      captureRendered("initial", true, true);
-      for (const entry of SCRIPTED_PI_EVENTS) {
-        // Compatibility: cancel and discard the prior no-damage maintenance frame before
-        // queuing a transition, so exactly one post-event render owns its byte boundary.
-        discardMaintenanceRender();
-        engine.session.emit(entry.event);
-        await captureEvent(entry.stage, ["streaming", "tool-result", "completed"].includes(entry.stage));
-      }
+    shell.start();
+    captureRendered("initial", true, true);
+    for (const entry of SCRIPTED_PI_EVENTS) {
+      if (options.beforeEvent !== undefined) await options.beforeEvent(entry.stage);
+      // Compatibility: cancel and discard the prior no-damage maintenance frame before
+      // queuing a transition, so exactly one post-event render owns its byte boundary.
       discardMaintenanceRender();
-      physical.resize(48, 16);
-      captureRendered("resized", true);
-      return { states, frames };
-    } finally {
-      await shell.dispose();
-      if (!adapter.disposed) await adapter.dispose();
+      engine.session.emit(entry.event);
+      await captureEvent(entry.stage, ["streaming", "tool-result", "completed"].includes(entry.stage));
     }
-  }, { hyperlinks: true });
+    discardMaintenanceRender();
+    physical.resize(48, 16);
+    captureRendered("resized", true);
+    return { states, frames };
+  } finally {
+    try { await ownedShell?.dispose(); }
+    finally { if (!adapter.disposed) await adapter.dispose(); }
+  }
 }
 
 class ScriptedSession {

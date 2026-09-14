@@ -120,6 +120,32 @@ describe("Pi shell public component adapters", () => {
     expect(submit).toHaveBeenCalledWith("go ahead and merge it");
   });
 
+  it("reports semantic suggestion presentation blockers without inspecting rendered text", async () => {
+    const editor = createPiShellEditor({ getColumns: () => 80, getRows: () => 24, requestRender() {}, onSubmit() {}, keybindingProfile: "a1", promptPresentation: PROMPT_PRESENTATION });
+    editor.setFocused?.(true);
+    expect(editor.promptSuggestionBlockReason?.()).toBeNull();
+    editor.setFocused?.(false);
+    expect(editor.promptSuggestionBlockReason?.()).toBe("not-focused");
+    editor.setFocused?.(true);
+    editor.setSubmitEnabled(false);
+    expect(editor.promptSuggestionBlockReason?.()).toBe("not-ready");
+    editor.setSubmitEnabled(true);
+    editor.setText("draft");
+    expect(editor.promptSuggestionBlockReason?.()).toBe("draft");
+    editor.setText("");
+    editor.addAutocompleteProvider(() => ({
+      getSuggestions: () => ({ prefix: "", items: [{ value: "first", label: "first" }, { value: "second", label: "second" }] }),
+      applyCompletion: () => ({ lines: ["first"], cursorLine: 0, cursorCol: 5 }),
+    }));
+    editor.handleInput?.("\t");
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(editor.getText()).toBe("");
+    expect(editor.promptSuggestionBlockReason?.()).toBe("autocomplete");
+    const comparison = createPiShellEditor({ getColumns: () => 80, getRows: () => 24, requestRender() {}, onSubmit() {} });
+    comparison.setFocused?.(true);
+    expect(comparison.promptSuggestionBlockReason?.()).toBe("prompt-mode");
+  });
+
   it("wraps Unicode suggestion text within the prompt glyph's remaining width", () => {
     const editor = createPiShellEditor({
       getColumns: () => 12,

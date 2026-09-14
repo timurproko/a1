@@ -1,9 +1,15 @@
+import { SUGGESTION_CONVERSATIONS } from "../../../fixtures/prompt-suggestion-conversations.js";
+import { SuggestionDiagnosticCapture } from "../../../../src/features/prompt-suggestions/index.js";
 import { memoryHistory } from "./prompt-history-fixture.js";
+import HeadlessXterm from "@xterm/headless";
+import { formatSubmittedPromptTime } from "../../../../src/ui/components/index.js";
 import { PromptHistoryService } from "../../../../src/features/prompt-history/index.js";
 import { PromptHistoryStore } from "../../../../src/features/prompt-history/store.js";
 import { resolvePromptHistoryPath } from "../../../../src/features/prompt-history/paths.js";
 import { holdHistoryLock } from "../../../support/history-lock.js";
-import type { AgentSessionRuntime, ExtensionUIContext } from "@earendil-works/pi-coding-agent";
+import { SessionManager, type AgentSessionRuntime, type ExtensionUIContext } from "@earendil-works/pi-coding-agent";
+import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -79,6 +85,7 @@ class Session {
 
 class Runtime {
   readonly session: Session;
+  completeSuggestion: () => Promise<unknown> = async () => ({ content: [{ type: "text", text: "archive it" }] });
   enabledModels: readonly string[] | undefined;
   doubleEscapeAction: "fork" | "tree" | "none" = "tree";
   loginPromptKind: "select" | "optional-text" = "select";
@@ -104,6 +111,7 @@ class Runtime {
       getExtensions: () => ({ extensions: this.extensionResources, errors: [] }),
     },
     modelRuntime: {
+      completeSimple: vi.fn((_model: unknown, _context: unknown, _options: unknown) => this.completeSuggestion()),
       getModel: (provider: string, id: string) => this.availableModels.find(model => model.provider === provider && model.id === id),
       getAvailableSnapshot: () => this.availableModels.filter(model => this.providerAuthStatus.get(model.provider)?.configured === true),
       getProviders: () => [{ id: "openai", name: "OpenAI Codex", auth: { oauth: {}, apiKey: {} } }],
@@ -188,8 +196,10 @@ async function fixture(
   inputPresentation?: OwnedUiSessionShellOptions["inputPresentation"],
   promptSuggestions?: OwnedUiSessionShellOptions["promptSuggestions"],
   promptHistory?: Omit<NonNullable<OwnedUiSessionShellOptions["promptHistory"]>, "editor">,
+  configureEngine?: (engine: Runtime) => void,
 ) {
   const engine = new Runtime(messages);
+  configureEngine?.(engine);
   engine.extensionResources = extensions;
   const adapter = await createPiEngineAdapter({ cwd: "D:/work", sessionId: "owned-shell", createRuntime: async () => engine as unknown as AgentSessionRuntime });
   const terminal = new TestPresentationTerminal();
@@ -229,6 +239,376 @@ class InputImmediateScheduler {
 async function nextImmediate(): Promise<void> {
   await new Promise<void>(resolve => setImmediate(resolve));
 }
+
+describe("prompt-style compaction in the real engine and shell", () => {
+  const time = new Date(2026, 8, 13, 14, 35).getTime();
+  const compaction = (tokensBefore = 281483, summary = Array.from({ length: 24 }, (_, i) => `summary-${i} alpha beta`).join("\n\n")) => ({
+    role: "compactionSummary", summary, tokensBefore, timestamp: time,
+  });
+  const user = (text: string) => ({ role: "user", content: [{ type: "text", text }], timestamp: time });
+  const reply = (name: string) => ({ role: "assistant", content: [{ type: "text", text: Array.from({ length: 30 }, (_, i) => `${name}-${i}`).join("\n\n") }], timestamp: time + 1 });
+
+  it("loads the disposable visual-review session through Pi's real session manager", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "compaction-review-"));
+    try {
+      const script = fileURLToPath(new URL("../../../../scripts/pi/create-compaction-review-session.mjs", import.meta.url));
+      const path = execFileSync(process.execPath, [script, directory], { encoding: "utf8" }).trim();
+      const manager = SessionManager.open(path);
+      const { adapter, shell } = await fixture(manager.buildSessionContext().messages, [], true);
+      try {
+        const source = adapter.view().transcript.find(block => block.kind === "compaction")!;
+        expect(source.payload).toMatchObject({ role: "compactionSummary", tokensBefore: 281483 });
+        expect(adapter.view().transcript.slice(0, 3).map(block => block.kind)).toEqual(["compaction", "assistant", "user"]);
+        const rows = shell.root.transcriptComponent(source.id)!.render(80).map(stripTerminalSequences);
+        expect(rows[0]).toContain("Compacted from 281,483 tokens");
+        expect(rows.join("\n")).toContain("Synthetic retained detail 24.");
+        expect(rows.join("\n")).not.toContain("END OF FULL COMPACTION SUMMARY");
+        expect(adapter.view().transcript.filter(block => block.kind === "user")).toHaveLength(2);
+      } finally { await shell.dispose(); }
+    } finally { await rm(directory, { recursive: true, force: true }); }
+  });
+
+  it("keeps resumed and newly completed summary data through settlement without adding prompt recall entries", async () => {
+    const messages: unknown[] = [compaction(), user("real prompt"), reply("answer")];
+    const { engine, adapter, terminal, shell } = await fixture(messages, [], true);
+    try {
+      const original = adapter.view().transcript.find(block => block.kind === "compaction")!;
+      expect(original).toMatchObject({ text: compaction().summary, payload: { role: "compactionSummary", tokensBefore: 281483, timestamp: time } });
+      const source = shell.root.transcriptComponent(original.id)!;
+      expect(stripTerminalSequences(source.render(80).join("\n"))).toContain("summary-23 alpha beta");
+      const next = { ...compaction(300001, "Fresh **summary** content."), timestamp: time + 2 };
+      messages.push(next);
+      engine.session.emit({ type: "message_end", message: next });
+      await adapter.flushEvents();
+      const latest = adapter.view().transcript.filter(block => block.kind === "compaction").at(-1)!;
+      expect(latest.id).not.toBe(original.id);
+      expect(latest).toMatchObject({ text: next.summary, payload: { tokensBefore: 300001, timestamp: next.timestamp } });
+      expect(stripTerminalSequences(shell.root.transcriptComponent(latest.id)!.render(80).join("\n"))).toContain("Compacted from 300,001 tokens");
+      engine.session.emit({ type: "agent_settled", messages });
+      await adapter.flushEvents();
+      expect(adapter.view().transcript.filter(block => block.kind === "compaction").map(block => block.text)).toEqual([compaction().summary, next.summary]);
+      shell.root.editor.setText("draft");
+      for (let i = 0; i < 5; i++) { terminal.input("\u001b[A"); await nextImmediate(); }
+      expect(shell.root.editor.getText()).toBe("real prompt");
+      expect(engine.session.calls.some(call => call.startsWith("prompt:"))).toBe(false);
+    } finally { await shell.dispose(); }
+  });
+
+  it.each(["always", "hidden", "auto"] as const)("pins and navigates one mixed sequence with a %s scrollbar", async scrollbarAppearance => {
+    const { terminal, shell } = await fixture([compaction(), user("middle prompt"), reply("middle"), compaction(300001), user("last prompt"), reply("last")], [], true);
+    try {
+      terminal.resize(80, 14);
+      shell.root.editor.setText("keep draft");
+      shell.root.setViewportConfig({ scrollbarAppearance, scrollbarStyle: "thin", scrollbarSpeed: "normal" });
+      const rows = () => shell.root.render(80).map(stripTerminalSequences);
+      const key = async (data: string) => { terminal.input(data); await nextImmediate(); return rows(); };
+      const bottom = rows();
+      let frame = await key("\u001b[1;5H");
+      expect(frame[0]!.trim()).toBe("");
+      expect(frame[1]).toContain("❯ Compacted from 281,483 tokens");
+      const header = frame[1]!;
+      const firstExtent = shell.root.viewportPresentationEvidence().maxScroll;
+      frame = await key("\u001b[<65;3;3M");
+      expect(frame[0]).toContain("❯ Compacted from 281,483 tokens");
+      expect(frame[0]).toContain("14:35");
+      expect(shell.root.render(80)[0]).not.toContain("\u001b[2m");
+      expect(frame.filter(row => row.includes("Compacted from 281,483 tokens"))).toHaveLength(1);
+      expect(shell.root.viewportPresentationEvidence().maxScroll).toBe(firstExtent);
+      const whilePinned = shell.root.exitTranscript(80);
+      await key("\u000f");
+      expect(shell.root.exitTranscript(80)).toBe(whilePinned);
+      terminal.input("\u001b[<0;5;1M");
+      terminal.input("\u001b[<0;5;1m");
+      frame = rows();
+      // Invariant: the reserved scrollbar cell is naturally blank on viewport row zero.
+      expect(frame[0]!.slice(0, -1)).toBe(header.slice(0, -1));
+      expect(frame[2]).toContain("summary-0 alpha beta");
+      expect(shell.root.viewportPresentationEvidence().followingEnd).toBe(false);
+      expect((await key("\u001b[1;2B"))[0]).toContain("❯ middle prompt");
+      expect((await key("\u001b[1;2B"))[0]).toContain("❯ Compacted from 300,001 tokens");
+      expect((await key("\u001b[1;2B"))[0]).toContain("❯ last prompt");
+      expect((await key("\u001b[1;2B")).map(row => row.slice(0, 79))).toEqual(bottom.map(row => row.slice(0, 79)));
+      expect(shell.root.viewportPresentationEvidence().followingEnd).toBe(true);
+      expect((await key("\u001b[1;2A"))[0]).toContain("❯ last prompt");
+      expect((await key("\u001b[1;2A"))[0]).toContain("❯ Compacted from 300,001 tokens");
+      expect((await key("\u001b[1;2A"))[0]).toContain("❯ middle prompt");
+      frame = await key("\u001b[1;2A");
+      expect(frame[0]!.trim()).toBe("");
+      expect(frame[1]).toBe(header);
+      expect(await key("\u001b[1;2A")).toEqual(frame);
+      await key("\u001b[1;5F");
+      expect((await key("\u001b[1;3H"))[0]).toContain("❯ last prompt");
+      expect((await key("\u001b[1;3H"))[0]).toContain("❯ Compacted from 300,001 tokens");
+      expect((await key("\u001b[1;3H"))[0]).toContain("❯ middle prompt");
+      expect((await key("\u001b[1;3H"))[1]).toBe(header);
+      expect(shell.root.editor.getText()).toBe("keep draft");
+    } finally { await shell.dispose(); }
+  });
+
+  it.each(["hidden", "always", "auto"] as const)("keeps prominent timestamps source-grey and baseline quiet/hover styling with a %s scrollbar", async appearance => {
+    const snapshots = [];
+    for (const kind of ["compaction", "user"] as const) {
+      const summary = compaction();
+      const message = kind === "compaction" ? summary : user(`Compacted from 281,483 tokens\n\n${summary.summary}`);
+      const { terminal, shell } = await fixture([message, reply("tail")], [], true);
+      try {
+        terminal.resize(80, 14);
+        shell.root.setViewportConfig({ scrollbarAppearance: appearance, scrollbarStyle: "thin", scrollbarSpeed: "normal" });
+        shell.root.render(80);
+        const frames = [];
+        for (const data of ["\u001b[1;5H", "\u001b[<65;3;3M", "\u001b[1;5F", "\u001b[<35;3;1M", "\u001b[<35;3;3M", "\u001b[1;5H", "\u001b[<65;3;3M", "\u001b[<35;3;1M", "\u001b[<35;3;3M"]) {
+          terminal.input(data);
+          await nextImmediate();
+          frames.push(shell.root.render(80).slice(0, 8));
+        }
+        const rendered = [];
+        for (const rows of frames) {
+          const screen = new HeadlessXterm.Terminal({ cols: 80, rows: rows.length + 1, allowProposedApi: true });
+          try {
+            await new Promise<void>(resolve => screen.write(rows.map(row => `${row}\u001b[0m`).join("\r\n"), resolve));
+            rendered.push(rows.map((_, row) => Array.from({ length: 80 }, (_, column) => {
+              const cell = screen.buffer.active.getLine(row)!.getCell(column)!;
+              return {
+                text: cell.getChars(), background: [cell.getBgColorMode(), cell.getBgColor()],
+                // Provenance: foreground attributes on blank padding cannot affect visible glyphs.
+                foreground: cell.getChars().trim() ? [cell.getFgColorMode(), cell.getFgColor(), cell.isDim(), cell.isBold()] : null,
+              };
+            })));
+          } finally { screen.dispose(); }
+        }
+        const labelColumn = stripTerminalSequences(frames[1]![0]!).indexOf("Compacted");
+        const timeColumn = stripTerminalSequences(frames[1]![0]!).indexOf("14:35");
+        expect(labelColumn).toBeGreaterThanOrEqual(0);
+        expect(timeColumn).toBeGreaterThan(labelColumn);
+        const sourceTimeColumn = stripTerminalSequences(frames[0]![1]!).indexOf("14:35");
+        expect(sourceTimeColumn).toBeGreaterThanOrEqual(0);
+        const sourceTimeStyle = rendered[0]![1]![sourceTimeColumn]!.foreground!;
+        const sourceTimeColor = sourceTimeStyle.slice(0, 2);
+        // Compatibility: quiet and explicit hover retain baseline foreground and intensity.
+        for (const state of [2, 3, 4, 7]) {
+          for (let column = timeColumn; column < timeColumn + 5; column++) {
+            expect(rendered[state]![0]![column]!.foreground).toEqual(rendered[state]![0]![labelColumn]!.foreground);
+            expect(rendered[state]![0]![column]!.background).toEqual(rendered[state]![0]![labelColumn]!.background);
+          }
+        }
+        expect(rendered[3]![0]![labelColumn]!.foreground![2]).toBe(0);
+        expect(rendered[4]![0]![labelColumn]!.foreground![2]).not.toBe(0);
+        expect(rendered[6]).toEqual(rendered[1]);
+        expect(rendered[1]![0]![labelColumn]!.foreground!.slice(0, 2)).not.toEqual(sourceTimeColor);
+        expect(rendered[1]![0]![labelColumn]!.foreground![2]).toBe(0);
+        expect(rendered[2]![0]![labelColumn]!.foreground![2]).not.toBe(0);
+        for (const state of [1, 6, 8]) {
+          for (let column = timeColumn; column < timeColumn + 5; column++) {
+            expect(rendered[state]![0]![column]!.foreground).toEqual(sourceTimeStyle);
+            expect(rendered[state]![0]![column]!.background).toEqual(rendered[state]![0]![labelColumn]!.background);
+          }
+        }
+        expect(rendered[8]).toEqual(rendered[1]);
+        // Compatibility: only timestamp glyphs change foreground on hover; the body retains its normal role.
+        expect(rendered[7]![0]![labelColumn]!.foreground).toEqual(rendered[1]![0]![labelColumn]!.foreground);
+        expect(rendered[5]![1]![sourceTimeColumn]!.foreground).toEqual(sourceTimeStyle);
+        snapshots.push(rendered);
+      } finally { await shell.dispose(); }
+    }
+    expect(snapshots[0]).toEqual(snapshots[1]);
+  });
+
+  it.each([undefined, null, Number.NaN, 8.64e15 + 1, time])("retains baseline quiet styling through resize and unavailable metadata (%s)", async timestamp => {
+    for (const kind of ["user", "compaction"] as const) {
+      const message = { ...(kind === "user" ? user("14:35 clock-like content") : compaction(281483, "Short summary.")), timestamp };
+      const { adapter, terminal, shell } = await fixture([message, reply("tail")], [], true);
+      try {
+        // Compatibility: the engine normalizes unavailable compaction timestamps to epoch zero.
+        const sourceTimestamp = (adapter.view().transcript[0]!.payload as { timestamp?: unknown }).timestamp;
+        const formatted = typeof sourceTimestamp === "number" ? formatSubmittedPromptTime(sourceTimestamp) : null;
+        shell.root.setViewportConfig({ scrollbarAppearance: "hidden", scrollbarStyle: "thin", scrollbarSpeed: "normal" });
+        for (const width of [80, 18, 17, 48]) {
+          terminal.resize(width, 24);
+          const frame = shell.root.render(width);
+          const screen = new HeadlessXterm.Terminal({ cols: width, rows: 25, allowProposedApi: true });
+          try {
+            await new Promise<void>(resolve => screen.write(frame.map(row => `${row}\u001b[0m`).join("\r\n"), resolve));
+            const hasTimestamp = formatted !== null && width >= 18;
+            const line = screen.buffer.active.getLine(0)!;
+            if (hasTimestamp) expect(line.translateToString().slice(-5)).toBe(formatted);
+            for (let column = 0; column < width; column++) {
+              const cell = line.getCell(column)!;
+              if (!cell.getChars().trim()) continue;
+              const isTimestamp = hasTimestamp && column >= width - 5;
+              expect(cell.isDim() !== 0, `${kind} width=${width} column=${column}`).toBe(true);
+              if (isTimestamp) expect(cell.isBold()).toBe(0);
+              expect(cell.getBgColor()).toBe(line.getCell(0)!.getBgColor());
+            }
+            if (kind === "user") expect(line.translateToString()).toContain("14:35");
+          } finally { screen.dispose(); }
+        }
+      } finally { await shell.dispose(); }
+    }
+  });
+
+  it.each([undefined, null, Number.NaN, 8.64e15 + 1, time])("preserves prominent source glyph styling across reflow and rail changes (%s)", async timestamp => {
+    for (const kind of ["user", "compaction"] as const) {
+      const message = {
+        ...(kind === "user" ? user(`14:35 clock-like content\n\n${compaction().summary}`) : compaction()), timestamp,
+      };
+      const { terminal, shell } = await fixture([message, reply("tail")], [], true);
+      try {
+        for (const [width, appearance] of [[80, "hidden"], [18, "hidden"], [17, "always"], [48, "auto"], [80, "always"]] as const) {
+          terminal.resize(width, 14);
+          shell.root.setViewportConfig({ scrollbarAppearance: appearance, scrollbarStyle: "thin", scrollbarSpeed: "normal" });
+          shell.root.render(width);
+          terminal.input("\u001b[1;5H");
+          await nextImmediate();
+          const source = shell.root.render(width)[1]!;
+          terminal.input("\u001b[<65;3;3M");
+          await nextImmediate();
+          const pinned = shell.root.render(width)[0]!;
+          const screen = new HeadlessXterm.Terminal({ cols: width, rows: 3, allowProposedApi: true });
+          try {
+            await new Promise<void>(resolve => screen.write(`${source}\u001b[0m\r\n${pinned}\u001b[0m\r\nsentinel`, resolve));
+            // Compatibility: row zero intentionally has no rail; compare only source content cells.
+            const contentWidth = width - (appearance === "hidden" ? 0 : 1);
+            for (let column = 0; column < contentWidth; column++) {
+              const before = screen.buffer.active.getLine(0)!.getCell(column)!;
+              const after = screen.buffer.active.getLine(1)!.getCell(column)!;
+              expect(after.getChars()).toBe(before.getChars());
+              if (!before.getChars().trim()) continue;
+              expect([after.getFgColorMode(), after.getFgColor(), after.isDim(), after.isBold()])
+                .toEqual([before.getFgColorMode(), before.getFgColor(), before.isDim(), before.isBold()]);
+            }
+            const sentinel = screen.buffer.active.getLine(2)!.getCell(0)!;
+            expect(sentinel.isDim()).toBe(0);
+            expect(sentinel.isBold()).toBe(0);
+            expect(sentinel.getFgColor()).toBe(-1);
+          } finally { screen.dispose(); }
+        }
+      } finally { await shell.dispose(); }
+    }
+  });
+
+  it("replaces quiet timestamp metadata while dimming the whole row without leaking intensity", async () => {
+    const later = { ...user("14:35 is content, not metadata"), timestamp: time + 60_000 };
+    const { terminal, shell } = await fixture([compaction(281483, "Short summary."), reply("first"), later, reply("tail")], [], true);
+    try {
+      terminal.resize(80, 14);
+      shell.root.setViewportConfig({ scrollbarAppearance: "always", scrollbarStyle: "thin", scrollbarSpeed: "normal" });
+      shell.root.render(80);
+      terminal.input("\u001b[1;5H");
+      await nextImmediate();
+      terminal.input("\u001b[<65;3;3M");
+      await nextImmediate();
+      shell.root.render(80);
+      for (const [data, expected] of [["\u001b[<65;3;3M", "14:35"], ["\u001b[1;5F", "14:36"]]) {
+        terminal.input(data!);
+        await nextImmediate();
+        const frame = shell.root.render(80);
+        const screen = new HeadlessXterm.Terminal({ cols: 80, rows: 3, allowProposedApi: true });
+        try {
+          await new Promise<void>(resolve => screen.write(`${frame[0]}\r\nsentinel`, resolve));
+          const row = screen.buffer.active.getLine(0)!;
+          expect(row.translateToString().slice(74, 79)).toBe(expected);
+          for (let column = 74; column < 79; column++) expect(row.getCell(column)!.isDim()).not.toBe(0);
+          expect(row.getCell(2)!.isDim()).not.toBe(0);
+          expect(row.getCell(73)!.isDim()).not.toBe(0);
+          expect(screen.buffer.active.getLine(1)!.getCell(0)!.isDim()).toBe(0);
+          expect(screen.buffer.active.getLine(1)!.getCell(0)!.isBold()).toBe(0);
+        } finally { screen.dispose(); }
+      }
+    } finally { await shell.dispose(); }
+  });
+
+  it("uses quiet compaction context after the full summary and preserves selector input ownership", async () => {
+    const { terminal, shell } = await fixture([compaction(281483, "Short summary."), reply("long reply")], [], true);
+    try {
+      terminal.resize(80, 14);
+      const frame = shell.root.render(80);
+      expect(stripTerminalSequences(frame[0]!)).toContain("Compacted from 281,483 tokens");
+      expect(frame[0]).toContain("\u001b[2m");
+      await shell.submit("/model");
+      shell.runtime.renderNow();
+      const top = shell.root.viewportPresentationEvidence().scrollTop;
+      terminal.input("\u001b[1;2A");
+      await nextImmediate();
+      shell.runtime.renderNow();
+      expect(shell.root.viewportPresentationEvidence().scrollTop).toBe(top);
+      expect(shell.root.usesDefaultInputSurface()).toBe(false);
+    } finally { await shell.dispose(); }
+  });
+
+  it("retains cached long summary rows, links and selection while later output streams and the viewport resizes", async () => {
+    await withPinnedHyperlinks(async () => {
+      const text = "copyable alpha beta\n\n[web](https://example.com/summary) [file](file:///D:/work/summary.md)\n\n" + compaction().summary.repeat(25);
+      const { engine, adapter, terminal, shell } = await fixture([compaction(281483, text), reply("tail")], [], true);
+      try {
+        terminal.resize(80, 16);
+        shell.root.editor.setText("unsubmitted draft");
+        shell.root.render(80);
+        terminal.input("\u001b[1;5H");
+        const rows = shell.root.render(80);
+        const source = adapter.view().transcript.find(block => block.kind === "compaction")!;
+        const renderer = shell.root.transcriptComponent(source.id)!;
+        const spy = vi.spyOn(renderer, "render");
+        const linkRow = rows.find(row => stripTerminalSequences(row).includes("web"))!;
+        const linkText = stripTerminalSequences(linkRow);
+        expect(getPinnedPiTuiLinkAtColumn(linkRow, linkText.indexOf("web"))).toBe("https://example.com/summary");
+        expect(getPinnedPiTuiLinkAtColumn(linkRow, linkText.indexOf("file"))).toBe("file:///D:/work/summary.md");
+        expect(linkRow).toContain(piTheme().fg("mdLink", "web"));
+        expect(linkRow).toContain(piTheme().fg("accent", "file"));
+        const row = rows.findIndex(line => stripTerminalSequences(line).includes("copyable alpha beta")) + 1;
+        terminal.input(`\u001b[<0;3;${row}M`);
+        terminal.input(`\u001b[<32;21;${row}M`);
+        terminal.input(`\u001b[<0;21;${row}m`);
+        expect(shell.root.hasActiveSelection()).toBe(true);
+        for (let i = 0; i < 8; i++) {
+          const message = { role: "assistant", timestamp: time + 5, content: [{ type: "text", text: `stream ${i}` }] };
+          engine.session.emit({ type: "message_update", message, assistantMessageEvent: { type: "text_delta", delta: String(i) } });
+          await adapter.flushEvents();
+          shell.runtime.renderNow();
+        }
+        expect(spy).not.toHaveBeenCalled();
+        expect(shell.root.viewportPresentationEvidence().scrollTop).toBe(0);
+        expect(shell.root.hasActiveSelection()).toBe(true);
+        for (const width of [40, 100, 80]) {
+          terminal.resize(width, 16);
+          const resized = shell.root.render(width);
+          expect(resized.every(line => visibleWidth(line) <= width)).toBe(true);
+          expect(shell.root.viewportPresentationEvidence().followingEnd).toBe(false);
+          expect(shell.root.viewportPresentationEvidence().scrollTop).toBe(0);
+        }
+        expect(shell.root.hasActiveSelection()).toBe(true);
+        terminal.input("\u0003");
+        expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from("copyable alpha beta").toString("base64")}\u0007`);
+        expect(stripTerminalSequences(renderer.render(80).join("\n"))).toContain("summary-23 alpha beta");
+        expect(shell.root.editor.getText()).toBe("unsubmitted draft");
+        expect(adapter.view().transcript.find(block => block.id === source.id)?.text).toBe(text);
+      } finally { await shell.dispose(); }
+    });
+  });
+
+  it("keeps branch summaries, compaction working status and the comparison route unchanged", async () => {
+    const branch = { role: "branchSummary", summary: "Branch body.", fromId: "branch-1", timestamp: time };
+    for (const custom of [false, true]) {
+      const { engine, adapter, terminal, shell } = await fixture([compaction(), branch, reply("tail")], [], custom);
+      try {
+        terminal.resize(80, 16);
+        const before = shell.root.exitTranscript(80);
+        if (!custom) {
+          expect(before).toContain("ctrl+o");
+          expect(before).not.toContain("summary-23 alpha beta");
+        }
+        const branchBlock = adapter.view().transcript.find(block => (block.payload as { role?: string }).role === "branchSummary")!;
+        expect(stripTerminalSequences(shell.root.transcriptComponent(branchBlock.id)!.render(80).join("\n"))).toContain("ctrl+o");
+        engine.session.emit({ type: "compaction_start", reason: "manual" });
+        await adapter.flushEvents();
+        expect(stripTerminalSequences(shell.root.render(80).join("\n"))).toContain("Compacting");
+        engine.session.emit({ type: "compaction_end", reason: "manual", result: {}, aborted: false, willRetry: false });
+        await adapter.flushEvents();
+        expect(shell.root.exitTranscript(80)).toBe(before);
+        expect(adapter.view().transcript.filter(block => block.kind === "compaction")).toHaveLength(2);
+      } finally { await shell.dispose(); }
+    }
+  });
+});
 
 describe("OwnedUiSessionShell", () => {
   it.each([
@@ -1118,6 +1498,104 @@ describe("OwnedUiSessionShell", () => {
     } finally { await shell.dispose(); }
   });
 
+  it.each([false, true])("round-trips the archive fixture through the real adapter/controller/editor (late=%s)", async late => {
+    let backend!: OwnedUiPromptSuggestionGeneratorPort;
+    let finish!: () => void;
+    const directory = await mkdtemp(join(tmpdir(), "suggestion-shell-"));
+    const diagnostics = new SuggestionDiagnosticCapture({ enabled: true, destination: join(directory, "diagnostics.json") });
+    const target = await fixture(SUGGESTION_CONVERSATIONS.archive.messages, [], true, undefined, undefined, undefined, undefined, {
+      generator: { generate: request => backend.generate(request), suggestionReasoningPolicy: () => backend.suggestionReasoningPolicy!() },
+      enabled: () => true, onChange: () => () => {}, diagnostics,
+    });
+    backend = target.adapter;
+    target.engine.session.thinkingLevel = "high";
+    if (late) target.engine.completeSuggestion = () => new Promise(resolve => { finish = () => resolve({ content: [{ type: "text", text: "archive it" }] }); });
+    try {
+      const before = JSON.stringify(target.engine.session.agent.state.messages);
+      target.engine.session.emit({ type: "agent_start" });
+      target.engine.session.emit({ type: "message_end", message: SUGGESTION_CONVERSATIONS.archive.messages.at(-1) });
+      await target.adapter.flushEvents();
+      await nextImmediate();
+      expect(stripTerminalSequences(target.shell.root.editor.render(60).join("\n"))).not.toContain("archive it");
+      target.engine.session.emit({ type: "agent_settled" });
+      await target.adapter.flushEvents();
+      if (late) finish();
+      await nextImmediate();
+      expect(stripTerminalSequences(target.shell.root.editor.render(60).join("\n"))).toContain("❯ archive it");
+      expect(target.shell.root.editor.getText()).toBe("");
+      expect(target.engine.services.modelRuntime.completeSimple).toHaveBeenCalledTimes(1);
+      expect(JSON.stringify(target.engine.session.agent.state.messages)).toBe(before);
+      expect(target.engine.session.thinkingLevel).toBe("high");
+      target.shell.root.editor.handleInput?.("\r");
+      expect(target.engine.session.calls).not.toContain("prompt:archive it");
+      target.shell.root.editor.handleInput?.("\t");
+      expect(target.shell.root.editor.getText()).toBe("archive it");
+      expect(target.engine.session.calls).not.toContain("prompt:archive it");
+      target.shell.root.editor.handleInput?.("\r");
+      await nextImmediate();
+      expect(target.engine.session.calls.filter(call => call === "prompt:archive it")).toHaveLength(1);
+      await diagnostics.flush();
+      const snapshot = JSON.parse(await readFile(join(directory, "diagnostics.json"), "utf8"));
+      expect(snapshot.records.map((record: { event: string }) => record.event)).toEqual(["started", "displayed"]);
+      expect(JSON.stringify(snapshot)).not.toContain("archive it");
+    } finally { await target.shell.dispose(); diagnostics.dispose(); await rm(directory, { recursive: true, force: true }); }
+  });
+
+  it.each(["disabled", "early-conversation", "no-model", "failed-response", "incomplete-response", "tool-continuation", "draft", "replacement-input"])("reports the actual shell eligibility reason %s", async reason => {
+    const diagnostics = new SuggestionDiagnosticCapture({ enabled: true });
+    const messages = reason === "early-conversation" ? SUGGESTION_CONVERSATIONS.archive.messages.slice(-1) : SUGGESTION_CONVERSATIONS.archive.messages;
+    const generate = vi.fn();
+    const target = await fixture(messages, [], true, undefined, undefined, undefined, undefined, {
+      generator: { generate }, enabled: () => reason !== "disabled", onChange: () => () => {}, diagnostics,
+    }, undefined, engine => { if (reason === "no-model") engine.session.model = undefined; });
+    try {
+      if (reason === "draft") target.shell.root.editor.setText("my draft");
+      if (reason === "replacement-input") target.shell.root.setInputSurface({ render: () => [], invalidate() {} });
+      target.engine.session.emit({ type: "agent_start" });
+      target.engine.session.emit({ type: "message_end", message: {
+        ...messages.at(-1), stopReason: reason === "failed-response" ? "error"
+          : reason === "incomplete-response" ? "length" : reason === "tool-continuation" ? "toolUse" : "stop",
+      } });
+      await target.adapter.flushEvents();
+      expect(generate).not.toHaveBeenCalled();
+      expect(diagnostics.snapshot()).toMatchObject([{ event: "skipped", reason, request: 0 }]);
+    } finally { await target.shell.dispose(); diagnostics.dispose(); }
+  });
+
+  it("exposes modal, readiness, and focus presentation reasons without altering the draft", async () => {
+    const target = await fixture([], [], true);
+    try {
+      const view = target.adapter.view();
+      target.shell.root.update({ ...view, dialog: { id: "modal", title: "Choice", kind: "choice", payload: null } });
+      expect(target.shell.root.promptSuggestionPrepareBlockReason()).toBe("modal");
+      target.shell.root.update({ ...view, lifecycle: "busy" });
+      expect(target.shell.root.promptSuggestionPresentationBlockReason()).toBe("not-ready");
+      target.shell.root.update(view);
+      target.shell.root.editor.setFocused?.(false);
+      expect(target.shell.root.promptSuggestionPresentationBlockReason()).toBe("not-focused");
+      expect(target.shell.root.editor.getText()).toBe("");
+    } finally { await target.shell.dispose(); }
+  });
+
+  it.each(["empty", "error"])("does not extract an archive fallback after %s", async outcome => {
+    let backend!: OwnedUiPromptSuggestionGeneratorPort;
+    const diagnostics = new SuggestionDiagnosticCapture({ enabled: true });
+    const target = await fixture(SUGGESTION_CONVERSATIONS.archive.messages, [], true, undefined, undefined, undefined, undefined, {
+      generator: { generate: request => backend.generate(request) }, enabled: () => true, onChange: () => () => {}, diagnostics,
+    });
+    backend = target.adapter;
+    target.engine.completeSuggestion = async () => ({ stopReason: outcome === "error" ? "error" : "stop", content: [] });
+    try {
+      target.engine.session.emit({ type: "agent_start" });
+      target.engine.session.emit({ type: "message_end", message: SUGGESTION_CONVERSATIONS.archive.messages.at(-1) });
+      target.engine.session.emit({ type: "agent_settled" });
+      await target.adapter.flushEvents();
+      await nextImmediate();
+      expect(stripTerminalSequences(target.shell.root.editor.render(60).join("\n"))).not.toContain("archive it");
+      expect(diagnostics.snapshot().map(record => record.event)).toEqual(["started", outcome === "error" ? "provider-failure" : "empty"]);
+    } finally { await target.shell.dispose(); diagnostics.dispose(); }
+  });
+
   it("prefetches before settlement, reveals atomically at settlement, and requires Tab before Enter", async () => {
     const messages = [
       { role: "user", content: "fix it", timestamp: 1 },
@@ -1129,7 +1607,7 @@ describe("OwnedUiSessionShell", () => {
     const generator: OwnedUiPromptSuggestionGeneratorPort = {
       generate: async request => {
         calls.push(`suggest:${request.identity.runSequence}:${request.identity.responseSequence}`);
-        return { identity: request.identity, text: "go ahead and merge it" };
+        return { identity: request.identity, outcome: "candidate", text: "go ahead and merge it" };
       },
     };
     const target = await fixture(messages, [], true, undefined, undefined, undefined, undefined, {
@@ -1170,7 +1648,7 @@ describe("OwnedUiSessionShell", () => {
     ];
     let finish: ((text: string) => void) | undefined;
     const generator: OwnedUiPromptSuggestionGeneratorPort = {
-      generate: request => new Promise(resolve => { finish = text => resolve({ identity: request.identity, text }); }),
+      generate: request => new Promise(resolve => { finish = text => resolve({ identity: request.identity, outcome: "candidate", text }); }),
     };
     const target = await fixture(messages, [], true, undefined, undefined, undefined, undefined, {
       generator, enabled: () => true, onChange: () => () => {},
@@ -1193,7 +1671,7 @@ describe("OwnedUiSessionShell", () => {
     ];
     let settingListener: ((value: boolean) => void) | undefined;
     const generator: OwnedUiPromptSuggestionGeneratorPort = {
-      generate: vi.fn(async request => ({ identity: request.identity, text: "run the tests" })),
+      generate: vi.fn(async request => ({ identity: request.identity, outcome: "candidate" as const, text: "run the tests" })),
     };
     const target = await fixture(messages, [], true, undefined, undefined, undefined, undefined, {
       generator,
@@ -1232,7 +1710,7 @@ describe("OwnedUiSessionShell", () => {
       { role: "assistant", content: [{ type: "text", text: "Second" }], stopReason: "stop" },
     ];
     const generator: OwnedUiPromptSuggestionGeneratorPort = {
-      generate: vi.fn(async request => ({ identity: request.identity, text: "run the tests" })),
+      generate: vi.fn(async request => ({ identity: request.identity, outcome: "candidate" as const, text: "run the tests" })),
     };
     const target = await fixture(messages, [], false, undefined, undefined, undefined, undefined, {
       generator, enabled: () => true, onChange: () => () => {},
@@ -1256,7 +1734,7 @@ describe("OwnedUiSessionShell", () => {
     const generator: OwnedUiPromptSuggestionGeneratorPort = {
       generate: request => {
         observedSignal = request.signal;
-        return new Promise(resolve => { finish = text => resolve({ identity: request.identity, text }); });
+        return new Promise(resolve => { finish = text => resolve({ identity: request.identity, outcome: "candidate", text }); });
       },
     };
     const suggestionOptions = { generator, enabled: () => true, onChange: () => () => {} };
@@ -1273,7 +1751,7 @@ describe("OwnedUiSessionShell", () => {
     await typing.shell.dispose();
 
     const blockedGenerator: OwnedUiPromptSuggestionGeneratorPort = {
-      generate: vi.fn(async request => ({ identity: request.identity, text: "run the tests" })),
+      generate: vi.fn(async request => ({ identity: request.identity, outcome: "candidate" as const, text: "run the tests" })),
     };
     const blocked = await fixture(messages, [], true, undefined, undefined, undefined, undefined, {
       generator: blockedGenerator, enabled: () => true, onChange: () => () => {},
@@ -1287,7 +1765,7 @@ describe("OwnedUiSessionShell", () => {
     await blocked.shell.dispose();
 
     const toolGenerator: OwnedUiPromptSuggestionGeneratorPort = {
-      generate: vi.fn(async request => ({ identity: request.identity, text: "continue" })),
+      generate: vi.fn(async request => ({ identity: request.identity, outcome: "candidate" as const, text: "continue" })),
     };
     const tools = await fixture(messages, [], true, undefined, undefined, undefined, undefined, {
       generator: toolGenerator, enabled: () => true, onChange: () => () => {},

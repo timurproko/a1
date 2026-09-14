@@ -1,7 +1,10 @@
 export const CONTEXTUAL_PROMPT_SUGGESTION_INSTRUCTION = `[NEXT USER INPUT]
 Predict the one short response the user is most likely to type next.
 Use the user's recent intent and writing style. Prefer a concrete continuation such as approving an offered action, choosing an offered option, running a requested check, committing, or pushing.
-Return nothing when the next input is unclear, the previous response failed, or the user should assess or correct the result.
+Prefer a clearly offered next action consistent with the user's recent intent. An optional alternative alone does not make that continuation unclear.
+For example, after the user accepted merged work, "Say archive it" with an optional "let me test" alternative favors: archive it.
+Do not favor archival if the user required testing first and that testing remains outstanding. Do not invent approval or select the first of equally unresolved choices.
+Return nothing when the next input is genuinely unclear, the previous response failed, or required assessment or correction remains outstanding.
 Do not answer as the assistant. Do not add a label, explanation, quotation marks, Markdown, or multiple sentences.
 Return only 2-12 words, except a natural one-word command or answer is allowed.`;
 

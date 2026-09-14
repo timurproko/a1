@@ -13,6 +13,7 @@ import type {
   OwnedUiSessionViewModel,
   OwnedUiThinkingLevel,
   OwnedUiTranscriptBlock,
+  SuggestionDecision,
 } from "../../../contracts/owned-ui/index.js";
 import type { HistoryEditorConstructor } from "./history-editor-loader.js";
 import type { PiShellPromptInputPresentation } from "./prompt-input-port.js";
@@ -65,7 +66,7 @@ export interface PiShellEditorPort extends PiShellComponentPort {
   keybindingConfig(): KeybindingsConfig;
   reloadKeybindings(): void;
   /** Uses Pi's terminal decoder rather than assuming one terminal escape spelling. */
-  matchesTerminalKey(data: string, key: "home" | "end" | "ctrl+home" | "ctrl+end" | "ctrl+v"): boolean;
+  matchesTerminalKey(data: string, key: "home" | "end" | "ctrl+home" | "ctrl+end" | "alt+home" | "ctrl+v"): boolean;
   getText(): string;
   setText(text: string): void;
   insertText(text: string): void;
@@ -80,6 +81,7 @@ export interface PiShellEditorPort extends PiShellComponentPort {
   setThinkingLevel(level: OwnedUiThinkingLevel): void;
   setPromptSuggestion(text: string | null): void;
   canPresentPromptSuggestion(): boolean;
+  promptSuggestionBlockReason?(): SuggestionDecision;
   hasSelection(): boolean;
   ownsPointer(): boolean;
   handlePointer(event: PiShellEditorPointerEvent): boolean;
@@ -144,6 +146,7 @@ export interface PiShellExtensionRendererResolver {
 export interface PiShellTranscriptComponentPort extends PiShellComponentPort {
   readonly id: string;
   readonly revision: number;
+  readonly presentationRevision?: number;
   update(block: OwnedUiTranscriptBlock): void;
   setExpanded(expanded: boolean): void;
   setOutputPad(padding: 0 | 1): void;
