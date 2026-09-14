@@ -4,7 +4,7 @@ PR #374 supplies the clock-based repair and evidence described in `design.md`; c
 
 ## 1. Establish the independent timing regression
 
-- [ ] 1.1 After the explicit implementation request, fetch current `origin/develop` and establish an isolated legacy implementation stream; verify accepted #379 artifacts and approved revisions are present and its draft PR retains version-1 linkage to #379 plus the historical failing-job reference.
+- [x] 1.1 After the explicit implementation request, fetch current `origin/develop` and establish an isolated legacy implementation stream; verify accepted #379 artifacts and approved revisions are present and its draft PR retains version-1 linkage to #379 plus the historical failing-job reference.
 - [x] 1.2 Use preserved pre-#374 divergence evidence to identify and reproduce the responsible callback and stage-boundary ordering with bounded controls; verify the vulnerable behavior fails independently of selection and distinguish this historical reproduction from current-baseline gap regressions.
 - [x] 1.3 Encode the identified interleavings as a focused failing regression without long sleeps, unbounded busy loops, retries, or timeout increases; verify the baseline fails for the observed capture difference rather than an unrelated timeout.
 

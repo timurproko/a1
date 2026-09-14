@@ -5,6 +5,7 @@
 - Legacy accepted plan: [#379](https://github.com/timurproko/a1/pull/379); approved reconciliation: [#391](https://github.com/timurproko/a1/pull/391), merged as `43991071` with required CI passing.
 - The maintainer explicitly requested implementation with "lets fullfill" after the four remaining obligations were explained. This is implementation authorization, not final acceptance or merge authorization.
 - Isolated worktree: `D:/Git/a1/.worktrees/fulfill-event-frame-capture`, refreshed from `origin/develop` through `43991071`. The initial existing parity file passed all 10 tests before changes.
+- Implementation PR: [#393](https://github.com/timurproko/a1/pull/393), branch `test/fulfill-event-frame-capture`, opened as a legacy-linked draft. The initial implementation commit is `e5097ed0`; subsequent refinements and records must be reviewed at the PR's exact final head.
 - Original failure: [#373 run 34848254433](https://github.com/timurproko/a1/actions/runs/34848254433/job/103989846402). #374 already repaired ordinary capture timing; selection acceptance and archival are not reopened here.
 
 ## Failing-before evidence
@@ -31,11 +32,11 @@ The mutation is restored. A permanent negative regression uses a test-only `Unhe
 - Bound cooperative settlement, including test hooks and disposal, to 64 host event-loop turns, with stage, pending timer count, and bounded adapter diagnostics on exhaustion. Bound each eligible timeout callback batch to 64. Animation time remains fixed; periodic animation is not drained to idle.
 - Retain all original-order event-window writes. Prior maintenance is excluded only at the declared boundary, not by inspecting or filtering ANSI content. Keep existing normalization and provenance unchanged.
 - Add six controlled timer schedules around flushing, capture, and resize, each with 12 repetitions in each ambient color mode. Retain normal/delayed repetitions and negative semantic/SGR/cursor/clear comparisons.
-- Exercise stalled hooks/checkpoints, callback exhaustion, timer handle cancellation, overlapping ownership, terminal-stop disposal failure, subsequent captures, and native timers created before and during a capture.
+- Exercise stalled hooks/checkpoints, callback exhaustion, timer handle cancellation, overlapping ownership, terminal-stop disposal failure, subsequent captures, and native timers created before and during a capture, including native promisified timer hooks.
 
 ## Local validation
 
-- Focused event-frame and clock tests: 29 passed on Windows Node 24.16.0 and 29 passed on Node 22.23.2 under existing test timeouts.
+- Focused event-frame and clock tests: 30 passed on Windows Node 24.16.0 and 30 passed on Node 22.23.2 under existing test timeouts.
 - Related capability scope and parity-governance tests: 10 passed on Node 24.
 - Typecheck, changed-file documentation governance, strict OpenSpec validation, and diff checks passed.
 - The standalone generator was run inside both `truecolor` and `256color` ambient capability scopes. Both outputs exactly match the tracked original with SHA-256 `f1e0fd6f1e3512c2512b9f41771b47b660d050c47bab4573099632e3eda34bba`; no fixture baseline changed.

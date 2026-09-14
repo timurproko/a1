@@ -68,6 +68,10 @@ export class EventFrameClock {
     };
     globalThis.setTimeout = ((callback: (...args: unknown[]) => void, delay?: number, ...args: unknown[]) => create(false, callback, delay, ...args)) as typeof setTimeout;
     globalThis.setInterval = ((callback: (...args: unknown[]) => void, delay?: number, ...args: unknown[]) => create(true, callback, delay, ...args)) as typeof setInterval;
+    // Compatibility: native promisify hooks and timer function metadata remain available
+    // to unrelated callers; only this workload's callback timers are clock-controlled.
+    Object.defineProperties(globalThis.setTimeout, Object.getOwnPropertyDescriptors(native.setTimeout));
+    Object.defineProperties(globalThis.setInterval, Object.getOwnPropertyDescriptors(native.setInterval));
     globalThis.clearTimeout = clear;
     globalThis.clearInterval = clear;
     globalThis.Date = new Proxy(native.Date, {
@@ -93,7 +97,7 @@ export class EventFrameClock {
   }
 }
 
-/** Node-compatible fixture timer handle; cancellation never touches a native timer. */
+/** Fixture handle for the Node timer operations used here; cancellation never touches native timers. */
 class OwnedTimer {
   #referenced = true;
   constructor(

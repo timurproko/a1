@@ -1,3 +1,4 @@
+import { promisify } from "node:util";
 import { describe, expect, it, vi } from "vitest";
 import { EventFrameClock } from "./event-frame-clock.js";
 
@@ -25,6 +26,22 @@ describe("event-frame clock ownership", () => {
       expect(Date.now()).toBe(clock.now);
     });
     expect(clock.pending).toBe(0);
+  });
+
+  it("preserves native promisified timers for unrelated callers during ownership", async () => {
+    const nativeDate = Date;
+    let release!: () => void;
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const clock = new EventFrameClock();
+    const capture = clock.run(async () => { await gate; });
+    try {
+      expect(await promisify(setTimeout)(1, "native timer")).toBe("native timer");
+      expect(Date.now()).toBeGreaterThanOrEqual(nativeDate.now() - 1000);
+      expect(clock.pending).toBe(0);
+    } finally {
+      release();
+      await capture;
+    }
   });
 
   it("cancels only owned handles, including numeric cancellation and disposal", async () => {
