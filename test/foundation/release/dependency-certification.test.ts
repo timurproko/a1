@@ -93,15 +93,22 @@ describe("dependency certification directory migration", () => {
     await expect(readRestartCertifiedRelease(fixture.record, fixture.dataDir)).resolves.toBeTruthy();
   });
 
-  it("coordinates independent publishers recovering the same abandoned lease", async () => {
+  it.each([1, 2, 3])("coordinates independent publishers recovering the same abandoned lease (round %s)", async () => {
     const fixture = await legacyFixture();
+    const legacyBefore = await fs.lstat(fixture.legacy, { bigint: true });
     await fs.mkdir(`${fixture.canonical}.lock`);
     await fs.writeFile(resolve(`${fixture.canonical}.lock`, "owner.json"), JSON.stringify({ pid: 999_999, token: "22222222-2222-4222-8222-222222222222" }));
     const moduleUrl = new URL("../../../src/foundation/release/dependency-layer.ts", import.meta.url).href;
     const program = `const { readCertifiedDependencyLayer } = await import(${JSON.stringify(moduleUrl)}); await readCertifiedDependencyLayer(${JSON.stringify(fixture.dataDir)}, ${JSON.stringify(fixture.layer.layerId)});`;
     await Promise.all(Array.from({ length: 3 }, () => promisify(execFile)(process.execPath, ["--import", "tsx", "--input-type=module", "-e", program])));
     expect(JSON.parse(await fs.readFile(fixture.canonical, "utf8"))).toEqual(JSON.parse(await fs.readFile(fixture.legacy, "utf8")));
-    expect((await fs.lstat(fixture.canonical)).mode & 0o222).toBe(0);
+    const canonicalBefore = await fs.lstat(fixture.canonical, { bigint: true });
+    expect(canonicalBefore.mode & 0o222n).toBe(0n);
+    const reads = vi.spyOn(fs, "readFile");
+    await readCertifiedDependencyLayer(fixture.dataDir, fixture.layer.layerId);
+    expect(reads.mock.calls.some(([path]) => String(path).includes("node_modules"))).toBe(false);
+    expect((await fs.lstat(fixture.canonical, { bigint: true })).ctimeNs).toBe(canonicalBefore.ctimeNs);
+    expect((await fs.lstat(fixture.legacy, { bigint: true })).ctimeNs).toBe(legacyBefore.ctimeNs);
     await expect(readRestartCertifiedRelease(fixture.record, fixture.dataDir)).resolves.toBeTruthy();
   }, 15_000);
 

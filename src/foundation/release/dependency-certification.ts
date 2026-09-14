@@ -94,9 +94,14 @@ async function publishCertification(dataDir: string, identity: LayerIdentity, do
   const releaseLock = await acquirePublicationLock(lockPath);
   try {
     await publishLockedCertification(dataDir, identity, document, replaceInvalid, path);
-  } finally {
-    await releaseLock();
+  } catch (publicationError) {
+    try { await releaseLock(); }
+    catch (releaseError) {
+      throw new AggregateError([publicationError, releaseError], "dependency certification publication and lease release failed");
+    }
+    throw publicationError;
   }
+  await releaseLock();
 }
 
 async function publishLockedCertification(dataDir: string, identity: LayerIdentity, document: Record<string, unknown>, replaceInvalid: boolean, path: string): Promise<void> {
@@ -139,11 +144,7 @@ async function acquirePublicationLock(path: string): Promise<() => Promise<void>
         // Concurrency: a nonempty directory cannot replace another nonempty directory on either
         // platform. Publishing the complete owner atomically also avoids partially written leases.
         await rename(candidate, path);
-        return async () => {
-          const released = `${path}.released-${token}`;
-          await rename(path, released);
-          await rm(released, { recursive: true, force: true });
-        };
+        return () => releasePublicationLock(path, token);
       } catch (error) {
         if (!["EEXIST", "ENOTEMPTY", "EPERM", "EACCES"].some(code => hasCode(error, code))) throw error;
         const metadata = await lstat(path).catch(missingOrThrow);
@@ -178,6 +179,58 @@ async function acquirePublicationLock(path: string): Promise<() => Promise<void>
   } finally {
     await rm(candidate, { recursive: true, force: true });
   }
+}
+
+/** Retire this generation once; retries after retirement can only touch its private cleanup path. */
+async function releasePublicationLock(path: string, token: string): Promise<void> {
+  const released = `${path}.released-${token}`;
+  const deadline = Date.now() + 1_000;
+  let retired = false;
+  let delay = 20;
+  while (true) {
+    try {
+      if (!retired) {
+        await assertPublicationLockOwner(path, token);
+        await rename(path, released);
+        retired = true;
+      }
+      // Concurrency: a successor can own `path` now. Never inspect or delete it during cleanup.
+      await rm(released, { recursive: true, force: true });
+      return;
+    } catch (error) {
+      const phase = retired ? "cleanup" : "retirement";
+      if (!isReleaseContention(error)) {
+        throw new Error(`dependency certification lease release ${phase} failed: ${error instanceof Error ? error.message : "unknown error"}`, { cause: error });
+      }
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) {
+        throw new Error(`dependency certification lease release ${phase} deadline exceeded (${(error as NodeJS.ErrnoException).code})`, { cause: error });
+      }
+      await new Promise<void>(resolvePromise => setTimeout(resolvePromise, Math.min(delay, remaining)));
+      delay = Math.min(delay * 2, 100);
+    }
+  }
+}
+
+/** Ownership uncertainty is never authority to retire a missing, linked, or replaced generation. */
+async function assertPublicationLockOwner(path: string, token: string): Promise<void> {
+  try {
+    const metadata = await lstat(path);
+    if (!metadata.isDirectory() || metadata.isSymbolicLink() || await realpath(path) !== path) throw new Error("invalid lock directory");
+    const ownerPath = resolve(path, "owner.json");
+    const ownerMetadata = await lstat(ownerPath);
+    if (!ownerMetadata.isFile() || ownerMetadata.isSymbolicLink() || await realpath(ownerPath) !== ownerPath) throw new Error("invalid owner file");
+    const owner: unknown = JSON.parse(await readFile(ownerPath, "utf8"));
+    if (!owner || typeof owner !== "object" || !("pid" in owner) || !("token" in owner)
+      || owner.pid !== process.pid || owner.token !== token) throw new Error("owner generation differs");
+  } catch (error) {
+    if (isReleaseContention(error)) throw error;
+    throw new Error("publication lease release ownership could not be verified", { cause: error });
+  }
+}
+
+function isReleaseContention(error: unknown): boolean {
+  return ["EPERM", "EACCES", "EBUSY"].some(code => hasCode(error, code));
 }
 
 function validateCertification(value: unknown, identity: LayerIdentity, allowLegacyPlatform = false): boolean {

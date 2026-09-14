@@ -203,7 +203,8 @@ describe("owned level and model keybindings", () => {
     keys = KeybindingsManager.fromOwnedBindings({ "app.thinking.cycle": "ctrl+r", "app.model.select": "alt+m" });
     lines = header.render(100).map(stripTerminalSequences);
     expect(lines.find(line => line.includes("to cycle thinking level"))).toContain("ctrl+r");
-    expect(lines.find(line => line.includes("to select model"))).toContain("alt+m");
+    expect(keys.getKeys("app.model.select")).toEqual(["alt+m"]);
+    expect(lines.find(line => line.includes("to select model"))).toContain(process.platform === "darwin" ? "option+m" : "alt+m");
     const pinned = createPiShellHeader({ expanded: true }).render(100).map(stripTerminalSequences);
     expect(pinned.find(line => line.includes("to cycle thinking level"))).toContain("shift+tab");
     expect(pinned.find(line => line.includes("to select model"))).toContain("ctrl+l");
