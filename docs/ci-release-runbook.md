@@ -106,7 +106,7 @@ succeeds. If validation finishes before auto-merge can be armed and GitHub alrea
 reports the pull request clean, the reconciler squash-merges only the validated head
 SHA. Every current and renamed-from path must be under `openspec/**`, under
 `docs/**`, or exactly the root `README.md`. Eligible pull requests must use a
-non-draft branch in this repository and target `develop`.
+non-draft branch in this repository and target `develop`. Implementation-associated PRs and newly introduced active OpenSpec changes are held for manual integration even when their diff is documentation-only. Body edits trigger reconciliation; removing a marker cannot bypass the base/head tree check. Standalone existing-change revisions and archive moves remain eligible.
 
 The exact allowlist covers maintained OpenSpec, architecture, feature, manual,
 runbook, and root README documentation. Other root Markdown files, `LICENSE`,
@@ -119,11 +119,7 @@ inventoried OpenSpec occurrence fails that pull request rather than a later code
 request. A legitimate generated baseline update remains outside the allowlist and
 follows the manually accepted mixed/code path.
 
-A specification request lands as an OpenSpec-only pull request. Implementation
-starts only after that specification merges and the maintainer explicitly requests
-it, in a fresh worktree and pull request based on updated `origin/develop`. Every
-code/operational pull request remains open after CI until the maintainer validates it
-locally and explicitly authorizes manual integration.
+A new implementation-bound specification starts as OpenSpec-only artifacts in one draft PR. Explicit approval to implement continues in that same worktree, branch, history, and PR; the plan does not merge first. Approved refinements reconcile the planning artifacts before code changes. Make the completed PR ready for final review, but leave integration manual after CI, exact-head maintainer acceptance, and explicit merge authorization. Closing a rejected unmerged draft integrates and archives nothing; local unmerged cleanup still needs separate approval. Existing merged plans retain their legacy implementation PRs and require explicit reconciliation if rejected. See [delivery and archive handoff](openspec-archive-automation.md) for the version-2 link and legacy version-1 compatibility.
 
 ## Numbered development previews
 

@@ -1,7 +1,7 @@
 # change-delivery-workflow Specification
 
 ## Purpose
-Define specification approval boundaries, separate implementation delivery, exact documentation auto-merge eligibility, and explicit maintainer acceptance for code and operational changes.
+Define explicit planning approval and same-PR implementation delivery, implementation-bound documentation holds, and exact-head maintainer acceptance before manual integration and verified archival.
 
 ## Requirements
 
