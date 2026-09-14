@@ -67,6 +67,27 @@ function hoverFixture() {
 }
 
 describe("session viewport interaction controller", () => {
+  it.each(["auto", "always"] as const)("keeps drag-into-rail selection distinct from rail-origin navigation (%s)", appearance => {
+    const { target, input } = hoverFixture();
+    try {
+      target.setConfig({ scrollbarAppearance: appearance, scrollbarStyle: "thin", scrollbarSpeed: "normal" });
+      const plain = "a".repeat(191) + "Z";
+      const source = { ...input, width: 192, documentRows: Array.from({ length: 30 }, () => plain) };
+      const initial = target.compose(source);
+      const scrollTop = initial.scrollTop;
+      target.handlePreInput("\u001b[<0;1;2M\u001b[<32;192;4M\u001b[<0;192;4m", true, 1000);
+      expect(target.compose(source).scrollTop).toBe(scrollTop);
+      expect(target.handlePreInput("\u0003").copyText).toBe([plain, plain, plain].join("\n"));
+      const rail = target.compose(source).hits.rail!;
+      const thumbRow = rail.rowStart + rail.geometry.thumbTop;
+      target.handlePreInput(`\u001b[<0;192;${thumbRow}M\u001b[<32;192;2M\u001b[<0;192;2m`, true, 2000);
+      expect(target.compose(source).scrollTop).toBe(0);
+      expect(target.hasSelection).toBe(false);
+      expect(target.handlePreInput("\u0003").copyText).toBeUndefined();
+      expect(target.frame!.contentWidth).toBe(191);
+    } finally { target.clearPointerState(); }
+  });
+
   it.each(["replacement", "overlay"])("keeps transcript selection and wheel ownership with a %s open", kind => {
     const hiddenEditor = editor({ pasteClipboard: vi.fn(() => true), hasSelection: () => true, activateKeybindings: vi.fn() });
     const received: string[] = [];

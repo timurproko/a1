@@ -20,9 +20,16 @@ const GRAPHEMES = new Intl.Segmenter(undefined, { granularity: "grapheme" });
  * Replaces the visible columns `[from, to)` of `line` with `span`, preserving
  * the styling before it and re-asserting whatever was still open afterwards, so
  * the tail keeps the colour it had. A wide character straddling either edge is
- * replaced by spaces rather than split.
+ * replaced by spaces rather than split. Opt into the replaced cell's boundary
+ * style for background-preserving overlays; the span still owns its decoration.
  */
-export function overlaySpan(line: string, from: number, to: number, span: string): string {
+export function overlaySpan(
+  line: string,
+  from: number,
+  to: number,
+  span: string,
+  options: { readonly inheritStartStyle?: boolean } = {},
+): string {
   let head = "";
   let replay = "";
   let tail = "";
@@ -36,7 +43,7 @@ export function overlaySpan(line: string, from: number, to: number, span: string
         tail += token;
         continue;
       }
-      if (column < from) {
+      if (column < from || (options.inheritStartStyle === true && column === from)) {
         head += token;
         const link = HYPERLINK.exec(token);
         if (link) hyperlinkOpen = (link[1] ?? "").length > 0;

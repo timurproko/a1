@@ -178,6 +178,7 @@ export class TranscriptViewport {
   #selectableDocumentRowCount = 0;
   #promptAnchors: readonly TranscriptPromptAnchor[] = [];
   #contentWidth = 0;
+  #selectionWidth = 0;
   #frameId = 0;
   #frame: TranscriptViewportFrame | null = null;
 
@@ -248,8 +249,8 @@ export class TranscriptViewport {
     const visibleRow = clamp(viewportRow, 1, viewportHeight);
     const line = clamp(this.#scrollTop + visibleRow - 1, 0, lastSelectableLine);
     const targetColumn = selection.fullRow
-      ? textSelectionLineExtendColumn(selection, line, this.#contentWidth)
-      : clamp(column, 1, this.#contentWidth);
+      ? textSelectionLineExtendColumn(selection, line, this.#selectionWidth)
+      : clamp(column, 1, this.#selectionWidth);
     const point = selection.fullRow
       ? { line, column: targetColumn }
       : textSelectionPointAt(line, targetColumn, this.#documentRows[line] ?? "");
@@ -362,6 +363,7 @@ export class TranscriptViewport {
     this.#selectableDocumentRowCount = 0;
     this.#promptAnchors = [];
     this.#contentWidth = 0;
+    this.#selectionWidth = 0;
     this.clearTransient();
     this.#frame = null;
   }
@@ -427,6 +429,9 @@ export class TranscriptViewport {
     );
     this.#promptAnchors = input.promptAnchors;
     this.#contentWidth = contentWidth;
+    // Invariant: controls reserve the rail column, but source text beneath it
+    // remains reachable by a drag already owned by transcript selection.
+    this.#selectionWidth = width;
     const paintDocumentRow = input.paintDocumentRow ?? IDENTITY_ROW;
     const cacheLimit = Math.max(32, viewportHeight * 6);
     trimCache(this.#paintedRowCache, cacheLimit);
@@ -509,7 +514,9 @@ export class TranscriptViewport {
         this.#finalRowCache,
         `${width}\u0000${railCell}\u0000${selected.value}`,
         cacheLimit,
-        () => railCell.length === 0 ? selected.value : overlaySpan(selected.value, width - 1, width, railCell),
+        () => railCell.length === 0 ? selected.value : overlaySpan(
+          selected.value, width - 1, width, railCell, { inheritStartStyle: true },
+        ),
       );
       rowRecomputed ||= !final.reused;
       visible[row] = final.value;
