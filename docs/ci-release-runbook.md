@@ -98,7 +98,23 @@ node scripts/release/report-resource-sensitive-validation.mjs --repeats 3 --outp
 
 ## Pull request integration
 
-`Development validation required` remains the merge gate for every pull request. For code changes, it also requires a dedicated Defender-enabled exact-package startup matrix on Windows Node 22 and 24. Each matrix lane runs the package-install startup scenarios once: a failed budget remains failed and is never retried to obtain a warmed result. Both post-update profiles must reach input-ready state within five seconds, and both warm profiles must remain within three seconds.
+`Development validation required` remains the merge gate for every pull request. For applicable code changes, it requires the dedicated Defender-enabled exact-package startup lane on Windows Node 22. Development validation (including manual dispatch) does not schedule a Windows Node 24 startup lane. The Node 22 lane retains the complete package-install, image preparation/package, and durable-history checks plus startup evidence artifacts. A missing, cancelled, failed, or unexpectedly skipped required startup result still blocks the aggregate; documentation-only, version-only, and draft exemptions are unchanged.
+
+| Startup runtime | Development validation (PR or manual) | Nightly/release validation | Manual Full regression |
+| --- | --- | --- | --- |
+| Windows Node 22 | Required for applicable changes | Retained | Retained |
+| Windows Node 24 | Not scheduled | Retained | Retained |
+
+Each selected startup lane runs the package-install scenarios once: a failed budget remains failed and is never retried to obtain a warmed result. Both post-update profiles must reach input-ready state within five seconds, and both warm profiles must remain within three seconds. Node 24 runtime support, other PR jobs, Defender, and publication gates are unchanged. Full validation retains every deferred startup, image, and history test through its existing suite owners.
+
+The trade-off is delayed detection: a Node-24-specific regression can reach `develop` before nightly catches it. A green Node 22 PR check does not certify Node 24, and nightly failure still blocks its publication. When Node 24 feedback is needed before nightly, explicitly request the non-publishing Full regression workflow for the desired branch or tag:
+
+```sh
+gh workflow run full-regression.yml --ref <branch-or-tag>
+```
+
+Record the run's resolved source SHA and package evidence; do not substitute an unrelated historical green run for current-head acceptance. This full run is a deliberate additional operation, not an automatic step for every PR.
+
 Documentation auto-merge reads the complete GitHub changed-file response and arms
 squash auto-merge for an eligible pull request while required validation is pending;
 branch protection prevents integration until `Development validation required`

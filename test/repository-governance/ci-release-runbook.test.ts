@@ -10,6 +10,16 @@ describe("CI and release operations runbook", () => {
     await Promise.all(references.map(path => access(path)));
   });
 
+  it("distinguishes the single-runtime PR startup gate from retained Node 24 full validation", async () => {
+    const runbook = await readFile("docs/ci-release-runbook.md", "utf8");
+    expect(runbook).toContain("| Windows Node 22 | Required for applicable changes | Retained | Retained |");
+    expect(runbook).toContain("| Windows Node 24 | Not scheduled | Retained | Retained |");
+    expect(runbook).toContain("gh workflow run full-regression.yml --ref <branch-or-tag>");
+    expect(runbook).toContain("a Node-24-specific regression can reach `develop` before nightly catches it");
+    expect(runbook).toContain("nightly failure still blocks its publication");
+    expect(runbook).toContain("a failed budget remains failed and is never retried");
+  });
+
   it("keeps the exact-bytes safety rules", async () => {
     const runbook = await readFile("docs/ci-release-runbook.md", "utf8");
     expect(runbook).toContain("Never upload locally rebuilt bytes");
