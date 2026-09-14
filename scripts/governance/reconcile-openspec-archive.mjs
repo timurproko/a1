@@ -193,8 +193,10 @@ export async function main(args = process.argv.slice(2)) {
   const { values } = parseArgs({ args, options: {
     "dry-run": { type: "boolean" }, publish: { type: "boolean" }, pr: { type: "string" },
     "retry-closed": { type: "boolean" }, "discover-checkpoint": { type: "boolean" }, "validate-candidate": { type: "boolean" },
+    "tool-root": { type: "string" },
   } });
   if (values.publish && values["dry-run"]) throw archiveFailure("mode-conflict");
+  if (values["tool-root"] !== undefined && (!values["validate-candidate"] || !values["tool-root"])) throw archiveFailure("tool-root-mode");
   const dryRun = !values.publish;
   const deadline = Date.now() + 9 * 60 * 1000;
   const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -223,7 +225,7 @@ export async function main(args = process.argv.slice(2)) {
   }
   if (values["validate-candidate"]) {
     if (pr === null || values.publish || values["retry-closed"]) throw archiveFailure("candidate-validation-mode");
-    const tool = await loadArchiveTool(resolve(root, "node_modules/@fission-ai/openspec"), { deadline });
+    const tool = await loadArchiveTool(resolve(values["tool-root"] ?? resolve(root, "node_modules/@fission-ai/openspec")), { deadline });
     return await validateArchiveCandidate(reader, tool, pr);
   }
   const output = resolve(root, ".artifacts/openspec-archive");

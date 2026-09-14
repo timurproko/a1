@@ -2,6 +2,8 @@
 
 The archive workflow handles accepted implementation merges into `develop`, a daily 90-day catch-up, and targeted retries. It creates an OpenSpec-only PR; existing documentation auto-merge remains responsible for squash integration after real current-head CI. An archive PR being open is not a completed archive.
 
+Documentation CI installs only the pinned OpenSpec archive tool into runner temporary storage, not the repository dependency tree. Candidate validation selects that installation with `--tool-root`; the override is unavailable to publication and audit modes. The documentation job has read-only contents, PR, and Actions permissions; the existing merge owner also declares Actions read access for checking source validation.
+
 ## Normal implementation handoff
 
 The delivery agent adds one block to the implementation PR description, linking the original merged specification PR that introduced the change:

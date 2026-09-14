@@ -93,6 +93,10 @@ jobs:
 
   docs:
     name: Documentation governance validation
+    permissions:
+      contents: read
+      pull-requests: read
+      actions: read
     needs: changes
     if: needs.changes.outputs.docs-only == 'true'
     runs-on: ubuntu-24.04
@@ -109,14 +113,15 @@ jobs:
           node-version: 24
       - name: Install pinned archive validation tooling
         if: needs.changes.outputs.openspec-touched == 'true'
-        run: npm ci --ignore-scripts
+        shell: bash
+        run: npm install --prefix "$RUNNER_TEMP/openspec-archive-tools" --no-save --package-lock=false --ignore-scripts --no-audit --no-fund @fission-ai/openspec@1.11.0
       - name: Verify generated archive merge result
         if: needs.changes.outputs.openspec-touched == 'true' && github.event_name == 'pull_request'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ARCHIVE_PR_NUMBER: ${{ github.event.pull_request.number }}
         shell: bash
-        run: node scripts/governance/reconcile-openspec-archive.mjs --validate-candidate --pr "$ARCHIVE_PR_NUMBER"
+        run: node scripts/governance/reconcile-openspec-archive.mjs --validate-candidate --pr "$ARCHIVE_PR_NUMBER" --tool-root "$RUNNER_TEMP/openspec-archive-tools/node_modules/@fission-ai/openspec"
       - name: Verify docs-sensitive generated governance
         run: node scripts/governance/check-docs-governance.mjs
       - name: Validate OpenSpec artifacts strictly
