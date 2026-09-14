@@ -4,7 +4,7 @@ The archive App is configured, but a successful dry-run does not prove the real 
 
 ## What Changes
 
-- Add focused regression coverage showing that version-2 implementation metadata rejects a present `specificationPr` even when its value is `null`, `0`, `false`, or an empty string. These cases distinguish property presence from truthiness.
+- Add focused regression coverage showing that version-2 implementation metadata rejects a present `specificationPr` even when its value is `null`, `0`, `false`, or an empty string. These cases distinguish property presence from truthiness. Include the approved refinement: a JSON-escaped spelling of the forbidden field name must be rejected identically, without bypassing the version-2 restriction.
 - Retain positive controls for minimal version-2 metadata and a valid positive-integer version-1 specification link, and reject the corresponding invalid legacy values.
 - Deliver this test-only change through one draft PR, explicit implementation approval, current-head CI, actual maintainer acceptance, and manual integration. Observe the App-generated archive PR, its ordinary CI, automatic integration, and branch cleanup afterward.
 - Keep bootstrap acceptance, the rejected-plan control, and the ordinary-documentation control separate. This change does not certify those outcomes or adopt historical changes.

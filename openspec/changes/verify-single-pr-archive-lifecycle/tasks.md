@@ -1,6 +1,6 @@
 ## 1. Add metadata compatibility regression coverage
 
-- [ ] 1.1 Add a focused test file exercising the real parser with version-2 `specificationPr` values `null`, `0`, `false`, and an empty string; verify each is rejected with `metadata-fields` rather than treated as an absent property.
+- [ ] 1.1 Add a focused test file exercising the real parser with version-2 `specificationPr` values `null`, `0`, `false`, and an empty string; include the approved raw JSON-escaped `specification\u0050r` case, verify the escape survives in the input and decodes to the legacy field, and verify each case is rejected with `metadata-fields` rather than treated as an absent property.
 - [ ] 1.2 Add positive controls for minimal version-2 metadata and a positive-integer version-1 link, plus legacy rejection of the same invalid values; verify valid metadata is preserved and invalid legacy values produce `specification-pr`.
 
 ## 2. Validate and prepare review
