@@ -28,6 +28,8 @@ A generated probe on Windows Node 24.16.0 copied the same eight-character range 
 
 Set `A1_CLIPBOARD_DIAGNOSTICS` to an existing-parent local file path to capture metadata in bare A1. It is disabled by default and ignored by comparison/settings-free compositions. Records include copy/paste phases, runtime receipt/composition/write phases, and a 100 ms heartbeat. At most 128 scalar-only rows and one newest pending asynchronous disk snapshot are retained. No copied/pasted text, paths, image data, encoded payloads, raw errors, or extra fields from event objects are serialized. Disk errors remain silent and disk completion is never awaited by input or teardown.
 
+Diagnostic accounting includes the transient incoming copy before its older pending predecessor is superseded (eight pastes plus three transient copy records). Paste-helper exit no longer prematurely clears insertion accounting: request cleanup is recorded after the insertion lifetime. Literal workflow copies do not invent transcript selection-clear events. Composition tests verify explicit/environment opt-in, comparison/settings-free exclusion, destination precedence, and disposal even when construction or shell teardown fails. Request identifiers are local to their source; runtime identifiers are input revisions and negative framing identifiers identify terminal input observations. `pendingBytes` is observed payload/source accounting, not native heap measurement.
+
 A healthy heartbeat with stalled visible painting differs from a blocked application event loop. These diagnostics support attribution but do not themselves establish the user's physical-terminal root cause. The baseline's main-thread path classifier and write/paste barriers are investigated independently of OSC 52.
 
 ## URL presentation evidence and approved refinement
@@ -37,6 +39,30 @@ Before the approved refinement, a source made from `https://example.com/` plus `
 With PR #385 open, the user explicitly approved revising its specs and implementation to preserve full URLs and chips while omitting oversized explicit hyperlink metadata. `EditorHyperlinkBudget` now enforces the per-pass limit before OSC construction, including repeated occurrences, multibyte targets, and row cleanup. The former observational-only probe now asserts bounded output, exact expanded submission/history, following typing, and no duplicate native read for bracketed paste; unit tests also check exact copy expansion and rejection without whole-target byte counting.
 
 One augmented synthetic run, including content checks and following typing, recorded 6,563 maximum terminal-write bytes for each near-limit route, with roughly 48 ms native / 55 ms bracketed maximum timer gaps and 632 / 647 ms overall test-observed insertion/check time. This is not an identical timing workload to the earlier probe, a physical latency distribution, or acceptance of task 5.3's entire large-text/path/image matrix. Deterministic metadata/output limits gate the regression; physical acceptance and the remaining whole-pipeline evidence are still required.
+
+## Generated baseline and lifecycle evidence
+
+The generated baseline covers 10 and 1,000 historical response blocks, idle and streaming, copy-only, standalone external-value paste-only, and copy/paste overlap. Each case runs once in a fresh shell and twice subsequently (36 samples). Helpers still start per request; warm-shell is not a claim of native-helper reuse. Copy uses the production isolated preparer with an injected clipboard sink; paste uses a supplied external-value reader and production isolated preparation. Neither is a physical clipboard or terminal measurement. Records separate input progress, copy phases, paste predecessor/acquisition/classification/insertion phases, composition/write counts, and timer progress, without payloads.
+
+One focused run observed the following ranges across 12 samples per operation:
+
+| Operation | Following-input handling (ms) | Completion/check time (ms) | Maximum timer gap per sample (ms) |
+| --- | --- | --- | --- |
+| Copy | 5.5–18.0 | 245.1–258.6 | 16.4–20.2 |
+| Independent paste | 4.1–8.3 | 311.8–346.6 | 16.9–21.3 |
+| Combined | 5.4–13.1 | 544.7–601.0 | 16.3–20.4 |
+
+Generated 2 MiB single-line, 100,000-line text, and 1,024-square image controls retained compact presentation and exact text/valid image semantics, with maximum write sizes of 6,563 bytes and timer gaps of approximately 17/18/27 ms in that run. These timings are observations, not shared-CI wall-clock gates or physical input-to-paint distributions.
+
+Lifecycle evidence covers 12 sequential real-helper copy/paste cycles, excess-admission rejection and full eight-helper capacity recovery after cancellation, and eight image helpers sharing exactly one conversion slot. Every observed child exited/disconnected and used ignored terminal descriptors. A reentrant acquisition-cancellation test found and fixed a conversion grant after cancellation. Session-shell tests preserve newer selections and drafts after late copy/text/image completion and verify alternate-screen restoration/no subsequent writes on disposal. Markdown render-call counters remain unchanged during copy-clear, typing, and wheel work on settled content. Cold emitted-helper/package tests remain separate from these source-helper tests.
+
+## Remaining large-path presentation blocker
+
+Indexed atomic segmentation uses the existing grapheme segmenter's boundary lookup rather than enumerating all discarded chip-interior graphemes. Equivalence tests cover Unicode boundaries and the existing iterable fallback; a structural test requires exactly two boundary lookups per chip rather than full enumeration. No pinned-source file or installed dependency is modified.
+
+A 12,000 short-name path-list observation improved from roughly 208 ms to 109 ms maximum timer gap. However, 6,000 paths with 160-character filename stems still produced 1,014,006 editor characters from 1,409,999 input bytes and a roughly 1,387 ms timer gap. Exact expanded paths were retained and writes remained small; the application-side presentation work is still unacceptable. The path evidence tests report this failure of responsiveness rather than claiming acceptance from content assertions.
+
+Task 5.3 and the complete fault/content certification remain open. A compact-paste fallback for path lists exceeding a display budget would alter existing large-list chip presentation and requires a separately approved spec/code refinement in #385. No such fallback or rejection policy has been applied.
 
 ## Acceptance
 

@@ -27,6 +27,36 @@ describe("clipboard diagnostic capture", () => {
     capture.dispose();
   });
 
+  it("accounts transient superseding capture without dropping an accepted operation", async () => {
+    vi.useFakeTimers();
+    let snapshot = "";
+    const capture = new ClipboardDiagnosticCapture("unused.json", async (_path, data) => { snapshot = data; });
+    try {
+      for (let request = 1; request <= 8; request++) capture.paste({ request, phase: "admitted", atMs: 0, pending: request, bytes: 10 });
+      for (let request = 1; request <= 3; request++) capture.copy({ ...event, request, phase: "capture" });
+      capture.copy({ ...event, request: 2, phase: "settled", outcome: "superseded" });
+      await capture.flush();
+      expect(JSON.parse(snapshot).records.at(-1).pendingBytes).toBe(100);
+      for (let request = 1; request <= 3; request++) capture.copy({ ...event, request, phase: "settled", outcome: "delivered" });
+      for (let request = 1; request <= 8; request++) capture.paste({ request, phase: "settled", atMs: 1, pending: 0, outcome: "ready" });
+      await capture.flush();
+      expect(JSON.parse(snapshot).records.at(-1).pendingBytes).toBe(0);
+    } finally { capture.dispose(); }
+  });
+
+  it("sanitizes nonfinite numbers and unapproved transport/outcome fields", async () => {
+    vi.useFakeTimers();
+    let snapshot = "";
+    const capture = new ClipboardDiagnosticCapture("unused.json", async (_path, data) => { snapshot = data; });
+    try {
+      capture.copy({ ...event, atMs: Infinity, bytes: -1, pending: NaN, elapsedMs: -Infinity,
+        transport: "private/path", outcome: "secret payload" } as unknown as ResponseCopyEvent);
+      await capture.flush();
+      expect(snapshot).not.toMatch(/private|secret|Infinity|NaN/);
+      expect(JSON.parse(snapshot).records[0]).toMatchObject({ atMs: 0, bytes: 0, pending: 0, elapsedMs: 0, transport: "none", outcome: "none" });
+    } finally { capture.dispose(); }
+  });
+
   it("bounds records and keeps just one pending snapshot while disk writing stalls", async () => {
     vi.useFakeTimers();
     let release!: () => void;

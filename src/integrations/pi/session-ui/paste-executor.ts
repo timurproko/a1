@@ -83,6 +83,8 @@ export function startPasteExecutor(content: PiShellClipboardContent | undefined,
       if (!["acquired-text", "acquired-image", "classifying", "path-fallback", "prepared"].includes(message.phase) || phases.has(message.phase)) { fail(); return; }
       phases.add(message.phase);
       phase(message.phase, message.bytes);
+      // Concurrency: lifecycle observers may synchronously cancel; never grant new conversion work afterward.
+      if (canceled) return;
       if (message.phase === "acquired-image") { conversionQueue.push(child); permitConversion(); }
     } else if (message?.kind === "output" && !header) {
       if (!["text", "url", "paths", "image", "empty"].includes(message.type) || (message.label?.length ?? 0) > 256

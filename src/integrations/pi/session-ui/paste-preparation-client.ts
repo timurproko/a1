@@ -84,6 +84,8 @@ export class PastePreparationClient {
             content = read;
           }
           executor = startPasteExecutor(content, controller.signal, (phase, bytes) => {
+            // Protocol: helper exit precedes adoption; only the request's finally block reports complete cleanup.
+            if (phase === "cleanup") return;
             if (phase === "acquired-text" || phase === "acquired-image") clearRead();
             if (controller.signal.aborted) return;
             if (phase === "acquired-image") onImage();

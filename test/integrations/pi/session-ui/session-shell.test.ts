@@ -1,6 +1,7 @@
 import { SUGGESTION_CONVERSATIONS } from "../../../fixtures/prompt-suggestion-conversations.js";
 import { SuggestionDiagnosticCapture } from "../../../../src/features/prompt-suggestions/index.js";
 import { memoryHistory } from "./prompt-history-fixture.js";
+import { createResponseCopyExecutor } from "../../../../src/integrations/pi/session-ui/response-copy-transport.js";
 import HeadlessXterm from "@xterm/headless";
 import { formatSubmittedPromptTime, selectionCopyRowText } from "../../../../src/ui/components/index.js";
 import { PromptHistoryService } from "../../../../src/features/prompt-history/index.js";
@@ -16,6 +17,7 @@ import { join } from "node:path";
 import { CURSOR_MARKER, stripTerminalSequences, visibleWidth } from "@earendil-works/pi-tui";
 import {
   Editor,
+  Markdown,
   getCapabilities as getPinnedPiTuiCapabilities,
   getOsc8LinkAtColumn as getPinnedPiTuiLinkAtColumn,
   setCapabilities as setPinnedPiTuiCapabilities,
@@ -198,6 +200,7 @@ async function fixture(
   promptHistory?: Omit<NonNullable<OwnedUiSessionShellOptions["promptHistory"]>, "editor">,
   configureEngine?: (engine: Runtime) => void,
   responseCopy?: OwnedUiSessionShellOptions["responseCopy"],
+  pasteDiagnostics?: OwnedUiSessionShellOptions["pasteDiagnostics"],
 ) {
   const engine = new Runtime(messages);
   configureEngine?.(engine);
@@ -222,6 +225,7 @@ async function fixture(
     ...(clipboard === undefined ? {} : { clipboard }),
     ...(streamPresentation === undefined ? {} : { streamPresentation }),
     ...(inputPresentation === undefined ? {} : { inputPresentation }),
+    ...(pasteDiagnostics === undefined ? {} : { pasteDiagnostics }),
     ...(promptSuggestions === undefined ? {} : { promptSuggestions }),
     ...(promptHistory === undefined ? {} : { promptHistory: { ...promptHistory, editor: await loadHistoryEditor() } }),
   });
@@ -655,6 +659,115 @@ describe("OwnedUiSessionShell", () => {
     } finally { clearInterval(timer); await shell.dispose(); }
   }, 20_000);
 
+  it.each([10, 1000].flatMap(history => [false, true].flatMap(streaming => ["copy", "paste", "combined"].map(operation => ({ history, streaming, operation })))))
+    ("records separate cold/warm clipboard baselines %j", async ({ history, streaming, operation }) => {
+      let clipboard = "external value";
+      const samples: unknown[] = [];
+      const copyPhases: { phase: string; elapsedMs: number }[] = [];
+      const pastePhases: { phase: string; elapsedMs: number; bytes: number }[] = [];
+      const runtimePhases: string[] = [];
+      const writeText = vi.fn(async (text: string) => { clipboard = text; });
+      const readText = vi.fn(async () => clipboard);
+      const messages = Array.from({ length: history }, (_, i) => ({ role: "assistant", content: [{ type: "text", text: i === history - 1 ? "copy-target visible response" : `generated historical response ${i}` }] }));
+      const { shell, terminal, engine, adapter } = await fixture(messages, [], true, undefined, { readText }, undefined,
+        { onEvent: event => runtimePhases.push(event.phase) }, undefined, undefined, undefined,
+        { execute: createResponseCopyExecutor({ writeText }), onEvent: event => copyPhases.push({ phase: event.phase, elapsedMs: event.elapsedMs }) },
+        event => pastePhases.push({ phase: event.phase, elapsedMs: event.elapsedMs ?? 0, bytes: event.bytes ?? 0 }));
+      try {
+        if (streaming) { engine.session.emit({ type: "agent_start" }); await adapter.flushEvents(); }
+        for (let iteration = 0; iteration < 3; iteration++) {
+          shell.root.editor.setText(""); shell.runtime.renderNow();
+          clipboard = `external-${iteration}`;
+          copyPhases.length = 0; pastePhases.length = 0; runtimePhases.length = 0;
+          let last = performance.now(), gap = 0, ticks = 0;
+          const heartbeat = setInterval(() => { const now = performance.now(); gap = Math.max(gap, now - last); last = now; ticks++; }, 5);
+          const begin = performance.now();
+          try {
+            if (operation !== "paste") {
+              const rows = shell.root.render(80).map(stripTerminalSequences);
+              const row = rows.findIndex(text => text.includes("copy-target"));
+              expect(row).toBeGreaterThanOrEqual(0);
+              const column = rows[row]!.indexOf("copy-target") + 1;
+              // Rationale: independent generated drags must not become double/triple-click selection gestures.
+              const clock = vi.spyOn(Date, "now").mockReturnValue(Date.now() + iteration * 1000);
+              try { terminal.input(`\u001b[<0;${column};${row + 1}M\u001b[<32;${column + 10};${row + 1}M\u001b[<0;${column + 10};${row + 1}m\u0003`); }
+              finally { clock.mockRestore(); }
+            }
+            if (operation !== "copy") terminal.input("\x16");
+            terminal.input("typed"); await nextImmediate();
+            expect(shell.root.editor.getText()).toContain("typed");
+            const inputMs = performance.now() - begin;
+            if (operation !== "paste") await vi.waitFor(() => expect(clipboard).toBe("copy-target"), { timeout: 5000 });
+            if (operation !== "copy") await vi.waitFor(() => expect(shell.root.editor.getText()).toBe(`${clipboard}typed`), { timeout: 5000 });
+            else expect(shell.root.editor.getText()).toBe("typed");
+            await nextImmediate(); shell.runtime.renderNow();
+            expect(ticks).toBeGreaterThan(0);
+            samples.push({ iteration, temperature: iteration === 0 ? "cold-shell" : "warm-shell", inputMs,
+              completionMs: performance.now() - begin, maxTimerGapMs: gap, ticks,
+              compositions: runtimePhases.filter(phase => phase === "composition-end").length,
+              writes: runtimePhases.filter(phase => phase === "write-end").length, copyPhases: [...copyPhases], pastePhases: [...pastePhases] });
+          } finally { clearInterval(heartbeat); }
+        }
+        expect(writeText).toHaveBeenCalledTimes(operation === "paste" ? 0 : 3);
+        expect(readText).toHaveBeenCalledTimes(operation === "copy" ? 0 : 3);
+        // Rationale: helpers still start cold per request; these generated timings do not measure physical clipboard/terminal behavior.
+        console.log("CLIPBOARD_GENERATED_BASELINE", JSON.stringify({ history, streaming, operation, samples }));
+      } finally { await shell.dispose(); }
+    }, 20_000);
+
+  it.each(["single-line", "multiline", "image"])("records isolated large-payload presentation controls (%s)", async kind => {
+    const text = kind === "single-line" ? "x".repeat(2 * 1024 * 1024) : "generated line\n".repeat(100_000);
+    const image = screenshotPng(1024, 1024).toString("base64");
+    const phases: { phase: string; elapsedMs: number; bytes: number }[] = [];
+    const { shell, terminal } = await fixture([], [], true, undefined,
+      { readText: async () => text, ...(kind === "image" ? { readImage: async () => ({ data: image, mimeType: "image/png" }) } : {}) },
+      undefined, undefined, undefined, undefined, undefined, undefined,
+      event => phases.push({ phase: event.phase, elapsedMs: event.elapsedMs ?? 0, bytes: event.bytes ?? 0 }));
+    let last = performance.now(), gap = 0, ticks = 0;
+    const heartbeat = setInterval(() => { const now = performance.now(); gap = Math.max(gap, now - last); last = now; ticks++; }, 5);
+    try {
+      const begin = performance.now(); terminal.input("\x16"); terminal.input(" after"); await nextImmediate();
+      expect(shell.root.editor.getText()).toContain(" after");
+      await vi.waitFor(() => {
+        expect(shell.root.editor.getText()).toMatch(kind === "image" ? /^\[📷 screenshot-/u : /^\[paste #/u);
+        expect(shell.root.hasPendingPastes(shell.root.editor.getText())).toBe(false);
+      }, { timeout: 10_000 });
+      const ready = shell.root.preparePromptSubmission(shell.root.editor.getText());
+      if (kind === "image") { expect(ready.images).toHaveLength(1); expect(ready.text).toBe(shell.root.editor.getText()); }
+      else expect(ready.text === text + " after").toBe(true);
+      shell.runtime.renderNow(); await nextImmediate();
+      expect(ticks).toBeGreaterThan(0);
+      expect(shell.root.editor.getText().length).toBeLessThan(100);
+      const maxWriteBytes = Math.max(...terminal.writes.map(value => Buffer.byteLength(value)));
+      expect(maxWriteBytes).toBeLessThan(64 * 1024);
+      console.log("CLIPBOARD_LARGE_CONTROL", JSON.stringify({ kind, elapsedMs: performance.now() - begin, maxTimerGapMs: gap, ticks, maxWriteBytes, phases }));
+    } finally { clearInterval(heartbeat); await shell.dispose(); }
+  }, 15_000);
+
+  it.each([{ count: 1000, nameUnits: 7 }, { count: 4000, nameUnits: 7 }, { count: 12000, nameUnits: 7 }, { count: 6000, nameUnits: 160 }])("records generated many-path insertion evidence %j", async ({ count, nameUnits }) => {
+    const directory = await mkdtemp(join(tmpdir(), "clipboard-path-evidence-"));
+    const file = join(directory, `${"f".repeat(nameUnits)}.txt`);
+    await writeFile(file, "generated");
+    const text = Array.from({ length: count }, () => `"${file}"`).join("\n");
+    const { shell, terminal } = await fixture([], [], true, undefined, { readText: async () => text });
+    let last = performance.now(), gap = 0;
+    const heartbeat = setInterval(() => { const now = performance.now(); gap = Math.max(gap, now - last); last = now; }, 5);
+    try {
+      const begin = performance.now();
+      terminal.input("\x16"); terminal.input(" after");
+      await vi.waitFor(() => expect(shell.root.editor.getText()).toMatch(/^\[(?:📄|paste #)/u), { timeout: 15_000 });
+      const draft = shell.root.editor.getText();
+      shell.runtime.renderNow();
+      await new Promise(resolve => setTimeout(resolve, 10));
+      const pathChips = draft.startsWith("[📄");
+      expect(shell.root.preparePromptSubmission(draft).text === (pathChips ? file.repeat(count) : text) + " after").toBe(true);
+      // Rationale: observe the remaining path-list risk separately from URL bounds and physical acceptance.
+      console.log("CLIPBOARD_PATH_PRESENTATION", JSON.stringify({ count, nameUnits, sourceBytes: Buffer.byteLength(text), pathChips,
+        editorChars: draft.length, elapsedMs: performance.now() - begin, maxTimerGapMs: gap,
+        maxWriteBytes: Math.max(...terminal.writes.map(value => Buffer.byteLength(value))) }));
+    } finally { clearInterval(heartbeat); await shell.dispose(); await rm(directory, { recursive: true, force: true }); }
+  }, 20_000);
+
   it.each(["\n", " "])("bounds aggregate URL metadata and resets each decoration pass (separator=%j)", async separator => {
     const { shell } = await fixture([], [], true);
     const url = "https://example.com/" + "x".repeat(30_000);
@@ -718,12 +831,64 @@ describe("OwnedUiSessionShell", () => {
         await adapter.flushEvents();
         shell.runtime.renderNow();
         expect(shell.root.render(80).map(stripTerminalSequences).join("\n")).toContain("new streamed response");
+        const writes = terminal.writes.length;
+        await vi.waitFor(() => expect(terminal.writes.length).toBeGreaterThan(writes), { timeout: 1000 });
+        expect(phases).not.toContain("settled");
       }
       finish();
       await vi.waitFor(() => expect(shell.root.editor.getText()).toBe("still usablecopy-target"));
       expect(clipboardText).toBe("copy-target");
       expect(phases).toContain("settled");
     } finally { finish(); await shell.dispose(); }
+  });
+
+  it.each(["current", "session", "dispose"])("fences late copy completion and preserves UI ownership across %s", async boundary => {
+    let release!: () => void;
+    const waiting = new Promise<void>(resolve => { release = resolve; });
+    const cancel = vi.fn();
+    const formatting = vi.spyOn(Markdown.prototype, "render");
+    const messages = [{ role: "assistant", content: [{ type: "text", text: Array.from({ length: 100 }, (_, i) => `row ${i} selectable content`).join("\n\n") }] }];
+    const { shell, terminal, engine, adapter } = await fixture(messages, [], true, undefined, undefined,
+      undefined, undefined, undefined, undefined, undefined, {
+        execute: (_snapshot, phase) => {
+          phase("submitting", 10, "injected");
+          const result = waiting.then(() => ({ outcome: "delivered" as const }));
+          return { result, stopped: result.then(() => {}), cancel };
+        },
+      });
+    const select = () => {
+      const rows = shell.root.render(80).map(stripTerminalSequences);
+      const row = rows.findIndex(text => text.includes("selectable"));
+      expect(row).toBeGreaterThanOrEqual(0);
+      const column = rows[row]!.indexOf("selectable") + 1;
+      terminal.input(`\u001b[<0;${column};${row + 1}M\u001b[<32;${column + 10};${row + 1}M\u001b[<0;${column + 10};${row + 1}m`);
+    };
+    try {
+      await nextImmediate(); shell.runtime.renderNow();
+      expect(formatting.mock.calls.length).toBeGreaterThan(0);
+      const formats = formatting.mock.calls.length;
+      select(); terminal.input("\u0003");
+      expect(shell.root.hasActiveSelection()).toBe(false);
+      terminal.input("draft"); await nextImmediate(); shell.runtime.renderNow();
+      expect(shell.root.editor.getText()).toBe("draft");
+      const top = shell.root.viewportPresentationEvidence().scrollTop;
+      terminal.input("\u001b[<64;2;2M"); await nextImmediate(); shell.runtime.renderNow();
+      expect(shell.root.viewportPresentationEvidence().scrollTop).toBeLessThan(top);
+      expect(formatting.mock.calls.length).toBe(formats);
+      if (boundary === "session") { await engine.rebindSession?.(new Session(messages)); await adapter.flushEvents(); shell.runtime.renderNow(); }
+      if (boundary === "dispose") {
+        await shell.dispose();
+        expect(terminal.active).toBe(false);
+        expect(terminal.writes.join("")).toContain("\u001b[?1049l");
+      } else {
+        select(); expect(shell.root.hasActiveSelection()).toBe(true);
+      }
+      const writes = terminal.writes.length;
+      release(); await nextImmediate(); await nextImmediate();
+      if (boundary === "dispose") expect(terminal.writes).toHaveLength(writes);
+      else expect(shell.root.hasActiveSelection()).toBe(true);
+      if (boundary !== "current") expect(cancel).toHaveBeenCalledOnce();
+    } finally { release(); await shell.dispose(); formatting.mockRestore(); }
   });
 
   it("does not paste the previous clipboard after a known response-copy failure", async () => {
@@ -1219,6 +1384,28 @@ describe("OwnedUiSessionShell", () => {
       release("large late payload\n".repeat(136)); await pending; await nextImmediate(); await nextImmediate();
       expect(shell.root.editor.getText()).toBe("newer"); expect(engine.session.promptOptions).toHaveLength(0);
     } finally { await shell.dispose(); }
+  });
+
+  it.each(["session", "dispose"])("does not adopt late image bytes after %s teardown", async boundary => {
+    let release!: (value: { data: string; mimeType: string }) => void;
+    const image = new Promise<{ data: string; mimeType: string }>(resolve => { release = resolve; });
+    const { shell, terminal, engine, adapter } = await fixture([], [], true, undefined, { readText: async () => null, readImage: () => image });
+    try {
+      terminal.input("\x16"); await nextImmediate();
+      if (boundary === "session") { await engine.rebindSession?.(new Session()); await adapter.flushEvents(); }
+      else await shell.dispose();
+      shell.root.editor.setText("newer draft"); await nextImmediate();
+      const writes = terminal.writes.length;
+      release({ data: screenshotPng(32, 32).toString("base64"), mimeType: "image/png" });
+      await nextImmediate(); await nextImmediate();
+      expect(shell.root.editor.getText()).toBe("newer draft");
+      expect(shell.root.preparePromptSubmission("newer draft").images).toEqual([]);
+      if (boundary === "dispose") {
+        expect(terminal.active).toBe(false);
+        expect(terminal.writes).toHaveLength(writes);
+        expect(terminal.writes.join("")).toContain("\u001b[?1049l");
+      }
+    } finally { release({ data: "", mimeType: "image/png" }); await shell.dispose(); }
   });
 
   it.each(["waiting", "compaction"])("recovers a large text %s queue without losing or double-expanding its payload", async mode => {

@@ -60,7 +60,7 @@ export class ResponseCopyCoordinator {
     };
     request.timer.unref?.();
     this.#trace(request, "capture", { elapsedMs: snapshot.captureMs ?? 0 });
-    this.#trace(request, "selection-clear");
+    if (snapshot.literal !== true) this.#trace(request, "selection-clear");
     if (this.#disposed || this.#quarantined || snapshot.rejected) {
       this.#settle(request, { outcome: this.#disposed ? "canceled" : "failed", failure: snapshot.rejected ? "size" : "unsafe" });
       return result;

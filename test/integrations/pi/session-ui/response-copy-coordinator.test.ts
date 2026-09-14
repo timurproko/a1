@@ -44,6 +44,17 @@ describe("bounded response-copy coordinator", () => {
     coordinator.dispose();
   });
 
+  it("does not invent transcript selection-clear evidence for literal workflow copying", async () => {
+    const { coordinator, executions, events } = fixture();
+    const result = coordinator.submitText("workflow text");
+    await vi.advanceTimersByTimeAsync(0);
+    executions[0]!.result.resolve({ outcome: "delivered" }); executions[0]!.stopped.resolve();
+    await result;
+    expect(events.some(event => event.phase === "capture")).toBe(true);
+    expect(events.some(event => event.phase === "selection-clear")).toBe(false);
+    coordinator.dispose();
+  });
+
   it("expires automatically and quarantines an executor until its actual stop fence", async () => {
     const { coordinator, executions, failures } = fixture();
     const result = coordinator.submit(snapshot());

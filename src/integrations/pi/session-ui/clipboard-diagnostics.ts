@@ -28,7 +28,8 @@ export class ClipboardDiagnosticCapture {
   #record(source: string, event: { phase: string; atMs: number; request?: number; pending?: number; bytes?: number; elapsedMs?: number; transport?: string; outcome?: string; sourceUnits?: number }): void {
     if (this.#disposed || !PHASES.has(event.phase)) return;
     const key = `${source}:${event.request ?? 0}`;
-    if (["capture", "admitted"].includes(event.phase) && this.#payloads.size < 10) this.#payloads.set(key, scalar(event.sourceUnits) * 2);
+    // Concurrency: eight pastes plus active/pending copy and the incoming superseding capture can overlap briefly.
+    if (["capture", "admitted"].includes(event.phase) && this.#payloads.size < 11) this.#payloads.set(key, scalar(event.sourceUnits) * 2);
     if (this.#payloads.has(key) && event.bytes !== undefined) this.#payloads.set(key, Math.max(this.#payloads.get(key)!, scalar(event.bytes)));
     if (event.phase === "settled" || event.phase === "cleanup") this.#payloads.delete(key);
     // Rationale: observed payload/source bytes, not an assertion about opaque native allocator overhead.

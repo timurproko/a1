@@ -898,7 +898,6 @@ function installAtomicSegmentation(
   wordDirection: () => WordDirection | undefined,
 ): void {
   const transform = (text: string, mode: unknown, values: Iterable<unknown>): Iterable<EditorSegment> => {
-    const segments = [...values].filter(isEditorSegment);
     const ranges: SegmentationRange[] = rangesForText(text).map(range => ({ ...range, wordLike: false }));
     if (mode === "word") {
       for (const range of contextualPathRanges(editor, text, wordDirection())) {
@@ -906,6 +905,14 @@ function installAtomicSegmentation(
       }
     }
     ranges.sort((left, right) => left.start - right.start);
+    if (mode === "grapheme" && ranges.length > 0 && typeof values === "object" && values !== null) {
+      const containing: unknown = Reflect.get(values, "containing");
+      if (typeof containing === "function") {
+        const indexed = atomicSegmentsByBoundary(text, ranges, offset => Reflect.apply(containing, values, [offset]));
+        if (indexed !== undefined) return indexed;
+      }
+    }
+    const segments = [...values].filter(isEditorSegment);
     if (ranges.length === 0) return segments;
     const merged: EditorSegment[] = [];
     let rangeIndex = 0;
@@ -938,6 +945,34 @@ function installAtomicSegmentation(
   const original = originalValue.bind(editor) as (text: string, mode?: unknown) => Iterable<unknown>;
   Reflect.set(editor, "segment", (text: string, mode?: unknown) => transform(text, mode, original(text, mode)));
   Reflect.set(editor, ATOMIC_SEGMENTATION, true);
+}
+
+/** Skip atomic interiors using the supplied segmenter's boundaries; preserve the iterable fallback exactly. */
+function atomicSegmentsByBoundary(
+  text: string,
+  ranges: readonly SegmentationRange[],
+  containing: (offset: number) => unknown,
+): EditorSegment[] | undefined {
+  const merged: EditorSegment[] = [];
+  let offset = 0, rangeIndex = 0;
+  while (offset < text.length) {
+    const segment = containing(offset);
+    if (!isEditorSegment(segment) || segment.index !== offset || segment.segment.length === 0) return undefined;
+    while ((ranges[rangeIndex]?.end ?? Number.POSITIVE_INFINITY) <= offset) rangeIndex++;
+    const range = ranges[rangeIndex];
+    if (range !== undefined && offset >= range.start && offset < range.end) {
+      if (range.end > text.length) return undefined;
+      const last = containing(range.end - 1);
+      if (!isEditorSegment(last) || last.index + last.segment.length < range.end) return undefined;
+      if (offset === range.start) merged.push({ segment: text.slice(range.start, range.end).replaceAll(" ", ATOMIC_SPACE_SENTINEL), index: range.start, input: text });
+      // Compatibility: the old iterable consumes the entire final grapheme, even if it crosses the chip end.
+      offset = last.index + last.segment.length;
+    } else {
+      merged.push(segment);
+      offset += segment.segment.length;
+    }
+  }
+  return merged;
 }
 
 function contextualPathRanges(

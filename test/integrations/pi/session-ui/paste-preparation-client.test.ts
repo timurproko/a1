@@ -1,10 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { startPasteExecutor } from "../../../../src/integrations/pi/session-ui/paste-executor.js";
+import { ClipboardDiagnosticCapture } from "../../../../src/integrations/pi/session-ui/clipboard-diagnostics.js";
 import { PastePreparationClient } from "../../../../src/integrations/pi/session-ui/paste-preparation-client.js";
 import { PASTE_READ_MS, PASTE_TOTAL_MS, PASTE_STOP_MS, type PasteEvent } from "../../../../src/integrations/pi/session-ui/paste-protocol.js";
 import type { PiShellClipboardContent } from "../../../../src/integrations/pi/components/index.js";
 
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(done => { resolve = done; }); return { promise, resolve }; }
-afterEach(() => vi.useRealTimers());
+vi.mock("../../../../src/integrations/pi/session-ui/paste-executor.js", () => ({ startPasteExecutor: vi.fn() }));
+afterEach(() => { vi.useRealTimers(); vi.clearAllMocks(); });
 
 /** Deterministic lifetime gates, separate from real blocked-helper tests in paste-executor.test.ts. */
 describe("paste admission and insertion lifetime", () => {
@@ -21,6 +24,30 @@ describe("paste admission and insertion lifetime", () => {
     await vi.advanceTimersByTimeAsync(0);
     expect(events.at(-1)).toMatchObject({ phase: "cleanup", pending: 0 });
     await client.dispose();
+  });
+
+  it("retains pending-byte evidence through insertion after the helper exits", async () => {
+    vi.useFakeTimers();
+    let snapshot = "";
+    const events: PasteEvent[] = [];
+    const capture = new ClipboardDiagnosticCapture("unused.json", async (_path, data) => { snapshot = data; });
+    vi.mocked(startPasteExecutor).mockImplementationOnce((_content, _signal, phase) => {
+      phase?.("acquired-text", 20); phase?.("classifying"); phase?.("prepared", 20); phase?.("cleanup");
+      return { result: Promise.resolve({ kind: "text", text: "generated" }), stopped: Promise.resolve(), cancel() {} };
+    });
+    const client = new PastePreparationClient(event => { events.push(event); capture.paste(event); });
+    try {
+      const job = client.start({ kind: "text", text: "generated" }, () => "inserted", () => {});
+      await vi.advanceTimersByTimeAsync(0);
+      await expect(job.result).resolves.toBe("inserted");
+      await capture.flush();
+      expect(events.map(event => event.phase)).toEqual(["admitted", "acquiring", "acquired-text", "classifying", "prepared", "inserting"]);
+      expect(JSON.parse(snapshot).records.at(-1)).toMatchObject({ phase: "inserting", pendingBytes: 20 });
+      job.complete();
+      await vi.advanceTimersByTimeAsync(0); await capture.flush();
+      expect(events.filter(event => event.phase === "cleanup")).toHaveLength(1);
+      expect(JSON.parse(snapshot).records.at(-1)).toMatchObject({ phase: "cleanup", pending: 0, pendingBytes: 0 });
+    } finally { await client.dispose(); capture.dispose(); }
   });
 
   it("expires acquisition at five seconds, suppresses a late result, and permits a fresh independent read", async () => {
