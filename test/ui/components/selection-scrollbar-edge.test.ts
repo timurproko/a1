@@ -20,7 +20,7 @@ function fixture(width: number, appearance: "auto" | "always" | "hidden", style:
   const viewport = new TranscriptViewport();
   viewport.setConfig({ scrollbarAppearance: appearance, scrollbarStyle: style });
   const plain = "a".repeat(width - displayWidth(suffix)) + suffix;
-  // Put source styling and OSC 8 precisely at the overlay boundary as well as before it.
+  // Rationale: boundary-local styling and OSC 8 expose inherited-state leaks that preceding styles alone miss.
   const row = styled ? `\u001b[48;2;11;22;33m${plain.slice(0, -suffix.length)}\u001b[1;3;4m\u001b]8;;https://example.com\u001b\\${suffix}\u001b]8;;\u001b\\\u001b[0m` : plain;
   const input = { documentRows: Array.from({ length: 12 }, () => row), dockRows: [], promptAnchors: [], width, height: 5, theme };
   const compose = (now = 100) => viewport.compose({ ...input, now });
@@ -92,7 +92,7 @@ describe("truthful selection at the scrollbar edge", () => {
                       previous = result.rows;
                       const visible = appearance === "always" || (appearance === "auto" && state !== "hidden");
                       for (const row of [1, 2, 3]) {
-                        // Wide glyphs have a continuation cell: inspect their leading cell on hide.
+                        // Protocol: wide glyphs have a continuation cell; inspect their leading cell on hide.
                         const column = visible ? width - 1 : width - displayWidth(suffix);
                         const cell = terminal.buffer.active.getLine(row)!.getCell(column)!;
                         const selected = row < 3 || included;
@@ -122,7 +122,7 @@ describe("truthful selection at the scrollbar edge", () => {
 
   it.each([false, true])("paints the replaced background when final-cell membership is %s", async included => {
     const { viewport, compose } = fixture(12, "auto", "thin");
-    // Full-row selection isolates composition from the ordinary drag-clamp defect.
+    // Rationale: full-row selection isolates composition from the ordinary drag-clamp defect.
     viewport.pressSelection(1, 2, 100);
     if (included) {
       viewport.releaseSelection();
