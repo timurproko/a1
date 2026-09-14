@@ -8,7 +8,7 @@
 - [ ] 2.1 Add focused default, custom Alt chord, multiple-alternative, non-Alt, and unbound selector cases using independent expected labels; verify the macOS default/custom cases detect the raw-Alt defect before correction and Windows/Linux expectations retain Alt.
 - [ ] 2.2 Correct the selector's shared local key-label boundary before styling and layout, retaining effective binding lookups and input matching; verify header save and all footer hints pass the focused cases without modifying configured binding identities.
 - [ ] 2.3 Cover reorder/toggle, dirty and saved states, refresh outcomes, and cancellation using action callbacks and rendered hints; verify model changes stay session-only until explicit save and platform labels remain correct after the component refreshes.
-- [ ] 2.4 Correct the local attribution comment and, only if needed, the scoped-model ledger modification description; verify provenance checks pass and pinned versions, upstream hashes, approved deviations, and rendered baselines are unchanged.
+- [ ] 2.4 Correct the local attribution comment, recompute only the scoped-model ledger entry's `localSha256` from the final owned selector file bytes, and clarify its modification description if needed; verify digest equality and provenance checks pass while pinned versions, upstream `sha256`, approved deviations, unrelated ledger entries, and rendered baselines remain unchanged.
 
 ## 3. Prove strict cross-platform parity
 

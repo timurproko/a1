@@ -32,7 +32,7 @@ The selector is classified `owned-presentation` in the pinned-source ledger with
 - No global binding changes, automatic Alt-to-Option configuration migration, or shortcut remapping.
 - No unrelated tree/session selector refactor or central formatting-framework redesign.
 - No changes to model selection, provider grouping, ordering, persistence, refresh workflows, or cancellation semantics.
-- No new dependencies, private/deep production imports, pinned-package patches, baseline regeneration, additional parity exceptions, test retries, timeouts, or matrix changes.
+- No new dependencies, private/deep production imports, pinned-package patches, rendered-baseline regeneration, additional parity exceptions, test retries, timeouts, or matrix changes. Refreshing this selector's owned-source provenance digest is the only required checksum change.
 
 ## Decisions
 
@@ -56,7 +56,9 @@ Add a negative check showing that substituting raw Alt labels on macOS or changi
 
 ### 3. Retain accurate source provenance
 
-Keep the pinned version, source hashes, and absence of approved deviations. Update the selector's attribution comment to describe the actual local key-label adapter. If the scoped-model ledger entry's modification description needs clarification, change that description only. This is distinct from regenerating rendered baselines, which is not part of the fix.
+Keep the pinned version, upstream source hashes, and absence of approved deviations. Update the selector's attribution comment to describe the actual local key-label adapter. In `config/baselines/pinned-pi-source-port-ledger.json`, recompute the `localSha256` of entry `pi-coding-agent:src/modes/interactive/components/scoped-models-selector` from the final bytes of its `localDestination`; clarify that entry's modification description if needed. Leave the upstream `sha256`, other pinned identity fields, approved deviations, and every unrelated ledger entry unchanged.
+
+The local digest binds A1's owned file, not the upstream source or expected rendered output. Changing that owned file without refreshing its digest fails the provenance gate with `mapped owned source destination hash is stale`. The maintainer approved this narrow planning refinement after the implementation exposed that requirement. Verify both digest equality and the existing provenance gate rather than bypassing the check or regenerating the whole ledger. This bookkeeping does not weaken independent parity or authorize rendered-baseline regeneration.
 
 ### 4. Treat full regression and publication completion as separate evidence
 
