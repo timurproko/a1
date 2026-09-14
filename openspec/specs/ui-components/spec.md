@@ -341,10 +341,7 @@ the value it belongs to rather than anywhere on the row.
 - **THEN** the control SHALL appear beside it without shifting the value's column
 
 ### Requirement: An input row and a status line are components
-The component layer SHALL provide the input row a screen uses for search and inline editing — a
-prompt, the text, a block caret over the cell it is on, and a quiet placeholder while empty — and the
-status line a screen uses to say one thing at a time. A screen SHALL NOT compose either from escapes
-of its own.
+The component layer SHALL provide the input row a screen uses for search and inline editing — a prompt, the text, a block caret over the cell it is on, and a quiet placeholder while empty — and the status line a screen uses to say one thing at a time. A screen SHALL NOT compose either from escapes of its own. Bare A1's agent prompt and Settings search SHALL use the same reusable input presentation component for their bars, prompt prefix, and layout geometry, while retaining their respective multiline editor and single-line filter behavior. Sharing only color constants while independently composing equivalent input chrome SHALL NOT satisfy this requirement.
 
 #### Scenario: Render an empty input row
 - **WHEN** the input row is shown with no text
@@ -353,6 +350,11 @@ of its own.
 #### Scenario: Report something on the status line
 - **WHEN** a screen has both a standing hint and something to report
 - **THEN** the status line SHALL show what is reported until it is superseded
+
+#### Scenario: Render agent and search input chrome
+- **WHEN** the bare-A1 agent prompt and Settings search are rendered at the same width
+- **THEN** the shared component SHALL supply their top and bottom rules, prompt prefix, and content inset with coherent styling
+- **AND** each surface SHALL retain its existing text editing, caret, focus, and submission or filtering behavior
 
 ### Requirement: The theme declares a role for a control that cannot be used
 The theme SHALL declare a role for an unavailable control, distinct from quiet text, so a component
@@ -381,31 +383,44 @@ SHALL do so before the input sees it.
 - **THEN** the screen SHALL act on it and the input SHALL NOT receive it
 
 ### Requirement: Text selection ranges use display-column boundaries
-The shared text-selection model SHALL represent drag ranges using ordered display-column boundaries independently from pointer-cell identity. It SHALL distinguish an unextended press from a dragged one-cell range, normalize forward and reverse gestures to the same half-open source range, and keep grapheme clusters atomic. Rendering and plain-text extraction SHALL consume the same normalized range so highlighted cells and copied text cannot disagree.
+The shared text-selection model SHALL represent accepted ordinary pointer drags as ordered, half-open display-column ranges that include the complete graphemes intersected by both the anchor cell and the current pointer cell. It SHALL distinguish an unextended press from a dragged one-cell range, normalize the same endpoint cells in either direction to the same source range, and keep grapheme clusters atomic. Once distinct drag motion has been accepted, returning to the anchor cell SHALL retain exactly the anchor grapheme rather than produce an empty range. Rendering and plain-text extraction SHALL consume the same normalized range so highlighted cells and copied text cannot disagree.
 
 #### Scenario: Normalize a one-grapheme drag
-- **WHEN** a drag resolves to the boundaries immediately before and after one grapheme
-- **THEN** the normalized range SHALL be nonempty and contain exactly that grapheme
-- **AND** rendering and extraction SHALL use the same bounds
+- **WHEN** an accepted drag returns to its anchor cell after distinct motion
+- **THEN** the normalized range SHALL span the boundaries immediately before and after the anchor grapheme
+- **AND** rendering and extraction SHALL contain exactly that grapheme, including after release
 
 #### Scenario: Normalize reverse endpoints
-- **WHEN** two drag endpoints are supplied in reverse document order
-- **THEN** normalization SHALL produce the same range as the corresponding forward endpoints
-- **AND** it SHALL preserve which boundary is active for subsequent extension
+- **WHEN** two drag endpoint cells are supplied in reverse document order
+- **THEN** normalization SHALL produce the same range as the corresponding forward endpoints, including both endpoint graphemes
+- **AND** it SHALL preserve the moving endpoint for subsequent extension
 
 #### Scenario: Keep an unextended press empty
-- **WHEN** a press is released without an accepted drag extension and without word or line selection
+- **WHEN** a press is released without an accepted distinct drag extension and without word or line selection
 - **THEN** normalization SHALL produce no selected range
+- **AND** repeated reports at the unchanged press cell SHALL NOT activate selection
 
 #### Scenario: Resolve display-width text
-- **WHEN** a boundary intersects a wide character, emoji sequence, or combining sequence
+- **WHEN** either endpoint intersects a wide character, emoji sequence, or combining sequence
 - **THEN** it SHALL resolve to a complete grapheme boundary
 - **AND** extraction SHALL preserve the original code-point sequence
+- **AND** distinct pointer-cell motion within the same wide grapheme SHALL select that grapheme exactly once
 
 #### Scenario: Extract a multiline range
 - **WHEN** a normalized range crosses source rows
-- **THEN** extraction SHALL include selected source text and semantic newlines only
+- **THEN** extraction SHALL include selected source text and semantic newlines only, including the source graphemes under both endpoint cells
 - **AND** it SHALL omit ANSI styling, visual padding, and overlay cells
+
+#### Scenario: Include adjacent endpoint graphemes
+- **WHEN** a drag in `abcde` starts on `c` and moves to `b` or `d`
+- **THEN** the selected source text SHALL be `bc` or `cd`, respectively
+- **AND** neither endpoint grapheme SHALL be excluded
+
+#### Scenario: Cross the anchor without deselection
+- **WHEN** a drag anchored on `c` in `abcde` visits `b`, `c`, and `d` in sequence
+- **THEN** the selected source text SHALL be `bc`, `c`, and `cd` in sequence
+- **AND** the mirrored sequence through `d`, `c`, and `b` SHALL produce `cd`, `c`, and `bc`
+- **AND** repeated reports at the anchor and release there SHALL retain `c` without an empty intermediate range
 
 ### Requirement: Selection composition declares and reuses row-level damage
 A selectable viewport component SHALL retain a bounded reusable representation of stable visible rows and selected row variants. For a selection-only revision with unchanged content, rectangle, layout, and theme revisions, it SHALL identify each visible row whose normalized selected range changed and reuse every other row byte-for-byte. Reuse SHALL be bounded in memory and SHALL be invalidated by any revision that can change row content, display width, style, overlay order, or geometry.
@@ -454,3 +469,21 @@ The component layer SHALL provide one presentation rule for text rendered beside
 #### Scenario: Render text without a spinner
 - **WHEN** a notice, diagnostic, result, or ordinary status line is rendered without a progress spinner
 - **THEN** the progress-marker rule SHALL NOT alter its text
+
+### Requirement: Owned input bars and arrows have consistent neutral presentation
+Bare A1's agent prompt and Settings search SHALL render top and bottom bars in the same neutral white foreground as the existing Settings search reference, without thinking-level tint. Both input `❯` arrows SHALL match the existing undimmed submitted-prompt arrow foreground and SHALL NOT be dimmed or faint. Rule and prefix styles SHALL be owned by the shared component's presentation policy rather than hardcoded at individual call sites. Quiet placeholder styling SHALL NOT leak into the arrow or rules.
+
+#### Scenario: Compare the two inputs with a submitted prompt
+- **WHEN** a submitted prompt, the agent input, and Settings search are viewed under the same theme and terminal color capability
+- **THEN** both input arrows SHALL have the submitted-prompt arrow's undimmed foreground
+- **AND** both inputs' rules SHALL match the reference Settings search rule foreground
+
+#### Scenario: Change the agent thinking level or input mode
+- **WHEN** a level changes or the bare-A1 agent draft enters or leaves bash mode
+- **THEN** the shared input rules SHALL remain neutral white rather than adopting a level or bash tint
+- **AND** draft text, mode semantics, and caret position SHALL remain unchanged by restyling
+
+#### Scenario: Resize and edit a multiline draft
+- **WHEN** a user wraps a draft, resizes the terminal, moves the caret, selects text, or opens prompt suggestions
+- **THEN** the shared prefix and rules SHALL preserve content width, continuation alignment, pointer hit geometry, and caret placement
+- **AND** no rule or prefix SHALL become part of the submitted draft or copied text

@@ -65,6 +65,14 @@ carry one numbered or full-version preview selector. A prerelease build SHALL ex
 bare `a1 pi` as its comparison launch; a release build SHALL treat that launch form
 as unsupported.
 
+Normal A1 SHALL additionally recognize `a1 --session <path|id>` with an optional
+`--session-dir <dir>` in either option order as an interactive launch using the A1
+profile. These options SHALL NOT be interpreted as maintenance operations or
+forwarded into Pi package commands. A malformed invocation of this recognized
+session grammar SHALL fail before startup with focused guidance and nonzero status.
+This addition SHALL NOT expose CLI picker/continue aliases, a `resume` subcommand,
+or session arguments on the Pi comparison launch.
+
 An unsupported command or operation SHALL exit successfully without output before
 supervisor, foreground-child, shell, or operation startup. A malformed invocation
 of a recognized maintenance command SHALL fail before startup with focused command
@@ -72,7 +80,7 @@ guidance and without automatically printing the complete help.
 
 #### Scenario: Query help
 - **WHEN** the user runs `a1 --help` or `a1 -h`
-- **THEN** A1 SHALL print help without launching any profile
+- **THEN** A1 SHALL print help including the supported normal A1 session launch forms without launching any profile
 
 #### Scenario: Query version
 - **WHEN** the user runs `a1 --version` or `a1 -v`
@@ -83,8 +91,8 @@ guidance and without automatically printing the complete help.
 - **THEN** A1 SHALL run the package operation against the A1 profile without launching any interactive profile
 
 #### Scenario: Launch form is given an argument
-- **WHEN** an interactive launch form is followed by an argument outside the declared maintenance grammar
-- **THEN** A1 SHALL return successfully and silently without launching a profile
+- **WHEN** an interactive launch form is followed by an argument outside the declared maintenance and normal A1 session-selection grammars
+- **THEN** A1 SHALL return successfully and silently without launching a profile unless it is a malformed invocation of the recognized session grammar
 
 #### Scenario: Unknown subcommand
 - **WHEN** the user provides a word outside the declared grammar
@@ -97,6 +105,14 @@ guidance and without automatically printing the complete help.
 #### Scenario: Removed update command is provided
 - **WHEN** the user provides a command beginning `update:`
 - **THEN** A1 SHALL return successfully and silently without update or runtime work
+
+#### Scenario: Resume from either release channel
+- **WHEN** the user runs a valid normal A1 `--session` launch from a stable or prerelease build
+- **THEN** A1 SHALL launch the selected session under the normal A1 profile and shared owned runtime
+
+#### Scenario: Session arguments are supplied to the comparison
+- **WHEN** the user runs `a1 pi --session <id>`
+- **THEN** that unsupported comparison operation SHALL remain a silent no-op rather than fall through to a normal A1 session launch
 
 ### Requirement: Interactive launch forms are concurrently independent
 A1 SHALL permit multiple simultaneous instances of bare `a1`, prerelease `a1 pi`, or both. Profile selection, profile data, lifecycle state, process containment, and closure SHALL remain scoped to the originating invocation rather than a product-wide foreground slot.
