@@ -84,6 +84,32 @@ describe("semantic pending engine delivery", () => {
     expect(drain(queue)).toEqual([current]);
   });
 
+  it("balances snapshot leases on replacement, consumption, sealing, rejection, and generation discard", () => {
+    const retained = new Set<number>();
+    const queue = new PendingEngineDelivery(event => {
+      retained.add(event.sequence);
+      return () => { expect(retained.delete(event.sequence)).toBe(true); };
+    });
+    expect(queue.push(block("a", "first", 1), 1)).toBe(true);
+    expect(queue.push(block("a", "second", 2), 1)).toBe(true);
+    expect([...retained]).toEqual([2]);
+    const consumed = queue.shift()!;
+    expect([...retained]).toEqual([2]);
+    consumed.release!();
+    const large = block("a", "x".repeat(100_000), 3);
+    expect(queue.push(large, 1, () => large)).toBe(true);
+    expect(retained.size).toBe(0);
+    expect(queue.seal()).toBe(true);
+    expect([...retained]).toEqual([3]);
+    queue.discardObsolete(2);
+    expect(retained.size).toBe(0);
+    for (let n = 4; n < 1028; n++) expect(queue.push(barrier(n), 2)).toBe(true);
+    expect(queue.push(barrier(1028), 2)).toBe(false);
+    expect(retained.has(1028)).toBe(false);
+    while (queue.size) queue.shift()!.release!();
+    expect(retained.size).toBe(0);
+  });
+
   it("never evicts protected events and invalidates obsolete state without invoking stale resolvers", () => {
     const queue = new PendingEngineDelivery();
     for (let i = 0; i < 1024; i++) expect(queue.push(barrier(i), 1)).toBe(true);
