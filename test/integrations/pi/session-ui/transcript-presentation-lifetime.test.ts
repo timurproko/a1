@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Text } from "#pi-tui";
 import { stripAnsi } from "../../../../src/ui/components/text.js";
+import { selectionCopyRowText } from "../../../../src/ui/components/selection-copy.js";
 import { readVisibleHyperlinks } from "../../../../src/ui/components/visible-hyperlinks.js";
 import { transcriptLifecycleFixture, TranscriptFixtureSession } from "../../../support/rendering/transcript-lifecycle-fixture.js";
 
@@ -68,7 +69,9 @@ describe("asynchronous transcript presentation lifetime", () => {
     value.shell.root.handleViewportPreInput(`\u001b[<0;${column};${line + 1}M`);
     value.shell.root.handleViewportPreInput(`\u001b[<32;${column + 12};${line + 1}M`);
     value.shell.root.handleViewportPreInput(`\u001b[<0;${column + 12};${line + 1}m`);
-    expect(value.shell.root.handleViewportPreInput("\u0003").copyText).toBe("COPY_CURRENT");
+    const snapshot = value.shell.root.handleViewportPreInput("\u0003").copySelection;
+    expect(snapshot).toBeDefined();
+    expect(snapshot!.rows.map((row, index) => selectionCopyRowText(snapshot!, row, index)).join("\n")).toBe("COPY_CURRENT");
   });
 
   it("keeps detached scroll and bottom-control hit geometry current after off-screen height changes", async () => {
