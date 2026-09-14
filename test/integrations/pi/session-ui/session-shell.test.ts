@@ -2567,6 +2567,58 @@ describe("OwnedUiSessionShell", () => {
     } finally { await shell.dispose(); }
   });
 
+  it.each([false, true])("keeps production rail paint truthful for a released right-edge selection (included=%s)", async included => {
+    const width = 192;
+    const text = "a".repeat(width - 1) + "Z";
+    const { terminal, shell } = await fixture(Array.from({ length: 30 }, (_, index) => ({
+      role: "assistant", content: [{ type: "text", text }], timestamp: index + 1,
+    })), [], true);
+    let now = Date.now();
+    const clock = vi.spyOn(Date, "now").mockImplementation(() => now);
+    const screen = new HeadlessXterm.Terminal({ cols: width, rows: 20, allowProposedApi: true, scrollback: 0 });
+    let writeOffset = 0;
+    try {
+      terminal.resize(width, 20);
+      shell.root.setOutputPad(0);
+      shell.root.setViewportConfig({ scrollbarAppearance: "auto", scrollbarStyle: "thin", scrollbarSpeed: "normal" });
+      shell.runtime.renderNow();
+      const source = shell.root.render(width).map(row => stripTerminalSequences(row));
+      const sourceRows = source.flatMap((row, index) => row.endsWith("Z") ? [index] : []);
+      expect(sourceRows.length).toBeGreaterThanOrEqual(3);
+      const first = sourceRows[0]!;
+      const last = sourceRows[2]!;
+      expect(source[first]!.indexOf(text)).toBe(0);
+      const endpoint = width - (included ? 0 : 1);
+      const expectedCopy = source.slice(first, last + 1).map((row, index, rows) =>
+        row.slice(0, index === rows.length - 1 ? endpoint : width).trimEnd(),
+      ).join("\n");
+      terminal.input(`\u001b[<0;1;${first + 1}M\u001b[<32;${endpoint};${last + 1}M\u001b[<0;${endpoint};${last + 1}m`);
+      shell.runtime.renderNow();
+      const revision = shell.root.viewportFrameDescriptor()!.selectionRevision;
+      for (const style of ["thin", "thick"] as const) {
+        shell.root.setViewportConfig({ scrollbarAppearance: "auto", scrollbarStyle: style, scrollbarSpeed: "normal" });
+        for (const hovered of [false, true, false, true, false]) {
+          now += 1000;
+          terminal.input(`\u001b[<35;${hovered ? width : 4};${last + 1}M`);
+          for (let repeat = 0; repeat < 2; repeat++) {
+            shell.runtime.renderNow();
+            expect(shell.root.viewportFrameDescriptor()!.selectionRevision).toBe(revision);
+            const data = terminal.writes.slice(writeOffset).join("");
+            writeOffset = terminal.writes.length;
+            if (data) await new Promise<void>(resolve => screen.write(data, resolve));
+            for (const row of sourceRows.slice(0, 3)) {
+              const cell = screen.buffer.active.getLine(row)!.getCell(width - 1)!;
+              expect(cell.isBgRGB() && cell.getBgColor() === 0x264f78).toBe(row < last || included);
+              expect(hovered ? [style === "thin" ? "│" : "┃", "┃"] : ["Z"]).toContain(cell.getChars());
+            }
+          }
+        }
+      }
+      terminal.input("\u0003");
+      expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from(expectedCopy).toString("base64")}\u0007`);
+    } finally { screen.dispose(); clock.mockRestore(); await shell.dispose(); }
+  });
+
   it("wraps ordinary transcript content through the rail overlay column", async () => {
     const word = "x".repeat(60);
     const { terminal, shell } = await fixture([

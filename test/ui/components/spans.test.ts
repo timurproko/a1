@@ -41,6 +41,20 @@ describe("overlaying a span on a rendered row", () => {
     expect(result.slice(result.indexOf("XYZ"))).toContain(BLUE);
   });
 
+  it("opts into boundary styles without changing generic overlays or leaking boundary links", () => {
+    const open = "\u001b]8;;https://example.com\u001b\\";
+    const close = "\u001b]8;;\u001b\\";
+    const line = `a${BLUE}${open}bc${close}d`;
+    const generic = overlaySpan(line, 1, 2, "X");
+    expect(generic.startsWith("aX")).toBe(true);
+    const inherited = overlaySpan(line, 1, 2, "X", { inheritStartStyle: true });
+    expect(inherited.startsWith(`a${BLUE}${open}${close}X`)).toBe(true);
+    expect(hyperlinkTargetAtColumn(inherited, 1)).toBeUndefined();
+    expect(hyperlinkTargetAtColumn(inherited, 2)).toBe("https://example.com");
+    expect(stripAnsi(inherited)).toBe("aXcd");
+    expect(stripAnsi(overlaySpan(`${BLUE}界e\u0301`, 1, 2, "X", { inheritStartStyle: true }))).toBe(" Xe\u0301");
+  });
+
   it("does not split a wide character at either edge", () => {
     expect(stripAnsi(overlaySpan("世界ab", 1, 3, "XY"))).toBe(" XY ab");
     expect(displayWidth(overlaySpan("世界ab", 1, 3, "XY"))).toBe(displayWidth("世界ab"));
