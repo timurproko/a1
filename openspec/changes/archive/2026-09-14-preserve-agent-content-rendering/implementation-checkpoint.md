@@ -1,5 +1,7 @@
 # Continuation after PR #370 — implementation evidence, not acceptance
 
+Historical checkpoint record. Final-head CI subsequently passed and the maintainer accepted the merged candidate after the corrected interactive handoff. See `acceptance.md` for the dated verdict, exact artifacts, final task reconciliation, post-merge review timing, and independently changed #353 issue state. Pending/blocking statements below describe their original checkpoints and are not current acceptance findings.
+
 Base: merged PR #370, `421ceb5042d9da1d69a787ceb6f809ce483f66fb`. Worktree: `D:/Git/a1/.worktrees/complete-content-rendering`. Intended branch: `fix/complete-content-rendering`. The user requested the remaining tasks and explicitly approved the minimal attributed image-lifecycle adaptation after its failing baseline.
 
 ## Verified work
