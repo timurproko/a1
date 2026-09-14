@@ -107,6 +107,16 @@ jobs:
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: 24
+      - name: Install pinned archive validation tooling
+        if: needs.changes.outputs.openspec-touched == 'true'
+        run: npm ci --ignore-scripts
+      - name: Verify generated archive merge result
+        if: needs.changes.outputs.openspec-touched == 'true' && github.event_name == 'pull_request'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ARCHIVE_PR_NUMBER: ${{ github.event.pull_request.number }}
+        shell: bash
+        run: node scripts/governance/reconcile-openspec-archive.mjs --validate-candidate --pr "$ARCHIVE_PR_NUMBER"
       - name: Verify docs-sensitive generated governance
         run: node scripts/governance/check-docs-governance.mjs
       - name: Validate OpenSpec artifacts strictly

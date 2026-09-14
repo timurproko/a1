@@ -52,7 +52,7 @@ export function inspectWorkflowSource(path, source) {
   if (line(/^  schedule:\s*$/m)) triggers.push("schedule");
   if (line(/^  push:\s*$/m)) triggers.push("push");
 
-  const permissions = [...new Set([...source.matchAll(/^\s+(contents|pull-requests|id-token):\s*(read|write)\s*$/gm)].map(match => `${match[1]}: ${match[2]}`))].sort();
+  const permissions = [...new Set([...source.matchAll(/^\s+(contents|pull-requests|id-token|actions):\s*(read|write)\s*$/gm)].map(match => `${match[1]}: ${match[2]}`))].sort();
   const retention = [...new Set([...source.matchAll(/^\s+retention-days:\s*(\d+)\s*$/gm)].map(match => Number(match[1])))].sort((a, b) => a - b);
   const environments = [...new Set([...source.matchAll(/^\s+environment:\s*([^\s#]+)\s*$/gm)].map(match => match[1]))].sort();
   const concurrency = /^\s+group:\s*([^\n$]+?)(?:\$\{\{|\s*$)/m.exec(source)?.[1]?.trim() ?? "";
@@ -68,6 +68,10 @@ export function inspectWorkflowSource(path, source) {
   if (source.includes("manage-documentation-auto-merge.mjs")) authority.push("documentation-auto-merge", "matching-merged-head-delete");
   if (source.includes('VALIDATION_SELECTION_JSON: \'["full-release"]\'')) authority.push("complete-regression");
   if (source.includes("reconcile-merged-branch.mjs")) authority.push("matching-merged-head-delete");
+  if (source.includes("reconcile-openspec-archive.mjs")) {
+    if (source.includes("OPENSPEC_ARCHIVE_APP_PRIVATE_KEY")) authority.push("openspec-archive-app-publication", "archive-read-only-audit");
+    else if (source.includes("--validate-candidate")) authority.push("archive-merge-result-validation");
+  }
   if (source.includes('channel = "next"')) authority.push("npm-next");
   if (source.includes('channel = "latest"')) authority.push("npm-latest");
   if (source.includes("ref=refs/tags/")) authority.push("release-tag");

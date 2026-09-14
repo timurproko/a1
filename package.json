@@ -73,6 +73,7 @@
     "undici": "8.9.0"
   },
   "devDependencies": {
+    "@fission-ai/openspec": "1.11.0",
     "@lezer/python": "1.1.19",
     "@types/cross-spawn": "6.0.6",
     "@types/node": "24.2.1",

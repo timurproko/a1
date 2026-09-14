@@ -1,6 +1,7 @@
 import { appendFile, readFile } from "node:fs/promises";
 import { classifyDocumentationAutoMerge, planDocumentationAutoMerge } from "./documentation-auto-merge.mjs";
 import { executeMergedBranchCleanup } from "./execute-merged-branch-cleanup.mjs";
+import { readArchiveMarker, archiveAuthorityCurrent } from "./openspec-archive-publication.mjs";
 
 class GitHubGraphQLError extends Error {
   constructor(status, body) {
@@ -86,13 +87,30 @@ async function processPullRequest(number, run) {
     const validation = validationMatchesHead
       ? run.validationSucceeded ? "success" : "failure"
       : "pending";
+    let archive;
+    try { archive = readArchiveMarker(pull.body); }
+    catch {
+      await disableIfArmed(pull, "invalid archive identity");
+      return await summary(`PR #${number}: invalid archive metadata; manual reconciliation required.`);
+    }
+    if (archive) {
+      // Concurrency: generated archives are never pre-armed against a base that may advance during CI.
+      await disableIfArmed(pull, "generated archive requires fresh head and base validation");
+      if (archive.generatedHead !== pull.head.sha || validation !== "success") {
+        return await summary(`PR #${number}: archive waiting for matching current-head validation.`);
+      }
+      const target = await rest(`/repos/${owner}/${repository}/git/ref/heads/develop`);
+      if (target.object?.sha !== archive.targetSha) return await summary(`PR #${number}: archive base advanced; regenerate before integration.`);
+      if (!await archiveAuthorityCurrent(rest, repositoryName, pull, archive)) return await summary(`PR #${number}: archive acceptance or committed metadata changed; deferred.`);
+    }
     const action = planDocumentationAutoMerge({
       validation,
       autoMergeArmed: Boolean(pull.auto_merge),
       mergeableState: pull.mergeable_state,
       mergeable: pull.mergeable,
     });
-    if (action === "merge") return await mergeValidatedHead(pull);
+    if (action === "merge") return await mergeValidatedHead(pull, archive?.targetSha);
+    if (archive) return await summary(`PR #${number}: archive waiting for positive mergeability; auto-merge remains unarmed.`);
     if (validation === "failure") {
       return await summary(`PR #${number}: current-head Development validation failed; no integration.`);
     }
@@ -163,8 +181,12 @@ async function isTrustedEligible(pull) {
   return true;
 }
 
-async function mergeValidatedHead(pull) {
+async function mergeValidatedHead(pull, archiveBase) {
   const number = pull.number;
+  if (archiveBase) {
+    const target = await rest(`/repos/${owner}/${repository}/git/ref/heads/develop`);
+    if (target.object?.sha !== archiveBase) return await summary(`PR #${number}: archive base changed before merge; deferred.`);
+  }
   try {
     const result = await rest(`/repos/${owner}/${repository}/pulls/${number}/merge`, {
       method: "PUT",
