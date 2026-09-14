@@ -18,9 +18,7 @@ The product SHALL identify itself with display name `A1`, command `a1`, npm pack
 - **THEN** all identity-derived diagnostics and generated names under test SHALL use the substituted value without editing feature modules
 
 ### Requirement: Current environment and state names use the A1 namespace
-User-facing product configuration SHALL retain `A1_CONFIG_DIR`, `A1_DATA_DIR`, `A1_RUNTIME_DIR`, `A1_DATABASE_PATH`, `A1_ENDPOINT`, and any other explicitly classified supported external setting. Private process coordination, tests, and automation SHALL use separately classified, descriptive environment keys whose canonical spellings do not contain `a1`, case-insensitively. Confirmed private keys SHALL have one supported neutral spelling. Implementations SHALL NOT provide legacy private aliases, dual reads/writes, compatibility adapters, or migration helpers. Obsolete private spellings SHALL NOT supply missing current-contract values or influence runtime selection. Public and private key definitions SHALL be validated according to their respective contracts rather than requiring every environment key to use the product prefix.
-
-Default Windows and Unix control-state directory resolution SHALL remain unchanged and retain the product namespace. A1 SHALL NOT read variables or control-state directories using the former product identity. A1 SHALL retain `~/.a1/agent` for its profile and preserve the comparison launch's ordinary `~/.pi/agent` resolution. This internal naming change SHALL NOT relocate existing user data or alter independently specified history-storage behavior.
+User-facing product configuration SHALL retain `A1_CONFIG_DIR`, `A1_DATA_DIR`, `A1_RUNTIME_DIR`, `A1_DATABASE_PATH`, `A1_ENDPOINT`, and any other explicitly classified supported external setting. Private process coordination, tests, and automation SHALL use separately classified, descriptive environment keys whose canonical spellings do not contain `a1`, case-insensitively. Confirmed private keys SHALL have one supported neutral spelling. Implementations SHALL NOT provide legacy private aliases, dual reads/writes, compatibility adapters, or migration helpers. Obsolete private spellings SHALL NOT supply missing current-contract values or influence runtime selection. Public and private key definitions SHALL be validated according to their respective contracts rather than requiring every environment key to use the product prefix. Default Windows and Unix control-state directory resolution SHALL remain unchanged and retain the product namespace. A1 SHALL NOT read variables or control-state directories using the former product identity. A1 SHALL retain `~/.a1/agent` for its profile and preserve the comparison launch's ordinary `~/.pi/agent` resolution. This internal naming change SHALL NOT relocate existing user data or alter independently specified history-storage behavior.
 
 #### Scenario: Override A1 state roots
 - **WHEN** the user supplies valid `A1_CONFIG_DIR`, `A1_DATA_DIR`, and `A1_RUNTIME_DIR` values
@@ -28,25 +26,11 @@ Default Windows and Unix control-state directory resolution SHALL remain unchang
 
 #### Scenario: Supply only a legacy environment variable
 - **WHEN** the environment supplies only a variable using the former product prefix without the corresponding supported current setting
-- **THEN** A1 SHALL ignore the former-product variable and resolve the normal A1 default
-- **AND** the private-contract cutover SHALL NOT reintroduce support for the former product identity
+- **THEN** A1 SHALL ignore the former-product variable and resolve the normal A1 default; the private-contract cutover SHALL NOT reintroduce support for the former product identity
 
 #### Scenario: Resolve default state paths
 - **WHEN** no A1 state override is supplied
 - **THEN** A1 SHALL resolve the same platform-appropriate defaults as before the internal naming change, containing the `A1` or `a1` product namespace
-
-#### Scenario: Read a public setting through neutral code
-- **WHEN** implementation code reads a supported public environment setting
-- **THEN** its internal bindings and helpers SHALL have brand-neutral names while the externally supplied key retains its existing spelling
-
-#### Scenario: Validate a private environment contract
-- **WHEN** a confirmed private environment key has a brand-neutral canonical spelling
-- **THEN** configuration validation SHALL accept it without requiring an `A1_` prefix
-- **AND** public-setting spelling, uniqueness, and value-validation requirements SHALL remain enforced
-
-#### Scenario: Supply only obsolete private context
-- **WHEN** a private entry requires current launch context but receives only the obsolete branded private keys
-- **THEN** its current-contract validation SHALL fail without translating those keys or falling back to another release or default path
 
 ### Requirement: Current machine-readable identifiers use the A1 namespace
 Current release manifests, protocol and evidence schemas, endpoint and pipe names, and diagnostic identifiers SHALL use the `a1` namespace. A1 SHALL reject machine-readable identifiers using the former namespace and SHALL NOT migrate legacy control state. Filenames are governed separately: see the requirement that files are named for what they do.
@@ -136,3 +120,16 @@ Existing keys pending exposure review SHALL preserve their spelling under exact,
 - **WHEN** valid neutral private context is supplied alongside obsolete branded ambient variables
 - **THEN** runtime behavior SHALL depend only on the validated current contract and supported public settings
 - **AND** obsolete values SHALL NOT override the current release, profile, or selected paths
+
+#### Scenario: Read a public setting through neutral code
+- **WHEN** implementation code reads a supported public environment setting
+- **THEN** its internal bindings and helpers SHALL have brand-neutral names while the externally supplied key retains its existing spelling
+
+#### Scenario: Validate a private environment contract
+- **WHEN** a confirmed private environment key has a brand-neutral canonical spelling
+- **THEN** configuration validation SHALL accept it without requiring an `A1_` prefix
+- **AND** public-setting spelling, uniqueness, and value-validation requirements SHALL remain enforced
+
+#### Scenario: Supply only obsolete private context
+- **WHEN** a private entry requires current launch context but receives only the obsolete branded private keys
+- **THEN** its current-contract validation SHALL fail without translating those keys or falling back to another release or default path
