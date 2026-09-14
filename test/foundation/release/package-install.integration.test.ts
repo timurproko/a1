@@ -5,7 +5,9 @@ import { dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { loadValidationCandidate } from "./package-candidate-fixture.js";
+import { createValidationPhaseRecorder } from "../../../scripts/release/validation-phase.mjs";
 
+const phases = createValidationPhaseRecorder("package-install");
 const npm = process.platform === "win32" ? "npm.cmd" : "npm";
 let root = "";
 let prefix = "";
@@ -18,11 +20,14 @@ const startupMeasurements: Array<{
 }> = [];
 
 beforeAll(async () => {
-  candidate = await loadValidationCandidate();
+  candidate = await phases.run("load-candidate", () => loadValidationCandidate());
+  phases.bindCandidate(candidate.bytes);
   root = await mkdtemp(resolve(tmpdir(), "a1-package-install-"));
   prefix = resolve(root, "prefix");
-  const installed = await runAsync(npm, ["install", "--global", "--prefix", prefix, candidate.path, "--ignore-scripts", "--no-audit", "--no-fund"], root);
-  expect(installed.status, installed.stderr).toBe(0);
+  await phases.run("clean-global-install", async () => {
+    const installed = await runAsync(npm, ["install", "--global", "--prefix", prefix, candidate.path, "--ignore-scripts", "--no-audit", "--no-fund"], root);
+    expect(installed.status, installed.stderr).toBe(0);
+  });
 }, 600_000);
 
 afterAll(async () => {
@@ -37,7 +42,7 @@ afterAll(async () => {
       measurements: startupMeasurements,
     }, null, 2)}\n`);
   }
-  if (root) await removeFixtureRoot(root);
+  if (root) await phases.cleanup("fixture-cleanup", () => removeFixtureRoot(root), result => result);
 }, 15_000);
 
 describe("clean installation of the exact candidate", () => {
@@ -224,12 +229,14 @@ describe("clean installation of the exact candidate", () => {
   it("materializes the published minimal inventory into one reusable dependency layer", async () => {
     const { materializeRelease } = await import("../../../src/foundation/release/index.js");
     const packageRoot = resolve(prefix, ...(process.platform === "win32" ? [] : ["lib"]), "node_modules", "@timurproko", "a1");
-    const repaired = await runAsync(process.execPath, [resolve(packageRoot, "bin", "sync-pi-tui-proxy.js")], root);
-    expect(repaired.status, repaired.stderr).toBe(0);
+    await phases.run("proxy-synchronization", async () => {
+      const repaired = await runAsync(process.execPath, [resolve(packageRoot, "bin", "sync-pi-tui-proxy.js")], root);
+      expect(repaired.status, repaired.stderr).toBe(0);
+    });
     const operations: Array<{ operation: string; path: string; bytes: number }> = [];
     const dataDir = resolve(root, "layered-data");
-    const release = await materializeRelease(packageRoot, dataDir, { onOperation: event => operations.push(event) });
-    const second = await materializeRelease(packageRoot, dataDir, { onOperation: event => operations.push(event) });
+    const release = await phases.run("layer-materialization", () => materializeRelease(packageRoot, dataDir, { onOperation: event => operations.push(event) }));
+    const second = await phases.run("layer-reuse", () => materializeRelease(packageRoot, dataDir, { onOperation: event => operations.push(event) }));
 
     expect(release.dependencyLayers).toHaveLength(1);
     expect(second.dependencyLayers).toEqual(release.dependencyLayers);
@@ -253,7 +260,7 @@ describe("clean installation of the exact candidate", () => {
     const packageRoot = resolve(prefix, ...(process.platform === "win32" ? [] : ["lib"]), "node_modules", "@timurproko", "a1");
     const dataDir = resolve(root, "cleanup-data");
     const runtimeDir = resolve(root, "cleanup-runtime");
-    const releases = await createPackagedCleanupBacklog(dataDir, 42, 128);
+    const releases = await phases.run("backlog-setup", () => createPackagedCleanupBacklog(dataDir, 42, 128));
     const environment = {
       ...process.env,
       A1_DATA_DIR: dataDir,
@@ -262,9 +269,11 @@ describe("clean installation of the exact candidate", () => {
       RELEASE_CLEANUP_HOLDS: JSON.stringify([{ authority: "migration", releaseId: releases[39]!.releaseId }]),
     };
 
-    const before = await treeUsage(resolve(dataDir, "releases"));
-    const cleanup = await runAsync(process.execPath, [resolve(packageRoot, "bin", "release-cleanup.js")], root, environment);
-    expect(cleanup.status, cleanup.stderr).toBe(0);
+    const before = await phases.run("backlog-before-inventory", () => treeUsage(resolve(dataDir, "releases")));
+    await phases.run("backlog-worker", async () => {
+      const cleanup = await runAsync(process.execPath, [resolve(packageRoot, "bin", "release-cleanup.js")], root, environment);
+      expect(cleanup.status, cleanup.stderr).toBe(0);
+    });
     const state = JSON.parse(await readFile(resolve(dataDir, "release-state.json"), "utf8")) as {
       releases: Record<string, unknown>;
       cleanup: { pending: Record<string, unknown>; workerRuns: Array<{ runId: string; status: string; completed: number }> };
@@ -272,7 +281,7 @@ describe("clean installation of the exact candidate", () => {
     const remainingRoots = (await readdir(resolve(dataDir, "releases"))).filter(name => !name.startsWith("."));
 
     expect(Object.keys(state.releases).sort()).toEqual([releases[39]!.releaseId, releases[40]!.releaseId, releases[41]!.releaseId].sort());
-    const after = await treeUsage(resolve(dataDir, "releases"));
+    const after = await phases.run("backlog-after-inventory", () => treeUsage(resolve(dataDir, "releases")));
     expect(Object.keys(state.cleanup.pending)).toHaveLength(0);
     expect(remainingRoots.sort()).toEqual(Object.keys(state.releases).sort());
     expect(after.files).toBeLessThan(before.files);
@@ -334,7 +343,7 @@ describe("clean installation of the exact candidate", () => {
     const { resolveCohortEndpoint, resolveProductPaths } = await import("../../../src/foundation/lifecycle/index.js");
     const { assertStartupPerformanceBudget } = await import("../../../src/foundation/startup/index.js");
     const { PRODUCT_IDENTITY } = await import("../../../src/product-identity.js");
-    await expectWindowsDefenderProtection();
+    await phases.run("defender-prerequisite", () => expectWindowsDefenderProtection());
     const packageRoot = resolve(prefix, "node_modules", "@timurproko", "a1");
     const dataDir = resolve(root, "startup-data");
     const runtimeDir = resolve(root, "startup-runtime");
@@ -347,28 +356,30 @@ describe("clean installation of the exact candidate", () => {
       HOME: resolve(root, "startup-home"),
       USERPROFILE: resolve(root, "startup-home"),
     };
-    const release = await materializeRelease(packageRoot, dataDir);
+    const release = await phases.run("startup-materialization", () => materializeRelease(packageRoot, dataDir));
     const state = new CohortStateStore(dataDir);
-    await state.recordCandidate(release);
-    await state.approve(release.releaseId, await certifyMaterializedRelease(release, dataDir));
-    await state.activate(release.releaseId);
-    await warmMaterializedRelease(release, environment);
-    const startup = await startSupervisor(release, environment);
+    await phases.run("startup-record-candidate", () => state.recordCandidate(release));
+    await phases.run("startup-certification", async () => {
+      await state.approve(release.releaseId, await certifyMaterializedRelease(release, dataDir));
+    });
+    await phases.run("startup-activation", () => state.activate(release.releaseId));
+    await phases.run("startup-declared-warmup", () => warmMaterializedRelease(release, environment));
+    const startup = await phases.run("startup-supervisor-spawn", () => startSupervisor(release, environment));
     const paths = resolveProductPaths(environment);
     const cohort = resolveCohortEndpoint(paths, release.releaseId, environment);
-    await waitForVerifiedEndpoint(cohort.endpointMetadataPath, release, 8_000, startup);
+    await phases.run("startup-supervisor-ready", () => waitForVerifiedEndpoint(cohort.endpointMetadataPath, release, 8_000, startup));
     try {
       for (const profileId of ["a1", "pi"] as const) {
         const postUpdate = await captureReadyLaunch(packageRoot, environment, profileId, "post-update");
         recordStartupMeasurement(profileId, "post-update", postUpdate);
         assertStartupPerformanceBudget({ profileId, launchKind: "post-update", events: postUpdate });
-        await stopPackagedSupervisor(cohort.endpointMetadataPath, dataDir, releaseVerifiedIdleOwner);
+        await phases.run(`supervisor-stop-${profileId}`, () => stopPackagedSupervisor(cohort.endpointMetadataPath, dataDir, releaseVerifiedIdleOwner));
 
         const restarted = await captureReadyLaunch(packageRoot, environment, profileId, "no-live-supervisor");
         recordStartupMeasurement(profileId, "no-live-supervisor", restarted);
         assertStartupPerformanceBudget({ profileId, launchKind: "no-live-supervisor", events: restarted });
-        const phases = restarted.map(event => event.phase);
-        expect(phases).toEqual(expect.arrayContaining([
+        const observedPhases = restarted.map(event => event.phase);
+        expect(observedPhases).toEqual(expect.arrayContaining([
           "durable-validation-start", "durable-validation-complete", "replacement-supervisor-start", "replacement-supervisor-ready",
         ]));
         const validationStart = restarted.find(event => event.phase === "durable-validation-start")!;
@@ -380,7 +391,7 @@ describe("clean installation of the exact candidate", () => {
         assertStartupPerformanceBudget({ profileId, launchKind: "warm", events: warm });
       }
     } finally {
-      await stopPackagedSupervisor(cohort.endpointMetadataPath, dataDir, releaseVerifiedIdleOwner).catch(() => {});
+      await phases.cleanup("supervisor-final-stop", () => stopPackagedSupervisor(cohort.endpointMetadataPath, dataDir, releaseVerifiedIdleOwner)).catch(() => {});
     }
   }, 600_000);
 });
@@ -418,7 +429,7 @@ async function captureReadyLaunch(
   let stderr = "";
   child.stderr?.on("data", chunk => { stderr += chunk.toString(); });
   const deadline = Date.now() + 15_000;
-  try {
+  return phases.runWithCleanup(`launch-observation-${profileId}-${launchKind}`, async () => {
     while (Date.now() < deadline) {
       const source = await readFile(tracePath, "utf8").catch(() => "");
       if (source) {
@@ -431,7 +442,7 @@ async function captureReadyLaunch(
       await new Promise(resolvePromise => setTimeout(resolvePromise, 40));
     }
     throw new Error(`exact ${profileId} launch did not become input-ready within 15000ms: ${stderr}`);
-  } finally {
+  }, `launch-exit-${profileId}-${launchKind}`, async () => {
     // Rationale: Ctrl+D is the empty-editor exit. Ctrl+C only clears the editor,
     // so forcing the wrapper tree immediately afterward can strand the supervisor's
     // launch instance in uncertain reconciliation on Defender-enabled Windows.
@@ -449,7 +460,7 @@ async function captureReadyLaunch(
         new Promise<void>(resolvePromise => setTimeout(resolvePromise, 2_000)),
       ]);
     }
-  }
+  });
 }
 
 async function stopPackagedSupervisor(
@@ -573,15 +584,19 @@ async function waitForPath(path: string, timeoutMs: number): Promise<void> {
   throw new Error(`timed out waiting for ${path}`);
 }
 
-async function removeFixtureRoot(path: string): Promise<void> {
+async function removeFixtureRoot(path: string): Promise<"passed" | "deferred"> {
   if (process.platform !== "win32") {
     await rm(path, { recursive: true, force: true, maxRetries: 2, retryDelay: 100 });
-    return;
+    return "passed";
   }
   const cleanup = crossSpawn.sync(process.execPath, [
     "-e",
     "require('node:fs/promises').rm(process.argv[1], { recursive: true, force: true, maxRetries: 2, retryDelay: 100 }).catch(() => { process.exitCode = 1; })",
     path,
   ], { windowsHide: true, stdio: "ignore", timeout: 5_000 });
-  if (cleanup.status !== 0 || cleanup.error) process.stderr.write(`Deferred locked Windows fixture cleanup: ${path}\n`);
+  if (cleanup.status !== 0 || cleanup.error) {
+    process.stderr.write(`Deferred locked Windows fixture cleanup: ${path}\n`);
+    return "deferred";
+  }
+  return "passed";
 }

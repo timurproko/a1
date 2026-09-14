@@ -274,7 +274,10 @@ jobs:
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: development-resume-integration
-          path: .artifacts/validation/resume-integration.json
+          path: |
+            .artifacts/validation/resume-integration.json
+            .artifacts/validation/outcomes.json
+            .artifacts/validation/phases/*.jsonl
           if-no-files-found: warn
           retention-days: 14
       - name: Add ordinary timing summary
@@ -349,7 +352,9 @@ jobs:
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: development-startup-node${{ matrix.node }}
-          path: .artifacts/validation/startup-node${{ matrix.node }}*.json
+          path: |
+            .artifacts/validation/startup-node${{ matrix.node }}*.json
+            .artifacts/validation/phases/*.jsonl
           if-no-files-found: warn
           retention-days: 14
 

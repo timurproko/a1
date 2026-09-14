@@ -785,10 +785,10 @@
       ]
     },
     {
-      "id": "test/foundation/release/package-install.integration.test.ts:67:70",
+      "id": "test/foundation/release/package-install.integration.test.ts:72:70",
       "path": "test/foundation/release/package-install.integration.test.ts",
       "locationKind": "content",
-      "line": 67,
+      "line": 72,
       "column": 70,
       "value": "addone",
       "context": "await expect(access(resolve(bin, process.platform === \"win32\" ? \"addone.cmd\" : \"addone\"))).rejects.toThrow();",
@@ -801,10 +801,10 @@
       ]
     },
     {
-      "id": "test/foundation/release/package-install.integration.test.ts:67:85",
+      "id": "test/foundation/release/package-install.integration.test.ts:72:85",
       "path": "test/foundation/release/package-install.integration.test.ts",
       "locationKind": "content",
-      "line": 67,
+      "line": 72,
       "column": 85,
       "value": "addone",
       "context": "await expect(access(resolve(bin, process.platform === \"win32\" ? \"addone.cmd\" : \"addone\"))).rejects.toThrow();",

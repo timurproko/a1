@@ -1,8 +1,8 @@
 ## 1. Baseline and ownership
 
-- [ ] 1.1 Reconcile the implementation starting point against accepted develop and document interactions with predecessor/nightly and local-cleanup streams; verify no unrelated fix or unaccepted branch is included in the implementation diff.
+- [x] 1.1 Reconcile the implementation starting point against accepted develop and document interactions with predecessor/nightly and local-cleanup streams; verify no unrelated fix or unaccepted branch is included in the implementation diff.
 - [ ] 1.2 Produce a before/after ledger of every retained test, package-install scenario, required platform/runtime, and PR/full/release owner; verify the ledger accounts for all existing scopes and deliberate cross-runtime repetitions.
-- [ ] 1.3 Add bounded package fixture phase timing for install, packing, materialization, certification/warmup, launches, shutdown, and cleanup; verify focused tests retain partial records on setup failure and preserve the primary error without exposing secrets.
+- [x] 1.3 Add bounded package fixture phase timing for install, packing, materialization, certification/warmup, launches, shutdown, and cleanup; verify focused tests retain partial records on setup failure and preserve the primary error without exposing secrets.
 - [ ] 1.4 Record comparable pre-optimization CI baselines before changing orchestration; verify the evidence identifies heads, runner/runtime, cache state, per-phase time, critical path, and failed attempts separately from historical #398/#400 observations.
 
 ## 2. Conservative impact selection

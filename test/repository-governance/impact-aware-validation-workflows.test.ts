@@ -118,7 +118,7 @@ function assertDevelopmentStartup(workflow: ReturnType<typeof parse>) {
     expect.objectContaining({ name: "Validate first-attempt exact-package startup budget", run: "node scripts/release/run-validation-tier.mjs package-install --result .artifacts/validation/startup-node${{ matrix.node }}.json", env: expect.objectContaining({ STARTUP_PERFORMANCE_RESULT: ".artifacts/validation/startup-node${{ matrix.node }}-performance.json" }) }),
     expect.objectContaining({ name: "Validate background and packaged image preparation", run: "npx vitest run test/integrations/pi/session-ui/image-preparation.test.ts test/integrations/pi/session-ui/image-worker-package.test.ts --maxWorkers=1 --minWorkers=1" }),
     expect.objectContaining({ name: "Validate durable history on the selected Node runtime", run: "npx vitest run test/features/prompt-history --maxWorkers=1 --minWorkers=1" }),
-    expect.objectContaining({ name: "Upload startup budget evidence", if: "always()", with: expect.objectContaining({ path: ".artifacts/validation/startup-node${{ matrix.node }}*.json", "retention-days": 14 }) }),
+    expect.objectContaining({ name: "Upload startup budget evidence", if: "always()", with: expect.objectContaining({ path: ".artifacts/validation/startup-node${{ matrix.node }}*.json\n.artifacts/validation/phases/*.jsonl\n", "retention-days": 14 }) }),
   ]));
   for (const step of startup.steps) {
     if (step.name !== "Upload startup budget evidence") expect(step.if).toBeUndefined();
