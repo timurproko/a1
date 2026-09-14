@@ -6,6 +6,6 @@
 ## 2. Validate and prepare review
 
 - [x] 2.1 Run the focused compatibility and existing metadata-policy tests, typecheck, changed-file documentation checks, and strict OpenSpec validation; verify they pass without modifying production code, workflows, dependencies, or canonical specs.
-- [ ] 2.2 Publish the review handoff in the same PR with the exact candidate, focused command, no-delta scope, and pending integration gates; verify no acceptance verdict or automatic archive outcome is fabricated and auto-merge remains disabled.
+- [x] 2.2 Publish the review handoff in the same PR with the exact candidate, focused command, no-delta scope, and pending integration gates; verify no acceptance verdict or automatic archive outcome is fabricated and auto-merge remains disabled.
 
 Required current-head CI, actual maintainer acceptance, manual source integration, and the resulting automatic archive lifecycle are external gates recorded through PR/run evidence. They are not pre-completed task claims. Evidence for those gates and the independent rejection/docs controls belongs to the bootstrap follow-up; no bootstrap task is completed by this plan alone.
