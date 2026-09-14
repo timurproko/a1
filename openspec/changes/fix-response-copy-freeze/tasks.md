@@ -32,6 +32,8 @@
 - [x] 5.5 Route nonempty terminal-provided paste through bounded preparation without duplicate native acquisition; verify valid split delimiters, opaque control-like body text, exact-once insertion, following keyboard bytes, and unchanged modal/replacement ownership and pinned comparison behavior.
 - [ ] 5.6 Package the clipboard-read/preparation executors and bind them to session lifecycle; verify cold built/packaged text and image paste, bounded aggregate raw/encoded/prepared retention, session replacement during read/conversion, released reservations, no late editor/terminal writes, bounded shutdown, and terminal restoration.
 
+- [x] 5.7 Bound URL-chip OSC 8 metadata to 65,536 UTF-8 bytes per editor decoration pass before control construction; verify oversized native/bracketed paste preserves its full URL, chip and exact copy/history/submission expansion, aggregate repeated-row/occurrence and multibyte/framing boundaries, budget reset, following input, and unchanged in-budget link/selection/comparison behavior. Replace the observational near-limit probe with deterministic regression assertions; keep physical acceptance separate.
+
 ## 6. Validate the integrated clipboard contract
 
 - [ ] 6.1 Run deterministic copy-only, independent paste-only, and combined fault/content matrices spanning cold/warm small operations, repeated requests, long text/selections/sessions, URLs/paths/images, native and terminal paste, idle/streaming, terminal delay, busy/missing/denied/non-settling read/write/preparation, recovery, and teardown; verify gates fail blocked input/timers, unbounded work, stale deliveries/insertions, incorrect payloads, dropped/reordered pastes, and privacy leaks.

@@ -622,23 +622,59 @@ describe("prompt-style compaction in the real engine and shell", () => {
 });
 
 describe("OwnedUiSessionShell", () => {
-  // Rationale: evidence only; task 5.3 remains blocked on a bounded hyperlink-metadata policy; this is not an acceptance gate.
-  it("records near-limit URL presentation evidence without certifying responsiveness", async () => {
+  it.each(["native", "terminal"] as const)("bounds near-limit URL presentation without losing its value (%s)", async route => {
     const text = "https://example.com/" + "x".repeat(16 * 1024 * 1024 - 64);
-    const { shell, terminal } = await fixture([], [], true, undefined, { readText: async () => text });
+    const readText = vi.fn(async () => text);
+    const { shell, terminal } = await fixture([], [], true, undefined, { readText });
     let last = performance.now(), gap = 0;
     const timer = setInterval(() => { const now = performance.now(); gap = Math.max(gap, now - last); last = now; }, 5);
     try {
       const begin = performance.now();
-      terminal.input("\x16");
+      terminal.input(route === "native" ? "\x16" : `\x1b[200~${text}\x1b[201~`);
+      terminal.input(" after");
       await vi.waitFor(() => expect(shell.root.editor.getText()).toContain("[🔗 "), { timeout: 15_000 });
+      const draft = shell.root.editor.getText();
+      expect(draft.endsWith(" after")).toBe(true);
+      expect(draft.length).toBeLessThan(80);
+      expect(shell.root.preparePromptSubmission(draft).text === text + " after").toBe(true);
+      expect(shell.root.prepareHistoryText(draft) === text + " after").toBe(true);
+      shell.runtime.renderNow();
+      terminal.input(" typing");
+      await nextImmediate();
+      expect(shell.root.editor.getText()).toBe(draft + " typing");
       shell.runtime.renderNow();
       await new Promise(resolve => setTimeout(resolve, 10));
       clearInterval(timer);
-      console.log("CLIPBOARD_PRESENTATION_PROBE", JSON.stringify({ sourceBytes: Buffer.byteLength(text), insertionMs: performance.now() - begin,
-        maxTimerGapMs: gap, maxWriteBytes: Math.max(...terminal.writes.map(value => Buffer.byteLength(value))), editorChars: shell.root.editor.getText().length }));
+      const maxWriteBytes = Math.max(...terminal.writes.map(value => Buffer.byteLength(value)));
+      expect(maxWriteBytes).toBeLessThan(64 * 1024);
+      expect(terminal.writes.some(value => value.includes("\x1b]8;;https://example.com/"))).toBe(false);
+      expect(readText).toHaveBeenCalledTimes(route === "native" ? 1 : 0);
+      // Rationale: structural bounds gate CI; timing remains synthetic evidence, not physical acceptance.
+      console.log("CLIPBOARD_PRESENTATION_PROBE", JSON.stringify({ route, sourceBytes: Buffer.byteLength(text), insertionMs: performance.now() - begin,
+        maxTimerGapMs: gap, maxWriteBytes, editorChars: draft.length }));
     } finally { clearInterval(timer); await shell.dispose(); }
   }, 20_000);
+
+  it.each(["\n", " "])("bounds aggregate URL metadata and resets each decoration pass (separator=%j)", async separator => {
+    const { shell } = await fixture([], [], true);
+    const url = "https://example.com/" + "x".repeat(30_000);
+    const small = "https://small.example/";
+    try {
+      const chip = shell.root.rehydrateHistoryText(url, () => null);
+      const smallChip = shell.root.rehydrateHistoryText(small, () => null);
+      shell.root.editor.setText([chip, chip, chip, smallChip].join(separator));
+      for (let pass = 0; pass < 3; pass++) {
+        const rows = shell.root.editor.render(separator === "\n" ? 80 : 220);
+        const output = rows.join("\n");
+        const controls = [...output.matchAll(/\u001b\]8;;[^\u0007\u001b]*(?:\u0007|\u001b\\)/gu)].map(match => match[0]);
+        expect(controls.reduce((sum, value) => sum + Buffer.byteLength(value), 0)).toBeLessThanOrEqual(64 * 1024);
+        expect(controls.filter(value => value === `\u001b]8;;${url}\u001b\\`)).toHaveLength(2);
+        expect(controls.filter(value => value === `\u001b]8;;${small}\u001b\\`)).toHaveLength(1);
+        expect(stripTerminalSequences(output)).toContain(smallChip);
+      }
+      expect(shell.root.preparePromptSubmission(shell.root.editor.getText()).text === [url, url, url, small].join(separator)).toBe(true);
+    } finally { await shell.dispose(); }
+  });
 
   it.each([false, true])("keeps selected-response copying independent of UI progress (streaming=%s)", async streaming => {
     let finish!: () => void;

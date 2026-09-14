@@ -147,7 +147,8 @@ export interface PromptSelectionUxOptions {
   readonly hiddenRanges?: (line: string) => readonly PiShellEditorTextRange[];
   readonly expandCopiedText: (text: string) => string;
   readonly paintSelection: (line: string, from: number, to: number, atomic: boolean) => string;
-  readonly decorateRow: (row: string, width: number) => string;
+  /** Row indices restart at zero for each complete decoration pass. */
+  readonly decorateRow: (row: string, width: number, rowIndex: number) => string;
   readonly requestRender: () => void;
   readonly getRows: () => number;
   /** Presentation-only columns reserved before semantic editor text. */
@@ -384,7 +385,7 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
         }
       }
     }
-    return rows.map(row => this.options.decorateRow(row, width));
+    return rows.map((row, index) => this.options.decorateRow(row, width, index));
   }
 
   reset(): void {

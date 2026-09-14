@@ -120,6 +120,7 @@ import {
   type PiTuiTerminalPort,
 } from "../tui-runtime/index.js";
 import { PromptChipStore, type PreparedPrompt } from "./prompt-chips.js";
+import { EditorHyperlinkBudget } from "./editor-hyperlink-budget.js";
 import { SessionViewportController, type SessionViewportInputResult } from "./session-viewport-controller.js";
 import type { ResponseCopyExecutor } from "./response-copy-transport.js";
 import type { ResponseCopyEvent } from "./response-copy-protocol.js";
@@ -212,6 +213,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   readonly #extensionRenderers: PiShellExtensionRendererResolver;
   readonly #imageAssets: PiShellImageAssetResolver | undefined;
   readonly #promptChips: PromptChipStore;
+  readonly #editorHyperlinks = new EditorHyperlinkBudget();
   #pasteFramingId = 0;
   readonly #customViewport: boolean;
   readonly #submittedPromptComposer: PiShellSubmittedPromptComposer | undefined;
@@ -369,10 +371,11 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       } : {}),
       editorAtomicRanges: line => this.#promptChips.atomicRanges(line),
       editorHiddenRanges: line => this.#promptChips.hiddenRanges(line),
-      decorateEditorRow: (row, width) => {
+      decorateEditorRow: (row, width, rowIndex) => {
+        if (rowIndex === 0) this.#editorHyperlinks.reset();
         const plain = stripAnsi(row);
         const ranges = this.#promptChips.hyperlinkRanges(plain);
-        if (ranges.length === 0) return row;
+        if (ranges.length === 0 || !this.#editorHyperlinks.takeCleanup()) return row;
         const linkResetAndTail = `\u001b]8;;\u001b\\\u001b[24m${" ".repeat(Math.max(0, width - piShellVisibleWidth(row)))}`;
         // Platform: VS15 is zero-column and default-ignorable. It breaks Windows Terminal's
         // plain-text URL detector only in the held-button paint; semantic text stays exact.
@@ -388,7 +391,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
               "\u001b[24m",
               piShellVisibleWidth,
             ), paintRow)
-          : ranges.reduce((result, range) => hyperlinkSgrSpan(
+          : ranges.filter(range => this.#editorHyperlinks.take(range.target)).reduce((result, range) => hyperlinkSgrSpan(
               result,
               piShellVisibleWidth(plain.slice(0, range.start)),
               piShellVisibleWidth(plain.slice(0, range.end)),

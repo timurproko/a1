@@ -112,6 +112,28 @@ Supported native clipboard reads and terminal-provided bracketed paste SHALL pre
 - **AND** completion SHALL retain the accepted text/URL/path/image representation, exact expanded text, and existing image safety limits
 - **AND** plain-text acquisition SHALL NOT display a misleading screenshot chip merely because its content is still unknown
 
+### Requirement: URL-chip presentation bounds explicit hyperlink metadata without losing content
+Bare A1 SHALL limit added OSC 8 metadata to 65,536 UTF-8 bytes per editor decoration pass, including opening/closing pairs and row cleanup closes across visible rows and repeated occurrences. A1 SHALL reject over-budget decoration before constructing its control string; a target whose UTF-16 length already exceeds the remaining byte allowance SHALL NOT require whole-target scanning, encoding, or hashing to make that decision. Each render pass SHALL receive a fresh budget.
+
+When a complete link does not fit, A1 SHALL omit that explicit hyperlink rather than emit a partial or truncated target. It SHALL preserve the full supported pasted URL, URL-chip identity and atomic editing, and exact copy/history/submission expansion. In-budget links SHALL retain their existing presentation and input semantics. This display-only fallback SHALL NOT change native-versus-terminal paste routing, image limits, the general transcript hyperlink policy, or the pinned comparison path. Terminal-owned automatic URL recognition remains separate from A1's explicit metadata.
+
+#### Scenario: Paste a URL near the supported text limit
+- **WHEN** native or terminal-provided paste contains a supported URL whose full target exceeds the metadata budget
+- **THEN** A1 SHALL insert its normal URL chip once and retain the full URL for copying and submission
+- **AND** resulting presentation SHALL omit its oversized OSC 8 target without building or emitting a prefix of that target
+- **AND** following input and eligible UI frames SHALL continue normally
+
+#### Scenario: Several visible URL chips exhaust the aggregate budget
+- **WHEN** otherwise supported hyperlink occurrences across editor rows would exceed the per-pass metadata allowance
+- **THEN** the total emitted OSC 8 metadata SHALL remain within that allowance, including framing and cleanup
+- **AND** omitted occurrences SHALL retain their exact backing values and chip semantics
+- **AND** a later smaller occurrence MAY receive its complete link if it fits the remaining allowance
+
+#### Scenario: Render in-budget links repeatedly
+- **WHEN** the same editor content is rendered again, including after selection or resize
+- **THEN** the metadata budget SHALL reset and the same in-budget links SHALL retain their exact targets and normal geometry
+- **AND** accounting SHALL use UTF-8 bytes and complete control framing rather than character counts alone
+
 ### Requirement: Paste acquisition and preparation recover within bounded lifetimes
 Every A1-owned paste request SHALL have a finite declared end-to-end deadline covering any prerequisite write wait, acquisition, preparation, and insertion. Concurrent requests, retained payload bytes, helpers, and pending insertions SHALL stay within declared bounds. Busy, denied, missing, non-settling, or failed readers/preparers SHALL settle automatically with concise non-modal feedback for actionable failures. Empty clipboard content SHALL remain a no-op rather than a modal error.
 
