@@ -27,7 +27,7 @@ describe("archive Git publication against a disposable bare remote", () => {
       await git(seed, ["remote", "add", "origin", remote]); await git(seed, ["push", "origin", "develop"]);
       const base = await git(seed, ["rev-parse", "HEAD"]);
       const body = "Accepted fixture evidence";
-      const evidence = { implementation: { change: "example" }, targetSha: base,
+      const evidence = { disposition: "eligible", implementation: { change: "example" }, targetSha: base,
         pull: { number: 20, head: { sha: "b".repeat(40) }, merge_commit_sha: "d".repeat(40), body: "Source metadata" },
         acceptance: { id: 99, author: "reviewer", createdAt: "2026-09-13T10:00:00Z", bodyDigest: createHash("sha256").update(body).digest("hex") },
         validation: { runId: 7 } };
@@ -51,7 +51,7 @@ describe("archive Git publication against a disposable bare remote", () => {
         const actual = args[0] === "remote" && args[1] === "add" ? [...args.slice(0, 3), remote] : args;
         return await execute(command, actual, options);
       };
-      const result = await publishArchive({ reader, publisher, evidence, candidate, gitImpl });
+      const result = await publishArchive({ reader, publisher, evidence, candidate, gitImpl, recheckEvidence: async () => evidence });
       ref = await git(remote, ["rev-parse", "refs/heads/docs/archive-example"]);
       expect(ref).toBe(result.generatedHead);
       expect(await git(remote, ["show", `${ref}:openspec/specs/existing/spec.md`])).toBe("Retain this unrelated specification.");
@@ -68,7 +68,7 @@ describe("archive Git publication against a disposable bare remote", () => {
         return await gitImpl(command, args, options);
       };
       mutations.length = 0;
-      await expect(publishArchive({ reader, publisher, evidence, candidate: changed, existing, gitImpl: racingGit })).rejects.toThrow("archive-git");
+      await expect(publishArchive({ reader, publisher, evidence, candidate: changed, existing, gitImpl: racingGit, recheckEvidence: async () => evidence })).rejects.toThrow("archive-git");
       expect(await git(remote, ["rev-parse", "refs/heads/docs/archive-example"])).toBe(human);
       expect(mutations).toHaveLength(0);
     } finally { await rm(root, { recursive: true, force: true }); }

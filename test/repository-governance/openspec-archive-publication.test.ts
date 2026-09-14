@@ -5,7 +5,7 @@ import { archiveMarker, archivePullBody, createArchivePublisher, publishArchive,
 
 function fixture() {
   const target = "a".repeat(40), source = "b".repeat(40), generated = "c".repeat(40);
-  const evidence = { implementation: { change: "example" }, targetSha: target,
+  const evidence = { disposition: "eligible", implementation: { change: "example" }, targetSha: target,
     pull: { number: 20, head: { sha: source }, merge_commit_sha: "d".repeat(40), body: "Original implementation metadata" },
     acceptance: { id: 99, author: "reviewer", createdAt: "2026-09-13T10:00:00Z", bodyDigest: createHash("sha256").update("Exact accepted source").digest("hex") },
     validation: { runId: 7 } };
@@ -33,7 +33,7 @@ function fixture() {
     }
     return { stdout: args[0] === "rev-parse" ? args[1] === "HEAD" ? generated : target : "" };
   };
-  return { evidence, candidate, reader, publisher, gitImpl, calls, mutations, target, source, generated };
+  return { evidence, candidate, reader, publisher, gitImpl, recheckEvidence: async () => evidence, calls, mutations, target, source, generated };
 }
 
 describe("archive publication ownership and authority", () => {
@@ -56,6 +56,13 @@ describe("archive publication ownership and authority", () => {
     f.reader.get = async path => path.endsWith("/heads/develop") ? { object: { sha: "f".repeat(40) } } : get(path);
     await expect(publishArchive(f)).rejects.toThrow("target-advanced");
     expect(f.calls).toHaveLength(0); expect(f.mutations).toHaveLength(0);
+  });
+
+  it("refuses newly withdrawn acceptance immediately before the remote push", async () => {
+    const f = fixture();
+    await expect(publishArchive({ ...f, recheckEvidence: async () => { throw archiveFailure("acceptance-conflict"); } })).rejects.toThrow("acceptance-conflict");
+    expect(f.calls.some(call => call.args[0] === "push")).toBe(false);
+    expect(f.mutations).toHaveLength(0);
   });
 
   it("refuses human edits, closed PRs, and unknown reserved branch ownership", async () => {

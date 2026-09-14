@@ -129,7 +129,8 @@ export async function archiveAuthorityCurrent(get, repository, pull, marker) {
   } catch { return false; }
 }
 
-export async function publishArchive({ publisher, reader, evidence, candidate, recoveryCandidate = null, existing = null, retryClosed = false, gitImpl = execute }) {
+export async function publishArchive({ publisher, reader, evidence, candidate, recoveryCandidate = null, existing = null,
+  retryClosed = false, gitImpl = execute, recheckEvidence = loadArchiveEvidence }) {
   assertArchiveDiff(candidate.changes, candidate.paths);
   const marker = archiveMarker(evidence, candidate);
   const prefix = reader.prefix;
@@ -234,6 +235,8 @@ export async function publishArchive({ publisher, reader, evidence, candidate, r
     }
     const actualTree = parseTree(await git(["ls-tree", "-r", "-z", "HEAD", "--", "openspec"]));
     if (expectedTree.size !== actualTree.size || [...expectedTree].some(([path, sha]) => actualTree.get(path) !== sha)) throw archiveFailure("archive-published-tree");
+    const fresh = await recheckEvidence(reader, evidence.pull.number);
+    if (fresh?.disposition !== "eligible" || JSON.stringify(archiveMarker(fresh, candidate)) !== JSON.stringify(marker)) throw archiveFailure("source-evidence-changed");
     await git(["push", `--force-with-lease=refs/heads/${candidate.paths.branch}:${expectedHead}`, "origin", `HEAD:refs/heads/${candidate.paths.branch}`]);
   } finally { await rm(root, { recursive: true, force: true }); }
   const body = archivePullBody(reader.repository, { ...marker, generatedHead });

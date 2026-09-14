@@ -40,6 +40,6 @@
 
 ## Implementation verification record
 
-Local verification on 2026-09-13: 192 focused tests passed across the archive, documentation-auto-merge, and repository-governance fixtures; typecheck and changed-file code-documentation governance passed. Coverage includes the actual pinned OpenSpec CLI, skipped specs, generated merge-result verification, temporary Git remotes with concurrent-ref protection, retry recovery, bounded discovery, and authority revocation. A real read-only GitHub probe verified historical successful CI for PR #349 despite GitHub clearing its run's PR association array; that PR remains unlinked and was not adopted or archived.
+Local verification on 2026-09-13: 193 focused tests passed across the archive, documentation-auto-merge, and repository-governance fixtures; typecheck and changed-file code-documentation governance passed. Coverage includes the actual pinned OpenSpec CLI, skipped specs, generated merge-result verification, temporary Git remotes with concurrent-ref protection, retry recovery, bounded discovery, and authority revocation. A real read-only GitHub probe verified historical successful CI for PR #349 despite GitHub clearing its run's PR association array; that PR remains unlinked and was not adopted or archived.
 
 Tasks 5 and 6 remain open: local fixtures are not required CI, maintainer acceptance, manual implementation integration, App provisioning authorization, or live unattended lifecycle evidence. No publication credentials or repository settings have been provisioned by this implementation.
