@@ -76,6 +76,12 @@ Broader repair validation with those verified tool versions and CI environment f
 
 The full fast/full/release suites were not run locally. Hosted current-head CI remains required; this fixture hardening is not a claim that the original runner-only cause was reproduced, nor acceptance or live cleanup authorization.
 
+## Develop conflict resolution
+
+Integrated develop `d5d7c1b100158e9d0efdb44f0490ced2ee4ea266` into the existing PR branch. Its merged #402 also repaired the transcript copy assertion, causing the only conflict. Retained develop's explicit `snapshot` presence check and exact `COPY_CURRENT` extraction; kept this PR's cleanup, Windows lock-fixture repair, and delivery policy intact. No other session's worktree was edited.
+
+Post-merge validation with Node 24.20.0 / Git 2.55.0.windows.5: typecheck passed; transcript lifetime, viewport controller, and cleanup bridge all passed (70 Vitest tests, with 42 native cases inside the bridge); strict OpenSpec, docs governance, and staged whitespace checks passed. Required CI must run on the resolved merge head.
+
 ## Remaining gates
 
 Required current-head PR CI must run after readiness; local results do not substitute for it. The maintainer must separately authorize an isolated live accepted-implementation/automatic-archive lifecycle and actual final-head review. Tasks 7.2 and 7.3 remain unperformed; there is no acceptance record. Mechanical archive tasks 8.1 and 8.2 remain for the corresponding future verified operations. Do not archive or integrate based on these fixture results.

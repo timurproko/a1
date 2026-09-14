@@ -70,7 +70,8 @@ describe("asynchronous transcript presentation lifetime", () => {
     value.shell.root.handleViewportPreInput(`\u001b[<32;${column + 12};${line + 1}M`);
     value.shell.root.handleViewportPreInput(`\u001b[<0;${column + 12};${line + 1}m`);
     const snapshot = value.shell.root.handleViewportPreInput("\u0003").copySelection;
-    expect(snapshot?.rows.map((row, index) => selectionCopyRowText(snapshot, row, index)).join("\n")).toBe("COPY_CURRENT");
+    expect(snapshot).toBeDefined();
+    expect(snapshot!.rows.map((row, index) => selectionCopyRowText(snapshot!, row, index)).join("\n")).toBe("COPY_CURRENT");
   });
 
   it("keeps detached scroll and bottom-control hit geometry current after off-screen height changes", async () => {
