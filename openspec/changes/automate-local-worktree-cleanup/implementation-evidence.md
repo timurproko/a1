@@ -60,6 +60,22 @@ Both independent expected lists now include the cleanup bridge in manifest order
 
 Local repair validation: the two policy suites and cleanup bridge passed together with file parallelism disabled (20 Vitest tests, including the bridge's 42 native cleanup cases). Typechecking, strict OpenSpec validation, and whitespace checks passed. Required current-head CI remains pending, so task 6.2 is not complete.
 
+## Windows lock-fixture lifetime repair
+
+Run `34879154754` at `fd7f1258a4c8814f0215259cb5f072b228ff3a6c` passed the ordinary fast invocation but failed the cleanup bridge in the resource-sensitive invocation: 41/42 native cases passed, while the Windows exclusive-handle case unexpectedly read the file after a partial removal result. Other required jobs passed. The log did not establish whether the lock holder had already released its handle.
+
+The fixture previously relied on `Console.ReadLine()` to hold the handle, making EOF an implicit release. It now deliberately closes stdin and uses an explicit release file outside the target. It requires read-sharing errors before and after the real non-force Git removal, an alive holder, a Git removal failure rather than masked fixture-startup failure, retained directory/journal/ref, exact bytes after release, and refusal to retry deletion of the residual path. Readiness handles split output and early exits; holder lifetime and shutdown are bounded. Production deletion code, assertions about locked content, suite membership, test deadlines, and CI gates were not relaxed.
+
+An unchanged copy of the original focused test also passed locally with verified Node `v24.20.0` and Git `2.55.0.windows.5`, so the exact historical hosted-runner cause remains unproven. Matching tools were downloaded into temporary storage (Node archive checked against official SHASUMS256); no system installation or repository dependency changed. Initial `npm exec --package=node@24.20.0` attempts still resolved Node 24.16.0 and are not evidence of version parity; subsequent runs invoked the downloaded executable via a temporary PATH and verified its version.
+
+Broader repair validation with those verified tool versions and CI environment flags:
+- Candidate build and typecheck passed.
+- All 12 manifest-selected resource-sensitive files passed without file parallelism: 94 Vitest tests, including the bridge's 42 native cases.
+- All four `dist-integration` files passed against that build: 12 tests.
+- Strict OpenSpec validation and whitespace checks passed.
+
+The full fast/full/release suites were not run locally. Hosted current-head CI remains required; this fixture hardening is not a claim that the original runner-only cause was reproduced, nor acceptance or live cleanup authorization.
+
 ## Remaining gates
 
 Required current-head PR CI must run after readiness; local results do not substitute for it. The maintainer must separately authorize an isolated live accepted-implementation/automatic-archive lifecycle and actual final-head review. Tasks 7.2 and 7.3 remain unperformed; there is no acceptance record. Mechanical archive tasks 8.1 and 8.2 remain for the corresponding future verified operations. Do not archive or integrate based on these fixture results.

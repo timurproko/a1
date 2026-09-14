@@ -273,25 +273,55 @@ test("bounded passes fairly resume candidates after the first hundred", async t 
   const second = await f.pass({ preview: false, verify }); assert.equal(second.results[0].path, f.entry.path + "100");
 });
 
-test("Windows exclusive file handles produce a safe partial result", { skip: process.platform !== "win32" }, async t => {
-  const f = await fixture(t); await f.store.enable();
-  const script = "$s=[System.IO.File]::Open($env:CLEANUP_LOCK_FIXTURE,'Open','Read','None'); [Console]::WriteLine('READY'); [Console]::Out.Flush(); [Console]::ReadLine() | Out-Null; $s.Dispose()";
-  let child;
+test("Windows exclusive file handles produce a safe partial result with closed stdin", { skip: process.platform !== "win32" }, async t => {
+  const f = await fixture(t, true); await f.store.enable();
+  const lockedPath = join(f.path, "tracked.txt"), releasePath = join(f.temporary, "release-lock");
+  // Protocol: hold until explicit release outside the target, not Console.ReadLine/EOF on a CI pipe.
+  const script = "$ErrorActionPreference='Stop'; $s=[System.IO.File]::Open($env:CLEANUP_LOCK_FIXTURE,'Open','Read','None'); try { [Console]::WriteLine('READY'); [Console]::Out.Flush(); $deadline=[DateTime]::UtcNow.AddSeconds(30); while(-not [System.IO.File]::Exists($env:CLEANUP_LOCK_RELEASE)) { if([DateTime]::UtcNow -gt $deadline) { throw 'fixture-release-timeout' }; [System.Threading.Thread]::Sleep(20) } } finally { $s.Dispose() }";
+  let child, ended, diagnostic = "", removalAttempted = false;
   try {
     const report = await f.pass({ preview: false, remove: async (...args) => {
-      child = spawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], { env: { ...process.env, CLEANUP_LOCK_FIXTURE: join(f.path, "tracked.txt") }, stdio: ["pipe", "pipe", "pipe"] });
-      await new Promise((resolve, reject) => {
-        const timer = setTimeout(() => reject(Error("fixture-lock-timeout")), 10000);
-        child.stdout.once("data", data => { clearTimeout(timer); data.toString().includes("READY") ? resolve() : reject(Error("fixture-lock-failed")); });
-        child.once("error", error => { clearTimeout(timer); reject(error); });
+      child = spawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], {
+        env: { ...process.env, CLEANUP_LOCK_FIXTURE: lockedPath, CLEANUP_LOCK_RELEASE: releasePath }, stdio: ["ignore", "pipe", "pipe"],
       });
+      ended = once(child, "close").then(([code, signal]) => ({ code, signal }), error => ({ error: error.message }));
+      child.stderr.on("data", data => { diagnostic += data.toString(); });
+      await new Promise((resolve, reject) => {
+        let output = "";
+        const timer = setTimeout(() => finish(Error("fixture-lock-timeout")), 10000);
+        const exited = () => finish(Error(`fixture-lock-exited: ${diagnostic}`));
+        const failed = error => finish(error);
+        const ready = data => { output += data.toString(); if (output.split(/\r?\n/).includes("READY")) finish(); };
+        function finish(error) {
+          clearTimeout(timer); child.stdout.off("data", ready); child.off("exit", exited); child.off("error", failed);
+          error ? reject(error) : resolve();
+        }
+        child.stdout.on("data", ready); child.once("exit", exited); child.once("error", failed);
+      });
+      await assert.rejects(readFile(lockedPath), /EBUSY|EACCES|EPERM/, "lock must block reads before Git removal");
+      removalAttempted = true;
       await removeWorktree(...args);
     } });
-    assert.equal(report.results[0].disposition, "partial");
-    assert.equal(await readFile(join(f.path, "tracked.txt")).then(() => false, () => true), true);
+    const context = JSON.stringify({ report, diagnostic, exitCode: child?.exitCode });
+    assert.equal(removalAttempted, true, context);
+    assert.equal(report.results[0].disposition, "partial", context);
+    assert.ok(["git-operation-failed", "worktree-removal-partial"].includes(report.results[0].reason), context);
+    assert.equal(child.exitCode, null, context);
+    await assert.rejects(readFile(lockedPath), /EBUSY|EACCES|EPERM/, "lock must remain held after Git removal fails");
     assert.equal(await exists(f.path), true);
-  } finally { if (child) { const ended = once(child, "exit"); child.stdin.end("done\n"); await ended; } }
-  assert.equal(await readFile(join(f.path, "tracked.txt"), "utf8"), "base\n");
+    assert.equal((await f.store.read()).entries[0].step, "remove-intent");
+    assert.equal(git(f.primary, "rev-parse", "refs/heads/feature/example"), f.entry.head);
+  } finally {
+    if (child) {
+      await writeFile(releasePath, "release\n");
+      const timer = setTimeout(() => child.kill(), 10000);
+      try { assert.deepEqual(await ended, { code: 0, signal: null }, diagnostic); }
+      finally { clearTimeout(timer); }
+    }
+  }
+  assert.equal(await readFile(lockedPath, "utf8"), "base\n");
+  assert.equal((await f.pass({ preview: false })).results[0].reason, "residual-or-reused-path");
+  assert.equal(await readFile(lockedPath, "utf8"), "base\n");
 });
 
 test("pass deadline reports incomplete coverage without mutation", async t => {
