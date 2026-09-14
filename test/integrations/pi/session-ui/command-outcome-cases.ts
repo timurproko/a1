@@ -7,11 +7,19 @@ export interface CommandOutcomeCase {
   readonly input?: string;
   readonly inputs?: readonly string[];
   readonly prefixStatus?: string;
+  readonly keybindings?: Readonly<Record<string, string | readonly string[]>>;
 }
 
 const cases = (command: string, conditions: readonly string[], argument?: string): CommandOutcomeCase[] => conditions.map(condition => ({
   id: `${command}/${condition}`, command, condition, ...(argument === undefined ? {} : { argument }),
 }));
+
+const scopedModelBindings = {
+  "tui.select.confirm": "alt+t", "app.models.enableAll": ["alt+a", "ctrl+a"],
+  "app.models.clearAll": "ctrl+alt+x", "app.models.toggleProvider": "alt+p",
+  "app.models.reorderUp": ["alt+up", "ctrl+up"], "app.models.reorderDown": "alt+down",
+  "app.models.save": ["alt+s", "ctrl+s"],
+} as const;
 
 export const COMMAND_OUTCOME_CASES: readonly CommandOutcomeCase[] = [
   ...cases("share", ["missing", "unauthenticated", "permission", "auth-stderr", "export-failure", "gist-failure", "gist-empty-failure", "gist-signal", "gist-spawn-failure", "gist-non-error", "malformed", "malformed-stderr", "cancelled", "success"]),
@@ -43,6 +51,12 @@ export const COMMAND_OUTCOME_CASES: readonly CommandOutcomeCase[] = [
   ...cases("scoped-models", ["open", "refresh-failure", "refresh-error", "refresh-timeout"]),
   ...cases("scoped-models", ["persist"]).map(entry => ({ ...entry, input: "\u0013" })),
   ...cases("scoped-models", ["cancelled"]).map(entry => ({ ...entry, input: "\u001b" })),
+  { id: "scoped-models/custom-hints", command: "scoped-models", condition: "open", keybindings: scopedModelBindings },
+  { id: "scoped-models/custom-hints-dirty", command: "scoped-models", condition: "open", keybindings: scopedModelBindings, input: "\u001bt" },
+  { id: "scoped-models/custom-hints-saved", command: "scoped-models", condition: "persist", keybindings: scopedModelBindings, inputs: ["\u001bt", "\u001bs"] },
+  { id: "scoped-models/unbound-hints", command: "scoped-models", condition: "open", keybindings: {
+    "app.models.save": [], "app.models.reorderUp": [], "app.models.reorderDown": "shift+ctrl+down",
+  } },
   ...cases("trust", ["open"]),
   ...cases("trust", ["success"]).map(entry => ({ ...entry, input: "\r" })),
   ...cases("trust", ["cancelled"]).map(entry => ({ ...entry, input: "\u001b" })),

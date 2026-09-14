@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
+import { parse } from "yaml";
 
 describe("impact-aware validation workflows", () => {
   it("computes one selection and runs modular pull-request jobs in parallel", async () => {
@@ -26,18 +27,21 @@ describe("impact-aware validation workflows", () => {
     expect(rendering).toContain("scope=rendering-smoke");
   });
 
-  it("runs first-attempt startup budgets on every supported Windows Node version", async () => {
-    const workflow = await readFile(".github/workflows/ci.yml", "utf8");
-    const startup = workflow.slice(workflow.indexOf("\n  startup:"), workflow.indexOf("\n  rendering:"));
-    expect(startup).toContain("node: [22, 24]");
-    expect(startup).toContain("max-parallel: 1");
-    expect(startup).toContain("Set-MpPreference -DisableRealtimeMonitoring $false");
-    expect(startup).toContain("run-validation-tier.mjs package-install");
-    expect(startup).toContain("STARTUP_PERFORMANCE_RESULT:");
-    expect(startup).toContain("startup-node${{ matrix.node }}*.json");
-    expect(startup).not.toMatch(/retry|continue-on-error/);
-    const required = workflow.slice(workflow.indexOf("\n  required:"));
-    expect(required).toContain("STARTUP_RESULT: ${{ needs.startup.result }}");
+  it("requires the complete Node 22 startup lane on PRs and manual development runs", async () => {
+    assertDevelopmentStartup(parse(await readFile(".github/workflows/ci.yml", "utf8")));
+  });
+
+  it.each(["extra runtime", "missing Node 22", "conditional runtime", "missing images", "missing history", "skipped startup", "missing dependency"])("rejects startup policy drift: %s", async mutation => {
+    const workflow = parse(await readFile(".github/workflows/ci.yml", "utf8"));
+    const startup = workflow.jobs.startup;
+    if (mutation === "extra runtime") startup.strategy.matrix.node.push(24);
+    if (mutation === "missing Node 22") startup.strategy.matrix.node = [24];
+    if (mutation === "conditional runtime") startup.strategy.matrix.node = "${{ github.event_name == 'pull_request' && fromJSON('[22]') || fromJSON('[22,24]') }}";
+    if (mutation === "missing images") startup.steps = startup.steps.filter((step: { name: string }) => step.name !== "Validate background and packaged image preparation");
+    if (mutation === "missing history") startup.steps = startup.steps.filter((step: { name: string }) => step.name !== "Validate durable history on the selected Node runtime");
+    if (mutation === "skipped startup") startup.if = "false";
+    if (mutation === "missing dependency") workflow.jobs.required.needs = workflow.jobs.required.needs.filter((name: string) => name !== "startup");
+    expect(() => assertDevelopmentStartup(workflow)).toThrow();
   });
 
   it("gates resume restoration and packaged launch evidence outside the fast remainder", async () => {
@@ -92,3 +96,37 @@ describe("impact-aware validation workflows", () => {
     expect(regression).toContain('VALIDATION_DOCUMENTATION_FULL_READY: "1"');
   });
 });
+
+function assertDevelopmentStartup(workflow: ReturnType<typeof parse>) {
+  expect(workflow.on.pull_request.branches).toEqual(["develop"]);
+  expect(workflow.on.pull_request.types).toContain("ready_for_review");
+  expect(workflow.on).toHaveProperty("workflow_dispatch");
+  expect(workflow.jobs.changes.if).toBe("github.event_name != 'pull_request' || github.event.pull_request.draft == false");
+  const startup = workflow.jobs.startup;
+  expect(startup.name).toBe("Startup budget (windows-node${{ matrix.node }})");
+  expect(startup.strategy.matrix).toEqual({ node: [22] });
+  expect(startup.strategy["max-parallel"]).toBe(1);
+  expect(startup.needs).toBe("changes");
+  expect(startup.if).toBe("needs.changes.outputs.docs-only != 'true' && needs.changes.outputs.version-only != 'true'");
+  expect(startup["runs-on"]).toBe("windows-2025");
+  expect(startup["timeout-minutes"]).toBe(20);
+  expect(startup.steps).toEqual(expect.arrayContaining([
+    expect.objectContaining({ name: "Check out validation head", with: expect.objectContaining({ ref: "${{ needs.changes.outputs.head-sha }}", "persist-credentials": false }) }),
+    expect.objectContaining({ name: "Set up Node", with: expect.objectContaining({ "node-version": "${{ matrix.node }}" }) }),
+    expect.objectContaining({ name: "Enable Defender real-time protection for startup acceptance", run: expect.stringContaining("Set-MpPreference -DisableRealtimeMonitoring $false") }),
+    expect.objectContaining({ name: "Install exact dependencies and build", run: "npm ci" }),
+    expect.objectContaining({ name: "Validate first-attempt exact-package startup budget", run: "node scripts/release/run-validation-tier.mjs package-install --result .artifacts/validation/startup-node${{ matrix.node }}.json", env: expect.objectContaining({ STARTUP_PERFORMANCE_RESULT: ".artifacts/validation/startup-node${{ matrix.node }}-performance.json" }) }),
+    expect.objectContaining({ name: "Validate background and packaged image preparation", run: "npx vitest run test/integrations/pi/session-ui/image-preparation.test.ts test/integrations/pi/session-ui/image-worker-package.test.ts --maxWorkers=1 --minWorkers=1" }),
+    expect.objectContaining({ name: "Validate durable history on the selected Node runtime", run: "npx vitest run test/features/prompt-history --maxWorkers=1 --minWorkers=1" }),
+    expect.objectContaining({ name: "Upload startup budget evidence", if: "always()", with: expect.objectContaining({ path: ".artifacts/validation/startup-node${{ matrix.node }}*.json", "retention-days": 14 }) }),
+  ]));
+  for (const step of startup.steps) {
+    if (step.name !== "Upload startup budget evidence") expect(step.if).toBeUndefined();
+  }
+  expect(JSON.stringify(startup)).not.toMatch(/retry|continue-on-error/);
+  expect(workflow.jobs.required.needs).toContain("startup");
+  expect(workflow.jobs.required.steps).toContainEqual(expect.objectContaining({
+    run: "node scripts/release/require-development-validation.mjs",
+    env: expect.objectContaining({ STARTUP_RESULT: "${{ needs.startup.result }}", EXPECTED_HEAD: "${{ github.event.pull_request.head.sha || github.sha }}" }),
+  }));
+}

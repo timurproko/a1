@@ -1,0 +1,106 @@
+name: OpenSpec archive
+
+on:
+  pull_request_target:
+    branches: [develop]
+    types: [closed]
+  schedule:
+    - cron: '23 4 * * *'
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: 'Implementation PR number; empty scans the last 90 days'
+        type: string
+        default: ''
+      dry_run:
+        description: 'Audit without publishing or modifying repository objects'
+        type: boolean
+        default: true
+      retry_closed:
+        description: 'Authorize replacement of a closed, unmerged archive PR (requires pr)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  pull-requests: read
+  actions: read
+
+concurrency:
+  group: openspec-archive
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    name: Reconcile accepted OpenSpec changes
+    if: github.event_name != 'pull_request_target' || github.event.pull_request.merged == true
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      ARCHIVE_DRY_RUN: ${{ inputs.dry_run }}
+      REQUESTED_PR: ${{ inputs.pr || github.event.pull_request.number }}
+      RETRY_CLOSED: ${{ inputs.retry_closed }}
+    steps:
+      - name: Check out trusted policy
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install pinned trusted tooling without hooks
+        run: npm ci --ignore-scripts
+
+      - name: Discover a trusted catch-up checkpoint
+        if: env.REQUESTED_PR == ''
+        id: checkpoint
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/governance/reconcile-openspec-archive.mjs --discover-checkpoint
+
+      - name: Restore the bounded scan cursor
+        if: steps.checkpoint.outputs.checkpoint_run != ''
+        continue-on-error: true
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: openspec-archive-checkpoint
+          path: .artifacts/openspec-archive/restored
+          run-id: ${{ steps.checkpoint.outputs.checkpoint_run }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Reconcile archives without bypassing validation
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENSPEC_ARCHIVE_APP_ID: ${{ secrets.OPENSPEC_ARCHIVE_APP_ID }}
+          OPENSPEC_ARCHIVE_APP_PRIVATE_KEY: ${{ secrets.OPENSPEC_ARCHIVE_APP_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          args=(--publish)
+          if [ "$ARCHIVE_DRY_RUN" = 'true' ]; then args=(--dry-run); fi
+          if [ -n "$REQUESTED_PR" ]; then args+=(--pr "$REQUESTED_PR"); fi
+          if [ "$RETRY_CLOSED" = 'true' ]; then args+=(--retry-closed); fi
+          node scripts/governance/reconcile-openspec-archive.mjs "${args[@]}"
+
+      - name: Retain the audit report
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: openspec-archive-report
+          path: .artifacts/openspec-archive/report.json
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Retain the resumable scan cursor
+        if: success() && env.ARCHIVE_DRY_RUN != 'true' && env.REQUESTED_PR == ''
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: openspec-archive-checkpoint
+          path: .artifacts/openspec-archive/checkpoint.json
+          if-no-files-found: error
+          retention-days: 14

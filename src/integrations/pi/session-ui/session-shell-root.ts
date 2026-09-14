@@ -904,6 +904,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
           firstRow,
           lastRow: Math.max(firstRow, rows.length - 1),
           sourceRow: pinnedPromptSourceRow(block, blockRows[0], blockWidth),
+          prominentSourceRow: blockRows[0],
         });
       }
     }
@@ -1411,7 +1412,7 @@ function withoutTerminalBackground(text: string): string {
   return text.replace(TERMINAL_BACKGROUND, "");
 }
 
-/** A pinned timestamp is content now, not secondary transcript metadata. */
+/** Preserve the established prompt foreground for quiet and hovered pinned timestamps. */
 function pinnedPromptSourceRow(
   block: OwnedUiSessionViewModel["transcript"][number],
   sourceRow: string,

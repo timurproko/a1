@@ -155,10 +155,13 @@ A submitted user prompt SHALL render its source timestamp as local 24-hour `HH:m
 ### Requirement: The governing submitted prompt remains pinned while scrolling
 When the first row of the most recent submitted user prompt at or before the viewport start has scrolled above the viewport, a copy of that first row SHALL occupy the viewport's first row without adding to the document's row count. The copy SHALL preserve the prompt prefix, content, background, and timestamp from the source row. It SHALL remain prominent while any continuation row of that prompt is visible and SHALL use the quiet theme role after the complete prompt is above the viewport. Activating it SHALL return the viewport to the source prompt.
 
+In the prominent, non-hovered state, the pinned timestamp SHALL retain the source timestamp's metadata foreground, grey in the default dark theme, rather than adopting the prompt body foreground. This color rule SHALL also apply to completed compaction blocks using submitted-prompt pinning. Existing quiet-row dimming and explicit hover highlighting SHALL remain unchanged. Timestamp value, alignment, width-dependent omission, and body styling SHALL remain unchanged.
+
 #### Scenario: Scroll within a multiline prompt
 - **WHEN** the prompt's first row is above the viewport but one of its continuation rows remains visible
 - **THEN** the prompt's first row SHALL be pinned at the top with its timestamp
 - **AND** it SHALL retain its prominent presentation
+- **AND** without hover its timestamp SHALL have the same grey metadata foreground as the naturally visible source timestamp
 
 #### Scenario: Scroll beyond the complete prompt
 - **WHEN** the prompt and all its continuation rows are above the viewport while later rows are visible
@@ -179,6 +182,19 @@ When the first row of the most recent submitted user prompt at or before the vie
 #### Scenario: Prompt first row is naturally visible
 - **WHEN** the governing prompt's source first row is already the viewport's first row
 - **THEN** no duplicate sticky row SHALL be added
+
+#### Scenario: Pin a completed compaction while its summary remains visible
+- **WHEN** a completed compaction header scrolls above the viewport while summary continuation rows remain visible and its pinned row is not hovered
+- **THEN** its pinned timestamp SHALL retain the source timestamp's metadata foreground just as an ordinary prompt does
+
+#### Scenario: Hover and leave the prominent pinned row
+- **WHEN** the pointer enters and then leaves a prominent pinned prompt or compaction row
+- **THEN** existing explicit hover highlighting SHALL remain available
+- **AND** leaving the row SHALL restore the source-matching grey timestamp without waiting for another scroll
+
+#### Scenario: Revisit the prominent state
+- **WHEN** reverse scrolling, resize, or scrollbar appearance leaves a non-hovered pinned row prominent with a fitting timestamp
+- **THEN** its timestamp SHALL retain the current source metadata foreground without stale white styling or color leakage into adjacent text
 
 ### Requirement: Viewport pointer handling preserves unrelated input
 The viewport SHALL claim wheel events used to scroll its transcript and pointer events addressed to its scrollbar, scroll-to-bottom control, pinned prompt, or active transcript selection. It SHALL leave unrelated keyboard and pointer input to the focused surface. An active selector, dialog, overlay, or replacement input that owns an event SHALL retain that ownership. Engine events SHALL be delivered cooperatively so terminal input receives an event-loop turn between transcript updates.
@@ -433,3 +449,42 @@ The tail SHALL contribute to scroll extent, scrollbar geometry, and end-followin
 #### Scenario: Reset or replace the session
 - **WHEN** a session is reset, replaced, or disposed while a working-status tail is visible or off-screen
 - **THEN** no status rows, status-owned scroll extent, pointer suppression, or stale status painting from that session SHALL survive into the next session
+
+### Requirement: Right-edge selection remains truthful across scrollbar presentation
+Bare A1 SHALL allow a transcript selection begun outside viewport controls to extend through the final rendered source grapheme, including source text occupying the scrollbar overlay column. Whole-row selections and completed interior rows of a multiline selection SHALL include their final source graphemes in highlighting and copied text. A partial endpoint that excludes the final source grapheme SHALL leave that grapheme unselected.
+
+With document content, geometry, viewport position, and selection endpoints unchanged, scrollbar hover, reveal, style changes, and hide SHALL NOT change selection membership or copied text. The scrollbar overlay cell SHALL retain the selected background exactly when that cell is covered by the normalized visual selection range, including the existing whole-row and trailing-whitespace padding rules; otherwise it SHALL retain the underlying unselected background. The scrollbar glyph SHALL remain visible above that background and SHALL NOT enter copied text. Hiding the overlay SHALL restore the underlying source grapheme with its correct selection state.
+
+#### Scenario: Complete several lines through the right edge
+- **WHEN** a transcript drag selects complete lines including rows with source text in the final terminal column and ends through the last source grapheme of its endpoint row
+- **THEN** every included final grapheme SHALL be selected and copied without needing a scrollbar hover
+- **AND** equivalent forward and reverse ranges SHALL highlight and copy the same source text
+- **AND** neither a reserved control width nor overlay visibility SHALL truncate the selected source range
+
+#### Scenario: Hover with the last character selected
+- **WHEN** a released selection includes the final source grapheme and the pointer enters and leaves the scrollbar without pressing or scrolling
+- **THEN** the selected background SHALL remain under the rail while it is visible
+- **AND** the last source grapheme SHALL reappear selected when the rail hides
+- **AND** selection endpoints and copied text SHALL remain unchanged throughout
+
+#### Scenario: Hover with the last character deliberately excluded
+- **WHEN** a released partial selection ends immediately before the final source grapheme and the pointer enters and leaves the scrollbar without pressing or scrolling
+- **THEN** the final cell SHALL NOT gain selection background from its selected neighbor
+- **AND** the last source grapheme SHALL reappear unselected when the rail hides
+- **AND** copied text SHALL exclude that grapheme before, during, and after hover
+
+#### Scenario: Change rail presentation without changing the selection
+- **WHEN** the rail reveals from activity, changes between normal and hovered presentation, or hides after activity expires while the source range remains fixed
+- **THEN** the first frame of each transition SHALL paint the final cell according to the same selection range, without stale or transient false highlighting
+- **AND** this behavior SHALL hold for thin and thick rails in auto and always modes, and selection in hidden mode SHALL reach the same source text
+
+#### Scenario: Preserve styled and wide right-edge content
+- **WHEN** selected or unselected right-edge content contains a wide grapheme, a combining sequence, source background styling, or a hyperlink
+- **THEN** selection and copy SHALL preserve whole source graphemes and existing source-selection styling rules
+- **AND** the rail SHALL use the correct underlying cell background without inheriting source hyperlink or emphasis decoration
+- **AND** no overlay glyph, visual padding, or partial grapheme SHALL be added to copied text
+
+#### Scenario: Continue selection into the rail without stealing a new rail gesture
+- **WHEN** a selection drag begun on ordinary transcript content reaches the final terminal column
+- **THEN** the active selection SHALL extend through the source grapheme at that column rather than starting scrollbar navigation
+- **AND** a separate press beginning on the existing scrollbar hit region SHALL retain its established scrollbar ownership

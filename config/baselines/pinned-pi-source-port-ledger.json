@@ -1958,7 +1958,7 @@
       "localDestination": "src/integrations/pi/components/upstream/components/scoped-models-selector.ts",
       "implementationStatus": "ported",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Source-synchronized scoped-model selector port: preserve session-only toggles, search, bulk/provider/reorder actions, dirty state, Ctrl+S persistence, refresh status, cancellation, and focus while remapping theme and public helper imports.",
+      "modifications": "Source-synchronized scoped-model selector port: preserve session-only toggles, search, bulk/provider/reorder actions, dirty state, Ctrl+S persistence, refresh status, cancellation, and focus while remapping theme and public helper imports; local key labels preserve pinned platform formatting before layout without changing binding identities.",
       "approvedDeviations": [],
       "behaviorCategories": [
         "selectors",
@@ -1983,7 +1983,7 @@
         "test/integrations/pi/components/shell-components.test.ts",
         "test/integrations/pi/session-ui/session-shell.test.ts"
       ],
-      "localSha256": "17c5d5fc7a468ec83d927886771c82ed003b9f241c61354aad5c18a0d1c70a07"
+      "localSha256": "23d82369015674ca5966a9f963f977205a1462b15c3cacec2c45f323422415bb"
     },
     {
       "id": "pi-coding-agent:src/modes/interactive/components/session-selector-search",

@@ -98,7 +98,23 @@ node scripts/release/report-resource-sensitive-validation.mjs --repeats 3 --outp
 
 ## Pull request integration
 
-`Development validation required` remains the merge gate for every pull request. For code changes, it also requires a dedicated Defender-enabled exact-package startup matrix on Windows Node 22 and 24. Each matrix lane runs the package-install startup scenarios once: a failed budget remains failed and is never retried to obtain a warmed result. Both post-update profiles must reach input-ready state within five seconds, and both warm profiles must remain within three seconds.
+`Development validation required` remains the merge gate for every pull request. For applicable code changes, it requires the dedicated Defender-enabled exact-package startup lane on Windows Node 22. Development validation (including manual dispatch) does not schedule a Windows Node 24 startup lane. The Node 22 lane retains the complete package-install, image preparation/package, and durable-history checks plus startup evidence artifacts. A missing, cancelled, failed, or unexpectedly skipped required startup result still blocks the aggregate; documentation-only, version-only, and draft exemptions are unchanged.
+
+| Startup runtime | Development validation (PR or manual) | Nightly/release validation | Manual Full regression |
+| --- | --- | --- | --- |
+| Windows Node 22 | Required for applicable changes | Retained | Retained |
+| Windows Node 24 | Not scheduled | Retained | Retained |
+
+Each selected startup lane runs the package-install scenarios once: a failed budget remains failed and is never retried to obtain a warmed result. Both post-update profiles must reach input-ready state within five seconds, and both warm profiles must remain within three seconds. Node 24 runtime support, other PR jobs, Defender, and publication gates are unchanged. Full validation retains every deferred startup, image, and history test through its existing suite owners.
+
+The trade-off is delayed detection: a Node-24-specific regression can reach `develop` before nightly catches it. A green Node 22 PR check does not certify Node 24, and nightly failure still blocks its publication. When Node 24 feedback is needed before nightly, explicitly request the non-publishing Full regression workflow for the desired branch or tag:
+
+```sh
+gh workflow run full-regression.yml --ref <branch-or-tag>
+```
+
+Record the run's resolved source SHA and package evidence; do not substitute an unrelated historical green run for current-head acceptance. This full run is a deliberate additional operation, not an automatic step for every PR.
+
 Documentation auto-merge reads the complete GitHub changed-file response and arms
 squash auto-merge for an eligible pull request while required validation is pending;
 branch protection prevents integration until `Development validation required`
@@ -106,7 +122,7 @@ succeeds. If validation finishes before auto-merge can be armed and GitHub alrea
 reports the pull request clean, the reconciler squash-merges only the validated head
 SHA. Every current and renamed-from path must be under `openspec/**`, under
 `docs/**`, or exactly the root `README.md`. Eligible pull requests must use a
-non-draft branch in this repository and target `develop`.
+non-draft branch in this repository and target `develop`. Implementation-associated PRs and newly introduced active OpenSpec changes are held for manual integration even when their diff is documentation-only. Body edits trigger reconciliation; removing a marker cannot bypass the base/head tree check. Standalone existing-change revisions and archive moves remain eligible.
 
 The exact allowlist covers maintained OpenSpec, architecture, feature, manual,
 runbook, and root README documentation. Other root Markdown files, `LICENSE`,
@@ -119,11 +135,7 @@ inventoried OpenSpec occurrence fails that pull request rather than a later code
 request. A legitimate generated baseline update remains outside the allowlist and
 follows the manually accepted mixed/code path.
 
-A specification request lands as an OpenSpec-only pull request. Implementation
-starts only after that specification merges and the maintainer explicitly requests
-it, in a fresh worktree and pull request based on updated `origin/develop`. Every
-code/operational pull request remains open after CI until the maintainer validates it
-locally and explicitly authorizes manual integration.
+A new implementation-bound specification starts as OpenSpec-only artifacts in one draft PR. Explicit approval to implement continues in that same worktree, branch, history, and PR; the plan does not merge first. Approved refinements reconcile the planning artifacts before code changes. Make the completed PR ready for final review, but leave integration manual after CI, exact-head maintainer acceptance, and explicit merge authorization. Closing a rejected unmerged draft integrates and archives nothing; local unmerged cleanup still needs separate approval. Existing merged plans retain their legacy implementation PRs and require explicit reconciliation if rejected. See [delivery and archive handoff](openspec-archive-automation.md) for the version-2 link and legacy version-1 compatibility.
 
 ## Numbered development previews
 
