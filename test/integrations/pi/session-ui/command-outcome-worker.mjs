@@ -107,9 +107,11 @@ for (const theme of ["dark", "light"]) {
     for (const entry of cases) {
       await rm(join(agentDir, "trust.json"), { force: true });
       await rm(join(agentDir, "keybindings.json"), { force: true });
-      if (entry.condition === "custom-bindings") {
+      const configuredBindings = entry.keybindings ?? (entry.condition === "custom-bindings"
+        ? { "app.model.select": "ctrl+m", "tui.input.tab": "alt+k" } : undefined);
+      if (configuredBindings !== undefined) {
         await mkdir(agentDir, { recursive: true });
-        await writeFile(join(agentDir, "keybindings.json"), JSON.stringify({ "app.model.select": "ctrl+m", "tui.input.tab": "alt+k" }));
+        await writeFile(join(agentDir, "keybindings.json"), JSON.stringify(configuredBindings));
       }
       const state = createCommandOutcomeState(home, entry, { ...api, MissingSessionCwdError: cwdErrors.MissingSessionCwdError });
       state.entry = entry;
@@ -261,8 +263,10 @@ for (const theme of ["dark", "light"]) {
             exceptionReferenceRows = owner.chatContainer.render(width);
             owner.chatContainer = previous;
           }
-          const bindings = entry.command === "hotkeys" ? shell ? shell.root.editor.keybindingConfig() : owner.keybindings.getEffectiveConfig() : undefined;
-          const activeBindings = bindings ? Object.fromEntries(["app.model.select", "tui.input.tab"].map(key => [key, bindings[key]])) : null;
+          const bindingNames = entry.command === "hotkeys" ? ["app.model.select", "tui.input.tab"]
+            : entry.command === "scoped-models" ? ["tui.select.confirm", "app.models.enableAll", "app.models.clearAll", "app.models.toggleProvider", "app.models.reorderUp", "app.models.reorderDown", "app.models.save"] : undefined;
+          const bindings = bindingNames ? shell ? shell.root.editor.keybindingConfig() : owner.keybindings.getEffectiveConfig() : undefined;
+          const activeBindings = bindings ? Object.fromEntries(bindingNames.map(key => [key, bindings[key]])) : null;
           results.push({ id: `${theme}/${padding}/${entry.id}/${width}`, activeBindings, rows, surfaceOpen, surfaceRows, progressRows: progressRows ?? [], calls: [...state.calls], remainingExports: state.exportedFiles.filter(path => existsSync(path)).length, fatalExit: fatalExit ?? null, active: adapter ? adapter.view().lifecycle !== "stopped" : fatalExit === undefined && !normalExit, ...(exceptionReferenceRows === undefined ? {} : { exceptionReferenceRows }) });
         }
       } finally {

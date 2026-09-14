@@ -66,6 +66,22 @@ describe("independent command outcome parity", () => {
     const mismatches = expected.filter((frame, index) => JSON.stringify(actual[index]?.rows) !== JSON.stringify(frame.exceptionReferenceRows ?? frame.rows)).map(frame => frame.id);
     expect(mismatches, "command message differences").toEqual([]);
     for (const [index, frame] of expected.entries()) verify(actual[index]!, frame);
+    const scopedIndex = expected.findIndex(frame => frame.id === "dark/0/scoped-models/open/80");
+    expect(scopedIndex).toBeGreaterThanOrEqual(0);
+    const scoped = actual[scopedIndex]!;
+    const reference = expected[scopedIndex]!;
+    const label = process.platform === "darwin" ? "option" : "alt";
+    const wrongLabel = process.platform === "darwin" ? "alt" : "option";
+    expect(reference.surfaceRows.join("\n")).toContain(`${label}+up/${label}+down`);
+    const mutations = [
+      scoped.surfaceRows.map(row => row.replaceAll(`${label}+`, `${wrongLabel}+`)),
+      scoped.surfaceRows.map((row, index) => index === 0 ? `${row}\u001b[0m` : row),
+      [scoped.surfaceRows.join("")],
+    ];
+    for (const surfaceRows of mutations) {
+      expect(surfaceRows).not.toEqual(scoped.surfaceRows);
+      expect(() => verify({ ...scoped, surfaceRows }, reference)).toThrow();
+    }
     for (const frame of [...actual, ...expected].filter(value => /\/share\/(missing|unauthenticated|permission)\//.test(value.id))) {
       expect(frame.calls, frame.id).toEqual(["auth"]);
     }

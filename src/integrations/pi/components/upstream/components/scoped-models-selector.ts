@@ -1,7 +1,7 @@
 /**
  * Source-synchronized from Pi 0.84.2
  * packages/coding-agent/src/modes/interactive/components/scoped-models-selector.ts
- * Mechanical changes: public DynamicBorder/keyText imports and owned theme adapter.
+ * Mechanical changes: public DynamicBorder import, local platform-aware key labels, and owned theme adapter.
  */
 interface ScopedModel {
 	readonly provider: string;
@@ -24,7 +24,9 @@ import { getModelSearchText } from "../model-search.js";
 import { piTheme } from "../theme/theme.js";
 
 function keyText(keybinding: Parameters<ReturnType<typeof getKeybindings>["getKeys"]>[0]): string {
-	return getKeybindings().getKeys(keybinding).join("/");
+	return getKeybindings().getKeys(keybinding)
+		.map((key) => key.split("+").map((part) => process.platform === "darwin" && part.toLowerCase() === "alt" ? "option" : part).join("+"))
+		.join("/");
 }
 
 const theme = new Proxy({} as ReturnType<typeof piTheme>, {
