@@ -4,6 +4,8 @@ import { stripAnsi } from "../../../../src/ui/components/text.js";
 import { readVisibleHyperlinks } from "../../../../src/ui/components/visible-hyperlinks.js";
 import { transcriptLifecycleFixture, TranscriptFixtureSession } from "../../../support/rendering/transcript-lifecycle-fixture.js";
 
+import { replayTerminalCheckpoints, replayTerminalPaint } from "../../../support/rendering/terminal-paint-evidence.js";
+
 const active: Awaited<ReturnType<typeof transcriptLifecycleFixture>>[] = [];
 afterEach(async () => { for (const value of active.splice(0)) await value.dispose(); });
 const plain = (rows: readonly string[]) => rows.map(stripAnsi).join("\n");
@@ -142,6 +144,38 @@ describe("asynchronous transcript presentation lifetime", () => {
     expect(frame.liveTailRows).toBeLessThanOrEqual(3);
     expect(frame.followingEnd).toBe(true);
     expect(value.backend.view().transcript.at(-1)?.status).toBe("live");
+  });
+
+  it.each([[40, 16], [192, 54]])("refreshes behind modal coverage and restores current text/styles without resize at %s x %s", async (width, height) => {
+    const value = await fixture(width, height);
+    const input: string[] = [];
+    const overlay = value.shell.runtime.showOverlay({
+      render: (columns: number) => Array.from({ length: height }, () => "M".repeat(columns)),
+      invalidate() {}, handleInput: (data: string) => { input.push(data); },
+    }, { width: "100%", anchor: "top-left" });
+    value.change("CURRENT_UNDER_MODAL\nASYNC_HEIGHT");
+    value.terminal.input("x");
+    await vi.waitFor(() => expect(input).toContain("x"));
+    await vi.waitFor(() => expect(value.frames.some(rows => plain(rows).includes("CURRENT_UNDER_MODAL"))).toBe(true));
+    expect(value.shell.root.editor.getText()).toBe("");
+    const coveredEnd = value.terminal.writes.length;
+    overlay.hide();
+    await vi.waitFor(() => expect(value.terminal.writes.slice(coveredEnd).some(write => write.data.includes("CURRENT_UNDER_MODAL"))).toBe(true));
+    value.terminal.input("y");
+    await vi.waitFor(() => expect(value.shell.root.editor.getText()).toBe("y"));
+    const frames = await replayTerminalCheckpoints(value.terminal.writes, [
+      { writeEnd: coveredEnd, columns: width, rows: height },
+      { writeEnd: value.terminal.writes.length, columns: width, rows: height },
+    ]);
+    expect(frames[0]!.rows[0]).toBe("M".repeat(width));
+    expect(plain(frames[0]!.rows)).not.toContain("UNDER_MODAL");
+    expect(plain(frames[1]!.rows)).toContain("CURRENT_UNDER_MODAL");
+    expect(plain(frames[1]!.rows)).not.toContain("BEFORE_ASYNC");
+    const options = { columns: width, rows: height, captureStyles: true };
+    const honored = await replayTerminalPaint(value.terminal.writes, { ...options, synchronizedUpdates: "honor" });
+    const ignored = await replayTerminalPaint(value.terminal.writes, { ...options, synchronizedUpdates: "ignore" });
+    expect(ignored.final).toEqual(honored.final);
+    expect(ignored.finalStyles).toEqual(honored.finalStyles);
   });
 
   it("ignores pending callbacks after authoritative removal, replacement, and disposal", async () => {

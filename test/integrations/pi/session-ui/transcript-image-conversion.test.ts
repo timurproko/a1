@@ -27,8 +27,8 @@ function kittyData(rows: readonly string[]): string[] {
   return [...rows.join("\n").matchAll(/\u001b_G[^;]*;([^\u001b]*)\u001b\\/g)].map(match => match[1]!);
 }
 
-async function fixture(height = 30) {
-  const value = await transcriptLifecycleFixture({ height });
+async function fixture(height = 30, width = 80) {
+  const value = await transcriptLifecycleFixture({ height, width });
   active.push(value);
   setCapabilities({ ...getCapabilities(), images: "kitty" });
   await value.emit({ type: "message_end", message: assistantCall("image", "unknown", {}) });
@@ -112,9 +112,9 @@ describe("transcript image conversion lifetime", () => {
     expect(mounted.render(80).map(stripAnsi).join("\n")).toContain("image/jpeg");
   });
 
-  it("publishes converted image bytes through the real scheduler at unchanged semantic revision", async () => {
+  it.each([[40, 54], [80, 60], [192, 54]])("publishes converted image bytes through the real scheduler at unchanged semantic revision at %s x %s", async (width, height) => {
     // Compatibility: pinned Image scales to its width budget; keep its complete placement in the visible viewport.
-    const value = await fixture(60);
+    const value = await fixture(height, width);
     const content = [image(255, "image/jpeg")];
     await value.emit({ type: "tool_execution_end", toolCallId: "image", toolName: "unknown", isError: false, result: { content } });
     const revision = value.backend.view().transcript.at(-1)!.revision;

@@ -38,8 +38,16 @@ export interface TerminalCellFrame {
   readonly cursor: { readonly row: number; readonly column: number };
 }
 
+export interface TerminalCellStyle {
+  readonly row: number;
+  readonly column: number;
+  readonly colors: readonly [foregroundMode: number, foreground: number, backgroundMode: number, background: number];
+  readonly flags: readonly [bold: number, italic: number, dim: number, underline: number, blink: number, inverse: number, invisible: number, strike: number, overline: number];
+}
+
 export interface TerminalReplayResult {
   readonly final: TerminalCellFrame;
+  readonly finalStyles?: readonly TerminalCellStyle[];
   /** Intermediate physical states; synchronized transactions contribute one state when honored. */
   readonly states: readonly TerminalCellFrame[];
   readonly ignoredSynchronizedUpdates: boolean;
@@ -230,7 +238,7 @@ export async function replayTerminalBackgroundCells(
 
 export async function replayTerminalPaint(
   writes: readonly TimedTerminalWrite[],
-  options: { readonly columns: number; readonly rows: number; readonly synchronizedUpdates: "honor" | "ignore" },
+  options: { readonly columns: number; readonly rows: number; readonly synchronizedUpdates: "honor" | "ignore"; readonly captureStyles?: boolean },
 ): Promise<TerminalReplayResult> {
   if (!Number.isSafeInteger(options.columns) || options.columns < 1) throw new RangeError("terminal replay columns must be positive");
   if (!Number.isSafeInteger(options.rows) || options.rows < 1) throw new RangeError("terminal replay rows must be positive");
@@ -269,12 +277,30 @@ export async function replayTerminalPaint(
     await new Promise<void>(resolve => terminal.write("", resolve));
     return {
       final: snapshot(terminal, options.rows),
+      ...(options.captureStyles ? { finalStyles: snapshotStyles(terminal) } : {}),
       states,
       ignoredSynchronizedUpdates: options.synchronizedUpdates === "ignore",
     };
   } finally {
     terminal.dispose();
   }
+}
+
+/** Sparse final attributes retain colored blank cells as well as styled text, through public xterm APIs. */
+function snapshotStyles(terminal: HeadlessTerminal): readonly TerminalCellStyle[] {
+  const result: TerminalCellStyle[] = [];
+  for (let row = 0; row < terminal.rows; row++) {
+    const line = terminal.buffer.active.getLine(row);
+    for (let column = 0; column < terminal.cols; column++) {
+      const cell = line?.getCell(column);
+      if (!cell || cell.isAttributeDefault()) continue;
+      result.push({ row: row + 1, column: column + 1,
+        colors: [cell.getFgColorMode(), cell.getFgColor(), cell.getBgColorMode(), cell.getBgColor()],
+        flags: [cell.isBold(), cell.isItalic(), cell.isDim(), cell.isUnderline(), cell.isBlink(), cell.isInverse(), cell.isInvisible(), cell.isStrikethrough(), cell.isOverline()],
+      });
+    }
+  }
+  return result;
 }
 
 function snapshot(terminal: HeadlessTerminal, rows: number): TerminalCellFrame {

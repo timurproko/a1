@@ -39,9 +39,11 @@ export async function verifyScheduledContent(workload: (typeof CONTENT_RENDERING
       expect(final.transcript.filter(block => block.kind === "assistant")).toHaveLength(2);
       expect(final.transcript.filter(block => block.kind === "tool-result")).toHaveLength(2);
       expect(final.transcript.some(block => block.text.includes("EARLIER_CONTENT"))).toBe(true);
-      const honored = await replayTerminalPaint(result.writes, { columns: workload.columns, rows: workload.rows, synchronizedUpdates: "honor" });
-      const ignored = await replayTerminalPaint(result.writes, { columns: workload.columns, rows: workload.rows, synchronizedUpdates: "ignore" });
+      const honored = await replayTerminalPaint(result.writes, { columns: workload.columns, rows: workload.rows, synchronizedUpdates: "honor", captureStyles: true });
+      const ignored = await replayTerminalPaint(result.writes, { columns: workload.columns, rows: workload.rows, synchronizedUpdates: "ignore", captureStyles: true });
       expect(ignored.final).toEqual(honored.final);
+      expect(ignored.finalStyles).toEqual(honored.finalStyles);
+      expect(honored.finalStyles!.length).toBeGreaterThan(0);
       if (producer === "bare-a1") {
         expect(result.presentations!.length).toBeLessThan(32);
         expect(result.presentations!.some(frame => frame.blocks.some(block => block.id === "tool-edit" && block.semanticRevision > 0))).toBe(true);

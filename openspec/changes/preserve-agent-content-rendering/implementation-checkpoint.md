@@ -30,9 +30,23 @@ Replay investigation identified a timer turn per ANSI token in the test helper. 
 
 The focused correction run passed 69 tests in eight suites, including actual public tool/image parity, shared smoke content gates, replay order and governance. Task checkboxes remain at 22/28 pending the broader audit and exact-head validation.
 
-## Still open
+## Presentation audit and automated matrix complete
 
-**22/28 tasks are checked.** Tasks 4.5 and 6.4 remain open for the complete presentation/budget audit and broader acceptance matrix; their passing subsets do not establish full completion. Tasks 7.1–7.4 remain open for exact-head automated validation, complete runnable handoff, user-controlled Windows Terminal content review, and recorded acceptance.
+Tasks **4.5 and 6.4** are now verified at the automated boundary:
+
+- The mounted facade remains the owner of renderer notification and presentation revision; its mutation/reentrancy guards prevent duplicate semantic-update notifications. The root's block-row cache keys both semantic and presentation revision, and renderer changes invalidate the same document/reuse proof used by input and streaming. No second geometry authority or global cache disable was added. Mount/session guards and retained image references remain necessary ownership safeguards, not redundant paths to delete.
+- The existing stream/input scheduler remains the sole publication authority. The source-derived image controller only requests that authority after current conversion completion; no new frame timer, delayed-output workaround, ordinary clear, or event capacity was introduced. Async geometry, off-screen reuse and 100-notification coalescing regressions prove these retained boundaries.
+- The final complete `rendering-budgets.test.ts` run **passed in 171 seconds**, including all 11 workloads / 66 independent producer launches, both runtime modes, long history, thinking/tool text, code, links, narrow wrapping, resize, detached navigation, stable-row budgets and negative controls. CI Rendering validation also passed for `1eaf5cd5` in run `34862803953`.
+- New actual scheduled modal tests at 40×16 and 192×54 preserve input ownership while the renderer changes underneath coverage, then expose current content without resize. Replayed covered and uncovered cells are checked explicitly.
+- Optional final style capture uses only public xterm cell APIs and compares colors/attributes, including colored blank cells, in synchronization-honored and ignored replay. The scheduled content matrix and modal tests check text, styles and cursor. A negative control removes SGR without changing final text and is distinguished by the style comparison.
+- Real scheduled Kitty publication now passes at 40×54, 80×60 and 192×54 at unchanged semantic revision. The image suite passes 12 tests; JPEG/WebP/GIF conversion, original-image capability/hidden behavior, current pixels, visible failure fallback and independent pinned attribution remain checked.
+- These additions passed 32 targeted tests (12 image, 9 lifetime/modal, 9 replay and 2 scheduled producer cases) plus the complete rendering budget test. Typecheck passed. This remains automated evidence, not native pixel/hover or physical flashing acceptance.
+
+## Required CI blocker and still-open acceptance
+
+**24/28 tasks are checked.** Tasks 7.1–7.4 remain open for exact-head automated validation, complete runnable handoff, user-controlled Windows Terminal content review, and recorded acceptance. The interactive review-fixture work was paused when required CI failed again; the previously supplied headless command is not represented as a complete interactive handoff.
+
+Run `34862803953` passed Rendering validation and the corrected governance checks, but Fast validation failed the unrelated diagnostic race [#392](https://github.com/timurproko/a1/issues/392) and a Windows dependency-certification lease-rename `EPERM`, separately tracked as [#395](https://github.com/timurproko/a1/issues/395). The release failure is not the earlier cleanup timeout in #361. Neither unrelated test or implementation is changed here. Required CI remains blocking; separate repair streams need approval before proceeding. Saving the completed audit tests is not a waiver, an acceptance claim, or an attempt to merge past those failures.
 
 In particular, the image byte comparison and fitting scheduled-image case are not physical evidence for partially clipped images, all terminal capabilities, or all viewport interactions. The original disappearing/flashing-content screenshots still lack an identified application artifact and category. No new Windows Terminal verdict is invented.
 
