@@ -52,6 +52,14 @@ Repair validation on the refreshed checkout:
 
 Normal synchronize-triggered CI must validate the repushed candidate. These focused results do not mark task 6.2 or acceptance complete.
 
+## CI suite-registration repair
+
+Run `34877744234` at `b60152f1f9c450ed7b1b3b5ff071809cba960ff3` passed typechecking and architecture, then failed two fast-suite assertions: the expected active resource-sensitive lists in `resource-sensitive-validation.test.ts` and `validation-suite-policy.test.ts` omitted the newly registered `local-cleanup.test.ts`. The ordinary invocation reported 3165 passing tests and two failures; the resource-sensitive invocation had not yet run. Other required jobs passed, and the aggregate correctly failed.
+
+Both independent expected lists now include the cleanup bridge in manifest order. Exact list equality, exclusion from the ordinary remainder, single execution, and timeout/retry checks remain intact; historical incident partitions are unchanged. No production code or CI selection was weakened.
+
+Local repair validation: the two policy suites and cleanup bridge passed together with file parallelism disabled (20 Vitest tests, including the bridge's 42 native cleanup cases). Typechecking, strict OpenSpec validation, and whitespace checks passed. Required current-head CI remains pending, so task 6.2 is not complete.
+
 ## Remaining gates
 
 Required current-head PR CI must run after readiness; local results do not substitute for it. The maintainer must separately authorize an isolated live accepted-implementation/automatic-archive lifecycle and actual final-head review. Tasks 7.2 and 7.3 remain unperformed; there is no acceptance record. Mechanical archive tasks 8.1 and 8.2 remain for the corresponding future verified operations. Do not archive or integrate based on these fixture results.
