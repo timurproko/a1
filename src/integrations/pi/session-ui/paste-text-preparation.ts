@@ -2,6 +2,7 @@ import { existsSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { prepareTextPaste } from "./text-paste.js";
+import { preparePathPresentation } from "./path-chip-presentation.js";
 
 export interface ClipboardPath { readonly fullPath: string; readonly kind: "folder" | "file" }
 export type PreparedPasteText =
@@ -16,11 +17,12 @@ export function canPreparePasteInline(text: string): boolean {
 }
 
 /** The shared chip classifier; interactive callers run path/filesystem probing in an isolated executor. */
-export function preparePasteText(text: string, skipPaths = false): PreparedPasteText {
+export function preparePasteText(text: string, skipPaths = false, compactPaths = false): PreparedPasteText {
   const url = text.trim();
   if (URL_PATTERN.test(url)) return { kind: "url", url, label: url.length <= 40 ? url : `${url.slice(0, 40)}…` };
   const paths = skipPaths ? [] : pathsFromClipboard(text);
-  return paths.length > 0 ? { kind: "paths", paths } : { kind: "text", ...prepareTextPaste(text) };
+  if (paths.length > 0) return compactPaths ? preparePathPresentation(paths) : { kind: "paths", paths };
+  return { kind: "text", ...prepareTextPaste(text) };
 }
 
 function pathsFromClipboard(text: string): ClipboardPath[] {

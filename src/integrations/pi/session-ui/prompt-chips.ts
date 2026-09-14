@@ -9,6 +9,7 @@ import { assertImageEncodedSize, assertPromptImages, ImageAttachmentError } from
 import { ImagePreparationClient, type ImagePasteJob } from "./image-preparation-client.js";
 import type { PreparedImage } from "./image-preparation.js";
 import { preparePasteText, type PreparedPasteText } from "./paste-text-preparation.js";
+import { pathChipTag } from "./path-chip-presentation.js";
 import { PastePreparationClient, type PreparedPasteJob } from "./paste-preparation-client.js";
 import type { PasteEvent, PasteSource, PreparedPaste } from "./paste-protocol.js";
 
@@ -41,7 +42,6 @@ interface PendingPaste {
 }
 
 const CHIP_PATTERN = /\[(?:paste #\d+ (?:\+\d+ lines|\d+ chars)|📷 [^\]]+|📁 [^\]]+|📄 [^\]]+|🖼 {1,2}[^\]]+|🔗 [^\]]+)\]/gu;
-const IMAGE_EXTENSION = /\.(?:jpe?g|png|webp|gif|bmp|tiff?)$/iu;
 const URL_SUBSTRING_PATTERN = /https?:\/\/[^\s\u0000-\u001f\u007f\]]+/giu;
 const IMAGE_CHIP_IDENTIFIER_PATTERN = /^\[📷 screenshot-([a-f0-9]+)(?:-resized)?\]$/u;
 const URL_DISPLAY_LENGTH = 40;
@@ -261,14 +261,7 @@ export class PromptChipStore {
       this.#claimChip(tag, owner, true);
       return tag;
     }
-    return paste.paths.map(item => {
-      const label = pathLabel(item.fullPath);
-      if (item.kind === "folder") {
-        return this.#recordUnique({ kind: "folder", tag: `[📁 ${label}]`, path: item.fullPath }, owner);
-      }
-      const icon = IMAGE_EXTENSION.test(item.fullPath) ? "🖼 " : "📄";
-      return this.#recordUnique({ kind: "file", tag: `[${icon} ${label}]`, path: item.fullPath }, owner);
-    }).join("");
+    return paste.paths.map(item => this.#recordUnique({ kind: item.kind, tag: pathChipTag(item), path: item.fullPath }, owner)).join("");
   }
 
   /** Hide provisional clipboard identities until the read identifies an actual image. */
@@ -492,12 +485,6 @@ export class PromptChipStore {
     this.#claimChip(uniqueTag, owner, true);
     return uniqueTag;
   }
-}
-
-function pathLabel(fullPath: string): string {
-  const basename = path.basename(fullPath);
-  if (basename.length > 0) return basename;
-  return path.parse(fullPath).root.replace(/[\\/]+$/u, "") || fullPath;
 }
 
 function sameChipValue(left: PromptChip, right: PromptChip): boolean {

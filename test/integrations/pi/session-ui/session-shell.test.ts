@@ -744,29 +744,53 @@ describe("OwnedUiSessionShell", () => {
     } finally { clearInterval(heartbeat); await shell.dispose(); }
   }, 15_000);
 
-  it.each([{ count: 1000, nameUnits: 7 }, { count: 4000, nameUnits: 7 }, { count: 12000, nameUnits: 7 }, { count: 6000, nameUnits: 160 }])("records generated many-path insertion evidence %j", async ({ count, nameUnits }) => {
+  it.each([{ count: 2, nameUnits: 7 }, { count: 1000, nameUnits: 7 }, { count: 4000, nameUnits: 7 }, { count: 12000, nameUnits: 7 }, { count: 6000, nameUnits: 160 }, { count: 0, nameUnits: 160 }]
+    .flatMap(value => [false, true].map(terminalPaste => ({ ...value, terminalPaste }))))("bounds path-list presentation and preserves edits %j", async ({ count: requestedCount, nameUnits, terminalPaste }) => {
     const directory = await mkdtemp(join(tmpdir(), "clipboard-path-evidence-"));
     const file = join(directory, `${"f".repeat(nameUnits)}.txt`);
     await writeFile(file, "generated");
+    const count = requestedCount || Math.floor(16 * 1024 * 1024 / (Buffer.byteLength(file) + 3));
     const text = Array.from({ length: count }, () => `"${file}"`).join("\n");
-    const { shell, terminal } = await fixture([], [], true, undefined, { readText: async () => text });
-    let last = performance.now(), gap = 0;
-    const heartbeat = setInterval(() => { const now = performance.now(); gap = Math.max(gap, now - last); last = now; }, 5);
+    const phases: string[] = [];
+    const readText = vi.fn(async () => text);
+    const { shell, terminal } = await fixture([], [], true, undefined, { readText }, undefined, undefined, undefined, undefined, undefined, undefined,
+      event => phases.push(event.phase));
+    let last = performance.now(), gap = 0, ticks = 0;
+    const heartbeat = setInterval(() => { const now = performance.now(); gap = Math.max(gap, now - last); last = now; ticks++; }, 5);
     try {
       const begin = performance.now();
-      terminal.input("\x16"); terminal.input(" after");
-      await vi.waitFor(() => expect(shell.root.editor.getText()).toMatch(/^\[(?:📄|paste #)/u), { timeout: 15_000 });
+      terminal.input(terminalPaste ? `\x1b[200~${text}\x1b[201~` : "\x16"); terminal.input(" after");
+      await nextImmediate();
+      expect(shell.root.editor.getText()).toContain(" after");
+      await vi.waitFor(() => expect(phases).toContain("settled"), { timeout: 15_000 });
       const draft = shell.root.editor.getText();
-      shell.runtime.renderNow();
-      await new Promise(resolve => setTimeout(resolve, 10));
-      const pathChips = draft.startsWith("[📄");
-      expect(shell.root.preparePromptSubmission(draft).text === (pathChips ? file.repeat(count) : text) + " after").toBe(true);
-      // Rationale: observe the remaining path-list risk separately from URL bounds and physical acceptance.
-      console.log("CLIPBOARD_PATH_PRESENTATION", JSON.stringify({ count, nameUnits, sourceBytes: Buffer.byteLength(text), pathChips,
-        editorChars: draft.length, elapsedMs: performance.now() - begin, maxTimerGapMs: gap,
-        maxWriteBytes: Math.max(...terminal.writes.map(value => Buffer.byteLength(value))) }));
+      const pathFallback = phases.includes("path-fallback");
+      const expanded = pathFallback ? text : file.repeat(count);
+      expect(shell.root.preparePromptSubmission(draft).text === expanded + " after").toBe(true);
+      expect(shell.root.prepareHistoryText(draft) === expanded + " after").toBe(true);
+      if (count > 2) {
+        expect(draft).toMatch(/^\[paste #\d+ (?:\d+ chars|\+\d+ lines)\] after$/u);
+        expect(draft.length).toBeLessThan(100);
+      } else if (!pathFallback) expect(draft).toBe("[📄 fffffff.txt]".repeat(count) + " after");
+      expect(readText).toHaveBeenCalledTimes(terminalPaste ? 0 : 1);
+      shell.runtime.renderNow(); await nextImmediate();
+      expect(ticks).toBeGreaterThan(0);
+      const maxWriteBytes = Math.max(...terminal.writes.map(value => Buffer.byteLength(value)));
+      expect(maxWriteBytes).toBeLessThan(64 * 1024);
+      // Rationale: deterministic representation/content gates are separate from generated timings and physical acceptance.
+      console.log("CLIPBOARD_PATH_PRESENTATION", JSON.stringify({ count, nameUnits, terminalPaste, pathFallback, sourceBytes: Buffer.byteLength(text),
+        editorChars: draft.length, elapsedMs: performance.now() - begin, maxTimerGapMs: gap, maxWriteBytes }));
+      terminal.input("\x1a"); await nextImmediate();
+      expect(shell.root.editor.getText()).toBe(draft.slice(0, -6));
+      terminal.input("\x1a"); await nextImmediate();
+      expect(shell.root.editor.getText()).toBe("");
+      terminal.input("\x19"); await nextImmediate();
+      expect(shell.root.editor.getText()).toBe(draft.slice(0, -6));
+      terminal.input("\x19"); await nextImmediate();
+      expect(shell.root.editor.getText()).toBe(draft);
+      expect(shell.root.preparePromptSubmission(draft).text === expanded + " after").toBe(true);
     } finally { clearInterval(heartbeat); await shell.dispose(); await rm(directory, { recursive: true, force: true }); }
-  }, 20_000);
+  }, 25_000);
 
   it.each(["\n", " "])("bounds aggregate URL metadata and resets each decoration pass (separator=%j)", async separator => {
     const { shell } = await fixture([], [], true);
