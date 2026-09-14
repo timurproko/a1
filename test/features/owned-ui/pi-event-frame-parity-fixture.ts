@@ -1,4 +1,4 @@
-import { mock } from "node:test";
+import { EventFrameClock } from "./event-frame-clock.js";
 import type { AgentSessionRuntime } from "@earendil-works/pi-coding-agent";
 import { createPiEngineAdapter } from "../../../src/integrations/pi/engine/index.js";
 import { applyPiTheme, applyPiThemeInstance, piTheme } from "../../../src/integrations/pi/components/index.js";
@@ -55,25 +55,29 @@ export const SCRIPTED_PI_EVENTS: readonly { readonly stage: string; readonly eve
   },
 ];
 
-/** Capture a non-concurrent event workload with explicit paint checkpoints and scoped host state. */
-export async function buildEventFrameParityResult(options: {
+/** Test-only checkpoints expose due timer attempts, not private renderer state or synthesized writes. */
+export interface EventFrameCaptureOptions {
+  readonly clock?: EventFrameClock;
   readonly beforeEvent?: (stage: string) => void | Promise<void>;
-} = {}): Promise<EventFrameParityResult> {
-  const previousTheme = piTheme();
-  // Invariant: this diagnostic declares event checkpoints, not elapsed animation time.
-  // Keep cooperative nextTick/immediate delivery real but prevent wall-clock paint timers
-  // from stealing a checkpoint or making cursor housekeeping count as its completed paint.
-  mock.timers.enable({ apis: ["Date", "setTimeout", "setInterval"], now: 1_700_000_000_000 });
-  try {
-    return await withPiParityColorMode(EVENT_FRAME_PARITY_COLOR_MODE, () => captureEventFrames(options), { hyperlinks: true });
-  } finally {
-    mock.timers.reset();
-    applyPiTheme(previousTheme.name ?? "dark", false, previousTheme.getColorMode());
-    applyPiThemeInstance(previousTheme);
-  }
+  readonly boundary?: (stage: string, phase: "before-flush" | "after-flush" | "before-capture" | "after-capture" | "before-resize" | "after-resize", advanceTimers: (milliseconds: number) => number) => void | Promise<void>;
+  readonly failTerminalStop?: boolean;
 }
 
-async function captureEventFrames(options: { readonly beforeEvent?: (stage: string) => void | Promise<void> }): Promise<EventFrameParityResult> {
+/** Capture a non-concurrent event workload with explicit paint checkpoints and scoped host state. */
+export async function buildEventFrameParityResult(options: EventFrameCaptureOptions = {}): Promise<EventFrameParityResult> {
+  const clock = options.clock ?? new EventFrameClock();
+  return clock.run(async () => {
+    const previousTheme = piTheme();
+    try {
+      return await withPiParityColorMode(EVENT_FRAME_PARITY_COLOR_MODE, () => captureEventFrames(options, clock), { hyperlinks: true });
+    } finally {
+      applyPiTheme(previousTheme.name ?? "dark", false, previousTheme.getColorMode());
+      applyPiThemeInstance(previousTheme);
+    }
+  });
+}
+
+async function captureEventFrames(options: EventFrameCaptureOptions, clock: EventFrameClock): Promise<EventFrameParityResult> {
   applyPiTheme("dark", false, EVENT_FRAME_PARITY_COLOR_MODE);
   const engine = new ScriptedRuntime();
   const adapter = await createPiEngineAdapter({
@@ -83,15 +87,30 @@ async function captureEventFrames(options: { readonly beforeEvent?: (stage: stri
   });
   let ownedShell: OwnedUiSessionShell | undefined;
   try {
-    const physical = new CapturingTerminal(64, 18);
+    const physical = new CapturingTerminal(64, 18, options.failTerminalStop);
     const shell = new OwnedUiSessionShell({ backend: adapter, cwd: "D:/parity", terminal: physical });
     ownedShell = shell;
     const states: EventStateParityEntry[] = [];
     const frames: TerminalFrameParityEntry[] = [];
     let writeOffset = 0;
+    let paintedRevision = -1;
+    let paintedColumns = -1;
+    let paintedRows = -1;
+    const render = shell.root.render.bind(shell.root);
+    // Invariant: observe the public component render boundary, not incidental terminal writes.
+    // This instance-only probe leaves installed packages and private/prototype state untouched.
+    shell.root.render = columns => {
+      const rows = render(columns);
+      paintedRevision = shell.view().revision;
+      paintedColumns = columns;
+      paintedRows = physical.rows;
+      return rows;
+    };
+    const boundary = (stage: string, phase: Parameters<NonNullable<EventFrameCaptureOptions["boundary"]>>[1]): Promise<void> =>
+      clock.settle(`${stage}/${phase}`, async () => { await options.boundary?.(stage, phase, milliseconds => clock.advance(milliseconds)); }, () => adapter.deliveryDiagnostics());
 
     const captureRendered = (stage: string, captureFrame = false, forceRender = false): void => {
-      if (forceRender || physical.writes.length === writeOffset) shell.runtime.renderNow();
+      if (forceRender || paintedRevision !== shell.view().revision || paintedColumns !== physical.columns || paintedRows !== physical.rows) shell.runtime.renderNow();
       const capturedAnsi = physical.writes.slice(writeOffset).join("");
       writeOffset = physical.writes.length;
       const view = shell.view();
@@ -115,27 +134,41 @@ async function captureEventFrames(options: { readonly beforeEvent?: (stage: stri
       writeOffset = physical.writes.length;
     };
     const captureEvent = async (stage: string, captureFrame = false): Promise<void> => {
-      await adapter.flushEvents();
+      await boundary(stage, "before-flush");
+      await clock.settle(`${stage}/flush`, () => adapter.flushEvents(), () => adapter.deliveryDiagnostics());
+      await boundary(stage, "after-flush");
+      await boundary(stage, "before-capture");
       captureRendered(stage, captureFrame);
+      clock.hold(false);
+      await boundary(stage, "after-capture");
     };
 
+    clock.hold(true);
     shell.start();
     captureRendered("initial", true, true);
+    clock.hold(false);
+    await boundary("initial", "after-capture");
     for (const entry of SCRIPTED_PI_EVENTS) {
-      if (options.beforeEvent !== undefined) await options.beforeEvent(entry.stage);
-      // Compatibility: cancel and discard the prior no-damage maintenance frame before
-      // queuing a transition, so exactly one post-event render owns its byte boundary.
+      if (options.beforeEvent !== undefined) await clock.settle(`${entry.stage}/before-event`, async () => { await options.beforeEvent?.(entry.stage); });
+      // Compatibility: settle only prior maintenance outside the next event's capture window.
       discardMaintenanceRender();
+      clock.hold(true);
       engine.session.emit(entry.event);
       await captureEvent(entry.stage, ["streaming", "tool-result", "completed"].includes(entry.stage));
     }
     discardMaintenanceRender();
+    clock.hold(true);
+    await boundary("resized", "before-resize");
     physical.resize(48, 16);
+    await boundary("resized", "after-resize");
+    await boundary("resized", "before-capture");
     captureRendered("resized", true);
+    clock.hold(false);
+    await boundary("resized", "after-capture");
     return { states, frames };
   } finally {
-    try { await ownedShell?.dispose(); }
-    finally { if (!adapter.disposed) await adapter.dispose(); }
+    try { await clock.settle("dispose-shell", async () => { await ownedShell?.dispose(); }); }
+    finally { if (!adapter.disposed) await clock.settle("dispose-adapter", () => adapter.dispose(), () => adapter.deliveryDiagnostics()); }
   }
 }
 
@@ -185,10 +218,14 @@ class CapturingTerminal implements PiTuiTerminalPort {
   #input: ((data: string) => void) | undefined;
   #resize: (() => void) | undefined;
 
-  constructor(public columns: number, public rows: number) {}
+  constructor(public columns: number, public rows: number, readonly failStop = false) {}
 
   start(onInput: (data: string) => void, onResize: () => void): void { this.#input = onInput; this.#resize = onResize; }
-  stop(): void { this.#input = undefined; this.#resize = undefined; }
+  stop(): void {
+    this.#input = undefined;
+    this.#resize = undefined;
+    if (this.failStop) throw new Error("injected terminal disposal failure");
+  }
   async drainInput(): Promise<void> {}
   write(data: string): void { this.writes.push(data); }
   resize(columns: number, rows: number): void { this.columns = columns; this.rows = rows; this.#resize?.(); }
