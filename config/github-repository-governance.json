@@ -136,7 +136,7 @@
       "name": "Documentation auto-merge",
       "path": ".github/workflows/documentation-auto-merge.yml",
       "state": "active",
-      "triggers": ["pull_request_target", "workflow_run"],
+      "triggers": ["pull_request_target", "pull_request_target:edited", "workflow_run"],
       "permissions": ["actions: read", "contents: write", "pull-requests: write"],
       "trustedSource": "default-branch",
       "authority": ["documentation-auto-merge", "matching-merged-head-delete"],

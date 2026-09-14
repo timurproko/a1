@@ -1,5 +1,6 @@
 import { appendFile, readFile } from "node:fs/promises";
 import { classifyDocumentationAutoMerge, planDocumentationAutoMerge } from "./documentation-auto-merge.mjs";
+import { inspectDocumentationLifecycle } from "./documentation-lifecycle.mjs";
 import { executeMergedBranchCleanup } from "./execute-merged-branch-cleanup.mjs";
 import { readArchiveMarker, archiveAuthorityCurrent } from "./openspec-archive-publication.mjs";
 
@@ -158,6 +159,7 @@ async function isTrustedEligible(pull) {
   let files;
   try {
     files = await changedFiles(number);
+    if (!Number.isSafeInteger(pull.changed_files) || pull.changed_files !== files.length) throw new Error("incomplete changed-file response");
   } catch (error) {
     await disableIfArmed(pull, `classification failed: ${describe(error)}`);
     throw error;
@@ -177,6 +179,17 @@ async function isTrustedEligible(pull) {
     await disableIfArmed(pull, reason);
     await summary(`PR #${number}: auto-merge not eligible — ${reason}.`);
     return false;
+  }
+  try {
+    const lifecycle = await inspectDocumentationLifecycle(pull, files, { prefix: `/repos/${repositoryName}`, get: rest });
+    if (lifecycle.held) {
+      await disableIfArmed(pull, lifecycle.reason);
+      await summary(`PR #${number}: manual implementation hold (${lifecycle.reason}).`);
+      return false;
+    }
+  } catch (error) {
+    await disableIfArmed(pull, "lifecycle classification unavailable");
+    throw error;
   }
   return true;
 }

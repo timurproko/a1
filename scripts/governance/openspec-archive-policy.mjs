@@ -75,9 +75,10 @@ export function metadataBlock(text, label) {
 export function parseImplementation(text) {
   const value = metadataBlock(text, "openspec-implementation");
   if (value === null) return null;
-  object(value, ["version", "change", "specificationPr"], ["archivePreparationTasks"]);
-  requireValue(value.version === 1 && typeof value.change === "string" && CHANGE.test(value.change), "implementation-identity");
-  requireValue(Number.isSafeInteger(value.specificationPr) && value.specificationPr > 0, "specification-pr");
+  object(value, ["version", "change"], ["specificationPr", "archivePreparationTasks"]);
+  requireValue([1, 2].includes(value.version) && typeof value.change === "string" && CHANGE.test(value.change), "implementation-identity");
+  if (value.version === 1) requireValue(Number.isSafeInteger(value.specificationPr) && value.specificationPr > 0, "specification-pr");
+  else requireValue(!Object.hasOwn(value, "specificationPr"), "metadata-fields");
   if (value.archivePreparationTasks !== undefined) {
     object(value.archivePreparationTasks, [], Object.keys(ARCHIVE_TASKS));
     const ids = Object.values(value.archivePreparationTasks);

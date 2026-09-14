@@ -6,7 +6,7 @@ import { join, resolve, relative, isAbsolute } from "node:path";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { createHash } from "node:crypto";
-import { archiveFailure, archivePaths, assertRepositoryPath, inspectTasks, completePreparationTask, assertArchiveDiff } from "./openspec-archive-policy.mjs";
+import { archiveFailure, archivePaths, assertRepositoryPath, inspectTasks, completePreparationTask, assertArchiveDiff, SHA } from "./openspec-archive-policy.mjs";
 
 const execute = promisify(execFile);
 const MAX_BLOB = 8 * 1024 * 1024;
@@ -42,7 +42,8 @@ export async function snapshotOpenSpec(reader, sha) {
   const entries = new Map();
   for (const item of response.tree.filter(item => item.path === "openspec" || item.path.startsWith("openspec/"))) {
     assertRepositoryPath(item.path);
-    if (!["040000", "100644", "100755"].includes(item.mode) || !["tree", "blob"].includes(item.type)) throw archiveFailure("unsafe-openspec-tree");
+    if (!SHA.test(item.sha ?? "") || !(item.type === "tree" && item.mode === "040000"
+      || item.type === "blob" && ["100644", "100755"].includes(item.mode))) throw archiveFailure("unsafe-openspec-tree");
     if (item.type === "blob") entries.set(item.path, item.sha);
   }
   const cache = new Map();

@@ -51,6 +51,24 @@ describe("archive GitHub evidence", () => {
       acceptance: { id: 99, author: "reviewer" }, validation: { runId: 7, headSha: f.sha } });
     expect(f.requests.every(request => request.method === "GET")).toBe(true);
   });
+  it("binds version-2 artifacts to source and merged trees without a specification PR", async () => {
+    const f = fixture();
+    f.pull.body = '```openspec-implementation\n{"version":2,"change":"example"}\n```';
+    const item = { path: "openspec/changes/example/.openspec.yaml", sha: "e".repeat(40), mode: "100644", type: "blob" };
+    f.routes[`${f.prefix}/git/trees/${f.sha}`] = { truncated: false, tree: [item] };
+    f.routes[`${f.prefix}/git/trees/${f.pull.merge_commit_sha}`] = { truncated: false, tree: [item] };
+    await expect(loadArchiveEvidence(f.reader, 20)).resolves.toMatchObject({ disposition: "eligible", implementation: { version: 2 } });
+    expect(f.requests.some(request => request.path.includes("/pulls/10"))).toBe(false);
+    f.routes[`${f.prefix}/git/trees/${f.pull.merge_commit_sha}`] = { truncated: false, tree: [{ ...item, sha: "f".repeat(40) }] };
+    await expect(loadArchiveEvidence(f.reader, 20)).rejects.toThrow("implementation-change-drift");
+    f.routes[`${f.prefix}/git/trees/${f.pull.merge_commit_sha}`] = { truncated: false, tree: [] };
+    await expect(loadArchiveEvidence(f.reader, 20)).rejects.toThrow("implementation-change-missing");
+    f.pull.merged = false;
+    const rejected = await reconcileArchives({ reader: f.reader, tool: {}, pr: 20, dryRun: true });
+    expect(rejected.results).toMatchObject([{ disposition: "blocked", reason: "implementation-merge" }]);
+    expect(f.requests.every(request => request.method === "GET")).toBe(true);
+  });
+
   it("recovers cleared historical run associations only with matching commit and branch evidence", async () => {
     const f = fixture(); f.run.pull_requests = [];
     f.routes[`${f.prefix}/commits/${f.sha}/pulls`] = [f.pull];
@@ -236,7 +254,8 @@ describe("archive orchestration and current authority", () => {
       [`${active}design.md`]: "## Context\nInternal tooling fixture.\n",
       [`${active}tasks.md`]: "## Tasks\n- [x] 1.1 Implement and verify the internal refactor.\n",
     };
-    const trees = new Map([[f.sha, source], [f.target, source], [f.spec, {} as Record<string, string>]]);
+    f.pull.body = '```openspec-implementation\n{"version":2,"change":"example"}\n```';
+    const trees = new Map([[f.sha, source], [f.pull.merge_commit_sha, source], [f.target, source], [f.spec, {} as Record<string, string>]]);
     const blobs = new Map<string, Buffer>();
     const reader = { ...f.reader, async get(path: string) {
       const sha = /\/git\/trees\/([a-f0-9]{40})\?/.exec(path)?.[1];

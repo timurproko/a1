@@ -4,22 +4,27 @@ The archive workflow handles accepted implementation merges into `develop`, a da
 
 Documentation CI installs only the pinned OpenSpec archive tool into runner temporary storage, not the repository dependency tree. Candidate validation selects that installation with `--tool-root`; the override is unavailable to publication and audit modes. The documentation job has read-only contents, PR, and Actions permissions; the existing merge owner also declares Actions read access for checking source validation.
 
+## One draft PR from planning through implementation
+
+A new implementation-bound change starts as OpenSpec-only artifacts in one draft PR, not a plan merged ahead of its implementation. Planning requests authorize no code. The agent prepares the link below while opening that draft. After explicit plan approval and an implementation request, continue in the same worktree, branch, history, and PR; reconcile approved planning refinements before their code edits and include related product documentation there too.
+
+Keep the PR draft while incomplete, then make it ready for final review. Approval to implement is not final acceptance or merge authorization. The completed PR still requires required CI, actual final-head maintainer review, and explicit manual integration. The documentation merge owner holds implementation-associated PRs and new active changes even if marked ready or their marker is removed. PR body edits trigger reconciliation and disable an excluded armed merge. Ordinary docs, standalone revisions to existing merged plans, and verified archive moves remain automatic under the exact path allowlist.
+
 ## Normal implementation handoff
 
-The delivery agent adds one block to the implementation PR description, linking the original merged specification PR that introduced the change:
+The delivery agent adds one version-2 block to the initial draft PR description. It identifies the plan and implementation in that same PR, without `specificationPr`:
 
 ````markdown
 ```openspec-implementation
 {
-  "version": 1,
+  "version": 2,
   "change": "example-change",
-  "specificationPr": 123,
   "archivePreparationTasks": { "recordEvidence": "7.1", "stageArchive": "7.2" }
 }
 ```
 ````
 
-Omit `archivePreparationTasks` when all tasks are already complete. If used, the mapped task IDs must have exactly these descriptions:
+The minimal link is `{ "version": 2, "change": "example-change" }`. Version 2 verifies that the linked artifacts are present and identical in the accepted source and implementation merge; it never invents a separate specification PR. Omit `archivePreparationTasks` when no mechanical task mapping is needed. If used, the mapped task IDs must have exactly these descriptions:
 
 ```markdown
 - [ ] 7.1 Record verified implementation acceptance and merge evidence for archive preparation.
@@ -48,9 +53,26 @@ After the maintainer actually accepts the final candidate, record one authorized
 
 The placeholders intentionally fail validation. The agent fills actual identities and reports; it must never invent a positive review. The spec baseline is an ancestor commit containing the canonical requirements against which the maintainer reviewed the deltas. It is not automatically moved to a newer baseline to conceal conflicts.
 
-The comment author needs repository write/maintain/admin authority. A newer head needs renewed acceptance; missing, edited, contradictory, revoked, stale, or known-gap records block the automatic route. Version 1 requires one unambiguous current-head acceptance record. Earlier-head records are retained; same-head contradictions or a later conflicting record require explicit reconciliation before retrying. Source acceptance is copied into the archived `acceptance.md` with PR, head, merge, check-run, and comment provenance.
+The comment author needs repository write/maintain/admin authority. A newer head needs renewed acceptance; missing, edited, contradictory, revoked, stale, or known-gap records block the automatic route. Acceptance records remain version 1 and require one unambiguous current-head acceptance record. Earlier-head records are retained; same-head contradictions or a later conflicting record require explicit reconciliation before retrying. Source acceptance is copied into the archived `acceptance.md` with PR, head, merge, check-run, and comment provenance.
 
 The code PR still requires explicit manual merge authorization. After that merge, no additional archive request is needed for an eligible change. Planning-only and archive PRs never count as implemented changes. Existing `acceptance.md` files require manual reconciliation rather than being silently overwritten.
+
+## Rejection, standalone docs, and legacy migration
+
+- **New draft rejected:** if `example-change` never merged, close its PR. Neither its plan nor code lands on `develop`, and no main-branch reconciliation or completed-change archive is required. Closing alone does not authorize deleting an unmerged branch or dirty worktree; follow separate cleanup approvals.
+- **Legacy merged plan rejected:** preserve its historical merge. Obtain an explicit reconciliation disposition; do not claim successful implementation or archive it as complete.
+- **Legacy implementation continues:** keep the existing PR (for example #376 following #362), or create an isolated implementation stream only if none exists and implementation is explicitly requested. Retain the original version-1 link; the historical specification merge and ancestry are still verified. Unknown versions and version-2 links containing `specificationPr` are rejected.
+- **Standalone docs/revision:** an unassociated non-draft README/docs PR or revision of an already-present active change retains the usual CI-gated automatic path. Renaming an archive into a new active plan establishes a hold; moving a completed active change into its archive does not.
+
+Legacy link example:
+
+````markdown
+```openspec-implementation
+{ "version": 1, "change": "legacy-change", "specificationPr": 123 }
+```
+````
+
+The repository-owned [change-delivery skill](../.agents/skills/change-delivery/SKILL.md) follows these boundaries without changing external or globally installed skills. This bootstrap still needs live evidence of the new draft/approval/same-PR/refinement lifecycle, a ready-but-unimplemented plan remaining held, rejection without archival, an ordinary docs control, and accepted merge through automatic archival. Unit tests are not that evidence.
 
 ## One-time publication setup
 

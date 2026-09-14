@@ -127,6 +127,7 @@ describe("documentation auto-merge workflow", () => {
     expect(workflow).toContain("workflows: [Development validation]");
     expect(workflow).toContain("pull_request_target:");
     expect(workflow).toContain("auto_merge_enabled");
+    expect(workflow).toMatch(/types: \[[^\]]*\bedited\b/);
     expect(workflow).toContain("ref: ${{ github.event.repository.default_branch }}");
     expect(workflow).toContain("contents: write");
     expect(workflow).toContain("pull-requests: write");
@@ -224,6 +225,73 @@ describe("documentation auto-merge workflow", () => {
   });
 });
 
+describe("single-PR implementation holds", () => {
+  const link = '```openspec-implementation\n{"version":2,"change":"example"}\n```';
+  it.each([link, '```openspec-implementation\n{"version":99,"change":"example"}\n```', '```openspec-implementation\n{'])
+    ("disables an armed PR on association edits, including malformed metadata %#", async body => {
+      const result = await runManager({ action: "edited", pull_request: { number: 42, body: "stale event body" } },
+        pullFixture({ body, auto_merge: { merge_method: "squash" } }));
+      expect(result.requests.some(request => request.body.includes("disablePullRequestAutoMerge"))).toBe(true);
+      expect(result.requests.some(request => request.body.includes("enablePullRequestAutoMerge") || request.method === "PUT")).toBe(false);
+      expect(result.stdout).toContain("manual implementation hold");
+    });
+
+  it.each([false, true])("holds an introduced active plan after marker removal (renamed=%s)", async renamed => {
+    const result = await runManager({ action: "edited", pull_request: { number: 42, body: link } },
+      pullFixture({ body: "", auto_merge: { merge_method: "squash" } }), { respond: request => {
+        if (request.url.includes("/files?")) return { body: [{ filename: "openspec/changes/example/proposal.md",
+          status: renamed ? "renamed" : "added", ...(renamed ? { previous_filename: "docs/plan.md" } : {}) }] };
+        if (request.url.includes("/git/trees/")) return { body: { truncated: false,
+          tree: request.url.includes(headSha) ? [{ path: "openspec/changes/example/proposal.md", mode: "100644", type: "blob", sha: "c".repeat(40) }] : [] } };
+        return undefined;
+      } });
+    expect(result.stdout).toContain("introduced-active-change");
+    expect(result.requests.some(request => request.body.includes("disablePullRequestAutoMerge"))).toBe(true);
+    expect(result.requests.some(request => request.method === "PUT")).toBe(false);
+  });
+
+  it("does not reuse a lifecycle decision when the body changes on the same head during retry", async () => {
+    const result = await runManager(validationEvent(), [pullFixture(),
+      pullFixture({ body: link, mergeable_state: "clean", auto_merge: { merge_method: "squash" } })], { respond: rejectUnstableEnable });
+    expect(result.requests.some(request => request.body.includes("disablePullRequestAutoMerge"))).toBe(true);
+    expect(result.requests.some(request => request.method === "PUT")).toBe(false);
+    expect(result.stdout).toContain("implementation-associated");
+  });
+
+  it("allows a standalone existing-plan revision with authoritative trees", async () => {
+    const result = await runManager(validationEvent(), pullFixture({ mergeable_state: "clean" }), { respond: request => {
+      if (request.url.includes("/files?")) return { body: [{ filename: "openspec/changes/example/design.md", status: "added" }] };
+      if (request.url.includes("/git/trees/")) return { body: { truncated: false,
+        tree: [{ path: "openspec/changes/example/.openspec.yaml", type: "blob", mode: "100644", sha: "c".repeat(40) }] } };
+      return undefined;
+    } });
+    expectMerge(result.requests);
+  });
+
+  it("disables an armed merge if tree or complete-diff evidence cannot be verified", async () => {
+    const result = await runManager(validationEvent(), pullFixture({ auto_merge: { merge_method: "squash" } }), {
+      expectFailure: true, respond: request => {
+        if (request.url.includes("/files?")) return { body: [{ filename: "openspec/changes/example/proposal.md", status: "modified" }] };
+        if (request.url.includes("/git/trees/")) return { status: 503, body: { message: "unavailable" } };
+        return undefined;
+      },
+    });
+    expect(result.exitCode).not.toBe(0);
+    expect(result.requests.some(request => request.body.includes("disablePullRequestAutoMerge"))).toBe(true);
+    expect(result.requests.some(request => request.method === "PUT")).toBe(false);
+    const incomplete = await runManager(validationEvent(), pullFixture({ changed_files: 2, auto_merge: { merge_method: "squash" } }), { expectFailure: true });
+    expect(incomplete.stderr).toContain("incomplete changed-file response");
+    expect(incomplete.requests.some(request => request.body.includes("disablePullRequestAutoMerge"))).toBe(true);
+  });
+
+  it("does not merge or archive a rejected unmerged draft", async () => {
+    const result = await runManager({ action: "edited", pull_request: { number: 42 } },
+      pullFixture({ state: "closed", draft: true, merged: false, body: link }));
+    expectNoMutation(result.requests);
+    expect(result.stdout).toContain("closed without merge");
+  });
+});
+
 describe("documentation auto-merge state recovery", () => {
   it.each([false, true])("merges a validated unstable head (armed=%s) and cleans its branch", async armed => {
     const result = await runManager(validationEvent(), pullFixture({
@@ -316,7 +384,7 @@ describe("documentation auto-merge state recovery", () => {
 
   it.each([false, true])("reclassifies the complete refreshed diff including renamed-from code (rename=%s)", async renamed => {
     const result = await runManager(validationEvent(), [
-      pullFixture(), pullFixture({ mergeable_state: "unstable", auto_merge: { merge_method: "squash" } }),
+      pullFixture(), pullFixture({ mergeable_state: "unstable", auto_merge: { merge_method: "squash" }, changed_files: 101 }),
     ], {
       respond: (request, requests) => {
         if (requests.filter(item => item.url === pullUrl).length > 1 && request.url.includes("/files?")) {
@@ -486,7 +554,9 @@ function pullFixture(overrides: Record<string, unknown> = {}): Record<string, un
     state: "open",
     node_id: "pull-request-node-42",
     draft: false,
-    base: { ref: "develop" },
+    body: "",
+    changed_files: 1,
+    base: { ref: "develop", sha: "b".repeat(40) },
     head: { ref: "docs/example", sha: headSha, repo: { full_name: "owner/repository" } },
     auto_merge: null,
     mergeable: true,

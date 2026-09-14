@@ -1,3 +1,4 @@
+import { snapshotOpenSpec } from "./openspec-archive-staging.mjs";
 import { archiveFailure, assertMergedImplementation, parseImplementation, parseAcceptance, selectAcceptance, SHA } from "./openspec-archive-policy.mjs";
 
 export function createArchiveReader({ repository, token, fetchImpl = fetch, apiUrl = "https://api.github.com", deadline = Infinity }) {
@@ -62,14 +63,23 @@ export async function loadArchiveEvidence(reader, number) {
     if (!SHA.test(targetSha ?? "")) throw archiveFailure("target-identity");
     await ancestor(pull.merge_commit_sha, targetSha);
 
-    const specification = await get(`${prefix}/pulls/${implementation.specificationPr}`);
-    if (specification.merged !== true || specification.base?.ref !== "develop"
-      || specification.base.repo?.full_name !== repository || !SHA.test(specification.merge_commit_sha ?? "")
-      || Date.parse(specification.merged_at) >= Date.parse(pull.merged_at)) throw archiveFailure("specification-merge");
-    await ancestor(specification.merge_commit_sha, pull.head.sha);
-    const specFiles = await pages(`/pulls/${implementation.specificationPr}/files`, 3000);
-    if (specFiles.length !== specification.changed_files || !specFiles.some(file => file.status === "added"
-      && file.filename === `openspec/changes/${implementation.change}/.openspec.yaml`)) throw archiveFailure("specification-change-link");
+    if (implementation.version === 1) {
+      const specification = await get(`${prefix}/pulls/${implementation.specificationPr}`);
+      if (specification.merged !== true || specification.base?.ref !== "develop"
+        || specification.base.repo?.full_name !== repository || !SHA.test(specification.merge_commit_sha ?? "")
+        || Date.parse(specification.merged_at) >= Date.parse(pull.merged_at)) throw archiveFailure("specification-merge");
+      await ancestor(specification.merge_commit_sha, pull.head.sha);
+      const specFiles = await pages(`/pulls/${implementation.specificationPr}/files`, 3000);
+      if (specFiles.length !== specification.changed_files || !specFiles.some(file => file.status === "added"
+        && file.filename === `openspec/changes/${implementation.change}/.openspec.yaml`)) throw archiveFailure("specification-change-link");
+    } else {
+      const active = `openspec/changes/${implementation.change}/`;
+      const source = await snapshotOpenSpec(reader, pull.head.sha);
+      const merged = await snapshotOpenSpec(reader, pull.merge_commit_sha);
+      if (!source.entries.has(`${active}.openspec.yaml`) || !merged.entries.has(`${active}.openspec.yaml`)) throw archiveFailure("implementation-change-missing");
+      const selected = snapshot => [...snapshot.entries].filter(([path]) => path.startsWith(active)).sort(([a], [b]) => a.localeCompare(b));
+      if (JSON.stringify(selected(source)) !== JSON.stringify(selected(merged))) throw archiveFailure("implementation-change-drift");
+    }
 
     const comments = await pages(`/issues/${number}/comments`);
     const evidenceComments = [];

@@ -4,12 +4,10 @@ export const ARCHIVE_TASKS: Readonly<Record<"recordEvidence" | "stageArchive", s
 export const SHA: RegExp;
 export const CHANGE: RegExp;
 export interface ArchiveFailure extends Error { archiveCode: string; archiveDetail: string }
-export interface ImplementationMetadata {
-  version: 1;
+export type ImplementationMetadata = {
   change: string;
-  specificationPr: number;
   archivePreparationTasks?: Partial<Record<keyof typeof ARCHIVE_TASKS, string>>;
-}
+} & ({ version: 1; specificationPr: number } | { version: 2; specificationPr?: never });
 export interface AcceptanceMetadata {
   version: 1;
   change: string;

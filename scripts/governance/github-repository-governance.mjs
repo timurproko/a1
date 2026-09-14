@@ -46,6 +46,7 @@ export function inspectWorkflowSource(path, source) {
   if (line(/^  pull_request:\s*$/m)) triggers.push("pull_request");
   if (line(/^  pull_request_target:\s*$/m)) {
     triggers.push(line(/^\s+types: \[closed\]\s*$/m) ? "pull_request_target:closed" : "pull_request_target");
+    if (line(/^\s+types: \[[^\]\n]*\bedited\b[^\]\n]*\]/m)) triggers.push("pull_request_target:edited");
   }
   if (line(/^  workflow_run:\s*$/m)) triggers.push("workflow_run");
   if (line(/^  workflow_dispatch:\s*/m)) triggers.push("workflow_dispatch");

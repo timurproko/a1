@@ -3,7 +3,7 @@ name: Documentation auto-merge
 on:
   pull_request_target:
     branches: [develop]
-    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft, auto_merge_enabled]
+    types: [opened, synchronize, reopened, edited, ready_for_review, converted_to_draft, auto_merge_enabled]
   workflow_run:
     workflows: [Development validation]
     types: [completed]

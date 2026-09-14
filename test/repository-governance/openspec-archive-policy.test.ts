@@ -30,6 +30,15 @@ describe("archive evidence metadata", () => {
     expect(parseImplementation(`\`\`\`markdown\n${block("openspec-implementation", implementation)}\n\`\`\``)).toBeNull();
   });
 
+  it("accepts the minimal version-2 link and preserves version-1 legacy linkage", () => {
+    const value = { version: 2, change: "example-change" };
+    expect(parseImplementation(block("openspec-implementation", value))).toEqual(value);
+    expect(parseImplementation(block("openspec-implementation", { ...value, archivePreparationTasks: { stageArchive: "7.2" } }))).toMatchObject({ version: 2 });
+    expect(() => parseImplementation(block("openspec-implementation", { ...value, specificationPr: 10 }))).toThrow("metadata-fields");
+    expect(() => parseImplementation(block("openspec-implementation", { ...value, version: 1 }))).toThrow("specification-pr");
+    expect(() => parseImplementation(block("openspec-implementation", { ...value, version: 3 }))).toThrow("implementation-identity");
+  });
+
   it("rejects duplicate JSON keys, including escaped aliases", () => {
     expect(() => parseImplementation('```openspec-implementation\n{"version":1,"version":2,"change":"example","specificationPr":1}\n```')).toThrow("metadata-duplicate-key");
     expect(() => parseImplementation('```openspec-implementation\n{"version":1,"\\u0076ersion":1,"change":"example","specificationPr":1}\n```')).toThrow("metadata-duplicate-key");
