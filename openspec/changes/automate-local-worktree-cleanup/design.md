@@ -91,7 +91,7 @@ CI covers every spec scenario with GitHub fixtures and real temporary Git worktr
 ## Migration Plan
 
 1. Publish this plan as OpenSpec-only artifacts in an implementation-bound draft PR. Do not merge the planning-only draft or synchronize its new capability yet.
-2. After explicit implementation approval, implement and validate in that same draft; add the local command, focused tests, ownership-aware delivery guidance, and runbook without modifying the remote lifecycle's authority.
+2. After explicit implementation approval, implement in that same draft; add the local command, focused tests, ownership-aware delivery guidance, and runbook without modifying the remote lifecycle's authority. Apply connected PR #401's order: mark the completed implementation ready before normal PR CI, then obtain actual maintainer validation and explicit manual merge authorization. Incorporating its policy in this branch does not merge or accept either PR.
 3. Run preview against disposable fixtures first. Obtain separate approval to enable the watcher and perform the isolated live lifecycle acceptance; record actual results before final acceptance and manual integration.
 4. New managed streams register their worktrees when local cleanup is enabled. Existing unregistered folders remain untouched unless individually adopted and released after review.
 5. After this change's own accepted merge and verified automatic archival, subsequent released worktrees are eligible for cleanup under the same rules. Roll back by disabling/stopping the local worker; retain queue/journals and remote automation unchanged. Recreate only already-removed clean checkouts from their recorded commits if needed.

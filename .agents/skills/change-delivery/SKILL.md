@@ -17,6 +17,16 @@ Resolve links from this skill directory. Read [project workflow](../../../opensp
 6. After applicable CI passes, hand off for actual maintainer validation using the project manual-test command format. Ready status is not acceptance. Prepare the exact-final-head acceptance comment only from actual reported outcomes using the runbook; then merge implementation manually only with explicit authorization. Never enable code or implementation-bound auto-merge. New candidate commits require current-head CI and renewed acceptance; never fabricate review or auto-check substantive work. Only the two exact optional mechanical archive tasks may remain for their corresponding verified operations.
 7. After the accepted implementation merges, let the archive workflow record verified evidence, synchronize canonical specs, and prepare the OpenSpec-only archive PR. That follow-up uses documentation auto-merge after its own required CI. Confirm archive **integration**, not just creation, before eligible owning-agent cleanup of retained task/acceptance worktrees under the existing ownership and cleanliness checks. Do not remove another session's worktree or treat remote-branch deletion as proof that local cleanup is safe.
 
+## Local cleanup handoff
+
+Follow [local cleanup](../../../docs/local-worktree-cleanup.md) when the maintainer has explicitly enabled it. Use only the reviewed tool in the primary/stable checkout for mutation; do not launch a worker from a removable task checkout or silently install a service.
+
+- After the PR identity is known, register only this session's exact task/acceptance/archive checkout with a private owner token. Record the returned ID and generation privately. Registration does not release ownership or authorize acceptance.
+- Claim a released registration before resuming work. A dead PID, elapsed time, clean status, or missing remote branch is never permission to take another session's worktree.
+- Stop related development processes and leave the worktree before releasing its final HEAD/ref. Release only when this session no longer needs it, and request an enabled bounded `once` pass from the stable checkout. An already running watcher can observe later archive integration independently.
+- The reconciler must still verify accepted implementation and automatic archive integration, live topic-ref absence, exact identity, and all local safety gates. Report pending/blocked/partial results honestly; do not force-discard files, bypass stale ownership, or globally prune unrelated registrations.
+- If cleanup is disabled, unregistered, or no worker is running, retain the worktree and state the pending local handoff. Enabling or starting a live watcher needs separate authorization, not merely an implementation request.
+
 ## Reject, revise, or migrate
 
 - **Rejected new draft:** close without merging. No plan/code from this stream landed on `develop`; no main-branch reconciliation or completed-change archive is needed. Closing does not authorize deleting an unmerged branch or dirty worktree; obtain the separate approvals required by project policy.
