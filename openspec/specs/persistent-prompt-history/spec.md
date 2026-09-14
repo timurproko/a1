@@ -7,27 +7,59 @@ Defines durable, profile-isolated recall of user-submitted prompts across bare-A
 ## Requirements
 
 ### Requirement: Prompt history lives in profile-isolated application data
-Bare A1 SHALL keep durable prompt history at `<A1 dataDir>/history/<profile-id>.sqlite3`, separately from control metadata and agent resources. The data root SHALL follow existing product-path policy, including `A1_DATA_DIR`, the Windows `%LOCALAPPDATA%/a1` default, and current Unix `$XDG_DATA_HOME/a1` or `~/.local/share/a1` defaults. Profile identity SHALL be stable for the same normalized effective A1 profile root across launches and releases, independent of cwd and session identity. Different effective profile roots SHALL have different history identities.
+Bare A1 SHALL keep durable prompt history at `<history-root>/history/<profile-id>.sqlite3`, separately from control metadata and agent resources. Without an explicit `A1_DATA_DIR`, the history root SHALL be `<effective-home>/.a1/data` on Windows, Linux, and macOS. The effective home SHALL follow the existing A1 launch-profile home policy, including `A1_PROFILE_HOME`. An explicit `A1_DATA_DIR` SHALL select the history root instead, retaining its existing path-resolution behavior. This history-only default change SHALL NOT relocate other product data, settings, agent resources, releases, runtime files, logs, or caches.
+
+Profile identity SHALL be stable for the same normalized effective A1 profile root across launches and releases, independent of cwd, session identity, and the history storage root. The existing profile identity algorithm and database schema SHALL remain compatible. Different effective profile roots SHALL have different history identities.
+
+Default history access SHALL NOT probe, read, migrate, copy, merge, modify, delete, or fall back to the former platform history locations. If the selected new location has no database, A1 SHALL initialize an empty durable store through its ordinary enabled-history startup. Existing local recall and loaded-conversation fallback SHALL remain unchanged and SHALL NOT import old durable history. Disabled persistence and the Pi comparison SHALL NOT initialize A1 history storage or access either default history location.
 
 #### Scenario: Use the default Windows location
-- **WHEN** an enabled bare-A1 instance first needs history with no data-directory override
-- **THEN** its database and any journal sidecars SHALL live under `%LOCALAPPDATA%/a1/history`
-- **AND** no history database SHALL be created under `~/.a1/agent`, `~/.a1/cache`, the repository, or the release payload
+- **WHEN** an enabled bare-A1 instance first needs history with effective home `C:/Users/Example` and no data-directory override
+- **THEN** its database and any journal sidecars SHALL live under `C:/Users/Example/.a1/data/history`
+- **AND** no history database SHALL be created under `%LOCALAPPDATA%/a1/history`, `~/.a1/agent`, `~/.a1/cache`, the repository, or the release payload
 - **AND** prompt content SHALL NOT be written into `control.sqlite3`
 
 #### Scenario: Override the application-data root
 - **WHEN** A1 starts with `A1_DATA_DIR` set to an isolated directory
 - **THEN** all history database and sidecar access SHALL use that directory's `history` child
 - **AND** it SHALL NOT read, copy, or mutate history at the default root
+- **AND** the override SHALL take precedence over `A1_PROFILE_HOME` for history storage without changing profile identity
 
 #### Scenario: Reuse a profile across projects and launches
-- **WHEN** two bare-A1 processes use the same effective profile and data root from different projects or release checkouts
+- **WHEN** two bare-A1 processes use the same effective profile and history root from different projects or release checkouts
 - **THEN** they SHALL address the same durable history without grouping recall by project or prioritizing the current session over committed recency
 
 #### Scenario: Keep overridden profiles separate
-- **WHEN** two different effective A1 profile roots share one data directory
+- **WHEN** two different effective A1 profile roots share one history root
 - **THEN** each SHALL read and modify only its own history
 - **AND** matching prompt text or session labels SHALL NOT merge the profiles
+
+#### Scenario: Use the default Linux or macOS location
+- **WHEN** an enabled bare-A1 instance starts on Linux or macOS with effective home `H` and no data-directory override
+- **THEN** its database and sidecars SHALL live under `H/.a1/data/history`
+- **AND** setting `XDG_DATA_HOME` SHALL NOT relocate default prompt history
+- **AND** the existing platform locations for all other product data SHALL remain unchanged
+
+#### Scenario: Respect the effective profile home
+- **WHEN** A1 uses `A1_PROFILE_HOME=H` without an explicit data-directory override
+- **THEN** its default history root SHALL be `H/.a1/data`
+- **AND** it SHALL NOT use the operating-system home or the parent of a separately overridden agent-profile directory as an alternative default history root
+
+#### Scenario: Old default history exists on first launch after the change
+- **WHEN** no data-directory override is set, the new profile database is absent, and history exists at the former platform default
+- **THEN** A1 SHALL begin with an empty durable history at the new location
+- **AND** it SHALL NOT access or alter the old database or its sidecars
+- **AND** subsequent launches SHALL NOT perform automatic old-location cleanup or import
+
+#### Scenario: The selected history root is unavailable
+- **WHEN** the new default root cannot be opened or written
+- **THEN** A1 SHALL record a bounded, sanitized developer-only persistence failure without normal UI or terminal output and retain current-session functionality
+- **AND** it SHALL NOT fall back to the former platform root or another directory
+
+#### Scenario: Persistence is disabled or the comparison is launched
+- **WHEN** bare A1 starts with persistence disabled or the user launches the Pi comparison
+- **THEN** it SHALL NOT initialize, probe, or clean up A1's home or former default history stores
+- **AND** its existing current-session history behavior SHALL remain unchanged
 
 ### Requirement: Only classified user submissions enter durable recall
 A1 SHALL persist at most one history update per nonempty, successfully prepared interactive user submission, independently of provider completion. Eligible inputs SHALL include ordinary prompts, steering, follow-ups, inputs queued during compaction, nonempty user bash commands, and user-entered skill/template/extension slash inputs routed as prompts. Built-in workflow or owned-app commands that bypass existing history SHALL remain excluded. Durable history SHALL NOT be an event log of engine output, automatic extension messages, transcript replay, recovery callbacks, or unsubmitted suggestions.
@@ -175,7 +207,7 @@ History loading and cross-process refresh SHALL be asynchronous and SHALL NOT bl
 - **AND** background waits, retries, queued bytes, and refresh requests SHALL remain bounded rather than growing indefinitely
 
 ### Requirement: Persistence failures and shutdown preserve honest durability
-A1 SHALL preserve committed history across ordinary restart and transactional crash recovery. A hard termination before asynchronous commit is not guaranteed to preserve pending candidates. Graceful shutdown SHALL attempt a bounded flush without trapping exit. Read, write, corruption, schema, and permission failures SHALL degrade only durable recall, preserve current-session functionality, and report sanitized bounded failures without exposing prompt content. Corrupt or newer-schema databases SHALL NOT be silently erased, overwritten, or downgraded.
+A1 SHALL preserve committed history across ordinary restart and transactional crash recovery. A hard termination before asynchronous commit is not guaranteed to preserve pending candidates. Graceful shutdown SHALL attempt a bounded flush without trapping exit. Read, write, corruption, schema, and permission failures SHALL degrade only durable recall and preserve current-session functionality. Background-history failure and recovery diagnostics SHALL be sanitized, bounded, developer-only evidence and SHALL NOT appear in normal user-facing notifications, status text, transcript, stdout, stderr, or post-exit terminal output. Corrupt or newer-schema databases SHALL NOT be silently erased, overwritten, or downgraded. Silence SHALL NOT be presented as proof that an uncertain or skipped write was committed.
 
 #### Scenario: Restart after committed input
 - **WHEN** an eligible prompt has committed and A1 restarts or creates a fresh session in the same profile
@@ -189,14 +221,17 @@ A1 SHALL preserve committed history across ordinary restart and transactional cr
 - **WHEN** shutdown begins with pending writes
 - **THEN** A1 SHALL attempt to flush and close within two seconds
 - **AND** a failed or timed-out flush SHALL NOT prevent exit or be described as successfully persisted
+- **AND** background-history warnings SHALL NOT be printed before or after terminal restoration
 
 #### Scenario: Open an unsupported or damaged store
 - **WHEN** the history database is corrupt, identifies another profile, or has a newer unsupported schema
-- **THEN** A1 SHALL preserve its files, report the bounded failure, and continue with current-session recall
+- **THEN** A1 SHALL preserve its files, record only bounded developer diagnostics, and continue with current-session recall
 - **AND** it SHALL NOT retry uncertain submissions automatically after losing the storage worker
 
 ### Requirement: History is private durable state rather than disposable cache
-A1 SHALL protect history files and sidecars with owner-restrictive access where supported and SHALL never include their contents in logs, crash records, or validation evidence. Documentation SHALL identify history as unencrypted potentially sensitive user text, explain retention and next-start opt-out, and describe removal only after all instances using that profile have stopped. Disabling persistence SHALL leave existing records intact. Release rollback, cache cleanup, and conversation deletion SHALL NOT implicitly clear history. No legacy import SHALL occur without a separately declared explicit operation.
+A1 SHALL protect history files and sidecars with owner-restrictive access where supported and SHALL never include their contents in logs, crash records, or validation evidence. These protections SHALL apply at the home-based default as well as explicitly overridden roots. Documentation SHALL identify history as unencrypted potentially sensitive user text, state its default and override locations, explain retention and next-start opt-out, and describe removal only after all instances using that profile have stopped. Documentation SHALL explain that the default-location change starts fresh without importing or deleting the old history.
+
+Disabling persistence SHALL leave existing records intact. Upgrades, ordinary npm uninstall/reinstall, release rollback, cache cleanup, and conversation deletion SHALL NOT implicitly clear history. A1 SHALL NOT add automatic old-location deletion as part of the default-location change. No legacy import SHALL occur without a separately declared explicit operation.
 
 #### Scenario: Clean caches or upgrade A1
 - **WHEN** cache/dependency/release cleanup, an upgrade, or release rollback runs
@@ -204,8 +239,51 @@ A1 SHALL protect history files and sidecars with owner-restrictive access where 
 
 #### Scenario: Inspect diagnostics after a storage failure
 - **WHEN** a storage operation fails on a prompt containing sensitive text
-- **THEN** logs and visible failure diagnostics SHALL contain only bounded classified failure information, not prompt text, SQL values, arbitrary exception payloads, or private provenance
+- **THEN** bounded developer-only diagnostics SHALL contain only bounded classified failure information, not prompt text, SQL values, arbitrary exception payloads, or private provenance; background-history failures SHALL NOT appear in normal UI or terminal output
 
 #### Scenario: Existing prototype history is present
 - **WHEN** A1 starts on a machine containing v2, Pi, or Claude history
 - **THEN** it SHALL neither read nor import nor modify those histories automatically
+
+#### Scenario: Uninstall and reinstall the package
+- **WHEN** the user performs an ordinary npm uninstall and reinstall without explicitly deleting user data
+- **THEN** existing history files and sidecars SHALL remain untouched
+- **AND** a compatible version using the same profile and history root SHALL recall the retained prompts
+
+### Requirement: Transient history failures recover automatically within bounded resources
+A1 SHALL distinguish transient database contention and recoverable worker failures from incompatible or corrupt storage. A transient failure SHALL NOT permanently disable durable recall for an otherwise live UI instance. Once storage becomes available, eligible bounded pending work whose non-commit is known, new submissions, and cross-process refresh SHALL resume automatically without user action. Recovery SHALL NOT block input or dispatch, mutate an active browsing snapshot or draft, create overlapping writers, or replay an uncertain write as a fresh submission. Retry delays, per-operation retention, queued count/bytes, timers, and workers SHALL remain bounded.
+
+#### Scenario: A competing process holds the history database
+- **WHEN** the same-profile database remains busy beyond the current short retry window and becomes available before the documented pending-write retention deadline
+- **THEN** confirmed-uncommitted eligible pending submissions SHALL commit in their original local order, subject to the existing shared commit ordering and retention rules
+- **AND** refresh and persistence SHALL resume in the same UI instance without a warning or restart
+
+#### Scenario: A reply arrives later than the ordinary operation deadline
+- **WHEN** a history operation is delayed but its worker can still report the definitive result
+- **THEN** A1 SHALL match the result to that operation and worker generation rather than duplicating the write or failing all future history work
+- **AND** only a confirmed commit SHALL count as persisted
+
+#### Scenario: A worker is lost during a possible commit
+- **WHEN** a worker is terminated or stops responding after a write was sent and before its commit result is known
+- **THEN** A1 SHALL keep that prompt available locally without blindly resubmitting the uncertain operation or advancing its durable recency again
+- **AND** after the old worker is confirmed stopped, a replacement SHALL restore compatible storage access for future work and reconcile confirmed saved entries
+- **AND** late messages from the old worker SHALL NOT mutate the replacement service or editor
+
+#### Scenario: Contention persists or recovery capacity is exhausted
+- **WHEN** bounded retry or pending-work limits are reached
+- **THEN** A1 SHALL retain the existing bounded local recall, settle affected persistence operations truthfully, and keep future recovery probes bounded
+- **AND** submission and exit SHALL remain responsive with no background-history warning text
+
+#### Scenario: Dispose or replace the UI during recovery
+- **WHEN** shutdown, profile replacement, or service disposal begins with a recovery timer or worker transition pending
+- **THEN** obsolete work SHALL NOT spawn another worker, attach another polling loop, modify the new profile, or overwrite its editor state
+- **AND** all admitted persistence promises SHALL settle within the applicable operation or shutdown bound
+
+### Requirement: History resilience is verified independently of diagnostic visibility
+Acceptance SHALL demonstrate actual same-instance recovery, safe commit accounting, and bounded resource use as well as absence of background-history messages. Removing or renaming the warning alone SHALL NOT satisfy the change.
+
+#### Scenario: Exercise contention while using the editor
+- **WHEN** isolated concurrent-process validation holds and releases a database lock while the user types, browses, and submits
+- **THEN** eligible confirmed-uncommitted prompts SHALL become recallable after recovery and a subsequent launch
+- **AND** draft, browse ordering, cursor behavior, input responsiveness, and configured retention SHALL remain intact
+- **AND** captured notifications, status, transcript, stdout, stderr, and exit output SHALL contain no prompt-history failure or recovery notices

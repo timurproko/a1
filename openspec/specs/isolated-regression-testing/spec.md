@@ -185,3 +185,199 @@ Automated tests that repeatedly create repositories, launch subprocesses, mutate
 #### Scenario: An ordinary test is not resource-sensitive
 - **WHEN** a fast test has no declared resource-sensitive ownership and no other isolation requirement
 - **THEN** it SHALL remain in the ordinary parallel remainder
+
+### Requirement: Release retention and cleanup receive exact-state regression coverage
+Release validation SHALL exercise bounded retention migration, live superseded cohorts, rollback protection, active update transactions, external holds, interrupted cleanup, malformed paths, stale candidates, worker continuation and observability, fair retry scheduling, legacy Windows path casing, and production-shaped historical backlogs in isolated data and runtime roots.
+
+#### Scenario: Large legacy retention set is migrated
+- **WHEN** an isolated exact-package fixture contains at least forty valid historical releases and a production-representative payload backlog under append-only retention with one active release, one rollback release, and one older live cohort
+- **THEN** one update SHALL preserve exactly the protected releases, detach every other known release, return without waiting for full deletion, and cause release count and disk usage to converge without a second user command
+
+#### Scenario: One batch cannot drain the backlog
+- **WHEN** item or duration limits stop a cleanup batch while ordinary eligible work remains
+- **THEN** the packaged worker SHALL continue or schedule another bounded batch until that work is complete
+
+#### Scenario: Preparation exceeds a batch duration
+- **WHEN** injected discovery, ownership, or durable-state preparation time exceeds the configured batch duration before any item is attempted
+- **THEN** the worker SHALL still attempt at least one eligible item and later batches SHALL converge
+
+#### Scenario: Cleanup is interrupted at each durable boundary
+- **WHEN** fault injection stops cleanup before state detachment, after detachment, after trash movement, during recursive deletion, or at worker startup and continuation boundaries
+- **THEN** automatic resumption SHALL converge without a dangling selector, deletion outside the managed store, or loss of a protected release
+
+#### Scenario: Worker execution fails before an item attempt
+- **WHEN** the packaged cleanup entry cannot import or its worker fails at top level
+- **THEN** durable evidence SHALL identify the incomplete run and every planned item SHALL remain safely retryable
+
+#### Scenario: Update and launch race with cleanup
+- **WHEN** isolated update, launch, cohort-retirement, and duplicate maintenance scheduling operations overlap
+- **THEN** every verified live or selected release SHALL remain executable, one physical cleanup owner SHALL operate per data root, and every obsolete release SHALL remain safely retryable
+
+#### Scenario: One item remains persistently blocked
+- **WHEN** one obsolete item repeatedly fails while other release and artifact classes remain eligible
+- **THEN** bounded retries SHALL preserve diagnostics for the blocked item while the other eligible work continues to completion
+
+#### Scenario: Windows holds an obsolete file temporarily
+- **WHEN** exact-package cleanup encounters a temporary Windows sharing or antivirus lock
+- **THEN** the operation SHALL remain bounded, preserve retry state and diagnostics, allow unrelated work to progress, and succeed after the lock is released
+
+#### Scenario: Legacy managed paths differ only by Windows casing
+- **WHEN** a migrated release record or certification path uses legacy casing for the same managed Windows directory
+- **THEN** cleanup SHALL accept the canonical managed identity, delete only the obsolete contained artifact, and preserve unrelated paths
+
+### Requirement: Development startup validation uses one required Windows runtime lane
+For non-draft pull requests into `develop` that are neither documentation-only nor version-only, Development validation SHALL run the complete Windows Node 22 startup lane and SHALL NOT schedule a Windows Node 24 startup lane. Manual invocation of Development validation SHALL use the same startup runtime selection. This is a validation-cadence decision, not removal of Node 24 runtime support or of tests from their retained scopes.
+
+The retained Node 22 lane SHALL preserve first-attempt exact-package startup checks, enabled Defender real-time protection, image preparation and packaged-worker coverage, durable-history coverage, and evidence artifacts. Performance limits, isolation, assertions, and failure semantics SHALL remain unchanged. Documentation-only and version-only startup exemptions, draft behavior, and all other required PR gates SHALL remain unchanged.
+
+#### Scenario: Applicable code PR is validated
+- **WHEN** a ready code/operational PR receives Development validation
+- **THEN** exactly one Windows startup lane SHALL run on Node 22
+- **AND** no Node 24 startup job SHALL be queued or required for that PR
+- **AND** all existing Node 22 startup-job checks SHALL execute without semantic retries or ignored failures
+
+#### Scenario: Exempt or draft PR is evaluated
+- **WHEN** a PR is documentation-only, version-only, or draft
+- **THEN** the existing applicable validation and startup-skip behavior SHALL be preserved rather than starting either startup lane unnecessarily
+
+#### Scenario: Development validation is manually dispatched
+- **WHEN** the maintainer invokes Development validation for a non-exempt source
+- **THEN** the startup portion SHALL run on Windows Node 22 only
+- **AND** full Windows Node 24 validation SHALL remain available through the separate Full regression workflow
+
+### Requirement: Required PR validation remains fail closed after runtime deferral
+The required development aggregate SHALL depend on successful current-head Node 22 startup validation for applicable PRs, without waiting for a Node 24 PR startup result. A failed, cancelled, missing, or unexpectedly skipped required startup result SHALL NOT be accepted as successful validation. Nightly or earlier-head results SHALL NOT substitute for current-head PR checks. The named protected-branch aggregate and every other required gate SHALL remain in force.
+
+#### Scenario: Required Node 22 startup succeeds
+- **WHEN** current-head Node 22 startup and every other selected required PR gate succeed
+- **THEN** the aggregate SHALL be able to succeed without any Node 24 PR startup result
+
+#### Scenario: Retained startup coverage does not succeed
+- **WHEN** an applicable PR's Node 22 startup job fails, is cancelled, is missing, or is unexpectedly skipped
+- **THEN** the required aggregate SHALL reject the result and integration SHALL remain blocked
+
+#### Scenario: Previous or nightly startup evidence is green
+- **WHEN** the current PR head lacks successful required validation but an earlier head or nightly run passed
+- **THEN** that other evidence SHALL NOT satisfy the PR's required aggregate
+
+### Requirement: Deferred Windows Node 24 coverage remains mandatory outside ordinary PR validation
+The existing scheduled nightly/release validation pipeline SHALL retain Windows Node 24 and Node 22, including first-attempt exact-package startup coverage with Defender enabled and unchanged budget, artifact-identity, and publication-gating rules. Manual Full regression SHALL retain both Windows runtimes and the complete existing non-physical suite. The tests currently run in the Node 24 PR startup job SHALL remain covered through the existing full-validation owners; this change SHALL NOT delete or weaken startup, image, history, or packaged-worker tests.
+
+No additional release may be published on the strength of the reduced PR matrix alone when the publication's own required validation is incomplete or failing. The existing nightly schedule, supported-platform matrix, release modes, and permission boundaries SHALL remain unchanged.
+
+#### Scenario: Scheduled nightly validation runs
+- **WHEN** the existing nightly pipeline validates its selected exact package
+- **THEN** Windows Node 24 and Node 22 SHALL retain their required validation with the original assertions and startup limits
+- **AND** failure of either required lane SHALL block its publication under the existing policy
+
+#### Scenario: Maintainer requests full validation before nightly
+- **WHEN** the Full regression workflow is manually dispatched
+- **THEN** it SHALL retain both Windows runtimes and the current complete non-physical validation, including the deferred Node 24 coverage
+
+#### Scenario: Cadence change is accepted
+- **WHEN** the reduced PR startup matrix is delivered for acceptance
+- **THEN** evidence SHALL identify a current-head PR run with only Node 22 startup, its successful aggregate, and retained Node 24 full-validation run evidence
+- **AND** workflow policy tests SHALL guard both the reduced PR selection and the preserved full-validation coverage
+- **AND** the handoff SHALL disclose that Node-24-specific regressions may be detected only after integration rather than claiming equivalent pre-merge runtime coverage
+
+### Requirement: Shortcut help regression evidence respects platform presentation
+Shortcut-help regression checks SHALL distinguish the configured binding identity from its platform-specific visible label. Checks SHALL retain live override, unbound-command fallback, and pinned-profile coverage rather than accepting arbitrary labels or changing runtime presentation to satisfy a host-specific expectation.
+
+#### Scenario: A live model-selection override uses Alt
+- **WHEN** the effective model-selection binding is changed to `alt+m` after the startup header is created
+- **THEN** the regression check SHALL require the refreshed header to display `option+m` on macOS and `alt+m` on Windows and Linux
+- **AND** the logical binding SHALL remain `alt+m`
+
+#### Scenario: Model selection is unbound
+- **WHEN** the owned profile has no effective model-selection shortcut
+- **THEN** the regression check SHALL require the `/model` fallback rather than an invented keybinding
+
+### Requirement: Repeated event-frame diagnostics are deterministic and actionable
+Repeated scripted terminal-frame diagnostics SHALL capture identical structured state and normalized frame bytes for the same declared workload, independent of opposing ambient color capabilities and host scheduling variation. Workloads SHALL explicitly control their relevant capture inputs and boundaries and restore test-owned global state and scheduled work on success or failure. Normalization SHALL remain limited to the already declared portability envelopes; semantic ANSI, reset boundaries, row payloads, geometry, cursor addressing, clearing order, and event stages SHALL remain strict. A diagnostic fixture SHALL NOT replace independent pinned-versus-owned parity authority.
+
+#### Scenario: Equivalent captures are repeated
+- **WHEN** the same declared truecolor workload is captured repeatedly under truecolor and 256-color ambient capabilities
+- **THEN** every capture SHALL produce the same diagnostic hash and preserve all declared stages
+- **AND** scheduling delays between captures SHALL NOT change workload evidence
+
+#### Scenario: Captures diverge
+- **WHEN** repeated equivalent captures produce different structured results
+- **THEN** validation SHALL fail and report the repetition, ambient mode, first differing state or frame stage, and a bounded escaped difference sufficient to locate the mismatch
+- **AND** it SHALL NOT accept multiple hashes, retry until one passes, strip semantic ANSI, or regenerate a baseline to conceal unexplained divergence
+
+#### Scenario: Capture fails or is disposed
+- **WHEN** a capture succeeds or throws
+- **THEN** its capability, theme, clock, or scheduler overrides SHALL be restored as applicable and its owned timers and resources SHALL be disposed before the next workload
+
+### Requirement: Exact-package gates prove launcher continuity across cancellation
+Release validation SHALL exercise the physical global package and launcher boundary with an exact packed candidate. It SHALL inject cancellation, updater loss, and npm failure before package mutation and after each observable launcher-removal, package-replacement, launcher-creation, and transaction boundary. Every case SHALL prove the complete platform launcher set is callable, recovery uses one verified owner, the prior immutable cohort remains protected until target activation, and rerunning `a1` converges without manual repair.
+
+#### Scenario: Windows launcher replacement is interrupted
+- **WHEN** validation interrupts replacement around the shell, command, and PowerShell launcher mutations
+- **THEN** `a1`, `a1.cmd`, and `a1.ps1` SHALL all be restored or verified before cancellation is acknowledged and each SHALL resolve through the same verified recovery disposition
+
+#### Scenario: Unix launcher replacement is interrupted
+- **WHEN** validation interrupts replacement around the executable launcher mutation on Linux or macOS
+- **THEN** the launcher SHALL be restored or verified as executable before cancellation is acknowledged
+
+#### Scenario: Invoking updater is terminated
+- **WHEN** validation terminates the updater after it delegates replacement but before npm completes
+- **THEN** the detached recovery owner SHALL establish a callable launcher and a subsequent invocation SHALL converge without manual npm installation
+
+#### Scenario: Recovery evidence is corrupted
+- **WHEN** validation changes a capsule identity, path, payload digest, transaction identity, or worker identity
+- **THEN** recovery SHALL fail closed without executing the changed payload or overwriting launchers outside the canonical global npm bin root
+
+#### Scenario: Cancellation regression removes the command
+- **WHEN** any tested cancellation or process-loss point leaves a launcher absent, non-executable, bound to incomplete content, or dependent on manual cleanup
+- **THEN** release validation SHALL fail before publication
+
+### Requirement: Exact-package startup performance is release-gated
+The accepted Windows release runner SHALL measure command invocation through first input-ready frame for exact packaged `a1` and `a1 pi` launches. Evidence SHALL include a newly addressed cold release path, the first launch after completed update handling, a launch of an approved active release after its supervisor has stopped, and a subsequent warm launch, with phase durations and immutable content identities. Each release-gating scenario SHALL execute once without automatic retry, and acceptance evidence SHALL demonstrate reliable margin on every supported Windows Node lane rather than relying on a preceding failed launch to warm the path.
+
+#### Scenario: First launch follows update
+- **WHEN** an exact packaged update activates a release whose product path has not previously launched on the worker
+- **THEN** both supported profile scenarios SHALL satisfy the 5-second post-update startup budget and record phase-level evidence
+
+#### Scenario: Restart-equivalent launch has no live supervisor
+- **WHEN** exact-package validation stops the active release's supervisor while preserving its approved immutable release and durable certification
+- **THEN** both supported profiles SHALL satisfy the 5-second startup budget, evidence SHALL identify durable validation and replacement-supervisor startup separately, and the accepted fast path SHALL perform no payload-wide file reads or hashes
+
+#### Scenario: Restart evidence is invalid
+- **WHEN** exact-package validation changes the certified release, dependency binding, managed path, or platform immutability evidence while no supervisor is live
+- **THEN** launch SHALL reject the restart fast path before executing selected release content and the gate SHALL observe safe fallback or failure
+
+#### Scenario: Warm launch is measured
+- **WHEN** the active release startup graph and dependency layer have already been warmed
+- **THEN** both supported profile scenarios SHALL satisfy the 3-second warm startup budget
+
+#### Scenario: Startup budget regresses
+- **WHEN** bootstrap, guardian, module loading, services, resources, session creation, or first render causes either budget to be exceeded
+- **THEN** release gating SHALL fail and name the dominant measured phases
+
+#### Scenario: A retry would warm the failed path
+- **WHEN** a first Node 22 or Node 24 exact-package startup attempt exceeds its budget
+- **THEN** validation SHALL retain the failure and SHALL NOT rerun the scenario to obtain a warmed passing result
+
+#### Scenario: Supported Windows Node lanes differ
+- **WHEN** the same exact candidate passes a warm startup budget on one supported Windows Node version and fails it on another
+- **THEN** acceptance SHALL remain blocked until phase-attributed evidence shows the slower supported lane meets the unchanged budget with reliable first-attempt margin
+
+### Requirement: Optimized runtime payload and layers are exact-package validated
+Release gates SHALL prove minimal-payload completeness, unchanged-layer reuse, changed-layer isolation, persistent compile-cache invalidation, side-effect-free warmup, full-copy rollback compatibility, extension loading, native assets, and terminal module identity against exact packed bytes.
+
+#### Scenario: Required runtime file is omitted
+- **WHEN** any supported command, profile, provider path, extension boundary, export workflow, theme, native adapter, or runtime asset requires a file absent from the generated payload
+- **THEN** exact-package validation SHALL fail before publication
+
+#### Scenario: Dependency layer is tampered
+- **WHEN** a selected layer file, manifest, binding, or managed path differs from its certified identity
+- **THEN** activation and launch SHALL fail closed without selecting mixed content or damaging a valid rollback release
+
+#### Scenario: Consecutive previews share dependencies
+- **WHEN** a representative exact update changes product files while retaining the dependency set
+- **THEN** evidence SHALL show one certified dependency layer path is reused and no duplicate full dependency tree is written
+
+#### Scenario: Compile cache is stale or unavailable
+- **WHEN** the Node version or immutable content identity changes, or cache storage cannot be used
+- **THEN** A1 SHALL reject stale entries or fall back safely without changing runtime behavior
