@@ -905,12 +905,9 @@ function installAtomicSegmentation(
       }
     }
     ranges.sort((left, right) => left.start - right.start);
-    if (mode === "grapheme" && ranges.length > 0 && typeof values === "object" && values !== null) {
-      const containing: unknown = Reflect.get(values, "containing");
-      if (typeof containing === "function") {
-        const indexed = atomicSegmentsByBoundary(text, ranges, offset => Reflect.apply(containing, values, [offset]));
-        if (indexed !== undefined) return indexed;
-      }
+    if (mode === "grapheme" && ranges.length > 0 && hasSegmentLookup(values)) {
+      const indexed = atomicSegmentsByBoundary(text, ranges, offset => values.containing(offset));
+      if (indexed !== undefined) return indexed;
     }
     const segments = [...values].filter(isEditorSegment);
     if (ranges.length === 0) return segments;
@@ -945,6 +942,11 @@ function installAtomicSegmentation(
   const original = originalValue.bind(editor) as (text: string, mode?: unknown) => Iterable<unknown>;
   Reflect.set(editor, "segment", (text: string, mode?: unknown) => transform(text, mode, original(text, mode)));
   Reflect.set(editor, ATOMIC_SEGMENTATION, true);
+}
+
+/** Narrow the optional indexed segment capability without a dynamic callback invocation. */
+function hasSegmentLookup(values: Iterable<unknown>): values is Iterable<unknown> & { containing(offset: number): unknown } {
+  return typeof values === "object" && values !== null && "containing" in values && typeof values.containing === "function";
 }
 
 /** Skip atomic interiors using the supplied segmenter's boundaries; preserve the iterable fallback exactly. */
