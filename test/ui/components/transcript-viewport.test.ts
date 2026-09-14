@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   assertTranscriptViewportFrameDescriptor,
   backgroundSgrSpan,
@@ -450,6 +450,33 @@ describe("transcript viewport", () => {
     expect(hovered.rows[0]).toContain("\u001b[7m");
     expect(hovered.rows[0]).not.toContain("\u001b[2m");
     expect(stripAnsi(hovered.rows[0] ?? "").trimEnd()).toBe("❯ prompt                 11:45");
+  });
+
+  it("uses the optional prominent source only before quieting and outside hover", () => {
+    const viewport = new TranscriptViewport();
+    const sourceRow = "❯ prompt                 \u001b[37m11:45\u001b[39m";
+    const prominentSourceRow = "❯ prompt                 \u001b[90m11:45\u001b[39m";
+    const input = {
+      documentRows: rows(12), dockRows: ["dock"], width: 36, height: 6, now: 100,
+      promptAnchors: [{ id: "prompt", firstRow: 1, lastRow: 3, sourceRow, prominentSourceRow }],
+    };
+    const paint = vi.fn((row: string) => row);
+    const frame = () => viewport.compose({ ...input, paintDocumentRow: paint });
+    frame();
+    viewport.scrollTo(2, 101);
+    expect(frame().rows[0]).toContain(prominentSourceRow);
+    viewport.setStickyHovered(true);
+    expect(frame().rows[0]).toContain(sourceRow);
+    viewport.setStickyHovered(false);
+    expect(frame().rows[0]).toContain(prominentSourceRow);
+    viewport.scrollTo(5, 102);
+    expect(frame().rows[0]).toContain(sourceRow);
+    expect(frame().rows[0]).toContain("\u001b[2m");
+    viewport.scrollTo(2, 103);
+    expect(frame().rows[0]).toContain(prominentSourceRow);
+    // Invariant: source variants have distinct paint-cache keys and are each painted once.
+    expect(paint.mock.calls.filter(([row]) => row === prominentSourceRow)).toHaveLength(1);
+    expect(paint.mock.calls.filter(([row]) => row === sourceRow)).toHaveLength(1);
   });
 
   it("paints the final cell for edge whitespace but not for a full-width word", () => {

@@ -345,7 +345,7 @@ describe("prompt-style compaction in the real engine and shell", () => {
     } finally { await shell.dispose(); }
   });
 
-  it.each(["hidden", "always", "auto"] as const)("reuses baseline prompt colors and whole-row dimming for compactions with a %s scrollbar", async appearance => {
+  it.each(["hidden", "always", "auto"] as const)("keeps prominent timestamps source-grey and baseline quiet/hover styling with a %s scrollbar", async appearance => {
     const snapshots = [];
     for (const kind of ["compaction", "user"] as const) {
       const summary = compaction();
@@ -356,7 +356,7 @@ describe("prompt-style compaction in the real engine and shell", () => {
         shell.root.setViewportConfig({ scrollbarAppearance: appearance, scrollbarStyle: "thin", scrollbarSpeed: "normal" });
         shell.root.render(80);
         const frames = [];
-        for (const data of ["\u001b[1;5H", "\u001b[<65;3;3M", "\u001b[1;5F", "\u001b[<35;3;1M", "\u001b[<35;3;3M", "\u001b[1;5H", "\u001b[<65;3;3M"]) {
+        for (const data of ["\u001b[1;5H", "\u001b[<65;3;3M", "\u001b[1;5F", "\u001b[<35;3;1M", "\u001b[<35;3;3M", "\u001b[1;5H", "\u001b[<65;3;3M", "\u001b[<35;3;1M", "\u001b[<35;3;3M"]) {
           terminal.input(data);
           await nextImmediate();
           frames.push(shell.root.render(80).slice(0, 8));
@@ -384,8 +384,8 @@ describe("prompt-style compaction in the real engine and shell", () => {
         expect(sourceTimeColumn).toBeGreaterThanOrEqual(0);
         const sourceTimeStyle = rendered[0]![1]![sourceTimeColumn]!.foreground!;
         const sourceTimeColor = sourceTimeStyle.slice(0, 2);
-        // Compatibility: baseline pinned metadata follows the text, including quiet and hover intensity.
-        for (const state of [1, 2, 3, 4, 6]) {
+        // Compatibility: quiet and explicit hover retain baseline foreground and intensity.
+        for (const state of [2, 3, 4, 7]) {
           for (let column = timeColumn; column < timeColumn + 5; column++) {
             expect(rendered[state]![0]![column]!.foreground).toEqual(rendered[state]![0]![labelColumn]!.foreground);
             expect(rendered[state]![0]![column]!.background).toEqual(rendered[state]![0]![labelColumn]!.background);
@@ -397,7 +397,15 @@ describe("prompt-style compaction in the real engine and shell", () => {
         expect(rendered[1]![0]![labelColumn]!.foreground!.slice(0, 2)).not.toEqual(sourceTimeColor);
         expect(rendered[1]![0]![labelColumn]!.foreground![2]).toBe(0);
         expect(rendered[2]![0]![labelColumn]!.foreground![2]).not.toBe(0);
-        expect(rendered[3]![0]![timeColumn]!.foreground).toEqual(rendered[1]![0]![timeColumn]!.foreground);
+        for (const state of [1, 6, 8]) {
+          for (let column = timeColumn; column < timeColumn + 5; column++) {
+            expect(rendered[state]![0]![column]!.foreground).toEqual(sourceTimeStyle);
+            expect(rendered[state]![0]![column]!.background).toEqual(rendered[state]![0]![labelColumn]!.background);
+          }
+        }
+        expect(rendered[8]).toEqual(rendered[1]);
+        // Only timestamp glyphs change foreground on hover; the body retains its normal role.
+        expect(rendered[7]![0]![labelColumn]!.foreground).toEqual(rendered[1]![0]![labelColumn]!.foreground);
         expect(rendered[5]![1]![sourceTimeColumn]!.foreground).toEqual(sourceTimeStyle);
         snapshots.push(rendered);
       } finally { await shell.dispose(); }
@@ -432,6 +440,46 @@ describe("prompt-style compaction in the real engine and shell", () => {
               expect(cell.getBgColor()).toBe(line.getCell(0)!.getBgColor());
             }
             if (kind === "user") expect(line.translateToString()).toContain("14:35");
+          } finally { screen.dispose(); }
+        }
+      } finally { await shell.dispose(); }
+    }
+  });
+
+  it.each([undefined, null, Number.NaN, 8.64e15 + 1, time])("preserves prominent source glyph styling across reflow and rail changes (%s)", async timestamp => {
+    for (const kind of ["user", "compaction"] as const) {
+      const message = {
+        ...(kind === "user" ? user(`14:35 clock-like content\n\n${compaction().summary}`) : compaction()), timestamp,
+      };
+      const { terminal, shell } = await fixture([message, reply("tail")], [], true);
+      try {
+        for (const [width, appearance] of [[80, "hidden"], [18, "hidden"], [17, "always"], [48, "auto"], [80, "always"]] as const) {
+          terminal.resize(width, 14);
+          shell.root.setViewportConfig({ scrollbarAppearance: appearance, scrollbarStyle: "thin", scrollbarSpeed: "normal" });
+          shell.root.render(width);
+          terminal.input("\u001b[1;5H");
+          await nextImmediate();
+          const source = shell.root.render(width)[1]!;
+          terminal.input("\u001b[<65;3;3M");
+          await nextImmediate();
+          const pinned = shell.root.render(width)[0]!;
+          const screen = new HeadlessXterm.Terminal({ cols: width, rows: 3, allowProposedApi: true });
+          try {
+            await new Promise<void>(resolve => screen.write(`${source}\u001b[0m\r\n${pinned}\u001b[0m\r\nsentinel`, resolve));
+            // Compatibility: row zero intentionally has no rail; compare only source content cells.
+            const contentWidth = width - (appearance === "hidden" ? 0 : 1);
+            for (let column = 0; column < contentWidth; column++) {
+              const before = screen.buffer.active.getLine(0)!.getCell(column)!;
+              const after = screen.buffer.active.getLine(1)!.getCell(column)!;
+              expect(after.getChars()).toBe(before.getChars());
+              if (!before.getChars().trim()) continue;
+              expect([after.getFgColorMode(), after.getFgColor(), after.isDim(), after.isBold()])
+                .toEqual([before.getFgColorMode(), before.getFgColor(), before.isDim(), before.isBold()]);
+            }
+            const sentinel = screen.buffer.active.getLine(2)!.getCell(0)!;
+            expect(sentinel.isDim()).toBe(0);
+            expect(sentinel.isBold()).toBe(0);
+            expect(sentinel.getFgColor()).toBe(-1);
           } finally { screen.dispose(); }
         }
       } finally { await shell.dispose(); }
