@@ -5,8 +5,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
-import { execFileSync, spawn } from "node:child_process";
+import { execFile, execFileSync, spawn } from "node:child_process";
 import { once } from "node:events";
+import { promisify } from "node:util";
 import { atomicJson, createStateStore, registerEntry, transitionEntry, validateState, digest } from "../../scripts/governance/local-cleanup-state.mjs";
 import { canonical, captureWorktree, discoverRepository, inspectWorktree, exists, gitRunner, removeLocalRef, removeWorktree } from "../../scripts/governance/local-cleanup-git.mjs";
 import { reconcileLocalCleanup } from "../../scripts/governance/local-cleanup-reconcile.mjs";
@@ -278,7 +279,16 @@ test("Windows exclusive file handles produce a safe partial result with closed s
   const lockedPath = join(f.path, "tracked.txt"), releasePath = join(f.temporary, "release-lock");
   // Protocol: hold until explicit release outside the target, not Console.ReadLine/EOF on a CI pipe.
   const script = "$ErrorActionPreference='Stop'; $s=[System.IO.File]::Open($env:CLEANUP_LOCK_FIXTURE,'Open','Read','None'); try { [Console]::WriteLine('READY'); [Console]::Out.Flush(); $deadline=[DateTime]::UtcNow.AddSeconds(30); while(-not [System.IO.File]::Exists($env:CLEANUP_LOCK_RELEASE)) { if([DateTime]::UtcNow -gt $deadline) { throw 'fixture-release-timeout' }; [System.Threading.Thread]::Sleep(20) } } finally { $s.Dispose() }";
-  let child, ended, diagnostic = "", removalAttempted = false;
+  // Invariant: prove Win32 ERROR_SHARING_VIOLATION, not a Node readFile rejection that differs on hosted Windows.
+  const probe = "$ErrorActionPreference='Stop'; try { $p=[System.IO.File]::Open($env:CLEANUP_LOCK_FIXTURE,'Open','Read','ReadWrite'); $p.Dispose(); throw 'fixture-lock-not-held' } catch { $e=$_.Exception; while($e.InnerException) { $e=$e.InnerException }; if(($e.HResult -band 65535) -ne 32) { throw }; [Console]::WriteLine('SHARING_VIOLATION') }";
+  const assertNativeLock = async () => {
+    const result = await promisify(execFile)("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", probe], {
+      env: { ...process.env, CLEANUP_LOCK_FIXTURE: lockedPath }, timeout: 10000, maxBuffer: 65536, encoding: "utf8",
+    });
+    assert.equal(result.stdout.trim(), "SHARING_VIOLATION");
+  };
+  await assert.rejects(assertNativeLock, /fixture-lock-not-held/, "the probe must reject an unlocked file");
+  let child, ended, diagnostic = "", removalAttempted = false, fixtureFailure;
   try {
     const report = await f.pass({ preview: false, remove: async (...args) => {
       child = spawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], {
@@ -298,16 +308,17 @@ test("Windows exclusive file handles produce a safe partial result with closed s
         }
         child.stdout.on("data", ready); child.once("exit", exited); child.once("error", failed);
       });
-      await assert.rejects(readFile(lockedPath), /EBUSY|EACCES|EPERM/, "lock must block reads before Git removal");
+      try { await assertNativeLock(); }
+      catch (error) { fixtureFailure = error.message; throw error; }
       removalAttempted = true;
       await removeWorktree(...args);
     } });
-    const context = JSON.stringify({ report, diagnostic, exitCode: child?.exitCode });
+    const context = JSON.stringify({ report, diagnostic, fixtureFailure, exitCode: child?.exitCode });
     assert.equal(removalAttempted, true, context);
     assert.equal(report.results[0].disposition, "partial", context);
     assert.ok(["git-operation-failed", "worktree-removal-partial"].includes(report.results[0].reason), context);
     assert.equal(child.exitCode, null, context);
-    await assert.rejects(readFile(lockedPath), /EBUSY|EACCES|EPERM/, "lock must remain held after Git removal fails");
+    await assertNativeLock();
     assert.equal(await exists(f.path), true);
     assert.equal((await f.store.read()).entries[0].step, "remove-intent");
     assert.equal(git(f.primary, "rev-parse", "refs/heads/feature/example"), f.entry.head);
@@ -319,6 +330,7 @@ test("Windows exclusive file handles produce a safe partial result with closed s
       finally { clearTimeout(timer); }
     }
   }
+  await assert.rejects(assertNativeLock, /fixture-lock-not-held/, "the probe must observe explicit release");
   assert.equal(await readFile(lockedPath, "utf8"), "base\n");
   assert.equal((await f.pass({ preview: false })).results[0].reason, "residual-or-reused-path");
   assert.equal(await readFile(lockedPath, "utf8"), "base\n");

@@ -82,6 +82,14 @@ Integrated develop `d5d7c1b100158e9d0efdb44f0490ced2ee4ea266` into the existing 
 
 Post-merge validation with Node 24.20.0 / Git 2.55.0.windows.5: typecheck passed; transcript lifetime, viewport controller, and cleanup bridge all passed (70 Vitest tests, with 42 native cases inside the bridge); strict OpenSpec, docs governance, and staged whitespace checks passed. Required CI must run on the resolved merge head.
 
+## Native Windows sharing probe
+
+Run `34881881185` at `f885f1a62b3002c713d229848c68b9fa3f4f6243` again passed the ordinary fast invocation and failed only the cleanup bridge in the resource-sensitive group. Added diagnostics show `removalAttempted: false` (the failed assertion at line 306), a live holder, empty holder stderr, and a partial journal with `local-operation-failed`. Thus the fixture failed before invoking Git; the prior stdin-lifetime hypothesis did not resolve the hosted failure. The earlier run had also shown Node reading the supposedly locked file successfully. The underlying platform-specific reason for Node's read behavior is not established.
+
+Replaced the Node-specific read-rejection checks with independent PowerShell/.NET file-open probes that require exactly Win32 `ERROR_SHARING_VIOLATION` (32), both before and after the real Git removal. Unlocked-before and released-after controls must reject the probe's locked verdict. Unexpected probe failures are included in the fixture diagnostics rather than hidden by the reconciler's content-free error classification. Explicit release, real non-force Git failure, live holder, retained file/directory/journal/ref, exact bytes after release, and refusal to delete residual content remain required. No production cleanup change or timeout/skip/gate relaxation was made.
+
+Local validation with verified Node 24.20.0 / Git 2.55.0.windows.5 and CI flags: the focused Windows case passed; the cleanup bridge and both partition-policy suites passed (20 Vitest tests including all 42 native cleanup cases); typecheck, strict OpenSpec validation, and whitespace checks passed. Hosted current-head CI is still pending, and task 6.2 remains incomplete.
+
 ## Remaining gates
 
 Required current-head PR CI must run after readiness; local results do not substitute for it. The maintainer must separately authorize an isolated live accepted-implementation/automatic-archive lifecycle and actual final-head review. Tasks 7.2 and 7.3 remain unperformed; there is no acceptance record. Mechanical archive tasks 8.1 and 8.2 remain for the corresponding future verified operations. Do not archive or integrate based on these fixture results.
