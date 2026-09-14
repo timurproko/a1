@@ -404,7 +404,7 @@ describe("prompt-style compaction in the real engine and shell", () => {
           }
         }
         expect(rendered[8]).toEqual(rendered[1]);
-        // Only timestamp glyphs change foreground on hover; the body retains its normal role.
+        // Compatibility: only timestamp glyphs change foreground on hover; the body retains its normal role.
         expect(rendered[7]![0]![labelColumn]!.foreground).toEqual(rendered[1]![0]![labelColumn]!.foreground);
         expect(rendered[5]![1]![sourceTimeColumn]!.foreground).toEqual(sourceTimeStyle);
         snapshots.push(rendered);

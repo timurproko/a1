@@ -18,6 +18,12 @@
 - `git diff --check`: passed.
 - No broad local test tier or generated baseline update was run.
 
+## CI correction
+
+PR #375's first candidate (`1fe784bd`) failed changed-file documentation validation with DOC005 at `session-shell.test.ts:407`: a new implementation comment lacked the required category prefix. Added `Compatibility:` without changing test or runtime behavior. `node scripts/governance/check-code-documentation.mjs --root . --mode full` now passes with no violations. The earlier docs-governance command checks a different policy and did not cover this failure. Replacement CI remains required.
+
+The user reported “test failed” without details; clarification was requested to distinguish this confirmed CI failure from a possible local launch or visual failure. No visual acceptance is recorded.
+
 ## Physical review pending
 
 Create a disposable session with the existing `scripts/pi/create-compaction-review-session.mjs`, then launch it through `./scripts/dev --session <generated-path>` after building. Press Ctrl+Home, keep the pointer away from the header, and scroll down slightly into the long compaction summary. The pinned timestamp must remain the same grey as its source before the summary leaves view. Hover must retain its existing highlighting; leaving hover restores grey. Scrolling beyond the full summary retains existing quiet-row dimming. Repeat with a multiline ordinary prompt.
