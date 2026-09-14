@@ -47,6 +47,7 @@
         "test/features/prompt-history/worker-package.test.ts",
         "test/integrations/pi/tui-runtime/rendering-budgets.test.ts",
         "test/integrations/pi/tui-runtime/rendering-smoke.test.ts",
+        "test/integrations/pi/tui-runtime/content-producer.test.ts",
         "test/integrations/pi/tui-runtime/rendering-producer.test.ts",
         "test/integrations/pi/tui-runtime/input-responsiveness-budgets.test.ts",
         "test/integrations/pi/tui-runtime/input-responsiveness-smoke.test.ts",
@@ -150,28 +151,30 @@
     "rendering-smoke": {
       "kind": "vitest-isolated",
       "evidence": {
-        "workloadCaptures": 4,
+        "workloadCaptures": 6,
         "deliberateRepeatCaptures": 0,
-        "matrixProducerLaunches": 15,
+        "matrixProducerLaunches": 19,
         "protocolProducerLaunches": 0,
-        "totalProducerLaunches": 15
+        "totalProducerLaunches": 19
       },
       "tests": [
         "test/integrations/pi/tui-runtime/rendering-smoke.test.ts",
+        "test/integrations/pi/tui-runtime/content-producer.test.ts",
         "test/integrations/pi/tui-runtime/input-responsiveness-smoke.test.ts"
       ]
     },
     "rendering-stability": {
       "kind": "vitest-isolated",
       "evidence": {
-        "workloadCaptures": 14,
+        "workloadCaptures": 16,
         "deliberateRepeatCaptures": 0,
-        "matrixProducerLaunches": 51,
+        "matrixProducerLaunches": 55,
         "protocolProducerLaunches": 10,
-        "totalProducerLaunches": 61
+        "totalProducerLaunches": 65
       },
       "tests": [
         "test/integrations/pi/tui-runtime/rendering-budgets.test.ts",
+        "test/integrations/pi/tui-runtime/content-producer.test.ts",
         "test/integrations/pi/tui-runtime/rendering-producer.test.ts",
         "test/integrations/pi/tui-runtime/input-responsiveness-budgets.test.ts",
         "test/integrations/pi/tui-runtime/input-producer.test.ts"

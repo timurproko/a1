@@ -38,8 +38,8 @@
     "sourceModules": 105,
     "assets": 4,
     "classifications": {
-      "public-api-reuse": 53,
-      "owned-presentation": 29,
+      "public-api-reuse": 52,
+      "owned-presentation": 30,
       "host-adaptation": 27
     },
     "requiredBehaviorIds": 29,
@@ -2309,12 +2309,20 @@
       "sourceMap": "modes/interactive/components/tool-execution.js.map",
       "lines": 389,
       "sha256": "00555ed7f5440dce6193d13fe2a28ab585afe775a90026060e03e4d8e27529f5",
-      "classification": "public-api-reuse",
-      "localDestination": "src/integrations/pi/components/index.ts",
-      "implementationStatus": "available-through-pinned-package",
+      "classification": "owned-presentation",
+      "localDestination": "src/integrations/pi/components/upstream/components/tool-execution.ts",
+      "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "None planned; import the exact component or helper from the pinned public coding-agent package root.",
-      "approvedDeviations": [],
+      "modifications": "Retain pinned shell and actual public tool-definition renderers. Replace private index-keyed image conversion with current-source ownership, serial conversion, visible fallback, and disposal; guard reentrant invalidation. Remap private types, definition factories, theme, and generic text helpers to public or locally attributed equivalents. See docs/architecture/tool-image-presentation.md.",
+      "localSha256": "9090ac5f84241e0b2698ad5e0fca5675505df2ecdbb1f0977baf8740247b27d8",
+      "approvedDeviations": [
+        {
+          "id": "current-tool-image-conversion-ownership",
+          "reason": "User-approved continuation of preserve-agent-content-rendering task 3.3: public Pi 0.84.2 caches conversions by image position with no reset API. Preserve original inputs, renderer state and invocation identity while rejecting obsolete conversions and showing bounded pending/unavailable fallbacks.",
+          "upstreamBehavior": "Actual built-in and extension renderers, styling, layout, partial/error state and hidden/non-Kitty image presentation remain pinned; stale replacement pixels and silent conversion failure are deliberately repaired only in the owned shell.",
+          "acceptanceTest": "test/integrations/pi/session-ui/transcript-image-conversion.test.ts"
+        }
+      ],
       "behaviorCategories": [
         "stateful-components",
         "events",
@@ -2334,6 +2342,10 @@
       ],
       "tests": [
         "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
+        "test/integrations/pi/components/tool-shell-parity.test.ts",
+        "test/integrations/pi/components/tool-image-presentation.test.ts",
+        "test/integrations/pi/session-ui/transcript-image-conversion.test.ts",
+        "test/integrations/pi/session-ui/transcript-presentation-lifetime.test.ts",
         "test/integrations/pi/session-ui/session-shell.test.ts"
       ]
     },

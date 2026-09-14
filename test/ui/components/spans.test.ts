@@ -16,6 +16,12 @@ const RESET = `${ESC}[0m`;
 const BLUE = `${ESC}[34m`;
 
 describe("overlaying a span on a rendered row", () => {
+  it.each(["\u001b_Ga=T,f=100;AQID\u001b\\", "\u001b]1337;File=inline=1:AQID\u0007"])("never replays image transfer %j as a style after the rail", image => {
+    const result = overlaySpan(image + "        ", 7, 8, "┃");
+    expect(result.split(image)).toHaveLength(2);
+    expect(stripAnsi(result)).toBe("       ┃");
+  });
+
   it("replaces the named columns and keeps the rest", () => {
     expect(overlaySpan("abcdefgh", 2, 5, "XYZ")).toBe("abXYZfgh");
   });

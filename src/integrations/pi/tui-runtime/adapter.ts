@@ -71,7 +71,9 @@ class ComponentBridge implements Component, Focusable {
     this.traceComposition?.("composition-start");
     try {
       const lines = [...this.port.render(width)];
-      const overflow = lines.findIndex(line => visibleWidth(line) > width);
+      // Protocol: Kitty APC carries pixels, not columns. Still validate every ordinary cell
+      // around the payload instead of exempting the entire image-bearing row from width checks.
+      const overflow = lines.findIndex(line => visibleWidth(line.replace(/\u001b_G[^\u001b]*\u001b\\/g, "")) > width);
       if (overflow >= 0) {
         throw new RangeError(`Pi TUI component row ${overflow} exceeds available width ${width}`);
       }

@@ -32,6 +32,12 @@ export function overlaySpan(line: string, from: number, to: number, span: string
   for (const token of line.split(ANSI_SPLIT)) {
     if (!token) continue;
     if (token.startsWith("")) {
+      // Protocol: image transfers are one-shot commands, not styling to replay after an overlay.
+      if (token.startsWith("\u001b_G") || token.startsWith("\u001b]1337;File=")) {
+        if (column >= to) tail += token;
+        else head += token;
+        continue;
+      }
       if (column >= to) {
         tail += token;
         continue;
