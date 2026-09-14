@@ -8,6 +8,7 @@ import {
   scrollForThumbRow,
   scrollbarSelectionRows,
   scrollbarWheelRows,
+  type SelectionCopySnapshot,
   type TranscriptViewportFrame,
   type TranscriptViewportFrameInput,
 } from "../../../ui/components/index.js";
@@ -25,7 +26,7 @@ export interface SessionViewportControllerOptions {
 export interface SessionViewportInputResult {
   readonly data: string;
   readonly consumed: boolean;
-  readonly copyText?: string;
+  readonly copySelection?: SelectionCopySnapshot;
 }
 
 /**
@@ -284,11 +285,12 @@ export class SessionViewportController {
       if (editorActive && this.#editor.hasSelection()) {
         if (this.#viewport.clearSelection()) this.#requestRender();
       } else {
-        const copyText = this.#viewport.selectedText();
-        if (copyText !== null && copyText.length > 0) {
+        const copySelection = this.#viewport.captureSelectedText();
+        if (copySelection !== null) {
           this.#viewport.clearSelection();
+          this.#stopSelectionAutoScroll();
           this.#requestRender();
-          return { data: "", consumed: true, copyText };
+          return { data: "", consumed: true, copySelection };
         }
       }
     }

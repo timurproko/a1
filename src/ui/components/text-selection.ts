@@ -240,6 +240,7 @@ function characterClass(character: string): number {
 
 function indexAtDisplayBoundary(plain: string, column: number, edge: "start" | "end"): number {
   if (column <= 0) return 0;
+  if (column >= Number.MAX_SAFE_INTEGER - 1) return plain.length;
   let width = 0;
   let index = 0;
   for (const { segment } of GRAPHEMES.segment(plain)) {

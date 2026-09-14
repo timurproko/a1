@@ -10,7 +10,7 @@ import {
   type PiProjectTrustPreflightPrompt,
   type PiSessionForkPrompt,
 } from "../integrations/pi/engine/index.js";
-import { OwnedUiSessionShell } from "../integrations/pi/session-ui/index.js";
+import { ClipboardDiagnosticCapture, OwnedUiSessionShell } from "../integrations/pi/session-ui/index.js";
 import { OwnedUiSettingsSession, OwnedUiSettingsStore } from "../ui/settings/index.js";
 import { createPiTerminalBridge } from "../integrations/pi/tui-runtime/index.js";
 import type { OwnedUiApplicationPort, PresentationTerminalPort } from "../contracts/presentation/index.js";
@@ -38,6 +38,8 @@ export interface OwnedUiCompositionOptions {
   readonly projectTrustPrompt?: PiProjectTrustPreflightPrompt;
   /** Explicit local diagnostic destination; ignored by comparison/settings-free compositions. */
   readonly suggestionDiagnosticsPath?: string;
+  /** Optional local metadata-only clipboard diagnostics; never enabled in comparison profiles. */
+  readonly clipboardDiagnosticsPath?: string;
 }
 
 export interface OwnedUiComposition {
@@ -102,23 +104,37 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     }),
     imageSidecar: new PromptImageSidecar(historyProfileLocation.imagesDir),
   };
-  const shell = new OwnedUiSessionShell({
+  const clipboardDestination = options.clipboardDiagnosticsPath ?? process.env[PRODUCT_IDENTITY.environment.clipboardDiagnostics];
+  const clipboardDiagnostics = settings !== null && ownedSurfaces && clipboardDestination?.trim()
+    ? new ClipboardDiagnosticCapture(clipboardDestination) : null;
+  let shell: OwnedUiSessionShell;
+  try {
+    shell = new OwnedUiSessionShell({
     backend: adapter,
     cwd: adapter.cwd,
     ...(options.terminal === undefined ? {} : { terminal: createPiTerminalBridge(options.terminal) }),
     ...(routeHost === null ? {} : { routeHost }),
     ...(ownedSurfaces ? { sessionLayout: "custom-viewport" as const } : {}),
+    ...(clipboardDiagnostics === null ? {} : {
+      responseCopy: { onEvent: event => clipboardDiagnostics.copy(event) },
+      pasteDiagnostics: event => clipboardDiagnostics.paste(event),
+      inputPresentation: { onEvent: event => clipboardDiagnostics.runtime(event) },
+    }),
     ...(viewportSettings === null ? {} : { viewportSettings }),
     ...(promptSuggestions === null ? {} : { promptSuggestions }),
     ...(promptHistory === null ? {} : { promptHistory: { ...promptHistory, editor: await loadHistoryEditor() } }),
-  });
+    });
+  } catch (error) {
+    clipboardDiagnostics?.dispose(); suggestionDiagnostics?.dispose();
+    throw error;
+  }
   const application: OwnedUiApplicationPort = {
     get disposed() { return adapter.disposed; },
     start: () => shell.start(),
     flush: () => adapter.flushEvents(),
     waitUntilStopped: () => shell.waitUntilStopped(),
     dispose: async () => {
-      try { await shell.dispose(); } finally { suggestionDiagnostics?.dispose(); }
+      try { await shell.dispose(); } finally { suggestionDiagnostics?.dispose(); clipboardDiagnostics?.dispose(); }
     },
   };
   return { application, settings };

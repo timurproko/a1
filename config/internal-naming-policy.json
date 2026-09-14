@@ -82,6 +82,14 @@
       "semantics": "Explicit helper executable override; retain pending caller exposure review"
     },
     {
+      "role": "clipboardDiagnostics",
+      "key": "A1_CLIPBOARD_DIAGNOSTICS",
+      "exposure": "review",
+      "owner": "src/composition/owned-ui.ts",
+      "evidence": "docs/architecture/response-copy-delivery.md",
+      "semantics": "Opt-in bounded scalar clipboard diagnostic snapshots; disabled by default"
+    },
+    {
       "role": "suggestionDiagnostics",
       "key": "A1_SUGGESTION_DIAGNOSTICS",
       "exposure": "review",
