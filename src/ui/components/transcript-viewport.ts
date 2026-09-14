@@ -1,3 +1,4 @@
+import { MAX_COPY_ROWS, MAX_COPY_SOURCE_UNITS, selectionCopyLineContent, selectionCopyRowText, type SelectionCopySnapshot, type SelectionCopyPrompt, type SelectionCopyRow } from "./selection-copy.js";
 import {
   isThumbRow,
   scrollbarGeometry,
@@ -16,7 +17,6 @@ import {
   textSelectionLineExtendColumn,
   textSelectionPointAt,
   textSelectionText,
-  usefulTextLineContent,
   type OrderedTextSelection,
   type TextSelection,
   type TextSelectionClick,
@@ -169,6 +169,8 @@ export class TranscriptViewport {
   #selection: TextSelection | undefined;
   #selectionClick: TextSelectionClick | undefined;
   #selectionRevision = 0;
+  #copyableSelection = false;
+  #copyableRow: { text: string; prompt: SelectionCopyPrompt; from: number; to: number; value: boolean } | undefined;
   readonly #paintedRowCache = new Map<string, string>();
   readonly #baseRowCache = new Map<string, string>();
   readonly #selectedRowCache = new Map<string, string>();
@@ -234,6 +236,7 @@ export class TranscriptViewport {
     this.#selection = pressed.selection;
     this.#selectionClick = pressed.click;
     this.#selectionRevision += 1;
+    this.#updateCopyableSelection();
     return true;
   }
 
@@ -260,6 +263,7 @@ export class TranscriptViewport {
     if (next !== selection) {
       this.#selection = next;
       this.#selectionRevision += 1;
+      this.#updateCopyableSelection();
     }
     return true;
   }
@@ -274,6 +278,8 @@ export class TranscriptViewport {
   clearSelection(): boolean {
     if (this.#selection === undefined) return false;
     this.#selection = undefined;
+    this.#copyableSelection = false;
+    this.#copyableRow = undefined;
     this.#selectionRevision += 1;
     return true;
   }
@@ -281,11 +287,39 @@ export class TranscriptViewport {
   selectedText(): string | null {
     const selection = orderedTextSelection(this.#selection);
     if (selection === undefined) return null;
+    const endLine = Math.min(selection.end.line, this.#selectableDocumentRowCount - 1);
     return textSelectionText(
-      selection,
-      this.#documentRows.slice(0, this.#selectableDocumentRowCount),
+      { ...selection, end: { line: endLine, column: endLine === selection.end.line ? selection.end.column : Number.MAX_SAFE_INTEGER } },
+      this.#documentRows,
       line => this.#lineContentAt(line),
     );
+  }
+
+  /** Captures selected source references, never the entire mutable transcript or prompt graph. */
+  captureSelectedText(): SelectionCopySnapshot | null {
+    if (!this.#copyableSelection) return null;
+    const started = performance.now();
+    const selection = orderedTextSelection(this.#selection);
+    if (selection === undefined) return null;
+    const start = selection.start.line;
+    const end = Math.min(selection.end.line, this.#selectableDocumentRowCount - 1, this.#documentRows.length - 1);
+    if (end < start) return null;
+    const normalized = {
+      start: { line: 0, column: selection.start.column },
+      end: { line: end - start, column: end === selection.end.line ? selection.end.column : Number.MAX_SAFE_INTEGER },
+    };
+    const rejected = (): SelectionCopySnapshot => ({ selection: normalized, revision: this.#selectionRevision, rows: [], sourceUnits: 0, captureMs: performance.now() - started, rejected: "size" });
+    if (end - start + 1 > MAX_COPY_ROWS) return rejected();
+    const rows: SelectionCopyRow[] = [];
+    let sourceUnits = 0;
+    for (let line = start; line <= end; line++) {
+      const text = this.#documentRows[line] ?? "";
+      sourceUnits += text.length;
+      if (sourceUnits > MAX_COPY_SOURCE_UNITS) return rejected();
+      const prompt = this.#promptKindAt(line);
+      rows.push({ text, ...(prompt === undefined ? {} : { prompt }) });
+    }
+    return { selection: normalized, revision: this.#selectionRevision, rows, sourceUnits, captureMs: performance.now() - started };
   }
 
   scrollBy(lines: number, now = Date.now()): boolean {
@@ -355,6 +389,8 @@ export class TranscriptViewport {
     this.#newMessages = 0;
     if (this.#selection !== undefined) this.#selectionRevision += 1;
     this.#selection = undefined;
+    this.#copyableSelection = false;
+    this.#copyableRow = undefined;
     this.#selectionClick = undefined;
     this.#paintedRowCache.clear();
     this.#baseRowCache.clear();
@@ -434,6 +470,7 @@ export class TranscriptViewport {
     // Invariant: controls reserve the rail column, but source text beneath it
     // remains reachable by a drag already owned by transcript selection.
     this.#selectionWidth = width;
+    this.#updateCopyableSelection();
     const paintDocumentRow = input.paintDocumentRow ?? IDENTITY_ROW;
     const cacheLimit = Math.max(32, viewportHeight * 6);
     trimCache(this.#paintedRowCache, cacheLimit);
@@ -710,20 +747,45 @@ export class TranscriptViewport {
     return id;
   }
 
-  #lineContentAt(line: number): TextSelectionLineContent {
-    const plain = stripAnsi(this.#documentRows[line] ?? "");
-    const prompt = this.#promptAnchors.find(anchor => line >= anchor.firstRow && line <= anchor.lastRow);
-    if (prompt !== undefined) {
-      if (line === prompt.firstRow) {
-        const timestamp = /\s+\d{2}:\d{2}\s*$/.exec(plain);
-        if (timestamp !== null) return usefulTextLineContent(plain.slice(0, timestamp.index), 3);
-      }
-      return usefulTextLineContent(plain, 3);
+  #updateCopyableSelection(): void {
+    const selection = orderedTextSelection(this.#selection);
+    if (!selection) { this.#copyableSelection = false; this.#copyableRow = undefined; return; }
+    const end = Math.min(selection.end.line, this.#selectableDocumentRowCount - 1);
+    if (end !== selection.start.line) {
+      this.#copyableSelection = end > selection.start.line;
+      this.#copyableRow = undefined;
+      return;
     }
-    const from = plain.trim().length === 0 || (plain.startsWith(" ") && !plain.startsWith("  ")) ? 2 : 1;
-    const content = usefulTextLineContent(plain, from);
-    if (plain.trim().length === 0) return { from, to: from + 1 };
-    return content;
+    const text = this.#documentRows[end] ?? "";
+    const prompt = this.#promptKindAt(end);
+    const from = selection.start.column, to = end === selection.end.line ? selection.end.column : Number.MAX_SAFE_INTEGER;
+    const cached = this.#copyableRow;
+    if (cached?.text === text && cached.prompt === prompt && cached.from === from && cached.to === to) {
+      this.#copyableSelection = cached.value;
+      return;
+    }
+    // Compatibility: learn whether an actual range is empty while presenting selection, not on Ctrl+C.
+    const value = selectionCopyRowText({ selection: { start: { line: 0, column: from }, end: { line: 0, column: to } } },
+      { text, ...(prompt === undefined ? {} : { prompt }) }, 0).length > 0;
+    this.#copyableRow = { text, prompt, from, to, value };
+    this.#copyableSelection = value;
+  }
+
+  #lineContentAt(line: number): TextSelectionLineContent {
+    return selectionCopyLineContent(this.#documentRows[line] ?? "", this.#promptKindAt(line));
+  }
+
+  #promptKindAt(line: number): SelectionCopyPrompt {
+    // Performance: anchors are ordered, disjoint source ranges; do not scan off-screen prompts per copied row.
+    let low = 0, high = this.#promptAnchors.length - 1;
+    while (low <= high) {
+      const middle = (low + high) >>> 1;
+      const anchor = this.#promptAnchors[middle]!;
+      if (line < anchor.firstRow) high = middle - 1;
+      else if (line > anchor.lastRow) low = middle + 1;
+      else return line === anchor.firstRow ? "first" : "continuation";
+    }
+    return undefined;
   }
 }
 

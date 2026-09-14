@@ -1,8 +1,9 @@
 import { SUGGESTION_CONVERSATIONS } from "../../../fixtures/prompt-suggestion-conversations.js";
 import { SuggestionDiagnosticCapture } from "../../../../src/features/prompt-suggestions/index.js";
 import { memoryHistory } from "./prompt-history-fixture.js";
+import { createResponseCopyExecutor } from "../../../../src/integrations/pi/session-ui/response-copy-transport.js";
 import HeadlessXterm from "@xterm/headless";
-import { formatSubmittedPromptTime } from "../../../../src/ui/components/index.js";
+import { formatSubmittedPromptTime, selectionCopyRowText } from "../../../../src/ui/components/index.js";
 import { PromptHistoryService } from "../../../../src/features/prompt-history/index.js";
 import { PromptHistoryStore } from "../../../../src/features/prompt-history/store.js";
 import { resolvePromptHistoryPath } from "../../../../src/features/prompt-history/paths.js";
@@ -16,6 +17,7 @@ import { join } from "node:path";
 import { CURSOR_MARKER, stripTerminalSequences, visibleWidth } from "@earendil-works/pi-tui";
 import {
   Editor,
+  Markdown,
   getCapabilities as getPinnedPiTuiCapabilities,
   getOsc8LinkAtColumn as getPinnedPiTuiLinkAtColumn,
   setCapabilities as setPinnedPiTuiCapabilities,
@@ -197,6 +199,8 @@ async function fixture(
   promptSuggestions?: OwnedUiSessionShellOptions["promptSuggestions"],
   promptHistory?: Omit<NonNullable<OwnedUiSessionShellOptions["promptHistory"]>, "editor">,
   configureEngine?: (engine: Runtime) => void,
+  responseCopy?: OwnedUiSessionShellOptions["responseCopy"],
+  pasteDiagnostics?: OwnedUiSessionShellOptions["pasteDiagnostics"],
 ) {
   const engine = new Runtime(messages);
   configureEngine?.(engine);
@@ -207,11 +211,21 @@ async function fixture(
     backend: adapter,
     cwd: "D:/work",
     terminal,
+    responseCopy: responseCopy ?? { execute: (snapshot, phase) => {
+      const text = snapshot.rows.map((row, index) => selectionCopyRowText(snapshot, row, index)).join("\n");
+      phase("extracted", Buffer.byteLength(text), "injected");
+      phase("encoded", Buffer.byteLength(text), "injected");
+      phase("submitting", Buffer.byteLength(text), "injected");
+      terminal.write(`\u001b]52;c;${Buffer.from(text).toString("base64")}\u0007`);
+      const result = (clipboard?.writeText?.(text) ?? Promise.resolve()).then(() => ({ outcome: "submitted-unverified" as const }));
+      return { result, stopped: result.then(() => {}), cancel() {} };
+    } },
     ...(customViewport ? { sessionLayout: "custom-viewport" as const } : {}),
     ...(viewportSettings === undefined ? {} : { viewportSettings }),
     ...(clipboard === undefined ? {} : { clipboard }),
     ...(streamPresentation === undefined ? {} : { streamPresentation }),
     ...(inputPresentation === undefined ? {} : { inputPresentation }),
+    ...(pasteDiagnostics === undefined ? {} : { pasteDiagnostics }),
     ...(promptSuggestions === undefined ? {} : { promptSuggestions }),
     ...(promptHistory === undefined ? {} : { promptHistory: { ...promptHistory, editor: await loadHistoryEditor() } }),
   });
@@ -577,6 +591,7 @@ describe("prompt-style compaction in the real engine and shell", () => {
         }
         expect(shell.root.hasActiveSelection()).toBe(true);
         terminal.input("\u0003");
+        await nextImmediate();
         expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from("copyable alpha beta").toString("base64")}\u0007`);
         expect(stripTerminalSequences(renderer.render(80).join("\n"))).toContain("summary-23 alpha beta");
         expect(shell.root.editor.getText()).toBe("unsubmitted draft");
@@ -611,6 +626,325 @@ describe("prompt-style compaction in the real engine and shell", () => {
 });
 
 describe("OwnedUiSessionShell", () => {
+  it.each(["native", "terminal"] as const)("bounds near-limit URL presentation without losing its value (%s)", async route => {
+    const text = "https://example.com/" + "x".repeat(16 * 1024 * 1024 - 64);
+    const readText = vi.fn(async () => text);
+    const { shell, terminal } = await fixture([], [], true, undefined, { readText });
+    let last = performance.now(), gap = 0;
+    const timer = setInterval(() => { const now = performance.now(); gap = Math.max(gap, now - last); last = now; }, 5);
+    try {
+      const begin = performance.now();
+      terminal.input(route === "native" ? "\x16" : `\x1b[200~${text}\x1b[201~`);
+      terminal.input(" after");
+      await vi.waitFor(() => expect(shell.root.editor.getText()).toContain("[🔗 "), { timeout: 15_000 });
+      const draft = shell.root.editor.getText();
+      expect(draft.endsWith(" after")).toBe(true);
+      expect(draft.length).toBeLessThan(80);
+      expect(shell.root.preparePromptSubmission(draft).text === text + " after").toBe(true);
+      expect(shell.root.prepareHistoryText(draft) === text + " after").toBe(true);
+      shell.runtime.renderNow();
+      terminal.input(" typing");
+      await nextImmediate();
+      expect(shell.root.editor.getText()).toBe(draft + " typing");
+      shell.runtime.renderNow();
+      await new Promise(resolve => setTimeout(resolve, 10));
+      clearInterval(timer);
+      const maxWriteBytes = Math.max(...terminal.writes.map(value => Buffer.byteLength(value)));
+      expect(maxWriteBytes).toBeLessThan(64 * 1024);
+      expect(terminal.writes.some(value => value.includes("\x1b]8;;https://example.com/"))).toBe(false);
+      expect(readText).toHaveBeenCalledTimes(route === "native" ? 1 : 0);
+      // Rationale: structural bounds gate CI; timing remains synthetic evidence, not physical acceptance.
+      console.log("CLIPBOARD_PRESENTATION_PROBE", JSON.stringify({ route, sourceBytes: Buffer.byteLength(text), insertionMs: performance.now() - begin,
+        maxTimerGapMs: gap, maxWriteBytes, editorChars: draft.length }));
+    } finally { clearInterval(timer); await shell.dispose(); }
+  }, 20_000);
+
+  it.each([10, 1000].flatMap(history => [false, true].flatMap(streaming => ["copy", "paste", "combined"].map(operation => ({ history, streaming, operation })))))
+    ("records separate cold/warm clipboard baselines %j", async ({ history, streaming, operation }) => {
+      let clipboard = "external value";
+      const samples: unknown[] = [];
+      const copyPhases: { phase: string; elapsedMs: number }[] = [];
+      const pastePhases: { phase: string; elapsedMs: number; bytes: number }[] = [];
+      const runtimePhases: string[] = [];
+      const writeText = vi.fn(async (text: string) => { clipboard = text; });
+      const readText = vi.fn(async () => clipboard);
+      const messages = Array.from({ length: history }, (_, i) => ({ role: "assistant", content: [{ type: "text", text: i === history - 1 ? "copy-target visible response" : `generated historical response ${i}` }] }));
+      const { shell, terminal, engine, adapter } = await fixture(messages, [], true, undefined, { readText }, undefined,
+        { onEvent: event => runtimePhases.push(event.phase) }, undefined, undefined, undefined,
+        { execute: createResponseCopyExecutor({ writeText }), onEvent: event => copyPhases.push({ phase: event.phase, elapsedMs: event.elapsedMs }) },
+        event => pastePhases.push({ phase: event.phase, elapsedMs: event.elapsedMs ?? 0, bytes: event.bytes ?? 0 }));
+      try {
+        if (streaming) { engine.session.emit({ type: "agent_start" }); await adapter.flushEvents(); }
+        for (let iteration = 0; iteration < 3; iteration++) {
+          shell.root.editor.setText(""); shell.runtime.renderNow();
+          clipboard = `external-${iteration}`;
+          copyPhases.length = 0; pastePhases.length = 0; runtimePhases.length = 0;
+          let last = performance.now(), gap = 0, ticks = 0;
+          const heartbeat = setInterval(() => { const now = performance.now(); gap = Math.max(gap, now - last); last = now; ticks++; }, 5);
+          const begin = performance.now();
+          try {
+            if (operation !== "paste") {
+              const rows = shell.root.render(80).map(stripTerminalSequences);
+              const row = rows.findIndex(text => text.includes("copy-target"));
+              expect(row).toBeGreaterThanOrEqual(0);
+              const column = rows[row]!.indexOf("copy-target") + 1;
+              // Rationale: independent generated drags must not become double/triple-click selection gestures.
+              const clock = vi.spyOn(Date, "now").mockReturnValue(Date.now() + iteration * 1000);
+              try { terminal.input(`\u001b[<0;${column};${row + 1}M\u001b[<32;${column + 10};${row + 1}M\u001b[<0;${column + 10};${row + 1}m\u0003`); }
+              finally { clock.mockRestore(); }
+            }
+            if (operation !== "copy") terminal.input("\x16");
+            terminal.input("typed"); await nextImmediate();
+            expect(shell.root.editor.getText()).toContain("typed");
+            const inputMs = performance.now() - begin;
+            if (operation !== "paste") await vi.waitFor(() => expect(clipboard).toBe("copy-target"), { timeout: 5000 });
+            if (operation !== "copy") await vi.waitFor(() => expect(shell.root.editor.getText()).toBe(`${clipboard}typed`), { timeout: 5000 });
+            else expect(shell.root.editor.getText()).toBe("typed");
+            await nextImmediate(); shell.runtime.renderNow();
+            expect(ticks).toBeGreaterThan(0);
+            samples.push({ iteration, temperature: iteration === 0 ? "cold-shell" : "warm-shell", inputMs,
+              completionMs: performance.now() - begin, maxTimerGapMs: gap, ticks,
+              compositions: runtimePhases.filter(phase => phase === "composition-end").length,
+              writes: runtimePhases.filter(phase => phase === "write-end").length, copyPhases: [...copyPhases], pastePhases: [...pastePhases] });
+          } finally { clearInterval(heartbeat); }
+        }
+        expect(writeText).toHaveBeenCalledTimes(operation === "paste" ? 0 : 3);
+        expect(readText).toHaveBeenCalledTimes(operation === "copy" ? 0 : 3);
+        // Rationale: helpers still start cold per request; these generated timings do not measure physical clipboard/terminal behavior.
+        console.log("CLIPBOARD_GENERATED_BASELINE", JSON.stringify({ history, streaming, operation, samples }));
+      } finally { await shell.dispose(); }
+    }, 20_000);
+
+  it.each(["single-line", "multiline", "image"])("records isolated large-payload presentation controls (%s)", async kind => {
+    const text = kind === "single-line" ? "x".repeat(2 * 1024 * 1024) : "generated line\n".repeat(100_000);
+    const image = screenshotPng(1024, 1024).toString("base64");
+    const phases: { phase: string; elapsedMs: number; bytes: number }[] = [];
+    const { shell, terminal } = await fixture([], [], true, undefined,
+      { readText: async () => text, ...(kind === "image" ? { readImage: async () => ({ data: image, mimeType: "image/png" }) } : {}) },
+      undefined, undefined, undefined, undefined, undefined, undefined,
+      event => phases.push({ phase: event.phase, elapsedMs: event.elapsedMs ?? 0, bytes: event.bytes ?? 0 }));
+    let last = performance.now(), gap = 0, ticks = 0;
+    const heartbeat = setInterval(() => { const now = performance.now(); gap = Math.max(gap, now - last); last = now; ticks++; }, 5);
+    try {
+      const begin = performance.now(); terminal.input("\x16"); terminal.input(" after"); await nextImmediate();
+      expect(shell.root.editor.getText()).toContain(" after");
+      await vi.waitFor(() => {
+        expect(shell.root.editor.getText()).toMatch(kind === "image" ? /^\[📷 screenshot-/u : /^\[paste #/u);
+        expect(shell.root.hasPendingPastes(shell.root.editor.getText())).toBe(false);
+      }, { timeout: 10_000 });
+      const ready = shell.root.preparePromptSubmission(shell.root.editor.getText());
+      if (kind === "image") { expect(ready.images).toHaveLength(1); expect(ready.text).toBe(shell.root.editor.getText()); }
+      else expect(ready.text === text + " after").toBe(true);
+      shell.runtime.renderNow(); await nextImmediate();
+      expect(ticks).toBeGreaterThan(0);
+      expect(shell.root.editor.getText().length).toBeLessThan(100);
+      const maxWriteBytes = Math.max(...terminal.writes.map(value => Buffer.byteLength(value)));
+      expect(maxWriteBytes).toBeLessThan(64 * 1024);
+      console.log("CLIPBOARD_LARGE_CONTROL", JSON.stringify({ kind, elapsedMs: performance.now() - begin, maxTimerGapMs: gap, ticks, maxWriteBytes, phases }));
+    } finally { clearInterval(heartbeat); await shell.dispose(); }
+  }, 15_000);
+
+  it.each([{ count: 2, nameUnits: 7 }, { count: 1000, nameUnits: 7 }, { count: 4000, nameUnits: 7 }, { count: 12000, nameUnits: 7 }, { count: 6000, nameUnits: 160 }, { count: 0, nameUnits: 160 }]
+    .flatMap(value => [false, true].map(terminalPaste => ({ ...value, terminalPaste }))))("bounds path-list presentation and preserves edits %j", async ({ count: requestedCount, nameUnits, terminalPaste }) => {
+    const directory = await mkdtemp(join(tmpdir(), "clipboard-path-evidence-"));
+    const file = join(directory, `${"f".repeat(nameUnits)}.txt`);
+    await writeFile(file, "generated");
+    const count = requestedCount || Math.floor(16 * 1024 * 1024 / (Buffer.byteLength(file) + 3));
+    const text = Array.from({ length: count }, () => `"${file}"`).join("\n");
+    const phases: string[] = [];
+    const readText = vi.fn(async () => text);
+    const { shell, terminal } = await fixture([], [], true, undefined, { readText }, undefined, undefined, undefined, undefined, undefined, undefined,
+      event => phases.push(event.phase));
+    let last = performance.now(), gap = 0, ticks = 0;
+    const heartbeat = setInterval(() => { const now = performance.now(); gap = Math.max(gap, now - last); last = now; ticks++; }, 5);
+    try {
+      const begin = performance.now();
+      terminal.input(terminalPaste ? `\x1b[200~${text}\x1b[201~` : "\x16"); terminal.input(" after");
+      await nextImmediate();
+      expect(shell.root.editor.getText()).toContain(" after");
+      await vi.waitFor(() => expect(phases).toContain("settled"), { timeout: 15_000 });
+      const draft = shell.root.editor.getText();
+      const pathFallback = phases.includes("path-fallback");
+      const expanded = pathFallback ? text : file.repeat(count);
+      expect(shell.root.preparePromptSubmission(draft).text === expanded + " after").toBe(true);
+      expect(shell.root.prepareHistoryText(draft) === expanded + " after").toBe(true);
+      if (count > 2) {
+        expect(draft).toMatch(/^\[paste #\d+ (?:\d+ chars|\+\d+ lines)\] after$/u);
+        expect(draft.length).toBeLessThan(100);
+      } else if (!pathFallback) expect(draft).toBe("[📄 fffffff.txt]".repeat(count) + " after");
+      expect(readText).toHaveBeenCalledTimes(terminalPaste ? 0 : 1);
+      shell.runtime.renderNow(); await nextImmediate();
+      expect(ticks).toBeGreaterThan(0);
+      const maxWriteBytes = Math.max(...terminal.writes.map(value => Buffer.byteLength(value)));
+      expect(maxWriteBytes).toBeLessThan(64 * 1024);
+      // Rationale: deterministic representation/content gates are separate from generated timings and physical acceptance.
+      console.log("CLIPBOARD_PATH_PRESENTATION", JSON.stringify({ count, nameUnits, terminalPaste, pathFallback, sourceBytes: Buffer.byteLength(text),
+        editorChars: draft.length, elapsedMs: performance.now() - begin, maxTimerGapMs: gap, maxWriteBytes }));
+      terminal.input("\x1a"); await nextImmediate();
+      expect(shell.root.editor.getText()).toBe(draft.slice(0, -6));
+      terminal.input("\x1a"); await nextImmediate();
+      expect(shell.root.editor.getText()).toBe("");
+      terminal.input("\x19"); await nextImmediate();
+      expect(shell.root.editor.getText()).toBe(draft.slice(0, -6));
+      terminal.input("\x19"); await nextImmediate();
+      expect(shell.root.editor.getText()).toBe(draft);
+      expect(shell.root.preparePromptSubmission(draft).text === expanded + " after").toBe(true);
+    } finally { clearInterval(heartbeat); await shell.dispose(); await rm(directory, { recursive: true, force: true }); }
+  }, 25_000);
+
+  it.each(["\n", " "])("bounds aggregate URL metadata and resets each decoration pass (separator=%j)", async separator => {
+    const { shell } = await fixture([], [], true);
+    const url = "https://example.com/" + "x".repeat(30_000);
+    const small = "https://small.example/";
+    try {
+      const chip = shell.root.rehydrateHistoryText(url, () => null);
+      const smallChip = shell.root.rehydrateHistoryText(small, () => null);
+      shell.root.editor.setText([chip, chip, chip, smallChip].join(separator));
+      for (let pass = 0; pass < 3; pass++) {
+        const rows = shell.root.editor.render(separator === "\n" ? 80 : 220);
+        const output = rows.join("\n");
+        const controls = [...output.matchAll(/\u001b\]8;;[^\u0007\u001b]*(?:\u0007|\u001b\\)/gu)].map(match => match[0]);
+        expect(controls.reduce((sum, value) => sum + Buffer.byteLength(value), 0)).toBeLessThanOrEqual(64 * 1024);
+        expect(controls.filter(value => value === `\u001b]8;;${url}\u001b\\`)).toHaveLength(2);
+        expect(controls.filter(value => value === `\u001b]8;;${small}\u001b\\`)).toHaveLength(1);
+        expect(stripTerminalSequences(output)).toContain(smallChip);
+      }
+      expect(shell.root.preparePromptSubmission(shell.root.editor.getText()).text === [url, url, url, small].join(separator)).toBe(true);
+    } finally { await shell.dispose(); }
+  });
+
+  it.each([false, true])("keeps selected-response copying independent of UI progress (streaming=%s)", async streaming => {
+    let finish!: () => void;
+    const pending = new Promise<void>(resolve => { finish = resolve; });
+    let clipboardText = "old clipboard";
+    const readText = vi.fn(async () => clipboardText);
+    const phases: string[] = [];
+    const { shell, terminal, engine, adapter } = await fixture([
+      { role: "assistant", content: [{ type: "text", text: "copy-target response text" }] },
+    ], [], true, undefined, { readText }, undefined, undefined, undefined, undefined, undefined, {
+      onEvent: event => phases.push(event.phase),
+      execute: (snapshot, phase) => {
+        phase("submitting", snapshot.sourceUnits, "injected");
+        const result = pending.then(() => {
+          clipboardText = snapshot.rows.map((row, index) => selectionCopyRowText(snapshot, row, index)).join("\n");
+          return { outcome: "delivered" as const };
+        });
+        return { result, stopped: result.then(() => {}), cancel: finish };
+      },
+    });
+    try {
+      if (streaming) { engine.session.emit({ type: "agent_start" }); await adapter.flushEvents(); }
+      shell.runtime.renderNow();
+      const rows = shell.root.render(80).map(stripTerminalSequences);
+      const row = rows.findIndex(text => text.includes("copy-target"));
+      const column = rows[row]!.indexOf("copy-target") + 1;
+      terminal.input(`\u001b[<0;${column};${row + 1}M\u001b[<32;${column + 10};${row + 1}M\u001b[<0;${column + 10};${row + 1}m\u0003`);
+      expect(shell.root.hasActiveSelection()).toBe(false);
+      terminal.input("still usable");
+      await nextImmediate();
+      expect(shell.root.editor.getText()).toBe("still usable");
+      expect(phases).toContain("submitting");
+      expect(phases).not.toContain("settled");
+      terminal.input("\u0016");
+      await nextImmediate();
+      expect(readText).not.toHaveBeenCalled();
+      if (streaming) {
+        const message = { role: "assistant", content: [{ type: "text", text: "new streamed response" }], timestamp: 2 };
+        engine.session.emit({ type: "message_start", message });
+        engine.session.emit({ type: "message_end", message });
+        await adapter.flushEvents();
+        shell.runtime.renderNow();
+        expect(shell.root.render(80).map(stripTerminalSequences).join("\n")).toContain("new streamed response");
+        const writes = terminal.writes.length;
+        await vi.waitFor(() => expect(terminal.writes.length).toBeGreaterThan(writes), { timeout: 1000 });
+        expect(phases).not.toContain("settled");
+      }
+      finish();
+      await vi.waitFor(() => expect(shell.root.editor.getText()).toBe("still usablecopy-target"));
+      expect(clipboardText).toBe("copy-target");
+      expect(phases).toContain("settled");
+    } finally { finish(); await shell.dispose(); }
+  });
+
+  it.each(["current", "session", "dispose"])("fences late copy completion and preserves UI ownership across %s", async boundary => {
+    let release!: () => void;
+    const waiting = new Promise<void>(resolve => { release = resolve; });
+    const cancel = vi.fn();
+    const formatting = vi.spyOn(Markdown.prototype, "render");
+    const messages = [{ role: "assistant", content: [{ type: "text", text: Array.from({ length: 100 }, (_, i) => `row ${i} selectable content`).join("\n\n") }] }];
+    const { shell, terminal, engine, adapter } = await fixture(messages, [], true, undefined, undefined,
+      undefined, undefined, undefined, undefined, undefined, {
+        execute: (_snapshot, phase) => {
+          phase("submitting", 10, "injected");
+          const result = waiting.then(() => ({ outcome: "delivered" as const }));
+          return { result, stopped: result.then(() => {}), cancel };
+        },
+      });
+    const select = () => {
+      const rows = shell.root.render(80).map(stripTerminalSequences);
+      const row = rows.findIndex(text => text.includes("selectable"));
+      expect(row).toBeGreaterThanOrEqual(0);
+      const column = rows[row]!.indexOf("selectable") + 1;
+      terminal.input(`\u001b[<0;${column};${row + 1}M\u001b[<32;${column + 10};${row + 1}M\u001b[<0;${column + 10};${row + 1}m`);
+    };
+    try {
+      await nextImmediate(); shell.runtime.renderNow();
+      expect(formatting.mock.calls.length).toBeGreaterThan(0);
+      const formats = formatting.mock.calls.length;
+      select(); terminal.input("\u0003");
+      expect(shell.root.hasActiveSelection()).toBe(false);
+      terminal.input("draft"); await nextImmediate(); shell.runtime.renderNow();
+      expect(shell.root.editor.getText()).toBe("draft");
+      const top = shell.root.viewportPresentationEvidence().scrollTop;
+      terminal.input("\u001b[<64;2;2M"); await nextImmediate(); shell.runtime.renderNow();
+      expect(shell.root.viewportPresentationEvidence().scrollTop).toBeLessThan(top);
+      expect(formatting.mock.calls.length).toBe(formats);
+      if (boundary === "session") { await engine.rebindSession?.(new Session(messages)); await adapter.flushEvents(); shell.runtime.renderNow(); }
+      if (boundary === "dispose") {
+        await shell.dispose();
+        expect(terminal.active).toBe(false);
+        expect(terminal.writes.join("")).toContain("\u001b[?1049l");
+      } else {
+        select(); expect(shell.root.hasActiveSelection()).toBe(true);
+      }
+      const writes = terminal.writes.length;
+      release(); await nextImmediate(); await nextImmediate();
+      if (boundary === "dispose") expect(terminal.writes).toHaveLength(writes);
+      else expect(shell.root.hasActiveSelection()).toBe(true);
+      if (boundary !== "current") expect(cancel).toHaveBeenCalledOnce();
+    } finally { release(); await shell.dispose(); formatting.mockRestore(); }
+  });
+
+  it("does not paste the previous clipboard after a known response-copy failure", async () => {
+    let fail!: () => void;
+    const pending = new Promise<void>(resolve => { fail = resolve; });
+    const readText = vi.fn(async () => "stale text");
+    const { shell, terminal } = await fixture([
+      { role: "assistant", content: [{ type: "text", text: "selected response" }] },
+    ], [], true, undefined, { readText }, undefined, undefined, undefined, undefined, undefined, {
+      execute: (_snapshot, phase) => {
+        phase("submitting", 10, "injected");
+        const result = pending.then(() => ({ outcome: "failed" as const, failure: "denied" as const }));
+        return { result, stopped: result.then(() => {}), cancel: fail };
+      },
+    });
+    try {
+      const rows = shell.root.render(80).map(stripTerminalSequences);
+      const row = rows.findIndex(text => text.includes("selected response"));
+      const column = rows[row]!.indexOf("selected") + 1;
+      terminal.input(`\u001b[<0;${column};${row + 1}M\u001b[<32;${column + 7};${row + 1}M\u001b[<0;${column + 7};${row + 1}m\u0003`);
+      await nextImmediate();
+      terminal.input("\u0016");
+      fail();
+      await vi.waitFor(() => expect(shell.root.render(80).map(stripTerminalSequences).join("\n")).toContain("clipboard is unavailable"));
+      await nextImmediate();
+      expect(readText).not.toHaveBeenCalled();
+      expect(shell.root.editor.getText()).toBe("");
+      terminal.input("still usable"); await nextImmediate();
+      expect(shell.root.editor.getText()).toBe("still usable");
+    } finally { fail(); await shell.dispose(); }
+  });
+
   it.each([
     ["/scoped-models", "Model Configuration"],
     ["/model", "Select model"],
@@ -638,6 +972,7 @@ describe("OwnedUiSessionShell", () => {
       expect(selectedRow).toBeGreaterThan(0);
       const before = terminal.writes.length;
       terminal.input(`\u001b[<0;2;${selectedRow}M\u001b[<32;7;${selectedRow}M\u001b[<0;7;${selectedRow}m\u0003`);
+      await nextImmediate();
       shell.runtime.renderNow();
       const output = terminal.writes.slice(before).join("");
       const copies = [...output.matchAll(/\u001b\]52;c;([^\u0007]*)\u0007/g)];
@@ -683,6 +1018,7 @@ describe("OwnedUiSessionShell", () => {
       terminal.input(`${selectedRow}M\u001b[<32;7;${selectedRow}M\u001b[<0;7;${selectedRow}m`);
       const copyAt = terminal.writes.length;
       terminal.input("\u0003");
+      await nextImmediate();
       expect(terminal.writes.slice(copyAt).join("")).toContain("\u001b]52;c;");
       expect(received).toEqual([]);
       done!();
@@ -713,6 +1049,7 @@ describe("OwnedUiSessionShell", () => {
       const row = shell.root.render(80).findIndex(line => stripTerminalSequences(line).includes("alpha")) + 1;
       const copyAt = terminal.writes.length;
       terminal.input(`\u001b[<0;2;${row}M\u001b[<32;7;${row}M\u001b[<0;7;${row}m\u0003`);
+      await nextImmediate();
       expect(terminal.writes.slice(copyAt).join("")).toContain("\u001b]52;c;");
       expect(shell.root.usesDefaultInputSurface()).toBe(false);
       if (kind === "custom-editor") context.setEditorComponent(undefined);
@@ -1071,6 +1408,28 @@ describe("OwnedUiSessionShell", () => {
       release("large late payload\n".repeat(136)); await pending; await nextImmediate(); await nextImmediate();
       expect(shell.root.editor.getText()).toBe("newer"); expect(engine.session.promptOptions).toHaveLength(0);
     } finally { await shell.dispose(); }
+  });
+
+  it.each(["session", "dispose"])("does not adopt late image bytes after %s teardown", async boundary => {
+    let release!: (value: { data: string; mimeType: string }) => void;
+    const image = new Promise<{ data: string; mimeType: string }>(resolve => { release = resolve; });
+    const { shell, terminal, engine, adapter } = await fixture([], [], true, undefined, { readText: async () => null, readImage: () => image });
+    try {
+      terminal.input("\x16"); await nextImmediate();
+      if (boundary === "session") { await engine.rebindSession?.(new Session()); await adapter.flushEvents(); }
+      else await shell.dispose();
+      shell.root.editor.setText("newer draft"); await nextImmediate();
+      const writes = terminal.writes.length;
+      release({ data: screenshotPng(32, 32).toString("base64"), mimeType: "image/png" });
+      await nextImmediate(); await nextImmediate();
+      expect(shell.root.editor.getText()).toBe("newer draft");
+      expect(shell.root.preparePromptSubmission("newer draft").images).toEqual([]);
+      if (boundary === "dispose") {
+        expect(terminal.active).toBe(false);
+        expect(terminal.writes).toHaveLength(writes);
+        expect(terminal.writes.join("")).toContain("\u001b[?1049l");
+      }
+    } finally { release({ data: "", mimeType: "image/png" }); await shell.dispose(); }
   });
 
   it.each(["waiting", "compaction"])("recovers a large text %s queue without losing or double-expanding its payload", async mode => {
@@ -2318,6 +2677,7 @@ describe("OwnedUiSessionShell", () => {
       const released = shell.root.render(100)[rowIndex] ?? "";
       expect(released).toContain(`\u001b]8;;${target}\u001b\\`);
       terminal.input("\u0003");
+      await nextImmediate();
       expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from(label).toString("base64")}\u0007`);
       await shell.dispose();
     });
@@ -2557,6 +2917,7 @@ describe("OwnedUiSessionShell", () => {
       expect(release).toContain(`\u001b]8;;${url}\u001b\\`);
       expect(release).not.toContain("\uFE0E");
       terminal.input("\u0003");
+      await nextImmediate();
       const copyWrite = terminal.writes.findLast(write => write.startsWith("\u001b]52;c;"));
       expect(copyWrite).toBeDefined();
       const copied = Buffer.from(copyWrite!.slice("\u001b]52;c;".length, -1), "base64").toString("utf8");
@@ -2615,6 +2976,7 @@ describe("OwnedUiSessionShell", () => {
         }
       }
       terminal.input("\u0003");
+      await nextImmediate();
       expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from(expectedCopy).toString("base64")}\u0007`);
     } finally { screen.dispose(); clock.mockRestore(); await shell.dispose(); }
   });
@@ -2862,6 +3224,7 @@ describe("OwnedUiSessionShell", () => {
     click();
     click();
     terminal.input("\u0003");
+    await nextImmediate();
     expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from("assistant").toString("base64")}\u0007`);
 
     click();
@@ -2869,6 +3232,7 @@ describe("OwnedUiSessionShell", () => {
     expect(tripleSelected).toContain("\u001b[48;2;38;79;120m");
     expect(tripleSelected).not.toContain("38;2;0;0;0");
     terminal.input("\u0003");
+    await nextImmediate();
     expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from("Selectable assistant words").toString("base64")}\u0007`);
   });
 
@@ -2889,6 +3253,7 @@ describe("OwnedUiSessionShell", () => {
     const selected = shell.root.render(192)[rowIndex] ?? "";
     expect(selected).toContain("\u001b[48;2;38;79;120m");
     terminal.input("\u0003");
+    await nextImmediate();
     expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from(direction === 1 ? "ch" : " c").toString("base64")}\u0007`);
     await shell.dispose();
   });
@@ -2928,6 +3293,7 @@ describe("OwnedUiSessionShell", () => {
       expect(await selectedCells()).toEqual([{ row, column }]);
       terminal.input("\u0003");
       shell.runtime.renderNow();
+      await nextImmediate();
       expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from("c").toString("base64")}\u0007`);
       expect(shell.root.hasActiveSelection()).toBe(false);
       expect(await selectedCells()).toEqual([]);
@@ -2966,6 +3332,7 @@ describe("OwnedUiSessionShell", () => {
         ...Array.from({ length: lastColumn }, (_, index) => ({ row: lastRow, column: index + 1 })),
       ]);
       terminal.input("\u0003");
+      await nextImmediate();
       const clipboardWrite = terminal.writes.findLast(write => write.startsWith("\u001b]52;c;"));
       expect(clipboardWrite).toBeDefined();
       // Invariant: preserve the code renderer's source-row indentation, but not viewport right padding.
@@ -3137,6 +3504,7 @@ describe("OwnedUiSessionShell", () => {
     terminal.input("\u0001"); // Protocol: Ctrl+A
     expect(shell.root.render(60).join("\n")).toContain("\u001b[48;2;38;79;120m");
     terminal.input("\u0003"); // Protocol: Ctrl+C
+    await nextImmediate();
     expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from("alpha beta").toString("base64")}\u0007`);
     expect(shell.root.render(60).join("\n")).not.toContain("\u001b[48;2;38;79;120m");
 
@@ -3175,6 +3543,7 @@ describe("OwnedUiSessionShell", () => {
     terminal.input("\u001b[1;2D"); // Protocol: Shift+Left extends selection to cd.
     terminal.input("\u001b[1;2C"); // Protocol: Shift+Right shrinks selection to d.
     terminal.input("\u0003");
+    await nextImmediate();
     expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from("d").toString("base64")}\u0007`);
 
     terminal.input("X");
@@ -3537,10 +3906,12 @@ describe("OwnedUiSessionShell", () => {
     click();
     click();
     terminal.input("\u0003");
+    await nextImmediate();
     expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from("alpha").toString("base64")}\u0007`);
 
     click();
     terminal.input("\u0003");
+    await nextImmediate();
     expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from("mouse alpha beta").toString("base64")}\u0007`);
 
     await shell.dispose();
@@ -3689,6 +4060,7 @@ describe("OwnedUiSessionShell", () => {
     terminal.input(`\u001b[<0;${end + 1};${row}m`);
     terminal.input("\u0003");
 
+    await nextImmediate();
     expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from("Selectable").toString("base64")}\u0007`);
     await shell.dispose();
   });

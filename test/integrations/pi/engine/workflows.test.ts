@@ -243,6 +243,22 @@ const selectionByCommand: Partial<Record<typeof PINNED_PI_WORKFLOW_COMMAND_NAMES
 };
 
 describe("pinned Pi command and input workflows", () => {
+  it("uses the owned clipboard fence for workflow and tree copying without falsely acknowledging terminal submission", async () => {
+    const copyText = vi.fn(async () => {});
+    const { adapter } = await fixture(host({ copyText }));
+    const writer = vi.fn(async () => false);
+    const unbind = adapter.bindClipboardWriter(writer);
+    try {
+      await expect(adapter.executeWorkflow({ command: "copy", argument: "" })).resolves.toMatchObject({ outcome: "completed", message: "Submitted last agent message to clipboard" });
+      expect(writer).toHaveBeenCalledWith("last answer");
+      await expect(adapter.copyWorkflowText("selected tree text")).resolves.toBe(false);
+      expect(copyText).not.toHaveBeenCalled();
+      unbind();
+      await expect(adapter.executeWorkflow({ command: "copy", argument: "" })).resolves.toMatchObject({ outcome: "completed", message: "Copied last agent message to clipboard" });
+      expect(copyText).toHaveBeenCalledWith("last answer");
+    } finally { unbind(); await adapter.dispose(); }
+  });
+
   it("matches the independently recorded upstream command, hidden-route, and settings manifests", async () => {
     const evidence = JSON.parse(await readFile("config/baselines/pinned-pi-command-workflow-outcomes.json", "utf8"));
     const commandMap = JSON.parse(await readFile("node_modules/@earendil-works/pi-coding-agent/dist/core/slash-commands.js.map", "utf8"));

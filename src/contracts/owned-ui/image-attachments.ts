@@ -1,10 +1,17 @@
 import type { OwnedUiImageAttachment } from "./model.js";
 
 export const MAX_PROMPT_IMAGES = 8;
+/** Owned clipboard text is bounded before transfer, normalization, or editor insertion. */
+export const MAX_CLIPBOARD_TEXT_BYTES = 16 * 1024 * 1024;
 /** Limit applies to canonical ASCII base64, not decoded image bytes. */
 export const MAX_IMAGE_DATA_BYTES = 8 * 1024 * 1024;
 
 const MESSAGES = {
+  "paste-timeout": "Clipboard paste timed out. The editor is still available.",
+  "paste-unavailable": "Could not paste; the clipboard is unavailable.",
+  "paste-size": "Pasted text exceeds the 16 MiB limit.",
+  "paste-busy": "Clipboard preparation is full (8 pending pastes).",
+  "paste-write-failed": "Paste skipped because the preceding copy failed.",
   "image-size": "Image exceeds the 8 MiB encoded base64 limit. Reduce the image size and paste it again.",
   "image-count": "A prompt supports at most 8 images. Remove an attachment before adding another.",
   "image-data": "Image data is invalid. Paste a valid image again.",

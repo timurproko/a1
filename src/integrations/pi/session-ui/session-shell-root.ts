@@ -120,7 +120,12 @@ import {
   type PiTuiTerminalPort,
 } from "../tui-runtime/index.js";
 import { PromptChipStore, type PreparedPrompt } from "./prompt-chips.js";
-import { SessionViewportController } from "./session-viewport-controller.js";
+import { EditorHyperlinkBudget } from "./editor-hyperlink-budget.js";
+import { SessionViewportController, type SessionViewportInputResult } from "./session-viewport-controller.js";
+import type { ResponseCopyExecutor } from "./response-copy-transport.js";
+import type { ResponseCopyEvent } from "./response-copy-protocol.js";
+import type { PasteEvent, PasteSource } from "./paste-protocol.js";
+import { canPreparePasteInline } from "./paste-text-preparation.js";
 import type { StreamPresentationScheduler } from "./stream-presentation-coalescer.js";
 
 export type OwnedUiBackendPort = PiEngineAdapter;
@@ -130,7 +135,7 @@ type OwnedUiStartupOptions = PiShellHeaderOptions;
 export interface OwnedUiClipboardPort {
   readText(signal?: AbortSignal): Promise<string | null>;
   readImage?(signal?: AbortSignal): Promise<{ readonly data: string; readonly mimeType: string } | null>;
-  writeText?(text: string): Promise<void>;
+  writeText?(text: string, signal?: AbortSignal): Promise<void>;
 }
 
 export interface OwnedUiSessionShellOptions {
@@ -158,6 +163,13 @@ export interface OwnedUiSessionShellOptions {
   readonly viewportSettings?: OwnedUiViewportSettingsPort;
   /** Optional platform seam; production uses A1's system clipboard adapter. */
   readonly clipboard?: OwnedUiClipboardPort;
+  /** Owned response-copy transport and payload-free diagnostic seams. Comparison profiles ignore them. */
+  readonly responseCopy?: {
+    readonly execute?: ResponseCopyExecutor;
+    readonly onEvent?: (event: ResponseCopyEvent) => void;
+  };
+  /** Bounded, payload-free clipboard acquisition/preparation observations. */
+  readonly pasteDiagnostics?: (event: PasteEvent) => void;
   /** Deterministic scheduling seam for presentation-cadence tests. */
   readonly streamPresentation?: {
     readonly intervalMs?: number;
@@ -200,7 +212,9 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   readonly #queued: PiShellQueuedInputPort;
   readonly #extensionRenderers: PiShellExtensionRendererResolver;
   readonly #imageAssets: PiShellImageAssetResolver | undefined;
-  readonly #promptChips = new PromptChipStore();
+  readonly #promptChips: PromptChipStore;
+  readonly #editorHyperlinks = new EditorHyperlinkBudget();
+  #pasteFramingId = 0;
   readonly #customViewport: boolean;
   readonly #submittedPromptComposer: PiShellSubmittedPromptComposer | undefined;
   readonly #viewportController: SessionViewportController;
@@ -279,6 +293,8 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       readonly onInputSurfaceChanged?: () => void;
       readonly onCopyText?: (text: string) => void;
       readonly readClipboardContent?: (signal?: AbortSignal) => Promise<PiShellClipboardContent | null>;
+      readonly captureClipboardPaste?: () => PasteSource;
+      readonly pasteDiagnostics?: (event: PasteEvent) => void;
     },
     startup: PiShellHeaderOptions = {},
     agentDir?: string,
@@ -291,6 +307,8 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   ) {
     this.#view = view;
     this.#customViewport = sessionLayout === "custom-viewport";
+    this.#promptChips = new PromptChipStore({ isolated: this.#customViewport,
+      ...(handlers.pasteDiagnostics === undefined ? {} : { onEvent: handlers.pasteDiagnostics }) });
     this.#submittedPromptComposer = this.#customViewport
       ? {
           layout: submittedPromptLayout,
@@ -335,18 +353,29 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
           return "";
         }
       },
-      ...(this.#customViewport ? { beginClipboardPaste: () => this.#promptChips.beginPaste(
-        this.editor.getText(),
-        signal => handlers.readClipboardContent?.(signal) ?? Promise.resolve(null),
-        error => handlers.onPasteRejected?.(error),
-        () => handlers.requestRender(),
-      ) } : {}),
+      ...(this.#customViewport ? {
+        beginClipboardPaste: () => this.#promptChips.beginPaste(
+          this.editor.getText(),
+          handlers.captureClipboardPaste?.() ?? { kind: "provided", read: signal => handlers.readClipboardContent?.(signal) ?? Promise.resolve(null) },
+          error => handlers.onPasteRejected?.(error),
+          () => handlers.requestRender(),
+        ),
+        onPasteInput: bytes => {
+          try { handlers.pasteDiagnostics?.({ request: --this.#pasteFramingId, phase: "framing", bytes, atMs: performance.now(), pending: 0, transport: "terminal" }); }
+          catch { /* Invariant: payload-free diagnostics cannot interfere with the input path. */ }
+        },
+        deferTextPaste: text => !canPreparePasteInline(text),
+        beginTextPaste: text => this.#promptChips.beginPaste(
+          this.editor.getText(), { kind: "text", text }, error => handlers.onPasteRejected?.(error),
+        ),
+      } : {}),
       editorAtomicRanges: line => this.#promptChips.atomicRanges(line),
       editorHiddenRanges: line => this.#promptChips.hiddenRanges(line),
-      decorateEditorRow: (row, width) => {
+      decorateEditorRow: (row, width, rowIndex) => {
+        if (rowIndex === 0) this.#editorHyperlinks.reset();
         const plain = stripAnsi(row);
         const ranges = this.#promptChips.hyperlinkRanges(plain);
-        if (ranges.length === 0) return row;
+        if (ranges.length === 0 || !this.#editorHyperlinks.takeCleanup()) return row;
         const linkResetAndTail = `\u001b]8;;\u001b\\\u001b[24m${" ".repeat(Math.max(0, width - piShellVisibleWidth(row)))}`;
         // Platform: VS15 is zero-column and default-ignorable. It breaks Windows Terminal's
         // plain-text URL detector only in the held-button paint; semantic text stays exact.
@@ -362,7 +391,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
               "\u001b[24m",
               piShellVisibleWidth,
             ), paintRow)
-          : ranges.reduce((result, range) => hyperlinkSgrSpan(
+          : ranges.filter(range => this.#editorHyperlinks.take(range.target)).reduce((result, range) => hyperlinkSgrSpan(
               result,
               piShellVisibleWidth(plain.slice(0, range.start)),
               piShellVisibleWidth(plain.slice(0, range.end)),
@@ -757,11 +786,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     return this.#viewportController.inputGeometryReady && frame?.descriptor.width === width && frame.descriptor.height === height;
   }
 
-  handleViewportPreInput(data: string, allowWheel = true, now = Date.now(), editorActive = this.usesDefaultInputSurface()): {
-    readonly data: string;
-    readonly consumed: boolean;
-    readonly copyText?: string;
-  } {
+  handleViewportPreInput(data: string, allowWheel = true, now = Date.now(), editorActive = this.usesDefaultInputSurface()): SessionViewportInputResult {
     return this.#viewportController.handlePreInput(data, allowWheel, now, editorActive);
   }
 

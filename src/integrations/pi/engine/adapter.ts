@@ -300,6 +300,7 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
   readonly #sessionSelection: PiSessionSelection | undefined;
   readonly #sessionForkPrompt: PiSessionForkPrompt | undefined;
   readonly #workflowHost: PiWorkflowHost;
+  #clipboardWriter: ((text: string) => Promise<boolean>) | undefined;
   #workflowInteraction: PiWorkflowInteractionHost;
   readonly #listeners = new Map<(event: OwnedUiEvent) => void, number>();
   #runtime: PiRuntimeApi | undefined;
@@ -1250,8 +1251,18 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
     return this.#requireWorkflowSession().extensionRunner?.getToolDefinition?.(toolName);
   }
 
-  async copyWorkflowText(text: string): Promise<void> {
+  /** Bind the owned UI's clipboard lifecycle without changing the comparison host. True means acknowledged delivery. */
+  bindClipboardWriter(writer: (text: string) => Promise<boolean>): () => void {
+    const previous = this.#clipboardWriter;
+    this.#clipboardWriter = writer;
+    return () => { if (this.#clipboardWriter === writer) this.#clipboardWriter = previous; };
+  }
+
+  /** Workflow and tree copying share the active owner's write fence and delivery acknowledgment. */
+  async copyWorkflowText(text: string): Promise<boolean> {
+    if (this.#clipboardWriter !== undefined) return this.#clipboardWriter(text);
     await this.#workflowHost.copyText(text);
+    return true;
   }
 
   clearQueuedWorkflows(): readonly string[] {
@@ -1599,8 +1610,8 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
       case "copy": {
         const text = requireCapability(session.getLastAssistantText, "getLastAssistantText").call(session);
         if (typeof text !== "string" || text.length === 0) return workflowResult(request.command, "failed", "No agent messages to copy yet.");
-        await this.#workflowHost.copyText(text);
-        return workflowResult(request.command, "completed", "Copied last agent message to clipboard");
+        const acknowledged = await this.copyWorkflowText(text);
+        return workflowResult(request.command, "completed", acknowledged ? "Copied last agent message to clipboard" : "Submitted last agent message to clipboard");
       }
       case "name": {
         const manager = session.sessionManager;
