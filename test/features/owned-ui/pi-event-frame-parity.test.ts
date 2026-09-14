@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { getCapabilities } from "#pi-tui";
 import { piTheme } from "../../../src/integrations/pi/components/index.js";
 import { eventFrameDifference } from "./pi-event-frame-diagnostics.js";
+import { EventFrameClock } from "./event-frame-clock.js";
 import {
   buildEventFrameParityResult,
   EVENT_FRAME_PARITY_COLOR_MODE,
@@ -14,6 +15,8 @@ import {
   PI_PARITY_COLOR_MODES,
   withPiParityColorMode,
 } from "../../support/pi-terminal-capabilities.js";
+
+const hostSetTimeout = setTimeout;
 
 interface EventFrameFixture extends EventFrameParityResult {
   readonly schema: string;
@@ -81,6 +84,114 @@ describe("pinned Pi scripted event and terminal-frame parity", () => {
       }
     }
     expect(new Set(hashes).size).toBe(1);
+  });
+
+  it("reproduces the historical cursor-only completed frame when scheduled paints are not held", async () => {
+    // Invariant: remove just the transaction hold, retaining the real adapter, renderer,
+    // scheduler callbacks and terminal writes rather than synthesizing the old mismatch.
+    class UnheldClock extends EventFrameClock { override hold(): void {} }
+    const expected = await buildEventFrameParityResult();
+    const actual = await buildEventFrameParityResult({ clock: new UnheldClock(), boundary: async (_stage, phase, advanceTimers) => {
+      if (phase !== "before-flush") return;
+      await new Promise<void>(resolve => setImmediate(resolve));
+      advanceTimers(16);
+    } });
+    expect(eventFrameDifference(expected, actual)).toContain("frames[3] stage=completed serialized offset=67");
+    expect(actual.frames.find(frame => frame.stage === "completed")?.capturedAnsi).toBe("\x1b[1G\x1b[?25l");
+    expect(expected.frames.find(frame => frame.stage === "completed")?.capturedAnsi).toContain("\x1b[3A\r\x1b[2K");
+    expect(actual.states).toEqual(expected.states);
+  });
+
+  it.each(["before-flush", "after-flush", "before-capture", "after-capture", "before-resize", "after-resize"] as const)("keeps exact evidence with due paints at %s", async phase => {
+    const first = await buildEventFrameParityResult();
+    let attempts = 0;
+    for (let repetition = 0; repetition < 12; repetition += 1) {
+      for (const ambientMode of PI_PARITY_COLOR_MODES) {
+        const result = await withPiParityColorMode(ambientMode, () => buildEventFrameParityResult({
+          boundary: async (_stage, currentPhase, advanceTimers) => {
+            if (currentPhase !== phase) return;
+            // Concurrency: real nextTick paint scheduling and cooperative delivery run first,
+            // then make its timeout eligible on the chosen side of flush/capture/resize.
+            await new Promise<void>(resolve => setImmediate(resolve));
+            attempts += 1;
+            advanceTimers(16);
+          },
+        }));
+        expect(eventFrameDifference(first, result), `phase=${phase} repetition=${repetition} ambient=${ambientMode}`).toBeUndefined();
+        expect(createHash("sha256").update(JSON.stringify(result)).digest("hex"))
+          .toBe(createHash("sha256").update(JSON.stringify(first)).digest("hex"));
+      }
+    }
+    expect(attempts).toBeGreaterThanOrEqual(24);
+  });
+
+  it.each(["before-flush", "after-flush", "before-capture", "after-resize"] as const)("cleans up after settlement stalls at %s", async phase => {
+    const capabilities = getCapabilities();
+    const theme = piTheme();
+    const previous = { Date, setTimeout, clearTimeout, setInterval, clearInterval };
+    const leaked = vi.fn();
+    await expect(buildEventFrameParityResult({ boundary: (stage, currentPhase) => {
+      if (currentPhase !== phase || (stage !== "completed" && stage !== "resized")) return;
+      setTimeout(leaked, 0);
+      return new Promise<void>(() => {});
+    } })).rejects.toThrow(/settlement bound exhausted: stage=(completed|resized)\/.*turns=64 pendingTimers=/);
+    expect(getCapabilities()).toBe(capabilities);
+    expect(piTheme()).toBe(theme);
+    expect({ Date, setTimeout, clearTimeout, setInterval, clearInterval }).toEqual(previous);
+    await buildEventFrameParityResult();
+    expect(leaked).not.toHaveBeenCalled();
+  });
+
+  it("bounds a stalled before-event hook and restores the next capture", async () => {
+    await expect(buildEventFrameParityResult({ beforeEvent: () => new Promise<void>(() => {}) }))
+      .rejects.toThrow("stage=working/before-event turns=64");
+    expect((await buildEventFrameParityResult()).frames).toHaveLength(5);
+  });
+
+  it("restores host state and permits the next capture after terminal disposal fails", async () => {
+    const capabilities = getCapabilities();
+    const theme = piTheme();
+    const previous = { Date, setTimeout, clearTimeout, setInterval, clearInterval };
+    const leaked = vi.fn();
+    await expect(buildEventFrameParityResult({ failTerminalStop: true, beforeEvent: stage => {
+      if (stage === "completed") setTimeout(leaked, 0);
+    } })).rejects.toThrow("Owned UI disposal failed");
+    expect(getCapabilities()).toBe(capabilities);
+    expect(piTheme()).toBe(theme);
+    expect({ Date, setTimeout, clearTimeout, setInterval, clearInterval }).toEqual(previous);
+    await buildEventFrameParityResult();
+    expect(leaked).not.toHaveBeenCalled();
+  });
+
+  it("leaves unrelated time and timers live while a capture is suspended", async () => {
+    const hostDate = Date;
+    const unrelated = vi.fn();
+    const existingInterval = setInterval(unrelated, 1);
+    let release!: () => void;
+    let entered!: () => void;
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const suspended = new Promise<void>(resolve => { entered = resolve; });
+    const capture = buildEventFrameParityResult({ beforeEvent: async stage => {
+      if (stage !== "working") return;
+      entered();
+      await gate;
+    } });
+    await suspended;
+    try {
+      expect(Date.now()).toBeGreaterThanOrEqual(hostDate.now() - 1000);
+      let fired = false;
+      const timer = setTimeout(() => { fired = true; }, 0);
+      release();
+      await capture;
+      await new Promise<void>(resolve => hostSetTimeout(resolve, 10));
+      clearTimeout(timer);
+      expect(fired).toBe(true);
+      expect(unrelated).toHaveBeenCalled();
+    } finally {
+      release();
+      await capture;
+      clearInterval(existingInterval);
+    }
   });
 
   it.each([false, true])("restores capabilities, theme and timers after capture (failure=%s)", async fail => {
