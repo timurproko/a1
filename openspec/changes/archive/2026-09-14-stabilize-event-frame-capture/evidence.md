@@ -42,6 +42,6 @@ The mutation is restored. A permanent negative regression uses a test-only `Unhe
 - The standalone generator was run inside both `truecolor` and `256color` ambient capability scopes. Both outputs exactly match the tracked original with SHA-256 `f1e0fd6f1e3512c2512b9f41771b47b660d050c47bab4573099632e3eda34bba`; no fixture baseline changed.
 - No production source, installed dependency, package metadata, CI workflow, timeout, or comparison normalization change is included. No prohibited local broad suite was run.
 
-## Remaining gates
+## Final integration and acceptance
 
-Required CI for the final implementation head, maintainer exact-candidate acceptance, and explicit manual merge authorization remain outstanding. Code auto-merge must remain disabled. Only after accepted integration may this change's own evidence recording and archive preparation proceed.
+Required CI [run 34863497877](https://github.com/timurproko/a1/actions/runs/34863497877) passed on final head `0c86e93ff87126faf3c652e536ceabc0bc1a596f`. PR #393 merged as `d2afd650dd3bebd9719ca6b3c299197196103c67`. The maintainer subsequently requested archival and explicitly accepted that exact candidate; see `acceptance.md` for the linked acceptance record and the disclosed post-merge recording exception. Code auto-merge was never enabled by this stream. Archive integration and clean-worktree checks precede local cleanup.
