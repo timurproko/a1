@@ -38,6 +38,8 @@
 - [ ] 6.2 Include Windows-specific path, junction, and locked-file cases in applicable CI alongside portable local-cleanup tests; verify the required current-head CI result and record any platform limitation without treating skipped cases as passed.
 - [x] 6.3 Run strict OpenSpec validation and review the final diff for documentation consistency, least-privilege remote reads, no force-discard paths, and no unrelated behavior changes; record the validation and review results.
 
+- [x] 6.4 Align delivery guidance with the authorized same-PR failed-check repair policy and update the inherited transcript copy assertion to the existing snapshot API without weakening its expected text; verify focused tests and post-refresh typechecking, then repush for normal current-head CI.
+
 ## 7. Maintainer validation and final handoff
 
 - [ ] 7.1 Provide exact candidate and focused preview/watch fixture commands, expected deferred/removal behavior, and rollback steps; verify the handoff identifies that watcher activation and destructive live fixtures require separate approval.

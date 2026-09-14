@@ -52,6 +52,11 @@ Cleanup SHALL act only on locally registered paths bound to the Git common direc
 - **WHEN** a worktree has active ownership or a session wins the ownership claim before cleanup
 - **THEN** cleanup SHALL leave it untouched
 
+#### Scenario: Owner resumes to repair a failed PR check
+- **WHEN** a PR check fails, including a routine inherited failure, and the owning session resumes its retained checkout to repair it
+- **THEN** delivery SHALL fix and repush in the same worktree, branch, and PR without requiring a separate proposal solely for that repair, reclaiming any released registration before touching it
+- **AND** the repair SHALL preserve tested behavior and required validation gates, require current-head CI and renewed acceptance, and SHALL NOT authorize cleanup or merge
+
 #### Scenario: Session exits without release
 - **WHEN** ownership appears stale because the process disappeared or stopped reporting
 - **THEN** cleanup SHALL require explicit ownership recovery rather than assume the worktree is abandoned

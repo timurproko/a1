@@ -37,6 +37,21 @@ Expected: unregistered existing worktrees are reported `unmanaged`; no live work
 
 Destructive behavior has only been exercised in disposable temporary Git repositories. No live registration was released, no live cleanup was enabled, no watcher was started against this repository, and no remote mutation was performed by the new command.
 
+## Same-PR CI repair
+
+PR head `8166457ed226473c9375d105b7256997aeaf3642` failed Fast validation in run `34876664384`, job `104085535674`, during typechecking before the cleanup tests ran. The develop refresh brought in an existing incompatible assertion at `test/integrations/pi/session-ui/transcript-presentation-lifetime.test.ts:71`: `copyText` no longer exists on `SessionViewportInputResult`. Rendering, startup budget, both process-containment lanes, naming, and changed-file documentation checks passed; the aggregate correctly failed.
+
+The maintainer explicitly directed that failed PR tests be repaired and repushed in the same PR without a separate proposal. Delivery configuration, skill, runbook, and existing change artifacts now record that policy, including narrowly scoped inherited failures while retaining tested behavior, required checks, and acceptance boundaries.
+
+The assertion now extracts the existing `copySelection` snapshot through `selectionCopyRowText`, as adjacent viewport tests do, and still requires exactly `COPY_CURRENT` at both viewport sizes. No production API, test coverage, expected text, timeout, or CI gate was weakened.
+
+Repair validation on the refreshed checkout:
+- `npx tsgo -p tsconfig.json --noEmit`: passed (the original error was first reproduced locally).
+- `npx vitest run test/integrations/pi/session-ui/transcript-presentation-lifetime.test.ts test/integrations/pi/session-ui/session-viewport-controller.test.ts --maxWorkers=1 --minWorkers=1`: both files passed, 69 tests.
+- Strict OpenSpec validation, docs-sensitive governance (75 occurrences), and whitespace checks passed.
+
+Normal synchronize-triggered CI must validate the repushed candidate. These focused results do not mark task 6.2 or acceptance complete.
+
 ## Remaining gates
 
 Required current-head PR CI must run after readiness; local results do not substitute for it. The maintainer must separately authorize an isolated live accepted-implementation/automatic-archive lifecycle and actual final-head review. Tasks 7.2 and 7.3 remain unperformed; there is no acceptance record. Mechanical archive tasks 8.1 and 8.2 remain for the corresponding future verified operations. Do not archive or integrate based on these fixture results.

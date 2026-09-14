@@ -78,6 +78,8 @@ Separate pure eligibility decisions, injected remote/Git readers, queue/ownershi
 
 CI covers every spec scenario with GitHub fixtures and real temporary Git worktrees, including Windows path aliases, file locks, dirty/untracked/ignored content, ref races, concurrent claims, and interruption. Live acceptance is a separately authorized isolated lifecycle: before archive merge no cleanup; after accepted implementation and auto-archive integration with absent refs, an enabled worker removes a released clean fixture and leaves dirty/active controls intact. Use a separate fixture change or prior eligible lifecycle so this implementation's own future archive is not a circular prerequisite for marking its substantive acceptance tasks complete. Test results are not claimed as live archive evidence.
 
+Routine PR validation repair stays in the same worktree, branch, and PR, including a narrowly scoped repair to an inherited failure. The maintainer explicitly requested fixing and repushing rather than creating a separate proposal solely for a failed check. Preserve the tested contract and required checks, record the failure and repair, and require fresh current-head CI and renewed acceptance. Reclaim a registered released checkout before resuming it. This permits updating the stale transcript copy assertion to consume the existing `copySelection` snapshot; it does not authorize new product behavior, weaker assertions, live cleanup, or merging.
+
 ## Risks / Trade-offs
 
 - [No worker running or no internet] -> Persist the queue and show pending state; reconcile on the next enabled run rather than promising immediate deletion.

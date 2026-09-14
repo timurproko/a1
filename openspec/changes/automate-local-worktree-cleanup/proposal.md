@@ -10,6 +10,7 @@ Automatic implementation archival and remote-branch deletion leave retained loca
 - Provide read-only preview, bounded one-shot reconciliation, and an opt-in local watch mode that retries after archive integration or temporary blockers. Run outside target worktrees; no hosted workflow receives access to the developer's filesystem.
 - Preserve primary/current, dirty, active, locked, ambiguous, advanced, and open/closed-unmerged-PR worktrees. Remove only eligible worktrees and unchanged associated local topic refs, then perform scoped Git metadata pruning and report the result.
 - Integrate registration, release, and reconciliation into repository-owned delivery guidance, with explicit local enable/disable controls and conservative crash recovery.
+- Apply the maintainer's delivery refinement: repair routine failed PR checks, including inherited failures, in the existing worktree/branch/PR and repush without a separate proposal. Preserve assertions and validation gates; substantive new scope still needs clarification.
 
 ## Capabilities
 
