@@ -3,10 +3,13 @@
 ### Requirement: The governing submitted prompt remains pinned while scrolling
 When the first row of the most recent submitted user prompt or completed compaction summary at or before the viewport start has scrolled above the viewport, a copy of that first row SHALL occupy the viewport's first row without adding to the document's row count. The copy SHALL preserve the prompt-style prefix, content, background, and timestamp from the source row. It SHALL remain prominent while any continuation row of that block is visible and SHALL use the quiet theme role after the complete block is above the viewport. Activating it SHALL return the viewport to the source block. Completed compactions SHALL participate as navigation/context anchors, not as submitted user messages.
 
+In the prominent, non-hovered state, the pinned timestamp SHALL retain the source timestamp's metadata foreground, grey in the default dark theme, rather than adopting the prompt body foreground. This color rule SHALL also apply to completed compaction blocks using submitted-prompt pinning. Existing quiet-row dimming and explicit hover highlighting SHALL remain unchanged. Timestamp value, alignment, width-dependent omission, and body styling SHALL remain unchanged.
+
 #### Scenario: Scroll within a multiline prompt
 - **WHEN** the prompt's first row is above the viewport but one of its continuation rows remains visible
 - **THEN** the prompt's first row SHALL be pinned at the top with its timestamp
 - **AND** it SHALL retain its prominent presentation
+- **AND** without hover its timestamp SHALL have the same grey metadata foreground as the naturally visible source timestamp
 
 #### Scenario: Scroll beyond the complete prompt
 - **WHEN** the prompt and all its continuation rows are above the viewport while later rows are visible
@@ -27,6 +30,19 @@ When the first row of the most recent submitted user prompt or completed compact
 #### Scenario: Prompt first row is naturally visible
 - **WHEN** the governing prompt's source first row is already the viewport's first row
 - **THEN** no duplicate sticky row SHALL be added
+
+#### Scenario: Pin a completed compaction while its summary remains visible
+- **WHEN** a completed compaction header scrolls above the viewport while summary continuation rows remain visible and its pinned row is not hovered
+- **THEN** its pinned timestamp SHALL retain the source timestamp's metadata foreground just as an ordinary prompt does
+
+#### Scenario: Hover and leave the prominent pinned row
+- **WHEN** the pointer enters and then leaves a prominent pinned prompt or compaction row
+- **THEN** existing explicit hover highlighting SHALL remain available
+- **AND** leaving the row SHALL restore the source-matching grey timestamp without waiting for another scroll
+
+#### Scenario: Revisit the prominent state
+- **WHEN** reverse scrolling, resize, or scrollbar appearance leaves a non-hovered pinned row prominent with a fitting timestamp
+- **THEN** its timestamp SHALL retain the current source metadata foreground without stale white styling or color leakage into adjacent text
 
 #### Scenario: Pin and activate a compaction
 - **WHEN** the reader scrolls past the first row of a completed compaction
