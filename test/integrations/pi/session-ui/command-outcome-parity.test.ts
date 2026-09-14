@@ -12,6 +12,12 @@ afterEach(async () => { for (const home of homes.splice(0)) await rm(home, { rec
 interface Capture {
   readonly id: string;
   readonly activeBindings: Readonly<Record<string, readonly string[]>> | null;
+  readonly trust: {
+    readonly before: Readonly<Record<string, boolean>>;
+    readonly after: Readonly<Record<string, boolean>>;
+    readonly writes: readonly (readonly { readonly path: string; readonly decision: boolean | null }[])[];
+    readonly projectTrusted: boolean;
+  } | null;
   readonly rows: readonly string[];
   readonly progressRows: readonly (readonly string[])[];
   readonly surfaceOpen: boolean;
@@ -42,6 +48,15 @@ async function capture(producer: "pinned" | "owned", directory: string, mode: st
 function verify(actual: Capture, expected: Capture): void {
   expect(actual.id).toBe(expected.id);
   expect(actual.activeBindings, `${actual.id} active editor bindings`).toEqual(expected.activeBindings);
+  expect(actual.trust, `${actual.id} trust effects`).toEqual(expected.trust);
+  if (expected.trust) {
+    expect(actual.calls, `${actual.id} trust lifecycle calls`).toEqual(expected.calls);
+    expect(actual.trust?.projectTrusted, `${actual.id} restart-only trust`).toBe(false);
+    if (expected.id.includes("cancel")) {
+      expect(actual.trust?.writes).toEqual([]);
+      expect(actual.trust?.after).toEqual(actual.trust?.before);
+    }
+  }
   const missingExecutable = expected.id.includes("/share/missing/");
   expect(actual.rows, actual.id).toEqual(missingExecutable ? expected.exceptionReferenceRows : expected.rows);
   expect(actual.progressRows, `${actual.id} before catalog completion`).toEqual(expected.progressRows);
@@ -82,6 +97,24 @@ describe("independent command outcome parity", () => {
       expect(surfaceRows).not.toEqual(scoped.surfaceRows);
       expect(() => verify({ ...scoped, surfaceRows }, reference)).toThrow();
     }
+    const trustIndex = expected.findIndex(frame => frame.id === "dark/0/trust/alias-open/80");
+    expect(trustIndex).toBeGreaterThanOrEqual(0);
+    const trust = actual[trustIndex]!;
+    const trustReference = expected[trustIndex]!;
+    const lexicalParent = join(directory, "trust-alias");
+    const trustMutations = [
+      trust.surfaceRows.map(row => row.includes("Trust parent folder") ? row.replace("Trust parent folder", `Trust parent folder (${lexicalParent})`) : row),
+      trust.surfaceRows.map((row, index) => index === 0 ? `${row}\u001b[0m` : row),
+      [trust.surfaceRows.join("")],
+    ];
+    for (const surfaceRows of trustMutations) {
+      expect(surfaceRows).not.toEqual(trust.surfaceRows);
+      expect(() => verify({ ...trust, surfaceRows }, trustReference)).toThrow();
+    }
+    const parentIndex = expected.findIndex(frame => frame.id === "dark/0/trust/alias-save-parent/80");
+    const parent = actual[parentIndex]!;
+    expect(parent.trust?.writes).toHaveLength(1);
+    expect(() => verify({ ...parent, trust: { ...parent.trust!, writes: [[{ path: lexicalParent, decision: true }]] } }, expected[parentIndex]!)).toThrow();
     for (const frame of [...actual, ...expected].filter(value => /\/share\/(missing|unauthenticated|permission)\//.test(value.id))) {
       expect(frame.calls, frame.id).toEqual(["auth"]);
     }
