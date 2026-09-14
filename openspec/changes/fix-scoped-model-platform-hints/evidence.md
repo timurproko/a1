@@ -29,6 +29,8 @@ Validation before the code-PR push:
 
 ## Manual review and remaining gates
 
+Implementation PR: [#386](https://github.com/timurproko/a1/pull/386), branch `fix/scoped-model-platform-hints`, implementation commit `47c18818`. The PR is open for required CI and maintainer acceptance; auto-merge is disabled.
+
 From `D:/Git/a1/.worktrees/implement-scoped-model-platform-hints`, build and launch with `npm run build && ./scripts/dev pi`, then open `/scoped-models`. At 80 columns and narrower widths, confirm macOS shows Option hints while Windows/Linux retain Alt; reorder/toggle models, check unsaved status, save explicitly, and cancel. Labels and wrapping must remain correct after catalog refresh. Do not treat mocked-platform tests as native macOS acceptance.
 
 Required code-PR CI, native four-lane Full regression, maintainer acceptance, and post-merge exact-package results remain pending. No local full suite, publication, or user-desktop automation has been run. The code PR must stay open with auto-merge disabled until explicit acceptance and manual merge authorization.

@@ -1,6 +1,6 @@
 ## 1. Establish the accepted implementation stream
 
-- [ ] 1.1 After this proposal merges and implementation is explicitly requested, create a fresh detached worktree from current `origin/develop` and a separate code PR citing this change; verify the base commit and absence of unrelated changes.
+- [x] 1.1 After this proposal merges and implementation is explicitly requested, create a fresh detached worktree from current `origin/develop` and a separate code PR citing this change; verify the base commit and absence of unrelated changes.
 - [x] 1.2 Record the original macOS job, failing truecolor/256-color cases, and 80-column row difference alongside the owned-versus-pinned key-label implementation comparison; verify the evidence identifies the omitted formatting rather than attributing the failure to color depth or Node version.
 
 ## 2. Restore scoped-model key-label presentation
