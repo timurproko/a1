@@ -32,6 +32,29 @@ describe("development validation aggregate", () => {
     expect(requireDevelopmentValidation({ ...valid, renderingTier: "full", renderingResult: "success" })).toMatchObject({ mode: "code", renderingTier: "full" });
   });
 
+  it("accepts current-head startup success without a deferred Node 24 PR result", () => {
+    expect(requireDevelopmentValidation(valid)).toMatchObject({ mode: "code" });
+    expect(() => requireDevelopmentValidation({ ...valid, expectedHead: "b".repeat(40) })).toThrow("stale");
+  });
+
+  it.each(["failure", "cancelled", "skipped", "neutral", "timed_out", undefined])("rejects a non-success required Node 22 startup result: %s", startupResult => {
+    const results: Omit<typeof valid, "startupResult"> & { startupResult?: string } = { ...valid };
+    if (startupResult === undefined) delete results.startupResult;
+    else results.startupResult = startupResult;
+    expect(() => requireDevelopmentValidation(results)).toThrow("startup budget validation must succeed");
+  });
+
+  it.each(["docs", "version"])("only accepts an intentional startup skip for %s", mode => {
+    const exempt = { ...valid, validateResult: "skipped", docsOnly: mode === "docs" ? "true" : "false", docsResult: mode === "docs" ? "success" : "skipped", versionOnly: mode === "version" ? "true" : "false" };
+    expect(requireDevelopmentValidation({ ...exempt, startupResult: "skipped" })).toMatchObject({ mode });
+    for (const startupResult of ["success", "failure", "cancelled", undefined]) {
+      const results: Omit<typeof exempt, "startupResult"> & { startupResult?: string } = { ...exempt };
+      if (startupResult === undefined) delete results.startupResult;
+      else results.startupResult = startupResult;
+      expect(() => requireDevelopmentValidation(results)).toThrow("startup budget validation must be skipped");
+    }
+  });
+
   it.each([
     ["stale head", { selectedHead: "b".repeat(40) }],
     ["missing classification", { changesResult: "failure" }],
