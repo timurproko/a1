@@ -1,7 +1,7 @@
 import rawIdentity from "./product-identity.json" with { type: "json" };
 
 const ENVIRONMENT_KEYS = [
-  "configDir", "dataDir", "databasePath", "developmentInstanceId", "developmentRoot", "endpoint",
+  "clipboardDiagnostics", "configDir", "dataDir", "databasePath", "developmentInstanceId", "developmentRoot", "endpoint",
   "paneId", "probeTrace", "processGuardianPath", "profileHome", "runtimeDir", "startupTrace", "suggestionDiagnostics", "terminalSessionId",
 ] as const;
 const FILESYSTEM_KEYS = ["slug", "windowsDirectory", "unixDirectory", "temporaryPrefix"] as const;

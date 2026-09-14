@@ -4,6 +4,7 @@ import { assertInputResponsivenessBudgets, type InputResponsivenessStructure } f
 import { analyzeInputPhaseEvidence, type InputPhaseEvidence } from "./input-phase-evidence.js";
 import { runInputProducer, type InputProducerCheckpoint, type InputProducerResult } from "./input-producer.js";
 import { INPUT_RESPONSIVENESS_WORKLOADS } from "./input-workloads.js";
+import { inputStableWork } from "./input-frame-work.js";
 
 export interface InputMatrixProducerResult {
   readonly producer: InputProducerResult["producer"];
@@ -29,6 +30,7 @@ export interface InputResponsivenessMatrix {
   readonly semanticParity: boolean;
   readonly bareStructure: InputResponsivenessStructure;
   readonly firstDivergence: string | null;
+  readonly stableWorkViolation: ReturnType<typeof inputStableWork>["firstViolation"];
 }
 
 /** Captures one workload once per independent producer and derives all applicable assertions. */
@@ -68,15 +70,7 @@ export async function inputResponsivenessMatrixFromResults(
   const bare = producers[0]!;
   const bareRaw = raw[0]!;
   const inputTurns = inputPresentationOpportunities(workload);
-  const stableTranscriptBlockRenders = bareRaw.checkpoints
-    .filter(checkpoint => checkpoint.viewportCause === "dock-input")
-    .reduce((total, checkpoint) => total + (checkpoint.transcriptBlockRenders ?? 0), 0);
-  let stableTranscriptPaintedRows = 0;
-  for (const checkpoint of bare.checkpoints) {
-    if (checkpoint.viewportCause !== "dock-input" || checkpoint.viewportTranscript === null) continue;
-    stableTranscriptPaintedRows += checkpoint.paint.addressedRowWrites.filter(row =>
-      row >= checkpoint.viewportTranscript!.rowStart && row <= checkpoint.viewportTranscript!.rowEnd).length;
-  }
+  const { stableTranscriptBlockRenders, stableTranscriptPaintedRows, unexpectedFullscreenClears, firstViolation } = inputStableWork(bareRaw.checkpoints, bareRaw.writes);
   const structure: InputResponsivenessStructure = {
     semanticParity,
     maximumPendingPresentations: bare.phases.maximumPendingPresentationDepth,
@@ -86,9 +80,7 @@ export async function inputResponsivenessMatrixFromResults(
     inputDrivenFrames: new Set(bare.phases.presentedRevisions).size,
     stableTranscriptBlockRenders,
     stableTranscriptPaintedRows,
-    unexpectedFullscreenClears: bare.checkpoints
-      .filter(checkpoint => checkpoint.viewportCause !== "geometry-change")
-      .reduce((total, checkpoint) => total + checkpoint.paint.fullScreenClears, 0),
+    unexpectedFullscreenClears,
   };
   return {
     schema: "a1-input-responsiveness-matrix-v1",
@@ -97,12 +89,17 @@ export async function inputResponsivenessMatrixFromResults(
     semanticParity,
     bareStructure: structure,
     firstDivergence,
+    stableWorkViolation: firstViolation,
   };
 }
 
 export function assertInputResponsivenessMatrix(matrix: InputResponsivenessMatrix): void {
   if (matrix.firstDivergence !== null) throw new Error(matrix.firstDivergence);
-  assertInputResponsivenessBudgets(matrix.bareStructure);
+  try { assertInputResponsivenessBudgets(matrix.bareStructure); }
+  catch (error) {
+    // Rationale: diagnose this capture; a second producer run can erase the failing schedule.
+    throw new Error(`${matrix.workloadId}: ${error instanceof Error ? error.message : String(error)}; first frame: ${JSON.stringify(matrix.stableWorkViolation)}`);
+  }
 }
 
 async function summarize(

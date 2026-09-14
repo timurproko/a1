@@ -17,7 +17,7 @@ describe("input producer protocol", () => {
   it("returns bounded asynchronous input evidence after readiness", async () => {
     const processIds: number[] = [];
     const result = await runInputProducer(request(), { onSpawn: id => processIds.push(id) });
-    expect(result.schema).toBe("a1-input-responsiveness-producer-v1");
+    expect(result.schema).toBe("a1-input-responsiveness-producer-v2");
     expect(result.processId).toBe(processIds[0]);
     expect(result.checkpoints).toHaveLength(3);
     expect(result.phases.some(event => event.phase === "receipt")).toBe(true);

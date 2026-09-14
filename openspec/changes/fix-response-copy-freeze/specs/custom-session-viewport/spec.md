@@ -88,7 +88,7 @@ The change SHALL preserve prompt-selection precedence, copy/cut/paste semantics,
 ### Requirement: Standalone prompt pasting does not suspend the UI
 When the ordinary bare-A1 prompt owns `Ctrl+V`, A1 SHALL keep subsequent input, scrolling, rendering, visible animation, and agent-event processing responsive throughout paste acquisition, preparation, and insertion. This guarantee SHALL apply independently of any preceding A1 copy, including clipboard content supplied by another application. Paste SHALL NOT pause the agent, unexpectedly change follow/detach state, or require Esc, a focus change, another recovery key, or restart.
 
-Supported native clipboard reads and terminal-provided bracketed paste SHALL preserve their existing routing distinction. A nonempty payload supplied by the terminal SHALL be processed as that payload without a duplicate native clipboard read. Blocking format detection, path inspection, image conversion, text classification, or insertion/presentation work SHALL NOT monopolize the UI event loop merely because acquisition was asynchronous. Existing text normalization, chip behavior, image validation, and attachment limits SHALL remain authoritative.
+Supported native clipboard reads and terminal-provided bracketed paste SHALL preserve their existing routing distinction. A nonempty payload supplied by the terminal SHALL be processed as that payload without a duplicate native clipboard read. Blocking format detection, path inspection, image conversion, text classification, or insertion/presentation work SHALL NOT monopolize the UI event loop merely because acquisition was asynchronous. Existing text normalization, chip behavior subject to the oversized-path-list presentation exception below, image validation, and attachment limits SHALL remain authoritative.
 
 #### Scenario: Paste text copied outside A1
 - **WHEN** the reader copies ordinary text in another application and presses Ctrl+V in the A1 prompt without an earlier A1 copy
@@ -111,6 +111,54 @@ Supported native clipboard reads and terminal-provided bracketed paste SHALL pre
 - **THEN** input and visible animation SHALL receive processing opportunities while that work runs
 - **AND** completion SHALL retain the accepted text/URL/path/image representation, exact expanded text, and existing image safety limits
 - **AND** plain-text acquisition SHALL NOT display a misleading screenshot chip merely because its content is still unknown
+
+### Requirement: Oversized path lists use bounded compact paste presentation
+Bare A1 SHALL budget individual path-chip presentation at 4,096 UTF-16 code units per successfully classified path-list paste, counting each occurrence, existing label/icon/framing, and a conservative 20-unit collision-suffix allowance per occurrence. Classification and adoption SHALL use the same base-tag formatting. When this estimate exceeds the budget, the isolated preparer SHALL produce one existing text-paste chip representation before transfer/adoption rather than construct a giant editor string or thousands of provisional UI chips.
+
+The compact chip SHALL retain the exact concatenation of classified full paths in occurrence order, including duplicates, without extra separators, content truncation, or further text normalization. It SHALL use existing text-paste chip identity, atomic editing, copying, history/submission expansion, reservation, cancellation, and undo/redo behavior. Individual member-chip editing is replaced by one atomic chip only for over-budget lists. In-budget file/folder/image-file chips SHALL remain unchanged. This policy SHALL apply equally to native and terminal-provided owned paste, SHALL NOT reread terminal-supplied content, and SHALL NOT change the pinned comparison path, existing draft/history chips, clipboard byte/image limits, or failed-probe original-text fallback.
+
+#### Scenario: A successfully classified path list exceeds its display budget
+- **WHEN** a supported native or terminal-provided path-list paste would exceed 4,096 budgeted UTF-16 units of individual-chip presentation
+- **THEN** A1 SHALL insert one compact text-paste chip once and preserve every full expanded path in order
+- **AND** the UI SHALL NOT adopt individual chips for that list before compacting it
+- **AND** following input and eligible frames SHALL continue progressing without waiting for unbounded editor layout
+
+#### Scenario: A path list fits the budget
+- **WHEN** the complete per-paste estimate, including framing and suffix allowances, is at most 4,096 UTF-16 units
+- **THEN** the existing individual file/folder/image-file chips and their editing semantics SHALL remain unchanged
+- **AND** repeated occurrences and surrogate-pair labels SHALL count toward the same per-paste budget
+
+#### Scenario: Copy, recall, submit, or undo a compact path-list paste
+- **WHEN** a compact path-list chip is copied, persisted for history, submitted, selected, deleted, or restored by undo/redo
+- **THEN** it SHALL behave as the existing atomic text-paste chip and expand to all of its classified full paths without loss or reordering
+- **AND** cancellation or session replacement before insertion SHALL NOT restore obsolete content or overwrite later typing
+
+#### Scenario: Path classification cannot finish safely
+- **WHEN** filesystem classification fails or times out for a large candidate list
+- **THEN** A1 SHALL preserve the established safe original-text fallback and its existing compact-text policy
+- **AND** it SHALL NOT compact a partially classified prefix as though it represented the complete list
+
+### Requirement: URL-chip presentation bounds explicit hyperlink metadata without losing content
+Bare A1 SHALL limit added OSC 8 metadata to 65,536 UTF-8 bytes per editor decoration pass, including opening/closing pairs and row cleanup closes across visible rows and repeated occurrences. A1 SHALL reject over-budget decoration before constructing its control string; a target whose UTF-16 length already exceeds the remaining byte allowance SHALL NOT require whole-target scanning, encoding, or hashing to make that decision. Each render pass SHALL receive a fresh budget.
+
+When a complete link does not fit, A1 SHALL omit that explicit hyperlink rather than emit a partial or truncated target. It SHALL preserve the full supported pasted URL, URL-chip identity and atomic editing, and exact copy/history/submission expansion. In-budget links SHALL retain their existing presentation and input semantics. This display-only fallback SHALL NOT change native-versus-terminal paste routing, image limits, the general transcript hyperlink policy, or the pinned comparison path. Terminal-owned automatic URL recognition remains separate from A1's explicit metadata.
+
+#### Scenario: Paste a URL near the supported text limit
+- **WHEN** native or terminal-provided paste contains a supported URL whose full target exceeds the metadata budget
+- **THEN** A1 SHALL insert its normal URL chip once and retain the full URL for copying and submission
+- **AND** resulting presentation SHALL omit its oversized OSC 8 target without building or emitting a prefix of that target
+- **AND** following input and eligible UI frames SHALL continue normally
+
+#### Scenario: Several visible URL chips exhaust the aggregate budget
+- **WHEN** otherwise supported hyperlink occurrences across editor rows would exceed the per-pass metadata allowance
+- **THEN** the total emitted OSC 8 metadata SHALL remain within that allowance, including framing and cleanup
+- **AND** omitted occurrences SHALL retain their exact backing values and chip semantics
+- **AND** a later smaller occurrence MAY receive its complete link if it fits the remaining allowance
+
+#### Scenario: Render in-budget links repeatedly
+- **WHEN** the same editor content is rendered again, including after selection or resize
+- **THEN** the metadata budget SHALL reset and the same in-budget links SHALL retain their exact targets and normal geometry
+- **AND** accounting SHALL use UTF-8 bytes and complete control framing rather than character counts alone
 
 ### Requirement: Paste acquisition and preparation recover within bounded lifetimes
 Every A1-owned paste request SHALL have a finite declared end-to-end deadline covering any prerequisite write wait, acquisition, preparation, and insertion. Concurrent requests, retained payload bytes, helpers, and pending insertions SHALL stay within declared bounds. Busy, denied, missing, non-settling, or failed readers/preparers SHALL settle automatically with concise non-modal feedback for actionable failures. Empty clipboard content SHALL remain a no-op rather than a modal error.

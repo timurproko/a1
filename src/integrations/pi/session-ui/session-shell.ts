@@ -1,3 +1,6 @@
+import { ResponseCopyCoordinator } from "./response-copy-coordinator.js";
+import { createResponseCopyExecutor, hasAsyncClipboardOutput, responseCopyDestination } from "./response-copy-transport.js";
+import { MAX_COPY_CONTROL_BYTES } from "./response-copy-protocol.js";
 import { PromptHistoryController } from "./prompt-history-controller.js";
 import type { PromptHistoryKind } from "../../../contracts/owned-ui/index.js";
 import { PRODUCT_TEXT } from "../../../product-identity.js";
@@ -66,6 +69,7 @@ import {
   renderPiShellTranscriptBlock,
   type PiExtensionUiBridge,
   type PiShellComponentPort,
+  type PiShellClipboardContent,
   type PiShellEditorPort,
   type PiShellExtensionRendererResolver,
   type PiShellHeaderOptions,
@@ -136,6 +140,8 @@ export class OwnedUiSessionShell {
   #disposed = false;
   #pointerReporting = false;
   readonly #customViewport: boolean;
+  readonly #responseCopy: ResponseCopyCoordinator | null;
+  readonly #unbindClipboardWriter: () => void;
   readonly #damageTerminal: DamageAwareTerminalAdapter | null;
   readonly #streamPresentation: StreamPresentationCoalescer;
   readonly #removeViewportPreInput: () => void;
@@ -177,6 +183,45 @@ export class OwnedUiSessionShell {
     let streamPresentation: StreamPresentationCoalescer | undefined;
     let pendingClipboardWrite: Promise<void> = Promise.resolve();
     let promptSuggestionController: ContextualPromptSuggestionController | null = null;
+    const terminalCopy = options.terminal !== undefined || hasAsyncClipboardOutput();
+    this.#responseCopy = this.#customViewport ? new ResponseCopyCoordinator({
+      execute: options.responseCopy?.execute ?? createResponseCopyExecutor({
+        ...(options.terminal === undefined && options.clipboard === undefined ? {} : { destination: "terminal" }),
+        ...(options.clipboard?.writeText === undefined ? {} : { writeText: (text, signal) => options.clipboard!.writeText!(text, signal) }),
+        ...(terminalCopy ? { terminal: { submit: async (control, signal) => {
+          if (signal.aborted || this.#disposed || !runtime?.active) throw new Error("Copy canceled");
+          // Performance: never grow the real terminal's pending buffer with another clipboard payload.
+          if (options.terminal === undefined && process.stdout.writableLength + control.length > MAX_COPY_CONTROL_BYTES) {
+            throw new Error("Clipboard terminal is busy");
+          }
+          runtime.writeControl(control);
+        } } } : {}),
+      }),
+      ...(options.responseCopy?.onEvent === undefined ? {} : { onEvent: options.responseCopy.onEvent }),
+      onFailure: result => {
+        if (this.#disposed || !runtime?.active) return;
+        this.root.appendWorkflowStatus(result.outcome === "timed-out" ? "Copy timed out; the clipboard did not respond."
+          : result.failure === "size" ? "Selection exceeds this clipboard route's size limit."
+          : "Could not copy the selection; the clipboard is unavailable.");
+        runtime.requestRender();
+      },
+    }) : null;
+    const readClipboard = async (signal: AbortSignal): Promise<PiShellClipboardContent | null> => {
+      if (signal.aborted) throw new ImageAttachmentError("image-canceled");
+      if (options.clipboard === undefined) return runImageWorker({ kind: "clipboard" }, signal);
+      try {
+        const image = await options.clipboard.readImage?.(signal);
+        if (image !== null && image !== undefined) {
+          const canonical = await runImageWorker<ClipboardImageData | null>({ kind: "canonicalize", source: image }, signal);
+          if (canonical !== null) return { kind: "image", ...canonical };
+        }
+      } catch (error) {
+        if (error instanceof ImageAttachmentError) throw error;
+        // Compatibility: an unavailable image reader can still provide text.
+      }
+      const text = await options.clipboard.readText(signal);
+      return text === null ? null : { kind: "text", text };
+    };
     this.root = new OwnedUiSessionShellRoot(this.backend.view(), options.cwd, {
       getColumns: () => runtime?.viewport().columns ?? options.terminal?.columns ?? 80,
       getRows: () => runtime?.viewport().rows ?? options.terminal?.rows ?? 24,
@@ -212,29 +257,29 @@ export class OwnedUiSessionShell {
         this.#promptHistory?.synchronize();
       },
       onCopyText: text => {
-        runtime?.writeControl(`\u001b]52;c;${Buffer.from(text, "utf8").toString("base64")}\u0007`);
-        const write = options.clipboard === undefined
-          ? writeSystemClipboardText(text)
-          : options.clipboard.writeText?.(text) ?? Promise.resolve();
-        pendingClipboardWrite = write.catch(() => {});
+        if (this.#responseCopy !== null) { void this.#responseCopy.submitText(text); return; }
+        const write = () => {
+          if (this.#disposed) return Promise.resolve();
+          runtime?.writeControl(`\u001b]52;c;${Buffer.from(text, "utf8").toString("base64")}\u0007`);
+          return options.clipboard === undefined ? writeSystemClipboardText(text)
+            : options.clipboard.writeText?.(text) ?? Promise.resolve();
+        };
+        // Compatibility: comparison profiles retain their existing clipboard path.
+        pendingClipboardWrite = write().catch(() => {});
       },
       readClipboardContent: async (signal = new AbortController().signal) => {
         await pendingClipboardWrite;
-        if (signal.aborted) throw new ImageAttachmentError("image-canceled");
-        if (options.clipboard === undefined) return runImageWorker({ kind: "clipboard" }, signal);
-        try {
-          const image = await options.clipboard.readImage?.(signal);
-          if (image !== null && image !== undefined) {
-            const canonical = await runImageWorker<ClipboardImageData | null>({ kind: "canonicalize", source: image }, signal);
-            if (canonical !== null) return { kind: "image" as const, ...canonical };
-          }
-        } catch (error) {
-          if (error instanceof ImageAttachmentError) throw error;
-          // Compatibility: an unavailable native image reader can still provide clipboard text.
-        }
-        const text = await options.clipboard.readText(signal);
-        return text === null ? null : { kind: "text" as const, text };
+        return readClipboard(signal);
       },
+      captureClipboardPaste: () => {
+        const before = this.#responseCopy?.capturePasteBarrier() ?? (async () => true);
+        if (options.clipboard !== undefined) return { kind: "provided", read: readClipboard, before };
+        if (responseCopyDestination(process.env) === "terminal") return {
+          kind: "provided", before, read: async () => { throw new ImageAttachmentError("paste-unavailable"); },
+        };
+        return { kind: "native", before };
+      },
+      ...(options.pasteDiagnostics === undefined ? {} : { pasteDiagnostics: options.pasteDiagnostics }),
     }, {
       ...options.startup,
       resources: options.startup?.resources ?? shellResourceEntries(this.backend),
@@ -363,8 +408,8 @@ export class OwnedUiSessionShell {
           }
           const routed = this.root.handleViewportPreInput(data, true, Date.now(),
             this.root.usesDefaultInputSurface() && !this.runtime.hasFocusedOverlay());
-          if (routed.copyText !== undefined) {
-            this.runtime.writeControl(`\u001b]52;c;${Buffer.from(routed.copyText, "utf8").toString("base64")}\u0007`);
+          if (routed.copySelection !== undefined) {
+            void this.#responseCopy?.submit(routed.copySelection, pendingClipboardWrite);
           }
           if (!routed.consumed) return routed.data === data ? undefined : { data: routed.data };
           return routed.data.length === 0 ? { consume: true } : { data: routed.data };
@@ -521,6 +566,12 @@ export class OwnedUiSessionShell {
       }
       if (view.lifecycle === "ready" && this.#compactionQueue.length > 0) void this.#flushCompactionQueue();
       if (event.type === "session-lifecycle" && event.lifecycle === "stopped") this.#resolveStopped?.();
+    });
+    this.#unbindClipboardWriter = this.#responseCopy === null ? () => {} : this.backend.bindClipboardWriter(async text => {
+      const result = await this.#responseCopy!.submitText(text);
+      if (result.outcome === "delivered") return true;
+      if (result.outcome === "submitted-unverified") return false;
+      throw new Error(result.outcome === "timed-out" ? "Clipboard delivery timed out" : "Clipboard delivery could not be completed");
     });
     if (this.backend.view().lifecycle === "stopped") this.#resolveStopped?.();
   }
@@ -974,10 +1025,13 @@ export class OwnedUiSessionShell {
           this.runtime.requestRender();
           return;
         }
-        void this.backend.copyWorkflowText(text).then(() => {
-          this.root.appendWorkflowStatus("Copied selected message to clipboard");
+        const generation = this.backend.sessionBindingGeneration;
+        void this.backend.copyWorkflowText(text).then(acknowledged => {
+          if (this.#disposed || generation !== this.backend.sessionBindingGeneration) return;
+          this.root.appendWorkflowStatus(acknowledged ? "Copied selected message to clipboard" : "Submitted selected message to clipboard");
           this.runtime.requestRender();
         }).catch(error => {
+          if (this.#disposed || generation !== this.backend.sessionBindingGeneration) return;
           this.root.appendWorkflowResult({ command: "tree", outcome: "failed", message: error instanceof Error ? error.message : String(error) });
           this.runtime.requestRender();
         });
@@ -1114,6 +1168,7 @@ export class OwnedUiSessionShell {
   }
 
   async runWorkflow(request: PiWorkflowRequest): Promise<AdapterCommandResult> {
+    const copyGeneration = request.command === "copy" ? this.backend.sessionBindingGeneration : undefined;
     if (request.command === "login" && request.selection !== undefined) {
       const setup = this.backend.pinnedAmbientAuthentication(request.selection);
       if (setup) {
@@ -1198,6 +1253,9 @@ export class OwnedUiSessionShell {
         this.root.setInputSurface(null);
         this.runtime.requestRender();
       }
+    }
+    if (copyGeneration !== undefined && (this.#disposed || copyGeneration !== this.backend.sessionBindingGeneration)) {
+      return workflowAdapterResult({ command: "copy", outcome: "cancelled", message: "" });
     }
     if (result.outcome === "requires-selection" && request.command === "model") {
       if (result.messages !== undefined) {
@@ -1352,6 +1410,7 @@ export class OwnedUiSessionShell {
   async dispose(): Promise<void> {
     if (this.#disposed) return;
     this.#disposed = true;
+    this.#responseCopy?.dispose();
     this.#cancelWaitingImages();
     const failures: unknown[] = [];
     const attempt = (action: () => void) => { try { action(); } catch (error) { failures.push(error); } };
@@ -1375,6 +1434,7 @@ export class OwnedUiSessionShell {
       fullscreenExitText = this.runtime.mode !== "fullscreen" ? ""
         : exitMode === "resume-hint" ? resumeHint : [exitTranscript, resumeHint].filter(Boolean).join("\n\n");
     });
+    attempt(() => this.#unbindClipboardWriter());
     attempt(() => this.#unbindPiSettings());
     attempt(() => this.#unbindTerminalSettings());
     attempt(() => this.#unbindShutdownSettings());
@@ -1414,6 +1474,7 @@ export class OwnedUiSessionShell {
     this.#streamPresentation.noteImmediatePresentation();
     const view = this.view();
     if (this.backend.sessionGeneration !== this.#sessionGeneration) {
+      this.#responseCopy?.reset();
       this.#cancelWaitingImages();
       this.root.resetPendingPastes();
       this.#promptSuggestions?.invalidate();

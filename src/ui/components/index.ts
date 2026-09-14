@@ -9,6 +9,7 @@ export * from "./mouse.js";
 export * from "./pane.js";
 export * from "./progress-status.js";
 export * from "./revision.js";
+export * from "./selection-copy.js";
 export * from "./scrollbar.js";
 export * from "./shortcuts.js";
 export * from "./spans.js";

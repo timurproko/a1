@@ -1,7 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { existsSync, statSync } from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import type {
   PiShellClipboardContent,
   PiShellEditorTextRange,
@@ -10,7 +8,10 @@ import { canonicalizeClipboardImage } from "./clipboard-image.js";
 import { assertImageEncodedSize, assertPromptImages, ImageAttachmentError } from "../../../contracts/owned-ui/index.js";
 import { ImagePreparationClient, type ImagePasteJob } from "./image-preparation-client.js";
 import type { PreparedImage } from "./image-preparation.js";
-import { prepareTextPaste } from "./text-paste.js";
+import { preparePasteText, type PreparedPasteText } from "./paste-text-preparation.js";
+import { pathChipTag } from "./path-chip-presentation.js";
+import { PastePreparationClient, type PreparedPasteJob } from "./paste-preparation-client.js";
+import type { PasteEvent, PasteSource, PreparedPaste } from "./paste-protocol.js";
 
 export interface PromptImageAttachment {
   readonly type: "image";
@@ -31,17 +32,16 @@ type PromptChip =
 
 interface PendingPaste {
   readonly marker: string;
-  readonly job: ImagePasteJob;
+  readonly job: ImagePasteJob | PreparedPasteJob<string>;
   readonly completion: Promise<string>;
   references: number;
   kind: "unknown" | "image" | "text";
   replacement?: string;
   error?: ImageAttachmentError;
+  onComplete?: () => void;
 }
 
 const CHIP_PATTERN = /\[(?:paste #\d+ (?:\+\d+ lines|\d+ chars)|📷 [^\]]+|📁 [^\]]+|📄 [^\]]+|🖼 {1,2}[^\]]+|🔗 [^\]]+)\]/gu;
-const IMAGE_EXTENSION = /\.(?:jpe?g|png|webp|gif|bmp|tiff?)$/iu;
-const URL_PATTERN = /^https?:\/\/[^\s\u0000-\u001f\u007f]+$/iu;
 const URL_SUBSTRING_PATTERN = /https?:\/\/[^\s\u0000-\u001f\u007f\]]+/giu;
 const IMAGE_CHIP_IDENTIFIER_PATTERN = /^\[📷 screenshot-([a-f0-9]+)(?:-resized)?\]$/u;
 const URL_DISPLAY_LENGTH = 40;
@@ -59,13 +59,22 @@ export class PromptChipStore {
   readonly #pending = new Map<string, PendingPaste>();
   #preparation = new ImagePreparationClient();
   readonly #stopping = new Set<Promise<void>>();
+  readonly #isolated: PastePreparationClient | undefined;
+  readonly #provisionalOwners = new Map<string, Set<symbol>>();
+  readonly #ownedChipTags = new Map<symbol, Set<string>>();
+
+  constructor(options: { readonly isolated?: boolean; readonly onEvent?: (event: PasteEvent) => void } = {}) {
+    this.#isolated = options.isolated ? new PastePreparationClient(options.onEvent) : undefined;
+  }
 
   beginPaste(
     currentText: string,
-    read: (signal: AbortSignal) => Promise<PiShellClipboardContent | null>,
+    read: ((signal: AbortSignal) => Promise<PiShellClipboardContent | null>) | PasteSource,
     onError: (error: unknown) => void,
     onImage: () => void = () => {},
-  ): { marker: string; result: Promise<string> } {
+  ): { marker: string; result: Promise<string>; complete?(): void; isCurrent?(): boolean } {
+    if (this.#isolated) return this.#beginIsolatedPaste(currentText, typeof read === "function" ? { kind: "provided", read } : read, onError, onImage);
+    if (typeof read !== "function") throw new Error("Clipboard sources require isolated paste preparation");
     const id = randomBytes(5).toString("hex");
     // Invariant: reserve paste identity immediately, but only display a screenshot after identifying an image.
     const marker = `[📷 screenshot-${id}]`;
@@ -96,6 +105,50 @@ export class PromptChipStore {
     return { marker, result: entry.completion };
   }
 
+  #beginIsolatedPaste(currentText: string, source: PasteSource, onError: (error: unknown) => void, onImage: () => void) {
+    const id = randomBytes(5).toString("hex");
+    const marker = `[📷 screenshot-${id}]`;
+    let entry!: PendingPaste;
+    const owner = Symbol("paste");
+    this.#ownedChipTags.set(owner, new Set());
+    const job = this.#isolated!.start(source, async (value, signal) => {
+      if (signal.aborted) throw new ImageAttachmentError("image-canceled");
+      if (value === null) return "";
+      if (value.kind === "image") return this.#addPreparedImage(value, id, owner);
+      entry.kind = "text";
+      return this.#adoptPreparedText(value, signal, owner);
+    }, () => {
+      entry.kind = "image";
+      onImage();
+      if (this.#imageCount(currentText) >= 8) throw new ImageAttachmentError("image-count");
+    }, () => { entry.kind = "text"; });
+    entry = { marker, job, references: 0, kind: "unknown", completion: job.result.catch(error => {
+      this.#finishChipOwnership(owner, false);
+      entry.error = error instanceof ImageAttachmentError ? error : new ImageAttachmentError("paste-unavailable");
+      // Compatibility: typed image validation can fail before transfer identifies the payload to this store.
+      if (entry.kind === "unknown" && entry.error.code.startsWith("image-") && entry.error.code !== "image-canceled") entry.kind = "image";
+      if (entry.error.code !== "image-canceled" && entry.references === 0) onError(entry.error);
+      return entry.kind === "image" ? marker.replace("screenshot-", "failed-") : "";
+    }).then(replacement => { entry.replacement = replacement; return replacement; }) };
+    entry.onComplete = () => {
+      this.#finishChipOwnership(owner, job.isCurrent() && entry.error === undefined);
+      job.complete();
+    };
+    this.#pending.set(marker, entry);
+    return { marker, result: entry.completion, complete: entry.onComplete, isCurrent: () => job.isCurrent() };
+  }
+
+  async #adoptPreparedText(value: Exclude<PreparedPaste, null | { readonly kind: "image" }>, signal: AbortSignal, owner: symbol): Promise<string> {
+    if (value.kind !== "paths") return this.#recordPreparedText(value, owner);
+    let text = "";
+    for (let start = 0; start < value.paths.length; start += 32) {
+      if (signal.aborted) throw new ImageAttachmentError("image-canceled");
+      text += this.#recordPreparedText({ kind: "paths", paths: value.paths.slice(start, start + 32) }, owner);
+      await new Promise<void>(resolve => setImmediate(resolve));
+    }
+    return text;
+  }
+
   hasPending(text: string): boolean {
     return [...this.#pending.values()].some(item => text.includes(item.marker) && item.replacement === undefined);
   }
@@ -116,6 +169,7 @@ export class PromptChipStore {
     } finally {
       for (const entry of entries) {
         entry.references--;
+        if (entry.replacement !== undefined) entry.onComplete?.();
         if (signal.aborted && entry.references === 0 && !readDraft().includes(entry.marker)) entry.job.cancel();
       }
     }
@@ -123,13 +177,20 @@ export class PromptChipStore {
 
   reconcileDraft(text: string): void {
     for (const entry of this.#pending.values()) {
-      if (entry.references === 0 && entry.replacement === undefined && !text.includes(entry.marker)) entry.job.cancel();
+      if (entry.references === 0 && !text.includes(entry.marker) && !text.includes(entry.marker.replace("screenshot-", "failed-"))) {
+        entry.job.cancel();
+        if (entry.replacement !== undefined) {
+          entry.onComplete?.();
+          this.#pending.delete(entry.marker);
+        }
+      }
     }
   }
 
   resetPastes(text: string): string {
     let remaining = text;
     for (const entry of this.#pending.values()) if (entry.replacement === undefined) remaining = remaining.replaceAll(entry.marker, "");
+    this.#isolated?.reset();
     const stopped = this.#preparation.dispose();
     this.#stopping.add(stopped);
     void stopped.finally(() => this.#stopping.delete(stopped));
@@ -139,9 +200,11 @@ export class PromptChipStore {
   }
 
   async dispose(): Promise<void> {
-    await Promise.all([this.#preparation.dispose(), ...this.#stopping]);
+    await Promise.all([this.#preparation.dispose(), this.#isolated?.dispose(), ...this.#stopping]);
     this.#chips.clear();
     this.#pending.clear();
+    this.#provisionalOwners.clear();
+    this.#ownedChipTags.clear();
   }
 
   #imageCount(text: string): number {
@@ -155,11 +218,12 @@ export class PromptChipStore {
     return tags.size;
   }
 
-  #addPreparedImage(image: PreparedImage, id: string): string {
+  #addPreparedImage(image: PreparedImage, id: string, owner?: symbol): string {
     const tag = `[📷 screenshot-${id}${image.transformed ? "-resized" : ""}]`;
     const attachment = Object.freeze({ type: "image" as const, data: image.data, mimeType: image.mimeType });
     assertPromptImages([attachment]);
     this.#chips.set(tag, { kind: "image", tag, image: attachment });
+    this.#claimChip(tag, owner, true);
     return tag;
   }
 
@@ -180,28 +244,24 @@ export class PromptChipStore {
     }
 
     const text = content.text;
-    if (this.#chips.has(text.trim())) return text.trim();
-    const url = text.trim();
-    if (URL_PATTERN.test(url)) {
-      const label = url.length <= URL_DISPLAY_LENGTH ? url : `${url.slice(0, URL_DISPLAY_LENGTH)}…`;
-      return this.#recordUnique({ kind: "url", tag: `[🔗 ${label}]`, label, url });
-    }
-    const paths = pathsFromClipboard(text);
-    if (paths.length === 0) {
-      const paste = prepareTextPaste(text);
-      if (paste.label === undefined) return paste.text;
+    if (this.#chips.has(text.trim())) { this.#claimChip(text.trim(), undefined, false); return text.trim(); }
+    return this.#recordPreparedText(preparePasteText(text));
+  }
+
+  #recordPreparedText(paste: PreparedPasteText, owner?: symbol): string {
+    if (paste.kind === "url") return this.#recordUnique({ kind: "url", tag: `[🔗 ${paste.label}]`, label: paste.label, url: paste.url }, owner);
+    if (paste.kind === "text") {
+      if (paste.label === undefined) {
+        const tag = paste.text.trim();
+        if (this.#chips.has(tag)) { this.#claimChip(tag, owner, false); return tag; }
+        return paste.text;
+      }
       const tag = `[paste #${++this.#textCounter} ${paste.label}]`;
       this.#chips.set(tag, Object.freeze({ kind: "text", tag, text: paste.text }));
+      this.#claimChip(tag, owner, true);
       return tag;
     }
-    return paths.map(item => {
-      const label = pathLabel(item.fullPath);
-      if (item.kind === "folder") {
-        return this.#recordUnique({ kind: "folder", tag: `[📁 ${label}]`, path: item.fullPath });
-      }
-      const icon = IMAGE_EXTENSION.test(item.fullPath) ? "🖼 " : "📄";
-      return this.#recordUnique({ kind: "file", tag: `[${icon} ${label}]`, path: item.fullPath });
-    }).join("");
+    return paste.paths.map(item => this.#recordUnique({ kind: item.kind, tag: pathChipTag(item), path: item.fullPath }, owner)).join("");
   }
 
   /** Hide provisional clipboard identities until the read identifies an actual image. */
@@ -390,137 +450,41 @@ export class PromptChipStore {
     return { text: expanded, images };
   }
 
-  #recordUnique(chip: PromptChip): string {
+  #claimChip(tag: string, owner: symbol | undefined, created: boolean): void {
+    if (owner === undefined) { this.#provisionalOwners.delete(tag); return; }
+    let owners = this.#provisionalOwners.get(tag);
+    if (!owners && !created) return; // Invariant: existing committed chips must survive canceled later pastes.
+    if (!owners) { owners = new Set(); this.#provisionalOwners.set(tag, owners); }
+    owners.add(owner); this.#ownedChipTags.get(owner)?.add(tag);
+  }
+
+  #finishChipOwnership(owner: symbol, commit: boolean): void {
+    for (const tag of this.#ownedChipTags.get(owner) ?? []) {
+      const owners = this.#provisionalOwners.get(tag);
+      if (!owners?.has(owner)) continue;
+      if (commit) this.#provisionalOwners.delete(tag);
+      else {
+        owners.delete(owner);
+        if (owners.size === 0) { this.#provisionalOwners.delete(tag); this.#chips.delete(tag); }
+      }
+    }
+    this.#ownedChipTags.delete(owner);
+  }
+
+  #recordUnique(chip: PromptChip, owner?: symbol): string {
     const existing = this.#chips.get(chip.tag);
     if (existing === undefined || sameChipValue(existing, chip)) {
       this.#chips.set(chip.tag, chip);
+      this.#claimChip(chip.tag, owner, existing === undefined);
       return chip.tag;
     }
     const suffix = randomBytes(2).toString("hex");
     const uniqueTag = `${chip.tag.slice(0, -1)} #${suffix}]`;
     const unique = { ...chip, tag: uniqueTag } as PromptChip;
     this.#chips.set(uniqueTag, unique);
+    this.#claimChip(uniqueTag, owner, true);
     return uniqueTag;
   }
-}
-
-interface ClipboardPath {
-  readonly fullPath: string;
-  readonly kind: "folder" | "file";
-}
-
-function pathsFromClipboard(text: string): ClipboardPath[] {
-  const normalized = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim();
-  if (normalized.length === 0) return [];
-  const paths: ClipboardPath[] = [];
-  for (const line of normalized.split("\n").filter(value => value.trim().length > 0)) {
-    const wholeLine = existingClipboardPath(line);
-    if (wholeLine !== null) {
-      paths.push(wholeLine);
-      continue;
-    }
-    const tokens = tokenizePathLine(line)?.filter(token => token.quoted || token.text !== "&");
-    if (tokens === undefined || tokens.length === 0) return [];
-    for (let index = 0; index < tokens.length;) {
-      const token = tokens[index];
-      if (token === undefined) return [];
-      if (token.quoted) {
-        const quoted = existingClipboardPath(token.text);
-        if (quoted === null) return [];
-        paths.push(quoted);
-        index += 1;
-        continue;
-      }
-      if (normalizePath(token.text) === null) return [];
-      let runEnd = index;
-      while (runEnd < tokens.length && tokens[runEnd]?.quoted !== true) runEnd += 1;
-      let matched: ClipboardPath | null = null;
-      let matchedEnd = index;
-      for (let end = runEnd; end > index; end -= 1) {
-        matched = existingClipboardPath(tokens.slice(index, end).map(candidate => candidate.text).join(" "));
-        if (matched !== null) {
-          matchedEnd = end;
-          break;
-        }
-      }
-      if (matched === null) return [];
-      paths.push(matched);
-      index = matchedEnd;
-    }
-  }
-  return paths;
-}
-
-function existingClipboardPath(value: string): ClipboardPath | null {
-  const fullPath = normalizePath(unquote(value.trim()));
-  if (fullPath === null || !existsSync(fullPath)) return null;
-  try {
-    const stat = statSync(fullPath);
-    if (stat.isDirectory()) return { fullPath, kind: "folder" };
-    if (stat.isFile()) return { fullPath, kind: "file" };
-  } catch {
-    // Compatibility: clipboard path probing is best-effort.
-  }
-  return null;
-}
-
-interface PathToken {
-  readonly text: string;
-  readonly quoted: boolean;
-}
-
-function tokenizePathLine(line: string): PathToken[] | undefined {
-  const tokens: PathToken[] = [];
-  let index = 0;
-  while (index < line.length) {
-    while (index < line.length && /\s/u.test(line[index] ?? "")) index += 1;
-    if (index >= line.length) break;
-    const quote = line[index] === '"' || line[index] === "'" ? line[index] : undefined;
-    if (quote !== undefined) {
-      index += 1;
-      const start = index;
-      while (index < line.length && line[index] !== quote) index += 1;
-      if (index >= line.length) return undefined;
-      tokens.push({ text: line.slice(start, index), quoted: true });
-      index += 1;
-      if (index < line.length && !/\s/u.test(line[index] ?? "")) return undefined;
-      continue;
-    }
-    const start = index;
-    while (index < line.length && !/\s/u.test(line[index] ?? "")) index += 1;
-    tokens.push({ text: line.slice(start, index), quoted: false });
-  }
-  return tokens;
-}
-
-function normalizePath(value: string): string | null {
-  let candidate = value;
-  if (/^file:\/\//iu.test(candidate)) {
-    try {
-      candidate = fileURLToPath(candidate);
-    } catch {
-      return null;
-    }
-  }
-  if (process.platform === "win32") {
-    const msys = /^\/([A-Za-z])\/(.*)$/u.exec(candidate);
-    if (msys !== null) candidate = `${msys[1]}:\\${msys[2]?.replaceAll("/", "\\") ?? ""}`;
-  }
-  return /^(?:[A-Za-z]:\\|\/)/u.test(candidate) ? path.normalize(candidate) : null;
-}
-
-function unquote(value: string): string {
-  let result = value.startsWith("& ") ? value.slice(2).trim() : value;
-  if ((result.startsWith('"') && result.endsWith('"')) || (result.startsWith("'") && result.endsWith("'"))) {
-    result = result.slice(1, -1).trim();
-  }
-  return result;
-}
-
-function pathLabel(fullPath: string): string {
-  const basename = path.basename(fullPath);
-  if (basename.length > 0) return basename;
-  return path.parse(fullPath).root.replace(/[\\/]+$/u, "") || fullPath;
 }
 
 function sameChipValue(left: PromptChip, right: PromptChip): boolean {

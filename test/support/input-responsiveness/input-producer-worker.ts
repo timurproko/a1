@@ -4,7 +4,7 @@ import { SelectList, TuiMainScreen, type Component } from "#pi-tui";
 import { applyPiTheme, createPiShellSelector, type PiShellComponentPort } from "../../../src/integrations/pi/components/index.js";
 import { createPiEngineAdapter } from "../../../src/integrations/pi/engine/index.js";
 import { OwnedUiSessionShell } from "../../../src/integrations/pi/session-ui/index.js";
-import type { PiTuiInputDiagnosticsEvent, PiTuiTerminalPort } from "../../../src/integrations/pi/tui-runtime/index.js";
+import type { PiTuiInputDiagnosticsEvent } from "../../../src/integrations/pi/tui-runtime/index.js";
 import { createPinnedEditorHarness } from "../../integrations/pi/components/pinned-editor-upstream-fixture.js";
 import type {
   InputProducerBatchRequest,
@@ -13,82 +13,9 @@ import type {
   InputProducerResult,
 } from "./input-producer.js";
 import { INPUT_RESPONSIVENESS_WORKLOADS, assertInputResponsivenessWorkload } from "./input-workloads.js";
+import { InputFrameRecorder } from "./input-frame-recorder.js";
 
-class RecordingTerminal implements PiTuiTerminalPort {
-  readonly kittyProtocolActive = false;
-  readonly writes: Array<{ data: string; atMs: number }> = [];
-  active = false;
-  onReceipt: ((data: string) => void) | undefined;
-  onWrite: ((phase: "write-start" | "write-end") => void) | undefined;
-  #input: ((data: string) => void) | undefined;
-  #resize: (() => void) | undefined;
-  constructor(public columns: number, public rows: number) {}
-  start(input: (data: string) => void, resize: () => void): void { this.active = true; this.#input = input; this.#resize = resize; }
-  stop(): void { this.active = false; this.#input = undefined; this.#resize = undefined; }
-  async drainInput(): Promise<void> {}
-  write(data: string): void {
-    this.onWrite?.("write-start");
-    this.writes.push({ data, atMs: performance.now() });
-    this.onWrite?.("write-end");
-  }
-  input(data: string): void { this.onReceipt?.(data); this.#input?.(data); }
-  resize(columns: number, rows: number): void { this.columns = columns; this.rows = rows; this.#resize?.(); }
-  moveBy(lines: number): void { this.write(lines >= 0 ? `\u001b[${lines}B` : `\u001b[${-lines}A`); }
-  hideCursor(): void { this.write("\u001b[?25l"); }
-  showCursor(): void { this.write("\u001b[?25h"); }
-  clearLine(): void { this.write("\u001b[K"); }
-  clearFromCursor(): void { this.write("\u001b[J"); }
-  clearScreen(): void { this.write("\u001b[2J\u001b[H"); }
-  setTitle(): void {}
-  setProgress(): void {}
-}
-
-class Session {
-  readonly sessionId = "input-session";
-  readonly model = { provider: "openai", id: "gpt-5", name: "GPT-5" };
-  readonly thinkingLevel = "medium";
-  readonly isStreaming = false;
-  readonly isIdle = true;
-  readonly isRetrying = false;
-  readonly isCompacting = false;
-  readonly calls: string[] = [];
-  #listeners = new Set<(event: unknown) => void>();
-  constructor(readonly messages: readonly unknown[]) {}
-  subscribe(listener: (event: unknown) => void): () => void { this.#listeners.add(listener); return () => this.#listeners.delete(listener); }
-  emit(event: unknown): void { for (const listener of this.#listeners) listener(event); }
-  async prompt(text: string): Promise<void> { this.calls.push(`submit:${text}`); }
-  async steer(text: string): Promise<void> { this.calls.push(`submit:${text}`); }
-  async followUp(text: string): Promise<void> { this.calls.push(`submit:${text}`); }
-  async abort(): Promise<void> { this.calls.push("interrupt"); }
-  abortRetry(): void {}
-  abortCompaction(): void {}
-  async compact(): Promise<void> {}
-  async setModel(): Promise<void> {}
-  setThinkingLevel(): void {}
-  dispose(): void {}
-}
-
-class Runtime {
-  readonly session: Session;
-  readonly diagnostics: readonly unknown[] = [];
-  readonly services;
-  constructor(messages: readonly unknown[]) {
-    this.session = new Session(messages);
-    this.services = {
-      modelRuntime: {
-        getModel: () => this.session.model,
-        getAvailableSnapshot: () => [this.session.model],
-        getProviderAuthStatus: () => ({ configured: true, source: "stored" }),
-      },
-      settingsManager: { getTuiMode: () => "regular", getTheme: () => "dark" },
-      diagnostics: [],
-    };
-  }
-  setRebindSession(): void {}
-  async newSession(): Promise<void> {}
-  async switchSession(): Promise<void> {}
-  async dispose(): Promise<void> {}
-}
+import { RecordingTerminal, Runtime } from "./input-runtime-fixture.js";
 
 async function runOwned(request: InputProducerRequest): Promise<InputProducerResult> {
   const workload = requireWorkload(request.workloadId);
@@ -101,13 +28,14 @@ async function runOwned(request: InputProducerRequest): Promise<InputProducerRes
   });
   const terminal = new RecordingTerminal(request.state.columns, request.state.rows);
   const phases: PiTuiInputDiagnosticsEvent[] = [];
+  let frameRecorder: InputFrameRecorder | undefined;
   const shell = new OwnedUiSessionShell({
     backend: adapter,
     cwd: request.state.cwd,
     terminal,
     ...(request.producer === "bare-a1" ? { sessionLayout: "custom-viewport" as const } : {}),
     inputPresentation: {
-      onEvent: event => phases.push(event),
+      onEvent: event => { phases.push(event); frameRecorder?.trace(event); },
       now: () => performance.now(),
       ...(request.variant === "baseline" ? { coordination: false, viewportReuse: false } : {}),
     },
@@ -129,6 +57,13 @@ async function runOwned(request: InputProducerRequest): Promise<InputProducerRes
       });
       shell.root.setInputSurface(selector, true, "owned");
       shell.runtime.renderNow();
+    }
+    if (request.producer === "bare-a1") {
+      frameRecorder = new InputFrameRecorder(() => ({ renders: shell.root.transcriptRenderCount(), writeEnd: terminal.writes.length,
+        descriptor: shell.root.viewportFrameDescriptor() }));
+      terminal.onWrite = phase => {
+        if (phase === "write-end") frameRecorder?.wrote(terminal.writes.length - 1, terminal.writes.at(-1)!.data);
+      };
     }
     let previousTranscriptRenders = shell.root.transcriptRenderCount();
     let previousWriteEnd = terminal.writes.length;
@@ -165,6 +100,7 @@ async function runOwned(request: InputProducerRequest): Promise<InputProducerRes
       await settleImmediate();
       const descriptor = shell.root.viewportFrameDescriptor();
       checkpoints.push({
+        frameEvidence: frameRecorder?.checkpoint() ?? null,
         name: turn.id,
         writeStart: previousWriteEnd,
         writeEnd: terminal.writes.length,
@@ -185,6 +121,8 @@ async function runOwned(request: InputProducerRequest): Promise<InputProducerRes
       previousWriteEnd = terminal.writes.length;
     }
   } finally {
+    frameRecorder = undefined;
+    terminal.onWrite = undefined;
     await shell.dispose();
     if (!adapter.disposed) await adapter.dispose();
   }
@@ -297,6 +235,7 @@ async function runPinned(request: InputProducerRequest): Promise<InputProducerRe
       await settleImmediate();
       if (workload.surface === "editor") text = readEditorText();
       checkpoints.push({
+        frameEvidence: null,
         name: turn.id,
         writeStart: previousWriteEnd,
         writeEnd: terminal.writes.length,
@@ -326,7 +265,7 @@ function result(
   checkpoints: readonly InputProducerCheckpoint[],
 ): InputProducerResult {
   return {
-    schema: "a1-input-responsiveness-producer-v1",
+    schema: "a1-input-responsiveness-producer-v2",
     producer: request.producer,
     processId: process.pid,
     workloadId: request.workloadId,
@@ -404,7 +343,7 @@ async function main(): Promise<void> {
   }
   const output = "workloadIds" in request
     ? {
-        schema: "a1-input-responsiveness-batch-v1" as const,
+        schema: "a1-input-responsiveness-batch-v2" as const,
         producer: request.producer,
         processId: process.pid,
         results: await runBatch(request),

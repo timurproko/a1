@@ -1,7 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 import { backgroundSgrSpan, stripAnsi } from "../../../../src/ui/components/index.js";
 import type { PiShellEditorPointerEvent, PiShellEditorPort } from "../../../../src/integrations/pi/components/index.js";
-import { SessionViewportController } from "../../../../src/integrations/pi/session-ui/session-viewport-controller.js";
+import { SessionViewportController, type SessionViewportInputResult } from "../../../../src/integrations/pi/session-ui/session-viewport-controller.js";
+import { selectionCopyRowText } from "../../../../src/ui/components/selection-copy.js";
+
+function copiedText(result: SessionViewportInputResult): string | undefined {
+  const snapshot = result.copySelection;
+  return snapshot?.rows.map((row, index) => selectionCopyRowText(snapshot, row, index)).join("\n");
+}
 
 function editor(overrides: Partial<PiShellEditorPort> = {}): PiShellEditorPort {
   return {
@@ -77,13 +83,13 @@ describe("session viewport interaction controller", () => {
       const scrollTop = initial.scrollTop;
       target.handlePreInput("\u001b[<0;1;2M\u001b[<32;192;4M\u001b[<0;192;4m", true, 1000);
       expect(target.compose(source).scrollTop).toBe(scrollTop);
-      expect(target.handlePreInput("\u0003").copyText).toBe([plain, plain, plain].join("\n"));
+      expect(copiedText(target.handlePreInput("\u0003"))).toBe([plain, plain, plain].join("\n"));
       const rail = target.compose(source).hits.rail!;
       const thumbRow = rail.rowStart + rail.geometry.thumbTop;
       target.handlePreInput(`\u001b[<0;192;${thumbRow}M\u001b[<32;192;2M\u001b[<0;192;2m`, true, 2000);
       expect(target.compose(source).scrollTop).toBe(0);
       expect(target.hasSelection).toBe(false);
-      expect(target.handlePreInput("\u0003").copyText).toBeUndefined();
+      expect(copiedText(target.handlePreInput("\u0003"))).toBeUndefined();
       expect(target.frame!.contentWidth).toBe(191);
     } finally { target.clearPointerState(); }
   });
@@ -114,7 +120,8 @@ describe("session viewport interaction controller", () => {
     const gesture = "\u001b[<0;1;2M\u001b[<32;2;2M\u001b[<0;2;2m";
     normal.handlePreInput(gesture);
     input(gesture);
-    expect(input("\u0003")).toEqual(normal.handlePreInput("\u0003"));
+    const expected = normal.handlePreInput("\u0003");
+    expect(input("\u0003")).toEqual({ ...expected, copySelection: { ...expected.copySelection, captureMs: expect.any(Number) } });
     normal.clearPointerState();
     expect(input("\u0003").consumed).toBe(false);
     expect(received).toHaveLength(1);
@@ -145,7 +152,7 @@ describe("session viewport interaction controller", () => {
       expect(modal.target.compose(input).rows).toEqual(normal.target.compose(input).rows);
       const copy = normal.target.handlePreInput("\u0003");
       expect(copy.consumed).toBe(true);
-      expect(modal.target.handlePreInput("\u0003", true, 1001, false)).toEqual(copy);
+      expect(modal.target.handlePreInput("\u0003", true, 1001, false)).toEqual({ ...copy, copySelection: { ...copy.copySelection, captureMs: expect.any(Number) } });
     } finally { normal.target.clearPointerState(); modal.target.clearPointerState(); }
   });
 
@@ -239,7 +246,7 @@ describe("session viewport interaction controller", () => {
       target.handlePreInput("\u001b[<0;1;2M");
       target.handlePreInput("\u001b[<32;4;2M");
       target.handlePreInput("\u001b[<0;4;2m");
-      expect(target.handlePreInput("\u0003").copyText).toBeTruthy();
+      expect(copiedText(target.handlePreInput("\u0003"))).toBeTruthy();
       target.reset();
       frame(target, 0);
       expect(target.handlePreInput("\u001b[<0;4;2M\u001b[<32;15;3M\u001b[<0;15;3m").consumed).toBe(true);
@@ -366,9 +373,9 @@ describe("session viewport interaction controller", () => {
       target.handlePreInput("\u001b[<0;4;7m");
       const copied = target.handlePreInput("\u0003");
       expect(copied.consumed).toBe(true);
-      expect(copied.copyText).not.toContain("Steering");
-      expect(copied.copyText).not.toContain("Working");
-      expect(copied.copyText).toContain("row-25");
+      expect(copiedText(copied)).not.toContain("Steering");
+      expect(copiedText(copied)).not.toContain("Working");
+      expect(copiedText(copied)).toContain("row-25");
     } finally {
       target.clearPointerState();
     }
@@ -753,7 +760,8 @@ describe("session viewport interaction controller", () => {
 
     target.handlePreInput("\u001b[<0;5;1m");
     const copied = target.handlePreInput("\u0003");
-    expect(copied).toMatchObject({ consumed: true, copyText: "row-0" });
+    expect(copied.consumed).toBe(true);
+    expect(copiedText(copied)).toBe("row-0");
   });
 
   it("keeps the anchor selected through no-button reversal and clears only after copying", () => {
@@ -777,7 +785,9 @@ describe("session viewport interaction controller", () => {
     }
     target.handlePreInput("\u001b[<0;3;1m", true, 1_002);
     expect(target.hasSelection).toBe(true);
-    expect(target.handlePreInput("\u0003")).toMatchObject({ consumed: true, copyText: "c" });
+    const copied = target.handlePreInput("\u0003");
+    expect(copied.consumed).toBe(true);
+    expect(copiedText(copied)).toBe("c");
     expect(target.hasSelection).toBe(false);
     expect(target.handlePreInput("\u0003")).toEqual({ data: "\u0003", consumed: false });
     target.clearPointerState();

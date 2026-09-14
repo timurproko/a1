@@ -168,6 +168,14 @@ export interface PiShellHeaderOptions {
   readonly resources?: readonly PiShellResourceEntry[];
 }
 
+/** An owned paste reserves its edit immediately and acknowledges completion only after insertion. */
+export interface PiShellPasteReservation {
+  readonly marker: string;
+  readonly result: Promise<string>;
+  complete?(): void;
+  isCurrent?(): boolean;
+}
+
 export interface PiShellEditorOptions {
   readonly persistentHistory?: boolean;
   readonly historyEditor?: HistoryEditorConstructor;
@@ -196,13 +204,18 @@ export interface PiShellEditorOptions {
   readonly onPromptSuggestionAccepted?: (text: string) => void;
   readonly onCopyText?: (text: string) => void;
   readonly readClipboardContent?: (signal?: AbortSignal) => Promise<PiShellClipboardContent | null>;
-  readonly beginClipboardPaste?: () => { readonly marker: string; readonly result: Promise<string> };
+  readonly beginClipboardPaste?: () => PiShellPasteReservation;
+  readonly beginTextPaste?: (text: string) => PiShellPasteReservation;
+  readonly deferTextPaste?: (text: string) => boolean;
+  readonly onPasteRejected?: (error: unknown) => void;
+  readonly onPasteInput?: (bytes: number) => void;
   readonly editorHiddenRanges?: (line: string) => readonly PiShellEditorTextRange[];
   readonly transformPastedContent?: (content: PiShellClipboardContent) => string;
   readonly editorAtomicRanges?: (line: string) => readonly PiShellEditorTextRange[];
   readonly expandCopiedEditorText?: (text: string) => string;
   readonly paintEditorSelection?: (line: string, from: number, to: number, atomic: boolean) => string;
-  readonly decorateEditorRow?: (row: string, width: number) => string;
+  /** Row indices restart at zero for each complete owned editor decoration pass. */
+  readonly decorateEditorRow?: (row: string, width: number, rowIndex: number) => string;
   readonly cwd?: string;
   readonly agentDir?: string;
   readonly autocompleteCommands?: readonly PiShellAutocompleteCommand[];

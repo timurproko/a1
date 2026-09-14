@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, realpathSync } from "node:fs";
 import type { PiSessionForkPrompt, PiSessionSelection } from "./session-selection.js";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -300,6 +300,7 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
   readonly #sessionSelection: PiSessionSelection | undefined;
   readonly #sessionForkPrompt: PiSessionForkPrompt | undefined;
   readonly #workflowHost: PiWorkflowHost;
+  #clipboardWriter: ((text: string) => Promise<boolean>) | undefined;
   #workflowInteraction: PiWorkflowInteractionHost;
   readonly #listeners = new Map<(event: OwnedUiEvent) => void, number>();
   #runtime: PiRuntimeApi | undefined;
@@ -1005,17 +1006,22 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
     const runtime = this.#runtime;
     if (!runtime) throw new Error("engine runtime is unavailable");
     const cwd = resolve(this.#cwd);
-    const parent = dirname(cwd);
+    let trustPath = cwd;
+    try { trustPath = realpathSync(cwd); } catch {
+      // Compatibility: pinned Pi retains the resolved path when real-path lookup fails.
+    }
+    // Security: trust the target's parent, not the parent containing a directory alias.
+    const parent = dirname(trustPath);
     const trustStore = new ProjectTrustStore(this.#agentDir);
     const trustOptions: PiProjectTrustContext["trustOptions"] = [
-      { label: "Trust", trusted: true, updates: [{ path: cwd, decision: true }], savedPath: cwd },
-      ...(parent === cwd ? [] : [{
+      { label: "Trust", trusted: true, updates: [{ path: trustPath, decision: true }], savedPath: trustPath },
+      ...(parent === trustPath ? [] : [{
         label: `Trust parent folder (${parent})`,
         trusted: true,
-        updates: [{ path: parent, decision: true }, { path: cwd, decision: null }],
+        updates: [{ path: parent, decision: true }, { path: trustPath, decision: null }],
         savedPath: parent,
       }]),
-      { label: "Do not trust", trusted: false, updates: [{ path: cwd, decision: false }], savedPath: cwd },
+      { label: "Do not trust", trusted: false, updates: [{ path: trustPath, decision: false }], savedPath: trustPath },
     ];
     return {
       cwd,
@@ -1250,8 +1256,18 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
     return this.#requireWorkflowSession().extensionRunner?.getToolDefinition?.(toolName);
   }
 
-  async copyWorkflowText(text: string): Promise<void> {
+  /** Bind the owned UI's clipboard lifecycle without changing the comparison host. True means acknowledged delivery. */
+  bindClipboardWriter(writer: (text: string) => Promise<boolean>): () => void {
+    const previous = this.#clipboardWriter;
+    this.#clipboardWriter = writer;
+    return () => { if (this.#clipboardWriter === writer) this.#clipboardWriter = previous; };
+  }
+
+  /** Workflow and tree copying share the active owner's write fence and delivery acknowledgment. */
+  async copyWorkflowText(text: string): Promise<boolean> {
+    if (this.#clipboardWriter !== undefined) return this.#clipboardWriter(text);
     await this.#workflowHost.copyText(text);
+    return true;
   }
 
   clearQueuedWorkflows(): readonly string[] {
@@ -1599,8 +1615,8 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
       case "copy": {
         const text = requireCapability(session.getLastAssistantText, "getLastAssistantText").call(session);
         if (typeof text !== "string" || text.length === 0) return workflowResult(request.command, "failed", "No agent messages to copy yet.");
-        await this.#workflowHost.copyText(text);
-        return workflowResult(request.command, "completed", "Copied last agent message to clipboard");
+        const acknowledged = await this.copyWorkflowText(text);
+        return workflowResult(request.command, "completed", acknowledged ? "Copied last agent message to clipboard" : "Submitted last agent message to clipboard");
       }
       case "name": {
         const manager = session.sessionManager;

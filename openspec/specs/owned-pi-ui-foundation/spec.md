@@ -578,32 +578,37 @@ invalidation independently of semantic block revisions.
 - **AND** that summary SHALL NOT replace the complete supported rendering payload
 
 ### Requirement: Clipboard images reach prompts as canonical base64
-The owned shell SHALL accept clipboard images encoded as valid standard padded or unpadded base64 and SHALL canonicalize each attachment to RFC 4648 standard base64 with required trailing padding before storing an image chip or submitting it to the agent session. Canonicalization SHALL preserve the exact decoded bytes and declared MIME type. The shell SHALL NOT submit malformed image data or a data-URL wrapper as an image payload.
+The owned shell SHALL accept clipboard images encoded as valid standard padded or unpadded base64 subject to finite source-intake safeguards, and SHALL canonicalize each prepared attachment to RFC 4648 standard base64 with required trailing padding before marking its image chip ready or submitting it to the agent session. A pending paste/image chip SHALL be permitted before acquisition and preparation finish, but SHALL NOT be treated as a ready attachment. Canonicalization alone SHALL preserve exact decoded bytes and declared MIME type. Images already within preparation and applicable downstream limits SHALL remain byte-identical; eligible oversized images SHALL instead pass through the declared background resizing policy before final canonicalization, preserving the resulting bytes and actual output MIME type. The shell SHALL NOT submit malformed image data or a data-URL wrapper as an image payload.
 
 #### Scenario: Paste an image requiring two padding characters
-- **WHEN** the clipboard supplies a valid unpadded standard-base64 image whose encoded payload requires two trailing `=` characters
-- **THEN** the shell SHALL insert an image chip
+- **WHEN** the clipboard supplies a valid unpadded standard-base64 image requiring two trailing `=` characters that needs no resizing under the preparation policy
+- **THEN** the shell SHALL resolve its pending paste to a ready image chip
 - **AND** the eventual prompt attachment SHALL contain the same decoded bytes encoded with the two required padding characters
 
 #### Scenario: Paste an image requiring one padding character
-- **WHEN** the clipboard supplies a valid unpadded standard-base64 image whose encoded payload requires one trailing `=` character
-- **THEN** the shell SHALL insert an image chip
+- **WHEN** the clipboard supplies a valid unpadded standard-base64 image requiring one trailing `=` character that needs no resizing under the preparation policy
+- **THEN** the shell SHALL resolve its pending paste to a ready image chip
 - **AND** the eventual prompt attachment SHALL contain the same decoded bytes encoded with the required padding character
 
 #### Scenario: Paste an already canonical image
-- **WHEN** the clipboard supplies a valid, padded standard-base64 image
+- **WHEN** the clipboard supplies a valid padded standard-base64 image that needs no resizing under the preparation policy
 - **THEN** the shell SHALL preserve its decoded bytes and MIME type
 - **AND** prompt submission SHALL contain one canonical attachment for the image chip
 
 #### Scenario: Clipboard image data is malformed
 - **WHEN** a clipboard adapter supplies empty data, an invalid alphabet, invalid padding, an impossible base64 length, or a data-URL wrapper as image data
 - **THEN** the shell SHALL NOT store or submit that value as an image attachment
-- **AND** it SHALL paste available clipboard text through the existing text path or otherwise leave the prompt unchanged
+- **AND** it SHALL resolve the temporary paste marker to available clipboard text through the existing text path or otherwise remove it without changing surrounding prompt text
 
 #### Scenario: Submit a normalized clipboard image to a strict provider
-- **WHEN** a pasted clipboard image is represented by an image chip and the prompt is submitted
-- **THEN** the agent session SHALL receive canonical base64 data suitable for construction of a strict provider data URL
+- **WHEN** a pasted clipboard image is represented by a ready image chip and the prompt is submitted
+- **THEN** the agent session SHALL receive canonical base64 for the final prepared image suitable for construction of a strict provider data URL
 - **AND** the user-visible chip label SHALL remain in the submitted prompt text as before
+
+#### Scenario: Oversized source is canonicalized after resizing
+- **WHEN** a valid padded or unpadded source exceeds the preparation target but can be safely resized within output limits
+- **THEN** the shell SHALL prepare it in the background and store canonical base64 for the resulting image, not enforce source-byte equality with the original
+- **AND** the resulting MIME type and bytes SHALL remain consistent through chip readiness and dispatch
 
 ### Requirement: Keyboard input reaches an immediate current-state presentation
 The owned shell SHALL accept and apply terminal keyboard input in receipt order without dropping, duplicating, or reinterpreting text, editing commands, navigation, shortcuts, paste, submission, cancellation, or interruption. Keyboard-driven semantic state SHALL NOT wait for the streamed-presentation cadence. The first eligible input state SHALL request immediate presentation, and rapid input MAY omit superseded intermediate visual states only when every input has already been applied in order and the next presentation contains the newest eligible state.
@@ -654,6 +659,8 @@ Keyboard responsiveness acceptance SHALL use isolated bare-`a1`, `a1 pi`, and un
 
 Deterministic ordering, scheduling, backlog, frame-count, stable-work, and terminal-paint budgets SHALL be automated gates. Same-run monotonic first-state and final-state input-to-paint distributions SHALL be recorded for diagnosis and comparison but SHALL NOT be the sole automated verdict. Exact-artifact comparison in Windows Terminal against `a1 pi` SHALL remain authoritative for perceived responsiveness.
 
+Stable-work evidence SHALL associate each measured composition's transcript render delta and terminal paint with that composition's own cause and viewport regions. A checkpoint containing multiple frames SHALL NOT attribute all of its work to its final frame. Frames classified as geometry-stable dock input SHALL retain a budget of zero transcript block renders and zero transcript painted rows. Measured non-input work SHALL remain explicitly represented; no frame, counter increment, or write range SHALL be dropped, counted twice, or relabeled to satisfy a budget. Evidence collection SHALL be observational and SHALL NOT render, flush, repair, or reschedule the candidate to obtain a passing result.
+
 #### Scenario: Run the comparative input matrix
 - **WHEN** keyboard-responsiveness evidence is captured
 - **THEN** each producer SHALL run independently with the same declared workload inputs and environment
@@ -675,6 +682,26 @@ Deterministic ordering, scheduling, backlog, frame-count, stable-work, and termi
 - **WHEN** an exact candidate artifact is tested in Windows Terminal beside `a1 pi`
 - **THEN** typing SHALL visibly start immediately, rapid bursts SHALL visibly finish without catching up after input stops, and held or repeated menu navigation SHALL track the current selection
 - **AND** any user-observed delayed start, delayed finish, stale selection, or material responsiveness gap SHALL invalidate acceptance despite passing diagnostics
+
+#### Scenario: A stream frame precedes stable input in one checkpoint
+- **WHEN** a legitimate stream-content frame renders or paints transcript content and a later stable dock-input frame in the same checkpoint performs no transcript work
+- **THEN** the stream work SHALL remain attributed to the stream frame
+- **AND** the dock-input frame SHALL contribute zero stable transcript work regardless of its position in the checkpoint
+
+#### Scenario: A stable-input violation precedes another frame
+- **WHEN** a dock-input frame performs a transcript block render or paints a transcript row before a stream or geometry frame in the same checkpoint
+- **THEN** the stable-work gate SHALL fail for the violating dock-input frame
+- **AND** the later frame's cause SHALL NOT hide the earlier violation
+
+#### Scenario: Frame evidence is incomplete or inconsistent
+- **WHEN** measured render deltas or terminal-write ranges cannot be accounted for exactly once, frame ordering or cause is ambiguous, or required evidence is missing
+- **THEN** the gate SHALL reject the evidence rather than assume zero work or fall back to the final checkpoint cause
+- **AND** legitimate no-write compositions and separately identified non-frame terminal controls SHALL remain representable without fabricating a frame
+
+#### Scenario: Diagnose the first stable-work failure
+- **WHEN** a frame violates a stable-render or stable-paint budget
+- **THEN** the failure SHALL identify the workload, producer, checkpoint, frame identity and cause, expected and actual counters, viewport region, and relevant terminal-write range from the original capture
+- **AND** the diagnostic SHALL be bounded, SHALL NOT require a second producer run, and SHALL NOT dump arbitrary transcript or credential content
 
 ### Requirement: The owned shell preserves setting-controlled Pi behavior
 Every Pi setting the A1-owned settings replacement presents SHALL control the same active-session, presentation, terminal, startup, or shutdown behavior that the pinned Pi setting controls. The replacement SHALL not count persistence, callback reachability, or selector rendering as preservation of a pinned capability. An inventory entry with no effect in the active product mode or environment SHALL be omitted from the settings UI rather than rendered as an unavailable option. A supported setting that provides a defined terminal fallback remains present and SHALL render that fallback truthfully.
@@ -995,3 +1022,754 @@ Evidence SHALL include ordinary scheduled presentation and coalesced bursts rath
 - **WHEN** the exact candidate still loses a displayable block, requires resize/reopen to reveal current output, or exhibits unexplained A1-induced block flashing during user-controlled review
 - **THEN** content-rendering acceptance SHALL remain incomplete
 - **AND** evidence SHALL identify the earliest boundary where required content, presentation, or stability diverged from the pinned reference outside documented A1 differences
+
+### Requirement: Command outcome messages retain pinned wording and severity
+Except for the named missing-GitHub-CLI diagnostic below, every existing supported Pi-backed command SHALL reproduce pinned Pi's user-visible messages for equivalent success, failure, warning, empty, progress, and cancellation states. Parity SHALL include whether a message is emitted at all, its literal wording and punctuation, contextual prefixes, links, severity, and order. Existing declared A1 route replacements and layout/progress customizations SHALL remain explicit exceptions only within their declared scope; they SHALL NOT justify changing unrelated command-result messages. Actual selected-profile paths and truthful runtime values SHALL remain contextual data, not copied values from another profile.
+
+For fatal `/new`, `/resume`, and `/import` outcomes, A1 SHALL preserve Pi-compatible visible error semantics but SHALL retain its recoverable workflow/session contract: the route returns a failed result and the owning A1 session remains active rather than stopping the terminal or propagating Pi's process exit. This lifecycle difference SHALL be recorded as an explicit contextual exception and SHALL NOT be presented as process-behavior parity.
+
+#### Scenario: Login saves an API key
+- **WHEN** a supported provider login successfully stores an API key
+- **THEN** the success label SHALL be `Saved API key for <provider>` rather than `Logged in to <provider>`
+- **AND** the selected-model clause and `Credentials saved to <auth path>` clause SHALL appear exactly when pinned Pi emits them for the equivalent state
+
+#### Scenario: Login completes OAuth or has a partial failure
+- **WHEN** OAuth authentication succeeds, default-model selection fails, catalog refresh times out or fails, or credentials are saved but local state cannot synchronize
+- **THEN** A1 SHALL emit the same success, warning, and contextual failure sequence as pinned Pi for that outcome
+- **AND** it SHALL NOT claim a model was selected or credentials synchronized unless that work succeeded
+
+#### Scenario: Logout has no stored credentials
+- **WHEN** no stored credentials are available to remove
+- **THEN** A1 SHALL emit dim `No stored credentials to remove. /logout only removes credentials saved by /login; environment variables and models.json config are unchanged.`
+- **AND** it SHALL NOT substitute `No authenticated providers available.`
+
+#### Scenario: Logout fails
+- **WHEN** logout fails before credential removal or removes credentials but fails local synchronization
+- **THEN** A1 SHALL retain pinned Pi's distinct `Logout failed: <detail>` or `Credentials removed for <provider>, but local model state could not be synchronized: <detail>` error context as applicable
+
+#### Scenario: Fork has no messages
+- **WHEN** there are no messages available for `/fork`
+- **THEN** A1 SHALL emit dim `No messages to fork from` as a status, not an error
+
+#### Scenario: Clone has no session position
+- **WHEN** `/clone` has no active branch position to clone
+- **THEN** A1 SHALL emit dim `Nothing to clone yet` as a status, not an error
+
+#### Scenario: Import fails
+- **WHEN** a session import fails after any applicable confirmation or missing-cwd recovery
+- **THEN** the error SHALL preserve Pi's `Failed to import session: <detail>` context
+- **AND** usage, declined confirmation, extension cancellation, and successful import SHALL retain their distinct pinned messages or silence
+
+#### Scenario: A fatal command outcome remains recoverable in A1
+- **WHEN** `/new`, `/resume`, or `/import` reaches an outcome for which pinned Pi stops its terminal and exits one
+- **THEN** A1 SHALL emit the equivalent contextual error with the pinned wording, severity, and order and SHALL NOT emit a false success
+- **AND** A1 SHALL return its recoverable failed workflow result and keep the owning session active
+- **AND** acceptance evidence SHALL label shutdown and process-exit behavior as an explicit contextual exception rather than claim lifecycle parity
+
+#### Scenario: Share succeeds
+- **WHEN** `/share` successfully creates a secret gist
+- **THEN** A1 SHALL emit dim `Share URL: <viewer URL>` followed by `Gist: <gist URL>` with Pi's line break and ordering
+- **AND** for the current pinned version the default viewer URL SHALL be `https://pi.dev/session/#<gist ID>` and a configured `PI_SHARE_VIEWER_URL` SHALL determine the base using pinned semantics
+
+#### Scenario: Share cannot find the GitHub CLI
+- **WHEN** the user invokes `/share` and the `gh` executable is missing or cannot be found on PATH
+- **THEN** A1 SHALL display error-colored `Error: GitHub CLI (gh) is not installed. Install it from https://cli.github.com/`
+- **AND** sharing SHALL stop before session export or gist creation, without a success link, while the current session remains usable
+- **AND** this SHALL be a named wording exception to Pi 0.84.2's misleading `Error: GitHub CLI is not logged in. Run 'gh auth login' first.` for a missing executable, not a claim of identical output
+- **AND** the exception SHALL NOT change error styling, padding, wrapping rules, or any other command outcome, and SHALL NOT apply to permission or other non-missing-executable failures
+
+#### Scenario: Share finds an unauthenticated GitHub CLI
+- **WHEN** the user invokes `/share`, `gh` is installed and found, but its authentication check fails
+- **THEN** A1 SHALL display error-colored `Error: GitHub CLI is not logged in. Run 'gh auth login' first.` exactly as pinned Pi does
+- **AND** sharing SHALL stop before session export or gist creation, without a success link, while the current session remains usable
+- **AND** A1 SHALL NOT substitute the missing-executable installation message
+
+#### Scenario: Share fails or is cancelled
+- **WHEN** session export fails, gist creation fails, or the user cancels creation
+- **THEN** A1 SHALL retain Pi's export/gist error context or `Share cancelled` status as applicable
+- **AND** no success link SHALL be emitted on failure or cancellation
+
+#### Scenario: Existing matching commands complete
+- **WHEN** `/copy`, `/export`, `/name`, `/session`, `/hotkeys`, `/changelog`, `/model`, `/scoped-models`, `/tree`, `/trust`, `/resume`, `/reload`, `/new`, `/compact`, or `/quit` reaches an already-matching state
+- **THEN** A1 SHALL preserve the pinned message or structured presentation rather than replace it with a generic success/failure sentence
+- **AND** operation-specific silent completion or cancellation SHALL remain silent where pinned Pi is silent
+
+### Requirement: Command messages preserve terminal geometry and lifetime
+Command-result status, warning, error, named-session text, structured information, and new-session notices SHALL preserve pinned semantic styling, wrapping, output padding, blank rows, chronological placement, consecutive-status coalescing, and rendered-component lifetime at equivalent terminal dimensions and settings. Rendered-component lifetime governs message placement and replacement, not host-process termination or terminal shutdown. Multiline output SHALL occupy separately tracked rendered rows. The existing declared A1 viewport and settings replacements SHALL remain intact; parity SHALL compare message components and behavior within those declarations and the uncustomized pinned route independently.
+
+#### Scenario: A command emits a long or multiline error
+- **WHEN** the error text exceeds the available width or contains embedded newlines
+- **THEN** A1 SHALL preserve Pi's error prefix, error color, configured output padding, wrapping, and spacer behavior without clipping unconditionally or embedding a newline in one rendered-row entry
+
+#### Scenario: Output padding changes
+- **WHEN** an error is rendered with output padding zero or one
+- **THEN** its horizontal padding and wrap width SHALL follow pinned Pi's corresponding setting rather than an unconditional leading space
+
+#### Scenario: A new session starts
+- **WHEN** `/new` successfully starts a new session
+- **THEN** the accent `✓ New session started` notice SHALL have the same surrounding blank rows and horizontal/vertical padding as pinned Pi
+
+#### Scenario: Consecutive statuses are emitted
+- **WHEN** multiple command statuses occur consecutively, or a warning/error or persistent message intervenes
+- **THEN** A1 SHALL replace or append statuses at exactly the pinned boundaries without dropping intervening content or moving a message into another ownership region
+
+#### Scenario: A terminal is resized after a command result
+- **WHEN** the terminal narrows or widens with command-result content present and a selector opens or closes
+- **THEN** all message rows, modal/editor relationships, focus restoration, and scroll accounting SHALL remain consistent with the pinned presentation outside declared A1 layout differences
+
+### Requirement: Command-message parity has outcome-complete independent evidence
+Command-message acceptance SHALL maintain a source-traced inventory of the currently supported Pi-compatible CLI operations and Pi-backed interactive command outcomes, recording each applicable message branch as matching, corrected, or an explicitly declared contextual exception. Independent pinned-Pi output SHALL establish expected transcripts and terminal cells; A1-authored expected strings alone SHALL NOT establish parity. Unsupported commands SHALL be recorded as outside the supported surface, not silently added to satisfy the inventory.
+
+#### Scenario: Enumerate supported command outcomes
+- **WHEN** coverage is prepared against the pinned source
+- **THEN** it SHALL cover CLI model aliases, install/remove/uninstall/list/package-update commands and their diagnostics/help, and all existing supported interactive command routes including hidden routes
+- **AND** each reachable message, no-message, empty, failure, progress, and cancellation branch SHALL identify its source and applicable acceptance case or declared exception
+
+#### Scenario: Compare CLI transcripts
+- **WHEN** equivalent isolated fixtures drive a covered CLI case
+- **THEN** evidence SHALL compare stdout, stderr, literal content, line breaks, and color-enabled and color-disabled transcripts, with exit-status differences restricted to declared A1 syntax behavior
+- **AND** operational data substitutions SHALL be named and narrow rather than globally stripping paths, whitespace, or styling
+
+#### Scenario: Compare interactive message cells
+- **WHEN** equivalent commands run through independent pinned and owned producers
+- **THEN** evidence SHALL compare wording, severity, semantic ANSI styling, wrapping, padding, blank rows, placement, and status transitions at narrow and ordinary widths and both supported output-padding settings
+- **AND** a plain-text match with different styling or geometry SHALL fail
+
+#### Scenario: Verify the missing-GitHub-CLI diagnostic exception
+- **WHEN** independent pinned and A1 producers exercise `/share` with the GitHub CLI executable absent
+- **THEN** evidence SHALL retain Pi 0.84.2's exact not-logged-in diagnostic and A1's exact installation diagnostic and identify this single intentional wording difference
+- **AND** each output SHALL still satisfy its error severity and presentation contract, without blanket removal of text, whitespace, or styling from comparison
+- **AND** a changed A1 installation message or application of the exception to an installed-but-unauthenticated executable or another outcome SHALL fail verification
+- **AND** all other `/share` outcomes SHALL retain their existing pinned-parity requirements
+
+#### Scenario: Missing or contradictory evidence
+- **WHEN** a producer fails, a covered outcome lacks evidence, physical review contradicts an automated parity claim, fatal-command evidence conflates matching output with process lifecycle parity, or the missing-GitHub-CLI exception is applied to another outcome
+- **THEN** the affected command outcome SHALL remain unaccepted rather than being marked complete based on a success-only fixture or an undisclosed lifecycle difference
+
+### Requirement: Link inspection separates movement risk from hover cleanup
+Row inspection used by owned damage-aware presentation SHALL report explicitly declared terminal hyperlinks separately from text that only resembles a link. Explicit hyperlinks and content that cannot be replayed safely SHALL restrict movement, because the terminal holds per-cell link identity that bounded region movement can misattribute. Text that only resembles a link SHALL restrict nothing beyond the host-hover decoration repair it was introduced for.
+
+Owned presentation SHALL NOT request a whole-screen cleanup because streamed content changed a row that contains link-resembling text. Cleanup SHALL remain driven by pointer-hover transitions, deliberate link removal, and discarded link state, and a cleanup frame SHALL repaint the affected rows without an undeclared erase-display.
+
+The inspector SHALL remain a conservative cleanup detector. It SHALL NOT become a link-activation parser, SHALL NOT infer transcript semantics, and SHALL NOT change the bytes any row emits.
+
+#### Scenario: Inspect a row of ordinary code
+- **WHEN** a transcript row contains dotted identifiers, file names, or relative paths but no declared terminal hyperlink
+- **THEN** the row SHALL be reported as carrying no explicit hyperlink
+- **AND** it SHALL NOT restrict a proven safe transcript transition
+
+#### Scenario: Inspect a row with a declared hyperlink
+- **WHEN** a transcript row carries an explicit terminal hyperlink sequence
+- **THEN** the row SHALL be reported as explicitly linked
+- **AND** existing conservative movement and cleanup treatment SHALL apply unchanged
+
+#### Scenario: Stream over link-resembling text
+- **WHEN** a streamed update changes a followed row whose text resembles a link
+- **THEN** no whole-screen cleanup SHALL be requested by that content change
+- **AND** the frame SHALL remain eligible for bounded movement
+
+### Requirement: The real-damage allowance follows the declared live tail
+The owned semantic frame SHALL declare how many visible rows belong to the currently streaming transcript block. The damage-aware adapter SHALL derive its allowed painted-row count from the declared transcript movement, that live-tail extent, the existing stable-boundary allowance, and the dock rows it already counts, rather than from a fixed slack that assumes a one-row live tail.
+
+Painting more rows than that allowance SHALL continue to fail closed to the pinned renderer's own write. A frame whose live-tail extent is unavailable SHALL fall back to the existing fixed allowance rather than assume a larger one. Rows the frame attributes to settled content SHALL remain subject to the existing stable-row limit, so a stable-row regression still fails.
+
+#### Scenario: Repaint a tall live block
+- **WHEN** the declared live tail occupies several visible rows and every one of them changes in one streamed update
+- **THEN** the adapter SHALL transform the frame into bounded movement plus those rows
+- **AND** it SHALL NOT report excessive damage for the block's own legitimate rows
+
+#### Scenario: Repaint settled rows
+- **WHEN** a frame would paint settled transcript rows beyond the movement, the live tail, and the stable-boundary allowance
+- **THEN** the adapter SHALL report excessive damage
+- **AND** it SHALL forward the original pinned write unchanged
+
+#### Scenario: Compose a frame without a declared live tail
+- **WHEN** the semantic frame does not declare a live-tail extent
+- **THEN** the adapter SHALL apply the existing fixed allowance
+- **AND** it SHALL NOT widen its transformation on unknown metadata
+
+### Requirement: Rendering evidence covers code and link-bearing streaming
+Deterministic rendering evidence SHALL include streamed fenced code, streamed prose containing file paths and dotted identifiers, and a live tail taller than the stable-row slack, each driven through the existing independent producer and cell-replay support at a declared geometry.
+
+Their budgets SHALL fail on a full-screen clear between the first streamed chunk and the settled message, on rejection of a movement the semantic frame proved safe when the only disqualifying input was link-resembling text, on repaint of stable settled rows, and on a stale final frame. Evidence SHALL record the bounded decision cause for every checkpoint so a fallback is attributable.
+
+#### Scenario: Run the code-block workload
+- **WHEN** the rendering evidence runs the streamed fenced-code workload for bare A1
+- **THEN** it SHALL report the decision cause and painted-row count at every checkpoint
+- **AND** the budget SHALL fail if any mid-stream frame clears the complete screen
+
+#### Scenario: Run a comparison producer over the same workload
+- **WHEN** `a1 pi` or untouched pinned Pi renders the same workload
+- **THEN** the owned damage adapter SHALL not be active
+- **AND** the comparison producer's terminal writes SHALL remain unchanged
+
+### Requirement: Large ordinary text pastes use Pi-style compact chips
+Bare A1's default prompt editor SHALL collapse an ordinary text paste into one compact chip when its normalized text contains more than 10 logical lines or more than 1,000 UTF-16 code units. Counts and retained text SHALL follow the pinned Pi paste normalization, including line-ending normalization, tab expansion, and control-character handling. More than 10 lines SHALL use `[paste #N +L lines]`; otherwise a qualifying paste SHALL use `[paste #N C chars]`. `L` SHALL count newline-separated logical lines, including a trailing empty line, and `C` SHALL count UTF-16 code units. Nonqualifying ordinary text SHALL remain inline. This behavior SHALL apply with persistent prompt history enabled or disabled, without changing `a1 pi`.
+
+#### Scenario: Paste the reported multiline example
+- **WHEN** the user pastes ordinary text containing 136 normalized logical lines into a fresh bare-A1 editor
+- **THEN** the editor SHALL display `[paste #1 +136 lines]` instead of expanding all 136 lines
+- **AND** the full normalized text SHALL remain available behind the chip
+
+#### Scenario: Apply exact threshold boundaries
+- **WHEN** an ordinary paste has at most 10 lines and at most 1,000 UTF-16 code units after normalization
+- **THEN** it SHALL remain inline
+- **WHEN** a paste has 11 lines or has 1,001 UTF-16 code units
+- **THEN** it SHALL become a chip, with the line-count label taking precedence when both thresholds are exceeded
+
+#### Scenario: Preserve specialized paste behavior
+- **WHEN** clipboard content is recognized as a URL, existing file/folder paths, or an image by A1's established paste classification
+- **THEN** the existing specialized chip and attachment behavior SHALL remain in effect rather than wrapping it in a text-paste chip
+
+### Requirement: Text paste entry points preserve insertion and atomic editing
+Clipboard shortcuts, right-click paste, and terminal bracketed paste SHALL produce equivalent compact text chips for the same qualifying ordinary payload. Terminal delivery chunking SHALL NOT change the result. A paste SHALL replace the selected range or insert at its captured position; asynchronous completion SHALL preserve newer text and paste-action ordering. Live text-paste chips SHALL act as whole units for caret traversal, selection, and deletion, retain correct payload identity through undo/redo and draft history navigation, and render within the available width.
+
+#### Scenario: Paste through each supported entry point
+- **WHEN** the same qualifying text is pasted through an owned clipboard shortcut, right-click paste, or a complete or fragmented bracketed-paste sequence
+- **THEN** each action SHALL insert one equivalent text-paste chip
+- **AND** pasted newlines SHALL NOT submit the prompt and terminal framing bytes SHALL NOT appear as editor text
+
+#### Scenario: Replace a selection and complete reads out of order
+- **WHEN** a paste replaces selected text and later typing or another paste occurs before clipboard reads finish
+- **THEN** each result SHALL resolve at its own reserved position without overwriting newer input
+- **AND** resolving a paste removed by the user or invalidated by session replacement SHALL NOT resurrect it
+
+#### Scenario: Edit and recover a chip
+- **WHEN** the user moves across, selects, or deletes a text-paste chip, then uses undo/redo or browses history and restores the draft
+- **THEN** the chip SHALL behave atomically and each restored chip SHALL still resolve to its own full payload
+- **AND** a later paste SHALL NOT overwrite the backing of another recoverable chip
+
+#### Scenario: Render a narrow prompt
+- **WHEN** the prompt is narrower than the chip label
+- **THEN** rendered rows SHALL fit the terminal width without corrupting the chip's semantic identity, surrounding text, or caret mapping
+
+### Requirement: Compact text chips resolve to complete prompt content
+Copy/cut, prompt preparation, queued-input recovery, and durable recall SHALL resolve live text-paste chips to their complete normalized text, never silently truncating it or sending only the visible marker. Ordinary, steering, follow-up, and compaction-queued submissions SHALL preserve each pasted payload and its position exactly once. Existing submission-level outer trimming and durable-history eligibility and size limits SHALL remain unchanged. Expansion SHALL NOT recursively interpret marker-looking text inside a pasted payload, and unregistered marker-looking text SHALL remain literal.
+
+#### Scenario: Submit or copy multiple text chips
+- **WHEN** a draft contains surrounding typed text and several text-paste chips, including repeated identical pastes
+- **THEN** copying or preparing that draft SHALL preserve the surrounding text and every pasted occurrence in order
+- **AND** text-paste chips SHALL NOT create image attachments
+
+#### Scenario: Submit before clipboard acquisition finishes
+- **WHEN** the user submits a draft with an unresolved text paste and continues typing a new draft
+- **THEN** the existing pending-submission flow SHALL wait for that captured paste and dispatch the complete captured text once
+- **AND** completion or cancellation SHALL NOT alter the new draft or silently dispatch an incomplete prompt
+
+#### Scenario: Paste code containing marker-like strings
+- **WHEN** a text-paste payload contains literal paste, image, URL, or path-chip-looking strings, including strings matching another live chip's label
+- **THEN** those strings SHALL remain literal payload content during copying, submission, and history preparation
+- **AND** they SHALL NOT expand again, disappear, or attach an unrelated image
+
+#### Scenario: Recall after restart
+- **WHEN** a submitted text-chip prompt is eligible for durable history and the user recalls it in a fresh process
+- **THEN** recall SHALL restore its actual normalized text independently of the originating chip registry
+- **AND** internal line breaks and Unicode SHALL remain intact
+
+### Requirement: Submission validation failures remain recoverable
+The owned UI SHALL treat user-correctable prompt preparation and attachment validation failures as rejected submissions with bounded, actionable in-application feedback, not as uncaught exceptions or unhandled promise rejections. Before dispatch acceptance, a rejected submission SHALL preserve its text and attachment references for correction or explicit retry without overwriting newer editor input. Rejection SHALL NOT send a partial prompt, silently discard attachments, change the active session, or automatically retry the request. The same protection SHALL apply to ordinary prompts, steering, follow-ups, and submissions queued during compaction.
+
+#### Scenario: Image validation rejects an editor submission
+- **WHEN** an editor-submitted attachment fails validation before dispatch
+- **THEN** the UI SHALL identify the attachment problem without including its payload
+- **AND** the session SHALL remain interactive and the rejected draft SHALL remain recoverable
+- **AND** no part of that rejected submission SHALL be sent to the agent
+
+#### Scenario: Correct and resubmit after rejection
+- **WHEN** the user removes or corrects a rejected attachment and submits again
+- **THEN** the corrected submission SHALL dispatch exactly once
+- **AND** subsequent typing, selection, and agent turns SHALL remain usable
+
+#### Scenario: Failure races with new editor input
+- **WHEN** an asynchronous submission fails after the user has typed another draft
+- **THEN** the newer draft SHALL remain intact
+- **AND** the failed pre-dispatch submission SHALL remain separately recoverable rather than replacing the newer draft
+
+#### Scenario: Deferred image submission fails
+- **WHEN** a steering, follow-up, or compaction-queued submission fails attachment validation
+- **THEN** it SHALL produce one recoverable rejection without terminating the UI or repeatedly retrying the invalid item
+- **AND** other valid queued work SHALL not be silently discarded
+
+#### Scenario: Submission execution unexpectedly rejects
+- **WHEN** prompt preparation or the submission execution promise throws or rejects unexpectedly
+- **THEN** the owned callback boundary SHALL handle the failure and report bounded feedback without an unhandled rejection
+- **AND** A1 SHALL NOT automatically resend a request whose acceptance is uncertain
+
+### Requirement: Attachment admission and submission share finite limits
+The owned UI SHALL distinguish source-image intake limits from prepared-attachment limits. It SHALL retain the maximum of eight prompt attachments and 8 MiB (8,388,608 bytes) of canonical base64 text per final attachment; this encoded-data limit SHALL NOT be described as an 8 MiB decoded-image limit. Source images of up to 20 MiB of compressed image bytes SHALL be eligible for preparation subject to supported format and bounded decoded-pixel safeguards, even when their original base64 exceeds the final limit. A1 SHALL attempt automatic resizing/recompression before rejecting an otherwise eligible source for final output size. Known downstream byte/dimension limits SHALL also constrain prepared output; local validity SHALL NOT imply universal provider acceptance. Malformed clipboard image data SHALL preserve the existing text-fallback or unchanged-prompt behavior and SHALL never be submitted as image data.
+
+#### Scenario: Paste a screenshot larger than the final encoded limit
+- **WHEN** a valid supported screenshot exceeds 8 MiB as original canonical base64 but satisfies source safety limits and can be prepared within output limits
+- **THEN** A1 SHALL prepare and admit a size-compliant image without requiring manual resizing
+- **AND** the final bytes, actual MIME type, and canonical base64 SHALL pass submission validation without a crash
+
+#### Scenario: Final canonical data reaches the contract boundary
+- **WHEN** final canonical base64 is exactly 8,388,608 bytes long
+- **THEN** it SHALL pass the local encoded-size assertion, independently of any stricter preparation/downstream policy
+- **AND** a final payload above that bound SHALL fail validation without dispatch, even if introduced through restored, queued, or non-clipboard input
+- **AND** this final assertion SHALL NOT be used to reject eligible original clipboard bytes before preparation
+
+#### Scenario: Excessive source or decoded size
+- **WHEN** an image exceeds the source-byte or decoded-pixel safety bound
+- **THEN** A1 SHALL reject it with a bounded diagnostic identifying the applicable source limit, not the final encoded-data limit
+- **AND** the editor SHALL remain usable without an unbounded allocation or preparation attempt
+
+#### Scenario: Too many attachments including pending images
+- **WHEN** accepting another image would exceed eight image slots in a draft, including pending and failed image chips
+- **THEN** A1 SHALL identify the attachment-count limit and allow correction without exiting, silently sending a subset, or starting unbounded background work
+
+### Requirement: Image preparation preserves useful quality within output limits
+The owned UI SHALL preserve exact bytes and MIME type for supported images already within its preparation target and applicable downstream constraints. For larger eligible images, A1 SHALL automatically produce a canonical, size-compliant attachment using a conservative target below 4.5 MiB of base64 text, further reduced when a known downstream limit requires it. Resizing SHALL preserve aspect ratio and orientation, SHALL NOT upscale or crop, and SHALL prefer lossless PNG for screenshot text and transparency before lossy alternatives. When resizing is needed, its initial longest edge SHALL be at most 2000 pixels. Further compression or downscaling SHALL be bounded and SHALL NOT turn an image into an arbitrarily tiny unreadable success. The displayed attachment state SHALL indicate when preparation resized or recompressed the source, and its MIME type SHALL match the actual output format. Unsupported conversion, preparation failure, or inability to fit the quality/size policy SHALL remain a recoverable rejection rather than silently dropping the image.
+
+#### Scenario: Small screenshot needs no conversion
+- **WHEN** a supported screenshot is below the preparation target and meets applicable downstream constraints and source safety checks
+- **THEN** its exact bytes and MIME type SHALL be preserved through submission
+- **AND** it SHALL not undergo unnecessary decode/re-encode work
+
+#### Scenario: Large screenshot contains text
+- **WHEN** an eligible large screenshot requires preparation
+- **THEN** A1 SHALL preserve its composition and aspect ratio, prefer a size-compliant lossless output, and use bounded high-quality alternatives only when needed
+- **AND** the prepared screenshot SHALL retain readable representative text in the acceptance fixtures
+- **AND** the output SHALL meet both encoded and known downstream decoded-byte/dimension limits
+
+#### Scenario: Transparency or orientation affects conversion
+- **WHEN** resizing an image with transparency or orientation metadata
+- **THEN** its visible orientation SHALL be preserved and transparency SHALL be retained in lossless output
+- **AND** a required opaque conversion SHALL use a defined background rather than making transparent screenshot content unreadable
+
+#### Scenario: Conversion cannot safely produce an acceptable result
+- **WHEN** processing fails or no candidate fits the bounded quality/size policy
+- **THEN** the image SHALL remain visibly failed and removable or retryable with payload-free feedback
+- **AND** A1 SHALL neither label it ready nor submit text alone in place of the intended image prompt
+
+### Requirement: Pending image submissions and cancellations are race-safe
+Image preparation SHALL use stable attachment and submission identities so completion cannot overwrite newer input, resurrect deleted chips, or attach to another session. A submission referencing pending images SHALL visibly wait for all its referenced images to become ready before validating and dispatching its captured draft exactly once. Waiting SHALL remain asynchronous and cancellable and SHALL apply to ordinary prompts, steering, follow-ups, and compaction-queued work. A failed image SHALL prevent partial dispatch and leave the captured draft recoverable. A1 SHALL NOT automatically retry preparation after failure or resend a request whose dispatch acceptance is uncertain.
+
+#### Scenario: Enter before image preparation finishes
+- **WHEN** the user submits a draft containing pending images and then types a new draft
+- **THEN** the submitted snapshot SHALL remain visibly waiting while the new draft stays editable
+- **AND** once all referenced images are ready it SHALL validate and dispatch exactly once, without incorporating the newer draft
+- **AND** repeated submit events for the same waiting intent SHALL NOT duplicate dispatch
+
+#### Scenario: Preparation fails while submission is waiting
+- **WHEN** one image in a waiting submission fails preparation
+- **THEN** no part of that submission SHALL dispatch, and its text and attachment references SHALL remain recoverable
+- **AND** unrelated valid queued work SHALL not be silently discarded
+
+#### Scenario: Delete an image or cancel a waiting submission
+- **WHEN** the user deletes an unsubmitted pending chip or explicitly cancels its waiting submission
+- **THEN** its late completion SHALL not recreate the chip or dispatch the canceled intent
+- **AND** preparation with no remaining live reference SHALL be canceled and released
+
+#### Scenario: Session changes or the UI exits during preparation
+- **WHEN** the session is replaced/reset or the UI is disposed while image preparation is pending
+- **THEN** old-session work SHALL be canceled or ignored and SHALL not mutate the new session
+- **AND** background workers and clipboard subprocesses SHALL be released within bounded shutdown, preserving existing terminal restoration
+
+### Requirement: Fatal owned-UI exits restore the parent terminal
+When an owned bare-A1 UI terminates, A1 SHALL restore the terminal state it owns before returning control to the parent shell. Restoration SHALL cover mouse-reporting modes, bracketed paste and keyboard modes, raw input where applicable, synchronized output, cursor visibility, wrapping and scrolling state, and the alternate screen. Fatal handling SHALL be bounded and idempotent, preserve a nonzero exit outcome, and SHALL NOT resume normal agent execution after an uncaught process-level failure. When the UI cannot perform cleanup but its launch owner survives and the terminal remains writable, the owner SHALL perform fallback mode restoration only after the UI has stopped writing. Cleanup SHALL NOT alter unrelated sessions or apply A1-specific behavior to arbitrary transparent commands.
+
+#### Scenario: Uncaught failure with a live terminal
+- **WHEN** the owned UI encounters an uncaught exception or otherwise unhandled rejection while mouse reporting is enabled
+- **THEN** it SHALL stop normal work, restore terminal modes, and exit unsuccessfully within a bounded interval
+- **AND** moving the mouse afterward SHALL not inject mouse-report strings into the parent shell
+
+#### Scenario: UI exits without running its cleanup
+- **WHEN** the UI process terminates abruptly while its launch owner and terminal remain available
+- **THEN** the surviving owner SHALL restore owned terminal modes after child termination before completing the launch
+- **AND** it SHALL preserve the unsuccessful outcome
+
+#### Scenario: Cleanup itself fails or stalls
+- **WHEN** application disposal throws, stalls, or terminal output is unavailable
+- **THEN** remaining best-effort cleanup SHALL not wait indefinitely or recursively enter fatal handling
+- **AND** the original failure SHALL remain distinguishable from cleanup failure
+
+#### Scenario: Normal exit remains normal
+- **WHEN** the owned UI exits successfully
+- **THEN** cleanup SHALL remain idempotent and preserve the accepted exit transcript or resume-hint behavior without duplicate output
+
+### Requirement: Fatal diagnostics survive terminal restoration without exposing prompt payloads
+For a fatal owned-UI failure, A1 SHALL emit a bounded plain diagnostic after terminal restoration and attempt to retain a bounded local diagnostic record containing release/runtime identity, failure origin, sanitized error classification, and useful stack locations. It SHALL exclude prompt text, image/base64 data, credentials, and raw terminal input. Diagnostic persistence failure SHALL not prevent cleanup or change a fatal outcome into success.
+
+#### Scenario: Fatal attachment-related error is recorded
+- **WHEN** a fatal diagnostic originates from an attachment-related path
+- **THEN** the retained record SHALL allow identification of the failing code path without storing the attachment or prompt
+- **AND** the restored-terminal message SHALL identify the local record when persistence succeeds
+
+#### Scenario: Diagnostic storage is unwritable
+- **WHEN** local diagnostic storage cannot be written
+- **THEN** A1 SHALL still attempt terminal restoration and emit a bounded fallback error without hanging
+
+### Requirement: Scoped-model shortcut hints preserve pinned platform presentation
+The owned scoped-model selector SHALL display every shortcut hint from its effective binding identities using pinned Pi's platform-specific key labels before styling and layout. On macOS, an Alt modifier SHALL display as `option`; on Windows and Linux it SHALL retain `alt`. The selector SHALL preserve the pinned spelling of other key parts, alternative-binding order and separators, and empty-binding presentation. For equivalent model state, bindings, theme, color mode, and terminal width, its header and footer SHALL match pinned Pi's visible text, semantic ANSI, spacing, padding, and wrapping. Display formatting SHALL NOT alter binding identities, shortcut matching, model ordering, session-only changes, explicit persistence, refresh outcomes, or cancellation behavior.
+
+#### Scenario: Default reorder hints on macOS
+- **WHEN** the scoped-model selector renders on macOS with the default reorder bindings
+- **THEN** its footer SHALL display `option+up/option+down reorder`
+- **AND** the formatted text SHALL wrap and align exactly as pinned Pi at the same width, including the observed 80-column case
+- **AND** input matching SHALL continue to use the logical `alt+up` and `alt+down` bindings
+
+#### Scenario: Default reorder hints on Windows or Linux
+- **WHEN** the scoped-model selector renders on Windows or Linux with the default reorder bindings
+- **THEN** its footer SHALL retain `alt+up/alt+down reorder` and the pinned layout for that platform
+
+#### Scenario: Effective custom bindings contain alternatives
+- **WHEN** a scoped-model action has an effective custom binding or an ordered list of alternatives
+- **THEN** every displayed alternative SHALL use pinned platform formatting without changing its order or non-Alt key parts
+- **AND** the header's save hint and every footer hint SHALL follow the same display rules
+- **AND** the configured bindings SHALL still trigger their original actions
+
+#### Scenario: An action is unbound
+- **WHEN** a scoped-model action has no effective keys
+- **THEN** its hint SHALL match pinned Pi's empty-binding presentation without inventing a default shortcut or command fallback
+
+#### Scenario: Selector state changes after presentation
+- **WHEN** the user changes enabled models or their order, saves changes, or receives a catalog refresh outcome
+- **THEN** refreshed help SHALL retain platform-correct key labels and pinned state-dependent text and styling
+- **AND** model changes SHALL remain session-only until explicitly saved, and cancellation SHALL preserve its existing semantics
+
+### Requirement: Project trust options use canonical filesystem identities
+The owned `/trust` surface SHALL derive project and parent trust-option labels, saved-selection identities, and persistence targets from the real filesystem identity of the resolved project directory, matching pinned Pi. It SHALL derive the parent from that canonical project identity, not by independently resolving the lexical parent. The displayed cwd heading SHALL retain the equivalent pinned session-cwd presentation rather than being rewritten merely to match trust-option identities. When real-path lookup fails, option construction SHALL fall back to the resolved project path as pinned Pi does, without granting trust or changing trust-store error handling.
+
+#### Scenario: Open trust through a directory alias
+- **WHEN** the session cwd names a symlink or directory junction whose resolved target differs from its lexical path
+- **THEN** the project and parent options SHALL use the target's canonical identity for labels, saved-path matching, and updates
+- **AND** the cwd heading SHALL retain the session-cwd presentation
+- **AND** the parent option SHALL name the canonical target's parent even when the alias resides under a different parent
+
+#### Scenario: Reopen a saved trust decision through an alias
+- **WHEN** a saved trusted or untrusted decision applies to a project opened through an alias
+- **THEN** the saved-decision text, inherited indication, selected option, and checkmark SHALL match pinned Pi for that same decision
+- **AND** a direct canonical project decision SHALL NOT be presented as inherited merely because the session cwd uses an alias
+
+#### Scenario: Trust the parent of an aliased project
+- **WHEN** the user explicitly confirms the parent trust option
+- **THEN** persistence SHALL trust the canonical target's parent and remove the canonical project's overriding decision
+- **AND** it SHALL NOT instead trust the lexical alias's parent or alter unrelated trust entries
+- **AND** the active session's trust state SHALL remain unchanged and the existing restart-required status SHALL be shown
+
+#### Scenario: Save a project decision or cancel
+- **WHEN** the user explicitly trusts or denies the project, or cancels the selector
+- **THEN** trust or denial SHALL update only the canonical project's decision and preserve the existing restart-required behavior
+- **AND** cancellation SHALL close the selector without changing persisted or active-session trust
+- **AND** these interactions SHALL NOT load project-scoped resources or bypass startup trust preflight
+
+#### Scenario: Open trust at a filesystem root
+- **WHEN** the canonical project directory is a filesystem root
+- **THEN** the selector SHALL omit the parent option and retain the project trust and denial options
+
+#### Scenario: Canonicalization cannot resolve the project
+- **WHEN** real-path lookup fails, including for a missing directory
+- **THEN** option construction SHALL use the resolved project path and its lexical parent with the same root exclusion and option order as pinned Pi
+- **AND** fallback SHALL NOT itself grant trust, suppress a separate trust-store failure, or migrate persisted decisions
+
+### Requirement: Trust path parity retains independent styled-row evidence
+For equivalent cwd inputs, filesystem alias topology, saved trust data, and current-session trust, the owned trust selector SHALL match independently captured pinned-Pi rows and action effects at 80 and 28 columns, dark/light themes, both existing output-padding variants, and truecolor/256-color. Evidence SHALL retain path spelling, semantic ANSI, selected/checkmarked state, and wrapping; canonical path differences SHALL NOT be masked by a new normalization or exception.
+
+#### Scenario: Compare canonical and aliased trust paths
+- **WHEN** independent producers render trust with ordinary and aliased cwd inputs, including native macOS temporary-directory aliases
+- **THEN** complete styled rows SHALL match for open, saved/inherited, confirmed, and cancelled states
+- **AND** confirmed persistence targets and cancellation's absence of writes SHALL match the pinned behavior
+
+#### Scenario: Detect path or presentation regressions
+- **WHEN** the owned capture substitutes a lexical parent for a distinct canonical parent, changes semantic ANSI, or changes wrapping
+- **THEN** the parity gate SHALL fail rather than accepting the mutated result
+
+### Requirement: Bounded engine delivery supersedes only equivalent replaceable state
+The owned UI SHALL bound pending event count and retained queue payload without evicting arbitrary older notifications. Intermediate complete state updates SHALL be superseded only by a newer equivalent update for the same entity, session generation, and semantic ordering segment. Updates for different transcript blocks SHALL NOT displace one another without an explicit authoritative reconciliation that preserves all final content. Coalescing SHALL NOT remove or reorder command outcomes, lifecycle/run transitions, assistant-message completion semantics, tool finalization, or other side-effect-bearing events. A newer generation SHALL NOT receive an obsolete generation's state.
+
+#### Scenario: One block emits a large streaming burst
+- **WHEN** many accumulated updates for the same live block arrive before delivery
+- **THEN** pending replaceable state SHALL converge to its newest complete revision without retaining every intermediate payload
+- **AND** after drain the displayed block SHALL contain all final content, with no event-backpressure warning
+
+#### Scenario: Several blocks stream concurrently
+- **WHEN** updates alternate among distinct assistant, thinking, and tool blocks
+- **THEN** every block's newest required state SHALL remain deliverable or recoverable from authoritative state
+- **AND** pressure on one block SHALL NOT silently erase another block's content or completion
+
+#### Scenario: A semantic boundary follows pending partial state
+- **WHEN** completion, settlement, a command outcome, or a side-effect-bearing status transition follows pending intermediate updates
+- **THEN** delivery SHALL preserve the boundary's required state and source ordering
+- **AND** a later partial SHALL NOT revive finished content, clear unrelated working state, duplicate an action, or overwrite the post-boundary view
+
+#### Scenario: Switch sessions with events pending
+- **WHEN** a session generation is replaced while old state remains queued
+- **THEN** old events SHALL NOT mutate the new transcript, editor, suggestions, status, or pending commands
+- **AND** accepted old operations SHALL be settled or invalidated through their defined lifecycle rather than silently forgotten
+
+### Requirement: Event saturation has bounded explicit recovery rather than silent semantic loss
+If capacity is exhausted by nonreplaceable work, the adapter SHALL use a defined bounded overload transition rather than discarding control events, growing without limit, or claiming successful delivery. Accepted pending operations SHALL receive their ordered result or an explicit typed failure/cancellation disposition. Any recovery SHALL reconcile the authoritative session state and prevent stale events from being replayed into the recovered generation. Supported ordinary streaming bursts SHALL NOT require this exceptional path. Technical overflow telemetry SHALL remain outside the normal UI.
+
+#### Scenario: Pending work contains only protected events
+- **WHEN** a synthetic nonreplaceable-event flood exhausts the protected delivery allowance
+- **THEN** the adapter SHALL enter controlled recovery and stop admitting new ordinary work until its state is reconciled or the affected run is safely stopped
+- **AND** no pending command SHALL hang or be reported successful solely because its outcome was discarded
+- **AND** recovery/control capacity SHALL remain available without an unbounded emergency queue
+
+#### Scenario: Explicitly flush pending delivery
+- **WHEN** a caller requests a flush after a supported streaming burst
+- **THEN** the flush SHALL settle only after required final state and semantic events have been delivered
+- **AND** an overload or disposal that prevents delivery SHALL produce an explicit result rather than a false successful flush or indefinite wait
+
+### Requirement: Pressure handling remains cooperative and invisible to ordinary users
+Engine-event pressure SHALL be handled without delaying keyboard, pointer, or timer turns until the stream drains and without bypassing the existing presentation cadence. Normal coalescing SHALL be an internal optimization rather than a warning condition. Event-pressure counts, diagnostics, and recovery telemetry SHALL NOT enter notifications, status text, transcript, stdout, stderr, or post-exit terminal output. Developer diagnostics SHALL use bounded counters and classified transitions rather than accumulating a message every fixed number of superseded events. This restriction SHALL NOT suppress genuine user-command or provider errors unrelated to background pressure telemetry.
+
+#### Scenario: Type while output outpaces presentation
+- **WHEN** a long transcript receives sustained high-rate output while the user types, scrolls, or cancels
+- **THEN** input and timed indicators SHALL continue to receive event-loop turns and current-state presentation
+- **AND** streaming work per update SHALL not grow with historical transcript length
+- **AND** no coalescing/backpressure notice SHALL appear in any normal user-facing output channel
+
+#### Scenario: Inspect internal pressure evidence
+- **WHEN** a developer explicitly inspects diagnostics after a burst
+- **THEN** bounded evidence SHALL distinguish safely superseded state, protected queue depth, and actual overload recovery
+- **AND** those counters SHALL NOT be mirrored to user-visible diagnostic lists or statuses
+
+### Requirement: Quiet pressure handling has combined correctness evidence
+Acceptance SHALL verify both absence of technical messages and successful history/event recovery under combined load. Warning-string removal, larger arbitrary queues, longer synchronous drains, or timeouts alone SHALL NOT satisfy the change.
+
+#### Scenario: History contention overlaps a streaming burst
+- **WHEN** isolated validation holds the history database beyond its former short timeout while producing high-rate assistant/tool updates and interactive input, then releases the lock
+- **THEN** eligible history writes and refresh SHALL recover, final transcript and control outcomes SHALL match authoritative state, and input SHALL remain responsive
+- **AND** queue/worker/timer budgets SHALL remain bounded
+- **AND** captured normal UI and terminal output SHALL contain no history, coalescing, backpressure, or recovery notices
+
+### Requirement: Forward prompt navigation includes the transcript bottom
+
+In the bare-A1 custom transcript viewport, Shift+Down SHALL navigate to the next submitted prompt or completed compaction when one exists after the current navigation stop. When the transcript contains at least one submitted prompt or completed compaction and no later anchor exists, Shift+Down SHALL perform the same bottom-navigation transition as Ctrl+End: reach the final legal scroll position, resume following output, and clear the pending-new-message count. Shift+Up SHALL retain its existing reverse prompt navigation, including the opening spacer at the first-prompt stop. This behavior SHALL NOT change the pinned `a1 pi` route or override modal input ownership.
+
+#### Scenario: Navigate forward through prompts and then to the bottom
+- **WHEN** the user repeatedly presses Shift+Down from an earlier anchor in a transcript with multiple prompts or completed compactions and a response tail below the last anchor
+- **THEN** each later prompt or completed compaction SHALL remain a navigation stop in order
+- **AND** one further Shift+Down from the last anchor SHALL reach the bottom instead of remaining at that anchor
+
+#### Scenario: Resume live output like Ctrl+End
+- **WHEN** the user presses Shift+Down from the last prompt or completed compaction while detached from the bottom with pending new messages
+- **THEN** the viewport SHALL reach the same scroll position and following state as pressing Ctrl+End from the same state
+- **AND** the pending-new-message count SHALL clear
+- **AND** subsequent output SHALL remain followed at the bottom
+
+#### Scenario: Reverse from the bottom
+- **WHEN** the user presses Shift+Up after reaching the bottom with Shift+Down and the last anchor lies above the bottom scroll position
+- **THEN** the viewport SHALL return to the last prompt or completed compaction
+- **AND** further Shift+Up presses SHALL visit earlier anchors, preserving the first anchor's opening spacer
+- **AND** Shift+Down SHALL allow navigation forward to the bottom again
+
+#### Scenario: Navigate from within the final response
+- **WHEN** the viewport is detached within content after the last prompt or completed compaction and the user presses Shift+Down
+- **THEN** the viewport SHALL perform the same bottom-navigation transition as Ctrl+End
+
+#### Scenario: Only one submitted prompt or completed compaction
+- **WHEN** the user presses Shift+Down from the first-prompt stop in a single-prompt transcript whose response extends below the viewport
+- **THEN** the viewport SHALL reach the bottom and resume following without stopping on the prompt's opening spacer
+
+#### Scenario: Already at the bottom or the transcript fits
+- **WHEN** the user presses Shift+Down while already following the bottom, including when the entire transcript fits within the viewport
+- **THEN** the viewport SHALL remain at the bottom in following mode without wrapping to an earlier prompt
+
+#### Scenario: No submitted prompts or completed compactions
+- **WHEN** the user presses Shift+Down in the custom viewport with no submitted prompt or completed compaction anchors
+- **THEN** the viewport's scroll position and following state SHALL remain unchanged
+
+#### Scenario: Preserve input ownership and supported encodings
+- **WHEN** any currently supported Shift+Down encoding reaches active custom-viewport navigation
+- **THEN** it SHALL trigger the same forward-navigation behavior and remain consumed without modifying the editor draft
+- **AND** when a modal owns input or custom-viewport navigation is disabled, existing input routing SHALL remain unchanged
+
+### Requirement: Above-prompt autocomplete is a declared bare-A1 presentation replacement
+Bare A1 SHALL declare above-prompt autocomplete with a matching top line as a placement-and-decoration replacement for the ordinary editor's pinned below-prompt list. This named exception SHALL supersede pinned row-order, top-line decoration and counter relocation, and resulting editor-anchor parity only for that surface. The additional line SHALL match the prompt border's current color, glyph, and width and appear only while the menu has rendered rows; candidate rows SHALL retain their existing rendering, including background and padding. The existing trailing completion counter SHALL move into the top line without parentheses, at the history border label inset and in its dim color, with its old row removed. Its selected-item/total meaning, visibility conditions, and updates SHALL remain unchanged; this is not a new page-count calculation. The replacement SHALL NOT apply menu-panel shading. The related bare-A1 history border label SHALL omit only its `History` title, retaining its numeric value, dim color, inset, and overflow suffix. Menu sizing and clipping, editor choice, history behavior, contextual suggestions, settings, extensions, and unrelated shell behavior SHALL otherwise retain their existing contracts.
+
+The replacement SHALL apply to slash-command, command-argument, path/resource, and extension-provider completions displayed by the default editor, with persistent history both enabled and disabled. It SHALL preserve candidate ordering, labels, descriptions, semantic styling, selection, the existing pagination and visible-item policy, configured keys, Tab/Enter application or submission semantics, Escape cancellation, and asynchronous provider lifecycle. It SHALL NOT reverse the list or change navigation direction merely because the list is above the prompt. Active autocomplete SHALL retain priority over contextual ghost suggestions.
+
+The `a1 pi` comparison route, untouched pinned Pi, and extension-owned replacement editors SHALL retain their existing presentation and input ownership. A1 SHALL NOT mutate installed Pi packages, their exported constructors, or their prototypes to implement this replacement.
+
+#### Scenario: Complete commands and arguments
+- **WHEN** equivalent input invokes slash-command or argument completion in bare A1
+- **THEN** the same candidates, active-item behavior, and completion or command outcome SHALL remain available above the prompt
+- **AND** Up and Down SHALL retain their established selection direction and configured keybindings
+
+#### Scenario: Complete paths or provider resources
+- **WHEN** a path/resource provider or an extension autocomplete provider returns candidates for the default editor
+- **THEN** its normal results SHALL use the same above-prompt placement
+- **AND** provider invocation, cancellation, selected value, and application behavior SHALL remain unchanged
+
+#### Scenario: Use either history mode
+- **WHEN** bare A1 opens autocomplete with persistent history enabled or disabled
+- **THEN** the list and matching top line SHALL appear above the prompt in both modes
+- **AND** each mode SHALL retain its existing editor path, recall, draft, undo, paste, and history-indicator semantics without activating durable history when disabled
+
+#### Scenario: Keep autocomplete priority
+- **WHEN** the default editor has an active completion list
+- **THEN** Tab and the visible suggestion surface SHALL belong to autocomplete rather than contextual ghost suggestions
+- **AND** accepting or canceling completion SHALL retain the established editor behavior
+
+#### Scenario: Restore the default editor after an extension replacement
+- **WHEN** an extension-owned editor is mounted and later unmounted
+- **THEN** the extension editor SHALL retain its own presentation, focus, and input while mounted
+- **AND** restoring the default editor SHALL restore above-prompt autocomplete and its matching top line without stale menu/line rows or hit regions
+
+#### Scenario: Compare with pinned Pi
+- **WHEN** equivalent completion input runs through `a1 pi` and untouched pinned Pi
+- **THEN** their list placement, editor coordinates, candidates, and interactions SHALL retain their pinned behavior
+- **AND** neither comparison producer SHALL gain the new top line or relocate its original counter
+- **AND** only bare A1's explicitly declared placement, top-line, and counter-relocation differences SHALL be treated as expected autocomplete deviations
+
+### Requirement: Rendering stability is proven from terminal paint evidence
+A rendering-affecting change to the owned shell SHALL be validated with bounded terminal-paint evidence in addition to semantic row snapshots. The evidence SHALL independently exercise bare A1, the pinned `a1 pi` comparison, and untouched pinned Pi under equivalent profile state, terminal geometry, theme, capabilities, transcript, deterministic stream updates, and input checkpoints. It SHALL distinguish the default regular-mode comparison from a mode-matched fullscreen comparison so differences caused by terminal ownership are not misattributed to transcript content.
+
+For each checkpoint the evidence SHALL record the resulting cell frame and classify terminal writes including presentation cadence, bytes, cleared and rewritten rows, full-screen clears, viewport shifts, stable-row rewrites, synchronized-update boundaries, and dock geometry. Producer failure, timeout, malformed output, unbounded evidence, or an unexplained difference SHALL fail the gate.
+
+#### Scenario: Compare default user-visible paths
+- **WHEN** the rendering analysis compares bare `a1`, default `a1 pi`, and default untouched Pi
+- **THEN** all producers SHALL receive equivalent deterministic state and actions
+- **AND** the result SHALL identify that bare A1 uses its declared fullscreen custom viewport while the default comparison paths use their configured Pi mode
+- **AND** visible instability SHALL not be dismissed merely because final semantic text matches
+
+#### Scenario: Isolate fullscreen viewport behavior
+- **WHEN** the analysis investigates a difference that may be caused by regular versus fullscreen terminal ownership
+- **THEN** it SHALL also compare bare A1 with `a1 pi` and untouched Pi configured to the same fullscreen mode and geometry
+- **AND** it SHALL attribute differences separately to the fullscreen renderer, custom viewport composition, and transcript component output
+
+#### Scenario: Capture a deterministic streaming workload
+- **WHEN** prose, incomplete Markdown, thinking, tool output, fit/overflow crossing, a long transcript, resize, or detached scrolling is replayed
+- **THEN** the evidence SHALL include complete cell frames and paint classifications at declared checkpoints
+- **AND** it SHALL detect a full-screen clear, stable-row rewrite, dock jump, blank intermediate state, missed final state, or excessive frame cadence outside the workload's declared allowance
+
+#### Scenario: Terminal lacks synchronized-update support
+- **WHEN** the same workload is evaluated without synchronized terminal updates
+- **THEN** rendering SHALL remain free of blank or partially cleared intermediate frames through bounded damage and write ordering
+- **AND** unsupported synchronization SHALL be recorded rather than treated as successful atomic presentation
+
+#### Scenario: Comparison producer fails
+- **WHEN** bare A1, `a1 pi`, or untouched Pi exits unexpectedly, times out, or cannot produce a declared checkpoint
+- **THEN** the rendering-stability gate SHALL fail
+- **AND** it SHALL retain bounded diagnostics and clean up every isolated process tree
+
+#### Scenario: Repeat the same evidence command
+- **WHEN** the rendering evidence is run repeatedly against the same artifact and workload
+- **THEN** producer startup and completion SHALL remain within declared per-workload bounds
+- **AND** semantic results and paint classifications SHALL be deterministic
+- **AND** every reported finding SHALL be derived from captured checkpoints rather than a hard-coded description of an earlier implementation state
+
+### Requirement: Damage-aware painting uses an A1-owned public boundary
+Bare A1 SHALL implement damage-aware fullscreen presentation through an A1-owned adapter over documented public terminal/runtime ports. The adapter SHALL receive authoritative semantic frame metadata from the owned viewport, SHALL NOT infer transcript semantics from terminal bytes, and SHALL transform only the finite pinned fullscreen-write grammar covered by conformance fixtures. A grammar, capability, safety, or geometry mismatch SHALL fail closed by forwarding the original Pi write unchanged. The adapter SHALL NOT require an upstream Pi change, inspect private Pi state, patch prototypes, edit installed package files, or alter `a1 pi` and untouched Pi comparison paths.
+
+#### Scenario: Rewrite a declared safe shift
+- **WHEN** the owned viewport declares a safe transcript shift and the corresponding Pi terminal write matches the pinned conformance grammar
+- **THEN** the A1-owned adapter SHALL emit bounded transcript-region movement plus only exposed or genuinely damaged row paints
+- **AND** dock rows and cursor placement SHALL remain correct
+
+#### Scenario: Reject an unproven transformation
+- **WHEN** the semantic descriptor is absent or unsafe, or the terminal write does not exactly match the declared grammar, geometry, and capabilities
+- **THEN** the adapter SHALL forward the original terminal write without partial transformation
+- **AND** it SHALL expose a bounded cause classification to rendering evidence
+
+#### Scenario: Run a comparison producer
+- **WHEN** `a1 pi`, regular-mode A1, or untouched pinned Pi renders the equivalent workload
+- **THEN** the A1-owned damage adapter SHALL not be active
+- **AND** the producer's package identity and terminal writes SHALL remain unchanged
+
+### Requirement: Stream presentation cadence is bounded without changing semantics
+The owned shell SHALL coalesce high-frequency semantic updates to a declared presentation cadence while preserving source order, final content, immediate input feedback, status animation, tool completion, errors, and lifecycle transitions. The cadence gate SHALL count terminal presentation frames, not only engine events or render requests. A sustained stream SHALL not produce more terminal frames than the declared cadence permits, and completion SHALL flush the newest state without first presenting superseded pending states.
+
+#### Scenario: Chunks arrive faster than presentation cadence
+- **WHEN** assistant or tool updates arrive faster than the declared presentation interval
+- **THEN** terminal frame count SHALL remain bounded by that interval
+- **AND** the newest complete state for each interval SHALL be presented
+
+#### Scenario: Stream completes between scheduled frames
+- **WHEN** a stream's final event arrives while an earlier presentation is pending
+- **THEN** the pending state SHALL be superseded by the final state
+- **AND** the final transcript and lifecycle surfaces SHALL be presented without waiting for another ordinary interval
+
+#### Scenario: Status animation overlaps content streaming
+- **WHEN** a timed working indicator and transcript updates are active together
+- **THEN** each SHALL retain its declared cadence and current state
+- **AND** coalescing transcript updates SHALL not stall or multiply status animation frames
+
+### Requirement: Bare-A1 word editing treats filesystem paths as one token
+The bare-A1 prompt editor SHALL recognize a whitespace-delimited filesystem path with a drive-rooted, UNC, POSIX-rooted, dot-relative, parent-relative, or home-relative prefix as one semantic word. A matching singly or doubly quoted path SHALL allow spaces and include its balanced quotes in the token. Path recognition SHALL be syntactic and SHALL NOT access the filesystem.
+
+Ctrl+Left from the end of a recognized path or from within it SHALL move directly to the path's beginning, and Ctrl+Right from the beginning or within it SHALL move directly to its end, without intermediate stops at `/`, `\\`, `:`, `.`, `_`, or `-`. Ctrl+Backspace at the path end and Ctrl+Delete at its beginning SHALL delete the complete path token. When deletion begins within a path, it SHALL delete only the portion between the caret and the corresponding path boundary.
+
+#### Scenario: Navigate a Windows path
+- **WHEN** the bare-A1 prompt contains `D:/Git/a1/.worktrees/prevent-windows-nul-artifacts-impl` and the user invokes word-left at its end or word-right at its beginning
+- **THEN** the caret SHALL move directly to the opposite path boundary without stopping at internal punctuation
+
+#### Scenario: Delete a Windows path
+- **WHEN** the caret is at the end of that Windows path and the user invokes delete-word-backward, or is at its beginning and invokes delete-word-forward
+- **THEN** the complete path SHALL be removed by the single action
+
+#### Scenario: Navigate a quoted path containing spaces
+- **WHEN** the bare-A1 prompt contains a balanced quoted path such as `"D:/Project Files/source/file.ts"`
+- **THEN** word navigation and deletion SHALL treat the opening quote, path contents, spaces, and closing quote as one token
+
+#### Scenario: Navigate other explicit path forms
+- **WHEN** the prompt contains a UNC path, POSIX-rooted path, dot-relative path, parent-relative path, or home-relative path
+- **THEN** the same path-token navigation and deletion behavior SHALL apply regardless of slash direction
+
+#### Scenario: Begin inside a path
+- **WHEN** the caret is inside a recognized path
+- **THEN** word-left and delete-word-backward SHALL use the path's beginning as their boundary
+- **AND** word-right and delete-word-forward SHALL use the path's end as their boundary
+
+### Requirement: Path-aware word editing preserves other editor semantics
+Path-aware word boundaries SHALL affect only semantic word movement and word deletion in the bare-A1 prompt editor. Character movement and deletion SHALL remain grapheme-based, and path deletion SHALL retain the editor's established undo, kill-ring, change notification, history, selection, and autocomplete behavior. Existing prompt-chip atomicity SHALL remain unchanged. Non-path prose SHALL retain Pi's punctuation-oriented word boundaries, and the `a1 pi` comparison profile SHALL retain pinned Pi behavior.
+
+#### Scenario: Edit a path one character at a time
+- **WHEN** the user invokes unmodified Left, Right, Backspace, or Delete on a recognized path
+- **THEN** the editor SHALL move or delete one complete grapheme rather than the whole path
+
+#### Scenario: Undo or yank a deleted path
+- **WHEN** a path is removed with a word-deletion action
+- **THEN** undo SHALL restore the pre-deletion prompt
+- **AND** the deleted path SHALL participate in the existing kill-ring behavior for that direction
+
+#### Scenario: Navigate punctuation in ordinary prose
+- **WHEN** a prompt token does not match a recognized filesystem-path form
+- **THEN** word movement and deletion SHALL preserve pinned Pi's existing punctuation boundaries
+
+#### Scenario: Use a prompt chip
+- **WHEN** the prompt contains an existing file, folder, URL, image, or paste chip
+- **THEN** its existing atomic navigation, deletion, selection, rendering, and submission behavior SHALL remain unchanged
+
+#### Scenario: Use the Pi comparison profile
+- **WHEN** the same path text is edited through `a1 pi`
+- **THEN** word movement and deletion SHALL retain the pinned Pi boundary behavior rather than the bare-A1 path-aware override
+
+### Requirement: Bare A1 declares shared input and status-level presentation
+Bare A1 SHALL use the shared agent/search input presentation and status-level color behavior as an explicit A1-owned customization over the pinned shell. This customization SHALL supersede pinned editor border coloring and thinking-label styling only in bare A1; it SHALL NOT change pinned `a1 pi` presentation, extension-provided custom editors, engine semantics, or other footer values. Bare-A1 keyboard defaults SHALL follow the declared level-cycle and model-selector shortcut policy instead of pinned defaults.
+
+#### Scenario: Open the pinned comparison profile
+- **WHEN** the user starts `a1 pi`
+- **THEN** editor thinking-level and bash-mode border colors, footer presentation, Shift+Tab level cycling, and Ctrl+L model selection SHALL retain pinned behavior
+
+#### Scenario: Use the owned agent input
+- **WHEN** the user starts bare A1 with its default agent editor
+- **THEN** the input SHALL use the shared neutral rules and undimmed prefix specified for Settings search
+- **AND** prompt history, paste chips, selection and copy, suggestions, streaming, submission, and bash execution SHALL retain their existing semantics
+
+### Requirement: The status-bar level name carries the existing thinking color
+Bare A1 SHALL color the status-bar thinking-level name with the same active-theme mapping previously used for that level's editor bars. The level label SHALL update from authoritative session state after level cycling, setting changes, model changes, and session restoration. Only the level name SHALL receive that color; surrounding model, provider, usage, path, separators, and extension statuses SHALL retain their existing presentation. A selected model with level off SHALL show an off label using the existing off-level mapping; when no model is selected, the footer SHALL NOT invent an active level. Unsupported levels SHALL continue to use the engine's supported-level and clamping behavior rather than introducing a new cycle order.
+
+#### Scenario: Cycle supported levels
+- **WHEN** the user cycles through a model's supported levels
+- **THEN** the visible level name SHALL update to the authoritative level and use the corresponding previous bar color
+- **AND** both input bars SHALL remain neutral and the level color SHALL NOT be muted by surrounding footer styling
+
+#### Scenario: Disable thinking
+- **WHEN** the selected model's authoritative level becomes off
+- **THEN** the status bar SHALL display the off label in the existing off-level color and the input bars SHALL remain neutral
+
+#### Scenario: Change models or restore a session
+- **WHEN** a model change or session restoration changes the effective thinking level
+- **THEN** the footer SHALL display and color that effective level rather than retaining the prior model's label or color
+
+#### Scenario: Render without an active model
+- **WHEN** no model is selected
+- **THEN** the existing no-model status SHALL remain and no active thinking-level label SHALL be fabricated
+
+#### Scenario: Fit a narrow terminal
+- **WHEN** the footer must omit provider text or truncate its right-hand content to fit
+- **THEN** its existing width and truncation policy SHALL remain intact and any visible level-name span SHALL retain its level foreground without coloring adjacent text

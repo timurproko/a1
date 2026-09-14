@@ -5,17 +5,19 @@ import { join } from "node:path";
 import { StdinBuffer, stripTerminalSequences, visibleWidth } from "#pi-tui";
 import { describe, expect, it, vi } from "vitest";
 import { createPiShellEditor, loadHistoryEditor, type PiShellClipboardContent, type PiShellEditorPort } from "../../../../src/integrations/pi/components/index.js";
+import { MAX_CLIPBOARD_TEXT_BYTES } from "../../../../src/contracts/owned-ui/index.js";
+import { prepareTextPaste } from "../../../../src/integrations/pi/session-ui/text-paste.js";
 import { PromptChipStore } from "../../../../src/integrations/pi/session-ui/prompt-chips.js";
 
 const payload = Array.from({ length: 136 }, (_, i) => `line ${i} 日本語`).join("\n");
 const framed = (text: string) => `\x1b[200~${text}\x1b[201~`;
 const tagPattern = /\[paste #\d+ (?:\+\d+ lines|\d+ chars)\]/gu;
 
-async function fixture(history: boolean, fallback = false) {
+async function fixture(history: boolean, fallback = false, isolated = false) {
   const directory = await mkdtemp(join(tmpdir(), "text-paste-editor-"));
   await writeFile(join(directory, "keybindings.json"), JSON.stringify({ "tui.editor.historyPrevious": "ctrl+p", "tui.editor.historyNext": "ctrl+n" }));
-  const chips = new PromptChipStore();
-  const copied: string[] = [], submitted: string[] = [];
+  const chips = new PromptChipStore({ isolated });
+  const copied: string[] = [], submitted: string[] = [], errors: unknown[] = [];
   let read: () => Promise<PiShellClipboardContent | null> = async () => ({ kind: "text", text: payload });
   let editor!: PiShellEditorPort;
   editor = createPiShellEditor({
@@ -23,8 +25,11 @@ async function fixture(history: boolean, fallback = false) {
     ...(history ? { persistentHistory: true, historyEditor: await loadHistoryEditor() } : {}),
     getColumns: () => 80, getRows: () => 24, requestRender() {},
     onSubmit: text => submitted.push(chips.prepareSubmission(text).text),
+    ...(isolated ? { onChange: () => queueMicrotask(() => chips.reconcileDraft(editor.getText())) } : {}),
     onCopyText: text => copied.push(text), readClipboardContent: () => read(),
     ...(fallback ? {} : { beginClipboardPaste: () => chips.beginPaste(editor.getText(), () => read(), () => {}) }),
+    ...(isolated ? { beginTextPaste: (text: string) => chips.beginPaste(editor.getText(), { kind: "text", text }, error => errors.push(error)),
+      onPasteRejected: (error: unknown) => errors.push(error) } : {}),
     transformPastedContent: content => chips.transformPastedContent(content),
     editorAtomicRanges: line => chips.atomicRanges(line), editorHiddenRanges: line => chips.hiddenRanges(line),
     expandCopiedEditorText: text => chips.expandCopiedText(text),
@@ -32,13 +37,78 @@ async function fixture(history: boolean, fallback = false) {
   });
   editor.setFocused?.(true);
   editor.render(80);
-  return { editor, chips, copied, submitted,
+  return { editor, chips, copied, submitted, errors,
     input: (data: string) => editor.handleInput?.(data),
     read: (value: () => Promise<PiShellClipboardContent | null>) => { read = value; },
     text: () => chips.prepareSubmission(editor.getText()).text,
     dispose: async () => { editor.cancelPendingPastes?.(); await chips.dispose(); await rm(directory, { recursive: true, force: true }); },
   };
 }
+
+describe.each([false, true])("isolated terminal paste with history=%s", history => {
+  it("preserves split closing delimiters, Unicode pairs, opaque controls and following input without a native read", async () => {
+    const test = await fixture(history, false, true);
+    const read = vi.fn(async () => null); test.read(read);
+    const body = "before 👩‍💻 é 界\r\n" + "x".repeat(1001) + "\x03\x16\x1b[200~\x1b[<64;2;3M";
+    try {
+      test.input("\x1b[200~");
+      for (const unit of body.split("")) test.input(unit);
+      test.input("\x1b[20"); test.input("1~ tail");
+      await vi.waitFor(() => expect(test.editor.getText().match(tagPattern)).toHaveLength(1));
+      expect(test.text()).toBe(prepareTextPaste(body).text + " tail");
+      expect(read).not.toHaveBeenCalled(); expect(test.submitted).toEqual([]);
+    } finally { await test.dispose(); }
+  });
+
+  it("rejects an oversized fragmented body without partial insertion or swallowing following keyboard bytes", async () => {
+    const test = await fixture(history, false, true);
+    const read = vi.fn(async () => null); test.read(read);
+    try {
+      test.editor.setText("draft ");
+      test.input("\x1b[200~" + "x".repeat(MAX_CLIPBOARD_TEXT_BYTES));
+      test.input("界\x1b[20"); test.input("1~after");
+      expect(test.editor.getText()).toBe("draft after");
+      expect(test.errors).toEqual([expect.objectContaining({ code: "paste-size" })]);
+      expect(read).not.toHaveBeenCalled();
+    } finally { await test.dispose(); }
+  });
+
+  it("invalidates an older redo branch when a new paste edit is admitted", async () => {
+    const test = await fixture(history, false, true);
+    let resolve!: (value: PiShellClipboardContent) => void;
+    test.read(() => new Promise(done => { resolve = done; }));
+    try {
+      test.editor.setText("a"); test.input("b"); test.input("\x1a");
+      expect(test.editor.getText()).toBe("a");
+      test.input("\x16");
+      const reservation = test.editor.getText();
+      test.input("\x19");
+      expect(test.editor.getText()).toBe(reservation);
+      await vi.waitFor(() => expect(resolve).toBeDefined());
+      resolve({ kind: "text", text: "new paste" });
+      await vi.waitFor(() => expect(test.editor.getText()).toBe("anew paste"));
+    } finally { await test.dispose(); }
+  });
+
+  it("retires a removed reservation from redo and ignores a late clipboard result", async () => {
+    const test = await fixture(history, false, true);
+    let resolve!: (value: PiShellClipboardContent) => void;
+    test.read(() => new Promise(done => { resolve = done; }));
+    try {
+      test.input("\x16");
+      await vi.waitFor(() => expect(resolve).toBeDefined());
+      test.input("\x1a");
+      await vi.waitFor(() => expect(test.editor.getText()).toBe(""));
+      await new Promise(done => setImmediate(done));
+      test.input("\x19");
+      expect(test.editor.getText()).toBe("");
+      test.input("tail");
+      resolve({ kind: "text", text: "late clipboard value" });
+      await new Promise(done => setImmediate(done));
+      expect(test.editor.getText()).toBe("tail");
+    } finally { await test.dispose(); }
+  });
+});
 
 describe.each([false, true])("large text chips with history=%s", history => {
   it.each(["shortcut", "right-click port", "fallback", "terminal"])("collapses the %s route and submits complete text", async route => {
