@@ -29,6 +29,8 @@ export interface TranscriptPromptAnchor {
   readonly lastRow: number;
   /** The source first row, including its submitted-prompt styling and timestamp. */
   readonly sourceRow: string;
+  /** Optional source-styled row used only while prominent and not hovered. */
+  readonly prominentSourceRow?: string;
 }
 
 export interface TranscriptViewportConfig {
@@ -453,14 +455,17 @@ export class TranscriptViewport {
     const stickyActive = governing !== null && governing.firstRow < this.#scrollTop;
     if (stickyActive && visible.length > 0) {
       const quiet = this.#scrollTop > governing.lastRow;
-      // Compatibility: sticky prompts use the same normal/hover surface roles as the bottom
-      // control. Hover always starts from the full source row, so a quiet prompt
-      // becomes prominent again with its timestamp intact.
+      // Compatibility: only non-hovered prominent rows may retain source metadata roles.
+      // Quiet and hover keep the established full-row styling; anchors without a
+      // variant retain their existing presentation in every state.
+      const sourceRow = !quiet && !this.#stickyHovered
+        ? governing.prominentSourceRow ?? governing.sourceRow
+        : governing.sourceRow;
       const source = cachedString(
         this.#paintedRowCache,
-        `${paintId}\u0000${governing.sourceRow}`,
+        `${paintId}\u0000${sourceRow}`,
         cacheLimit,
-        () => paintDocumentRow(governing.sourceRow),
+        () => paintDocumentRow(sourceRow),
       );
       if (!source.reused) paintRecomputedRows.add(0);
       const sticky = theme.sticky(source.value, this.#stickyHovered);

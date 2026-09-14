@@ -1,3 +1,122 @@
+## MODIFIED Requirements
+
+### Requirement: Specification approval precedes implementation
+A new implementation-bound OpenSpec change SHALL begin as planning artifacts in one draft pull request. A request to prepare, write, design, or update a specification SHALL authorize only planning, not implementation. Implementation SHALL begin only after the maintainer approves the plan and explicitly requests implementation; the planning PR SHALL NOT need to merge first. Approved implementation SHALL continue in the same worktree, branch, commit history, and pull request, including its related documentation. The completed PR SHALL integrate only after required validation, explicit final-head maintainer acceptance, and manual merge authorization.
+
+Approved refinements SHALL update the affected planning artifacts coherently before corresponding implementation edits in that same PR. New unimplemented deltas SHALL NOT be synchronized into canonical specs on `develop` during planning. Standalone revisions to existing merged planning artifacts SHALL remain OpenSpec-only unless specification and implementation refinement together is explicitly authorized in an existing implementation PR.
+
+#### Scenario: User requests a specification
+- **WHEN** the user asks an agent to plan a new implementation-bound change
+- **THEN** the agent SHALL create OpenSpec artifacts in a draft PR linked to that change
+- **AND** SHALL NOT implement the behavior or merge the plan merely because planning validation passes
+
+#### Scenario: Specification is still open
+- **WHEN** the planning PR remains open without explicit authorization to implement
+- **THEN** the agent SHALL remain in planning and SHALL NOT begin implementation
+
+#### Scenario: User approves implementation in the draft PR
+- **WHEN** the maintainer approves the plan and explicitly requests implementation
+- **THEN** the agent SHALL continue in the same worktree, branch, history, and PR without a planning merge
+- **AND** approval SHALL NOT count as final implementation acceptance or merge authorization
+
+#### Scenario: Implementation changes the agreed approach
+- **WHEN** the maintainer approves a refinement during implementation
+- **THEN** the agent SHALL reconcile proposal, design, delta specs, and tasks in the same PR before implementing the refinement
+- **AND** the superseded unmerged plan SHALL require no reconciliation on `develop`
+
+#### Scenario: Entire unmerged change is rejected
+- **WHEN** the maintainer rejects and closes the change PR without merging
+- **THEN** neither its plan nor its implementation SHALL be integrated or archived as completed on `develop`
+- **AND** local worktree or unmerged branch cleanup SHALL retain its separate authorization and cleanliness requirements
+
+#### Scenario: Specification and implementation were combined accidentally
+- **WHEN** source changes were added before explicit implementation authorization
+- **THEN** the agent SHALL stop implementation and disclose the approval-boundary violation
+- **AND** combining plan and code SHALL NOT itself authorize further work or integration
+
+#### Scenario: User requests implementation after specification merge
+- **WHEN** a legacy specification PR has already merged and the user explicitly requests implementation
+- **THEN** the agent SHALL retain its existing implementation PR if one exists, or fetch current `origin/develop` and create an isolated implementation stream citing that accepted change if none exists
+- **AND** SHALL NOT require a replacement draft planning PR or rewrite the merged specification history
+
+#### Scenario: Standalone revision or legacy merged plan
+- **WHEN** an existing merged plan needs a standalone revision or already has a separate implementation PR
+- **THEN** the revision SHALL remain planning-only unless combined refinement is explicitly authorized
+- **AND** the existing implementation identity SHALL be retained without rewriting merged planning history
+- **AND** rejecting that already-merged plan SHALL require explicit reconciliation rather than completed-change archival
+
+### Requirement: Auto-merge eligibility uses an exact documentation allowlist
+A pull request SHALL be eligible for automatic squash integration only when it is non-draft, not implementation-bound, and every changed and renamed-from path is under `openspec/**`, under `docs/**`, or is exactly the root `README.md`. Any pull request containing another path SHALL be classified as code/operational, regardless of whether it claims to preserve behavior. Classification SHALL examine the complete pull-request diff and lifecycle association and SHALL fail closed.
+
+An explicit implementation association or introduction of a new active OpenSpec change SHALL hold the PR for implementation and manual integration even when its current diff is documentation-only. Removing the association SHALL NOT make a newly introduced active change eligible. Malformed or ambiguous lifecycle metadata SHALL block automation. Existing-change standalone planning revisions, ordinary docs, and generated archive follow-ups without an implementation-bound hold SHALL retain documentation auto-merge eligibility.
+
+For an eligible pull request, automation MAY arm auto-merge while required validation is pending because protected `develop` remains the merge gate. If the pull request is already clean after validation, automation MAY merge directly only when successful validation belongs to the current head and the merge request enforces that expected head SHA. Any armed auto-merge SHALL be disabled when a draft, implementation-bound, or code/operational exclusion is detected.
+
+#### Scenario: OpenSpec-only pull request
+- **WHEN** every changed path is under `openspec/**` and the non-draft PR is a standalone revision without an implementation-bound hold
+- **THEN** automation SHALL arrange squash integration behind its required validation
+
+#### Scenario: Maintained documentation-only pull request
+- **WHEN** every changed path is under `docs/**` and the PR is non-draft and not implementation-bound
+- **THEN** automation SHALL arrange squash integration behind its required validation
+
+#### Scenario: Root README-only pull request
+- **WHEN** every changed path is exactly `README.md` and the PR is non-draft and not implementation-bound
+- **THEN** automation SHALL arrange squash integration behind its required validation
+
+#### Scenario: Documentation surfaces are combined
+- **WHEN** every changed and renamed-from path is under `openspec/**`, under `docs/**`, or exactly root `README.md`, and no lifecycle exclusion applies
+- **THEN** automation SHALL classify the pull request as documentation-only and arrange squash integration behind its required validation
+
+#### Scenario: Draft plan passes CI
+- **WHEN** a draft planning PR passes required checks with only OpenSpec changes
+- **THEN** automation SHALL leave it unmerged and SHALL NOT arm auto-merge
+
+#### Scenario: Unimplemented plan is marked ready
+- **WHEN** a PR introducing a new active change or carrying an implementation association becomes non-draft before implementation
+- **THEN** automation SHALL keep it unmerged and disable any armed auto-merge
+- **AND** removing its association SHALL NOT bypass detection of the introduced active change
+
+#### Scenario: Implementation association is added to an eligible docs PR
+- **WHEN** a PR body edit associates a previously eligible docs PR with implementation
+- **THEN** automation SHALL re-evaluate eligibility and disable its armed auto-merge
+
+#### Scenario: Archive follow-up is ready
+- **WHEN** a verified non-draft archive PR only removes the completed active change, adds its archive, and updates declared main specs
+- **THEN** the archived planning artifacts SHALL NOT themselves establish an implementation-bound hold
+- **AND** documentation integration SHALL proceed behind required validation
+
+#### Scenario: Validation and reconciliation race
+- **WHEN** an eligible current head becomes clean before auto-merge is armed
+- **THEN** automation MAY squash-merge only after matching successful validation and with the expected head SHA
+
+#### Scenario: Stale successful validation
+- **WHEN** successful validation belongs to an older pull-request head
+- **THEN** automation SHALL NOT directly merge the current head
+
+#### Scenario: Behavior-preserving refactor
+- **WHEN** a pull request changes source or any other path outside the allowlist
+- **THEN** it SHALL NOT be eligible for auto-merge
+- **AND** a claim that behavior is unchanged SHALL NOT alter that classification
+
+#### Scenario: Documentation and code are mixed
+- **WHEN** a pull request changes an allowed documentation path and any path outside the allowlist
+- **THEN** the entire pull request SHALL be classified as code/operational
+- **AND** it SHALL NOT be armed for auto-merge
+
+#### Scenario: Specification and code are mixed
+- **WHEN** a pull request changes an OpenSpec path and any path outside the allowlist
+- **THEN** the entire pull request SHALL be classified as code/operational
+- **AND** it SHALL NOT be armed for auto-merge
+
+#### Scenario: Operational file is renamed into documentation
+- **WHEN** a renamed file's previous path is outside the allowlist even though its new path is allowed
+- **THEN** the pull request SHALL NOT be eligible for auto-merge
+
+#### Scenario: Changed paths cannot be classified
+- **WHEN** the complete pull-request diff or lifecycle association cannot be obtained or classified
+- **THEN** auto-merge SHALL remain disabled
+
 ## ADDED Requirements
 
 ### Requirement: Automatic archival uses explicit implementation and acceptance evidence
@@ -5,10 +124,18 @@ Automatic completed-change archival SHALL require an explicit machine-readable a
 
 A planning PR, an archive PR, a descriptive title, passing CI alone, or a merge alone SHALL NOT establish implementation acceptance. Missing, malformed, stale, conflicting, revoked, or known-gap acceptance SHALL block the automatic completed-change path. Existing code-PR manual acceptance and merge authorization requirements SHALL remain unchanged.
 
-#### Scenario: Accepted implementation merges
-- **WHEN** an explicitly linked implementation PR merges into `develop` with final-head acceptance and successful required validation
-- **THEN** automation SHALL evaluate its linked change for archival without asking the maintainer for another archive command
+#### Scenario: Accepted single-PR implementation merges
+- **WHEN** the PR containing the reviewed plan and completed implementation merges into `develop` with an explicit change link, final-head acceptance, and successful required validation
+- **THEN** automation SHALL evaluate its linked change for archival without requiring a separately merged specification PR, another docs merge, or another archive command
 - **AND** SHALL preserve the implementation PR, accepted head, merge commit, validation run, acceptance author, and acceptance source in the archive evidence
+
+#### Scenario: Legacy split implementation merges
+- **WHEN** an explicitly linked legacy implementation PR merges with valid final-head acceptance, required validation, and its historical merged specification association
+- **THEN** automation SHALL evaluate it under the same completion and synchronization gates without requiring a replacement planning PR
+
+#### Scenario: Rejected draft closes
+- **WHEN** the single change PR closes without merging
+- **THEN** automation SHALL NOT synchronize or archive its change as completed
 
 #### Scenario: Only a specification merges
 - **WHEN** a planning-only PR merges, even if its description names an OpenSpec change
