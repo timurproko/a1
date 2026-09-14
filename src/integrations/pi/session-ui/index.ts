@@ -1,3 +1,4 @@
+export * from "./clipboard-diagnostics.js";
 export * from "./prompt-suggestion-controller.js";
 export * from "./session-shell.js";
 export * from "./stream-presentation-coalescer.js";

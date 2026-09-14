@@ -10,6 +10,7 @@
     "temporaryPrefix": "a1-"
   },
   "environment": {
+    "clipboardDiagnostics": "A1_CLIPBOARD_DIAGNOSTICS",
     "configDir": "A1_CONFIG_DIR",
     "dataDir": "A1_DATA_DIR",
     "databasePath": "A1_DATABASE_PATH",

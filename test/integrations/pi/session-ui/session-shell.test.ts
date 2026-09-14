@@ -2,7 +2,7 @@ import { SUGGESTION_CONVERSATIONS } from "../../../fixtures/prompt-suggestion-co
 import { SuggestionDiagnosticCapture } from "../../../../src/features/prompt-suggestions/index.js";
 import { memoryHistory } from "./prompt-history-fixture.js";
 import HeadlessXterm from "@xterm/headless";
-import { formatSubmittedPromptTime } from "../../../../src/ui/components/index.js";
+import { formatSubmittedPromptTime, selectionCopyRowText } from "../../../../src/ui/components/index.js";
 import { PromptHistoryService } from "../../../../src/features/prompt-history/index.js";
 import { PromptHistoryStore } from "../../../../src/features/prompt-history/store.js";
 import { resolvePromptHistoryPath } from "../../../../src/features/prompt-history/paths.js";
@@ -197,6 +197,7 @@ async function fixture(
   promptSuggestions?: OwnedUiSessionShellOptions["promptSuggestions"],
   promptHistory?: Omit<NonNullable<OwnedUiSessionShellOptions["promptHistory"]>, "editor">,
   configureEngine?: (engine: Runtime) => void,
+  responseCopy?: OwnedUiSessionShellOptions["responseCopy"],
 ) {
   const engine = new Runtime(messages);
   configureEngine?.(engine);
@@ -207,6 +208,15 @@ async function fixture(
     backend: adapter,
     cwd: "D:/work",
     terminal,
+    responseCopy: responseCopy ?? { execute: (snapshot, phase) => {
+      const text = snapshot.rows.map((row, index) => selectionCopyRowText(snapshot, row, index)).join("\n");
+      phase("extracted", Buffer.byteLength(text), "injected");
+      phase("encoded", Buffer.byteLength(text), "injected");
+      phase("submitting", Buffer.byteLength(text), "injected");
+      terminal.write(`\u001b]52;c;${Buffer.from(text).toString("base64")}\u0007`);
+      const result = (clipboard?.writeText?.(text) ?? Promise.resolve()).then(() => ({ outcome: "submitted-unverified" as const }));
+      return { result, stopped: result.then(() => {}), cancel() {} };
+    } },
     ...(customViewport ? { sessionLayout: "custom-viewport" as const } : {}),
     ...(viewportSettings === undefined ? {} : { viewportSettings }),
     ...(clipboard === undefined ? {} : { clipboard }),
@@ -577,6 +587,7 @@ describe("prompt-style compaction in the real engine and shell", () => {
         }
         expect(shell.root.hasActiveSelection()).toBe(true);
         terminal.input("\u0003");
+        await nextImmediate();
         expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from("copyable alpha beta").toString("base64")}\u0007`);
         expect(stripTerminalSequences(renderer.render(80).join("\n"))).toContain("summary-23 alpha beta");
         expect(shell.root.editor.getText()).toBe("unsubmitted draft");
@@ -611,6 +622,104 @@ describe("prompt-style compaction in the real engine and shell", () => {
 });
 
 describe("OwnedUiSessionShell", () => {
+  // Rationale: evidence only; task 5.3 remains blocked on a bounded hyperlink-metadata policy; this is not an acceptance gate.
+  it("records near-limit URL presentation evidence without certifying responsiveness", async () => {
+    const text = "https://example.com/" + "x".repeat(16 * 1024 * 1024 - 64);
+    const { shell, terminal } = await fixture([], [], true, undefined, { readText: async () => text });
+    let last = performance.now(), gap = 0;
+    const timer = setInterval(() => { const now = performance.now(); gap = Math.max(gap, now - last); last = now; }, 5);
+    try {
+      const begin = performance.now();
+      terminal.input("\x16");
+      await vi.waitFor(() => expect(shell.root.editor.getText()).toContain("[🔗 "), { timeout: 15_000 });
+      shell.runtime.renderNow();
+      await new Promise(resolve => setTimeout(resolve, 10));
+      clearInterval(timer);
+      console.log("CLIPBOARD_PRESENTATION_PROBE", JSON.stringify({ sourceBytes: Buffer.byteLength(text), insertionMs: performance.now() - begin,
+        maxTimerGapMs: gap, maxWriteBytes: Math.max(...terminal.writes.map(value => Buffer.byteLength(value))), editorChars: shell.root.editor.getText().length }));
+    } finally { clearInterval(timer); await shell.dispose(); }
+  }, 20_000);
+
+  it.each([false, true])("keeps selected-response copying independent of UI progress (streaming=%s)", async streaming => {
+    let finish!: () => void;
+    const pending = new Promise<void>(resolve => { finish = resolve; });
+    let clipboardText = "old clipboard";
+    const readText = vi.fn(async () => clipboardText);
+    const phases: string[] = [];
+    const { shell, terminal, engine, adapter } = await fixture([
+      { role: "assistant", content: [{ type: "text", text: "copy-target response text" }] },
+    ], [], true, undefined, { readText }, undefined, undefined, undefined, undefined, undefined, {
+      onEvent: event => phases.push(event.phase),
+      execute: (snapshot, phase) => {
+        phase("submitting", snapshot.sourceUnits, "injected");
+        const result = pending.then(() => {
+          clipboardText = snapshot.rows.map((row, index) => selectionCopyRowText(snapshot, row, index)).join("\n");
+          return { outcome: "delivered" as const };
+        });
+        return { result, stopped: result.then(() => {}), cancel: finish };
+      },
+    });
+    try {
+      if (streaming) { engine.session.emit({ type: "agent_start" }); await adapter.flushEvents(); }
+      shell.runtime.renderNow();
+      const rows = shell.root.render(80).map(stripTerminalSequences);
+      const row = rows.findIndex(text => text.includes("copy-target"));
+      const column = rows[row]!.indexOf("copy-target") + 1;
+      terminal.input(`\u001b[<0;${column};${row + 1}M\u001b[<32;${column + 10};${row + 1}M\u001b[<0;${column + 10};${row + 1}m\u0003`);
+      expect(shell.root.hasActiveSelection()).toBe(false);
+      terminal.input("still usable");
+      await nextImmediate();
+      expect(shell.root.editor.getText()).toBe("still usable");
+      expect(phases).toContain("submitting");
+      expect(phases).not.toContain("settled");
+      terminal.input("\u0016");
+      await nextImmediate();
+      expect(readText).not.toHaveBeenCalled();
+      if (streaming) {
+        const message = { role: "assistant", content: [{ type: "text", text: "new streamed response" }], timestamp: 2 };
+        engine.session.emit({ type: "message_start", message });
+        engine.session.emit({ type: "message_end", message });
+        await adapter.flushEvents();
+        shell.runtime.renderNow();
+        expect(shell.root.render(80).map(stripTerminalSequences).join("\n")).toContain("new streamed response");
+      }
+      finish();
+      await vi.waitFor(() => expect(shell.root.editor.getText()).toBe("still usablecopy-target"));
+      expect(clipboardText).toBe("copy-target");
+      expect(phases).toContain("settled");
+    } finally { finish(); await shell.dispose(); }
+  });
+
+  it("does not paste the previous clipboard after a known response-copy failure", async () => {
+    let fail!: () => void;
+    const pending = new Promise<void>(resolve => { fail = resolve; });
+    const readText = vi.fn(async () => "stale text");
+    const { shell, terminal } = await fixture([
+      { role: "assistant", content: [{ type: "text", text: "selected response" }] },
+    ], [], true, undefined, { readText }, undefined, undefined, undefined, undefined, undefined, {
+      execute: (_snapshot, phase) => {
+        phase("submitting", 10, "injected");
+        const result = pending.then(() => ({ outcome: "failed" as const, failure: "denied" as const }));
+        return { result, stopped: result.then(() => {}), cancel: fail };
+      },
+    });
+    try {
+      const rows = shell.root.render(80).map(stripTerminalSequences);
+      const row = rows.findIndex(text => text.includes("selected response"));
+      const column = rows[row]!.indexOf("selected") + 1;
+      terminal.input(`\u001b[<0;${column};${row + 1}M\u001b[<32;${column + 7};${row + 1}M\u001b[<0;${column + 7};${row + 1}m\u0003`);
+      await nextImmediate();
+      terminal.input("\u0016");
+      fail();
+      await vi.waitFor(() => expect(shell.root.render(80).map(stripTerminalSequences).join("\n")).toContain("clipboard is unavailable"));
+      await nextImmediate();
+      expect(readText).not.toHaveBeenCalled();
+      expect(shell.root.editor.getText()).toBe("");
+      terminal.input("still usable"); await nextImmediate();
+      expect(shell.root.editor.getText()).toBe("still usable");
+    } finally { fail(); await shell.dispose(); }
+  });
+
   it.each([
     ["/scoped-models", "Model Configuration"],
     ["/model", "Select model"],
@@ -638,6 +747,7 @@ describe("OwnedUiSessionShell", () => {
       expect(selectedRow).toBeGreaterThan(0);
       const before = terminal.writes.length;
       terminal.input(`\u001b[<0;2;${selectedRow}M\u001b[<32;7;${selectedRow}M\u001b[<0;7;${selectedRow}m\u0003`);
+      await nextImmediate();
       shell.runtime.renderNow();
       const output = terminal.writes.slice(before).join("");
       const copies = [...output.matchAll(/\u001b\]52;c;([^\u0007]*)\u0007/g)];
@@ -683,6 +793,7 @@ describe("OwnedUiSessionShell", () => {
       terminal.input(`${selectedRow}M\u001b[<32;7;${selectedRow}M\u001b[<0;7;${selectedRow}m`);
       const copyAt = terminal.writes.length;
       terminal.input("\u0003");
+      await nextImmediate();
       expect(terminal.writes.slice(copyAt).join("")).toContain("\u001b]52;c;");
       expect(received).toEqual([]);
       done!();
@@ -713,6 +824,7 @@ describe("OwnedUiSessionShell", () => {
       const row = shell.root.render(80).findIndex(line => stripTerminalSequences(line).includes("alpha")) + 1;
       const copyAt = terminal.writes.length;
       terminal.input(`\u001b[<0;2;${row}M\u001b[<32;7;${row}M\u001b[<0;7;${row}m\u0003`);
+      await nextImmediate();
       expect(terminal.writes.slice(copyAt).join("")).toContain("\u001b]52;c;");
       expect(shell.root.usesDefaultInputSurface()).toBe(false);
       if (kind === "custom-editor") context.setEditorComponent(undefined);
@@ -2318,6 +2430,7 @@ describe("OwnedUiSessionShell", () => {
       const released = shell.root.render(100)[rowIndex] ?? "";
       expect(released).toContain(`\u001b]8;;${target}\u001b\\`);
       terminal.input("\u0003");
+      await nextImmediate();
       expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from(label).toString("base64")}\u0007`);
       await shell.dispose();
     });
@@ -2557,6 +2670,7 @@ describe("OwnedUiSessionShell", () => {
       expect(release).toContain(`\u001b]8;;${url}\u001b\\`);
       expect(release).not.toContain("\uFE0E");
       terminal.input("\u0003");
+      await nextImmediate();
       const copyWrite = terminal.writes.findLast(write => write.startsWith("\u001b]52;c;"));
       expect(copyWrite).toBeDefined();
       const copied = Buffer.from(copyWrite!.slice("\u001b]52;c;".length, -1), "base64").toString("utf8");
@@ -2615,6 +2729,7 @@ describe("OwnedUiSessionShell", () => {
         }
       }
       terminal.input("\u0003");
+      await nextImmediate();
       expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from(expectedCopy).toString("base64")}\u0007`);
     } finally { screen.dispose(); clock.mockRestore(); await shell.dispose(); }
   });
@@ -2862,6 +2977,7 @@ describe("OwnedUiSessionShell", () => {
     click();
     click();
     terminal.input("\u0003");
+    await nextImmediate();
     expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from("assistant").toString("base64")}\u0007`);
 
     click();
@@ -2869,6 +2985,7 @@ describe("OwnedUiSessionShell", () => {
     expect(tripleSelected).toContain("\u001b[48;2;38;79;120m");
     expect(tripleSelected).not.toContain("38;2;0;0;0");
     terminal.input("\u0003");
+    await nextImmediate();
     expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from("Selectable assistant words").toString("base64")}\u0007`);
   });
 
@@ -2889,6 +3006,7 @@ describe("OwnedUiSessionShell", () => {
     const selected = shell.root.render(192)[rowIndex] ?? "";
     expect(selected).toContain("\u001b[48;2;38;79;120m");
     terminal.input("\u0003");
+    await nextImmediate();
     expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from(direction === 1 ? "ch" : " c").toString("base64")}\u0007`);
     await shell.dispose();
   });
@@ -2928,6 +3046,7 @@ describe("OwnedUiSessionShell", () => {
       expect(await selectedCells()).toEqual([{ row, column }]);
       terminal.input("\u0003");
       shell.runtime.renderNow();
+      await nextImmediate();
       expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from("c").toString("base64")}\u0007`);
       expect(shell.root.hasActiveSelection()).toBe(false);
       expect(await selectedCells()).toEqual([]);
@@ -2966,6 +3085,7 @@ describe("OwnedUiSessionShell", () => {
         ...Array.from({ length: lastColumn }, (_, index) => ({ row: lastRow, column: index + 1 })),
       ]);
       terminal.input("\u0003");
+      await nextImmediate();
       const clipboardWrite = terminal.writes.findLast(write => write.startsWith("\u001b]52;c;"));
       expect(clipboardWrite).toBeDefined();
       // Invariant: preserve the code renderer's source-row indentation, but not viewport right padding.
@@ -3137,6 +3257,7 @@ describe("OwnedUiSessionShell", () => {
     terminal.input("\u0001"); // Protocol: Ctrl+A
     expect(shell.root.render(60).join("\n")).toContain("\u001b[48;2;38;79;120m");
     terminal.input("\u0003"); // Protocol: Ctrl+C
+    await nextImmediate();
     expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from("alpha beta").toString("base64")}\u0007`);
     expect(shell.root.render(60).join("\n")).not.toContain("\u001b[48;2;38;79;120m");
 
@@ -3175,6 +3296,7 @@ describe("OwnedUiSessionShell", () => {
     terminal.input("\u001b[1;2D"); // Protocol: Shift+Left extends selection to cd.
     terminal.input("\u001b[1;2C"); // Protocol: Shift+Right shrinks selection to d.
     terminal.input("\u0003");
+    await nextImmediate();
     expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from("d").toString("base64")}\u0007`);
 
     terminal.input("X");
@@ -3537,10 +3659,12 @@ describe("OwnedUiSessionShell", () => {
     click();
     click();
     terminal.input("\u0003");
+    await nextImmediate();
     expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from("alpha").toString("base64")}\u0007`);
 
     click();
     terminal.input("\u0003");
+    await nextImmediate();
     expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from("mouse alpha beta").toString("base64")}\u0007`);
 
     await shell.dispose();
@@ -3689,6 +3813,7 @@ describe("OwnedUiSessionShell", () => {
     terminal.input(`\u001b[<0;${end + 1};${row}m`);
     terminal.input("\u0003");
 
+    await nextImmediate();
     expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from("Selectable").toString("base64")}\u0007`);
     await shell.dispose();
   });

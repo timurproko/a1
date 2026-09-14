@@ -1,3 +1,4 @@
+import { ImageAttachmentError, MAX_CLIPBOARD_TEXT_BYTES } from "../../../contracts/owned-ui/index.js";
 import {
   CURSOR_MARKER,
   decodeKittyPrintable,
@@ -9,6 +10,7 @@ import { promptPathWordRanges } from "./path-word-ranges.js";
 import type {
   PiShellClipboardContent,
   PiShellEditorTextRange,
+  PiShellPasteReservation,
 } from "./shell-shared-facade.js";
 
 /**
@@ -135,7 +137,11 @@ const ATOMIC_SPACE_SENTINEL = "\uE000";
 export interface PromptSelectionUxOptions {
   readonly copyText: (text: string) => void;
   readonly readClipboardContent: () => Promise<PiShellClipboardContent | null>;
-  readonly beginClipboardPaste?: () => { readonly marker: string; readonly result: Promise<string> };
+  readonly beginClipboardPaste?: () => PiShellPasteReservation;
+  readonly beginTextPaste?: (text: string) => PiShellPasteReservation;
+  readonly deferTextPaste?: (text: string) => boolean;
+  readonly onPasteRejected?: (error: unknown) => void;
+  readonly onPasteInput?: (bytes: number) => void;
   readonly transformPastedContent: (content: PiShellClipboardContent) => string;
   readonly atomicRanges: (line: string) => readonly PiShellEditorTextRange[];
   readonly hiddenRanges?: (line: string) => readonly PiShellEditorTextRange[];
@@ -171,7 +177,7 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
   #redoStack: EditorSnapshot[] = [];
   #selectionRevision = 0;
   #pasteGeneration = 0;
-  #terminalPaste: string | undefined;
+  #terminalPaste: { parts: string[]; piece: string; tail: string; bytes: number; oversized: boolean } | undefined;
   #wordDirection: WordDirection | undefined;
   #geometry: {
     width: number;
@@ -550,18 +556,45 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
         const before = data.slice(0, start);
         this.handleInput(before, (replacement = before) => next(replacement));
       }
-      this.#terminalPaste = "";
+      this.#terminalPaste = { parts: [], piece: "", tail: "", bytes: 0, oversized: false };
       data = data.slice(start + 6);
     }
-    // Compatibility: the terminal's StdinBuffer assembles split opening delimiters;
-    // retain the body here too so editor-level chunks cannot allocate a native paste ID.
-    this.#terminalPaste += data;
-    const end = this.#terminalPaste.indexOf("\x1b[201~");
-    if (end < 0) return true;
-    const text = this.#terminalPaste.slice(0, end);
-    const remaining = this.#terminalPaste.slice(end + 6);
+    // Protocol: inspect only the new fragment plus a delimiter-sized suffix, not the whole growing body.
+    const pending = this.#terminalPaste;
+    const fragment = pending.tail + data;
+    const end = fragment.indexOf("\x1b[201~");
+    const append = (part: string) => {
+      if (pending.oversized || part.length === 0) return;
+      if (this.options.beginTextPaste !== undefined) {
+        pending.bytes += Buffer.byteLength(part);
+        if (pending.bytes > MAX_CLIPBOARD_TEXT_BYTES) {
+          pending.oversized = true; pending.parts = []; pending.piece = ""; return;
+        }
+      }
+      // Performance: bound fragment metadata even if a terminal supplies one character per input chunk.
+      pending.piece += part;
+      if (pending.piece.length >= 16_384) { pending.parts.push(pending.piece); pending.piece = ""; }
+    };
+    if (end < 0) {
+      let cut = Math.max(0, fragment.length - 5);
+      if (cut > 0 && /[\uD800-\uDBFF]/u.test(fragment[cut - 1]!) && /[\uDC00-\uDFFF]/u.test(fragment[cut]!)) cut--;
+      append(fragment.slice(0, cut));
+      pending.tail = fragment.slice(cut);
+      return true;
+    }
+    append(fragment.slice(0, end));
+    const remaining = fragment.slice(end + 6);
     this.#terminalPaste = undefined;
+    this.options.onPasteInput?.(pending.bytes);
+    if (pending.oversized) {
+      this.options.onPasteRejected?.(new ImageAttachmentError("paste-size"));
+      if (remaining.length > 0) this.handleInput(remaining, (replacement = remaining) => next(replacement));
+      return true;
+    }
+    const text = pending.parts.join("") + pending.piece;
+    if (text.length > 0) this.#redoStack = [];
     if (text.length === 0) this.pasteClipboard();
+    else if (this.options.beginTextPaste !== undefined && (this.options.deferTextPaste?.(text) ?? true)) this.#pasteFromClipboard(text);
     else {
       const transformed = this.options.transformPastedContent({ kind: "text", text });
       if (transformed === text && this.#orderedSelection() === undefined) next(`\x1b[200~${text}\x1b[201~`);
@@ -576,15 +609,21 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
     return true;
   }
 
-  #pasteFromClipboard(): void {
-    if (this.options.beginClipboardPaste !== undefined) {
+  #pasteFromClipboard(source?: string): void {
+    const begin = source === undefined ? this.options.beginClipboardPaste
+      : this.options.beginTextPaste === undefined ? undefined : () => this.options.beginTextPaste!(source);
+    if (begin !== undefined) {
       const generation = this.#pasteGeneration;
       const restore = this.#orderedSelection() === undefined ? "" : this.#selectedText();
-      const paste = this.options.beginClipboardPaste();
+      const paste = begin();
+      this.#redoStack = [];
       if (this.#orderedSelection() !== undefined) this.#replaceSelection(paste.marker);
       else this.editor.insertTextAtCursor(paste.marker);
       this.#requestRender();
-      const replace = (text: string): void => { if (generation === this.#pasteGeneration) this.#replacePasteMarker(paste.marker, text || restore); };
+      const replace = (text: string): void => {
+        if (generation === this.#pasteGeneration) this.#replacePasteMarker(paste.marker, paste.isCurrent?.() === false ? restore : text || restore);
+        paste.complete?.();
+      };
       void paste.result.then(replace).catch(() => replace(restore));
       return;
     }
@@ -613,9 +652,12 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
   #replacePasteMarker(marker: string, replacement: string): void {
     const current = this.editor.getText();
     const from = current.indexOf(marker);
-    if (from < 0) return;
-    const to = from + marker.length;
     const text = normalizeInsertedText(replacement);
+    if (from < 0) {
+      this.#rewritePasteSnapshots(marker, text);
+      return;
+    }
+    const to = from + marker.length;
     const lines = editorState(this.editor).lines;
     const remap = (position: Position): number => {
       const offset = positionOffset(lines, position);
@@ -625,11 +667,20 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
     const selection = this.#selection === undefined ? undefined : { anchor: remap(this.#selection.anchor), head: remap(this.#selection.head) };
     const next = current.slice(0, from) + text + current.slice(to);
     // Compatibility: completing a paste updates its provisional undo snapshots, not the user's undo history.
-    if (this.editor.interaction !== undefined) {
-      this.editor.interaction.replaceLines(next.split("\n"));
-      this.editor.interaction.updateUndoStates(state => replaceSnapshotMarker(state, marker, text));
-    } else {
-      editorState(this.editor).lines = next.split("\n");
+    if (this.editor.interaction !== undefined) this.editor.interaction.replaceLines(next.split("\n"));
+    else editorState(this.editor).lines = next.split("\n");
+    this.#rewritePasteSnapshots(marker, text);
+    this.#setCursor(positionAtOffset(next, cursor));
+    this.editor.onChange?.(this.editor.getText());
+    this.editor.invalidate();
+    if (selection !== undefined) this.#selection = { anchor: positionAtOffset(next, selection.anchor), head: positionAtOffset(next, selection.head) };
+    this.#requestRender();
+  }
+
+  #rewritePasteSnapshots(marker: string, text: string): void {
+    // Concurrency: even a removed reservation must be retired from redo/undo snapshots, or a canceled paste can reappear.
+    if (this.editor.interaction !== undefined) this.editor.interaction.updateUndoStates(state => replaceSnapshotMarker(state, marker, text));
+    else {
       const undo: unknown = Reflect.get(this.editor, "undoStack");
       const snapshots: unknown = typeof undo === "object" && undo !== null ? Reflect.get(undo, "stack") : undefined;
       if (Array.isArray(snapshots)) for (const snapshot of snapshots) {
@@ -642,11 +693,6 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
       replaceSnapshotMarker(state, marker, text);
       snapshot.text = state.lines.join("\n"); snapshot.cursor = { line: state.cursorLine, col: state.cursorCol };
     }
-    this.#setCursor(positionAtOffset(next, cursor));
-    this.editor.onChange?.(this.editor.getText());
-    this.editor.invalidate();
-    if (selection !== undefined) this.#selection = { anchor: positionAtOffset(next, selection.anchor), head: positionAtOffset(next, selection.head) };
-    this.#requestRender();
   }
 
   #replaceSelection(text: string): void {
