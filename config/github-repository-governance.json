@@ -125,9 +125,9 @@
       "path": ".github/workflows/ci.yml",
       "state": "active",
       "triggers": ["pull_request", "workflow_dispatch"],
-      "permissions": ["contents: read"],
+      "permissions": ["actions: read", "contents: read", "pull-requests: read"],
       "trustedSource": "pull-request-head-read-only",
-      "authority": ["Development validation required"],
+      "authority": ["Development validation required", "archive-merge-result-validation"],
       "concurrency": "development-validation-",
       "environments": [],
       "artifactRetentionDays": [14]
@@ -136,8 +136,8 @@
       "name": "Documentation auto-merge",
       "path": ".github/workflows/documentation-auto-merge.yml",
       "state": "active",
-      "triggers": ["pull_request_target", "workflow_run"],
-      "permissions": ["contents: write", "pull-requests: write"],
+      "triggers": ["pull_request_target", "pull_request_target:edited", "workflow_run"],
+      "permissions": ["actions: read", "contents: write", "pull-requests: write"],
       "trustedSource": "default-branch",
       "authority": ["documentation-auto-merge", "matching-merged-head-delete"],
       "concurrency": "documentation-auto-merge-",
@@ -167,6 +167,18 @@
       "concurrency": "merged-branch-cleanup-",
       "environments": [],
       "artifactRetentionDays": []
+    },
+    {
+      "name": "OpenSpec archive",
+      "path": ".github/workflows/openspec-archive.yml",
+      "state": "active",
+      "triggers": ["pull_request_target:closed", "schedule", "workflow_dispatch"],
+      "permissions": ["actions: read", "contents: read", "pull-requests: read"],
+      "trustedSource": "default-branch",
+      "authority": ["archive-read-only-audit", "openspec-archive-app-publication"],
+      "concurrency": "openspec-archive",
+      "environments": [],
+      "artifactRetentionDays": [14]
     },
     {
       "name": "Release",
