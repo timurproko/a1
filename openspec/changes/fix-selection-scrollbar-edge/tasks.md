@@ -1,6 +1,6 @@
 ## 1. Establish the implementation baseline
 
-- [ ] 1.1 After specification merge and an explicit implementation request, fetch current `origin/develop` and create a fresh detached implementation worktree/branch; verify the accepted `fix-selection-scrollbar-edge` artifacts are present and cite their planning PR in the implementation PR.
+- [x] 1.1 After specification merge and an explicit implementation request, fetch current `origin/develop` and create a fresh detached implementation worktree/branch; verify the accepted `fix-selection-scrollbar-edge` artifacts are present and cite their planning PR in the implementation PR.
 - [x] 1.2 Reproduce right-edge endpoint truncation and hover background inheritance independently with focused failing tests; verify both semantic copy output and decoded final-cell backgrounds distinguish selected versus deliberately excluded final characters.
 
 ## 2. Correct right-edge selection and rail composition
@@ -18,6 +18,6 @@
 
 ## 4. Manual acceptance and integration
 
-- [ ] 4.1 Hand off the exact worktree, branch/commit, build plus `./scripts/dev` command, and focused full-line/partial-line hover checks in Windows Terminal; verify the handoff states expected copy/highlight behavior and any known gaps.
+- [x] 4.1 Hand off the exact worktree, branch/commit, build plus `./scripts/dev` command, and focused full-line/partial-line hover checks in Windows Terminal; verify the handoff states expected copy/highlight behavior and any known gaps.
 - [ ] 4.2 Record the user's exact-candidate acceptance, terminal/version, geometry, and scrollbar settings for both included and excluded final characters; verify the code PR remains open until acceptance and explicit merge authorization are both present.
 - [ ] 4.3 After authorized code integration, record acceptance and archive/synchronize this completed change in an OpenSpec-only follow-up; verify PR merge states and clean task worktrees before removing only this stream's retained worktrees under the repository cleanup rules.
