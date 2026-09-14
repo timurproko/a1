@@ -4,11 +4,21 @@ The archive workflow handles accepted implementation merges into `develop`, a da
 
 Documentation CI installs only the pinned OpenSpec archive tool into runner temporary storage, not the repository dependency tree. Candidate validation selects that installation with `--tool-root`; the override is unavailable to publication and audit modes. The documentation job has read-only contents, PR, and Actions permissions; the existing merge owner also declares Actions read access for checking source validation.
 
-## One draft PR from planning through implementation
+## One PR: specs, implementation, CI, validation, merge, archive, cleanup
 
 A new implementation-bound change starts as OpenSpec-only artifacts in one draft PR, not a plan merged ahead of its implementation. Planning requests authorize no code. The agent prepares the link below while opening that draft. After explicit plan approval and an implementation request, continue in the same worktree, branch, history, and PR; reconcile approved planning refinements before their code edits and include related product documentation there too.
 
-Keep the PR draft while incomplete, then make it ready for final review. Approval to implement is not final acceptance or merge authorization. The completed PR still requires required CI, actual final-head maintainer review, and explicit manual integration. The documentation merge owner holds implementation-associated PRs and new active changes even if marked ready or their marker is removed. PR body edits trigger reconciliation and disable an excluded armed merge. Ordinary docs, standalone revisions to existing merged plans, and verified archive moves remain automatic under the exact path allowlist.
+Use this delivery sequence:
+
+1. **Specs:** prepare and approve the plan in the draft PR. Planning does not authorize implementation by itself.
+2. **Implementation:** after explicit approval/request, implement in that same worktree, branch, history, and PR. Keep it draft while implementation is unfinished.
+3. **CI:** push the completed candidate and mark the PR **ready for review before running required CI**. Normal `ready_for_review`/`synchronize` events provide PR-visible test progress. Do not manually dispatch ordinary CI merely to keep the completed candidate draft and then run it again on readiness. Dedicated Full regression/native workflows remain separate required evidence where applicable.
+4. **Validation:** after applicable CI passes, obtain actual maintainer validation of the exact final head. Readiness, plan approval, and green CI are not acceptance or merge authorization. A changed candidate requires current-head CI and renewed acceptance.
+5. **Implementation merge:** record genuine acceptance and merge manually only after explicit authorization; implementation auto-merge stays disabled.
+6. **Docs/specs auto-merge, only after implementation merge:** first confirm the accepted implementation PR is merged. Only then may the archive workflow record verified evidence, synchronize canonical specs, and prepare the completed change's OpenSpec-only archive PR. Documentation automation merges that follow-up after its own required CI. Do not separately merge the change's specs/docs or archive it before implementation integration.
+7. **Cleanup:** verify both implementation and archive PR integration before removing retained local task/acceptance worktrees. Preserve ownership, clean-tree, and closed/unmerged safety checks. The owning agent performs eligible local cleanup; this policy does not provision an always-running local cleanup service. Hosted remote-branch cleanup remains independently gated on the corresponding PR's verified merge.
+
+The implementation and archive PRs each need their own CI because they contain different changes. The redundant draft-dispatch-then-ready implementation run is what this sequence avoids. The documentation merge owner holds implementation-associated PRs and new active changes even if marked ready or their marker is removed. PR body edits trigger reconciliation and disable an excluded armed merge. Ordinary docs, standalone revisions to existing merged plans, and verified archive moves remain automatic under the exact path allowlist.
 
 ## Normal implementation handoff
 
