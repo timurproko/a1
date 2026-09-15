@@ -122,6 +122,7 @@ describe("resource-sensitive validation partition", () => {
           return { id: command.id, command: command.arguments.join(" "), exitCode: 0, durationMs: 1 };
         },
         recordBuildReceipt: async () => ({} as never),
+        env: { VALIDATION_BUILD_READY: "0" },
       });
       expect(result.passed).toBe(true);
       expect(calls).toEqual(scope === "fast-resource-sensitive" ? ["candidate-build", expected] : [expected]);
