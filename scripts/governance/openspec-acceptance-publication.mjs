@@ -52,7 +52,7 @@ export async function publishAcceptanceRequest({ reader, publisher, source, cand
   if (dryRun) return { disposition, acceptancePr: pull?.number, proposedAcceptance: !pull, blockers };
   requireAcceptance(publisher?.repository === reader.repository && publisher.actor?.endsWith("[bot]"), "publication-app-setup");
   if (pull?.state === "open") {
-    // Never regenerate committed reviewer evidence or overwrite the PR body.
+    // Invariant: never regenerate committed reviewer evidence or overwrite the PR body.
     if (!blockers.length && pull.draft) await publisher.ready(pull.number, pull.node_id);
     return { disposition, acceptancePr: pull.number, blockers, published: false };
   }
@@ -77,7 +77,7 @@ export async function publishAcceptanceRequest({ reader, publisher, source, cand
       requireAcceptance((await tree.blob(path))?.toString() === acceptanceBytes(record), "acceptance-branch-ownership");
     }
   }
-  // Recheck mutable source authority and the integration base immediately before any publication.
+  // Concurrency: recheck mutable source authority and the integration base immediately before publication.
   const fresh = await loadArchiveEvidence(reader, source.pull.number, { allowMissing: true });
   requireAcceptance(fresh.disposition === "acceptance-missing" && fresh.targetSha === source.targetSha
     && fresh.pull.head.sha === record.sourceHead && fresh.pull.merge_commit_sha === record.sourceMerge

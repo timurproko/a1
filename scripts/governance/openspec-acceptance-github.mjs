@@ -24,7 +24,7 @@ export async function prepareAcceptanceRequest(reader, source) {
   let validation = null;
   try { validation = await findImplementationValidation(reader, pull); }
   catch (error) {
-    // Only known incomplete CI is representable as pending; unavailable provenance is not absence.
+    // Provenance: only known incomplete CI is representable as pending; unavailable evidence is not absence.
     if (!["implementation-validation", "implementation-required-check"].includes(error.archiveCode)) throw error;
   }
   const evidence = [...snapshot.entries.keys()].filter(path => path.startsWith(`openspec/changes/${implementation.change}/`)

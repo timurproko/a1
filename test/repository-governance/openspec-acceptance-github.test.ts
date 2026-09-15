@@ -180,7 +180,7 @@ describe("visible acceptance publication and authority", () => {
   it("recovers only matching committed publication and refuses unknown ownership", async () => {
     const f = fixture(); const source = await f.source(), candidate = await prepareAcceptanceRequest(f.reader, source);
     await publishAcceptanceRequest({ reader: f.reader, publisher: f.publisher, source, candidate });
-    f.pulls.delete(500); // Crash-equivalent: owned branch is present but PR publication was not observed.
+    f.pulls.delete(500); // Concurrency: this crash-equivalent leaves an owned branch before PR publication is observed.
     await publishAcceptanceRequest({ reader: f.reader, publisher: f.publisher, source, candidate });
     expect(f.mutations.filter(item => item.path.endsWith("/git/refs"))).toHaveLength(1);
     f.pulls.delete(500); f.commits.get(f.acceptanceHead).message = "Unknown branch owner";
