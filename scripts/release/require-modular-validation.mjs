@@ -42,6 +42,20 @@ export function requireModularValidation({ impact, owners, outcomes, modularResu
   return { mode: selection.mode, selectionId: selection.selectionId, selectedOwners: [...selectedOwners], evidenceCount: evidence.length };
 }
 
+export function selectModularOutcomeFiles(entries) {
+  if (!Array.isArray(entries) || entries.length > 64) throw new Error("modular outcome artifact directory is invalid or unbounded");
+  const files = [];
+  for (const entry of entries) {
+    if (entry.isDirectory?.()) {
+      if (!["package", "phases", "receipts"].includes(entry.name)) throw new Error("modular outcome artifact directory contains an unknown directory");
+    } else if (entry.isFile?.()) {
+      if (!/^(?:outcome-|job-envelope-).+\.json$/u.test(entry.name)) throw new Error("modular outcome artifact directory contains an unknown file");
+      if (entry.name.startsWith("outcome-")) files.push(entry.name);
+    } else throw new Error("modular outcome artifact directory contains an unsupported entry");
+  }
+  return files;
+}
+
 function requireEvidence(evidence, expected) {
   const matches = evidence.filter(({ authority }) => authority.job === expected.job && authority.platform === expected.platform && authority.architecture === expected.architecture && authority.node === expected.node
     && authority.owners.includes(expected.owner) && expected.scopes.every(scope => authority.selected.includes(scope)));
@@ -62,9 +76,8 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   const registry = JSON.parse(await readFile(resolve("config/integration-owners.json"), "utf8"));
   const owners = registry.owners;
   const directory = resolve(process.env.VALIDATION_OUTCOMES_DIR ?? ".artifacts/validation/outcomes");
-  const files = await readdir(directory).catch(error => error?.code === "ENOENT" ? [] : Promise.reject(error));
-  if (files.length > 64 || files.some(file => !file.endsWith(".json"))) throw new Error("modular outcome artifact directory is invalid or unbounded");
-  const outcomeFiles = files.filter(file => file.startsWith("outcome-"));
+  const entries = await readdir(directory, { withFileTypes: true }).catch(error => error?.code === "ENOENT" ? [] : Promise.reject(error));
+  const outcomeFiles = selectModularOutcomeFiles(entries);
   const outcomes = await Promise.all(outcomeFiles.map(file => readFile(resolve(directory, file), "utf8").then(source => {
     if (Buffer.byteLength(source) > 2 * 1024 * 1024) throw new Error("modular outcome artifact exceeds bound");
     return JSON.parse(source);

@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 import { createIntegrationSelection } from "../../scripts/release/integration-selection.mjs";
-import { requireModularValidation } from "../../scripts/release/require-modular-validation.mjs";
+import { requireModularValidation, selectModularOutcomeFiles } from "../../scripts/release/require-modular-validation.mjs";
 
 const head = "b".repeat(40), base = "a".repeat(40), runId = "123", runAttempt = 1;
 const registry = JSON.parse(await readFile("config/integration-owners.json", "utf8"));
@@ -9,6 +9,14 @@ const owners = registry.owners;
 const ownership = { schema: "a1-integration-ownership-v1" as const, owners: owners.map(({ id, scopes, targets, development }: any) => ({ id, scopes, targets, development })) };
 
 describe("modular development aggregate", () => {
+  it("accepts only known merged-artifact files and support directories", () => {
+    const file = (name: string) => ({ name, isFile: () => true, isDirectory: () => false });
+    const directory = (name: string) => ({ name, isFile: () => false, isDirectory: () => true });
+    expect(selectModularOutcomeFiles([file("outcome-fast-win32-node24.json"), file("job-envelope-fast-win32-node24.json"), directory("phases"), directory("package"), directory("receipts")])).toEqual(["outcome-fast-win32-node24.json"]);
+    expect(() => selectModularOutcomeFiles([file("unknown.json")])).toThrow("unknown file");
+    expect(() => selectModularOutcomeFiles([directory("unknown")])).toThrow("unknown directory");
+  });
+
   it("requires exact-head evidence for every conservative owner target", () => {
     const fixture = conservativeFixture();
     expect(requireModularValidation(fixture)).toMatchObject({ mode: "conservative", evidenceCount: 9 });
