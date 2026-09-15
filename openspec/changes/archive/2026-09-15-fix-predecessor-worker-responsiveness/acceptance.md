@@ -1,0 +1,211 @@
+# Recorded implementation acceptance
+
+Verdict: accepted. Archive preparation is not archive-PR integration.
+
+Source PR: https://github.com/timurproko/a1/pull/402
+Accepted head: 58627bb20a5b18c9b0546a23eeea6dde2f76bd05
+Implementation merge: d5d7c1b100158e9d0efdb44f0490ced2ee4ea266
+Validation: https://github.com/timurproko/a1/actions/runs/34880028901
+Acceptance: https://github.com/timurproko/a1/pull/411
+Author: timurproko
+Recorded: 2026-09-15T11:10:40Z
+
+```openspec-acceptance-receipt
+{
+  "kind": "pull-request",
+  "pr": 411,
+  "head": "56758b0d6828ef7aa6d70384e9da109deaf36692",
+  "merge": "8b686ef6191b6dd0e6f4147e5ac443b06a239ac6",
+  "path": "openspec/acceptance/fix-predecessor-worker-responsiveness/58627bb20a5b18c9b0546a23eeea6dde2f76bd05.json",
+  "digest": "8f6d96b4bfce1afe8709a83af0f6f6971dbeac8c099a6eda60ad360149edcfe6",
+  "author": "timurproko",
+  "createdAt": "2026-09-15T11:10:40Z",
+  "checklistDigest": "5a2bc83ba5fd312461db1b03b0d8e99f2e8bc4f7815473613f0ba77cf0b80d1f",
+  "checks": [
+    "Predecessor subprocess commands complete asynchronously, preserve child event processing, and drain bounded output before success.",
+    "Cancelling or tearing down predecessor verification closes owned children before installation removal while preserving primary errors and unrelated processes.",
+    "Published predecessor compatibility and COPY_CURRENT transcript behavior retain their recorded expected outcomes."
+  ]
+}
+```
+
+Accepted implementation checks:
+- Predecessor subprocess commands complete asynchronously, preserve child event processing, and drain bounded output before success.
+- Cancelling or tearing down predecessor verification closes owned children before installation removal while preserving primary errors and unrelated processes.
+- Published predecessor compatibility and COPY_CURRENT transcript behavior retain their recorded expected outcomes.
+
+Original internal source-binding request:
+
+```json
+{
+  "version": 2,
+  "repository": "timurproko/a1",
+  "change": "fix-predecessor-worker-responsiveness",
+  "sourcePr": 402,
+  "sourceHead": "58627bb20a5b18c9b0546a23eeea6dde2f76bd05",
+  "sourceMerge": "d5d7c1b100158e9d0efdb44f0490ced2ee4ea266",
+  "sourceBodyDigest": "8b7d54a2a0db60bacdba6572b58e1badb067628908d471c5e5d6af0a61d1c7e5",
+  "artifactDigest": "e5f3270fc388f6195610c6b7c68f374e14d761240ad3ab461d4a2ea73a664e89",
+  "specBaseSha": "586c48f8cda30ad89358a16160528746b4446253",
+  "acceptanceChecks": [
+    "Predecessor subprocess commands complete asynchronously, preserve child event processing, and drain bounded output before success.",
+    "Cancelling or tearing down predecessor verification closes owned children before installation removal while preserving primary errors and unrelated processes.",
+    "Published predecessor compatibility and COPY_CURRENT transcript behavior retain their recorded expected outcomes."
+  ],
+  "validation": {
+    "runId": 34880028901,
+    "headSha": "58627bb20a5b18c9b0546a23eeea6dde2f76bd05",
+    "checkedSha": "58627bb20a5b18c9b0546a23eeea6dde2f76bd05",
+    "attempt": 1
+  },
+  "tasks": [
+    {
+      "id": "1.1",
+      "done": true,
+      "text": "After plan approval and a separate implementation request, resume this same worktree/branch/PR; record authorization and verify the source contains merged #398/#390, version-2 linkage is intact, and no unrelated changes are present.",
+      "digest": "cdb153911142a4c344dae37b96b0c23f7a978990cb3e62bae47eb99bd70b7fa5",
+      "completion": "recorded",
+      "evidence": []
+    },
+    {
+      "id": "1.2",
+      "done": true,
+      "text": "Record the original run/source/jobs, Windows Node 24 RPC error and phase durations, final Windows Node 22 outcome when available, and earlier lane results; verify the evidence distinguishes confirmed synchronous blocking from unproven attribution of the historical worker timeout.",
+      "digest": "45cacf5824bea7aefe351251855d11024c21ce7bdc5f6a785a90c426709cb777",
+      "completion": "recorded",
+      "evidence": []
+    },
+    {
+      "id": "2.1",
+      "done": true,
+      "text": "Add a deterministic parent/child handshake regression that requires the worker to process an event before child exit; verify it fails for the synchronous wait and passes for asynchronous waiting without sleep-based success, production-length RPC waits, or leaked fixture children.",
+      "digest": "51bbdb2c2e7d90fb925c8c485b5baa2231d8ba7f94905b25e175b61c57323f30",
+      "completion": "recorded",
+      "evidence": []
+    },
+    {
+      "id": "2.2",
+      "done": true,
+      "text": "Implement the narrowly scoped asynchronous test runner; verify chunked output is fully drained before success and spawn errors, nonzero exits, signals, cancellation, and overflow of the retained 1 MiB bound fail without unbounded buffers or multiple settlement.",
+      "digest": "bc35fe9fb7b92561a22b79b917098932e998bb8d3b30d9b971e08f8d774f8240",
+      "completion": "recorded",
+      "evidence": []
+    },
+    {
+      "id": "2.3",
+      "done": true,
+      "text": "Connect child lifetime and cancellation to existing fixture deadlines and teardown; verify owned process/output closure precedes installation removal, listeners/timers are released, primary errors survive cleanup failures, and unrelated process/path controls remain untouched without increasing any timeout.",
+      "digest": "5a29b26d78800a4ea5c8b414636fe20e968b9f6bc03b6fb1e0c9d8266216a16b",
+      "completion": "recorded",
+      "evidence": []
+    },
+    {
+      "id": "3.1",
+      "done": true,
+      "text": "Replace every synchronous command wait in the predecessor suite with awaited execution, including registry listing and proxy synchronization; verify ordering, Windows command/path quoting, npm environment sanitation, exact candidate selection, publication ordering, default/override count semantics, supported-entry checks, and predecessor-owned materialization/warmup are unchanged.",
+      "digest": "bd8bc7512c9d76d3e75c1bf15a674b08ce38503f7799c9ac0cd4eca54c82ea34",
+      "completion": "recorded",
+      "evidence": []
+    },
+    {
+      "id": "3.2",
+      "done": true,
+      "text": "Add bounded phase/version/timing/error diagnostics and prerequisite failure tests; verify malformed registry JSON and failed synchronization cannot continue into dependent phases and arbitrary subprocess output or credentials are not exposed.",
+      "digest": "751a80f20b5aba22e5ecb6a212908ceb275202cea2abdcfa2864816e12c165c0",
+      "completion": "recorded",
+      "evidence": []
+    },
+    {
+      "id": "3.3",
+      "done": true,
+      "text": "Exercise the actual declared published-predecessor scope with a prepared exact package; record source/version/digest and phase timings, verify real published predecessors are exercised, and keep synthetic responsiveness proof distinct from actual compatibility evidence.",
+      "digest": "89f850e0574cb7f75e0c844c346312546dedcb8ad02e396b02008fcc344c30c5",
+      "completion": "recorded",
+      "evidence": []
+    },
+    {
+      "id": "3.4",
+      "done": true,
+      "text": "Adapt the stale transcript-lifetime copy assertion to the current selection snapshot using the existing serializer; verify the exact `COPY_CURRENT` oracle, both geometry cases, all lifetime scenarios, and repository typecheck pass without production clipboard changes.",
+      "digest": "9635aeb869078db9ae0341c395bc80739fcaca44412077111915039edfcfb738",
+      "completion": "recorded",
+      "evidence": []
+    },
+    {
+      "id": "4.1",
+      "done": false,
+      "text": "Pass strict OpenSpec and applicable governance checks, then push the completed implementation and make the same PR ready before normal PR CI; record the passing current-head run and verify no draft-dispatch duplicate, dependency, workflow, suite-ownership, retry, timeout, baseline, source-ledger, or stable-work-budget change was introduced.",
+      "digest": "9ae58d8112cd706272faafc7403ab180bd9c98eb88f2e63a2a60530c751e1648",
+      "completion": "pending",
+      "evidence": []
+    },
+    {
+      "id": "4.2",
+      "done": false,
+      "text": "Obtain passing Full regression on Windows Node 22/24, Linux Node 24, and macOS Node 24 for the candidate containing all relevant fixes; record exact run/job/source identities and verify all required stages, including the changed predecessor test and independent input/rendering gates, execute and pass.",
+      "digest": "c95167312987c6303c61b2dff69ce8a04ad7deda282d5e80007f991c6d28759e",
+      "completion": "pending",
+      "evidence": []
+    },
+    {
+      "id": "4.3",
+      "done": false,
+      "text": "Reconcile every remaining failed stage in the recovery ledger with its diagnosis, approved corrective scope/PR, and passing evidence; verify no unresolved failure, reduced coverage, blind retry, or widened exception is treated as successful recovery. Pause for scope approval before unrelated code changes.",
+      "digest": "621d5be8f23006f2384bd821b493c07985c9d57fa47962a47ea8d964ab61bc66",
+      "completion": "pending",
+      "evidence": []
+    },
+    {
+      "id": "5.1",
+      "done": false,
+      "text": "Provide exact candidate and focused verification commands, record actual maintainer implementation validation and explicit manual merge authorization, and verify implementation integration with auto-merge disabled; state that this is not yet post-merge nightly acceptance.",
+      "digest": "b0dcd5033fa840e8f8d1ad3eeba14f858edda13d77874f6ac8d41a26d6f593d7",
+      "completion": "pending",
+      "evidence": []
+    },
+    {
+      "id": "5.2",
+      "done": false,
+      "text": "Verify the real scheduled nightly Release run selects merged source containing the repairs and a newer numbered package, fully validates the same bytes on all four native lanes, and passes its aggregate publication/verification outcome; record mode, source, merged PR, version, integrity/shasum, run/jobs, registry identity and applicable next-tag result. Do not substitute a branch tarball, reduced-scope manual run, or existing-version development no-op, and do not alter published bytes.",
+      "digest": "3a3fb5a2f6ff1b40a821c6237fc29ea2da9299c4c2ec75167fa76706280079ae",
+      "completion": "pending",
+      "evidence": []
+    },
+    {
+      "id": "5.3",
+      "done": false,
+      "text": "Record final recovery acceptance and the reviewed canonical-spec baseline from actual maintainer review of the completed evidence; reconcile the earlier nightly/input/trust/scoped-model obligations individually and verify unfinished substantive tasks remain visible rather than being auto-completed. Do not prepare completed archival while the numbered-package nightly gate remains pending or failed.",
+      "digest": "c10e1bd9b56cfd4d71a91a171ab15f14b7d1a514bcebede8e275e0f7fd077378",
+      "completion": "pending",
+      "evidence": []
+    },
+    {
+      "id": "6.1",
+      "done": false,
+      "text": "Record verified implementation acceptance and merge evidence for archive preparation.",
+      "digest": "ffbe8b6456f4f6d58d09b15b49f69a3350ec0115a7a3d307aa34c426492bf80a",
+      "completion": "archive-preparation",
+      "evidence": []
+    },
+    {
+      "id": "6.2",
+      "done": false,
+      "text": "Stage and verify delta synchronization and the archive move in an OpenSpec-only candidate.",
+      "digest": "04583e00182e4cfa6c2cab29f943d7ac73e19145f02bef97551b8fbe725162d1",
+      "completion": "archive-preparation",
+      "evidence": []
+    }
+  ],
+  "review": {
+    "decision": "accept-on-manual-merge",
+    "evidence": [
+      {
+        "url": "https://github.com/timurproko/a1/blob/58627bb20a5b18c9b0546a23eeea6dde2f76bd05/openspec/changes/fix-predecessor-worker-responsiveness/evidence.md",
+        "outcome": "Recorded source evidence; review its actual outcomes and limitations before accepting."
+      }
+    ],
+    "gaps": []
+  }
+}
+
+```

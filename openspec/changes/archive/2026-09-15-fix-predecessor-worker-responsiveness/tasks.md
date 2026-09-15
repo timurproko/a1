@@ -19,17 +19,17 @@
 
 ## 4. PR CI and complete native regression
 
-- [ ] 4.1 Pass strict OpenSpec and applicable governance checks, then push the completed implementation and make the same PR ready before normal PR CI; record the passing current-head run and verify no draft-dispatch duplicate, dependency, workflow, suite-ownership, retry, timeout, baseline, source-ledger, or stable-work-budget change was introduced.
-- [ ] 4.2 Obtain passing Full regression on Windows Node 22/24, Linux Node 24, and macOS Node 24 for the candidate containing all relevant fixes; record exact run/job/source identities and verify all required stages, including the changed predecessor test and independent input/rendering gates, execute and pass.
-- [ ] 4.3 Reconcile every remaining failed stage in the recovery ledger with its diagnosis, approved corrective scope/PR, and passing evidence; verify no unresolved failure, reduced coverage, blind retry, or widened exception is treated as successful recovery. Pause for scope approval before unrelated code changes.
+- [x] 4.1 Pass strict OpenSpec and applicable governance checks, then push the completed implementation and make the same PR ready before normal PR CI; record the passing current-head run and verify no draft-dispatch duplicate, dependency, workflow, suite-ownership, retry, timeout, baseline, source-ledger, or stable-work-budget change was introduced.
+- [x] 4.2 Obtain passing Full regression on Windows Node 22/24, Linux Node 24, and macOS Node 24 for the candidate containing all relevant fixes; record exact run/job/source identities and verify all required stages, including the changed predecessor test and independent input/rendering gates, execute and pass.
+- [x] 4.3 Reconcile every remaining failed stage in the recovery ledger with its diagnosis, approved corrective scope/PR, and passing evidence; verify no unresolved failure, reduced coverage, blind retry, or widened exception is treated as successful recovery. Pause for scope approval before unrelated code changes.
 
 ## 5. Accepted integration and a genuinely green nightly
 
-- [ ] 5.1 Provide exact candidate and focused verification commands, record actual maintainer implementation validation and explicit manual merge authorization, and verify implementation integration with auto-merge disabled; state that this is not yet post-merge nightly acceptance.
-- [ ] 5.2 Verify the real scheduled nightly Release run selects merged source containing the repairs and a newer numbered package, fully validates the same bytes on all four native lanes, and passes its aggregate publication/verification outcome; record mode, source, merged PR, version, integrity/shasum, run/jobs, registry identity and applicable next-tag result. Do not substitute a branch tarball, reduced-scope manual run, or existing-version development no-op, and do not alter published bytes.
-- [ ] 5.3 Record final recovery acceptance and the reviewed canonical-spec baseline from actual maintainer review of the completed evidence; reconcile the earlier nightly/input/trust/scoped-model obligations individually and verify unfinished substantive tasks remain visible rather than being auto-completed. Do not prepare completed archival while the numbered-package nightly gate remains pending or failed.
+- [x] 5.1 Provide exact candidate and focused verification commands, record actual maintainer implementation validation and explicit manual merge authorization, and verify implementation integration with auto-merge disabled; state that this is not yet post-merge nightly acceptance.
+- [x] 5.2 Verify the real scheduled nightly Release run selects merged source containing the repairs and a newer numbered package, fully validates the same bytes on all four native lanes, and passes its aggregate publication/verification outcome; record mode, source, merged PR, version, integrity/shasum, run/jobs, registry identity and applicable next-tag result. Do not substitute a branch tarball, reduced-scope manual run, or existing-version development no-op, and do not alter published bytes.
+- [x] 5.3 Record final recovery acceptance and the reviewed canonical-spec baseline from actual maintainer review of the completed evidence; reconcile the earlier nightly/input/trust/scoped-model obligations individually and verify unfinished substantive tasks remain visible rather than being auto-completed. Do not prepare completed archival while the numbered-package nightly gate remains pending or failed.
 
 ## 6. Mechanical archive preparation
 
-- [ ] 6.1 Record verified implementation acceptance and merge evidence for archive preparation.
-- [ ] 6.2 Stage and verify delta synchronization and the archive move in an OpenSpec-only candidate.
+- [x] 6.1 Record verified implementation acceptance and merge evidence for archive preparation.
+- [x] 6.2 Stage and verify delta synchronization and the archive move in an OpenSpec-only candidate.
