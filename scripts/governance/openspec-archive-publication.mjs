@@ -1,4 +1,4 @@
-import { acceptanceUrl, receiptIdentity } from "./openspec-acceptance-policy.mjs";
+import { acceptanceUrl, receiptIdentity, receiptIdentityMatches } from "./openspec-acceptance-policy.mjs";
 import { createSign, createHash } from "node:crypto";
 import { execFile } from "node:child_process";
 import { mkdtemp, mkdir, writeFile, rm, realpath } from "node:fs/promises";
@@ -145,7 +145,7 @@ export async function archiveAuthorityCurrent(get, repository, pull, marker) {
     return evidence.disposition === "eligible" && evidence.targetSha === marker.targetSha
       && evidence.acceptance.id === marker.acceptanceId && evidence.acceptance.bodyDigest === marker.acceptanceDigest
       && evidence.acceptance.author === marker.acceptanceAuthor && evidence.acceptance.createdAt === marker.acceptanceCreatedAt
-      && JSON.stringify(receiptIdentity(evidence.acceptance)) === JSON.stringify(marker.acceptanceReceipt ?? null)
+      && receiptIdentityMatches(marker.acceptanceReceipt ?? null, evidence.acceptance)
       && evidence.validation.runId === marker.validationRunId;
   } catch { return false; }
 }
