@@ -22,7 +22,24 @@ import {
   getOsc8LinkAtColumn as getPinnedPiTuiLinkAtColumn,
   setCapabilities as setPinnedPiTuiCapabilities,
 } from "#pi-tui";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, onTestFailed, onTestFinished, vi } from "vitest";
+import { NativeRegressionTrace } from "../../../support/native-regression-trace.js";
+import { emittedPasteHelper } from "../../../support/cold-clipboard-entries.js";
+import * as pasteExecutor from "../../../../src/integrations/pi/session-ui/paste-executor.js";
+
+let coldClipboardTrace: NativeRegressionTrace | undefined;
+// Performance: these shell fixtures exercise cold emitted workers, not source-loader startup; source-worker tests remain separate.
+vi.mock("node:worker_threads", async importOriginal => {
+  const actual = await importOriginal<typeof import("node:worker_threads")>();
+  const { coldClipboardWorker } = await import("../../../support/cold-clipboard-entries.js");
+  return { ...actual, Worker: class extends actual.Worker {
+    constructor(entry: string | URL, options?: import("node:worker_threads").WorkerOptions) {
+      const selected = coldClipboardTrace ? coldClipboardWorker(entry, options) : { entry, options, selected: false };
+      if (selected.selected) coldClipboardTrace?.event("emitted-image-worker");
+      super(selected.entry, selected.options);
+    }
+  } };
+});
 import { screenshotPng } from "../../../fixtures/image-sources.js";
 import {
   createPiEngineAdapter,
@@ -232,6 +249,31 @@ async function fixture(
   shell.start();
   shell.runtime.renderNow();
   return { engine, adapter, terminal, shell };
+}
+
+async function observedPasteFixture(clipboard: NonNullable<Parameters<typeof fixture>[4]>) {
+  const trace = new NativeRegressionTrace("shell-paste");
+  onTestFailed(() => trace.report());
+  coldClipboardTrace = trace;
+  const start = pasteExecutor.startPasteExecutor;
+  const executor = vi.spyOn(pasteExecutor, "startPasteExecutor").mockImplementation((content, signal, phase, helper) => {
+    if (helper === undefined) trace.event("emitted-paste-helper");
+    return start(content, signal, phase, helper ?? emittedPasteHelper);
+  });
+  let value: Awaited<ReturnType<typeof fixture>> | undefined;
+  let disposal: Promise<void> | undefined;
+  const dispose = () => disposal ??= value ? trace.measureAsync("dispose", () => value!.shell.dispose()) : Promise.resolve();
+  onTestFinished(async () => {
+    try { await dispose(); }
+    finally {
+      executor.mockRestore(); coldClipboardTrace = undefined;
+      if (process.env.NATIVE_REGRESSION_DIAGNOSTICS === "1") trace.report();
+    }
+  });
+  value = await trace.measureAsync("setup", () => fixture([], [], true, undefined, clipboard,
+    undefined, undefined, undefined, undefined, undefined, undefined,
+    event => trace.event(event.phase, { request: event.request, pending: event.pending })));
+  return { ...value, trace, dispose };
 }
 
 class InputImmediateScheduler {
@@ -3558,7 +3600,7 @@ describe("OwnedUiSessionShell", () => {
   it("pastes URLs and clipboard images as atomic chips and expands them for copy and submission", async () => {
     let clipboardText = "https://example.com/a/very/useful/resource";
     let clipboardImage: { readonly data: string; readonly mimeType: string } | null = null;
-    const { engine, adapter, terminal, shell } = await fixture([], [], true, undefined, {
+    const { engine, adapter, terminal, shell, trace, dispose } = await observedPasteFixture({
       readText: async () => clipboardText,
       readImage: async () => clipboardImage,
       writeText: async text => { clipboardText = text; },
@@ -3653,6 +3695,7 @@ describe("OwnedUiSessionShell", () => {
     const imageBytes = screenshotPng(16, 16, false);
     const canonicalImageData = imageBytes.toString("base64");
     clipboardImage = { data: canonicalImageData.replace(/=+$/u, ""), mimeType: "image/png" };
+    trace.event("image-requested");
     shell.root.editor.setText("");
     terminal.input("\u0016");
     const imageTag = shell.root.editor.getText();
@@ -3684,14 +3727,14 @@ describe("OwnedUiSessionShell", () => {
       images: [{ type: "image", data: canonicalImageData, mimeType: "image/png" }],
     });
 
-    await shell.dispose();
+    await dispose();
   });
 
   it("falls back to text or leaves the editor unchanged for malformed clipboard images", async () => {
     let clipboardText: string | null = "text fallback";
     const readText = vi.fn(async () => clipboardText);
     const readImage = vi.fn(async () => ({ data: "data:image/png;base64,invalid!", mimeType: "image/png" }));
-    const { engine, terminal, shell } = await fixture([], [], true, undefined, { readText, readImage });
+    const { engine, terminal, shell, dispose } = await observedPasteFixture({ readText, readImage });
 
     terminal.input("\u0016");
     await vi.waitFor(() => expect(shell.root.editor.getText()).toBe("text fallback"));
@@ -3707,7 +3750,19 @@ describe("OwnedUiSessionShell", () => {
     await shell.submit("unchanged");
     expect(engine.session.promptOptions.at(-1)).toBeUndefined();
     expect(readImage).toHaveBeenCalledTimes(2);
-    await shell.dispose();
+    await dispose();
+  });
+
+  it("disposes pending shell paste after a failed assertion without replacing the failure", async () => {
+    const { terminal, trace, dispose } = await observedPasteFixture({ readText: async () => "controlled text", readImage: async () => null });
+    const failure = new Error("controlled fixture assertion");
+    await expect((async () => {
+      try { terminal.input("\u0016"); throw failure; }
+      finally { await dispose(); }
+    })()).rejects.toBe(failure);
+    expect(trace.snapshot().entries.some(entry => entry.operation === "cleanup" && entry.pending === 0)).toBe(true);
+    await dispose();
+    expect(trace.snapshot().totals.dispose!.count).toBe(1);
   });
 
   it("extends an uninterrupted LMB drag through adjacent URL chips and their ellipses", async () => {
