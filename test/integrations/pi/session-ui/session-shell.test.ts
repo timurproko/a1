@@ -24,18 +24,20 @@ import {
 } from "#pi-tui";
 import { describe, expect, it, onTestFailed, onTestFinished, vi } from "vitest";
 import { NativeRegressionTrace } from "../../../support/native-regression-trace.js";
-import { emittedPasteHelper } from "../../../support/cold-clipboard-entries.js";
-import * as pasteExecutor from "../../../../src/integrations/pi/session-ui/paste-executor.js";
 
-let coldClipboardTrace: NativeRegressionTrace | undefined;
-// Performance: these shell fixtures exercise cold emitted workers, not source-loader startup; source-worker tests remain separate.
+// Performance: this integration file exercises real cold emitted entries; dedicated tests retain source-loader coverage.
+vi.mock("../../../../src/integrations/pi/session-ui/paste-executor.js", async importOriginal => {
+  const actual = await importOriginal<typeof import("../../../../src/integrations/pi/session-ui/paste-executor.js")>();
+  const { coldPasteHelper } = await import("../../../support/cold-clipboard-entries.js");
+  return { ...actual, startPasteExecutor: (...args: Parameters<typeof actual.startPasteExecutor>) =>
+    actual.startPasteExecutor(args[0], args[1], args[2], coldPasteHelper(args[3])) };
+});
 vi.mock("node:worker_threads", async importOriginal => {
   const actual = await importOriginal<typeof import("node:worker_threads")>();
   const { coldClipboardWorker } = await import("../../../support/cold-clipboard-entries.js");
   return { ...actual, Worker: class extends actual.Worker {
     constructor(entry: string | URL, options?: import("node:worker_threads").WorkerOptions) {
-      const selected = coldClipboardTrace ? coldClipboardWorker(entry, options) : { entry, options, selected: false };
-      if (selected.selected) coldClipboardTrace?.event("emitted-image-worker");
+      const selected = coldClipboardWorker(entry, options);
       super(selected.entry, selected.options);
     }
   } };
@@ -254,21 +256,12 @@ async function fixture(
 async function observedPasteFixture(clipboard: NonNullable<Parameters<typeof fixture>[4]>) {
   const trace = new NativeRegressionTrace("shell-paste");
   onTestFailed(() => trace.report());
-  coldClipboardTrace = trace;
-  const start = pasteExecutor.startPasteExecutor;
-  const executor = vi.spyOn(pasteExecutor, "startPasteExecutor").mockImplementation((content, signal, phase, helper) => {
-    if (helper === undefined) trace.event("emitted-paste-helper");
-    return start(content, signal, phase, helper ?? emittedPasteHelper);
-  });
   let value: Awaited<ReturnType<typeof fixture>> | undefined;
   let disposal: Promise<void> | undefined;
   const dispose = () => disposal ??= value ? trace.measureAsync("dispose", () => value!.shell.dispose()) : Promise.resolve();
   onTestFinished(async () => {
     try { await dispose(); }
-    finally {
-      executor.mockRestore(); coldClipboardTrace = undefined;
-      if (process.env.NATIVE_REGRESSION_DIAGNOSTICS === "1") trace.report();
-    }
+    finally { if (process.env.NATIVE_REGRESSION_DIAGNOSTICS === "1") trace.report(); }
   });
   value = await trace.measureAsync("setup", () => fixture([], [], true, undefined, clipboard,
     undefined, undefined, undefined, undefined, undefined, undefined,

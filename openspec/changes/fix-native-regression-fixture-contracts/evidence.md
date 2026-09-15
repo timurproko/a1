@@ -71,3 +71,28 @@ A regression verifies the private settings in both real repositories plus real o
 Typecheck, full tracked-file code-documentation, architecture/provenance, documentation governance, strict OpenSpec and whitespace checks passed. Production source, dependencies/lockfile, workflows, suite classification, existing polling/test/hook limits, baselines and rendering/input budgets remain unchanged. Build is retained as the emitted-worker precondition.
 
 The approved implementation is ready for remote validation, not accepted recovery. Mark this same PR ready before ordinary CI, dispatch the separate four-native-lane Full regression, and retain every failure. Corrected native macOS/Linux evidence, final current-head CI, maintainer acceptance/manual merge, newer numbered merged-package scheduled nightly, and archival remain pending. Do not equate local success or readiness with those outcomes.
+
+## Integration and retained exact-head failure
+
+PR #405 source `2d0dd1503edda48f8ad18075256c45b0fb59e177` passed ordinary Development validation [34940561264](https://github.com/timurproko/a1/actions/runs/34940561264). The PR was then manually merged as `2d992336c48790fb2f793883816905c9db2ec5e7` on 2026-09-15. Auto-merge remained disabled, but no exact-head `openspec-acceptance` record or successful all-lane Full regression preceded that merge; do not infer either from integration.
+
+Full regression [34940561468](https://github.com/timurproko/a1/actions/runs/34940561468) retained these final outcomes:
+
+| Lane / job | Outcome |
+| --- | --- |
+| Full documentation review / `104288063332` | Passed. |
+| Linux Node 24 / `104288161266` | Passed: 3296 tests, 9 skipped. The corrected 12 predecessor cwd, 10 source acquisition, 6 emitted clipboard, 24 executor, and 5 lifecycle tests all executed and passed. |
+| macOS Node 24 / `104288161283` | Passed: 3296 tests, 9 skipped. The corrected 12-case predecessor cwd file executed and passed. |
+| Windows Node 24 / `104288161306` | Passed. |
+| Windows Node 22 / `104288161345` | Failed: 4 session-shell tests; 3291 tests passed and 10 skipped. |
+
+The prior Windows release owner passed in this contended lane: the development patch/manual-gates case completed in 6381 ms under its unchanged 20000 ms limit. The two originally named Windows shell owners also passed in 657 ms and 453 ms. The four newly exposed shell failures were:
+
+- large text through right-click retained its generic provisional screenshot marker rather than applying the expected 136-line text chip;
+- second-first image ordering retained pending state for the second image;
+- restored waiting intent still reported `image-pending` after release;
+- real-image rejection/retry retained pending state.
+
+All four occur earlier in `session-shell.test.ts`, outside this change's two-case emitted-entry selection. The screenshot-shaped marker is reserved before acquisition classification and therefore does not prove host-image acquisition or text misclassification. The combined evidence demonstrates that the fixture correction was too narrowly selected: other cases retained test-only TypeScript helper/worker startup under Windows Node 22 contention. It does not establish a production shell defect.
+
+Tasks 2.2, 3.1, 3.2 and 5.2 are complete from the exact native/current-head evidence. Task 5.3 remains failed and incomplete; acceptance, scheduled numbered-package nightly, reconciliation and archive tasks remain blocked. The corrective change `fix-session-shell-native-fixture-isolation` and draft PR #407 track immutable file-wide emitted-entry fixture selection. #405's worktree remains retained, and its premature merge must receive explicit final disposition after combined recovery rather than fabricated pre-merge acceptance.
