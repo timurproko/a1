@@ -187,4 +187,10 @@ Exact-head Development run `34952714328` at `aee8194e...` is retained in `eviden
 
 The follow-up adds the expected sensitive owner, exports the debug guardian path only from cells that actually build it, and gives full-only promotions their own independent Windows Node 24 cell. No timeout, retry, startup budget, workload, oracle, or owner was weakened. This attempt remains failed evidence and is not accepted timing.
 
+## Failed final CI attempt 34955307726
+
+Exact-head run `34955307726` at `ac387550...` passed fast (3m45s), resource-sensitive (3m28s), startup (6m29s), package contracts (5m32s), compatibility (1m57s), Linux (1m32s), macOS (1m35s), promoted full-only owners (10m11s), rendering, naming, and documentation. Pi failed only because `package-surface.test.ts` candidate extraction exceeded its unchanged 10s `beforeAll` hook after the complete session-resume file had run in the same Vitest process; session-resume and every preceding Pi gate passed. `evidence/development-34955307726-failed.json` retains outcomes and identities.
+
+The follow-up gives each package-smoke file its own zero-retry 120s invocation. This preserves each file's hooks and assertions, exact candidate, serialization, and timeout while preventing one file's processes/cleanup from contaminating the next file's setup. Startup product budgets passed, but 6m29s job feedback missed the under-five-minute goal because clean installation alone remained about two minutes; this is explicit, not accepted as goal attainment.
+
 `evidence/package-owner-migration.json` maps all seven baseline scenarios to successor files/owners and records exact structural limits, target declarations, full-plan package invocations, and the temporary scheduling limitation. Task 1.2 remains incomplete until the full repository before/after platform/runtime ledger covers every successor owner, not just package and fast migrations.

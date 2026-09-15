@@ -1,0 +1,285 @@
+{
+  "schema": "a1-development-validation-attempt-v1",
+  "run": {
+    "id": 34955307726,
+    "head": "ac3875507afca6f8f1110a2e98b846fe44667b14",
+    "event": "workflow_dispatch",
+    "status": "completed",
+    "conclusion": "failure",
+    "createdAt": "2026-09-15T09:57:27Z",
+    "updatedAt": "2026-09-15T10:08:13Z",
+    "url": "https://github.com/timurproko/a1/actions/runs/34955307726"
+  },
+  "selection": {
+    "base": "d5d7c1b100158e9d0efdb44f0490ced2ee4ea266",
+    "head": "ac3875507afca6f8f1110a2e98b846fe44667b14",
+    "mode": "conservative",
+    "selectionId": "ff3c823fb4342f4feb0cbdd3013488848b11bf65823fe4ed237ba0e71ebfec67",
+    "fallback": "manual-no-comparison",
+    "selectedOwners": [
+      "history-compatibility",
+      "image-compatibility",
+      "launch-integration",
+      "package-contracts",
+      "pi-release-resume",
+      "startup",
+      "structured-runtime",
+      "unix-containment",
+      "update-performance",
+      "update-predecessor"
+    ]
+  },
+  "outcomes": [
+    {
+      "job": "compatibility",
+      "target": "win32/x64/node22",
+      "passed": true,
+      "runnerMs": 102938,
+      "gates": [
+        {
+          "id": "candidate-build",
+          "durationMs": 0,
+          "exitCode": 0
+        },
+        {
+          "id": "vitest-explicit",
+          "durationMs": 16225,
+          "exitCode": 0
+        }
+      ]
+    },
+    {
+      "job": "containment",
+      "target": "linux/x64/node24",
+      "passed": true,
+      "runnerMs": 83879,
+      "gates": [
+        {
+          "id": "candidate-build",
+          "durationMs": 0,
+          "exitCode": 0
+        },
+        {
+          "id": "candidate-pack",
+          "durationMs": 1264,
+          "exitCode": 0
+        },
+        {
+          "id": "vitest-explicit",
+          "durationMs": 15843,
+          "exitCode": 0
+        },
+        {
+          "id": "vitest-isolated-timing",
+          "durationMs": 25420,
+          "exitCode": 0
+        }
+      ]
+    },
+    {
+      "job": "containment",
+      "target": "darwin/arm64/node24",
+      "passed": true,
+      "runnerMs": 85206,
+      "gates": [
+        {
+          "id": "candidate-build",
+          "durationMs": 0,
+          "exitCode": 0
+        },
+        {
+          "id": "candidate-pack",
+          "durationMs": 1233,
+          "exitCode": 0
+        },
+        {
+          "id": "vitest-explicit",
+          "durationMs": 18379,
+          "exitCode": 0
+        },
+        {
+          "id": "vitest-isolated-timing",
+          "durationMs": 25538,
+          "exitCode": 0
+        }
+      ]
+    },
+    {
+      "job": "fast",
+      "target": "win32/x64/node24",
+      "passed": true,
+      "runnerMs": 214617,
+      "gates": [
+        {
+          "id": "candidate-build",
+          "durationMs": 0,
+          "exitCode": 0
+        },
+        {
+          "id": "typecheck",
+          "durationMs": 2350,
+          "exitCode": 0
+        },
+        {
+          "id": "architecture",
+          "durationMs": 1174,
+          "exitCode": 0
+        },
+        {
+          "id": "vitest-fast",
+          "durationMs": 137021,
+          "exitCode": 0
+        },
+        {
+          "id": "vitest-explicit",
+          "durationMs": 10104,
+          "exitCode": 0
+        }
+      ]
+    },
+    {
+      "job": "package",
+      "target": "win32/x64/node22",
+      "passed": true,
+      "runnerMs": 321516,
+      "gates": [
+        {
+          "id": "candidate-build",
+          "durationMs": 0,
+          "exitCode": 0
+        },
+        {
+          "id": "candidate-pack",
+          "durationMs": 19975,
+          "exitCode": 0
+        },
+        {
+          "id": "vitest-package-contracts",
+          "durationMs": 186972,
+          "exitCode": 0
+        }
+      ]
+    },
+    {
+      "job": "pi",
+      "target": "win32/x64/node24",
+      "passed": false,
+      "runnerMs": 335734,
+      "gates": [
+        {
+          "id": "candidate-build",
+          "durationMs": 0,
+          "exitCode": 0
+        },
+        {
+          "id": "candidate-pack",
+          "durationMs": 2038,
+          "exitCode": 0
+        },
+        {
+          "id": "candidate-engine-conformance-report",
+          "durationMs": 942,
+          "exitCode": 0
+        },
+        {
+          "id": "vitest-explicit",
+          "durationMs": 68329,
+          "exitCode": 0
+        },
+        {
+          "id": "vitest-isolated-timing",
+          "durationMs": 88089,
+          "exitCode": 1
+        }
+      ]
+    },
+    {
+      "job": "promoted",
+      "target": "win32/x64/node24",
+      "passed": true,
+      "runnerMs": 597713,
+      "gates": [
+        {
+          "id": "candidate-build",
+          "durationMs": 0,
+          "exitCode": 0
+        },
+        {
+          "id": "candidate-pack",
+          "durationMs": 2709,
+          "exitCode": 0
+        },
+        {
+          "id": "vitest-explicit",
+          "durationMs": 503816,
+          "exitCode": 0
+        },
+        {
+          "id": "vitest-isolated-timing",
+          "durationMs": 19137,
+          "exitCode": 0
+        }
+      ]
+    },
+    {
+      "job": "resource",
+      "target": "win32/x64/node24",
+      "passed": true,
+      "runnerMs": 196168,
+      "gates": [
+        {
+          "id": "vitest-fast-resource-sensitive",
+          "durationMs": 160748,
+          "exitCode": 0
+        }
+      ]
+    },
+    {
+      "job": "startup",
+      "target": "win32/x64/node22",
+      "passed": true,
+      "runnerMs": 373100,
+      "gates": [
+        {
+          "id": "candidate-build",
+          "durationMs": 0,
+          "exitCode": 0
+        },
+        {
+          "id": "candidate-pack",
+          "durationMs": 19794,
+          "exitCode": 0
+        },
+        {
+          "id": "vitest-package-startup",
+          "durationMs": 251012,
+          "exitCode": 0
+        }
+      ]
+    }
+  ],
+  "passedCells": [
+    "fast",
+    "resource",
+    "startup",
+    "package",
+    "compatibility",
+    "containment-linux",
+    "containment-darwin",
+    "promoted",
+    "rendering",
+    "naming",
+    "documentation"
+  ],
+  "failure": {
+    "scope": "pi",
+    "detail": "package-surface beforeAll extraction exceeded its unchanged 10000ms hook while scheduled after the complete session-resume file in the same Vitest process; session-resume and all prior Pi gates passed"
+  },
+  "followUp": "Run each package-smoke file in its own zero-retry 120000ms invocation, preserving per-test hooks and assertions while preventing cross-file process/cleanup contamination.",
+  "goals": {
+    "ordinaryJobMs": 225000,
+    "startupJobMs": 389000,
+    "startupGoalMet": false
+  },
+  "acceptance": "failed attempt retained"
+}
