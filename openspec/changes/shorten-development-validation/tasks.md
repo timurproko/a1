@@ -8,9 +8,9 @@
 ## 2. Conservative impact selection
 
 - [x] 2.1 Define and validate versioned integration selections with base/head and selection identity, selected owners, platform/runtime applicability, reasons, and explicit exclusions; verify malformed or incomplete selections cannot authorize skips.
-- [ ] 2.2 Implement batched base/head dependency traversal and reviewed edges/invalidators for dynamic imports, subprocesses, workers, assets, package resolution, emitted-source mapping, and native/build inputs; verify direct/transitive and deleted/renamed/copied dependency fixtures select all affected owners.
-- [ ] 2.3 Promote changed tests and shared support to their retained owners, including owners normally outside PR validation; verify test-only changes, unknown ownership, and deleted support cannot evade current-head execution.
-- [ ] 2.4 Add bounded conservative fallback and manual-dispatch behavior; verify classifier errors, unavailable comparison history, unsupported syntax, unknown operational inputs, and policy changes select all applicable integration or block rather than yield empty success.
+- [x] 2.2 Implement batched base/head dependency traversal and reviewed edges/invalidators for dynamic imports, subprocesses, workers, assets, package resolution, emitted-source mapping, and native/build inputs; verify direct/transitive and deleted/renamed/copied dependency fixtures select all affected owners.
+- [x] 2.3 Promote changed tests and shared support to their retained owners, including owners normally outside PR validation; verify test-only changes, unknown ownership, and deleted support cannot evade current-head execution.
+- [x] 2.4 Add bounded conservative fallback and manual-dispatch behavior; verify classifier errors, unavailable comparison history, unsupported syntax, unknown operational inputs, and policy changes select all applicable integration or block rather than yield empty success.
 - [ ] 2.5 Replay representative historical changes and synthetic unrelated/startup/image/history/native/validation-policy changes; verify expected scope reasons and preserved documentation/version/draft exemptions in a recorded selection report.
 
 ## 3. Suite decomposition without lost coverage
