@@ -39,9 +39,9 @@
 ## 6. CI and performance verification
 
 - [x] 6.1 Pass strict OpenSpec validation and applicable required current-head PR CI, including all scopes conservatively selected by this change's workflow/config edits; record exact run/head/results and verify no failed check is concealed by the optimization.
-- [ ] 6.2 Pass manual Full regression for the exact candidate on Windows Node 22/24, Linux Node 24, and macOS Node 24; record artifacts proving all retained scenarios, first-attempt startup budgets, and unchanged release-composition policy tests without publishing a package.
+- [x] 6.2 Pass manual Full regression for the exact candidate on Windows Node 22/24, Linux Node 24, and macOS Node 24; record artifacts proving all retained scenarios, first-attempt startup budgets, and unchanged release-composition policy tests without publishing a package.
 - [ ] 6.3 Collect at least three independent first-attempt CI observations for each representative unrelated, startup-sensitive, and conservative-full class plus a cold-cache control; verify recorded base/head/selection identities, all attempts, before/after medians/ranges, critical-path time, and runner-cost changes without retry-until-green acceptance.
-- [ ] 6.4 Publish an evidence summary comparing actual results with the 2–3-minute ordinary and under-five-minute startup-sensitive goals; verify unmet goals, deferred-cleanup observations, selection limitations, and any increased runner cost are explicit rather than treated as completed performance claims.
+- [x] 6.4 Publish an evidence summary comparing actual results with the 2–3-minute ordinary and under-five-minute startup-sensitive goals; verify unmet goals, deferred-cleanup observations, selection limitations, and any increased runner cost are explicit rather than treated as completed performance claims.
 
 ## 7. Maintainer review and acceptance
 
