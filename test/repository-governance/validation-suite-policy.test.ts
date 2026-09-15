@@ -113,6 +113,7 @@ describe("validation suite ownership", () => {
       "test/integrations/pi/session-ui/command-message-parity.test.ts",
       "test/integrations/pi/session-ui/command-outcome-parity.test.ts",
       "test/integrations/pi/session-ui/session-shell.test.ts",
+      "test/foundation/release/update-activation.test.ts",
     ]);
     expect(Object.keys(suites.tiers["fast"]!).filter(key => key.toLowerCase().includes("timeout"))).toEqual([]);
     expect(suites.scopes["fast-remainder"]!.exclude).toContain("test/repository-governance/release-command.test.ts");

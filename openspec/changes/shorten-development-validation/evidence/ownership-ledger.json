@@ -5,7 +5,7 @@
   "inputs": [
     {
       "path": "config/validation-suites.json",
-      "sha256": "2144db8b8b6efd45a5d1b86c0ff0b8fa06319e5590313c9c3ab3b1046dd55b3a"
+      "sha256": "d2af63b3dd8ad125fd170881e52a7e6f72bd7020d99f302ed03c2619500692fe"
     },
     {
       "path": "config/integration-owners.json",
@@ -2309,7 +2309,7 @@
       "path": "test/foundation/release/update-activation.test.ts",
       "pr": [
         {
-          "scope": "fast-remainder",
+          "scope": "fast-resource-sensitive",
           "platform": "win32",
           "architecture": "x64",
           "node": 24

@@ -25,6 +25,7 @@ const resourceSensitiveTests = [
   "test/integrations/pi/session-ui/command-message-parity.test.ts",
   "test/integrations/pi/session-ui/command-outcome-parity.test.ts",
   "test/integrations/pi/session-ui/session-shell.test.ts",
+  "test/foundation/release/update-activation.test.ts",
 ];
 
 function invocation(plan: Awaited<ReturnType<typeof createTierPlan>>, id: string) {
