@@ -98,11 +98,11 @@ async function processPullRequest(number, run) {
       // Concurrency: generated archives are never pre-armed against a base that may advance during CI.
       await disableIfArmed(pull, "generated archive requires fresh head and base validation");
       if (archive.generatedHead !== pull.head.sha || validation !== "success") {
-        return await summary(`PR #${number}: archive waiting for matching current-head validation.`);
+        return await summary(`PR #${number}: archive waiting for current-head CI; automatic protected integration will resume from its completion event.`);
       }
       const target = await rest(`/repos/${owner}/${repository}/git/ref/heads/develop`);
-      if (target.object?.sha !== archive.targetSha) return await summary(`PR #${number}: archive base advanced; regenerate before integration.`);
-      if (!await archiveAuthorityCurrent(rest, repositoryName, pull, archive)) return await summary(`PR #${number}: archive acceptance or committed metadata changed; deferred.`);
+      if (target.object?.sha !== archive.targetSha) return await summary(`PR #${number}: archive base advanced; regeneration is required before automatic integration.`);
+      if (!await archiveAuthorityCurrent(rest, repositoryName, pull, archive)) return await summary(`PR #${number}: archive authority changed; automatic integration deferred.`);
     }
     const action = planDocumentationAutoMerge({
       validation,
@@ -111,7 +111,7 @@ async function processPullRequest(number, run) {
       mergeable: pull.mergeable,
     });
     if (action === "merge") return await mergeValidatedHead(pull, archive?.targetSha);
-    if (archive) return await summary(`PR #${number}: archive waiting for positive mergeability; auto-merge remains unarmed.`);
+    if (archive) return await summary(`PR #${number}: archive waiting for positive mergeability; automatic protected integration remains pending without native pre-arming.`);
     if (validation === "failure") {
       return await summary(`PR #${number}: current-head Development validation failed; no integration.`);
     }

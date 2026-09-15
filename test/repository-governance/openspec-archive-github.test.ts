@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { createArchiveReader, loadArchiveEvidence } from "../../scripts/governance/openspec-archive-github.mjs";
 import { discoverArchiveCheckpoint, reconcileArchives, validateArchiveCandidate } from "../../scripts/governance/reconcile-openspec-archive.mjs";
 import { archiveFailure, archivePaths } from "../../scripts/governance/openspec-archive-policy.mjs";
-import { archiveAuthorityCurrent, archiveMarker } from "../../scripts/governance/openspec-archive-publication.mjs";
+import { archiveAuthorityCurrent, archiveMarker, memoizeArchiveAuthorityGet } from "../../scripts/governance/openspec-archive-publication.mjs";
 import { advanceArchiveCheckpoint, newArchiveCheckpoint, scanArchiveCandidates, validateArchiveCheckpoint } from "../../scripts/governance/openspec-archive-scan.mjs";
 
 function fixture() {
@@ -224,6 +224,20 @@ describe("archive orchestration and current authority", () => {
     expect(report.results).toMatchObject([{ disposition: "accepted-archive-blocked", reason: "archive-validation-failed", archivePr: 50 }]);
   });
 
+  it("deduplicates concurrent immutable authority reads within one decision", async () => {
+    const calls: string[] = [];
+    const get = memoizeArchiveAuthorityGet(async path => {
+      calls.push(path);
+      await new Promise(resolve => setTimeout(resolve, 1));
+      return { path };
+    });
+    const [first, second] = await Promise.all([get("/source"), get("/source")]);
+    expect(first).toBe(second);
+    expect(calls).toEqual(["/source"]);
+    await get("/other");
+    expect(calls).toEqual(["/source", "/other"]);
+  });
+
   it("rechecks committed metadata, current acceptance bytes and maintainer permissions", async () => {
     const f = fixture(); const head = "e".repeat(40);
     const evidence = await loadArchiveEvidence(f.reader, 20);
@@ -231,7 +245,9 @@ describe("archive orchestration and current authority", () => {
     f.routes[`${f.prefix}/git/commits/${head}`] = { message: `\`\`\`openspec-archive\n${JSON.stringify(marker)}\n\`\`\``, parents: [{ sha: f.target }] };
     f.routes[`${f.prefix}/issues/comments/99`] = f.comment;
     const check = () => archiveAuthorityCurrent(f.reader.get, "owner/repo", { head: { sha: head } }, { ...marker, generatedHead: head });
+    f.requests.length = 0;
     expect(await check()).toBe(true);
+    expect(f.requests.filter(request => request.path === `${f.prefix}/pulls/20`)).toHaveLength(1);
     f.routes[`${f.prefix}/collaborators/reviewer/permission`] = { permission: "read" };
     expect(await check()).toBe(false);
     f.routes[`${f.prefix}/collaborators/reviewer/permission`] = { permission: "write" };

@@ -4,4 +4,5 @@ export function archiveMarker(evidence: any, candidate: any): any;
 export function readArchiveMarker(body: string): any;
 export function publishArchive(options: any): Promise<any>;
 export function archivePullBody(repository: string, marker: any): string;
+export function memoizeArchiveAuthorityGet(get: (path: string) => Promise<any>): (path: string) => Promise<any>;
 export function archiveAuthorityCurrent(get: (path: string) => Promise<any>, repository: string, pull: any, marker: any): Promise<boolean>;

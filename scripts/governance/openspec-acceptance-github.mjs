@@ -7,6 +7,26 @@ import { ACCEPTANCE_ROOT, acceptancePath, acceptanceBranch, acceptanceBytes, acc
 import { acceptanceChecklistDigest, acceptancePullTitle, parseImplementationAcceptanceChecks,
   verifyAcceptancePullBody } from "./openspec-acceptance-checklist.mjs";
 
+export async function mapWithConcurrency(items, limit, operation) {
+  requireAcceptance(Array.isArray(items) && Number.isInteger(limit) && limit > 0 && typeof operation === "function",
+    "acceptance-evidence-concurrency");
+  const results = new Array(items.length);
+  const failures = new Array(items.length);
+  let next = 0;
+  async function worker() {
+    while (next < items.length) {
+      const index = next;
+      next += 1;
+      try { results[index] = await operation(items[index], index); }
+      catch (error) { failures[index] = { error }; }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, () => worker()));
+  const failure = failures.find(item => item !== undefined);
+  if (failure) throw failure.error;
+  return results;
+}
+
 async function sourceMaterials(reader, source) {
   const snapshot = await snapshotOpenSpec(reader, source.pull.head.sha);
   const merged = await snapshotOpenSpec(reader, source.pull.merge_commit_sha);
@@ -65,7 +85,7 @@ export async function verifyAcceptanceRecord(reader, record, source, { requireCo
   await reader.ancestor(record.specBaseSha, source.pull.head.sha);
   const references = [...record.review.evidence.map(item => ({ ...item, task: false })),
     ...record.tasks.flatMap(task => task.evidence.map(item => ({ ...item, task: task.completion === "evidenced" })))];
-  for (const reference of references) {
+  await mapWithConcurrency(references, 6, async reference => {
     const route = reference.url.slice(`https://github.com/${reader.repository}/`.length);
     let match;
     if ((match = /^blob\/([a-f0-9]{40})\/(.+)$/.exec(route))) {
@@ -84,7 +104,7 @@ export async function verifyAcceptanceRecord(reader, record, source, { requireCo
           && comment.created_at === comment.updated_at, "acceptance-evidence-stale");
       }
     } else throw archiveFailure("acceptance-evidence-reference");
-  }
+  });
   if (requireComplete) {
     const blockers = acceptanceBlockers(record);
     if (blockers.length) throw archiveFailure("acceptance-incomplete", blockers.join(","));

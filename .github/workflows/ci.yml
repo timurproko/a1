@@ -17,9 +17,13 @@ jobs:
   changes:
     name: Detect change surface
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    permissions:
+      contents: read
+      pull-requests: read
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     outputs:
+      acceptance-only: ${{ steps.route.outputs.acceptance_only || 'false' }}
       docs-only: ${{ steps.selection.outputs.docs_only }}
       version-only: ${{ steps.selection.outputs.version_only }}
       openspec-touched: ${{ steps.selection.outputs.openspec_touched }}
@@ -27,9 +31,35 @@ jobs:
       documentation-required: ${{ steps.selection.outputs.documentation_required }}
       naming-required: ${{ steps.selection.outputs.naming_required }}
       naming-mode: ${{ steps.selection.outputs.naming_mode }}
-      head-sha: ${{ steps.selection.outputs.head_sha }}
+      head-sha: ${{ steps.route.outputs.acceptance_only == 'true' && steps.route.outputs.head_sha || steps.selection.outputs.head_sha }}
     steps:
+      - name: Route exact acceptance candidate from trusted base
+        id: route
+        if: github.event_name == 'pull_request'
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          router="$RUNNER_TEMP/acceptance-validation-route.mjs"
+          url="$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/contents/scripts/governance/acceptance-validation-route.mjs?ref=$BASE_SHA"
+          if curl --silent --show-error --fail --location \
+            --header "authorization: Bearer $GITHUB_TOKEN" \
+            --header "accept: application/vnd.github.raw+json" \
+            --header "x-github-api-version: 2022-11-28" \
+            "$url" > "$router"; then
+            node "$router"
+          else
+            echo "::notice::Trusted acceptance router is unavailable at base $BASE_SHA; using generic validation."
+            echo "acceptance_only=false" >> "$GITHUB_OUTPUT"
+            echo "head_sha=$EXPECTED_HEAD" >> "$GITHUB_OUTPUT"
+            echo "route_reason=trusted-router-unavailable" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Check out head
+        if: steps.route.outputs.acceptance_only != 'true'
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -37,16 +67,19 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
+        if: steps.route.outputs.acceptance_only != 'true'
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: 24
           cache: npm
 
       - name: Install exact analysis dependencies
+        if: steps.route.outputs.acceptance_only != 'true'
         run: npm ci --ignore-scripts
 
       - name: Select validation from the complete impact
         id: selection
+        if: steps.route.outputs.acceptance_only != 'true'
         shell: bash
         env:
           EVENT_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
@@ -84,6 +117,7 @@ jobs:
           NODE
 
       - name: Upload exact impact selection
+        if: steps.route.outputs.acceptance_only != 'true'
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: development-validation-impact
@@ -101,6 +135,8 @@ jobs:
       actions: read
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    outputs:
+      acceptance-candidate: ${{ steps.validation.outputs.acceptance_candidate || 'false' }}
     steps:
       - name: Check out trusted base policy only
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
@@ -121,12 +157,21 @@ jobs:
             echo 'Acceptance policy is not deployed on this trusted base; this is not acceptance evidence.' >> "$GITHUB_STEP_SUMMARY"
           fi
       - name: Validate acceptance record using trusted policy
+        id: validation
         if: steps.policy.outputs.installed == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ACCEPTANCE_PR_NUMBER: ${{ github.event.pull_request.number }}
         shell: bash
-        run: node scripts/governance/reconcile-openspec-archive.mjs --validate-acceptance --pr "$ACCEPTANCE_PR_NUMBER"
+        run: |
+          result="$RUNNER_TEMP/acceptance-validation.json"
+          node scripts/governance/reconcile-openspec-archive.mjs --validate-acceptance --pr "$ACCEPTANCE_PR_NUMBER" > "$result"
+          cat "$result"
+          RESULT_PATH="$result" node --input-type=module <<'NODE' >> "$GITHUB_OUTPUT"
+          import { readFile } from "node:fs/promises";
+          const value = JSON.parse(await readFile(process.env.RESULT_PATH, "utf8"));
+          console.log(`acceptance_candidate=${value.disposition === "awaiting-manual-acceptance-merge"}`);
+          NODE
 
   docs:
     name: Documentation governance validation
@@ -135,7 +180,7 @@ jobs:
       pull-requests: read
       actions: read
     needs: changes
-    if: needs.changes.outputs.docs-only == 'true'
+    if: needs.changes.outputs.acceptance-only != 'true' && needs.changes.outputs.docs-only == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -168,7 +213,7 @@ jobs:
   naming:
     name: Internal naming validation
     needs: changes
-    if: needs.changes.outputs.naming-required == 'true'
+    if: needs.changes.outputs.acceptance-only != 'true' && needs.changes.outputs.naming-required == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     outputs:
@@ -216,7 +261,7 @@ jobs:
   documentation:
     name: Changed-file documentation validation
     needs: changes
-    if: needs.changes.outputs.docs-only != 'true' && needs.changes.outputs.version-only != 'true' && needs.changes.outputs.documentation-required == 'true'
+    if: needs.changes.outputs.acceptance-only != 'true' && needs.changes.outputs.docs-only != 'true' && needs.changes.outputs.version-only != 'true' && needs.changes.outputs.documentation-required == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -261,7 +306,7 @@ jobs:
   validate:
     name: Fast validation
     needs: changes
-    if: needs.changes.outputs.docs-only != 'true' && needs.changes.outputs.version-only != 'true'
+    if: needs.changes.outputs.acceptance-only != 'true' && needs.changes.outputs.docs-only != 'true' && needs.changes.outputs.version-only != 'true'
     runs-on: windows-2025
     timeout-minutes: 20
     steps:
@@ -332,7 +377,7 @@ jobs:
   startup:
     name: Startup budget (windows-node${{ matrix.node }})
     needs: changes
-    if: needs.changes.outputs.docs-only != 'true' && needs.changes.outputs.version-only != 'true'
+    if: needs.changes.outputs.acceptance-only != 'true' && needs.changes.outputs.docs-only != 'true' && needs.changes.outputs.version-only != 'true'
     strategy:
       fail-fast: false
       max-parallel: 1
@@ -393,7 +438,7 @@ jobs:
   rendering:
     name: Rendering validation
     needs: changes
-    if: needs.changes.outputs.docs-only != 'true' && needs.changes.outputs.version-only != 'true' && needs.changes.outputs.rendering-tier != 'none'
+    if: needs.changes.outputs.acceptance-only != 'true' && needs.changes.outputs.docs-only != 'true' && needs.changes.outputs.version-only != 'true' && needs.changes.outputs.rendering-tier != 'none'
     runs-on: windows-2025
     timeout-minutes: 20
     steps:
@@ -447,7 +492,7 @@ jobs:
   containment:
     name: Process containment (${{ matrix.os }})
     needs: changes
-    if: needs.changes.outputs.docs-only != 'true' && needs.changes.outputs.version-only != 'true'
+    if: needs.changes.outputs.acceptance-only != 'true' && needs.changes.outputs.docs-only != 'true' && needs.changes.outputs.version-only != 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -517,6 +562,9 @@ jobs:
         run: test "$ACCEPTANCE_RESULT" = 'success'
       - name: Require current impact-selected validation
         env:
+          ACCEPTANCE_ONLY: ${{ needs.changes.outputs.acceptance-only }}
+          ACCEPTANCE_CANDIDATE: ${{ needs.acceptance.outputs.acceptance-candidate }}
+          ACCEPTANCE_RESULT: ${{ needs.acceptance.result }}
           CHANGES_RESULT: ${{ needs.changes.result }}
           DOCS_RESULT: ${{ needs.docs.result }}
           NAMING_RESULT: ${{ needs.naming.result }}
