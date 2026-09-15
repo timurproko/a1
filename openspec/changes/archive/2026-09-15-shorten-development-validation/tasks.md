@@ -45,5 +45,5 @@
 
 ## 7. Maintainer review and acceptance
 
-- [ ] 7.1 Provide the exact final candidate and focused non-UI inspection/test commands, then record actual maintainer review of selection, preserved coverage, cache/fixture boundaries, rollback, and measured trade-offs; verify review evidence belongs to the final implementation head and is not inferred from CI.
-- [ ] 7.2 Obtain and record explicit final acceptance and separate manual merge authorization, resolving any unmet timing goals or known gaps deliberately; verify the authorized final-head acceptance comment and completed substantive tasks before any archive follow-up.
+- [x] 7.1 Provide the exact final candidate and focused non-UI inspection/test commands, then record actual maintainer review of selection, preserved coverage, cache/fixture boundaries, rollback, and measured trade-offs; verify review evidence belongs to the final implementation head and is not inferred from CI.
+- [x] 7.2 Obtain and record explicit final acceptance and separate manual merge authorization, resolving any unmet timing goals or known gaps deliberately; verify the authorized final-head acceptance comment and completed substantive tasks before any archive follow-up.
