@@ -1,13 +1,18 @@
 {
-  "version": 1,
+  "version": 2,
   "repository": "timurproko/a1",
   "change": "fix-predecessor-worker-responsiveness",
   "sourcePr": 402,
   "sourceHead": "58627bb20a5b18c9b0546a23eeea6dde2f76bd05",
   "sourceMerge": "d5d7c1b100158e9d0efdb44f0490ced2ee4ea266",
-  "sourceBodyDigest": "3028b5abc3956f1b7fe0b5045ae58fd5dfac1729cf8a4cb7e595b71ca224de25",
+  "sourceBodyDigest": "8b7d54a2a0db60bacdba6572b58e1badb067628908d471c5e5d6af0a61d1c7e5",
   "artifactDigest": "e5f3270fc388f6195610c6b7c68f374e14d761240ad3ab461d4a2ea73a664e89",
   "specBaseSha": "586c48f8cda30ad89358a16160528746b4446253",
+  "acceptanceChecks": [
+    "Predecessor subprocess commands complete asynchronously, preserve child event processing, and drain bounded output before success.",
+    "Cancelling or tearing down predecessor verification closes owned children before installation removal while preserving primary errors and unrelated processes.",
+    "Published predecessor compatibility and COPY_CURRENT transcript behavior retain their recorded expected outcomes."
+  ],
   "validation": {
     "runId": 34880028901,
     "headSha": "58627bb20a5b18c9b0546a23eeea6dde2f76bd05",
