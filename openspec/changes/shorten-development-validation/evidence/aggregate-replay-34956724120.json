@@ -1,0 +1,133 @@
+{
+  "schema": "a1-development-validation-aggregate-replay-v1",
+  "implementationState": "uncommitted aggregate directory fix after head 9ea7e421",
+  "sourceArtifacts": "all nine semantic outcome artifacts from run 34956724120",
+  "result": "passed",
+  "aggregate": {
+    "schema": "a1-development-validation-aggregate-v1",
+    "mode": "conservative",
+    "selectionId": "bb508ad851233ae7b5dd4250b49674d9273d7274b2effff75eec6e7ffacd05e2",
+    "selectedOwners": [
+      "history-compatibility",
+      "image-compatibility",
+      "launch-integration",
+      "package-contracts",
+      "pi-release-resume",
+      "startup",
+      "structured-runtime",
+      "unix-containment",
+      "update-performance",
+      "update-predecessor"
+    ],
+    "evidenceCount": 9,
+    "head": "9ea7e421e3730bb502871780d6e601d3c6948b6b",
+    "runId": "34956724120",
+    "runAttempt": 1,
+    "classifierMs": 378,
+    "criticalPathMs": 807217,
+    "runnerMs": 2577263,
+    "availableQueueMs": null,
+    "availableQueueReason": "GitHub job availability timestamp is not exposed inside the runner",
+    "jobs": [
+      {
+        "job": "compatibility",
+        "platform": "win32",
+        "architecture": "x64",
+        "node": 22,
+        "setupMs": 72433,
+        "gateMs": 15567,
+        "runnerMs": 88000,
+        "invocations": 2,
+        "cacheState": "setup-node-download-cache"
+      },
+      {
+        "job": "containment",
+        "platform": "darwin",
+        "architecture": "arm64",
+        "node": 24,
+        "setupMs": 43386,
+        "gateMs": 50291,
+        "runnerMs": 93677,
+        "invocations": 5,
+        "cacheState": "setup-node-download-cache"
+      },
+      {
+        "job": "containment",
+        "platform": "linux",
+        "architecture": "x64",
+        "node": 24,
+        "setupMs": 41073,
+        "gateMs": 44080,
+        "runnerMs": 85153,
+        "invocations": 5,
+        "cacheState": "setup-node-download-cache"
+      },
+      {
+        "job": "fast",
+        "platform": "win32",
+        "architecture": "x64",
+        "node": 24,
+        "setupMs": 75512,
+        "gateMs": 220097,
+        "runnerMs": 295609,
+        "invocations": 5,
+        "cacheState": "setup-node-download-cache"
+      },
+      {
+        "job": "package",
+        "platform": "win32",
+        "architecture": "x64",
+        "node": 22,
+        "setupMs": 160999,
+        "gateMs": 269296,
+        "runnerMs": 430295,
+        "invocations": 3,
+        "cacheState": "setup-node-download-cache"
+      },
+      {
+        "job": "pi",
+        "platform": "win32",
+        "architecture": "x64",
+        "node": 24,
+        "setupMs": 110853,
+        "gateMs": 177745,
+        "runnerMs": 288598,
+        "invocations": 6,
+        "cacheState": "setup-node-download-cache"
+      },
+      {
+        "job": "promoted",
+        "platform": "win32",
+        "architecture": "x64",
+        "node": 24,
+        "setupMs": 78065,
+        "gateMs": 729152,
+        "runnerMs": 807217,
+        "invocations": 4,
+        "cacheState": "setup-node-download-cache"
+      },
+      {
+        "job": "resource",
+        "platform": "win32",
+        "architecture": "x64",
+        "node": 24,
+        "setupMs": 31752,
+        "gateMs": 153783,
+        "runnerMs": 185535,
+        "invocations": 1,
+        "cacheState": "setup-node-download-cache"
+      },
+      {
+        "job": "startup",
+        "platform": "win32",
+        "architecture": "x64",
+        "node": 22,
+        "setupMs": 82959,
+        "gateMs": 220220,
+        "runnerMs": 303179,
+        "invocations": 3,
+        "cacheState": "setup-node-download-cache"
+      }
+    ]
+  }
+}

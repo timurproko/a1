@@ -6,16 +6,21 @@ import { describe, expect, it, onTestFailed, onTestFinished } from "vitest";
 import { NativeRegressionTrace } from "../support/native-regression-trace.js";
 import { main } from "../../scripts/release/release.mjs";
 import { releaseFixture } from "../support/release-command-fixture.js";
+import { createValidationPhaseRecorder } from "../../scripts/release/validation-phase.mjs";
+
+const phases = createValidationPhaseRecorder("release-command-fixture");
+let fixtureSequence = 0;
 
 async function fixture(version?: string) {
+  const id = ++fixtureSequence;
   const trace = new NativeRegressionTrace("release-command");
   onTestFailed(() => trace.report());
-  const value = await trace.measureAsync("setup", () => releaseFixture(version, trace, dispose => {
+  const value = await phases.run(`create-${id}`, () => trace.measureAsync("setup", () => releaseFixture(version, trace, dispose => {
     onTestFinished(async () => {
-      await dispose();
+      await phases.cleanup(`cleanup-${id}`, dispose);
       if (process.env.NATIVE_REGRESSION_DIAGNOSTICS === "1") trace.report();
     });
-  }));
+  })));
   return value;
 }
 

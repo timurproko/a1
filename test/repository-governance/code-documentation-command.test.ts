@@ -5,6 +5,7 @@ import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 import { selectNamingImpact } from "../../scripts/governance/naming-source-policy.mjs";
+import { createIntegrationSelection } from "../../scripts/release/integration-selection.mjs";
 
 const execFileAsync = promisify(execFile);
 const checker = "scripts/governance/check-code-documentation.mjs";
@@ -25,6 +26,9 @@ async function repositoryFixture(source = "export const value = 1;\n") {
 }
 
 function selection(path: string) {
+  const integration = createIntegrationSelection({ base: "a".repeat(40), head: "b".repeat(40), mode: "conservative", ownership: {
+    schema: "a1-integration-ownership-v1", owners: [{ id: "fixture", scopes: ["fixture"], targets: [{ platform: "win32", architecture: "x64", node: 24 }], development: true }],
+  } });
   return {
     schema: "a1-validation-impact-v1",
     base: "a".repeat(40),
@@ -34,6 +38,7 @@ function selection(path: string) {
     versionOnly: false,
     openspecTouched: false,
     ordinaryScopes: ["fast"],
+    integration: { selection: integration, dependency: null, fallback: "fixture" },
     rendering: { tier: "none", reasons: [], fallbacks: [], changedPaths: [path] },
     naming: selectNamingImpact([{ status: "M", path }]),
     documentation: { required: true, paths: [path] },

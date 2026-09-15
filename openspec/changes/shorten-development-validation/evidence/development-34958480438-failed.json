@@ -1,0 +1,32 @@
+{
+  "schema": "a1-development-validation-attempt-v1",
+  "run": {
+    "id": 34958480438,
+    "conclusion": "failure",
+    "createdAt": "2026-09-15T10:32:24Z",
+    "event": "workflow_dispatch",
+    "headSha": "e1a3ceceae781174093765d1265c1905501eb6d7",
+    "status": "completed",
+    "updatedAt": "2026-09-15T10:47:08Z",
+    "url": "https://github.com/timurproko/a1/actions/runs/34958480438"
+  },
+  "passedCells": [
+    "pi 3m34s",
+    "startup 4m17s",
+    "resource 3m20s",
+    "package 8m02s",
+    "promoted 14m11s",
+    "compatibility 1m52s",
+    "linux 1m27s",
+    "macos 1m32s",
+    "rendering 5m08s",
+    "naming",
+    "documentation"
+  ],
+  "failure": {
+    "scope": "fast",
+    "detail": "update-activation warmup-failure case exceeded unchanged 5000ms under parallel hosted remainder; 304 other files and 3145 tests passed"
+  },
+  "followUp": "Move the unchanged three-test update-activation file to the serialized zero-retry resource partition.",
+  "acceptance": "failed required run retained"
+}

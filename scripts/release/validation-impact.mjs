@@ -5,6 +5,9 @@ import { promisify } from "node:util";
 import ts from "typescript";
 import { classifyCodeDocumentationSource, normalizeCodeDocumentationPath } from "../governance/code-documentation-policy.mjs";
 import { selectNamingImpact } from "../governance/naming-source-policy.mjs";
+import { selectIntegrationImpact, conservativeIntegrationImpact } from "./integration-impact.mjs";
+import { loadIntegrationOwners } from "./integration-owners.mjs";
+import { createRevisionDependencyReader } from "./revision-dependencies.mjs";
 
 const execFileAsync = promisify(execFile);
 const SOURCE_EXTENSIONS = [".ts", ".tsx", ".mts", ".cts", ".js", ".mjs", ".cjs", ".json"];
@@ -102,6 +105,7 @@ export async function selectValidationImpact(options = {}) {
   const rendering = docsOnly || versionOnly
     ? { tier: "none", reasons: [], fallbacks: [], changedPaths: [] }
     : await classifyRenderingImpact(repository, base, head, changes);
+  const integration = await completeIntegrationSelection({ repository, base, head, changes, docsOnly, versionOnly, manualNoComparison: options.manualNoComparison === true });
   const selection = {
     schema: "a1-validation-impact-v1",
     base,
@@ -111,6 +115,7 @@ export async function selectValidationImpact(options = {}) {
     versionOnly,
     openspecTouched,
     ordinaryScopes: docsOnly || versionOnly ? [] : ["typecheck", "architecture", "fast", "dist-integration"],
+    integration,
     rendering,
     naming: selectNamingImpact(changes),
     documentation: { required: documentationPaths.length > 0, paths: documentationPaths },
@@ -139,8 +144,28 @@ export function assertValidationImpact(value) {
   if (value.documentation.required !== (value.documentation.paths.length > 0)) throw new TypeError("validation impact documentation requirement disagrees with paths");
   if (JSON.stringify(value.naming) !== JSON.stringify(selectNamingImpact(value.changes))) throw new TypeError("naming impact differs from the complete change");
   if (!Array.isArray(value.ordinaryScopes) || value.ordinaryScopes.some(scope => typeof scope !== "string")) throw new TypeError("validation impact ordinary scopes are invalid");
+  if (value.integration?.selection?.base !== value.base || value.integration?.selection?.head !== value.head
+    || !/^[0-9a-f]{64}$/u.test(value.integration?.selection?.selectionId ?? "") || !Array.isArray(value.integration?.selection?.owners)
+    || value.integration.selection.owners.length === 0) throw new TypeError("validation impact integration selection is invalid or stale");
   if (!Number.isSafeInteger(value.timing?.classifierMs) || value.timing.classifierMs < 0) throw new TypeError("validation impact timing is invalid");
   return value;
+}
+
+async function completeIntegrationSelection({ repository, base, head, changes, docsOnly, versionOnly, manualNoComparison }) {
+  const owners = await loadIntegrationOwners(repository);
+  const exemption = docsOnly ? "docs-only" : versionOnly ? "version-only" : null;
+  if (exemption || manualNoComparison) return selectIntegrationImpact({
+    baseId: base, headId: head, owners, exemption, manualNoComparison,
+  });
+  try {
+    const reader = createRevisionDependencyReader(repository);
+    const [baseSnapshot, headSnapshot] = await Promise.all([reader.read(base), reader.read(head)]);
+    const basePolicy = JSON.parse(baseSnapshot.files.get("config/integration-dependencies.json")?.source ?? "null");
+    const headPolicy = JSON.parse(headSnapshot.files.get("config/integration-dependencies.json")?.source ?? "null");
+    return { ...selectIntegrationImpact({ baseId: base, headId: head, base: baseSnapshot, head: headSnapshot, changes, owners, basePolicy, headPolicy }), readerStats: reader.stats };
+  } catch {
+    return { ...conservativeIntegrationImpact({ base, head, owners, reason: "history-or-policy-unavailable" }), readerStats: null };
+  }
 }
 
 export async function classifyRenderingImpact(repository, base, head, changes) {

@@ -1,0 +1,77 @@
+{
+  "schema": "a1-full-regression-attempt-v1",
+  "run": {
+    "id": 34962827914,
+    "status": "completed",
+    "conclusion": "failure",
+    "head": "1b7859fe08f6b5d1abf2b7953cb706c2445021f4",
+    "event": "workflow_dispatch",
+    "createdAt": "2026-09-15T11:21:17Z",
+    "updatedAt": "2026-09-15T11:54:09Z",
+    "url": "https://github.com/timurproko/a1/actions/runs/34962827914"
+  },
+  "lanes": [
+    {
+      "name": "Full documentation review",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/timurproko/a1/actions/runs/34962827914/job/104360244193"
+    },
+    {
+      "name": "Complete non-physical regression (windows-2025, node 22)",
+      "status": "completed",
+      "conclusion": "failure",
+      "url": "https://github.com/timurproko/a1/actions/runs/34962827914/job/104360373794"
+    },
+    {
+      "name": "Complete non-physical regression (macos-15, node 24)",
+      "status": "completed",
+      "conclusion": "failure",
+      "url": "https://github.com/timurproko/a1/actions/runs/34962827914/job/104360373806"
+    },
+    {
+      "name": "Complete non-physical regression (windows-2025, node 24)",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/timurproko/a1/actions/runs/34962827914/job/104360373851"
+    },
+    {
+      "name": "Complete non-physical regression (ubuntu-24.04, node 24)",
+      "status": "completed",
+      "conclusion": "failure",
+      "url": "https://github.com/timurproko/a1/actions/runs/34962827914/job/104360373981"
+    }
+  ],
+  "failures": {
+    "linuxNode24": {
+      "passedTests": 3211,
+      "failedTests": 5,
+      "files": [
+        "test/integrations/pi/session-ui/clipboard-executor-lifecycle.test.ts",
+        "test/integrations/pi/session-ui/clipboard-packaged.test.ts",
+        "test/integrations/pi/session-ui/paste-executor.test.ts"
+      ],
+      "diagnosis": "real child-process suites were contending in the parallel full remainder"
+    },
+    "macosNode24": {
+      "passedTests": 3215,
+      "failedTests": 1,
+      "file": "test/foundation/release/predecessor-command-errors.test.ts",
+      "diagnosis": "macOS reports the physical /private/var path for a /var temporary-directory alias"
+    },
+    "windowsNode22": {
+      "passedTests": 3213,
+      "failedTests": 2,
+      "files": [
+        "test/integrations/pi/components/editor-text-paste.test.ts",
+        "test/integrations/pi/session-ui/prompt-history-controller.test.ts"
+      ],
+      "diagnosis": "asynchronous process/storage suites were starved in the parallel full remainder"
+    },
+    "windowsNode24": {
+      "result": "passed"
+    }
+  },
+  "followUp": "Move the five intact resource-sensitive files to the existing serialized zero-retry partition, require its authenticated build for emitted clipboard coverage, and compare predecessor cwd by filesystem identity. No assertion, timeout, retry, workload, or platform lane is removed.",
+  "acceptance": "failed attempt retained and cannot authorize acceptance"
+}

@@ -19,23 +19,41 @@
       ]
     },
     "fast": {
+      "kind": "composition",
+      "includes": [
+        "fast-remainder",
+        "fast-resource-sensitive"
+      ]
+    },
+    "full-release": {
+      "kind": "composition",
+      "includes": [
+        "typecheck",
+        "architecture",
+        "fast",
+        "documentation-full",
+        "naming-full",
+        "rendering-stability",
+        "dist-integration",
+        "launch-integration",
+        "pi-engine-conformance",
+        "release-update",
+        "update-performance",
+        "structured-runtime-integration",
+        "package-smoke",
+        "package-install",
+        "image-compatibility",
+        "history-compatibility",
+        "unix-containment",
+        "dependency-policy",
+        "update-predecessor"
+      ]
+    }
+  },
+  "scopes": {
+    "fast-remainder": {
       "kind": "vitest-remainder",
       "includeRoot": "test",
-      "resourceSensitiveTests": [
-        "test/repository-governance/validation-impact.test.ts",
-        "test/repository-governance/naming-selection.test.ts",
-        "test/foundation/launch-context/cutover.test.ts",
-        "test/repository-governance/code-documentation.test.ts",
-        "test/repository-governance/local-cleanup.test.ts",
-        "test/foundation/storage/storage.test.ts",
-        "test/foundation/release/cohort-state.test.ts",
-        "test/foundation/release/update-live-cohort.test.ts",
-        "test/features/workspace/reconciliation.test.ts",
-        "test/features/workspace/workspace.test.ts",
-        "test/features/prompt-history/store.test.ts",
-        "test/integrations/pi/session-ui/command-message-parity.test.ts",
-        "test/integrations/pi/session-ui/command-outcome-parity.test.ts"
-      ],
       "exclude": [
         "test/repository-governance/release-command.test.ts",
         "test/cli/update-cli.test.ts",
@@ -57,35 +75,39 @@
         "test/foundation/release/package-surface.test.ts",
         "test/foundation/release/session-resume.integration.test.ts",
         "test/foundation/release/package-install.integration.test.ts",
+        "test/foundation/release/package-startup.integration.test.ts",
         "test/foundation/release/update-performance.integration.test.ts",
         "test/foundation/release/update-transition.integration.test.ts",
         "test/foundation/structured-agent-runtime/runtime.integration.test.ts",
         "test/foundation/release/update-predecessor.integration.test.ts"
       ]
     },
-    "full-release": {
-      "kind": "composition",
-      "includes": [
-        "typecheck",
-        "architecture",
-        "fast",
-        "documentation-full",
-        "naming-full",
-        "rendering-stability",
-        "dist-integration",
-        "launch-integration",
-        "pi-engine-conformance",
-        "release-update",
-        "update-performance",
-        "structured-runtime-integration",
-        "package-smoke",
-        "package-install",
-        "dependency-policy",
-        "update-predecessor"
+    "fast-resource-sensitive": {
+      "kind": "vitest-resource-sensitive",
+      "requiresBuild": true,
+      "tests": [
+        "test/repository-governance/validation-impact.test.ts",
+        "test/repository-governance/naming-selection.test.ts",
+        "test/foundation/launch-context/cutover.test.ts",
+        "test/repository-governance/code-documentation.test.ts",
+        "test/repository-governance/local-cleanup.test.ts",
+        "test/foundation/storage/storage.test.ts",
+        "test/foundation/release/cohort-state.test.ts",
+        "test/foundation/release/update-live-cohort.test.ts",
+        "test/features/workspace/reconciliation.test.ts",
+        "test/features/workspace/workspace.test.ts",
+        "test/features/prompt-history/store.test.ts",
+        "test/integrations/pi/session-ui/command-message-parity.test.ts",
+        "test/integrations/pi/session-ui/command-outcome-parity.test.ts",
+        "test/integrations/pi/session-ui/session-shell.test.ts",
+        "test/integrations/pi/session-ui/paste-executor.test.ts",
+        "test/integrations/pi/session-ui/clipboard-executor-lifecycle.test.ts",
+        "test/integrations/pi/session-ui/clipboard-packaged.test.ts",
+        "test/integrations/pi/components/editor-text-paste.test.ts",
+        "test/integrations/pi/session-ui/prompt-history-controller.test.ts",
+        "test/foundation/release/update-activation.test.ts"
       ]
-    }
-  },
-  "scopes": {
+    },
     "typecheck": {
       "kind": "commands",
       "commands": [
@@ -246,11 +268,26 @@
       ]
     },
     "package-install": {
-      "kind": "vitest-files",
+      "kind": "composition",
+      "includes": [
+        "package-contracts",
+        "package-startup"
+      ]
+    },
+    "package-contracts": {
+      "kind": "vitest-package-contracts",
       "requiresBuild": true,
       "consumesPackage": true,
       "tests": [
         "test/foundation/release/package-install.integration.test.ts"
+      ]
+    },
+    "package-startup": {
+      "kind": "vitest-package-startup",
+      "requiresBuild": true,
+      "consumesPackage": true,
+      "tests": [
+        "test/foundation/release/package-startup.integration.test.ts"
       ]
     },
     "dependency-policy": {
@@ -273,6 +310,45 @@
       "tests": [
         "test/foundation/release/update-predecessor.integration.test.ts"
       ]
+    },
+    "image-compatibility": {
+      "kind": "vitest-files",
+      "requiresBuild": true,
+      "tests": [
+        "test/integrations/pi/session-ui/image-preparation.test.ts",
+        "test/integrations/pi/session-ui/image-worker-package.test.ts"
+      ]
+    },
+    "history-compatibility": {
+      "kind": "vitest-files",
+      "requiresBuild": true,
+      "tests": [
+        "test/features/prompt-history/concurrency.integration.test.ts",
+        "test/features/prompt-history/image-sidecar.test.ts",
+        "test/features/prompt-history/service.test.ts",
+        "test/features/prompt-history/store.test.ts",
+        "test/features/prompt-history/worker-package.test.ts"
+      ]
+    },
+    "unix-containment": {
+      "kind": "vitest-files",
+      "requiresBuild": true,
+      "tests": [
+        "test/foundation/process-containment/artifact.test.ts",
+        "test/foundation/process-containment/contracts.test.ts",
+        "test/foundation/process-containment/darwin-process-inspector.test.ts",
+        "test/foundation/process-containment/source-boundary.test.ts",
+        "test/foundation/process-containment/unix-process-group.integration.test.ts",
+        "test/foundation/process-containment/windows-job.integration.test.ts",
+        "test/foundation/process-containment/windows-process-inspector.test.ts",
+        "test/foundation/launch-context/context.test.ts",
+        "test/foundation/launch-context/cutover.test.ts",
+        "test/foundation/release/update-transition.integration.test.ts",
+        "test/foundation/release/dependency-certification.test.ts",
+        "test/foundation/release/dependency-layer.test.ts",
+        "test/foundation/release/restart-certification.test.ts",
+        "test/foundation/release/release-gc.test.ts"
+      ]
     }
   },
   "fullReleaseSupersedes": {
@@ -292,8 +368,8 @@
     "owned-ui-regression": "fast",
     "extension-behavior": "fast",
     "architecture-independent-n-minus-one-update-transition": "release-update",
-    "post-update-startup-performance": "package-install",
-    "immutable-dependency-layer-compatibility": "package-install",
+    "post-update-startup-performance": "package-startup",
+    "immutable-dependency-layer-compatibility": "package-contracts",
     "published-predecessor-update": "update-predecessor"
   }
 }

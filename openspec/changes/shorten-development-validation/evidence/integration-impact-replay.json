@@ -1,0 +1,3413 @@
+{
+  "schema": "a1-integration-impact-replay-v1",
+  "sourceHead": "f364a1a076d20b44fcd5bd8b0f2ac942a705f21a",
+  "graphFixture": {
+    "base": "02afe37f1104781899e07df6700c3a5308da5267",
+    "head": "9f3c0bc3932bbd5c6cbd480b88da6b1d03c78528",
+    "contentRevision": "f364a1a076d20b44fcd5bd8b0f2ac942a705f21a"
+  },
+  "generatorState": "working tree with uncommitted classifier/replay implementation on sourceHead",
+  "interpretation": "Synthetic changes and historical path populations replayed against one current immutable reviewed graph. Historical entries are not claims that this future classifier ran on those old heads. Conservative selections are retained rather than discarded.",
+  "readerStats": {
+    "gitCommands": 2,
+    "revisions": 1,
+    "blobs": 824,
+    "bytes": 5735586
+  },
+  "scenarios": [
+    {
+      "label": "unrelated-governance",
+      "changes": [
+        {
+          "status": "M",
+          "path": "scripts/governance/check-package-identity.mjs"
+        }
+      ],
+      "result": {
+        "selection": {
+          "schema": "a1-integration-selection-v1",
+          "base": "02afe37f1104781899e07df6700c3a5308da5267",
+          "head": "9f3c0bc3932bbd5c6cbd480b88da6b1d03c78528",
+          "mode": "impact",
+          "exemption": null,
+          "ownershipId": "0859b09260cf4fe144cd37887078aca12bd9ae7eb66cf7434d47b60db4db5aa9",
+          "owners": [
+            {
+              "owner": "history-compatibility",
+              "scopes": [
+                "history-compatibility"
+              ],
+              "targets": [
+                {
+                  "platform": "darwin",
+                  "architecture": "arm64",
+                  "node": 24
+                },
+                {
+                  "platform": "win32",
+                  "architecture": "x64",
+                  "node": 22
+                },
+                {
+                  "platform": "linux",
+                  "architecture": "x64",
+                  "node": 24
+                }
+              ],
+              "selected": false,
+              "reasons": [
+                {
+                  "code": "unrelated",
+                  "paths": []
+                }
+              ]
+            },
+            {
+              "owner": "image-compatibility",
+              "scopes": [
+                "image-compatibility"
+              ],
+              "targets": [
+                {
+                  "platform": "darwin",
+                  "architecture": "arm64",
+                  "node": 24
+                },
+                {
+                  "platform": "win32",
+                  "architecture": "x64",
+                  "node": 22
+                },
+                {
+                  "platform": "linux",
+                  "architecture": "x64",
+                  "node": 24
+                }
+              ],
+              "selected": false,
+              "reasons": [
+                {
+                  "code": "unrelated",
+                  "paths": []
+                }
+              ]
+            },
+            {
+              "owner": "package-contracts",
+              "scopes": [
+                "package-contracts"
+              ],
+              "targets": [
+                {
+                  "platform": "win32",
+                  "architecture": "x64",
+                  "node": 22
+                }
+              ],
+              "selected": false,
+              "reasons": [
+                {
+                  "code": "unrelated",
+                  "paths": []
+                }
+              ]
+            },
+            {
+              "owner": "pi-release-resume",
+              "scopes": [
+                "package-smoke",
+                "pi-engine-conformance",
+                "release-update"
+              ],
+              "targets": [
+                {
+                  "platform": "win32",
+                  "architecture": "x64",
+                  "node": 24
+                }
+              ],
+              "selected": false,
+              "reasons": [
+                {
+                  "code": "unrelated",
+                  "paths": []
+                }
+              ]
+            },
+            {
+              "owner": "startup",
+              "scopes": [
+                "package-startup"
+              ],
+              "targets": [
+                {
+                  "platform": "win32",
+                  "architecture": "x64",
+                  "node": 22
+                }
+              ],
+              "selected": false,
+              "reasons": [
+                {
+                  "code": "unrelated",
+                  "paths": []
+                }
+              ]
+            },
+            {
+              "owner": "unix-containment",
+              "scopes": [
+                "unix-containment"
+              ],
+              "targets": [
+                {
+                  "platform": "darwin",
+                  "architecture": "arm64",
+                  "node": 24
+                },
+                {
+                  "platform": "linux",
+                  "architecture": "x64",
+                  "node": 24
+                }
+              ],
+              "selected": false,
+              "reasons": [
+                {
+                  "code": "unrelated",
+                  "paths": []
+                }
+              ]
+            }
+          ],
+          "selectionId": "63adacf203f64276be71ccb998eba8812491820855ef31f98a2f9d91436fa851"
+        },
+        "fallback": null,
+        "dependency": {
+          "stats": {
+            "base": {
+              "parsedModules": 205,
+              "nodes": 512598,
+              "edges": 1554
+            },
+            "head": {
+              "parsedModules": 205,
+              "nodes": 512598,
+              "edges": 1554
+            }
+          },
+          "owners": [
+            {
+              "owner": "pi-release-resume",
+              "matches": [],
+              "invalidators": [],
+              "issueCodes": [
+                "asset-read",
+                "opaque-loader",
+                "subprocess"
+              ]
+            },
+            {
+              "owner": "package-contracts",
+              "matches": [],
+              "invalidators": [],
+              "issueCodes": [
+                "asset-read",
+                "computed-import",
+                "opaque-loader",
+                "subprocess"
+              ]
+            },
+            {
+              "owner": "startup",
+              "matches": [],
+              "invalidators": [],
+              "issueCodes": [
+                "asset-read",
+                "invalid-repository-import",
+                "opaque-loader",
+                "subprocess",
+                "unresolved-repository-import"
+              ]
+            },
+            {
+              "owner": "image-compatibility",
+              "matches": [],
+              "invalidators": [],
+              "issueCodes": [
+                "asset-read",
+                "opaque-loader",
+                "subprocess",
+                "unresolved-repository-import"
+              ]
+            },
+            {
+              "owner": "history-compatibility",
+              "matches": [],
+              "invalidators": [],
+              "issueCodes": [
+                "asset-read",
+                "opaque-loader",
+                "subprocess"
+              ]
+            },
+            {
+              "owner": "unix-containment",
+              "matches": [],
+              "invalidators": [],
+              "issueCodes": [
+                "asset-read",
+                "opaque-loader",
+                "subprocess"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "label": "startup-source",
+      "changes": [
+        {
+          "status": "M",
+          "path": "src/foundation/release/bootstrap.ts"
+        }
+      ],
+      "result": {
+        "selection": {
+          "schema": "a1-integration-selection-v1",
+          "base": "02afe37f1104781899e07df6700c3a5308da5267",
+          "head": "9f3c0bc3932bbd5c6cbd480b88da6b1d03c78528",
+          "mode": "impact",
+          "exemption": null,
+          "ownershipId": "0859b09260cf4fe144cd37887078aca12bd9ae7eb66cf7434d47b60db4db5aa9",
+          "owners": [
+            {
+              "owner": "history-compatibility",
+              "scopes": [
+                "history-compatibility"
+              ],
+              "targets": [
+                {
+                  "platform": "darwin",
+                  "architecture": "arm64",
+                  "node": 24
+                },
+                {
+                  "platform": "win32",
+                  "architecture": "x64",
+                  "node": 22
+                },
+                {
+                  "platform": "linux",
+                  "architecture": "x64",
+                  "node": 24
+                }
+              ],
+              "selected": true,
+              "reasons": [
+                {
+                  "code": "conservative-fallback",
+                  "paths": []
+                }
+              ]
+            },
+            {
+              "owner": "image-compatibility",
+              "scopes": [
+                "image-compatibility"
+              ],
+              "targets": [
+                {
+                  "platform": "darwin",
+                  "architecture": "arm64",
+                  "node": 24
+                },
+                {
+                  "platform": "win32",
+                  "architecture": "x64",
+                  "node": 22
+                },
+                {
+                  "platform": "linux",
+                  "architecture": "x64",
+                  "node": 24
+                }
+              ],
+              "selected": true,
+              "reasons": [
+                {
+                  "code": "conservative-fallback",
+                  "paths": []
+                }
+              ]
+            },
+            {
+              "owner": "package-contracts",
+              "scopes": [
+                "package-contracts"
+              ],
+              "targets": [
+                {
+                  "platform": "win32",
+                  "architecture": "x64",
+                  "node": 22
+                }
+              ],
+              "selected": true,
+              "reasons": [
+                {
+                  "code": "reachable",
+                  "paths": [
+                    "test/foundation/release/package-install.integration.test.ts",
+                    "src/foundation/release/index.ts",
+                    "src/foundation/release/bootstrap.ts"
+                  ]
+                },
+                {
+                  "code": "conservative-fallback",
+                  "paths": []
+                }
+              ]
+            },
+            {
+              "owner": "pi-release-resume",
+              "scopes": [
+                "package-smoke",
+                "pi-engine-conformance",
+                "release-update"
+              ],
+              "targets": [
+                {
+                  "platform": "win32",
+                  "architecture": "x64",
+                  "node": 24
+                }
+              ],
+              "selected": true,
+              "reasons": [
+                {
+                  "code": "reachable",
+                  "paths": [
+                    "test/foundation/release/session-resume.integration.test.ts",
+                    "src/foundation/release/index.ts",
+                    "src/foundation/release/bootstrap.ts"
+                  ]
+                },
+                {
+                  "code": "conservative-fallback",
+                  "paths": []
+                }
+              ]
+            },
+            {
+              "owner": "startup",
+              "scopes": [
+                "package-startup"
+              ],
+              "targets": [
+                {
+                  "platform": "win32",
+                  "architecture": "x64",
+                  "node": 22
+                }
+              ],
+              "selected": true,
+              "reasons": [
+                {
+                  "code": "reachable",
+                  "paths": [
+                    "bin/cli.js",
+                    "src/foundation/release/index.ts",
+                    "src/foundation/release/bootstrap.ts"
+                  ]
+                },
+                {
+                  "code": "conservative-fallback",
+                  "paths": []
+                }
+              ]
+            },
+            {
+              "owner": "unix-containment",
+              "scopes": [
+                "unix-containment"
+              ],
+              "targets": [
+                {
+                  "platform": "darwin",
+                  "architecture": "arm64",
+                  "node": 24
+                },
+                {
+                  "platform": "linux",
+                  "architecture": "x64",
+                  "node": 24
+                }
+              ],
+              "selected": true,
+              "reasons": [
+                {
+                  "code": "reachable",
+                  "paths": [
+                    "test/foundation/launch-context/cutover.test.ts",
+                    "src/foundation/release/index.ts",
+                    "src/foundation/release/bootstrap.ts"
+                  ]
+                },
+                {
+                  "code": "conservative-fallback",
+                  "paths": []
+                }
+              ]
+            }
+          ],
+          "selectionId": "32f8c41398829a4dcbfbf08796866d0e86588e549d4085e8bcecbebaa2b530b6"
+        },
+        "fallback": null,
+        "dependency": {
+          "stats": {
+            "base": {
+              "parsedModules": 205,
+              "nodes": 512598,
+              "edges": 1554
+            },
+            "head": {
+              "parsedModules": 205,
+              "nodes": 512598,
+              "edges": 1554
+            }
+          },
+          "owners": [
+            {
+              "owner": "pi-release-resume",
+              "matches": [
+                {
+                  "path": "src/foundation/release/bootstrap.ts",
+                  "revision": "9f3c0bc3932bbd5c6cbd480b88da6b1d03c78528",
+                  "chain": [
+                    "test/foundation/release/session-resume.integration.test.ts",
+                    "src/foundation/release/index.ts",
+                    "src/foundation/release/bootstrap.ts"
+                  ],
+                  "chainTruncated": false
+                }
+              ],
+              "invalidators": [],
+              "issueCodes": [
+                "asset-read",
+                "opaque-loader",
+                "subprocess"
+              ]
+            },
+            {
+              "owner": "package-contracts",
+              "matches": [
+                {
+                  "path": "src/foundation/release/bootstrap.ts",
+                  "revision": "9f3c0bc3932bbd5c6cbd480b88da6b1d03c78528",
+                  "chain": [
+                    "test/foundation/release/package-install.integration.test.ts",
+                    "src/foundation/release/index.ts",
+                    "src/foundation/release/bootstrap.ts"
+                  ],
+                  "chainTruncated": false
+                }
+              ],
+              "invalidators": [],
+              "issueCodes": [
+                "asset-read",
+                "computed-import",
+                "opaque-loader",
+                "subprocess"
+              ]
+            },
+            {
+              "owner": "startup",
+              "matches": [
+                {
+                  "path": "src/foundation/release/bootstrap.ts",
+                  "revision": "9f3c0bc3932bbd5c6cbd480b88da6b1d03c78528",
+                  "chain": [
+                    "bin/cli.js",
+                    "src/foundation/release/index.ts",
+                    "src/foundation/release/bootstrap.ts"
+                  ],
+                  "chainTruncated": false
+                }
+              ],
+              "invalidators": [],
+              "issueCodes": [
+                "asset-read",
+                "invalid-repository-import",
+                "opaque-loader",
+                "subprocess",
+                "unresolved-repository-import"
+              ]
+            },
+            {
+              "owner": "image-compatibility",
+              "matches": [],
+              "invalidators": [],
+              "issueCodes": [
+                "asset-read",
+                "opaque-loader",
+                "subprocess",
+                "unresolved-repository-import"
+              ]
+            },
+            {
+              "owner": "history-compatibility",
+              "matches": [],
+              "invalidators": [],
+              "issueCodes": [
+                "asset-read",
+                "opaque-loader",
+                "subprocess"
+              ]
+            },
+            {
+              "owner": "unix-containment",
+              "matches": [
+                {
+                  "path": "src/foundation/release/bootstrap.ts",
+                  "revision": "9f3c0bc3932bbd5c6cbd480b88da6b1d03c78528",
+                  "chain": [
+                    "test/foundation/launch-context/cutover.test.ts",
+                    "src/foundation/release/index.ts",
+                    "src/foundation/release/bootstrap.ts"
+                  ],
+                  "chainTruncated": false
+                }
+              ],
+              "invalidators": [],
+              "issueCodes": [
+                "asset-read",
+                "opaque-loader",
+                "subprocess"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "label": "image-source",
+      "changes": [
+        {
+          "status": "M",
+          "path": "src/integrations/pi/session-ui/image-worker.ts"
+        }
+      ],
+      "result": {
+        "selection": {
+          "schema": "a1-integration-selection-v1",
+          "base": "02afe37f1104781899e07df6700c3a5308da5267",
+          "head": "9f3c0bc3932bbd5c6cbd480b88da6b1d03c78528",
+          "mode": "impact",
+          "exemption": null,
+          "ownershipId": "0859b09260cf4fe144cd37887078aca12bd9ae7eb66cf7434d47b60db4db5aa9",
+          "owners": [
+            {
+              "owner": "history-compatibility",
+              "scopes": [
+                "history-compatibility"
+              ],
+              "targets": [
+                {
+                  "platform": "darwin",
+                  "architecture": "arm64",
+                  "node": 24
+                },
+                {
+                  "platform": "win32",
+                  "architecture": "x64",
+                  "node": 22
+                },
+                {
+                  "platform": "linux",
+                  "architecture": "x64",
+                  "node": 24
+                }
+              ],
+              "selected": true,
+              "reasons": [
+                {
+                  "code": "conservative-fallback",
+                  "paths": []
+                }
+              ]
+            },
+            {
+              "owner": "image-compatibility",
+              "scopes": [
+                "image-compatibility"
+              ],
+              "targets": [
+                {
+                  "platform": "darwin",
+                  "architecture": "arm64",
+                  "node": 24
+                },
+                {
+                  "platform": "win32",
+                  "architecture": "x64",
+                  "node": 22
+                },
+                {
+                  "platform": "linux",
+                  "architecture": "x64",
+                  "node": 24
+                }
+              ],
+              "selected": true,
+              "reasons": [
+                {
+                  "code": "reachable",
+                  "paths": [
+                    "test/integrations/pi/session-ui/image-preparation.test.ts",
+                    "src/integrations/pi/session-ui/image-preparation-client.ts",
+                    "src/integrations/pi/session-ui/image-worker.ts"
+                  ]
+                },
+                {
+                  "code": "conservative-fallback",
+                  "paths": []
+                }
+              ]
+            },
+            {
+              "owner": "package-contracts",
+              "scopes": [
+                "package-contracts"
+              ],
+              "targets": [
+                {
+                  "platform": "win32",
+                  "architecture": "x64",
+                  "node": 22
+                }
+              ],
+              "selected": true,
+              "reasons": [
+                {
+                  "code": "conservative-fallback",
+                  "paths": []
+                }
+              ]
+            },
+            {
+              "owner": "pi-release-resume",
+              "scopes": [
+                "package-smoke",
+                "pi-engine-conformance",
+                "release-update"
+              ],
+              "targets": [
+                {
+                  "platform": "win32",
+                  "architecture": "x64",
+                  "node": 24
+                }
+              ],
+              "selected": true,
+              "reasons": [
+                {
+                  "code": "conservative-fallback",
+                  "paths": []
+                }
+              ]
+            },
+            {
+              "owner": "startup",
+              "scopes": [
+                "package-startup"
+              ],
+              "targets": [
+                {
+                  "platform": "win32",
+                  "architecture": "x64",
+                  "node": 22
+                }
+              ],
+              "selected": true,
+              "reasons": [
+                {
+                  "code": "conservative-fallback",
+                  "paths": []
+                }
+              ]
+            },
+            {
+              "owner": "unix-containment",
+              "scopes": [
+                "unix-containment"
+              ],
+              "targets": [
+                {
+                  "platform": "darwin",
+                  "architecture": "arm64",
+                  "node": 24
+                },
+                {
+                  "platform": "linux",
+                  "architecture": "x64",
+                  "node": 24
+                }
+              ],
+              "selected": true,
+              "reasons": [
+                {
+                  "code": "reachable",
+                  "paths": [
+                    "test/integrations/pi/session-ui/image-preparation.test.ts",
+                    "src/integrations/pi/session-ui/image-preparation-client.ts",
+                    "src/integrations/pi/session-ui/image-worker.ts"
+                  ]
+                },
+                {
+                  "code": "conservative-fallback",
+                  "paths": []
+                }
+              ]
+            }
+          ],
+          "selectionId": "163346bab218a04a72dabf5f55ace98349fa7bc985033db5a58c9d966733727f"
+        },
+        "fallback": null,
+        "dependency": {
+          "stats": {
+            "base": {
+              "parsedModules": 205,
+              "nodes": 512598,
+              "edges": 1554
+            },
+            "head": {
+              "parsedModules": 205,
+              "nodes": 512598,
+              "edges": 1554
+            }
+          },
+          "owners": [
+            {
+              "owner": "pi-release-resume",
+              "matches": [],
+              "invalidators": [],
+              "issueCodes": [
+                "asset-read",
+                "opaque-loader",
+                "subprocess"
+              ]
+            },
+            {
+              "owner": "package-contracts",
+              "matches": [],
+              "invalidators": [],
+              "issueCodes": [
+                "asset-read",
+                "computed-import",
+                "opaque-loader",
+                "subprocess"
+              ]
+            },
+            {
+              "owner": "startup",
+              "matches": [],
+              "invalidators": [],
+              "issueCodes": [
+                "asset-read",
+                "invalid-repository-import",
+                "opaque-loader",
+                "subprocess",
+                "unresolved-repository-import"
+              ]
+            },
+            {
+              "owner": "image-compatibility",
+              "matches": [
+                {
+                  "path": "src/integrations/pi/session-ui/image-worker.ts",
+                  "revision": "9f3c0bc3932bbd5c6cbd480b88da6b1d03c78528",
+                  "chain": [
+                    "test/integrations/pi/session-ui/image-preparation.test.ts",
+                    "src/integrations/pi/session-ui/image-preparation-client.ts",
+                    "src/integrations/pi/session-ui/image-worker.ts"
+                  ],
+                  "chainTruncated": false
+                }
+              ],
+              "invalidators": [],
+              "issueCodes": [
+                "asset-read",
+                "opaque-loader",
+                "subprocess",
+                "unresolved-repository-import"
+              ]
+            },
+            {
+              "owner": "history-compatibility",
+              "matches": [],
+              "invalidators": [],
+              "issueCodes": [
+                "asset-read",
+                "opaque-loader",
+                "subprocess"
+              ]
+            },
+            {
+              "owner": "unix-containment",
+              "matches": [
+                {
+                  "path": "src/integrations/pi/session-ui/image-worker.ts",
+                  "revision": "9f3c0bc3932bbd5c6cbd480b88da6b1d03c78528",
+                  "chain": [
+                    "test/integrations/pi/session-ui/image-preparation.test.ts",
+                    "src/integrations/pi/session-ui/image-preparation-client.ts",
+                    "src/integrations/pi/session-ui/image-worker.ts"
+                  ],
+                  "chainTruncated": false
+                }
+              ],
+              "invalidators": [],
+              "issueCodes": [
+                "asset-read",
+                "opaque-loader",
+                "subprocess"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "label": "history-source",
+      "changes": [
+        {
+          "status": "M",
+          "path": "src/features/prompt-history/worker.ts"
+        }
+      ],
+      "result": {
+        "selection": {
+          "schema": "a1-integration-selection-v1",
+          "base": "02afe37f1104781899e07df6700c3a5308da5267",
+          "head": "9f3c0bc3932bbd5c6cbd480b88da6b1d03c78528",
+          "mode": "impact",
+          "exemption": null,
+          "ownershipId": "0859b09260cf4fe144cd37887078aca12bd9ae7eb66cf7434d47b60db4db5aa9",
+          "owners": [
+            {
+              "owner": "history-compatibility",
+              "scopes": [
+                "history-compatibility"
+              ],
+              "targets": [
+                {
+                  "platform": "darwin",
+                  "architecture": "arm64",
+                  "node": 24
+                },
+                {
+                  "platform": "win32",
+                  "architecture": "x64",
+                  "node": 22
+                },
+                {
+                  "platform": "linux",
+                  "architecture": "x64",
+                  "node": 24
+                }
+              ],
+              "selected": true,
+              "reasons": [
+                {
+                  "code": "reachable",
+                  "paths": [
+                    "test/features/prompt-history/service.test.ts",
+                    "src/features/prompt-history/worker.ts"
+                  ]
+                },
+                {
+                  "code": "conservative-fallback",
+                  "paths": []
+                }
+              ]
+            },
+            {
+              "owner": "image-compatibility",
+              "scopes": [
+                "image-compatibility"
+              ],
+              "targets": [
+                {
+                  "platform": "darwin",
+                  "architecture": "arm64",
+                  "node": 24
+                },
+                {
+                  "platform": "win32",
+                  "architecture": "x64",
+                  "node": 22
+                },
+                {
+                  "platform": "linux",
+                  "architecture": "x64",
+                  "node": 24
+                }
+              ],
+              "selected": true,
+              "reasons": [
+                {
+                  "code": "conservative-fallback",
+                  "paths": []
+                }
+              ]
+            },
+            {
+              "owner": "package-contracts",
+              "scopes": [
+                "package-contracts"
+              ],
+              "targets": [
+                {
+                  "platform": "win32",
+                  "architecture": "x64",
+                  "node": 22
+                }
+              ],
+              "selected": true,
+              "reasons": [
+                {
+                  "code": "conservative-fallback",
+                  "paths": []
+                }
+              ]
+            },
+            {
+              "owner": "pi-release-resume",
+              "scopes": [
+                "package-smoke",
+                "pi-engine-conformance",
+                "release-update"
+              ],
+              "targets": [
+                {
+                  "platform": "win32",
+                  "architecture": "x64",
+                  "node": 24
+                }
+              ],
+              "selected": true,
+              "reasons": [
+                {
+                  "code": "conservative-fallback",
+                  "paths": []
+                }
+              ]
+            },
+            {
+              "owner": "startup",
+              "scopes": [
+                "package-startup"
+              ],
+              "targets": [
+                {
+                  "platform": "win32",
+                  "architecture": "x64",
+                  "node": 22
+                }
+              ],
+              "selected": true,
+              "reasons": [
+                {
+                  "code": "conservative-fallback",
+                  "paths": []
+                }
+              ]
+            },
+            {
+              "owner": "unix-containment",
+              "scopes": [
+                "unix-containment"
+              ],
+              "targets": [
+                {
+                  "platform": "darwin",
+                  "architecture": "arm64",
+                  "node": 24
+                },
+                {
+                  "platform": "linux",
+                  "architecture": "x64",
+                  "node": 24
+                }
+              ],
+              "selected": true,
+              "reasons": [
+                {
+                  "code": "reachable",
+                  "paths": [
+                    "test/features/prompt-history/service.test.ts",
+                    "src/features/prompt-history/worker.ts"
+                  ]
+                },
+                {
+                  "code": "conservative-fallback",
+                  "paths": []
+                }
+              ]
+            }
+          ],
+          "selectionId": "83f1461182d216511e5b51172488003733e81486e1a716b3259bbb7916e8621b"
+        },
+        "fallback": null,
+        "dependency": {
+          "stats": {
+            "base": {
+              "parsedModules": 205,
+              "nodes": 512598,
+              "edges": 1554
+            },
+            "head": {
+              "parsedModules": 205,
+              "nodes": 512598,
+              "edges": 1554
+            }
+          },
+          "owners": [
+            {
+              "owner": "pi-release-resume",
+              "matches": [],
+              "invalidators": [],
+              "issueCodes": [
+                "asset-read",
+                "opaque-loader",
+                "subprocess"
+              ]
+            },
+            {
+              "owner": "package-contracts",
+              "matches": [],
+              "invalidators": [],
+              "issueCodes": [
+                "asset-read",
+                "computed-import",
+                "opaque-loader",
+                "subprocess"
+              ]
+            },
+            {
+              "owner": "startup",
+              "matches": [],
+              "invalidators": [],
+              "issueCodes": [
+                "asset-read",
+                "invalid-repository-import",
+                "opaque-loader",
+                "subprocess",
+                "unresolved-repository-import"
+              ]
+            },
+            {
+              "owner": "image-compatibility",
+              "matches": [],
+              "invalidators": [],
+              "issueCodes": [
+                "asset-read",
+                "opaque-loader",
+                "subprocess",
+                "unresolved-repository-import"
+              ]
+            },
+            {
+              "owner": "history-compatibility",
+              "matches": [
+                {
+                  "path": "src/features/prompt-history/worker.ts",
+                  "revision": "9f3c0bc3932bbd5c6cbd480b88da6b1d03c78528",
+                  "chain": [
+                    "test/features/prompt-history/service.test.ts",
+                    "src/features/prompt-history/worker.ts"
+                  ],
+                  "chainTruncated": false
+                }
+              ],
+              "invalidators": [],
+              "issueCodes": [
+                "asset-read",
+                "opaque-loader",
+                "subprocess"
+              ]
+            },
+            {
+              "owner": "unix-containment",
+              "matches": [
+                {
+                  "path": "src/features/prompt-history/worker.ts",
+                  "revision": "9f3c0bc3932bbd5c6cbd480b88da6b1d03c78528",
+                  "chain": [
+                    "test/features/prompt-history/service.test.ts",
+                    "src/features/prompt-history/worker.ts"
+                  ],
+                  "chainTruncated": false
+                }
+              ],
+              "invalidators": [],
+              "issueCodes": [
+                "asset-read",
+                "opaque-loader",
+                "subprocess"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "label": "native-input",
+      "changes": [
+        {
+          "status": "M",
+          "path": "native/process-guardian/src/main.rs"
+        }
+      ],
+      "result": {
+        "selection": {
+          "schema": "a1-integration-selection-v1",
+          "base": "02afe37f1104781899e07df6700c3a5308da5267",
+          "head": "9f3c0bc3932bbd5c6cbd480b88da6b1d03c78528",
+          "mode": "impact",
+          "exemption": null,
+          "ownershipId": "0859b09260cf4fe144cd37887078aca12bd9ae7eb66cf7434d47b60db4db5aa9",
+          "owners": [
+            {
+              "owner": "history-compatibility",
+              "scopes": [
+                "history-compatibility"
+              ],
+              "targets": [
+                {
+                  "platform": "darwin",
+                  "architecture": "arm64",
+                  "node": 24
+                },
+                {
+                  "platform": "win32",
+                  "architecture": "x64",
+                  "node": 22
+                },
+                {
+                  "platform": "linux",
+                  "architecture": "x64",
+                  "node": 24
+                }
+              ],
+              "selected": true,
+              "reasons": [
+                {
+                  "code": "invalidator",
+                  "paths": [
+                    "native/process-guardian/src/main.rs"
+                  ]
+                },
+                {
+                  "code": "conservative-fallback",
+                  "paths": []
+                }
+              ]
+            },
+            {
+              "owner": "image-compatibility",
+              "scopes": [
+                "image-compatibility"
+              ],
+              "targets": [
+                {
+                  "platform": "darwin",
+                  "architecture": "arm64",
+                  "node": 24
+                },
+                {
+                  "platform": "win32",
+                  "architecture": "x64",
+                  "node": 22
+                },
+                {
+                  "platform": "linux",
+                  "architecture": "x64",
+                  "node": 24
+                }
+              ],
+              "selected": true,
+              "reasons": [
+                {
+                  "code": "invalidator",
+                  "paths": [
+                    "native/process-guardian/src/main.rs"
+                  ]
+                },
+                {
+                  "code": "conservative-fallback",
+                  "paths": []
+                }
+              ]
+            },
+            {
+              "owner": "package-contracts",
+              "scopes": [
+                "package-contracts"
+              ],
+              "targets": [
+                {
+                  "platform": "win32",
+                  "architecture": "x64",
+                  "node": 22
+                }
+              ],
+              "selected": true,
+              "reasons": [
+                {
+                  "code": "invalidator",
+                  "paths": [
+                    "native/process-guardian/src/main.rs"
+                  ]
+                },
+                {
+                  "code": "conservative-fallback",
+                  "paths": []
+                }
+              ]
+            },
+            {
+              "owner": "pi-release-resume",
+              "scopes": [
+                "package-smoke",
+                "pi-engine-conformance",
+                "release-update"
+              ],
+              "targets": [
+                {
+                  "platform": "win32",
+                  "architecture": "x64",
+                  "node": 24
+                }
+              ],
+              "selected": true,
+              "reasons": [
+                {
+                  "code": "invalidator",
+                  "paths": [
+                    "native/process-guardian/src/main.rs"
+                  ]
+                },
+                {
+                  "code": "conservative-fallback",
+                  "paths": []
+                }
+              ]
+            },
+            {
+              "owner": "startup",
+              "scopes": [
+                "package-startup"
+              ],
+              "targets": [
+                {
+                  "platform": "win32",
+                  "architecture": "x64",
+                  "node": 22
+                }
+              ],
+              "selected": true,
+              "reasons": [
+                {
+                  "code": "invalidator",
+                  "paths": [
+                    "native/process-guardian/src/main.rs"
+                  ]
+                },
+                {
+                  "code": "conservative-fallback",
+                  "paths": []
+                }
+              ]
+            },
+            {
+              "owner": "unix-containment",
+              "scopes": [
+                "unix-containment"
+              ],
+              "targets": [
+                {
+                  "platform": "darwin",
+                  "architecture": "arm64",
+                  "node": 24
+                },
+                {
+                  "platform": "linux",
+                  "architecture": "x64",
+                  "node": 24
+                }
+              ],
+              "selected": true,
+              "reasons": [
+                {
+                  "code": "invalidator",
+                  "paths": [
+                    "native/process-guardian/src/main.rs"
+                  ]
+                },
+                {
+                  "code": "conservative-fallback",
+                  "paths": []
+                }
+              ]
+            }
+          ],
+          "selectionId": "b93917ca3fd30bb7d3ed29dfd82875f91f20590f971f1e4ec142a41431df9e70"
+        },
+        "fallback": null,
+        "dependency": {
+          "stats": {
+            "base": {
+              "parsedModules": 205,
+              "nodes": 512598,
+              "edges": 1554
+            },
+            "head": {
+              "parsedModules": 205,
+              "nodes": 512598,
+              "edges": 1554
+            }
+          },
+          "owners": [
+            {
+              "owner": "pi-release-resume",
+              "matches": [],
+              "invalidators": [
+                "native/process-guardian/src/main.rs"
+              ],
+              "issueCodes": [
+                "asset-read",
+                "opaque-loader",
+                "subprocess"
+              ]
+            },
+            {
+              "owner": "package-contracts",
+              "matches": [],
+              "invalidators": [
+                "native/process-guardian/src/main.rs"
+              ],
+              "issueCodes": [
+                "asset-read",
+                "computed-import",
+                "opaque-loader",
+                "subprocess"
+              ]
+            },
+            {
+              "owner": "startup",
+              "matches": [],
+              "invalidators": [
+                "native/process-guardian/src/main.rs"
+              ],
+              "issueCodes": [
+                "asset-read",
+                "invalid-repository-import",
+                "opaque-loader",
+                "subprocess",
+                "unresolved-repository-import"
+              ]
+            },
+            {
+              "owner": "image-compatibility",
+              "matches": [],
+              "invalidators": [
+                "native/process-guardian/src/main.rs"
+              ],
+              "issueCodes": [
+                "asset-read",
+                "opaque-loader",
+                "subprocess",
+                "unresolved-repository-import"
+              ]
+            },
+            {
+              "owner": "history-compatibility",
+              "matches": [],
+              "invalidators": [
+                "native/process-guardian/src/main.rs"
+              ],
+              "issueCodes": [
+                "asset-read",
+                "opaque-loader",
+                "subprocess"
+              ]
+            },
+            {
+              "owner": "unix-containment",
+              "matches": [],
+              "invalidators": [
+                "native/process-guardian/src/main.rs"
+              ],
+              "issueCodes": [
+                "asset-read",
+                "opaque-loader",
+                "subprocess"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "label": "validation-policy",
+      "changes": [
+        {
+          "status": "M",
+          "path": "config/integration-owners.json"
+        }
+      ],
+      "result": {
+        "selection": {
+          "schema": "a1-integration-selection-v1",
+          "base": "02afe37f1104781899e07df6700c3a5308da5267",
+          "head": "9f3c0bc3932bbd5c6cbd480b88da6b1d03c78528",
+          "mode": "impact",
+          "exemption": null,
+          "ownershipId": "0859b09260cf4fe144cd37887078aca12bd9ae7eb66cf7434d47b60db4db5aa9",
+          "owners": [
+            {
+              "owner": "history-compatibility",
+              "scopes": [
+                "history-compatibility"
+              ],
+              "targets": [
+                {
+                  "platform": "darwin",
+                  "architecture": "arm64",
+                  "node": 24
+                },
+                {
+                  "platform": "win32",
+                  "architecture": "x64",
+                  "node": 22
+                },
+                {
+                  "platform": "linux",
+                  "architecture": "x64",
+                  "node": 24
+                }
+              ],
+              "selected": true,
+              "reasons": [
+                {
+                  "code": "invalidator",
+                  "paths": [
+                    "config/integration-owners.json"
+                  ]
+                },
+                {
+                  "code": "conservative-fallback",
+                  "paths": []
+                }
+              ]
+            },
+            {
+              "owner": "image-compatibility",
+              "scopes": [
+                "image-compatibility"
+              ],
+              "targets": [
+                {
+                  "platform": "darwin",
+                  "architecture": "arm64",
+                  "node": 24
+                },
+                {
+                  "platform": "win32",
+                  "architecture": "x64",
+                  "node": 22
+                },
+                {
+                  "platform": "linux",
+                  "architecture": "x64",
+                  "node": 24
+                }
+              ],
+              "selected": true,
+              "reasons": [
+                {
+                  "code": "invalidator",
+                  "paths": [
+                    "config/integration-owners.json"
+                  ]
+                },
+                {
+                  "code": "conservative-fallback",
+                  "paths": []
+                }
+              ]
+            },
+            {
+              "owner": "package-contracts",
+              "scopes": [
+                "package-contracts"
+              ],
+              "targets": [
+                {
+                  "platform": "win32",
+                  "architecture": "x64",
+                  "node": 22
+                }
+              ],
+              "selected": true,
+              "reasons": [
+                {
+                  "code": "invalidator",
+                  "paths": [
+                    "config/integration-owners.json"
+                  ]
+                },
+                {
+                  "code": "conservative-fallback",
+                  "paths": []
+                }
+              ]
+            },
+            {
+              "owner": "pi-release-resume",
+              "scopes": [
+                "package-smoke",
+                "pi-engine-conformance",
+                "release-update"
+              ],
+              "targets": [
+                {
+                  "platform": "win32",
+                  "architecture": "x64",
+                  "node": 24
+                }
+              ],
+              "selected": true,
+              "reasons": [
+                {
+                  "code": "invalidator",
+                  "paths": [
+                    "config/integration-owners.json"
+                  ]
+                },
+                {
+                  "code": "conservative-fallback",
+                  "paths": []
+                }
+              ]
+            },
+            {
+              "owner": "startup",
+              "scopes": [
+                "package-startup"
+              ],
+              "targets": [
+                {
+                  "platform": "win32",
+                  "architecture": "x64",
+                  "node": 22
+                }
+              ],
+              "selected": true,
+              "reasons": [
+                {
+                  "code": "invalidator",
+                  "paths": [
+                    "config/integration-owners.json"
+                  ]
+                },
+                {
+                  "code": "conservative-fallback",
+                  "paths": []
+                }
+              ]
+            },
+            {
+              "owner": "unix-containment",
+              "scopes": [
+                "unix-containment"
+              ],
+              "targets": [
+                {
+                  "platform": "darwin",
+                  "architecture": "arm64",
+                  "node": 24
+                },
+                {
+                  "platform": "linux",
+                  "architecture": "x64",
+                  "node": 24
+                }
+              ],
+              "selected": true,
+              "reasons": [
+                {
+                  "code": "invalidator",
+                  "paths": [
+                    "config/integration-owners.json"
+                  ]
+                },
+                {
+                  "code": "conservative-fallback",
+                  "paths": []
+                }
+              ]
+            }
+          ],
+          "selectionId": "858f4b2ce269fa9a531aad42599c473cbb7e5d64586b045f73c96aaa9bf6ca19"
+        },
+        "fallback": null,
+        "dependency": {
+          "stats": {
+            "base": {
+              "parsedModules": 205,
+              "nodes": 512598,
+              "edges": 1554
+            },
+            "head": {
+              "parsedModules": 205,
+              "nodes": 512598,
+              "edges": 1554
+            }
+          },
+          "owners": [
+            {
+              "owner": "pi-release-resume",
+              "matches": [],
+              "invalidators": [
+                "config/integration-owners.json"
+              ],
+              "issueCodes": [
+                "asset-read",
+                "opaque-loader",
+                "subprocess"
+              ]
+            },
+            {
+              "owner": "package-contracts",
+              "matches": [],
+              "invalidators": [
+                "config/integration-owners.json"
+              ],
+              "issueCodes": [
+                "asset-read",
+                "computed-import",
+                "opaque-loader",
+                "subprocess"
+              ]
+            },
+            {
+              "owner": "startup",
+              "matches": [],
+              "invalidators": [
+                "config/integration-owners.json"
+              ],
+              "issueCodes": [
+                "asset-read",
+                "invalid-repository-import",
+                "opaque-loader",
+                "subprocess",
+                "unresolved-repository-import"
+              ]
+            },
+            {
+              "owner": "image-compatibility",
+              "matches": [],
+              "invalidators": [
+                "config/integration-owners.json"
+              ],
+              "issueCodes": [
+                "asset-read",
+                "opaque-loader",
+                "subprocess",
+                "unresolved-repository-import"
+              ]
+            },
+            {
+              "owner": "history-compatibility",
+              "matches": [],
+              "invalidators": [
+                "config/integration-owners.json"
+              ],
+              "issueCodes": [
+                "asset-read",
+                "opaque-loader",
+                "subprocess"
+              ]
+            },
+            {
+              "owner": "unix-containment",
+              "matches": [],
+              "invalidators": [
+                "config/integration-owners.json"
+              ],
+              "issueCodes": [
+                "asset-read",
+                "opaque-loader",
+                "subprocess"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "label": "unknown-operational",
+      "changes": [
+        {
+          "status": "A",
+          "path": "scripts/unknown-operation.mjs"
+        }
+      ],
+      "result": {
+        "selection": {
+          "schema": "a1-integration-selection-v1",
+          "base": "02afe37f1104781899e07df6700c3a5308da5267",
+          "head": "9f3c0bc3932bbd5c6cbd480b88da6b1d03c78528",
+          "mode": "impact",
+          "exemption": null,
+          "ownershipId": "0859b09260cf4fe144cd37887078aca12bd9ae7eb66cf7434d47b60db4db5aa9",
+          "owners": [
+            {
+              "owner": "history-compatibility",
+              "scopes": [
+                "history-compatibility"
+              ],
+              "targets": [
+                {
+                  "platform": "darwin",
+                  "architecture": "arm64",
+                  "node": 24
+                },
+                {
+                  "platform": "win32",
+                  "architecture": "x64",
+                  "node": 22
+                },
+                {
+                  "platform": "linux",
+                  "architecture": "x64",
+                  "node": 24
+                }
+              ],
+              "selected": true,
+              "reasons": [
+                {
+                  "code": "conservative-fallback",
+                  "paths": []
+                }
+              ]
+            },
+            {
+              "owner": "image-compatibility",
+              "scopes": [
+                "image-compatibility"
+              ],
+              "targets": [
+                {
+                  "platform": "darwin",
+                  "architecture": "arm64",
+                  "node": 24
+                },
+                {
+                  "platform": "win32",
+                  "architecture": "x64",
+                  "node": 22
+                },
+                {
+                  "platform": "linux",
+                  "architecture": "x64",
+                  "node": 24
+                }
+              ],
+              "selected": true,
+              "reasons": [
+                {
+                  "code": "conservative-fallback",
+                  "paths": []
+                }
+              ]
+            },
+            {
+              "owner": "package-contracts",
+              "scopes": [
+                "package-contracts"
+              ],
+              "targets": [
+                {
+                  "platform": "win32",
+                  "architecture": "x64",
+                  "node": 22
+                }
+              ],
+              "selected": true,
+              "reasons": [
+                {
+                  "code": "conservative-fallback",
+                  "paths": []
+                }
+              ]
+            },
+            {
+              "owner": "pi-release-resume",
+              "scopes": [
+                "package-smoke",
+                "pi-engine-conformance",
+                "release-update"
+              ],
+              "targets": [
+                {
+                  "platform": "win32",
+                  "architecture": "x64",
+                  "node": 24
+                }
+              ],
+              "selected": true,
+              "reasons": [
+                {
+                  "code": "conservative-fallback",
+                  "paths": []
+                }
+              ]
+            },
+            {
+              "owner": "startup",
+              "scopes": [
+                "package-startup"
+              ],
+              "targets": [
+                {
+                  "platform": "win32",
+                  "architecture": "x64",
+                  "node": 22
+                }
+              ],
+              "selected": true,
+              "reasons": [
+                {
+                  "code": "conservative-fallback",
+                  "paths": []
+                }
+              ]
+            },
+            {
+              "owner": "unix-containment",
+              "scopes": [
+                "unix-containment"
+              ],
+              "targets": [
+                {
+                  "platform": "darwin",
+                  "architecture": "arm64",
+                  "node": 24
+                },
+                {
+                  "platform": "linux",
+                  "architecture": "x64",
+                  "node": 24
+                }
+              ],
+              "selected": true,
+              "reasons": [
+                {
+                  "code": "conservative-fallback",
+                  "paths": []
+                }
+              ]
+            }
+          ],
+          "selectionId": "b9307eb874e99e03d918c416551ab11ff906295afa4de0464f4a20755aceadfc"
+        },
+        "fallback": "unclassified-operational-input",
+        "dependency": {
+          "stats": {
+            "base": {
+              "parsedModules": 205,
+              "nodes": 512598,
+              "edges": 1554
+            },
+            "head": {
+              "parsedModules": 205,
+              "nodes": 512598,
+              "edges": 1554
+            }
+          },
+          "owners": [
+            {
+              "owner": "pi-release-resume",
+              "matches": [],
+              "invalidators": [],
+              "issueCodes": [
+                "asset-read",
+                "opaque-loader",
+                "subprocess"
+              ]
+            },
+            {
+              "owner": "package-contracts",
+              "matches": [],
+              "invalidators": [],
+              "issueCodes": [
+                "asset-read",
+                "computed-import",
+                "opaque-loader",
+                "subprocess"
+              ]
+            },
+            {
+              "owner": "startup",
+              "matches": [],
+              "invalidators": [],
+              "issueCodes": [
+                "asset-read",
+                "invalid-repository-import",
+                "opaque-loader",
+                "subprocess",
+                "unresolved-repository-import"
+              ]
+            },
+            {
+              "owner": "image-compatibility",
+              "matches": [],
+              "invalidators": [],
+              "issueCodes": [
+                "asset-read",
+                "opaque-loader",
+                "subprocess",
+                "unresolved-repository-import"
+              ]
+            },
+            {
+              "owner": "history-compatibility",
+              "matches": [],
+              "invalidators": [],
+              "issueCodes": [
+                "asset-read",
+                "opaque-loader",
+                "subprocess"
+              ]
+            },
+            {
+              "owner": "unix-containment",
+              "matches": [],
+              "invalidators": [],
+              "issueCodes": [
+                "asset-read",
+                "opaque-loader",
+                "subprocess"
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "exemptions": [
+    {
+      "exemption": "docs-only",
+      "selection": {
+        "schema": "a1-integration-selection-v1",
+        "base": "02afe37f1104781899e07df6700c3a5308da5267",
+        "head": "9f3c0bc3932bbd5c6cbd480b88da6b1d03c78528",
+        "mode": "exempt",
+        "exemption": "docs-only",
+        "ownershipId": "0859b09260cf4fe144cd37887078aca12bd9ae7eb66cf7434d47b60db4db5aa9",
+        "owners": [
+          {
+            "owner": "history-compatibility",
+            "scopes": [
+              "history-compatibility"
+            ],
+            "targets": [
+              {
+                "platform": "darwin",
+                "architecture": "arm64",
+                "node": 24
+              },
+              {
+                "platform": "win32",
+                "architecture": "x64",
+                "node": 22
+              },
+              {
+                "platform": "linux",
+                "architecture": "x64",
+                "node": 24
+              }
+            ],
+            "selected": false,
+            "reasons": [
+              {
+                "code": "docs-only",
+                "paths": []
+              }
+            ]
+          },
+          {
+            "owner": "image-compatibility",
+            "scopes": [
+              "image-compatibility"
+            ],
+            "targets": [
+              {
+                "platform": "darwin",
+                "architecture": "arm64",
+                "node": 24
+              },
+              {
+                "platform": "win32",
+                "architecture": "x64",
+                "node": 22
+              },
+              {
+                "platform": "linux",
+                "architecture": "x64",
+                "node": 24
+              }
+            ],
+            "selected": false,
+            "reasons": [
+              {
+                "code": "docs-only",
+                "paths": []
+              }
+            ]
+          },
+          {
+            "owner": "package-contracts",
+            "scopes": [
+              "package-contracts"
+            ],
+            "targets": [
+              {
+                "platform": "win32",
+                "architecture": "x64",
+                "node": 22
+              }
+            ],
+            "selected": false,
+            "reasons": [
+              {
+                "code": "docs-only",
+                "paths": []
+              }
+            ]
+          },
+          {
+            "owner": "pi-release-resume",
+            "scopes": [
+              "package-smoke",
+              "pi-engine-conformance",
+              "release-update"
+            ],
+            "targets": [
+              {
+                "platform": "win32",
+                "architecture": "x64",
+                "node": 24
+              }
+            ],
+            "selected": false,
+            "reasons": [
+              {
+                "code": "docs-only",
+                "paths": []
+              }
+            ]
+          },
+          {
+            "owner": "startup",
+            "scopes": [
+              "package-startup"
+            ],
+            "targets": [
+              {
+                "platform": "win32",
+                "architecture": "x64",
+                "node": 22
+              }
+            ],
+            "selected": false,
+            "reasons": [
+              {
+                "code": "docs-only",
+                "paths": []
+              }
+            ]
+          },
+          {
+            "owner": "unix-containment",
+            "scopes": [
+              "unix-containment"
+            ],
+            "targets": [
+              {
+                "platform": "darwin",
+                "architecture": "arm64",
+                "node": 24
+              },
+              {
+                "platform": "linux",
+                "architecture": "x64",
+                "node": 24
+              }
+            ],
+            "selected": false,
+            "reasons": [
+              {
+                "code": "docs-only",
+                "paths": []
+              }
+            ]
+          }
+        ],
+        "selectionId": "cbf5a2bfa7a6d0a2bf89fcd328d73327df7a54b3ae9231478688de0703f8c33f"
+      }
+    },
+    {
+      "exemption": "version-only",
+      "selection": {
+        "schema": "a1-integration-selection-v1",
+        "base": "02afe37f1104781899e07df6700c3a5308da5267",
+        "head": "9f3c0bc3932bbd5c6cbd480b88da6b1d03c78528",
+        "mode": "exempt",
+        "exemption": "version-only",
+        "ownershipId": "0859b09260cf4fe144cd37887078aca12bd9ae7eb66cf7434d47b60db4db5aa9",
+        "owners": [
+          {
+            "owner": "history-compatibility",
+            "scopes": [
+              "history-compatibility"
+            ],
+            "targets": [
+              {
+                "platform": "darwin",
+                "architecture": "arm64",
+                "node": 24
+              },
+              {
+                "platform": "win32",
+                "architecture": "x64",
+                "node": 22
+              },
+              {
+                "platform": "linux",
+                "architecture": "x64",
+                "node": 24
+              }
+            ],
+            "selected": false,
+            "reasons": [
+              {
+                "code": "version-only",
+                "paths": []
+              }
+            ]
+          },
+          {
+            "owner": "image-compatibility",
+            "scopes": [
+              "image-compatibility"
+            ],
+            "targets": [
+              {
+                "platform": "darwin",
+                "architecture": "arm64",
+                "node": 24
+              },
+              {
+                "platform": "win32",
+                "architecture": "x64",
+                "node": 22
+              },
+              {
+                "platform": "linux",
+                "architecture": "x64",
+                "node": 24
+              }
+            ],
+            "selected": false,
+            "reasons": [
+              {
+                "code": "version-only",
+                "paths": []
+              }
+            ]
+          },
+          {
+            "owner": "package-contracts",
+            "scopes": [
+              "package-contracts"
+            ],
+            "targets": [
+              {
+                "platform": "win32",
+                "architecture": "x64",
+                "node": 22
+              }
+            ],
+            "selected": false,
+            "reasons": [
+              {
+                "code": "version-only",
+                "paths": []
+              }
+            ]
+          },
+          {
+            "owner": "pi-release-resume",
+            "scopes": [
+              "package-smoke",
+              "pi-engine-conformance",
+              "release-update"
+            ],
+            "targets": [
+              {
+                "platform": "win32",
+                "architecture": "x64",
+                "node": 24
+              }
+            ],
+            "selected": false,
+            "reasons": [
+              {
+                "code": "version-only",
+                "paths": []
+              }
+            ]
+          },
+          {
+            "owner": "startup",
+            "scopes": [
+              "package-startup"
+            ],
+            "targets": [
+              {
+                "platform": "win32",
+                "architecture": "x64",
+                "node": 22
+              }
+            ],
+            "selected": false,
+            "reasons": [
+              {
+                "code": "version-only",
+                "paths": []
+              }
+            ]
+          },
+          {
+            "owner": "unix-containment",
+            "scopes": [
+              "unix-containment"
+            ],
+            "targets": [
+              {
+                "platform": "darwin",
+                "architecture": "arm64",
+                "node": 24
+              },
+              {
+                "platform": "linux",
+                "architecture": "x64",
+                "node": 24
+              }
+            ],
+            "selected": false,
+            "reasons": [
+              {
+                "code": "version-only",
+                "paths": []
+              }
+            ]
+          }
+        ],
+        "selectionId": "e26079aeea7be4d2dd14957f1e16cc40f3bc47a53575d8ce6bf478e0976ab902"
+      }
+    }
+  ],
+  "historical": [
+    {
+      "label": "pr-398",
+      "kind": "historical-path-replay-against-current-reviewed-graph",
+      "actualBase": "6788860dc4e0b045bfd7d7e174557d8805bafbf6",
+      "actualHead": "5079baf8b5469ec05e3f81de28e776802c3ae9c6",
+      "changes": 17,
+      "samplePaths": [
+        "openspec/changes/archive/2026-09-14-keep-pinned-timestamp-grey/.openspec.yaml",
+        "openspec/changes/fix-input-stable-transcript-renders/.openspec.yaml",
+        "openspec/changes/fix-input-stable-transcript-renders/design.md",
+        "openspec/changes/fix-input-stable-transcript-renders/evidence.md",
+        "openspec/changes/fix-input-stable-transcript-renders/proposal.md",
+        "openspec/changes/fix-input-stable-transcript-renders/specs/owned-pi-ui-foundation/spec.md",
+        "openspec/changes/fix-input-stable-transcript-renders/tasks.md",
+        "test/integrations/pi/tui-runtime/input-frame-observation.test.ts",
+        "test/integrations/pi/tui-runtime/input-frame-work.test.ts",
+        "test/integrations/pi/tui-runtime/input-producer.test.ts",
+        "test/support/input-responsiveness/input-frame-evidence.ts",
+        "test/support/input-responsiveness/input-frame-recorder.ts",
+        "test/support/input-responsiveness/input-frame-validation.ts",
+        "test/support/input-responsiveness/input-frame-work.ts",
+        "test/support/input-responsiveness/input-matrix.ts",
+        "test/support/input-responsiveness/input-producer-worker.ts",
+        "test/support/input-responsiveness/input-producer.ts",
+        "test/support/input-responsiveness/input-runtime-fixture.ts"
+      ],
+      "result": {
+        "selection": {
+          "schema": "a1-integration-selection-v1",
+          "base": "02afe37f1104781899e07df6700c3a5308da5267",
+          "head": "9f3c0bc3932bbd5c6cbd480b88da6b1d03c78528",
+          "mode": "impact",
+          "exemption": null,
+          "ownershipId": "0859b09260cf4fe144cd37887078aca12bd9ae7eb66cf7434d47b60db4db5aa9",
+          "owners": [
+            {
+              "owner": "history-compatibility",
+              "scopes": [
+                "history-compatibility"
+              ],
+              "targets": [
+                {
+                  "platform": "darwin",
+                  "architecture": "arm64",
+                  "node": 24
+                },
+                {
+                  "platform": "win32",
+                  "architecture": "x64",
+                  "node": 22
+                },
+                {
+                  "platform": "linux",
+                  "architecture": "x64",
+                  "node": 24
+                }
+              ],
+              "selected": true,
+              "reasons": [
+                {
+                  "code": "conservative-fallback",
+                  "paths": []
+                }
+              ]
+            },
+            {
+              "owner": "image-compatibility",
+              "scopes": [
+                "image-compatibility"
+              ],
+              "targets": [
+                {
+                  "platform": "darwin",
+                  "architecture": "arm64",
+                  "node": 24
+                },
+                {
+                  "platform": "win32",
+                  "architecture": "x64",
+                  "node": 22
+                },
+                {
+                  "platform": "linux",
+                  "architecture": "x64",
+                  "node": 24
+                }
+              ],
+              "selected": true,
+              "reasons": [
+                {
+                  "code": "conservative-fallback",
+                  "paths": []
+                }
+              ]
+            },
+            {
+              "owner": "package-contracts",
+              "scopes": [
+                "package-contracts"
+              ],
+              "targets": [
+                {
+                  "platform": "win32",
+                  "architecture": "x64",
+                  "node": 22
+                }
+              ],
+              "selected": true,
+              "reasons": [
+                {
+                  "code": "conservative-fallback",
+                  "paths": []
+                }
+              ]
+            },
+            {
+              "owner": "pi-release-resume",
+              "scopes": [
+                "package-smoke",
+                "pi-engine-conformance",
+                "release-update"
+              ],
+              "targets": [
+                {
+                  "platform": "win32",
+                  "architecture": "x64",
+                  "node": 24
+                }
+              ],
+              "selected": true,
+              "reasons": [
+                {
+                  "code": "conservative-fallback",
+                  "paths": []
+                }
+              ]
+            },
+            {
+              "owner": "startup",
+              "scopes": [
+                "package-startup"
+              ],
+              "targets": [
+                {
+                  "platform": "win32",
+                  "architecture": "x64",
+                  "node": 22
+                }
+              ],
+              "selected": true,
+              "reasons": [
+                {
+                  "code": "conservative-fallback",
+                  "paths": []
+                }
+              ]
+            },
+            {
+              "owner": "unix-containment",
+              "scopes": [
+                "unix-containment"
+              ],
+              "targets": [
+                {
+                  "platform": "darwin",
+                  "architecture": "arm64",
+                  "node": 24
+                },
+                {
+                  "platform": "linux",
+                  "architecture": "x64",
+                  "node": 24
+                }
+              ],
+              "selected": true,
+              "reasons": [
+                {
+                  "code": "conservative-fallback",
+                  "paths": []
+                }
+              ]
+            }
+          ],
+          "selectionId": "b9307eb874e99e03d918c416551ab11ff906295afa4de0464f4a20755aceadfc"
+        },
+        "fallback": "unclassified-operational-input",
+        "dependency": {
+          "stats": {
+            "base": {
+              "parsedModules": 205,
+              "nodes": 512598,
+              "edges": 1554
+            },
+            "head": {
+              "parsedModules": 205,
+              "nodes": 512598,
+              "edges": 1554
+            }
+          },
+          "owners": [
+            {
+              "owner": "pi-release-resume",
+              "matches": [],
+              "invalidators": [],
+              "issueCodes": [
+                "asset-read",
+                "opaque-loader",
+                "subprocess"
+              ]
+            },
+            {
+              "owner": "package-contracts",
+              "matches": [],
+              "invalidators": [],
+              "issueCodes": [
+                "asset-read",
+                "computed-import",
+                "opaque-loader",
+                "subprocess"
+              ]
+            },
+            {
+              "owner": "startup",
+              "matches": [],
+              "invalidators": [],
+              "issueCodes": [
+                "asset-read",
+                "invalid-repository-import",
+                "opaque-loader",
+                "subprocess",
+                "unresolved-repository-import"
+              ]
+            },
+            {
+              "owner": "image-compatibility",
+              "matches": [],
+              "invalidators": [],
+              "issueCodes": [
+                "asset-read",
+                "opaque-loader",
+                "subprocess",
+                "unresolved-repository-import"
+              ]
+            },
+            {
+              "owner": "history-compatibility",
+              "matches": [],
+              "invalidators": [],
+              "issueCodes": [
+                "asset-read",
+                "opaque-loader",
+                "subprocess"
+              ]
+            },
+            {
+              "owner": "unix-containment",
+              "matches": [],
+              "invalidators": [],
+              "issueCodes": [
+                "asset-read",
+                "opaque-loader",
+                "subprocess"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "label": "pr-400",
+      "kind": "historical-path-replay-against-current-reviewed-graph",
+      "actualBase": "0bc3624fd4d81eb131c31fdd0ad443fd786742f0",
+      "actualHead": "fd7f1258a4c8814f0215259cb5f072b228ff3a6c",
+      "changes": 24,
+      "samplePaths": [
+        ".agents/skills/change-delivery/SKILL.md",
+        "config/validation-suites.json",
+        "docs/local-worktree-cleanup.md",
+        "docs/openspec-archive-automation.md",
+        "openspec/changes/archive/2026-09-14-defer-node24-startup-to-nightly/.openspec.yaml",
+        "openspec/changes/automate-local-worktree-cleanup/.openspec.yaml",
+        "openspec/changes/automate-local-worktree-cleanup/design.md",
+        "openspec/changes/automate-local-worktree-cleanup/implementation-evidence.md",
+        "openspec/changes/automate-local-worktree-cleanup/proposal.md",
+        "openspec/changes/automate-local-worktree-cleanup/specs/local-worktree-cleanup/spec.md",
+        "openspec/changes/automate-local-worktree-cleanup/tasks.md",
+        "openspec/config.yaml",
+        "scripts/governance/local-cleanup-evidence.mjs",
+        "scripts/governance/local-cleanup-git.mjs",
+        "scripts/governance/local-cleanup-reconcile.mjs",
+        "scripts/governance/local-cleanup-state.mjs",
+        "scripts/governance/local-cleanup-watch.mjs",
+        "scripts/governance/local-worktree-cleanup.mjs",
+        "test/integrations/pi/session-ui/transcript-presentation-lifetime.test.ts",
+        "test/repository-governance/local-cleanup-evidence.node.mjs",
+        "test/repository-governance/local-cleanup-watch.node.mjs",
+        "test/repository-governance/local-cleanup.node.mjs",
+        "test/repository-governance/local-cleanup.test.ts",
+        "test/repository-governance/resource-sensitive-validation.test.ts",
+        "test/repository-governance/validation-suite-policy.test.ts"
+      ],
+      "result": {
+        "selection": {
+          "schema": "a1-integration-selection-v1",
+          "base": "02afe37f1104781899e07df6700c3a5308da5267",
+          "head": "9f3c0bc3932bbd5c6cbd480b88da6b1d03c78528",
+          "mode": "impact",
+          "exemption": null,
+          "ownershipId": "0859b09260cf4fe144cd37887078aca12bd9ae7eb66cf7434d47b60db4db5aa9",
+          "owners": [
+            {
+              "owner": "history-compatibility",
+              "scopes": [
+                "history-compatibility"
+              ],
+              "targets": [
+                {
+                  "platform": "darwin",
+                  "architecture": "arm64",
+                  "node": 24
+                },
+                {
+                  "platform": "win32",
+                  "architecture": "x64",
+                  "node": 22
+                },
+                {
+                  "platform": "linux",
+                  "architecture": "x64",
+                  "node": 24
+                }
+              ],
+              "selected": true,
+              "reasons": [
+                {
+                  "code": "invalidator",
+                  "paths": [
+                    "config/validation-suites.json"
+                  ]
+                },
+                {
+                  "code": "conservative-fallback",
+                  "paths": []
+                }
+              ]
+            },
+            {
+              "owner": "image-compatibility",
+              "scopes": [
+                "image-compatibility"
+              ],
+              "targets": [
+                {
+                  "platform": "darwin",
+                  "architecture": "arm64",
+                  "node": 24
+                },
+                {
+                  "platform": "win32",
+                  "architecture": "x64",
+                  "node": 22
+                },
+                {
+                  "platform": "linux",
+                  "architecture": "x64",
+                  "node": 24
+                }
+              ],
+              "selected": true,
+              "reasons": [
+                {
+                  "code": "invalidator",
+                  "paths": [
+                    "config/validation-suites.json"
+                  ]
+                },
+                {
+                  "code": "conservative-fallback",
+                  "paths": []
+                }
+              ]
+            },
+            {
+              "owner": "package-contracts",
+              "scopes": [
+                "package-contracts"
+              ],
+              "targets": [
+                {
+                  "platform": "win32",
+                  "architecture": "x64",
+                  "node": 22
+                }
+              ],
+              "selected": true,
+              "reasons": [
+                {
+                  "code": "invalidator",
+                  "paths": [
+                    "config/validation-suites.json"
+                  ]
+                },
+                {
+                  "code": "conservative-fallback",
+                  "paths": []
+                }
+              ]
+            },
+            {
+              "owner": "pi-release-resume",
+              "scopes": [
+                "package-smoke",
+                "pi-engine-conformance",
+                "release-update"
+              ],
+              "targets": [
+                {
+                  "platform": "win32",
+                  "architecture": "x64",
+                  "node": 24
+                }
+              ],
+              "selected": true,
+              "reasons": [
+                {
+                  "code": "invalidator",
+                  "paths": [
+                    "config/validation-suites.json"
+                  ]
+                },
+                {
+                  "code": "conservative-fallback",
+                  "paths": []
+                }
+              ]
+            },
+            {
+              "owner": "startup",
+              "scopes": [
+                "package-startup"
+              ],
+              "targets": [
+                {
+                  "platform": "win32",
+                  "architecture": "x64",
+                  "node": 22
+                }
+              ],
+              "selected": true,
+              "reasons": [
+                {
+                  "code": "invalidator",
+                  "paths": [
+                    "config/validation-suites.json"
+                  ]
+                },
+                {
+                  "code": "conservative-fallback",
+                  "paths": []
+                }
+              ]
+            },
+            {
+              "owner": "unix-containment",
+              "scopes": [
+                "unix-containment"
+              ],
+              "targets": [
+                {
+                  "platform": "darwin",
+                  "architecture": "arm64",
+                  "node": 24
+                },
+                {
+                  "platform": "linux",
+                  "architecture": "x64",
+                  "node": 24
+                }
+              ],
+              "selected": true,
+              "reasons": [
+                {
+                  "code": "invalidator",
+                  "paths": [
+                    "config/validation-suites.json"
+                  ]
+                },
+                {
+                  "code": "conservative-fallback",
+                  "paths": []
+                }
+              ]
+            }
+          ],
+          "selectionId": "bcd48fa9160ccc8e9e92c18ee9bdcccc007fdb8fa9829b77ee9cde8b150e48e3"
+        },
+        "fallback": "unclassified-operational-input",
+        "dependency": {
+          "stats": {
+            "base": {
+              "parsedModules": 205,
+              "nodes": 512598,
+              "edges": 1554
+            },
+            "head": {
+              "parsedModules": 205,
+              "nodes": 512598,
+              "edges": 1554
+            }
+          },
+          "owners": [
+            {
+              "owner": "pi-release-resume",
+              "matches": [],
+              "invalidators": [
+                "config/validation-suites.json"
+              ],
+              "issueCodes": [
+                "asset-read",
+                "opaque-loader",
+                "subprocess"
+              ]
+            },
+            {
+              "owner": "package-contracts",
+              "matches": [],
+              "invalidators": [
+                "config/validation-suites.json"
+              ],
+              "issueCodes": [
+                "asset-read",
+                "computed-import",
+                "opaque-loader",
+                "subprocess"
+              ]
+            },
+            {
+              "owner": "startup",
+              "matches": [],
+              "invalidators": [
+                "config/validation-suites.json"
+              ],
+              "issueCodes": [
+                "asset-read",
+                "invalid-repository-import",
+                "opaque-loader",
+                "subprocess",
+                "unresolved-repository-import"
+              ]
+            },
+            {
+              "owner": "image-compatibility",
+              "matches": [],
+              "invalidators": [
+                "config/validation-suites.json"
+              ],
+              "issueCodes": [
+                "asset-read",
+                "opaque-loader",
+                "subprocess",
+                "unresolved-repository-import"
+              ]
+            },
+            {
+              "owner": "history-compatibility",
+              "matches": [],
+              "invalidators": [
+                "config/validation-suites.json"
+              ],
+              "issueCodes": [
+                "asset-read",
+                "opaque-loader",
+                "subprocess"
+              ]
+            },
+            {
+              "owner": "unix-containment",
+              "matches": [],
+              "invalidators": [
+                "config/validation-suites.json"
+              ],
+              "issueCodes": [
+                "asset-read",
+                "opaque-loader",
+                "subprocess"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "label": "baseline-34883033336",
+      "kind": "historical-path-replay-against-current-reviewed-graph",
+      "actualBase": "d5d7c1b100158e9d0efdb44f0490ced2ee4ea266",
+      "actualHead": "47d2adbe26e7d13ad1b98ecafccedcc92209d75e",
+      "changes": 18,
+      "samplePaths": [
+        ".github/workflows/ci.yml",
+        ".github/workflows/full-regression.yml",
+        "config/product-identity-legacy-allowlist.json",
+        "config/product-identity-legacy-inventory.json",
+        "openspec/changes/archive/2026-09-14-defer-node24-startup-to-nightly/.openspec.yaml",
+        "openspec/changes/shorten-development-validation/.openspec.yaml",
+        "openspec/changes/shorten-development-validation/design.md",
+        "openspec/changes/shorten-development-validation/evidence/ownership-baseline.json",
+        "openspec/changes/shorten-development-validation/implementation-evidence.md",
+        "openspec/changes/shorten-development-validation/proposal.md",
+        "openspec/changes/shorten-development-validation/specs/continuous-integration/spec.md",
+        "openspec/changes/shorten-development-validation/specs/isolated-regression-testing/spec.md",
+        "openspec/changes/shorten-development-validation/tasks.md",
+        "scripts/release/prepare-validation-package.mjs",
+        "scripts/release/validation-phase.d.mts",
+        "scripts/release/validation-phase.mjs",
+        "test/foundation/release/package-install.integration.test.ts",
+        "test/repository-governance/impact-aware-validation-workflows.test.ts",
+        "test/repository-governance/validation-phase.test.ts"
+      ],
+      "result": {
+        "selection": {
+          "schema": "a1-integration-selection-v1",
+          "base": "02afe37f1104781899e07df6700c3a5308da5267",
+          "head": "9f3c0bc3932bbd5c6cbd480b88da6b1d03c78528",
+          "mode": "impact",
+          "exemption": null,
+          "ownershipId": "0859b09260cf4fe144cd37887078aca12bd9ae7eb66cf7434d47b60db4db5aa9",
+          "owners": [
+            {
+              "owner": "history-compatibility",
+              "scopes": [
+                "history-compatibility"
+              ],
+              "targets": [
+                {
+                  "platform": "darwin",
+                  "architecture": "arm64",
+                  "node": 24
+                },
+                {
+                  "platform": "win32",
+                  "architecture": "x64",
+                  "node": 22
+                },
+                {
+                  "platform": "linux",
+                  "architecture": "x64",
+                  "node": 24
+                }
+              ],
+              "selected": true,
+              "reasons": [
+                {
+                  "code": "invalidator",
+                  "paths": [
+                    ".github/workflows/ci.yml",
+                    ".github/workflows/full-regression.yml",
+                    "config/product-identity-legacy-allowlist.json",
+                    "config/product-identity-legacy-inventory.json",
+                    "scripts/release/prepare-validation-package.mjs",
+                    "scripts/release/validation-phase.d.mts",
+                    "scripts/release/validation-phase.mjs"
+                  ]
+                },
+                {
+                  "code": "conservative-fallback",
+                  "paths": []
+                }
+              ]
+            },
+            {
+              "owner": "image-compatibility",
+              "scopes": [
+                "image-compatibility"
+              ],
+              "targets": [
+                {
+                  "platform": "darwin",
+                  "architecture": "arm64",
+                  "node": 24
+                },
+                {
+                  "platform": "win32",
+                  "architecture": "x64",
+                  "node": 22
+                },
+                {
+                  "platform": "linux",
+                  "architecture": "x64",
+                  "node": 24
+                }
+              ],
+              "selected": true,
+              "reasons": [
+                {
+                  "code": "invalidator",
+                  "paths": [
+                    ".github/workflows/ci.yml",
+                    ".github/workflows/full-regression.yml",
+                    "config/product-identity-legacy-allowlist.json",
+                    "config/product-identity-legacy-inventory.json",
+                    "scripts/release/prepare-validation-package.mjs",
+                    "scripts/release/validation-phase.d.mts",
+                    "scripts/release/validation-phase.mjs"
+                  ]
+                },
+                {
+                  "code": "conservative-fallback",
+                  "paths": []
+                }
+              ]
+            },
+            {
+              "owner": "package-contracts",
+              "scopes": [
+                "package-contracts"
+              ],
+              "targets": [
+                {
+                  "platform": "win32",
+                  "architecture": "x64",
+                  "node": 22
+                }
+              ],
+              "selected": true,
+              "reasons": [
+                {
+                  "code": "changed-test",
+                  "paths": [
+                    "test/foundation/release/package-install.integration.test.ts"
+                  ]
+                },
+                {
+                  "code": "invalidator",
+                  "paths": [
+                    ".github/workflows/ci.yml",
+                    ".github/workflows/full-regression.yml",
+                    "config/product-identity-legacy-allowlist.json",
+                    "config/product-identity-legacy-inventory.json",
+                    "scripts/release/prepare-validation-package.mjs",
+                    "scripts/release/validation-phase.d.mts",
+                    "scripts/release/validation-phase.mjs"
+                  ]
+                },
+                {
+                  "code": "reachable",
+                  "paths": [
+                    "test/foundation/release/package-install.integration.test.ts",
+                    "scripts/release/validation-phase.mjs"
+                  ]
+                },
+                {
+                  "code": "reachable",
+                  "paths": [
+                    "test/foundation/release/package-install.integration.test.ts"
+                  ]
+                },
+                {
+                  "code": "conservative-fallback",
+                  "paths": []
+                }
+              ]
+            },
+            {
+              "owner": "pi-release-resume",
+              "scopes": [
+                "package-smoke",
+                "pi-engine-conformance",
+                "release-update"
+              ],
+              "targets": [
+                {
+                  "platform": "win32",
+                  "architecture": "x64",
+                  "node": 24
+                }
+              ],
+              "selected": true,
+              "reasons": [
+                {
+                  "code": "invalidator",
+                  "paths": [
+                    ".github/workflows/ci.yml",
+                    ".github/workflows/full-regression.yml",
+                    "config/product-identity-legacy-allowlist.json",
+                    "config/product-identity-legacy-inventory.json",
+                    "scripts/release/prepare-validation-package.mjs",
+                    "scripts/release/validation-phase.d.mts",
+                    "scripts/release/validation-phase.mjs"
+                  ]
+                },
+                {
+                  "code": "reachable",
+                  "paths": [
+                    "test/foundation/release/session-resume.integration.test.ts",
+                    "scripts/release/validation-phase.mjs"
+                  ]
+                },
+                {
+                  "code": "conservative-fallback",
+                  "paths": []
+                }
+              ]
+            },
+            {
+              "owner": "startup",
+              "scopes": [
+                "package-startup"
+              ],
+              "targets": [
+                {
+                  "platform": "win32",
+                  "architecture": "x64",
+                  "node": 22
+                }
+              ],
+              "selected": true,
+              "reasons": [
+                {
+                  "code": "invalidator",
+                  "paths": [
+                    ".github/workflows/ci.yml",
+                    ".github/workflows/full-regression.yml",
+                    "config/product-identity-legacy-allowlist.json",
+                    "config/product-identity-legacy-inventory.json",
+                    "scripts/release/prepare-validation-package.mjs",
+                    "scripts/release/validation-phase.d.mts",
+                    "scripts/release/validation-phase.mjs"
+                  ]
+                },
+                {
+                  "code": "reachable",
+                  "paths": [
+                    "test/foundation/release/package-startup.integration.test.ts",
+                    "scripts/release/validation-phase.mjs"
+                  ]
+                },
+                {
+                  "code": "conservative-fallback",
+                  "paths": []
+                }
+              ]
+            },
+            {
+              "owner": "unix-containment",
+              "scopes": [
+                "unix-containment"
+              ],
+              "targets": [
+                {
+                  "platform": "darwin",
+                  "architecture": "arm64",
+                  "node": 24
+                },
+                {
+                  "platform": "linux",
+                  "architecture": "x64",
+                  "node": 24
+                }
+              ],
+              "selected": true,
+              "reasons": [
+                {
+                  "code": "invalidator",
+                  "paths": [
+                    ".github/workflows/ci.yml",
+                    ".github/workflows/full-regression.yml",
+                    "config/product-identity-legacy-allowlist.json",
+                    "config/product-identity-legacy-inventory.json",
+                    "scripts/release/prepare-validation-package.mjs",
+                    "scripts/release/validation-phase.d.mts",
+                    "scripts/release/validation-phase.mjs"
+                  ]
+                },
+                {
+                  "code": "reachable",
+                  "paths": [
+                    "test/foundation/release/session-resume.integration.test.ts",
+                    "scripts/release/validation-phase.mjs"
+                  ]
+                },
+                {
+                  "code": "conservative-fallback",
+                  "paths": []
+                }
+              ]
+            }
+          ],
+          "selectionId": "152e045f325e8c6885aeda2f1573f70164f76feef80d460664d54175575dd86a"
+        },
+        "fallback": "unclassified-operational-input",
+        "dependency": {
+          "stats": {
+            "base": {
+              "parsedModules": 205,
+              "nodes": 512598,
+              "edges": 1554
+            },
+            "head": {
+              "parsedModules": 205,
+              "nodes": 512598,
+              "edges": 1554
+            }
+          },
+          "owners": [
+            {
+              "owner": "pi-release-resume",
+              "matches": [
+                {
+                  "path": "scripts/release/validation-phase.mjs",
+                  "revision": "9f3c0bc3932bbd5c6cbd480b88da6b1d03c78528",
+                  "chain": [
+                    "test/foundation/release/session-resume.integration.test.ts",
+                    "scripts/release/validation-phase.mjs"
+                  ],
+                  "chainTruncated": false
+                }
+              ],
+              "invalidators": [
+                ".github/workflows/ci.yml",
+                ".github/workflows/full-regression.yml",
+                "config/product-identity-legacy-allowlist.json",
+                "config/product-identity-legacy-inventory.json",
+                "scripts/release/prepare-validation-package.mjs",
+                "scripts/release/validation-phase.d.mts",
+                "scripts/release/validation-phase.mjs"
+              ],
+              "issueCodes": [
+                "asset-read",
+                "opaque-loader",
+                "subprocess"
+              ]
+            },
+            {
+              "owner": "package-contracts",
+              "matches": [
+                {
+                  "path": "scripts/release/validation-phase.mjs",
+                  "revision": "9f3c0bc3932bbd5c6cbd480b88da6b1d03c78528",
+                  "chain": [
+                    "test/foundation/release/package-install.integration.test.ts",
+                    "scripts/release/validation-phase.mjs"
+                  ],
+                  "chainTruncated": false
+                },
+                {
+                  "path": "test/foundation/release/package-install.integration.test.ts",
+                  "revision": "9f3c0bc3932bbd5c6cbd480b88da6b1d03c78528",
+                  "chain": [
+                    "test/foundation/release/package-install.integration.test.ts"
+                  ],
+                  "chainTruncated": false
+                }
+              ],
+              "invalidators": [
+                ".github/workflows/ci.yml",
+                ".github/workflows/full-regression.yml",
+                "config/product-identity-legacy-allowlist.json",
+                "config/product-identity-legacy-inventory.json",
+                "scripts/release/prepare-validation-package.mjs",
+                "scripts/release/validation-phase.d.mts",
+                "scripts/release/validation-phase.mjs"
+              ],
+              "issueCodes": [
+                "asset-read",
+                "computed-import",
+                "opaque-loader",
+                "subprocess"
+              ]
+            },
+            {
+              "owner": "startup",
+              "matches": [
+                {
+                  "path": "scripts/release/validation-phase.mjs",
+                  "revision": "9f3c0bc3932bbd5c6cbd480b88da6b1d03c78528",
+                  "chain": [
+                    "test/foundation/release/package-startup.integration.test.ts",
+                    "scripts/release/validation-phase.mjs"
+                  ],
+                  "chainTruncated": false
+                }
+              ],
+              "invalidators": [
+                ".github/workflows/ci.yml",
+                ".github/workflows/full-regression.yml",
+                "config/product-identity-legacy-allowlist.json",
+                "config/product-identity-legacy-inventory.json",
+                "scripts/release/prepare-validation-package.mjs",
+                "scripts/release/validation-phase.d.mts",
+                "scripts/release/validation-phase.mjs"
+              ],
+              "issueCodes": [
+                "asset-read",
+                "invalid-repository-import",
+                "opaque-loader",
+                "subprocess",
+                "unresolved-repository-import"
+              ]
+            },
+            {
+              "owner": "image-compatibility",
+              "matches": [],
+              "invalidators": [
+                ".github/workflows/ci.yml",
+                ".github/workflows/full-regression.yml",
+                "config/product-identity-legacy-allowlist.json",
+                "config/product-identity-legacy-inventory.json",
+                "scripts/release/prepare-validation-package.mjs",
+                "scripts/release/validation-phase.d.mts",
+                "scripts/release/validation-phase.mjs"
+              ],
+              "issueCodes": [
+                "asset-read",
+                "opaque-loader",
+                "subprocess",
+                "unresolved-repository-import"
+              ]
+            },
+            {
+              "owner": "history-compatibility",
+              "matches": [],
+              "invalidators": [
+                ".github/workflows/ci.yml",
+                ".github/workflows/full-regression.yml",
+                "config/product-identity-legacy-allowlist.json",
+                "config/product-identity-legacy-inventory.json",
+                "scripts/release/prepare-validation-package.mjs",
+                "scripts/release/validation-phase.d.mts",
+                "scripts/release/validation-phase.mjs"
+              ],
+              "issueCodes": [
+                "asset-read",
+                "opaque-loader",
+                "subprocess"
+              ]
+            },
+            {
+              "owner": "unix-containment",
+              "matches": [
+                {
+                  "path": "scripts/release/validation-phase.mjs",
+                  "revision": "9f3c0bc3932bbd5c6cbd480b88da6b1d03c78528",
+                  "chain": [
+                    "test/foundation/release/session-resume.integration.test.ts",
+                    "scripts/release/validation-phase.mjs"
+                  ],
+                  "chainTruncated": false
+                }
+              ],
+              "invalidators": [
+                ".github/workflows/ci.yml",
+                ".github/workflows/full-regression.yml",
+                "config/product-identity-legacy-allowlist.json",
+                "config/product-identity-legacy-inventory.json",
+                "scripts/release/prepare-validation-package.mjs",
+                "scripts/release/validation-phase.d.mts",
+                "scripts/release/validation-phase.mjs"
+              ],
+              "issueCodes": [
+                "asset-read",
+                "opaque-loader",
+                "subprocess"
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "workflowControls": {
+    "draftSuppression": true,
+    "docsExemption": true,
+    "versionExemption": true,
+    "selectionEnabledForSkips": false
+  }
+}

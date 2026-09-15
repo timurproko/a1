@@ -268,15 +268,15 @@
       "reason": "explicit legacy rejection fixture"
     },
     {
-      "id": "test/foundation/release/package-install.integration.test.ts:67:70",
+      "id": "test/foundation/release/package-install.integration.test.ts:47:70",
       "value": "addone",
-      "fingerprint": "6e81da001a042a15edae2b68050fae516f0904e55ce23a1a6db3752e3dca6003",
+      "fingerprint": "287f1d3287c79824f57fba1f34267081e2f61d312762c286ee65867b4d0934ab",
       "reason": "explicit legacy rejection fixture"
     },
     {
-      "id": "test/foundation/release/package-install.integration.test.ts:67:85",
+      "id": "test/foundation/release/package-install.integration.test.ts:47:85",
       "value": "addone",
-      "fingerprint": "5f68591740332281e174943879faed50f569199800eac5b7fb8748f73625d72f",
+      "fingerprint": "aa7e5e304aad4b29d2c6f0f85090fb81bf5223ea22d2bca57891f9f0765b3cea",
       "reason": "explicit legacy rejection fixture"
     },
     {

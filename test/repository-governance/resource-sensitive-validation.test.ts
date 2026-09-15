@@ -27,6 +27,13 @@ const resourceSensitiveTests = [
   "test/features/prompt-history/store.test.ts",
   "test/integrations/pi/session-ui/command-message-parity.test.ts",
   "test/integrations/pi/session-ui/command-outcome-parity.test.ts",
+  "test/integrations/pi/session-ui/session-shell.test.ts",
+  "test/integrations/pi/session-ui/paste-executor.test.ts",
+  "test/integrations/pi/session-ui/clipboard-executor-lifecycle.test.ts",
+  "test/integrations/pi/session-ui/clipboard-packaged.test.ts",
+  "test/integrations/pi/components/editor-text-paste.test.ts",
+  "test/integrations/pi/session-ui/prompt-history-controller.test.ts",
+  "test/foundation/release/update-activation.test.ts",
 ];
 
 function invocation(plan: Awaited<ReturnType<typeof createTierPlan>>, id: string) {
@@ -80,33 +87,129 @@ describe("resource-sensitive validation partition", () => {
     expect(resourceInvocations(full)).toHaveLength(resourceSensitiveTests.length);
   });
 
+  it("exposes disjoint atomic invocations with the identical public fast composition", async () => {
+    const remainder = await createTierPlan(["fast-remainder"]);
+    const sensitive = await createTierPlan(["fast-resource-sensitive"]);
+    const composed = await createTierPlan(["fast"]);
+    expect(composed.selected).toEqual(["fast-remainder", "fast-resource-sensitive"]);
+    expect(remainder.selected).toEqual(["fast-remainder"]);
+    expect(sensitive.selected).toEqual(["fast-resource-sensitive"]);
+    expect(remainder.vitest?.invocations).toEqual([invocation(composed, "vitest-fast")]);
+    expect(sensitive.vitest?.invocations).toEqual(resourceInvocations(composed));
+    expect(composed.vitest?.invocations).toEqual([...remainder.vitest!.invocations, ...sensitive.vitest!.invocations]);
+    expect(remainder.commands).toEqual([]);
+    expect(remainder.requiresBuild).toBe(false);
+    expect(sensitive.commands.map(command => command.id)).toEqual(["candidate-build"]);
+    expect(sensitive.requiresBuild).toBe(true);
+    for (const plan of [remainder, sensitive]) expect(plan.consumesPackage).toBe(false);
+    const repeated = await createTierPlan(["fast", "fast-resource-sensitive", "fast-remainder", "fast"]);
+    expect(repeated.selected).toEqual(composed.selected);
+    expect(repeated.vitest).toEqual(composed.vitest);
+  });
+
+  it("preserves the complete disjoint fast population and full-suite ownership", async () => {
+    const all = await discoverTestPaths("test");
+    const suites = JSON.parse(await readFile("config/validation-suites.json", "utf8"));
+    const excluded = new Set<string>(suites.scopes["fast-remainder"].exclude);
+    const expectedFast = all.filter(path => !excluded.has(path));
+    const remainder = await createTierPlan(["fast-remainder"]);
+    const sensitive = await createTierPlan(["fast-resource-sensitive"]);
+    const combined = [...remainder.vitest!.invocations, ...sensitive.vitest!.invocations]
+      .flatMap(item => selectedPaths(item.arguments, all));
+    expect([...combined].sort()).toEqual(expectedFast.sort());
+    expect(new Set(combined).size).toBe(combined.length);
+    const full = await createTierPlan(["full-release"]);
+    const fullPaths = full.vitest!.invocations.flatMap(item => selectedPaths(item.arguments, all));
+    expect(fullPaths.sort()).toEqual(all.sort());
+    expect(new Set(fullPaths).size).toBe(fullPaths.length);
+  });
+
+  it("executes each atomic plan without launching the other partition", async () => {
+    for (const scope of ["fast-remainder", "fast-resource-sensitive"]) {
+      const plan = await createTierPlan([scope]);
+      const calls: string[] = [];
+      const result = await runTierPlan(plan, {
+        executeCommand: async command => {
+          calls.push(command.id);
+          return { id: command.id, command: command.arguments.join(" "), exitCode: 0, durationMs: 1 };
+        },
+        recordBuildReceipt: async () => ({} as never),
+        env: { VALIDATION_BUILD_READY: "0" },
+      });
+      expect(result.passed).toBe(true);
+      expect(calls).toEqual(scope === "fast-resource-sensitive"
+        ? ["candidate-build", ...resourceInvocations(plan).map(item => item.id)]
+        : ["vitest-fast"]);
+    }
+  });
+
   it("fails closed on invalid ownership, missing files, and timeout configuration", async () => {
     const source = JSON.parse(await readFile("config/validation-suites.json", "utf8"));
     const fixtures = [
       {
         label: "duplicates",
-        mutate: (value: any) => value.tiers.fast.resourceSensitiveTests.push(value.tiers.fast.resourceSensitiveTests[0]),
+        mutate: (value: any) => value.scopes["fast-resource-sensitive"].tests.push(value.scopes["fast-resource-sensitive"].tests[0]),
         error: "duplicate resource-sensitive tests",
       },
       {
         label: "fast exclusion overlap",
-        mutate: (value: any) => value.tiers.fast.exclude.push(value.tiers.fast.resourceSensitiveTests[0]),
+        mutate: (value: any) => value.scopes["fast-remainder"].exclude.push(value.scopes["fast-resource-sensitive"].tests[0]),
         error: "overlaps fast exclusion",
       },
       {
         label: "explicit scope overlap",
-        mutate: (value: any) => { value.scopes.typecheck.tests = [value.tiers.fast.resourceSensitiveTests[0]]; },
+        mutate: (value: any) => { value.scopes.typecheck.tests = [value.scopes["fast-resource-sensitive"].tests[0]]; },
         error: "overlaps explicit scope",
       },
       {
         label: "missing path",
-        mutate: (value: any) => { value.tiers.fast.resourceSensitiveTests[0] = "test/missing.test.ts"; },
+        mutate: (value: any) => { value.scopes["fast-resource-sensitive"].tests[0] = "test/missing.test.ts"; },
         error: "does not exist",
+      },
+      {
+        label: "missing build prerequisite",
+        mutate: (value: any) => { value.scopes["fast-resource-sensitive"].requiresBuild = false; },
+        error: "must authenticate emitted build prerequisites",
       },
       {
         label: "timeout override",
         mutate: (value: any) => { value.tiers.fast.resourceSensitiveTimeoutMs = 30_000; },
         error: "unsupported fast validation fields",
+      },
+      ...["fast-remainder", "fast-resource-sensitive"].map(scope => ({
+        label: `${scope} timeout override`,
+        mutate: (value: any) => { value.scopes[scope].timeoutMs = 30_000; },
+        error: "unsupported fast validation fields",
+      })),
+      {
+        label: "incomplete composition",
+        mutate: (value: any) => { value.tiers.fast.includes.pop(); },
+        error: "must compose both atomic partitions exactly once",
+      },
+      {
+        label: "duplicate composition member",
+        mutate: (value: any) => { value.tiers.fast.includes.push("fast-remainder"); },
+        error: "must compose both atomic partitions exactly once",
+      },
+      {
+        label: "narrowed remainder",
+        mutate: (value: any) => { value.scopes["fast-remainder"].includeRoot = "test/foundation"; },
+        error: "complete test root",
+      },
+      {
+        label: "shadowed sensitive owner",
+        mutate: (value: any) => { value.tiers["fast-resource-sensitive"] = { kind: "commands", commands: [] }; },
+        error: "must not be shadowed",
+      },
+      {
+        label: "additional remainder owner",
+        mutate: (value: any) => { value.scopes.extra = structuredClone(value.scopes["fast-remainder"]); },
+        error: "authoritative scope names",
+      },
+      {
+        label: "sensitive generic timeout class",
+        mutate: (value: any) => { value.scopes["fast-resource-sensitive"].kind = "vitest-files"; },
+        error: "atomic scopes",
       },
     ];
 
@@ -294,6 +397,22 @@ async function evidenceFixture(source: Awaited<ReturnType<typeof readResourceSen
     await rm(repository, { recursive: true, force: true });
     throw error;
   }
+}
+
+async function discoverTestPaths(directory: string): Promise<string[]> {
+  const paths: string[] = [];
+  for (const entry of await readdir(directory, { withFileTypes: true })) {
+    const path = `${directory}/${entry.name}`;
+    if (entry.isDirectory()) paths.push(...await discoverTestPaths(path));
+    else if (entry.name.endsWith(".test.ts")) paths.push(path);
+  }
+  return paths;
+}
+
+function selectedPaths(args: string[], paths: string[]): string[] {
+  const excluded = new Set(args.filter((_argument, index) => args[index - 1] === "--exclude"));
+  const explicit = args.filter((argument, index) => argument.endsWith(".test.ts") && args[index - 1] !== "--exclude");
+  return paths.filter(path => !excluded.has(path) && (explicit.length === 0 || explicit.includes(path)));
 }
 
 async function suiteFixture(suites: any) {
