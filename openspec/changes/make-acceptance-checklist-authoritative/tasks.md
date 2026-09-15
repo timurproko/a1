@@ -21,7 +21,7 @@
 - [x] 4.1 Update delivery guidance and the archive runbook to require one to three implementation-specific checks, a plain implementation reference, and manual merge as approval; verify they prohibit generic repetitive lists and maintainer JSON work.
 - [x] 4.2 Add focused adversarial policy, publication, receipt, archive-staging, workflow, and cleanup fixtures for curated checklist authority, anti-repetition, and historical-record behavior.
 - [x] 4.3 Run typecheck, applicable governance checks, focused tests, strict OpenSpec validation, and whitespace checks; record actual outcomes without claiming a full local fast/full/release run.
-- [ ] 4.4 Push the completed implementation ready for normal current-head PR CI, report its exact result, and hand off the implementation-specific behavior for maintainer review without enabling auto-merge.
+- [x] 4.4 Push the completed implementation ready for normal current-head PR CI, report its exact result, and hand off the implementation-specific behavior for maintainer review without enabling auto-merge.
 
 ## 5. Mechanical archive preparation
 
