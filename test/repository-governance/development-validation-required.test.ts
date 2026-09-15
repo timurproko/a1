@@ -3,12 +3,37 @@ import { requireDevelopmentValidation } from "../../scripts/release/require-deve
 
 const head = "a".repeat(40);
 const valid = {
+  acceptanceOnly: "false", acceptanceCandidate: "false", acceptanceResult: "success",
   changesResult: "success", docsResult: "skipped", namingRequired: "false", namingResult: "skipped", namingHead: head,
   documentationResult: "skipped", modularResult: "success", renderingResult: "skipped", docsOnly: "false", versionOnly: "false",
   openspecTouched: "false", documentationRequired: "false", renderingTier: "none", selectedHead: head, expectedHead: head,
 };
 
 describe("development validation aggregate", () => {
+  it("accepts only a current trusted acceptance candidate when every generic lane is skipped", () => {
+    const acceptance = {
+      ...valid,
+      acceptanceOnly: "true",
+      acceptanceCandidate: "true",
+      docsResult: "skipped",
+      namingResult: "skipped",
+      documentationResult: "skipped",
+      modularResult: "skipped",
+      renderingResult: "skipped",
+    };
+    expect(requireDevelopmentValidation(acceptance)).toEqual({ mode: "acceptance" });
+    for (const override of [
+      { acceptanceCandidate: "false" },
+      { acceptanceResult: "failure" },
+      { docsResult: "success" },
+      { namingResult: "success" },
+      { documentationResult: "success" },
+      { modularResult: "success" },
+      { renderingResult: "success" },
+      { selectedHead: "b".repeat(40) },
+    ]) expect(() => requireDevelopmentValidation({ ...acceptance, ...override })).toThrow();
+  });
+
   it("accepts exact docs, version, code, smoke, and full selections", () => {
     expect(requireDevelopmentValidation({ ...valid, docsOnly: "true", docsResult: "success", modularResult: "skipped" })).toMatchObject({ mode: "docs" });
     expect(requireDevelopmentValidation({ ...valid, versionOnly: "true", modularResult: "skipped" })).toMatchObject({ mode: "version" });
@@ -35,7 +60,8 @@ describe("development validation aggregate", () => {
   });
 
   it.each([
-    ["stale head", { selectedHead: "b".repeat(40) }], ["missing classification", { changesResult: "failure" }],
+    ["stale head", { selectedHead: "b".repeat(40) }], ["missing acceptance route", { acceptanceOnly: undefined }],
+    ["missing classification", { changesResult: "failure" }],
     ["missing changed documentation", { documentationRequired: "true", documentationResult: "skipped" }],
     ["unexpected changed documentation", { documentationRequired: "false", documentationResult: "success" }],
     ["missing smoke", { renderingTier: "smoke", renderingResult: "skipped" }], ["failed full", { renderingTier: "full", renderingResult: "failure" }],

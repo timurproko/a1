@@ -1,0 +1,203 @@
+# Recorded implementation acceptance
+
+Verdict: accepted. Archive preparation is not archive-PR integration.
+
+Source PR: https://github.com/timurproko/a1/pull/407
+Accepted head: f273b6aa1f665dd515b5d77274f219b0574112c5
+Implementation merge: 389c26c7b65338f82f44aa2954b8fd805fb5c2c9
+Validation: https://github.com/timurproko/a1/actions/runs/34947449316
+Acceptance: https://github.com/timurproko/a1/pull/409
+Author: timurproko
+Recorded: 2026-09-15T11:04:38Z
+
+```openspec-acceptance-receipt
+{
+  "kind": "pull-request",
+  "pr": 409,
+  "head": "2725f7b89af6bd9c5e2c186f595b31dfc3624256",
+  "merge": "e0b90db95f19265936f3e89276e0a5cfaedc4685",
+  "path": "openspec/acceptance/fix-session-shell-native-fixture-isolation/f273b6aa1f665dd515b5d77274f219b0574112c5.json",
+  "digest": "6f0dcdebffda1606d8dfb6f03cd4327e31828aa107ce22198af98ca50c867abc",
+  "author": "timurproko",
+  "createdAt": "2026-09-15T11:04:38Z",
+  "checklistDigest": "ff1eefd9d9877998ddc9465cfd92e83f714ccf876eaa3ae5b700737d89663e05",
+  "checks": [
+    "Paste operations without an explicit helper use the current emitted helper in a fresh process while explicit helper selection remains unchanged.",
+    "Only the exact owned image-worker bootstrap routes to the emitted worker while unrelated worker identity, options, and data remain unchanged.",
+    "Session-shell text, image, ordering, pending, retry, and submission scenarios retain their recorded outcomes on Node 22 and Node 24."
+  ]
+}
+```
+
+Accepted implementation checks:
+- Paste operations without an explicit helper use the current emitted helper in a fresh process while explicit helper selection remains unchanged.
+- Only the exact owned image-worker bootstrap routes to the emitted worker while unrelated worker identity, options, and data remain unchanged.
+- Session-shell text, image, ordering, pending, retry, and submission scenarios retain their recorded outcomes on Node 22 and Node 24.
+
+Original internal source-binding request:
+
+```json
+{
+  "version": 2,
+  "repository": "timurproko/a1",
+  "change": "fix-session-shell-native-fixture-isolation",
+  "sourcePr": 407,
+  "sourceHead": "f273b6aa1f665dd515b5d77274f219b0574112c5",
+  "sourceMerge": "389c26c7b65338f82f44aa2954b8fd805fb5c2c9",
+  "sourceBodyDigest": "021dffb401d0b4ca06189613b875a94a1f2e7464b9586250a81f409c8b4cd913",
+  "artifactDigest": "47d6aeb86a0e6b32fcb9f896dd7257974b9e78463ad5229e32276b6c308602c4",
+  "specBaseSha": "2d992336c48790fb2f793883816905c9db2ec5e7",
+  "acceptanceChecks": [
+    "Paste operations without an explicit helper use the current emitted helper in a fresh process while explicit helper selection remains unchanged.",
+    "Only the exact owned image-worker bootstrap routes to the emitted worker while unrelated worker identity, options, and data remain unchanged.",
+    "Session-shell text, image, ordering, pending, retry, and submission scenarios retain their recorded outcomes on Node 22 and Node 24."
+  ],
+  "validation": {
+    "runId": 34947449316,
+    "headSha": "f273b6aa1f665dd515b5d77274f219b0574112c5",
+    "checkedSha": "f273b6aa1f665dd515b5d77274f219b0574112c5",
+    "attempt": 1
+  },
+  "tasks": [
+    {
+      "id": "1.1",
+      "done": true,
+      "text": "After separate review of this generated plan and a new explicit apply request, resume this exact worktree/branch/draft PR; verify #405 merge ancestry, intact version-2 linkage, disabled auto-merge, and no non-OpenSpec edits before implementation.",
+      "digest": "c7160ceccfbc059a0187d6aa727b1e959a145a06bd14e085d5b6c6685fdee420",
+      "completion": "recorded",
+      "evidence": []
+    },
+    {
+      "id": "1.2",
+      "done": true,
+      "text": "Record #405 merge `2d992336c48790fb2f793883816905c9db2ec5e7`, ordinary CI `34940561264`, Full regression `34940561468`, all exact lane/job outcomes and four Windows Node 22 failures; update only its independently proven native/CI task checkboxes while retaining failed Full, missing acceptance, nightly and archive blockers.",
+      "digest": "7987f9080e09dcc8537651f39b08b539c9dbf01165779f7659355af094e726ed",
+      "completion": "recorded",
+      "evidence": []
+    },
+    {
+      "id": "2.1",
+      "done": true,
+      "text": "Replace per-test mutable paste-helper selection with a hoisted file-owned wrapper that supplies the current build's real emitted helper only when no explicit helper is provided; verify every call still starts a new real child and explicit helper identity/options remain unchanged.",
+      "digest": "b4359c7785037bdfb638cd0537d0332548a0ae6e49ea0313e00bccd4dac59681",
+      "completion": "recorded",
+      "evidence": []
+    },
+    {
+      "id": "2.2",
+      "done": true,
+      "text": "Replace mutable image-worker selection with unconditional exact-bootstrap routing for the integration file; verify only the owned source bootstrap changes to the emitted worker and required `eval` flag while worker data/options and unrelated workers remain identical.",
+      "digest": "f86f067d7941d051801b7ac956b2fb98793d18d25bbbdbc2b195174f2362e998",
+      "completion": "recorded",
+      "evidence": []
+    },
+    {
+      "id": "2.3",
+      "done": true,
+      "text": "Remove shared selection state and per-test spy/restore ownership from the observed shell fixture while retaining bounded metadata-only diagnostics, original promise/error behavior, failure-safe one-time disposal, and payload privacy.",
+      "digest": "b44ecb748f88bbdf8f2e53f5b6644d16697775bebdc17e7d497801c712ab2701",
+      "completion": "recorded",
+      "evidence": []
+    },
+    {
+      "id": "3.1",
+      "done": true,
+      "text": "Extend focused selector/contract regressions to verify default emitted-helper selection, explicit-helper preservation, exact image-bootstrap matching, unrelated-worker identity, and real source/emitted valid and malformed image outcomes after build.",
+      "digest": "adf0417ae76185635e180797176768b9a62d2663f0abe4e80e74e77022409683",
+      "completion": "recorded",
+      "evidence": []
+    },
+    {
+      "id": "3.2",
+      "done": true,
+      "text": "Run the four previously failing shell cases and the two original #405 shell owners in their unchanged containing file on local Windows Node 22 and 24; verify exact text/image/order/pending/retry/submission outcomes and unchanged wait/test limits without claiming native Full recovery.",
+      "digest": "a6052da2e563bc1c3888c1756859d00881a12844d06e16080549a882d0664895",
+      "completion": "recorded",
+      "evidence": []
+    },
+    {
+      "id": "3.3",
+      "done": true,
+      "text": "Verify dedicated source helper, source acquisition/lifecycle, emitted helper, executor capacity and cleanup tests still pass so file-wide integration routing does not remove source authority or change eight-request admission, ninth rejection, real IPC, conversion serialization, or shutdown contracts.",
+      "digest": "6b287b3aa87228db2e90c9e3981c25af3927f1b82cd1dff486c72c12b44345a1",
+      "completion": "recorded",
+      "evidence": []
+    },
+    {
+      "id": "4.1",
+      "done": true,
+      "text": "Pass build/native guardian, typecheck, applicable documentation/architecture/provenance/governance checks, strict OpenSpec and whitespace checks; verify no production, dependency/lockfile, workflow, suite, pool, timeout, retry, sleep, workload, baseline, budget, or capacity change.",
+      "digest": "4f7991ad3caf1ce2766c6403b9e2bc6eaba124016a6eeb85011283d20c48c7af",
+      "completion": "recorded",
+      "evidence": []
+    },
+    {
+      "id": "4.2",
+      "done": false,
+      "text": "Push the completed implementation to this same draft PR and mark it ready before normal PR CI; record passing exact-head ordinary validation without an ordinary draft dispatch or duplicate campaign.",
+      "digest": "78a373d338be9ea8869d5be9d0fe8b12eca742994e1465b206b1eb2e5cbab459",
+      "completion": "pending",
+      "evidence": []
+    },
+    {
+      "id": "4.3",
+      "done": false,
+      "text": "Dispatch the separate existing Full regression once for the exact candidate and require all four native lanes, all retained shell cases and aggregate stages to pass; retain every outcome and block acceptance rather than retrying unchanged code or weakening a gate.",
+      "digest": "66a7f6e7d960a5013912a3f5c39d33772a04350263828d9ec3ed5c60a5fd5fbd",
+      "completion": "pending",
+      "evidence": []
+    },
+    {
+      "id": "5.1",
+      "done": false,
+      "text": "Provide exact candidate and focused maintainer commands after green CI; record actual exact-head review, canonical-spec review and acceptance before requesting explicit manual merge authorization, with implementation auto-merge disabled.",
+      "digest": "82f1ad6523649fbf4303dddbc9df1c813edfaab3747a6aaac25597f98c6e6c2e",
+      "completion": "pending",
+      "evidence": []
+    },
+    {
+      "id": "5.2",
+      "done": false,
+      "text": "Verify the manually authorized implementation merge, then require a real scheduled `mode=nightly` Release over a newer numbered package containing #402, #405 and this follow-up on Windows Node 22/24, Linux Node 24 and macOS Node 24 with aggregate publication, immutable digest and registry identity evidence.",
+      "digest": "59d52aec2043abc3910b424c40f3701fbdd9868ae11da9a690726acaf596ae93",
+      "completion": "pending",
+      "evidence": []
+    },
+    {
+      "id": "5.3",
+      "done": false,
+      "text": "Reconcile #405's premature merge through explicit maintainer disposition based on combined recovery evidence; do not invent pre-merge acceptance, silently complete its failed Full task, or clean either retained worktree before verified archive integration.",
+      "digest": "3d448cb67b17b9eb5632f98fce30c9792ca886b03a2bcdc8b501da0df716f6ca",
+      "completion": "pending",
+      "evidence": []
+    },
+    {
+      "id": "6.1",
+      "done": false,
+      "text": "Record verified implementation acceptance and merge evidence for archive preparation.",
+      "digest": "ffbe8b6456f4f6d58d09b15b49f69a3350ec0115a7a3d307aa34c426492bf80a",
+      "completion": "archive-preparation",
+      "evidence": []
+    },
+    {
+      "id": "6.2",
+      "done": false,
+      "text": "Stage and verify delta synchronization and the archive move in an OpenSpec-only candidate.",
+      "digest": "04583e00182e4cfa6c2cab29f943d7ac73e19145f02bef97551b8fbe725162d1",
+      "completion": "archive-preparation",
+      "evidence": []
+    }
+  ],
+  "review": {
+    "decision": "accept-on-manual-merge",
+    "evidence": [
+      {
+        "url": "https://github.com/timurproko/a1/blob/f273b6aa1f665dd515b5d77274f219b0574112c5/openspec/changes/fix-session-shell-native-fixture-isolation/evidence.md",
+        "outcome": "Recorded source evidence; review its actual outcomes and limitations before accepting."
+      }
+    ],
+    "gaps": []
+  }
+}
+
+```

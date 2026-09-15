@@ -7,7 +7,7 @@ Defines independent, isolated validation for A1 lifecycle, updates, transparent 
 ## Requirements
 
 ### Requirement: Scenarios run in hermetic instances
-Automated scenarios SHALL isolate application state, supervisor storage, runtime paths, Pi configuration, endpoints, environment, artifacts, and owned process trees from user state and from concurrent scenarios.
+Automated scenarios SHALL isolate application state, supervisor storage, runtime paths, Pi configuration, endpoints, environment, artifacts, and owned process trees from user state and from concurrent scenarios. An operating-system-boundary fixture SHALL supply controlled results at the acquisition boundary actually selected on its native platform, including command-based fallbacks, and SHALL NOT access the host clipboard or require an interactive clipboard service. Successful and failing scenarios SHALL await verified completion of their owned executors before releasing fixture state or asserting capacity in subsequent scenarios.
 
 #### Scenario: Run scenarios concurrently
 - **WHEN** two scenarios execute at the same time
@@ -16,6 +16,24 @@ Automated scenarios SHALL isolate application state, supervisor storage, runtime
 #### Scenario: User configuration exists
 - **WHEN** a machine contains normal Pi settings, extensions, sessions, and credentials
 - **THEN** a hermetic scenario SHALL not load or mutate them unless explicitly supplied as identified input
+
+#### Scenario: Clipboard acquisition uses a platform command
+- **WHEN** a hermetic clipboard regression runs on a platform whose text acquisition uses operating-system commands instead of a native text adapter
+- **THEN** the fixture SHALL intercept that command boundary without invoking the host clipboard
+- **AND** the real helper protocol and downstream classification SHALL process the controlled result
+- **AND** supplied text, successful empty acquisition, denied acquisition, and supported fallback SHALL retain their distinct production outcomes
+- **AND** an unexpected acquisition operation SHALL fail the fixture rather than escape to an uncontrolled host service
+
+#### Scenario: Cold packaged clipboard acquisition executes
+- **WHEN** the packaged clipboard regression runs emitted helper and worker entries
+- **THEN** it SHALL retain the same controlled acquisition semantics and exact independent payload assertions as the source regression
+- **AND** fixture interception SHALL NOT replace the emitted helper or classification behavior with a self-generated success response
+
+#### Scenario: A clipboard assertion fails before executor shutdown
+- **WHEN** a clipboard regression rejects before its owned executor has stopped
+- **THEN** teardown SHALL cancel if necessary and await that executor's completion even on the failure path
+- **AND** the original failure SHALL remain visible without leaking executor capacity, owned processes, or fixture state into a later scenario
+- **AND** assertions about configured executor capacity SHALL NOT be reduced to accommodate leaked state
 
 ### Requirement: Physical-host automation is isolated from the user's desktop
 Any automation that launches, focuses, drives, resizes, captures, or closes a terminal window, injects operating-system input, changes interactive desktop state, or cleans up terminal processes SHALL execute only inside a dedicated disposable worker or virtual machine with an exclusive test desktop and no user-owned applications. Isolation SHALL be verified before process launch, and cleanup SHALL target only exact recorded process/start identities.
@@ -147,7 +165,7 @@ The exact production, development, build, test, optional, and native dependency 
 - **THEN** packaging and publication SHALL fail with its dependency path
 
 ### Requirement: Confirmed regressions receive architecture-appropriate coverage
-A confirmed regression SHALL gain the smallest independent current-contract test capable of detecting its cause. Physical-only behavior SHALL remain at the physical/integration boundary instead of being duplicated by a self-modelled simulation.
+A confirmed regression SHALL gain the smallest independent current-contract test capable of detecting its cause. Physical-only behavior SHALL remain at the physical/integration boundary instead of being duplicated by a self-modelled simulation. A subprocess-directory regression SHALL distinguish filesystem identity from lexical path spelling while retaining exact argument and environment contracts; alias acceptance SHALL NOT admit execution in a different directory. Diagnostic evidence for a failing native regression SHALL be bounded, preserve the original result, identify observed phase or operation timing where available, and exclude private payloads. Test-fixture corrections SHALL retain existing deadlines, independent assertions, real exercised operations, and failure-safe ownership; diagnostic instrumentation or isolated success SHALL NOT itself count as recovery.
 
 #### Scenario: Regression belongs to deterministic logic
 - **WHEN** a defect is isolated to domain, storage, protocol, release, or update behavior
@@ -156,6 +174,26 @@ A confirmed regression SHALL gain the smallest independent current-contract test
 #### Scenario: Regression crosses the physical boundary
 - **WHEN** a rendering or input defect cannot be represented independently in a unit test
 - **THEN** A1 SHALL retain it for isolated physical or exact-package integration certification
+
+#### Scenario: A temporary path names an aliased directory
+- **WHEN** a subprocess starts in a requested directory whose lexical spelling differs from the platform's reported canonical path
+- **THEN** the regression SHALL verify that the child actually uses the independently identified requested directory
+- **AND** equivalent aliases SHALL pass while a distinct-directory negative control SHALL fail
+- **AND** exact arguments, space-containing paths, and environment-isolation assertions SHALL remain enforced
+
+#### Scenario: Asynchronous shell paste misses its assertion deadline
+- **WHEN** a native shell regression retains a pending image or fails to apply the expected clipboard fallback before its existing deadline
+- **THEN** diagnosis SHALL distinguish observed acquisition, preparation, completion, and cleanup phases without disclosing clipboard contents
+- **AND** correction SHALL retain real asynchronous completion, exact image/text and submission assertions, and the original wait/test limits
+- **AND** teardown SHALL release the scenario's owned shell work even when the assertion fails
+- **AND** a longer wait, synthetic completion, or an isolated passing rerun SHALL NOT substitute for a verified correction
+
+#### Scenario: Real Git release validation exceeds its deadline
+- **WHEN** a release-workflow regression using isolated real repositories exceeds its existing test limit
+- **THEN** bounded operation timing and counts SHALL preserve the original failure and the real Git-backed workflow outcome
+- **AND** fixture correction SHALL retain independently verified source/version identities, manual integration gates, publication ordering, and dirty/unrelated state protections
+- **AND** real operations SHALL NOT be replaced with fabricated answers, stale cached assertions, shared mutable fixtures, omitted checks, or work shifted outside the measured scenario
+- **AND** the existing deadline SHALL remain enforced
 
 ### Requirement: Changed tests pass in pull-request validation
 A retained or newly added test SHALL pass in the pull-request validation of continuous integration before its change is integrated. Local execution is an optional debugging aid, not a completion gate.
@@ -381,3 +419,88 @@ Release gates SHALL prove minimal-payload completeness, unchanged-layer reuse, c
 #### Scenario: Compile cache is stale or unavailable
 - **WHEN** the Node version or immutable content identity changes, or cache storage cannot be used
 - **THEN** A1 SHALL reject stale entries or fall back safely without changing runtime behavior
+
+### Requirement: Integration fixtures isolate test-loader overhead without mutable selection
+A file-owned integration fixture SHALL use the current build's real cold emitted helper and worker entries consistently when source-language loader and transpilation startup are not behavior under test and measured native evidence shows that overhead crosses retained assertion boundaries. Entry selection SHALL be immutable for the test file, SHALL preserve a caller's explicit entry, worker data and options, SHALL match only the owned source bootstrap being replaced, and SHALL leave unrelated workers untouched. Every operation SHALL still create a new real child process or worker and exercise the production protocol and asynchronous completion path. Independent tests SHALL retain source-entry contract coverage and prove equivalent source/emitted outcomes.
+
+#### Scenario: Integration file exercises clipboard paste behavior
+- **WHEN** a shell integration file starts controlled text or image paste operations whose source-loader startup is outside its asserted contract
+- **THEN** each operation SHALL start the current build's real emitted helper or exact corresponding emitted worker without prewarming, caching, process reuse, or synthetic results
+- **AND** all payload, ordering, pending-state, cleanup, copy, submission, and failure assertions SHALL remain unchanged
+- **AND** existing wait and test deadlines SHALL remain unchanged
+
+#### Scenario: Caller supplies an explicit helper or unrelated worker
+- **WHEN** the fixture observes an explicit helper entry, a non-matching worker bootstrap, or unrelated worker options and data
+- **THEN** it SHALL preserve that entry, options, and data exactly rather than redirecting them through the emitted clipboard fixture
+
+#### Scenario: Source and emitted contracts are compared
+- **WHEN** focused regression coverage validates helper and worker behavior
+- **THEN** source entries and built emitted entries SHALL retain equivalent controlled text, image, malformed-input, lifecycle, and protocol outcomes
+- **AND** using emitted entries in the integration file SHALL NOT remove the independent source-entry coverage
+
+#### Scenario: Native complete regression is evaluated
+- **WHEN** the exact candidate runs the existing complete native validation matrix
+- **THEN** every retained session-shell paste case SHALL execute once under its existing assertions and deadlines on each selected runtime
+- **AND** a failed lane SHALL remain failed without semantic retry, timeout extension, workload removal, or acceptance inferred from another runtime
+
+### Requirement: Published predecessor subprocess waits preserve runner responsiveness
+Published-predecessor compatibility validation SHALL remain able to process runner messages, timers, and cancellation while waiting for package installation, registry lookup, or shipped setup subprocesses. Command waits SHALL NOT block the test worker's event loop. This correction SHALL retain existing test, hook, warmup, runner, and workflow time limits, predecessor selection and coverage, exact candidate bytes, command ordering, and the requirement to execute each selected predecessor's own release code.
+
+Subprocess results SHALL be bounded and fail closed. Validation SHALL not report success before the owned command and its captured output have closed successfully. Spawn failure, nonzero exit, signal termination, cancellation, output overflow, malformed required metadata, or failed setup SHALL prevent later dependent phases. Cleanup SHALL preserve unrelated state and processes and SHALL not remove a temporary installation while its owned subprocess is active.
+
+#### Scenario: A package command remains in progress
+- **WHEN** a predecessor-validation subprocess is still running
+- **THEN** the test worker SHALL continue servicing control-plane events without waiting for that subprocess to exit
+- **AND** the subprocess SHALL still be subject to the existing enclosing validation lifetime
+
+#### Scenario: A prerequisite fails
+- **WHEN** installation, registry lookup, or shipped setup fails or produces unusable required evidence
+- **THEN** validation SHALL fail with bounded phase, version where known, elapsed-time, and error identity
+- **AND** subsequent dependent import, materialization, and warmup steps SHALL NOT run
+- **AND** diagnostic output SHALL NOT expose credentials, environment contents, or arbitrary captured subprocess output
+
+#### Scenario: Output exceeds the supported bound
+- **WHEN** a subprocess exceeds the retained capture limit
+- **THEN** validation SHALL fail and clean up the owned command
+- **AND** truncated output SHALL NOT be interpreted as successful or complete evidence
+
+#### Scenario: Validation is cancelled during installation
+- **WHEN** the enclosing validation is cancelled or expires while an owned command is active
+- **THEN** its command lifetime SHALL end through ownership-safe cleanup before temporary installation removal
+- **AND** unrelated processes and paths SHALL remain untouched
+
+#### Scenario: Real predecessor coverage executes
+- **WHEN** the published-predecessor gate validates a candidate
+- **THEN** it SHALL retain publication-time selection, the existing default predecessor limit and override semantics, supported-entry checks, and the existing minimum exercised-predecessor assertion
+- **AND** it SHALL exercise real predecessor release code against the exact selected candidate without using the user's npm installation prefix
+- **AND** the repair SHALL NOT reduce coverage, add success retries, or move the test into a different execution class to hide an unresolved failure
+
+### Requirement: Nightly recovery is proven by numbered merged-package evidence
+A nightly recovery effort SHALL not be declared complete solely from focused tests, passing PR CI, an implementation merge, a branch Full regression run, or reduced-scope manual development publication. Completion SHALL require the actual scheduled nightly workflow to successfully perform full-release validation on a newly numbered package whose merged source contains the accepted repairs, across Windows Node 22 and 24, Linux Node 24, and macOS Node 24, with a successful aggregate publication or immutable-registry verification outcome.
+
+Evidence SHALL identify source commit, merged-PR/version identity, package integrity/digest, nightly run and native job identities, selected full-release scope, and every lane's result. Existing registry bytes SHALL remain immutable. Additional failed stages SHALL remain explicit blockers until corrected and verified; their checks SHALL NOT be skipped or weakened to obtain a successful result.
+
+#### Scenario: Nightly builds a new numbered package
+- **WHEN** the repaired merged source selects a development version not yet published
+- **THEN** the scheduled nightly SHALL build and pack that numbered candidate once and validate the same bytes in every native lane
+- **AND** successful publication to the development channel SHALL be verified against the validated package identity before recovery is accepted
+
+#### Scenario: The newer numbered package is already published
+- **WHEN** an authorized development publication has already produced the repaired numbered package
+- **THEN** scheduled nightly SHALL fully validate those exact immutable registry bytes on all four lanes
+- **AND** a successful manual existing-version no-op SHALL NOT substitute for that validation
+
+#### Scenario: Another validation stage fails
+- **WHEN** any required native or publication stage fails after the initial correction
+- **THEN** recovery SHALL remain incomplete with the failed stage and available cause evidence recorded
+- **AND** further correction SHALL preserve the gate and receive the applicable scope approval before implementation
+
+#### Scenario: A retained regression still consumes a retired copy result
+- **WHEN** a retained transcript-lifetime regression uses a retired copy-result representation after a reviewed ownership change
+- **THEN** the test SHALL consume the current selection snapshot through the existing copy serialization contract
+- **AND** it SHALL retain its exact independent expected copied text and all original lifecycle assertions without modifying production clipboard behavior or adding an exception
+
+#### Scenario: The implementation is merged but nightly is pending
+- **WHEN** accepted implementation has merged but the numbered-package nightly outcome is missing, failed, or incomplete
+- **THEN** completed-change archival and retained-worktree cleanup SHALL remain blocked
+- **AND** the implementation acceptance report SHALL NOT be represented as evidence of successful nightly recovery

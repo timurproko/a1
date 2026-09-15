@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { createArchiveReader, loadArchiveEvidence } from "../../scripts/governance/openspec-archive-github.mjs";
 import { discoverArchiveCheckpoint, reconcileArchives, validateArchiveCandidate } from "../../scripts/governance/reconcile-openspec-archive.mjs";
 import { archiveFailure, archivePaths } from "../../scripts/governance/openspec-archive-policy.mjs";
-import { archiveAuthorityCurrent, archiveMarker } from "../../scripts/governance/openspec-archive-publication.mjs";
+import { archiveAuthorityCurrent, archiveMarker, memoizeArchiveAuthorityGet } from "../../scripts/governance/openspec-archive-publication.mjs";
 import { advanceArchiveCheckpoint, newArchiveCheckpoint, scanArchiveCandidates, validateArchiveCheckpoint } from "../../scripts/governance/openspec-archive-scan.mjs";
 
 function fixture() {
@@ -14,7 +14,7 @@ function fixture() {
   const block = (label: string, value: unknown) => `\`\`\`${label}\n${JSON.stringify(value)}\n\`\`\``;
   const pull = { number: 20, state: "closed", merged: true, draft: false, changed_files: 1,
     merged_at: "2026-09-13T11:00:00Z", merge_commit_sha: merge,
-    head: { sha, ref: "feature/example", repo: { full_name: repository } }, base: { ref: "develop", repo: { full_name: repository } },
+    head: { sha, ref: "feature/example", repo: { full_name: repository } }, base: { sha: spec, ref: "develop", repo: { full_name: repository } },
     body: block("openspec-implementation", { version: 1, change: "example", specificationPr: 10 }) };
   const comment = { id: 99, user: { type: "User", login: "reviewer" }, created_at: "2026-09-13T10:00:00Z", updated_at: "2026-09-13T10:00:00Z",
     body: block("openspec-acceptance", { version: 1, change: "example", headSha: sha, specBaseSha: spec,
@@ -32,6 +32,15 @@ function fixture() {
     [`${prefix}/actions/workflows/ci.yml/runs`]: { total_count: 1, workflow_runs: [run] },
     [`${prefix}/actions/runs/7/jobs`]: { total_count: 1, jobs: [required] },
   };
+  // Compatibility: legacy fixtures explicitly expose the authoritative registry/active trees for the new receipt reader.
+  const tree = Object.entries({ "openspec/changes/example/.openspec.yaml": "schema: spec-driven\n",
+    "openspec/changes/example/tasks.md": "## Tasks\n- [ ] 1.1 Verify the live lifecycle and record outcomes.\n" }).map(([path, text]) => {
+    const bytes = Buffer.from(text);
+    const id = createHash("sha1").update(`blob ${bytes.length}\0`).update(bytes).digest("hex");
+    routes[`${prefix}/git/blobs/${id}`] = { encoding: "base64", size: bytes.length, content: bytes.toString("base64") };
+    return { path, sha: id, mode: "100644", type: "blob" };
+  });
+  for (const commit of [sha, merge, target]) routes[`${prefix}/git/trees/${commit}`] = { truncated: false, tree };
   const requests: { method: string; path: string }[] = [];
   const fetchImpl: typeof fetch = async (url, init) => {
     const path = new URL(String(url)).pathname;
@@ -138,7 +147,7 @@ describe("read-only archive reconciliation", () => {
     const report = await reconcileArchives({ reader: f.reader, tool: {}, pr: 20,
       prepare: async () => { throw Object.assign(new Error("tasks-incomplete"), { archiveCode: "tasks-incomplete", archiveDetail: "4.2" }); },
     });
-    expect(report.results).toMatchObject([{ disposition: "blocked", reason: "tasks-incomplete", detail: "4.2" }]);
+    expect(report.results).toMatchObject([{ disposition: "accepted-archive-blocked", reason: "tasks-incomplete", detail: "4.2" }]);
     f.pull.body = "Planning only, no implementation metadata";
     const unlinked = await reconcileArchives({ reader: f.reader, tool: {}, pr: 20 });
     expect(unlinked.results).toMatchObject([{ disposition: "unlinked" }]);
@@ -186,24 +195,14 @@ describe("archive orchestration and current authority", () => {
     expect(report.results).toMatchObject([{ disposition: "deferred", reason: "archive-queue-pending", archivePr: 50 }]);
   });
 
-  it("reports missing setup and deduplicates linked blockers without leaking exception bodies", async () => {
+  it("reports missing publication setup and does not leak exception bodies", async () => {
     const f = fixture();
     f.routes[`${f.prefix}/issues/20/comments`] = [];
-    const changes: { path: string; method: string; body: string }[] = [];
-    let closed = 0;
-    const publisher = { actor: "archive-app[bot]", async close() { closed += 1; },
-      async mutate(path: string, method: string, value: { body: string }) {
-        changes.push({ path, method, body: value.body });
-        f.routes[`${f.prefix}/issues/20/comments`] = [{ id: 100, body: value.body, user: { login: "archive-app[bot]" } }];
-      } };
-    const options = { reader: f.reader, tool: {}, pr: 20, dryRun: false, publisherFactory: async () => publisher };
-    const first = await reconcileArchives(options);
-    await reconcileArchives(options);
-    expect(first.results).toMatchObject([{ change: "example", disposition: "blocked", reason: "acceptance-missing" }]);
-    expect(changes).toHaveLength(1);
-    expect(closed).toBe(2);
-    const missing = await reconcileArchives({ ...options, publisherFactory: () => { throw archiveFailure("publication-app-setup"); } });
-    expect(missing.results[0].reporting).toBe("publication-app-setup");
+    const missing = await reconcileArchives({ reader: f.reader, tool: {}, pr: 20, dryRun: false,
+      publisherFactory: () => { throw archiveFailure("publication-app-setup"); } });
+    expect(missing.results).toMatchObject([{ change: "example", disposition: "blocked", reason: "publication-app-setup", reporting: "publication-app-setup" }]);
+    const audit = await reconcileArchives({ reader: f.reader, tool: {}, pr: 20, dryRun: true });
+    expect(audit.results).toMatchObject([{ change: "example", disposition: "awaiting-manual-acceptance-merge", proposedAcceptance: true }]);
     f.routes[`${f.prefix}/issues/20/comments`] = [f.comment];
     const privateError = await reconcileArchives({ reader: f.reader, tool: {}, pr: 20,
       prepare: () => { throw new Error("PRIVATE exception containing credentials"); } });
@@ -222,7 +221,21 @@ describe("archive orchestration and current authority", () => {
       prepare: async () => ({}), publisherFactory: async () => ({ actor: "archive-app[bot]", async mutate() {}, async close() {} }),
       publish: async () => { publishes += 1; return { disposition: "pending", archivePr: 50, generatedHead: head }; } });
     expect(publishes).toBe(1);
-    expect(report.results).toMatchObject([{ disposition: "blocked", reason: "archive-validation-failed", archivePr: 50 }]);
+    expect(report.results).toMatchObject([{ disposition: "accepted-archive-blocked", reason: "archive-validation-failed", archivePr: 50 }]);
+  });
+
+  it("deduplicates concurrent immutable authority reads within one decision", async () => {
+    const calls: string[] = [];
+    const get = memoizeArchiveAuthorityGet(async path => {
+      calls.push(path);
+      await new Promise(resolve => setTimeout(resolve, 1));
+      return { path };
+    });
+    const [first, second] = await Promise.all([get("/source"), get("/source")]);
+    expect(first).toBe(second);
+    expect(calls).toEqual(["/source"]);
+    await get("/other");
+    expect(calls).toEqual(["/source", "/other"]);
   });
 
   it("rechecks committed metadata, current acceptance bytes and maintainer permissions", async () => {
@@ -232,7 +245,9 @@ describe("archive orchestration and current authority", () => {
     f.routes[`${f.prefix}/git/commits/${head}`] = { message: `\`\`\`openspec-archive\n${JSON.stringify(marker)}\n\`\`\``, parents: [{ sha: f.target }] };
     f.routes[`${f.prefix}/issues/comments/99`] = f.comment;
     const check = () => archiveAuthorityCurrent(f.reader.get, "owner/repo", { head: { sha: head } }, { ...marker, generatedHead: head });
+    f.requests.length = 0;
     expect(await check()).toBe(true);
+    expect(f.requests.filter(request => request.path === `${f.prefix}/pulls/20`)).toHaveLength(1);
     f.routes[`${f.prefix}/collaborators/reviewer/permission`] = { permission: "read" };
     expect(await check()).toBe(false);
     f.routes[`${f.prefix}/collaborators/reviewer/permission`] = { permission: "write" };

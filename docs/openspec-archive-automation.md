@@ -1,14 +1,27 @@
 # Automatic OpenSpec archival
 
-The archive workflow handles accepted implementation merges into `develop`, a daily 90-day catch-up, and targeted retries. It creates an OpenSpec-only PR; existing documentation auto-merge remains responsible for squash integration after real current-head CI. An archive PR being open is not a completed archive.
+The archive workflow handles merged OpenSpec implementations, visible acceptance review, a daily 90-day catch-up, and targeted retries. When acceptance is missing, it creates or reuses `#<number>(accept): <original implementation subject>`; only an authorized maintainer's verified manual merge of a complete exact record grants PR-backed acceptance. Exact one-record acceptance candidates use a trusted lightweight CI route: generic impact dependency installation and documentation/all-spec validation are skipped only after complete base-controlled path classification, while the dedicated acceptance validator remains authoritative. It then creates an OpenSpec-only archive PR, which existing documentation automation protected-squash-integrates after real current-head CI. An open acceptance or archive PR is not completed acceptance or archival.
 
 Documentation CI installs only the pinned OpenSpec archive tool into runner temporary storage, not the repository dependency tree. Candidate validation selects that installation with `--tool-root`; the override is unavailable to publication and audit modes. The documentation job has read-only contents, PR, and Actions permissions; the existing merge owner also declares Actions read access for checking source validation.
 
-## One draft PR from planning through implementation
+## One PR: specs, implementation, CI, validation, merge, archive, cleanup
 
 A new implementation-bound change starts as OpenSpec-only artifacts in one draft PR, not a plan merged ahead of its implementation. Planning requests authorize no code. The agent prepares the link below while opening that draft. After explicit plan approval and an implementation request, continue in the same worktree, branch, history, and PR; reconcile approved planning refinements before their code edits and include related product documentation there too.
 
-Keep the PR draft while incomplete, then make it ready for final review. Approval to implement is not final acceptance or merge authorization. The completed PR still requires required CI, actual final-head maintainer review, and explicit manual integration. The documentation merge owner holds implementation-associated PRs and new active changes even if marked ready or their marker is removed. PR body edits trigger reconciliation and disable an excluded armed merge. Ordinary docs, standalone revisions to existing merged plans, and verified archive moves remain automatic under the exact path allowlist.
+Use this delivery sequence:
+
+1. **Specs:** prepare and approve the plan in the draft PR. Planning does not authorize implementation by itself.
+2. **Implementation:** after explicit approval/request, implement in that same worktree, branch, history, and PR. Keep it draft while implementation is unfinished.
+3. **CI:** push the completed candidate and mark the PR **ready for review before running required CI**. Normal `ready_for_review`/`synchronize` events provide PR-visible test progress. Do not manually dispatch ordinary CI merely to keep the completed candidate draft and then run it again on readiness. Dedicated Full regression/native workflows remain separate required evidence where applicable.
+4. **Implementation review:** after applicable CI passes, obtain actual maintainer validation of the exact final head. Readiness, plan approval, and green CI are not acceptance or merge authorization. A changed candidate requires current-head CI and renewed review.
+5. **Implementation merge:** merge manually only after explicit authorization; implementation auto-merge stays disabled. This integrates code but does not invent post-merge archival acceptance.
+6. **Visible acceptance:** before implementation merge, add a final `## Acceptance checks` section to the implementation PR with one to three concise behavior-and-expected-result bullets unique to that implementation. Trusted automation creates or reuses one acceptance PR whose title preserves the original implementation subject and whose body contains only a plain source-PR reference plus those checks as unchecked boxes. Do not use generic review, CI, no-gap, approval, archive, source-task, or automated-test boilerplate. Candidate CI validates integrity without claiming unchecked scenarios passed; an authorized maintainer checks the scenarios and manually merges, and auto-merge is always forbidden. The exact all-checked body plus verified manual merge records archival acceptance without JSON work or an acceptance-of-acceptance PR.
+7. **Docs/specs auto-merge:** the verified acceptance merge resumes conservative synchronization and prepares the OpenSpec-only archive PR. Documentation automation merges that follow-up after its own required CI. Generated archives intentionally keep GitHub's native `autoMergeRequest` unarmed because the candidate is bound to an exact reviewed target base; the completion-triggered reconciler instead revalidates authority and performs a protected expected-head squash merge automatically. No maintainer archive merge is required. Do not separately merge specs/docs or archive before implementation and acceptance integration.
+8. **Cleanup:** verify implementation, acceptance, and archive integration before removing retained local task/acceptance worktrees. Preserve ownership, clean-tree, and closed/unmerged safety checks. The owning agent performs eligible local cleanup or explicitly releases a registered checkout to the opt-in [local cleanup worker](local-worktree-cleanup.md); no always-running service is provisioned automatically. Hosted remote-branch cleanup remains independently gated on the corresponding PR's verified merge.
+
+When a PR check fails, repair routine failures in its existing worktree, branch, and PR and repush; a separate proposal or PR is not required solely for the repair, including a narrowly scoped inherited failure. Preserve the tested behavior, assertions, coverage, and required checks, record the cause and validation, and obtain fresh current-head CI and renewed implementation review; post-merge acceptance remains separately recorded. Substantive new scope still requires clarification. Reclaim a registered released checkout before resuming work; a repair grants no live cleanup or merge authority.
+
+The implementation, acceptance, and archive PRs each need their own CI because they carry different decisions and bytes. The redundant draft-dispatch-then-ready implementation run is what this sequence avoids. The documentation merge owner holds implementation-associated PRs, new active changes, and acceptance records/branches even if marked ready or their editable marker is removed. PR body edits trigger reconciliation and disable an excluded armed merge. Ordinary docs, standalone revisions to existing merged plans, and verified archive moves remain automatic under the exact path allowlist.
 
 ## Normal implementation handoff
 
@@ -33,29 +46,26 @@ The minimal link is `{ "version": 2, "change": "example-change" }`. Version 2 ve
 
 All implementation, tests, CI, and manual-review tasks must be completed separately before acceptance. Never combine physical review or merge authorization into these mechanical tasks. An old mixed task is a blocker, not permission to tick unperformed work.
 
-After the maintainer actually accepts the final candidate, record one authorized maintainer PR comment:
+After implementation merge, automation commits one version-2 internal source-binding record at `openspec/acceptance/<change>/<source-head>.json` on `docs/accept-<change>-<source-pr>`. The PR is titled `#<source-pr>(accept): <original implementation subject>` after stripping only a conventional type/scope prefix. Its body begins with the linked original PR as plain reference text and then reproduces only the one to three reviewed implementation checks. The implementation link, CI, approval, archival, task inventory, and automated tests are not checkboxes. Manual merge itself is approval.
 
-````markdown
-```openspec-acceptance
-{
-  "version": 1,
-  "change": "example-change",
-  "headSha": "REPLACE_WITH_FINAL_REVIEWED_40_CHARACTER_SHA",
-  "specBaseSha": "REPLACE_WITH_REVIEWED_SPEC_BASELINE_40_CHARACTER_SHA",
-  "verdict": "accepted",
-  "implementationComplete": true,
-  "manualReview": "passed",
-  "specSyncReviewed": true,
-  "evidence": "Identify the exact candidate, applicable commands, scenarios reviewed, and actual outcomes."
-}
+The implementation handoff section must use plain bullets, not checkboxes. Checks are 20–300 bytes each, contain no URLs or mentions, are distinct after normalization, and cannot exactly reuse another implementation's recorded checklist. Missing, duplicate, oversized, generic, or repetitive lists block before publication. For example:
+
+```markdown
+## Acceptance checks
+
+- Overflowing pane content displays a scrollbar beside the visible viewport.
+- Dragging the scrollbar updates the viewport while preserving the selected pane.
 ```
-````
 
-The placeholders intentionally fail validation. The agent fills actual identities and reports; it must never invent a positive review. The spec baseline is an ancestor commit containing the canonical requirements against which the maintainer reviewed the deltas. It is not automatically moved to a newer baseline to conceal conflicts.
+The generated JSON is not maintainer evidence and maintainers never inspect or edit it. It binds source identity, CI, source tasks, and the reviewed scenario text. Stale `pending` task labels do not override an exact all-checked authorized manual merge. During isolated archive staging, that receipt reconciles all remaining non-mechanical task boxes in the archived copy; the two designated archive-preparation tasks remain tied to their actual operations.
 
-The comment author needs repository write/maintain/admin authority. A newer head needs renewed acceptance; missing, edited, contradictory, revoked, stale, or known-gap records block the automatic route. Acceptance records remain version 1 and require one unambiguous current-head acceptance record. Earlier-head records are retained; same-head contradictions or a later conflicting record require explicit reconciliation before retrying. Source acceptance is copied into the archived `acceptance.md` with PR, head, merge, check-run, and comment provenance.
+The acceptance PR starts draft when exact-head source CI is incomplete or a known gap requires separate disposition. Automation preserves valid checkbox-state edits but rejects added prose, missing or changed checks, reordered items, and altered reference text. Candidate-integrity CI may pass with unchecked boxes because it validates membership and source binding, not human outcomes. Closing without merge records no acceptance; replacement requires an authorized targeted retry. Never enable auto-merge.
 
-The code PR still requires explicit manual merge authorization. After that merge, no additional archive request is needed for an eligible change. Planning-only and archive PRs never count as implemented changes. Existing `acceptance.md` files require manual reconciliation rather than being silently overwritten.
+Candidate CI checks the exact single added record, immutable source bindings, implementation handoff, and referenced-evidence integrity using trusted base policy and read-only permissions. Its early route downloads the classifier from the immutable base SHA and bypasses generic impact/documentation work only for that exact added path; route failure falls back to normal validation, while a route hit still requires the trusted validator's complete no-blocker verdict. After manual merge, the reader separately requires every exact box checked and verifies the final body digest, exact committed bytes, current-head CI including the acceptance check, source identities, develop ancestry, write/maintain/admin human merger, and absence of automatic/App/merge-queue provenance. Archive evidence retains scenario text and final-body digest with acceptance PR/head/merge, record digest, and author. Acceptance integration alone never authorizes local deletion.
+
+Existing valid version-1 `openspec-acceptance` comments remain supported. Existing version-1 acceptance PR records also remain readable: their exact originally generated body must be all checked and manually merged, so completed historical reviews such as #412 can resume archival without JSON edits. Historical record files for other implementation heads coexist and are ignored during exact-head selection. Comment authors still need repository write/maintain/admin authority, and edited, contradictory, revoked, stale, known-gap, or same-head conflicts fail closed. Automation never creates a synthetic comment or chooses between conflicting comment-backed and PR-backed authority.
+
+The code PR still requires explicit manual merge authorization. After a verified acceptance merge, no additional archive command is needed for an eligible change. Planning-only and archive PRs never count as implemented changes. Existing `acceptance.md` files require manual reconciliation rather than being silently overwritten.
 
 ## Rejection, standalone docs, and legacy migration
 
@@ -106,8 +116,11 @@ For authorized publication or retry, use the **OpenSpec archive** Actions dispat
 
 ## Outcomes and bounds
 
-- **eligible**: evidence and isolated staging passed; dry-run did not publish.
-- **blocked**: a named evidence/task/spec/setup/ownership problem requires attention.
+- **awaiting-evidence**: an acceptance PR exists but exact-head source CI or a separately dispositioned known gap is unresolved; update that same request without fabricating results.
+- **awaiting-manual-acceptance-merge**: the validated acceptance request needs explicit maintainer review and manual merge.
+- **eligible**: accepted evidence and isolated archive staging passed; dry-run did not publish.
+- **accepted-archive-blocked**: acceptance is verified, but tasks, synchronization, archive CI, or publication still blocks archival.
+- **blocked**: a named evidence/task/spec/setup/ownership/conflict problem requires attention.
 - **pending**: archive PR exists; current-head CI and automatic merge are not yet complete.
 - **already-archived**: merged archive identity and retained evidence were verified.
 - **deferred**: the queue or scan budget prevented work this run.
@@ -117,8 +130,8 @@ Only one automatic archive PR is outstanding at a time. Runs never wait on CI. A
 
 Catch-up scans a fixed 90-day window, up to 500 PRs per pass, with a 10-minute workflow budget and one publication per run. A small versioned cursor resumes unfinished windows; reports and cursors are retained for 14 days. Missing/expired cursors restart a bounded scan, not an assumed complete audit. Older PRs remain targetable. Exceptionally dense search buckets or incomplete GitHub search results are explicit blockers rather than silent truncation.
 
-Known-gap archival remains a separately authorized manual path. The existing backlog is not bulk-approved when automation starts. Local worktree cleanup remains with the local agent after verified integration and a clean-tree check.
+Known-gap archival remains a separately authorized manual path. The existing backlog is not bulk-approved when automation starts. Local worktree cleanup remains local: the owning agent can release an explicitly registered checkout to the separately enabled [local reconciler](local-worktree-cleanup.md) after stopping its use. The reconciler waits for verified archive integration and remote-ref absence, checks ownership and all local content, and never force-discards dirty work. Unregistered or unreleased worktrees remain untouched.
 
 ## Disable or roll back
 
-Disable the **OpenSpec archive** workflow or revoke its App publication credentials. Preserve active changes and open archive PRs for review. Do not delete documents, undo synchronized specs, or modify repository rulesets merely to stop automation. Existing documentation auto-merge and remote branch cleanup remain independently governed.
+Disable the **OpenSpec archive** workflow or revoke its App publication credentials to stop new request/archive publication. Preserve authoritative acceptance records, their manual auto-merge hold, active changes, and open review/archive PRs. Do not delete receipts, undo synchronized specs, or modify repository rulesets merely to stop automation. Readers must remain compatible with existing PR-backed and legacy comment receipts or fail closed. Existing documentation auto-merge and remote branch cleanup remain independently governed.

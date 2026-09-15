@@ -42,19 +42,24 @@ describe("validation tier planning", () => {
       "dependency-policy",
       "update-predecessor",
     ]);
-    expect(plan.vitest).toMatchObject({
-      mode: "full-deduplicated",
-      invocations: [
-        { id: "vitest-full-without-isolated", arguments: expect.arrayContaining(["--exclude", "test/foundation/release/update-performance.integration.test.ts", "--exclude", "test/foundation/release/package-surface.test.ts", "test/foundation/release/package-install.integration.test.ts", "--exclude", "test/repository-governance/validation-impact.test.ts"]) },
-        { id: "vitest-fast-resource-sensitive", arguments: expect.arrayContaining(["test/repository-governance/validation-impact.test.ts", "--no-file-parallelism"]) },
-        { id: "vitest-isolated-timing", arguments: expect.arrayContaining(["test/foundation/release/update-performance.integration.test.ts", "--no-file-parallelism"]) },
-        { id: "vitest-package-smoke-1", arguments: ["vitest", "run", "test/foundation/release/package-surface.test.ts", "--no-file-parallelism", "--testTimeout=120000"] },
-        { id: "vitest-package-smoke-2", arguments: ["vitest", "run", "test/foundation/release/session-resume.integration.test.ts", "--no-file-parallelism", "--testTimeout=120000"] },
-        { id: "vitest-isolated-suites", arguments: expect.arrayContaining(["test/integrations/pi/tui-runtime/rendering-budgets.test.ts", "test/integrations/pi/tui-runtime/rendering-producer.test.ts", "--no-file-parallelism", "--testTimeout=600000"]) },
-        { id: "vitest-package-contracts", arguments: expect.arrayContaining(["test/foundation/release/package-install.integration.test.ts", "--no-file-parallelism"]) },
-        { id: "vitest-package-startup", arguments: expect.arrayContaining(["test/foundation/release/package-startup.integration.test.ts", "--no-file-parallelism"]) },
-      ],
-    });
+    expect(plan.vitest?.mode).toBe("full-deduplicated");
+    const invocations = plan.vitest!.invocations;
+    expect(invocations.find(invocation => invocation.id === "vitest-full-without-isolated")?.arguments)
+      .toEqual(expect.arrayContaining(["--exclude", "test/foundation/release/update-performance.integration.test.ts", "--exclude", "test/foundation/release/package-surface.test.ts", "test/foundation/release/package-install.integration.test.ts", "--exclude", "test/repository-governance/validation-impact.test.ts"]));
+    expect(invocations.filter(invocation => invocation.id.startsWith("vitest-fast-resource-sensitive-"))
+      .flatMap(invocation => invocation.arguments)).toEqual(expect.arrayContaining(["test/repository-governance/validation-impact.test.ts", "--no-file-parallelism"]));
+    expect(invocations.find(invocation => invocation.id === "vitest-isolated-timing")?.arguments)
+      .toEqual(expect.arrayContaining(["test/foundation/release/update-performance.integration.test.ts", "--no-file-parallelism"]));
+    expect(invocations.find(invocation => invocation.id === "vitest-package-smoke-1")?.arguments)
+      .toEqual(["vitest", "run", "test/foundation/release/package-surface.test.ts", "--no-file-parallelism", "--testTimeout=120000"]);
+    expect(invocations.find(invocation => invocation.id === "vitest-package-smoke-2")?.arguments)
+      .toEqual(["vitest", "run", "test/foundation/release/session-resume.integration.test.ts", "--no-file-parallelism", "--testTimeout=120000"]);
+    expect(invocations.find(invocation => invocation.id === "vitest-isolated-suites")?.arguments)
+      .toEqual(expect.arrayContaining(["test/integrations/pi/tui-runtime/rendering-budgets.test.ts", "test/integrations/pi/tui-runtime/rendering-producer.test.ts", "--no-file-parallelism", "--testTimeout=600000"]));
+    expect(invocations.find(invocation => invocation.id === "vitest-package-contracts")?.arguments)
+      .toEqual(expect.arrayContaining(["test/foundation/release/package-install.integration.test.ts", "--no-file-parallelism"]));
+    expect(invocations.find(invocation => invocation.id === "vitest-package-startup")?.arguments)
+      .toEqual(expect.arrayContaining(["test/foundation/release/package-startup.integration.test.ts", "--no-file-parallelism"]));
     expect(plan.requiresBuild).toBe(true);
     expect(plan.commands.map(command => command.id)).toEqual([
       "candidate-build",
@@ -85,19 +90,17 @@ describe("validation tier planning", () => {
 
   it("serializes smoke and full rendering evidence outside the fast worker pool", async () => {
     const smoke = await createTierPlan(["fast", "rendering-smoke"]);
-    expect(smoke.vitest?.invocations).toEqual([
-      expect.objectContaining({ id: "vitest-fast" }),
-      expect.objectContaining({ id: "vitest-fast-resource-sensitive" }),
-      expect.objectContaining({
-        id: "vitest-isolated-suites",
-        arguments: expect.arrayContaining([
-          "test/integrations/pi/tui-runtime/rendering-smoke.test.ts",
-          "test/integrations/pi/tui-runtime/input-responsiveness-smoke.test.ts",
-          "--no-file-parallelism",
-          "--testTimeout=600000",
-        ]),
-      }),
-    ]);
+    expect(smoke.vitest?.invocations[0]).toEqual(expect.objectContaining({ id: "vitest-fast" }));
+    expect(smoke.vitest?.invocations.filter(invocation => invocation.id.startsWith("vitest-fast-resource-sensitive-"))).toHaveLength(20);
+    expect(smoke.vitest?.invocations.at(-1)).toEqual(expect.objectContaining({
+      id: "vitest-isolated-suites",
+      arguments: expect.arrayContaining([
+        "test/integrations/pi/tui-runtime/rendering-smoke.test.ts",
+        "test/integrations/pi/tui-runtime/input-responsiveness-smoke.test.ts",
+        "--no-file-parallelism",
+        "--testTimeout=600000",
+      ]),
+    }));
     expect(smoke.structuralEvidence).toEqual({
       "rendering-smoke": { workloadCaptures: 6, deliberateRepeatCaptures: 0, matrixProducerLaunches: 19, protocolProducerLaunches: 0, totalProducerLaunches: 19 },
     });

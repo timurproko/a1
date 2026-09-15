@@ -20,7 +20,10 @@ const resourceSensitiveTests = [
   ...originalResourceSensitiveTests.slice(0, 1),
   "test/repository-governance/naming-selection.test.ts",
   "test/foundation/launch-context/cutover.test.ts",
-  ...originalResourceSensitiveTests.slice(1),
+  ...originalResourceSensitiveTests.slice(1, 2),
+  "test/repository-governance/local-cleanup.test.ts",
+  ...originalResourceSensitiveTests.slice(2),
+  "test/features/workspace/workspace.test.ts",
   "test/features/prompt-history/store.test.ts",
   "test/integrations/pi/session-ui/command-message-parity.test.ts",
   "test/integrations/pi/session-ui/command-outcome-parity.test.ts",
@@ -39,27 +42,35 @@ function invocation(plan: Awaited<ReturnType<typeof createTierPlan>>, id: string
   return found!;
 }
 
+function resourceInvocations(plan: Awaited<ReturnType<typeof createTierPlan>>) {
+  return plan.vitest?.invocations.filter(candidate => candidate.id.startsWith("vitest-fast-resource-sensitive-")) ?? [];
+}
+
 describe("resource-sensitive validation partition", () => {
-  it("subtracts every resource-sensitive test from the ordinary remainder and runs it once without a timeout override", async () => {
+  it("subtracts every resource-sensitive test from the ordinary remainder and runs each once in a fresh process without a timeout override", async () => {
     const plan = await createTierPlan(["fast"]);
     const ordinary = invocation(plan, "vitest-fast");
-    const resource = invocation(plan, "vitest-fast-resource-sensitive");
+    const resources = resourceInvocations(plan);
 
-    for (const test of resourceSensitiveTests) {
+    expect(resources).toHaveLength(resourceSensitiveTests.length);
+    for (const [index, test] of resourceSensitiveTests.entries()) {
       expect(ordinary.arguments).toContain(test);
       expect(ordinary.arguments[ordinary.arguments.indexOf(test) - 1]).toBe("--exclude");
+      expect(resources[index]).toEqual({
+        id: `vitest-fast-resource-sensitive-${index + 1}`,
+        arguments: ["vitest", "run", test, "--no-file-parallelism"],
+        evidence: {
+          executionClass: "resource-sensitive",
+          testFiles: [test],
+          fileParallelism: false,
+          timeoutMs: 5000,
+          timeoutSource: "vitest-default",
+          retries: 0,
+          perFileTiming: "vitest-default-reporter",
+        },
+      });
+      expect(resources[index]!.arguments.some(argument => argument.toLowerCase().includes("timeout"))).toBe(false);
     }
-    expect(resource.arguments).toEqual(["vitest", "run", ...resourceSensitiveTests, "--no-file-parallelism"]);
-    expect(resource.arguments.some(argument => argument.toLowerCase().includes("timeout"))).toBe(false);
-    expect(resource.evidence).toEqual({
-      executionClass: "resource-sensitive",
-      testFiles: resourceSensitiveTests,
-      fileParallelism: false,
-      timeoutMs: 5000,
-      timeoutSource: "vitest-default",
-      retries: 0,
-      perFileTiming: "vitest-default-reporter",
-    });
   });
 
   it("uses one partition for pull-request, exact-package, and full-release plans", async () => {
@@ -67,13 +78,13 @@ describe("resource-sensitive validation partition", () => {
     const exactPackage = await createTierPlan(["typecheck", "architecture", "fast", "rendering-stability", "dist-integration", "package-smoke", "package-install"]);
     const full = await createTierPlan(["full-release"]);
 
-    expect(invocation(pullRequest, "vitest-fast-resource-sensitive")).toEqual(invocation(exactPackage, "vitest-fast-resource-sensitive"));
-    expect(invocation(full, "vitest-fast-resource-sensitive")).toEqual(invocation(pullRequest, "vitest-fast-resource-sensitive"));
+    expect(resourceInvocations(pullRequest)).toEqual(resourceInvocations(exactPackage));
+    expect(resourceInvocations(full)).toEqual(resourceInvocations(pullRequest));
     const fullRemainder = invocation(full, "vitest-full-without-isolated");
     for (const test of resourceSensitiveTests) {
       expect(fullRemainder.arguments[fullRemainder.arguments.indexOf(test) - 1]).toBe("--exclude");
     }
-    expect(full.vitest?.invocations.filter(candidate => candidate.id === "vitest-fast-resource-sensitive")).toHaveLength(1);
+    expect(resourceInvocations(full)).toHaveLength(resourceSensitiveTests.length);
   });
 
   it("exposes disjoint atomic invocations with the identical public fast composition", async () => {
@@ -84,7 +95,7 @@ describe("resource-sensitive validation partition", () => {
     expect(remainder.selected).toEqual(["fast-remainder"]);
     expect(sensitive.selected).toEqual(["fast-resource-sensitive"]);
     expect(remainder.vitest?.invocations).toEqual([invocation(composed, "vitest-fast")]);
-    expect(sensitive.vitest?.invocations).toEqual([invocation(composed, "vitest-fast-resource-sensitive")]);
+    expect(sensitive.vitest?.invocations).toEqual(resourceInvocations(composed));
     expect(composed.vitest?.invocations).toEqual([...remainder.vitest!.invocations, ...sensitive.vitest!.invocations]);
     expect(remainder.commands).toEqual([]);
     expect(remainder.requiresBuild).toBe(false);
@@ -114,9 +125,10 @@ describe("resource-sensitive validation partition", () => {
   });
 
   it("executes each atomic plan without launching the other partition", async () => {
-    for (const [scope, expected] of [["fast-remainder", "vitest-fast"], ["fast-resource-sensitive", "vitest-fast-resource-sensitive"]]) {
+    for (const scope of ["fast-remainder", "fast-resource-sensitive"]) {
+      const plan = await createTierPlan([scope]);
       const calls: string[] = [];
-      const result = await runTierPlan(await createTierPlan([scope!]), {
+      const result = await runTierPlan(plan, {
         executeCommand: async command => {
           calls.push(command.id);
           return { id: command.id, command: command.arguments.join(" "), exitCode: 0, durationMs: 1 };
@@ -125,7 +137,9 @@ describe("resource-sensitive validation partition", () => {
         env: { VALIDATION_BUILD_READY: "0" },
       });
       expect(result.passed).toBe(true);
-      expect(calls).toEqual(scope === "fast-resource-sensitive" ? ["candidate-build", expected] : [expected]);
+      expect(calls).toEqual(scope === "fast-resource-sensitive"
+        ? ["candidate-build", ...resourceInvocations(plan).map(item => item.id)]
+        : ["vitest-fast"]);
     }
   });
 

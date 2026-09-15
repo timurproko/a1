@@ -11,8 +11,34 @@ describe("impact-aware validation workflows", () => {
     expect(workflow.jobs.rendering.needs).toBe("changes");
     expect(workflow.jobs.modular.strategy["fail-fast"]).toBe(false);
     expect(workflow.jobs.modular.strategy).not.toHaveProperty("max-parallel");
-    expect(workflow.jobs.required.needs).toEqual(["changes", "docs", "naming", "documentation", "modular", "rendering"]);
+    expect(workflow.jobs.required.needs).toEqual(["changes", "acceptance", "docs", "naming", "documentation", "modular", "rendering"]);
     expect(source.match(/name: Development validation required/g)).toHaveLength(1);
+  });
+
+  it("skips every generic lane only behind trusted acceptance validation", async () => {
+    const workflow = parse(await readFile(".github/workflows/ci.yml", "utf8"));
+    const changes = workflow.jobs.changes;
+    expect(changes.permissions).toEqual({ contents: "read", "pull-requests": "read" });
+    for (const name of ["Check out head", "Set up Node", "Install exact analysis dependencies",
+      "Select validation from the complete impact", "Upload exact impact selection"]) {
+      expect(changes.steps.find((step: { name: string }) => step.name === name)?.if)
+        .toBe("steps.route.outputs.acceptance_only != 'true'");
+    }
+    for (const name of ["docs", "naming", "documentation", "modular", "rendering"]) {
+      expect(workflow.jobs[name].if).toContain("needs.changes.outputs.acceptance-only != 'true'");
+    }
+    expect(workflow.jobs.acceptance.outputs["acceptance-candidate"])
+      .toBe("${{ steps.validation.outputs.acceptance_candidate || 'false' }}");
+    const aggregate = workflow.jobs.required.steps.find((step: { name: string }) => step.name === "Require current impact-selected validation");
+    expect(aggregate.env).toMatchObject({
+      ACCEPTANCE_ONLY: "${{ needs.changes.outputs.acceptance-only }}",
+      ACCEPTANCE_CANDIDATE: "${{ needs.acceptance.outputs.acceptance-candidate }}",
+      ACCEPTANCE_RESULT: "${{ needs.acceptance.result }}",
+    });
+    for (const name of ["Download exact impact selection", "Download all modular outcomes", "Require exact selected owner outcomes", "Upload aggregate evidence"]) {
+      expect(workflow.jobs.required.steps.find((step: { name: string }) => step.name === name)?.if)
+        .toContain("needs.changes.outputs.acceptance-only != 'true'");
+    }
   });
 
   it("keeps complete fast partitions separate and resource-sensitive work isolated", async () => {

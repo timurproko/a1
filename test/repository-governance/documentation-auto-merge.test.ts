@@ -143,6 +143,26 @@ describe("documentation auto-merge workflow", () => {
     expect(result.stdout).toContain("squash auto-merge armed behind required validation");
   });
 
+  it("reports generated archives as pending automatic integration without native pre-arming", async () => {
+    const pull = pullFixture({
+      body: archiveBody(headSha),
+      head: { ref: "docs/archive-example", sha: headSha, repo: { full_name: "owner/repository" } },
+      mergeable_state: "clean",
+    });
+    const files = { body: [{ filename: "openspec/changes/archive/2026-09-15-example/tasks.md", status: "added" }] };
+    const pending = await runManager({ pull_request: { number: 42 } }, pull, {
+      respond: request => request.url.includes("/files?") ? files : undefined,
+    });
+    expect(pending.stdout).toContain("waiting for current-head CI; automatic protected integration");
+    expect(pending.requests.some(request => request.body.includes("enablePullRequestAutoMerge") || request.method === "PUT")).toBe(false);
+
+    const advanced = await runManager(validationEvent(), pull, {
+      respond: request => request.url.includes("/files?") ? files : undefined,
+    });
+    expect(advanced.stdout).toContain("archive base advanced; regeneration is required before automatic integration");
+    expect(advanced.requests.some(request => request.method === "PUT")).toBe(false);
+  });
+
   it("squash-merges only the current successfully validated clean head", async () => {
     const result = await runManager({
       workflow_run: {
@@ -221,7 +241,36 @@ describe("documentation auto-merge workflow", () => {
     expect(manager).toContain("disablePullRequestAutoMerge");
     expect(manager).toContain("await disableIfArmed(pull, `classification failed:");
     expect(manager).toContain("mergeValidatedHead");
+    expect(manager).toContain("archiveAuthorityCurrent");
+    expect(manager).toMatch(/async function mergeValidatedHead[\s\S]*git\/ref\/heads\/develop[\s\S]*body: \{ sha: pull\.head\.sha, merge_method: "squash" \}/);
     expect(manager).toContain("executeMergedBranchCleanup");
+  });
+});
+
+describe("acceptance manual-only integration", () => {
+  it.each(["clean", "unstable", "blocked"])("holds acceptance records in %s state without a body marker", async mergeable_state => {
+    const result = await runManager(validationEvent(), pullFixture({ mergeable_state, auto_merge: { merge_method: "squash" } }), {
+      respond: request => request.url.includes("/files?") ? { body: [{ filename: `openspec/acceptance/example/${headSha}.json`, status: "added" }] } : undefined,
+    });
+    expect(result.stdout).toContain("acceptance-associated");
+    expect(result.requests.some(request => request.body.includes("disablePullRequestAutoMerge"))).toBe(true);
+    expect(result.requests.some(request => request.body.includes("enablePullRequestAutoMerge") || request.method === "PUT")).toBe(false);
+  });
+  it.each(["removed", "renamed"])("holds %s authoritative records", async status => {
+    const path = `openspec/acceptance/example/${headSha}.json`;
+    const result = await runManager(validationEvent(), pullFixture({ mergeable_state: "clean" }), {
+      respond: request => request.url.includes("/files?") ? { body: [{ filename: status === "renamed" ? "docs/ordinary.json" : path,
+        status, ...(status === "renamed" ? { previous_filename: path } : {}) }] } : undefined,
+    });
+    expect(result.stdout).toContain("acceptance-associated");
+    expect(result.requests.some(request => request.method === "PUT")).toBe(false);
+  });
+  it("rechecks acceptance association after an unstable arming response", async () => {
+    const body = '```openspec-acceptance-request\n{"version":1}\n```';
+    const result = await runManager(validationEvent(), [pullFixture(),
+      pullFixture({ body, mergeable_state: "clean", auto_merge: { merge_method: "squash" } })], { respond: rejectUnstableEnable });
+    expect(result.requests.some(request => request.body.includes("disablePullRequestAutoMerge"))).toBe(true);
+    expect(result.requests.some(request => request.method === "PUT")).toBe(false);
   });
 });
 
@@ -513,6 +562,26 @@ function validationEvent(overrides: Record<string, unknown> = {}): Record<string
     id: 9001, name: "Development validation", event: "pull_request", conclusion: "success",
     head_sha: headSha, pull_requests: [{ number: 42 }], ...overrides,
   } };
+}
+
+function archiveBody(generatedHead: string): string {
+  return `\`\`\`openspec-archive\n${JSON.stringify({
+    version: 1,
+    change: "example",
+    sourcePr: 20,
+    sourceHead: "a".repeat(40),
+    sourceMerge: "b".repeat(40),
+    targetSha: "c".repeat(40),
+    archive: "openspec/changes/archive/2026-09-15-example/",
+    acceptanceId: 99,
+    acceptanceDigest: "d".repeat(64),
+    acceptanceAuthor: "reviewer",
+    acceptanceCreatedAt: "2026-09-15T11:00:00Z",
+    validationRunId: 7,
+    sourceBodyDigest: "e".repeat(64),
+    digest: "f".repeat(64),
+    generatedHead,
+  })}\n\`\`\``;
 }
 
 function unstableError() {

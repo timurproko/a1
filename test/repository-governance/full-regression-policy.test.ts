@@ -94,7 +94,8 @@ describe("complete regression automation", () => {
     expect(invocations.find(invocation => invocation.id === "vitest-package-startup")?.arguments).toEqual([
       "vitest", "run", "test/foundation/release/package-startup.integration.test.ts", "--no-file-parallelism", "--testTimeout=600000",
     ]);
-    expect(invocations.find(invocation => invocation.id === "vitest-fast-resource-sensitive")?.arguments).toContain("test/features/prompt-history/store.test.ts");
+    expect(invocations.filter(invocation => invocation.id.startsWith("vitest-fast-resource-sensitive-"))
+      .flatMap(invocation => invocation.arguments)).toContain("test/features/prompt-history/store.test.ts");
   });
 
   it("reports owned failures and timings without publication authority", async () => {

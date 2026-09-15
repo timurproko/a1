@@ -1,3 +1,4 @@
+import { acceptanceUrl, receiptIdentity, receiptIdentityMatches } from "./openspec-acceptance-policy.mjs";
 import { createSign, createHash } from "node:crypto";
 import { execFile } from "node:child_process";
 import { mkdtemp, mkdir, writeFile, rm, realpath } from "node:fs/promises";
@@ -59,11 +60,21 @@ export async function createArchivePublisher({ repository, appId, privateKey, fe
     async mutate(path, method, body) {
       const route = path.slice(prefix.length);
       if (!path.startsWith(`${prefix}/`) || !(
-        method === "POST" && (/^\/pulls$/.test(route) || /^\/issues\/\d+\/comments$/.test(route))
+        method === "POST" && (/^\/pulls$/.test(route) || /^\/issues\/\d+\/comments$/.test(route)
+          || /^\/git\/(trees|commits)$/.test(route)
+          || route === "/git/refs" && /^refs\/heads\/docs\/accept-[a-z0-9-]+-\d+$/.test(body?.ref ?? ""))
         || method === "PATCH" && (/^\/pulls\/\d+$/.test(route) || /^\/issues\/comments\/\d+$/.test(route)))) {
         throw archiveFailure("publication-route");
       }
       return await request(path, method, body, access.token);
+    },
+    async ready(number, nodeId) {
+      if (!Number.isSafeInteger(number) || number < 1 || typeof nodeId !== "string" || !nodeId) throw archiveFailure("acceptance-pr-identity");
+      const result = await request("/graphql", "POST", {
+        query: "mutation($id: ID!) { markPullRequestReadyForReview(input: {pullRequestId: $id}) { pullRequest { number } } }",
+        variables: { id: nodeId },
+      }, access.token);
+      if (result.errors || result.data?.markPullRequestReadyForReview?.pullRequest?.number !== number) throw archiveFailure("acceptance-ready-failed");
     },
     async close() { await request("/installation/token", "DELETE", undefined, access.token); },
   };
@@ -71,7 +82,9 @@ export async function createArchivePublisher({ repository, appId, privateKey, fe
 
 export function archiveMarker(evidence, candidate) {
   return {
-    version: 1, change: evidence.implementation.change, sourcePr: evidence.pull.number,
+    version: evidence.acceptance.kind === "pull-request" ? 2 : 1,
+    ...(evidence.acceptance.kind === "pull-request" ? { acceptanceReceipt: receiptIdentity(evidence.acceptance) } : {}),
+    change: evidence.implementation.change, sourcePr: evidence.pull.number,
     sourceHead: evidence.pull.head.sha, sourceMerge: evidence.pull.merge_commit_sha,
     targetSha: evidence.targetSha, archive: candidate.paths.archive,
     acceptanceId: evidence.acceptance.id, acceptanceDigest: evidence.acceptance.bodyDigest,
@@ -86,7 +99,7 @@ export function archiveMarker(evidence, candidate) {
 export function readArchiveMarker(body) {
   const marker = metadataBlock(body ?? "", "openspec-archive");
   if (!marker) return null;
-  if (marker.version !== 1 || !Number.isSafeInteger(marker.sourcePr) || marker.sourcePr < 1
+  if (![1, 2].includes(marker.version) || !Number.isSafeInteger(marker.sourcePr) || marker.sourcePr < 1
     || !Number.isSafeInteger(marker.acceptanceId) || marker.acceptanceId < 1
     || !Number.isSafeInteger(marker.validationRunId) || marker.validationRunId < 1
     || !/^[a-zA-Z0-9-]{1,39}$/.test(marker.acceptanceAuthor ?? "")
@@ -97,6 +110,13 @@ export function readArchiveMarker(body) {
     || typeof marker.change !== "string" || !CHANGE.test(marker.change)
     || !new RegExp(`^openspec/changes/archive/(?:\\d{4}-\\d{2}-\\d{2}-)?${marker.change}/$`).test(marker.archive)
     || marker.generatedHead !== undefined && !SHA.test(marker.generatedHead)) throw archiveFailure("archive-marker");
+  if (marker.version === 2) {
+    const receipt = marker.acceptanceReceipt;
+    if (!receipt || receipt.kind !== "pull-request" || receipt.pr !== marker.acceptanceId
+      || receipt.digest !== marker.acceptanceDigest || receipt.author !== marker.acceptanceAuthor
+      || receipt.createdAt !== marker.acceptanceCreatedAt || !SHA.test(receipt.head ?? "") || !SHA.test(receipt.merge ?? "")
+      || receipt.path !== `openspec/acceptance/${marker.change}/${marker.sourceHead}.json`) throw archiveFailure("archive-marker-receipt");
+  } else if (marker.acceptanceReceipt !== undefined) throw archiveFailure("archive-marker-receipt");
   return marker;
 }
 
@@ -104,29 +124,41 @@ const markerText = marker => `\`\`\`openspec-archive\n${JSON.stringify(marker, n
 
 export function archivePullBody(repository, marker) {
   return `Archives accepted implementation #${marker.sourcePr}. Canonical specs and archive artifacts were verified in isolation.\n\n`
-    + `Acceptance: https://github.com/${repository}/pull/${marker.sourcePr}#issuecomment-${marker.acceptanceId}\n`
+    + `Acceptance: ${acceptanceUrl(repository, marker.sourcePr, { kind: marker.acceptanceReceipt?.kind, id: marker.acceptanceId })}\n`
     + `Source CI: https://github.com/${repository}/actions/runs/${marker.validationRunId}\n\n`
-    + `OpenSpec-only candidate; integration remains pending required current-head CI and existing documentation auto-merge.\n\n`
+    + `OpenSpec-only candidate; automatic protected integration follows required current-head CI. Native auto-merge remains intentionally unarmed so an advanced target base cannot integrate stale synchronization.\n\n`
     + markerText(marker);
+}
+
+export function memoizeArchiveAuthorityGet(get) {
+  const requests = new Map();
+  return path => {
+    if (!requests.has(path)) requests.set(path, Promise.resolve().then(() => get(path)));
+    return requests.get(path);
+  };
 }
 
 export async function archiveAuthorityCurrent(get, repository, pull, marker) {
   const prefix = `/repos/${repository}`;
-  const commit = await get(`${prefix}/git/commits/${pull.head.sha}`);
+  const cachedGet = memoizeArchiveAuthorityGet(get);
+  const evidencePromise = loadArchiveEvidence(archiveReaderFromGet(repository, cachedGet), marker.sourcePr)
+    .catch(() => null);
+  const [commit, source, evidence] = await Promise.all([
+    cachedGet(`${prefix}/git/commits/${pull.head.sha}`),
+    cachedGet(`${prefix}/pulls/${marker.sourcePr}`),
+    evidencePromise,
+  ]);
   const committed = readArchiveMarker(commit.message);
   const { generatedHead, ...declared } = marker;
   if (generatedHead !== pull.head.sha || JSON.stringify(committed) !== JSON.stringify(declared)
     || commit.parents?.length !== 1 || commit.parents[0]?.sha !== marker.targetSha) return false;
-  const source = await get(`${prefix}/pulls/${marker.sourcePr}`);
   if (source.merged !== true || source.head?.sha !== marker.sourceHead || source.merge_commit_sha !== marker.sourceMerge
     || createHash("sha256").update(source.body ?? "").digest("hex") !== marker.sourceBodyDigest) return false;
-  try {
-    const evidence = await loadArchiveEvidence(archiveReaderFromGet(repository, get), marker.sourcePr);
-    return evidence.disposition === "eligible" && evidence.targetSha === marker.targetSha
-      && evidence.acceptance.id === marker.acceptanceId && evidence.acceptance.bodyDigest === marker.acceptanceDigest
-      && evidence.acceptance.author === marker.acceptanceAuthor && evidence.acceptance.createdAt === marker.acceptanceCreatedAt
-      && evidence.validation.runId === marker.validationRunId;
-  } catch { return false; }
+  return evidence?.disposition === "eligible" && evidence.targetSha === marker.targetSha
+    && evidence.acceptance.id === marker.acceptanceId && evidence.acceptance.bodyDigest === marker.acceptanceDigest
+    && evidence.acceptance.author === marker.acceptanceAuthor && evidence.acceptance.createdAt === marker.acceptanceCreatedAt
+    && receiptIdentityMatches(marker.acceptanceReceipt ?? null, evidence.acceptance)
+    && evidence.validation.runId === marker.validationRunId;
 }
 
 export async function publishArchive({ publisher, reader, evidence, candidate, recoveryCandidate = null, existing = null,
@@ -188,10 +220,13 @@ export async function publishArchive({ publisher, reader, evidence, candidate, r
   if (current.head?.sha !== evidence.pull.head.sha || current.merge_commit_sha !== evidence.pull.merge_commit_sha || current.body !== evidence.pull.body) {
     throw archiveFailure("source-evidence-changed");
   }
-  const comment = await reader.get(`${prefix}/issues/comments/${evidence.acceptance.id}`);
-  if (comment.updated_at !== evidence.acceptance.createdAt || comment.created_at !== evidence.acceptance.createdAt
-    || comment.user?.login !== evidence.acceptance.author
-    || createHash("sha256").update(comment.body ?? "").digest("hex") !== evidence.acceptance.bodyDigest) throw archiveFailure("source-evidence-changed");
+  if (evidence.acceptance.kind !== "pull-request") {
+    const comment = await reader.get(`${prefix}/issues/comments/${evidence.acceptance.id}`);
+    if (comment.updated_at !== evidence.acceptance.createdAt || comment.created_at !== evidence.acceptance.createdAt
+      || comment.user?.login !== evidence.acceptance.author
+      || createHash("sha256").update(comment.body ?? "").digest("hex") !== evidence.acceptance.bodyDigest) throw archiveFailure("source-evidence-changed");
+  }
+  // Provenance: PR-backed authority is reloaded, including manual merge evidence, immediately before push below.
 
   const root = await realpath(await mkdtemp(join(tmpdir(), "archive-publication-")));
   const checkout = join(root, "checkout");

@@ -4,6 +4,17 @@ import { fileURLToPath } from "node:url";
 export function requireDevelopmentValidation(value) {
   requireResult(value.changesResult, "change classification");
   if (!/^[0-9a-f]{40}$/u.test(value.selectedHead ?? "") || value.selectedHead !== value.expectedHead) throw new Error("validation selection is stale or has an invalid head");
+  if (value.acceptanceOnly === "true") {
+    requireResult(value.acceptanceResult, "acceptance record validation");
+    if (value.acceptanceCandidate !== "true") throw new Error("trusted acceptance candidate validation is missing");
+    requireSkipped(value.docsResult, "documentation governance");
+    requireSkipped(value.namingResult, "internal naming validation");
+    requireSkipped(value.documentationResult, "changed-file documentation");
+    requireSkipped(value.modularResult, "modular validation");
+    requireSkipped(value.renderingResult, "rendering validation");
+    return { mode: "acceptance" };
+  }
+  if (value.acceptanceOnly !== "false") throw new Error("acceptance-only routing result is missing");
   if (value.namingRequired === "true") {
     requireResult(value.namingResult, "internal naming validation");
     if (value.namingHead !== value.expectedHead) throw new Error("naming validation result is stale or missing its head");
@@ -41,6 +52,9 @@ function requireSkipped(result, label) {
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const value = Object.fromEntries(Object.entries({
+    acceptanceOnly: "ACCEPTANCE_ONLY",
+    acceptanceCandidate: "ACCEPTANCE_CANDIDATE",
+    acceptanceResult: "ACCEPTANCE_RESULT",
     changesResult: "CHANGES_RESULT",
     docsResult: "DOCS_RESULT",
     namingResult: "NAMING_RESULT",

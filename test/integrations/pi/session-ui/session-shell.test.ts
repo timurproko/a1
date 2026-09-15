@@ -22,7 +22,26 @@ import {
   getOsc8LinkAtColumn as getPinnedPiTuiLinkAtColumn,
   setCapabilities as setPinnedPiTuiCapabilities,
 } from "#pi-tui";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, onTestFailed, onTestFinished, vi } from "vitest";
+import { NativeRegressionTrace } from "../../../support/native-regression-trace.js";
+
+// Performance: this integration file exercises real cold emitted entries; dedicated tests retain source-loader coverage.
+vi.mock("../../../../src/integrations/pi/session-ui/paste-executor.js", async importOriginal => {
+  const actual = await importOriginal<typeof import("../../../../src/integrations/pi/session-ui/paste-executor.js")>();
+  const { coldPasteHelper } = await import("../../../support/cold-clipboard-entries.js");
+  return { ...actual, startPasteExecutor: (...args: Parameters<typeof actual.startPasteExecutor>) =>
+    actual.startPasteExecutor(args[0], args[1], args[2], coldPasteHelper(args[3])) };
+});
+vi.mock("node:worker_threads", async importOriginal => {
+  const actual = await importOriginal<typeof import("node:worker_threads")>();
+  const { coldClipboardWorker } = await import("../../../support/cold-clipboard-entries.js");
+  return { ...actual, Worker: class extends actual.Worker {
+    constructor(entry: string | URL, options?: import("node:worker_threads").WorkerOptions) {
+      const selected = coldClipboardWorker(entry, options);
+      super(selected.entry, selected.options);
+    }
+  } };
+});
 import { screenshotPng } from "../../../fixtures/image-sources.js";
 import {
   createPiEngineAdapter,
@@ -232,6 +251,22 @@ async function fixture(
   shell.start();
   shell.runtime.renderNow();
   return { engine, adapter, terminal, shell };
+}
+
+async function observedPasteFixture(clipboard: NonNullable<Parameters<typeof fixture>[4]>) {
+  const trace = new NativeRegressionTrace("shell-paste");
+  onTestFailed(() => trace.report());
+  let value: Awaited<ReturnType<typeof fixture>> | undefined;
+  let disposal: Promise<void> | undefined;
+  const dispose = () => disposal ??= value ? trace.measureAsync("dispose", () => value!.shell.dispose()) : Promise.resolve();
+  onTestFinished(async () => {
+    try { await dispose(); }
+    finally { if (process.env.NATIVE_REGRESSION_DIAGNOSTICS === "1") trace.report(); }
+  });
+  value = await trace.measureAsync("setup", () => fixture([], [], true, undefined, clipboard,
+    undefined, undefined, undefined, undefined, undefined, undefined,
+    event => trace.event(event.phase, { request: event.request, pending: event.pending })));
+  return { ...value, trace, dispose };
 }
 
 class InputImmediateScheduler {
@@ -1715,9 +1750,12 @@ describe("OwnedUiSessionShell", () => {
     });
     try {
       terminal.input("\u0016");
-      await vi.waitFor(() => expect(shell.root.hasPendingPastes(shell.root.editor.getText())).toBe(false));
       const draft = shell.root.editor.getText();
       expect(draft).toMatch(/^\[📷 screenshot-[a-f0-9]+\]$/u);
+      // Concurrency: await real worker completion; this retry contract is not a one-second cold-start benchmark.
+      await shell.root.waitForPromptPastes(draft, new AbortController().signal);
+      expect(shell.root.hasPendingPastes(draft)).toBe(false);
+      expect(shell.root.editor.getText()).toBe(draft);
       vi.spyOn(adapter, "execute").mockResolvedValueOnce({ outcome: "rejected", diagnostic: "synthetic rejection" });
       terminal.input("\r");
       await nextImmediate();
@@ -3558,7 +3596,7 @@ describe("OwnedUiSessionShell", () => {
   it("pastes URLs and clipboard images as atomic chips and expands them for copy and submission", async () => {
     let clipboardText = "https://example.com/a/very/useful/resource";
     let clipboardImage: { readonly data: string; readonly mimeType: string } | null = null;
-    const { engine, adapter, terminal, shell } = await fixture([], [], true, undefined, {
+    const { engine, adapter, terminal, shell, trace, dispose } = await observedPasteFixture({
       readText: async () => clipboardText,
       readImage: async () => clipboardImage,
       writeText: async text => { clipboardText = text; },
@@ -3653,6 +3691,7 @@ describe("OwnedUiSessionShell", () => {
     const imageBytes = screenshotPng(16, 16, false);
     const canonicalImageData = imageBytes.toString("base64");
     clipboardImage = { data: canonicalImageData.replace(/=+$/u, ""), mimeType: "image/png" };
+    trace.event("image-requested");
     shell.root.editor.setText("");
     terminal.input("\u0016");
     const imageTag = shell.root.editor.getText();
@@ -3684,14 +3723,14 @@ describe("OwnedUiSessionShell", () => {
       images: [{ type: "image", data: canonicalImageData, mimeType: "image/png" }],
     });
 
-    await shell.dispose();
+    await dispose();
   });
 
   it("falls back to text or leaves the editor unchanged for malformed clipboard images", async () => {
     let clipboardText: string | null = "text fallback";
     const readText = vi.fn(async () => clipboardText);
     const readImage = vi.fn(async () => ({ data: "data:image/png;base64,invalid!", mimeType: "image/png" }));
-    const { engine, terminal, shell } = await fixture([], [], true, undefined, { readText, readImage });
+    const { engine, terminal, shell, dispose } = await observedPasteFixture({ readText, readImage });
 
     terminal.input("\u0016");
     await vi.waitFor(() => expect(shell.root.editor.getText()).toBe("text fallback"));
@@ -3707,7 +3746,19 @@ describe("OwnedUiSessionShell", () => {
     await shell.submit("unchanged");
     expect(engine.session.promptOptions.at(-1)).toBeUndefined();
     expect(readImage).toHaveBeenCalledTimes(2);
-    await shell.dispose();
+    await dispose();
+  });
+
+  it("disposes pending shell paste after a failed assertion without replacing the failure", async () => {
+    const { terminal, trace, dispose } = await observedPasteFixture({ readText: async () => "controlled text", readImage: async () => null });
+    const failure = new Error("controlled fixture assertion");
+    await expect((async () => {
+      try { terminal.input("\u0016"); throw failure; }
+      finally { await dispose(); }
+    })()).rejects.toBe(failure);
+    expect(trace.snapshot().entries.some(entry => entry.operation === "cleanup" && entry.pending === 0)).toBe(true);
+    await dispose();
+    expect(trace.snapshot().totals.dispose!.count).toBe(1);
   });
 
   it("extends an uninterrupted LMB drag through adjacent URL chips and their ellipses", async () => {

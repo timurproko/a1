@@ -69,9 +69,9 @@ policy SHALL be visible in drift reporting.
 - **THEN** repository governance SHALL reject the workflow
 
 ### Requirement: Documentation auto-merge remains exact and current-head-bound
-Only a non-draft same-repository pull request into `develop` whose complete diff is under `openspec/**`, under `docs/**`, and/or exactly root `README.md`, and which is not implementation-bound, SHALL be automatically squash-integrated. Both sides of renames SHALL be classified. Required validation SHALL gate the merge, and any direct reconciliation SHALL require successful validation for the current head and enforce that expected SHA through normal branch-protected integration. Eligible validated heads reported as `clean`, or as `unstable` with positive mergeability, SHALL be reconciled without requiring auto-merge to have been armed first.
+Only a non-draft same-repository pull request into `develop` whose complete diff is under `openspec/**`, under `docs/**`, and/or exactly root `README.md`, and which is neither implementation-bound nor acceptance-bound, SHALL be automatically squash-integrated. Both sides of renames SHALL be classified. Required validation SHALL gate the merge, and any direct reconciliation SHALL require successful validation for the current head and enforce that expected SHA through normal branch-protected integration. Eligible validated heads reported as `clean`, or as `unstable` with positive mergeability, SHALL be reconciled without requiring auto-merge to have been armed first.
 
-An implementation association or introduction of a new active OpenSpec change SHALL exclude a PR from documentation auto-merge, independently of its draft status or currently documentation-only diff. Complete diff and authoritative base/head state SHALL identify newly introduced active changes even when their association is removed. Archived change directories SHALL NOT be mistaken for newly introduced active plans. Missing, malformed, or ambiguous classification inputs SHALL fail closed. Lifecycle association edits SHALL trigger reconciliation, and an excluded PR SHALL have any armed auto-merge disabled. Ordinary standalone documentation, existing-change planning revisions without an implementation association, and eligible archive follow-ups SHALL retain their automatic path.
+An implementation association, introduction of a new active OpenSpec change, or dedicated acceptance-record association SHALL exclude a PR from documentation auto-merge, independently of its draft status or currently documentation-only diff. Complete diff and authoritative base/head state SHALL identify newly introduced active changes and reserved acceptance records even when their association is removed. Archived change directories SHALL NOT be mistaken for newly introduced active plans, and verified archive copies of acceptance evidence SHALL NOT be mistaken for new acceptance requests. Missing, malformed, or ambiguous classification inputs SHALL fail closed. Lifecycle association edits SHALL trigger reconciliation, and an excluded PR SHALL have any armed auto-merge disabled. Ordinary standalone documentation, existing-change planning revisions without a manual lifecycle association, and eligible archive follow-ups SHALL retain their automatic path.
 
 #### Scenario: OpenSpec-only pull request passes
 - **WHEN** an eligible OpenSpec-only standalone revision's current head passes required validation
@@ -86,7 +86,7 @@ An implementation association or introduction of a new active OpenSpec change SH
 - **THEN** repository automation SHALL squash-integrate it without maintainer merge action
 
 #### Scenario: Allowed documentation surfaces are mixed
-- **WHEN** a current head changes only paths under `openspec/**`, paths under `docs/**`, and/or root `README.md`, without a draft or implementation-bound exclusion
+- **WHEN** a current head changes only paths under `openspec/**`, paths under `docs/**`, and/or root `README.md`, without a draft, implementation-bound, or acceptance-bound exclusion
 - **THEN** repository automation SHALL preserve its documentation-only eligibility
 
 #### Scenario: Mixed pull request passes CI
@@ -103,7 +103,7 @@ An implementation association or introduction of a new active OpenSpec change SH
 - **AND** removing the PR's implementation association SHALL NOT bypass the hold
 
 #### Scenario: PR association changes without a new commit
-- **WHEN** a PR body edit introduces an implementation association
+- **WHEN** a PR body edit introduces an implementation or acceptance association
 - **THEN** repository automation SHALL reconcile the existing head's eligibility and disable any armed auto-merge
 
 #### Scenario: Classification data is ambiguous
@@ -113,7 +113,12 @@ An implementation association or introduction of a new active OpenSpec change SH
 #### Scenario: Archive-only follow-up passes
 - **WHEN** an eligible archive PR moves a completed change out of the active directory and updates its declared main specs
 - **THEN** repository automation SHALL allow automatic integration behind current-head required validation
-- **AND** SHALL NOT hold it merely because the archive contains planning artifacts
+- **AND** SHALL NOT hold it merely because the archive contains planning artifacts or copies of verified acceptance evidence
+
+#### Scenario: Acceptance record is documentation-only
+- **WHEN** a dedicated acceptance PR passes current-head validation with only documentation paths
+- **THEN** neither direct reconciliation nor auto-merge arming SHALL integrate it
+- **AND** its reserved records and authoritative association SHALL preserve the manual hold if labels or body markers are removed
 
 ### Requirement: Merged same-repository topic branches are reconciled safely
 After a pull request into `develop` is merged, trusted repository automation SHALL
@@ -156,11 +161,11 @@ never operate on fork refs, local branches, or worktrees.
 - **THEN** the workflow SHALL fail and preserve the API outcome as bounded evidence
 
 ### Requirement: Documentation cannot stale generated governance evidence
-A documentation-only pull request SHALL remain exempt from product builds and product
-test suites, but it SHALL run every lightweight governance consistency check whose
-input surface includes its changed paths. OpenSpec changes SHALL additionally pass
-strict OpenSpec validation. Automation SHALL NOT broaden the documentation auto-merge
-allowlist to include generated baselines.
+A documentation-only pull request SHALL remain exempt from product builds and product test suites, but it SHALL run every lightweight governance consistency check whose input surface includes its changed paths. OpenSpec changes SHALL additionally pass strict OpenSpec validation.
+
+An exact acceptance-record pull request MAY bypass generic impact selection, documentation governance, and strict all-OpenSpec validation only when trusted base-controlled routing observes exactly one newly added canonical `openspec/acceptance/<change>/<source-head>.json` path from the complete pull-request diff. The unchanged required-check context SHALL pass on that route only after trusted acceptance policy validates the current head's exact diff, canonical record, source and merge identities, source CI provenance, active-change binding, title, body, checklist membership, branch ownership, and conflict state. Routing SHALL NOT itself grant acceptance authority. Missing or ambiguous diff data, a renamed or additional path, malformed record data, failed or stale acceptance validation, or any disagreement between routing and trusted validation SHALL fail closed without satisfying the required check.
+
+Automation SHALL NOT broaden the documentation auto-merge allowlist to include generated baselines. Normal implementation, archive, documentation, mixed, and other pull requests SHALL retain their existing impact-selected validation.
 
 #### Scenario: OpenSpec archive changes a governed inventory
 - **WHEN** archiving an OpenSpec change removes or shifts an inventoried occurrence
@@ -173,6 +178,25 @@ allowlist to include generated baselines.
 #### Scenario: Documentation does not affect generated governance
 - **WHEN** the changed documentation leaves all governed inventories current
 - **THEN** validation SHALL avoid product builds and tests while allowing the documentation path to complete
+
+#### Scenario: Exact acceptance record uses specialized validation
+- **WHEN** a current-head pull request adds exactly one canonical acceptance record and trusted acceptance policy validates every required source, scope, provenance, body, and conflict invariant
+- **THEN** the required check SHALL be allowed to complete without generic impact selection, documentation governance, or strict all-OpenSpec validation
+- **AND** the acceptance PR SHALL remain manual-merge-only
+
+#### Scenario: Acceptance-shaped pull request contains another change
+- **WHEN** an acceptance-record pull request adds, modifies, renames, or removes any additional path, or its complete diff cannot be established
+- **THEN** the specialized route SHALL NOT satisfy the required check
+- **AND** generic routing SHALL NOT override a failed trusted acceptance verdict
+
+#### Scenario: Acceptance evidence is stale or malformed
+- **WHEN** the candidate record, source identity, implementation CI, active-change binding, title, body, checklist, branch, conflict state, or validation head fails trusted acceptance policy
+- **THEN** skipped generic validation SHALL NOT allow the required check to pass
+- **AND** the pull request SHALL remain unmerged
+
+#### Scenario: Pull request is not an exact acceptance record
+- **WHEN** an implementation, archive, ordinary documentation, mixed, or other pull request targets `develop`
+- **THEN** it SHALL retain the existing applicable impact-selected and governance validation rather than using the acceptance-only route
 
 ### Requirement: Live acceptance proves repository lifecycle outcomes
 Repository-governance implementation SHALL NOT be accepted from unit tests or API
@@ -215,6 +239,8 @@ A generated archive PR SHALL trigger the repository's ordinary required PR valid
 
 Every generated changed and renamed-from path SHALL be under the selected change's active/archive paths or its declared main-spec paths within `openspec/**`. Existing documentation auto-merge SHALL remain the sole merge-policy owner, with its exact allowlist, current-head validation, expected-head enforcement, and protected squash integration intact. Any required update outside the permitted archive scope SHALL block this automatic path.
 
+After successful required validation for the current archive head, trusted reconciliation SHALL evaluate that completion event without requiring a scheduled retry, maintainer merge action, or a natively armed auto-merge request. It SHALL automatically squash-integrate only after revalidating the complete archive authority, acceptance receipt, source identity, exact target base, mergeability, and expected head. Independent read-only evidence checks MAY be deduplicated or evaluated concurrently, but every required invariant SHALL complete successfully and the target base SHALL be read freshly immediately before integration. Queue or API delay SHALL be reported as pending or deferred rather than as a manual merge requirement.
+
 #### Scenario: App-authored archive PR opens
 - **WHEN** automation publishes an eligible archive branch and PR
 - **THEN** ordinary required validation SHALL run for that head
@@ -233,6 +259,26 @@ Every generated changed and renamed-from path SHALL be under the selected change
 - **WHEN** automation updates an archive PR after regeneration
 - **THEN** its prior validation SHALL NOT authorize merging the new head
 - **AND** fresh required validation SHALL be triggered
+
+#### Scenario: Current archive head becomes green
+- **WHEN** the required validation workflow succeeds for the generated archive's exact current head and its target base and authority remain current
+- **THEN** trusted reconciliation SHALL automatically issue the protected expected-head squash merge without maintainer action
+- **AND** successful integration SHALL trigger exact-head branch cleanup
+
+#### Scenario: Native auto-merge is not armed
+- **WHEN** a generated archive is awaiting current-head validation or trusted post-validation reconciliation
+- **THEN** the absence of a native auto-merge request SHALL NOT convert it to a manual merge path
+- **AND** automation SHALL report the pending automatic state
+
+#### Scenario: Archive target advances before integration
+- **WHEN** `develop` no longer equals the archive marker's reviewed target immediately before merge
+- **THEN** automation SHALL refuse integration and require regeneration against the new target
+- **AND** prior successful validation SHALL NOT authorize the stale archive
+
+#### Scenario: Archive authority cannot be fully revalidated
+- **WHEN** any required source, acceptance, CI, diff, mergeability, or provenance read is missing, stale, contradictory, or fails
+- **THEN** concurrent or cached verification SHALL fail closed and leave the archive unmerged
+- **AND** automation SHALL report the blocking or deferred state
 
 ### Requirement: Archive publication is idempotent and ownership-safe
 Automation SHALL maintain at most one automatic archive PR per change and implementation identity. Duplicate merge events, catch-up, and retry SHALL converge on that PR or on a verified integrated archive. Concurrent archives affecting the same specifications SHALL not overwrite each other. Publication SHALL recheck source evidence and affected target state, and updates SHALL preserve any ref or PR containing unrecognized human edits.
@@ -329,3 +375,62 @@ Direct unstable-state integration SHALL require positive mergeability and succes
 - **WHEN** the enable request returns an authentication, permission, transport, malformed-response, or non-unstable GraphQL error
 - **THEN** the workflow SHALL remain failed with bounded diagnostic evidence
 - **AND** it SHALL NOT label that error as a harmless state transition
+
+### Requirement: Trusted policy verifies exact implementation-specific checklist acceptance
+Trusted policy SHALL extract one to three implementation-specific acceptance checks from the merged implementation PR's reviewed handoff. It SHALL reject missing checks, duplicate checks, generic review/CI/gap/approval/archive boilerplate, oversized checks, and exact checklist reuse by an unrelated implementation. The acceptance PR SHALL render the implementation link as plain reference text followed only by those unchecked scenarios.
+
+Trusted post-merge policy SHALL verify that the final acceptance pull-request body contains exactly the generated scenarios with every item checked, that no item text was removed, renamed, reordered, duplicated, supplemented, or replaced, and that the pull request was manually merged by an authorized human. The checked body and merge provenance SHALL be the human acceptance authority; any generated machine record SHALL serve source binding only and SHALL NOT require maintainer editing or override a valid all-checked manual merge with stale pending task state.
+
+The receipt SHALL bind the final checklist-body digest, acceptance pull request head and merge, implementation pull request/head/merge, required source and acceptance validation, authorized actor, and merge time. Existing valid comment-backed receipts SHALL remain readable. Historical per-head acceptance records for the same change SHALL coexist; readers SHALL select only the record bound to the implementation head being evaluated instead of treating a different historical head as a conflict.
+
+#### Scenario: Distinct implementation checks are generated
+- **WHEN** an implementation PR supplies one to three concise behavior-and-result acceptance checks not reused by another implementation
+- **THEN** trusted publication SHALL reproduce only those checks in the acceptance PR
+- **AND** SHALL keep the implementation link outside the checklist
+
+#### Scenario: Boilerplate or repetitive checklist is supplied
+- **WHEN** checks repeat generic review, CI, no-gap, approval, or archive wording, duplicate one another, or exactly reuse an unrelated implementation's checklist
+- **THEN** trusted policy SHALL block acceptance publication and identify the invalid checklist
+
+#### Scenario: Exact checklist is checked and manually merged
+- **WHEN** the final body exactly matches the generated implementation scenarios with every item checked and an authorized human manually merges the acceptance pull request
+- **THEN** trusted policy SHALL produce a verified acceptance receipt and automatically resume archival
+- **AND** stale pending values in the internal source-binding record SHALL NOT block that receipt
+
+#### Scenario: Checklist text or membership changes
+- **WHEN** an item is removed, renamed, reordered, duplicated, supplemented, replaced, or remains unchecked
+- **THEN** trusted policy SHALL reject the acceptance receipt and identify checklist mismatch or incompleteness
+
+#### Scenario: Merge is automated or unauthorized
+- **WHEN** an all-checked acceptance pull request is merged by automation, a bot, merge queue, or an actor without required repository authority
+- **THEN** trusted policy SHALL reject it despite the visible checkmarks
+
+#### Scenario: Objective source validation failed
+- **WHEN** required implementation CI, exact source binding, or acceptance candidate validation is missing, failed, stale, or contradictory
+- **THEN** checked human scenarios SHALL NOT override that machine-verifiable blocker
+
+#### Scenario: Historical record belongs to another implementation head
+- **WHEN** a change has retained acceptance records for multiple implementation heads
+- **THEN** evaluation SHALL select the exact record and acceptance pull request for the requested implementation head
+- **AND** SHALL preserve other historical records without treating them as current acceptance or an automatic conflict
+
+### Requirement: Acceptance publication and verification use trusted policy
+Acceptance request publication, candidate validation, and post-merge receipt verification SHALL run trusted repository policy with bounded reads and least-privilege publication. Untrusted PR code SHALL NOT receive publication credentials. Generated acceptance PRs SHALL trigger real current-head validation. The candidate validator SHALL verify complete diff scope, record schema, source identities, and evidence bindings without using PR-provided executable instructions; it SHALL report unresolved human verification items without failing an otherwise valid record. Post-merge receipt verification SHALL separately require complete evidence before treating a manual merge and its resulting record bytes as archive authority.
+
+#### Scenario: Request is generated
+- **WHEN** trusted reconciliation creates an acceptance PR using its existing publication identity
+- **THEN** ordinary PR checks SHALL run and validate that exact candidate without granting the candidate publication authority
+
+#### Scenario: Candidate is stale or has extra changes
+- **WHEN** acceptance CI detects changed source bindings, unknown fields, unrelated file changes, or invalid evidence references
+- **THEN** it SHALL fail with an actionable integrity blocker and SHALL NOT claim the request valid
+
+#### Scenario: Candidate has unresolved review items
+- **WHEN** an acceptance record is structurally valid and source-bound but still lists pending CI, tasks, or known gaps
+- **THEN** candidate CI SHALL succeed and report those items for human verification
+- **AND** receipt consumption SHALL NOT treat the merged record as complete archive authority until they are reconciled
+
+#### Scenario: Acceptance PR merges
+- **WHEN** the trusted merge handler sees an acceptance PR merge
+- **THEN** it SHALL verify authorized human manual-merge provenance, exact record bytes, and required current-head checks before resuming the linked implementation's archive
+- **AND** unavailable, automated, or contradictory merge provenance SHALL block receipt acceptance

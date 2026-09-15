@@ -66,12 +66,16 @@ export function inspectWorkflowSource(path, source) {
 
   const authority = [];
   if (source.includes("Development validation required")) authority.push("Development validation required");
-  if (source.includes("manage-documentation-auto-merge.mjs")) authority.push("documentation-auto-merge", "matching-merged-head-delete");
+  if (source.includes("acceptance-validation-route.mjs")) authority.push("acceptance-only-routing");
+  if (source.includes("manage-documentation-auto-merge.mjs")) authority.push("documentation-auto-merge", "matching-merged-head-delete", "archive-protected-integration");
   if (source.includes('VALIDATION_SELECTION_JSON: \'["full-release"]\'')) authority.push("complete-regression");
   if (source.includes("reconcile-merged-branch.mjs")) authority.push("matching-merged-head-delete");
   if (source.includes("reconcile-openspec-archive.mjs")) {
     if (source.includes("OPENSPEC_ARCHIVE_APP_PRIVATE_KEY")) authority.push("openspec-archive-app-publication", "archive-read-only-audit");
-    else if (source.includes("--validate-candidate")) authority.push("archive-merge-result-validation");
+    else {
+      if (source.includes("--validate-candidate")) authority.push("archive-merge-result-validation");
+      if (source.includes("--validate-acceptance")) authority.push("acceptance-record-validation");
+    }
   }
   if (source.includes('channel = "next"')) authority.push("npm-next");
   if (source.includes('channel = "latest"')) authority.push("npm-latest");

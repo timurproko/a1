@@ -11,7 +11,7 @@ describe("trusted archive workflow wiring", () => {
   it("uses the reviewed default branch, least-privilege reads, App publication, and bounded resumable triggers", async () => {
     const source = await readFile(".github/workflows/openspec-archive.yml", "utf8");
     expect(inspectWorkflowSource(".github/workflows/openspec-archive.yml", source)).toMatchObject({
-      triggers: ["pull_request_target:closed", "schedule", "workflow_dispatch"],
+      triggers: ["pull_request_target", "schedule", "workflow_dispatch"],
       permissions: ["actions: read", "contents: read", "pull-requests: read"],
       trustedSource: "default-branch", concurrency: "openspec-archive", artifactRetentionDays: [14],
       authority: ["archive-read-only-audit", "openspec-archive-app-publication"],
@@ -19,6 +19,7 @@ describe("trusted archive workflow wiring", () => {
     expect(source).toContain("cancel-in-progress: false");
     expect(source).toContain("timeout-minutes: 10");
     expect(source).toContain("github.event.pull_request.merged == true");
+    expect(source).toContain("startsWith(github.event.pull_request.head.ref, 'docs/accept-')");
     expect(source).toContain("npm ci --ignore-scripts");
     expect(source).toContain("OPENSPEC_ARCHIVE_APP_PRIVATE_KEY:");
     expect(source).toContain("--discover-checkpoint");
@@ -31,6 +32,12 @@ describe("trusted archive workflow wiring", () => {
   it("puts archive merge-result verification in ordinary read-only documentation CI", async () => {
     const source = await readFile(".github/workflows/ci.yml", "utf8");
     expect(source).toContain("--validate-candidate --pr");
+    expect(source).toContain("--validate-acceptance --pr");
+    const acceptanceJob = source.match(/\n  acceptance:[\s\S]*?(?=\n  [\w-]+:|$)/)?.[0] ?? "";
+    expect(acceptanceJob).toContain("Check out trusted base policy only");
+    expect(acceptanceJob).toContain("github.event.pull_request.base.sha");
+    expect(acceptanceJob).not.toMatch(/npm ci|npm run build|vitest|: write/);
+    expect(acceptanceJob).toContain("Acceptance policy is not deployed on this trusted base");
     expect(source).toContain("Install pinned archive validation tooling");
     const docsJob = source.match(/\n  docs:[\s\S]*?(?=\n  [\w-]+:|$)/)?.[0] ?? "";
     expect(docsJob).not.toMatch(/npm ci|npm run build|vitest/);
@@ -43,7 +50,7 @@ describe("trusted archive workflow wiring", () => {
     expect(docsJob).not.toContain(": write");
     expect(inspectWorkflowSource(".github/workflows/ci.yml", source)).toMatchObject({
       permissions: ["actions: read", "contents: read", "pull-requests: read"],
-      authority: ["Development validation required", "archive-merge-result-validation"],
+      authority: ["Development validation required", "acceptance-only-routing", "acceptance-record-validation", "archive-merge-result-validation"],
     });
     const mergeOwner = await readFile(".github/workflows/documentation-auto-merge.yml", "utf8");
     expect(mergeOwner).toContain("actions: read");
