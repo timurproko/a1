@@ -30,7 +30,7 @@ Automated scenarios SHALL isolate application state, supervisor storage, runtime
 - **AND** assertions about configured executor capacity SHALL NOT be reduced to accommodate leaked state
 
 ### Requirement: Confirmed regressions receive architecture-appropriate coverage
-A confirmed regression SHALL gain the smallest independent current-contract test capable of detecting its cause. Physical-only behavior SHALL remain at the physical/integration boundary instead of being duplicated by a self-modelled simulation. A subprocess-directory regression SHALL distinguish filesystem identity from lexical path spelling while retaining exact argument and environment contracts; alias acceptance SHALL NOT admit execution in a different directory.
+A confirmed regression SHALL gain the smallest independent current-contract test capable of detecting its cause. Physical-only behavior SHALL remain at the physical/integration boundary instead of being duplicated by a self-modelled simulation. A subprocess-directory regression SHALL distinguish filesystem identity from lexical path spelling while retaining exact argument and environment contracts; alias acceptance SHALL NOT admit execution in a different directory. Diagnostic evidence for a failing native regression SHALL be bounded, preserve the original result, identify observed phase or operation timing where available, and exclude private payloads. Test-fixture corrections SHALL retain existing deadlines, independent assertions, real exercised operations, and failure-safe ownership; diagnostic instrumentation or isolated success SHALL NOT itself count as recovery.
 
 #### Scenario: Regression belongs to deterministic logic
 - **WHEN** a defect is isolated to domain, storage, protocol, release, or update behavior
@@ -45,3 +45,17 @@ A confirmed regression SHALL gain the smallest independent current-contract test
 - **THEN** the regression SHALL verify that the child actually uses the independently identified requested directory
 - **AND** equivalent aliases SHALL pass while a distinct-directory negative control SHALL fail
 - **AND** exact arguments, space-containing paths, and environment-isolation assertions SHALL remain enforced
+
+#### Scenario: Asynchronous shell paste misses its assertion deadline
+- **WHEN** a native shell regression retains a pending image or fails to apply the expected clipboard fallback before its existing deadline
+- **THEN** diagnosis SHALL distinguish observed acquisition, preparation, completion, and cleanup phases without disclosing clipboard contents
+- **AND** correction SHALL retain real asynchronous completion, exact image/text and submission assertions, and the original wait/test limits
+- **AND** teardown SHALL release the scenario's owned shell work even when the assertion fails
+- **AND** a longer wait, synthetic completion, or an isolated passing rerun SHALL NOT substitute for a verified correction
+
+#### Scenario: Real Git release validation exceeds its deadline
+- **WHEN** a release-workflow regression using isolated real repositories exceeds its existing test limit
+- **THEN** bounded operation timing and counts SHALL preserve the original failure and the real Git-backed workflow outcome
+- **AND** fixture correction SHALL retain independently verified source/version identities, manual integration gates, publication ordering, and dirty/unrelated state protections
+- **AND** real operations SHALL NOT be replaced with fabricated answers, stale cached assertions, shared mutable fixtures, omitted checks, or work shifted outside the measured scenario
+- **AND** the existing deadline SHALL remain enforced

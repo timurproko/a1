@@ -15,13 +15,15 @@ All four lanes have now completed with failure. The actual published-predecessor
 
 Source review establishes a concrete Linux fixture mismatch: `system-clipboard.ts::readSystemClipboardText` uses native `getText()` only on Windows/macOS, then Linux tries `wl-paste` and `xclip`. `paste-fixture-base.mjs` and `clipboard-built-fixture-base.mjs` replace the native module but do not intercept successful/empty Linux commands. Their documented no-host-clipboard promise is therefore incomplete. The source denied/blocked-command fixtures already demonstrate a process-local import-hook boundary for `node:child_process` specifically when imported by `system-clipboard`.
 
-The lifecycle test's failing paste assertion executes `cancel()` in `finally` without awaiting `stopped`; the executor's live set is released only on exit/close. This is a plausible explanation of the next test admitting seven new children, not a proven independent production capacity defect. Plan a controlled failure-path reproduction before attributing it.
+The lifecycle test's failing paste assertion executes `cancel()` in `finally` without awaiting `stopped`; the executor's live set is released only on exit/close. The initial implementation at `ab0035b4` reproduced one occupied slot after rejection and restored full admission by awaiting shutdown; this proves the contamination mechanism, not every historical event. Its 57 focused tests passed on Windows Node 22/24; native Unix confirmation remains pending.
+
+The maintainer subsequently approved extending both the plan and implementation to the Windows test/fixture owners. This supersedes the diagnostic-only boundary recorded at the initial implementation checkpoint. Selective unchanged Windows diagnostics passed (shell cases 1067/714 ms; release case 5235 ms), while the failing native release case took 21744 ms against its existing 20000 ms test limit. There is not yet enough evidence to identify a production defect or a specific removable cost.
 
 ## Goals / Non-Goals
 
-**Goals:** Repair the observed macOS expectation and Linux fixture boundary; make failed scenarios release owned resources deterministically; preserve real source/emitted helper execution and independent output oracles; produce native evidence without hiding other failing owners.
+**Goals:** Repair the observed macOS expectation and Linux fixture boundary; make failed scenarios release owned resources deterministically; identify and correct demonstrated Windows test/fixture defects; preserve real source/emitted helper execution, real release operations, and independent output oracles; produce native evidence without hiding other failing owners.
 
-**Non-Goals:** Change production clipboard selection, fallback behavior, paste protocol, image conversion, lifecycle admission policy, or the eight-request limit. Do not add dependencies, host clipboard services, desktop automation, sleeps, retries, longer timeouts, pool changes, skips, relaxed payload assertions, regenerated baselines, or changes to independent rendering/input budgets. The newly observed Windows session-shell failures and release-command timeout are explicit diagnostic blockers, not silently authorized session-shell or release-governance implementation scope. Production defects or additional corrective surfaces require a reviewed plan refinement before edits.
+**Non-Goals:** Change production clipboard selection, fallback behavior, paste protocol, image conversion, lifecycle admission policy, or the eight-request limit. Do not add dependencies, host clipboard services, desktop automation, sleeps, retries, longer timeouts, pool changes, skips, relaxed payload assertions, regenerated baselines, or changes to independent rendering/input budgets. Windows test/fixture diagnosis and evidence-driven correction are now authorized, but production shell/clipboard/release changes are not. No replacement of a bounded polling assertion with a longer or unbounded completion wait, prewarming to hide cold behavior, reuse of mutable fixtures across scenarios, or fabricated completion is permitted. Production defects or additional corrective surfaces require a reviewed plan refinement before edits.
 
 ## Decisions
 
@@ -47,11 +49,27 @@ Use `try/finally` around the affected executor assertions. Always cancel where n
 
 Reproduce early acquisition failure while the helper has not yet closed, using explicit lifecycle coordination rather than sleeps. Demonstrate cleanup completes before a subsequent batch is admitted and that all eight requests, ninth rejection, 12 copy/paste cycles, 16 cumulative recovery forks, and conversion serialization assertions remain intact. Keep exact child/process ownership and unrelated-state controls. If capacity remains wrong after proven cleanup, stop and seek approval for the newly established production or test-owner defect.
 
-### 4. Keep native validation and recovery acceptance explicit
+### 4. Attribute Windows shell failure before changing its fixture
+
+Instrument the affected shell cases using existing paste diagnostics and test-owned lifecycle observations. Record bounded operation/phase labels, elapsed durations, pending/completed state, and cleanup outcome; exclude clipboard content, image bytes, prompts, credentials, and arbitrary terminal output. Capture the first failing attempt and retain its original assertion, rather than repeating it until it succeeds.
+
+Distinguish acquisition, helper startup, classification/conversion, application of the prepared result, and teardown. The shell's existing success-only disposal is a concrete failure-path gap: make disposal failure-safe and verify a failed scenario cannot retain pending work into the next one. Do not infer that this alone fixes the first pending-image assertion. Add controlled regressions only once the cause is identified, retaining the real asynchronous helper/codec path and the exact canonical image bytes, text fallback, editor state, and normal/steering/follow-up submission assertions.
+
+Correct only measured fixture sequencing, isolation, or overhead defects without changing the original wait/test deadlines or synthetic readiness. If real production work exceeds a retained limit and no valid fixture-only correction exists, report the measured blocker and request separate production scope rather than redefining success.
+
+### 5. Attribute Windows release fixture cost while retaining real Git authority
+
+Add bounded per-operation timing/counts to test-owned Git execution and fixture setup, assertion probes, manual-merge emulation, workflow calls, and teardown. Capture operation categories and durations without raw command output, arbitrary arguments, user paths, or generated payload contents. Include failed/unfinished operation identity where observable, preserve the original timeout/failure, and bound retained trace size. Verify instrumentation does not change returned Git values, command order, fixture clock semantics, mutation boundaries, or the real release workflow's decisions.
+
+Use the measured evidence to correct fixture-only lifecycle or overhead defects. Keep real isolated repositories/worktrees and real Git reads/writes, exact manifest/lockfile assertions, stable-then-publication-then-development ordering, manual merge gates, advanced-source/branch rejection, and dirty/unrelated state controls. Do not replace Git with a self-model, cache stale assertion answers, omit independent verification, share mutable repositories, add warmup passes, or move work outside the measured scenario to evade the deadline. Any consolidation must preserve the independently observed operations and effects, with before/after evidence; otherwise leave it blocked.
+
+Retain the 20000 ms scenario limit and all other existing limits. A synchronous API alone is not proof that converting it to async will fix a wall-clock overrun. If a production release change is needed, stop for approval.
+
+### 6. Keep native validation and recovery acceptance explicit
 
 After approval, use focused source and build-first emitted tests on native Linux/macOS plus Windows Node 22/24. Record the red/green mechanisms; local Windows-only tests cannot certify Unix behavior. Run strict OpenSpec, full/changed documentation and applicable architecture checks. Keep this same PR, mark completed implementation ready before ordinary PR CI, and run the separate existing four-lane Full regression without duplicate draft dispatches. Do not seek merge while that required recovery run is failed or unfinished.
 
-Retain all original final job outcomes. Windows 24's two shell assertions and Windows 22's release-command timeout remain named blockers. Diagnose them read-only and seek an explicit scope refinement if corrective code lies outside the proposed fixture surface. Never treat this plan's narrower implementation surface as permission to skip those tests or call the recovery complete.
+Retain all original final job outcomes. Windows 24's two shell assertions and Windows 22's release-command timeout remain named blockers until evidence verifies correction. If local selection cannot reproduce them, the existing dedicated Full regression workflow may validate a new instrumented head as an explicitly identified diagnostic run; this is not a retry of unchanged code, acceptance, or an ordinary draft CI dispatch. Seek a separate refinement if corrective code lies outside the approved test/fixture surface. Never treat limited implementation scope as permission to skip a test or call recovery complete.
 
 After actual maintainer validation and explicitly authorized manual integration, retain #402's scheduled `mode=nightly` gate: newer numbered merged source, same immutable package bytes in all four full-release lanes, successful aggregate publication/verification, exact source/version/digest/run/jobs and registry identity. No reduced-scope development dispatch or existing-version no-op substitutes. Final acceptance and canonical-spec review precede archive preparation; coordinate #402 and earlier obligations individually instead of auto-completing them.
 
@@ -60,7 +78,8 @@ After actual maintainer validation and explicitly authorized manual integration,
 - [A fixture hook intercepts too broadly] → Match the importing clipboard boundary and known operations; test unexpected-operation failure and retain unrelated-process/real-descendant controls.
 - [Native module replacement appears to work while Linux escapes] → Assert actual backend observations on native Linux and exercise emitted JS without a TypeScript loader.
 - [Seven-versus-eight is not secondary contamination] → Require controlled reproduction and verified teardown; leave capacity unchanged and stop for refinement if the evidence contradicts this diagnosis.
-- [Another clipboard owner is faulty] → Keep Windows shell findings separate and block recovery; do not repair production behavior through test exceptions.
+- [Windows failures are production defects rather than fixture defects] → Retain phase evidence, block recovery, and obtain separate production approval; do not repair production behavior through test exceptions.
+- [Instrumentation changes scheduling or cost] → Bound it, verify observation equivalence, and report its contribution; never compensate by extending a deadline.
 - [Canonicalization weakens a directory oracle] → Keep independently resolved expected identity and distinct-directory rejection, not string surgery.
 - [Current develop or nightly package advances] → Bind evidence to exact source and bytes and verify inclusion of all repairs, not a remembered version.
 

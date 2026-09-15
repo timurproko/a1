@@ -1,7 +1,7 @@
 ## 1. Authorization and failure ledger
 
 - [x] 1.1 After separate plan approval and implementation request, resume this same worktree/branch/draft PR; record authorization and verify merged #402 ancestry, intact version-2 linkage, disabled auto-merge, and no unrelated modifications.
-- [ ] 1.2 Record all final outcomes of run 34880029189, exact jobs/source/assertions, and the Windows session-shell/release-command diagnostic findings; distinguish confirmed fixture routing/path defects from unproven cleanup or runtime causes, and obtain a reviewed refinement before corrective edits outside this plan's fixture surface.
+- [ ] 1.2 Record all final outcomes of run 34880029189, exact jobs/source/assertions, the Windows diagnostic findings, and the maintainer-approved Windows test/fixture extension; distinguish demonstrated mechanisms from unproven historical causes and verify production changes remain outside authorization.
 
 ## 2. Filesystem-identity regression
 
@@ -14,10 +14,15 @@
 - [ ] 3.2 Apply equivalent fixture semantics to emitted-JavaScript helper execution after build; verify exact packaged text, empty/denied/fallback controls, real classification/image workers, and existing payload-inventory assertions without a TypeScript-loader substitute.
 - [ ] 3.3 Add bounded backend/argument observations and unexpected-operation negative controls; verify no real host clipboard access or server dependency, no production platform spoofing, unrelated process behavior remains intact, and the real blocked-command descendant cancellation regression still executes.
 
-## 4. Failure-path executor lifetime
+## 4. Failure-path lifetime and approved Windows corrections
 
 - [x] 4.1 Add a controlled early-failure/unfinished-child reproduction to establish whether incomplete teardown explains cross-test admission contamination; verify explicit lifecycle coordination and preserve the primary failure without time-based success or a capacity change.
 - [x] 4.2 Make affected single and batch clipboard tests cancel and await owned stopped boundaries in failure-safe cleanup; verify eight admitted requests, ninth rejection, 12 cycles, 16 recovery forks, conversion serialization, and exited/disconnected child assertions remain intact, including after an intentionally failing scenario.
+
+- [ ] 4.3 Add bounded first-attempt phase/lifetime diagnostics for the two Windows shell paste cases using existing observation points; verify payload privacy, retained failure identity, observation equivalence, and enough native evidence to distinguish acquisition, preparation, application, and cleanup without increasing limits or rerunning unchanged failures.
+- [ ] 4.4 Correct demonstrated shell-test/fixture lifecycle, sequencing, or overhead defects and add controlled regression coverage; verify failure-safe disposal, real helper/codec completion, exact image/text/editor/submission assertions, and unchanged wait/test deadlines. Stop for separate approval if the evidence requires a production correction.
+- [ ] 4.5 Add bounded real-Git operation timing/counts and fixture-phase evidence for the Windows release-command timeout; verify setup, workflow, assertion, manual-merge and teardown costs remain attributable without changing real command results/order, fixture clock semantics, mutation boundaries, or the original failure.
+- [ ] 4.6 Correct only demonstrated release-test/fixture lifecycle or overhead defects; verify real isolated Git repositories, independent source/version/manifest/lockfile oracles, manual gates, publication/reopening ordering, dirty/advanced/unrelated state protections, and the unchanged 20000 ms limit. Reject stale caches, mutable fixture sharing, omitted operations, warmup or work shifted outside the scenario; stop for separate production approval if needed.
 
 ## 5. Native candidate validation
 
