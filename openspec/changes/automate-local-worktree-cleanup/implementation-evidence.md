@@ -90,6 +90,14 @@ Replaced the Node-specific read-rejection checks with independent PowerShell/.NE
 
 Local validation with verified Node 24.20.0 / Git 2.55.0.windows.5 and CI flags: the focused Windows case passed; the cleanup bridge and both partition-policy suites passed (20 Vitest tests including all 42 native cleanup cases); typecheck, strict OpenSpec validation, and whitespace checks passed. Hosted current-head CI is still pending, and task 6.2 remains incomplete.
 
+## Image retry fixture synchronization
+
+Run `34883632667` at `9d3b966cecd036bfc69860f537f59bad16e77735` failed the ordinary fast invocation in `session-shell.test.ts`: the real-image rejection/retry fixture hit `vi.waitFor`'s default one-second limit while image preparation remained pending. The invocation reported 3196 passes and one failure and stopped before the resource-sensitive group; it therefore provides no hosted confirmation of the native Windows sharing-probe repair.
+
+The fixture now captures the reserved chip and awaits the existing real `waitForPromptPastes` completion promise before asserting readiness. The overall test timeout is unchanged, as are the real image worker, explicit Enter rejection/retry flow, no-dispatch-on-rejection assertion, single successful dispatch, and exact image-byte assertion. It also verifies the ready editor still holds the same chip. No production change, mock image preparation, or CI exclusion was introduced.
+
+With verified Node 24.20.0 / Git 2.55.0.windows.5 and CI flags, the complete session-shell file and cleanup bridge passed together: 282 Vitest tests, including all 42 native cleanup cases inside the bridge. Hosted current-head CI is still required.
+
 ## Remaining gates
 
 Required current-head PR CI must run after readiness; local results do not substitute for it. The maintainer must separately authorize an isolated live accepted-implementation/automatic-archive lifecycle and actual final-head review. Tasks 7.2 and 7.3 remain unperformed; there is no acceptance record. Mechanical archive tasks 8.1 and 8.2 remain for the corresponding future verified operations. Do not archive or integrate based on these fixture results.
