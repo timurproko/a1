@@ -22,6 +22,8 @@ Repair validation passed: the exact 17 affected Vitest assertions, typecheck, ch
 
 Required run `34943104220` on repair head `95678665c96dbfc12da3079c785895239a4228ae` then reached a separate inherited timing failure in `prompt-history-controller.test.ts`: a real worker-backed persisted-history snapshot exceeded `vi.waitFor`'s implicit one-second polling deadline. The test now awaits the service's matching snapshot event, then retains the exact recall count and restored-text assertions under the unchanged global test timeout. The whole focused file passed three consecutive runs (3/3 each), and typecheck passed.
 
+Required run `34944991121` on head `5262803d4c3914e424855aa819163dcac2bf22e1` then exposed an unrelated loaded-runner timeout in `workspace.test.ts`. Its synchronous durable SQLite restart scenario took 6.096 seconds inside the highly parallel remainder and exceeded the unchanged five-second per-test limit; no assertion identified a product mismatch. The complete file now runs once in the existing serial resource-sensitive partition, with all eight tests, the five-second timeout, zero retries, and existing assertions unchanged. The file passed three focused runs (8/8 each); both partition-policy suites passed 19/19; typecheck passed.
+
 ## Deliberately unclaimed evidence
 
 - Required normal PR CI for the completed implementation head is pending task 5.4.
