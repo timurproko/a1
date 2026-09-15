@@ -2,8 +2,8 @@ import type { ImplementationMetadata } from "./openspec-archive-policy.mjs";
 export interface AcceptanceReference { url: string; outcome: string }
 export interface AcceptanceTask { id: string; text: string; done: boolean; digest: string; completion: "recorded" | "pending" | "evidenced" | "signoff-on-merge" | "archive-preparation"; evidence: AcceptanceReference[] }
 export interface AcceptanceRecord {
-  version: 1; repository: string; change: string; sourcePr: number; sourceHead: string; sourceMerge: string;
-  sourceBodyDigest: string; artifactDigest: string; specBaseSha: string;
+  version: 1 | 2; repository: string; change: string; sourcePr: number; sourceHead: string; sourceMerge: string;
+  sourceBodyDigest: string; artifactDigest: string; specBaseSha: string; acceptanceChecks?: string[];
   validation: { runId: number; headSha: string; checkedSha: string; attempt: number } | null;
   tasks: AcceptanceTask[];
   review: { decision: "accept-on-manual-merge" | "known-gaps"; evidence: AcceptanceReference[]; gaps: string[] };
@@ -24,6 +24,7 @@ export function reconcileAcceptanceTasks(text: string, receipt: any, mapping: Im
 export function assertAcceptanceDiff(pull: any, files: any[], path: string, repository: string): void;
 export function assertManualAcceptanceMerge(pull: any, permission: string, events: any[]): void;
 export function receiptIdentity(receipt: any): any;
+export function receiptIdentityMatches(value: any, receipt: any): boolean;
 export function acceptanceUrl(repository: string, sourcePr: number, receipt: any): string;
 export function retainedAcceptance(receipt: any): string;
 export function archivedAcceptanceMatches(text: string | undefined, source: any, repository: string): boolean;

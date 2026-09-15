@@ -1,9 +1,11 @@
 import { loadImplementationEvidence, loadArchiveEvidence, findImplementationValidation } from "./openspec-archive-github.mjs";
 import { snapshotOpenSpec } from "./openspec-archive-staging.mjs";
-import { archiveFailure, SHA } from "./openspec-archive-policy.mjs";
+import { archiveFailure, parseImplementation, SHA } from "./openspec-archive-policy.mjs";
 import { ACCEPTANCE_ROOT, acceptancePath, acceptanceBranch, acceptanceBytes, acceptanceBlockers, artifactDigest,
   digest, taskInventory, parseAcceptanceRecord, verifyRecordBindings, assertAcceptanceDiff,
   assertManualAcceptanceMerge, requireAcceptance } from "./openspec-acceptance-policy.mjs";
+import { acceptanceChecklistDigest, acceptancePullTitle, parseImplementationAcceptanceChecks,
+  verifyAcceptancePullBody } from "./openspec-acceptance-checklist.mjs";
 
 async function sourceMaterials(reader, source) {
   const snapshot = await snapshotOpenSpec(reader, source.pull.head.sha);
@@ -16,11 +18,24 @@ async function sourceMaterials(reader, source) {
   return { snapshot, taskText: tasks.toString() };
 }
 
+async function assertChecklistNovel(snapshot, checks, sourceHead) {
+  const identity = acceptanceChecklistDigest(checks);
+  for (const path of [...snapshot.entries.keys()].filter(path => path.startsWith(ACCEPTANCE_ROOT) && path.endsWith(".json"))) {
+    const bytes = await snapshot.blob(path);
+    requireAcceptance(bytes && bytes.length <= 128 * 1024, "acceptance-record-missing");
+    const historical = parseAcceptanceRecord(bytes.toString());
+    if (historical.version === 2 && historical.sourceHead !== sourceHead
+      && acceptanceChecklistDigest(historical.acceptanceChecks) === identity) throw archiveFailure("acceptance-checklist-reused");
+  }
+}
+
 export async function prepareAcceptanceRequest(reader, source) {
   const { snapshot, taskText } = await sourceMaterials(reader, source);
   const { pull, implementation } = source;
   const target = await snapshotOpenSpec(reader, source.targetSha);
   requireAcceptance(artifactDigest(target, implementation.change) === artifactDigest(snapshot, implementation.change), "active-change-drift");
+  const acceptanceChecks = implementation.version === 2 ? parseImplementationAcceptanceChecks(pull.body) : null;
+  if (acceptanceChecks) await assertChecklistNovel(target, acceptanceChecks, pull.head.sha);
   let validation = null;
   try { validation = await findImplementationValidation(reader, pull); }
   catch (error) {
@@ -32,10 +47,10 @@ export async function prepareAcceptanceRequest(reader, source) {
     url: `https://github.com/${reader.repository}/blob/${pull.head.sha}/${path}`,
     outcome: "Recorded source evidence; review its actual outcomes and limitations before accepting.",
   }));
-  const record = { version: 1, repository: reader.repository, change: implementation.change, sourcePr: pull.number,
+  const record = { version: acceptanceChecks ? 2 : 1, repository: reader.repository, change: implementation.change, sourcePr: pull.number,
     sourceHead: pull.head.sha, sourceMerge: pull.merge_commit_sha, sourceBodyDigest: digest(pull.body),
-    artifactDigest: artifactDigest(snapshot, implementation.change), specBaseSha: pull.base.sha, validation,
-    tasks: taskInventory(taskText, implementation.archivePreparationTasks),
+    artifactDigest: artifactDigest(snapshot, implementation.change), specBaseSha: pull.base.sha,
+    ...(acceptanceChecks ? { acceptanceChecks } : {}), validation, tasks: taskInventory(taskText, implementation.archivePreparationTasks),
     review: { decision: "accept-on-manual-merge", evidence, gaps: [] } };
   parseAcceptanceRecord(acceptanceBytes(record));
   await reader.ancestor(record.specBaseSha, record.sourceHead);
@@ -46,6 +61,7 @@ export async function prepareAcceptanceRequest(reader, source) {
 export async function verifyAcceptanceRecord(reader, record, source, { requireComplete = true } = {}) {
   const { snapshot, taskText } = await sourceMaterials(reader, source);
   verifyRecordBindings(record, source, snapshot, taskText, reader.repository);
+  if (record.version === 2) await assertChecklistNovel(await snapshotOpenSpec(reader, source.targetSha), record.acceptanceChecks, record.sourceHead);
   await reader.ancestor(record.specBaseSha, source.pull.head.sha);
   const references = [...record.review.evidence.map(item => ({ ...item, task: false })),
     ...record.tasks.flatMap(task => task.evidence.map(item => ({ ...item, task: task.completion === "evidenced" })))];
@@ -97,18 +113,19 @@ export async function inspectAcceptanceCandidate(reader, pull, { requireComplete
   const source = await loadImplementationEvidence(reader, record.sourcePr);
   requireAcceptance(source.disposition === "source", "acceptance-source-identity");
   await verifyAcceptanceRecord(reader, record, source, { requireComplete });
-  return { record, bytes, source, path };
+  requireAcceptance(pull.title === acceptancePullTitle(record, source.pull.title), "acceptance-pr-title");
+  const checklist = verifyAcceptancePullBody(record, source.pull.title, pull.body, { requireComplete });
+  return { record, bytes, source, path, checklist };
 }
 
 /** A committed file alone is never authority: resolve its exact manual integration and checked head. */
 export async function loadPullRequestAcceptance(reader, source) {
   const target = await snapshotOpenSpec(reader, source.targetSha);
-  const paths = [...target.entries.keys()].filter(path => path.startsWith(`${ACCEPTANCE_ROOT}${source.implementation.change}/`));
-  if (!paths.length) return null;
-  requireAcceptance(paths.length === 1, "acceptance-conflict");
-  const bytes = await target.blob(paths[0]);
+  const path = acceptancePath({ change: source.implementation.change, sourceHead: source.pull.head.sha });
+  if (!target.entries.has(path)) return null;
+  const bytes = await target.blob(path);
   const record = parseAcceptanceRecord(bytes.toString());
-  requireAcceptance(paths[0] === acceptancePath(record), "acceptance-record-path");
+  requireAcceptance(path === acceptancePath(record), "acceptance-record-path");
   await verifyAcceptanceRecord(reader, record, source);
   const matches = await acceptancePulls(reader, record);
   const merged = matches.filter(pull => pull.merged_at);
@@ -120,11 +137,11 @@ export async function loadPullRequestAcceptance(reader, source) {
   const events = await reader.pages(`/issues/${pull.number}/timeline`, 1000);
   assertManualAcceptanceMerge(pull, permission.permission, events);
   const candidate = await inspectAcceptanceCandidate(reader, pull);
-  requireAcceptance(candidate && candidate.bytes.equals(bytes), "acceptance-record-drift");
+  requireAcceptance(candidate && candidate.bytes.equals(bytes) && candidate.checklist.complete, "acceptance-record-drift");
   await reader.ancestor(source.pull.merge_commit_sha, pull.merge_commit_sha);
   await reader.ancestor(pull.merge_commit_sha, source.targetSha);
   const integrated = await snapshotOpenSpec(reader, pull.merge_commit_sha);
-  requireAcceptance((await integrated.blob(paths[0]))?.equals(bytes), "acceptance-record-drift");
+  requireAcceptance((await integrated.blob(path))?.equals(bytes), "acceptance-record-drift");
   const validation = await findImplementationValidation(reader, pull);
   const jobs = await reader.pages(`/actions/runs/${validation.runId}/jobs?filter=latest`, 1000, "jobs");
   const checks = jobs.filter(job => job.name === "Acceptance record validation");
@@ -132,7 +149,8 @@ export async function loadPullRequestAcceptance(reader, source) {
     && checks[0].conclusion === "success" && checks[0].status === "completed"
     && checks[0].steps?.some(step => step.name === "Validate acceptance record using trusted policy" && step.conclusion === "success"), "acceptance-required-check");
   return { kind: "pull-request", id: pull.number, author: actor, createdAt: pull.merged_at,
-    bodyDigest: digest(bytes), headSha: pull.head.sha, mergeSha: pull.merge_commit_sha, record, recordText: bytes.toString(),
+    bodyDigest: digest(bytes), checklistDigest: candidate.checklist.bodyDigest, checklistComplete: true, checks: candidate.checklist.checks,
+    headSha: pull.head.sha, mergeSha: pull.merge_commit_sha, record, recordText: bytes.toString(),
     value: { version: 1, change: record.change, headSha: record.sourceHead, specBaseSha: record.specBaseSha,
       verdict: "accepted", implementationComplete: true, manualReview: "passed", specSyncReviewed: true,
       evidence: `Verified manual acceptance PR #${pull.number}; record SHA-256 ${digest(bytes)}.` } };
@@ -142,14 +160,23 @@ export async function validateAcceptanceCandidate(reader, number) {
   requireAcceptance(Number.isSafeInteger(number) && number > 0, "acceptance-pr-identity");
   const pull = await reader.get(`${reader.prefix}/pulls/${number}`);
   requireAcceptance(pull.number === number && SHA.test(pull.head?.sha ?? ""), "acceptance-pr-identity");
-  const candidate = await inspectAcceptanceCandidate(reader, pull);
-  if (!candidate) return { disposition: "not-acceptance" };
+  // Rationale: candidate CI establishes integrity, not that human verification has already happened;
+  // receipt consumption keeps the complete-evidence gate after a manual merge.
+  const candidate = await inspectAcceptanceCandidate(reader, pull, { requireComplete: false });
+  if (!candidate) {
+    const implementation = parseImplementation(pull.body ?? "");
+    if (implementation?.version === 2) return { disposition: "implementation-handoff",
+      acceptanceChecks: parseImplementationAcceptanceChecks(pull.body) };
+    return { disposition: "not-acceptance" };
+  }
   const authority = await loadArchiveEvidence(reader, candidate.record.sourcePr, { allowMissing: true });
   requireAcceptance(authority.disposition === "acceptance-missing", "acceptance-conflict");
   const target = await snapshotOpenSpec(reader, candidate.source.targetSha);
   requireAcceptance(artifactDigest(target, candidate.record.change) === candidate.record.artifactDigest, "active-change-drift");
-  requireAcceptance(![...target.entries.keys()].some(path => path.startsWith(`${ACCEPTANCE_ROOT}${candidate.record.change}/`)), "acceptance-already-recorded");
+  requireAcceptance(!target.entries.has(acceptancePath(candidate.record)), "acceptance-already-recorded");
   const matches = await acceptancePulls(reader, candidate.record);
   requireAcceptance(!matches.some(item => item.number !== number && (item.state === "open" || item.merged_at)), "acceptance-pr-conflict");
-  return { disposition: "awaiting-manual-acceptance-merge", acceptancePr: number, sourcePr: candidate.record.sourcePr, headSha: pull.head.sha };
+  const blockers = acceptanceBlockers(candidate.record);
+  return { disposition: blockers.length ? "awaiting-evidence" : "awaiting-manual-acceptance-merge",
+    acceptancePr: number, sourcePr: candidate.record.sourcePr, headSha: pull.head.sha, blockers };
 }
