@@ -141,4 +141,12 @@ A focused local observation on Windows Node 24.16.0 recorded build receipt `c348
 
 Final combined checkpoint validation passed **95 focused tests across ten files** plus typecheck. No test suite or product UI was launched by those final checks; the separate pack exercise performed no package installation or startup.
 
+## Task 4.3: integrity-checked dependency download reuse
+
+Fresh candidate installations now add npm `--prefer-offline` while retaining network fallback, exact local candidate path, `--global --prefix`, `--ignore-scripts`, `--no-audit`, and `--no-fund`. They still create a new private prefix for each owner; no installed package tree, product state, dependency layer, certification, compile cache, or passing evidence is restored. Existing setup-node npm-cache restoration supplies integrity-addressed downloads, not an installed prefix.
+
+The bounded audit command used a newly empty private npm cache and a fresh prefix for a cold `--prefer-offline` install, then used a second fresh prefix and `--offline` solely as the warm-cache control. On Windows Node 24.16.0/npm 12.0.2, cold installation took **21831ms** and populated 529 files/85,949,834 bytes; warm offline installation took **11136ms** from that cache. Both independently matched all **598 candidate payload files (8,697,980 bytes)** and the exact manifest/bin, with payload inventory SHA-256 `4e91259c...`; cleanup passed. Candidate SHA-256 remained `7d924dd4...`.
+
+`evidence/package-download-cache-local.json` contains only source/runtime identities, cache counts/bytes, durations, payload identity/counts, and outcomes—no cache/prefix paths or output. Five focused tests cover production versus audit arguments, exact installed payload/manifest bytes, tampering/traversal, bounded content-free cache inventory, source ancestry, fresh-prefix controls, and absence of mutable-state claims. This local warm/cold observation demonstrates effective download reuse but is not first-attempt startup, current-head CI, cross-platform, or final performance evidence; required cold-cache CI remains task 6.3.
+
 `evidence/package-owner-migration.json` maps all seven baseline scenarios to successor files/owners and records exact structural limits, target declarations, full-plan package invocations, and the temporary scheduling limitation. Task 1.2 remains incomplete until the full repository before/after platform/runtime ledger covers every successor owner, not just package and fast migrations.

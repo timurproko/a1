@@ -13,7 +13,7 @@ export async function installExactCandidate(phases: ValidationPhaseRecorder, lab
   const prefix = resolve(root, "prefix");
   const npm = process.platform === "win32" ? "npm.cmd" : "npm";
   await phases.run("clean-global-install", async () => {
-    const installed = await runFixtureCommand(npm, ["install", "--global", "--prefix", prefix, candidate.path, "--ignore-scripts", "--no-audit", "--no-fund"], root);
+    const installed = await runFixtureCommand(npm, ["install", "--global", "--prefix", prefix, candidate.path, "--ignore-scripts", "--no-audit", "--no-fund", "--prefer-offline"], root);
     expect(installed.status, installed.stderr).toBe(0);
   });
   return { candidate, root, prefix };

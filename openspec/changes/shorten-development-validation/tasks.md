@@ -24,7 +24,7 @@
 
 - [x] 4.1 Record and verify same-job build/package prerequisite receipts bound to inputs, toolchain, platform, and artifact identity; verify missing, changed, incomplete, or tampered artifacts force preparation or failure instead of stale reuse.
 - [x] 4.2 Remove duplicate same-job build/pack invocations and add the compatible startup Rust cache; verify plan/execution evidence shows one successful build and one pack per consuming job with native artifact validation still performed.
-- [ ] 4.3 Audit clean global installation cache behavior and enable safe dependency-download reuse where effective; verify cache-hit and cold-cache controls still install exact bytes into fresh prefixes without restoring certified state or measured launch caches.
+- [x] 4.3 Audit clean global installation cache behavior and enable safe dependency-download reuse where effective; verify cache-hit and cold-cache controls still install exact bytes into fresh prefixes without restoring certified state or measured launch caches.
 - [ ] 4.4 Profile release-command, package-message-parity, and session-resume fixture phases and optimize measured repeated immutable setup; verify unchanged command/oracle assertions, isolated writable instances, unchanged purposeful delays/workload sizes, and before/after phase evidence for each optimized fixture.
 - [ ] 4.5 Add contamination and failure-path tests for any reused immutable template or capture; verify one scenario cannot observe another's refs, files, processes, profile state, or oracle output and that setup/teardown failures remain visible.
 

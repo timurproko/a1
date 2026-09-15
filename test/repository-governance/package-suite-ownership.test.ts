@@ -38,8 +38,9 @@ describe("exact-package startup and non-timing ownership", () => {
     expect(startup).toContain('installExactCandidate(phases, "a1-package-startup-")');
     expect(contracts).toContain("cleanupExactCandidate(phases, root)");
     expect(startup).toContain("cleanupExactCandidate(phases, root)");
-    expect(fixture).toContain('["install", "--global", "--prefix", prefix, candidate.path, "--ignore-scripts", "--no-audit", "--no-fund"]');
-    expect(fixture).not.toMatch(/prefer-offline|offline|cache\s*:/);
+    expect(fixture).toContain('["install", "--global", "--prefix", prefix, candidate.path, "--ignore-scripts", "--no-audit", "--no-fund", "--prefer-offline"]');
+    expect(fixture).toContain('"--prefer-offline"');
+    expect(fixture).not.toContain('"--offline"');
     expect(fixture).toContain("mkdtemp");
     expect(fixture).not.toMatch(/reuse|restore|certif/i);
   });
