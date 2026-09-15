@@ -36,6 +36,9 @@ describe("validation tier planning", () => {
       "package-smoke",
       "package-contracts",
       "package-startup",
+      "image-compatibility",
+      "history-compatibility",
+      "unix-containment",
       "dependency-policy",
       "update-predecessor",
     ]);

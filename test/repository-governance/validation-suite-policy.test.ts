@@ -36,7 +36,7 @@ async function discoverTests(directory: string): Promise<string[]> {
 }
 
 describe("validation suite ownership", () => {
-  it("assigns every retained test to exactly one executable owner", async () => {
+  it("assigns every retained test one primary owner plus only reviewed cross-runtime owners", async () => {
     const suites = JSON.parse(await readFile("config/validation-suites.json", "utf8")) as SuiteManifest;
     const tests = await discoverTests(resolve("test"));
     const explicitOwners = new Map<string, string[]>();
@@ -60,7 +60,9 @@ describe("validation suite ownership", () => {
       ],
     }));
 
-    expect(ownership.filter(entry => entry.owners.length !== 1)).toEqual([]);
+    const crossRuntime = new Set(["image-compatibility", "history-compatibility", "unix-containment"]);
+    expect(ownership.filter(entry => entry.owners.filter(owner => !crossRuntime.has(owner)).length !== 1)).toEqual([]);
+    expect(ownership.flatMap(entry => entry.owners.slice(1).filter(owner => !crossRuntime.has(owner)).map(owner => ({ test: entry.test, owner })))).toEqual([]);
     expect([...explicitOwners.keys()].filter(test => !tests.includes(test))).toEqual([]);
   });
 

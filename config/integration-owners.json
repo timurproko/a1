@@ -3,8 +3,18 @@
   "owners": [
     {
       "id": "pi-release-resume",
-      "scopes": ["pi-engine-conformance", "package-smoke", "release-update"],
-      "targets": [{ "platform": "win32", "architecture": "x64", "node": 24 }],
+      "scopes": [
+        "pi-engine-conformance",
+        "package-smoke",
+        "release-update"
+      ],
+      "targets": [
+        {
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
       "development": true,
       "entries": [
         "test/integrations/pi/engine/conformance.test.ts",
@@ -24,33 +34,81 @@
         "test/foundation/release/update-transition.integration.test.ts",
         "test/repository-governance/release-command.test.ts"
       ],
-      "support": ["test/support/session-resume-fixture.ts", "test/foundation/release/package-candidate-fixture.ts"]
+      "support": [
+        "test/support/session-resume-fixture.ts",
+        "test/foundation/release/package-candidate-fixture.ts"
+      ]
     },
     {
       "id": "package-contracts",
-      "scopes": ["package-contracts"],
-      "targets": [{ "platform": "win32", "architecture": "x64", "node": 22 }],
+      "scopes": [
+        "package-contracts"
+      ],
+      "targets": [
+        {
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 22
+        }
+      ],
       "development": true,
-      "entries": ["test/foundation/release/package-install.integration.test.ts"],
-      "tests": ["test/foundation/release/package-install.integration.test.ts"],
-      "support": ["test/foundation/release/package-candidate-fixture.ts", "test/foundation/release/package-install-fixture.ts"]
+      "entries": [
+        "test/foundation/release/package-install.integration.test.ts"
+      ],
+      "tests": [
+        "test/foundation/release/package-install.integration.test.ts"
+      ],
+      "support": [
+        "test/foundation/release/package-candidate-fixture.ts",
+        "test/foundation/release/package-install-fixture.ts"
+      ]
     },
     {
       "id": "startup",
-      "scopes": ["package-startup"],
-      "targets": [{ "platform": "win32", "architecture": "x64", "node": 22 }],
+      "scopes": [
+        "package-startup"
+      ],
+      "targets": [
+        {
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 22
+        }
+      ],
       "development": true,
-      "entries": ["bin/cli.js", "test/foundation/release/package-startup.integration.test.ts"],
-      "tests": ["test/foundation/release/package-startup.integration.test.ts"],
-      "support": ["test/foundation/release/package-candidate-fixture.ts", "test/foundation/release/package-install-fixture.ts"]
+      "entries": [
+        "bin/cli.js",
+        "test/foundation/release/package-startup.integration.test.ts"
+      ],
+      "tests": [
+        "test/foundation/release/package-startup.integration.test.ts"
+      ],
+      "support": [
+        "test/foundation/release/package-candidate-fixture.ts",
+        "test/foundation/release/package-install-fixture.ts"
+      ]
     },
     {
       "id": "image-compatibility",
-      "scopes": ["image-compatibility"],
+      "scopes": [
+        "image-compatibility"
+      ],
       "targets": [
-        { "platform": "win32", "architecture": "x64", "node": 22 },
-        { "platform": "linux", "architecture": "x64", "node": 24 },
-        { "platform": "darwin", "architecture": "arm64", "node": 24 }
+        {
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 22
+        },
+        {
+          "platform": "linux",
+          "architecture": "x64",
+          "node": 24
+        },
+        {
+          "platform": "darwin",
+          "architecture": "arm64",
+          "node": 24
+        }
       ],
       "development": true,
       "entries": [
@@ -65,11 +123,25 @@
     },
     {
       "id": "history-compatibility",
-      "scopes": ["history-compatibility"],
+      "scopes": [
+        "history-compatibility"
+      ],
       "targets": [
-        { "platform": "win32", "architecture": "x64", "node": 22 },
-        { "platform": "linux", "architecture": "x64", "node": 24 },
-        { "platform": "darwin", "architecture": "arm64", "node": 24 }
+        {
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 22
+        },
+        {
+          "platform": "linux",
+          "architecture": "x64",
+          "node": 24
+        },
+        {
+          "platform": "darwin",
+          "architecture": "arm64",
+          "node": 24
+        }
       ],
       "development": true,
       "entries": [
@@ -90,10 +162,21 @@
     },
     {
       "id": "unix-containment",
-      "scopes": ["unix-containment"],
+      "scopes": [
+        "unix-containment",
+        "package-smoke"
+      ],
       "targets": [
-        { "platform": "linux", "architecture": "x64", "node": 24 },
-        { "platform": "darwin", "architecture": "arm64", "node": 24 }
+        {
+          "platform": "linux",
+          "architecture": "x64",
+          "node": 24
+        },
+        {
+          "platform": "darwin",
+          "architecture": "arm64",
+          "node": 24
+        }
       ],
       "development": true,
       "entries": [
@@ -129,7 +212,95 @@
         "test/foundation/process-containment/windows-job.integration.test.ts",
         "test/foundation/process-containment/windows-process-inspector.test.ts"
       ],
-      "support": ["test/foundation/process-containment/"]
+      "support": [
+        "test/foundation/process-containment/"
+      ]
+    },
+    {
+      "id": "launch-integration",
+      "scopes": [
+        "launch-integration"
+      ],
+      "targets": [
+        {
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "development": false,
+      "entries": [
+        "test/features/launch/exact-pi-entry.integration.test.ts",
+        "test/features/launch/profile-isolation.integration.test.ts"
+      ],
+      "tests": [
+        "test/features/launch/exact-pi-entry.integration.test.ts",
+        "test/features/launch/profile-isolation.integration.test.ts"
+      ],
+      "support": []
+    },
+    {
+      "id": "update-performance",
+      "scopes": [
+        "update-performance"
+      ],
+      "targets": [
+        {
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "development": false,
+      "entries": [
+        "test/foundation/release/update-performance.integration.test.ts"
+      ],
+      "tests": [
+        "test/foundation/release/update-performance.integration.test.ts"
+      ],
+      "support": []
+    },
+    {
+      "id": "structured-runtime",
+      "scopes": [
+        "structured-runtime-integration"
+      ],
+      "targets": [
+        {
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "development": false,
+      "entries": [
+        "test/foundation/structured-agent-runtime/runtime.integration.test.ts"
+      ],
+      "tests": [
+        "test/foundation/structured-agent-runtime/runtime.integration.test.ts"
+      ],
+      "support": []
+    },
+    {
+      "id": "update-predecessor",
+      "scopes": [
+        "update-predecessor"
+      ],
+      "targets": [
+        {
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "development": false,
+      "entries": [
+        "test/foundation/release/update-predecessor.integration.test.ts"
+      ],
+      "tests": [
+        "test/foundation/release/update-predecessor.integration.test.ts"
+      ],
+      "support": []
     }
   ]
 }

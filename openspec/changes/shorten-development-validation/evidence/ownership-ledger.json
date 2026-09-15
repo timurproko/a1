@@ -1,0 +1,6713 @@
+{
+  "schema": "a1-validation-ownership-ledger-v1",
+  "baseline": "d5d7c1b100158e9d0efdb44f0490ced2ee4ea266",
+  "implementationState": "generated working tree; regenerate on final head",
+  "inputs": [
+    {
+      "path": "config/validation-suites.json",
+      "sha256": "651830838e189c0d5c31c53e3369e25887b2ede19c0d3cc9ad3e12c7abe79651"
+    },
+    {
+      "path": "config/integration-owners.json",
+      "sha256": "093edacf82b33cdbffdd6d6effcf780fe26d044d998e7bea3177854fdd60c629"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "b6dafe36fe99666697c459cc03d76a835089ead45ec9b0fd49d3fae25ae17a6b"
+    },
+    {
+      "path": ".github/workflows/full-regression.yml",
+      "sha256": "f5371eb16a30f63ae07382fa582b964b6d34692f33fb75461677256faa429748"
+    },
+    {
+      "path": ".github/workflows/release.yml",
+      "sha256": "f0cab81f707f5bd942c7934a186aeb67026bccaffb18622fc09d20097d6f1a7f"
+    }
+  ],
+  "counts": {
+    "beforeTests": 329,
+    "afterTests": 344,
+    "retainedBaselineTests": 329,
+    "newTests": [
+      "test/foundation/release/package-startup.integration.test.ts",
+      "test/foundation/release/session-resume-diagnostics.test.ts",
+      "test/repository-governance/integration-dependency-graph.test.ts",
+      "test/repository-governance/integration-impact.test.ts",
+      "test/repository-governance/integration-owner-registry.test.ts",
+      "test/repository-governance/integration-selection-replay.test.ts",
+      "test/repository-governance/integration-selection.test.ts",
+      "test/repository-governance/modular-validation-aggregate.test.ts",
+      "test/repository-governance/npm-pack-metadata.test.ts",
+      "test/repository-governance/package-download-cache.test.ts",
+      "test/repository-governance/package-suite-ownership.test.ts",
+      "test/repository-governance/revision-dependencies.test.ts",
+      "test/repository-governance/validation-phase.test.ts",
+      "test/repository-governance/validation-receipt-workflows.test.ts",
+      "test/repository-governance/validation-receipt.test.ts"
+    ]
+  },
+  "platformRuntimeDeclarations": {
+    "development": [
+      "win32/x64/node24",
+      "win32/x64/node22",
+      "linux/x64/node24",
+      "darwin/arm64/node24"
+    ],
+    "fullAndNightly": [
+      "windows-2025/node22",
+      "windows-2025/node24",
+      "ubuntu-24.04/node24",
+      "macos-15/node24"
+    ],
+    "releaseDevelop": [
+      "windows-2025/node22",
+      "windows-2025/node24",
+      "ubuntu-24.04/node24",
+      "macos-15/node24"
+    ]
+  },
+  "packageScenarios": [
+    {
+      "title": "installs only the authoritative a1 command and package identity",
+      "beforeOwner": "package-install",
+      "proposedOwner": "package-install-non-timing",
+      "bodyPlatforms": [
+        "win32",
+        "linux",
+        "darwin"
+      ],
+      "afterOwner": "package-contracts",
+      "afterFile": "test/foundation/release/package-install.integration.test.ts"
+    },
+    {
+      "title": "restores the platform launcher set when exact-package replacement is cancelled",
+      "beforeOwner": "package-install",
+      "proposedOwner": "package-install-non-timing",
+      "bodyPlatforms": [
+        "win32",
+        "linux",
+        "darwin"
+      ],
+      "afterOwner": "package-contracts",
+      "afterFile": "test/foundation/release/package-install.integration.test.ts"
+    },
+    {
+      "title": "keeps the exact packaged recovery guardian alive after updater loss",
+      "beforeOwner": "package-install",
+      "proposedOwner": "package-install-non-timing",
+      "bodyPlatforms": [
+        "win32",
+        "linux",
+        "darwin"
+      ],
+      "afterOwner": "package-contracts",
+      "afterFile": "test/foundation/release/package-install.integration.test.ts"
+    },
+    {
+      "title": "materializes the published minimal inventory into one reusable dependency layer",
+      "beforeOwner": "package-install",
+      "proposedOwner": "package-install-non-timing",
+      "bodyPlatforms": [
+        "win32",
+        "linux",
+        "darwin"
+      ],
+      "afterOwner": "package-contracts",
+      "afterFile": "test/foundation/release/package-install.integration.test.ts"
+    },
+    {
+      "title": "drains a production-shaped historical backlog through the exact packaged private worker",
+      "beforeOwner": "package-install",
+      "proposedOwner": "package-install-non-timing",
+      "bodyPlatforms": [
+        "win32",
+        "linux",
+        "darwin"
+      ],
+      "afterOwner": "package-contracts",
+      "afterFile": "test/foundation/release/package-install.integration.test.ts"
+    },
+    {
+      "title": "leaves durable scheduled evidence when the exact private entry cannot import its runtime",
+      "beforeOwner": "package-install",
+      "proposedOwner": "package-install-non-timing",
+      "bodyPlatforms": [
+        "win32",
+        "linux",
+        "darwin"
+      ],
+      "afterOwner": "package-contracts",
+      "afterFile": "test/foundation/release/package-install.integration.test.ts"
+    },
+    {
+      "title": "gates post-update, no-live-supervisor, and warm startup for both exact packaged profiles",
+      "beforeOwner": "package-install",
+      "proposedOwner": "startup-timing",
+      "bodyPlatforms": [
+        "win32"
+      ],
+      "afterOwner": "package-startup",
+      "afterFile": "test/foundation/release/package-startup.integration.test.ts"
+    }
+  ],
+  "releaseContracts": {
+    "before": {
+      "architecture": "architecture",
+      "compatibility-authority": "fast",
+      "candidate-engine-conformance": "pi-engine-conformance",
+      "exact-vanilla-oracle": "launch-integration",
+      "packaged-public-entry": "package-smoke",
+      "owned-ui-regression": "fast",
+      "extension-behavior": "fast",
+      "architecture-independent-n-minus-one-update-transition": "release-update",
+      "post-update-startup-performance": "package-install",
+      "immutable-dependency-layer-compatibility": "package-install",
+      "published-predecessor-update": "update-predecessor"
+    },
+    "after": {
+      "architecture": "architecture",
+      "compatibility-authority": "fast",
+      "candidate-engine-conformance": "pi-engine-conformance",
+      "exact-vanilla-oracle": "launch-integration",
+      "packaged-public-entry": "package-smoke",
+      "owned-ui-regression": "fast",
+      "extension-behavior": "fast",
+      "architecture-independent-n-minus-one-update-transition": "release-update",
+      "post-update-startup-performance": "package-startup",
+      "immutable-dependency-layer-compatibility": "package-contracts",
+      "published-predecessor-update": "update-predecessor"
+    }
+  },
+  "tests": [
+    {
+      "path": "test/cli/capabilities.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/cli/dispatch.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/cli/package-message-parity.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/cli/packages.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/cli/update-cli.test.ts",
+      "pr": [
+        {
+          "scope": "dist-integration",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/cli/version-stats.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/composition/clipboard-diagnostics.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/composition/composition.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/composition/prompt-history.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/composition/prompt-suggestion-diagnostics.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/composition/settings-route-host.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/contracts/agent-engine/capability-ports.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/contracts/agent-engine/contracts.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/contracts/agent-engine/domain-contracts.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/contracts/agent-engine/package-ports.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/contracts/owned-ui/contracts.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/contracts/owned-ui/extension-ui-contract.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/contracts/owned-ui/image-attachments.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/contracts/owned-ui/prompt-history.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/contracts/owned-ui/transcript-lifecycle.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/contracts/presentation/contracts.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/contracts/workspace/contracts.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/features/launch/development-launch.test.ts",
+      "pr": [
+        {
+          "scope": "dist-integration",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/features/launch/exact-pi-entry.integration.test.ts",
+      "pr": [
+        {
+          "scope": "launch-integration",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/features/launch/initialize-profile-race.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/features/launch/initialize-profile.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/features/launch/launch-profiles.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/features/launch/pi-tui-identity-installed.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/features/launch/pi-tui-identity.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/features/launch/pi-tui-proxy-sync.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/features/launch/prepare-launch.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/features/launch/profile-isolation.integration.test.ts",
+      "pr": [
+        {
+          "scope": "launch-integration",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/features/launch/profile-paths.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/features/launch/prompt-history-paths.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/features/launch/runtime-selection.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/features/launch/terminal-colour-fidelity.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/features/owned-ui/customization.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/features/owned-ui/diagnostics.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/features/owned-ui/event-frame-clock.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/features/owned-ui/pi-event-frame-parity.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/features/owned-ui/pi-raw-terminal-parity.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/features/owned-ui/pi-startup-composition-parity.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/features/owned-ui/pi-static-parity.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/features/owned-ui/project-trust-prompt.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/features/owned-ui/run-settings.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/features/owned-ui/run.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/features/owned-ui/session-fork-prompt.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/features/owned-ui/settings-app.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/features/prompt-history/concurrency.integration.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        },
+        {
+          "scope": "history-compatibility",
+          "platform": "darwin",
+          "architecture": "arm64",
+          "node": 24
+        },
+        {
+          "scope": "history-compatibility",
+          "platform": "linux",
+          "architecture": "x64",
+          "node": 24
+        },
+        {
+          "scope": "history-compatibility",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 22
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/features/prompt-history/image-sidecar.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        },
+        {
+          "scope": "history-compatibility",
+          "platform": "darwin",
+          "architecture": "arm64",
+          "node": 24
+        },
+        {
+          "scope": "history-compatibility",
+          "platform": "linux",
+          "architecture": "x64",
+          "node": 24
+        },
+        {
+          "scope": "history-compatibility",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 22
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/features/prompt-history/service.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        },
+        {
+          "scope": "history-compatibility",
+          "platform": "darwin",
+          "architecture": "arm64",
+          "node": 24
+        },
+        {
+          "scope": "history-compatibility",
+          "platform": "linux",
+          "architecture": "x64",
+          "node": 24
+        },
+        {
+          "scope": "history-compatibility",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 22
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/features/prompt-history/store.test.ts",
+      "pr": [
+        {
+          "scope": "fast-resource-sensitive",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        },
+        {
+          "scope": "history-compatibility",
+          "platform": "darwin",
+          "architecture": "arm64",
+          "node": 24
+        },
+        {
+          "scope": "history-compatibility",
+          "platform": "linux",
+          "architecture": "x64",
+          "node": 24
+        },
+        {
+          "scope": "history-compatibility",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 22
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/features/prompt-history/worker-package.test.ts",
+      "pr": [
+        {
+          "scope": "dist-integration",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        },
+        {
+          "scope": "history-compatibility",
+          "platform": "darwin",
+          "architecture": "arm64",
+          "node": 24
+        },
+        {
+          "scope": "history-compatibility",
+          "platform": "linux",
+          "architecture": "x64",
+          "node": 24
+        },
+        {
+          "scope": "history-compatibility",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 22
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/features/prompt-suggestions/diagnostics.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/features/workspace/capabilities.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/features/workspace/presentation.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/features/workspace/reconciliation.test.ts",
+      "pr": [
+        {
+          "scope": "fast-resource-sensitive",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/features/workspace/router.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/features/workspace/workspace.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/foundation/launch-context/context.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        },
+        {
+          "scope": "unix-containment",
+          "platform": "darwin",
+          "architecture": "arm64",
+          "node": 24
+        },
+        {
+          "scope": "unix-containment",
+          "platform": "linux",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/foundation/launch-context/cutover.test.ts",
+      "pr": [
+        {
+          "scope": "fast-resource-sensitive",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        },
+        {
+          "scope": "unix-containment",
+          "platform": "darwin",
+          "architecture": "arm64",
+          "node": 24
+        },
+        {
+          "scope": "unix-containment",
+          "platform": "linux",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/foundation/launch-guardian/concurrency.integration.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/foundation/launch-guardian/launch-guardian.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/foundation/launch-guardian/source-boundary.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/foundation/lifecycle/launch-instance.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/foundation/lifecycle/launch-profile-identity.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/foundation/lifecycle/paths.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/foundation/native-host-protocol/evidence.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/foundation/native-host-protocol/proof-gate.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/foundation/native-host-protocol/protocol.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/foundation/process-containment/artifact.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        },
+        {
+          "scope": "unix-containment",
+          "platform": "darwin",
+          "architecture": "arm64",
+          "node": 24
+        },
+        {
+          "scope": "unix-containment",
+          "platform": "linux",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/foundation/process-containment/contracts.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        },
+        {
+          "scope": "unix-containment",
+          "platform": "darwin",
+          "architecture": "arm64",
+          "node": 24
+        },
+        {
+          "scope": "unix-containment",
+          "platform": "linux",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/foundation/process-containment/darwin-process-inspector.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        },
+        {
+          "scope": "unix-containment",
+          "platform": "darwin",
+          "architecture": "arm64",
+          "node": 24
+        },
+        {
+          "scope": "unix-containment",
+          "platform": "linux",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/foundation/process-containment/source-boundary.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        },
+        {
+          "scope": "unix-containment",
+          "platform": "darwin",
+          "architecture": "arm64",
+          "node": 24
+        },
+        {
+          "scope": "unix-containment",
+          "platform": "linux",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/foundation/process-containment/unix-process-group.integration.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        },
+        {
+          "scope": "unix-containment",
+          "platform": "darwin",
+          "architecture": "arm64",
+          "node": 24
+        },
+        {
+          "scope": "unix-containment",
+          "platform": "linux",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/foundation/process-containment/windows-job.integration.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        },
+        {
+          "scope": "unix-containment",
+          "platform": "darwin",
+          "architecture": "arm64",
+          "node": 24
+        },
+        {
+          "scope": "unix-containment",
+          "platform": "linux",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/foundation/process-containment/windows-process-inspector.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        },
+        {
+          "scope": "unix-containment",
+          "platform": "darwin",
+          "architecture": "arm64",
+          "node": 24
+        },
+        {
+          "scope": "unix-containment",
+          "platform": "linux",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/foundation/protocol/protocol.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/foundation/release/bootstrap-boundary.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/foundation/release/cohort-activation.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/foundation/release/cohort-state.test.ts",
+      "pr": [
+        {
+          "scope": "fast-resource-sensitive",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/foundation/release/dependency-certification-release.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/foundation/release/dependency-certification.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        },
+        {
+          "scope": "unix-containment",
+          "platform": "darwin",
+          "architecture": "arm64",
+          "node": 24
+        },
+        {
+          "scope": "unix-containment",
+          "platform": "linux",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/foundation/release/dependency-layer.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        },
+        {
+          "scope": "unix-containment",
+          "platform": "darwin",
+          "architecture": "arm64",
+          "node": 24
+        },
+        {
+          "scope": "unix-containment",
+          "platform": "linux",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/foundation/release/endpoint-metadata-compatibility.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/foundation/release/package-install.integration.test.ts",
+      "pr": [
+        {
+          "scope": "package-contracts",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 22
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": [
+        "windows-2025/node22:package-contracts",
+        "windows-2025/node24:package-contracts",
+        "ubuntu-24.04/node24:package-contracts",
+        "macos-15/node24:package-contracts"
+      ]
+    },
+    {
+      "path": "test/foundation/release/package-startup.integration.test.ts",
+      "pr": [
+        {
+          "scope": "package-startup",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 22
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": [
+        "windows-2025/node22:package-startup",
+        "windows-2025/node24:package-startup",
+        "ubuntu-24.04/node24:package-startup",
+        "macos-15/node24:package-startup"
+      ]
+    },
+    {
+      "path": "test/foundation/release/package-surface.test.ts",
+      "pr": [
+        {
+          "scope": "package-smoke",
+          "platform": "darwin",
+          "architecture": "arm64",
+          "node": 24
+        },
+        {
+          "scope": "package-smoke",
+          "platform": "linux",
+          "architecture": "x64",
+          "node": 24
+        },
+        {
+          "scope": "package-smoke",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": [
+        "windows-2025/node22:package-smoke",
+        "windows-2025/node24:package-smoke",
+        "ubuntu-24.04/node24:package-smoke",
+        "macos-15/node24:package-smoke"
+      ]
+    },
+    {
+      "path": "test/foundation/release/predecessor-command-errors.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/foundation/release/predecessor-command-faults.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/foundation/release/predecessor-command-lifecycle.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/foundation/release/predecessor-command.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/foundation/release/predecessor-fixture.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/foundation/release/release-gc.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        },
+        {
+          "scope": "unix-containment",
+          "platform": "darwin",
+          "architecture": "arm64",
+          "node": 24
+        },
+        {
+          "scope": "unix-containment",
+          "platform": "linux",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/foundation/release/release-store.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/foundation/release/release.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/foundation/release/restart-certification.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        },
+        {
+          "scope": "unix-containment",
+          "platform": "darwin",
+          "architecture": "arm64",
+          "node": 24
+        },
+        {
+          "scope": "unix-containment",
+          "platform": "linux",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/foundation/release/session-resume-diagnostics.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/foundation/release/session-resume.integration.test.ts",
+      "pr": [
+        {
+          "scope": "package-smoke",
+          "platform": "darwin",
+          "architecture": "arm64",
+          "node": 24
+        },
+        {
+          "scope": "package-smoke",
+          "platform": "linux",
+          "architecture": "x64",
+          "node": 24
+        },
+        {
+          "scope": "package-smoke",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": [
+        "windows-2025/node22:package-smoke",
+        "windows-2025/node24:package-smoke",
+        "ubuntu-24.04/node24:package-smoke",
+        "macos-15/node24:package-smoke"
+      ]
+    },
+    {
+      "path": "test/foundation/release/stable-release.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/foundation/release/supervisor-startup.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/foundation/release/update-activation.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/foundation/release/update-launch.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/foundation/release/update-live-cohort.test.ts",
+      "pr": [
+        {
+          "scope": "fast-resource-sensitive",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/foundation/release/update-performance.integration.test.ts",
+      "pr": [
+        {
+          "scope": "update-performance",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/foundation/release/update-predecessor.integration.test.ts",
+      "pr": [
+        {
+          "scope": "update-predecessor",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/foundation/release/update-process-exit.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/foundation/release/update-recovery.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/foundation/release/update-transaction.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/foundation/release/update-transition.integration.test.ts",
+      "pr": [
+        {
+          "scope": "release-update",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        },
+        {
+          "scope": "unix-containment",
+          "platform": "darwin",
+          "architecture": "arm64",
+          "node": 24
+        },
+        {
+          "scope": "unix-containment",
+          "platform": "linux",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/foundation/release/update.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/foundation/release/warmup.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/foundation/startup/startup-runtime.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/foundation/storage/storage.test.ts",
+      "pr": [
+        {
+          "scope": "fast-resource-sensitive",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/foundation/structured-agent-runtime/backpressure.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/foundation/structured-agent-runtime/commands.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/foundation/structured-agent-runtime/handshake.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/foundation/structured-agent-runtime/reconnection.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/foundation/structured-agent-runtime/runtime.integration.test.ts",
+      "pr": [
+        {
+          "scope": "structured-runtime-integration",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/foundation/structured-agent-runtime/state.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/foundation/supervision/foreground-terminal-lease.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/foundation/supervision/supervisor-release-exit.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/foundation/terminal-cleanup/fatal-exit.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/components/compaction-prompt.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/components/components.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/components/conformance.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/components/editor-atomic-segmentation.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/components/editor-autocomplete-placement.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/components/editor-paste-presentation.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/components/editor-text-paste.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/components/extension-ui-bridge.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/components/history-editor-core.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/components/history-editor-shell.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/components/path-word-editing.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/components/path-word-ranges.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/components/pi-terminal-capabilities.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/components/pinned-assistant-content-parity.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/components/pinned-editor-input-parity.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/components/pinned-reconciled-source-ports.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/components/pinned-status-indicator-parity.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/components/pinned-theme-parity.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/components/prompt-input-ux.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/components/provider-auth-parity.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/components/scoped-model-platform-hints.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/components/session-selector.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/components/shell-components.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/components/tool-image-presentation.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/components/tool-shell-parity.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/components/transcript-image-resolver.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/engine/adapter.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/engine/candidate-capability-mutations.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/engine/changelog.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/engine/command-resources.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/engine/conformance.test.ts",
+      "pr": [
+        {
+          "scope": "pi-engine-conformance",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/engine/http-dispatcher.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/engine/model-auth-integration.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/engine/package-integration.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/engine/pending-delivery.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/engine/project-trust-context.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/engine/project-trust-preflight.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/engine/prompt-suggestion-provider.integration.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/engine/resource-extension-integration.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/engine/runtime-integration.test.ts",
+      "pr": [
+        {
+          "scope": "pi-engine-conformance",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/engine/session-integration.test.ts",
+      "pr": [
+        {
+          "scope": "pi-engine-conformance",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/engine/session-selection.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/engine/settings-effects.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/engine/settings-integration.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/engine/theme-settings.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/engine/tool-rendering.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/engine/transcript-image-assets.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/engine/windows-filesystem-hygiene.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/engine/workflow-controllers.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/engine/workflows.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/session-ui/clipboard-diagnostics.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/session-ui/clipboard-executor-lifecycle.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/session-ui/clipboard-image.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/session-ui/clipboard-packaged.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/session-ui/command-message-inventory.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/session-ui/command-message-parity.test.ts",
+      "pr": [
+        {
+          "scope": "fast-resource-sensitive",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/session-ui/command-outcome-parity.test.ts",
+      "pr": [
+        {
+          "scope": "fast-resource-sensitive",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/session-ui/editor-hyperlink-budget.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/session-ui/image-preparation.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        },
+        {
+          "scope": "image-compatibility",
+          "platform": "darwin",
+          "architecture": "arm64",
+          "node": 24
+        },
+        {
+          "scope": "image-compatibility",
+          "platform": "linux",
+          "architecture": "x64",
+          "node": 24
+        },
+        {
+          "scope": "image-compatibility",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 22
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/session-ui/image-worker-package.test.ts",
+      "pr": [
+        {
+          "scope": "dist-integration",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        },
+        {
+          "scope": "image-compatibility",
+          "platform": "darwin",
+          "architecture": "arm64",
+          "node": 24
+        },
+        {
+          "scope": "image-compatibility",
+          "platform": "linux",
+          "architecture": "x64",
+          "node": 24
+        },
+        {
+          "scope": "image-compatibility",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 22
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/session-ui/paste-chip-lifecycle.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/session-ui/paste-executor.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/session-ui/paste-preparation-client.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/session-ui/path-chip-presentation.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/session-ui/prompt-chips.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/session-ui/prompt-history-controller.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/session-ui/prompt-suggestion-controller.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/session-ui/response-copy-baseline.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/session-ui/response-copy-coordinator.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/session-ui/response-copy-transport.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/session-ui/session-bottom-hover.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/session-ui/session-shell.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/session-ui/session-viewport-controller.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/session-ui/stream-presentation-coalescer.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/session-ui/system-clipboard.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/session-ui/text-paste.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/session-ui/transcript-attachment-ownership.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/session-ui/transcript-content-retention.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/session-ui/transcript-image-conversion.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/session-ui/transcript-payload-limits.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/session-ui/transcript-presentation-lifetime.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/tui-runtime/adapter.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/tui-runtime/conformance.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/tui-runtime/content-producer.test.ts",
+      "pr": [
+        {
+          "scope": "rendering-stability",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/tui-runtime/damage-aware-terminal.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/tui-runtime/ghost-link-fixture.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/tui-runtime/input-budgets.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/tui-runtime/input-evidence.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/tui-runtime/input-frame-observation.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/tui-runtime/input-frame-work.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/tui-runtime/input-presentation-coordinator.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/tui-runtime/input-producer.test.ts",
+      "pr": [
+        {
+          "scope": "rendering-stability",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/tui-runtime/input-responsiveness-budgets.test.ts",
+      "pr": [
+        {
+          "scope": "rendering-stability",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/tui-runtime/input-responsiveness-smoke.test.ts",
+      "pr": [
+        {
+          "scope": "rendering-smoke",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/tui-runtime/mouse-report-input.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/tui-runtime/overlay-geometry.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/tui-runtime/pinned-wheel-parity.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/tui-runtime/rendering-budget-policy.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/tui-runtime/rendering-budgets.test.ts",
+      "pr": [
+        {
+          "scope": "rendering-stability",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/tui-runtime/rendering-producer.test.ts",
+      "pr": [
+        {
+          "scope": "rendering-stability",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/tui-runtime/rendering-smoke.test.ts",
+      "pr": [
+        {
+          "scope": "rendering-smoke",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/tui-runtime/rendering-write-evidence.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/tui-runtime/streaming-workloads.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/tui-runtime/terminal-paint-evidence.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/integrations/pi/tui-runtime/width-parity.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/product-identity/product-identity.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/candidate-evidence.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/change-delivery-guidance.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/ci-release-runbook.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/code-documentation-command.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/code-documentation.test.ts",
+      "pr": [
+        {
+          "scope": "fast-resource-sensitive",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/damage-aware-terminal-boundary.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/deprecated-dependencies.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/development-validation-baseline.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/development-validation-required.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/docs-sensitive-governance.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/documentation-auto-merge.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/documentation-lifecycle.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/full-regression-policy.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/github-repository-governance.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/github-rulesets.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/history-editor-source.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/impact-aware-validation-workflows.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/input-presentation-boundary.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/integration-dependency-graph.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/integration-impact.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/integration-owner-registry.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/integration-selection-replay.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/integration-selection.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/merged-branch-cleanup.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/modular-validation-aggregate.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/naming-inspection.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/naming-selection.test.ts",
+      "pr": [
+        {
+          "scope": "fast-resource-sensitive",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/native-host-boundary.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/npm-pack-metadata.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/openspec-archive-git.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/openspec-archive-github.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/openspec-archive-policy.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/openspec-archive-publication.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/openspec-archive-staging.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/openspec-archive-version-compatibility.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/openspec-archive-workflow.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/owned-settings-interaction-boundary.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/owned-ui-customization-prerequisite.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/owned-ui-documentation.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/owned-ui-research-baseline.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/package-download-cache.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/package-suite-ownership.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/pi-api-boundary-baseline.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/pi-api-boundary-policy.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/pi-boundary-manual-checkpoint.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/pi-candidate-evaluator.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/pi-compatibility-authority.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/pi-component-adaptation.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/pi-component-constructor-boundary.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/pi-engine-adapter-types.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/pi-maintenance-workflows.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/pi-modal-surface-inventory.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/pi-parity-capability-boundary.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/pi-parity-evidence.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/pi-presenter-ownership-inventory.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/pi-session-shell-provenance.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/pi-session-ui-responsibilities.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/pi-settings-inventory.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/pi-settings-metadata.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/pinned-pi-behavior-inventory.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/pinned-pi-source-ledger.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/product-identifier-inventory.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/product-identity-boundaries.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/product-identity-documentation.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/product-identity-governance.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/product-identity-inventory.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/progress-status-presentation-boundary.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/project-structure-policy.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/prompt-history-boundary.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/release-command.test.ts",
+      "pr": [
+        {
+          "scope": "release-update",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/release-gate-policy.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/release-pipeline-policy.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/release-target.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/repair-native-executable-modes.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/replacement-drops-nothing.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/resource-data-policy.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/resource-sensitive-validation.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/revision-dependencies.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/shortcut-hint-governance.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/terminal-architecture-policy.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/terminal-host-proof-gate.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/terminal-host-provenance.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/validation-impact.test.ts",
+      "pr": [
+        {
+          "scope": "fast-resource-sensitive",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/validation-phase.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/validation-receipt-workflows.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/validation-receipt.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/validation-suite-policy.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/validation-tier.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/repository-governance/viewport-frame-descriptor.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/ui/apps/host.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/ui/components/frame.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/ui/components/line-input.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/ui/components/list-block.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/ui/components/list-view.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/ui/components/mouse.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/ui/components/progress-status.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/ui/components/prompt-input.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/ui/components/scrollbar.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/ui/components/selection-copy.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/ui/components/selection-scrollbar-edge.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/ui/components/shortcuts.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/ui/components/spans.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/ui/components/submitted-prompt.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/ui/components/text-selection.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/ui/components/text.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/ui/components/transcript-viewport.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/ui/components/value-menu.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/ui/components/visible-hyperlinks.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/ui/settings/declarations.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/ui/settings/resolution.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/ui/settings/sections.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/ui/settings/session.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    },
+    {
+      "path": "test/ui/settings/store.integration.test.ts",
+      "pr": [
+        {
+          "scope": "fast-remainder",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "fullAndNightly": [
+        "windows-2025/node22",
+        "windows-2025/node24",
+        "ubuntu-24.04/node24",
+        "macos-15/node24"
+      ],
+      "developmentRelease": []
+    }
+  ]
+}

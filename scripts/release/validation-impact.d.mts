@@ -1,4 +1,5 @@
 import type { NamingSelection } from "../governance/naming-source-policy.mjs";
+import type { IntegrationSelection } from "./integration-selection.mjs";
 export type RenderingImpactTier = "none" | "smoke" | "full";
 
 export interface ValidationChange {
@@ -17,6 +18,7 @@ export interface ValidationImpact {
   readonly versionOnly: boolean;
   readonly openspecTouched: boolean;
   readonly ordinaryScopes: readonly string[];
+  readonly integration: { readonly selection: IntegrationSelection; readonly dependency: unknown; readonly fallback: string | null; readonly readerStats?: unknown };
   readonly rendering: {
     readonly tier: RenderingImpactTier;
     readonly reasons: readonly string[];
@@ -36,6 +38,7 @@ export function selectValidationImpact(options?: {
   readonly base?: string;
   readonly head?: string;
   readonly includeWorktree?: boolean;
+  readonly manualNoComparison?: boolean;
 }): Promise<ValidationImpact>;
 export function assertValidationImpact(value: unknown): ValidationImpact;
 export function classifyRenderingImpact(repository: string, base: string, head: string, changes: readonly ValidationChange[]): Promise<ValidationImpact["rendering"]>;

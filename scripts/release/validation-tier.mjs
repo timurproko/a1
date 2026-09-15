@@ -68,7 +68,7 @@ export async function createTierPlan(requested, repository = process.cwd()) {
   const explicitTests = definitions.filter(({ name }) => name !== "fast-resource-sensitive")
     .flatMap(({ name, definition }) => (definition.tests ?? []).map(test => ({ test, owner: name })));
   const duplicateTests = explicitTests.filter((entry, index) => explicitTests.findIndex(candidate => candidate.test === entry.test) !== index);
-  if (duplicateTests.length > 0) throw new Error(`tests have duplicate selected owners: ${duplicateTests.map(entry => entry.test).join(", ")}`);
+  if (!full && duplicateTests.length > 0) throw new Error(`tests have duplicate selected owners: ${duplicateTests.map(entry => entry.test).join(", ")}`);
 
   const packageSmokeTests = new Set(suites.scopes["package-smoke"]?.tests ?? []);
   const packageContractTests = new Set(suites.scopes["package-contracts"]?.tests ?? []);
@@ -258,7 +258,8 @@ async function validateValidationSuites(suites, repository) {
       throw new Error(`invalid resource-sensitive test path: ${test}`);
     }
     if (excluded.has(test)) throw new Error(`resource-sensitive test overlaps fast exclusion: ${test}`);
-    if (explicitOwners.has(test)) throw new Error(`resource-sensitive test overlaps explicit scope ${explicitOwners.get(test).join(", ")}: ${test}`);
+    const incompatibleOwners = (explicitOwners.get(test) ?? []).filter(owner => !["image-compatibility", "history-compatibility", "unix-containment"].includes(owner));
+    if (incompatibleOwners.length > 0) throw new Error(`resource-sensitive test overlaps explicit scope ${incompatibleOwners.join(", ")}: ${test}`);
     try {
       if (!(await stat(resolve(repository, test))).isFile()) throw new Error("not a file");
     } catch {

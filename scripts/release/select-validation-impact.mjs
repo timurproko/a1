@@ -9,6 +9,7 @@ const selection = assertValidationImpact(await selectValidationImpact({
   base: valueAfter("--base"),
   head: valueAfter("--head") ?? "HEAD",
   includeWorktree: process.argv.includes("--include-worktree"),
+  manualNoComparison: process.argv.includes("--manual-no-comparison"),
 }));
 const serialized = `${JSON.stringify(selection, null, 2)}\n`;
 if (output) {

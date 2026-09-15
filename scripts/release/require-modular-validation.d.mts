@@ -1,0 +1,2 @@
+import type { IntegrationOwner } from "./integration-selection.mjs";
+export function requireModularValidation(options: { impact: any; owners: (IntegrationOwner & { entries: string[]; tests: string[]; support: string[] })[]; outcomes: any[]; modularResult: string; head: string; runId: string; runAttempt: number }): { mode: string; selectionId: string; selectedOwners: string[]; evidenceCount: number };

@@ -33,6 +33,7 @@ describe("integration owner registry", () => {
     const owners = await loadIntegrationOwners();
     expect(owners.map(owner => owner.id)).toEqual([
       "pi-release-resume", "package-contracts", "startup", "image-compatibility", "history-compatibility", "unix-containment",
+      "launch-integration", "update-performance", "structured-runtime", "update-predecessor",
     ]);
     const targets = Object.fromEntries(owners.map(owner => [owner.id, owner.targets.map(target => `${target.platform}-${target.architecture}-node${target.node}`)]));
     expect(targets).toEqual({
@@ -42,8 +43,12 @@ describe("integration owner registry", () => {
       "image-compatibility": ["win32-x64-node22", "linux-x64-node24", "darwin-arm64-node24"],
       "history-compatibility": ["win32-x64-node22", "linux-x64-node24", "darwin-arm64-node24"],
       "unix-containment": ["linux-x64-node24", "darwin-arm64-node24"],
+      "launch-integration": ["win32-x64-node24"],
+      "update-performance": ["win32-x64-node24"],
+      "structured-runtime": ["win32-x64-node24"],
+      "update-predecessor": ["win32-x64-node24"],
     });
-    expect(owners.every(owner => owner.development)).toBe(true);
+    expect(owners.filter(owner => !owner.development).map(owner => owner.id)).toEqual(["launch-integration", "update-performance", "structured-runtime", "update-predecessor"]);
   });
 
   it("assigns each retained integration test to one logical owner while permitting shared graph entries", async () => {
@@ -60,24 +65,15 @@ describe("integration owner registry", () => {
   it("has no duplicate selected file on one current PR platform/runtime", async () => {
     const paths = await discover(resolve("test"));
     const win24 = [
-      ...await planPaths(["typecheck", "architecture", "fast", "dist-integration"], paths),
+      ...await planPaths(["typecheck", "architecture", "fast-remainder", "dist-integration"], paths),
+      ...await planPaths(["fast-resource-sensitive"], paths),
       ...await planPaths(["pi-engine-conformance", "package-smoke", "release-update"], paths),
     ];
     const win22 = [
       ...await planPaths(["package-startup"], paths), ...await planPaths(["package-contracts"], paths),
-      "test/integrations/pi/session-ui/image-preparation.test.ts", "test/integrations/pi/session-ui/image-worker-package.test.ts",
-      ...paths.filter(path => path.startsWith("test/features/prompt-history/")),
+      ...await planPaths(["image-compatibility", "history-compatibility"], paths),
     ];
-    const unix = [
-      ...paths.filter(path => path.startsWith("test/foundation/process-containment/")),
-      "test/integrations/pi/session-ui/image-preparation.test.ts", "test/integrations/pi/session-ui/image-worker-package.test.ts",
-      ...paths.filter(path => path.startsWith("test/features/prompt-history/")),
-      ...paths.filter(path => path.startsWith("test/foundation/launch-context/")),
-      "test/foundation/release/update-transition.integration.test.ts",
-      "test/foundation/release/dependency-certification.test.ts", "test/foundation/release/dependency-layer.test.ts",
-      "test/foundation/release/restart-certification.test.ts", "test/foundation/release/release-gc.test.ts",
-      ...await planPaths(["package-smoke"], paths),
-    ];
+    const unix = await planPaths(["image-compatibility", "history-compatibility", "unix-containment", "package-smoke"], paths);
     noDuplicates("windows-node24", win24);
     noDuplicates("windows-node22", win22);
     noDuplicates("unix-node24", unix);

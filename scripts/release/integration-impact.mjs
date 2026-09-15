@@ -8,8 +8,7 @@ const MAX_CHANGES = 4096;
 
 /**
  * Convert dependency evidence and explicit test/support ownership into the
- * strict selection contract. This remains inert until a workflow and aggregate
- * consume the same selection identity.
+ * strict selection contract consumed by target resolvers and the required aggregate.
  */
 export function classifyIntegrationImpact({ base, head, changes, owners, basePolicy, headPolicy = basePolicy }) {
   assertOwners(owners);
@@ -70,7 +69,8 @@ export function selectIntegrationImpact(options) {
 export function conservativeIntegrationImpact({ base, head, owners, reason = "classifier-failure" }) {
   assertOwners(owners);
   if (!/^[0-9a-f]{40}$/u.test(base) || !/^[0-9a-f]{40}$/u.test(head)) throw new TypeError("conservative integration selection requires authoritative commits");
-  const selection = createIntegrationSelection({ base, head, ownership: selectionOwnership(owners), mode: "conservative" });
+  const decisions = owners.map(owner => ({ owner: owner.id, selected: true, reasons: [{ code: "conservative-fallback", paths: [] }] }));
+  const selection = createIntegrationSelection({ base, head, ownership: selectionOwnership(owners), mode: "conservative", decisions });
   return { selection, dependency: null, fallback: reason };
 }
 

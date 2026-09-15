@@ -83,17 +83,15 @@ describe("exact-package startup and non-timing ownership", () => {
     }
   });
 
-  it("runs fresh startup before the temporarily colocated non-timing owner and retains both outcomes", async () => {
+  it("schedules startup and non-timing package owners on separate fresh Node 22 runners", async () => {
     const workflow = parse(await readFile(".github/workflows/ci.yml", "utf8"));
-    const steps = workflow.jobs.startup.steps as Array<{ name?: string; run?: string; env?: Record<string, string>; with?: { path?: string } }>;
-    const timing = steps.findIndex(step => step.name === "Validate first-attempt exact-package startup budget");
-    const contracts = steps.findIndex(step => step.name === "Validate exact-package identity, layers, recovery, and cleanup");
-    expect(timing).toBeGreaterThan(-1);
-    expect(contracts).toBeGreaterThan(timing);
-    expect(steps[timing]!.run).toContain("package-startup");
-    expect(steps[contracts]!.run).toContain("package-contracts");
-    expect(steps[contracts]!.env).toMatchObject({ VALIDATION_BUILD_READY: "1", VALIDATION_CANDIDATE_TARBALL: "${{ github.workspace }}/.artifacts/validation/package/candidate.tgz" });
-    const upload = steps.find(step => step.name === "Upload startup budget evidence")!;
-    expect(upload.with?.path).toContain("package-contracts-node${{ matrix.node }}.json");
+    const entries = workflow.jobs.modular.strategy.matrix.include as Array<{ group: string; os: string; platform: string; node: number; defender: boolean }>;
+    expect(entries.filter(entry => ["startup", "package"].includes(entry.group))).toEqual([
+      expect.objectContaining({ group: "package", os: "windows-2025", platform: "win32", node: 22, defender: false }),
+      expect.objectContaining({ group: "startup", os: "windows-2025", platform: "win32", node: 22, defender: true }),
+    ]);
+    const run = workflow.jobs.modular.steps.find((step: { name?: string }) => step.name === "Run exact selected scopes");
+    expect(run.env).toMatchObject({ VALIDATION_SELECTION_JSON: "${{ steps.job-selection.outputs.scopes_json }}", VALIDATION_BUILD_READY: "${{ matrix.build && '1' || '0' }}" });
+    expect(run.run).toContain("outcome-${{ matrix.group }}-${{ matrix.platform }}-node${{ matrix.node }}.json");
   });
 });

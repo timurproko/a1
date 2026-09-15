@@ -7,9 +7,8 @@ const SELECT_REASONS = new Set(["reachable", "changed-test", "shared-support", "
 const EXCLUDE_REASONS = new Set(["unrelated", "not-development", "docs-only", "version-only"]);
 
 /**
- * Build an inert, complete integration decision document. No workflow may use it
- * for skips until the classifier and aggregate adopt this contract together.
- * Digests bind content, not trust: consumers must supply checkout-derived authority.
+ * Build a complete integration decision document. Digests bind content, not trust:
+ * every workflow resolver and aggregate supplies separate checkout-derived authority.
  */
 export function createIntegrationSelection({ base, head, ownership, mode = "conservative", exemption = null, decisions }) {
   assertOwnership(ownership);

@@ -130,6 +130,8 @@ jobs:
           path: |
             .artifacts/validation/full-regression.json
             .artifacts/validation/package/npm-pack-result.json
+            .artifacts/validation/package/*.receipt.json
+            .artifacts/validation/receipts/*.json
             .artifacts/validation/phases/*.jsonl
             .artifacts/release-verdicts/*.json
           if-no-files-found: warn

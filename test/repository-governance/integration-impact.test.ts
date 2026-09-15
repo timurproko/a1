@@ -86,19 +86,19 @@ describe("integration test and support ownership", () => {
 });
 
 describe("conservative integration fallback", () => {
-  it("selects development owners when manual comparison history is unavailable", () => {
+  it("selects every retained owner when manual comparison history is unavailable", () => {
     const result = selectIntegrationImpact({ baseId, headId, owners: structuredClone(owners), manualNoComparison: true });
     expect(result.fallback).toBe("manual-no-comparison");
     expect(result.selection.mode).toBe("conservative");
-    expect(result.selection.owners.map(owner => [owner.owner, owner.selected])).toEqual([["images", true], ["predecessor", false], ["startup", true]]);
+    expect(result.selection.owners.map(owner => [owner.owner, owner.selected])).toEqual([["images", true], ["predecessor", true], ["startup", true]]);
   });
 
-  it("selects development owners without leaking classifier exceptions", () => {
+  it("selects every retained owner without leaking classifier exceptions", () => {
     const result = selectIntegrationImpact({ baseId, headId, owners: structuredClone(owners), base: {} as RevisionDependencySnapshot,
       head: snapshot(headId), changes: [], basePolicy: policy });
     expect(result.fallback).toBe("classifier-failure");
     expect(JSON.stringify(result)).not.toContain("invalid dependency snapshot");
-    expect(result.selection.owners.filter(owner => owner.selected).map(owner => owner.owner)).toEqual(["images", "startup"]);
+    expect(result.selection.owners.filter(owner => owner.selected).map(owner => owner.owner)).toEqual(["images", "predecessor", "startup"]);
   });
 
   it("blocks when authoritative commit or ownership identity cannot be established", () => {

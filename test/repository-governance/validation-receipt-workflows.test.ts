@@ -9,25 +9,18 @@ function step(job: any, name: string) {
 }
 
 describe("workflow prerequisite receipts", () => {
-  it("records build identity after installation and verifies it before development reuse", async () => {
+  it("records build identity after installation and verifies it in every active build matrix cell", async () => {
     const workflow = parse(await readFile(".github/workflows/ci.yml", "utf8"));
-    for (const name of ["validate", "startup", "containment"]) {
-      const job = workflow.jobs[name];
-      const install = job.steps.findIndex((candidate: any) => candidate.run === "npm ci" || candidate.name?.includes("Install exact dependencies"));
-      const receipt = step(job, "Record verified install-time build");
-      expect(receipt.index, name).toBeGreaterThan(install);
-      expect(receipt.value.run).toBe("node scripts/release/record-validation-prerequisite.mjs build");
-      const tier = job.steps.filter((candidate: any) => candidate.run?.includes("run-validation-tier.mjs"));
-      expect(tier.length, name).toBeGreaterThan(0);
-      for (const candidate of tier) {
-        if (candidate.env?.VALIDATION_BUILD_READY === "1") expect(candidate.env.VALIDATION_BUILD_RECEIPT.replaceAll("\\", "/")).toContain(".artifacts/validation/receipts/build.json");
-      }
-    }
-    const startup = workflow.jobs.startup;
-    expect(step(startup, "Cache process guardian build").index).toBeLessThan(step(startup, "Record verified install-time build").index);
-    expect(step(startup, "Validate exact-package identity, layers, recovery, and cleanup").value.env).toMatchObject({
-      VALIDATION_PACKAGE_RECEIPT: "${{ github.workspace }}/.artifacts/validation/package/candidate.receipt.json",
-    });
+    const job = workflow.jobs.modular;
+    const install = step(job, "Install exact dependencies and build");
+    const receipt = step(job, "Record verified install-time build");
+    const run = step(job, "Run exact selected scopes");
+    expect([install.index, receipt.index, run.index]).toEqual([...new Set([install.index, receipt.index, run.index])].sort((a, b) => a - b));
+    expect(receipt.value.if).toContain("matrix.build");
+    expect(receipt.value.run).toBe("node scripts/release/record-validation-prerequisite.mjs build");
+    expect(run.value.env.VALIDATION_BUILD_RECEIPT).toContain(".artifacts/validation/receipts/build.json");
+    expect(step(job, "Cache process guardian build").index).toBeLessThan(receipt.index);
+    expect(job.strategy.matrix.include.find((entry: any) => entry.group === "startup")).toMatchObject({ node: 22, build: true, defender: true });
   });
 
   it("binds full-regression build and package receipts before the complete plan", async () => {
