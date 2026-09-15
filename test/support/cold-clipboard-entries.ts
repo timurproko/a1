@@ -1,6 +1,10 @@
 import type { WorkerOptions } from "node:worker_threads";
 
 export const emittedPasteHelper = new URL("../../dist/integrations/pi/session-ui/paste-helper.js", import.meta.url);
+
+/** Preserves an explicit helper; otherwise selects the build's real cold emitted paste helper. */
+export function coldPasteHelper(helper?: URL): URL { return helper ?? emittedPasteHelper; }
+
 const imageSource = new URL("../../src/integrations/pi/session-ui/image-worker.ts", import.meta.url);
 const clientSource = new URL("../../src/integrations/pi/session-ui/image-preparation-client.ts", import.meta.url);
 const imageBootstrap = `import('tsx/esm/api').then(({ tsImport }) => tsImport(${JSON.stringify(imageSource.href)}, ${JSON.stringify(clientSource.href)}))`;
