@@ -202,7 +202,7 @@ describe("archive orchestration and current authority", () => {
       publisherFactory: () => { throw archiveFailure("publication-app-setup"); } });
     expect(missing.results).toMatchObject([{ change: "example", disposition: "blocked", reason: "publication-app-setup", reporting: "publication-app-setup" }]);
     const audit = await reconcileArchives({ reader: f.reader, tool: {}, pr: 20, dryRun: true });
-    expect(audit.results).toMatchObject([{ change: "example", disposition: "awaiting-evidence", proposedAcceptance: true }]);
+    expect(audit.results).toMatchObject([{ change: "example", disposition: "awaiting-manual-acceptance-merge", proposedAcceptance: true }]);
     f.routes[`${f.prefix}/issues/20/comments`] = [f.comment];
     const privateError = await reconcileArchives({ reader: f.reader, tool: {}, pr: 20,
       prepare: () => { throw new Error("PRIVATE exception containing credentials"); } });

@@ -1,7 +1,7 @@
 import { archiveReaderFromGet, loadArchiveEvidence, findImplementationValidation } from "./openspec-archive-github.mjs";
 import { readArchiveMarker } from "./openspec-archive-publication.mjs";
 import { snapshotOpenSpec } from "./openspec-archive-staging.mjs";
-import { acceptanceBranch, archivedAcceptanceMatches, receiptIdentity } from "./openspec-acceptance-policy.mjs";
+import { acceptanceBranch, archivedAcceptanceMatches, receiptIdentityMatches } from "./openspec-acceptance-policy.mjs";
 import { SHA } from "./openspec-archive-policy.mjs";
 import { digest, fail } from "./local-cleanup-state.mjs";
 
@@ -72,7 +72,7 @@ export async function verifyCleanupEvidence(reader, entry) {
     || marker.sourceBodyDigest !== digest(source.pull.body) || marker.acceptanceId !== source.acceptance.id
     || marker.acceptanceDigest !== source.acceptance.bodyDigest || marker.acceptanceAuthor !== source.acceptance.author
     || marker.acceptanceCreatedAt !== source.acceptance.createdAt || marker.validationRunId !== source.validation.runId
-    || JSON.stringify(marker.acceptanceReceipt ?? null) !== JSON.stringify(receiptIdentity(source.acceptance))) fail("archive-provenance");
+    || !receiptIdentityMatches(marker.acceptanceReceipt ?? null, source.acceptance)) fail("archive-provenance");
   const commit = await reader.get(`${reader.prefix}/git/commits/${archive.head.sha}`);
   const { generatedHead, ...declared } = marker;
   if (JSON.stringify(readArchiveMarker(commit.message)) !== JSON.stringify(declared)

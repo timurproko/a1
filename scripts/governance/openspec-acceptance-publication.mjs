@@ -4,39 +4,14 @@ import { snapshotOpenSpec } from "./openspec-archive-staging.mjs";
 import { acceptancePulls, inspectAcceptanceCandidate, verifyAcceptanceRecord } from "./openspec-acceptance-github.mjs";
 import { acceptancePath, acceptanceBranch, acceptanceBytes, acceptanceBlockers, parseAcceptanceRecord, digest,
   requireAcceptance } from "./openspec-acceptance-policy.mjs";
+import { acceptancePullBody, acceptancePullTitle } from "./openspec-acceptance-checklist.mjs";
+export { acceptancePullBody, acceptancePullTitle } from "./openspec-acceptance-checklist.mjs";
 
 const markerText = marker => `\`\`\`openspec-acceptance-request\n${JSON.stringify(marker, null, 2)}\n\`\`\``;
-const display = value => String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll("`", "\\`");
-const conventionalTitle = /^(?:feature|fix|refactor|docs|test|chore|style)(?:\([^\r\n)]*\))?!?:\s*/i;
-function sourceSubject(sourceTitle, fallback) {
-  const title = typeof sourceTitle === "string" ? sourceTitle.trim() : "";
-  return (title.replace(conventionalTitle, "").trim() || fallback).replaceAll(/\s+/g, " ");
-}
-export function acceptancePullTitle(record, sourceTitle) {
-  return `#${record.sourcePr}(accept): ${sourceSubject(sourceTitle, record.change)}`;
-}
 function markerFor(record, targetSha) {
   return { version: 1, change: record.change, sourcePr: record.sourcePr, sourceHead: record.sourceHead,
     targetSha, recordPath: acceptancePath(record), recordDigest: digest(acceptanceBytes(record)) };
 }
-export function acceptancePullBody(record, sourceTitle) {
-  const base = `https://github.com/${record.repository}`;
-  const subject = display(sourceSubject(sourceTitle, record.change));
-  const items = [
-    `Review [#${record.sourcePr}: ${subject}](${base}/pull/${record.sourcePr}) and verify the implementation behaves as intended.`,
-    "Confirm the implementation's required CI and recorded evidence match the reviewed result.",
-    ...record.tasks.filter(task => task.completion === "pending")
-      .map(task => `Verify task ${task.id}: ${display(task.text).replaceAll("\n", "<br>")}`),
-    ...(record.review.gaps.length
-      ? record.review.gaps.map(gap => `Resolve or explicitly disposition this known gap: ${display(gap)}`)
-      : ["Confirm there are no unresolved known gaps."]),
-    "Confirm the OpenSpec requirements and synchronization outcome are correct.",
-    "Manually merge this PR to record acceptance; do not enable auto-merge.",
-  ];
-  if (!record.validation) items.splice(1, 0, "Obtain successful required CI for the exact implementation head.");
-  return items.map(item => `- [ ] ${item}`).join("\n");
-}
-
 /** Add-only Git objects and refs: no force pushes, reviewer edits, merges, or settings mutations. */
 export async function publishAcceptanceRequest({ reader, publisher, source, candidate, dryRun = false, retryClosed = false }) {
   let record = candidate.record;
