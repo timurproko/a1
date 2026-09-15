@@ -1,0 +1,63 @@
+{
+  "schema": "a1-integration-dependencies-v1",
+  "emittedRoot": "dist",
+  "sourceRoot": "src",
+  "invalidators": [
+    "package.json",
+    "package-lock.json",
+    "tsconfig.json",
+    "tsconfig.build.json",
+    "vitest.config.ts",
+    "config/",
+    "config/validation-suites.json",
+    "config/integration-dependencies.json",
+    "config/integration-owners.json",
+    "scripts/clean.mjs",
+    "bin/sync-pi-tui-proxy.js",
+    ".npmrc",
+    ".github/workflows/",
+    "scripts/release/",
+    "scripts/development/",
+    "native/"
+  ],
+  "unrelated": [
+    "docs/",
+    "openspec/",
+    "scripts/governance/",
+    "scripts/prune-merged-branches.mjs",
+    "test/repository-governance/"
+  ],
+  "generated": [
+    {
+      "output": "dist/native/",
+      "inputs": ["native/process-guardian/", "scripts/development/build-process-guardian.mjs"]
+    },
+    {
+      "output": "dist/runtime-payload-inventory.json",
+      "inputs": ["src/", "bin/", "package.json", "package-lock.json", "scripts/release/generate-runtime-payload-inventory.mjs"]
+    }
+  ],
+  "reviewed": [
+    {
+      "path": "src/integrations/pi/session-ui/image-preparation-client.ts",
+      "sha256": "0cf8b2a6a54d20a59c514468457b8f566ad2c02c30b5a7f8d6594abef5ef5290",
+      "edges": ["src/integrations/pi/session-ui/image-worker.ts", "package.json", "package-lock.json"],
+      "handles": ["computed-import", "worker"],
+      "reason": "Both source-tsx and emitted worker branches name the same sibling image-worker; package metadata owns the tsx loader. Other unresolved operations remain conservative."
+    },
+    {
+      "path": "src/features/prompt-history/service.ts",
+      "sha256": "6372683e5a6a9bf16f73f016c9ad4c9607463e370ca39b537efc905b2e68eb12",
+      "edges": ["src/features/prompt-history/worker.ts", "package.json", "package-lock.json"],
+      "handles": ["computed-import", "worker"],
+      "reason": "Source-tsx and emitted worker branches name the history worker sibling; injected test factories remain caller-owned. Package metadata owns the tsx loader."
+    },
+    {
+      "path": "src/integrations/pi/session-ui/paste-helper.ts",
+      "sha256": "bedf3a97c33f3f04b7b82bd1de6288b9f589203d869377a65d7e160a44a05236",
+      "edges": ["src/integrations/pi/session-ui/paste-text-worker.ts", "src/integrations/pi/session-ui/image-worker.ts", "package.json", "package-lock.json"],
+      "handles": ["computed-import", "worker"],
+      "reason": "The private worker factory has two literal callers: paste-text-worker and image-worker. Both source-tsx and emitted branches are covered; package inputs own loader changes."
+    }
+  ]
+}

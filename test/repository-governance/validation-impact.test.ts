@@ -38,6 +38,12 @@ async function fixtureRepository() {
   await put(repository, "src/rendered.ts", "export * from './leaf.js';\n");
   await put(repository, "src/leaf.ts", "export const leaf = 1;\n");
   await put(repository, "src/unrelated.ts", "export const unrelated = 1;\n");
+  await put(repository, "config/integration-owners.json", JSON.stringify({ schema: "a1-integration-owner-registry-v1", owners: [{
+    id: "fixture", scopes: ["fixture"], targets: [{ platform: "win32", architecture: "x64", node: 24 }], development: true,
+    entries: ["test/support/rendering/rendering-producer-worker.ts"], tests: [], support: [],
+  }] }));
+  await put(repository, "config/integration-dependencies.json", JSON.stringify({ schema: "a1-integration-dependencies-v1", emittedRoot: "dist", sourceRoot: "src", invalidators: ["config/"], unrelated: ["docs/", "test/repository-governance/"], generated: [], reviewed: [] }));
+  await put(repository, "package.json", JSON.stringify({ name: "@fixture/impact" }));
   const base = await commit(repository, "base");
   return { repository, base };
 }

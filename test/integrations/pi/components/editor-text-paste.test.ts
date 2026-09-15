@@ -19,6 +19,7 @@ async function fixture(history: boolean, fallback = false, isolated = false) {
   const chips = new PromptChipStore({ isolated });
   const copied: string[] = [], submitted: string[] = [], errors: unknown[] = [];
   let read: () => Promise<PiShellClipboardContent | null> = async () => ({ kind: "text", text: payload });
+  let latestPaste: Promise<string> | undefined;
   let editor!: PiShellEditorPort;
   editor = createPiShellEditor({
     keybindingProfile: "a1", agentDir: directory, cwd: directory,
@@ -27,7 +28,11 @@ async function fixture(history: boolean, fallback = false, isolated = false) {
     onSubmit: text => submitted.push(chips.prepareSubmission(text).text),
     ...(isolated ? { onChange: () => queueMicrotask(() => chips.reconcileDraft(editor.getText())) } : {}),
     onCopyText: text => copied.push(text), readClipboardContent: () => read(),
-    ...(fallback ? {} : { beginClipboardPaste: () => chips.beginPaste(editor.getText(), () => read(), () => {}) }),
+    ...(fallback ? {} : { beginClipboardPaste: () => {
+      const paste = chips.beginPaste(editor.getText(), () => read(), () => {});
+      latestPaste = paste.result;
+      return paste;
+    } }),
     ...(isolated ? { beginTextPaste: (text: string) => chips.beginPaste(editor.getText(), { kind: "text", text }, error => errors.push(error)),
       onPasteRejected: (error: unknown) => errors.push(error) } : {}),
     transformPastedContent: content => chips.transformPastedContent(content),
@@ -41,6 +46,10 @@ async function fixture(history: boolean, fallback = false, isolated = false) {
     input: (data: string) => editor.handleInput?.(data),
     read: (value: () => Promise<PiShellClipboardContent | null>) => { read = value; },
     text: () => chips.prepareSubmission(editor.getText()).text,
+    settlePaste: async () => {
+      if (latestPaste === undefined) throw new Error("paste reservation was not created");
+      await latestPaste;
+    },
     dispose: async () => { editor.cancelPendingPastes?.(); await chips.dispose(); await rm(directory, { recursive: true, force: true }); },
   };
 }
@@ -86,7 +95,8 @@ describe.each([false, true])("isolated terminal paste with history=%s", history 
       expect(test.editor.getText()).toBe(reservation);
       await vi.waitFor(() => expect(resolve).toBeDefined());
       resolve({ kind: "text", text: "new paste" });
-      await vi.waitFor(() => expect(test.editor.getText()).toBe("anew paste"));
+      await test.settlePaste();
+      expect(test.editor.getText()).toBe("anew paste");
     } finally { await test.dispose(); }
   });
 

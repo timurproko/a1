@@ -15,6 +15,7 @@ interface SuiteDefinition {
   exclude?: string[];
   includeRoot?: string;
   resourceSensitiveTests?: string[];
+  requiresBuild?: boolean;
 }
 
 interface SuiteManifest {
@@ -36,7 +37,7 @@ async function discoverTests(directory: string): Promise<string[]> {
 }
 
 describe("validation suite ownership", () => {
-  it("assigns every retained test to exactly one executable owner", async () => {
+  it("assigns every retained test one primary owner plus only reviewed cross-runtime owners", async () => {
     const suites = JSON.parse(await readFile("config/validation-suites.json", "utf8")) as SuiteManifest;
     const tests = await discoverTests(resolve("test"));
     const explicitOwners = new Map<string, string[]>();
@@ -48,16 +49,21 @@ describe("validation suite ownership", () => {
       }
     }
 
-    const exclusions = new Set(suites.tiers["fast"]!.exclude ?? []);
+    const exclusions = new Set([
+      ...suites.scopes["fast-remainder"]!.exclude ?? [],
+      ...suites.scopes["fast-resource-sensitive"]!.tests ?? [],
+    ]);
     const ownership = tests.map(test => ({
       test,
       owners: [
-        ...(!exclusions.has(test) ? ["fast"] : []),
+        ...(!exclusions.has(test) ? ["fast-remainder"] : []),
         ...(explicitOwners.get(test) ?? []),
       ],
     }));
 
-    expect(ownership.filter(entry => entry.owners.length !== 1)).toEqual([]);
+    const crossRuntime = new Set(["image-compatibility", "history-compatibility", "unix-containment"]);
+    expect(ownership.filter(entry => entry.owners.filter(owner => !crossRuntime.has(owner)).length !== 1)).toEqual([]);
+    expect(ownership.flatMap(entry => entry.owners.slice(1).filter(owner => !crossRuntime.has(owner)).map(owner => ({ test: entry.test, owner })))).toEqual([]);
     expect([...explicitOwners.keys()].filter(test => !tests.includes(test))).toEqual([]);
   });
 
@@ -69,7 +75,13 @@ describe("validation suite ownership", () => {
     expect(Object.keys(suites.releaseContracts)).toHaveLength(11);
     expect(Object.values(suites.releaseContracts).filter(owner => !declaredOwners.has(owner))).toEqual([]);
     expect(releaseSource).toContain("Object.entries(suites.releaseContracts)");
-    const included = new Set(suites.tiers["full-release"]!.includes);
+    const included = new Set<string>();
+    const addComposition = (owner: string) => {
+      included.add(owner);
+      const definition = suites.tiers[owner] ?? suites.scopes[owner];
+      for (const child of definition?.includes ?? []) addComposition(child);
+    };
+    for (const owner of suites.tiers["full-release"]!.includes ?? []) addComposition(owner);
     const superseded = new Set(Object.entries(suites.fullReleaseSupersedes).flatMap(([owner, values]) => {
       expect(included.has(owner)).toBe(true);
       return values;
@@ -88,7 +100,9 @@ describe("validation suite ownership", () => {
         arguments: ["--yes", "@fission-ai/openspec@1.8.0", "validate", "--all", "--strict", "--no-interactive"],
       }],
     });
-    expect(suites.tiers["fast"]!.resourceSensitiveTests).toEqual([
+    expect(suites.tiers["fast"]).toEqual({ kind: "composition", includes: ["fast-remainder", "fast-resource-sensitive"] });
+    expect(suites.scopes["fast-resource-sensitive"]!.requiresBuild).toBe(true);
+    expect(suites.scopes["fast-resource-sensitive"]!.tests).toEqual([
       "test/repository-governance/validation-impact.test.ts",
       "test/repository-governance/naming-selection.test.ts",
       "test/foundation/launch-context/cutover.test.ts",
@@ -102,9 +116,16 @@ describe("validation suite ownership", () => {
       "test/features/prompt-history/store.test.ts",
       "test/integrations/pi/session-ui/command-message-parity.test.ts",
       "test/integrations/pi/session-ui/command-outcome-parity.test.ts",
+      "test/integrations/pi/session-ui/session-shell.test.ts",
+      "test/integrations/pi/session-ui/paste-executor.test.ts",
+      "test/integrations/pi/session-ui/clipboard-executor-lifecycle.test.ts",
+      "test/integrations/pi/session-ui/clipboard-packaged.test.ts",
+      "test/integrations/pi/components/editor-text-paste.test.ts",
+      "test/integrations/pi/session-ui/prompt-history-controller.test.ts",
+      "test/foundation/release/update-activation.test.ts",
     ]);
     expect(Object.keys(suites.tiers["fast"]!).filter(key => key.toLowerCase().includes("timeout"))).toEqual([]);
-    expect(suites.tiers["fast"]!.exclude).toContain("test/repository-governance/release-command.test.ts");
+    expect(suites.scopes["fast-remainder"]!.exclude).toContain("test/repository-governance/release-command.test.ts");
     expect(suites.scopes["release-update"]!.tests).toContain("test/repository-governance/release-command.test.ts");
     expect(suites.scopes["typecheck"]!.commands?.map(command => command.id)).toEqual(["typecheck"]);
     expect(suites.scopes["architecture"]!.commands?.map(command => command.id)).toEqual(["architecture"]);
@@ -112,8 +133,8 @@ describe("validation suite ownership", () => {
       "test/foundation/release/package-surface.test.ts",
       "test/foundation/release/session-resume.integration.test.ts",
     ]);
-    expect(suites.scopes["package-install"]!.tests).toEqual([
-      "test/foundation/release/package-install.integration.test.ts",
-    ]);
+    expect(suites.scopes["package-install"]).toEqual({ kind: "composition", includes: ["package-contracts", "package-startup"] });
+    expect(suites.scopes["package-contracts"]!.tests).toEqual(["test/foundation/release/package-install.integration.test.ts"]);
+    expect(suites.scopes["package-startup"]!.tests).toEqual(["test/foundation/release/package-startup.integration.test.ts"]);
   });
 });

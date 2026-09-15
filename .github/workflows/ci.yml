@@ -82,14 +82,17 @@ jobs:
         if: steps.route.outputs.acceptance_only != 'true'
         shell: bash
         env:
+          EVENT_NAME: ${{ github.event_name }}
           EVENT_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
           EVENT_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
           base_args=()
+          manual_args=()
           if [ -n "$EVENT_BASE_SHA" ]; then base_args=(--base "$EVENT_BASE_SHA"); fi
+          if [ "$EVENT_NAME" != "pull_request" ]; then manual_args=(--manual-no-comparison); fi
           node scripts/release/select-validation-impact.mjs \
-            "${base_args[@]}" \
+            "${base_args[@]}" "${manual_args[@]}" \
             --head "$EVENT_HEAD_SHA" \
             --output .artifacts/validation/impact.json \
             > "$RUNNER_TEMP/impact.json"
@@ -112,8 +115,10 @@ jobs:
           console.log(`Head: \`${value.head}\``);
           console.log(`Rendering: **${value.rendering.tier}**`);
           console.log(`Documentation files: **${value.documentation.paths.length}**`);
-          console.log(`Classifier: **${value.timing.classifierMs}ms**\n`);
-          for (const reason of [...value.rendering.reasons, ...value.rendering.fallbacks].slice(0, 20)) console.log(`- ${reason}`);
+          console.log(`Classifier: **${value.timing.classifierMs}ms**`);
+          console.log(`Integration mode: **${value.integration.selection.mode}**; selection: \`${value.integration.selection.selectionId}\`\n`);
+          for (const owner of value.integration.selection.owners) console.log(`- ${owner.owner}: **${owner.selected ? "selected" : "excluded"}** (${owner.reasons.map(reason => reason.code).join(", ")})`);
+          for (const reason of [...value.rendering.reasons, ...value.rendering.fallbacks].slice(0, 20)) console.log(`- rendering: ${reason}`);
           NODE
 
       - name: Upload exact impact selection
@@ -303,17 +308,31 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
-  validate:
-    name: Fast validation
+  modular:
+    name: ${{ matrix.label }}
     needs: changes
     if: needs.changes.outputs.acceptance-only != 'true' && needs.changes.outputs.docs-only != 'true' && needs.changes.outputs.version-only != 'true'
-    runs-on: windows-2025
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { group: fast, label: Fast remainder and repository gates, os: windows-2025, platform: win32, architecture: x64, node: 24, build: true, guardian: true, defender: false, binary: process-guardian.exe }
+          - { group: resource, label: Resource-sensitive fast partition, os: windows-2025, platform: win32, architecture: x64, node: 24, build: false, guardian: false, defender: false, binary: process-guardian.exe }
+          - { group: pi, label: Pi release and resume integration, os: windows-2025, platform: win32, architecture: x64, node: 24, build: true, guardian: false, defender: false, binary: process-guardian.exe }
+          - { group: promoted, label: Changed full-only integration owners, os: windows-2025, platform: win32, architecture: x64, node: 24, build: true, guardian: false, defender: false, binary: process-guardian.exe }
+          - { group: package, label: Exact-package contracts, os: windows-2025, platform: win32, architecture: x64, node: 22, build: true, guardian: false, defender: false, binary: process-guardian.exe }
+          - { group: startup, label: First-attempt startup budget, os: windows-2025, platform: win32, architecture: x64, node: 22, build: true, guardian: false, defender: true, binary: process-guardian.exe }
+          - { group: compatibility, label: Image and history compatibility, os: windows-2025, platform: win32, architecture: x64, node: 22, build: true, guardian: false, defender: false, binary: process-guardian.exe }
+          - { group: containment, label: Unix integration (Linux), os: ubuntu-24.04, platform: linux, architecture: x64, node: 24, build: true, guardian: true, defender: false, binary: process-guardian }
+          - { group: containment, label: Unix integration (macOS), os: macos-15, platform: darwin, architecture: arm64, node: 24, build: true, guardian: true, defender: false, binary: process-guardian }
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     steps:
-      - name: Start ordinary timing
+      - name: Start job timing
         shell: bash
         run: echo "VALIDATION_JOB_STARTED_MS=$(node -e 'process.stdout.write(String(Date.now()))')" >> "$GITHUB_ENV"
       - name: Preserve repository bytes during checkout
+        if: runner.os == 'Windows'
         shell: bash
         run: git config --global core.autocrlf false
       - name: Check out validation head
@@ -325,81 +344,18 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
-          node-version: 24
-          cache: npm
-      - name: Cache process guardian build
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
-        with:
-          workspaces: native/process-guardian
-      - name: Install exact dependencies
-        run: npm ci
-      - name: Build process guardian fixture artifact
-        shell: bash
-        run: cargo build --locked --manifest-path native/process-guardian/Cargo.toml
-      - name: Run ordinary validation
-        shell: bash
-        env:
-          VALIDATION_SELECTION_JSON: '["typecheck","architecture","fast","dist-integration"]'
-          A1_CONFIG_DIR: ${{ runner.temp }}\a1-ci-config
-          A1_DATA_DIR: ${{ runner.temp }}\a1-ci-data
-          A1_RUNTIME_DIR: ${{ runner.temp }}\a1-ci-runtime
-          A1_PROCESS_GUARDIAN_PATH: ${{ github.workspace }}\native\process-guardian\target\debug\process-guardian.exe
-          RUN_PROCESS_CONTAINMENT_INTEGRATION: "1"
-        run: node scripts/release/run-validation-tier.mjs --result .artifacts/validation/outcomes.json
-      - name: Verify Pi restoration and exact-package resume separately from fast tests
-        shell: bash
-        env:
-          VALIDATION_BUILD_READY: "1"
-        run: node scripts/release/run-validation-tier.mjs pi-engine-conformance package-smoke release-update --result .artifacts/validation/resume-integration.json
-      - name: Upload resume integration evidence
-        if: always()
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
-        with:
-          name: development-resume-integration
-          path: .artifacts/validation/resume-integration.json
-          if-no-files-found: warn
-          retention-days: 14
-      - name: Add ordinary timing summary
-        if: always()
-        shell: bash
-        run: |
-          if [ -f .artifacts/validation/outcomes.json ]; then
-            node --input-type=module <<'NODE' >> "$GITHUB_STEP_SUMMARY"
-          import { readFile } from "node:fs/promises";
-          const result = JSON.parse(await readFile(".artifacts/validation/outcomes.json", "utf8"));
-          const setup = Math.max(0, result.startedAt - Number(process.env.VALIDATION_JOB_STARTED_MS));
-          console.log(`Setup: **${(setup / 1000).toFixed(2)}s**; repository gates: **${((result.completedAt - result.startedAt) / 1000).toFixed(2)}s**\n`);
-          console.log("| Gate | Seconds | Result |\n| --- | ---: | --- |");
-          for (const outcome of result.outcomes) console.log(`| ${outcome.id} | ${(outcome.durationMs / 1000).toFixed(2)} | ${outcome.exitCode === 0 ? outcome.skipped ?? "passed" : "failed"} |`);
-          NODE
-          fi
-
-  startup:
-    name: Startup budget (windows-node${{ matrix.node }})
-    needs: changes
-    if: needs.changes.outputs.acceptance-only != 'true' && needs.changes.outputs.docs-only != 'true' && needs.changes.outputs.version-only != 'true'
-    strategy:
-      fail-fast: false
-      max-parallel: 1
-      matrix:
-        node: [22]
-    runs-on: windows-2025
-    timeout-minutes: 20
-    steps:
-      - name: Preserve repository bytes during checkout
-        shell: bash
-        run: git config --global core.autocrlf false
-      - name: Check out validation head
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
-        with:
-          ref: ${{ needs.changes.outputs.head-sha }}
-          persist-credentials: false
-      - name: Set up Node
-        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
-        with:
           node-version: ${{ matrix.node }}
           cache: npm
+      - name: Download exact impact selection
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: development-validation-impact
+          path: .artifacts/validation
+      - name: Resolve this target from the trusted selection
+        id: job-selection
+        run: node scripts/release/resolve-validation-job.mjs --impact .artifacts/validation/impact.json --job ${{ matrix.group }} --platform ${{ matrix.platform }} --architecture ${{ matrix.architecture }} --node ${{ matrix.node }}
       - name: Enable Defender real-time protection for startup acceptance
+        if: steps.job-selection.outputs.active == 'true' && matrix.defender
         shell: powershell
         run: |
           $ErrorActionPreference = "Stop"
@@ -411,27 +367,88 @@ jobs:
             Start-Sleep -Seconds 1
           } while ((Get-Date) -lt $deadline)
           if (-not $enabled) { throw "Windows Defender real-time protection could not be enabled" }
+      - name: Cache process guardian build
+        if: steps.job-selection.outputs.active == 'true' && matrix.build
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          workspaces: native/process-guardian
+      - name: Install exact analysis dependencies
+        if: steps.job-selection.outputs.active == 'true' && !matrix.build
+        run: npm ci --ignore-scripts
       - name: Install exact dependencies and build
+        if: steps.job-selection.outputs.active == 'true' && matrix.build
         run: npm ci
-      - name: Validate first-attempt exact-package startup budget
+      - name: Record verified install-time build
+        if: steps.job-selection.outputs.active == 'true' && matrix.build
+        run: node scripts/release/record-validation-prerequisite.mjs build
+      - name: Build process guardian fixture artifact
+        if: steps.job-selection.outputs.active == 'true' && matrix.guardian
+        shell: bash
+        run: |
+          cargo build --locked --manifest-path native/process-guardian/Cargo.toml
+          echo "A1_PROCESS_GUARDIAN_PATH=${{ github.workspace }}/native/process-guardian/target/debug/${{ matrix.binary }}" >> "$GITHUB_ENV"
+      - name: Run exact selected scopes
+        if: steps.job-selection.outputs.active == 'true'
         shell: bash
         env:
-          VALIDATION_BUILD_READY: "1"
-          A1_CONFIG_DIR: ${{ runner.temp }}\a1-startup-config
-          A1_DATA_DIR: ${{ runner.temp }}\a1-startup-data
-          A1_RUNTIME_DIR: ${{ runner.temp }}\a1-startup-runtime
+          VALIDATION_SELECTION_JSON: ${{ steps.job-selection.outputs.scopes_json }}
+          VALIDATION_BUILD_READY: ${{ matrix.build && '1' || '0' }}
+          VALIDATION_BUILD_RECEIPT: ${{ github.workspace }}/.artifacts/validation/receipts/build.json
+          VALIDATION_HEAD: ${{ steps.job-selection.outputs.head }}
+          VALIDATION_SELECTION_ID: ${{ steps.job-selection.outputs.selection_id }}
+          VALIDATION_RUN_ID: ${{ github.run_id }}
+          VALIDATION_RUN_ATTEMPT: ${{ github.run_attempt }}
+          VALIDATION_JOB_ID: ${{ matrix.group }}
+          VALIDATION_TARGET_PLATFORM: ${{ matrix.platform }}
+          VALIDATION_TARGET_ARCHITECTURE: ${{ matrix.architecture }}
+          VALIDATION_TARGET_NODE: ${{ matrix.node }}
+          VALIDATION_OWNERS_JSON: ${{ steps.job-selection.outputs.owners_json }}
+          VALIDATION_CACHE_STATE: setup-node-download-cache
+          A1_CONFIG_DIR: ${{ runner.temp }}/a1-${{ matrix.group }}-config
+          A1_DATA_DIR: ${{ runner.temp }}/a1-${{ matrix.group }}-data
+          A1_RUNTIME_DIR: ${{ runner.temp }}/a1-${{ matrix.group }}-runtime
+          RUN_PROCESS_CONTAINMENT_INTEGRATION: "1"
           STARTUP_PERFORMANCE_RESULT: .artifacts/validation/startup-node${{ matrix.node }}-performance.json
-        run: node scripts/release/run-validation-tier.mjs package-install --result .artifacts/validation/startup-node${{ matrix.node }}.json
-      - name: Validate background and packaged image preparation
-        run: npx vitest run test/integrations/pi/session-ui/image-preparation.test.ts test/integrations/pi/session-ui/image-worker-package.test.ts --maxWorkers=1 --minWorkers=1
-      - name: Validate durable history on the selected Node runtime
-        run: npx vitest run test/features/prompt-history --maxWorkers=1 --minWorkers=1
-      - name: Upload startup budget evidence
+        run: node scripts/release/run-validation-tier.mjs --result .artifacts/validation/outcome-${{ matrix.group }}-${{ matrix.platform }}-node${{ matrix.node }}.json
+      - name: Add modular timing summary
+        if: always() && steps.job-selection.outputs.active == 'true'
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE' >> "$GITHUB_STEP_SUMMARY"
+          import { readFile } from "node:fs/promises";
+          const result = JSON.parse(await readFile(`.artifacts/validation/outcome-${process.env.GROUP}-${process.env.PLATFORM}-node${process.env.NODE_VERSION}.json`, "utf8"));
+          const setup = Math.max(0, result.startedAt - Number(process.env.VALIDATION_JOB_STARTED_MS));
+          console.log(`Setup: **${(setup / 1000).toFixed(2)}s**; gates: **${((result.completedAt - result.startedAt) / 1000).toFixed(2)}s**; invocations: **${result.outcomes.length}**.`);
+          NODE
+        env:
+          GROUP: ${{ matrix.group }}
+          PLATFORM: ${{ matrix.platform }}
+          NODE_VERSION: ${{ matrix.node }}
+      - name: Complete content-free job envelope
+        if: always()
+        shell: bash
+        env:
+          GROUP: ${{ matrix.group }}
+          PLATFORM: ${{ matrix.platform }}
+          ARCHITECTURE: ${{ matrix.architecture }}
+          NODE_VERSION: ${{ matrix.node }}
+          SELECTED_HEAD: ${{ needs.changes.outputs.head-sha }}
+          JOB_STATUS: ${{ job.status }}
+          ACTIVE: ${{ steps.job-selection.outputs.active || 'unknown' }}
+        run: node -e 'const fs=require("fs"),p=`.artifacts/validation/job-envelope-${process.env.GROUP}-${process.env.PLATFORM}-node${process.env.NODE_VERSION}.json`,x={schema:"a1-validation-job-envelope-v1",head:process.env.SELECTED_HEAD,runId:process.env.GITHUB_RUN_ID,runAttempt:Number(process.env.GITHUB_RUN_ATTEMPT),job:process.env.GROUP,platform:process.env.PLATFORM,architecture:process.env.ARCHITECTURE,node:Number(process.env.NODE_VERSION),startedAt:Number(process.env.VALIDATION_JOB_STARTED_MS),completedAt:Date.now(),status:process.env.JOB_STATUS,active:process.env.ACTIVE};fs.mkdirSync(".artifacts/validation",{recursive:true});fs.writeFileSync(p,JSON.stringify(x,null,2)+"\n")'
+      - name: Upload modular outcome and fixture phases
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
-          name: development-startup-node${{ matrix.node }}
-          path: .artifacts/validation/startup-node${{ matrix.node }}*.json
+          name: development-validation-outcome-${{ matrix.group }}-${{ matrix.platform }}-node${{ matrix.node }}
+          path: |
+            .artifacts/validation/job-envelope-*.json
+            .artifacts/validation/outcome-*.json
+            .artifacts/validation/startup-node*-performance.json
+            .artifacts/validation/package/npm-pack-result.json
+            .artifacts/validation/package/*.receipt.json
+            .artifacts/validation/receipts/*.json
+            .artifacts/validation/phases/*.jsonl
           if-no-files-found: warn
           retention-days: 14
 
@@ -489,63 +506,10 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
-  containment:
-    name: Process containment (${{ matrix.os }})
-    needs: changes
-    if: needs.changes.outputs.acceptance-only != 'true' && needs.changes.outputs.docs-only != 'true' && needs.changes.outputs.version-only != 'true'
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-24.04
-            binary: process-guardian
-          - os: macos-15
-            binary: process-guardian
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 15
-    steps:
-      - name: Check out validation head
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
-        with:
-          ref: ${{ needs.changes.outputs.head-sha }}
-          persist-credentials: false
-      - name: Set up Node
-        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
-        with:
-          node-version: 24
-          cache: npm
-      - name: Cache process guardian build
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
-        with:
-          workspaces: native/process-guardian
-      - run: npm ci
-      - shell: bash
-        run: cargo build --locked --manifest-path native/process-guardian/Cargo.toml
-      - shell: bash
-        env:
-          A1_PROCESS_GUARDIAN_PATH: ${{ github.workspace }}/native/process-guardian/target/debug/${{ matrix.binary }}
-          RUN_PROCESS_CONTAINMENT_INTEGRATION: "1"
-        run: npx vitest run test/foundation/process-containment --testTimeout=30000
-      - name: Validate background and packaged image preparation
-        run: npx vitest run test/integrations/pi/session-ui/image-preparation.test.ts test/integrations/pi/session-ui/image-worker-package.test.ts --maxWorkers=1 --minWorkers=1
-      - name: Validate durable history on Unix
-        run: npx vitest run test/features/prompt-history --maxWorkers=1 --minWorkers=1
-      - name: Validate the current private contract on Unix
-        run: npx vitest run test/foundation/launch-context test/foundation/release/update-transition.integration.test.ts --maxWorkers=1 --minWorkers=1
-      - name: Validate dependency certification migration on Unix
-        run: npx vitest run test/foundation/release/dependency-certification.test.ts test/foundation/release/dependency-layer.test.ts test/foundation/release/restart-certification.test.ts test/foundation/release/release-gc.test.ts --maxWorkers=1 --minWorkers=1
-      - name: Validate packaged Unix supervision and containment
-        shell: bash
-        env:
-          A1_CONFIG_DIR: ${{ runner.temp }}/a1-development-config
-          A1_DATA_DIR: ${{ runner.temp }}/a1-development-data
-          A1_RUNTIME_DIR: ${{ runner.temp }}/a1-development-runtime
-        run: node scripts/release/run-validation-tier.mjs package-smoke
-
   required:
     name: Development validation required
     if: always() && (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
-    needs: [changes, acceptance, docs, naming, documentation, validate, startup, rendering, containment]
+    needs: [changes, acceptance, docs, naming, documentation, modular, rendering]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -571,10 +535,8 @@ jobs:
           NAMING_REQUIRED: ${{ needs.changes.outputs.naming-required }}
           NAMING_HEAD: ${{ needs.naming.outputs.head-sha }}
           DOCUMENTATION_RESULT: ${{ needs.documentation.result }}
-          VALIDATE_RESULT: ${{ needs.validate.result }}
+          MODULAR_RESULT: ${{ needs.modular.result }}
           RENDERING_RESULT: ${{ needs.rendering.result }}
-          CONTAINMENT_RESULT: ${{ needs.containment.result }}
-          STARTUP_RESULT: ${{ needs.startup.result }}
           DOCS_ONLY: ${{ needs.changes.outputs.docs-only }}
           VERSION_ONLY: ${{ needs.changes.outputs.version-only }}
           OPENSPEC_TOUCHED: ${{ needs.changes.outputs.openspec-touched }}
@@ -583,3 +545,32 @@ jobs:
           SELECTED_HEAD: ${{ needs.changes.outputs.head-sha }}
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: node scripts/release/require-development-validation.mjs
+      - name: Download exact impact selection
+        if: needs.changes.outputs.acceptance-only != 'true' && needs.changes.outputs.docs-only != 'true' && needs.changes.outputs.version-only != 'true'
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: development-validation-impact
+          path: .artifacts/validation
+      - name: Download all modular outcomes
+        if: needs.changes.outputs.acceptance-only != 'true' && needs.changes.outputs.docs-only != 'true' && needs.changes.outputs.version-only != 'true'
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          pattern: development-validation-outcome-*
+          path: .artifacts/validation/outcomes
+          merge-multiple: true
+      - name: Require exact selected owner outcomes
+        if: needs.changes.outputs.acceptance-only != 'true' && needs.changes.outputs.docs-only != 'true' && needs.changes.outputs.version-only != 'true'
+        env:
+          VALIDATION_HEAD: ${{ needs.changes.outputs.head-sha }}
+          VALIDATION_MODULAR_RESULT: ${{ needs.modular.result }}
+          VALIDATION_IMPACT: .artifacts/validation/impact.json
+          VALIDATION_OUTCOMES_DIR: .artifacts/validation/outcomes
+        run: node scripts/release/require-modular-validation.mjs
+      - name: Upload aggregate evidence
+        if: always() && needs.changes.outputs.acceptance-only != 'true' && needs.changes.outputs.docs-only != 'true' && needs.changes.outputs.version-only != 'true'
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: development-validation-aggregate-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .artifacts/validation/aggregate.json
+          if-no-files-found: error
+          retention-days: 14

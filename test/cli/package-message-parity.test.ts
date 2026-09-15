@@ -4,9 +4,12 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
+import { createValidationPhaseRecorder } from "../../scripts/release/validation-phase.mjs";
 
 const execute = promisify(execFile);
 const roots: string[] = [];
+const phases = createValidationPhaseRecorder("package-message-parity");
+let captureSequence = 0;
 afterEach(async () => { await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))); });
 interface Case {
   readonly id: string;
@@ -17,16 +20,18 @@ interface Case {
 }
 interface Transcript { readonly id: string; readonly stdout: string; readonly stderr: string; readonly code: number }
 async function capture(producer: "owned" | "pinned", home: string, cases: readonly Case[], color: 0 | 1): Promise<Transcript[]> {
-  const environment = Object.fromEntries(Object.entries(process.env).filter(([key]) =>
-    ["PATH", "PATHEXT", "SYSTEMROOT", "WINDIR", "TEMP", "TMP"].includes(key.toUpperCase())));
-  const { stdout, stderr } = await execute(process.execPath, [
-    "--import", "tsx", resolve("test/cli/pinned-package-message-worker.mjs"), producer, home, JSON.stringify(cases),
-  ], {
-    cwd: process.cwd(), timeout: 60_000, maxBuffer: 2 * 1024 * 1024,
-    env: { ...environment, HOME: home, USERPROFILE: home, FORCE_COLOR: String(color), PI_OFFLINE: "1", PI_TELEMETRY: "0", PI_SKIP_VERSION_CHECK: "1" },
+  return phases.run(`capture-${++captureSequence}-${producer}`, async () => {
+    const environment = Object.fromEntries(Object.entries(process.env).filter(([key]) =>
+      ["PATH", "PATHEXT", "SYSTEMROOT", "WINDIR", "TEMP", "TMP"].includes(key.toUpperCase())));
+    const { stdout, stderr } = await execute(process.execPath, [
+      "--import", "tsx", resolve("test/cli/pinned-package-message-worker.mjs"), producer, home, JSON.stringify(cases),
+    ], {
+      cwd: process.cwd(), timeout: 60_000, maxBuffer: 2 * 1024 * 1024,
+      env: { ...environment, HOME: home, USERPROFILE: home, FORCE_COLOR: String(color), PI_OFFLINE: "1", PI_TELEMETRY: "0", PI_SKIP_VERSION_CHECK: "1" },
+    });
+    expect(stderr).toBe("");
+    return JSON.parse(stdout) as Transcript[];
   });
-  expect(stderr).toBe("");
-  return JSON.parse(stdout) as Transcript[];
 }
 async function home(): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), "a1-command-parity-"));

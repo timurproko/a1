@@ -21,6 +21,7 @@ export interface ValidationExecutionOutcome {
   exitCode: number;
   durationMs: number;
   skipped?: string;
+  preparation?: "receipt-missing-or-incompatible";
   evidence?: ValidationInvocationEvidence;
 }
 
@@ -45,7 +46,11 @@ export function createTierPlan(requested: string[], repository?: string): Promis
 export function runTierPlan(plan: ValidationPlan, options?: {
   env?: NodeJS.ProcessEnv;
   stdio?: "inherit" | "pipe";
+  repository?: string;
   executeCommand?: (command: { id: string; executable: string; arguments: string[] }, environment: NodeJS.ProcessEnv, stdio: "inherit" | "pipe") => Promise<ValidationExecutionOutcome>;
+  verifyBuildReceipt?: (path: string, options: { repository: string }) => Promise<unknown>;
+  verifyPackageReceipt?: (receipt: string, candidate: string, options: Record<string, unknown>) => Promise<unknown>;
+  recordBuildReceipt?: (options: { repository: string; output: string }) => Promise<unknown>;
 }): Promise<{
   schema: string;
   passed: boolean;

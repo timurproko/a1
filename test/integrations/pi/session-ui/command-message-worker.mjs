@@ -1,17 +1,19 @@
 import { resolve, join } from "node:path";
 import { pathToFileURL } from "node:url";
 
-const [producer, home, mode, encodedCases] = process.argv.slice(2);
-if (!["pinned", "owned"].includes(producer) || !home || !["truecolor", "256color"].includes(mode) || !encodedCases) {
+const [producer, home, encodedModes, encodedCases, logicalAgentDir] = process.argv.slice(2);
+let modes;
+try { modes = JSON.parse(encodedModes); } catch { modes = null; }
+if (!["pinned", "owned"].includes(producer) || !home || !Array.isArray(modes) || modes.length === 0
+  || new Set(modes).size !== modes.length || modes.some(mode => !["truecolor", "256color"].includes(mode)) || !encodedCases || !logicalAgentDir) {
   throw new Error("Invalid command-message producer arguments");
 }
 const repository = resolve(import.meta.dirname, "../../../..");
-const agentDir = join(home, "agent");
+const agentDir = logicalAgentDir;
 process.env.PI_CODING_AGENT_DIR = agentDir;
 process.chdir(home);
 const cases = JSON.parse(encodedCases);
 const { Container, Text, setCapabilities, getCapabilities } = await import(pathToFileURL(join(repository, "bin/pi-tui.js")).href);
-setCapabilities({ ...getCapabilities(), trueColor: mode === "truecolor", hyperlinks: false });
 const { commandMessageView } = await import("./command-message-fixture.ts");
 
 // Provenance: the pinned producer invokes unchanged published command methods on a synthetic
@@ -27,6 +29,8 @@ const ownedTheme = producer === "owned"
   ? await import(pathToFileURL(join(repository, "src/integrations/pi/components/theme.ts")).href)
   : undefined;
 const results = [];
+for (const mode of modes) {
+setCapabilities({ ...getCapabilities(), trueColor: mode === "truecolor", hyperlinks: false });
 for (const theme of ["dark", "light"]) {
   if (pinned) pinned.initTheme(theme, false);
   else ownedTheme.applyPiTheme(theme, false, mode);
@@ -100,12 +104,13 @@ for (const theme of ["dark", "light"]) {
               if (transcript?.type !== "scroll" || transcript.id !== "transcript" || transcript.child.type !== "component") throw new Error("Missing semantic transcript region");
               rows = transcript.child.component.render(width);
             }
-            results.push({ id: `${theme}/${padding}/${entry.id}/${index}/${resizeIndex}/${width}`, rows, surfaceOpen: root ? !root.usesDefaultInputSurface() : surfaceOpen });
+            results.push({ id: `${mode}/${theme}/${padding}/${entry.id}/${index}/${resizeIndex}/${width}`, rows, surfaceOpen: root ? !root.usesDefaultInputSurface() : surfaceOpen });
           }
           if (root && root.editor.getText() !== "preserved draft") throw new Error("Command presentation changed editor draft");
         }
       } finally { root?.dispose(); }
     }
   }
+}
 }
 process.stdout.write(JSON.stringify(results));

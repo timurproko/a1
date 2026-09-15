@@ -1,0 +1,271 @@
+{
+  "schema": "fixture-optimization-local-v1",
+  "sourceHead": "49450532800ef39c8ab66952946905aaff5aa502",
+  "workingTree": "uncommitted fixture optimization",
+  "observations": [
+    {
+      "fixture": "release-command-fixture",
+      "invocation": "d0975b73-e79c-4bf7-9814-a56ac3380676",
+      "nodeVersion": "v24.16.0",
+      "platform": "win32",
+      "phases": [
+        {
+          "phase": "template-create-1",
+          "durationMs": 523
+        },
+        {
+          "phase": "materialize-2",
+          "durationMs": 241
+        },
+        {
+          "phase": "materialize-3",
+          "durationMs": 213
+        },
+        {
+          "phase": "materialize-5",
+          "durationMs": 220
+        },
+        {
+          "phase": "template-create-6",
+          "durationMs": 616
+        },
+        {
+          "phase": "materialize-7",
+          "durationMs": 253
+        },
+        {
+          "phase": "materialize-8",
+          "durationMs": 351
+        },
+        {
+          "phase": "materialize-9",
+          "durationMs": 253
+        },
+        {
+          "phase": "template-create-10",
+          "durationMs": 583
+        },
+        {
+          "phase": "materialize-11",
+          "durationMs": 248
+        },
+        {
+          "phase": "template-create-12",
+          "durationMs": 581
+        },
+        {
+          "phase": "materialize-13",
+          "durationMs": 261
+        },
+        {
+          "phase": "materialize-14",
+          "durationMs": 245
+        },
+        {
+          "phase": "materialize-15",
+          "durationMs": 256
+        },
+        {
+          "phase": "materialize-16",
+          "durationMs": 240
+        },
+        {
+          "phase": "materialize-17",
+          "durationMs": 245
+        },
+        {
+          "phase": "materialize-18",
+          "durationMs": 223
+        },
+        {
+          "phase": "materialize-19",
+          "durationMs": 199
+        },
+        {
+          "phase": "materialize-20",
+          "durationMs": 199
+        },
+        {
+          "phase": "materialize-21",
+          "durationMs": 234
+        },
+        {
+          "phase": "materialize-22",
+          "durationMs": 214
+        },
+        {
+          "phase": "materialize-23",
+          "durationMs": 211
+        },
+        {
+          "phase": "materialize-24",
+          "durationMs": 195
+        },
+        {
+          "phase": "materialize-25",
+          "durationMs": 178
+        },
+        {
+          "phase": "materialize-26",
+          "durationMs": 244
+        },
+        {
+          "phase": "materialize-27",
+          "durationMs": 179
+        },
+        {
+          "phase": "materialize-28",
+          "durationMs": 173
+        },
+        {
+          "phase": "materialize-29",
+          "durationMs": 181
+        },
+        {
+          "phase": "materialize-30",
+          "durationMs": 193
+        },
+        {
+          "phase": "materialize-31",
+          "durationMs": 194
+        },
+        {
+          "phase": "materialize-32",
+          "durationMs": 185
+        },
+        {
+          "phase": "materialize-33",
+          "durationMs": 190
+        },
+        {
+          "phase": "materialize-34",
+          "durationMs": 486
+        },
+        {
+          "phase": "materialize-35",
+          "durationMs": 186
+        },
+        {
+          "phase": "materialize-36",
+          "durationMs": 203
+        },
+        {
+          "phase": "materialize-37",
+          "durationMs": 202
+        },
+        {
+          "phase": "materialize-38",
+          "durationMs": 220
+        },
+        {
+          "phase": "materialize-39",
+          "durationMs": 192
+        },
+        {
+          "phase": "materialize-40",
+          "durationMs": 210
+        },
+        {
+          "phase": "materialize-41",
+          "durationMs": 265
+        },
+        {
+          "phase": "template-cleanup-44",
+          "durationMs": 108
+        },
+        {
+          "phase": "template-cleanup-43",
+          "durationMs": 116
+        },
+        {
+          "phase": "template-cleanup-45",
+          "durationMs": 116
+        },
+        {
+          "phase": "template-cleanup-42",
+          "durationMs": 123
+        }
+      ],
+      "failedPhases": [
+        {
+          "phase": "materialize-4",
+          "durationMs": 0
+        }
+      ]
+    },
+    {
+      "fixture": "command-message-parity",
+      "invocation": "801dccc0-fb82-4b26-bc62-3a4847a6fdd7",
+      "nodeVersion": "v24.16.0",
+      "platform": "win32",
+      "phases": [
+        {
+          "phase": "pinned-truecolor-256color",
+          "durationMs": 2767
+        },
+        {
+          "phase": "owned-truecolor-256color",
+          "durationMs": 2901
+        },
+        {
+          "phase": "pinned-truecolor",
+          "durationMs": 2500
+        }
+      ],
+      "failedPhases": [
+        {
+          "phase": "pinned-invalid-mode",
+          "durationMs": 206
+        }
+      ]
+    }
+  ],
+  "tests": {
+    "releaseCommand": {
+      "attempt1": {
+        "status": "failed",
+        "reason": "cloned bare template HEAD did not identify develop"
+      },
+      "attempt2": {
+        "status": "failed",
+        "reason": "negative assertion awaited before rejects matcher; 34/35 semantic tests passed",
+        "durationMs": 86659
+      },
+      "historicalHostedMs": 105000,
+      "finalFocused": {
+        "status": "passed",
+        "selectedTests": 1,
+        "otherSemanticTestsPreviouslyPassed": 34,
+        "durationMs": 1563
+      },
+      "finalDecision": {
+        "status": "reverted",
+        "reason": "hosted run 34949771115 explicit integration invocation took 776076ms; preserve original fresh repository setup and retain phase instrumentation",
+        "hostedInvocationMs": 776076
+      }
+    },
+    "commandMessageParity": {
+      "attempt1": {
+        "status": "failed",
+        "reason": "independent writable homes exposed path-valued oracle mismatch"
+      },
+      "attempt2": {
+        "status": "passed",
+        "tests": 3,
+        "durationMs": 8425
+      },
+      "historicalHostedMs": 84000
+    },
+    "sessionResume": {
+      "baselineHostedRun": 34883033336,
+      "status": "failed",
+      "localDiagnosticMs": 65760,
+      "optimization": "none; measured repeated cost is first-input startup, which must remain cold per scenario"
+    },
+    "packageMessageParity": {
+      "historicalHostedMs": 84000,
+      "currentHeadPhases": "pending normal PR CI",
+      "optimization": "phase instrumentation only; independent pinned/owned processes and fresh mutable homes retained"
+    }
+  }
+}

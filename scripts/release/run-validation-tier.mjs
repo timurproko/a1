@@ -1,6 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { createTierPlan, runTierPlan } from "./validation-tier.mjs";
+import { validationOutcomeAuthority } from "./validation-outcome.mjs";
 
 const requested = selectionFromEnvironment() ?? positionalArguments();
 if (requested.length === 0) throw new Error("usage: node scripts/release/run-validation-tier.mjs <tier-or-scope> [...] or set VALIDATION_SELECTION_JSON");
@@ -14,7 +15,8 @@ if (process.argv.includes("--plan")) {
   const resultPath = valueAfter("--result");
   if (resultPath) {
     await mkdir(dirname(resolve(resultPath)), { recursive: true });
-    await writeFile(resolve(resultPath), `${JSON.stringify({ ...result, requested, selected: plan.selected, structuralEvidence: plan.structuralEvidence }, null, 2)}\n`);
+    const authority = validationOutcomeAuthority(process.env, requested, plan.selected);
+    await writeFile(resolve(resultPath), `${JSON.stringify({ ...result, requested, selected: plan.selected, structuralEvidence: plan.structuralEvidence, authority }, null, 2)}\n`);
   }
   process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
   process.exitCode = result.passed ? 0 : 1;

@@ -1,0 +1,341 @@
+{
+  "schema": "a1-development-validation-attempt-v1",
+  "run": {
+    "id": 34949771115,
+    "head": "65f39d1c69254dc56feebda4e6fb3f0198e9d1ea",
+    "event": "workflow_dispatch",
+    "status": "completed",
+    "conclusion": "failure",
+    "createdAt": "2026-09-15T08:56:58Z",
+    "updatedAt": "2026-09-15T09:13:41Z",
+    "url": "https://github.com/timurproko/a1/actions/runs/34949771115"
+  },
+  "selection": {
+    "base": "d5d7c1b100158e9d0efdb44f0490ced2ee4ea266",
+    "head": "65f39d1c69254dc56feebda4e6fb3f0198e9d1ea",
+    "mode": "conservative",
+    "selectionId": "6f6afe9dddaee4046d94425854e1e5f7e945292296e0aac7b876a14a0dd6eea9",
+    "fallback": "manual-no-comparison",
+    "owners": [
+      {
+        "owner": "history-compatibility",
+        "selected": true,
+        "reasons": [
+          "conservative-fallback"
+        ]
+      },
+      {
+        "owner": "image-compatibility",
+        "selected": true,
+        "reasons": [
+          "conservative-fallback"
+        ]
+      },
+      {
+        "owner": "launch-integration",
+        "selected": true,
+        "reasons": [
+          "conservative-fallback"
+        ]
+      },
+      {
+        "owner": "package-contracts",
+        "selected": true,
+        "reasons": [
+          "conservative-fallback"
+        ]
+      },
+      {
+        "owner": "pi-release-resume",
+        "selected": true,
+        "reasons": [
+          "conservative-fallback"
+        ]
+      },
+      {
+        "owner": "startup",
+        "selected": true,
+        "reasons": [
+          "conservative-fallback"
+        ]
+      },
+      {
+        "owner": "structured-runtime",
+        "selected": true,
+        "reasons": [
+          "conservative-fallback"
+        ]
+      },
+      {
+        "owner": "unix-containment",
+        "selected": true,
+        "reasons": [
+          "conservative-fallback"
+        ]
+      },
+      {
+        "owner": "update-performance",
+        "selected": true,
+        "reasons": [
+          "conservative-fallback"
+        ]
+      },
+      {
+        "owner": "update-predecessor",
+        "selected": true,
+        "reasons": [
+          "conservative-fallback"
+        ]
+      }
+    ]
+  },
+  "outcomes": [
+    {
+      "job": "compatibility",
+      "target": "win32/x64/node22",
+      "passed": true,
+      "runnerMs": 88639,
+      "gates": [
+        {
+          "id": "candidate-build",
+          "durationMs": 0,
+          "exitCode": 0,
+          "skipped": "verified-existing-build"
+        },
+        {
+          "id": "vitest-explicit",
+          "durationMs": 15406,
+          "exitCode": 0,
+          "skipped": null
+        }
+      ]
+    },
+    {
+      "job": "containment",
+      "target": "darwin/arm64/node24",
+      "passed": true,
+      "runnerMs": 67867,
+      "gates": [
+        {
+          "id": "candidate-build",
+          "durationMs": 0,
+          "exitCode": 0,
+          "skipped": "verified-existing-build"
+        },
+        {
+          "id": "candidate-pack",
+          "durationMs": 1177,
+          "exitCode": 0,
+          "skipped": null
+        },
+        {
+          "id": "vitest-explicit",
+          "durationMs": 16080,
+          "exitCode": 0,
+          "skipped": null
+        },
+        {
+          "id": "vitest-isolated-timing",
+          "durationMs": 22595,
+          "exitCode": 0,
+          "skipped": null
+        }
+      ]
+    },
+    {
+      "job": "containment",
+      "target": "linux/x64/node24",
+      "passed": true,
+      "runnerMs": 84441,
+      "gates": [
+        {
+          "id": "candidate-build",
+          "durationMs": 0,
+          "exitCode": 0,
+          "skipped": "verified-existing-build"
+        },
+        {
+          "id": "candidate-pack",
+          "durationMs": 1609,
+          "exitCode": 0,
+          "skipped": null
+        },
+        {
+          "id": "vitest-explicit",
+          "durationMs": 13844,
+          "exitCode": 0,
+          "skipped": null
+        },
+        {
+          "id": "vitest-isolated-timing",
+          "durationMs": 29271,
+          "exitCode": 0,
+          "skipped": null
+        }
+      ]
+    },
+    {
+      "job": "fast",
+      "target": "win32/x64/node24",
+      "passed": false,
+      "runnerMs": 337753,
+      "gates": [
+        {
+          "id": "candidate-build",
+          "durationMs": 0,
+          "exitCode": 0,
+          "skipped": "verified-existing-build"
+        },
+        {
+          "id": "typecheck",
+          "durationMs": 3541,
+          "exitCode": 0,
+          "skipped": null
+        },
+        {
+          "id": "architecture",
+          "durationMs": 2011,
+          "exitCode": 0,
+          "skipped": null
+        },
+        {
+          "id": "vitest-fast",
+          "durationMs": 243258,
+          "exitCode": 1,
+          "skipped": null
+        }
+      ]
+    },
+    {
+      "job": "package",
+      "target": "win32/x64/node22",
+      "passed": false,
+      "runnerMs": 101041,
+      "gates": [
+        {
+          "id": "candidate-build",
+          "durationMs": 0,
+          "exitCode": 0,
+          "skipped": "verified-existing-build"
+        },
+        {
+          "id": "candidate-pack",
+          "durationMs": 20130,
+          "exitCode": 1,
+          "skipped": null
+        }
+      ]
+    },
+    {
+      "job": "pi",
+      "target": "win32/x64/node24",
+      "passed": true,
+      "runnerMs": 955440,
+      "gates": [
+        {
+          "id": "candidate-build",
+          "durationMs": 0,
+          "exitCode": 0,
+          "skipped": "verified-existing-build"
+        },
+        {
+          "id": "candidate-pack",
+          "durationMs": 2640,
+          "exitCode": 0,
+          "skipped": null
+        },
+        {
+          "id": "candidate-engine-conformance-report",
+          "durationMs": 1262,
+          "exitCode": 0,
+          "skipped": null
+        },
+        {
+          "id": "vitest-explicit",
+          "durationMs": 776076,
+          "exitCode": 0,
+          "skipped": null
+        },
+        {
+          "id": "vitest-isolated-timing",
+          "durationMs": 94244,
+          "exitCode": 0,
+          "skipped": null
+        }
+      ]
+    },
+    {
+      "job": "resource",
+      "target": "win32/x64/node24",
+      "passed": true,
+      "runnerMs": 94408,
+      "gates": [
+        {
+          "id": "vitest-fast-resource-sensitive",
+          "durationMs": 62458,
+          "exitCode": 0,
+          "skipped": null
+        }
+      ]
+    },
+    {
+      "job": "startup",
+      "target": "win32/x64/node22",
+      "passed": false,
+      "runnerMs": 103322,
+      "gates": [
+        {
+          "id": "candidate-build",
+          "durationMs": 0,
+          "exitCode": 0,
+          "skipped": "verified-existing-build"
+        },
+        {
+          "id": "candidate-pack",
+          "durationMs": 17848,
+          "exitCode": 1,
+          "skipped": null
+        }
+      ]
+    }
+  ],
+  "failures": [
+    {
+      "kind": "workflow-envelope",
+      "scope": "all modular cells",
+      "detail": "Envelope was written before checkout and removed, so the always-step could not reopen it."
+    },
+    {
+      "kind": "receipt-boundary",
+      "scope": "Windows Node 22 package/startup",
+      "detail": "Build receipt verified before npm pack but mutable post-pack workspace comparison rejected package receipt creation."
+    },
+    {
+      "kind": "environment-sensitive-test",
+      "scope": "fast",
+      "detail": "Receipt negative test inherited VALIDATION_BUILD_READY=1 from its parent tier."
+    },
+    {
+      "kind": "resource-sensitive-race",
+      "scope": "fast",
+      "detail": "Two session-shell image preparation tests failed under the parallel remainder and were moved intact to the serialized zero-retry resource partition."
+    },
+    {
+      "kind": "fixture-regression",
+      "scope": "pi",
+      "detail": "Immutable release Git template made the explicit invocation 776076ms; experiment reverted to fresh original setup with timing only."
+    }
+  ],
+  "successfulSemanticCells": [
+    "compatibility win32/node22",
+    "containment linux/node24",
+    "containment darwin/node24",
+    "resource win32/node24",
+    "pi win32/node24"
+  ],
+  "rendering": {
+    "passed": true,
+    "jobSeconds": 290
+  },
+  "acceptance": "failed attempt retained; no check concealed and no timing accepted"
+}

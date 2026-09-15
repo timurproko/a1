@@ -1,0 +1,147 @@
+{
+  "schema": "a1-development-validation-attempt-v1",
+  "run": {
+    "id": 34960103662,
+    "conclusion": "failure",
+    "createdAt": "2026-09-15T10:50:33Z",
+    "event": "workflow_dispatch",
+    "headSha": "df37faabdf1789946fb5b1831a1803d064edbee0",
+    "status": "completed",
+    "updatedAt": "2026-09-15T11:05:16Z",
+    "url": "https://github.com/timurproko/a1/actions/runs/34960103662"
+  },
+  "semanticResults": "all selected cells passed",
+  "aggregate": {
+    "hosted": "failed before outcome validation because startup-node22-performance.json was an unrecognized root evidence file",
+    "correctedReplay": "passed",
+    "result": {
+      "schema": "a1-development-validation-aggregate-v1",
+      "mode": "conservative",
+      "selectionId": "f135ff0a9c2cafb0f1a71f70a23f3ca06f3483bde181d443e5c3504026aa45fb",
+      "selectedOwners": [
+        "history-compatibility",
+        "image-compatibility",
+        "launch-integration",
+        "package-contracts",
+        "pi-release-resume",
+        "startup",
+        "structured-runtime",
+        "unix-containment",
+        "update-performance",
+        "update-predecessor"
+      ],
+      "evidenceCount": 9,
+      "head": "df37faabdf1789946fb5b1831a1803d064edbee0",
+      "runId": "34960103662",
+      "runAttempt": 1,
+      "classifierMs": 301,
+      "criticalPathMs": 820620,
+      "runnerMs": 2431791,
+      "availableQueueMs": null,
+      "availableQueueReason": "GitHub job availability timestamp is not exposed inside the runner",
+      "jobs": [
+        {
+          "job": "compatibility",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 22,
+          "setupMs": 94242,
+          "gateMs": 15827,
+          "runnerMs": 110069,
+          "invocations": 2,
+          "cacheState": "setup-node-download-cache"
+        },
+        {
+          "job": "containment",
+          "platform": "darwin",
+          "architecture": "arm64",
+          "node": 24,
+          "setupMs": 45809,
+          "gateMs": 55161,
+          "runnerMs": 100970,
+          "invocations": 5,
+          "cacheState": "setup-node-download-cache"
+        },
+        {
+          "job": "containment",
+          "platform": "linux",
+          "architecture": "x64",
+          "node": 24,
+          "setupMs": 51608,
+          "gateMs": 46092,
+          "runnerMs": 97700,
+          "invocations": 5,
+          "cacheState": "setup-node-download-cache"
+        },
+        {
+          "job": "fast",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24,
+          "setupMs": 73516,
+          "gateMs": 218840,
+          "runnerMs": 292356,
+          "invocations": 5,
+          "cacheState": "setup-node-download-cache"
+        },
+        {
+          "job": "package",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 22,
+          "setupMs": 119070,
+          "gateMs": 218907,
+          "runnerMs": 337977,
+          "invocations": 3,
+          "cacheState": "setup-node-download-cache"
+        },
+        {
+          "job": "pi",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24,
+          "setupMs": 77779,
+          "gateMs": 151312,
+          "runnerMs": 229091,
+          "invocations": 6,
+          "cacheState": "setup-node-download-cache"
+        },
+        {
+          "job": "promoted",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24,
+          "setupMs": 81503,
+          "gateMs": 739117,
+          "runnerMs": 820620,
+          "invocations": 4,
+          "cacheState": "setup-node-download-cache"
+        },
+        {
+          "job": "resource",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24,
+          "setupMs": 43401,
+          "gateMs": 155662,
+          "runnerMs": 199063,
+          "invocations": 1,
+          "cacheState": "setup-node-download-cache"
+        },
+        {
+          "job": "startup",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 22,
+          "setupMs": 74028,
+          "gateMs": 169917,
+          "runnerMs": 243945,
+          "invocations": 3,
+          "cacheState": "setup-node-download-cache"
+        }
+      ]
+    }
+  },
+  "followUp": "Permit only startup-node22-performance.json or startup-node24-performance.json in addition to known outcome/envelope files and support directories.",
+  "acceptance": "failed hosted aggregate retained; corrected replay is not current-head CI"
+}

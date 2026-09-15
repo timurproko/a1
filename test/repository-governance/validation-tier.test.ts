@@ -22,7 +22,8 @@ describe("validation tier planning", () => {
     expect(plan.selected).toEqual([
       "typecheck",
       "architecture",
-      "fast",
+      "fast-remainder",
+      "fast-resource-sensitive",
       "documentation-full",
       "naming-full",
       "rendering-stability",
@@ -33,7 +34,11 @@ describe("validation tier planning", () => {
       "update-performance",
       "structured-runtime-integration",
       "package-smoke",
-      "package-install",
+      "package-contracts",
+      "package-startup",
+      "image-compatibility",
+      "history-compatibility",
+      "unix-containment",
       "dependency-policy",
       "update-predecessor",
     ]);
@@ -44,11 +49,17 @@ describe("validation tier planning", () => {
     expect(invocations.filter(invocation => invocation.id.startsWith("vitest-fast-resource-sensitive-"))
       .flatMap(invocation => invocation.arguments)).toEqual(expect.arrayContaining(["test/repository-governance/validation-impact.test.ts", "--no-file-parallelism"]));
     expect(invocations.find(invocation => invocation.id === "vitest-isolated-timing")?.arguments)
-      .toEqual(expect.arrayContaining(["test/foundation/release/update-performance.integration.test.ts", "test/foundation/release/package-surface.test.ts", "--no-file-parallelism"]));
+      .toEqual(expect.arrayContaining(["test/foundation/release/update-performance.integration.test.ts", "--no-file-parallelism"]));
+    expect(invocations.find(invocation => invocation.id === "vitest-package-smoke-1")?.arguments)
+      .toEqual(["vitest", "run", "test/foundation/release/package-surface.test.ts", "--no-file-parallelism", "--testTimeout=120000"]);
+    expect(invocations.find(invocation => invocation.id === "vitest-package-smoke-2")?.arguments)
+      .toEqual(["vitest", "run", "test/foundation/release/session-resume.integration.test.ts", "--no-file-parallelism", "--testTimeout=120000"]);
     expect(invocations.find(invocation => invocation.id === "vitest-isolated-suites")?.arguments)
       .toEqual(expect.arrayContaining(["test/integrations/pi/tui-runtime/rendering-budgets.test.ts", "test/integrations/pi/tui-runtime/rendering-producer.test.ts", "--no-file-parallelism", "--testTimeout=600000"]));
-    expect(invocations.find(invocation => invocation.id === "vitest-package-install")?.arguments)
+    expect(invocations.find(invocation => invocation.id === "vitest-package-contracts")?.arguments)
       .toEqual(expect.arrayContaining(["test/foundation/release/package-install.integration.test.ts", "--no-file-parallelism"]));
+    expect(invocations.find(invocation => invocation.id === "vitest-package-startup")?.arguments)
+      .toEqual(expect.arrayContaining(["test/foundation/release/package-startup.integration.test.ts", "--no-file-parallelism"]));
     expect(plan.requiresBuild).toBe(true);
     expect(plan.commands.map(command => command.id)).toEqual([
       "candidate-build",
@@ -64,10 +75,11 @@ describe("validation tier planning", () => {
     expect(Object.keys(plan.releaseContracts ?? {})).toHaveLength(11);
   });
 
-  it("runs ordinary fast validation without any build or package installation", async () => {
+  it("authenticates the build required by emitted-code fast coverage without packaging", async () => {
     const plan = await createTierPlan(["typecheck", "fast"]);
-    expect(plan.requiresBuild).toBe(false);
-    expect(plan.commands.map(command => command.id)).toEqual(["typecheck"]);
+    expect(plan.requiresBuild).toBe(true);
+    expect(plan.consumesPackage).toBe(false);
+    expect(plan.commands.map(command => command.id)).toEqual(["candidate-build", "typecheck"]);
     expect(plan.vitest?.mode).toBe("fast-and-explicit");
     expect(plan.vitest?.invocations[0]?.arguments).toContain("--exclude");
     expect(plan.vitest?.invocations[0]?.arguments).toContain("test/foundation/release/package-surface.test.ts");
@@ -79,7 +91,7 @@ describe("validation tier planning", () => {
   it("serializes smoke and full rendering evidence outside the fast worker pool", async () => {
     const smoke = await createTierPlan(["fast", "rendering-smoke"]);
     expect(smoke.vitest?.invocations[0]).toEqual(expect.objectContaining({ id: "vitest-fast" }));
-    expect(smoke.vitest?.invocations.filter(invocation => invocation.id.startsWith("vitest-fast-resource-sensitive-"))).toHaveLength(13);
+    expect(smoke.vitest?.invocations.filter(invocation => invocation.id.startsWith("vitest-fast-resource-sensitive-"))).toHaveLength(20);
     expect(smoke.vitest?.invocations.at(-1)).toEqual(expect.objectContaining({
       id: "vitest-isolated-suites",
       arguments: expect.arrayContaining([
@@ -108,7 +120,7 @@ describe("validation tier planning", () => {
     const fast = await createTierPlan(["fast"]);
     const changed = await createTierPlan(["documentation-changed"]);
     const full = await createTierPlan(["full-release"]);
-    expect(fast.commands).toEqual([]);
+    expect(fast.commands.map(command => command.id)).toEqual(["candidate-build"]);
     expect(changed.commands.map(command => command.id)).toEqual(["code-documentation-changed"]);
     expect(full.commands.filter(command => command.id === "code-documentation-full")).toHaveLength(1);
   });
@@ -140,12 +152,42 @@ describe("validation tier planning", () => {
         { id: "candidate-pack", executable: "node", arguments: ["scripts/release/prepare-validation-package.mjs"], owners: ["fixture"] },
       ],
       vitest: null,
-    }, { env: { VALIDATION_BUILD_READY: "1", VALIDATION_CANDIDATE_TARBALL: "accepted.tgz" }, stdio: "pipe" });
+    }, {
+      env: { VALIDATION_BUILD_READY: "1", VALIDATION_BUILD_RECEIPT: "build.json", VALIDATION_CANDIDATE_TARBALL: "accepted.tgz", VALIDATION_PACKAGE_RECEIPT: "package.json" },
+      stdio: "pipe",
+      verifyBuildReceipt: async () => ({}),
+      verifyPackageReceipt: async () => ({}),
+      executeCommand: async () => { throw new Error("verified prerequisites must not spawn"); },
+    });
     expect(result.passed).toBe(true);
     expect(result.outcomes).toEqual([
-      expect.objectContaining({ id: "candidate-build", durationMs: 0, skipped: "existing-explicit-build" }),
-      expect.objectContaining({ id: "candidate-pack", durationMs: 0, skipped: "existing-exact-package" }),
+      expect.objectContaining({ id: "candidate-build", durationMs: 0, skipped: "verified-existing-build" }),
+      expect.objectContaining({ id: "candidate-pack", durationMs: 0, skipped: "verified-exact-package" }),
     ]);
+  });
+
+  it.each(["missing", "incompatible"])("prepares instead of trusting %s prerequisite receipts", async kind => {
+    const calls: string[] = [];
+    const result = await runTierPlan({
+      schema: "a1-validation-plan-v1", requested: ["fixture"], selected: ["fixture"], requiresBuild: true, consumesPackage: true,
+      candidateTarball: ".artifacts/validation/package/candidate.tgz",
+      commands: [
+        { id: "candidate-build", executable: "npm", arguments: ["run", "build"], owners: ["fixture"] },
+        { id: "candidate-pack", executable: "node", arguments: ["scripts/release/prepare-validation-package.mjs"], owners: ["fixture"] },
+      ], vitest: null,
+    }, {
+      env: kind === "missing" ? { VALIDATION_BUILD_READY: "0", VALIDATION_CANDIDATE_TARBALL: "" }
+        : { VALIDATION_BUILD_READY: "1", VALIDATION_CANDIDATE_TARBALL: "stale.tgz" },
+      executeCommand: async command => { calls.push(command.id); return { id: command.id, command: command.id, exitCode: 0, durationMs: 1 }; },
+      verifyBuildReceipt: async () => { throw new Error("tampered"); },
+      verifyPackageReceipt: async () => { throw new Error("tampered"); },
+      recordBuildReceipt: async () => ({}),
+    });
+    expect(result.passed).toBe(true);
+    expect(calls).toEqual(["candidate-build", "candidate-pack"]);
+    expect(result.outcomes.map(outcome => outcome.preparation)).toEqual(kind === "missing"
+      ? [undefined, undefined]
+      : ["receipt-missing-or-incompatible", "receipt-missing-or-incompatible"]);
   });
 
   it("reuses one workflow-owned full documentation review", async () => {

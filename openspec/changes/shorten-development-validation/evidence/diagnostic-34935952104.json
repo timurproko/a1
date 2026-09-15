@@ -1,0 +1,1081 @@
+{
+  "schema": "development-validation-diagnostic-v1",
+  "runId": 34935952104,
+  "head": "9454992c190d7698d81ba273f998685da3536bff",
+  "url": "https://github.com/timurproko/a1/actions/runs/34935952104",
+  "event": "workflow_dispatch",
+  "conclusion": "success",
+  "interpretation": "Successful diagnostic checkpoint, before atomic fast scope migration. Does not prove the earlier missing-trace failure fixed or establish final acceptance.",
+  "jobs": [
+    {
+      "name": "Detect change surface",
+      "conclusion": "success",
+      "durationSeconds": 14
+    },
+    {
+      "name": "Rendering validation",
+      "conclusion": "success",
+      "durationSeconds": 306
+    },
+    {
+      "name": "Internal naming validation",
+      "conclusion": "success",
+      "durationSeconds": 24
+    },
+    {
+      "name": "Startup budget (windows-node22)",
+      "conclusion": "success",
+      "durationSeconds": 414
+    },
+    {
+      "name": "Changed-file documentation validation",
+      "conclusion": "success",
+      "durationSeconds": 20
+    },
+    {
+      "name": "Fast validation",
+      "conclusion": "success",
+      "durationSeconds": 636
+    },
+    {
+      "name": "Process containment (ubuntu-24.04)",
+      "conclusion": "success",
+      "durationSeconds": 113
+    },
+    {
+      "name": "Process containment (macos-15)",
+      "conclusion": "success",
+      "durationSeconds": 133
+    },
+    {
+      "name": "Documentation governance validation",
+      "conclusion": "skipped",
+      "durationSeconds": 0
+    },
+    {
+      "name": "Development validation required",
+      "conclusion": "success",
+      "durationSeconds": 7
+    }
+  ],
+  "fixtures": [
+    {
+      "lane": "ordinary",
+      "fixture": "candidate-package",
+      "nodeVersion": "v24.20.0",
+      "cacheState": "unmeasured",
+      "candidateSha256": "edba0ccf6f68a412c4d3ae6c75a6229e6e30dce1599854886e7e793790586d04",
+      "phases": [
+        {
+          "phase": "npm-pack",
+          "status": "passed",
+          "durationMs": 1780
+        },
+        {
+          "phase": "native-mode-repair",
+          "status": "passed",
+          "durationMs": 180
+        },
+        {
+          "phase": "write-exact-candidate",
+          "status": "passed",
+          "durationMs": 2
+        }
+      ]
+    },
+    {
+      "lane": "ordinary",
+      "fixture": "session-resume",
+      "nodeVersion": "v24.20.0",
+      "cacheState": "unmeasured",
+      "candidateSha256": "edba0ccf6f68a412c4d3ae6c75a6229e6e30dce1599854886e7e793790586d04",
+      "phases": [
+        {
+          "phase": "load-candidate",
+          "status": "passed",
+          "durationMs": 70
+        },
+        {
+          "phase": "extract-candidate",
+          "status": "passed",
+          "durationMs": 766
+        },
+        {
+          "phase": "launch-1-ready",
+          "status": "passed",
+          "durationMs": 21690
+        },
+        {
+          "phase": "launch-1-close",
+          "status": "passed",
+          "durationMs": 7639
+        },
+        {
+          "phase": "launch-2-ready",
+          "status": "passed",
+          "durationMs": 2156
+        },
+        {
+          "phase": "launch-2-close",
+          "status": "passed",
+          "durationMs": 235
+        },
+        {
+          "phase": "after-each-close",
+          "status": "passed",
+          "durationMs": 0
+        },
+        {
+          "phase": "launch-3-ready",
+          "status": "passed",
+          "durationMs": 2031
+        },
+        {
+          "phase": "launch-3-close",
+          "status": "passed",
+          "durationMs": 254
+        },
+        {
+          "phase": "launch-4-ready",
+          "status": "passed",
+          "durationMs": 2022
+        },
+        {
+          "phase": "launch-4-close",
+          "status": "passed",
+          "durationMs": 234
+        },
+        {
+          "phase": "after-each-close",
+          "status": "passed",
+          "durationMs": 0
+        },
+        {
+          "phase": "launch-5-ready",
+          "status": "passed",
+          "durationMs": 1825
+        },
+        {
+          "phase": "launch-5-close",
+          "status": "passed",
+          "durationMs": 227
+        },
+        {
+          "phase": "launch-6-ready",
+          "status": "passed",
+          "durationMs": 2045
+        },
+        {
+          "phase": "launch-6-close",
+          "status": "passed",
+          "durationMs": 208
+        },
+        {
+          "phase": "after-each-close",
+          "status": "passed",
+          "durationMs": 0
+        },
+        {
+          "phase": "after-each-close",
+          "status": "passed",
+          "durationMs": 0
+        },
+        {
+          "phase": "launch-8-ready",
+          "status": "passed",
+          "durationMs": 1836
+        },
+        {
+          "phase": "launch-8-close",
+          "status": "passed",
+          "durationMs": 187
+        },
+        {
+          "phase": "after-each-close",
+          "status": "passed",
+          "durationMs": 0
+        },
+        {
+          "phase": "after-each-close",
+          "status": "passed",
+          "durationMs": 0
+        },
+        {
+          "phase": "launch-12-ready",
+          "status": "passed",
+          "durationMs": 2252
+        },
+        {
+          "phase": "launch-11-ready",
+          "status": "passed",
+          "durationMs": 2303
+        },
+        {
+          "phase": "launch-11-close",
+          "status": "passed",
+          "durationMs": 216
+        },
+        {
+          "phase": "launch-12-close",
+          "status": "passed",
+          "durationMs": 219
+        },
+        {
+          "phase": "after-each-close",
+          "status": "passed",
+          "durationMs": 0
+        }
+      ]
+    },
+    {
+      "lane": "startup",
+      "fixture": "candidate-package",
+      "nodeVersion": "v22.23.2",
+      "cacheState": "unmeasured",
+      "candidateSha256": "95797c76e2361a9ac6b392ec55ea8f838e9c0fdd6a7c147e22e09b8651fd76f2",
+      "phases": [
+        {
+          "phase": "npm-pack",
+          "status": "passed",
+          "durationMs": 19337
+        },
+        {
+          "phase": "native-mode-repair",
+          "status": "passed",
+          "durationMs": 193
+        },
+        {
+          "phase": "write-exact-candidate",
+          "status": "passed",
+          "durationMs": 2
+        }
+      ]
+    },
+    {
+      "lane": "startup",
+      "fixture": "package-install",
+      "nodeVersion": "v22.23.2",
+      "cacheState": "unmeasured",
+      "candidateSha256": "95797c76e2361a9ac6b392ec55ea8f838e9c0fdd6a7c147e22e09b8651fd76f2",
+      "phases": [
+        {
+          "phase": "load-candidate",
+          "status": "passed",
+          "durationMs": 68
+        },
+        {
+          "phase": "clean-global-install",
+          "status": "passed",
+          "durationMs": 165101
+        },
+        {
+          "phase": "proxy-synchronization",
+          "status": "passed",
+          "durationMs": 81
+        },
+        {
+          "phase": "layer-materialization",
+          "status": "passed",
+          "durationMs": 13986
+        },
+        {
+          "phase": "layer-reuse",
+          "status": "passed",
+          "durationMs": 7417
+        },
+        {
+          "phase": "backlog-setup",
+          "status": "passed",
+          "durationMs": 7667
+        },
+        {
+          "phase": "backlog-before-inventory",
+          "status": "passed",
+          "durationMs": 501
+        },
+        {
+          "phase": "backlog-worker",
+          "status": "passed",
+          "durationMs": 6823
+        },
+        {
+          "phase": "backlog-after-inventory",
+          "status": "passed",
+          "durationMs": 42
+        },
+        {
+          "phase": "defender-prerequisite",
+          "status": "passed",
+          "durationMs": 907
+        },
+        {
+          "phase": "startup-materialization",
+          "status": "passed",
+          "durationMs": 10285
+        },
+        {
+          "phase": "startup-record-candidate",
+          "status": "passed",
+          "durationMs": 34
+        },
+        {
+          "phase": "startup-certification",
+          "status": "passed",
+          "durationMs": 38
+        },
+        {
+          "phase": "startup-activation",
+          "status": "passed",
+          "durationMs": 16
+        },
+        {
+          "phase": "startup-declared-warmup",
+          "status": "passed",
+          "durationMs": 7500
+        },
+        {
+          "phase": "startup-supervisor-spawn",
+          "status": "passed",
+          "durationMs": 14
+        },
+        {
+          "phase": "startup-supervisor-ready",
+          "status": "passed",
+          "durationMs": 353
+        },
+        {
+          "phase": "launch-observation-a1-post-update",
+          "status": "passed",
+          "durationMs": 2634
+        },
+        {
+          "phase": "launch-exit-a1-post-update",
+          "status": "passed",
+          "durationMs": 763
+        },
+        {
+          "phase": "supervisor-stop-a1",
+          "status": "passed",
+          "durationMs": 4726
+        },
+        {
+          "phase": "launch-observation-a1-no-live-supervisor",
+          "status": "passed",
+          "durationMs": 2809
+        },
+        {
+          "phase": "launch-exit-a1-no-live-supervisor",
+          "status": "passed",
+          "durationMs": 181
+        },
+        {
+          "phase": "launch-observation-a1-warm",
+          "status": "passed",
+          "durationMs": 2582
+        },
+        {
+          "phase": "launch-exit-a1-warm",
+          "status": "passed",
+          "durationMs": 180
+        },
+        {
+          "phase": "launch-observation-pi-post-update",
+          "status": "passed",
+          "durationMs": 2515
+        },
+        {
+          "phase": "launch-exit-pi-post-update",
+          "status": "passed",
+          "durationMs": 160
+        },
+        {
+          "phase": "supervisor-stop-pi",
+          "status": "passed",
+          "durationMs": 4684
+        },
+        {
+          "phase": "launch-observation-pi-no-live-supervisor",
+          "status": "passed",
+          "durationMs": 3021
+        },
+        {
+          "phase": "launch-exit-pi-no-live-supervisor",
+          "status": "passed",
+          "durationMs": 175
+        },
+        {
+          "phase": "launch-observation-pi-warm",
+          "status": "passed",
+          "durationMs": 2726
+        },
+        {
+          "phase": "launch-exit-pi-warm",
+          "status": "passed",
+          "durationMs": 229
+        },
+        {
+          "phase": "supervisor-final-stop",
+          "status": "passed",
+          "durationMs": 4680
+        },
+        {
+          "phase": "fixture-cleanup",
+          "status": "deferred",
+          "durationMs": 5720
+        }
+      ]
+    }
+  ],
+  "readiness": [
+    {
+      "schema": "a1-resume-readiness-diagnostic-v1",
+      "launchId": 1,
+      "passed": true,
+      "elapsedMs": 21695,
+      "exitCode": null,
+      "signalCode": null,
+      "closed": false,
+      "spawnFailed": false,
+      "outputBytes": 6873,
+      "markerRequired": true,
+      "markerPresent": true,
+      "tracePresent": true,
+      "truncated": false,
+      "invalidRecords": 0,
+      "readyTrace": true,
+      "lastPhase": "first-input-ready-render",
+      "phases": [
+        {
+          "phase": "command-invoked",
+          "elapsedMs": 20
+        },
+        {
+          "phase": "bootstrap-start",
+          "elapsedMs": 140
+        },
+        {
+          "phase": "bootstrap-selected",
+          "elapsedMs": 19370
+        },
+        {
+          "phase": "guardian-start",
+          "elapsedMs": 19439
+        },
+        {
+          "phase": "guardian-connected",
+          "elapsedMs": 19574
+        },
+        {
+          "phase": "ui-entry",
+          "elapsedMs": 20780
+        },
+        {
+          "phase": "ui-modules-loaded",
+          "elapsedMs": 21385
+        },
+        {
+          "phase": "settings-loaded",
+          "elapsedMs": 21394
+        },
+        {
+          "phase": "pi-services",
+          "elapsedMs": 21433
+        },
+        {
+          "phase": "resource-discovery",
+          "elapsedMs": 21435
+        },
+        {
+          "phase": "session-created",
+          "elapsedMs": 21441
+        },
+        {
+          "phase": "first-input-ready-render",
+          "elapsedMs": 21519
+        }
+      ]
+    },
+    {
+      "schema": "a1-resume-readiness-diagnostic-v1",
+      "launchId": 2,
+      "passed": true,
+      "elapsedMs": 2161,
+      "exitCode": null,
+      "signalCode": null,
+      "closed": false,
+      "spawnFailed": false,
+      "outputBytes": 6902,
+      "markerRequired": true,
+      "markerPresent": true,
+      "tracePresent": true,
+      "truncated": false,
+      "invalidRecords": 0,
+      "readyTrace": true,
+      "lastPhase": "first-input-ready-render",
+      "phases": [
+        {
+          "phase": "command-invoked",
+          "elapsedMs": 16
+        },
+        {
+          "phase": "bootstrap-start",
+          "elapsedMs": 108
+        },
+        {
+          "phase": "bootstrap-selected",
+          "elapsedMs": 166
+        },
+        {
+          "phase": "guardian-start",
+          "elapsedMs": 256
+        },
+        {
+          "phase": "guardian-connected",
+          "elapsedMs": 388
+        },
+        {
+          "phase": "ui-entry",
+          "elapsedMs": 1296
+        },
+        {
+          "phase": "ui-modules-loaded",
+          "elapsedMs": 1789
+        },
+        {
+          "phase": "settings-loaded",
+          "elapsedMs": 1804
+        },
+        {
+          "phase": "pi-services",
+          "elapsedMs": 1839
+        },
+        {
+          "phase": "resource-discovery",
+          "elapsedMs": 1840
+        },
+        {
+          "phase": "session-created",
+          "elapsedMs": 1845
+        },
+        {
+          "phase": "first-input-ready-render",
+          "elapsedMs": 1924
+        }
+      ]
+    },
+    {
+      "schema": "a1-resume-readiness-diagnostic-v1",
+      "launchId": 3,
+      "passed": true,
+      "elapsedMs": 2033,
+      "exitCode": null,
+      "signalCode": null,
+      "closed": false,
+      "spawnFailed": false,
+      "outputBytes": 7097,
+      "markerRequired": true,
+      "markerPresent": true,
+      "tracePresent": true,
+      "truncated": false,
+      "invalidRecords": 0,
+      "readyTrace": true,
+      "lastPhase": "first-input-ready-render",
+      "phases": [
+        {
+          "phase": "command-invoked",
+          "elapsedMs": 16
+        },
+        {
+          "phase": "bootstrap-start",
+          "elapsedMs": 106
+        },
+        {
+          "phase": "bootstrap-selected",
+          "elapsedMs": 156
+        },
+        {
+          "phase": "guardian-start",
+          "elapsedMs": 238
+        },
+        {
+          "phase": "guardian-connected",
+          "elapsedMs": 369
+        },
+        {
+          "phase": "ui-entry",
+          "elapsedMs": 1235
+        },
+        {
+          "phase": "ui-modules-loaded",
+          "elapsedMs": 1757
+        },
+        {
+          "phase": "settings-loaded",
+          "elapsedMs": 1766
+        },
+        {
+          "phase": "pi-services",
+          "elapsedMs": 1801
+        },
+        {
+          "phase": "resource-discovery",
+          "elapsedMs": 1802
+        },
+        {
+          "phase": "session-created",
+          "elapsedMs": 1807
+        },
+        {
+          "phase": "first-input-ready-render",
+          "elapsedMs": 1884
+        }
+      ]
+    },
+    {
+      "schema": "a1-resume-readiness-diagnostic-v1",
+      "launchId": 4,
+      "passed": true,
+      "elapsedMs": 2024,
+      "exitCode": null,
+      "signalCode": null,
+      "closed": false,
+      "spawnFailed": false,
+      "outputBytes": 7126,
+      "markerRequired": true,
+      "markerPresent": true,
+      "tracePresent": true,
+      "truncated": false,
+      "invalidRecords": 0,
+      "readyTrace": true,
+      "lastPhase": "first-input-ready-render",
+      "phases": [
+        {
+          "phase": "command-invoked",
+          "elapsedMs": 16
+        },
+        {
+          "phase": "bootstrap-start",
+          "elapsedMs": 99
+        },
+        {
+          "phase": "bootstrap-selected",
+          "elapsedMs": 148
+        },
+        {
+          "phase": "guardian-start",
+          "elapsedMs": 232
+        },
+        {
+          "phase": "guardian-connected",
+          "elapsedMs": 360
+        },
+        {
+          "phase": "ui-entry",
+          "elapsedMs": 1214
+        },
+        {
+          "phase": "ui-modules-loaded",
+          "elapsedMs": 1685
+        },
+        {
+          "phase": "settings-loaded",
+          "elapsedMs": 1700
+        },
+        {
+          "phase": "pi-services",
+          "elapsedMs": 1738
+        },
+        {
+          "phase": "resource-discovery",
+          "elapsedMs": 1740
+        },
+        {
+          "phase": "session-created",
+          "elapsedMs": 1762
+        },
+        {
+          "phase": "first-input-ready-render",
+          "elapsedMs": 1836
+        }
+      ]
+    },
+    {
+      "schema": "a1-resume-readiness-diagnostic-v1",
+      "launchId": 5,
+      "passed": true,
+      "elapsedMs": 1828,
+      "exitCode": null,
+      "signalCode": null,
+      "closed": false,
+      "spawnFailed": false,
+      "outputBytes": 7126,
+      "markerRequired": false,
+      "markerPresent": true,
+      "tracePresent": true,
+      "truncated": false,
+      "invalidRecords": 0,
+      "readyTrace": true,
+      "lastPhase": "first-input-ready-render",
+      "phases": [
+        {
+          "phase": "command-invoked",
+          "elapsedMs": 15
+        },
+        {
+          "phase": "bootstrap-start",
+          "elapsedMs": 90
+        },
+        {
+          "phase": "bootstrap-selected",
+          "elapsedMs": 136
+        },
+        {
+          "phase": "guardian-start",
+          "elapsedMs": 221
+        },
+        {
+          "phase": "guardian-connected",
+          "elapsedMs": 344
+        },
+        {
+          "phase": "ui-entry",
+          "elapsedMs": 1113
+        },
+        {
+          "phase": "ui-modules-loaded",
+          "elapsedMs": 1562
+        },
+        {
+          "phase": "settings-loaded",
+          "elapsedMs": 1573
+        },
+        {
+          "phase": "pi-services",
+          "elapsedMs": 1605
+        },
+        {
+          "phase": "resource-discovery",
+          "elapsedMs": 1606
+        },
+        {
+          "phase": "session-created",
+          "elapsedMs": 1611
+        },
+        {
+          "phase": "first-input-ready-render",
+          "elapsedMs": 1684
+        }
+      ]
+    },
+    {
+      "schema": "a1-resume-readiness-diagnostic-v1",
+      "launchId": 6,
+      "passed": true,
+      "elapsedMs": 2047,
+      "exitCode": null,
+      "signalCode": null,
+      "closed": false,
+      "spawnFailed": false,
+      "outputBytes": 7068,
+      "markerRequired": true,
+      "markerPresent": true,
+      "tracePresent": true,
+      "truncated": false,
+      "invalidRecords": 0,
+      "readyTrace": true,
+      "lastPhase": "first-input-ready-render",
+      "phases": [
+        {
+          "phase": "command-invoked",
+          "elapsedMs": 15
+        },
+        {
+          "phase": "bootstrap-start",
+          "elapsedMs": 93
+        },
+        {
+          "phase": "durable-validation-start",
+          "elapsedMs": 102
+        },
+        {
+          "phase": "durable-validation-complete",
+          "elapsedMs": 111
+        },
+        {
+          "phase": "replacement-supervisor-start",
+          "elapsedMs": 112
+        },
+        {
+          "phase": "replacement-supervisor-ready",
+          "elapsedMs": 349
+        },
+        {
+          "phase": "bootstrap-selected",
+          "elapsedMs": 350
+        },
+        {
+          "phase": "guardian-start",
+          "elapsedMs": 415
+        },
+        {
+          "phase": "guardian-connected",
+          "elapsedMs": 515
+        },
+        {
+          "phase": "ui-entry",
+          "elapsedMs": 1278
+        },
+        {
+          "phase": "ui-modules-loaded",
+          "elapsedMs": 1746
+        },
+        {
+          "phase": "settings-loaded",
+          "elapsedMs": 1761
+        },
+        {
+          "phase": "pi-services",
+          "elapsedMs": 1794
+        },
+        {
+          "phase": "resource-discovery",
+          "elapsedMs": 1795
+        },
+        {
+          "phase": "session-created",
+          "elapsedMs": 1800
+        },
+        {
+          "phase": "first-input-ready-render",
+          "elapsedMs": 1873
+        }
+      ]
+    },
+    {
+      "schema": "a1-resume-readiness-diagnostic-v1",
+      "launchId": 8,
+      "passed": true,
+      "elapsedMs": 1839,
+      "exitCode": null,
+      "signalCode": null,
+      "closed": false,
+      "spawnFailed": false,
+      "outputBytes": 6753,
+      "markerRequired": false,
+      "markerPresent": true,
+      "tracePresent": true,
+      "truncated": false,
+      "invalidRecords": 0,
+      "readyTrace": true,
+      "lastPhase": "first-input-ready-render",
+      "phases": [
+        {
+          "phase": "command-invoked",
+          "elapsedMs": 15
+        },
+        {
+          "phase": "bootstrap-start",
+          "elapsedMs": 89
+        },
+        {
+          "phase": "bootstrap-selected",
+          "elapsedMs": 134
+        },
+        {
+          "phase": "guardian-start",
+          "elapsedMs": 233
+        },
+        {
+          "phase": "guardian-connected",
+          "elapsedMs": 350
+        },
+        {
+          "phase": "ui-entry",
+          "elapsedMs": 1125
+        },
+        {
+          "phase": "ui-modules-loaded",
+          "elapsedMs": 1586
+        },
+        {
+          "phase": "settings-loaded",
+          "elapsedMs": 1594
+        },
+        {
+          "phase": "pi-services",
+          "elapsedMs": 1630
+        },
+        {
+          "phase": "resource-discovery",
+          "elapsedMs": 1631
+        },
+        {
+          "phase": "session-created",
+          "elapsedMs": 1636
+        },
+        {
+          "phase": "first-input-ready-render",
+          "elapsedMs": 1754
+        }
+      ]
+    },
+    {
+      "schema": "a1-resume-readiness-diagnostic-v1",
+      "launchId": 12,
+      "passed": true,
+      "elapsedMs": 2255,
+      "exitCode": null,
+      "signalCode": null,
+      "closed": false,
+      "spawnFailed": false,
+      "outputBytes": 7097,
+      "markerRequired": true,
+      "markerPresent": true,
+      "tracePresent": true,
+      "truncated": false,
+      "invalidRecords": 0,
+      "readyTrace": true,
+      "lastPhase": "first-input-ready-render",
+      "phases": [
+        {
+          "phase": "command-invoked",
+          "elapsedMs": 17
+        },
+        {
+          "phase": "bootstrap-start",
+          "elapsedMs": 108
+        },
+        {
+          "phase": "bootstrap-selected",
+          "elapsedMs": 179
+        },
+        {
+          "phase": "guardian-start",
+          "elapsedMs": 261
+        },
+        {
+          "phase": "guardian-connected",
+          "elapsedMs": 460
+        },
+        {
+          "phase": "ui-entry",
+          "elapsedMs": 1369
+        },
+        {
+          "phase": "ui-modules-loaded",
+          "elapsedMs": 1917
+        },
+        {
+          "phase": "settings-loaded",
+          "elapsedMs": 1932
+        },
+        {
+          "phase": "pi-services",
+          "elapsedMs": 1988
+        },
+        {
+          "phase": "resource-discovery",
+          "elapsedMs": 1989
+        },
+        {
+          "phase": "session-created",
+          "elapsedMs": 1995
+        },
+        {
+          "phase": "first-input-ready-render",
+          "elapsedMs": 2084
+        }
+      ]
+    },
+    {
+      "schema": "a1-resume-readiness-diagnostic-v1",
+      "launchId": 11,
+      "passed": true,
+      "elapsedMs": 2309,
+      "exitCode": null,
+      "signalCode": null,
+      "closed": false,
+      "spawnFailed": false,
+      "outputBytes": 6902,
+      "markerRequired": true,
+      "markerPresent": true,
+      "tracePresent": true,
+      "truncated": false,
+      "invalidRecords": 0,
+      "readyTrace": true,
+      "lastPhase": "first-input-ready-render",
+      "phases": [
+        {
+          "phase": "command-invoked",
+          "elapsedMs": 17
+        },
+        {
+          "phase": "bootstrap-start",
+          "elapsedMs": 108
+        },
+        {
+          "phase": "bootstrap-selected",
+          "elapsedMs": 186
+        },
+        {
+          "phase": "guardian-start",
+          "elapsedMs": 287
+        },
+        {
+          "phase": "guardian-connected",
+          "elapsedMs": 474
+        },
+        {
+          "phase": "ui-entry",
+          "elapsedMs": 1376
+        },
+        {
+          "phase": "ui-modules-loaded",
+          "elapsedMs": 1964
+        },
+        {
+          "phase": "settings-loaded",
+          "elapsedMs": 1983
+        },
+        {
+          "phase": "pi-services",
+          "elapsedMs": 2023
+        },
+        {
+          "phase": "resource-discovery",
+          "elapsedMs": 2024
+        },
+        {
+          "phase": "session-created",
+          "elapsedMs": 2029
+        },
+        {
+          "phase": "first-input-ready-render",
+          "elapsedMs": 2114
+        }
+      ]
+    }
+  ],
+  "downloadedFiles": [
+    {
+      "path": "ordinary/phases/candidate-package-bf9f2e17-5229-4f30-a28d-f7d6c0649397.jsonl",
+      "sha256": "42a92e9be8489ffcd7e29ab79447196fc6771dc5a491888e2024e4c38e43ffa0"
+    },
+    {
+      "path": "ordinary/phases/session-resume-cf035752-cb40-4fa7-bdfd-d81be8846d94.jsonl",
+      "sha256": "3fd308f6679de80b210370fde7e527d8841dda9f15b9e4b15c0a9540d1fa762c"
+    },
+    {
+      "path": "ordinary/phases/session-resume-cf035752-cb40-4fa7-bdfd-d81be8846d94.readiness.jsonl",
+      "sha256": "8bde9447c494f9f5be0eec2bb6ee6eaa5e13bb052e86cff010140f73cc79224a"
+    },
+    {
+      "path": "startup/phases/candidate-package-773dcd2c-b6a1-455e-8681-5f416c1442b9.jsonl",
+      "sha256": "4ffae2f42bd8af02c4a624d3276876afa90b0bb5eefbf57def9a7d727b6fc387"
+    },
+    {
+      "path": "startup/phases/package-install-8ceb88b4-d5d6-4e5b-a2bc-902b5f212117.jsonl",
+      "sha256": "56e2cb009441e52d7f2df89cc79fb2c6f11b04aa86f1584681b4d7d7b6c010af"
+    }
+  ]
+}
