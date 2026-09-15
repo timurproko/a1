@@ -3,7 +3,9 @@ import { createHash } from "node:crypto";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { repairNativeExecutableModes } from "./repair-native-executable-modes.mjs";
+import { normalizeNpmPackMetadata } from "./npm-pack-metadata.mjs";
 import { createValidationPhaseRecorder } from "./validation-phase.mjs";
+import { recordPackageReceipt } from "./validation-receipt.mjs";
 
 const phases = createValidationPhaseRecorder("candidate-package");
 const outputDirectory = resolve(".artifacts", "validation", "package");
@@ -15,9 +17,7 @@ const metadata = phases.runSync("npm-pack", () => {
     cwd: process.cwd(), encoding: "utf8", env: process.env, windowsHide: true,
   });
   if (result.status !== 0) throw new Error(result.stderr || `npm pack failed with ${result.status}`);
-  const [value] = JSON.parse(result.stdout);
-  if (!value?.filename || !value?.integrity || !value?.shasum) throw new Error("npm pack returned incomplete validation metadata");
-  return value;
+  return normalizeNpmPackMetadata(JSON.parse(result.stdout));
 });
 const source = resolve(outputDirectory, metadata.filename);
 const target = resolve(outputDirectory, "candidate.tgz");
@@ -33,5 +33,11 @@ const identity = {
 };
 await writeFile(resolve(outputDirectory, "npm-pack-result.json"), `${JSON.stringify([{ ...metadata, ...identity, validationFilename: "candidate.tgz" }], null, 2)}\n`);
 await readFile(target);
+const buildReceipt = process.env.VALIDATION_BUILD_RECEIPT;
+if (!buildReceipt) throw new Error("VALIDATION_BUILD_RECEIPT is required before candidate packing");
+await phases.run("package-receipt", () => recordPackageReceipt(target, {
+  buildReceipt,
+  output: resolve(outputDirectory, "candidate.receipt.json"),
+}));
 if (repaired.length > 0) process.stdout.write(`Repaired native executable modes: ${repaired.join(", ")}\n`);
 process.stdout.write(`Validation package: ${target}\n`);

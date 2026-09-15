@@ -11,7 +11,7 @@
 - [x] 2.2 Implement batched base/head dependency traversal and reviewed edges/invalidators for dynamic imports, subprocesses, workers, assets, package resolution, emitted-source mapping, and native/build inputs; verify direct/transitive and deleted/renamed/copied dependency fixtures select all affected owners.
 - [x] 2.3 Promote changed tests and shared support to their retained owners, including owners normally outside PR validation; verify test-only changes, unknown ownership, and deleted support cannot evade current-head execution.
 - [x] 2.4 Add bounded conservative fallback and manual-dispatch behavior; verify classifier errors, unavailable comparison history, unsupported syntax, unknown operational inputs, and policy changes select all applicable integration or block rather than yield empty success.
-- [ ] 2.5 Replay representative historical changes and synthetic unrelated/startup/image/history/native/validation-policy changes; verify expected scope reasons and preserved documentation/version/draft exemptions in a recorded selection report.
+- [x] 2.5 Replay representative historical changes and synthetic unrelated/startup/image/history/native/validation-policy changes; verify expected scope reasons and preserved documentation/version/draft exemptions in a recorded selection report.
 
 ## 3. Suite decomposition without lost coverage
 
@@ -22,8 +22,8 @@
 
 ## 4. Setup reuse and measured fixture optimization
 
-- [ ] 4.1 Record and verify same-job build/package prerequisite receipts bound to inputs, toolchain, platform, and artifact identity; verify missing, changed, incomplete, or tampered artifacts force preparation or failure instead of stale reuse.
-- [ ] 4.2 Remove duplicate same-job build/pack invocations and add the compatible startup Rust cache; verify plan/execution evidence shows one successful build and one pack per consuming job with native artifact validation still performed.
+- [x] 4.1 Record and verify same-job build/package prerequisite receipts bound to inputs, toolchain, platform, and artifact identity; verify missing, changed, incomplete, or tampered artifacts force preparation or failure instead of stale reuse.
+- [x] 4.2 Remove duplicate same-job build/pack invocations and add the compatible startup Rust cache; verify plan/execution evidence shows one successful build and one pack per consuming job with native artifact validation still performed.
 - [ ] 4.3 Audit clean global installation cache behavior and enable safe dependency-download reuse where effective; verify cache-hit and cold-cache controls still install exact bytes into fresh prefixes without restoring certified state or measured launch caches.
 - [ ] 4.4 Profile release-command, package-message-parity, and session-resume fixture phases and optimize measured repeated immutable setup; verify unchanged command/oracle assertions, isolated writable instances, unchanged purposeful delays/workload sizes, and before/after phase evidence for each optimized fixture.
 - [ ] 4.5 Add contamination and failure-path tests for any reused immutable template or capture; verify one scenario cannot observe another's refs, files, processes, profile state, or oracle output and that setup/teardown failures remain visible.

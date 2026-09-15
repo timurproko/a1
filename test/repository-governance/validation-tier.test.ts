@@ -143,12 +143,41 @@ describe("validation tier planning", () => {
         { id: "candidate-pack", executable: "node", arguments: ["scripts/release/prepare-validation-package.mjs"], owners: ["fixture"] },
       ],
       vitest: null,
-    }, { env: { VALIDATION_BUILD_READY: "1", VALIDATION_CANDIDATE_TARBALL: "accepted.tgz" }, stdio: "pipe" });
+    }, {
+      env: { VALIDATION_BUILD_READY: "1", VALIDATION_BUILD_RECEIPT: "build.json", VALIDATION_CANDIDATE_TARBALL: "accepted.tgz", VALIDATION_PACKAGE_RECEIPT: "package.json" },
+      stdio: "pipe",
+      verifyBuildReceipt: async () => ({}),
+      verifyPackageReceipt: async () => ({}),
+      executeCommand: async () => { throw new Error("verified prerequisites must not spawn"); },
+    });
     expect(result.passed).toBe(true);
     expect(result.outcomes).toEqual([
-      expect.objectContaining({ id: "candidate-build", durationMs: 0, skipped: "existing-explicit-build" }),
-      expect.objectContaining({ id: "candidate-pack", durationMs: 0, skipped: "existing-exact-package" }),
+      expect.objectContaining({ id: "candidate-build", durationMs: 0, skipped: "verified-existing-build" }),
+      expect.objectContaining({ id: "candidate-pack", durationMs: 0, skipped: "verified-exact-package" }),
     ]);
+  });
+
+  it.each(["missing", "incompatible"])("prepares instead of trusting %s prerequisite receipts", async kind => {
+    const calls: string[] = [];
+    const result = await runTierPlan({
+      schema: "a1-validation-plan-v1", requested: ["fixture"], selected: ["fixture"], requiresBuild: true, consumesPackage: true,
+      candidateTarball: ".artifacts/validation/package/candidate.tgz",
+      commands: [
+        { id: "candidate-build", executable: "npm", arguments: ["run", "build"], owners: ["fixture"] },
+        { id: "candidate-pack", executable: "node", arguments: ["scripts/release/prepare-validation-package.mjs"], owners: ["fixture"] },
+      ], vitest: null,
+    }, {
+      env: kind === "missing" ? {} : { VALIDATION_BUILD_READY: "1", VALIDATION_CANDIDATE_TARBALL: "stale.tgz" },
+      executeCommand: async command => { calls.push(command.id); return { id: command.id, command: command.id, exitCode: 0, durationMs: 1 }; },
+      verifyBuildReceipt: async () => { throw new Error("tampered"); },
+      verifyPackageReceipt: async () => { throw new Error("tampered"); },
+      recordBuildReceipt: async () => ({}),
+    });
+    expect(result.passed).toBe(true);
+    expect(calls).toEqual(["candidate-build", "candidate-pack"]);
+    expect(result.outcomes.map(outcome => outcome.preparation)).toEqual(kind === "missing"
+      ? [undefined, undefined]
+      : ["receipt-missing-or-incompatible", "receipt-missing-or-incompatible"]);
   });
 
   it("reuses one workflow-owned full documentation review", async () => {

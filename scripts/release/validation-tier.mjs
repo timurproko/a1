@@ -1,6 +1,7 @@
 import crossSpawn from "cross-spawn";
 import { readFile, stat } from "node:fs/promises";
 import { resolve } from "node:path";
+import { recordBuildReceipt, verifyBuildReceipt, verifyPackageReceipt } from "./validation-receipt.mjs";
 
 const npmExecutable = process.platform === "win32" ? "npm.cmd" : "npm";
 const npxExecutable = process.platform === "win32" ? "npx.cmd" : "npx";
@@ -142,25 +143,50 @@ export async function runTierPlan(plan, options = {}) {
   const outcomes = [];
   const environment = { ...process.env, ...(options.env ?? {}) };
   const executeCommand = options.executeCommand ?? runCommand;
+  const repository = resolve(options.repository ?? process.cwd());
+  const verifyBuild = options.verifyBuildReceipt ?? verifyBuildReceipt;
+  const verifyPackage = options.verifyPackageReceipt ?? verifyPackageReceipt;
+  const recordBuild = options.recordBuildReceipt ?? recordBuildReceipt;
+  const buildReceiptPath = resolve(environment.VALIDATION_BUILD_RECEIPT ?? resolve(repository, ".artifacts", "validation", "receipts", "build.json"));
+  const packageReceiptPath = path => resolve(environment.VALIDATION_PACKAGE_RECEIPT ?? path.replace(/\.tgz$/u, ".receipt.json"));
 
   for (const command of plan.commands) {
+    let rejectedReuse = false;
     if (command.id === "candidate-build" && environment.VALIDATION_BUILD_READY === "1") {
-      outcomes.push({ id: command.id, command: `${command.executable} ${command.arguments.join(" ")}`, exitCode: 0, durationMs: 0, skipped: "existing-explicit-build" });
-      continue;
+      try {
+        await verifyBuild(buildReceiptPath, { repository });
+        environment.VALIDATION_BUILD_RECEIPT = buildReceiptPath;
+        outcomes.push({ id: command.id, command: `${command.executable} ${command.arguments.join(" ")}`, exitCode: 0, durationMs: 0, skipped: "verified-existing-build" });
+        continue;
+      } catch { rejectedReuse = true; }
     }
     if (command.id === "candidate-pack" && environment.VALIDATION_CANDIDATE_TARBALL) {
-      outcomes.push({ id: command.id, command: `${command.executable} ${command.arguments.join(" ")}`, exitCode: 0, durationMs: 0, skipped: "existing-exact-package" });
-      continue;
+      try {
+        const candidate = resolve(environment.VALIDATION_CANDIDATE_TARBALL);
+        const receipt = packageReceiptPath(candidate);
+        await verifyPackage(receipt, candidate, { repository, buildReceipt: environment.VALIDATION_BUILD_RECEIPT, sourceIdentity: environment.VALIDATION_PACKAGE_SOURCE_IDENTITY });
+        environment.VALIDATION_PACKAGE_RECEIPT = receipt;
+        outcomes.push({ id: command.id, command: `${command.executable} ${command.arguments.join(" ")}`, exitCode: 0, durationMs: 0, skipped: "verified-exact-package" });
+        continue;
+      } catch { rejectedReuse = true; }
     }
     if (command.id === "code-documentation-full" && environment.VALIDATION_DOCUMENTATION_FULL_READY === "1") {
       outcomes.push({ id: command.id, command: `${command.executable} ${command.arguments.join(" ")}`, exitCode: 0, durationMs: 0, skipped: "existing-full-documentation-review" });
       continue;
     }
-    const outcome = await executeCommand(command, environment, options.stdio ?? "inherit");
+    const executed = await executeCommand(command, environment, options.stdio ?? "inherit");
+    const outcome = rejectedReuse ? { ...executed, preparation: "receipt-missing-or-incompatible" } : executed;
     outcomes.push(outcome);
     if (outcome.exitCode !== 0) return finish(false);
-    if (command.id === "candidate-build") environment.VALIDATION_BUILD_READY = "1";
-    if (command.id === "candidate-pack") environment.VALIDATION_CANDIDATE_TARBALL = plan.candidateTarball;
+    if (command.id === "candidate-build") {
+      await recordBuild({ repository, output: buildReceiptPath });
+      environment.VALIDATION_BUILD_READY = "1";
+      environment.VALIDATION_BUILD_RECEIPT = buildReceiptPath;
+    }
+    if (command.id === "candidate-pack") {
+      environment.VALIDATION_CANDIDATE_TARBALL = plan.candidateTarball;
+      environment.VALIDATION_PACKAGE_RECEIPT = packageReceiptPath(plan.candidateTarball);
+    }
   }
 
   if (plan.vitest) {

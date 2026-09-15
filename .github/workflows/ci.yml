@@ -251,6 +251,8 @@ jobs:
           workspaces: native/process-guardian
       - name: Install exact dependencies
         run: npm ci
+      - name: Record verified install-time build
+        run: node scripts/release/record-validation-prerequisite.mjs build
       - name: Build process guardian fixture artifact
         shell: bash
         run: cargo build --locked --manifest-path native/process-guardian/Cargo.toml
@@ -258,6 +260,8 @@ jobs:
         shell: bash
         env:
           VALIDATION_SELECTION_JSON: '["typecheck","architecture","fast","dist-integration"]'
+          VALIDATION_BUILD_READY: "1"
+          VALIDATION_BUILD_RECEIPT: ${{ github.workspace }}\.artifacts\validation\receipts\build.json
           A1_CONFIG_DIR: ${{ runner.temp }}\a1-ci-config
           A1_DATA_DIR: ${{ runner.temp }}\a1-ci-data
           A1_RUNTIME_DIR: ${{ runner.temp }}\a1-ci-runtime
@@ -268,6 +272,7 @@ jobs:
         shell: bash
         env:
           VALIDATION_BUILD_READY: "1"
+          VALIDATION_BUILD_RECEIPT: ${{ github.workspace }}\.artifacts\validation\receipts\build.json
         run: node scripts/release/run-validation-tier.mjs pi-engine-conformance package-smoke release-update --result .artifacts/validation/resume-integration.json
       - name: Upload resume integration evidence
         if: always()
@@ -320,6 +325,10 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
           cache: npm
+      - name: Cache process guardian build
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          workspaces: native/process-guardian
       - name: Enable Defender real-time protection for startup acceptance
         shell: powershell
         run: |
@@ -334,10 +343,13 @@ jobs:
           if (-not $enabled) { throw "Windows Defender real-time protection could not be enabled" }
       - name: Install exact dependencies and build
         run: npm ci
+      - name: Record verified install-time build
+        run: node scripts/release/record-validation-prerequisite.mjs build
       - name: Validate first-attempt exact-package startup budget
         shell: bash
         env:
           VALIDATION_BUILD_READY: "1"
+          VALIDATION_BUILD_RECEIPT: ${{ github.workspace }}\.artifacts\validation\receipts\build.json
           A1_CONFIG_DIR: ${{ runner.temp }}\a1-startup-config
           A1_DATA_DIR: ${{ runner.temp }}\a1-startup-data
           A1_RUNTIME_DIR: ${{ runner.temp }}\a1-startup-runtime
@@ -347,7 +359,9 @@ jobs:
         shell: bash
         env:
           VALIDATION_BUILD_READY: "1"
+          VALIDATION_BUILD_RECEIPT: ${{ github.workspace }}\.artifacts\validation\receipts\build.json
           VALIDATION_CANDIDATE_TARBALL: ${{ github.workspace }}/.artifacts/validation/package/candidate.tgz
+          VALIDATION_PACKAGE_RECEIPT: ${{ github.workspace }}/.artifacts/validation/package/candidate.receipt.json
         run: node scripts/release/run-validation-tier.mjs package-contracts --result .artifacts/validation/package-contracts-node${{ matrix.node }}.json
       - name: Validate background and packaged image preparation
         run: npx vitest run test/integrations/pi/session-ui/image-preparation.test.ts test/integrations/pi/session-ui/image-worker-package.test.ts --maxWorkers=1 --minWorkers=1
@@ -449,6 +463,8 @@ jobs:
         with:
           workspaces: native/process-guardian
       - run: npm ci
+      - name: Record verified install-time build
+        run: node scripts/release/record-validation-prerequisite.mjs build
       - shell: bash
         run: cargo build --locked --manifest-path native/process-guardian/Cargo.toml
       - shell: bash
@@ -467,6 +483,8 @@ jobs:
       - name: Validate packaged Unix supervision and containment
         shell: bash
         env:
+          VALIDATION_BUILD_READY: "1"
+          VALIDATION_BUILD_RECEIPT: ${{ github.workspace }}/.artifacts/validation/receipts/build.json
           A1_CONFIG_DIR: ${{ runner.temp }}/a1-development-config
           A1_DATA_DIR: ${{ runner.temp }}/a1-development-data
           A1_RUNTIME_DIR: ${{ runner.temp }}/a1-development-runtime

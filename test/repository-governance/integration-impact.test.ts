@@ -67,7 +67,8 @@ describe("integration test and support ownership", () => {
 
   it("falls back globally for unknown shared support but not reviewed unrelated governance tooling", () => {
     expect(classify([{ status: "A", path: "test/support/unknown/fixture.ts" }]).selection.owners.every(owner => owner.selected)).toBe(true);
-    const unrelated = classify([{ status: "M", path: "scripts/governance/report.mjs" }]);
+    const unresolved = snapshot(baseId, { "src/start.ts": "import(variable);" });
+    const unrelated = classify([{ status: "M", path: "scripts/governance/report.mjs" }], unresolved, { ...unresolved, revision: headId });
     expect(unrelated.fallback).toBeNull();
     expect(unrelated.selection.owners.every(owner => !owner.selected)).toBe(true);
   });

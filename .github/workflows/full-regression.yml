@@ -80,7 +80,12 @@ jobs:
       - name: Install dependencies and build once
         run: npm ci
 
+      - name: Record verified install-time build
+        run: node scripts/release/record-validation-prerequisite.mjs build
+
       - name: Pack exact regression candidate once
+        env:
+          VALIDATION_BUILD_RECEIPT: ${{ github.workspace }}/.artifacts/validation/receipts/build.json
         run: node scripts/release/prepare-validation-package.mjs
 
       - name: Run complete non-physical validation
@@ -88,8 +93,10 @@ jobs:
         env:
           VALIDATION_SELECTION_JSON: '["full-release"]'
           VALIDATION_BUILD_READY: "1"
+          VALIDATION_BUILD_RECEIPT: ${{ github.workspace }}/.artifacts/validation/receipts/build.json
           VALIDATION_DOCUMENTATION_FULL_READY: "1"
           VALIDATION_CANDIDATE_TARBALL: ${{ github.workspace }}/.artifacts/validation/package/candidate.tgz
+          VALIDATION_PACKAGE_RECEIPT: ${{ github.workspace }}/.artifacts/validation/package/candidate.receipt.json
           RELEASE_RUNNER_LABEL: github-${{ matrix.os }}-node${{ matrix.node }}-full-regression
           A1_CONFIG_DIR: ${{ runner.temp }}/a1-full-config
           A1_DATA_DIR: ${{ runner.temp }}/a1-full-data

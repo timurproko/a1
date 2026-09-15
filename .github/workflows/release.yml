@@ -279,8 +279,14 @@ jobs:
           RELEASE_VERSION: ${{ needs.plan.outputs.version }}
         run: npm version "$RELEASE_VERSION" --no-git-tag-version --allow-same-version
 
+      - name: Record verified candidate build
+        if: needs.plan.outputs.build == 'true'
+        run: node scripts/release/record-validation-prerequisite.mjs build
+
       - name: Pack the candidate exactly once
         if: needs.plan.outputs.build == 'true'
+        env:
+          VALIDATION_BUILD_RECEIPT: ${{ github.workspace }}/.artifacts/validation/receipts/build.json
         run: node scripts/release/prepare-validation-package.mjs
 
       - name: Download the immutable registry package
@@ -334,11 +340,19 @@ jobs:
           console.log(`integrity=${integrity}\nshasum=${shasum}`);
           NODE
 
+      - name: Record downloaded registry candidate prerequisite
+        if: needs.plan.outputs.build != 'true'
+        run: >-
+          node scripts/release/record-validation-prerequisite.mjs package
+          --candidate .artifacts/validation/package/candidate.tgz
+          --source-identity .artifacts/validation/package/candidate-identity.json
+
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: release-package-${{ needs.plan.outputs.version }}
           path: |
             .artifacts/validation/package/candidate.tgz
+            .artifacts/validation/package/candidate.receipt.json
             .artifacts/validation/package/candidate-identity.json
           if-no-files-found: error
           retention-days: 30
@@ -385,10 +399,19 @@ jobs:
           } while ((Get-Date) -lt $deadline)
           if (-not $enabled) { throw "Windows Defender real-time protection could not be enabled" }
       - run: npm ci
+      - name: Record verified install-time build
+        run: node scripts/release/record-validation-prerequisite.mjs build
       - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           name: release-package-${{ needs.plan.outputs.version }}
           path: .artifacts/release
+      - name: Bind downloaded package to this validation job
+        run: >-
+          node scripts/release/record-validation-prerequisite.mjs package
+          --candidate .artifacts/release/candidate.tgz
+          --output .artifacts/release/candidate.receipt.json
+          --source-identity .artifacts/release/candidate-identity.json
+
       - name: Select validation scope
         id: selection
         shell: bash
@@ -406,8 +429,11 @@ jobs:
         env:
           VALIDATION_SELECTION_JSON: ${{ steps.selection.outputs.selected }}
           VALIDATION_BUILD_READY: "1"
+          VALIDATION_BUILD_RECEIPT: ${{ github.workspace }}/.artifacts/validation/receipts/build.json
           VALIDATION_DOCUMENTATION_FULL_READY: ${{ needs.documentation.result == 'success' && '1' || '0' }}
           VALIDATION_CANDIDATE_TARBALL: ${{ github.workspace }}/.artifacts/release/candidate.tgz
+          VALIDATION_PACKAGE_RECEIPT: ${{ github.workspace }}/.artifacts/release/candidate.receipt.json
+          VALIDATION_PACKAGE_SOURCE_IDENTITY: ${{ github.workspace }}/.artifacts/release/candidate-identity.json
           RELEASE_RUNNER_LABEL: github-${{ matrix.platform }}-${{ needs.plan.outputs.mode }}
           A1_CONFIG_DIR: ${{ runner.temp }}/a1-release-config
           A1_DATA_DIR: ${{ runner.temp }}/a1-release-data

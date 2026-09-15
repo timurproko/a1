@@ -34,6 +34,8 @@ export function classifyIntegrationImpact({ base, head, changes, owners, basePol
     && !ownedTests.has(path)
     && !owners.some(owner => owner.support.some(pattern => matches(path, pattern))));
   const globalFallback = unknownTest ?? unknownSupport ?? unknownOperational;
+  const reviewedUnrelatedOnly = changedPaths.length > 0 && changedPaths.every(path => !isOperational(path)
+    || [...basePolicy.unrelated, ...headPolicy.unrelated].some(pattern => matches(path, pattern)));
   const decisions = owners.map(owner => {
     const graph = dependency.owners.find(candidate => candidate.owner === owner.id);
     const reasons = [];
@@ -43,7 +45,7 @@ export function classifyIntegrationImpact({ base, head, changes, owners, basePol
     if (sharedSupport.length > 0) reasons.push({ code: "shared-support", paths: sharedSupport.slice(0, 16) });
     if (graph.invalidators.length > 0) reasons.push({ code: "invalidator", paths: graph.invalidators.slice(0, 16) });
     for (const match of graph.matches.slice(0, 16 - reasons.length)) reasons.push({ code: "reachable", paths: match.chain.slice(-16) });
-    if (globalFallback || graph.issues.length > 0 || graph.matchesTruncated) reasons.push({ code: "conservative-fallback", paths: [] });
+    if (globalFallback || !reviewedUnrelatedOnly && (graph.issues.length > 0 || graph.matchesTruncated)) reasons.push({ code: "conservative-fallback", paths: [] });
     const selected = reasons.length > 0;
     return { owner: owner.id, selected, reasons: selected ? reasons.slice(0, 64) : [{ code: owner.development ? "unrelated" : "not-development", paths: [] }] };
   });
