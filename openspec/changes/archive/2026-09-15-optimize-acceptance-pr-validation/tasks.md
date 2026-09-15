@@ -27,13 +27,13 @@
 
 ## 5. Current-head review and live lifecycle evidence
 
-- [ ] 5.1 Mark the completed implementation PR ready and obtain successful normal required CI for its exact final head; record the workflow run without treating it as maintainer acceptance.
-- [ ] 5.2 Obtain actual maintainer review of the final implementation head and record the reviewed outcome independently from CI.
-- [ ] 5.3 Obtain explicit maintainer authorization and manually merge the implementation PR; verify auto-merge remained disabled.
-- [ ] 5.4 On the generated acceptance PR, verify the exact one-record candidate reaches `Development validation required` through trusted acceptance validation while generic impact installation and documentation/OpenSpec jobs are skipped, and record job and end-to-end timing separately from runner queue delay.
-- [ ] 5.5 After authorized checklist completion and manual acceptance merge, verify the generated archive PR receives current-head CI and is automatically protected-squash-integrated without maintainer merge or native pre-arming, then record reconciliation timing, exact-base decision, merge identity, and branch cleanup.
+- [x] 5.1 Mark the completed implementation PR ready and obtain successful normal required CI for its exact final head; record the workflow run without treating it as maintainer acceptance.
+- [x] 5.2 Obtain actual maintainer review of the final implementation head and record the reviewed outcome independently from CI.
+- [x] 5.3 Obtain explicit maintainer authorization and manually merge the implementation PR; verify auto-merge remained disabled.
+- [x] 5.4 On the generated acceptance PR, verify the exact one-record candidate reaches `Development validation required` through trusted acceptance validation while generic impact installation and documentation/OpenSpec jobs are skipped, and record job and end-to-end timing separately from runner queue delay.
+- [x] 5.5 After authorized checklist completion and manual acceptance merge, verify the generated archive PR receives current-head CI and is automatically protected-squash-integrated without maintainer merge or native pre-arming, then record reconciliation timing, exact-base decision, merge identity, and branch cleanup.
 
 ## 6. Archive preparation
 
-- [ ] 6.1 Record verified implementation acceptance and merge evidence for archive preparation.
-- [ ] 6.2 Stage and verify delta synchronization and the archive move in an OpenSpec-only candidate.
+- [x] 6.1 Record verified implementation acceptance and merge evidence for archive preparation.
+- [x] 6.2 Stage and verify delta synchronization and the archive move in an OpenSpec-only candidate.
