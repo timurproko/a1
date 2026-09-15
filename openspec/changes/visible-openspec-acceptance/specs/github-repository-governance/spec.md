@@ -55,15 +55,20 @@ An implementation association, introduction of a new active OpenSpec change, or 
 ## ADDED Requirements
 
 ### Requirement: Acceptance publication and verification use trusted policy
-Acceptance request publication, candidate validation, and post-merge receipt verification SHALL run trusted repository policy with bounded reads and least-privilege publication. Untrusted PR code SHALL NOT receive publication credentials. Generated acceptance PRs SHALL trigger real current-head validation. The validator SHALL verify complete diff scope, record schema, source identities, evidence bindings, and unresolved blockers without using PR-provided executable instructions. A human manual merge and its resulting record bytes SHALL be verified separately from candidate CI success.
+Acceptance request publication, candidate validation, and post-merge receipt verification SHALL run trusted repository policy with bounded reads and least-privilege publication. Untrusted PR code SHALL NOT receive publication credentials. Generated acceptance PRs SHALL trigger real current-head validation. The candidate validator SHALL verify complete diff scope, record schema, source identities, and evidence bindings without using PR-provided executable instructions; it SHALL report unresolved human verification items without failing an otherwise valid record. Post-merge receipt verification SHALL separately require complete evidence before treating a manual merge and its resulting record bytes as archive authority.
 
 #### Scenario: Request is generated
 - **WHEN** trusted reconciliation creates an acceptance PR using its existing publication identity
 - **THEN** ordinary PR checks SHALL run and validate that exact candidate without granting the candidate publication authority
 
 #### Scenario: Candidate is stale or has extra changes
-- **WHEN** acceptance CI detects changed source bindings, unknown fields, unrelated file changes, or missing evidence
-- **THEN** it SHALL fail with an actionable blocker and SHALL NOT claim the request ready for acceptance
+- **WHEN** acceptance CI detects changed source bindings, unknown fields, unrelated file changes, or invalid evidence references
+- **THEN** it SHALL fail with an actionable integrity blocker and SHALL NOT claim the request valid
+
+#### Scenario: Candidate has unresolved review items
+- **WHEN** an acceptance record is structurally valid and source-bound but still lists pending CI, tasks, or known gaps
+- **THEN** candidate CI SHALL succeed and report those items for human verification
+- **AND** receipt consumption SHALL NOT treat the merged record as complete archive authority until they are reconciled
 
 #### Scenario: Acceptance PR merges
 - **WHEN** the trusted merge handler sees an acceptance PR merge

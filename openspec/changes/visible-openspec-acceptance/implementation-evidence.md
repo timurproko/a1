@@ -26,6 +26,20 @@ Required run `34944991121` on head `5262803d4c3914e424855aa819163dcac2bf22e1` th
 
 Required run `34946084273` on head `025170ff27aaf6d715f7a1aeb2cd1b8251392c37` recorded a transient Windows Node 22 startup-budget failure: `pi` warm startup measured 3,170 ms against the unchanged 3,000 ms limit, dominated by 2,232 ms of UI module loading. The exact packaged runtime passed the same required gate on each of the preceding three heads (`34942002242`, `34943104220`, and `34944991121`); changes since the last passing head are confined to tests, validation partition metadata, and OpenSpec evidence. No startup source, dependency, package inventory, threshold, retry count, assertion, or timeout changed. A normal evidence update requests a fresh exact-head measurement rather than weakening the performance gate or manually rerunning its workflow.
 
+## Acceptance-review usability refinement
+
+A follow-up in `D:/Git/a1/.worktrees/fix-acceptance-review-usability` addresses the review feedback from acceptance PR #408 without changing that PR's committed record or claiming its pending tasks complete.
+
+- `npm ci --ignore-scripts`: installed the repository-locked dependencies. Before this install, an attempted focused `npx vitest` invocation fetched incompatible Vitest 5 and exited on its unsupported `--minWorkers` option; no repository tests ran in that attempt.
+- `npx vitest run test/repository-governance/openspec-acceptance-github.test.ts test/repository-governance/openspec-acceptance-policy.test.ts --maxWorkers=1 --minWorkers=1`: passed 2 files / 18 tests with the pinned Vitest 3.2.7.
+- `npm run typecheck -- --pretty false`: passed.
+- `node scripts/governance/check-docs-governance.mjs`: passed; 75 inventoried legacy occurrences matched.
+- `npm run check:code-documentation`: passed with no violations after its first run identified the new validator rationale comment's missing semantic prefix; the comment now starts with `Rationale` without changing behavior.
+- `openspec validate visible-openspec-acceptance --strict --no-interactive`: passed.
+- `git diff --check`: passed.
+
+The regression verifies concise `#<source PR>(accept): <original subject>` titles, checklist-only bodies, successful integrity validation for records with unresolved review items, and continued post-merge archival rejection of those incomplete records.
+
 ## Deliberately unclaimed evidence
 
 - Required normal PR CI for the completed implementation head is pending task 5.4.

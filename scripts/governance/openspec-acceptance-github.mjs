@@ -142,7 +142,9 @@ export async function validateAcceptanceCandidate(reader, number) {
   requireAcceptance(Number.isSafeInteger(number) && number > 0, "acceptance-pr-identity");
   const pull = await reader.get(`${reader.prefix}/pulls/${number}`);
   requireAcceptance(pull.number === number && SHA.test(pull.head?.sha ?? ""), "acceptance-pr-identity");
-  const candidate = await inspectAcceptanceCandidate(reader, pull);
+  // Rationale: candidate CI establishes integrity, not that human verification has already happened;
+  // receipt consumption keeps the complete-evidence gate after a manual merge.
+  const candidate = await inspectAcceptanceCandidate(reader, pull, { requireComplete: false });
   if (!candidate) return { disposition: "not-acceptance" };
   const authority = await loadArchiveEvidence(reader, candidate.record.sourcePr, { allowMissing: true });
   requireAcceptance(authority.disposition === "acceptance-missing", "acceptance-conflict");
@@ -151,5 +153,7 @@ export async function validateAcceptanceCandidate(reader, number) {
   requireAcceptance(![...target.entries.keys()].some(path => path.startsWith(`${ACCEPTANCE_ROOT}${candidate.record.change}/`)), "acceptance-already-recorded");
   const matches = await acceptancePulls(reader, candidate.record);
   requireAcceptance(!matches.some(item => item.number !== number && (item.state === "open" || item.merged_at)), "acceptance-pr-conflict");
-  return { disposition: "awaiting-manual-acceptance-merge", acceptancePr: number, sourcePr: candidate.record.sourcePr, headSha: pull.head.sha };
+  const blockers = acceptanceBlockers(candidate.record);
+  return { disposition: blockers.length ? "awaiting-evidence" : "awaiting-manual-acceptance-merge",
+    acceptancePr: number, sourcePr: candidate.record.sourcePr, headSha: pull.head.sha, blockers };
 }

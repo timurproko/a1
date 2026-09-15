@@ -7,27 +7,34 @@ import { acceptancePath, acceptanceBranch, acceptanceBytes, acceptanceBlockers, 
 
 const markerText = marker => `\`\`\`openspec-acceptance-request\n${JSON.stringify(marker, null, 2)}\n\`\`\``;
 const display = value => String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll("`", "\\`");
+const conventionalTitle = /^(?:feature|fix|refactor|docs|test|chore|style)(?:\([^\r\n)]*\))?!?:\s*/i;
+function sourceSubject(sourceTitle, fallback) {
+  const title = typeof sourceTitle === "string" ? sourceTitle.trim() : "";
+  return (title.replace(conventionalTitle, "").trim() || fallback).replaceAll(/\s+/g, " ");
+}
+export function acceptancePullTitle(record, sourceTitle) {
+  return `#${record.sourcePr}(accept): ${sourceSubject(sourceTitle, record.change)}`;
+}
 function markerFor(record, targetSha) {
   return { version: 1, change: record.change, sourcePr: record.sourcePr, sourceHead: record.sourceHead,
     targetSha, recordPath: acceptancePath(record), recordDigest: digest(acceptanceBytes(record)) };
 }
-export function acceptancePullBody(record, targetSha) {
-  const blockers = acceptanceBlockers(record);
+export function acceptancePullBody(record, sourceTitle) {
   const base = `https://github.com/${record.repository}`;
-  return `## Acceptance review for implementation #${record.sourcePr}\n\n`
-    + `**Merging this PR records your acceptance of the exact implementation below. Merge manually; never enable auto-merge.**\n\n`
-    + `This is a review record, not a new proposal. Review the committed JSON and its diff: this body is the generation snapshot. Missing work must be performed and evidenced in this same PR first.\n\n`
-    + `| Evidence | Identity |\n| --- | --- |\n| Implementation | ${base}/pull/${record.sourcePr} |\n`
-    + `| Reviewed head | ${record.sourceHead} |\n| Implementation merge | ${record.sourceMerge} |\n`
-    + `| Spec baseline | ${base}/tree/${record.specBaseSha}/openspec/specs |\n`
-    + `| Required source CI | ${record.validation ? `${base}/actions/runs/${record.validation.runId}` : "Pending or failed; no successful result recorded"} |\n\n`
-    + `## Source tasks\n\n${record.tasks.map(task => `- [${task.done ? "x" : " "}] ${task.id}: ${display(task.text).replaceAll("\n", "<br>")} — **${task.completion}**`).join("\n")}\n\n`
-    + `## Recorded evidence and gaps\n\n${record.review.evidence.map(item => `- ${item.url}: ${display(item.outcome)}`).join("\n") || "No separate source evidence document was found; inspect source tasks and CI."}\n\n`
-    + `${record.review.gaps.length ? `Known gaps:\n${record.review.gaps.map(gap => `- ${display(gap)}`).join("\n")}\n\n` : "Known gaps: none recorded.\n\n"}`
-    + `${blockers.length ? `**Awaiting evidence:** ${blockers.map(display).join(", ")}. Record actual outcomes and reconcile only those exact tasks before marking ready.`
-      : "**Next action:** review implementation outcomes, delta synchronization, and this exact record; manually merge after current-head checks pass."}\n\n`
-    + `A manual merge attests your review, not unperformed tests. Known gaps require the explicit manual-disposition route. After verified acceptance, automation prepares the separate CI-gated archive PR. Acceptance alone never enables local cleanup.\n\n`
-    + markerText(markerFor(record, targetSha));
+  const subject = display(sourceSubject(sourceTitle, record.change));
+  const items = [
+    `Review [#${record.sourcePr}: ${subject}](${base}/pull/${record.sourcePr}) and verify the implementation behaves as intended.`,
+    "Confirm the implementation's required CI and recorded evidence match the reviewed result.",
+    ...record.tasks.filter(task => task.completion === "pending")
+      .map(task => `Verify task ${task.id}: ${display(task.text).replaceAll("\n", "<br>")}`),
+    ...(record.review.gaps.length
+      ? record.review.gaps.map(gap => `Resolve or explicitly disposition this known gap: ${display(gap)}`)
+      : ["Confirm there are no unresolved known gaps."]),
+    "Confirm the OpenSpec requirements and synchronization outcome are correct.",
+    "Manually merge this PR to record acceptance; do not enable auto-merge.",
+  ];
+  if (!record.validation) items.splice(1, 0, "Obtain successful required CI for the exact implementation head.");
+  return items.map(item => `- [ ] ${item}`).join("\n");
 }
 
 /** Add-only Git objects and refs: no force pushes, reviewer edits, merges, or settings mutations. */
@@ -96,7 +103,7 @@ export async function publishAcceptanceRequest({ reader, publisher, source, cand
     await publisher.mutate(`${reader.prefix}/git/refs`, "POST", { ref: `refs/heads/${branch}`, sha: head });
   }
   const created = await publisher.mutate(`${reader.prefix}/pulls`, "POST", { base: "develop", head: branch, draft: blockers.length > 0,
-    title: `Accept: ${record.change} — implementation #${record.sourcePr}`, body: acceptancePullBody(record, source.targetSha) });
+    title: acceptancePullTitle(record, source.pull.title), body: acceptancePullBody(record, source.pull.title) });
   requireAcceptance(Number.isSafeInteger(created.number) && created.number > 0, "acceptance-published-pr");
   return { disposition, acceptancePr: created.number, generatedHead: head, blockers, published: true };
 }
