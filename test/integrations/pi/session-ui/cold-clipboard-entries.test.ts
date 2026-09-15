@@ -1,6 +1,6 @@
 import { Worker, type WorkerOptions } from "node:worker_threads";
 import { describe, expect, it } from "vitest";
-import { coldClipboardWorker } from "../../../support/cold-clipboard-entries.js";
+import { coldClipboardWorker, coldPasteHelper, emittedPasteHelper } from "../../../support/cold-clipboard-entries.js";
 import { screenshotPng } from "../../../fixtures/image-sources.js";
 
 const image = new URL("../../../../src/integrations/pi/session-ui/image-worker.ts", import.meta.url);
@@ -21,6 +21,13 @@ async function run(entry: string | URL, options: WorkerOptions) {
 }
 
 describe("cold emitted clipboard worker fixture", () => {
+  it("selects the emitted paste helper by default and preserves explicit authority", () => {
+    const explicit = new URL("./explicit-helper.mjs", import.meta.url);
+    expect(coldPasteHelper()).toBe(emittedPasteHelper);
+    expect(coldPasteHelper()).toBe(coldPasteHelper());
+    expect(coldPasteHelper(explicit)).toBe(explicit);
+  });
+
   it("changes only the exact source bootstrap entry and eval flag", () => {
     const data = { kind: "canonicalize" };
     const options = { eval: true, workerData: data, stdout: true, stderr: true };
@@ -36,7 +43,9 @@ describe("cold emitted clipboard worker fixture", () => {
     const options = { eval: true, workerData: "private fixture data" };
     expect(coldClipboardWorker("unrelated worker", options)).toEqual({ entry: "unrelated worker", options, selected: false });
     expect(coldClipboardWorker("unrelated worker", options).options).toBe(options);
-    expect(coldClipboardWorker(bootstrap, { eval: false }).selected).toBe(false);
+    const mismatched = { eval: false, workerData: { retained: true } };
+    expect(coldClipboardWorker(bootstrap, mismatched)).toEqual({ entry: bootstrap, options: mismatched, selected: false });
+    expect(coldClipboardWorker(bootstrap, mismatched).options).toBe(mismatched);
   });
 
   it.each([false, true])("preserves real source/emitted canonicalization outcomes (malformed=%s)", async malformed => {
