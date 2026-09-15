@@ -35,27 +35,35 @@ function invocation(plan: Awaited<ReturnType<typeof createTierPlan>>, id: string
   return found!;
 }
 
+function resourceInvocations(plan: Awaited<ReturnType<typeof createTierPlan>>) {
+  return plan.vitest?.invocations.filter(candidate => candidate.id.startsWith("vitest-fast-resource-sensitive-")) ?? [];
+}
+
 describe("resource-sensitive validation partition", () => {
-  it("subtracts every resource-sensitive test from the ordinary remainder and runs it once without a timeout override", async () => {
+  it("subtracts every resource-sensitive test from the ordinary remainder and runs each once in a fresh process without a timeout override", async () => {
     const plan = await createTierPlan(["fast"]);
     const ordinary = invocation(plan, "vitest-fast");
-    const resource = invocation(plan, "vitest-fast-resource-sensitive");
+    const resources = resourceInvocations(plan);
 
-    for (const test of resourceSensitiveTests) {
+    expect(resources).toHaveLength(resourceSensitiveTests.length);
+    for (const [index, test] of resourceSensitiveTests.entries()) {
       expect(ordinary.arguments).toContain(test);
       expect(ordinary.arguments[ordinary.arguments.indexOf(test) - 1]).toBe("--exclude");
+      expect(resources[index]).toEqual({
+        id: `vitest-fast-resource-sensitive-${index + 1}`,
+        arguments: ["vitest", "run", test, "--no-file-parallelism"],
+        evidence: {
+          executionClass: "resource-sensitive",
+          testFiles: [test],
+          fileParallelism: false,
+          timeoutMs: 5000,
+          timeoutSource: "vitest-default",
+          retries: 0,
+          perFileTiming: "vitest-default-reporter",
+        },
+      });
+      expect(resources[index]!.arguments.some(argument => argument.toLowerCase().includes("timeout"))).toBe(false);
     }
-    expect(resource.arguments).toEqual(["vitest", "run", ...resourceSensitiveTests, "--no-file-parallelism"]);
-    expect(resource.arguments.some(argument => argument.toLowerCase().includes("timeout"))).toBe(false);
-    expect(resource.evidence).toEqual({
-      executionClass: "resource-sensitive",
-      testFiles: resourceSensitiveTests,
-      fileParallelism: false,
-      timeoutMs: 5000,
-      timeoutSource: "vitest-default",
-      retries: 0,
-      perFileTiming: "vitest-default-reporter",
-    });
   });
 
   it("uses one partition for pull-request, exact-package, and full-release plans", async () => {
@@ -63,13 +71,13 @@ describe("resource-sensitive validation partition", () => {
     const exactPackage = await createTierPlan(["typecheck", "architecture", "fast", "rendering-stability", "dist-integration", "package-smoke", "package-install"]);
     const full = await createTierPlan(["full-release"]);
 
-    expect(invocation(pullRequest, "vitest-fast-resource-sensitive")).toEqual(invocation(exactPackage, "vitest-fast-resource-sensitive"));
-    expect(invocation(full, "vitest-fast-resource-sensitive")).toEqual(invocation(pullRequest, "vitest-fast-resource-sensitive"));
+    expect(resourceInvocations(pullRequest)).toEqual(resourceInvocations(exactPackage));
+    expect(resourceInvocations(full)).toEqual(resourceInvocations(pullRequest));
     const fullRemainder = invocation(full, "vitest-full-without-isolated");
     for (const test of resourceSensitiveTests) {
       expect(fullRemainder.arguments[fullRemainder.arguments.indexOf(test) - 1]).toBe("--exclude");
     }
-    expect(full.vitest?.invocations.filter(candidate => candidate.id === "vitest-fast-resource-sensitive")).toHaveLength(1);
+    expect(resourceInvocations(full)).toHaveLength(resourceSensitiveTests.length);
   });
 
   it("fails closed on invalid ownership, missing files, and timeout configuration", async () => {

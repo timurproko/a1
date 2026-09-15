@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { archiveFailure, assertRepositoryPath, CHANGE, SHA, inspectTasks, strictJson, metadataBlock, parseAcceptance } from "./openspec-archive-policy.mjs";
+import { acceptanceChecklistDigest, parseImplementationAcceptanceChecks } from "./openspec-acceptance-checklist.mjs";
 
 export const ACCEPTANCE_ROOT = "openspec/acceptance/";
 export const ACCEPTANCE_SIGNOFF = "Record maintainer acceptance by manually merging the acceptance PR.";
@@ -47,10 +48,12 @@ function references(values, repository) {
 /** A request describes a conditional decision, never a pre-existing human verdict. */
 export function parseAcceptanceRecord(bytes) {
   const record = strictJson(bytes, 128 * 1024);
-  fields(record, ["version", "repository", "change", "sourcePr", "sourceHead", "sourceMerge", "sourceBodyDigest",
-    "artifactDigest", "specBaseSha", "validation", "tasks", "review"]);
-  requireAcceptance(record.version === 1 && /^[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+$/.test(record.repository ?? "")
+  const baseFields = ["version", "repository", "change", "sourcePr", "sourceHead", "sourceMerge", "sourceBodyDigest",
+    "artifactDigest", "specBaseSha", "validation", "tasks", "review"];
+  fields(record, record?.version === 2 ? [...baseFields, "acceptanceChecks"] : baseFields);
+  requireAcceptance([1, 2].includes(record.version) && /^[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+$/.test(record.repository ?? "")
     && typeof record.change === "string" && CHANGE.test(record.change) && integer(record.sourcePr), "acceptance-record-identity");
+  if (record.version === 2) acceptanceChecklistDigest(record.acceptanceChecks);
   requireAcceptance([record.sourceHead, record.sourceMerge, record.specBaseSha].every(value => typeof value === "string" && SHA.test(value))
     && [record.sourceBodyDigest, record.artifactDigest].every(value => typeof value === "string" && HASH.test(value)), "acceptance-record-sha");
   if (record.validation !== null) {
@@ -80,7 +83,6 @@ export function parseAcceptanceRecord(bytes) {
 
 export function acceptanceBlockers(record) {
   return [...(record.validation ? [] : ["implementation-validation"]),
-    ...record.tasks.filter(task => task.completion === "pending").map(task => `task:${task.id}`),
     ...(record.review.decision === "known-gaps" || record.review.gaps.length ? ["known-gaps-manual-disposition"] : [])];
 }
 
@@ -89,6 +91,8 @@ export function verifyRecordBindings(record, source, snapshot, taskText, reposit
     && record.sourcePr === source.pull.number && record.sourceHead === source.pull.head.sha
     && record.sourceMerge === source.pull.merge_commit_sha && record.sourceBodyDigest === digest(source.pull.body)
     && record.artifactDigest === artifactDigest(snapshot, record.change), "acceptance-source-drift");
+  if (record.version === 2) requireAcceptance(JSON.stringify(parseImplementationAcceptanceChecks(source.pull.body))
+    === JSON.stringify(record.acceptanceChecks), "acceptance-checklist-drift");
   const original = taskInventory(taskText, source.implementation.archivePreparationTasks);
   requireAcceptance(original.length === record.tasks.length && original.every((task, index) => {
     const item = record.tasks[index];
@@ -104,10 +108,13 @@ export function reconcileAcceptanceTasks(taskText, receipt, mapping) {
   const record = parseAcceptanceRecord(acceptanceBytes(receipt.record));
   const original = taskInventory(taskText, mapping);
   requireAcceptance(original.length === record.tasks.length && original.every((task, index) => task.digest === record.tasks[index].digest), "acceptance-task-drift");
+  requireAcceptance(receipt.checklistComplete === true && HASH.test(receipt.checklistDigest ?? "")
+    && Array.isArray(receipt.checks) && receipt.checks.length > 0
+    && (record.version !== 2 || JSON.stringify(receipt.checks) === JSON.stringify(record.acceptanceChecks)), "acceptance-checklist-receipt");
   requireAcceptance(!acceptanceBlockers(record).length, "acceptance-incomplete");
   let result = taskText;
   for (const task of record.tasks) {
-    if (["evidenced", "signoff-on-merge"].includes(task.completion)) {
+    if (task.completion !== "archive-preparation") {
       const firstLine = task.text.split("\n")[0];
       result = result.replace(`- [ ] ${task.id} ${firstLine}`, `- [x] ${task.id} ${firstLine}`);
     }
@@ -139,10 +146,19 @@ export function assertManualAcceptanceMerge(pull, permission, events) {
     && merges[0].created_at === pull.merged_at, "acceptance-merge-provenance");
 }
 
-export function receiptIdentity(receipt) {
+function legacyReceiptIdentity(receipt) {
   return receipt.kind === "pull-request" ? { kind: "pull-request", pr: receipt.id, head: receipt.headSha,
     merge: receipt.mergeSha, path: acceptancePath(receipt.record), digest: receipt.bodyDigest,
     author: receipt.author, createdAt: receipt.createdAt } : null;
+}
+export function receiptIdentity(receipt) {
+  const identity = legacyReceiptIdentity(receipt);
+  return identity && HASH.test(receipt.checklistDigest ?? "") && Array.isArray(receipt.checks)
+    ? { ...identity, checklistDigest: receipt.checklistDigest, checks: receipt.checks } : identity;
+}
+export function receiptIdentityMatches(value, receipt) {
+  return JSON.stringify(value) === JSON.stringify(receiptIdentity(receipt))
+    || JSON.stringify(value) === JSON.stringify(legacyReceiptIdentity(receipt));
 }
 export function acceptanceUrl(repository, sourcePr, receipt) {
   return `https://github.com/${repository}/pull/${receipt.kind === "pull-request" ? receipt.id : `${sourcePr}#issuecomment-${receipt.id}`}`;
@@ -152,12 +168,16 @@ export function retainedAcceptance(receipt) {
   if (receipt.kind !== "pull-request") return `\`\`\`openspec-acceptance\n${JSON.stringify(receipt.value, null, 2)}\n\`\`\`\n`;
   requireAcceptance(typeof receipt.recordText === "string" && digest(receipt.recordText) === receipt.bodyDigest, "acceptance-record-drift");
   return `\`\`\`openspec-acceptance-receipt\n${JSON.stringify(receiptIdentity(receipt), null, 2)}\n\`\`\`\n\n`
-    + `Original reviewed request (including task reconciliation):\n\n\`\`\`json\n${receipt.recordText}\n\`\`\`\n`;
+    + `Accepted implementation checks:\n${receipt.checks.map(check => `- ${check}`).join("\n")}\n\n`
+    + `Original internal source-binding request:\n\n\`\`\`json\n${receipt.recordText}\n\`\`\`\n`;
 }
 export function archivedAcceptanceMatches(text, source, repository) {
   if (typeof text !== "string" || !text.includes(`Implementation merge: ${source.pull.merge_commit_sha}`)
     || !text.includes(acceptanceUrl(repository, source.pull.number, source.acceptance))) return false;
-  if (source.acceptance.kind === "pull-request") return text.includes(retainedAcceptance(source.acceptance))
-    && JSON.stringify(metadataBlock(text, "openspec-acceptance-receipt")) === JSON.stringify(receiptIdentity(source.acceptance));
+  if (source.acceptance.kind === "pull-request") {
+    const retained = metadataBlock(text, "openspec-acceptance-receipt");
+    const compatibleIdentity = receiptIdentityMatches(retained, source.acceptance);
+    return compatibleIdentity && text.includes(source.acceptance.recordText);
+  }
   return JSON.stringify(parseAcceptance(text)) === JSON.stringify(source.acceptance.value);
 }

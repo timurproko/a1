@@ -10,22 +10,29 @@ const repeats = Number(valueAfter("--repeats") ?? "3");
 if (!Number.isInteger(repeats) || repeats < 1 || repeats > 10) throw new Error("--repeats must be an integer from 1 through 10");
 
 const plan = await createTierPlan(["fast"], repository);
-const invocation = plan.vitest?.invocations.find(candidate => candidate.id === "vitest-fast-resource-sensitive");
-if (!invocation) throw new Error("resource-sensitive validation invocation is missing");
-if (!invocation.arguments.includes("--no-file-parallelism")) throw new Error("resource-sensitive validation is not serialized");
-if (invocation.arguments.some(argument => argument.toLowerCase().includes("timeout"))) throw new Error("resource-sensitive validation must retain the default timeout");
+const invocations = plan.vitest?.invocations.filter(candidate => candidate.id.startsWith("vitest-fast-resource-sensitive-")) ?? [];
+if (!invocations.length) throw new Error("resource-sensitive validation invocations are missing");
+if (invocations.some(invocation => !invocation.arguments.includes("--no-file-parallelism"))) {
+  throw new Error("resource-sensitive validation is not serialized");
+}
+if (invocations.some(invocation => invocation.arguments.some(argument => argument.toLowerCase().includes("timeout")))) {
+  throw new Error("resource-sensitive validation must retain the default timeout");
+}
 
 const temporary = await mkdtemp(resolve(tmpdir(), "a1-resource-sensitive-validation-"));
 const runs = [];
 try {
   for (let index = 1; index <= repeats; index += 1) {
-    const reporterPath = resolve(temporary, `repeat-${index}.json`);
     const startedAt = new Date().toISOString();
     const started = Date.now();
-    const exitCode = await runNpx([...invocation.arguments, "--reporter=json", "--outputFile", reporterPath]);
-    if (exitCode !== 0) throw new Error(`resource-sensitive repeat ${index} failed with exit code ${exitCode}`);
-    const report = JSON.parse(await readFile(reporterPath, "utf8"));
-    const files = (report.testResults ?? []).map(result => summarizeFile(result, repository));
+    const files = [];
+    for (const [invocationIndex, invocation] of invocations.entries()) {
+      const reporterPath = resolve(temporary, `repeat-${index}-${invocationIndex + 1}.json`);
+      const exitCode = await runNpx([...invocation.arguments, "--reporter=json", "--outputFile", reporterPath]);
+      if (exitCode !== 0) throw new Error(`resource-sensitive repeat ${index}, invocation ${invocation.id} failed with exit code ${exitCode}`);
+      const report = JSON.parse(await readFile(reporterPath, "utf8"));
+      files.push(...(report.testResults ?? []).map(result => summarizeFile(result, repository)));
+    }
     runs.push({
       index,
       startedAt,
@@ -51,7 +58,11 @@ const evidence = {
     retries: 0,
     timeoutOverridePresent: false,
   },
-  invocation: { id: invocation.id, arguments: invocation.arguments, testFiles: invocation.evidence?.testFiles ?? [] },
+  invocation: {
+    id: "vitest-fast-resource-sensitive-per-file",
+    arguments: ["vitest", "run", "<one-declared-file>", "--no-file-parallelism"],
+    testFiles: invocations.flatMap(invocation => invocation.evidence?.testFiles ?? []),
+  },
   runs,
 };
 await mkdir(resolve(output, ".."), { recursive: true });

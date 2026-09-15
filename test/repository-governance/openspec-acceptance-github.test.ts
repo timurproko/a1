@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { archiveReaderFromGet, loadArchiveEvidence } from "../../scripts/governance/openspec-archive-github.mjs";
 import { prepareAcceptanceRequest, validateAcceptanceCandidate } from "../../scripts/governance/openspec-acceptance-github.mjs";
-import { publishAcceptanceRequest } from "../../scripts/governance/openspec-acceptance-publication.mjs";
+import { acceptancePullBody, acceptancePullTitle, publishAcceptanceRequest } from "../../scripts/governance/openspec-acceptance-publication.mjs";
 import { acceptanceBytes, acceptancePath, acceptanceBranch, archivedAcceptanceMatches, type AcceptanceRecord } from "../../scripts/governance/openspec-acceptance-policy.mjs";
 import { loadArchiveTool, prepareArchive } from "../../scripts/governance/openspec-archive-staging.mjs";
 import { archiveMarker, archivePullBody } from "../../scripts/governance/openspec-archive-publication.mjs";
@@ -31,9 +31,9 @@ function fixture(pending = false) {
   const permissions = new Map([["reviewer", "write"]]);
   const requests: string[] = [], mutations: { path: string; method: string; body: any }[] = [];
   const repo = { full_name: repository };
-  const sourcePull = { number: 400, state: "closed", merged: true, draft: false, merged_at: "2026-09-15T06:00:00Z",
+  const sourcePull = { number: 400, title: "feature(governance): improve internal tooling", state: "closed", merged: true, draft: false, merged_at: "2026-09-15T06:00:00Z",
     merge_commit_sha: merge, changed_files: 1, head: { sha: head, ref: "feature/example", repo }, base: { sha: base, ref: "develop", repo },
-    body: '```openspec-implementation\n{"version":2,"change":"example"}\n```' };
+    body: '```openspec-implementation\n{"version":2,"change":"example"}\n```\n\n## Acceptance checks\n\n- Opening the internal tool shows the updated control without layout regressions.\n- Activating the updated control performs the new action and preserves existing state.' };
   pulls.set(400, sourcePull); files.set(400, [{ filename: "src/example.ts", status: "modified" }]);
   const get = async (path: string): Promise<any> => {
     requests.push(path);
@@ -92,9 +92,11 @@ function fixture(pending = false) {
   const reader = archiveReaderFromGet(repository, get);
   function seed(record: AcceptanceRecord, merged = false) {
     const path = acceptancePath(record), branch = acceptanceBranch(record);
-    const pull = { number: 500, node_id: "PR_acceptance", state: merged ? "closed" : "open", merged, draft: false,
+    const pull = { number: 500, node_id: "PR_acceptance", title: acceptancePullTitle(record, sourcePull.title),
+      state: merged ? "closed" : "open", merged, draft: false,
       user: { type: "Bot", login: "archive-app[bot]" }, auto_merge: null as object | null, merged_by: { type: "User", login: "reviewer" },
-      head: { sha: acceptanceHead, ref: branch, repo }, base: { sha: base, ref: "develop", repo }, changed_files: 1, body: "Human review notes preserved.",
+      head: { sha: acceptanceHead, ref: branch, repo }, base: { sha: base, ref: "develop", repo }, changed_files: 1,
+      body: acceptancePullBody(record, sourcePull.title).replaceAll("- [ ] ", merged ? "- [x] " : "- [ ] "),
       merged_at: merged ? "2026-09-15T07:00:00Z" : null, merge_commit_sha: merged ? acceptanceMerge : null };
     pulls.set(500, pull); files.set(500, [{ filename: path, status: "added" }]);
     trees.set(acceptanceHead, { ...original, [path]: acceptanceBytes(record) }); refs.set(branch, acceptanceHead);
@@ -126,29 +128,68 @@ function fixture(pending = false) {
 }
 
 describe("visible acceptance publication and authority", () => {
+  it("uses the source PR number and original subject in concise acceptance titles", () => {
+    const record = { sourcePr: 468, change: "fallback-change" } as AcceptanceRecord;
+    expect(acceptancePullTitle(record, "feature(governance): make acceptance a visible review PR"))
+      .toBe("#468(accept): make acceptance a visible review PR");
+    expect(acceptancePullTitle(record, "Keep the complete original title"))
+      .toBe("#468(accept): Keep the complete original title");
+    expect(acceptancePullTitle(record)).toBe("#468(accept): fallback-change");
+  });
   it("creates one conditional request, reuses it, preserves reviewer edits, and never merges", async () => {
     const f = fixture(); const source = await f.source(), candidate = await prepareAcceptanceRequest(f.reader, source);
     expect(candidate.blockers).toEqual([]);
     const result = await publishAcceptanceRequest({ reader: f.reader, publisher: f.publisher, source, candidate });
     expect(result).toMatchObject({ acceptancePr: 500, disposition: "awaiting-manual-acceptance-merge", published: true });
-    f.pulls.get(500).body = "Reviewer-added notes; do not overwrite.";
+    f.pulls.get(500).body = f.pulls.get(500).body.replace("- [ ] ", "- [x] ");
+    const reviewerBody = f.pulls.get(500).body;
     await publishAcceptanceRequest({ reader: f.reader, publisher: f.publisher, source, candidate });
-    expect(f.pulls.get(500).body).toBe("Reviewer-added notes; do not overwrite.");
+    expect(f.pulls.get(500).body).toBe(reviewerBody);
+    f.pulls.get(500).body += "\nReviewer-added prose.";
+    await expect(publishAcceptanceRequest({ reader: f.reader, publisher: f.publisher, source, candidate }))
+      .rejects.toThrow("acceptance-checklist-mismatch");
+    f.pulls.get(500).body = reviewerBody;
     expect(f.mutations.filter(item => item.path.endsWith("/pulls"))).toHaveLength(1);
+    const created = f.mutations.find(item => item.path.endsWith("/pulls"))!.body;
+    expect(created.title).toBe("#400(accept): improve internal tooling");
+    expect(created.body).toContain("Implementation: [#400: improve internal tooling](https://github.com/owner/repo/pull/400)");
+    expect(created.body).toContain("- [ ] Opening the internal tool shows the updated control without layout regressions.");
+    expect(created.body).not.toContain("Review [#400");
+    expect(created.body).not.toContain("Verify task");
+    expect(created.body).not.toContain("openspec-acceptance-request");
     expect(f.mutations.every(item => !item.path.endsWith("/merge") && item.method !== "PUT")).toBe(true);
     expect(await f.source()).toMatchObject({ disposition: "acceptance-missing" });
     await expect(validateAcceptanceCandidate(f.reader, 500)).resolves.toMatchObject({ disposition: "awaiting-manual-acceptance-merge" });
   });
   it("surfaces #400-shaped pending tasks and missing CI as a draft rather than approval", async () => {
     const f = fixture(true); f.ci.set(400, "failure");
+    const candidate = await prepareAcceptanceRequest(f.reader, await f.source());
     const report = await reconcileArchives({ reader: f.reader, tool: {}, pr: 400, dryRun: false, publisherFactory: async () => f.publisher });
-    expect(report.results).toMatchObject([{ pr: 400, acceptancePr: 500, disposition: "awaiting-evidence", blockers: ["implementation-validation", "task:1.1"] }]);
+    expect(report.results).toMatchObject([{ pr: 400, acceptancePr: 500, disposition: "awaiting-evidence", blockers: ["implementation-validation"] }]);
     expect(f.pulls.get(500).draft).toBe(true);
-    expect(f.pulls.get(500).body).toContain("Merging this PR records your acceptance");
+    expect(f.pulls.get(500).body).not.toContain("Verify task 1.1: Implement and verify the internal refactor.");
     expect(f.comments.get(400)![0].body).toContain("Acceptance PR: #500");
     expect(f.comments.get(500)![0].body).toContain("Update this same PR with actual evidence");
     expect(f.mutations.some(item => item.body?.ref?.includes("archive-"))).toBe(false);
-    await expect(validateAcceptanceCandidate(f.reader, 500)).rejects.toThrow("acceptance-incomplete");
+    await expect(validateAcceptanceCandidate(f.reader, 500)).resolves.toMatchObject({
+      disposition: "awaiting-evidence", blockers: ["implementation-validation"],
+    });
+    f.seed(candidate.record, true);
+    await expect(f.source()).rejects.toThrow("acceptance-incomplete");
+  });
+  it("validates the source implementation handoff and rejects exact checklist reuse", async () => {
+    const f = fixture();
+    await expect(validateAcceptanceCandidate(f.reader, 400)).resolves.toMatchObject({
+      disposition: "implementation-handoff", acceptanceChecks: [
+        "Opening the internal tool shows the updated control without layout regressions.",
+        "Activating the updated control performs the new action and preserves existing state.",
+      ],
+    });
+    const candidate = await prepareAcceptanceRequest(f.reader, await f.source());
+    const historical = { ...candidate.record, sourcePr: 399, sourceHead: "f".repeat(40), sourceMerge: "1".repeat(40),
+      validation: { ...candidate.record.validation!, headSha: "f".repeat(40), checkedSha: "f".repeat(40) } };
+    f.trees.get(f.base)![acceptancePath(historical)] = acceptanceBytes(historical);
+    await expect(prepareAcceptanceRequest(f.reader, await f.source())).rejects.toThrow("acceptance-checklist-reused");
   });
   it("publishes a missing acceptance request despite an unrelated serialized archive queue", async () => {
     const f = fixture();
@@ -186,10 +227,16 @@ describe("visible acceptance publication and authority", () => {
     f.pulls.delete(500); f.commits.get(f.acceptanceHead).message = "Unknown branch owner";
     await expect(publishAcceptanceRequest({ reader: f.reader, publisher: f.publisher, source, candidate })).rejects.toThrow("acceptance-branch-ownership");
   });
-  it("requires exact accepted bytes, human provenance, source and acceptance-head CI", async () => {
+  it("requires exact accepted bytes, human provenance, source and acceptance-head CI while ignoring another historical head", async () => {
     const f = fixture(); const source = await f.source(), candidate = await prepareAcceptanceRequest(f.reader, source);
     const pull = f.seed(candidate.record, true);
+    const { acceptanceChecks: _ignored, ...legacyFields } = candidate.record;
+    const historical = { ...legacyFields, version: 1 as const, sourcePr: 399, sourceHead: "f".repeat(40), sourceMerge: "1".repeat(40),
+      validation: { ...candidate.record.validation!, headSha: "f".repeat(40), checkedSha: "f".repeat(40) } };
+    f.trees.get(f.acceptanceMerge)![acceptancePath(historical)] = acceptanceBytes(historical);
     expect(await f.source()).toMatchObject({ disposition: "eligible", acceptance: { kind: "pull-request", id: 500, author: "reviewer" } });
+    pull.title = "Altered acceptance title";
+    await expect(f.source()).rejects.toThrow("acceptance-pr-title"); pull.title = acceptancePullTitle(candidate.record, f.pulls.get(400).title);
     pull.auto_merge = {};
     await expect(f.source()).rejects.toThrow("acceptance-manual-authority"); pull.auto_merge = null;
     f.ci.set(500, "failure"); await expect(f.source()).rejects.toThrow("implementation-validation"); f.ci.delete(500);
@@ -226,19 +273,31 @@ describe("visible acceptance publication and authority", () => {
     f.files.get(500)!.push({ filename: "src/unrelated.ts", status: "modified" });
     await expect(f.source()).rejects.toThrow("acceptance-diff-scope");
   });
+  it("recovers a #412-shaped legacy record when every generated box was checked and manually merged", async () => {
+    const f = fixture(true); const generated = await prepareAcceptanceRequest(f.reader, await f.source());
+    const { acceptanceChecks: _ignored, ...legacyFields } = generated.record;
+    const legacy = { ...legacyFields, version: 1 as const };
+    f.seed(legacy, true);
+    await expect(f.source()).resolves.toMatchObject({
+      disposition: "eligible", acceptance: { kind: "pull-request", checklistComplete: true, record: { version: 1 } },
+    });
+  });
   it("routes a manual acceptance merge back to its implementation without recursion", async () => {
     const f = fixture(); const candidate = await prepareAcceptanceRequest(f.reader, await f.source()); f.seed(candidate.record, true);
     const report = await reconcileArchives({ reader: f.reader, tool: {}, pr: 500, dryRun: true, prepare: async () => ({}) });
     expect(report.results).toMatchObject([{ pr: 400, acceptancePr: 500, disposition: "eligible" }]);
     expect(f.mutations).toEqual([]);
   });
-  it("retains PR provenance through real archive staging and all local-cleanup gates", async () => {
-    const f = fixture(); const request = await prepareAcceptanceRequest(f.reader, await f.source()); f.seed(request.record, true);
+  it("retains PR provenance, reconciles pending tasks, and passes all archive and local-cleanup gates", async () => {
+    const f = fixture(true); const request = await prepareAcceptanceRequest(f.reader, await f.source()); f.seed(request.record, true);
     const source = await f.source();
     const tool = await loadArchiveTool(resolve("node_modules/@fission-ai/openspec"));
     const candidate = await prepareArchive({ reader: f.reader, evidence: source, tool, date: "2026-09-15" });
     expect(candidate.acceptanceText).toContain("openspec-acceptance-receipt");
     expect(candidate.acceptanceText).not.toContain("#issuecomment-");
+    const archivedTasks = candidate.changes.find((file: { filename: string; data: Buffer | null }) =>
+      file.filename.endsWith("/tasks.md") && file.data)?.data?.toString();
+    expect(archivedTasks).toContain("- [x] 1.1 Implement and verify the internal refactor.");
     expect(archivedAcceptanceMatches(candidate.acceptanceText, source, "owner/repo")).toBe(true);
     const entry = { sourcePr: 400, candidatePr: 400, change: "example", role: "implementation" as const, head: f.head, ref: null };
     expect(await verifyCleanupEvidence(f.reader, entry)).toMatchObject({ disposition: "blocked", reason: "archive-missing-or-ambiguous" });

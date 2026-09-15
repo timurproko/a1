@@ -33,8 +33,9 @@ A planning PR, an ordinary archive PR, a descriptive title, passing CI alone, an
 
 #### Scenario: Merged implementation needs a visible acceptance record
 - **WHEN** a supported implementation is merged without valid acceptance
-- **THEN** automation SHALL create or reuse its visible acceptance request with evidence and blockers
-- **AND** a verified manual acceptance merge SHALL resume archive evaluation without requiring a special comment or another archive request
+- **THEN** automation SHALL create or reuse a clearly named visible acceptance request linking the original PR and listing only the maintainer's verification items
+- **AND** candidate-integrity CI SHALL not fail merely because those human verification items remain unchecked
+- **AND** a verified complete manual acceptance merge SHALL resume archive evaluation without requiring a special comment or another archive request
 
 ### Requirement: Archive automation preserves honest task and artifact completion
 Before preparing a completed-change archive, automation SHALL verify that every required artifact is done or deliberately skipped and every implementation, validation, and manual-acceptance task is complete. It SHALL NOT infer task completion from ordinary merge status or rewrite unfinished work as complete. A verified acceptance receipt SHALL be permitted to carry explicit evidence-backed reconciliation of stale task bookkeeping, bound to original task identities and descriptions, and SHALL preserve the reviewed reconciliation in archived evidence.
