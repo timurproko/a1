@@ -9,10 +9,10 @@ Read [project workflow](../../../openspec/config.yaml) and [delivery runbook](..
 
 ## Deliver
 
-1. Keep the primary checkout on `develop`. Create one isolated worktree from fresh `origin/develop`, one normally named branch, and one draft PR. Lead its body with `## Intent` and two to five proposal-derived bullets explaining the intended implementation. Omit routine validation commands; put the required link JSON last inside an explained collapsed `Automation metadata` section.
+1. Keep the primary checkout on `develop`. Create one isolated worktree from fresh `origin/develop`, one normally named branch, and one draft PR. Its first line is `> Phase: Planning`, followed by `## Implementation` with two to five proposal-derived bullets. Omit routine validation commands; put link JSON last under `## Automation` in an explained collapsed disclosure.
 2. A planning request authorizes only planning artifacts. Do not implement, synchronize canonical specs, finalize, or merge until the maintainer approves the plan and explicitly requests implementation.
-3. Continue approved implementation in the same worktree, branch, history, and PR. Keep it draft while incomplete. Reconcile approved planning refinements before related code edits.
-4. Complete implementation, evidence, gap disposition, and substantive tasks. Add one to three implementation-specific behavior-and-result bullets under `## Acceptance`; never use checkboxes or generic process items.
+3. Continue approved implementation in the same worktree, branch, history, and PR. Change the first line to `> Phase: Implementation`; keep it draft while incomplete. Reconcile approved planning refinements before related code edits.
+4. Complete implementation, evidence, gap disposition, and substantive tasks. Change the first line to `> Phase: Acceptance` and add one to three implementation-specific behavior-and-result bullets under `## Acceptance`; never use checkboxes or generic process items.
 5. Reconcile current `origin/develop`, then run the documented in-branch finalization. It must conservatively synchronize deltas, stage the dated archive and conditional acceptance manifest, fail closed, and mutate no remote state. Update the existing PR body with its exact emitted metadata.
 6. Mark the finalized PR ready. Require normal exact-head CI for the complete implementation and final OpenSpec state. Any new commit, changed acceptance list, or advanced target requires renewed validation.
 7. Never enable auto-merge, merge queue, App/bot merge, or documentation integration for implementation-bound work. Green CI is not acceptance. An authorized maintainer's manual merge of the exact validated head accepts the listed scenarios and authorizes integration.

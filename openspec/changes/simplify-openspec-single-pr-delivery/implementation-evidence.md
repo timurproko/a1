@@ -11,7 +11,7 @@
 ## Implemented outcomes
 
 - Version-3 metadata supports draft and exact finalized archive/manifest paths while retaining version-1/version-2 readers.
-- Draft PR guidance leads with proposal-derived `Intent`, removes routine validation-command noise, and collapses explained automation metadata.
+- Delivery PR guidance starts with a quoted phase, presents a proposal-derived `Implementation` summary, removes routine validation-command noise, and ends with collapsed linkage under `Automation`; completed candidates use `> Phase: Acceptance`.
 - Final PR acceptance uses one to three visible plain `## Acceptance` scenarios; checkboxes are rejected.
 - In-branch finalization uses the pinned OpenSpec engine in isolation, synchronizes deltas, moves the active change, writes a conditional manifest, computes deterministic archive/spec/task/evidence digests, and applies no remote mutation.
 - Trusted candidate validation binds the exact body, target baseline, archive, canonical specs, tasks/evidence, and complete implementation-required validation.

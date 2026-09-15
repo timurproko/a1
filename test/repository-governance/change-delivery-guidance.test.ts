@@ -7,8 +7,11 @@ describe("repository-owned atomic delivery guidance", () => {
   it("keeps planning approval, exact-head validation, and manual acceptance distinct", async () => {
     const config = await readFile("openspec/config.yaml", "utf8");
     expect(config).toContain("one normally named draft PR");
-    expect(config).toContain("Lead its body with `## Intent`");
-    expect(config).toContain("collapsed `Automation metadata`");
+    expect(config).toContain("`> Phase: Planning`");
+    expect(config).toContain("`> Phase: Implementation`");
+    expect(config).toContain("`> Phase: Acceptance`");
+    expect(config).toContain("`## Implementation`");
+    expect(config).toContain("`## Automation`");
     expect(config).toContain("Omit routine validation-command listings");
     expect(config).toContain("explicit plan approval and an implementation request");
     expect(config).toContain("same worktree, branch, history, and draft PR");
@@ -26,8 +29,11 @@ describe("repository-owned atomic delivery guidance", () => {
     const skill = await readFile(path, "utf8");
     expect(skill).toMatch(/^---\nname: change-delivery\ndescription: .+\n---/);
     expect(skill).toContain("same worktree, branch, history, and PR");
-    expect(skill).toContain("Lead its body with `## Intent`");
-    expect(skill).toContain("collapsed `Automation metadata`");
+    expect(skill).toContain("`> Phase: Planning`");
+    expect(skill).toContain("`> Phase: Implementation`");
+    expect(skill).toContain("`> Phase: Acceptance`");
+    expect(skill).toContain("`## Implementation`");
+    expect(skill).toContain("`## Automation`");
     expect(skill).toContain("approves the plan and explicitly requests implementation");
     expect(skill).toContain("## Acceptance");
     expect(skill).toContain("Create no acceptance, spec-only, or archive-only follow-up PR");
@@ -46,6 +52,11 @@ describe("repository-owned atomic delivery guidance", () => {
       acceptanceManifest: "openspec/changes/archive/2026-09-15-example-change/acceptance.md" });
     expect(docs).toContain("## Draft PR body");
     expect(docs).toContain("The first screen should explain the intended implementation, not CI mechanics");
+    expect(docs).toContain("> Phase: Planning");
+    expect(docs).toContain("> Phase: Implementation");
+    expect(docs).toContain("> Phase: Acceptance");
+    expect(docs).toContain("## Implementation");
+    expect(docs).toContain("## Automation");
     expect(docs).toContain("## Acceptance");
     expect(docs).toContain("plain bullets");
     expect(docs).toContain("Manual merge is the acceptance decision");

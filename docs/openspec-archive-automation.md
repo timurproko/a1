@@ -8,10 +8,10 @@ Version-1 and version-2 deliveries and their existing comments, acceptance PRs, 
 
 ## Version-3 lifecycle
 
-1. **Draft plan:** create one normally named branch/PR such as `feature/...`, `fix/...`, or `chore/...`. Lead the body with a short proposal-derived implementation intent, omit routine validation command lists, and keep machine linkage in an explained collapsed section at the bottom. Keep it draft and include only planning artifacts until the maintainer approves the plan and explicitly requests implementation.
-2. **Same-PR implementation:** continue in the same worktree, branch, history, and PR. Reconcile approved refinements in proposal, design, deltas, and tasks before corresponding code edits.
+1. **Draft plan:** create one normally named branch/PR such as `feature/...`, `fix/...`, or `chore/...`. Start the body with `> Phase: Planning`, follow it with a short proposal-derived `Implementation` summary, omit routine validation command lists, and keep machine linkage under final collapsed `Automation`. Keep it draft and include only planning artifacts until the maintainer approves the plan and explicitly requests implementation.
+2. **Same-PR implementation:** change the first line to `> Phase: Implementation`, then continue in the same worktree, branch, history, and PR. Reconcile approved refinements in proposal, design, deltas, and tasks before corresponding code edits.
 3. **Complete evidence:** finish implementation, required tests/evidence, substantive tasks, and explicit known-gap disposition. CI success is objective evidence, not acceptance.
-4. **Plain acceptance list:** add final `## Acceptance` with one to three concise implementation-specific behavior-and-result bullets. Do not use checkboxes, generic review/CI/approval/archive statements, URLs, mentions, or automated-test inventory.
+4. **Plain acceptance list:** change the first line to `> Phase: Acceptance` and add final `## Acceptance` with one to three concise implementation-specific behavior-and-result bullets. Do not use checkboxes, generic review/CI/approval/archive statements, URLs, mentions, or automated-test inventory.
 5. **In-branch finalization:** reconcile current `origin/develop`, conservatively synchronize all deltas, move the active change into its dated archive, and stage the conditional acceptance manifest in the same branch.
 6. **Ready and validate:** mark the finalized PR ready. Normal exact-head CI validates the implementation plus synchronized specs, archive, manifest, tasks/evidence, and exact PR-body list. A new commit, body edit, or advanced target requires revalidation.
 7. **Manual merge accepts:** an authorized human manually merges the exact validated head. That single action means the listed scenarios are accepted and explicitly authorizes integration. Auto-merge, merge queue, Apps, bots, and documentation reconciliation are forbidden.
@@ -24,7 +24,9 @@ The implementation, synchronized canonical specs, conditional acceptance record,
 The first screen should explain the intended implementation, not CI mechanics. Distill two to five points from the proposal's `Why` and `What Changes`:
 
 ```markdown
-## Intent
+> Phase: Planning
+
+## Implementation
 
 This change will replace the multi-PR OpenSpec handoff with one manually merged development PR.
 
@@ -32,27 +34,50 @@ This change will replace the multi-PR OpenSpec handoff with one manually merged 
 - Integrate implementation, synchronized specs, acceptance, and archive atomically.
 - Preserve standalone documentation auto-merge while forbidding implementation auto-merge.
 
-## Phase
-
-Planning is awaiting approval. No implementation has started.
+## Automation
 
 <details>
-<summary>Automation metadata — used by CI to link this PR to its OpenSpec change</summary>
+<summary>Used by CI to link this PR to its OpenSpec change</summary>
 
 <!-- the openspec-implementation fence goes here -->
 
 </details>
 ```
 
-Do not add a routine `Validation` section listing commands to an initial draft. Actual validation results belong in CI and the eventual implementation handoff. When implementation is complete, add the visible `## Acceptance` section immediately before the collapsed metadata. Keep it absent during planning so unfinished intent is not mistaken for final acceptance criteria.
+Do not add a routine `Validation` section listing commands to an initial draft. Actual validation results belong in CI and the eventual implementation handoff. Change the first line to `> Phase: Implementation` after approval. When implementation is complete, use this visible order:
+
+```markdown
+> Phase: Acceptance
+
+## Implementation
+
+<!-- proposal-derived summary and bullets -->
+
+## Acceptance
+
+<!-- one to three plain behavior-and-result bullets -->
+
+## Automation
+
+<details>
+<summary>Used by CI to link this PR to its OpenSpec change</summary>
+
+<!-- the finalized openspec-implementation fence goes here -->
+
+</details>
+```
+
+Keep acceptance absent during planning so unfinished intent is not mistaken for final acceptance criteria.
 
 ## Version-3 implementation metadata
 
 The initial draft uses the existing metadata fence:
 
 ````markdown
+## Automation
+
 <details>
-<summary>Automation metadata — used by CI to link this PR to its OpenSpec change</summary>
+<summary>Used by CI to link this PR to its OpenSpec change</summary>
 
 ```openspec-implementation
 {
@@ -67,8 +92,10 @@ The initial draft uses the existing metadata fence:
 After finalization, replace it with the exact emitted paths:
 
 ````markdown
+## Automation
+
 <details>
-<summary>Automation metadata — used by CI to link this PR to its OpenSpec change</summary>
+<summary>Used by CI to link this PR to its OpenSpec change</summary>
 
 ```openspec-implementation
 {

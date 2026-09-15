@@ -8,7 +8,7 @@ const checks = [
   "Dragging the scrollbar updates the viewport while preserving the selected pane.",
 ];
 const sourceBody = (items = checks) => `## Summary\n\nScrollbar behavior is implemented.\n\n\`\`\`openspec-implementation\n{"version":2,"change":"scrollbar"}\n\`\`\`\n\n## Acceptance checks\n\n${items.map(item => `- ${item}`).join("\n")}`;
-const version3Body = (items = checks, prefix = "- ") => `## Intent\n\nScrollbar behavior is implemented.\n\n## Acceptance\n\n${items.map(item => `${prefix}${item}`).join("\n")}\n\n<details>\n<summary>Automation metadata — used by CI</summary>\n\n\`\`\`openspec-implementation\n{"version":3,"change":"scrollbar"}\n\`\`\`\n\n</details>`;
+const version3Body = (items = checks, prefix = "- ") => `> Phase: Acceptance\n\n## Implementation\n\nScrollbar behavior is implemented.\n\n## Acceptance\n\n${items.map(item => `${prefix}${item}`).join("\n")}\n\n## Automation\n\n<details>\n<summary>Used by CI to link this PR to its OpenSpec change</summary>\n\n\`\`\`openspec-implementation\n{"version":3,"change":"scrollbar"}\n\`\`\`\n\n</details>`;
 const record = (): AcceptanceRecord => ({
   version: 2, repository: "owner/repo", change: "scrollbar", sourcePr: 42,
   sourceHead: "a".repeat(40), sourceMerge: "b".repeat(40), sourceBodyDigest: "c".repeat(64),
@@ -29,8 +29,17 @@ describe("implementation-specific acceptance checklist", () => {
     expect(parseImplementationAcceptanceScenarios(version3Body(), 3)).toEqual(checks);
     expect(parseImplementationAcceptanceScenarios(sourceBody(), 2)).toEqual(checks);
     expect(() => parseImplementationAcceptanceScenarios(version3Body(checks, "- [ ] "), 3)).toThrow("acceptance-checklist-item");
-    expect(() => parseImplementationAcceptanceScenarios(sourceBody(), 3)).toThrow("acceptance-checklist-missing");
+    expect(() => parseImplementationAcceptanceScenarios(sourceBody(), 3)).toThrow("acceptance-layout-phase");
     expect(() => parseImplementationAcceptanceScenarios(version3Body(), 1)).toThrow("acceptance-version");
+  });
+
+  it("requires the canonical visible phase and section layout for completed deliveries", () => {
+    expect(() => parseImplementationAcceptanceScenarios(version3Body().replace("> Phase: Acceptance", "> Phase: Implementation"), 3))
+      .toThrow("acceptance-layout-phase");
+    expect(() => parseImplementationAcceptanceScenarios(version3Body().replace("## Implementation", "## Intent"), 3))
+      .toThrow("acceptance-layout-sections");
+    expect(() => parseImplementationAcceptanceScenarios(version3Body().replace("Used by CI to link this PR", "Machine data links this PR"), 3))
+      .toThrow("acceptance-layout-automation");
   });
 
   it.each([

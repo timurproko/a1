@@ -77,9 +77,42 @@ export function parseImplementationAcceptanceChecks(body) {
   return parseAcceptanceSection(body, "Acceptance checks");
 }
 
+function assertVersion3BodyLayout(body) {
+  const lines = normalizedBody(body).split("\n");
+  if (lines.find(line => line.trim()) !== "> Phase: Acceptance") throw archiveFailure("acceptance-layout-phase");
+  const headings = [];
+  let fence = null;
+  let comment = false;
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    if (comment) { if (line.includes("-->")) comment = false; continue; }
+    if (line.includes("<!--")) { if (!line.includes("-->")) comment = true; continue; }
+    const marker = /^ {0,3}(`{3,}|~{3,})/.exec(line)?.[1];
+    if (fence) {
+      if (new RegExp(`^ {0,3}${fence.character}{${fence.length},}\\s*$`).test(line)) fence = null;
+      continue;
+    }
+    if (marker) { fence = { character: marker[0], length: marker.length }; continue; }
+    const heading = /^## (\S.*)$/.exec(line);
+    if (heading) headings.push({ name: heading[1], index });
+  }
+  if (JSON.stringify(headings.map(({ name }) => name)) !== JSON.stringify(["Implementation", "Acceptance", "Automation"])) {
+    throw archiveFailure("acceptance-layout-sections");
+  }
+  const automation = lines.slice(headings[2].index + 1);
+  const visible = automation.filter(line => line.trim());
+  if (visible[0] !== "<details>" || visible[1] !== "<summary>Used by CI to link this PR to its OpenSpec change</summary>"
+    || visible.at(-1) !== "</details>" || !automation.some(line => line === "```openspec-implementation")) {
+    throw archiveFailure("acceptance-layout-automation");
+  }
+}
+
 export function parseImplementationAcceptanceScenarios(body, version) {
   if (version === 2) return parseImplementationAcceptanceChecks(body);
-  if (version === 3) return parseAcceptanceSection(body, "Acceptance");
+  if (version === 3) {
+    assertVersion3BodyLayout(body);
+    return parseAcceptanceSection(body, "Acceptance");
+  }
   throw archiveFailure("acceptance-version");
 }
 

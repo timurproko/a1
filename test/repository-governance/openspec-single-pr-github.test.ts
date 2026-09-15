@@ -32,7 +32,7 @@ function fixture(merged: boolean, provenance: "manual" | "automatic" = "manual")
     tasksDigest: createHash("sha256").update(archiveFiles[`${archive}tasks.md`]!).digest("hex"),
     evidenceDigest: deliveryContentDigest(evidenceEntries), knownGaps: [] };
   const metadata = { version: 3, change: "example", archive, acceptanceManifest: `${archive}acceptance.md` };
-  const body = `## Intent\n\nExample.\n\n## Acceptance\n\n- ${scenarios[0]}\n\n<details>\n<summary>Automation metadata — used by CI</summary>\n\n\`\`\`openspec-implementation\n${JSON.stringify(metadata)}\n\`\`\`\n\n</details>\n`;
+  const body = `> Phase: Acceptance\n\n## Implementation\n\nExample.\n\n## Acceptance\n\n- ${scenarios[0]}\n\n## Automation\n\n<details>\n<summary>Used by CI to link this PR to its OpenSpec change</summary>\n\n\`\`\`openspec-implementation\n${JSON.stringify(metadata)}\n\`\`\`\n\n</details>\n`;
   const allFiles: Record<string, string> = { ...specFiles, ...archiveFiles, [`${archive}acceptance.md`]: conditionalAcceptanceBytes(manifest) };
   const blobs = new Map<string, Buffer>();
   const tree = () => ({ truncated: false, tree: Object.entries(allFiles).map(([path, text]) => {
