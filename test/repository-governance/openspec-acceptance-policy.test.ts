@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { acceptanceBytes, acceptanceBlockers, artifactDigest, assertManualAcceptanceMerge, digest,
-  parseAcceptanceRecord, reconcileAcceptanceTasks, taskInventory, verifyRecordBindings, ACCEPTANCE_SIGNOFF,
+  parseAcceptanceRecord, receiptIdentity, receiptIdentityMatches, reconcileAcceptanceTasks, taskInventory,
+  verifyRecordBindings, ACCEPTANCE_SIGNOFF,
   type AcceptanceRecord } from "../../scripts/governance/openspec-acceptance-policy.mjs";
 
 function fixture() {
@@ -21,7 +22,7 @@ describe("acceptance record policy", () => {
     expect(parseAcceptanceRecord(acceptanceBytes(f.record))).toEqual(f.record);
     expect(() => verifyRecordBindings(f.record, f.source, f.snapshot, f.tasks, "owner/repo")).not.toThrow();
     expect(f.record.tasks[1]!.text).toContain("Record exact observed outcomes.");
-    expect(acceptanceBlockers(f.record)).toEqual(["task:1.2", "task:1.3"]);
+    expect(acceptanceBlockers(f.record)).toEqual([]);
     expect(() => verifyRecordBindings(f.record, f.source, f.snapshot, f.tasks, "another/repo")).toThrow("acceptance-source-drift");
     f.source.pull.body += " edited";
     expect(() => verifyRecordBindings(f.record, f.source, f.snapshot, f.tasks, "owner/repo")).toThrow("acceptance-source-drift");
@@ -41,7 +42,9 @@ describe("acceptance record policy", () => {
     f.record.tasks[2]!.completion = "signoff-on-merge";
     expect(parseAcceptanceRecord(acceptanceBytes(f.record))).toEqual(f.record);
     expect(() => verifyRecordBindings(f.record, f.source, f.snapshot, f.tasks, "owner/repo")).not.toThrow();
-    expect(reconcileAcceptanceTasks(f.tasks, { kind: "pull-request", record: f.record }, {})).toContain("- [x] 1.2");
+    const receipt = { kind: "pull-request", record: f.record, checklistComplete: true,
+      checklistDigest: "f".repeat(64), checks: ["The reviewed implementation behavior produces its expected observable result."] };
+    expect(reconcileAcceptanceTasks(f.tasks, receipt, {})).toContain("- [x] 1.2");
     expect(reconcileAcceptanceTasks(f.tasks, { kind: "comment" }, {})).toBe(f.tasks);
     f.record.tasks[1]!.text = "Different live task";
     expect(() => verifyRecordBindings(f.record, f.source, f.snapshot, f.tasks, "owner/repo")).toThrow("acceptance-task-drift");
@@ -57,8 +60,21 @@ describe("acceptance record policy", () => {
   });
   it("keeps missing CI and known gaps distinct from full completion", () => {
     const f = fixture(); f.record.validation = null; f.record.review.gaps = ["Live test has not occurred."];
-    expect(acceptanceBlockers(f.record)).toEqual(["implementation-validation", "task:1.2", "task:1.3", "known-gaps-manual-disposition"]);
-    expect(() => reconcileAcceptanceTasks(f.tasks, { kind: "pull-request", record: f.record }, {})).toThrow("acceptance-incomplete");
+    expect(acceptanceBlockers(f.record)).toEqual(["implementation-validation", "known-gaps-manual-disposition"]);
+    expect(() => reconcileAcceptanceTasks(f.tasks, { kind: "pull-request", record: f.record, checklistComplete: true,
+      checklistDigest: "f".repeat(64), checks: ["The reviewed implementation behavior produces its expected observable result."] }, {}))
+      .toThrow("acceptance-incomplete");
+  });
+  it("keeps prior receipt identities readable while binding the final checklist", () => {
+    const f = fixture();
+    const receipt = { kind: "pull-request", id: 500, headSha: "c".repeat(40), mergeSha: "d".repeat(40),
+      bodyDigest: "e".repeat(64), checklistDigest: "f".repeat(64), checks: ["Scrollbar overflow displays its expected visible thumb."],
+      author: "reviewer", createdAt: "2026-09-15T07:00:00Z", record: f.record };
+    const current = receiptIdentity(receipt);
+    const { checklistDigest: _digest, checks: _checks, ...legacy } = current;
+    expect(receiptIdentityMatches(current, receipt)).toBe(true);
+    expect(receiptIdentityMatches(legacy, receipt)).toBe(true);
+    expect(receiptIdentityMatches({ ...legacy, pr: 501 }, receipt)).toBe(false);
   });
   it("rejects duplicate task IDs, forged digests, altered continuation, and unrelated evidence", () => {
     const f = fixture();
