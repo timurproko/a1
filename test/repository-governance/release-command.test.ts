@@ -2,13 +2,20 @@ import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import { describe, expect, it, onTestFinished } from "vitest";
+import { describe, expect, it, onTestFailed, onTestFinished } from "vitest";
+import { NativeRegressionTrace } from "../support/native-regression-trace.js";
 import { main } from "../../scripts/release/release.mjs";
 import { releaseFixture } from "../support/release-command-fixture.js";
 
 async function fixture(version?: string) {
-  const value = await releaseFixture(version);
-  onTestFinished(() => value.dispose());
+  const trace = new NativeRegressionTrace("release-command");
+  onTestFailed(() => trace.report());
+  const value = await trace.measureAsync("setup", () => releaseFixture(version, trace, dispose => {
+    onTestFinished(async () => {
+      await dispose();
+      if (process.env.NATIVE_REGRESSION_DIAGNOSTICS === "1") trace.report();
+    });
+  }));
   return value;
 }
 
@@ -48,6 +55,18 @@ describe("release command with real temporary Git and fake publication services"
     expect(f.logs[0]).toBe(`source ${current}; stable target ${stable}; next development ${opening}`);
     expect(f.events[0]).toBe("log");
   }, 20_000);
+
+  it("keeps automatic housekeeping isolated from real disposable Git operations", async () => {
+    const f = await fixture();
+    for (const repository of [f.cwd, f.remote]) {
+      expect(f.git(["config", "--get", "gc.auto"], repository)).toBe("0");
+      expect(f.git(["config", "--get", "maintenance.auto"], repository)).toBe("false");
+      expect(f.git(["config", "--get", "receive.autoGC"], repository)).toBe("false");
+    }
+    expect(f.git(["fsck", "--no-dangling"], f.remote)).toBe("");
+    expect(f.remoteVersion()).toBe("0.1.8-dev");
+    expect(f.publications).toEqual([]);
+  });
 
   it("requires a target before even reading or mutating release state", async () => {
     const f = await fixture();

@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, realpath, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -50,15 +50,29 @@ describe("bounded predecessor command outcomes", () => {
       .rejects.toMatchObject({ evidence: { error: "ABORTED", stdoutBytes: 0, stderrBytes: 0 } });
   });
 
-  it("preserves argument boundaries and cwd with spaces while sanitizing npm configuration", async () => {
-    const cwd = await mkdtemp(resolve(tmpdir(), "predecessor space "));
+  it.each(["ordinary", "alias", "resolved-alias", "wrong-directory"])("preserves argv, directory identity and npm sanitation (%s)", async mode => {
+    const root = await mkdtemp(resolve(tmpdir(), "predecessor space "));
     try {
+      const target = resolve(root, "requested directory");
+      const alias = resolve(root, "alias directory");
+      const other = resolve(root, "different directory");
+      await mkdir(target); await mkdir(other);
+      await symlink(target, alias, process.platform === "win32" ? "junction" : "dir");
+      const requested = mode === "ordinary" ? target : alias;
+      const cwd = mode === "wrong-directory" ? other : requested;
       const values = ["space value", "a&b", 'quoted"value'];
+      // Platform: a real chdir to the same canonical directory reproduces canonical reporting even on Windows.
+      const canonicalize = mode === "resolved-alias" ? "process.chdir(require('node:fs').realpathSync(process.cwd()));" : "";
       const result = await run("", { cwd,
-        arguments: ["-e", "process.stdout.write(JSON.stringify({args:process.argv.slice(1),cwd:process.cwd(),bad:Object.keys(process.env).filter(k=>k.toLowerCase().startsWith('npm_config_')),keep:process.env.FIXTURE_KEEP}));", ...values],
+        arguments: ["-e", canonicalize + "process.stdout.write(JSON.stringify({args:process.argv.slice(1),cwd:process.cwd(),bad:Object.keys(process.env).filter(k=>k.toLowerCase().startsWith('npm_config_')),keep:process.env.FIXTURE_KEEP}));", ...values],
         environment: { ...process.env, npm_config_prefix: "unowned-prefix", NPM_CONFIG_CACHE: "unowned-cache", FIXTURE_KEEP: "keep" },
       });
-      expect(JSON.parse(result.stdout)).toEqual({ args: values, cwd, bad: [], keep: "keep" });
-    } finally { await rm(cwd, { recursive: true, force: true }); }
+      const observed = JSON.parse(result.stdout);
+      const verify = async () => {
+        expect({ ...observed, cwd: await realpath(observed.cwd) }).toEqual({ args: values, cwd: await realpath(requested), bad: [], keep: "keep" });
+      };
+      if (mode === "wrong-directory") await expect(verify()).rejects.toThrow();
+      else await verify();
+    } finally { await rm(root, { recursive: true, force: true }); }
   });
 });
