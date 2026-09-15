@@ -1,13 +1,18 @@
 {
-  "version": 1,
+  "version": 2,
   "repository": "timurproko/a1",
   "change": "fix-session-shell-native-fixture-isolation",
   "sourcePr": 407,
   "sourceHead": "f273b6aa1f665dd515b5d77274f219b0574112c5",
   "sourceMerge": "389c26c7b65338f82f44aa2954b8fd805fb5c2c9",
-  "sourceBodyDigest": "1fbea5cb23ab70d25cb6744811c46480fe0b375dc9ca89153ea8d269a4fda2a1",
+  "sourceBodyDigest": "021dffb401d0b4ca06189613b875a94a1f2e7464b9586250a81f409c8b4cd913",
   "artifactDigest": "47d6aeb86a0e6b32fcb9f896dd7257974b9e78463ad5229e32276b6c308602c4",
   "specBaseSha": "2d992336c48790fb2f793883816905c9db2ec5e7",
+  "acceptanceChecks": [
+    "Paste operations without an explicit helper use the current emitted helper in a fresh process while explicit helper selection remains unchanged.",
+    "Only the exact owned image-worker bootstrap routes to the emitted worker while unrelated worker identity, options, and data remain unchanged.",
+    "Session-shell text, image, ordering, pending, retry, and submission scenarios retain their recorded outcomes on Node 22 and Node 24."
+  ],
   "validation": {
     "runId": 34947449316,
     "headSha": "f273b6aa1f665dd515b5d77274f219b0574112c5",
