@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { archiveReaderFromGet, loadArchiveEvidence } from "../../scripts/governance/openspec-archive-github.mjs";
 import { prepareAcceptanceRequest, validateAcceptanceCandidate } from "../../scripts/governance/openspec-acceptance-github.mjs";
-import { publishAcceptanceRequest } from "../../scripts/governance/openspec-acceptance-publication.mjs";
+import { acceptancePullTitle, publishAcceptanceRequest } from "../../scripts/governance/openspec-acceptance-publication.mjs";
 import { acceptanceBytes, acceptancePath, acceptanceBranch, archivedAcceptanceMatches, type AcceptanceRecord } from "../../scripts/governance/openspec-acceptance-policy.mjs";
 import { loadArchiveTool, prepareArchive } from "../../scripts/governance/openspec-archive-staging.mjs";
 import { archiveMarker, archivePullBody } from "../../scripts/governance/openspec-archive-publication.mjs";
@@ -31,7 +31,7 @@ function fixture(pending = false) {
   const permissions = new Map([["reviewer", "write"]]);
   const requests: string[] = [], mutations: { path: string; method: string; body: any }[] = [];
   const repo = { full_name: repository };
-  const sourcePull = { number: 400, state: "closed", merged: true, draft: false, merged_at: "2026-09-15T06:00:00Z",
+  const sourcePull = { number: 400, title: "feature(governance): improve internal tooling", state: "closed", merged: true, draft: false, merged_at: "2026-09-15T06:00:00Z",
     merge_commit_sha: merge, changed_files: 1, head: { sha: head, ref: "feature/example", repo }, base: { sha: base, ref: "develop", repo },
     body: '```openspec-implementation\n{"version":2,"change":"example"}\n```' };
   pulls.set(400, sourcePull); files.set(400, [{ filename: "src/example.ts", status: "modified" }]);
@@ -126,6 +126,14 @@ function fixture(pending = false) {
 }
 
 describe("visible acceptance publication and authority", () => {
+  it("uses the source PR number and original subject in concise acceptance titles", () => {
+    const record = { sourcePr: 468, change: "fallback-change" } as AcceptanceRecord;
+    expect(acceptancePullTitle(record, "feature(governance): make acceptance a visible review PR"))
+      .toBe("#468(accept): make acceptance a visible review PR");
+    expect(acceptancePullTitle(record, "Keep the complete original title"))
+      .toBe("#468(accept): Keep the complete original title");
+    expect(acceptancePullTitle(record)).toBe("#468(accept): fallback-change");
+  });
   it("creates one conditional request, reuses it, preserves reviewer edits, and never merges", async () => {
     const f = fixture(); const source = await f.source(), candidate = await prepareAcceptanceRequest(f.reader, source);
     expect(candidate.blockers).toEqual([]);
@@ -135,20 +143,31 @@ describe("visible acceptance publication and authority", () => {
     await publishAcceptanceRequest({ reader: f.reader, publisher: f.publisher, source, candidate });
     expect(f.pulls.get(500).body).toBe("Reviewer-added notes; do not overwrite.");
     expect(f.mutations.filter(item => item.path.endsWith("/pulls"))).toHaveLength(1);
+    const created = f.mutations.find(item => item.path.endsWith("/pulls"))!.body;
+    expect(created.title).toBe("#400(accept): improve internal tooling");
+    expect(created.body).toContain("- [ ] Review [#400: improve internal tooling](https://github.com/owner/repo/pull/400)");
+    expect(created.body).not.toContain("## Source tasks");
+    expect(created.body).not.toContain("openspec-acceptance-request");
+    expect(created.body.split("\n").every((line: string) => line.startsWith("- [ ] "))).toBe(true);
     expect(f.mutations.every(item => !item.path.endsWith("/merge") && item.method !== "PUT")).toBe(true);
     expect(await f.source()).toMatchObject({ disposition: "acceptance-missing" });
     await expect(validateAcceptanceCandidate(f.reader, 500)).resolves.toMatchObject({ disposition: "awaiting-manual-acceptance-merge" });
   });
   it("surfaces #400-shaped pending tasks and missing CI as a draft rather than approval", async () => {
     const f = fixture(true); f.ci.set(400, "failure");
+    const candidate = await prepareAcceptanceRequest(f.reader, await f.source());
     const report = await reconcileArchives({ reader: f.reader, tool: {}, pr: 400, dryRun: false, publisherFactory: async () => f.publisher });
     expect(report.results).toMatchObject([{ pr: 400, acceptancePr: 500, disposition: "awaiting-evidence", blockers: ["implementation-validation", "task:1.1"] }]);
     expect(f.pulls.get(500).draft).toBe(true);
-    expect(f.pulls.get(500).body).toContain("Merging this PR records your acceptance");
+    expect(f.pulls.get(500).body).toContain("Verify task 1.1: Implement and verify the internal refactor.");
     expect(f.comments.get(400)![0].body).toContain("Acceptance PR: #500");
     expect(f.comments.get(500)![0].body).toContain("Update this same PR with actual evidence");
     expect(f.mutations.some(item => item.body?.ref?.includes("archive-"))).toBe(false);
-    await expect(validateAcceptanceCandidate(f.reader, 500)).rejects.toThrow("acceptance-incomplete");
+    await expect(validateAcceptanceCandidate(f.reader, 500)).resolves.toMatchObject({
+      disposition: "awaiting-evidence", blockers: ["implementation-validation", "task:1.1"],
+    });
+    f.seed(candidate.record, true);
+    await expect(f.source()).rejects.toThrow("acceptance-incomplete");
   });
   it("publishes a missing acceptance request despite an unrelated serialized archive queue", async () => {
     const f = fixture();

@@ -5,7 +5,7 @@ Make implementation acceptance a visible, manually reviewed pull request that su
 ## ADDED Requirements
 
 ### Requirement: Missing acceptance produces a visible review request
-For a verified merged implementation with a supported explicit OpenSpec association and no valid acceptance, trusted automation SHALL create or reuse one acceptance PR identifying the change and implementation number. The request SHALL show the exact implementation head and merge commit, reviewed synchronization baseline, actual CI references, recorded evidence, unfinished tasks, known gaps, review instructions, and the statement that its manual merge records acceptance. Generating a request SHALL NOT create another proposal, publish an archive, or itself grant acceptance.
+For a verified merged implementation with a supported explicit OpenSpec association and no valid acceptance, trusted automation SHALL create or reuse one acceptance PR titled `#<source PR>(accept): <original implementation subject>`. The request body SHALL contain a prominent link to the original implementation PR and a concise unchecked list of only what the maintainer must verify, including unresolved CI, task, evidence, or gap items. Exact identities, completed task inventory, and detailed evidence SHALL remain in the committed review record and its diff rather than being repeated in the PR description. Generating a request SHALL NOT create another proposal, publish an archive, or itself grant acceptance.
 
 #### Scenario: New implementation lacks acceptance
 - **WHEN** a supported implementation merges without an acceptance record
@@ -13,8 +13,9 @@ For a verified merged implementation with a supported explicit OpenSpec associat
 
 #### Scenario: Work is not fully evidenced
 - **WHEN** required CI, implementation, or physical review evidence is missing or failed
-- **THEN** the acceptance request SHALL visibly list each blocker and SHALL NOT be presented as ready to accept
-- **AND** absent results SHALL remain unknown or pending rather than passed
+- **THEN** the acceptance request SHALL visibly list each item as unchecked and SHALL initially remain draft
+- **AND** candidate-integrity CI SHALL report those unresolved items without treating a structurally valid, source-bound record as malformed
+- **AND** post-merge receipt consumption and completed archival SHALL remain blocked until required outcomes are evidenced
 
 #### Scenario: Source association is unverifiable
 - **WHEN** source linkage, merged state, repository identity, or candidate contents cannot be verified
@@ -61,11 +62,12 @@ Generated acceptance requests SHALL preserve source task identities and their re
 - **THEN** automation SHALL preserve the distinction and direct it to the explicit manual-disposition route rather than a completed archive
 
 ### Requirement: Acceptance requests are never documentation auto-merge candidates
-Acceptance-bound PRs SHALL be excluded from every automatic integration route, including direct merge reconciliation, auto-merge arming, and eligible-docs recovery. Classification SHALL inspect the complete diff, both sides of renames, reserved record paths, and authoritative lifecycle evidence. Removing a body marker or label SHALL NOT bypass the exclusion. Existing archive follow-ups that merely carry a copy of accepted evidence SHALL retain their normal CI-gated automatic route.
+Acceptance-bound PRs SHALL be excluded from every automatic integration route, including direct merge reconciliation, auto-merge arming, and eligible-docs recovery. Classification SHALL inspect the complete diff, both sides of renames, reserved record paths, and authoritative lifecycle evidence. A concise body need not carry machine metadata; removing or changing editable display text or labels SHALL NOT bypass the exclusion. Existing archive follow-ups that merely carry a copy of accepted evidence SHALL retain their normal CI-gated automatic route.
 
 #### Scenario: Ready acceptance PR passes documentation CI
-- **WHEN** an acceptance PR has only allowed documentation paths and successful current-head checks
+- **WHEN** an acceptance PR has only allowed documentation paths and successful current-head candidate-integrity checks
 - **THEN** it SHALL still await manual merge and any armed auto-merge SHALL be disabled
+- **AND** green candidate CI SHALL NOT imply that unchecked human verification items were performed or that an incomplete merged record is archive-authoritative
 
 #### Scenario: Marker is removed or record is renamed
 - **WHEN** an acceptance-bound PR loses its display metadata or renames its record
