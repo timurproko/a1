@@ -55,6 +55,23 @@ function merged(pull, repository) {
 export async function verifyCleanupEvidence(reader, entry) {
   const source = await loadArchiveEvidence(reader, entry.sourcePr);
   if (source.disposition !== "eligible" || source.implementation.change !== entry.change) fail("source-association");
+  if (source.implementation.version === 3) {
+    if (entry.role !== "implementation" || entry.candidatePr !== source.pull.number || entry.head !== source.pull.head.sha
+      || entry.ref !== null && entry.ref !== `refs/heads/${source.pull.head.ref}`) fail("candidate-head-association");
+    const target = await snapshotOpenSpec(reader, source.targetSha);
+    if ([...target.entries.keys()].some(path => path.startsWith(`openspec/changes/${entry.change}/`))
+      || !target.entries.has(source.implementation.acceptanceManifest)) fail("archived-delivery");
+    const ref = source.pull.head.ref;
+    if (typeof ref !== "string" || !/^[A-Za-z0-9._/-]+$/.test(ref) || ref.includes("..")) fail("remote-ref-identity");
+    try {
+      const live = await reader.get(`${reader.prefix}/git/ref/heads/${encodeURIComponent(ref)}`);
+      return { disposition: "pending", reason: "remote-ref-present", ref,
+        actualSha: SHA.test(live.object?.sha ?? "") ? live.object.sha : null };
+    } catch (error) { if (error.archiveCode !== "github-not-found") throw error; }
+    return { disposition: "eligible", sourcePr: source.pull.number, sourceHead: source.pull.head.sha,
+      sourceMerge: source.pull.merge_commit_sha, archivePr: null, archiveHead: source.pull.head.sha,
+      archiveMerge: source.pull.merge_commit_sha, targetSha: source.targetSha, refs: [ref] };
+  }
   const branch = `docs/archive-${entry.change}`;
   const pulls = await reader.pages(`/pulls?state=all&base=develop&head=${encodeURIComponent(`${reader.repository.split("/")[0]}:${branch}`)}`, 1000);
   if (pulls.some(pull => pull.state === "open")) return { disposition: "pending", reason: "archive-pending" };

@@ -29,6 +29,8 @@ describe("impact-aware validation workflows", () => {
     }
     expect(workflow.jobs.acceptance.outputs["acceptance-candidate"])
       .toBe("${{ steps.validation.outputs.acceptance_candidate || 'false' }}");
+    expect(workflow.jobs.acceptance.outputs["delivery-candidate"])
+      .toBe("${{ steps.validation.outputs.delivery_candidate || 'false' }}");
     const aggregate = workflow.jobs.required.steps.find((step: { name: string }) => step.name === "Require current impact-selected validation");
     expect(aggregate.env).toMatchObject({
       ACCEPTANCE_ONLY: "${{ needs.changes.outputs.acceptance-only }}",
@@ -85,10 +87,12 @@ describe("impact-aware validation workflows", () => {
     const source = await readFile(".github/workflows/ci.yml", "utf8");
     const workflow = parse(source);
     expect(workflow.on.pull_request.branches).toEqual(["develop"]);
-    expect(workflow.on.pull_request.types).toContain("ready_for_review");
+    expect(workflow.on.pull_request.types).toEqual(expect.arrayContaining(["edited", "ready_for_review", "synchronize"]));
     expect(workflow.on).toHaveProperty("workflow_dispatch");
     expect(workflow.jobs.changes.if).toBe("github.event_name != 'pull_request' || github.event.pull_request.draft == false");
     expect(source).toContain("manual_args=(--manual-no-comparison)");
+    expect(source).toContain("implementation_args=(--implementation-bound)");
+    expect(workflow.jobs.changes.outputs["implementation-bound"]).toContain("implementation_bound");
     expect(workflow.jobs.docs.if).toContain("docs-only");
     expect(workflow.jobs.modular.if).toContain("version-only");
     expect(workflow.jobs.rendering.if).toContain("rendering-tier");

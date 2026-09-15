@@ -81,6 +81,7 @@ export async function createArchivePublisher({ repository, appId, privateKey, fe
 }
 
 export function archiveMarker(evidence, candidate) {
+  if (evidence.implementation?.version === 3 || evidence.acceptance?.kind === "single-pr") throw archiveFailure("delivery-publication-forbidden");
   return {
     version: evidence.acceptance.kind === "pull-request" ? 2 : 1,
     ...(evidence.acceptance.kind === "pull-request" ? { acceptanceReceipt: receiptIdentity(evidence.acceptance) } : {}),
@@ -163,6 +164,7 @@ export async function archiveAuthorityCurrent(get, repository, pull, marker) {
 
 export async function publishArchive({ publisher, reader, evidence, candidate, recoveryCandidate = null, existing = null,
   retryClosed = false, gitImpl = execute, recheckEvidence = loadArchiveEvidence }) {
+  if (evidence.implementation?.version === 3 || evidence.acceptance?.kind === "single-pr") throw archiveFailure("delivery-publication-forbidden");
   assertArchiveDiff(candidate.changes, candidate.paths);
   const marker = archiveMarker(evidence, candidate);
   const prefix = reader.prefix;

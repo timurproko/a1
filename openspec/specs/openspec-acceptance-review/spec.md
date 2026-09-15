@@ -1,7 +1,7 @@
 # openspec-acceptance-review Specification
 
 ## Purpose
-Make implementation acceptance a visible, manually reviewed pull request that supplies verified evidence to automatic OpenSpec archival without manufacturing completion.
+Make implementation acceptance visible and exact-head-bound, using authorized manual merge of implementation-specific scenarios while preserving honest evidence and legacy provenance.
 
 ## Requirements
 
