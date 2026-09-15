@@ -23,6 +23,7 @@ const resourceSensitiveTests = [
   ...originalResourceSensitiveTests.slice(1, 2),
   "test/repository-governance/local-cleanup.test.ts",
   ...originalResourceSensitiveTests.slice(2),
+  "test/features/workspace/workspace.test.ts",
   "test/features/prompt-history/store.test.ts",
   "test/integrations/pi/session-ui/command-message-parity.test.ts",
   "test/integrations/pi/session-ui/command-outcome-parity.test.ts",

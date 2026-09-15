@@ -1,3 +1,4 @@
+import { loadPullRequestAcceptance } from "./openspec-acceptance-github.mjs";
 import { snapshotOpenSpec } from "./openspec-archive-staging.mjs";
 import { archiveFailure, assertMergedImplementation, parseImplementation, parseAcceptance, selectAcceptance, SHA } from "./openspec-archive-policy.mjs";
 
@@ -48,7 +49,7 @@ export function archiveReaderFromGet(repository, get) {
   return { repository, prefix, get, pages, ancestor };
 }
 
-export async function loadArchiveEvidence(reader, number) {
+export async function loadImplementationEvidence(reader, number) {
   if (!Number.isSafeInteger(number) || number < 1) throw archiveFailure("implementation-pr");
   const { get, pages, prefix, repository, ancestor } = reader;
   const pull = await get(`${prefix}/pulls/${number}`);
@@ -81,6 +82,19 @@ export async function loadArchiveEvidence(reader, number) {
       if (JSON.stringify(selected(source)) !== JSON.stringify(selected(merged))) throw archiveFailure("implementation-change-drift");
     }
 
+    return { disposition: "source", pull, implementation, targetSha };
+  } catch (error) {
+    error.archiveChange = implementation.change;
+    throw error;
+  }
+}
+
+export async function loadArchiveEvidence(reader, number, { allowMissing = false } = {}) {
+  const source = await loadImplementationEvidence(reader, number);
+  if (source.disposition === "unlinked") return source;
+  const { implementation, pull } = source;
+  const { get, pages, prefix, ancestor } = reader;
+  try {
     const comments = await pages(`/issues/${number}/comments`);
     const evidenceComments = [];
     for (const comment of comments) {
@@ -89,10 +103,19 @@ export async function loadArchiveEvidence(reader, number) {
       const permission = await get(`${prefix}/collaborators/${comment.user.login}/permission`);
       evidenceComments.push({ ...comment, permission: permission.permission });
     }
-    const acceptance = selectAcceptance(evidenceComments, implementation, pull.head.sha);
+    let legacy = null;
+    try { legacy = selectAcceptance(evidenceComments, implementation, pull.head.sha); }
+    catch (error) { if (error.archiveCode !== "acceptance-missing") throw error; }
+    const receipt = await loadPullRequestAcceptance(reader, source);
+    if (legacy && receipt) throw archiveFailure("acceptance-conflict");
+    const acceptance = receipt ?? (legacy ? { kind: "comment", ...legacy } : null);
+    if (!acceptance) {
+      if (allowMissing) return { ...source, disposition: "acceptance-missing" };
+      throw archiveFailure("acceptance-missing");
+    }
     await ancestor(acceptance.value.specBaseSha, pull.head.sha);
     const validation = await findImplementationValidation(reader, pull);
-    return { disposition: "eligible", pull, implementation, acceptance, validation, targetSha };
+    return { ...source, disposition: "eligible", acceptance, validation };
   } catch (error) {
     error.archiveChange = implementation.change;
     throw error;

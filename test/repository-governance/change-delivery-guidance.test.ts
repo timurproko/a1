@@ -10,7 +10,8 @@ describe("repository-owned single-PR delivery guidance", () => {
     expect(config).toContain("user approves the plan and explicitly requests implementation");
     expect(config).toContain("same worktree, branch, history, and draft PR");
     expect(config).toContain("Never enable auto-merge for a code/operational pull request");
-    expect(config).toContain("Renew acceptance if the head changes");
+    expect(config).toContain("New candidate commits require current-head CI and renewed implementation review");
+    expect(config).toContain("Only verified authorized human manual merge of the exact checked record supplies PR-backed acceptance");
     expect(config).not.toContain("After the initial specification merges");
     expect(config).not.toContain("Split mixed planning/implementation branches");
   });
@@ -33,7 +34,9 @@ describe("repository-owned single-PR delivery guidance", () => {
     expect(examples.map(value => value?.version)).toEqual([2, 1]);
     expect(examples[0]).not.toHaveProperty("specificationPr");
     expect(examples[1]?.specificationPr).toBe(123);
-    expect(docs).toContain("REPLACE_WITH_FINAL_REVIEWED_40_CHARACTER_SHA");
+    expect(docs).toContain("openspec/acceptance/<change>/<source-head>.json");
+    expect(docs).toContain("Merging this PR records your acceptance.");
+    expect(docs).not.toContain("REPLACE_WITH_FINAL_REVIEWED_40_CHARACTER_SHA");
     expect(docs).toContain("Closing alone does not authorize deleting an unmerged branch or dirty worktree");
     expect(docs).toContain("Legacy merged plan rejected");
     expect(docs).toContain("Unit tests are not that evidence");

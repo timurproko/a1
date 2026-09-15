@@ -146,13 +146,20 @@ describe("event-triggering App publication", () => {
         : path.startsWith("/users/") ? { id: 1234, login: "archive-app[bot]", type: "Bot" }
         : path.endsWith("/installation") ? { id: 90, app_id: 42 }
         : path.endsWith("/access_tokens") ? { token: "short-lived-token", permissions: { contents: "write", pull_requests: "write" } }
+        : path === "/graphql" ? { data: { markPullRequestReadyForReview: { pullRequest: { number: 50 } } } }
         : { number: 50 };
       return path === "/installation/token" ? new Response(null, { status: 204 }) : Response.json(value);
     };
     const publisher = await createArchivePublisher({ repository: "owner/repo", appId: "42",
       privateKey: privateKey.export({ type: "pkcs8", format: "pem" }).toString(), fetchImpl });
     await expect(publisher.mutate("/repos/owner/repo/pulls/50/merge", "PUT", {})).rejects.toThrow("publication-route");
+    await expect(publisher.mutate("/repos/owner/repo/git/refs/heads/docs/accept-example-20", "PATCH", {})).rejects.toThrow("publication-route");
+    await expect(publisher.mutate("/repos/owner/repo/git/refs", "POST", { ref: "refs/heads/docs/archive-example", sha: "a".repeat(40) })).rejects.toThrow("publication-route");
+    await publisher.mutate("/repos/owner/repo/git/trees", "POST", { tree: [] });
+    await publisher.mutate("/repos/owner/repo/git/commits", "POST", { message: "owned" });
+    await publisher.mutate("/repos/owner/repo/git/refs", "POST", { ref: "refs/heads/docs/accept-example-20", sha: "a".repeat(40) });
     await publisher.mutate("/repos/owner/repo/pulls", "POST", { head: "docs/archive-example" });
+    await publisher.ready(50, "PR_accepted");
     await publisher.close();
     expect(JSON.parse(requests.find(item => item.path.endsWith("/access_tokens"))!.body)).toEqual({
       repositories: ["repo"], permissions: { contents: "write", pull_requests: "write" },

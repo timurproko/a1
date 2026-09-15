@@ -91,6 +91,43 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  acceptance:
+    name: Acceptance record validation
+    needs: changes
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+      pull-requests: read
+      actions: read
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out trusted base policy only
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+      - name: Set up Node
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 24
+      - name: Detect trusted acceptance policy deployment
+        id: policy
+        shell: bash
+        run: |
+          if [ -f scripts/governance/openspec-acceptance-github.mjs ]; then
+            echo 'installed=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'Acceptance policy is not deployed on this trusted base; this is not acceptance evidence.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Validate acceptance record using trusted policy
+        if: steps.policy.outputs.installed == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ACCEPTANCE_PR_NUMBER: ${{ github.event.pull_request.number }}
+        shell: bash
+        run: node scripts/governance/reconcile-openspec-archive.mjs --validate-acceptance --pr "$ACCEPTANCE_PR_NUMBER"
+
   docs:
     name: Documentation governance validation
     permissions:
@@ -463,7 +500,7 @@ jobs:
   required:
     name: Development validation required
     if: always() && (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
-    needs: [changes, docs, naming, documentation, validate, startup, rendering, containment]
+    needs: [changes, acceptance, docs, naming, documentation, validate, startup, rendering, containment]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -472,6 +509,12 @@ jobs:
         with:
           ref: ${{ needs.changes.outputs.head-sha }}
           persist-credentials: false
+      - name: Require acceptance policy for pull requests
+        if: github.event_name == 'pull_request'
+        shell: bash
+        env:
+          ACCEPTANCE_RESULT: ${{ needs.acceptance.result }}
+        run: test "$ACCEPTANCE_RESULT" = 'success'
       - name: Require current impact-selected validation
         env:
           CHANGES_RESULT: ${{ needs.changes.result }}
