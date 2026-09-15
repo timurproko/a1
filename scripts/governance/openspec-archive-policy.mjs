@@ -34,7 +34,7 @@ function boundedText(value, limit = MAX_TEXT) {
 
 export function metadataBlock(text, label) {
   boundedText(text);
-  requireValue(["openspec-implementation", "openspec-acceptance", "openspec-archive"].includes(label), "metadata-label");
+  requireValue(["openspec-implementation", "openspec-acceptance", "openspec-archive", "openspec-acceptance-request", "openspec-acceptance-receipt"].includes(label), "metadata-label");
   const blocks = [];
   let fence = null;
   let lines = [];
@@ -53,11 +53,16 @@ export function metadataBlock(text, label) {
   requireValue(fence?.label !== label, "metadata-unclosed");
   requireValue(blocks.length <= 1, "metadata-duplicate");
   if (!blocks.length) return null;
-  requireValue(Buffer.byteLength(blocks[0]) <= 16 * 1024, "metadata-size");
+  return strictJson(blocks[0]);
+}
+
+/** Parse bounded JSON without silently accepting duplicate (including escaped) keys. */
+export function strictJson(text, limit = 16 * 1024) {
+  boundedText(text, limit);
   let value;
-  try { value = JSON.parse(blocks[0]); }
+  try { value = JSON.parse(text); }
   catch { throw archiveFailure("metadata-json"); }
-  const tokens = [...blocks[0].matchAll(/"(?:\\.|[^"\\])*"|[{}\[\]:,]/g)].map(match => match[0]);
+  const tokens = [...text.matchAll(/"(?:\\.|[^"\\])*"|[{}\[\]:,]/g)].map(match => match[0]);
   const scopes = [];
   for (let index = 0; index < tokens.length; index += 1) {
     const token = tokens[index];
@@ -150,7 +155,7 @@ export function assertRepositoryPath(value) {
   return value;
 }
 
-export function inspectTasks(text, mapping = {}) {
+export function inspectTasks(text, mapping = {}, { allowIncomplete = false } = {}) {
   boundedText(text);
   object(mapping, [], Object.keys(ARCHIVE_TASKS));
   const tasks = [];
@@ -180,7 +185,7 @@ export function inspectTasks(text, mapping = {}) {
     allowed.add(id);
   }
   const blocked = tasks.filter(task => !task.done && !allowed.has(task.id));
-  if (blocked.length) throw archiveFailure("tasks-incomplete", blocked.map(task => task.id).join(","));
+  if (blocked.length && !allowIncomplete) throw archiveFailure("tasks-incomplete", blocked.map(task => task.id).join(","));
   return tasks;
 }
 

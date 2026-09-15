@@ -225,6 +225,33 @@ describe("documentation auto-merge workflow", () => {
   });
 });
 
+describe("acceptance manual-only integration", () => {
+  it.each(["clean", "unstable", "blocked"])("holds acceptance records in %s state without a body marker", async mergeable_state => {
+    const result = await runManager(validationEvent(), pullFixture({ mergeable_state, auto_merge: { merge_method: "squash" } }), {
+      respond: request => request.url.includes("/files?") ? { body: [{ filename: `openspec/acceptance/example/${headSha}.json`, status: "added" }] } : undefined,
+    });
+    expect(result.stdout).toContain("acceptance-associated");
+    expect(result.requests.some(request => request.body.includes("disablePullRequestAutoMerge"))).toBe(true);
+    expect(result.requests.some(request => request.body.includes("enablePullRequestAutoMerge") || request.method === "PUT")).toBe(false);
+  });
+  it.each(["removed", "renamed"])("holds %s authoritative records", async status => {
+    const path = `openspec/acceptance/example/${headSha}.json`;
+    const result = await runManager(validationEvent(), pullFixture({ mergeable_state: "clean" }), {
+      respond: request => request.url.includes("/files?") ? { body: [{ filename: status === "renamed" ? "docs/ordinary.json" : path,
+        status, ...(status === "renamed" ? { previous_filename: path } : {}) }] } : undefined,
+    });
+    expect(result.stdout).toContain("acceptance-associated");
+    expect(result.requests.some(request => request.method === "PUT")).toBe(false);
+  });
+  it("rechecks acceptance association after an unstable arming response", async () => {
+    const body = '```openspec-acceptance-request\n{"version":1}\n```';
+    const result = await runManager(validationEvent(), [pullFixture(),
+      pullFixture({ body, mergeable_state: "clean", auto_merge: { merge_method: "squash" } })], { respond: rejectUnstableEnable });
+    expect(result.requests.some(request => request.body.includes("disablePullRequestAutoMerge"))).toBe(true);
+    expect(result.requests.some(request => request.method === "PUT")).toBe(false);
+  });
+});
+
 describe("single-PR implementation holds", () => {
   const link = '```openspec-implementation\n{"version":2,"change":"example"}\n```';
   it.each([link, '```openspec-implementation\n{"version":99,"change":"example"}\n```', '```openspec-implementation\n{'])

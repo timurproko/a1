@@ -48,17 +48,24 @@ describe("history snapshot lifecycle", () => {
     const first = new PromptHistoryService(options);
     const text = "synthetic pasted text\n".repeat(15).trim();
     let controller: PromptHistoryController | undefined;
+    let stopObserving = () => {};
     const second = new PromptHistoryService(options);
     try {
       const candidate: PromptHistorySubmission = { id: "restart", text, timestamp: 1, kind: "prompt" };
       expect(await first.record(candidate)).toBe("committed"); await first.close();
       const input = await editor(root);
       controller = new PromptHistoryController({ editor: input, store: second, limit: 100, fallback: [], active: () => true, render() {} });
+      const loaded = new Promise<void>(resolve => {
+        stopObserving = second.onSnapshot(snapshot => {
+          if (snapshot.entries.some(entry => entry.submissionId === candidate.id)) { stopObserving(); resolve(); }
+        });
+      });
       controller.start();
-      await vi.waitFor(() => expect(input.recall?.position().total).toBe(1));
+      await loaded;
+      expect(input.recall?.position().total).toBe(1);
       input.handleInput?.("\x1b[A");
       expect(input.getText()).toBe(text);
-    } finally { await first.close(); await controller?.close(); await second.close(); await rm(root, { recursive: true, force: true }); }
+    } finally { stopObserving(); await first.close(); await controller?.close(); await second.close(); await rm(root, { recursive: true, force: true }); }
   });
 
   it("applies the caller-supplied rehydrate function to every recall entry once and caches the result", async () => {

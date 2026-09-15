@@ -71,7 +71,10 @@ export function inspectWorkflowSource(path, source) {
   if (source.includes("reconcile-merged-branch.mjs")) authority.push("matching-merged-head-delete");
   if (source.includes("reconcile-openspec-archive.mjs")) {
     if (source.includes("OPENSPEC_ARCHIVE_APP_PRIVATE_KEY")) authority.push("openspec-archive-app-publication", "archive-read-only-audit");
-    else if (source.includes("--validate-candidate")) authority.push("archive-merge-result-validation");
+    else {
+      if (source.includes("--validate-candidate")) authority.push("archive-merge-result-validation");
+      if (source.includes("--validate-acceptance")) authority.push("acceptance-record-validation");
+    }
   }
   if (source.includes('channel = "next"')) authority.push("npm-next");
   if (source.includes('channel = "latest"')) authority.push("npm-latest");

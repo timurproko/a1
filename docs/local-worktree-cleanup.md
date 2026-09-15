@@ -1,6 +1,6 @@
 # Local worktree cleanup after automatic archival
 
-Local cleanup completes the delivery order in [the archive runbook](openspec-archive-automation.md): implementation merge, automatic OpenSpec archive **merge**, remote topic-ref deletion, then safe local cleanup. GitHub Actions never reaches into a developer machine. This command neither publishes archives nor merges PRs or deletes remote refs.
+Local cleanup completes the delivery order in [the archive runbook](openspec-archive-automation.md): implementation merge, verified manual acceptance-record **merge**, automatic OpenSpec archive **merge**, remote topic-ref deletion, then safe local cleanup. GitHub Actions never reaches into a developer machine. This command neither publishes archives nor merges PRs or deletes remote refs.
 
 The implementation is repository tooling, not part of the installed A1 product. It requires Node, Git, and GitHub read access. No product build, dependency installation, interactive UI, or OS-service provisioning is needed. It supports this repository's `origin` on github.com, via HTTPS or SSH.
 
@@ -68,7 +68,7 @@ Before handing a completed checkout to cleanup, stop its development processes, 
 node scripts/governance/local-worktree-cleanup.mjs release --repo D:/Git/a1 --id REGISTRATION_ID --generation CURRENT_GENERATION
 ```
 
-Release verifies ownership and the original directory, records the owner's current final HEAD/ref, and returns a new generation. It does not declare acceptance or archival. The worker still verifies the actual merged implementation, accepted source, automatic archive markers/merge/CI, current `develop` archive contents, and live absence of both remote topic refs. It will not remove an open or closed-unmerged PR's worktree.
+Release verifies ownership and the original directory, records the owner's current final HEAD/ref, and returns a new generation. It does not declare acceptance or archival. The worker still verifies the actual merged implementation, exact legacy-comment or human-manually-merged acceptance receipt, automatic archive markers/merge/CI, current `develop` archive contents, and live absence of implementation, acceptance, and archive topic refs. An acceptance merge alone remains ineligible. A bot/automatic/merge-queue acceptance, stale record, missing acceptance-head CI, or unmatched archived receipt blocks cleanup. It will not remove an open or closed-unmerged PR's worktree.
 
 After release, request a pass from the stable checkout if cleanup is enabled. A running watcher will also pick it up. Never release another session's worktree or use a clean status/dead PID as a substitute for ownership.
 

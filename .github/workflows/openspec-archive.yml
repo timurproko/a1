@@ -3,7 +3,7 @@ name: OpenSpec archive
 on:
   pull_request_target:
     branches: [develop]
-    types: [closed]
+    types: [closed, synchronize, reopened, ready_for_review]
   schedule:
     - cron: '23 4 * * *'
   workflow_dispatch:
@@ -33,7 +33,7 @@ concurrency:
 jobs:
   reconcile:
     name: Reconcile accepted OpenSpec changes
-    if: github.event_name != 'pull_request_target' || github.event.pull_request.merged == true
+    if: github.event_name != 'pull_request_target' || github.event.pull_request.merged == true || startsWith(github.event.pull_request.head.ref, 'docs/accept-')
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     env:

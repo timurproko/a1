@@ -1,5 +1,5 @@
 import { classifyDocumentationAutoMerge } from "./documentation-auto-merge.mjs";
-import { parseImplementation, CHANGE, SHA } from "./openspec-archive-policy.mjs";
+import { parseImplementation, metadataBlock, CHANGE, SHA } from "./openspec-archive-policy.mjs";
 import { snapshotOpenSpec } from "./openspec-archive-staging.mjs";
 
 /** Resolve implementation holds separately from the path-only code/operational classifier. */
@@ -9,7 +9,11 @@ export async function inspectDocumentationLifecycle(pull, files, reader) {
   if (!Number.isSafeInteger(pull.changed_files) || pull.changed_files !== files.length) return { held: true, reason: "incomplete-diff" };
   if (pull.draft !== false) return { held: true, reason: "draft-or-unknown-state" };
   if (pull.body !== null && typeof pull.body !== "string") return { held: true, reason: "missing-lifecycle-metadata" };
+  // Invariant: reserved paths on either side of the diff and the dedicated branch survive marker removal.
+  if (classification.examinedPaths.some(path => path === "openspec/acceptance" || path.startsWith("openspec/acceptance/"))
+    || pull.head?.ref?.startsWith("docs/accept-")) return { held: true, reason: "acceptance-associated" };
   try {
+    if (metadataBlock(pull.body ?? "", "openspec-acceptance-request")) return { held: true, reason: "acceptance-associated" };
     if (parseImplementation(pull.body ?? "")) return { held: true, reason: "implementation-associated" };
   } catch { return { held: true, reason: "invalid-lifecycle-metadata" }; }
   const changes = new Set();

@@ -10,7 +10,8 @@ describe("impact-aware validation workflows", () => {
     expect(workflow).toContain("documentation-required: ${{ steps.selection.outputs.documentation_required }}");
     expect(workflow).toContain("name: Changed-file documentation validation");
     expect(workflow).toContain("name: Rendering validation");
-    expect(workflow).toContain("needs: [changes, docs, naming, documentation, validate, startup, rendering, containment]");
+    expect(workflow).toContain("needs: [changes, acceptance, docs, naming, documentation, validate, startup, rendering, containment]");
+    expect(workflow).toContain("name: Acceptance record validation");
     const required = workflow.slice(workflow.indexOf("\n  required:"));
     expect(required).toContain("ref: ${{ needs.changes.outputs.head-sha }}");
     expect(required).toContain("node scripts/release/require-development-validation.mjs");
