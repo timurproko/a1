@@ -1,0 +1,1642 @@
+{
+  "schema": "fast-partition-migration-v1",
+  "beforeHead": "9454992c190d7698d81ba273f998685da3536bff",
+  "afterState": "working tree implementing atomic fast scopes and selection schema tests",
+  "comparisons": [
+    {
+      "requested": [
+        "fast"
+      ],
+      "beforeSelected": [
+        "fast"
+      ],
+      "afterSelected": [
+        "fast-remainder",
+        "fast-resource-sensitive"
+      ],
+      "commandsIdentical": true,
+      "vitestInvocationsIdentical": true,
+      "packageAndBuildPrerequisitesIdentical": true
+    },
+    {
+      "requested": [
+        "typecheck",
+        "architecture",
+        "fast",
+        "dist-integration"
+      ],
+      "beforeSelected": [
+        "typecheck",
+        "architecture",
+        "fast",
+        "dist-integration"
+      ],
+      "afterSelected": [
+        "typecheck",
+        "architecture",
+        "fast-remainder",
+        "fast-resource-sensitive",
+        "dist-integration"
+      ],
+      "commandsIdentical": true,
+      "vitestInvocationsIdentical": true,
+      "packageAndBuildPrerequisitesIdentical": true
+    },
+    {
+      "requested": [
+        "full-release"
+      ],
+      "beforeSelected": [
+        "typecheck",
+        "architecture",
+        "fast",
+        "documentation-full",
+        "naming-full",
+        "rendering-stability",
+        "dist-integration",
+        "launch-integration",
+        "pi-engine-conformance",
+        "release-update",
+        "update-performance",
+        "structured-runtime-integration",
+        "package-smoke",
+        "package-install",
+        "dependency-policy",
+        "update-predecessor"
+      ],
+      "afterSelected": [
+        "typecheck",
+        "architecture",
+        "fast-remainder",
+        "fast-resource-sensitive",
+        "documentation-full",
+        "naming-full",
+        "rendering-stability",
+        "dist-integration",
+        "launch-integration",
+        "pi-engine-conformance",
+        "release-update",
+        "update-performance",
+        "structured-runtime-integration",
+        "package-smoke",
+        "package-install",
+        "dependency-policy",
+        "update-predecessor"
+      ],
+      "commandsIdentical": true,
+      "vitestInvocationsIdentical": true,
+      "packageAndBuildPrerequisitesIdentical": true
+    }
+  ],
+  "counts": {
+    "beforeTestFiles": 331,
+    "afterTestFiles": 332,
+    "beforeFastFiles": 307,
+    "afterFastFiles": 308,
+    "sensitiveFiles": 11,
+    "remainderFiles": 297
+  },
+  "ledger": [
+    {
+      "test": "test/cli/capabilities.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/cli/dispatch.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/cli/package-message-parity.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/cli/packages.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/cli/version-stats.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/composition/clipboard-diagnostics.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/composition/composition.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/composition/prompt-history.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/composition/prompt-suggestion-diagnostics.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/composition/settings-route-host.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/contracts/agent-engine/capability-ports.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/contracts/agent-engine/contracts.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/contracts/agent-engine/domain-contracts.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/contracts/agent-engine/package-ports.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/contracts/owned-ui/contracts.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/contracts/owned-ui/extension-ui-contract.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/contracts/owned-ui/image-attachments.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/contracts/owned-ui/prompt-history.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/contracts/owned-ui/transcript-lifecycle.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/contracts/presentation/contracts.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/contracts/workspace/contracts.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/features/launch/initialize-profile-race.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/features/launch/initialize-profile.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/features/launch/launch-profiles.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/features/launch/pi-tui-identity-installed.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/features/launch/pi-tui-identity.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/features/launch/pi-tui-proxy-sync.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/features/launch/prepare-launch.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/features/launch/profile-paths.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/features/launch/prompt-history-paths.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/features/launch/runtime-selection.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/features/launch/terminal-colour-fidelity.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/features/owned-ui/customization.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/features/owned-ui/diagnostics.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/features/owned-ui/event-frame-clock.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/features/owned-ui/pi-event-frame-parity.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/features/owned-ui/pi-raw-terminal-parity.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/features/owned-ui/pi-startup-composition-parity.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/features/owned-ui/pi-static-parity.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/features/owned-ui/project-trust-prompt.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/features/owned-ui/run-settings.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/features/owned-ui/run.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/features/owned-ui/session-fork-prompt.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/features/owned-ui/settings-app.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/features/prompt-history/concurrency.integration.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/features/prompt-history/image-sidecar.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/features/prompt-history/service.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/features/prompt-history/store.test.ts",
+      "before": "fast",
+      "after": "fast-resource-sensitive"
+    },
+    {
+      "test": "test/features/prompt-suggestions/diagnostics.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/features/workspace/capabilities.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/features/workspace/presentation.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/features/workspace/reconciliation.test.ts",
+      "before": "fast",
+      "after": "fast-resource-sensitive"
+    },
+    {
+      "test": "test/features/workspace/router.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/features/workspace/workspace.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/foundation/launch-context/context.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/foundation/launch-context/cutover.test.ts",
+      "before": "fast",
+      "after": "fast-resource-sensitive"
+    },
+    {
+      "test": "test/foundation/launch-guardian/concurrency.integration.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/foundation/launch-guardian/launch-guardian.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/foundation/launch-guardian/source-boundary.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/foundation/lifecycle/launch-instance.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/foundation/lifecycle/launch-profile-identity.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/foundation/lifecycle/paths.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/foundation/native-host-protocol/evidence.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/foundation/native-host-protocol/proof-gate.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/foundation/native-host-protocol/protocol.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/foundation/process-containment/artifact.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/foundation/process-containment/contracts.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/foundation/process-containment/darwin-process-inspector.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/foundation/process-containment/source-boundary.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/foundation/process-containment/unix-process-group.integration.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/foundation/process-containment/windows-job.integration.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/foundation/process-containment/windows-process-inspector.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/foundation/protocol/protocol.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/foundation/release/bootstrap-boundary.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/foundation/release/cohort-activation.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/foundation/release/cohort-state.test.ts",
+      "before": "fast",
+      "after": "fast-resource-sensitive"
+    },
+    {
+      "test": "test/foundation/release/dependency-certification-release.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/foundation/release/dependency-certification.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/foundation/release/dependency-layer.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/foundation/release/endpoint-metadata-compatibility.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/foundation/release/predecessor-command-errors.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/foundation/release/predecessor-command-faults.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/foundation/release/predecessor-command-lifecycle.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/foundation/release/predecessor-command.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/foundation/release/predecessor-fixture.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/foundation/release/release-gc.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/foundation/release/release-store.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/foundation/release/release.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/foundation/release/restart-certification.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/foundation/release/session-resume-diagnostics.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/foundation/release/stable-release.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/foundation/release/supervisor-startup.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/foundation/release/update-activation.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/foundation/release/update-launch.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/foundation/release/update-live-cohort.test.ts",
+      "before": "fast",
+      "after": "fast-resource-sensitive"
+    },
+    {
+      "test": "test/foundation/release/update-process-exit.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/foundation/release/update-recovery.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/foundation/release/update-transaction.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/foundation/release/update.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/foundation/release/warmup.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/foundation/startup/startup-runtime.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/foundation/storage/storage.test.ts",
+      "before": "fast",
+      "after": "fast-resource-sensitive"
+    },
+    {
+      "test": "test/foundation/structured-agent-runtime/backpressure.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/foundation/structured-agent-runtime/commands.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/foundation/structured-agent-runtime/handshake.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/foundation/structured-agent-runtime/reconnection.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/foundation/structured-agent-runtime/state.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/foundation/supervision/foreground-terminal-lease.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/foundation/supervision/supervisor-release-exit.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/foundation/terminal-cleanup/fatal-exit.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/components/compaction-prompt.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/components/components.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/components/conformance.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/components/editor-atomic-segmentation.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/components/editor-autocomplete-placement.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/components/editor-paste-presentation.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/components/editor-text-paste.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/components/extension-ui-bridge.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/components/history-editor-core.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/components/history-editor-shell.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/components/path-word-editing.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/components/path-word-ranges.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/components/pi-terminal-capabilities.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/components/pinned-assistant-content-parity.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/components/pinned-reconciled-source-ports.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/components/pinned-status-indicator-parity.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/components/pinned-theme-parity.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/components/prompt-input-ux.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/components/provider-auth-parity.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/components/scoped-model-platform-hints.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/components/session-selector.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/components/shell-components.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/components/tool-image-presentation.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/components/tool-shell-parity.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/components/transcript-image-resolver.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/engine/adapter.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/engine/candidate-capability-mutations.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/engine/changelog.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/engine/command-resources.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/engine/http-dispatcher.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/engine/model-auth-integration.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/engine/package-integration.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/engine/pending-delivery.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/engine/project-trust-context.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/engine/project-trust-preflight.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/engine/prompt-suggestion-provider.integration.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/engine/resource-extension-integration.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/engine/session-selection.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/engine/settings-effects.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/engine/settings-integration.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/engine/theme-settings.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/engine/tool-rendering.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/engine/transcript-image-assets.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/engine/windows-filesystem-hygiene.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/engine/workflow-controllers.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/engine/workflows.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/session-ui/clipboard-diagnostics.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/session-ui/clipboard-executor-lifecycle.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/session-ui/clipboard-image.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/session-ui/clipboard-packaged.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/session-ui/command-message-inventory.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/session-ui/command-message-parity.test.ts",
+      "before": "fast",
+      "after": "fast-resource-sensitive"
+    },
+    {
+      "test": "test/integrations/pi/session-ui/command-outcome-parity.test.ts",
+      "before": "fast",
+      "after": "fast-resource-sensitive"
+    },
+    {
+      "test": "test/integrations/pi/session-ui/editor-hyperlink-budget.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/session-ui/image-preparation.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/session-ui/paste-chip-lifecycle.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/session-ui/paste-executor.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/session-ui/paste-preparation-client.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/session-ui/path-chip-presentation.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/session-ui/prompt-chips.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/session-ui/prompt-history-controller.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/session-ui/prompt-suggestion-controller.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/session-ui/response-copy-baseline.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/session-ui/response-copy-coordinator.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/session-ui/response-copy-transport.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/session-ui/session-bottom-hover.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/session-ui/session-shell.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/session-ui/session-viewport-controller.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/session-ui/stream-presentation-coalescer.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/session-ui/system-clipboard.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/session-ui/text-paste.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/session-ui/transcript-attachment-ownership.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/session-ui/transcript-content-retention.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/session-ui/transcript-image-conversion.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/session-ui/transcript-payload-limits.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/session-ui/transcript-presentation-lifetime.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/tui-runtime/adapter.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/tui-runtime/conformance.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/tui-runtime/damage-aware-terminal.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/tui-runtime/ghost-link-fixture.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/tui-runtime/input-budgets.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/tui-runtime/input-evidence.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/tui-runtime/input-frame-observation.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/tui-runtime/input-frame-work.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/tui-runtime/input-presentation-coordinator.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/tui-runtime/mouse-report-input.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/tui-runtime/overlay-geometry.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/tui-runtime/pinned-wheel-parity.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/tui-runtime/rendering-budget-policy.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/tui-runtime/rendering-write-evidence.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/tui-runtime/streaming-workloads.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/tui-runtime/terminal-paint-evidence.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/integrations/pi/tui-runtime/width-parity.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/product-identity/product-identity.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/candidate-evidence.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/change-delivery-guidance.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/ci-release-runbook.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/code-documentation-command.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/code-documentation.test.ts",
+      "before": "fast",
+      "after": "fast-resource-sensitive"
+    },
+    {
+      "test": "test/repository-governance/damage-aware-terminal-boundary.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/deprecated-dependencies.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/development-validation-baseline.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/development-validation-required.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/docs-sensitive-governance.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/documentation-auto-merge.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/documentation-lifecycle.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/full-regression-policy.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/github-repository-governance.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/github-rulesets.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/history-editor-source.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/impact-aware-validation-workflows.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/input-presentation-boundary.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/integration-selection.test.ts",
+      "before": null,
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/merged-branch-cleanup.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/naming-inspection.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/naming-selection.test.ts",
+      "before": "fast",
+      "after": "fast-resource-sensitive"
+    },
+    {
+      "test": "test/repository-governance/native-host-boundary.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/openspec-archive-git.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/openspec-archive-github.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/openspec-archive-policy.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/openspec-archive-publication.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/openspec-archive-staging.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/openspec-archive-version-compatibility.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/openspec-archive-workflow.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/owned-settings-interaction-boundary.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/owned-ui-customization-prerequisite.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/owned-ui-documentation.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/owned-ui-research-baseline.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/pi-api-boundary-baseline.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/pi-api-boundary-policy.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/pi-boundary-manual-checkpoint.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/pi-candidate-evaluator.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/pi-compatibility-authority.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/pi-component-adaptation.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/pi-component-constructor-boundary.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/pi-engine-adapter-types.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/pi-maintenance-workflows.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/pi-modal-surface-inventory.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/pi-parity-capability-boundary.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/pi-parity-evidence.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/pi-presenter-ownership-inventory.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/pi-session-shell-provenance.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/pi-session-ui-responsibilities.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/pi-settings-inventory.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/pi-settings-metadata.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/pinned-pi-behavior-inventory.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/pinned-pi-source-ledger.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/product-identifier-inventory.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/product-identity-boundaries.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/product-identity-documentation.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/product-identity-governance.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/product-identity-inventory.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/progress-status-presentation-boundary.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/project-structure-policy.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/prompt-history-boundary.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/release-gate-policy.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/release-pipeline-policy.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/release-target.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/repair-native-executable-modes.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/replacement-drops-nothing.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/resource-data-policy.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/resource-sensitive-validation.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/shortcut-hint-governance.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/terminal-architecture-policy.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/terminal-host-proof-gate.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/terminal-host-provenance.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/validation-impact.test.ts",
+      "before": "fast",
+      "after": "fast-resource-sensitive"
+    },
+    {
+      "test": "test/repository-governance/validation-phase.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/validation-suite-policy.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/validation-tier.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/repository-governance/viewport-frame-descriptor.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/ui/apps/host.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/ui/components/frame.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/ui/components/line-input.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/ui/components/list-block.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/ui/components/list-view.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/ui/components/mouse.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/ui/components/progress-status.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/ui/components/prompt-input.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/ui/components/scrollbar.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/ui/components/selection-copy.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/ui/components/selection-scrollbar-edge.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/ui/components/shortcuts.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/ui/components/spans.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/ui/components/submitted-prompt.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/ui/components/text-selection.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/ui/components/text.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/ui/components/transcript-viewport.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/ui/components/value-menu.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/ui/components/visible-hyperlinks.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/ui/settings/declarations.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/ui/settings/resolution.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/ui/settings/sections.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/ui/settings/session.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    },
+    {
+      "test": "test/ui/settings/store.integration.test.ts",
+      "before": "fast",
+      "after": "fast-remainder"
+    }
+  ],
+  "limitations": "Fast ownership only; package scenario and platform/runtime migration ledger remains incomplete. Workflow scheduling is unchanged; no hosted performance improvement is claimed."
+}

@@ -19,21 +19,35 @@
       ]
     },
     "fast": {
+      "kind": "composition",
+      "includes": ["fast-remainder", "fast-resource-sensitive"]
+    },
+    "full-release": {
+      "kind": "composition",
+      "includes": [
+        "typecheck",
+        "architecture",
+        "fast",
+        "documentation-full",
+        "naming-full",
+        "rendering-stability",
+        "dist-integration",
+        "launch-integration",
+        "pi-engine-conformance",
+        "release-update",
+        "update-performance",
+        "structured-runtime-integration",
+        "package-smoke",
+        "package-install",
+        "dependency-policy",
+        "update-predecessor"
+      ]
+    }
+  },
+  "scopes": {
+    "fast-remainder": {
       "kind": "vitest-remainder",
       "includeRoot": "test",
-      "resourceSensitiveTests": [
-        "test/repository-governance/validation-impact.test.ts",
-        "test/repository-governance/naming-selection.test.ts",
-        "test/foundation/launch-context/cutover.test.ts",
-        "test/repository-governance/code-documentation.test.ts",
-        "test/foundation/storage/storage.test.ts",
-        "test/foundation/release/cohort-state.test.ts",
-        "test/foundation/release/update-live-cohort.test.ts",
-        "test/features/workspace/reconciliation.test.ts",
-        "test/features/prompt-history/store.test.ts",
-        "test/integrations/pi/session-ui/command-message-parity.test.ts",
-        "test/integrations/pi/session-ui/command-outcome-parity.test.ts"
-      ],
       "exclude": [
         "test/repository-governance/release-command.test.ts",
         "test/cli/update-cli.test.ts",
@@ -61,29 +75,22 @@
         "test/foundation/release/update-predecessor.integration.test.ts"
       ]
     },
-    "full-release": {
-      "kind": "composition",
-      "includes": [
-        "typecheck",
-        "architecture",
-        "fast",
-        "documentation-full",
-        "naming-full",
-        "rendering-stability",
-        "dist-integration",
-        "launch-integration",
-        "pi-engine-conformance",
-        "release-update",
-        "update-performance",
-        "structured-runtime-integration",
-        "package-smoke",
-        "package-install",
-        "dependency-policy",
-        "update-predecessor"
+    "fast-resource-sensitive": {
+      "kind": "vitest-resource-sensitive",
+      "tests": [
+        "test/repository-governance/validation-impact.test.ts",
+        "test/repository-governance/naming-selection.test.ts",
+        "test/foundation/launch-context/cutover.test.ts",
+        "test/repository-governance/code-documentation.test.ts",
+        "test/foundation/storage/storage.test.ts",
+        "test/foundation/release/cohort-state.test.ts",
+        "test/foundation/release/update-live-cohort.test.ts",
+        "test/features/workspace/reconciliation.test.ts",
+        "test/features/prompt-history/store.test.ts",
+        "test/integrations/pi/session-ui/command-message-parity.test.ts",
+        "test/integrations/pi/session-ui/command-outcome-parity.test.ts"
       ]
-    }
-  },
-  "scopes": {
+    },
     "typecheck": {
       "kind": "commands",
       "commands": [

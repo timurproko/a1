@@ -48,11 +48,14 @@ describe("validation suite ownership", () => {
       }
     }
 
-    const exclusions = new Set(suites.tiers["fast"]!.exclude ?? []);
+    const exclusions = new Set([
+      ...suites.scopes["fast-remainder"]!.exclude ?? [],
+      ...suites.scopes["fast-resource-sensitive"]!.tests ?? [],
+    ]);
     const ownership = tests.map(test => ({
       test,
       owners: [
-        ...(!exclusions.has(test) ? ["fast"] : []),
+        ...(!exclusions.has(test) ? ["fast-remainder"] : []),
         ...(explicitOwners.get(test) ?? []),
       ],
     }));
@@ -70,6 +73,7 @@ describe("validation suite ownership", () => {
     expect(Object.values(suites.releaseContracts).filter(owner => !declaredOwners.has(owner))).toEqual([]);
     expect(releaseSource).toContain("Object.entries(suites.releaseContracts)");
     const included = new Set(suites.tiers["full-release"]!.includes);
+    for (const scope of suites.tiers["fast"]!.includes ?? []) included.add(scope);
     const superseded = new Set(Object.entries(suites.fullReleaseSupersedes).flatMap(([owner, values]) => {
       expect(included.has(owner)).toBe(true);
       return values;
@@ -88,7 +92,8 @@ describe("validation suite ownership", () => {
         arguments: ["--yes", "@fission-ai/openspec@1.8.0", "validate", "--all", "--strict", "--no-interactive"],
       }],
     });
-    expect(suites.tiers["fast"]!.resourceSensitiveTests).toEqual([
+    expect(suites.tiers["fast"]).toEqual({ kind: "composition", includes: ["fast-remainder", "fast-resource-sensitive"] });
+    expect(suites.scopes["fast-resource-sensitive"]!.tests).toEqual([
       "test/repository-governance/validation-impact.test.ts",
       "test/repository-governance/naming-selection.test.ts",
       "test/foundation/launch-context/cutover.test.ts",
@@ -102,7 +107,7 @@ describe("validation suite ownership", () => {
       "test/integrations/pi/session-ui/command-outcome-parity.test.ts",
     ]);
     expect(Object.keys(suites.tiers["fast"]!).filter(key => key.toLowerCase().includes("timeout"))).toEqual([]);
-    expect(suites.tiers["fast"]!.exclude).toContain("test/repository-governance/release-command.test.ts");
+    expect(suites.scopes["fast-remainder"]!.exclude).toContain("test/repository-governance/release-command.test.ts");
     expect(suites.scopes["release-update"]!.tests).toContain("test/repository-governance/release-command.test.ts");
     expect(suites.scopes["typecheck"]!.commands?.map(command => command.id)).toEqual(["typecheck"]);
     expect(suites.scopes["architecture"]!.commands?.map(command => command.id)).toEqual(["architecture"]);

@@ -7,7 +7,7 @@
 
 ## 2. Conservative impact selection
 
-- [ ] 2.1 Define and validate versioned integration selections with base/head and selection identity, selected owners, platform/runtime applicability, reasons, and explicit exclusions; verify malformed or incomplete selections cannot authorize skips.
+- [x] 2.1 Define and validate versioned integration selections with base/head and selection identity, selected owners, platform/runtime applicability, reasons, and explicit exclusions; verify malformed or incomplete selections cannot authorize skips.
 - [ ] 2.2 Implement batched base/head dependency traversal and reviewed edges/invalidators for dynamic imports, subprocesses, workers, assets, package resolution, emitted-source mapping, and native/build inputs; verify direct/transitive and deleted/renamed/copied dependency fixtures select all affected owners.
 - [ ] 2.3 Promote changed tests and shared support to their retained owners, including owners normally outside PR validation; verify test-only changes, unknown ownership, and deleted support cannot evade current-head execution.
 - [ ] 2.4 Add bounded conservative fallback and manual-dispatch behavior; verify classifier errors, unavailable comparison history, unsupported syntax, unknown operational inputs, and policy changes select all applicable integration or block rather than yield empty success.
@@ -15,7 +15,7 @@
 
 ## 3. Suite decomposition without lost coverage
 
-- [ ] 3.1 Expose disjoint fast remainder and resource-sensitive atomic scopes while retaining the complete public fast composition; verify PR and full plans have identical membership, one-file-at-a-time sensitive execution, unchanged timeouts, and no duplicate owners.
+- [x] 3.1 Expose disjoint fast remainder and resource-sensitive atomic scopes while retaining the complete public fast composition; verify PR and full plans have identical membership, one-file-at-a-time sensitive execution, unchanged timeouts, and no duplicate owners.
 - [ ] 3.2 Extract first-attempt startup from package identity/layer/recovery/cleanup scenarios with separate fresh startup installation; verify every original scenario, two-profile launch sequence, budget, Defender check, and representative backlog remains in the ownership ledger and focused contract tests.
 - [ ] 3.3 Declare independent image/history compatibility and selected Pi/release/resume/Unix owners; verify no file executes twice on one platform/runtime merely because owners now use separate jobs.
 - [ ] 3.4 Remap full-regression and release compositions to every successor scope without reducing any retained mode/platform/runtime coverage; verify generated full/release plans and governance tests against the before/after ledger.

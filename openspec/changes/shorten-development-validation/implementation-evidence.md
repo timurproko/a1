@@ -52,7 +52,7 @@ Ordinary repository gates passed in **354985ms**: build 15612ms, fast remainder 
 
 The failure was `session-resume.integration.test.ts`, `creates, exits, and executes the default-store hint (compacted: false)`, at the first `ready(saved.marker)`: the existing 30000ms readiness wait expired with empty captured output. That scenario reported 54662ms, including its surrounding fixture work. The remaining resume scenarios and package-surface tests passed. No raw startup trace was retained for this failing launch, so the exact blocked phase cannot be reconstructed from this run. The aggregate correctly failed.
 
-Task 1.4 is complete as **baseline recording**, not as permission to proceed past the failing validation gate. Scheduling, cache, and build-reuse optimization remain held while the failure is diagnosed. The failed sample is preserved alongside, not replaced by, historical #398/#400 data.
+Task 1.4 is complete as **baseline recording**, not as permission to proceed past the failing validation gate. At that checkpoint, scheduling, cache, and build-reuse optimization were held while the failure was diagnosed. The failed sample is preserved alongside, not replaced by, historical #398/#400 data.
 
 ## Scoped resume-fixture diagnosis
 
@@ -66,3 +66,29 @@ The already-approved resume profiling task (4.4) now adds content-free readiness
 - `evidence/resume-local-diagnostic.json` records that local attempt and explicitly identifies the uncommitted diagnostic working tree; it is not exact-head CI acceptance or a reproduction of the hosted failure.
 - The historical passing #402 PR run `34880028901` reported **37881ms** for the same first resume scenario and **81241ms** for the resume file, illustrating existing cold-path cost rather than establishing the cause of the new timeout.
 - PR #405 separately plans native regression fixture corrections, including other unresolved Windows failures. Its unaccepted work is not imported, its scope is not assumed to cover this readiness failure, and this change cannot claim those full-regression blockers resolved.
+
+## Successful diagnostic CI and continued implementation
+
+[Development validation 34935952104](https://github.com/timurproko/a1/actions/runs/34935952104) completed successfully at exact head `9454992c190d7698d81ba273f998685da3536bff`, including the required aggregate. Fast validation took **636s**, startup **414s**, rendering **306s**, Linux **113s**, and macOS **133s**. The newly retained first resume launch took **21695ms**, including **19230ms** between bootstrap start and release selection. These are successful diagnostic observations, not proof that the previous untraced timeout has been fixed, not a speedup claim, and not acceptance of subsequent edits. The earlier failure remains retained and relevant to final acceptance risk. No timeout, retry, workload, or oracle was changed to obtain this result.
+
+`evidence/diagnostic-34935952104.json` preserves job outcomes, sanitized phase/readiness records, exact source/candidate identities, and downloaded file digests. It records cache state as unmeasured where the diagnostic itself did not establish it. The current-head success clears the failing-check hold for continued implementation; any new required failure must again be inspected before further work.
+
+The maintainer reported all focused diagnostic tests passing after correcting a pasted shell newline, then requested continued implementation followed by normal PR CI. That feedback is not final implementation acceptance. The draft remains held while incomplete, and no further intermediate manual Development dispatch is requested at this checkpoint.
+
+### Task 3.1: atomic fast ownership
+
+The public `fast` tier now composes `fast-remainder` and `fast-resource-sensitive`. The sole authoritative sensitive list moved to its atomic scope. Remainder exclusion still subtracts it even when only the remainder is requested. Each atomic scope produces only its own existing invocation; requesting both directly and through `fast` does not duplicate them. The resource-sensitive invocation retains one-file-at-a-time execution, the default 5000ms timeout, zero retries, and its existing evidence fields.
+
+Before/after comparison of `fast`, ordinary PR, and `full-release` plans found **byte-identical executable command/invocation structures**, including prerequisites, all timeouts and package handling. Only expanded owner names changed. `evidence/fast-partition-migration.json` maps every old fast test to its successor and separately identifies the newly added integration-selection unit test. All **307** pre-checkpoint fast files remain; with that new test there are **308**: **297** remainder and **11** sensitive. The full population is now **332** test files. General ownership tests verify complete disjoint membership and one full-plan execution per retained file.
+
+Negative tests reject incomplete/duplicate public composition, scope shadowing, duplicate ownership, narrowed remainder roots, missing sensitive files, generic sensitive execution classes, and timeout fields on either atomic owner. Existing workflow-policy assertions were relocated to the new authoritative exclusion list without dropping their checks. An initial focused assertion still read the old configuration path; correcting that mechanical reader resolved it. Typecheck also caught a test-only inferred `unknown` manifest type, resolved by reading the fixture manifest explicitly.
+
+Workflow scheduling has not changed yet: this exposes independent commands but does not claim isolated-runner scheduling (task 5.1) complete. The complete before/after package/platform/release ledger (task 1.2) remains incomplete.
+
+### Task 2.1: integration-selection contract
+
+`integration-selection.mjs` and its declaration define versioned ownership and selection documents with full base/head commits, normalized ownership identity, selection digest, scopes, explicit platform/architecture/Node targets, selected/excluded decisions, and bounded reason/path records. Conservative mode selects every declared development owner. Normally full-only owners can be promoted explicitly. Docs/version exemptions require separate authority from the consuming classifier. Duplicate scope ownership on one target is rejected; deliberate different-target repetitions remain representable.
+
+Forty-five focused tests cover conservative defaults, complete exclusions, full-only promotion, normalization, authority, tampering, unsupported schemas/runtime targets, missing/duplicate owners/scopes/targets, bounds, and malformed decisions even with recomputed digests. Digests prove content binding, not trusted provenance; consumers must supply separately established checkout authority. No current workflow or existing classifier consumes this new schema yet, so it cannot authorize skips. Repository ownership declarations, graph traversal, scope extraction, and aggregate integration remain pending under their own tasks. Adding the declaration and correcting an explicit-undefined test fixture resolved the initial typecheck failures; final typecheck passed.
+
+Final local checkpoint validation: **119 tests across eight focused files passed**, followed by typecheck, full tracked-file code documentation, architecture/identity/provenance, full naming (835 files; zero violations), strict OpenSpec validation, and whitespace checks. No local fast/full/release suite was executed. Tasks 2.1 and 3.1 are complete, bringing progress to **5/29**; this is not completion of scheduling, classifier, setup reuse, full CI, or maintainer acceptance. The previous green diagnostic CI belongs to `9454992c`, not these new edits.

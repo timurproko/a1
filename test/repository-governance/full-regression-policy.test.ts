@@ -68,7 +68,7 @@ describe("complete regression automation", () => {
 
   it("keeps every deferred startup, image, and history test in the actual full plan exactly once", async () => {
     const plan = await createTierPlan(["full-release"]);
-    expect(plan.selected).toEqual(expect.arrayContaining(["fast", "dist-integration", "package-install"]));
+    expect(plan.selected).toEqual(expect.arrayContaining(["fast-remainder", "fast-resource-sensitive", "dist-integration", "package-install"]));
     expect(plan.consumesPackage).toBe(true);
     const invocations = plan.vitest!.invocations;
     const remainder = invocations.find(invocation => invocation.id === "vitest-full-without-isolated")!;

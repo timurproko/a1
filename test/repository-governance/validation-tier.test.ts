@@ -22,7 +22,8 @@ describe("validation tier planning", () => {
     expect(plan.selected).toEqual([
       "typecheck",
       "architecture",
-      "fast",
+      "fast-remainder",
+      "fast-resource-sensitive",
       "documentation-full",
       "naming-full",
       "rendering-stability",

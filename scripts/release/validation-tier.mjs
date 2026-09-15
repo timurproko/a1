@@ -61,8 +61,11 @@ export async function createTierPlan(requested, repository = process.cwd()) {
   }
 
   const fast = definitions.find(({ definition }) => definition.kind === "vitest-remainder");
-  const resourceSensitiveTests = fast ? [...fast.definition.resourceSensitiveTests] : [];
-  const explicitTests = definitions.flatMap(({ name, definition }) => (definition.tests ?? []).map(test => ({ test, owner: name })));
+  const allResourceSensitiveTests = suites.scopes["fast-resource-sensitive"].tests;
+  const resourceSensitiveTests = atomic.includes("fast-resource-sensitive") ? [...allResourceSensitiveTests] : [];
+  // Invariant: the sensitive owner gets its own invocation, never the generic explicit-file timeout.
+  const explicitTests = definitions.filter(({ name }) => name !== "fast-resource-sensitive")
+    .flatMap(({ name, definition }) => (definition.tests ?? []).map(test => ({ test, owner: name })));
   const duplicateTests = explicitTests.filter((entry, index) => explicitTests.findIndex(candidate => candidate.test === entry.test) !== index);
   if (duplicateTests.length > 0) throw new Error(`tests have duplicate selected owners: ${duplicateTests.map(entry => entry.test).join(", ")}`);
 
@@ -94,7 +97,7 @@ export async function createTierPlan(requested, repository = process.cwd()) {
     },
   } : null;
   const regularInvocations = [
-    ...(fast ? [{ id: "vitest-fast", arguments: ["vitest", "run", fast.definition.includeRoot, ...[...fast.definition.exclude, ...resourceSensitiveTests].flatMap(path => ["--exclude", path])] }] : []),
+    ...(fast ? [{ id: "vitest-fast", arguments: ["vitest", "run", fast.definition.includeRoot, ...[...fast.definition.exclude, ...allResourceSensitiveTests].flatMap(path => ["--exclude", path])] }] : []),
     ...(resourceSensitiveInvocation ? [resourceSensitiveInvocation] : []),
     ...(regularExplicitTests.length > 0 ? [{ id: "vitest-explicit", arguments: ["vitest", "run", ...regularExplicitTests.map(entry => entry.test), "--testTimeout=30000"] }] : []),
     ...(requestedPerformance.length + requestedPackageSmoke.length > 0 ? [{ id: "vitest-isolated-timing", arguments: ["vitest", "run", ...requestedPerformance, ...requestedPackageSmoke, "--no-file-parallelism", "--testTimeout=120000"] }] : []),
@@ -173,28 +176,54 @@ export async function runTierPlan(plan, options = {}) {
 }
 
 async function validateValidationSuites(suites, repository) {
-  const fast = suites.tiers?.fast;
-  if (!fast || fast.kind !== "vitest-remainder") throw new Error("fast validation must be a vitest remainder");
-  const supportedFastFields = new Set(["kind", "includeRoot", "exclude", "resourceSensitiveTests"]);
-  const unsupportedFields = Object.keys(fast).filter(field => !supportedFastFields.has(field));
-  if (unsupportedFields.length > 0) throw new Error(`unsupported fast validation fields: ${unsupportedFields.join(", ")}`);
-  if (!Array.isArray(fast.resourceSensitiveTests) || fast.resourceSensitiveTests.length === 0) {
-    throw new Error("fast validation requires resourceSensitiveTests");
+  if (Object.keys(suites.scopes ?? {}).some(name => Object.hasOwn(suites.tiers ?? {}, name))) {
+    throw new Error("validation scopes must not be shadowed by tiers");
   }
-  if (fast.resourceSensitiveTests.some(test => typeof test !== "string")) throw new Error("resource-sensitive test paths must be strings");
-  const duplicateResourceTests = fast.resourceSensitiveTests.filter((test, index) => fast.resourceSensitiveTests.indexOf(test) !== index);
+  for (const [name, definition] of Object.entries({ ...suites.tiers, ...suites.scopes })) {
+    if ((definition.kind === "vitest-remainder" && name !== "fast-remainder")
+      || (definition.kind === "vitest-resource-sensitive" && name !== "fast-resource-sensitive")) {
+      throw new Error("fast partition kinds require their authoritative scope names");
+    }
+  }
+  const composition = suites.tiers?.fast;
+  const fast = suites.scopes?.["fast-remainder"];
+  const sensitive = suites.scopes?.["fast-resource-sensitive"];
+  if (composition?.kind !== "composition"
+    || JSON.stringify(composition.includes) !== JSON.stringify(["fast-remainder", "fast-resource-sensitive"])) {
+    throw new Error("fast validation must compose both atomic partitions exactly once");
+  }
+  if (fast?.kind !== "vitest-remainder" || sensitive?.kind !== "vitest-resource-sensitive") {
+    throw new Error("fast validation requires remainder and resource-sensitive atomic scopes");
+  }
+  for (const [definition, fields] of [
+    [composition, ["kind", "includes"]],
+    [fast, ["kind", "includeRoot", "exclude"]],
+    [sensitive, ["kind", "tests"]],
+  ]) {
+    const unsupportedFields = Object.keys(definition).filter(field => !fields.includes(field));
+    if (unsupportedFields.length > 0) throw new Error(`unsupported fast validation fields: ${unsupportedFields.join(", ")}`);
+  }
+  if (fast.includeRoot !== "test" || !Array.isArray(fast.exclude) || fast.exclude.some(test => typeof test !== "string")) {
+    throw new Error("fast remainder must retain the complete test root and explicit exclusions");
+  }
+  if (!Array.isArray(sensitive.tests) || sensitive.tests.length === 0) {
+    throw new Error("fast validation requires resource-sensitive tests");
+  }
+  if (sensitive.tests.some(test => typeof test !== "string")) throw new Error("resource-sensitive test paths must be strings");
+  const duplicateResourceTests = sensitive.tests.filter((test, index) => sensitive.tests.indexOf(test) !== index);
   if (duplicateResourceTests.length > 0) throw new Error(`duplicate resource-sensitive tests: ${[...new Set(duplicateResourceTests)].join(", ")}`);
 
   const excluded = new Set(fast.exclude ?? []);
   const explicitOwners = new Map();
   for (const [scope, definition] of Object.entries(suites.scopes ?? {})) {
+    if (scope === "fast-resource-sensitive") continue;
     for (const test of definition.tests ?? []) {
       const owners = explicitOwners.get(test) ?? [];
       owners.push(scope);
       explicitOwners.set(test, owners);
     }
   }
-  for (const test of fast.resourceSensitiveTests) {
+  for (const test of sensitive.tests) {
     if (test.includes("\\") || !test.startsWith(`${fast.includeRoot}/`) || !test.endsWith(".test.ts")) {
       throw new Error(`invalid resource-sensitive test path: ${test}`);
     }

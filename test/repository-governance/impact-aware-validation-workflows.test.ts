@@ -48,7 +48,7 @@ describe("impact-aware validation workflows", () => {
     const workflow = await readFile(".github/workflows/ci.yml", "utf8");
     const suites = JSON.parse(await readFile("config/validation-suites.json", "utf8"));
     const path = "test/foundation/release/session-resume.integration.test.ts";
-    expect(suites.tiers.fast.exclude).toContain(path);
+    expect(suites.scopes["fast-remainder"].exclude).toContain(path);
     expect(suites.scopes["package-smoke"]).toMatchObject({ requiresBuild: true, consumesPackage: true });
     expect(suites.scopes["package-smoke"].tests).toContain(path);
     const ordinary = workflow.slice(workflow.indexOf("\n  validate:"), workflow.indexOf("\n  rendering:"));
