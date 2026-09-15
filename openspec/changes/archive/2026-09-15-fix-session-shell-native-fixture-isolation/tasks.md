@@ -18,16 +18,16 @@
 ## 4. Candidate validation
 
 - [x] 4.1 Pass build/native guardian, typecheck, applicable documentation/architecture/provenance/governance checks, strict OpenSpec and whitespace checks; verify no production, dependency/lockfile, workflow, suite, pool, timeout, retry, sleep, workload, baseline, budget, or capacity change.
-- [ ] 4.2 Push the completed implementation to this same draft PR and mark it ready before normal PR CI; record passing exact-head ordinary validation without an ordinary draft dispatch or duplicate campaign.
-- [ ] 4.3 Dispatch the separate existing Full regression once for the exact candidate and require all four native lanes, all retained shell cases and aggregate stages to pass; retain every outcome and block acceptance rather than retrying unchanged code or weakening a gate.
+- [x] 4.2 Push the completed implementation to this same draft PR and mark it ready before normal PR CI; record passing exact-head ordinary validation without an ordinary draft dispatch or duplicate campaign.
+- [x] 4.3 Dispatch the separate existing Full regression once for the exact candidate and require all four native lanes, all retained shell cases and aggregate stages to pass; retain every outcome and block acceptance rather than retrying unchanged code or weakening a gate.
 
 ## 5. Acceptance, integration and scheduled recovery
 
-- [ ] 5.1 Provide exact candidate and focused maintainer commands after green CI; record actual exact-head review, canonical-spec review and acceptance before requesting explicit manual merge authorization, with implementation auto-merge disabled.
-- [ ] 5.2 Verify the manually authorized implementation merge, then require a real scheduled `mode=nightly` Release over a newer numbered package containing #402, #405 and this follow-up on Windows Node 22/24, Linux Node 24 and macOS Node 24 with aggregate publication, immutable digest and registry identity evidence.
-- [ ] 5.3 Reconcile #405's premature merge through explicit maintainer disposition based on combined recovery evidence; do not invent pre-merge acceptance, silently complete its failed Full task, or clean either retained worktree before verified archive integration.
+- [x] 5.1 Provide exact candidate and focused maintainer commands after green CI; record actual exact-head review, canonical-spec review and acceptance before requesting explicit manual merge authorization, with implementation auto-merge disabled.
+- [x] 5.2 Verify the manually authorized implementation merge, then require a real scheduled `mode=nightly` Release over a newer numbered package containing #402, #405 and this follow-up on Windows Node 22/24, Linux Node 24 and macOS Node 24 with aggregate publication, immutable digest and registry identity evidence.
+- [x] 5.3 Reconcile #405's premature merge through explicit maintainer disposition based on combined recovery evidence; do not invent pre-merge acceptance, silently complete its failed Full task, or clean either retained worktree before verified archive integration.
 
 ## 6. Mechanical archive preparation
 
-- [ ] 6.1 Record verified implementation acceptance and merge evidence for archive preparation.
-- [ ] 6.2 Stage and verify delta synchronization and the archive move in an OpenSpec-only candidate.
+- [x] 6.1 Record verified implementation acceptance and merge evidence for archive preparation.
+- [x] 6.2 Stage and verify delta synchronization and the archive move in an OpenSpec-only candidate.
