@@ -28,7 +28,7 @@
 - [ ] 5.4 Push the completed implementation ready for normal PR CI and verify required checks on the exact current head; retain failures and platform limitations explicitly rather than treating earlier or skipped checks as passed.
 - [x] 5.5 Render acceptance PR titles as `#<source PR>(accept): <original implementation subject>` and reduce the body to the source link plus required verification checklist; verify conventional title-prefix handling and concise pending/complete states.
 - [x] 5.6 Separate candidate-record integrity from receipt completeness so unresolved review items do not fail acceptance PR CI while incomplete merged records remain blocked from archival; add regression coverage for both boundaries.
-- [ ] 5.7 Run strict OpenSpec and focused acceptance governance validation for this refinement, then push it for normal current-head CI without changing #408's acceptance record or inferring completion.
+- [x] 5.7 Run strict OpenSpec and focused acceptance governance validation for this refinement, then push it for normal current-head CI without changing #408's acceptance record or inferring completion.
 
 ## 6. Maintainer and live acceptance
 
