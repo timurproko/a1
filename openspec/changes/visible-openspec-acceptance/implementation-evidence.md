@@ -40,6 +40,8 @@ A follow-up in `D:/Git/a1/.worktrees/fix-acceptance-review-usability` addresses 
 
 The regression verifies concise `#<source PR>(accept): <original subject>` titles, checklist-only bodies, successful integrity validation for records with unresolved review items, and continued post-merge archival rejection of those incomplete records.
 
+Required run `34950040796` on head `21dd5ed522f9fd7aec97adadb2bb209be52f8645` passed acceptance validation, naming, changed-file documentation, startup, and both Unix containment jobs. Fast validation failed only because two `change-delivery-guidance.test.ts` assertions still required the superseded long-form acceptance sentence. The assertions now require the concise title/checklist and complete-record safety language instead; no behavioral assertion or gate was removed. Repair validation passed 3 focused files / 22 tests, typecheck, docs governance, code-documentation governance, strict OpenSpec validation, and whitespace checks.
+
 ## Deliberately unclaimed evidence
 
 - Required normal PR CI for the completed implementation head is pending task 5.4.
