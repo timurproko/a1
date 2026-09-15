@@ -8,7 +8,7 @@ const checks = [
   "Dragging the scrollbar updates the viewport while preserving the selected pane.",
 ];
 const sourceBody = (items = checks) => `## Summary\n\nScrollbar behavior is implemented.\n\n\`\`\`openspec-implementation\n{"version":2,"change":"scrollbar"}\n\`\`\`\n\n## Acceptance checks\n\n${items.map(item => `- ${item}`).join("\n")}`;
-const version3Body = (items = checks, prefix = "- ") => `> Phase: Acceptance\n\n## Implementation\n\nScrollbar behavior is implemented.\n\n## Acceptance\n\n${items.map(item => `${prefix}${item}`).join("\n")}\n\n## Automation\n\n<details>\n<summary>Used by CI to link this PR to its OpenSpec change</summary>\n\n\`\`\`openspec-implementation\n{"version":3,"change":"scrollbar"}\n\`\`\`\n\n</details>`;
+const version3Body = (items = checks, prefix = "- ") => `> Phase: Acceptance\n\n## Proposal\n\nMake overflowing content easier to navigate without losing pane context.\n\n## Implementation\n\n- Add a viewport scrollbar synchronized with selection and scrolling.\n\n## Acceptance\n\n${items.map(item => `${prefix}${item}`).join("\n")}\n\n## Automation\n\n<details>\n<summary>Used by CI to link this PR to its OpenSpec change</summary>\n\n\`\`\`openspec-implementation\n{"version":3,"change":"scrollbar"}\n\`\`\`\n\n</details>`;
 const record = (): AcceptanceRecord => ({
   version: 2, repository: "owner/repo", change: "scrollbar", sourcePr: 42,
   sourceHead: "a".repeat(40), sourceMerge: "b".repeat(40), sourceBodyDigest: "c".repeat(64),
@@ -40,6 +40,10 @@ describe("implementation-specific acceptance checklist", () => {
       .toThrow("acceptance-layout-sections");
     expect(() => parseImplementationAcceptanceScenarios(version3Body().replace("Used by CI to link this PR", "Machine data links this PR"), 3))
       .toThrow("acceptance-layout-automation");
+    expect(() => parseImplementationAcceptanceScenarios(version3Body().replace("Make overflowing content easier to navigate without losing pane context.", "- Add a scrollbar."), 3))
+      .toThrow("acceptance-layout-proposal");
+    expect(() => parseImplementationAcceptanceScenarios(version3Body().replace("Make overflowing content easier to navigate without losing pane context.", "Improve navigation. Preserve pane context. Add more detail."), 3))
+      .toThrow("acceptance-layout-proposal");
   });
 
   it.each([

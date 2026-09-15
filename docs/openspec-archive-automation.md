@@ -8,7 +8,7 @@ Version-1 and version-2 deliveries and their existing comments, acceptance PRs, 
 
 ## Version-3 lifecycle
 
-1. **Draft plan:** create one normally named branch/PR such as `feature/...`, `fix/...`, or `chore/...`. Start the body with `> Phase: Planning`, follow it with a short proposal-derived `Implementation` summary, omit routine validation command lists, and keep machine linkage under final collapsed `Automation`. Keep it draft and include only planning artifacts until the maintainer approves the plan and explicitly requests implementation.
+1. **Draft plan:** create one normally named branch/PR such as `feature/...`, `fix/...`, or `chore/...`. Start the body with `> Phase: Planning`, use `Proposal` for one or two sentences of intent and `Implementation` for the concrete planned work, omit routine validation command lists, and keep machine linkage under final collapsed `Automation`. Keep it draft and include only planning artifacts until the maintainer approves the plan and explicitly requests implementation.
 2. **Same-PR implementation:** change the first line to `> Phase: Implementation`, then continue in the same worktree, branch, history, and PR. Reconcile approved refinements in proposal, design, deltas, and tasks before corresponding code edits.
 3. **Complete evidence:** finish implementation, required tests/evidence, substantive tasks, and explicit known-gap disposition. CI success is objective evidence, not acceptance.
 4. **Plain acceptance list:** change the first line to `> Phase: Acceptance` and add final `## Acceptance` with one to three concise implementation-specific behavior-and-result bullets. Do not use checkboxes, generic review/CI/approval/archive statements, URLs, mentions, or automated-test inventory.
@@ -21,14 +21,16 @@ The implementation, synchronized canonical specs, conditional acceptance record,
 
 ## Draft PR body
 
-The first screen should explain the intended implementation, not CI mechanics. Distill two to five points from the proposal's `Why` and `What Changes`:
+The first screen should separate purpose from delivery detail, not foreground CI mechanics. Distill `Proposal` into one or two sentences answering why the PR exists, then put two to five concrete points under `Implementation` answering what it will deliver:
 
 ```markdown
 > Phase: Planning
 
-## Implementation
+## Proposal
 
-This change will replace the multi-PR OpenSpec handoff with one manually merged development PR.
+Replace the multi-PR OpenSpec handoff with one manually merged development PR while preserving standalone documentation automation.
+
+## Implementation
 
 - Keep planning and implementation in the same draft PR.
 - Integrate implementation, synchronized specs, acceptance, and archive atomically.
@@ -49,9 +51,13 @@ Do not add a routine `Validation` section listing commands to an initial draft. 
 ```markdown
 > Phase: Acceptance
 
+## Proposal
+
+<!-- one or two sentences explaining why the PR exists -->
+
 ## Implementation
 
-<!-- proposal-derived summary and bullets -->
+<!-- concrete implementation bullets -->
 
 ## Acceptance
 

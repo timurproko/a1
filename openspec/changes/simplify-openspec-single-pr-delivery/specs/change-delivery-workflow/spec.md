@@ -1,7 +1,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Specification approval precedes implementation
-A new implementation-bound OpenSpec change SHALL begin as planning artifacts in one normally named draft pull request. Its body SHALL start with `> Phase: Planning`, followed by a short human-readable `## Implementation` summary of the proposal's motivation and main changes, and SHALL advance the first line through `Implementation` to `Acceptance` as work progresses. It SHALL omit routine validation command listings and place required machine linkage last under `## Automation` in a clearly explained collapsed disclosure. A request to prepare, write, design, or update a specification SHALL authorize only planning, not implementation. Implementation SHALL begin only after the maintainer approves the plan and explicitly requests implementation; the planning PR SHALL NOT need to merge first. Approved implementation SHALL continue in the same worktree, branch, commit history, and pull request, including its related documentation.
+A new implementation-bound OpenSpec change SHALL begin as planning artifacts in one normally named draft pull request. Every agent-created OpenSpec delivery PR SHALL use one human-readable structure: a first-line quoted phase, `## Proposal` with one or two sentences explaining intent, `## Implementation` with concrete delivery details, final `## Acceptance` outcomes when complete, and last `## Automation` with required machine linkage in a clearly explained collapsed disclosure. The first line SHALL advance from `> Phase: Planning` through `> Phase: Implementation` to `> Phase: Acceptance` as work progresses. The body SHALL omit routine validation command listings. A request to prepare, write, design, or update a specification SHALL authorize only planning, not implementation. Implementation SHALL begin only after the maintainer approves the plan and explicitly requests implementation; the planning PR SHALL NOT need to merge first. Approved implementation SHALL continue in the same worktree, branch, commit history, and pull request, including its related documentation.
 
 After implementation and required task/evidence preparation are complete, the same branch SHALL be finalized by conservatively synchronizing its deltas, staging its dated archive and conditional delivery record, and removing its active-change copy. The PR SHALL remain draft until that final candidate is ready for exact-head CI and review. The finalized PR SHALL integrate only after required validation and an authorized maintainer manually merges it; that manual merge SHALL be the final implementation acceptance and merge authorization.
 
@@ -10,6 +10,7 @@ Approved refinements SHALL update the affected planning artifacts coherently bef
 #### Scenario: User requests a specification
 - **WHEN** the user asks an agent to plan a new implementation-bound change
 - **THEN** the agent SHALL create OpenSpec artifacts in a normally named draft PR whose first line is `> Phase: Planning`
+- **AND** `Proposal` SHALL explain the intent in one or two sentences
 - **AND** the following `Implementation` bullets SHALL summarize what the implementation is meant to accomplish
 - **AND** SHALL keep machine linkage last under `Automation` in an explained collapsed disclosure rather than presenting JSON or validation commands as the main description
 - **AND** SHALL NOT implement, finalize, or merge the behavior merely because planning validation passes
@@ -42,7 +43,7 @@ Approved refinements SHALL update the affected planning artifacts coherently bef
 #### Scenario: Completed implementation is finalized
 - **WHEN** implementation and its required evidence are complete
 - **THEN** the same branch SHALL stage conservative spec synchronization, the dated archive, and its conditional delivery record before the PR becomes ready
-- **AND** the final body SHALL start with `> Phase: Acceptance` and present `Implementation`, `Acceptance`, then collapsed `Automation` sections
+- **AND** the final body SHALL start with `> Phase: Acceptance` and present `Proposal`, `Implementation`, `Acceptance`, then collapsed `Automation` sections
 - **AND** no acceptance-only, spec-only, or archive-only follow-up PR SHALL be required for that delivery
 
 #### Scenario: Entire unmerged change is rejected

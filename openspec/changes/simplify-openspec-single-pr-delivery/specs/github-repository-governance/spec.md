@@ -5,13 +5,14 @@ Repository governance SHALL classify a supported version-3 OpenSpec association 
 
 #### Scenario: Draft delivery is opened
 - **WHEN** an agent creates a new implementation-bound draft PR
-- **THEN** the body SHALL start with `> Phase: Planning` followed by a concise proposal-derived `Implementation` section
+- **THEN** the body SHALL start with `> Phase: Planning`, followed by `Proposal` containing one or two intent sentences and a concrete `Implementation` section
 - **AND** machine linkage SHALL remain last under `Automation` in an explained collapsed disclosure without routine validation-command boilerplate
 
 #### Scenario: Final delivery body is validated
 - **WHEN** version-3 candidate validation evaluates a completed implementation PR
 - **THEN** its first nonblank line SHALL be exactly `> Phase: Acceptance`
-- **AND** one each of `Implementation`, `Acceptance`, and `Automation` SHALL appear in that order
+- **AND** one each of `Proposal`, `Implementation`, `Acceptance`, and `Automation` SHALL appear in that order
+- **AND** `Proposal` SHALL contain only one or two sentences of visible intent
 
 #### Scenario: Finalized version-3 diff is documentation-shaped
 - **WHEN** a version-3 implementation PR's final diff contains synchronized specs and a dated archive but its authoritative lifecycle association remains implementation-bound

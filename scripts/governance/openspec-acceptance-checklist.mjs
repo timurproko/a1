@@ -96,10 +96,15 @@ function assertVersion3BodyLayout(body) {
     const heading = /^## (\S.*)$/.exec(line);
     if (heading) headings.push({ name: heading[1], index });
   }
-  if (JSON.stringify(headings.map(({ name }) => name)) !== JSON.stringify(["Implementation", "Acceptance", "Automation"])) {
+  if (JSON.stringify(headings.map(({ name }) => name)) !== JSON.stringify(["Proposal", "Implementation", "Acceptance", "Automation"])) {
     throw archiveFailure("acceptance-layout-sections");
   }
-  const automation = lines.slice(headings[2].index + 1);
+  const proposalLines = lines.slice(headings[0].index + 1, headings[1].index).filter(line => line.trim());
+  const proposal = proposalLines.join(" ").trim();
+  const sentenceCount = proposal.match(/[.!?](?=\s|$)/g)?.length ?? 0;
+  if (!proposal || Buffer.byteLength(proposal) > 600 || proposalLines.some(line => /^(?:[-*+] |#|>|<)/.test(line))
+    || sentenceCount < 1 || sentenceCount > 2 || !/[.!?]$/.test(proposal)) throw archiveFailure("acceptance-layout-proposal");
+  const automation = lines.slice(headings[3].index + 1);
   const visible = automation.filter(line => line.trim());
   if (visible[0] !== "<details>" || visible[1] !== "<summary>Used by CI to link this PR to its OpenSpec change</summary>"
     || visible.at(-1) !== "</details>" || !automation.some(line => line === "```openspec-implementation")) {

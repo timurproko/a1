@@ -10,7 +10,7 @@ const requirement = (text: string) => `### Requirement: Example behavior\nThe sy
 const spec = (body: string) => `# example Specification\n\n## Purpose\n\nDefine an example capability with enough detail for finalization tests.\n\n## Requirements\n\n${body}`;
 const proposal = `## Why\n\nImprove example behavior.\n\n## What Changes\n\n- Improve it.\n\n## Capabilities\n\n### New Capabilities\n\nNone.\n\n### Modified Capabilities\n\n- \`example\`: Improve behavior.\n\n## Impact\n\nFixture only.\n`;
 const scenarios = ["Using the example preserves the updated observable behavior."];
-const body = (metadata: unknown = { version: 3, change: "example" }) => `> Phase: Acceptance\n\n## Implementation\n\nExample implementation.\n\n## Acceptance\n\n- ${scenarios[0]}\n\n## Automation\n\n<details>\n<summary>Used by CI to link this PR to its OpenSpec change</summary>\n\n\`\`\`openspec-implementation\n${JSON.stringify(metadata)}\n\`\`\`\n\n</details>\n`;
+const body = (metadata: unknown = { version: 3, change: "example" }) => `> Phase: Acceptance\n\n## Proposal\n\nDeliver the example behavior through one atomic OpenSpec pull request.\n\n## Implementation\n\n- Implement the example behavior and its governance evidence.\n\n## Acceptance\n\n- ${scenarios[0]}\n\n## Automation\n\n<details>\n<summary>Used by CI to link this PR to its OpenSpec change</summary>\n\n\`\`\`openspec-implementation\n${JSON.stringify(metadata)}\n\`\`\`\n\n</details>\n`;
 
 async function fixture({ incomplete = false } = {}) {
   const root = await mkdtemp(join(tmpdir(), "a1-delivery-finalization-"));

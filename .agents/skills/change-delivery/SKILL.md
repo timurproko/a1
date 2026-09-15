@@ -9,7 +9,7 @@ Read [project workflow](../../../openspec/config.yaml) and [delivery runbook](..
 
 ## Deliver
 
-1. Keep the primary checkout on `develop`. Create one isolated worktree from fresh `origin/develop`, one normally named branch, and one draft PR. Its first line is `> Phase: Planning`, followed by `## Implementation` with two to five proposal-derived bullets. Omit routine validation commands; put link JSON last under `## Automation` in an explained collapsed disclosure.
+1. Keep the primary checkout on `develop`. Create one isolated worktree from fresh `origin/develop`, one normally named branch, and one draft PR. Start with `> Phase: Planning`, then `## Proposal` containing one or two sentences of intent and `## Implementation` with two to five implementation bullets. Omit routine validation commands; put link JSON last under `## Automation` in an explained collapsed disclosure.
 2. A planning request authorizes only planning artifacts. Do not implement, synchronize canonical specs, finalize, or merge until the maintainer approves the plan and explicitly requests implementation.
 3. Continue approved implementation in the same worktree, branch, history, and PR. Change the first line to `> Phase: Implementation`; keep it draft while incomplete. Reconcile approved planning refinements before related code edits.
 4. Complete implementation, evidence, gap disposition, and substantive tasks. Change the first line to `> Phase: Acceptance` and add one to three implementation-specific behavior-and-result bullets under `## Acceptance`; never use checkboxes or generic process items.

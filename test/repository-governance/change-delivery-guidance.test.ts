@@ -10,6 +10,8 @@ describe("repository-owned atomic delivery guidance", () => {
     expect(config).toContain("`> Phase: Planning`");
     expect(config).toContain("`> Phase: Implementation`");
     expect(config).toContain("`> Phase: Acceptance`");
+    expect(config).toContain("`## Proposal`");
+    expect(config).toContain("one or two sentences of intent");
     expect(config).toContain("`## Implementation`");
     expect(config).toContain("`## Automation`");
     expect(config).toContain("Omit routine validation-command listings");
@@ -32,6 +34,8 @@ describe("repository-owned atomic delivery guidance", () => {
     expect(skill).toContain("`> Phase: Planning`");
     expect(skill).toContain("`> Phase: Implementation`");
     expect(skill).toContain("`> Phase: Acceptance`");
+    expect(skill).toContain("`## Proposal`");
+    expect(skill).toContain("one or two sentences of intent");
     expect(skill).toContain("`## Implementation`");
     expect(skill).toContain("`## Automation`");
     expect(skill).toContain("approves the plan and explicitly requests implementation");
@@ -51,7 +55,8 @@ describe("repository-owned atomic delivery guidance", () => {
     expect(examples[1]).toMatchObject({ archive: "openspec/changes/archive/2026-09-15-example-change/",
       acceptanceManifest: "openspec/changes/archive/2026-09-15-example-change/acceptance.md" });
     expect(docs).toContain("## Draft PR body");
-    expect(docs).toContain("The first screen should explain the intended implementation, not CI mechanics");
+    expect(docs).toContain("The first screen should separate purpose from delivery detail, not foreground CI mechanics");
+    expect(docs).toContain("## Proposal");
     expect(docs).toContain("> Phase: Planning");
     expect(docs).toContain("> Phase: Implementation");
     expect(docs).toContain("> Phase: Acceptance");
