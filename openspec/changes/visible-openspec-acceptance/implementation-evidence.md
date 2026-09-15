@@ -20,6 +20,8 @@ Required run `34942002242` on head `838da76fc566c04e0da6d619457b2b9da4dffb4a` fa
 
 Repair validation passed: the exact 17 affected Vitest assertions, typecheck, changed-file code-documentation validation using a regenerated impact selection, docs governance, strict all-OpenSpec validation, and whitespace checks. No assertion, required job, coverage behavior, or timeout was removed.
 
+Required run `34943104220` on repair head `95678665c96dbfc12da3079c785895239a4228ae` then reached a separate inherited timing failure in `prompt-history-controller.test.ts`: a real worker-backed persisted-history snapshot exceeded `vi.waitFor`'s implicit one-second polling deadline. The test now awaits the service's matching snapshot event, then retains the exact recall count and restored-text assertions under the unchanged global test timeout. The whole focused file passed three consecutive runs (3/3 each), and typecheck passed.
+
 ## Deliberately unclaimed evidence
 
 - Required normal PR CI for the completed implementation head is pending task 5.4.
