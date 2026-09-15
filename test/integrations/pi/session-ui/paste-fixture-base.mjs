@@ -9,6 +9,11 @@ export async function runPasteFixture(mode) {
       export function availableFormats() { return ['text']; }
       export async function getText() { ${mode === "denied" || mode === "blocked-command" ? "throw Error('denied')" : mode === "empty" ? "return ''" : "return 'external clipboard text'"}; }
     `) };
+    if (["native", "empty"].includes(mode) && specifier === "node:child_process" && context.parentURL?.includes("system-clipboard")) return {
+      shortCircuit: true, url: "data:text/javascript," + encodeURIComponent(`export function execFile(command,args,options,callback) {
+        queueMicrotask(() => callback(null, ${JSON.stringify(mode === "empty" ? "" : "external clipboard text")}));
+      }`),
+    };
     if (mode === "blocked-command" && specifier === "node:child_process" && context.parentURL?.includes("system-clipboard")) return {
       shortCircuit: true, url: "data:text/javascript," + encodeURIComponent(`import { execFile as real } from 'node:child_process';
         export function execFile(command, args, options, callback) {

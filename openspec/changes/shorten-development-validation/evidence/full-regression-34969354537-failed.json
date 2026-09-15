@@ -1,0 +1,53 @@
+{
+  "schema": "a1-full-regression-attempt-v1",
+  "run": {
+    "id": 34969354537,
+    "status": "completed",
+    "conclusion": "failure",
+    "head": "aaccf63cce4ab6f0642a59379e70beb56fc7ee7e",
+    "event": "workflow_dispatch",
+    "createdAt": "2026-09-15T12:31:32Z",
+    "updatedAt": "2026-09-15T13:05:36Z",
+    "url": "https://github.com/timurproko/a1/actions/runs/34969354537"
+  },
+  "lanes": [
+    {
+      "name": "Full documentation review",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/timurproko/a1/actions/runs/34969354537/job/104381535130"
+    },
+    {
+      "name": "Complete non-physical regression (ubuntu-24.04, node 24)",
+      "status": "completed",
+      "conclusion": "failure",
+      "url": "https://github.com/timurproko/a1/actions/runs/34969354537/job/104381624428"
+    },
+    {
+      "name": "Complete non-physical regression (macos-15, node 24)",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/timurproko/a1/actions/runs/34969354537/job/104381624498"
+    },
+    {
+      "name": "Complete non-physical regression (windows-2025, node 22)",
+      "status": "completed",
+      "conclusion": "failure",
+      "url": "https://github.com/timurproko/a1/actions/runs/34969354537/job/104381624532"
+    },
+    {
+      "name": "Complete non-physical regression (windows-2025, node 24)",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/timurproko/a1/actions/runs/34969354537/job/104381624577"
+    }
+  ],
+  "result": {
+    "macosNode24": "passed",
+    "windowsNode24": "passed",
+    "linuxNode24": "failed five clipboard assertions because the fixture did not own Linux wl-paste/xclip command reads",
+    "windowsNode22": "resource partition passed; package startup later failed one immutable 30000ms declared warmup after a 252139ms cold install"
+  },
+  "followUp": "Mock Linux platform-command text/empty boundaries in the existing process-local fixtures. Retain the exact warmup limit and require a fresh first-attempt pass.",
+  "acceptance": "failed attempt retained and cannot authorize acceptance"
+}
