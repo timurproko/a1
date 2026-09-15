@@ -237,6 +237,7 @@ jobs:
           - { group: fast, label: Fast remainder and repository gates, os: windows-2025, platform: win32, architecture: x64, node: 24, build: true, guardian: true, defender: false, binary: process-guardian.exe }
           - { group: resource, label: Resource-sensitive fast partition, os: windows-2025, platform: win32, architecture: x64, node: 24, build: false, guardian: false, defender: false, binary: process-guardian.exe }
           - { group: pi, label: Pi release and resume integration, os: windows-2025, platform: win32, architecture: x64, node: 24, build: true, guardian: false, defender: false, binary: process-guardian.exe }
+          - { group: promoted, label: Changed full-only integration owners, os: windows-2025, platform: win32, architecture: x64, node: 24, build: true, guardian: false, defender: false, binary: process-guardian.exe }
           - { group: package, label: Exact-package contracts, os: windows-2025, platform: win32, architecture: x64, node: 22, build: true, guardian: false, defender: false, binary: process-guardian.exe }
           - { group: startup, label: First-attempt startup budget, os: windows-2025, platform: win32, architecture: x64, node: 22, build: true, guardian: false, defender: true, binary: process-guardian.exe }
           - { group: compatibility, label: Image and history compatibility, os: windows-2025, platform: win32, architecture: x64, node: 22, build: true, guardian: false, defender: false, binary: process-guardian.exe }
@@ -301,7 +302,9 @@ jobs:
       - name: Build process guardian fixture artifact
         if: steps.job-selection.outputs.active == 'true' && matrix.guardian
         shell: bash
-        run: cargo build --locked --manifest-path native/process-guardian/Cargo.toml
+        run: |
+          cargo build --locked --manifest-path native/process-guardian/Cargo.toml
+          echo "A1_PROCESS_GUARDIAN_PATH=${{ github.workspace }}/native/process-guardian/target/debug/${{ matrix.binary }}" >> "$GITHUB_ENV"
       - name: Run exact selected scopes
         if: steps.job-selection.outputs.active == 'true'
         shell: bash
@@ -322,7 +325,6 @@ jobs:
           A1_CONFIG_DIR: ${{ runner.temp }}/a1-${{ matrix.group }}-config
           A1_DATA_DIR: ${{ runner.temp }}/a1-${{ matrix.group }}-data
           A1_RUNTIME_DIR: ${{ runner.temp }}/a1-${{ matrix.group }}-runtime
-          A1_PROCESS_GUARDIAN_PATH: ${{ github.workspace }}/native/process-guardian/target/debug/${{ matrix.binary }}
           RUN_PROCESS_CONTAINMENT_INTEGRATION: "1"
           STARTUP_PERFORMANCE_RESULT: .artifacts/validation/startup-node${{ matrix.node }}-performance.json
         run: node scripts/release/run-validation-tier.mjs --result .artifacts/validation/outcome-${{ matrix.group }}-${{ matrix.platform }}-node${{ matrix.node }}.json

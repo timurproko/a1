@@ -20,7 +20,8 @@ if (process.env.GITHUB_OUTPUT) {
   await appendFile(process.env.GITHUB_OUTPUT, `active=${active}\nhead=${impact.head}\nselection_id=${selection.selectionId}\nowners_json=${JSON.stringify(ownerIds)}\nscopes_json=${JSON.stringify(scopes)}\n`);
 }
 function group(owner, targetPlatform) {
-  if (["pi-release-resume", "launch-integration", "update-performance", "structured-runtime", "update-predecessor"].includes(owner)) return "pi";
+  if (owner === "pi-release-resume") return "pi";
+  if (["launch-integration", "update-performance", "structured-runtime", "update-predecessor"].includes(owner)) return "promoted";
   if (owner === "package-contracts") return "package";
   if (owner === "startup") return "startup";
   if (["image-compatibility", "history-compatibility"].includes(owner)) return targetPlatform === "win32" ? "compatibility" : "containment";

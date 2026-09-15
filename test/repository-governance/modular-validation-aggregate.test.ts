@@ -11,7 +11,7 @@ const ownership = { schema: "a1-integration-ownership-v1" as const, owners: owne
 describe("modular development aggregate", () => {
   it("requires exact-head evidence for every conservative owner target", () => {
     const fixture = conservativeFixture();
-    expect(requireModularValidation(fixture)).toMatchObject({ mode: "conservative", evidenceCount: 8 });
+    expect(requireModularValidation(fixture)).toMatchObject({ mode: "conservative", evidenceCount: 9 });
   });
 
   it.each(["failure", "cancelled", "skipped", "missing"])("rejects a failed, cancelled, or skipped modular matrix: %s", result => {
@@ -65,8 +65,9 @@ function conservativeFixture(): any {
   const outcomes = [
     outcome(selection.selectionId, "fast", "win32", 24, ["fast-remainder"], ["typecheck", "architecture", "fast-remainder", "dist-integration"]),
     outcome(selection.selectionId, "resource", "win32", 24, ["fast-resource-sensitive"], ["fast-resource-sensitive"]),
-    outcome(selection.selectionId, "pi", "win32", 24, ["pi-release-resume", "launch-integration", "update-performance", "structured-runtime", "update-predecessor"],
-      ["pi-engine-conformance", "package-smoke", "release-update", "launch-integration", "update-performance", "structured-runtime-integration", "update-predecessor"]),
+    outcome(selection.selectionId, "pi", "win32", 24, ["pi-release-resume"], ["pi-engine-conformance", "package-smoke", "release-update"]),
+    outcome(selection.selectionId, "promoted", "win32", 24, ["launch-integration", "update-performance", "structured-runtime", "update-predecessor"],
+      ["launch-integration", "update-performance", "structured-runtime-integration", "update-predecessor"]),
     outcome(selection.selectionId, "package", "win32", 22, ["package-contracts"], ["package-contracts"]),
     outcome(selection.selectionId, "startup", "win32", 22, ["startup"], ["package-startup"]),
     outcome(selection.selectionId, "compatibility", "win32", 22, ["image-compatibility", "history-compatibility"], ["image-compatibility", "history-compatibility"]),

@@ -13,7 +13,7 @@
     },
     {
       "path": ".github/workflows/ci.yml",
-      "sha256": "cf410123d001f93e8e7bfb2d6f8ce6bd3221a101afb45afab3fa5a43597d7a9e"
+      "sha256": "7610efa5bbcfd0f0a36bd709424c6f4f5af71a0d9b5336f4479357590c86a132"
     },
     {
       "path": ".github/workflows/full-regression.yml",

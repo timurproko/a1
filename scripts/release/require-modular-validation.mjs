@@ -48,7 +48,8 @@ function requireEvidence(evidence, expected) {
   if (matches.length !== 1) throw new Error(`required modular outcome missing or duplicated: ${expected.owner}/${expected.platform}/node${expected.node}`);
 }
 function groupFor(owner, platform) {
-  if (["pi-release-resume", "launch-integration", "update-performance", "structured-runtime", "update-predecessor"].includes(owner)) return "pi";
+  if (owner === "pi-release-resume") return "pi";
+  if (["launch-integration", "update-performance", "structured-runtime", "update-predecessor"].includes(owner)) return "promoted";
   if (owner === "package-contracts") return "package";
   if (owner === "startup") return "startup";
   if (["image-compatibility", "history-compatibility"].includes(owner)) return platform === "win32" ? "compatibility" : "containment";
