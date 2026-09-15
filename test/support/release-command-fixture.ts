@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createReleaseRuntime } from "../../scripts/release/release-workflow.mjs";
+import type { NativeRegressionTrace } from "./native-regression-trace.js";
 
 export interface FakeReleasePull {
   number: number;
@@ -17,20 +18,34 @@ export interface FakeReleasePull {
 }
 
 /** Uses real disposable Git repositories, but no real GitHub, registry, or publication service. */
-export async function releaseFixture(version = "0.1.8-dev") {
+export async function releaseFixture(version = "0.1.8-dev", trace?: NativeRegressionTrace, registerCleanup?: (dispose: () => Promise<void>) => void) {
   const directory = await mkdtemp(join(tmpdir(), "release-command-"));
+  const dispose = async () => {
+    const remove = () => rm(directory, { recursive: true, force: true });
+    if (trace) await trace.measureAsync("cleanup", remove); else await remove();
+  };
+  registerCleanup?.(dispose);
   const cwd = join(directory, "checkout");
   const remote = join(directory, "origin.git");
   const hooks = join(directory, "empty-hooks");
   await mkdir(cwd); await mkdir(hooks);
-  const emptyConfig = join(directory, "empty-gitconfig");
-  await writeFile(emptyConfig, "");
+  const fixtureConfig = join(directory, "fixture-gitconfig");
+  // Performance: tiny disposable repositories need no automatic housekeeping; apply this only through their private Git environment.
+  await writeFile(fixtureConfig, "[gc]\n\tauto = 0\n[maintenance]\n\tauto = false\n[receive]\n\tautoGC = false\n");
   const env = { ...Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith("GIT_"))),
-    GIT_CONFIG_NOSYSTEM: "1", GIT_CONFIG_GLOBAL: emptyConfig };
-  const git = (args: readonly string[], where = cwd): string => execFileSync("git", [
-    "-c", "user.name=Release Fixture", "-c", "user.email=release@example.test",
-    "-c", "commit.gpgsign=false", "-c", `core.hooksPath=${hooks}`, "-c", "core.autocrlf=false", "-C", where, ...args,
-  ], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], env }).trim();
+    GIT_CONFIG_NOSYSTEM: "1", GIT_CONFIG_GLOBAL: fixtureConfig };
+  let role = "setup";
+  const withRole = <T>(next: string, operation: () => T): T => {
+    const previous = role; role = next;
+    try { return operation(); } finally { role = previous; }
+  };
+  const git = (args: readonly string[], where = cwd): string => {
+    const execute = () => execFileSync("git", [
+      "-c", "user.name=Release Fixture", "-c", "user.email=release@example.test",
+      "-c", "commit.gpgsign=false", "-c", `core.hooksPath=${hooks}`, "-c", "core.autocrlf=false", "-C", where, ...args,
+    ], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], env }).trim();
+    return trace ? trace.measure(`${role}-${args[0]}`, execute) : execute();
+  };
   git(["init", "--bare", remote], directory);
   git(["init", "-b", "develop"]);
   git(["remote", "add", "origin", remote]);
@@ -45,6 +60,7 @@ export async function releaseFixture(version = "0.1.8-dev") {
   await writeFile(join(cwd, "unrelated.txt"), "keep this\n");
   git(["add", "."]); git(["commit", "-m", "fixture initial"]); git(["push", "-u", "origin", "develop"]);
   const initialHead = git(["rev-parse", "HEAD"]);
+  role = "assertion";
   const logs: string[] = [];
   const errors: string[] = [];
   const events: string[] = [];
@@ -63,6 +79,7 @@ export async function releaseFixture(version = "0.1.8-dev") {
 
   function manualMerge(pull = pulls.find(candidate => candidate.state === "OPEN")) {
     if (!pull) throw new Error("fixture has no open PR");
+    return withRole("manual", () => {
     const base = git(["rev-parse", "refs/heads/develop"], remote);
     const tree = git(["rev-parse", `${pull.headRefOid}^{tree}`], remote);
     const sha = git(["commit-tree", tree, "-p", base, "-m", `Manual fixture merge ${pull.number}`], remote);
@@ -71,6 +88,7 @@ export async function releaseFixture(version = "0.1.8-dev") {
     pull.mergeCommit = { oid: sha };
     events.push(`manual-merge:${pull.headRefName}`);
     return sha;
+    });
   }
   const runtime = createReleaseRuntime({
     cwd,
@@ -78,7 +96,7 @@ export async function releaseFixture(version = "0.1.8-dev") {
       gitCalls.push({ args: [...args], directory: where });
       if (args[0] === "worktree" && args[1] === "add") phaseDirectories.push(args[3]!);
       events.push(`git:${args[0]}`);
-      return git(args, where);
+      return withRole("workflow", () => git(args, where));
     },
     gh: args => {
       ghCalls.push([...args]);
@@ -118,6 +136,6 @@ export async function releaseFixture(version = "0.1.8-dev") {
     setAssociations(value: unknown) { associations = value; },
     async localVersion() { return (JSON.parse(await readFile(join(cwd, "package.json"), "utf8")) as { version: string }).version; },
     remoteVersion() { return (JSON.parse(git(["show", "refs/heads/develop:package.json"], remote)) as { version: string }).version; },
-    async dispose() { await rm(directory, { recursive: true, force: true }); },
+    dispose,
   };
 }

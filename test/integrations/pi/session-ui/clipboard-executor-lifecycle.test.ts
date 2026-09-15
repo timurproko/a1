@@ -28,12 +28,12 @@ describe("real clipboard executor lifecycle", () => {
     for (let cycle = 0; cycle < 12; cycle++) {
       const copy = execute(snapshot(`generated cycle ${cycle}`), () => {});
       try { await expect(copy.result).resolves.toEqual({ outcome: "delivered" }); await copy.stopped; }
-      finally { copy.cancel(); }
+      finally { copy.cancel(); await copy.stopped; }
       const paste = startPasteExecutor(undefined, new AbortController().signal, () => {}, pasteFixture);
       try {
         await expect(paste.result).resolves.toEqual({ kind: "text", text: "external clipboard text" });
         await paste.stopped;
-      } finally { paste.cancel(); }
+      } finally { paste.cancel(); await paste.stopped; }
       expect(children()).toHaveLength((cycle + 1) * 2);
       children().forEach(assertExited);
     }
@@ -46,13 +46,14 @@ describe("real clipboard executor lifecycle", () => {
   it("rejects excess live executors, fences canceled startup, and recovers all capacity", async () => {
     const blocked = new URL("./response-copy-stalled-helper.mjs", import.meta.url);
     const jobs = Array.from({ length: 8 }, () => startPasteExecutor(undefined, new AbortController().signal, () => {}, blocked));
+    let extra: ReturnType<typeof startPasteExecutor> | undefined;
     try {
-      const extra = startPasteExecutor(undefined, new AbortController().signal, () => {}, pasteFixture);
+      extra = startPasteExecutor(undefined, new AbortController().signal, () => {}, pasteFixture);
       await expect(extra.result).rejects.toMatchObject({ code: "paste-busy" });
       expect(children()).toHaveLength(8);
     } finally {
-      jobs.forEach(job => job.cancel());
-      await Promise.all(jobs.map(job => job.stopped));
+      jobs.forEach(job => job.cancel()); extra?.cancel();
+      await Promise.all([...jobs.map(job => job.stopped), extra?.stopped]);
     }
     children().forEach(assertExited);
     const recovered = Array.from({ length: 8 }, () => startPasteExecutor(undefined, new AbortController().signal, () => {}, pasteFixture));
@@ -62,6 +63,27 @@ describe("real clipboard executor lifecycle", () => {
     expect(children()).toHaveLength(16);
     children().forEach(assertExited);
   }, 20_000);
+
+  it("releases all admission capacity after an acquisition assertion fails before child exit", async ({ signal }) => {
+    const failed = startPasteExecutor(undefined, signal, () => {}, new URL("./paste-rejected-held-fixture.mjs", import.meta.url));
+    let assertion: unknown;
+    try { await expect(failed.result).resolves.toMatchObject({ kind: "text" }); }
+    catch (error) { assertion = error; }
+    finally { failed.cancel(); await failed.stopped; }
+    const blocked = new URL("./response-copy-stalled-helper.mjs", import.meta.url);
+    const admitted = Array.from({ length: 8 }, () => startPasteExecutor(undefined, signal, () => {}, blocked));
+    let ninth: ReturnType<typeof startPasteExecutor> | undefined;
+    try {
+      expect(assertion).toMatchObject({ message: expect.stringContaining("promise rejected") });
+      expect(children()).toHaveLength(9);
+      ninth = startPasteExecutor(undefined, signal, () => {}, blocked);
+      await expect(ninth.result).rejects.toMatchObject({ code: "paste-busy" });
+    } finally {
+      failed.cancel(); admitted.forEach(job => job.cancel()); ninth?.cancel();
+      await Promise.all([failed.stopped, ...admitted.map(job => job.stopped), ninth?.stopped]);
+    }
+    children().forEach(assertExited);
+  }, 10_000);
 
   it("does not start conversion when acquisition observation cancels the request", async () => {
     const controller = new AbortController();

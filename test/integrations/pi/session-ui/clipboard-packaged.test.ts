@@ -30,7 +30,7 @@ describe("cold packaged clipboard executors", () => {
       await expect(job.result).resolves.toEqual({ outcome: "delivered" });
       await job.stopped;
       expect(phases).toEqual(["extracted", "submitting"]);
-    } finally { job.cancel(); }
+    } finally { job.cancel(); await job.stopped; }
   }, 5_000);
 
   it("reads independent native text through the emitted paste helper and classification worker", async () => {
@@ -38,7 +38,7 @@ describe("cold packaged clipboard executors", () => {
     try {
       await expect(job.result).resolves.toEqual({ kind: "text", text: "packaged native text" });
       await job.stopped;
-    } finally { job.cancel(); }
+    } finally { job.cancel(); await job.stopped; }
   }, 5_000);
 
   it.each([false, true])("compacts only complete path lists in the cold worker (invalid suffix=%s)", async invalid => {
@@ -61,6 +61,6 @@ describe("cold packaged clipboard executors", () => {
     try {
       await expect(job.result).resolves.toMatchObject({ kind: "image", mimeType: "image/png", width: 128, height: 64 });
       await job.stopped;
-    } finally { job.cancel(); }
+    } finally { job.cancel(); await job.stopped; }
   }, 15_000);
 });
