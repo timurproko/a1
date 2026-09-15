@@ -134,6 +134,18 @@ describe("development validation impact", () => {
     expect(selected.changes).toContainEqual(expect.objectContaining({ status: "R", oldPath: "src/leaf.ts", path: "src/renamed.ts" }));
   });
 
+  it("forces complete validation for an implementation-associated documentation-shaped diff", async () => {
+    const { repository, base } = await fixtureRepository();
+    await put(repository, "openspec/changes/archive/2026-09-15-example/proposal.md", "Archived proposal.\n");
+    const head = await commit(repository, "finalized delivery");
+    const ordinary = await selectValidationImpact({ repository, base, head });
+    expect(ordinary).toMatchObject({ docsOnly: true, ordinaryScopes: [] });
+    const bound = await selectValidationImpact({ repository, base, head, implementationBound: true });
+    expect(bound.docsOnly).toBe(false);
+    expect(bound.ordinaryScopes).toEqual(["typecheck", "architecture", "fast", "dist-integration"]);
+    expect(bound.integration.selection.owners.every(owner => owner.selected)).toBe(true);
+  });
+
   it("validates bounded selection evidence", async () => {
     const { repository, base } = await fixtureRepository();
     const value = await selectValidationImpact({ repository, base, head: base });

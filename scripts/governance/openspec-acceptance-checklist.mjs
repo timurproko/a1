@@ -25,7 +25,7 @@ const normalizedCheck = value => value.normalize("NFKC").toLocaleLowerCase("en-U
   .replaceAll(/[^\p{L}\p{N}]+/gu, " ").trim();
 const checklistHash = checks => createHash("sha256").update(JSON.stringify(checks.map(normalizedCheck))).digest("hex");
 
-function assertChecks(values) {
+export function assertAcceptanceScenarios(values) {
   if (!Array.isArray(values) || values.length < MIN_ACCEPTANCE_CHECKS || values.length > MAX_ACCEPTANCE_CHECKS) {
     throw archiveFailure("acceptance-checklist-count");
   }
@@ -43,7 +43,7 @@ function assertChecks(values) {
 }
 
 /** Extract the final reviewed handoff rather than deriving a robot list from source tasks. */
-export function parseImplementationAcceptanceChecks(body) {
+function parseAcceptanceSection(body, heading) {
   const lines = normalizedBody(body).split("\n");
   let fence = null;
   const headings = [];
@@ -55,13 +55,13 @@ export function parseImplementationAcceptanceChecks(body) {
       continue;
     }
     if (marker) { fence = { character: marker[0], length: marker.length }; continue; }
-    if (/^## Acceptance checks\s*$/.test(line)) headings.push(index);
+    if (line === `## ${heading}`) headings.push(index);
   }
   if (headings.length !== 1) throw archiveFailure(headings.length ? "acceptance-checklist-duplicate-section" : "acceptance-checklist-missing");
   const start = headings[0] + 1;
   let end = lines.length;
   for (let index = start; index < lines.length; index += 1) {
-    if (/^##\s+/.test(lines[index])) { end = index; break; }
+    if (/^##\s+/.test(lines[index]) || lines[index] === "<details>") { end = index; break; }
   }
   const checks = [];
   for (const line of lines.slice(start, end)) {
@@ -70,11 +70,21 @@ export function parseImplementationAcceptanceChecks(body) {
     if (!item) throw archiveFailure("acceptance-checklist-section");
     checks.push(item[1]);
   }
-  return assertChecks(checks);
+  return assertAcceptanceScenarios(checks);
+}
+
+export function parseImplementationAcceptanceChecks(body) {
+  return parseAcceptanceSection(body, "Acceptance checks");
+}
+
+export function parseImplementationAcceptanceScenarios(body, version) {
+  if (version === 2) return parseImplementationAcceptanceChecks(body);
+  if (version === 3) return parseAcceptanceSection(body, "Acceptance");
+  throw archiveFailure("acceptance-version");
 }
 
 export function acceptanceChecklistDigest(checks) {
-  return checklistHash(assertChecks(checks));
+  return checklistHash(assertAcceptanceScenarios(checks));
 }
 
 const display = value => String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll("`", "\\`");
@@ -108,7 +118,7 @@ export function acceptancePullBody(record, sourceTitle) {
   if (record.version === 1) return legacyItems(record, sourceTitle).map(item => `- [ ] ${item}`).join("\n");
   const subject = display(sourceSubject(sourceTitle, record.change));
   const reference = `Implementation: [#${record.sourcePr}: ${subject}](https://github.com/${record.repository}/pull/${record.sourcePr})`;
-  return `${reference}\n\n${assertChecks(record.acceptanceChecks).map(item => `- [ ] ${display(item)}`).join("\n")}`;
+  return `${reference}\n\n${assertAcceptanceScenarios(record.acceptanceChecks).map(item => `- [ ] ${display(item)}`).join("\n")}`;
 }
 
 /** Permit checkbox-state edits only; post-merge callers additionally require every item checked. */

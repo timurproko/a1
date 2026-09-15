@@ -30,13 +30,20 @@ describe("archive evidence metadata", () => {
     expect(parseImplementation(`\`\`\`markdown\n${block("openspec-implementation", implementation)}\n\`\`\``)).toBeNull();
   });
 
-  it("accepts the minimal version-2 link and preserves version-1 legacy linkage", () => {
+  it("accepts versioned implementation links while preserving legacy linkage", () => {
     const value = { version: 2, change: "example-change" };
     expect(parseImplementation(block("openspec-implementation", value))).toEqual(value);
     expect(parseImplementation(block("openspec-implementation", { ...value, archivePreparationTasks: { stageArchive: "7.2" } }))).toMatchObject({ version: 2 });
     expect(() => parseImplementation(block("openspec-implementation", { ...value, specificationPr: 10 }))).toThrow("metadata-fields");
     expect(() => parseImplementation(block("openspec-implementation", { ...value, version: 1 }))).toThrow("specification-pr");
-    expect(() => parseImplementation(block("openspec-implementation", { ...value, version: 3 }))).toThrow("implementation-identity");
+    const draft = { version: 3, change: "example-change" };
+    expect(parseImplementation(block("openspec-implementation", draft))).toEqual(draft);
+    const finalized = { ...draft, archive: "openspec/changes/archive/2026-09-15-example-change/",
+      acceptanceManifest: "openspec/changes/archive/2026-09-15-example-change/acceptance.md" };
+    expect(parseImplementation(block("openspec-implementation", finalized))).toEqual(finalized);
+    expect(() => parseImplementation(block("openspec-implementation", { ...draft, archive: finalized.archive }))).toThrow("delivery-paths");
+    expect(() => parseImplementation(block("openspec-implementation", { ...finalized, specificationPr: 10 }))).toThrow("metadata-fields");
+    expect(() => parseImplementation(block("openspec-implementation", { ...finalized, archivePreparationTasks: {} }))).toThrow("metadata-fields");
   });
 
   it("rejects duplicate JSON keys, including escaped aliases", () => {

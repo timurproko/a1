@@ -147,6 +147,9 @@ export function assertManualAcceptanceMerge(pull, permission, events) {
 }
 
 function legacyReceiptIdentity(receipt) {
+  if (receipt.kind === "single-pr") return { kind: "single-pr", pr: receipt.id, head: receipt.headSha,
+    merge: receipt.mergeSha, path: receipt.manifest?.acceptanceManifest, digest: receipt.bodyDigest,
+    author: receipt.author, createdAt: receipt.createdAt };
   return receipt.kind === "pull-request" ? { kind: "pull-request", pr: receipt.id, head: receipt.headSha,
     merge: receipt.mergeSha, path: acceptancePath(receipt.record), digest: receipt.bodyDigest,
     author: receipt.author, createdAt: receipt.createdAt } : null;
@@ -161,7 +164,7 @@ export function receiptIdentityMatches(value, receipt) {
     || JSON.stringify(value) === JSON.stringify(legacyReceiptIdentity(receipt));
 }
 export function acceptanceUrl(repository, sourcePr, receipt) {
-  return `https://github.com/${repository}/pull/${receipt.kind === "pull-request" ? receipt.id : `${sourcePr}#issuecomment-${receipt.id}`}`;
+  return `https://github.com/${repository}/pull/${["pull-request", "single-pr"].includes(receipt.kind) ? receipt.id : `${sourcePr}#issuecomment-${receipt.id}`}`;
 }
 
 export function retainedAcceptance(receipt) {

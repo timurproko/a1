@@ -18,10 +18,18 @@ describe("archive metadata version compatibility", () => {
   });
 
   it.each([
+    { version: 3, change },
+    { version: 3, change, archive: `openspec/changes/archive/2026-09-15-${change}/`,
+      acceptanceManifest: `openspec/changes/archive/2026-09-15-${change}/acceptance.md` },
     { version: 2, change },
     { version: 1, change, specificationPr: 137 },
   ])("preserves a valid version-$version link", value => {
     expect(parseImplementation(framed(JSON.stringify(value)))).toEqual(value);
+  });
+
+  it.each(invalidLegacyValues)("rejects a present version-3 legacy field valued %j", specificationPr => {
+    const body = framed(JSON.stringify({ version: 3, change, specificationPr }));
+    expect(() => parseImplementation(body)).toThrow("metadata-fields");
   });
 
   it("rejects the forbidden field after decoding its JSON-escaped name", () => {

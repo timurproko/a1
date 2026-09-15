@@ -19,6 +19,7 @@ const pull = {
   state: "open",
   draft: false,
   changed_files: 1,
+  body: "",
   base: { ref: "develop", sha: base },
   head: { sha: head, repo: { full_name: repository } },
 };
@@ -55,6 +56,7 @@ describe("acceptance validation route", () => {
   it("binds routing to fresh same-repository pull metadata and the event head/base", async () => {
     await expect(inspectAcceptanceValidationRoute({ event, repository, request: reader() })).resolves.toMatchObject({
       acceptanceOnly: true,
+      implementationBound: false,
       headSha: head,
       path,
     });
@@ -64,6 +66,13 @@ describe("acceptance validation route", () => {
     await expect(inspectAcceptanceValidationRoute({ event, repository, request: reader({
       pullValue: { ...pull, changed_files: 2 },
     }) })).resolves.toMatchObject({ acceptanceOnly: false, reason: "incomplete-diff" });
+  });
+
+  it("conservatively identifies implementation-associated documentation", async () => {
+    const body = `\`\`\`openspec-implementation\n{"version":3,"change":"example"}\n\`\`\``;
+    await expect(inspectAcceptanceValidationRoute({ event, repository, request: reader({
+      pullValue: { ...pull, body }, files: [{ filename: "openspec/changes/archive/2026-09-15-example/proposal.md", status: "added" }],
+    }) })).resolves.toMatchObject({ acceptanceOnly: false, implementationBound: true });
   });
 
   it("falls back to generic validation when trusted route data is unavailable", async () => {
@@ -79,10 +88,12 @@ describe("acceptance validation route", () => {
         GITHUB_TOKEN: "test-token",
       }, async () => new Response("unavailable", { status: 503 }))).resolves.toMatchObject({
         acceptanceOnly: false,
+        implementationBound: true,
         headSha: head,
         reason: expect.stringContaining("generic-fallback"),
       });
       expect(await readFile(outputPath, "utf8")).toContain("acceptance_only=false");
+      expect(await readFile(outputPath, "utf8")).toContain("implementation_bound=true");
     } finally {
       await rm(root, { recursive: true, force: true });
     }

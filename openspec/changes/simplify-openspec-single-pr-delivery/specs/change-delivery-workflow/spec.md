@@ -1,7 +1,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Specification approval precedes implementation
-A new implementation-bound OpenSpec change SHALL begin as planning artifacts in one normally named draft pull request. A request to prepare, write, design, or update a specification SHALL authorize only planning, not implementation. Implementation SHALL begin only after the maintainer approves the plan and explicitly requests implementation; the planning PR SHALL NOT need to merge first. Approved implementation SHALL continue in the same worktree, branch, commit history, and pull request, including its related documentation.
+A new implementation-bound OpenSpec change SHALL begin as planning artifacts in one normally named draft pull request. Its body SHALL lead with a short human-readable `Intent` summary of the proposal's motivation and main changes, SHALL omit routine validation command listings, and SHALL place required machine linkage last in a clearly explained collapsed `Automation metadata` section. A request to prepare, write, design, or update a specification SHALL authorize only planning, not implementation. Implementation SHALL begin only after the maintainer approves the plan and explicitly requests implementation; the planning PR SHALL NOT need to merge first. Approved implementation SHALL continue in the same worktree, branch, commit history, and pull request, including its related documentation.
 
 After implementation and required task/evidence preparation are complete, the same branch SHALL be finalized by conservatively synchronizing its deltas, staging its dated archive and conditional delivery record, and removing its active-change copy. The PR SHALL remain draft until that final candidate is ready for exact-head CI and review. The finalized PR SHALL integrate only after required validation and an authorized maintainer manually merges it; that manual merge SHALL be the final implementation acceptance and merge authorization.
 
@@ -9,7 +9,8 @@ Approved refinements SHALL update the affected planning artifacts coherently bef
 
 #### Scenario: User requests a specification
 - **WHEN** the user asks an agent to plan a new implementation-bound change
-- **THEN** the agent SHALL create OpenSpec artifacts in a normally named draft PR linked to that change
+- **THEN** the agent SHALL create OpenSpec artifacts in a normally named draft PR whose leading `Intent` bullets summarize what the implementation is meant to accomplish
+- **AND** SHALL keep machine linkage in an explained collapsed section rather than presenting JSON or validation commands as the main description
 - **AND** SHALL NOT implement, finalize, or merge the behavior merely because planning validation passes
 
 #### Scenario: Specification is still open

@@ -5,7 +5,6 @@ import { describe, expect, it } from "vitest";
 import { inspectWorkflowSource } from "../../scripts/governance/github-repository-governance.mjs";
 import { main } from "../../scripts/governance/reconcile-openspec-archive.mjs";
 import { OPENSPEC_VERSION } from "../../scripts/governance/openspec-archive-staging.mjs";
-import { ARCHIVE_TASKS } from "../../scripts/governance/openspec-archive-policy.mjs";
 
 describe("trusted archive workflow wiring", () => {
   it("uses the reviewed default branch, least-privilege reads, App publication, and bounded resumable triggers", async () => {
@@ -14,7 +13,7 @@ describe("trusted archive workflow wiring", () => {
       triggers: ["pull_request_target", "schedule", "workflow_dispatch"],
       permissions: ["actions: read", "contents: read", "pull-requests: read"],
       trustedSource: "default-branch", concurrency: "openspec-archive", artifactRetentionDays: [14],
-      authority: ["archive-read-only-audit", "openspec-archive-app-publication"],
+      authority: ["archive-read-only-audit", "openspec-archive-app-publication", "single-pr-delivery-verification"],
     });
     expect(source).toContain("cancel-in-progress: false");
     expect(source).toContain("timeout-minutes: 10");
@@ -50,7 +49,7 @@ describe("trusted archive workflow wiring", () => {
     expect(docsJob).not.toContain(": write");
     expect(inspectWorkflowSource(".github/workflows/ci.yml", source)).toMatchObject({
       permissions: ["actions: read", "contents: read", "pull-requests: read"],
-      authority: ["Development validation required", "acceptance-only-routing", "acceptance-record-validation", "archive-merge-result-validation"],
+      authority: ["Development validation required", "acceptance-only-routing", "acceptance-record-validation", "archive-merge-result-validation", "single-pr-finalization-validation"],
     });
     const mergeOwner = await readFile(".github/workflows/documentation-auto-merge.yml", "utf8");
     expect(mergeOwner).toContain("actions: read");
@@ -73,10 +72,9 @@ describe("trusted archive workflow wiring", () => {
     const config = await readFile("openspec/config.yaml", "utf8");
     expect(config).toContain("docs/openspec-archive-automation.md");
     expect(docs).toContain("openspec-implementation");
-    expect(docs).toContain("openspec-acceptance");
-    for (const description of Object.values(ARCHIVE_TASKS)) expect(docs).toContain(description);
-    expect(docs).toContain("explicit manual merge authorization");
-    expect(docs).toContain("Missing App setup blocks mutation");
-    expect(docs).toContain("--dry-run --pr 123");
+    expect(docs).toContain("openspec-delivery");
+    expect(docs).toContain("authorized maintainer's manual merge");
+    expect(docs).toContain("App credentials are unnecessary");
+    expect(docs).toContain("--dry-run --pr <implementation-pr>");
   });
 });

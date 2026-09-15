@@ -34,7 +34,7 @@ function boundedText(value, limit = MAX_TEXT) {
 
 export function metadataBlock(text, label) {
   boundedText(text);
-  requireValue(["openspec-implementation", "openspec-acceptance", "openspec-archive", "openspec-acceptance-request", "openspec-acceptance-receipt"].includes(label), "metadata-label");
+  requireValue(["openspec-implementation", "openspec-acceptance", "openspec-archive", "openspec-acceptance-request", "openspec-acceptance-receipt", "openspec-delivery"].includes(label), "metadata-label");
   const blocks = [];
   let fence = null;
   let lines = [];
@@ -80,14 +80,28 @@ export function strictJson(text, limit = 16 * 1024) {
 export function parseImplementation(text) {
   const value = metadataBlock(text, "openspec-implementation");
   if (value === null) return null;
-  object(value, ["version", "change"], ["specificationPr", "archivePreparationTasks"]);
-  requireValue([1, 2].includes(value.version) && typeof value.change === "string" && CHANGE.test(value.change), "implementation-identity");
+  object(value, ["version", "change"], ["specificationPr", "archivePreparationTasks", "archive", "acceptanceManifest"]);
+  requireValue([1, 2, 3].includes(value.version) && typeof value.change === "string" && CHANGE.test(value.change), "implementation-identity");
   if (value.version === 1) requireValue(Number.isSafeInteger(value.specificationPr) && value.specificationPr > 0, "specification-pr");
   else requireValue(!Object.hasOwn(value, "specificationPr"), "metadata-fields");
-  if (value.archivePreparationTasks !== undefined) {
-    object(value.archivePreparationTasks, [], Object.keys(ARCHIVE_TASKS));
-    const ids = Object.values(value.archivePreparationTasks);
-    requireValue(ids.every(id => typeof id === "string" && TASK_ID.test(id)) && new Set(ids).size === ids.length, "archive-task-map");
+  if (value.version === 3) {
+    requireValue(!Object.hasOwn(value, "archivePreparationTasks"), "metadata-fields");
+    const finalized = Object.hasOwn(value, "archive") || Object.hasOwn(value, "acceptanceManifest");
+    if (finalized) {
+      requireValue(typeof value.archive === "string" && typeof value.acceptanceManifest === "string", "delivery-paths");
+      assertRepositoryPath(value.archive.slice(0, -1));
+      assertRepositoryPath(value.acceptanceManifest);
+      const escaped = value.change.replaceAll("-", "\\-");
+      requireValue(new RegExp(`^openspec/changes/archive/\\d{4}-\\d{2}-\\d{2}-${escaped}/$`).test(value.archive)
+        && value.acceptanceManifest === `${value.archive}acceptance.md`, "delivery-paths");
+    }
+  } else {
+    requireValue(!Object.hasOwn(value, "archive") && !Object.hasOwn(value, "acceptanceManifest"), "metadata-fields");
+    if (value.archivePreparationTasks !== undefined) {
+      object(value.archivePreparationTasks, [], Object.keys(ARCHIVE_TASKS));
+      const ids = Object.values(value.archivePreparationTasks);
+      requireValue(ids.every(id => typeof id === "string" && TASK_ID.test(id)) && new Set(ids).size === ids.length, "archive-task-map");
+    }
   }
   return value;
 }
@@ -131,7 +145,7 @@ export function selectAcceptance(comments, implementation, headSha) {
   return record;
 }
 
-export function assertMergedImplementation(pull, repository, files) {
+export function assertMergedImplementation(pull, repository, files, { allowDocumentation = false } = {}) {
   requireValue(typeof repository === "string" && /^[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+$/.test(repository), "repository-identity");
   requireValue(pull?.merged === true && pull.state === "closed" && pull.draft === false && pull.base?.ref === "develop"
     && pull.base.repo?.full_name === repository && pull.head?.repo?.full_name === repository, "implementation-merge");
@@ -144,7 +158,7 @@ export function assertMergedImplementation(pull, repository, files) {
     assertRepositoryPath(file.filename);
     if (file.status === "renamed") assertRepositoryPath(file.previous_filename);
   }
-  requireValue(!classifyDocumentationAutoMerge(files).eligible, "planning-or-archive-pr");
+  requireValue(allowDocumentation || !classifyDocumentationAutoMerge(files).eligible, "planning-or-archive-pr");
 }
 
 export function assertRepositoryPath(value) {

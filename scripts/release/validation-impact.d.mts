@@ -39,6 +39,7 @@ export function selectValidationImpact(options?: {
   readonly head?: string;
   readonly includeWorktree?: boolean;
   readonly manualNoComparison?: boolean;
+  readonly implementationBound?: boolean;
 }): Promise<ValidationImpact>;
 export function assertValidationImpact(value: unknown): ValidationImpact;
 export function classifyRenderingImpact(repository: string, base: string, head: string, changes: readonly ValidationChange[]): Promise<ValidationImpact["rendering"]>;

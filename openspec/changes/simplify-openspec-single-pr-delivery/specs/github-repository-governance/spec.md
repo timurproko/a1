@@ -3,6 +3,11 @@
 ### Requirement: Versioned delivery publication boundaries are explicit
 Repository governance SHALL classify a supported version-3 OpenSpec association as one implementation-bound development PR from planning through finalized archive. It SHALL never publish, arm, or merge a dedicated acceptance or archive follow-up for that delivery. Existing requirements governing generated acceptance and archive PRs SHALL remain applicable only to version-1 and version-2 deliveries and already-published legacy work. Ordinary standalone documentation SHALL retain its existing exact-path automatic integration route.
 
+#### Scenario: Draft delivery is opened
+- **WHEN** an agent creates a new implementation-bound draft PR
+- **THEN** the body SHALL lead with a concise human-readable implementation intent distilled from the proposal
+- **AND** machine linkage SHALL be retained in an explained collapsed section without routine validation-command boilerplate
+
 #### Scenario: Finalized version-3 diff is documentation-shaped
 - **WHEN** a version-3 implementation PR's final diff contains synchronized specs and a dated archive but its authoritative lifecycle association remains implementation-bound
 - **THEN** documentation automation SHALL keep auto-merge disabled

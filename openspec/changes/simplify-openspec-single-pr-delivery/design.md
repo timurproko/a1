@@ -29,7 +29,7 @@ The existing documentation auto-merge route remains useful for unrelated standal
 
 New draft PRs will use the existing `openspec-implementation` fenced JSON with `version: 3` and `change`. The initial draft needs only those fields. Finalization adds exact `archive` and `acceptanceManifest` paths. The parser will reject unknown fields, path disagreement, a version-3 `specificationPr`, and multiple or conflicting associations.
 
-The familiar fence avoids a second mutable marker and lets complete base/head lifecycle classification retain the current implementation hold. Version 1 and 2 remain readable and preserve their existing behavior. Unknown versions fail closed.
+The familiar fence avoids a second mutable marker and lets complete base/head lifecycle classification retain the current implementation hold. In the PR body it will appear last inside a collapsed `Automation metadata` disclosure that explains CI uses it to link the PR to the OpenSpec change. The visible body will lead with `## Intent` and two to five concise bullets distilled from the proposal's motivation and main changes; routine validation commands will not obscure that summary. Version 1 and 2 remain readable and preserve their existing behavior. Unknown versions fail closed.
 
 Alternative considered: infer version 3 from an archive-shaped diff. Rejected because editable paths and partial renames are ambiguous and could bypass the implementation hold.
 

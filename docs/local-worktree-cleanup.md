@@ -1,6 +1,6 @@
-# Local worktree cleanup after automatic archival
+# Local worktree cleanup after verified delivery
 
-Local cleanup completes the delivery order in [the archive runbook](openspec-archive-automation.md): implementation merge, verified manual acceptance-record **merge**, automatic OpenSpec archive **merge**, remote topic-ref deletion, then safe local cleanup. GitHub Actions never reaches into a developer machine. This command neither publishes archives nor merges PRs or deletes remote refs.
+Local cleanup completes the delivery order in [the archive runbook](openspec-archive-automation.md). For version 3 that is one authorized manual implementation/acceptance/archive merge, read-only verification, remote topic-ref deletion, then safe local cleanup. Legacy versions still require their applicable acceptance-record and automatic archive merges. GitHub Actions never reaches into a developer machine. This command neither publishes archives nor merges PRs or deletes remote refs.
 
 The implementation is repository tooling, not part of the installed A1 product. It requires Node, Git, and GitHub read access. No product build, dependency installation, interactive UI, or OS-service provisioning is needed. It supports this repository's `origin` on github.com, via HTTPS or SSH.
 
@@ -54,11 +54,11 @@ node scripts/governance/local-worktree-cleanup.mjs register --repo D:/Git/a1 --p
 
 Registration binds the repository, exact directory/filesystem identity, candidate PR, HEAD/ref, role, and generation. It returns an ID and generation, not the owner token. The worktree stays `owned`: registration alone never authorizes removal. Supported roles:
 
-- `implementation`: exact merged implementation PR head; candidate PR equals source PR.
-- `acceptance`: exact verified implementation merge commit; candidate PR equals source PR.
-- `archive`: exact merged generated archive PR head; candidate PR is the archive PR and source PR is the implementation PR.
+- `implementation`: exact merged implementation PR head; candidate PR equals source PR. This is the only version-3 role because the same PR contains implementation, acceptance manifest, synchronized specs, and archive.
+- `acceptance`: legacy exact verified implementation merge commit; candidate PR equals source PR.
+- `archive`: legacy exact merged generated archive PR head; candidate PR is the archive PR and source PR is the implementation PR.
 
-A CI/base/older-ancestor checkout does not qualify automatically. No local archive checkout is required when the archive was generated entirely on GitHub. Legacy version-1 implementation linkage remains supported, but individually reviewing and registering a legacy checkout is explicit adoption, not a bulk sweep.
+A CI/base/older-ancestor checkout does not qualify automatically. Version 3 has no local acceptance/archive checkout to register. No local archive checkout is required when a legacy archive was generated entirely on GitHub. Legacy version-1/version-2 linkage remains supported, but individually reviewing and registering a legacy checkout is explicit adoption, not a bulk sweep.
 
 The disposable ignored-path allowlist defaults to **empty**. Only append flags such as `--disposable node_modules --disposable dist` when those exact generated directories may be discarded. This is not permission to discard tracked, staged, or untracked changes. Unknown ignored data, nested repositories/submodules, links, and special files remain blockers. Declaring a generated directory does not bypass safety or traversal bounds.
 
@@ -68,7 +68,7 @@ Before handing a completed checkout to cleanup, stop its development processes, 
 node scripts/governance/local-worktree-cleanup.mjs release --repo D:/Git/a1 --id REGISTRATION_ID --generation CURRENT_GENERATION
 ```
 
-Release verifies ownership and the original directory, records the owner's current final HEAD/ref, and returns a new generation. It does not declare acceptance or archival. The worker still verifies the actual merged implementation, exact legacy-comment or human-manually-merged acceptance receipt, automatic archive markers/merge/CI, current `develop` archive contents, and live absence of implementation, acceptance, and archive topic refs. An acceptance merge alone remains ineligible. A bot/automatic/merge-queue acceptance, stale record, missing acceptance-head CI, or unmatched archived receipt blocks cleanup. It will not remove an open or closed-unmerged PR's worktree.
+Release verifies ownership and the original directory, records the owner's current final HEAD/ref, and returns a new generation. It does not declare acceptance or archival. For version 3 the worker verifies the exact authorized human manual source merge, required CI, conditional manifest, synchronized specs/archive on current `develop`, and absence of the source topic ref. For legacy versions it still verifies the exact comment or human-manually-merged acceptance receipt, generated archive marker/merge/CI, archive contents, and all applicable topic refs. A bot/automatic/merge-queue acceptance, stale record, missing required CI, unmatched archive, or open/closed-unmerged PR blocks cleanup.
 
 After release, request a pass from the stable checkout if cleanup is enabled. A running watcher will also pick it up. Never release another session's worktree or use a clean status/dead PID as a substitute for ownership.
 

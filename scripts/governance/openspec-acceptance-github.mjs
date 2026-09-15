@@ -1,4 +1,4 @@
-import { loadImplementationEvidence, loadArchiveEvidence, findImplementationValidation } from "./openspec-archive-github.mjs";
+import { loadImplementationEvidence, loadArchiveEvidence, findImplementationValidation, validateVersion3Candidate } from "./openspec-archive-github.mjs";
 import { snapshotOpenSpec } from "./openspec-archive-staging.mjs";
 import { archiveFailure, parseImplementation, SHA } from "./openspec-archive-policy.mjs";
 import { ACCEPTANCE_ROOT, acceptancePath, acceptanceBranch, acceptanceBytes, acceptanceBlockers, artifactDigest,
@@ -50,6 +50,7 @@ async function assertChecklistNovel(snapshot, checks, sourceHead) {
 }
 
 export async function prepareAcceptanceRequest(reader, source) {
+  requireAcceptance([1, 2].includes(source.implementation?.version), "acceptance-legacy-version");
   const { snapshot, taskText } = await sourceMaterials(reader, source);
   const { pull, implementation } = source;
   const target = await snapshotOpenSpec(reader, source.targetSha);
@@ -187,6 +188,7 @@ export async function validateAcceptanceCandidate(reader, number) {
     const implementation = parseImplementation(pull.body ?? "");
     if (implementation?.version === 2) return { disposition: "implementation-handoff",
       acceptanceChecks: parseImplementationAcceptanceChecks(pull.body) };
+    if (implementation?.version === 3) return await validateVersion3Candidate(reader, number);
     return { disposition: "not-acceptance" };
   }
   const authority = await loadArchiveEvidence(reader, candidate.record.sourcePr, { allowMissing: true });

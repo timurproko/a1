@@ -14,6 +14,7 @@ function markerFor(record, targetSha) {
 }
 /** Add-only Git objects and refs: no force pushes, reviewer edits, merges, or settings mutations. */
 export async function publishAcceptanceRequest({ reader, publisher, source, candidate, dryRun = false, retryClosed = false }) {
+  requireAcceptance(source.implementation?.version !== 3, "delivery-publication-forbidden");
   let record = candidate.record;
   const matches = await acceptancePulls(reader, record);
   requireAcceptance(matches.filter(pull => pull.state === "open").length <= 1

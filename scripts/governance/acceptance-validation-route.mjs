@@ -34,12 +34,14 @@ export async function inspectAcceptanceValidationRoute({ event, repository, requ
     || pull.head?.sha !== expectedHead || pull.head?.repo?.full_name !== repository) {
     throw new Error("pull-request routing identity changed");
   }
+  if (pull.body !== null && typeof pull.body !== "string") throw new Error("pull-request body is unavailable");
+  const implementationBound = /(?:^|\n) {0,3}(?:`{3,}|~{3,})openspec-implementation\s*(?:\n|$)/.test(pull.body ?? "");
   const files = [];
   for (let page = 1; page <= 30; page += 1) {
     const batch = await request(`${prefix}/pulls/${number}/files?per_page=100&page=${page}`);
     if (!Array.isArray(batch)) throw new Error("changed-file response was not an array");
     files.push(...batch);
-    if (batch.length < 100) return { headSha: expectedHead,
+    if (batch.length < 100) return { headSha: expectedHead, implementationBound,
       ...classifyAcceptanceValidationRoute(files, pull.changed_files) };
   }
   throw new Error("changed-file response exceeded GitHub's reviewable limit");
@@ -66,13 +68,14 @@ export async function routeAcceptanceValidationFromEnvironment(environment = pro
       },
     });
   } catch (error) {
-    decision = { acceptanceOnly: false, headSha,
+    decision = { acceptanceOnly: false, implementationBound: true, headSha,
       reason: `generic-fallback:${error instanceof Error ? error.message : String(error)}` };
   }
   if (!SHA.test(decision.headSha ?? "")) throw new Error("acceptance routing head is unavailable");
   const output = [
     `acceptance_only=${decision.acceptanceOnly}`,
     `head_sha=${decision.headSha}`,
+    `implementation_bound=${decision.implementationBound}`,
     `route_reason=${decision.reason}`,
   ].join("\n");
   if (environment.GITHUB_OUTPUT) await appendFile(environment.GITHUB_OUTPUT, `${output}\n`);
