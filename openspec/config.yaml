@@ -22,7 +22,7 @@ context: |
 
   Manual handoff:
   - Provide the exact worktree, branch/commit, build/run commands, what to try, expected behavior, and known gaps. Repeat commands after a push that changes what the user runs.
-  - For interactive repository-checkout A1/Pi tests, build first and invoke `./scripts/dev` or `./scripts/dev pi`; never hand off direct Node launchers that can invalidate terminal color review.
+  - For interactive repository-checkout A1/Pi tests, build first and invoke `./scripts/dev` or `./scripts/dev pi`. Never hand off a direct `node scripts/development/dev-launch.mjs` command or another direct Node launcher that can invalidate terminal color review.
   - End runnable replies with exactly two lines: `🧪 Manual test:` and one copy-pasteable forward-slash shell command in one Markdown inline-code span. When nothing is runnable, say so briefly and omit the block.
 
   Completion:

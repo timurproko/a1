@@ -29,6 +29,7 @@
 - `npm run check:repository-governance` — reviewed definition matched live state.
 - Focused governance regression selection — 17 files and 323 tests passed before the final draft-body refinement.
 - Final focused draft/acceptance/workflow selections passed after the refinement.
+- The focused regression for archived integration-selection evidence, package-download-cache evidence, and terminal-colour handoff guidance passed after repairing Development run `35006946913`.
 
 Exact required hosted Development CI is pending the pushed final candidate and remains task 6.3. Unit and fixture results are not the required first live version-3 canary.
 
@@ -39,6 +40,7 @@ Exact required hosted Development CI is pending the pushed final candidate and r
 3. The first finalization fixture failed with `delta-path` because Windows temporary-root canonicalization differed from OpenSpec's resolved artifact root. The sandbox now resolves its real path before invoking the pinned CLI; the fixture then passed without loosening path containment.
 4. Typecheck initially found the new acceptance parser missing from its declaration and later found an intentionally mutated fixture map inferred too narrowly. Declarations and fixture typing were corrected; typecheck passes.
 5. One focused guidance/workflow run had three expectation-only failures after the runbook rewrite. Assertions were reconciled to the approved wording; no runtime policy changed, and the repeated selections passed.
+6. Exact-head Development run `35006946913` failed five fast-suite tests. Four still read evidence from the active `shorten-development-validation` path after that change had been archived and treated pre-squash observation commits as ancestors of current `develop`; they now read the immutable archive, retain exact observation-head identities, and verify the integrated implementation merge instead of requiring topic-ref retention. The fifth detected that the concise config rewrite had dropped the exact direct-Node-launch prohibition; the explicit prohibition was restored. The focused 14-test regression then passed.
 
 ## Rollout boundary
 

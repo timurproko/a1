@@ -4,7 +4,7 @@ import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 
 const exec = promisify(execFile);
-const path = "openspec/changes/shorten-development-validation/evidence/integration-impact-replay.json";
+const path = "openspec/changes/archive/2026-09-15-shorten-development-validation/evidence/integration-impact-replay.json";
 
 describe("recorded integration selection replay", () => {
   it("retains historical identities and conservative current-graph interpretation", async () => {
@@ -14,8 +14,8 @@ describe("recorded integration selection replay", () => {
       interpretation: expect.stringContaining("not claims that this future classifier ran on those old heads"),
       workflowControls: { draftSuppression: true, docsExemption: true, versionExemption: true, selectionEnabledForSkips: false },
     });
-    expect(report.sourceHead).toMatch(/^[0-9a-f]{40}$/);
-    await expect(exec("git", ["merge-base", "--is-ancestor", report.sourceHead, "HEAD"])).resolves.toBeDefined();
+    expect(report.sourceHead).toBe("f364a1a076d20b44fcd5bd8b0f2ac942a705f21a");
+    await expect(exec("git", ["merge-base", "--is-ancestor", "4f7b18c235af5c99b630865fbdc455dd42047ab7", "HEAD"])).resolves.toBeDefined();
     expect(report.historical.map((item: any) => [item.label, item.actualBase, item.actualHead, item.changes])).toEqual([
       ["pr-398", "6788860dc4e0b045bfd7d7e174557d8805bafbf6", "5079baf8b5469ec05e3f81de28e776802c3ae9c6", 17],
       ["pr-400", "0bc3624fd4d81eb131c31fdd0ad443fd786742f0", "fd7f1258a4c8814f0215259cb5f072b228ff3a6c", 24],
