@@ -3,11 +3,6 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createReleaseRuntime } from "../../scripts/release/release-workflow.mjs";
-import { createValidationPhaseRecorder } from "../../scripts/release/validation-phase.mjs";
-
-const templates = new Map<string, Promise<{ directory: string; remote: string }>>();
-const phases = createValidationPhaseRecorder("release-command-fixture");
-let phaseSequence = 0;
 
 export interface FakeReleasePull {
   number: number;
@@ -21,14 +16,13 @@ export interface FakeReleasePull {
   autoMergeRequest: unknown;
 }
 
-/** Uses fresh clones of an immutable real-Git template, but no real GitHub, registry, or publication service. */
-export async function releaseFixture(version = "0.1.8-dev", options: { rejectMaterialization?: boolean } = {}) {
-  const template = await releaseTemplate(version);
+/** Uses real disposable Git repositories, but no real GitHub, registry, or publication service. */
+export async function releaseFixture(version = "0.1.8-dev") {
   const directory = await mkdtemp(join(tmpdir(), "release-command-"));
   const cwd = join(directory, "checkout");
   const remote = join(directory, "origin.git");
   const hooks = join(directory, "empty-hooks");
-  await mkdir(hooks);
+  await mkdir(cwd); await mkdir(hooks);
   const emptyConfig = join(directory, "empty-gitconfig");
   await writeFile(emptyConfig, "");
   const env = { ...Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith("GIT_"))),
@@ -37,18 +31,19 @@ export async function releaseFixture(version = "0.1.8-dev", options: { rejectMat
     "-c", "user.name=Release Fixture", "-c", "user.email=release@example.test",
     "-c", "commit.gpgsign=false", "-c", `core.hooksPath=${hooks}`, "-c", "core.autocrlf=false", "-C", where, ...args,
   ], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], env }).trim();
-  try {
-    await phases.run(`materialize-${++phaseSequence}`, async () => {
-      if (options.rejectMaterialization) throw new Error("fixture materialization rejected");
-      git(["clone", "--bare", "--no-hardlinks", template.remote, remote], directory);
-      git(["clone", remote, cwd], directory);
-    });
-  } catch (error) {
-    await rm(directory, { recursive: true, force: true });
-    throw error;
-  }
-  const manifest = fixtureManifest(version);
-  const lock = fixtureLock(manifest, version);
+  git(["init", "--bare", remote], directory);
+  git(["init", "-b", "develop"]);
+  git(["remote", "add", "origin", remote]);
+  const manifest = { name: "@fixture/release-command", version, dependencies: { unchanged: version } };
+  const lock = { name: manifest.name, version, lockfileVersion: 3, packages: {
+    "": { name: manifest.name, version, dependencies: { unchanged: version } },
+    "node_modules/unchanged": { version, integrity: "fixture-only" },
+  } };
+  await writeFile(join(cwd, "package.json"), `${JSON.stringify(manifest, null, 2)}\n`);
+  await writeFile(join(cwd, "package-lock.json"), `${JSON.stringify(lock, null, 2)}\n`);
+  await writeFile(join(cwd, ".gitignore"), ".worktrees/\n");
+  await writeFile(join(cwd, "unrelated.txt"), "keep this\n");
+  git(["add", "."]); git(["commit", "-m", "fixture initial"]); git(["push", "-u", "origin", "develop"]);
   const initialHead = git(["rev-parse", "HEAD"]);
   const logs: string[] = [];
   const errors: string[] = [];
@@ -125,51 +120,4 @@ export async function releaseFixture(version = "0.1.8-dev", options: { rejectMat
     remoteVersion() { return (JSON.parse(git(["show", "refs/heads/develop:package.json"], remote)) as { version: string }).version; },
     async dispose() { await rm(directory, { recursive: true, force: true }); },
   };
-}
-
-/** Release the immutable roots only after every fresh fixture clone has been disposed. */
-export async function disposeReleaseFixtureTemplates(): Promise<void> {
-  const settled = await Promise.allSettled([...templates.values()]);
-  templates.clear();
-  await Promise.all(settled.flatMap(result => result.status === "fulfilled"
-    ? [phases.cleanup(`template-cleanup-${++phaseSequence}`, () => rm(result.value.directory, { recursive: true, force: true }))] : []));
-}
-
-function releaseTemplate(version: string): Promise<{ directory: string; remote: string }> {
-  let template = templates.get(version);
-  if (template) return template;
-  template = phases.run(`template-create-${++phaseSequence}`, async () => {
-    const directory = await mkdtemp(join(tmpdir(), "release-command-template-"));
-    try {
-      const cwd = join(directory, "checkout"), remote = join(directory, "origin.git"), hooks = join(directory, "empty-hooks");
-      await mkdir(cwd); await mkdir(hooks);
-      const run = (args: readonly string[], where = cwd) => execFileSync("git", [
-        "-c", "user.name=Release Fixture", "-c", "user.email=release@example.test", "-c", "commit.gpgsign=false",
-        "-c", `core.hooksPath=${hooks}`, "-c", "core.autocrlf=false", "-C", where, ...args,
-      ], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
-      run(["init", "--bare", remote], directory); run(["init", "-b", "develop"]); run(["remote", "add", "origin", remote]);
-      const manifest = fixtureManifest(version), lock = fixtureLock(manifest, version);
-      await writeFile(join(cwd, "package.json"), `${JSON.stringify(manifest, null, 2)}\n`);
-      await writeFile(join(cwd, "package-lock.json"), `${JSON.stringify(lock, null, 2)}\n`);
-      await writeFile(join(cwd, ".gitignore"), ".worktrees/\n"); await writeFile(join(cwd, "unrelated.txt"), "keep this\n");
-      run(["add", "."]); run(["commit", "-m", "fixture initial"]); run(["push", "-u", "origin", "develop"]);
-      run(["symbolic-ref", "HEAD", "refs/heads/develop"], remote);
-      return { directory, remote };
-    } catch (error) {
-      await rm(directory, { recursive: true, force: true });
-      throw error;
-    }
-  });
-  templates.set(version, template);
-  return template;
-}
-
-function fixtureManifest(version: string) {
-  return { name: "@fixture/release-command", version, dependencies: { unchanged: version } };
-}
-function fixtureLock(manifest: ReturnType<typeof fixtureManifest>, version: string) {
-  return { name: manifest.name, version, lockfileVersion: 3, packages: {
-    "": { name: manifest.name, version, dependencies: { unchanged: version } },
-    "node_modules/unchanged": { version, integrity: "fixture-only" },
-  } };
 }

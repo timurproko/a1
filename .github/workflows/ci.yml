@@ -247,17 +247,7 @@ jobs:
     steps:
       - name: Start job timing
         shell: bash
-        env:
-          GROUP: ${{ matrix.group }}
-          PLATFORM: ${{ matrix.platform }}
-          ARCHITECTURE: ${{ matrix.architecture }}
-          NODE_VERSION: ${{ matrix.node }}
-          SELECTED_HEAD: ${{ needs.changes.outputs.head-sha }}
-        run: |
-          started=$(node -e 'process.stdout.write(String(Date.now()))')
-          echo "VALIDATION_JOB_STARTED_MS=$started" >> "$GITHUB_ENV"
-          mkdir -p .artifacts/validation
-          node -e 'require("fs").writeFileSync(`.artifacts/validation/job-envelope-${process.env.GROUP}-${process.env.PLATFORM}-node${process.env.NODE_VERSION}.json`, JSON.stringify({schema:"a1-validation-job-envelope-v1",head:process.env.SELECTED_HEAD,runId:process.env.GITHUB_RUN_ID,runAttempt:Number(process.env.GITHUB_RUN_ATTEMPT),job:process.env.GROUP,platform:process.env.PLATFORM,architecture:process.env.ARCHITECTURE,node:Number(process.env.NODE_VERSION),startedAt:Number(process.argv[1]),status:"started"},null,2)+"\n")' "$started"
+        run: echo "VALIDATION_JOB_STARTED_MS=$(node -e 'process.stdout.write(String(Date.now()))')" >> "$GITHUB_ENV"
       - name: Preserve repository bytes during checkout
         if: runner.os == 'Windows'
         shell: bash
@@ -356,10 +346,12 @@ jobs:
         env:
           GROUP: ${{ matrix.group }}
           PLATFORM: ${{ matrix.platform }}
+          ARCHITECTURE: ${{ matrix.architecture }}
           NODE_VERSION: ${{ matrix.node }}
+          SELECTED_HEAD: ${{ needs.changes.outputs.head-sha }}
           JOB_STATUS: ${{ job.status }}
           ACTIVE: ${{ steps.job-selection.outputs.active || 'unknown' }}
-        run: node -e 'const fs=require("fs"),p=`.artifacts/validation/job-envelope-${process.env.GROUP}-${process.env.PLATFORM}-node${process.env.NODE_VERSION}.json`,x=JSON.parse(fs.readFileSync(p));x.completedAt=Date.now();x.status=process.env.JOB_STATUS;x.active=process.env.ACTIVE;fs.writeFileSync(p,JSON.stringify(x,null,2)+"\n")'
+        run: node -e 'const fs=require("fs"),p=`.artifacts/validation/job-envelope-${process.env.GROUP}-${process.env.PLATFORM}-node${process.env.NODE_VERSION}.json`,x={schema:"a1-validation-job-envelope-v1",head:process.env.SELECTED_HEAD,runId:process.env.GITHUB_RUN_ID,runAttempt:Number(process.env.GITHUB_RUN_ATTEMPT),job:process.env.GROUP,platform:process.env.PLATFORM,architecture:process.env.ARCHITECTURE,node:Number(process.env.NODE_VERSION),startedAt:Number(process.env.VALIDATION_JOB_STARTED_MS),completedAt:Date.now(),status:process.env.JOB_STATUS,active:process.env.ACTIVE};fs.mkdirSync(".artifacts/validation",{recursive:true});fs.writeFileSync(p,JSON.stringify(x,null,2)+"\n")'
       - name: Upload modular outcome and fixture phases
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6

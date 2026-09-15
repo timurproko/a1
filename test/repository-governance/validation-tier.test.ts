@@ -170,7 +170,8 @@ describe("validation tier planning", () => {
         { id: "candidate-pack", executable: "node", arguments: ["scripts/release/prepare-validation-package.mjs"], owners: ["fixture"] },
       ], vitest: null,
     }, {
-      env: kind === "missing" ? {} : { VALIDATION_BUILD_READY: "1", VALIDATION_CANDIDATE_TARBALL: "stale.tgz" },
+      env: kind === "missing" ? { VALIDATION_BUILD_READY: "0", VALIDATION_CANDIDATE_TARBALL: "" }
+        : { VALIDATION_BUILD_READY: "1", VALIDATION_CANDIDATE_TARBALL: "stale.tgz" },
       executeCommand: async command => { calls.push(command.id); return { id: command.id, command: command.id, exitCode: 0, durationMs: 1 }; },
       verifyBuildReceipt: async () => { throw new Error("tampered"); },
       verifyPackageReceipt: async () => { throw new Error("tampered"); },

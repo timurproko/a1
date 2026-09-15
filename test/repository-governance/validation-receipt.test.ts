@@ -89,6 +89,19 @@ describe("validation prerequisite receipts", () => {
     await expect(verifyPackageReceipt(output, candidate, { repository: root, head, producer, sourceIdentity })).resolves.toEqual(receipt);
   });
 
+  it("binds a self-authenticating same-head build receipt without re-reading post-pack build outputs", async () => {
+    const root = await buildFixture(), build = join(root, ".artifacts/build.json"), candidate = join(root, "candidate.tgz"), output = join(root, "candidate.receipt.json");
+    const buildReceipt = await recordBuildReceipt({ repository: root, output: build, head, toolchain });
+    await writeFile(candidate, tarball({ name: "@fixture/app", version: "1.2.3", bin: { app: "bin/cli.js" } }));
+    const producer = { platform: "fixture", architecture: "x64", node: "v24.0.0" };
+    const receipt = await recordPackageReceipt(candidate, { repository: root, output, head, producer, buildReceipt: build });
+    expect(receipt.buildReceiptId).toBe(buildReceipt.receiptId);
+    await put(root, "dist/index.js", "post-pack workspace change");
+    await expect(verifyPackageReceipt(output, candidate, { repository: root, head, producer, buildReceipt: build })).resolves.toEqual(receipt);
+    const forged = JSON.parse(await readFile(build, "utf8")); forged.head = "b".repeat(40); await writeFile(build, JSON.stringify(forged));
+    await expect(verifyPackageReceipt(output, candidate, { repository: root, head, producer, buildReceipt: build })).rejects.toThrow("identity is invalid");
+  });
+
   it("rejects tampered candidate, changed producer/head/path, forged receipt, and mismatched source authority", async () => {
     const root = await buildFixture();
     const candidate = join(root, "candidate.tgz"), output = join(root, "candidate.receipt.json");

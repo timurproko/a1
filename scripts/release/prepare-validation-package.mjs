@@ -5,9 +5,12 @@ import { resolve } from "node:path";
 import { repairNativeExecutableModes } from "./repair-native-executable-modes.mjs";
 import { normalizeNpmPackMetadata } from "./npm-pack-metadata.mjs";
 import { createValidationPhaseRecorder } from "./validation-phase.mjs";
-import { recordPackageReceipt } from "./validation-receipt.mjs";
+import { recordPackageReceipt, verifyBuildReceipt } from "./validation-receipt.mjs";
 
 const phases = createValidationPhaseRecorder("candidate-package");
+const buildReceipt = process.env.VALIDATION_BUILD_RECEIPT;
+if (!buildReceipt) throw new Error("VALIDATION_BUILD_RECEIPT is required before candidate packing");
+await phases.run("verify-build-receipt", () => verifyBuildReceipt(buildReceipt));
 const outputDirectory = resolve(".artifacts", "validation", "package");
 await rm(outputDirectory, { recursive: true, force: true });
 await mkdir(outputDirectory, { recursive: true });
@@ -33,8 +36,6 @@ const identity = {
 };
 await writeFile(resolve(outputDirectory, "npm-pack-result.json"), `${JSON.stringify([{ ...metadata, ...identity, validationFilename: "candidate.tgz" }], null, 2)}\n`);
 await readFile(target);
-const buildReceipt = process.env.VALIDATION_BUILD_RECEIPT;
-if (!buildReceipt) throw new Error("VALIDATION_BUILD_RECEIPT is required before candidate packing");
 await phases.run("package-receipt", () => recordPackageReceipt(target, {
   buildReceipt,
   output: resolve(outputDirectory, "candidate.receipt.json"),

@@ -5,7 +5,7 @@
   "inputs": [
     {
       "path": "config/validation-suites.json",
-      "sha256": "651830838e189c0d5c31c53e3369e25887b2ede19c0d3cc9ad3e12c7abe79651"
+      "sha256": "2144db8b8b6efd45a5d1b86c0ff0b8fa06319e5590313c9c3ab3b1046dd55b3a"
     },
     {
       "path": "config/integration-owners.json",
@@ -13,7 +13,7 @@
     },
     {
       "path": ".github/workflows/ci.yml",
-      "sha256": "b6dafe36fe99666697c459cc03d76a835089ead45ec9b0fd49d3fae25ae17a6b"
+      "sha256": "cf410123d001f93e8e7bfb2d6f8ce6bd3221a101afb45afab3fa5a43597d7a9e"
     },
     {
       "path": ".github/workflows/full-regression.yml",
@@ -4049,7 +4049,7 @@
       "path": "test/integrations/pi/session-ui/session-shell.test.ts",
       "pr": [
         {
-          "scope": "fast-remainder",
+          "scope": "fast-resource-sensitive",
           "platform": "win32",
           "architecture": "x64",
           "node": 24

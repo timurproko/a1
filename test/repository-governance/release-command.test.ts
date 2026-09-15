@@ -2,27 +2,22 @@ import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import { afterAll, describe, expect, it, onTestFinished } from "vitest";
+import { describe, expect, it, onTestFinished } from "vitest";
 import { main } from "../../scripts/release/release.mjs";
-import { disposeReleaseFixtureTemplates, releaseFixture } from "../support/release-command-fixture.js";
+import { releaseFixture } from "../support/release-command-fixture.js";
+import { createValidationPhaseRecorder } from "../../scripts/release/validation-phase.mjs";
+
+const phases = createValidationPhaseRecorder("release-command-fixture");
+let fixtureSequence = 0;
 
 async function fixture(version?: string) {
-  const value = await releaseFixture(version);
-  onTestFinished(() => value.dispose());
+  const id = ++fixtureSequence;
+  const value = await phases.run(`create-${id}`, () => releaseFixture(version));
+  onTestFinished(() => phases.cleanup(`cleanup-${id}`, () => value.dispose()));
   return value;
 }
-afterAll(() => disposeReleaseFixtureTemplates());
 
 describe("release command with real temporary Git and fake publication services", () => {
-  it("materializes isolated repositories and exposes template setup failure", async () => {
-    const [first, second] = await Promise.all([fixture(), fixture()]);
-    first.git(["switch", "-c", "private"]); await writeFile(join(first.cwd, "private.txt"), "first only");
-    first.git(["add", "private.txt"]); first.git(["commit", "-m", "private fixture state"]); first.git(["push", "origin", "private"]);
-    expect(second.git(["status", "--porcelain"])).toBe("");
-    expect(second.git(["ls-remote", "--heads", "origin", "refs/heads/private"])).toBe("");
-    await expect(releaseFixture(undefined, { rejectMaterialization: true })).rejects.toThrow("fixture materialization rejected");
-  });
-
   it.each([
     ["0.1.8-dev", "patch", "0.1.8", "0.1.9-dev"],
     ["0.1.8", "patch", "0.1.9", "0.1.10-dev"],

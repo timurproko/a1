@@ -76,7 +76,12 @@ async function packageReceipt(repository, candidatePath, options) {
     sourceIdentity = { schema: identity.schema, commit: identity.source.commit, tree: identity.source.tree,
       integrity: identity.package.integrity, shasum: identity.package.shasum };
   }
-  const buildReceiptId = options.buildReceipt ? (await verifyBuildReceipt(options.buildReceipt, { repository })).receiptId : null;
+  // Rationale: the pack entry verifies current build artifacts immediately before packing. Once exact
+  // candidate bytes exist, consumers bind the self-authenticating receipt identity rather
+  // than mutable workspace outputs that older npm versions may touch while packing.
+  const build = options.buildReceipt ? await readReceipt(options.buildReceipt, "a1-validation-build-receipt-v1") : null;
+  if (build && build.head !== head) throw new Error("validation package build receipt head does not match candidate source");
+  const buildReceiptId = build?.receiptId ?? null;
   const candidateRelativePath = relative(repository, candidatePath).split(sep).join("/");
   if (candidateRelativePath.startsWith("../") || candidateRelativePath.startsWith("/") || candidateRelativePath.includes("/../")) throw new Error("validation candidate must be inside the repository workspace");
   const payload = { schema: "a1-validation-package-receipt-v1", head,

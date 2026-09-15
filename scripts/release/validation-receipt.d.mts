@@ -5,6 +5,7 @@ export interface ValidationReceiptOptions {
   toolchain?: Record<string, unknown>;
 }
 export interface ValidationReceipt { schema: string; head: string; receiptId: string }
+export interface ValidationPackageReceipt extends ValidationReceipt { buildReceiptId: string | null }
 /** Records current source, toolchain, complete dist inventory, and validated native identity. */
 export function recordBuildReceipt(options?: ValidationReceiptOptions): Promise<ValidationReceipt>;
 /** Recomputes all build receipt inputs and artifacts; no readiness flag is trusted. */
@@ -14,10 +15,10 @@ export function recordPackageReceipt(candidatePath: string, options?: Validation
   buildReceipt?: string;
   sourceIdentity?: string;
   producer?: { platform: string; architecture: string; node: string };
-}): Promise<ValidationReceipt>;
+}): Promise<ValidationPackageReceipt>;
 /** Recomputes package identity before permitting same-job reuse. */
 export function verifyPackageReceipt(receiptPath: string, candidatePath: string, options?: ValidationReceiptOptions & {
   buildReceipt?: string;
   sourceIdentity?: string;
   producer?: { platform: string; architecture: string; node: string };
-}): Promise<ValidationReceipt>;
+}): Promise<ValidationPackageReceipt>;

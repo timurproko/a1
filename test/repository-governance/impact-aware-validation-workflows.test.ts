@@ -24,6 +24,10 @@ describe("impact-aware validation workflows", () => {
     const resolver = workflow.jobs.modular.steps.find((step: any) => step.id === "job-selection");
     expect(resolver.run).toContain("resolve-validation-job.mjs");
     const run = workflow.jobs.modular.steps.find((step: any) => step.name === "Run exact selected scopes");
+    const envelope = workflow.jobs.modular.steps.find((step: any) => step.name === "Complete content-free job envelope");
+    expect(envelope.if).toBe("always()");
+    expect(envelope.run).toContain("mkdirSync");
+    expect(envelope.run).not.toContain("readFileSync");
     expect(run.env.VALIDATION_SELECTION_JSON).toBe("${{ steps.job-selection.outputs.scopes_json }}");
     expect(run.env).toMatchObject({ VALIDATION_HEAD: "${{ steps.job-selection.outputs.head }}", VALIDATION_SELECTION_ID: "${{ steps.job-selection.outputs.selection_id }}" });
   });

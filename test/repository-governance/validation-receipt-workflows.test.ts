@@ -23,6 +23,12 @@ describe("workflow prerequisite receipts", () => {
     expect(job.strategy.matrix.include.find((entry: any) => entry.group === "startup")).toMatchObject({ node: 22, build: true, defender: true });
   });
 
+  it("verifies the build immediately before packing and then binds the exact package receipt", async () => {
+    const source = await readFile("scripts/release/prepare-validation-package.mjs", "utf8");
+    expect(source.indexOf('phases.run("verify-build-receipt"')).toBeLessThan(source.indexOf('phases.runSync("npm-pack"'));
+    expect(source.indexOf('phases.runSync("npm-pack"')).toBeLessThan(source.indexOf('phases.run("package-receipt"'));
+  });
+
   it("binds full-regression build and package receipts before the complete plan", async () => {
     const workflow = parse(await readFile(".github/workflows/full-regression.yml", "utf8"));
     const job = workflow.jobs["full-regression"];

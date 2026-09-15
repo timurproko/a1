@@ -237,6 +237,11 @@
         "selectedTests": 1,
         "otherSemanticTestsPreviouslyPassed": 34,
         "durationMs": 1563
+      },
+      "finalDecision": {
+        "status": "reverted",
+        "reason": "hosted run 34949771115 explicit integration invocation took 776076ms; preserve original fresh repository setup and retain phase instrumentation",
+        "hostedInvocationMs": 776076
       }
     },
     "commandMessageParity": {
