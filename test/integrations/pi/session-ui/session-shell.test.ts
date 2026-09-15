@@ -1715,9 +1715,12 @@ describe("OwnedUiSessionShell", () => {
     });
     try {
       terminal.input("\u0016");
-      await vi.waitFor(() => expect(shell.root.hasPendingPastes(shell.root.editor.getText())).toBe(false));
       const draft = shell.root.editor.getText();
       expect(draft).toMatch(/^\[📷 screenshot-[a-f0-9]+\]$/u);
+      // Concurrency: await real worker completion; this retry contract is not a one-second cold-start benchmark.
+      await shell.root.waitForPromptPastes(draft, new AbortController().signal);
+      expect(shell.root.hasPendingPastes(draft)).toBe(false);
+      expect(shell.root.editor.getText()).toBe(draft);
       vi.spyOn(adapter, "execute").mockResolvedValueOnce({ outcome: "rejected", diagnostic: "synthetic rejection" });
       terminal.input("\r");
       await nextImmediate();
