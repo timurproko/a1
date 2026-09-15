@@ -201,4 +201,8 @@ Exact-head run `34956724120` at `9ea7e421...` passed **every selected semantic c
 
 Exact-head run `34958480438` at `e1a3cece...` passed Pi in 3m34s, startup in 4m17s, resource-sensitive in 3m20s, package contracts, promoted owners, compatibility, both Unix cells, rendering, naming, and documentation. Fast passed 304 files/3145 tests; only `update-activation.test.ts` exceeded its unchanged 5s timeout under the parallel hosted remainder. The complete three-test file passed locally in 132ms and is moved intact to the serialized zero-retry resource partition. `evidence/development-34958480438-failed.json` retains the failed attempt. No timeout or retry changed.
 
+## Failed final CI attempt 34960103662
+
+Exact-head run `34960103662` at `df37faab...` passed all selected semantic cells. The aggregate scanner rejected the known root `startup-node22-performance.json`; every outcome and envelope was otherwise present. `evidence/development-34960103662-failed.json` retains the hosted failure and a successful corrected replay over all nine exact artifacts (2,431,791 runner-ms; 820,620ms conservative-full critical path). The scanner now permits only the Node 22/24 startup performance filename pattern in addition to already reviewed outcome/envelope names and support directories. Unknown entries still fail. The replay is diagnostic, not current-head CI acceptance.
+
 `evidence/package-owner-migration.json` maps all seven baseline scenarios to successor files/owners and records exact structural limits, target declarations, full-plan package invocations, and the temporary scheduling limitation. Task 1.2 remains incomplete until the full repository before/after platform/runtime ledger covers every successor owner, not just package and fast migrations.

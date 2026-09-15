@@ -49,7 +49,7 @@ export function selectModularOutcomeFiles(entries) {
     if (entry.isDirectory?.()) {
       if (!["package", "phases", "receipts"].includes(entry.name)) throw new Error("modular outcome artifact directory contains an unknown directory");
     } else if (entry.isFile?.()) {
-      if (!/^(?:outcome-|job-envelope-).+\.json$/u.test(entry.name)) throw new Error("modular outcome artifact directory contains an unknown file");
+      if (!/^(?:(?:outcome-|job-envelope-).+|startup-node(?:22|24)-performance)\.json$/u.test(entry.name)) throw new Error("modular outcome artifact directory contains an unknown file");
       if (entry.name.startsWith("outcome-")) files.push(entry.name);
     } else throw new Error("modular outcome artifact directory contains an unsupported entry");
   }

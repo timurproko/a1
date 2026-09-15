@@ -12,7 +12,7 @@ describe("modular development aggregate", () => {
   it("accepts only known merged-artifact files and support directories", () => {
     const file = (name: string) => ({ name, isFile: () => true, isDirectory: () => false });
     const directory = (name: string) => ({ name, isFile: () => false, isDirectory: () => true });
-    expect(selectModularOutcomeFiles([file("outcome-fast-win32-node24.json"), file("job-envelope-fast-win32-node24.json"), directory("phases"), directory("package"), directory("receipts")])).toEqual(["outcome-fast-win32-node24.json"]);
+    expect(selectModularOutcomeFiles([file("outcome-fast-win32-node24.json"), file("job-envelope-fast-win32-node24.json"), file("startup-node22-performance.json"), directory("phases"), directory("package"), directory("receipts")])).toEqual(["outcome-fast-win32-node24.json"]);
     expect(() => selectModularOutcomeFiles([file("unknown.json")])).toThrow("unknown file");
     expect(() => selectModularOutcomeFiles([directory("unknown")])).toThrow("unknown directory");
   });
