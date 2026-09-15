@@ -238,7 +238,7 @@ describe("bounded immutable release cleanup", () => {
     const retried = await runBoundedReleaseCleanup(fixture.dataDir, undefined, { transactionStore: noTransaction, operations: { remove } });
     expect(retried.completed).toBe(1);
     expect((await fixture.store.read()).cleanup.pending[obsolete.releaseId]).toBeUndefined();
-  });
+  }, 15_000);
 
   it("does not let one persistently blocked release starve other eligible releases", async () => {
     const fixture = await releaseFixture(5);
@@ -261,7 +261,7 @@ describe("bounded immutable release cleanup", () => {
     expect(state.cleanup.pending[blocked.releaseId]?.attempts).toBeGreaterThanOrEqual(2);
     expect(state.cleanup.workerRuns.find(run => run.runId === "blocked-run")?.status).toBe("blocked");
     for (const release of fixture.releases.slice(1, 3)) await expect(lstat(release!.releaseRoot)).rejects.toMatchObject({ code: "ENOENT" });
-  });
+  }, 15_000);
 
   it("rechecks transaction protection after detachment before moving content", async () => {
     const fixture = await releaseFixture(3);

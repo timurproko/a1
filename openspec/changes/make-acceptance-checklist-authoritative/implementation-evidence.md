@@ -9,5 +9,6 @@ Recorded for the implementation candidate in PR #413; these automated fixtures a
 - `npm run check:code-documentation:changed` — passed with no violations.
 - `openspec validate make-acceptance-checklist-authoritative --strict --no-interactive` — passed.
 - `git diff --check` — passed.
+- PR CI run `34957780031` — acceptance policy, naming, documentation, containment, and startup checks passed; Fast validation exposed two inherited `release-gc.test.ts` cases whose correct retry behavior exceeded the suite's default 5-second timeout under loaded CI. Both assertions and behavior were preserved while their explicit per-test budget was raised to 15 seconds; the focused file passed 21/21 before the repair commit.
 
 No local `test:fast`, `test:full`, or `test:release` run was claimed or performed. Normal current-head PR CI remains the required automated gate after the candidate is marked ready.
