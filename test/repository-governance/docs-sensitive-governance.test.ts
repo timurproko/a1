@@ -12,7 +12,7 @@ describe("docs-sensitive governance", () => {
   it("runs lightweight inventory consistency for every docs-only pull request", async () => {
     const workflow = await readFile(".github/workflows/ci.yml", "utf8");
     const docsJob = workflow.match(/\n  docs:[\s\S]*?(?=\n  [\w-]+:|$)/)?.[0] ?? "";
-    expect(docsJob).toContain("if: needs.changes.outputs.docs-only == 'true'");
+    expect(docsJob).toContain("if: needs.changes.outputs.acceptance-only != 'true' && needs.changes.outputs.docs-only == 'true'");
     expect(docsJob).toContain("check-docs-governance.mjs");
     expect(docsJob).toContain("if: needs.changes.outputs.openspec-touched == 'true'");
     expect(docsJob).not.toMatch(/npm ci|npm run build|vitest/);

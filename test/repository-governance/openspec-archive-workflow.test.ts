@@ -50,7 +50,7 @@ describe("trusted archive workflow wiring", () => {
     expect(docsJob).not.toContain(": write");
     expect(inspectWorkflowSource(".github/workflows/ci.yml", source)).toMatchObject({
       permissions: ["actions: read", "contents: read", "pull-requests: read"],
-      authority: ["Development validation required", "acceptance-record-validation", "archive-merge-result-validation"],
+      authority: ["Development validation required", "acceptance-only-routing", "acceptance-record-validation", "archive-merge-result-validation"],
     });
     const mergeOwner = await readFile(".github/workflows/documentation-auto-merge.yml", "utf8");
     expect(mergeOwner).toContain("actions: read");
