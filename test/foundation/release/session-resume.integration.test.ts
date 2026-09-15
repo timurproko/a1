@@ -1,5 +1,5 @@
 import { spawn, type ChildProcess } from "node:child_process";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { stripVTControlCharacters } from "node:util";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
@@ -8,7 +8,10 @@ import { resolveCohortEndpoint, resolveProductPaths } from "../../../src/foundat
 import { readEndpointMetadata, releaseVerifiedIdleOwner } from "../../../src/foundation/release/index.js";
 import { writeResumeFixture } from "../../support/session-resume-fixture.js";
 import { extractValidationCandidate, loadValidationCandidate } from "./package-candidate-fixture.js";
+import { createValidationPhaseRecorder } from "../../../scripts/release/validation-phase.mjs";
+import { summarizeResumeTrace } from "../../support/session-resume-diagnostics.js";
 
+const phases = createValidationPhaseRecorder("session-resume");
 let extracted: Awaited<ReturnType<typeof extractValidationCandidate>>;
 let environment: NodeJS.ProcessEnv;
 let cwd: string;
@@ -18,9 +21,10 @@ const children = new Set<ChildProcess>();
 const closedChildren = new WeakSet<ChildProcess>();
 
 beforeAll(async () => {
-  const candidate = await loadValidationCandidate();
+  const candidate = await phases.run("load-candidate", () => loadValidationCandidate());
+  phases.bindCandidate(candidate.bytes);
   expect(candidate.manifest.dependencies?.["@earendil-works/pi-coding-agent"]).toBe("0.84.2");
-  extracted = await extractValidationCandidate(candidate.bytes);
+  extracted = await phases.run("extract-candidate", () => extractValidationCandidate(candidate.bytes));
   cwd = resolve(extracted.root, "work space");
   const home = resolve(extracted.root, "home");
   const agent = resolve(home, ".a1", "agent");
@@ -43,7 +47,7 @@ beforeAll(async () => {
 }, 30_000);
 
 afterEach(async () => {
-  await Promise.all([...children].map(closeLaunch));
+  await phases.cleanup("after-each-close", () => Promise.all([...children].map(closeLaunch)));
 }, 35_000);
 
 afterAll(async () => {
@@ -167,7 +171,9 @@ async function launchHint(hint: string) {
 }
 
 async function launch(args: string[], shell?: { command: string; args: string[] }) {
-  const tracePath = resolve(extracted.root, `launch-${++sequence}.jsonl`);
+  const launchId = ++sequence;
+  const startedAt = performance.now();
+  const tracePath = resolve(extracted.root, `launch-${launchId}.jsonl`);
   const child = spawn(shell?.command ?? process.execPath, shell?.args ?? [resolve(extracted.packageRoot, "bin", "cli.js"), ...args], {
     cwd, env: { ...environment, A1_STARTUP_TRACE: tracePath }, windowsHide: true, stdio: "pipe",
   });
@@ -183,13 +189,36 @@ async function launch(args: string[], shell?: { command: string; args: string[] 
     child, trace,
     output: () => stripVTControlCharacters(output),
     async ready(marker?: string) {
-      await until(async () => {
-        if (spawnError) throw spawnError;
-        if (child.exitCode !== null) throw new Error(`Packaged launch exited before input ready: ${output}`);
-        return (await trace()).includes('"phase":"first-input-ready-render"') && (marker === undefined || stripVTControlCharacters(output).includes(marker));
-      }, () => `Packaged launch not ready: ${output}`);
-      const source = await trace();
-      for (const phase of ["bootstrap-selected", "guardian-start", "ui-entry", "session-created"]) expect(source).toContain(`"phase":"${phase}"`);
+      await phases.run(`launch-${launchId}-ready`, async () => {
+        let passed = false;
+        try {
+          await until(async () => {
+            if (spawnError) throw spawnError;
+            if (child.exitCode !== null) throw new Error(`Packaged launch exited before input ready: ${output}`);
+            return (await trace()).includes('"phase":"first-input-ready-render"') && (marker === undefined || stripVTControlCharacters(output).includes(marker));
+          }, () => `Packaged launch not ready: ${output}`);
+          const source = await trace();
+          for (const phase of ["bootstrap-selected", "guardian-start", "ui-entry", "session-created"]) expect(source).toContain(`"phase":"${phase}"`);
+          passed = true;
+        } finally {
+          const diagnostic = {
+            schema: "a1-resume-readiness-diagnostic-v1", launchId, passed,
+            elapsedMs: Math.round(performance.now() - startedAt),
+            exitCode: child.exitCode, signalCode: child.signalCode, closed: closedChildren.has(child),
+            spawnFailed: spawnError !== undefined, outputBytes: Buffer.byteLength(output),
+            markerRequired: marker !== undefined, markerPresent: marker === undefined || stripVTControlCharacters(output).includes(marker),
+            ...summarizeResumeTrace(await trace()),
+          };
+          try {
+            const line = `${JSON.stringify(diagnostic)}\n`;
+            await appendFile(phases.outputPath.replace(/\.jsonl$/, ".readiness.jsonl"), line);
+            process.stdout.write(`[resume-readiness] ${line}`);
+          } catch (error) {
+            if (passed) throw error;
+            process.stderr.write("Resume failure diagnostic could not be written.\n");
+          }
+        }
+      });
     },
     async exited() {
       await until(async () => {
@@ -200,8 +229,10 @@ async function launch(args: string[], shell?: { command: string; args: string[] 
       return child.exitCode;
     },
     async close() {
-      await closeLaunch(child);
-      expect(child.exitCode, output).toBe(0);
+      await phases.run(`launch-${launchId}-close`, async () => {
+        await closeLaunch(child);
+        expect(child.exitCode, output).toBe(0);
+      });
     },
   };
 }
