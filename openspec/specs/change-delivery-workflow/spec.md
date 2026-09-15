@@ -145,13 +145,13 @@ Every code/operational pull request SHALL remain open after automated validation
 - **AND** the merge result SHALL be reported
 
 ### Requirement: Automatic archival uses explicit implementation and acceptance evidence
-Automatic completed-change archival SHALL require an explicit machine-readable association between an OpenSpec change and its implementation pull request, a confirmed merge into `develop`, successful required validation attributable to the final implementation head, and an authorized maintainer's explicit acceptance of that same head. Acceptance SHALL attest that required manual review is complete, the change is fully implemented, and its delta synchronization has been reviewed. The normal implementation handoff SHALL record this evidence before integration so an eligible merge needs no subsequent archive request.
+Automatic completed-change archival SHALL require an explicit machine-readable association between an OpenSpec change and its implementation pull request, a confirmed merge into `develop`, successful required validation attributable to the final implementation head, and an authorized maintainer's explicit acceptance of that same head. Acceptance SHALL attest that required manual review is complete, the change is fully implemented, and its delta synchronization has been reviewed. The visible acceptance route SHALL prepare a dedicated acceptance-record PR after implementation integration; its verified manual merge SHALL provide the durable acceptance receipt. Existing valid authorized comment-backed acceptance SHALL remain supported without a redundant request.
 
-A planning PR, an archive PR, a descriptive title, passing CI alone, or a merge alone SHALL NOT establish implementation acceptance. Missing, malformed, stale, conflicting, revoked, or known-gap acceptance SHALL block the automatic completed-change path. Existing code-PR manual acceptance and merge authorization requirements SHALL remain unchanged.
+A planning PR, an ordinary archive PR, a descriptive title, passing CI alone, an unmerged acceptance request, or an ordinary implementation merge alone SHALL NOT establish implementation acceptance. Missing, malformed, stale, conflicting, revoked, or known-gap acceptance SHALL block the automatic completed-change path. Only a verified authorized human manual merge of the exact validated acceptance record SHALL establish PR-backed acceptance. Existing code-PR local review and manual merge authorization requirements SHALL remain unchanged; the acceptance PR records archival authorization rather than authorizing premature code integration.
 
 #### Scenario: Accepted single-PR implementation merges
 - **WHEN** the PR containing the reviewed plan and completed implementation merges into `develop` with an explicit change link, final-head acceptance, and successful required validation
-- **THEN** automation SHALL evaluate its linked change for archival without requiring a separately merged specification PR, another docs merge, or another archive command
+- **THEN** automation SHALL evaluate its linked change for archival without requiring a separately merged specification PR, a redundant acceptance PR, or another archive command
 - **AND** SHALL preserve the implementation PR, accepted head, merge commit, validation run, acceptance author, and acceptance source in the archive evidence
 
 #### Scenario: Legacy split implementation merges
@@ -175,13 +175,19 @@ A planning PR, an archive PR, a descriptive title, passing CI alone, or a merge 
 - **THEN** automation SHALL preserve the active change and report the blocker
 - **AND** any exceptional archive SHALL require the separate explicit manual disposition
 
-### Requirement: Archive automation preserves honest task and artifact completion
-Before preparing a completed-change archive, automation SHALL verify that every required artifact is done or deliberately skipped and every implementation, validation, and manual-acceptance task is complete. It SHALL NOT infer task completion from merge status or rewrite unfinished work as complete.
+#### Scenario: Merged implementation needs a visible acceptance record
+- **WHEN** a supported implementation is merged without valid acceptance
+- **THEN** automation SHALL create or reuse a clearly named visible acceptance request linking the original PR and listing only the maintainer's verification items
+- **AND** candidate-integrity CI SHALL not fail merely because those human verification items remain unchecked
+- **AND** a verified complete manual acceptance merge SHALL resume archive evaluation without requiring a special comment or another archive request
 
-Only explicitly designated, purely mechanical archive-preparation tasks SHALL be eligible for automatic completion, and only after their corresponding evidence-recording or staged sync/archive operation succeeds. An unknown designation or a task combining manual review with administrative work SHALL block automatic completion. No task SHALL claim archive-PR integration before that PR actually merges.
+### Requirement: Archive automation preserves honest task and artifact completion
+Before preparing a completed-change archive, automation SHALL verify that every required artifact is done or deliberately skipped and every implementation, validation, and manual-acceptance task is complete. It SHALL NOT infer task completion from ordinary merge status or rewrite unfinished work as complete. A verified acceptance receipt SHALL be permitted to carry explicit evidence-backed reconciliation of stale task bookkeeping, bound to original task identities and descriptions, and SHALL preserve the reviewed reconciliation in archived evidence.
+
+Only explicitly designated, purely mechanical archive-preparation tasks SHALL be eligible for automatic completion, and only after their corresponding evidence-recording or staged sync/archive operation succeeds. An unknown designation or a task combining manual review with administrative work SHALL block automatic completion. A dedicated acceptance merge SHALL itself satisfy only explicitly identified pure acceptance-signoff bookkeeping, not unperformed implementation, testing, or physical-review work. No task SHALL claim archive-PR integration before that PR actually merges.
 
 #### Scenario: Implementation task remains unchecked
-- **WHEN** an unchecked task requires implementation, tests, or physical review
+- **WHEN** an unchecked task requires implementation, tests, or physical review without reviewed completion evidence
 - **THEN** automation SHALL report that task as blocking and SHALL NOT tick it
 
 #### Scenario: Only mechanical preparation remains
@@ -192,6 +198,11 @@ Only explicitly designated, purely mechanical archive-preparation tasks SHALL be
 #### Scenario: Legacy task mixes acceptance and archival
 - **WHEN** an unchecked task combines physical acceptance, merge authorization, and archival
 - **THEN** automation SHALL require an explicit evidence-backed task reconciliation rather than classify the whole task as administrative
+
+#### Scenario: Acceptance request reconciles completed work
+- **WHEN** a manually merged acceptance record explicitly supplies completion evidence for unchanged source task identities
+- **THEN** archive preparation SHALL apply only those reviewed reconciliations and preserve the original state and receipt
+- **AND** unknown, pending, failed, and known-gap tasks SHALL continue to block completed-change archival
 
 ### Requirement: Automatic specification synchronization is conservative and verified
 Automation SHALL prepare synchronization and archival against a fresh `develop` snapshot in isolation. It SHALL validate the source change strictly, resolve the declared delta paths, obtain applicable specification instructions, and verify every affected main specification before publishing any archive. Synchronization SHALL preserve unrelated requirements and scenarios and SHALL refuse ambiguous, conflicting, or unsupported transformations. If synchronization is not needed, automation SHALL verify that every declared delta is already applied, or that the workflow legitimately has no delta.
@@ -219,17 +230,17 @@ The automatic completed-change path SHALL NOT silently skip synchronization or d
 - **THEN** automation SHALL refuse overwrite and report the collision
 
 ### Requirement: Forgotten archival is discoverable without repeated maintainer requests
-The same eligibility and preparation policy SHALL support merge-event handling, scheduled catch-up, targeted manual retry, and a read-only dry run. Catch-up SHALL discover missed eligible implementation merges within a documented bounded scan window; older PRs SHALL remain explicitly targetable. Bounded work SHALL report its coverage, deferred candidates, and continuation state rather than claim the entire backlog was examined. Retries SHALL reuse prior results and SHALL NOT spam duplicate PRs or blocker comments.
+The same eligibility and preparation policy SHALL support merge-event handling, scheduled catch-up, targeted manual retry, and a read-only dry run. Catch-up SHALL discover missed eligible implementation merges within a documented bounded scan window; older PRs SHALL remain explicitly targetable. Missing acceptance for a supported merged implementation SHALL produce or reuse a visible acceptance request, not presume acceptance. Bounded work SHALL report its coverage, deferred candidates, and continuation state rather than claim the entire backlog was examined. Retries SHALL reuse prior results and SHALL NOT spam duplicate PRs or blocker comments.
 
-Dry-run output SHALL distinguish eligible, blocked, pending archive PR, already archived, and deferred candidates, with actionable evidence references. It SHALL NOT mutate refs, PRs, acceptance, tasks, or specifications. Existing backlog candidates SHALL NOT be presumed accepted because the automation is newly enabled.
+Dry-run output SHALL distinguish awaiting evidence, awaiting manual acceptance merge, accepted but archive-blocked, pending archive PR, already archived, closed, conflicting, and deferred candidates, with actionable evidence references. It SHALL NOT mutate refs, PRs, acceptance, tasks, or specifications. Existing backlog candidates SHALL NOT be presumed accepted because the automation is newly enabled.
 
 #### Scenario: Merge event was missed
 - **WHEN** a scheduled scan finds an eligible merged implementation that was not previously processed
 - **THEN** it SHALL prepare the same archive follow-up that the merge event would have prepared
 
 #### Scenario: Old change lacks acceptance
-- **WHEN** catch-up finds a merged implementation without valid acceptance evidence
-- **THEN** it SHALL report missing acceptance without manufacturing a positive verdict
+- **WHEN** catch-up finds a supported merged implementation without valid acceptance evidence
+- **THEN** it SHALL create or reuse a visible acceptance request without manufacturing a positive verdict
 
 #### Scenario: Scan reaches its budget
 - **WHEN** the scan reaches its declared time, page, or candidate limit
@@ -238,7 +249,7 @@ Dry-run output SHALL distinguish eligible, blocked, pending archive PR, already 
 
 #### Scenario: Maintainer requests an audit
 - **WHEN** dry-run mode evaluates the backlog or an explicitly named PR outside the scheduled window
-- **THEN** it SHALL report eligibility and blockers without creating or updating repository objects
+- **THEN** it SHALL report eligibility, proposed acceptance requests, and blockers without creating or updating repository objects
 
 ### Requirement: Checked implementation scenarios are the complete human evidence
 Before implementation integration, the implementation pull request SHALL contain a curated `Acceptance checks` section with one to three concise checks that name behavior specific to that implementation and the expected observable result. The checks SHALL NOT include generic review, CI, no-gap, approval, or archival boilerplate and SHALL NOT copy the implementation task ledger or automated test inventory. The implementation PR link SHALL appear in the later acceptance PR only as a plain reference, not as a checkbox.
@@ -273,3 +284,18 @@ An authorized maintainer checking every exact implementation-specific item and m
 - **WHEN** the all-checked manual merge accepts remaining source tasks
 - **THEN** archive preparation MAY reconcile non-mechanical source-task bookkeeping in the archived copy
 - **AND** SHALL NOT claim that archive preparation or archive integration occurred before those operations actually succeed
+
+### Requirement: Acceptance-bound documentation requires manual integration
+A dedicated acceptance-record PR SHALL be a manual lifecycle exclusion from documentation auto-merge, even when non-draft and all changed paths are under the documentation allowlist. Complete changed and renamed-from paths, reserved acceptance records, and authoritative base/head lifecycle evidence SHALL maintain this hold independently of editable titles, labels, and body markers. Every automatic integration path SHALL refuse the PR and disable any armed auto-merge. Missing or ambiguous evidence SHALL fail closed. Ordinary documentation and verified archive follow-ups carrying copies of accepted evidence SHALL retain their existing automatic path.
+
+#### Scenario: Validated acceptance record awaits a reviewer
+- **WHEN** an acceptance-bound PR passes required current-head CI
+- **THEN** it SHALL remain open for the maintainer's explicit manual merge
+
+#### Scenario: Acceptance metadata is removed
+- **WHEN** an acceptance request loses its display marker or moves its reserved record
+- **THEN** the manual hold SHALL remain or classification SHALL block rather than enabling auto-merge
+
+#### Scenario: Archive copies a verified acceptance receipt
+- **WHEN** the verified archive PR copies accepted evidence into the archive without creating or modifying authoritative acceptance records
+- **THEN** that copy SHALL NOT itself prevent normal CI-gated archive auto-merge

@@ -25,17 +25,17 @@
 - [x] 5.1 Update delivery skill, OpenSpec context, archive runbook, and local-cleanup guidance for the visible human action and rollback; verify examples explain missing work, same-PR repairs, legacy compatibility, and no automatic acceptance or watcher activation.
 - [x] 5.2 Add adversarial policy/integration/workflow fixtures covering all new scenarios and supported backlog shapes including #400's pending tasks; verify generated requests cannot become self-authorizing and normal docs/archive controls still work.
 - [x] 5.3 Run strict OpenSpec and applicable focused validation; verify documentation coherence, complete validation-suite ownership, least privilege, and the final scoped diff, and record actual results.
-- [ ] 5.4 Push the completed implementation ready for normal PR CI and verify required checks on the exact current head; retain failures and platform limitations explicitly rather than treating earlier or skipped checks as passed.
+- [x] 5.4 Push the completed implementation ready for normal PR CI and verify required checks on the exact current head; retain failures and platform limitations explicitly rather than treating earlier or skipped checks as passed.
 - [x] 5.5 Render acceptance PR titles as `#<source PR>(accept): <original implementation subject>` and reduce the body to the source link plus required verification checklist; verify conventional title-prefix handling and concise pending/complete states.
 - [x] 5.6 Separate candidate-record integrity from receipt completeness so unresolved review items do not fail acceptance PR CI while incomplete merged records remain blocked from archival; add regression coverage for both boundaries.
 - [x] 5.7 Run strict OpenSpec and focused acceptance governance validation for this refinement, then push it for normal current-head CI without changing #408's acceptance record or inferring completion.
 
 ## 6. Maintainer and live acceptance
 
-- [ ] 6.1 Provide the exact candidate, focused preview/review commands, expected results, and known gaps; obtain and record actual maintainer review without treating implementation approval as acceptance or merge authority.
-- [ ] 6.2 After trusted deployment and separate authorization, verify an isolated implementation-to-acceptance-to-archive lifecycle, manual-only acceptance merge, negative controls, and linked status; record actual PR/head/merge/check identities without relying on this change's own future archive.
+- [x] 6.1 Provide the exact candidate, focused preview/review commands, expected results, and known gaps; obtain and record actual maintainer review without treating implementation approval as acceptance or merge authority.
+- [x] 6.2 After trusted deployment and separate authorization, verify an isolated implementation-to-acceptance-to-archive lifecycle, manual-only acceptance merge, negative controls, and linked status; record actual PR/head/merge/check identities without relying on this change's own future archive.
 
 ## 7. Mechanical archive preparation
 
-- [ ] 7.1 Record verified implementation acceptance and merge evidence for archive preparation.
-- [ ] 7.2 Stage and verify delta synchronization and the archive move in an OpenSpec-only candidate.
+- [x] 7.1 Record verified implementation acceptance and merge evidence for archive preparation.
+- [x] 7.2 Stage and verify delta synchronization and the archive move in an OpenSpec-only candidate.
