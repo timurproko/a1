@@ -61,7 +61,8 @@
     "increasedRunnerCost": "Accepted conservative manual fallback used 2125191 runner-ms across nine modular semantic cells; parallel isolation improves feedback but does not claim lower total compute.",
     "deferredCleanup": "Failed Windows startup attempt 34969354537 deferred cleanup of a locked fixture; that attempt remains failed and is not blended into acceptance.",
     "selectionLimitation": "GitHub did not enqueue ready/synchronize PR events. Supported manual dispatch selected every retained owner, so hosted unrelated and startup-only classes were not observed.",
-    "observationGap": "Task 6.3 remains incomplete: there are not three independent first-attempt hosted observations for each unrelated, startup-sensitive, and conservative-full class, and no hosted cold-cache control.",
+    "observationGap": "There are not three independent first-attempt hosted observations for each unrelated, startup-sensitive, and conservative-full class, and no hosted cold-cache control.",
+    "maintainerDisposition": "On 2026-09-15 the maintainer explicitly accepted the unavailable complete hosted observation set as a documented known gap and requested continuation after current CI. Missing samples remain unperformed and support no median, range, speedup, or completed-performance claim.",
     "publication": "No package was published."
   }
 }

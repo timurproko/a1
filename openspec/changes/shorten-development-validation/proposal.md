@@ -10,7 +10,7 @@ Recent successful development validation took about nine minutes, while a seven-
 - Reuse verified same-job builds and candidate packages; add the missing startup Rust cache and use integrity-checked dependency-download caches without restoring mutable test installations, certified releases, or performance evidence.
 - Measure clean-install hooks, packing, materialization, certification/warmup, individual launches, shutdown, and fixture cleanup separately. Profile and optimize repeated immutable fixture work in the slow release-command, package-message-parity, and resume tests only where isolation and independent oracles remain intact.
 - Preserve the single current-head required aggregate and all nightly/release/full-regression coverage, including Windows Node 22/24 and Linux/macOS. No timeout increases, new semantic retries, assertion removal, or production runtime changes.
-- Evaluate a 2–3-minute ordinary-change feedback target and an under-five-minute startup-sensitive target as measured goals, not promised results or relaxed acceptance gates.
+- Evaluate a 2–3-minute ordinary-change feedback target and an under-five-minute startup-sensitive target as measured goals, not promised results or relaxed acceptance gates. If the complete representative observation set cannot be scheduled, preserve it as an explicit maintainer-accepted known gap rather than claiming the measurements were completed.
 
 ## Capabilities
 
