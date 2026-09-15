@@ -68,7 +68,7 @@ describe("complete regression automation", () => {
 
   it("keeps every deferred startup, image, and history test in the actual full plan exactly once", async () => {
     const plan = await createTierPlan(["full-release"]);
-    expect(plan.selected).toEqual(expect.arrayContaining(["fast-remainder", "fast-resource-sensitive", "dist-integration", "package-install"]));
+    expect(plan.selected).toEqual(expect.arrayContaining(["fast-remainder", "fast-resource-sensitive", "dist-integration", "package-contracts", "package-startup"]));
     expect(plan.consumesPackage).toBe(true);
     const invocations = plan.vitest!.invocations;
     const remainder = invocations.find(invocation => invocation.id === "vitest-full-without-isolated")!;
@@ -88,8 +88,11 @@ describe("complete regression automation", () => {
         && invocation.arguments.some((argument, index, args) => argument === path && args[index - 1] !== "--exclude"));
       expect(Number(!exclusions.includes(path)) + explicit.length, path).toBe(1);
     }
-    expect(invocations.find(invocation => invocation.id === "vitest-package-install")?.arguments).toEqual([
+    expect(invocations.find(invocation => invocation.id === "vitest-package-contracts")?.arguments).toEqual([
       "vitest", "run", "test/foundation/release/package-install.integration.test.ts", "--no-file-parallelism", "--testTimeout=600000",
+    ]);
+    expect(invocations.find(invocation => invocation.id === "vitest-package-startup")?.arguments).toEqual([
+      "vitest", "run", "test/foundation/release/package-startup.integration.test.ts", "--no-file-parallelism", "--testTimeout=600000",
     ]);
     expect(invocations.find(invocation => invocation.id === "vitest-fast-resource-sensitive")?.arguments).toContain("test/features/prompt-history/store.test.ts");
   });

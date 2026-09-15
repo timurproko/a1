@@ -72,8 +72,13 @@ describe("validation suite ownership", () => {
     expect(Object.keys(suites.releaseContracts)).toHaveLength(11);
     expect(Object.values(suites.releaseContracts).filter(owner => !declaredOwners.has(owner))).toEqual([]);
     expect(releaseSource).toContain("Object.entries(suites.releaseContracts)");
-    const included = new Set(suites.tiers["full-release"]!.includes);
-    for (const scope of suites.tiers["fast"]!.includes ?? []) included.add(scope);
+    const included = new Set<string>();
+    const addComposition = (owner: string) => {
+      included.add(owner);
+      const definition = suites.tiers[owner] ?? suites.scopes[owner];
+      for (const child of definition?.includes ?? []) addComposition(child);
+    };
+    for (const owner of suites.tiers["full-release"]!.includes ?? []) addComposition(owner);
     const superseded = new Set(Object.entries(suites.fullReleaseSupersedes).flatMap(([owner, values]) => {
       expect(included.has(owner)).toBe(true);
       return values;
@@ -115,8 +120,8 @@ describe("validation suite ownership", () => {
       "test/foundation/release/package-surface.test.ts",
       "test/foundation/release/session-resume.integration.test.ts",
     ]);
-    expect(suites.scopes["package-install"]!.tests).toEqual([
-      "test/foundation/release/package-install.integration.test.ts",
-    ]);
+    expect(suites.scopes["package-install"]).toEqual({ kind: "composition", includes: ["package-contracts", "package-startup"] });
+    expect(suites.scopes["package-contracts"]!.tests).toEqual(["test/foundation/release/package-install.integration.test.ts"]);
+    expect(suites.scopes["package-startup"]!.tests).toEqual(["test/foundation/release/package-startup.integration.test.ts"]);
   });
 });

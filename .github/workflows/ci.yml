@@ -342,7 +342,13 @@ jobs:
           A1_DATA_DIR: ${{ runner.temp }}\a1-startup-data
           A1_RUNTIME_DIR: ${{ runner.temp }}\a1-startup-runtime
           STARTUP_PERFORMANCE_RESULT: .artifacts/validation/startup-node${{ matrix.node }}-performance.json
-        run: node scripts/release/run-validation-tier.mjs package-install --result .artifacts/validation/startup-node${{ matrix.node }}.json
+        run: node scripts/release/run-validation-tier.mjs package-startup --result .artifacts/validation/startup-node${{ matrix.node }}.json
+      - name: Validate exact-package identity, layers, recovery, and cleanup
+        shell: bash
+        env:
+          VALIDATION_BUILD_READY: "1"
+          VALIDATION_CANDIDATE_TARBALL: ${{ github.workspace }}/.artifacts/validation/package/candidate.tgz
+        run: node scripts/release/run-validation-tier.mjs package-contracts --result .artifacts/validation/package-contracts-node${{ matrix.node }}.json
       - name: Validate background and packaged image preparation
         run: npx vitest run test/integrations/pi/session-ui/image-preparation.test.ts test/integrations/pi/session-ui/image-worker-package.test.ts --maxWorkers=1 --minWorkers=1
       - name: Validate durable history on the selected Node runtime
@@ -354,6 +360,7 @@ jobs:
           name: development-startup-node${{ matrix.node }}
           path: |
             .artifacts/validation/startup-node${{ matrix.node }}*.json
+            .artifacts/validation/package-contracts-node${{ matrix.node }}.json
             .artifacts/validation/phases/*.jsonl
           if-no-files-found: warn
           retention-days: 14

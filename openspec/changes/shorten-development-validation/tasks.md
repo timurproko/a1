@@ -16,8 +16,8 @@
 ## 3. Suite decomposition without lost coverage
 
 - [x] 3.1 Expose disjoint fast remainder and resource-sensitive atomic scopes while retaining the complete public fast composition; verify PR and full plans have identical membership, one-file-at-a-time sensitive execution, unchanged timeouts, and no duplicate owners.
-- [ ] 3.2 Extract first-attempt startup from package identity/layer/recovery/cleanup scenarios with separate fresh startup installation; verify every original scenario, two-profile launch sequence, budget, Defender check, and representative backlog remains in the ownership ledger and focused contract tests.
-- [ ] 3.3 Declare independent image/history compatibility and selected Pi/release/resume/Unix owners; verify no file executes twice on one platform/runtime merely because owners now use separate jobs.
+- [x] 3.2 Extract first-attempt startup from package identity/layer/recovery/cleanup scenarios with separate fresh startup installation; verify every original scenario, two-profile launch sequence, budget, Defender check, and representative backlog remains in the ownership ledger and focused contract tests.
+- [x] 3.3 Declare independent image/history compatibility and selected Pi/release/resume/Unix owners; verify no file executes twice on one platform/runtime merely because owners now use separate jobs.
 - [ ] 3.4 Remap full-regression and release compositions to every successor scope without reducing any retained mode/platform/runtime coverage; verify generated full/release plans and governance tests against the before/after ledger.
 
 ## 4. Setup reuse and measured fixture optimization

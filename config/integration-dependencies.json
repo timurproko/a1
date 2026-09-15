@@ -11,6 +11,7 @@
     "config/",
     "config/validation-suites.json",
     "config/integration-dependencies.json",
+    "config/integration-owners.json",
     "scripts/clean.mjs",
     "bin/sync-pi-tui-proxy.js",
     ".npmrc",

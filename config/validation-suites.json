@@ -69,6 +69,7 @@
         "test/foundation/release/package-surface.test.ts",
         "test/foundation/release/session-resume.integration.test.ts",
         "test/foundation/release/package-install.integration.test.ts",
+        "test/foundation/release/package-startup.integration.test.ts",
         "test/foundation/release/update-performance.integration.test.ts",
         "test/foundation/release/update-transition.integration.test.ts",
         "test/foundation/structured-agent-runtime/runtime.integration.test.ts",
@@ -251,11 +252,23 @@
       ]
     },
     "package-install": {
-      "kind": "vitest-files",
+      "kind": "composition",
+      "includes": ["package-contracts", "package-startup"]
+    },
+    "package-contracts": {
+      "kind": "vitest-package-contracts",
       "requiresBuild": true,
       "consumesPackage": true,
       "tests": [
         "test/foundation/release/package-install.integration.test.ts"
+      ]
+    },
+    "package-startup": {
+      "kind": "vitest-package-startup",
+      "requiresBuild": true,
+      "consumesPackage": true,
+      "tests": [
+        "test/foundation/release/package-startup.integration.test.ts"
       ]
     },
     "dependency-policy": {
@@ -297,8 +310,8 @@
     "owned-ui-regression": "fast",
     "extension-behavior": "fast",
     "architecture-independent-n-minus-one-update-transition": "release-update",
-    "post-update-startup-performance": "package-install",
-    "immutable-dependency-layer-compatibility": "package-install",
+    "post-update-startup-performance": "package-startup",
+    "immutable-dependency-layer-compatibility": "package-contracts",
     "published-predecessor-update": "update-predecessor"
   }
 }

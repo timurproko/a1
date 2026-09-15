@@ -34,7 +34,8 @@ describe("validation tier planning", () => {
       "update-performance",
       "structured-runtime-integration",
       "package-smoke",
-      "package-install",
+      "package-contracts",
+      "package-startup",
       "dependency-policy",
       "update-predecessor",
     ]);
@@ -45,7 +46,8 @@ describe("validation tier planning", () => {
         { id: "vitest-fast-resource-sensitive", arguments: expect.arrayContaining(["test/repository-governance/validation-impact.test.ts", "--no-file-parallelism"]) },
         { id: "vitest-isolated-timing", arguments: expect.arrayContaining(["test/foundation/release/update-performance.integration.test.ts", "test/foundation/release/package-surface.test.ts", "--no-file-parallelism"]) },
         { id: "vitest-isolated-suites", arguments: expect.arrayContaining(["test/integrations/pi/tui-runtime/rendering-budgets.test.ts", "test/integrations/pi/tui-runtime/rendering-producer.test.ts", "--no-file-parallelism", "--testTimeout=600000"]) },
-        { id: "vitest-package-install", arguments: expect.arrayContaining(["test/foundation/release/package-install.integration.test.ts", "--no-file-parallelism"]) },
+        { id: "vitest-package-contracts", arguments: expect.arrayContaining(["test/foundation/release/package-install.integration.test.ts", "--no-file-parallelism"]) },
+        { id: "vitest-package-startup", arguments: expect.arrayContaining(["test/foundation/release/package-startup.integration.test.ts", "--no-file-parallelism"]) },
       ],
     });
     expect(plan.requiresBuild).toBe(true);

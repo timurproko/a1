@@ -1,0 +1,312 @@
+{
+  "schema": "package-owner-migration-v1",
+  "baseline": "d5d7c1b100158e9d0efdb44f0490ced2ee4ea266",
+  "implementationState": "working tree after da9949bc",
+  "scenarios": [
+    {
+      "title": "installs only the authoritative a1 command and package identity",
+      "beforeOwner": "package-install",
+      "proposedOwner": "package-install-non-timing",
+      "bodyPlatforms": [
+        "win32",
+        "linux",
+        "darwin"
+      ],
+      "afterOwner": "package-contracts",
+      "afterFile": "test/foundation/release/package-install.integration.test.ts"
+    },
+    {
+      "title": "restores the platform launcher set when exact-package replacement is cancelled",
+      "beforeOwner": "package-install",
+      "proposedOwner": "package-install-non-timing",
+      "bodyPlatforms": [
+        "win32",
+        "linux",
+        "darwin"
+      ],
+      "afterOwner": "package-contracts",
+      "afterFile": "test/foundation/release/package-install.integration.test.ts"
+    },
+    {
+      "title": "keeps the exact packaged recovery guardian alive after updater loss",
+      "beforeOwner": "package-install",
+      "proposedOwner": "package-install-non-timing",
+      "bodyPlatforms": [
+        "win32",
+        "linux",
+        "darwin"
+      ],
+      "afterOwner": "package-contracts",
+      "afterFile": "test/foundation/release/package-install.integration.test.ts"
+    },
+    {
+      "title": "materializes the published minimal inventory into one reusable dependency layer",
+      "beforeOwner": "package-install",
+      "proposedOwner": "package-install-non-timing",
+      "bodyPlatforms": [
+        "win32",
+        "linux",
+        "darwin"
+      ],
+      "afterOwner": "package-contracts",
+      "afterFile": "test/foundation/release/package-install.integration.test.ts"
+    },
+    {
+      "title": "drains a production-shaped historical backlog through the exact packaged private worker",
+      "beforeOwner": "package-install",
+      "proposedOwner": "package-install-non-timing",
+      "bodyPlatforms": [
+        "win32",
+        "linux",
+        "darwin"
+      ],
+      "afterOwner": "package-contracts",
+      "afterFile": "test/foundation/release/package-install.integration.test.ts"
+    },
+    {
+      "title": "leaves durable scheduled evidence when the exact private entry cannot import its runtime",
+      "beforeOwner": "package-install",
+      "proposedOwner": "package-install-non-timing",
+      "bodyPlatforms": [
+        "win32",
+        "linux",
+        "darwin"
+      ],
+      "afterOwner": "package-contracts",
+      "afterFile": "test/foundation/release/package-install.integration.test.ts"
+    },
+    {
+      "title": "gates post-update, no-live-supervisor, and warm startup for both exact packaged profiles",
+      "beforeOwner": "package-install",
+      "proposedOwner": "startup-timing",
+      "bodyPlatforms": [
+        "win32"
+      ],
+      "afterOwner": "package-startup",
+      "afterFile": "test/foundation/release/package-startup.integration.test.ts"
+    }
+  ],
+  "development": {
+    "platform": "win32",
+    "node": 22,
+    "order": [
+      "package-startup",
+      "package-contracts",
+      "image-compatibility",
+      "history-compatibility"
+    ],
+    "startupInstallation": "fresh and executed before non-timing package owner",
+    "candidateBytes": "one packed candidate reused by digest path; each owner installs to a fresh prefix"
+  },
+  "fullAndRelease": {
+    "matrix": [
+      "windows-2025-node22",
+      "windows-2025-node24",
+      "ubuntu-24.04-node24",
+      "macos-15-node24"
+    ],
+    "selected": [
+      "typecheck",
+      "architecture",
+      "fast-remainder",
+      "fast-resource-sensitive",
+      "documentation-full",
+      "naming-full",
+      "rendering-stability",
+      "dist-integration",
+      "launch-integration",
+      "pi-engine-conformance",
+      "release-update",
+      "update-performance",
+      "structured-runtime-integration",
+      "package-smoke",
+      "package-contracts",
+      "package-startup",
+      "dependency-policy",
+      "update-predecessor"
+    ],
+    "packageInvocations": [
+      {
+        "id": "vitest-package-contracts",
+        "tests": [
+          "test/foundation/release/package-install.integration.test.ts"
+        ]
+      },
+      {
+        "id": "vitest-package-startup",
+        "tests": [
+          "test/foundation/release/package-startup.integration.test.ts"
+        ]
+      }
+    ]
+  },
+  "logicalOwners": [
+    {
+      "id": "pi-release-resume",
+      "scopes": [
+        "pi-engine-conformance",
+        "package-smoke",
+        "release-update"
+      ],
+      "targets": [
+        {
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "development": true,
+      "tests": [
+        "test/integrations/pi/engine/conformance.test.ts",
+        "test/integrations/pi/engine/runtime-integration.test.ts",
+        "test/integrations/pi/engine/session-integration.test.ts",
+        "test/foundation/release/package-surface.test.ts",
+        "test/foundation/release/session-resume.integration.test.ts",
+        "test/foundation/release/update-transition.integration.test.ts",
+        "test/repository-governance/release-command.test.ts"
+      ]
+    },
+    {
+      "id": "package-contracts",
+      "scopes": [
+        "package-contracts"
+      ],
+      "targets": [
+        {
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 22
+        }
+      ],
+      "development": true,
+      "tests": [
+        "test/foundation/release/package-install.integration.test.ts"
+      ]
+    },
+    {
+      "id": "startup",
+      "scopes": [
+        "package-startup"
+      ],
+      "targets": [
+        {
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 22
+        }
+      ],
+      "development": true,
+      "tests": [
+        "test/foundation/release/package-startup.integration.test.ts"
+      ]
+    },
+    {
+      "id": "image-compatibility",
+      "scopes": [
+        "image-compatibility"
+      ],
+      "targets": [
+        {
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 22
+        },
+        {
+          "platform": "linux",
+          "architecture": "x64",
+          "node": 24
+        },
+        {
+          "platform": "darwin",
+          "architecture": "arm64",
+          "node": 24
+        }
+      ],
+      "development": true,
+      "tests": [
+        "test/integrations/pi/session-ui/image-preparation.test.ts",
+        "test/integrations/pi/session-ui/image-worker-package.test.ts"
+      ]
+    },
+    {
+      "id": "history-compatibility",
+      "scopes": [
+        "history-compatibility"
+      ],
+      "targets": [
+        {
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 22
+        },
+        {
+          "platform": "linux",
+          "architecture": "x64",
+          "node": 24
+        },
+        {
+          "platform": "darwin",
+          "architecture": "arm64",
+          "node": 24
+        }
+      ],
+      "development": true,
+      "tests": [
+        "test/features/prompt-history/concurrency.integration.test.ts",
+        "test/features/prompt-history/image-sidecar.test.ts",
+        "test/features/prompt-history/service.test.ts",
+        "test/features/prompt-history/store.test.ts",
+        "test/features/prompt-history/worker-package.test.ts"
+      ]
+    },
+    {
+      "id": "unix-containment",
+      "scopes": [
+        "unix-containment"
+      ],
+      "targets": [
+        {
+          "platform": "linux",
+          "architecture": "x64",
+          "node": 24
+        },
+        {
+          "platform": "darwin",
+          "architecture": "arm64",
+          "node": 24
+        }
+      ],
+      "development": true,
+      "tests": [
+        "test/foundation/process-containment/artifact.test.ts",
+        "test/foundation/process-containment/contracts.test.ts",
+        "test/foundation/process-containment/darwin-process-inspector.test.ts",
+        "test/foundation/process-containment/source-boundary.test.ts",
+        "test/foundation/process-containment/unix-process-group.integration.test.ts",
+        "test/foundation/process-containment/windows-job.integration.test.ts",
+        "test/foundation/process-containment/windows-process-inspector.test.ts"
+      ]
+    }
+  ],
+  "structuralVerification": {
+    "test": "test/repository-governance/package-suite-ownership.test.ts",
+    "scenarios": 7,
+    "profiles": [
+      "a1",
+      "pi"
+    ],
+    "launchKinds": [
+      "post-update",
+      "no-live-supervisor",
+      "warm"
+    ],
+    "automaticRetries": 0,
+    "readinessTimeoutMs": 15000,
+    "testTimeoutMs": 600000,
+    "backlog": {
+      "releases": 42,
+      "payloadFilesPerRelease": 128
+    }
+  },
+  "limitations": "Structural migration evidence before current-head CI. Package startup and contracts are temporarily colocated sequentially on one Windows runner after startup is measured; isolated job scheduling is task 5.1. No performance gain or exact-head integration pass is claimed."
+}

@@ -1,0 +1,135 @@
+{
+  "schema": "a1-integration-owner-registry-v1",
+  "owners": [
+    {
+      "id": "pi-release-resume",
+      "scopes": ["pi-engine-conformance", "package-smoke", "release-update"],
+      "targets": [{ "platform": "win32", "architecture": "x64", "node": 24 }],
+      "development": true,
+      "entries": [
+        "test/integrations/pi/engine/conformance.test.ts",
+        "test/integrations/pi/engine/runtime-integration.test.ts",
+        "test/integrations/pi/engine/session-integration.test.ts",
+        "test/foundation/release/package-surface.test.ts",
+        "test/foundation/release/session-resume.integration.test.ts",
+        "test/foundation/release/update-transition.integration.test.ts",
+        "test/repository-governance/release-command.test.ts"
+      ],
+      "tests": [
+        "test/integrations/pi/engine/conformance.test.ts",
+        "test/integrations/pi/engine/runtime-integration.test.ts",
+        "test/integrations/pi/engine/session-integration.test.ts",
+        "test/foundation/release/package-surface.test.ts",
+        "test/foundation/release/session-resume.integration.test.ts",
+        "test/foundation/release/update-transition.integration.test.ts",
+        "test/repository-governance/release-command.test.ts"
+      ],
+      "support": ["test/support/session-resume-fixture.ts", "test/foundation/release/package-candidate-fixture.ts"]
+    },
+    {
+      "id": "package-contracts",
+      "scopes": ["package-contracts"],
+      "targets": [{ "platform": "win32", "architecture": "x64", "node": 22 }],
+      "development": true,
+      "entries": ["test/foundation/release/package-install.integration.test.ts"],
+      "tests": ["test/foundation/release/package-install.integration.test.ts"],
+      "support": ["test/foundation/release/package-candidate-fixture.ts", "test/foundation/release/package-install-fixture.ts"]
+    },
+    {
+      "id": "startup",
+      "scopes": ["package-startup"],
+      "targets": [{ "platform": "win32", "architecture": "x64", "node": 22 }],
+      "development": true,
+      "entries": ["bin/cli.js", "test/foundation/release/package-startup.integration.test.ts"],
+      "tests": ["test/foundation/release/package-startup.integration.test.ts"],
+      "support": ["test/foundation/release/package-candidate-fixture.ts", "test/foundation/release/package-install-fixture.ts"]
+    },
+    {
+      "id": "image-compatibility",
+      "scopes": ["image-compatibility"],
+      "targets": [
+        { "platform": "win32", "architecture": "x64", "node": 22 },
+        { "platform": "linux", "architecture": "x64", "node": 24 },
+        { "platform": "darwin", "architecture": "arm64", "node": 24 }
+      ],
+      "development": true,
+      "entries": [
+        "test/integrations/pi/session-ui/image-preparation.test.ts",
+        "test/integrations/pi/session-ui/image-worker-package.test.ts"
+      ],
+      "tests": [
+        "test/integrations/pi/session-ui/image-preparation.test.ts",
+        "test/integrations/pi/session-ui/image-worker-package.test.ts"
+      ],
+      "support": []
+    },
+    {
+      "id": "history-compatibility",
+      "scopes": ["history-compatibility"],
+      "targets": [
+        { "platform": "win32", "architecture": "x64", "node": 22 },
+        { "platform": "linux", "architecture": "x64", "node": 24 },
+        { "platform": "darwin", "architecture": "arm64", "node": 24 }
+      ],
+      "development": true,
+      "entries": [
+        "test/features/prompt-history/concurrency.integration.test.ts",
+        "test/features/prompt-history/image-sidecar.test.ts",
+        "test/features/prompt-history/service.test.ts",
+        "test/features/prompt-history/store.test.ts",
+        "test/features/prompt-history/worker-package.test.ts"
+      ],
+      "tests": [
+        "test/features/prompt-history/concurrency.integration.test.ts",
+        "test/features/prompt-history/image-sidecar.test.ts",
+        "test/features/prompt-history/service.test.ts",
+        "test/features/prompt-history/store.test.ts",
+        "test/features/prompt-history/worker-package.test.ts"
+      ],
+      "support": []
+    },
+    {
+      "id": "unix-containment",
+      "scopes": ["unix-containment"],
+      "targets": [
+        { "platform": "linux", "architecture": "x64", "node": 24 },
+        { "platform": "darwin", "architecture": "arm64", "node": 24 }
+      ],
+      "development": true,
+      "entries": [
+        "test/foundation/process-containment/artifact.test.ts",
+        "test/foundation/process-containment/contracts.test.ts",
+        "test/foundation/process-containment/darwin-process-inspector.test.ts",
+        "test/foundation/process-containment/source-boundary.test.ts",
+        "test/foundation/process-containment/unix-process-group.integration.test.ts",
+        "test/foundation/process-containment/windows-job.integration.test.ts",
+        "test/foundation/process-containment/windows-process-inspector.test.ts",
+        "test/integrations/pi/session-ui/image-preparation.test.ts",
+        "test/integrations/pi/session-ui/image-worker-package.test.ts",
+        "test/features/prompt-history/concurrency.integration.test.ts",
+        "test/features/prompt-history/image-sidecar.test.ts",
+        "test/features/prompt-history/service.test.ts",
+        "test/features/prompt-history/store.test.ts",
+        "test/features/prompt-history/worker-package.test.ts",
+        "test/foundation/launch-context/cutover.test.ts",
+        "test/foundation/release/update-transition.integration.test.ts",
+        "test/foundation/release/dependency-certification.test.ts",
+        "test/foundation/release/dependency-layer.test.ts",
+        "test/foundation/release/restart-certification.test.ts",
+        "test/foundation/release/release-gc.test.ts",
+        "test/foundation/release/package-surface.test.ts",
+        "test/foundation/release/session-resume.integration.test.ts"
+      ],
+      "tests": [
+        "test/foundation/process-containment/artifact.test.ts",
+        "test/foundation/process-containment/contracts.test.ts",
+        "test/foundation/process-containment/darwin-process-inspector.test.ts",
+        "test/foundation/process-containment/source-boundary.test.ts",
+        "test/foundation/process-containment/unix-process-group.integration.test.ts",
+        "test/foundation/process-containment/windows-job.integration.test.ts",
+        "test/foundation/process-containment/windows-process-inspector.test.ts"
+      ],
+      "support": ["test/foundation/process-containment/"]
+    }
+  ]
+}

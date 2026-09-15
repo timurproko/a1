@@ -70,19 +70,21 @@ export async function createTierPlan(requested, repository = process.cwd()) {
   if (duplicateTests.length > 0) throw new Error(`tests have duplicate selected owners: ${duplicateTests.map(entry => entry.test).join(", ")}`);
 
   const packageSmokeTests = new Set(suites.scopes["package-smoke"]?.tests ?? []);
-  const packageInstallTests = new Set(suites.scopes["package-install"]?.tests ?? []);
+  const packageContractTests = new Set(suites.scopes["package-contracts"]?.tests ?? []);
+  const packageStartupTests = new Set(suites.scopes["package-startup"]?.tests ?? []);
   const performanceTests = new Set(suites.scopes["update-performance"]?.tests ?? []);
   const isolatedTests = new Set(Object.values(suites.scopes)
     .filter(definition => definition.kind === "vitest-isolated")
     .flatMap(definition => definition.tests ?? []));
-  const packageTests = new Set([...packageSmokeTests, ...packageInstallTests]);
+  const packageTests = new Set([...packageSmokeTests, ...packageContractTests, ...packageStartupTests]);
   const independentlyTimedTests = new Set([...performanceTests, ...isolatedTests]);
   const regularExplicitTests = explicitTests.filter(entry => !packageTests.has(entry.test) && !independentlyTimedTests.has(entry.test));
   const selectedTestPaths = new Set(explicitTests.map(entry => entry.test));
   const requestedPerformance = [...performanceTests].filter(path => selectedTestPaths.has(path));
   const requestedIsolated = [...isolatedTests].filter(path => selectedTestPaths.has(path));
   const requestedPackageSmoke = [...packageSmokeTests].filter(path => selectedTestPaths.has(path));
-  const requestedPackageInstall = [...packageInstallTests].filter(path => selectedTestPaths.has(path));
+  const requestedPackageContracts = [...packageContractTests].filter(path => selectedTestPaths.has(path));
+  const requestedPackageStartup = [...packageStartupTests].filter(path => selectedTestPaths.has(path));
   const resourceSensitiveInvocation = resourceSensitiveTests.length > 0 ? {
     id: "vitest-fast-resource-sensitive",
     arguments: ["vitest", "run", ...resourceSensitiveTests, "--no-file-parallelism"],
@@ -102,7 +104,8 @@ export async function createTierPlan(requested, repository = process.cwd()) {
     ...(regularExplicitTests.length > 0 ? [{ id: "vitest-explicit", arguments: ["vitest", "run", ...regularExplicitTests.map(entry => entry.test), "--testTimeout=30000"] }] : []),
     ...(requestedPerformance.length + requestedPackageSmoke.length > 0 ? [{ id: "vitest-isolated-timing", arguments: ["vitest", "run", ...requestedPerformance, ...requestedPackageSmoke, "--no-file-parallelism", "--testTimeout=120000"] }] : []),
     ...(requestedIsolated.length > 0 ? [{ id: "vitest-isolated-suites", arguments: ["vitest", "run", ...requestedIsolated, "--no-file-parallelism", "--testTimeout=600000"] }] : []),
-    ...(requestedPackageInstall.length > 0 ? [{ id: "vitest-package-install", arguments: ["vitest", "run", ...requestedPackageInstall, "--no-file-parallelism", "--testTimeout=600000"] }] : []),
+    ...(requestedPackageContracts.length > 0 ? [{ id: "vitest-package-contracts", arguments: ["vitest", "run", ...requestedPackageContracts, "--no-file-parallelism", "--testTimeout=600000"] }] : []),
+    ...(requestedPackageStartup.length > 0 ? [{ id: "vitest-package-startup", arguments: ["vitest", "run", ...requestedPackageStartup, "--no-file-parallelism", "--testTimeout=600000"] }] : []),
   ];
   const vitest = full
     ? {
@@ -112,7 +115,8 @@ export async function createTierPlan(requested, repository = process.cwd()) {
           ...(resourceSensitiveInvocation ? [resourceSensitiveInvocation] : []),
           { id: "vitest-isolated-timing", arguments: ["vitest", "run", ...performanceTests, ...packageSmokeTests, "--no-file-parallelism", "--testTimeout=120000"] },
           { id: "vitest-isolated-suites", arguments: ["vitest", "run", ...isolatedTests, "--no-file-parallelism", "--testTimeout=600000"] },
-          { id: "vitest-package-install", arguments: ["vitest", "run", ...packageInstallTests, "--no-file-parallelism", "--testTimeout=600000"] },
+          { id: "vitest-package-contracts", arguments: ["vitest", "run", ...packageContractTests, "--no-file-parallelism", "--testTimeout=600000"] },
+          { id: "vitest-package-startup", arguments: ["vitest", "run", ...packageStartupTests, "--no-file-parallelism", "--testTimeout=600000"] },
         ],
       }
     : regularInvocations.length > 0
