@@ -12,10 +12,35 @@ describe("impact-aware validation workflows", () => {
     expect(workflow).toContain("name: Rendering validation");
     expect(workflow).toContain("needs: [changes, acceptance, docs, naming, documentation, validate, startup, rendering, containment]");
     expect(workflow).toContain("name: Acceptance record validation");
+    expect(workflow).toContain("Route exact acceptance candidate from trusted base");
+    expect(workflow).toContain("application/vnd.github.raw+json");
+    expect(workflow).toContain("acceptance-only: ${{ steps.route.outputs.acceptance_only || 'false' }}");
     const required = workflow.slice(workflow.indexOf("\n  required:"));
     expect(required).toContain("ref: ${{ needs.changes.outputs.head-sha }}");
     expect(required).toContain("node scripts/release/require-development-validation.mjs");
     expect(workflow.match(/name: Development validation required/g)).toHaveLength(1);
+  });
+
+  it("skips every generic lane only behind trusted acceptance validation", async () => {
+    const workflow = parse(await readFile(".github/workflows/ci.yml", "utf8"));
+    const changes = workflow.jobs.changes;
+    expect(changes.permissions).toEqual({ contents: "read", "pull-requests": "read" });
+    for (const name of ["Check out head", "Set up Node", "Install exact analysis dependencies",
+      "Select validation from the complete impact", "Upload exact impact selection"]) {
+      expect(changes.steps.find((step: { name: string }) => step.name === name)?.if)
+        .toBe("steps.route.outputs.acceptance_only != 'true'");
+    }
+    for (const name of ["docs", "naming", "documentation", "validate", "startup", "rendering", "containment"]) {
+      expect(workflow.jobs[name].if).toContain("needs.changes.outputs.acceptance-only != 'true'");
+    }
+    expect(workflow.jobs.acceptance.outputs["acceptance-candidate"])
+      .toBe("${{ steps.validation.outputs.acceptance_candidate || 'false' }}");
+    const aggregate = workflow.jobs.required.steps.find((step: { name: string }) => step.name === "Require current impact-selected validation");
+    expect(aggregate.env).toMatchObject({
+      ACCEPTANCE_ONLY: "${{ needs.changes.outputs.acceptance-only }}",
+      ACCEPTANCE_CANDIDATE: "${{ needs.acceptance.outputs.acceptance-candidate }}",
+      ACCEPTANCE_RESULT: "${{ needs.acceptance.result }}",
+    });
   });
 
   it("keeps ordinary validation free of rendering and live documentation scopes", async () => {
@@ -108,7 +133,7 @@ function assertDevelopmentStartup(workflow: ReturnType<typeof parse>) {
   expect(startup.strategy.matrix).toEqual({ node: [22] });
   expect(startup.strategy["max-parallel"]).toBe(1);
   expect(startup.needs).toBe("changes");
-  expect(startup.if).toBe("needs.changes.outputs.docs-only != 'true' && needs.changes.outputs.version-only != 'true'");
+  expect(startup.if).toBe("needs.changes.outputs.acceptance-only != 'true' && needs.changes.outputs.docs-only != 'true' && needs.changes.outputs.version-only != 'true'");
   expect(startup["runs-on"]).toBe("windows-2025");
   expect(startup["timeout-minutes"]).toBe(20);
   expect(startup.steps).toEqual(expect.arrayContaining([

@@ -3,6 +3,9 @@ import { requireDevelopmentValidation } from "../../scripts/release/require-deve
 
 const head = "a".repeat(40);
 const valid = {
+  acceptanceOnly: "false",
+  acceptanceCandidate: "false",
+  acceptanceResult: "success",
   changesResult: "success",
   docsResult: "skipped",
   namingRequired: "false",
@@ -23,6 +26,34 @@ const valid = {
 };
 
 describe("development validation aggregate", () => {
+  it("accepts only a current trusted acceptance candidate when every generic lane is skipped", () => {
+    const acceptance = {
+      ...valid,
+      acceptanceOnly: "true",
+      acceptanceCandidate: "true",
+      docsResult: "skipped",
+      namingResult: "skipped",
+      documentationResult: "skipped",
+      validateResult: "skipped",
+      renderingResult: "skipped",
+      containmentResult: "skipped",
+      startupResult: "skipped",
+    };
+    expect(requireDevelopmentValidation(acceptance)).toEqual({ mode: "acceptance" });
+    for (const override of [
+      { acceptanceCandidate: "false" },
+      { acceptanceResult: "failure" },
+      { docsResult: "success" },
+      { namingResult: "success" },
+      { documentationResult: "success" },
+      { validateResult: "success" },
+      { renderingResult: "success" },
+      { containmentResult: "success" },
+      { startupResult: "success" },
+      { selectedHead: "b".repeat(40) },
+    ]) expect(() => requireDevelopmentValidation({ ...acceptance, ...override })).toThrow();
+  });
+
   it("accepts exact docs, version, ordinary, smoke, and full selections", () => {
     expect(requireDevelopmentValidation({ ...valid, docsOnly: "true", docsResult: "success", validateResult: "skipped", startupResult: "skipped" })).toMatchObject({ mode: "docs" });
     expect(requireDevelopmentValidation({ ...valid, versionOnly: "true", validateResult: "skipped", startupResult: "skipped" })).toMatchObject({ mode: "version" });
@@ -57,6 +88,7 @@ describe("development validation aggregate", () => {
 
   it.each([
     ["stale head", { selectedHead: "b".repeat(40) }],
+    ["missing acceptance route", { acceptanceOnly: undefined }],
     ["missing classification", { changesResult: "failure" }],
     ["failed ordinary", { validateResult: "failure" }],
     ["failed containment", { containmentResult: "failure" }],

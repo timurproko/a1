@@ -132,8 +132,14 @@ or auto-merge is manually enabled; if any path is outside the allowlist, it disa
 auto-merge while leaving the pull request available for a later manual merge. Every
 docs-only change runs lightweight generated-governance consistency, so archiving an
 inventoried OpenSpec occurrence fails that pull request rather than a later code pull
-request. A legitimate generated baseline update remains outside the allowlist and
-follows the manually accepted mixed/code path.
+request. The only narrower route is an exact single added canonical
+`openspec/acceptance/<change>/<source-head>.json` record: trusted base policy reads the
+complete live diff before dependency installation, then the dedicated acceptance job
+must validate its exact source, CI, scope, branch, body, checklist, and conflict state.
+Only that verified route skips generic impact installation and documentation/all-spec
+validation; malformed, mixed, renamed, stale, or unavailable inputs fail closed.
+A legitimate generated baseline update remains outside the allowlist and follows the
+manually accepted mixed/code path.
 
 A new implementation-bound specification starts as OpenSpec-only artifacts in one draft PR. Explicit approval to implement continues in that same worktree, branch, history, and PR; the plan does not merge first. Approved refinements reconcile the planning artifacts before code changes. Make the completed PR ready for final review, but leave integration manual after CI, exact-head maintainer acceptance, and explicit merge authorization. Closing a rejected unmerged draft integrates and archives nothing; local unmerged cleanup still needs separate approval. Existing merged plans retain their legacy implementation PRs and require explicit reconciliation if rejected. See [delivery and archive handoff](openspec-archive-automation.md) for the version-2 link and legacy version-1 compatibility.
 

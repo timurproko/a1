@@ -127,7 +127,7 @@
       "triggers": ["pull_request", "workflow_dispatch"],
       "permissions": ["actions: read", "contents: read", "pull-requests: read"],
       "trustedSource": "pull-request-head-read-only",
-      "authority": ["Development validation required", "acceptance-record-validation", "archive-merge-result-validation"],
+      "authority": ["Development validation required", "acceptance-only-routing", "acceptance-record-validation", "archive-merge-result-validation"],
       "concurrency": "development-validation-",
       "environments": [],
       "artifactRetentionDays": [14]
@@ -139,7 +139,7 @@
       "triggers": ["pull_request_target", "pull_request_target:edited", "workflow_run"],
       "permissions": ["actions: read", "contents: write", "pull-requests: write"],
       "trustedSource": "default-branch",
-      "authority": ["documentation-auto-merge", "matching-merged-head-delete"],
+      "authority": ["documentation-auto-merge", "matching-merged-head-delete", "archive-protected-integration"],
       "concurrency": "documentation-auto-merge-",
       "environments": [],
       "artifactRetentionDays": []

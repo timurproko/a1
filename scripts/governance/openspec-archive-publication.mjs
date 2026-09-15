@@ -126,28 +126,39 @@ export function archivePullBody(repository, marker) {
   return `Archives accepted implementation #${marker.sourcePr}. Canonical specs and archive artifacts were verified in isolation.\n\n`
     + `Acceptance: ${acceptanceUrl(repository, marker.sourcePr, { kind: marker.acceptanceReceipt?.kind, id: marker.acceptanceId })}\n`
     + `Source CI: https://github.com/${repository}/actions/runs/${marker.validationRunId}\n\n`
-    + `OpenSpec-only candidate; integration remains pending required current-head CI and existing documentation auto-merge.\n\n`
+    + `OpenSpec-only candidate; automatic protected integration follows required current-head CI. Native auto-merge remains intentionally unarmed so an advanced target base cannot integrate stale synchronization.\n\n`
     + markerText(marker);
+}
+
+export function memoizeArchiveAuthorityGet(get) {
+  const requests = new Map();
+  return path => {
+    if (!requests.has(path)) requests.set(path, Promise.resolve().then(() => get(path)));
+    return requests.get(path);
+  };
 }
 
 export async function archiveAuthorityCurrent(get, repository, pull, marker) {
   const prefix = `/repos/${repository}`;
-  const commit = await get(`${prefix}/git/commits/${pull.head.sha}`);
+  const cachedGet = memoizeArchiveAuthorityGet(get);
+  const evidencePromise = loadArchiveEvidence(archiveReaderFromGet(repository, cachedGet), marker.sourcePr)
+    .catch(() => null);
+  const [commit, source, evidence] = await Promise.all([
+    cachedGet(`${prefix}/git/commits/${pull.head.sha}`),
+    cachedGet(`${prefix}/pulls/${marker.sourcePr}`),
+    evidencePromise,
+  ]);
   const committed = readArchiveMarker(commit.message);
   const { generatedHead, ...declared } = marker;
   if (generatedHead !== pull.head.sha || JSON.stringify(committed) !== JSON.stringify(declared)
     || commit.parents?.length !== 1 || commit.parents[0]?.sha !== marker.targetSha) return false;
-  const source = await get(`${prefix}/pulls/${marker.sourcePr}`);
   if (source.merged !== true || source.head?.sha !== marker.sourceHead || source.merge_commit_sha !== marker.sourceMerge
     || createHash("sha256").update(source.body ?? "").digest("hex") !== marker.sourceBodyDigest) return false;
-  try {
-    const evidence = await loadArchiveEvidence(archiveReaderFromGet(repository, get), marker.sourcePr);
-    return evidence.disposition === "eligible" && evidence.targetSha === marker.targetSha
-      && evidence.acceptance.id === marker.acceptanceId && evidence.acceptance.bodyDigest === marker.acceptanceDigest
-      && evidence.acceptance.author === marker.acceptanceAuthor && evidence.acceptance.createdAt === marker.acceptanceCreatedAt
-      && receiptIdentityMatches(marker.acceptanceReceipt ?? null, evidence.acceptance)
-      && evidence.validation.runId === marker.validationRunId;
-  } catch { return false; }
+  return evidence?.disposition === "eligible" && evidence.targetSha === marker.targetSha
+    && evidence.acceptance.id === marker.acceptanceId && evidence.acceptance.bodyDigest === marker.acceptanceDigest
+    && evidence.acceptance.author === marker.acceptanceAuthor && evidence.acceptance.createdAt === marker.acceptanceCreatedAt
+    && receiptIdentityMatches(marker.acceptanceReceipt ?? null, evidence.acceptance)
+    && evidence.validation.runId === marker.validationRunId;
 }
 
 export async function publishArchive({ publisher, reader, evidence, candidate, recoveryCandidate = null, existing = null,
