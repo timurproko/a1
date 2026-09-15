@@ -22,6 +22,7 @@ export interface AcceptanceMetadata {
 export interface ArchivePaths { active: string; archive: string; specs: string[]; branch: string }
 export function archiveFailure(code: string, detail?: string): ArchiveFailure;
 export function metadataBlock(text: string, label: string): unknown;
+export function strictJson(text: string, limit?: number): unknown;
 export function parseImplementation(text: string): ImplementationMetadata | null;
 export function parseAcceptance(text: string): AcceptanceMetadata | null;
 export function selectAcceptance(comments: readonly unknown[], implementation: ImplementationMetadata, headSha: string): {
@@ -29,7 +30,7 @@ export function selectAcceptance(comments: readonly unknown[], implementation: I
 };
 export function assertMergedImplementation(pull: unknown, repository: string, files: readonly PullRequestChangedFile[]): void;
 export function assertRepositoryPath(value: unknown): string;
-export function inspectTasks(text: string, mapping?: ImplementationMetadata["archivePreparationTasks"]): { id: string; done: boolean; text: string }[];
+export function inspectTasks(text: string, mapping?: ImplementationMetadata["archivePreparationTasks"], options?: { allowIncomplete?: boolean }): { id: string; done: boolean; text: string }[];
 export function completePreparationTask(text: string, mapping: NonNullable<ImplementationMetadata["archivePreparationTasks"]>, kind: keyof typeof ARCHIVE_TASKS): string;
 export function archivePaths(change: string, date: string, capabilities: string[]): ArchivePaths;
 export function assertArchiveDiff(files: readonly PullRequestChangedFile[], paths: ArchivePaths): void;

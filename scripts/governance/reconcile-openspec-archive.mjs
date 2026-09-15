@@ -1,3 +1,6 @@
+import { prepareAcceptanceRequest, inspectAcceptanceCandidate, validateAcceptanceCandidate } from "./openspec-acceptance-github.mjs";
+import { publishAcceptanceRequest } from "./openspec-acceptance-publication.mjs";
+import { archivedAcceptanceMatches } from "./openspec-acceptance-policy.mjs";
 import { createHash } from "node:crypto";
 import { readFile, writeFile, mkdir, appendFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
@@ -7,7 +10,7 @@ import { createArchiveReader, loadArchiveEvidence } from "./openspec-archive-git
 import { loadArchiveTool, prepareArchive, snapshotOpenSpec } from "./openspec-archive-staging.mjs";
 import { createArchivePublisher, publishArchive, readArchiveMarker } from "./openspec-archive-publication.mjs";
 import { newArchiveCheckpoint, validateArchiveCheckpoint, scanArchiveCandidates, advanceArchiveCheckpoint } from "./openspec-archive-scan.mjs";
-import { archiveFailure, parseAcceptance, assertArchiveDiff, SHA } from "./openspec-archive-policy.mjs";
+import { archiveFailure, assertArchiveDiff, SHA } from "./openspec-archive-policy.mjs";
 
 export async function discoverArchiveCheckpoint(reader) {
   const response = await reader.get(`${reader.prefix}/actions/workflows/openspec-archive.yml/runs?status=success&per_page=100&page=1`);
@@ -49,10 +52,32 @@ export async function reconcileArchives({ reader, tool, publisherFactory, dryRun
       if (now() - started > 8 * 60 * 1000) break;
       const row = { pr: candidate.number, disposition: "blocked" };
       try {
-        const evidence = await loadArchiveEvidence(reader, candidate.number);
+        let evidence = await loadArchiveEvidence(reader, candidate.number, { allowMissing: true });
+        if (evidence.disposition === "unlinked" && evidence.pull.head?.ref?.startsWith("docs/accept-")) {
+          const acceptance = await inspectAcceptanceCandidate(reader, evidence.pull, { requireComplete: false });
+          if (acceptance) {
+            row.acceptancePr = candidate.number;
+            row.pr = acceptance.record.sourcePr;
+            evidence = await loadArchiveEvidence(reader, row.pr, { allowMissing: true });
+          }
+        }
         if (evidence.disposition === "unlinked") {
           row.disposition = "unlinked";
+        } else if (evidence.disposition === "acceptance-missing") {
+          row.change = evidence.implementation.change;
+          if (published) {
+            Object.assign(row, { disposition: "deferred", reason: "publication-budget" });
+            report.results.push(row);
+            break;
+          }
+          const request = await prepareAcceptanceRequest(reader, evidence);
+          const result = await publishAcceptanceRequest({ reader, source: evidence, candidate: request, dryRun,
+            publisher: dryRun ? null : await getPublisher(), retryClosed });
+          Object.assign(row, result);
+          published ||= result.published === true;
         } else {
+          row.accepted = true;
+          if (evidence.acceptance.kind === "pull-request") row.acceptancePr = evidence.acceptance.id;
           row.change = evidence.implementation.change;
           const branch = `docs/archive-${row.change}`;
           const matches = await reader.pages(`/pulls?state=all&base=develop&head=${encodeURIComponent(`${reader.repository.split("/")[0]}:${branch}`)}`, 1000);
@@ -79,7 +104,7 @@ export async function reconcileArchives({ reader, tool, publisherFactory, dryRun
             const target = await snapshotOpenSpec(reader, evidence.targetSha);
             const record = (await target.blob(`${marker.archive}acceptance.md`))?.toString();
             if (target.entries.has(`openspec/changes/${row.change}/.openspec.yaml`) || !record
-              || parseAcceptance(record)?.headSha !== evidence.pull.head.sha || !record.includes(evidence.pull.merge_commit_sha)) {
+              || !archivedAcceptanceMatches(record, evidence, reader.repository)) {
               throw archiveFailure("archive-integration-unverified");
             }
             row.disposition = "already-archived";
@@ -89,10 +114,13 @@ export async function reconcileArchives({ reader, tool, publisherFactory, dryRun
             if (existing?.state === "closed" && !retryClosed) throw archiveFailure("archive-pr-closed");
             if (queue && queue.number !== existing?.number || published) {
               row.disposition = "deferred";
-              row.reason = "archive-queue-pending";
+              row.reason = published ? "publication-budget" : "archive-queue-pending";
               row.archivePr = queue?.number;
               report.results.push(row);
-              break;
+              if (published) break;
+              // Concurrency: a serialized archive queue must not hide other changes' acceptance requests.
+              processed.push(candidate);
+              continue;
             }
             const date = marker?.archive.match(/\/archive\/(\d{4}-\d{2}-\d{2})-/)?.[1] ?? new Date(now()).toISOString().slice(0, 10);
             const prepared = await prepare({ reader, tool, evidence, date, expectedArchive: marker?.archive ?? null });
@@ -115,13 +143,14 @@ export async function reconcileArchives({ reader, tool, publisherFactory, dryRun
               const run = runs.filter(item => item.head_sha === (result.generatedHead ?? existing?.head.sha)).sort((a, b) => b.run_number - a.run_number)[0];
               row.validation = !run ? "not-yet-observed" : run.conclusion ?? run.status;
               if (run?.status === "completed" && run.conclusion !== "success") {
-                row.disposition = "blocked";
+                row.disposition = "accepted-archive-blocked";
                 row.reason = "archive-validation-failed";
               }
             }
           }
         }
       } catch (error) {
+        if (row.accepted) row.disposition = "accepted-archive-blocked";
         row.reason = error.archiveCode ?? "internal-error";
         if (error.archiveChange) row.change = error.archiveChange;
         if (error.archiveDetail && /^[a-zA-Z0-9,./-]{1,256}$/.test(error.archiveDetail)) row.detail = error.archiveDetail;
@@ -129,8 +158,11 @@ export async function reconcileArchives({ reader, tool, publisherFactory, dryRun
       report.results.push(row);
       processed.push(candidate);
       if (!dryRun && row.change) {
-        try { await updateArchiveComment(reader, await getPublisher(), row); }
-        catch (error) { row.reporting = error.archiveCode ?? "publication-report-failed"; }
+        try {
+          const reporter = await getPublisher();
+          await updateArchiveComment(reader, reporter, row);
+          if (row.acceptancePr) await updateAcceptanceComment(reader, reporter, row);
+        } catch (error) { row.reporting = error.archiveCode ?? "publication-report-failed"; }
       }
     }
     if (scan) {
@@ -148,9 +180,31 @@ async function updateArchiveComment(reader, publisher, row) {
   if (owned.length > 1) throw archiveFailure("archive-comment-ambiguous");
   const body = `${marker}\nArchive status: **${row.disposition}**${row.reason ? ` (${row.reason})` : ""}.`
     + `${row.detail ? ` Blocking item: ${row.detail}.` : ""}${row.archivePr ? ` Archive PR: #${row.archivePr}.` : ""}`
-    + "\nMissing acceptance or unfinished work must be reconciled by a maintainer; automation never invents completion.";
+    + `${row.acceptancePr ? ` Acceptance PR: #${row.acceptancePr}.` : ""}`
+    + `${row.blockers?.length ? ` Pending evidence: ${row.blockers.join(", ")}.` : ""}`
+    + (row.disposition === "awaiting-manual-acceptance-merge" ? "\nReview the exact acceptance record and manually merge its PR after current-head CI. Never enable its auto-merge."
+      : row.disposition === "awaiting-evidence" ? "\nRecord actual missing outcomes and reconcile those exact tasks in the acceptance PR, then mark it ready. No new proposal is needed."
+        : "\nMissing acceptance or unfinished work must be reconciled by a maintainer; automation never invents completion.");
   if (owned[0]?.body === body) return;
   await publisher.mutate(owned[0] ? `${reader.prefix}/issues/comments/${owned[0].id}` : `${reader.prefix}/issues/${row.pr}/comments`,
+    owned[0] ? "PATCH" : "POST", { body });
+}
+
+async function updateAcceptanceComment(reader, publisher, row) {
+  const marker = "<!-- openspec-acceptance-status-v1 -->";
+  const comments = await reader.pages(`/issues/${row.acceptancePr}/comments`);
+  const owned = comments.filter(comment => comment.user?.login === publisher.actor && comment.body?.startsWith(marker));
+  if (owned.length > 1) throw archiveFailure("acceptance-comment-ambiguous");
+  const body = `${marker}\nAcceptance status for implementation #${row.pr}: **${row.disposition}**${row.reason ? ` (${row.reason})` : ""}.`
+    + `${row.blockers?.length ? ` Pending evidence: ${row.blockers.join(", ")}.` : ""}`
+    + (row.disposition === "awaiting-manual-acceptance-merge"
+      ? "\nReview the current committed record and current-head checks, then merge this PR manually. Merging records acceptance; auto-merge is forbidden."
+      : row.disposition === "awaiting-evidence"
+        ? "\nUpdate this same PR with actual evidence for the exact pending tasks. Automation does not infer or fabricate completion."
+        : row.disposition === "accepted-archive-blocked" ? "\nAcceptance is recorded; follow the linked archive blocker."
+          : "\nSee the implementation status for the next archive action.");
+  if (owned[0]?.body === body) return;
+  await publisher.mutate(owned[0] ? `${reader.prefix}/issues/comments/${owned[0].id}` : `${reader.prefix}/issues/${row.acceptancePr}/comments`,
     owned[0] ? "PATCH" : "POST", { body });
 }
 
@@ -193,7 +247,7 @@ export async function main(args = process.argv.slice(2)) {
   const { values } = parseArgs({ args, options: {
     "dry-run": { type: "boolean" }, publish: { type: "boolean" }, pr: { type: "string" },
     "retry-closed": { type: "boolean" }, "discover-checkpoint": { type: "boolean" }, "validate-candidate": { type: "boolean" },
-    "tool-root": { type: "string" },
+    "tool-root": { type: "string" }, "validate-acceptance": { type: "boolean" },
   } });
   if (values.publish && values["dry-run"]) throw archiveFailure("mode-conflict");
   if (values["tool-root"] !== undefined && (!values["validate-candidate"] || !values["tool-root"])) throw archiveFailure("tool-root-mode");
@@ -223,6 +277,10 @@ export async function main(args = process.argv.slice(2)) {
     const permission = await reader.get(`${reader.prefix}/collaborators/${actor}/permission`);
     if (!["write", "maintain", "admin"].includes(permission.permission)) throw archiveFailure("retry-authorization");
   }
+  if (values["validate-acceptance"]) {
+    if (pr === null || values.publish || values["retry-closed"] || values["validate-candidate"] || values["tool-root"]) throw archiveFailure("candidate-validation-mode");
+    return await validateAcceptanceCandidate(reader, pr);
+  }
   if (values["validate-candidate"]) {
     if (pr === null || values.publish || values["retry-closed"]) throw archiveFailure("candidate-validation-mode");
     const tool = await loadArchiveTool(resolve(values["tool-root"] ?? resolve(root, "node_modules/@fission-ai/openspec")), { deadline });
@@ -251,7 +309,7 @@ export async function main(args = process.argv.slice(2)) {
   if (process.env.GITHUB_STEP_SUMMARY) {
     const lines = [`## OpenSpec archive ${dryRun ? "audit" : "reconciliation"}`,
       `Coverage: ${JSON.stringify(report.coverage)}; cursor: ${report.checkpointSource}.`, "", ...report.results.map(row =>
-      `- PR #${row.pr}: ${row.disposition}${row.reason ? ` (${row.reason})` : ""}${row.detail ? `: ${row.detail}` : ""}${row.archivePr ? `; archive #${row.archivePr}` : ""}`)];
+      `- PR #${row.pr}: ${row.disposition}${row.reason ? ` (${row.reason})` : ""}${row.detail ? `: ${row.detail}` : ""}${row.acceptancePr ? `; acceptance #${row.acceptancePr}` : ""}${row.blockers?.length ? `; pending ${row.blockers.join(", ")}` : ""}${row.archivePr ? `; archive #${row.archivePr}` : ""}`)];
     await appendFile(process.env.GITHUB_STEP_SUMMARY, `${lines.join("\n")}\n`);
   }
   return report;

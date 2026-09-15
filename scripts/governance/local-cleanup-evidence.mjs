@@ -1,7 +1,8 @@
 import { archiveReaderFromGet, loadArchiveEvidence, findImplementationValidation } from "./openspec-archive-github.mjs";
 import { readArchiveMarker } from "./openspec-archive-publication.mjs";
 import { snapshotOpenSpec } from "./openspec-archive-staging.mjs";
-import { parseAcceptance, SHA } from "./openspec-archive-policy.mjs";
+import { acceptanceBranch, archivedAcceptanceMatches, receiptIdentity } from "./openspec-acceptance-policy.mjs";
+import { SHA } from "./openspec-archive-policy.mjs";
 import { digest, fail } from "./local-cleanup-state.mjs";
 
 /** Remote reads only; shared archive policy retains acceptance and legacy-link authority. */
@@ -70,7 +71,8 @@ export async function verifyCleanupEvidence(reader, entry) {
     || marker.sourceMerge !== source.pull.merge_commit_sha || marker.generatedHead !== archive.head.sha
     || marker.sourceBodyDigest !== digest(source.pull.body) || marker.acceptanceId !== source.acceptance.id
     || marker.acceptanceDigest !== source.acceptance.bodyDigest || marker.acceptanceAuthor !== source.acceptance.author
-    || marker.acceptanceCreatedAt !== source.acceptance.createdAt || marker.validationRunId !== source.validation.runId) fail("archive-provenance");
+    || marker.acceptanceCreatedAt !== source.acceptance.createdAt || marker.validationRunId !== source.validation.runId
+    || JSON.stringify(marker.acceptanceReceipt ?? null) !== JSON.stringify(receiptIdentity(source.acceptance))) fail("archive-provenance");
   const commit = await reader.get(`${reader.prefix}/git/commits/${archive.head.sha}`);
   const { generatedHead, ...declared } = marker;
   if (JSON.stringify(readArchiveMarker(commit.message)) !== JSON.stringify(declared)
@@ -80,13 +82,12 @@ export async function verifyCleanupEvidence(reader, entry) {
   const target = await snapshotOpenSpec(reader, source.targetSha);
   if ([...target.entries.keys()].some(path => path.startsWith(`openspec/changes/${entry.change}/`))) fail("change-still-active");
   const acceptance = (await target.blob(`${marker.archive}acceptance.md`))?.toString();
-  if (!acceptance || JSON.stringify(parseAcceptance(acceptance)) !== JSON.stringify(source.acceptance.value)
-    || !acceptance.includes(`Implementation merge: ${source.pull.merge_commit_sha}`)
-    || !acceptance.includes(`#issuecomment-${source.acceptance.id}`)) fail("archived-acceptance");
+  if (!archivedAcceptanceMatches(acceptance, source, reader.repository)) fail("archived-acceptance");
   const associated = entry.role === "archive" ? archive : source.pull;
   if (entry.candidatePr !== associated.number || entry.head !== (entry.role === "acceptance" ? associated.merge_commit_sha : associated.head.sha)) fail("candidate-head-association");
   if (entry.ref !== null && entry.ref !== `refs/heads/${associated.head.ref}`) fail("candidate-ref-association");
-  const refs = [...new Set([source.pull.head.ref, archive.head.ref, associated.head.ref])];
+  const refs = [...new Set([source.pull.head.ref, archive.head.ref, associated.head.ref,
+    ...(source.acceptance.kind === "pull-request" ? [acceptanceBranch(source.acceptance.record)] : [])])];
   for (const ref of refs) {
     if (typeof ref !== "string" || !/^[A-Za-z0-9._/-]+$/.test(ref) || ref.includes("..")) fail("remote-ref-identity");
     try {

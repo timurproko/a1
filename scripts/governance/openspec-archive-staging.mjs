@@ -1,3 +1,4 @@
+import { acceptanceUrl, retainedAcceptance, reconcileAcceptanceTasks } from "./openspec-acceptance-policy.mjs";
 import { execFile } from "node:child_process";
 import { createRequire } from "node:module";
 import { mkdtemp, mkdir, readFile, writeFile, readdir, rename, rm, realpath } from "node:fs/promises";
@@ -193,8 +194,8 @@ export async function prepareArchive({ reader, evidence, tool, date, expectedArc
     if (instructions.artifactId !== "specs" || instructions.changeName !== change
       || instructions.rules && Object.keys(instructions.rules).length) throw archiveFailure("unsupported-spec-rules");
     const taskPath = `${active}tasks.md`;
-    const taskText = original.get(taskPath)?.toString();
     const mapping = evidence.implementation.archivePreparationTasks ?? {};
+    const taskText = reconcileAcceptanceTasks(original.get(taskPath)?.toString(), evidence.acceptance, mapping);
     inspectTasks(taskText, mapping);
     await tool.command(root, ["validate", change, "--type", "change", "--strict", "--no-interactive"]);
     const deltaPaths = status.artifactPaths.specs?.existingOutputPaths ?? [];
@@ -231,9 +232,9 @@ export async function prepareArchive({ reader, evidence, tool, date, expectedArc
       + `Source PR: https://github.com/${reader.repository}/pull/${evidence.pull.number}\n`
       + `Accepted head: ${evidence.pull.head.sha}\nImplementation merge: ${evidence.pull.merge_commit_sha}\n`
       + `Validation: https://github.com/${reader.repository}/actions/runs/${evidence.validation.runId}\n`
-      + `Acceptance: https://github.com/${reader.repository}/pull/${evidence.pull.number}#issuecomment-${evidence.acceptance.id}\n`
+      + `Acceptance: ${acceptanceUrl(reader.repository, evidence.pull.number, evidence.acceptance)}\n`
       + `Author: ${evidence.acceptance.author}\nRecorded: ${evidence.acceptance.createdAt}\n\n`
-      + `\`\`\`openspec-acceptance\n${JSON.stringify(evidence.acceptance.value, null, 2)}\n\`\`\`\n`;
+      + retainedAcceptance(evidence.acceptance);
     await writeFile(join(root, active, "acceptance.md"), acceptanceText);
     const withEvidence = completePreparationTask(taskText, mapping, "recordEvidence");
     await writeFile(join(root, taskPath), withEvidence);
