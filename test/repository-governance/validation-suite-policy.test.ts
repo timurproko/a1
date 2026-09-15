@@ -15,6 +15,7 @@ interface SuiteDefinition {
   exclude?: string[];
   includeRoot?: string;
   resourceSensitiveTests?: string[];
+  requiresBuild?: boolean;
 }
 
 interface SuiteManifest {
@@ -100,6 +101,7 @@ describe("validation suite ownership", () => {
       }],
     });
     expect(suites.tiers["fast"]).toEqual({ kind: "composition", includes: ["fast-remainder", "fast-resource-sensitive"] });
+    expect(suites.scopes["fast-resource-sensitive"]!.requiresBuild).toBe(true);
     expect(suites.scopes["fast-resource-sensitive"]!.tests).toEqual([
       "test/repository-governance/validation-impact.test.ts",
       "test/repository-governance/naming-selection.test.ts",
@@ -113,6 +115,11 @@ describe("validation suite ownership", () => {
       "test/integrations/pi/session-ui/command-message-parity.test.ts",
       "test/integrations/pi/session-ui/command-outcome-parity.test.ts",
       "test/integrations/pi/session-ui/session-shell.test.ts",
+      "test/integrations/pi/session-ui/paste-executor.test.ts",
+      "test/integrations/pi/session-ui/clipboard-executor-lifecycle.test.ts",
+      "test/integrations/pi/session-ui/clipboard-packaged.test.ts",
+      "test/integrations/pi/components/editor-text-paste.test.ts",
+      "test/integrations/pi/session-ui/prompt-history-controller.test.ts",
       "test/foundation/release/update-activation.test.ts",
     ]);
     expect(Object.keys(suites.tiers["fast"]!).filter(key => key.toLowerCase().includes("timeout"))).toEqual([]);

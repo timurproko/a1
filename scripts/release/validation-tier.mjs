@@ -230,7 +230,7 @@ async function validateValidationSuites(suites, repository) {
   for (const [definition, fields] of [
     [composition, ["kind", "includes"]],
     [fast, ["kind", "includeRoot", "exclude"]],
-    [sensitive, ["kind", "tests"]],
+    [sensitive, ["kind", "requiresBuild", "tests"]],
   ]) {
     const unsupportedFields = Object.keys(definition).filter(field => !fields.includes(field));
     if (unsupportedFields.length > 0) throw new Error(`unsupported fast validation fields: ${unsupportedFields.join(", ")}`);
@@ -238,6 +238,7 @@ async function validateValidationSuites(suites, repository) {
   if (fast.includeRoot !== "test" || !Array.isArray(fast.exclude) || fast.exclude.some(test => typeof test !== "string")) {
     throw new Error("fast remainder must retain the complete test root and explicit exclusions");
   }
+  if (sensitive.requiresBuild !== true) throw new Error("resource-sensitive validation must authenticate emitted build prerequisites");
   if (!Array.isArray(sensitive.tests) || sensitive.tests.length === 0) {
     throw new Error("fast validation requires resource-sensitive tests");
   }

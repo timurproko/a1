@@ -70,10 +70,11 @@ describe("validation tier planning", () => {
     expect(Object.keys(plan.releaseContracts ?? {})).toHaveLength(11);
   });
 
-  it("runs ordinary fast validation without any build or package installation", async () => {
+  it("authenticates the build required by emitted-code fast coverage without packaging", async () => {
     const plan = await createTierPlan(["typecheck", "fast"]);
-    expect(plan.requiresBuild).toBe(false);
-    expect(plan.commands.map(command => command.id)).toEqual(["typecheck"]);
+    expect(plan.requiresBuild).toBe(true);
+    expect(plan.consumesPackage).toBe(false);
+    expect(plan.commands.map(command => command.id)).toEqual(["candidate-build", "typecheck"]);
     expect(plan.vitest?.mode).toBe("fast-and-explicit");
     expect(plan.vitest?.invocations[0]?.arguments).toContain("--exclude");
     expect(plan.vitest?.invocations[0]?.arguments).toContain("test/foundation/release/package-surface.test.ts");
@@ -116,7 +117,7 @@ describe("validation tier planning", () => {
     const fast = await createTierPlan(["fast"]);
     const changed = await createTierPlan(["documentation-changed"]);
     const full = await createTierPlan(["full-release"]);
-    expect(fast.commands).toEqual([]);
+    expect(fast.commands.map(command => command.id)).toEqual(["candidate-build"]);
     expect(changed.commands.map(command => command.id)).toEqual(["code-documentation-changed"]);
     expect(full.commands.filter(command => command.id === "code-documentation-full")).toHaveLength(1);
   });

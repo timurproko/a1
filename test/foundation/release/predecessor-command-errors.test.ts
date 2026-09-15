@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -58,7 +58,10 @@ describe("bounded predecessor command outcomes", () => {
         arguments: ["-e", "process.stdout.write(JSON.stringify({args:process.argv.slice(1),cwd:process.cwd(),bad:Object.keys(process.env).filter(k=>k.toLowerCase().startsWith('npm_config_')),keep:process.env.FIXTURE_KEEP}));", ...values],
         environment: { ...process.env, npm_config_prefix: "unowned-prefix", NPM_CONFIG_CACHE: "unowned-cache", FIXTURE_KEEP: "keep" },
       });
-      expect(JSON.parse(result.stdout)).toEqual({ args: values, cwd, bad: [], keep: "keep" });
+      const output = JSON.parse(result.stdout);
+      expect(output).toEqual({ args: values, cwd: expect.any(String), bad: [], keep: "keep" });
+      const [requested, actual] = await Promise.all([stat(cwd), stat(output.cwd)]);
+      expect([actual.dev, actual.ino]).toEqual([requested.dev, requested.ino]);
     } finally { await rm(cwd, { recursive: true, force: true }); }
   });
 });

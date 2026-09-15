@@ -25,6 +25,11 @@ const resourceSensitiveTests = [
   "test/integrations/pi/session-ui/command-message-parity.test.ts",
   "test/integrations/pi/session-ui/command-outcome-parity.test.ts",
   "test/integrations/pi/session-ui/session-shell.test.ts",
+  "test/integrations/pi/session-ui/paste-executor.test.ts",
+  "test/integrations/pi/session-ui/clipboard-executor-lifecycle.test.ts",
+  "test/integrations/pi/session-ui/clipboard-packaged.test.ts",
+  "test/integrations/pi/components/editor-text-paste.test.ts",
+  "test/integrations/pi/session-ui/prompt-history-controller.test.ts",
   "test/foundation/release/update-activation.test.ts",
 ];
 
@@ -81,11 +86,11 @@ describe("resource-sensitive validation partition", () => {
     expect(remainder.vitest?.invocations).toEqual([invocation(composed, "vitest-fast")]);
     expect(sensitive.vitest?.invocations).toEqual([invocation(composed, "vitest-fast-resource-sensitive")]);
     expect(composed.vitest?.invocations).toEqual([...remainder.vitest!.invocations, ...sensitive.vitest!.invocations]);
-    for (const plan of [remainder, sensitive]) {
-      expect(plan.commands).toEqual([]);
-      expect(plan.requiresBuild).toBe(false);
-      expect(plan.consumesPackage).toBe(false);
-    }
+    expect(remainder.commands).toEqual([]);
+    expect(remainder.requiresBuild).toBe(false);
+    expect(sensitive.commands.map(command => command.id)).toEqual(["candidate-build"]);
+    expect(sensitive.requiresBuild).toBe(true);
+    for (const plan of [remainder, sensitive]) expect(plan.consumesPackage).toBe(false);
     const repeated = await createTierPlan(["fast", "fast-resource-sensitive", "fast-remainder", "fast"]);
     expect(repeated.selected).toEqual(composed.selected);
     expect(repeated.vitest).toEqual(composed.vitest);
@@ -116,9 +121,10 @@ describe("resource-sensitive validation partition", () => {
           calls.push(command.id);
           return { id: command.id, command: command.arguments.join(" "), exitCode: 0, durationMs: 1 };
         },
+        recordBuildReceipt: async () => ({} as never),
       });
       expect(result.passed).toBe(true);
-      expect(calls).toEqual([expected]);
+      expect(calls).toEqual(scope === "fast-resource-sensitive" ? ["candidate-build", expected] : [expected]);
     }
   });
 
@@ -144,6 +150,11 @@ describe("resource-sensitive validation partition", () => {
         label: "missing path",
         mutate: (value: any) => { value.scopes["fast-resource-sensitive"].tests[0] = "test/missing.test.ts"; },
         error: "does not exist",
+      },
+      {
+        label: "missing build prerequisite",
+        mutate: (value: any) => { value.scopes["fast-resource-sensitive"].requiresBuild = false; },
+        error: "must authenticate emitted build prerequisites",
       },
       {
         label: "timeout override",
