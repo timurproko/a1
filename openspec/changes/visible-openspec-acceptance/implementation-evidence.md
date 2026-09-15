@@ -24,6 +24,8 @@ Required run `34943104220` on repair head `95678665c96dbfc12da3079c785895239a422
 
 Required run `34944991121` on head `5262803d4c3914e424855aa819163dcac2bf22e1` then exposed an unrelated loaded-runner timeout in `workspace.test.ts`. Its synchronous durable SQLite restart scenario took 6.096 seconds inside the highly parallel remainder and exceeded the unchanged five-second per-test limit; no assertion identified a product mismatch. The complete file now runs once in the existing serial resource-sensitive partition, with all eight tests, the five-second timeout, zero retries, and existing assertions unchanged. The file passed three focused runs (8/8 each); both partition-policy suites passed 19/19; typecheck passed.
 
+Required run `34946084273` on head `025170ff27aaf6d715f7a1aeb2cd1b8251392c37` recorded a transient Windows Node 22 startup-budget failure: `pi` warm startup measured 3,170 ms against the unchanged 3,000 ms limit, dominated by 2,232 ms of UI module loading. The exact packaged runtime passed the same required gate on each of the preceding three heads (`34942002242`, `34943104220`, and `34944991121`); changes since the last passing head are confined to tests, validation partition metadata, and OpenSpec evidence. No startup source, dependency, package inventory, threshold, retry count, assertion, or timeout changed. A normal evidence update requests a fresh exact-head measurement rather than weakening the performance gate or manually rerunning its workflow.
+
 ## Deliberately unclaimed evidence
 
 - Required normal PR CI for the completed implementation head is pending task 5.4.
