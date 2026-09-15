@@ -25,5 +25,5 @@
 
 ## 5. Mechanical archive preparation
 
-- [ ] 5.1 Record verified implementation acceptance and merge evidence for archive preparation.
-- [ ] 5.2 Stage and verify delta synchronization and the archive move in an OpenSpec-only candidate.
+- [x] 5.1 Record verified implementation acceptance and merge evidence for archive preparation.
+- [x] 5.2 Stage and verify delta synchronization and the archive move in an OpenSpec-only candidate.
