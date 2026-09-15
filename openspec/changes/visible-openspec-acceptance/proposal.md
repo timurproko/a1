@@ -4,10 +4,10 @@ Merged implementations such as #400 remain stuck at `acceptance-missing` because
 
 ## What Changes
 
-- Automatically prepare one clearly titled `Accept: <change> — implementation #<number>` PR for a verified merged implementation lacking acceptance; use the same path for supported backlog candidates.
-- Show exact implementation/source identities, CI links, evidence, task status, manual-review instructions, known gaps, and the meaning of merging. No new OpenSpec proposal is created for each acceptance request.
+- Automatically prepare one clearly titled `#<number>(accept): <original implementation subject>` PR for a verified merged implementation lacking acceptance; use the same path for supported backlog candidates.
+- Keep the PR body to a concise checklist of what the maintainer must verify, with a prominent link to the original implementation PR. Detailed identities and evidence remain in the committed review record instead of overwhelming the PR description. No new OpenSpec proposal is created for each acceptance request.
 - Reserve a committed acceptance-record namespace and require a verified authorized human manual merge of the exact record before it becomes acceptance. Never auto-merge acceptance PRs, including docs-only records with removed or malformed labels/body metadata.
-- Keep missing evidence and unfinished substantive work visible. Generated requests do not check off tests, invent review results, or silently waive gaps. Review and evidence reconciliation happen in the same acceptance PR.
+- Keep missing evidence and unfinished substantive work visible as unchecked review items. Candidate CI validates record integrity and source bindings without treating those human verification items as malformed; receipt consumption still blocks archival until required completion is actually evidenced. Generated requests do not check off tests, invent review results, or silently waive gaps. Review and evidence reconciliation happen in the same acceptance PR.
 - On a valid acceptance merge, automatically resume the existing conservative sync/archive pipeline and link implementation, acceptance, and archive PRs in status reports. Keep valid legacy comment acceptance readable.
 - Update the shared evidence reader and local cleanup consumer so acceptance-PR provenance is verified end to end without weakening archive integration, remote-ref, ownership, or cleanliness gates.
 

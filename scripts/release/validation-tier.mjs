@@ -80,22 +80,24 @@ export async function createTierPlan(requested, repository = process.cwd()) {
   const requestedIsolated = [...isolatedTests].filter(path => selectedTestPaths.has(path));
   const requestedPackageSmoke = [...packageSmokeTests].filter(path => selectedTestPaths.has(path));
   const requestedPackageInstall = [...packageInstallTests].filter(path => selectedTestPaths.has(path));
-  const resourceSensitiveInvocation = resourceSensitiveTests.length > 0 ? {
-    id: "vitest-fast-resource-sensitive",
-    arguments: ["vitest", "run", ...resourceSensitiveTests, "--no-file-parallelism"],
+  // Rationale: each resource-sensitive file gets a fresh Vitest process so prior Git, SQLite,
+  // and child-process workloads cannot consume another file's fixed five-second test budget.
+  const resourceSensitiveInvocations = resourceSensitiveTests.map((test, index) => ({
+    id: `vitest-fast-resource-sensitive-${index + 1}`,
+    arguments: ["vitest", "run", test, "--no-file-parallelism"],
     evidence: {
       executionClass: "resource-sensitive",
-      testFiles: resourceSensitiveTests,
+      testFiles: [test],
       fileParallelism: false,
       timeoutMs: 5_000,
       timeoutSource: "vitest-default",
       retries: 0,
       perFileTiming: "vitest-default-reporter",
     },
-  } : null;
+  }));
   const regularInvocations = [
     ...(fast ? [{ id: "vitest-fast", arguments: ["vitest", "run", fast.definition.includeRoot, ...[...fast.definition.exclude, ...resourceSensitiveTests].flatMap(path => ["--exclude", path])] }] : []),
-    ...(resourceSensitiveInvocation ? [resourceSensitiveInvocation] : []),
+    ...resourceSensitiveInvocations,
     ...(regularExplicitTests.length > 0 ? [{ id: "vitest-explicit", arguments: ["vitest", "run", ...regularExplicitTests.map(entry => entry.test), "--testTimeout=30000"] }] : []),
     ...(requestedPerformance.length + requestedPackageSmoke.length > 0 ? [{ id: "vitest-isolated-timing", arguments: ["vitest", "run", ...requestedPerformance, ...requestedPackageSmoke, "--no-file-parallelism", "--testTimeout=120000"] }] : []),
     ...(requestedIsolated.length > 0 ? [{ id: "vitest-isolated-suites", arguments: ["vitest", "run", ...requestedIsolated, "--no-file-parallelism", "--testTimeout=600000"] }] : []),
@@ -106,7 +108,7 @@ export async function createTierPlan(requested, repository = process.cwd()) {
         mode: "full-deduplicated",
         invocations: [
           { id: "vitest-full-without-isolated", arguments: ["vitest", "run", ...[...packageTests, ...independentlyTimedTests, ...resourceSensitiveTests].flatMap(path => ["--exclude", path]), "--testTimeout=30000"] },
-          ...(resourceSensitiveInvocation ? [resourceSensitiveInvocation] : []),
+          ...resourceSensitiveInvocations,
           { id: "vitest-isolated-timing", arguments: ["vitest", "run", ...performanceTests, ...packageSmokeTests, "--no-file-parallelism", "--testTimeout=120000"] },
           { id: "vitest-isolated-suites", arguments: ["vitest", "run", ...isolatedTests, "--no-file-parallelism", "--testTimeout=600000"] },
           { id: "vitest-package-install", arguments: ["vitest", "run", ...packageInstallTests, "--no-file-parallelism", "--testTimeout=600000"] },
