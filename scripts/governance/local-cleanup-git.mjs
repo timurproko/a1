@@ -74,7 +74,13 @@ export async function captureWorktree(identity, path, git = gitRunner()) {
     || (await git(absolute, ["rev-parse", "--symbolic-full-name", "HEAD"])).trim() !== (ref ?? "HEAD")) fail("worktree-head-mismatch");
   return { path: absolute, filesystem: fingerprint(await lstat(absolute)), head: row.HEAD, ref };
 }
-export async function inspectWorktree(identity, entry, { git = gitRunner(), cwd = process.cwd(), deadline = Infinity, now = Date.now } = {}) {
+const ORDINARY_CONTENT_ENTRY_LIMIT = 20_000;
+const GENERATED_CONTENT_ENTRY_LIMIT = 100_000;
+
+export async function inspectWorktree(identity, entry, {
+  git = gitRunner(), cwd = process.cwd(), deadline = Infinity, now = Date.now,
+  ordinaryEntryLimit = ORDINARY_CONTENT_ENTRY_LIMIT, generatedEntryLimit = GENERATED_CONTENT_ENTRY_LIMIT,
+} = {}) {
   const actual = await captureWorktree(identity, entry.path, git);
   if (["path", "filesystem", "head", "ref"].some(key => actual[key] !== entry[key])) fail("worktree-identity-changed");
   const current = await canonical(cwd);
@@ -100,13 +106,21 @@ export async function inspectWorktree(identity, entry, { git = gitRunner(), cwd 
     if (/[RC]/.test(status)) { if (tokens[i + 1]) blockers.push(tokens[++i]); }
   }
   if (blockers.length) return { clean: false, reason: "worktree-content", paths: blockers.slice(0, 100), truncated: blockers.length > 100 };
-  let visited = 0;
+  if (![ordinaryEntryLimit, generatedEntryLimit].every(value => Number.isSafeInteger(value) && value > 0)) fail("content-inspection-budget");
+  let ordinaryVisited = 0, generatedVisited = 0;
+  const generated = path => entry.disposable.some(root => path === root || path.startsWith(`${root}/`));
+  const visit = path => {
+    if (generated(path)) {
+      if (++generatedVisited > generatedEntryLimit) fail("content-inspection-budget");
+    } else if (++ordinaryVisited > ordinaryEntryLimit) fail("content-inspection-budget");
+  };
   async function walk(directory, prefix = "") {
-    if (now() >= deadline || ++visited > 20000) fail("content-inspection-budget");
+    if (now() >= deadline) fail("content-inspection-budget");
     for (const item of await readdir(directory, { withFileTypes: true })) {
-      if (now() >= deadline || ++visited > 20000) fail("content-inspection-budget");
+      if (now() >= deadline) fail("content-inspection-budget");
       if (!prefix && item.name === ".git") continue;
       const path = prefix + item.name;
+      visit(path);
       if (item.name === ".git") fail("nested-repository");
       if (item.isSymbolicLink()) fail("content-link");
       if (item.isDirectory()) await walk(join(directory, item.name), `${path}/`);

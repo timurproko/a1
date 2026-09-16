@@ -22,6 +22,7 @@ async function fixture(t, branch = false, registered = true) {
   git(primary, "init", "-b", "develop"); git(primary, "config", "core.autocrlf", "false"); git(primary, "config", "user.name", "Fixture"); git(primary, "config", "user.email", "fixture@example.invalid");
   await writeFile(join(primary, "tracked.txt"), "base\n");
   await mkdir(join(primary, "vendor")); await writeFile(join(primary, "vendor", ".gitmodules"), "");
+  await mkdir(join(primary, "node_modules-cache")); await writeFile(join(primary, "node_modules-cache", "tracked.txt"), "ordinary content\n");
   await writeFile(join(primary, ".gitignore"), "node_modules/\nsecret.txt\n.artifacts/openspec-archive/\n.artifacts/validation/\n.artifacts/validation-user/\n.artifacts/other/\n.builds/\ndist/\n");
   git(primary, "add", "."); git(primary, "commit", "-m", "fixture"); git(primary, "remote", "add", "origin", "https://github.com/owner/repo.git");
   const path = join(primary, ".worktrees", "example");
@@ -273,6 +274,26 @@ test("generated ignored paths require explicit registration policy", async t => 
   assert.equal((await inspectWorktree(f.identity, { ...f.entry, disposable: ["node_modules"] }, { cwd: f.primary })).clean, true);
   await mkdir(join(f.path, "node_modules", ".git"));
   await assert.rejects(inspectWorktree(f.identity, { ...f.entry, disposable: ["node_modules"] }, { cwd: f.primary }), /nested-repository/);
+  await rm(join(f.path, "node_modules", ".git"), { recursive: true });
+  const outside = join(f.temporary, "generated-link-target"); await mkdir(outside);
+  await symlink(outside, join(f.path, "node_modules", "linked"), process.platform === "win32" ? "junction" : "dir");
+  await assert.rejects(inspectWorktree(f.identity, { ...f.entry, disposable: ["node_modules"] }, { cwd: f.primary }), /content-link/);
+});
+
+test("generated traversal has a separate bounded allowance from ordinary content", async t => {
+  const f = await fixture(t), generated = join(f.path, "node_modules", "package");
+  await mkdir(generated, { recursive: true });
+  await Promise.all([0, 1, 2, 3].map(value => writeFile(join(generated, `${value}.txt`), "fixture")));
+  const entry = { ...f.entry, disposable: ["node_modules"] };
+  assert.equal((await inspectWorktree(f.identity, entry, {
+    cwd: f.primary, ordinaryEntryLimit: 6, generatedEntryLimit: 6,
+  })).clean, true);
+  await assert.rejects(inspectWorktree(f.identity, entry, {
+    cwd: f.primary, ordinaryEntryLimit: 5, generatedEntryLimit: 100,
+  }), /content-inspection-budget/);
+  await assert.rejects(inspectWorktree(f.identity, entry, {
+    cwd: f.primary, ordinaryEntryLimit: 100, generatedEntryLimit: 5,
+  }), /content-inspection-budget/);
 });
 
 test("tracked empty gitmodules is ordinary content while configured modules and gitlinks block", async t => {
