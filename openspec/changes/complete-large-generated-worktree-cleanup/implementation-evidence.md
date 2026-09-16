@@ -14,10 +14,10 @@ No merge/archive evidence, registration ownership, accepted disposable path, rem
 
 ## Validation
 
-- `node --test test/repository-governance/local-cleanup.node.mjs test/repository-governance/local-cleanup-evidence.node.mjs test/repository-governance/local-cleanup-watch.node.mjs` passed **47 tests**.
+- After reconciling PR #438's exact validation-artifact policy, `node --test test/repository-governance/local-cleanup.node.mjs test/repository-governance/local-cleanup-evidence.node.mjs test/repository-governance/local-cleanup-watch.node.mjs` passed **48 tests**.
 - `npm run typecheck` passed.
 - `openspec validate complete-large-generated-worktree-cleanup --strict --no-interactive` passed before finalization.
 - `git diff --check` passed.
-- A read-only invocation of the implemented `inspectWorktree` against the retained exact PR #434 worktree returned `{ "clean": true }` in **710 ms** with its released registration. This did not remove the worktree or alter cleanup state.
+- A read-only invocation of the implemented `inspectWorktree` against the retained exact PR #434 worktree returned `{ "clean": true }` in **535 ms** with its released registration. This did not remove the worktree or alter cleanup state.
 
 The unrelated install-time `bin/pi-tui.d.ts` rewrite was restored and is not part of this change. No local fast, full, release, publication, or product command was run. No known gaps remain before exact-head CI and post-merge cleanup verification.
