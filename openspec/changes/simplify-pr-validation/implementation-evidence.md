@@ -32,6 +32,7 @@ After correction:
 - `npm run check:docs-governance` passed.
 - `npx openspec validate simplify-pr-validation --strict --no-interactive` passed.
 - Workflow YAML parsed successfully, `git diff --check` passed, and the regenerated ownership ledger accounts for **354 retained tests**.
+- After the first hosted attempt exposed draft-check and Windows command-length defects, the focused workflow/tier run passed **20 tests across 2 files**, followed by an expanded aggregate and branch-policy run passing **64 tests across 6 files**. The workflow YAML parsed successfully; `npm run typecheck`, `npm run check:architecture`, `npm run check:docs-governance`, and the full tracked-file documentation check passed. The workflow fixture proves draft runs resolve to a non-protected check name. The tier fixture constructs the complete regular test selection, proves it is partitioned below 6,000 command characters with every selected test exactly once, and proves a partition failure fails the logical outcome.
 
 A local changed-naming invocation was rejected because that gate intentionally compares a committed head diff while the debugging selection included uncommitted worktree files. No naming result is claimed from that unsuitable invocation; exact-head CI remains authoritative.
 
@@ -41,16 +42,19 @@ No local `test:fast`, `test:full`, `test:release`, product UI, package startup, 
 
 `evidence/selection-replay.json` records ten policy-bound scenarios without GitHub or mutable history: unrelated governance, UI/rendering, launch/startup, release/package/update, Pi, native containment, image/history, shared support, validation authority, and an unknown operational path. Ordinary fixtures select only their coarse owners plus linked integration; shared support and both fail-closed fixtures select complete coverage. The report binds policy identity `4aca3b7475be969b4005494728d4f77582796657fb1ef6723b95e3162d45fc08` and all 354 retained tests.
 
-## Post-finalization hosted evidence plan
+## Hosted attempts and post-finalization evidence plan
 
-Acceptance remains blocked until all of the following run against the finalized exact head:
+The first finalized exact-head Development run [35068187888](https://github.com/timurproko/a1/actions/runs/35068187888) at `e730b61490c768f58a1a0c8dd039658b087a302e` is retained as a failed implementation attempt. Its acceptance-policy job rejected the required `Implementation` phase as expected. Its PR-core job failed before tests because the complete conservative file list exceeded the Windows command-line limit; this directly caused the bounded-invocation correction. The run was cancelled after the actionable failure was recorded so unfinished peers would not consume more capacity.
 
-1. Mark the finalized PR ready so normal `pull_request` Development validation runs. Because this implementation changes workflow, selector, suite, and aggregate authority, the exact PR run must classify conservatively. Record the run/head/attempt, every job conclusion, selected core/integration owners, aggregate identity, failed attempts, PR-core setup/gate/runner milliseconds, critical path, and total runner milliseconds from `development-validation-impact`, the attempt-qualified core outcome, and `development-validation-aggregate-<head>-<run>-<attempt>`.
+Full regression run [35068203404](https://github.com/timurproko/a1/actions/runs/35068203404) was manually dispatched under the superseded evidence plan. It is not ordinary PR acceptance evidence and was cancelled when the maintainer clarified that complete post-merge coverage belongs to nightly and release validation. Its failed and cancelled observations remain visible and are not relabelled or used as a speedup or acceptance claim. No replacement Full regression will be dispatched for this PR.
+
+Acceptance remains blocked until normal `pull_request` Development validation runs against the corrected finalized exact head:
+
+1. Mark the finalized PR ready only after draft-event checks have settled so normal Development validation runs. Because this implementation changes workflow, selector, suite, and aggregate authority, the exact PR run must classify conservatively. Record the run/head/attempt, every job conclusion, selected core/integration owners, aggregate identity, failed attempts, PR-core setup/gate/runner milliseconds, critical path, and total runner milliseconds from `development-validation-impact`, the attempt-qualified core outcome, and `development-validation-aggregate-<head>-<run>-<attempt>`.
 2. Report the PR-core three-to-five-minute target as met or unmet from that hosted core job. The deterministic ordinary replay may explain intended selective membership but must not be represented as hosted timing or as a speedup.
-3. Dispatch the **Full regression** workflow against the same finalized branch/head because validation authority and complete-suite composition changed. Record each Windows Node 22/24, Linux Node 24, macOS Node 24, and documentation conclusion plus exact-candidate identities. Any advanced head invalidates this evidence and requires a new run.
-4. Preserve every failed Development/Full regression attempt. If a failed-jobs-only rerun is used, record both attempt numbers and verify the aggregate identifies prior-attempt reuse; never rerun a semantic failure automatically. Any missing result requires an explicit known-gap disposition before acceptance.
+3. Preserve every failed Development attempt. If a failed-jobs-only rerun is used, record both attempt numbers and verify the aggregate identifies prior-attempt reuse; never rerun a semantic failure automatically. Any missing result requires an explicit known-gap disposition before acceptance.
 
-These hosted gates occur after version-3 in-branch finalization by repository policy. They are mandatory acceptance evidence even though they cannot be preconditions of the task-completeness check that permits finalization. No three-to-five-minute result is claimed yet.
+This hosted Development gate occurs after version-3 in-branch finalization by repository policy. It is mandatory acceptance evidence even though it cannot be a precondition of the task-completeness check that permits finalization. Complete nightly and release coverage remains unchanged. No three-to-five-minute result is claimed yet.
 
 ## Acceptance scenarios
 

@@ -12,7 +12,8 @@ describe("impact-aware validation workflows", () => {
     expect(workflow.jobs.modular.strategy["fail-fast"]).toBe(false);
     expect(workflow.jobs.modular.strategy).not.toHaveProperty("max-parallel");
     expect(workflow.jobs.required.needs).toEqual(["changes", "acceptance", "docs", "naming", "documentation", "modular", "rendering"]);
-    expect(source.match(/name: Development validation required/g)).toHaveLength(1);
+    expect(workflow.jobs.required.name).toContain("Draft validation intentionally skipped");
+    expect(workflow.jobs.required.name).toContain("Development validation required");
   });
 
   it("skips every generic lane only behind trusted acceptance validation", async () => {
@@ -95,6 +96,8 @@ describe("impact-aware validation workflows", () => {
     expect(workflow.on.pull_request.types).toEqual(expect.arrayContaining(["edited", "ready_for_review", "synchronize"]));
     expect(workflow.on).toHaveProperty("workflow_dispatch");
     expect(workflow.jobs.changes.if).toBe("github.event_name != 'pull_request' || github.event.pull_request.draft == false");
+    expect(workflow.jobs.required.if).toBe("always() && (github.event_name != 'pull_request' || github.event.pull_request.draft == false)");
+    expect(workflow.jobs.required.name).toBe("${{ github.event_name == 'pull_request' && github.event.pull_request.draft && 'Draft validation intentionally skipped' || 'Development validation required' }}");
     expect(source).toContain("manual_args=(--manual-no-comparison)");
     expect(source).toContain("implementation_args=(--implementation-bound)");
     expect(workflow.jobs.changes.outputs["implementation-bound"]).toContain("implementation_bound");

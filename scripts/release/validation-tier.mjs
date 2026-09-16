@@ -5,6 +5,7 @@ import { recordBuildReceipt, verifyBuildReceipt, verifyPackageReceipt } from "./
 
 const npmExecutable = process.platform === "win32" ? "npm.cmd" : "npm";
 const npxExecutable = process.platform === "win32" ? "npx.cmd" : "npx";
+const maximumPortableCommandCharacters = 6_000;
 
 export async function loadValidationSuites(repository = process.cwd()) {
   const suites = JSON.parse(await readFile(resolve(repository, "config", "validation-suites.json"), "utf8"));
@@ -120,7 +121,7 @@ export async function createTierPlan(requested, repository = process.cwd(), opti
   const regularInvocations = [
     ...(fast ? [{ id: "vitest-fast", arguments: ["vitest", "run", fast.definition.includeRoot, ...[...fast.definition.exclude, ...allResourceSensitiveTests].flatMap(path => ["--exclude", path])] }] : []),
     ...resourceSensitiveInvocations,
-    ...(regularExplicitTests.length > 0 ? [{ id: "vitest-explicit", arguments: ["vitest", "run", ...regularExplicitTests.map(entry => entry.test), "--testTimeout=30000"] }] : []),
+    ...boundedVitestInvocations("vitest-explicit", regularExplicitTests.map(entry => entry.test), ["--testTimeout=30000"]),
     ...(requestedPerformance.length > 0 ? [{ id: "vitest-isolated-timing", arguments: ["vitest", "run", ...requestedPerformance, "--no-file-parallelism", "--testTimeout=120000"] }] : []),
     ...requestedPackageSmoke.map((path, index) => ({ id: `vitest-package-smoke-${index + 1}`, arguments: ["vitest", "run", path, "--no-file-parallelism", "--testTimeout=120000"] })),
     ...(requestedIsolated.length > 0 ? [{ id: "vitest-isolated-suites", arguments: ["vitest", "run", ...requestedIsolated, "--no-file-parallelism", "--testTimeout=600000"] }] : []),
@@ -287,6 +288,28 @@ async function validateValidationSuites(suites, repository) {
       throw new Error(`resource-sensitive test does not exist: ${test}`);
     }
   }
+}
+
+function boundedVitestInvocations(id, tests, suffix, maximumCharacters = maximumPortableCommandCharacters) {
+  if (tests.length === 0) return [];
+  const prefix = ["vitest", "run"];
+  const batches = [];
+  let batch = [];
+  for (const test of tests) {
+    const candidate = [...prefix, ...batch, test, ...suffix];
+    if (`npx ${candidate.join(" ")}`.length > maximumCharacters) {
+      if (batch.length === 0) throw new Error(`validation test path exceeds the portable command bound: ${test}`);
+      batches.push(batch);
+      batch = [test];
+    } else {
+      batch.push(test);
+    }
+  }
+  if (batch.length > 0) batches.push(batch);
+  return batches.map((paths, index) => ({
+    id: batches.length === 1 ? id : `${id}-${index + 1}`,
+    arguments: [...prefix, ...paths, ...suffix],
+  }));
 }
 
 function normalizeCommand(command) {

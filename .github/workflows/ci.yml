@@ -518,7 +518,7 @@ jobs:
           retention-days: 14
 
   required:
-    name: Development validation required
+    name: ${{ github.event_name == 'pull_request' && github.event.pull_request.draft && 'Draft validation intentionally skipped' || 'Development validation required' }}
     if: always() && (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
     needs: [changes, acceptance, docs, naming, documentation, modular, rendering]
     runs-on: ubuntu-24.04

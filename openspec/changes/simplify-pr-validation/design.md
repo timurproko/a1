@@ -91,9 +91,9 @@ Before switching, record one current representative ordinary PR run and one cons
 - aggregate fixtures for same-attempt success, failed-only rerun success, rerun failure, stale head/selection, duplicates, cancellation, and missing evidence;
 - proof that every retained test belongs to PR core/owner coverage and complete cadence;
 - deterministic ordinary-path selection replay plus one exact-head hosted observation of the PR-core job's elapsed/runner time, even though this implementation's CI-policy invalidator selects all integration owners;
-- one conservative exact-head hosted run and applicable Full regression proving complete coverage.
+- one exact-head Development run proving the selected PR core, affected owners, and conservative fallback when this implementation changes validation authority.
 
-Report the three-to-five-minute PR-core target as met or unmet. Do not create a separate benchmark PR or multi-run benchmark requirement, hide failed observations, relax product budgets, or block a correct structural simplification solely because hosted queue variance misses the target.
+The separate manual Full regression workflow is not an acceptance gate for an ordinary development PR. Complete post-merge coverage remains owned by nightly and release validation. Report the three-to-five-minute PR-core target as met or unmet. Do not create a separate benchmark PR or multi-run benchmark requirement, hide failed observations, relax product budgets, or block a correct structural simplification solely because hosted queue variance misses the target.
 
 ## Risks / Trade-offs
 
@@ -103,7 +103,9 @@ Report the three-to-five-minute PR-core target as met or unmet. Do not create a 
 - **[The PR core gradually grows into another full suite]** -> Give it an explicit ownership budget and require additions to identify the stable cross-cutting contract that makes them mandatory for every code PR.
 - **[Removing evidence assertions deletes useful coverage]** -> Require an assertion-by-assertion audit that maps each removal to current behavioral coverage or explicitly identifies it as one-time finalization evidence.
 - **[Simpler checkout evidence weakens exact-package trust]** -> Keep receipts unchanged at every emitted/packed artifact and publication boundary; simplify only jobs whose authority is the checked-out source result.
-- **[CI-policy implementation necessarily selects everything]** -> Accept the one-time conservative implementation cost; evaluate ordinary-path improvement through reviewed selection fixtures and a representative non-policy PR rather than weakening the implementation PR's own gate.
+- **[CI-policy implementation necessarily selects everything]** -> Accept the one-time conservative Development cost; evaluate ordinary-path improvement through reviewed selection fixtures and a representative non-policy PR rather than weakening the implementation PR's own gate or adding a separate Full regression gate.
+- **[A skipped draft workflow appears to satisfy branch protection]** -> Give draft-only aggregate checks a distinct non-required identity so only a non-draft exact-head aggregate can satisfy the protected context.
+- **[A conservative explicit test selection exceeds a platform command-line limit]** -> Partition the exact selected file list into bounded invocations while preserving complete membership, failures, and one logical owner outcome.
 
 ## Migration Plan
 
@@ -112,5 +114,5 @@ Report the three-to-five-minute PR-core target as met or unmet. Do not create a 
 3. Replace historical-evidence/prose assertions with hermetic semantic tests, keeping accepted evidence files and current behavior coverage.
 4. Introduce attempt-qualified artifacts and attempt-aware aggregate fixtures, then prove failed-only reruns without changing branch protection.
 5. Switch Development scheduling to PR core plus selected owners. Keep a conservative switch that selects complete coverage without changing suite membership.
-6. Before version-3 finalization, record the deterministic ordinary-path replay and the exact hosted evidence plan. After in-branch finalization, run exact-head normal CI, record the PR-core observation, and run conservative Development and applicable Full regression before acceptance. Document actual latency, runner cost, selected owners, every failed attempt, and any explicit known gap without inventing speedup evidence. Post-finalization hosted gates are acceptance prerequisites, not pre-finalization task-completeness prerequisites.
+6. Before version-3 finalization, record the deterministic ordinary-path replay and the exact hosted evidence plan. After in-branch finalization, run exact-head normal Development CI and record the PR-core observation, selected owners, actual latency, runner cost, every failed attempt, and any explicit known gap without inventing speedup evidence. Do not manually dispatch Full regression for ordinary PR acceptance; nightly and release retain complete post-merge coverage. Post-finalization hosted gates are acceptance prerequisites, not pre-finalization task-completeness prerequisites.
 7. Roll back by selecting complete coverage for every code PR and disabling prior-attempt reuse. Rollback must retain all tests, exact-package receipts, budgets, platform/runtime lanes, and the stable aggregate.

@@ -1,3 +1,4 @@
+import { readFile, readdir } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 import { createTierPlan, runTierPlan } from "../../scripts/release/validation-tier.mjs";
 
@@ -105,6 +106,36 @@ describe("validation tier planning", () => {
     ]);
     const completeFast = await createTierPlan(["fast"]);
     expect(completeFast.selected).toEqual(["fast-remainder", "fast-resource-sensitive"]);
+  });
+
+  it("partitions conservative explicit tests below portable command limits without hiding failures", async () => {
+    const suites = JSON.parse(await readFile("config/validation-suites.json", "utf8"));
+    const excluded = new Set([
+      ...suites.scopes["fast-remainder"].exclude,
+      ...suites.scopes["fast-resource-sensitive"].tests,
+    ]);
+    const tests = (await readdir("test", { recursive: true }))
+      .map(path => `test/${path.replaceAll("\\", "/")}`)
+      .filter(path => path.endsWith(".test.ts") && !excluded.has(path))
+      .sort();
+    const plan = await createTierPlan(["pr-core-tests", "pr-selected-tests"], process.cwd(), { additionalTests: tests });
+    const invocations = plan.vitest!.invocations.filter(invocation => invocation.id.startsWith("vitest-explicit"));
+    expect(invocations.length).toBeGreaterThan(1);
+    expect(invocations.every(invocation => `npx ${invocation.arguments.join(" ")}`.length <= 6_000)).toBe(true);
+    const plannedTests = invocations.flatMap(invocation => invocation.arguments.filter(argument => argument.endsWith(".test.ts")));
+    expect(plannedTests.sort()).toEqual(tests);
+    expect(new Set(plannedTests).size).toBe(plannedTests.length);
+
+    const calls: string[] = [];
+    const result = await runTierPlan({ ...plan, commands: [] }, {
+      stdio: "pipe",
+      executeCommand: async command => {
+        calls.push(command.id);
+        return { id: command.id, command: command.id, exitCode: calls.length === 2 ? 1 : 0, durationMs: 1 };
+      },
+    });
+    expect(result.passed).toBe(false);
+    expect(calls).toEqual(invocations.slice(0, 2).map(invocation => invocation.id));
   });
 
   it("serializes smoke and full rendering evidence outside the fast worker pool", async () => {
