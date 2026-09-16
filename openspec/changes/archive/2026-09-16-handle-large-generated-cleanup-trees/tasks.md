@@ -7,10 +7,10 @@
 ## 2. Preserve Deployed Bounded Inspection
 
 - [x] 2.1 Reconcile with current `develop` and retain PR #437's separate 20,000 ordinary and 100,000 generated entry allowances, deadline checks, and structural blockers without duplicate traversal code.
-- [ ] 2.2 Verify existing generated-allowance, nested `.git`, link, special-file, path-containment, cancellation, deadline, journal, and idempotency coverage passes unchanged.
+- [x] 2.2 Verify existing generated-allowance, nested `.git`, link, special-file, path-containment, cancellation, deadline, journal, and idempotency coverage passes unchanged.
 
 ## 3. Documentation and Validation
 
 - [x] 3.1 Update cleanup documentation with the two exact native roots and their use of the existing bounded generated-content allowance; verify guidance tests pin the exact boundaries.
-- [ ] 3.2 Run focused cleanup, guidance, code-documentation, typechecking, and strict OpenSpec validation without running local `test:fast`, `test:full`, or `test:release` absent separate authorization; record exact outcomes and gap disposition.
-- [ ] 3.3 Record the retained PR #435 and PR #438 blocker evidence and exact post-deployment retry commands; verify all retained worktrees remain present until their applicable authorized merges.
+- [x] 3.2 Run focused cleanup, guidance, code-documentation, typechecking, and strict OpenSpec validation without running local `test:fast`, `test:full`, or `test:release` absent separate authorization; record exact outcomes and gap disposition.
+- [x] 3.3 Record the retained PR #435 and PR #438 blocker evidence and exact post-deployment retry commands; verify all retained worktrees remain present until their applicable authorized merges.

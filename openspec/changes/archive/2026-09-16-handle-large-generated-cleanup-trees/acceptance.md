@@ -3,8 +3,8 @@
 Verdict: accepted only when the containing exact pull-request head is manually merged by an authorized human after required current-head validation.
 
 The manual merge accepts these scenarios:
-- Standard generated dependency trees above the former 20,000-entry ceiling are fully inspected and removed below the finite 100,000-entry and wall-clock bounds.
-- Only the two repository-owned native Cargo target roots are handled automatically; arbitrary target paths and unsafe nested content remain blocked and preserved.
+- The two repository-owned native Cargo target roots are handled automatically through the existing bounded generated-content inspection and standard non-force completion path.
+- Arbitrary, sibling, and near-match target trees remain blocked and preserved without weakening ordinary/generated entry allowances or unsafe-content checks.
 
 ```openspec-delivery
 {
@@ -15,15 +15,15 @@ The manual merge accepts these scenarios:
   "archive": "openspec/changes/archive/2026-09-16-handle-large-generated-cleanup-trees/",
   "acceptanceManifest": "openspec/changes/archive/2026-09-16-handle-large-generated-cleanup-trees/acceptance.md",
   "finalizedDate": "2026-09-16",
-  "specBaseSha": "5f3021ca80fb5402309bafe96db6791241c93f49",
+  "specBaseSha": "926da1ea4672f43a696706d877eb576babd1fdb3",
   "acceptanceScenarios": [
-    "Standard generated dependency trees above the former 20,000-entry ceiling are fully inspected and removed below the finite 100,000-entry and wall-clock bounds.",
-    "Only the two repository-owned native Cargo target roots are handled automatically; arbitrary target paths and unsafe nested content remain blocked and preserved."
+    "The two repository-owned native Cargo target roots are handled automatically through the existing bounded generated-content inspection and standard non-force completion path.",
+    "Arbitrary, sibling, and near-match target trees remain blocked and preserved without weakening ordinary/generated entry allowances or unsafe-content checks."
   ],
-  "archiveDigest": "dab1fef3a513a2d12ed10e8db8ed1fe64f3ad7164b94acd2562fe543936a0a5d",
-  "specDigest": "b118e66d0f48cb458f821ca1174ea33f78b3b030811069d6863ce68345123c53",
-  "tasksDigest": "8ad3322f54e9ea0f1c712091fe004715eb0bd33de4b2d4f15aa459d6b14dbc8f",
-  "evidenceDigest": "f87e069e54420948e52580def6fb08ae8fedd67123f1d20edd19ddcece5991d3",
+  "archiveDigest": "7501d96773c6e60bd2d7bbf852b737b2e7d7f28f059d4fade5eebf7544bd9893",
+  "specDigest": "5592927f54abdca6eeba082589903c52d556e625d7dab2a811395619474fcb28",
+  "tasksDigest": "4760aba43223d093ca866b0bb46b0e1df807ce6323d99686910fc9d30029e29c",
+  "evidenceDigest": "7c1e6f92a58ad65fbe800a0dd185d3ccf86f1850f66f413fc201c8b06f7ec246",
   "knownGaps": []
 }
 ```
