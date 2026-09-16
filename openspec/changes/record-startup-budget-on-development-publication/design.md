@@ -11,8 +11,10 @@ Split evaluation from enforcement in the owner, and move the enforcement decisio
 - `evaluateStartupPerformanceBudget(evidence, budgets?)` performs the existing work — sort events, find the last `first-input-ready-render`, select the budget for the launch kind, compute dominant phase intervals — and returns a `StartupBudgetViolation` or `null`. A missing ready event stays a thrown error, because a launch that never became input-ready is a functional failure and not a timing observation.
 - `formatStartupBudgetViolation(violation)` produces the exact message text used today, so the failing message, the recorded evidence, and the run summary all read identically.
 - `assertStartupPerformanceBudget` becomes evaluate-then-throw and keeps its signature and message. Existing callers and its unit coverage are unaffected.
+- All of this moves into `src/foundation/startup/startup-budget.ts`. `startup-runtime.ts` is a declared startup graph root, so every byte in it is evaluated at launch; a release-gate oracle that only tests call does not belong there. The new module re-exports through the capability index and imports its evidence types with `import type`, so the eager graph shrinks rather than grows.
+- The variable is named `STARTUP_BUDGET_ENFORCEMENT` rather than a branded `A1_` name, matching its sibling `STARTUP_PERFORMANCE_RESULT`. `config/internal-naming-policy.json` reserves the branded namespace for declared product-facing contracts, and this is a validation-harness switch.
 
-The exact-package startup gate reads `A1_STARTUP_BUDGET_ENFORCEMENT` once at module load. Any value other than `record` means `fail`, so an unconfigured local or third-party run keeps today's behavior and a typo cannot silently disable the gate.
+The exact-package startup gate reads `STARTUP_BUDGET_ENFORCEMENT` once at module load. Any value other than `record` means `fail`, so an unconfigured local or third-party run keeps today's behavior and a typo cannot silently disable the gate.
 
 ## Channel assignment
 

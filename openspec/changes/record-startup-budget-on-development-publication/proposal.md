@@ -5,7 +5,7 @@ Wall-clock startup budgets are enforced on shared GitHub Windows runners, where 
 ## What Changes
 
 - Separate startup budget evaluation from enforcement: a pure evaluation returns a structured violation, and the existing assertion keeps throwing the same formatted message for every current caller.
-- Give the exact-package startup gate an explicit enforcement mode read from `A1_STARTUP_BUDGET_ENFORCEMENT`. Development publication and ordinary pull-request validation record overruns as warnings and evidence; nightly publication, stable publication, and Full regression keep failing on them. The default without the variable remains failing enforcement.
+- Give the exact-package startup gate an explicit enforcement mode read from `STARTUP_BUDGET_ENFORCEMENT`. Development publication and ordinary pull-request validation record overruns as warnings and evidence; nightly publication, stable publication, and Full regression keep failing on them. The default without the variable remains failing enforcement.
 - Keep measuring every profile and every launch kind on the first attempt in every mode, retain the existing zero-automatic-retry policy, and keep a missing input-ready render a hard failure in both modes.
 - Record enforcement mode and every violation in the startup performance evidence JSON, upload that evidence from the publication lanes, and print a per-measurement summary table plus a `::warning::` annotation on the run.
 - Reconcile the contradictory startup budget text in `isolated-regression-testing` with the canonical `a1-shell` budgets and state where each channel enforces them.
@@ -20,8 +20,8 @@ None.
 
 - `isolated-regression-testing`: Replace stale 5-second and 3-second startup budget text with the canonical budgets and require development publication to record, not enforce, an overrun while nightly and Full regression keep failing.
 - `a1-shell`: State that development previews record the declared startup budgets as evidence while nightly publication and Full regression enforce them.
-- `continuous-integration`: Define the `A1_STARTUP_BUDGET_ENFORCEMENT` contract, its per-channel values, its fail-closed default, and the evidence it produces.
+- `continuous-integration`: Define the `STARTUP_BUDGET_ENFORCEMENT` contract, its per-channel values, its fail-closed default, and the evidence it produces.
 
 ## Impact
 
-Implementation affects the startup budget owner in `src/foundation/startup/startup-runtime.ts`, the exact-package startup integration gate, the `validate` job of `.github/workflows/release.yml`, the startup group of `.github/workflows/ci.yml`, the validation step of `.github/workflows/full-regression.yml`, the governance tests that pin those workflow and test contents, and `docs/validation.md`. It changes no budget number, removes no measurement, adds no retry, and does not alter publication authority or the public API.
+Implementation affects the startup budget owner, which moves out of the eagerly reachable `src/foundation/startup/startup-runtime.ts` into `src/foundation/startup/startup-budget.ts`, the exact-package startup integration gate, the `validate` job of `.github/workflows/release.yml`, the startup group of `.github/workflows/ci.yml`, the validation step of `.github/workflows/full-regression.yml`, the governance tests that pin those workflow and test contents, and `docs/validation.md`. It changes no budget number, removes no measurement, adds no retry, and does not alter publication authority or the public API.

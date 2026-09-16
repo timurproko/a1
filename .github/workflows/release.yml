@@ -439,13 +439,42 @@ jobs:
           A1_CONFIG_DIR: ${{ runner.temp }}/a1-release-config
           A1_DATA_DIR: ${{ runner.temp }}/a1-release-data
           A1_RUNTIME_DIR: ${{ runner.temp }}/a1-release-runtime
+          STARTUP_BUDGET_ENFORCEMENT: ${{ needs.plan.outputs.mode == 'develop' && 'record' || 'fail' }}
+          STARTUP_PERFORMANCE_RESULT: .artifacts/validation/startup-${{ matrix.platform }}.json
         run: node scripts/release/run-validation-tier.mjs --result .artifacts/validation/${{ matrix.platform }}.json
+      - name: Summarize first-attempt startup measurements
+        if: always() && runner.os == 'Windows'
+        shell: bash
+        env:
+          STARTUP_PERFORMANCE_RESULT: .artifacts/validation/startup-${{ matrix.platform }}.json
+          PLATFORM: ${{ matrix.platform }}
+        run: |
+          if [ ! -f "$STARTUP_PERFORMANCE_RESULT" ]; then
+            echo "No first-attempt startup evidence was produced for $PLATFORM." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          node --input-type=module <<'NODE' >> "$GITHUB_STEP_SUMMARY"
+          import { readFile } from "node:fs/promises";
+          const evidence = JSON.parse(await readFile(process.env.STARTUP_PERFORMANCE_RESULT, "utf8"));
+          const violated = new Set(evidence.budgetViolations.map(violation => `${violation.profileId}/${violation.launchKind}`));
+          const overrun = evidence.enforcement === "record" ? "recorded overrun" : "failed";
+          console.log(`## First-attempt startup (${process.env.PLATFORM}, ${evidence.enforcement} mode)`);
+          console.log("");
+          console.log("| Profile | Launch kind | Elapsed | Budget | Status |");
+          console.log("| --- | --- | ---: | ---: | --- |");
+          for (const measurement of evidence.measurements) {
+            const status = violated.has(`${measurement.profileId}/${measurement.launchKind}`) ? overrun : "passed";
+            console.log(`| ${measurement.profileId} | ${measurement.launchKind} | ${Math.round(measurement.elapsedMs)}ms | ${measurement.budgetMs}ms | ${status} |`);
+          }
+          NODE
       - name: Upload platform outcomes
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: release-validation-${{ needs.plan.outputs.version }}-${{ matrix.platform }}
-          path: .artifacts/validation/${{ matrix.platform }}.json
+          path: |
+            .artifacts/validation/${{ matrix.platform }}.json
+            .artifacts/validation/startup-${{ matrix.platform }}.json
           if-no-files-found: warn
           retention-days: 30
 

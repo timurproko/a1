@@ -54,6 +54,19 @@ describe("CI and release operations runbook", () => {
     expect(runbook).toContain("A push of the stable version does not publish");
   });
 
+  it("records startup budgets on development previews and enforces them elsewhere", async () => {
+    const [release, regression, development] = await Promise.all([
+      readFile(".github/workflows/release.yml", "utf8"),
+      readFile(".github/workflows/full-regression.yml", "utf8"),
+      readFile(".github/workflows/ci.yml", "utf8"),
+    ]);
+    expect(release).toContain("STARTUP_BUDGET_ENFORCEMENT: ${{ needs.plan.outputs.mode == 'develop' && 'record' || 'fail' }}");
+    expect(release).toContain("STARTUP_PERFORMANCE_RESULT: .artifacts/validation/startup-${{ matrix.platform }}.json");
+    expect(release).toContain("Summarize first-attempt startup measurements");
+    expect(regression).toContain("STARTUP_BUDGET_ENFORCEMENT: fail");
+    expect(development).toContain("STARTUP_BUDGET_ENFORCEMENT: record");
+  });
+
   it("enables Defender before accepted Windows exact-package startup gates", async () => {
     for (const path of [".github/workflows/release.yml", ".github/workflows/full-regression.yml"]) {
       const workflow = await readFile(path, "utf8");

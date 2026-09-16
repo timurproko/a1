@@ -34,17 +34,6 @@ interface StartupTraceContext {
   readonly dependencyLayerIds: readonly string[];
 }
 
-export interface StartupPerformanceEvidence {
-  readonly profileId: "a1" | "pi";
-  readonly launchKind: "post-update" | "no-live-supervisor" | "warm";
-  readonly events: readonly StartupTraceEvent[];
-  readonly moduleGraph?: {
-    readonly loadedFiles: number;
-    readonly evaluatedBytes: number;
-    readonly groups: readonly { readonly group: string; readonly files: number; readonly evaluatedBytes: number }[];
-  };
-}
-
 export interface StartupTraceEvent {
   readonly schema: typeof PRODUCT_IDENTITY.evidence.startupTraceSchema;
   readonly traceId: string;
@@ -150,30 +139,6 @@ export async function collectCompileCaches(dataDir: string, protectedPaths: read
   for (const candidate of candidates) {
     if (!protectedSet.has(candidate.path) && !retainedRecent.has(candidate.path)) await rm(candidate.path, { recursive: true, force: true });
   }
-}
-
-export function assertStartupPerformanceBudget(
-  evidence: StartupPerformanceEvidence,
-  budgets: { readonly postUpdateMs: number; readonly noSupervisorMs: number; readonly warmMs: number } = {
-    postUpdateMs: 2_000,
-    noSupervisorMs: 2_500,
-    warmMs: 2_000,
-  },
-): void {
-  const events = [...evidence.events].sort((left, right) => left.elapsedMs - right.elapsedMs);
-  const ready = events.findLast(event => event.phase === "first-input-ready-render");
-  if (!ready) throw new Error(`startup budget failed for ${evidence.profileId}: first input-ready render was not recorded`);
-  const budget = evidence.launchKind === "warm"
-    ? budgets.warmMs
-    : evidence.launchKind === "no-live-supervisor" ? budgets.noSupervisorMs : budgets.postUpdateMs;
-  if (ready.elapsedMs <= budget) return;
-  const intervals = events.map((event, index) => ({
-    phase: event.phase,
-    durationMs: event.elapsedMs - (events[index - 1]?.elapsedMs ?? 0),
-  })).sort((left, right) => right.durationMs - left.durationMs);
-  const graph = evidence.moduleGraph === undefined ? ""
-    : `; module graph: ${evidence.moduleGraph.loadedFiles} files, ${evidence.moduleGraph.evaluatedBytes} evaluated bytes (${evidence.moduleGraph.groups.map(group => `${group.group} ${group.files}/${group.evaluatedBytes}`).join(", ")})`;
-  throw new Error(`startup budget failed for ${evidence.profileId} ${evidence.launchKind}: ${Math.round(ready.elapsedMs)}ms exceeds ${budget}ms; dominant phases: ${intervals.slice(0, 3).map(item => `${item.phase} ${Math.round(item.durationMs)}ms`).join(", ")}${graph}`);
 }
 
 export function parseStartupTrace(source: string): readonly StartupTraceEvent[] {

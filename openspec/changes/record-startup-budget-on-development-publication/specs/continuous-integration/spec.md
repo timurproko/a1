@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Startup budget enforcement is declared per channel
-Validation SHALL select startup budget enforcement through the `A1_STARTUP_BUDGET_ENFORCEMENT` contract. The value `fail` SHALL enforce the declared budgets by failing the gate on an overrun. The value `record` SHALL retain every measurement, record each overrun as evidence and as a run annotation, and allow the run to succeed. An absent or unrecognized value SHALL mean `fail`.
+Validation SHALL select startup budget enforcement through the `STARTUP_BUDGET_ENFORCEMENT` contract. The value `fail` SHALL enforce the declared budgets by failing the gate on an overrun. The value `record` SHALL retain every measurement, record each overrun as evidence and as a run annotation, and allow the run to succeed. An absent or unrecognized value SHALL mean `fail`.
 
 Development publication and ordinary pull-request validation SHALL run in `record` mode. Nightly publication, stable publication, and complete regression SHALL run in `fail` mode, and the complete regression workflow SHALL state its mode explicitly rather than rely on the default. No mode SHALL reduce the measured profiles or launch kinds, retry a measurement, or suppress a launch that never became input-ready.
 
