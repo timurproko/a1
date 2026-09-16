@@ -107,6 +107,7 @@ The separate manual Full regression workflow is not an acceptance gate for an or
 - **[A skipped draft workflow appears to satisfy branch protection]** -> Give draft-only aggregate checks a distinct non-required identity so only a non-draft exact-head aggregate can satisfy the protected context.
 - **[A conservative explicit test selection exceeds a platform process limit]** -> Partition the exact selected file list into bounded invocations and remove consumed orchestration payloads from child environments while preserving complete membership, failures, and one logical owner outcome.
 - **[A cold resource fixture polls before its worker is ready]** -> Synchronize the fixture on the service's first structured snapshot instead of increasing a timeout or retrying a semantic assertion.
+- **[A hermetic consumer fixture drifts behind the current validation-impact schema]** -> Build the fixture with the current versioned PR-core fields and computed selection identity so consumer tests exercise supported evidence rather than weakening parser validation.
 
 ## Migration Plan
 
