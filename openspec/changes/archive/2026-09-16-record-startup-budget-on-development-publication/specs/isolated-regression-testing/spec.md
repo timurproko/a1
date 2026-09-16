@@ -34,6 +34,10 @@ The measured budgets SHALL be the interactive startup budgets declared by the A1
 - **WHEN** a first Node 22 or Node 24 exact-package startup attempt exceeds its budget
 - **THEN** validation SHALL retain the failure and SHALL NOT rerun the scenario to obtain a warmed passing result
 
+#### Scenario: Supported Windows Node lanes differ
+- **WHEN** the same exact candidate passes a warm startup budget on one supported Windows Node version and fails it on another
+- **THEN** acceptance SHALL remain blocked until phase-attributed evidence shows the slower supported lane meets the unchanged budget with reliable first-attempt margin
+
 ## ADDED Requirements
 
 ### Requirement: Development publication records startup budget evidence
