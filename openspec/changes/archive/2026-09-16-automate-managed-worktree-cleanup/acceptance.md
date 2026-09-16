@@ -16,7 +16,7 @@ The manual merge accepts these scenarios:
   "archive": "openspec/changes/archive/2026-09-16-automate-managed-worktree-cleanup/",
   "acceptanceManifest": "openspec/changes/archive/2026-09-16-automate-managed-worktree-cleanup/acceptance.md",
   "finalizedDate": "2026-09-16",
-  "specBaseSha": "ffd499d40fb1f7824e396c0c2464c514927bd0a2",
+  "specBaseSha": "7dbe5ce44ebb0fbe03780b665dbb0974749c83d6",
   "acceptanceScenarios": [
     "One exact post-merge command verifies and removes an eligible managed worktree and unchanged local branch without per-agent cleanup decisions.",
     "Repository-generated dependencies and finalization reports are handled automatically while unknown ignored or user-authored content remains protected.",
