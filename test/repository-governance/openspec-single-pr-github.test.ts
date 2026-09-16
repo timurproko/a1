@@ -84,6 +84,14 @@ describe("version-3 GitHub delivery authority", () => {
     });
   });
 
+  it("accepts exact active-to-archive renames reported by GitHub", async () => {
+    const f = fixture(false);
+    const renamed = f.changed.find(file => file.filename === `${archive}proposal.md`) as { filename: string; status: string; previous_filename?: string };
+    renamed.status = "renamed";
+    renamed.previous_filename = "openspec/changes/example/proposal.md";
+    await expect(validateVersion3Candidate(f.reader, 42)).resolves.toMatchObject({ disposition: "ready-for-manual-merge" });
+  });
+
   it("rejects the superseded phase-prefixed layout for an open candidate", async () => {
     const f = fixture(false);
     f.pull.body = `> Phase: Implementation\n\n${f.pull.body}`;

@@ -51,7 +51,7 @@ if (baselineErrors.length > 0) throw new Error(baselineErrors.join("; "));
 await writeFile(resolve(root, reportPath), serialized);
 const descriptor = createStartupDescriptor({ artifact: manifest.output });
 await writeFile(resolve(root, descriptorPath), serializeStartupDescriptor(descriptor));
-process.stdout.write(`[startup-public] ${manifest.output.sha256} ${manifest.output.bytes} bytes from ${manifest.totals.files} normalized inputs; descriptor ${descriptor.identity}\n`);
+process.stderr.write(`[startup-public] ${manifest.output.sha256} ${manifest.output.bytes} bytes from ${manifest.totals.files} normalized inputs; descriptor ${descriptor.identity}\n`);
 
 function preservePinnedPiModuleContext() {
   const marker = "/node_modules/@earendil-works/pi-coding-agent/dist/";

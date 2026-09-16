@@ -40,7 +40,7 @@ describe("startup reachability policy", () => {
     const report = await inspectStartupReachability(root, { roots: ["src/root.ts"] });
     expect(validateStartupReachabilityBaseline(report, {
       schema: "a1-startup-graph-baseline-v1",
-      a1Reachability: { maximumFiles: 10, maximumSourceBytes: 10_000, optionalModules: ["src/optional.ts"] },
+      ownedReachability: { maximumFiles: 10, maximumSourceBytes: 10_000, optionalModules: ["src/optional.ts"] },
     })).toEqual(["src/optional.ts: optional module is eagerly reachable"]);
   });
 

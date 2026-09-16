@@ -88,11 +88,11 @@ export function classifyStartupModule(path) {
 export function validateStartupReachabilityBaseline(report, baseline) {
   if (baseline?.schema !== "a1-startup-graph-baseline-v1") return ["startup graph baseline schema is invalid"];
   const errors = [];
-  if (report.totals.files > baseline.a1Reachability.maximumFiles) {
-    errors.push(`startup graph has ${report.totals.files} files; maximum is ${baseline.a1Reachability.maximumFiles}`);
+  if (report.totals.files > baseline.ownedReachability.maximumFiles) {
+    errors.push(`startup graph has ${report.totals.files} files; maximum is ${baseline.ownedReachability.maximumFiles}`);
   }
-  if (report.totals.sourceBytes > baseline.a1Reachability.maximumSourceBytes) {
-    errors.push(`startup graph has ${report.totals.sourceBytes} source bytes; maximum is ${baseline.a1Reachability.maximumSourceBytes}`);
+  if (report.totals.sourceBytes > baseline.ownedReachability.maximumSourceBytes) {
+    errors.push(`startup graph has ${report.totals.sourceBytes} source bytes; maximum is ${baseline.ownedReachability.maximumSourceBytes}`);
   }
   const reached = new Set(report.modules.map(module => module.path));
   for (const module of report.modules) {
@@ -100,7 +100,7 @@ export function validateStartupReachabilityBaseline(report, baseline) {
       errors.push(`${module.path}: eager module has no accepted readiness classification`);
     }
   }
-  for (const optional of baseline.a1Reachability.optionalModules) {
+  for (const optional of baseline.ownedReachability.optionalModules) {
     if (reached.has(optional)) errors.push(`${optional}: optional module is eagerly reachable`);
   }
   return errors;

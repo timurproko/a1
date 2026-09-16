@@ -9,15 +9,15 @@ import type { OwnedUiSessionShellOptions } from "../../src/integrations/pi/sessi
 
 const observed = vi.hoisted(() => ({ options: undefined as OwnedUiSessionShellOptions | undefined }));
 // Rationale: isolate launch composition from provider discovery and terminal ownership.
-vi.mock("../../src/integrations/pi/components/index.js", () => ({ applyConfiguredPiTheme() {}, getAvailablePiThemes: () => [], loadHistoryEditor: vi.fn() }));
-vi.mock("../../src/integrations/pi/engine/index.js", () => ({ createPiEngineAdapter: vi.fn() }));
-vi.mock("../../src/integrations/pi/tui-runtime/index.js", () => ({ createPiTerminalBridge: vi.fn() }));
+vi.mock("../../src/integrations/pi/components/upstream/theme/theme.js", () => ({ applyConfiguredPiTheme() {}, getAvailablePiThemes: () => [] }));
+vi.mock("../../src/integrations/pi/engine/adapter.js", () => ({ createPiEngineAdapter: vi.fn() }));
+vi.mock("../../src/integrations/pi/tui-runtime/presentation-adapter.js", () => ({ createPiTerminalBridge: vi.fn() }));
 vi.mock("../../src/composition/settings-route-host.js", () => ({ createOwnedRouteHost: () => null }));
-vi.mock("../../src/ui/settings/index.js", () => ({
-  OwnedUiSettingsStore: class {},
+vi.mock("../../src/ui/settings/store.js", () => ({ OwnedUiSettingsStore: class {} }));
+vi.mock("../../src/ui/settings/session.js", () => ({
   OwnedUiSettingsSession: class { value(key: string) { return key === "promptHistoryEnabled" ? false : undefined; } },
 }));
-vi.mock("../../src/integrations/pi/session-ui/index.js", () => ({
+vi.mock("../../src/integrations/pi/session-ui/session-shell.js", () => ({
   OwnedUiSessionShell: class {
     constructor(options: OwnedUiSessionShellOptions) { observed.options = options; }
     async dispose() {}

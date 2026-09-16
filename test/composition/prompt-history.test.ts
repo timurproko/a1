@@ -14,19 +14,20 @@ type ShellOptions = { promptHistory?: { store: PromptHistoryService } };
 const observed = vi.hoisted(() => ({ shells: [] as ShellOptions[], enabled: true, loadEditor: vi.fn() }));
 
 // Rationale: test composition/storage without starting a terminal, provider, or Pi runtime.
-vi.mock("../../src/integrations/pi/components/index.js", () => ({
-  applyConfiguredPiTheme() {}, getAvailablePiThemes: () => [], loadHistoryEditor: observed.loadEditor,
+vi.mock("../../src/integrations/pi/components/upstream/theme/theme.js", () => ({
+  applyConfiguredPiTheme() {}, getAvailablePiThemes: () => [],
 }));
-vi.mock("../../src/integrations/pi/engine/index.js", () => ({ createPiEngineAdapter: vi.fn() }));
-vi.mock("../../src/integrations/pi/tui-runtime/index.js", () => ({ createPiTerminalBridge: vi.fn() }));
+vi.mock("../../src/integrations/pi/components/history-editor-loader.js", () => ({ loadHistoryEditor: observed.loadEditor }));
+vi.mock("../../src/integrations/pi/engine/adapter.js", () => ({ createPiEngineAdapter: vi.fn() }));
+vi.mock("../../src/integrations/pi/tui-runtime/presentation-adapter.js", () => ({ createPiTerminalBridge: vi.fn() }));
 vi.mock("../../src/composition/settings-route-host.js", () => ({ createOwnedRouteHost: () => null }));
-vi.mock("../../src/ui/settings/index.js", () => ({
-  OwnedUiSettingsStore: class {},
+vi.mock("../../src/ui/settings/store.js", () => ({ OwnedUiSettingsStore: class {} }));
+vi.mock("../../src/ui/settings/session.js", () => ({
   OwnedUiSettingsSession: class {
     value(key: string) { return key === "promptHistoryEnabled" ? observed.enabled : key === "promptHistoryMaxItems" ? 100 : undefined; }
   },
 }));
-vi.mock("../../src/integrations/pi/session-ui/index.js", () => ({
+vi.mock("../../src/integrations/pi/session-ui/session-shell.js", () => ({
   OwnedUiSessionShell: class {
     constructor(readonly options: ShellOptions) { observed.shells.push(options); }
     async dispose() { await this.options.promptHistory?.store.close(); }

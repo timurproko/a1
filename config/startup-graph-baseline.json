@@ -1,6 +1,6 @@
 {
   "schema": "a1-startup-graph-baseline-v1",
-  "a1Reachability": {
+  "ownedReachability": {
     "maximumFiles": 142,
     "maximumSourceBytes": 2624425,
     "optionalModules": [

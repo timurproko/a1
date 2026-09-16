@@ -20,6 +20,6 @@ export function inspectStartupReachability(root: string, options?: { readonly ro
 export function classifyStartupModule(path: string): "initial-render" | "first-prompt-correctness";
 export function validateStartupReachabilityBaseline(report: StartupReachabilityReport, baseline: {
   readonly schema: string;
-  readonly a1Reachability: { readonly maximumFiles: number; readonly maximumSourceBytes: number; readonly optionalModules: readonly string[] };
+  readonly ownedReachability: { readonly maximumFiles: number; readonly maximumSourceBytes: number; readonly optionalModules: readonly string[] };
 }): string[];
 export function runtimeRelativeImports(source: string): string[];
