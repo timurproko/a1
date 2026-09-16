@@ -196,11 +196,17 @@ A confirmed regression SHALL gain the smallest independent current-contract test
 - **AND** the existing deadline SHALL remain enforced
 
 ### Requirement: Changed tests pass in pull-request validation
-A retained or newly added test SHALL pass in the pull-request validation of continuous integration before its change is integrated. Local execution is an optional debugging aid, not a completion gate.
+A retained or newly added pull-request-eligible test SHALL pass in the pull-request validation of continuous integration before its change is integrated. A changed exhaustive-only test SHALL receive focused deterministic contract validation in the pull request, SHALL be recorded as cadence-deferred, and SHALL remain mandatory in Full regression and nightly/release validation. Local execution is an optional debugging aid, not a completion gate.
 
 #### Scenario: Pull-request validation passes
-- **WHEN** continuous integration validates the pull request containing the changed tests
-- **THEN** the change MAY be integrated and no local suite execution SHALL be required
+- **WHEN** continuous integration validates the pull request containing changed pull-request-eligible tests
+- **THEN** every selected changed test SHALL pass before the change MAY be integrated
+- **AND** no local suite execution SHALL be required
+
+#### Scenario: Exhaustive-only test changes
+- **WHEN** a pull request changes a test whose declared cadence is exhaustive
+- **THEN** pull-request validation SHALL run its focused deterministic contract coverage and report the exhaustive test as cadence-deferred
+- **AND** the exhaustive test SHALL remain required in Full regression and nightly/release validation without reduced assertions
 
 ### Requirement: Resource-sensitive regressions avoid shared runner contention
 Automated tests that repeatedly create repositories, launch subprocesses, mutate temporary storage, or coordinate release processes SHALL be eligible for a declared resource-sensitive execution class. Tests in that class SHALL run one file at a time under the unchanged fast-tier test timeout rather than sharing the parallel fast-test worker pool. Classification SHALL be reviewed configuration, SHALL be applied consistently across supported platforms, and SHALL not suppress output, remove assertions, increase timeouts, or authorize retries of semantic failures. Repeated isolated evidence SHALL expose available fixture and subprocess timing, and a test that remains slow SHALL be optimized before acceptance. Tests not assigned to the class SHALL retain the ordinary fast scheduler unless another declared isolation contract applies.
@@ -469,7 +475,9 @@ A file-owned integration fixture SHALL use the current build's real cold emitted
 - **AND** a failed lane SHALL remain failed without semantic retry, timeout extension, workload removal, or acceptance inferred from another runtime
 
 ### Requirement: Published predecessor subprocess waits preserve runner responsiveness
-Published-predecessor compatibility validation SHALL remain able to process runner messages, timers, and cancellation while waiting for package installation, registry lookup, or shipped setup subprocesses. Command waits SHALL NOT block the test worker's event loop. This correction SHALL retain existing test, hook, warmup, runner, and workflow time limits, predecessor selection and coverage, exact candidate bytes, command ordering, and the requirement to execute each selected predecessor's own release code.
+Published-predecessor compatibility validation SHALL remain able to process runner messages, timers, and cancellation while waiting for package installation, registry lookup, or shipped setup subprocesses. Command waits SHALL NOT block the test worker's event loop. The real multi-release scenario SHALL retain existing test, hook, warmup, runner, and workflow time limits, predecessor selection and coverage, exact candidate bytes, command ordering, and the requirement to execute each selected predecessor's own release code.
+
+The real multi-release scenario SHALL use exhaustive cadence: it SHALL run in manual Full regression and scheduled nightly/stable release validation and SHALL NOT run in ordinary `pull_request` or manual Development validation. Pull-request validation SHALL retain focused deterministic predecessor command, lifecycle, error, fixture, materialization, and warmup contracts, but SHALL NOT claim that those contracts exercised published predecessor code. Moving the real scenario SHALL not reduce its default predecessor count, supported-entry checks, exact-package authority, assertions, or failure semantics.
 
 Subprocess results SHALL be bounded and fail closed. Validation SHALL not report success before the owned command and its captured output have closed successfully. Spawn failure, nonzero exit, signal termination, cancellation, output overflow, malformed required metadata, or failed setup SHALL prevent later dependent phases. Cleanup SHALL preserve unrelated state and processes and SHALL not remove a temporary installation while its owned subprocess is active.
 
@@ -494,11 +502,21 @@ Subprocess results SHALL be bounded and fail closed. Validation SHALL not report
 - **THEN** its command lifetime SHALL end through ownership-safe cleanup before temporary installation removal
 - **AND** unrelated processes and paths SHALL remain untouched
 
+#### Scenario: Ordinary pull-request validation runs
+- **WHEN** a product, test, workflow, selector, or unknown operational change is validated by the Development pull-request workflow
+- **THEN** the real multi-release predecessor scenario SHALL be reported as exhaustive-cadence deferred and SHALL not be scheduled
+- **AND** focused deterministic predecessor contracts selected by the change SHALL retain their assertions and fail-closed outcomes
+
 #### Scenario: Real predecessor coverage executes
-- **WHEN** the published-predecessor gate validates a candidate
-- **THEN** it SHALL retain publication-time selection, the existing default predecessor limit and override semantics, supported-entry checks, and the existing minimum exercised-predecessor assertion
+- **WHEN** Full regression or nightly/stable release validation selects complete coverage
+- **THEN** the published-predecessor gate SHALL retain publication-time selection, the existing default predecessor limit and override semantics, supported-entry checks, and the existing minimum exercised-predecessor assertion
 - **AND** it SHALL exercise real predecessor release code against the exact selected candidate without using the user's npm installation prefix
-- **AND** the repair SHALL NOT reduce coverage, add success retries, or move the test into a different execution class to hide an unresolved failure
+- **AND** it SHALL not reduce coverage, add success retries, restore mutable installed fixtures, or replace published code with a candidate-authored oracle
+
+#### Scenario: Focused coverage passes but exhaustive coverage fails
+- **WHEN** deterministic pull-request predecessor contracts pass and a later exhaustive run fails
+- **THEN** the exhaustive workflow SHALL remain failed and block its publication authority
+- **AND** focused PR success SHALL not be reinterpreted as real published-predecessor compatibility evidence
 
 ### Requirement: Nightly recovery is proven by numbered merged-package evidence
 A nightly recovery effort SHALL not be declared complete solely from focused tests, passing PR CI, an implementation merge, a branch Full regression run, or reduced-scope manual development publication. Completion SHALL require the actual scheduled nightly workflow to successfully perform full-release validation on a newly numbered package whose merged source contains the accepted repairs, across Windows Node 22 and 24, Linux Node 24, and macOS Node 24, with a successful aggregate publication or immutable-registry verification outcome.
