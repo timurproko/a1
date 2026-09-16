@@ -2,7 +2,7 @@ import { archiveReaderFromGet, loadArchiveEvidence, findImplementationValidation
 import { readArchiveMarker } from "./openspec-archive-publication.mjs";
 import { snapshotOpenSpec } from "./openspec-archive-staging.mjs";
 import { acceptanceBranch, archivedAcceptanceMatches, receiptIdentityMatches } from "./openspec-acceptance-policy.mjs";
-import { SHA } from "./openspec-archive-policy.mjs";
+import { parseImplementation, SHA } from "./openspec-archive-policy.mjs";
 import { digest, fail } from "./local-cleanup-state.mjs";
 
 /** Remote reads only; shared archive policy retains acceptance and legacy-link authority. */
@@ -49,6 +49,39 @@ function merged(pull, repository) {
   if (pull?.merged !== true || pull.state !== "closed" || pull.draft !== false || pull.base?.ref !== "develop"
     || pull.base.repo?.full_name !== repository || pull.head?.repo?.full_name !== repository
     || !SHA.test(pull.head?.sha ?? "") || !SHA.test(pull.merge_commit_sha ?? "")) fail("pr-not-merged");
+}
+
+async function optional(reader, path) {
+  try { return { kind: "present", value: await reader.get(path) }; }
+  catch (error) { if (error.archiveCode === "github-not-found") return { kind: "absent" }; throw error; }
+}
+
+/** Explicit rejection authority binds one closed-unmerged PR to one exact local candidate. */
+export async function verifyDiscardEvidence(reader, entry) {
+  const pull = await reader.get(`${reader.prefix}/pulls/${entry.sourcePr}`);
+  const implementation = parseImplementation(pull.body ?? "");
+  if (pull.number !== entry.sourcePr || entry.candidatePr !== entry.sourcePr || entry.role !== "discard"
+    || pull.state !== "closed" || pull.merged !== false || pull.merged_at !== null
+    || pull.base?.ref !== "develop" || pull.base.repo?.full_name !== reader.repository
+    || pull.head?.repo?.full_name !== reader.repository || !SHA.test(pull.head?.sha ?? "")
+    || implementation?.change !== entry.change || entry.head !== pull.head.sha) fail("discard-source-association");
+  const ref = pull.head.ref;
+  if (typeof ref !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._/-]*$/.test(ref) || ref.includes("..")
+    || entry.ref !== `refs/heads/${ref}` || !/^refs\/heads\/(?:feature|fix|refactor|docs|test|chore|style)\//.test(entry.ref)) fail("discard-ref-identity");
+  const encoded = encodeURIComponent(ref);
+  const [gitRef, branch] = await Promise.all([
+    optional(reader, `${reader.prefix}/git/ref/heads/${encoded}`),
+    optional(reader, `${reader.prefix}/branches/${encoded}`),
+  ]);
+  if (gitRef.kind !== branch.kind) fail("discard-remote-inconsistent");
+  if (gitRef.kind === "absent") return { disposition: "eligible", sourcePr: pull.number, sourceHead: pull.head.sha,
+    ref, expectedSha: pull.head.sha, remoteRefPresent: false };
+  const actualSha = gitRef.value.object?.sha;
+  if (!SHA.test(actualSha ?? "") || branch.value.protected !== false) fail(branch.value.protected ? "discard-ref-protected" : "discard-remote-identity");
+  if (actualSha !== pull.head.sha) return { disposition: "blocked", reason: "remote-ref-advanced", sourcePr: pull.number,
+    sourceHead: pull.head.sha, ref, expectedSha: pull.head.sha, actualSha, remoteRefPresent: true };
+  return { disposition: "eligible", sourcePr: pull.number, sourceHead: pull.head.sha, ref,
+    expectedSha: pull.head.sha, actualSha, remoteRefPresent: true };
 }
 
 /** A status comment or absent branch is never proof of integrated archival. */

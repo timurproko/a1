@@ -1,30 +1,4 @@
-# Local Worktree Cleanup Specification
-
-## Purpose
-
-Complete accepted OpenSpec delivery on the owning machine by safely removing explicitly released local worktrees after verified automatic archive integration, while preserving active sessions and any unverified work.
-
-## Requirements
-
-### Requirement: Cleanup waits for verified archive integration
-
-Automatic local cleanup SHALL require a merged same-repository implementation PR into `develop` and a merged automatic OpenSpec archive PR whose verified provenance identifies that implementation PR, accepted head, merge commit, and change. The archive merge SHALL be present in freshly verified `origin/develop`, the archived acceptance record SHALL match the source, and the change SHALL no longer be active there. Source acceptance and archive authority SHALL satisfy the existing archive evidence rules. Cleanup SHALL NOT interpret implementation merge alone, archive PR creation, CI success, disappearance of a branch, or a PR title as completed archival.
-
-#### Scenario: Implementation merged but archive still pending
-- **WHEN** implementation is merged but its archive PR is missing, open, or closed without merging
-- **THEN** all associated worktrees SHALL remain and the report SHALL identify the archive blocker
-
-#### Scenario: Automatic archive integrated
-- **WHEN** the linked automatic archive PR has merged and current remote integration and acceptance evidence match
-- **THEN** the associated worktrees SHALL become candidates for the remaining local safety checks
-
-#### Scenario: Archive identity is unavailable or contradictory
-- **WHEN** archive markers, accepted source identity, merge ancestry, archived evidence, or GitHub responses cannot be verified completely
-- **THEN** cleanup SHALL preserve the worktrees and report an evidence blocker
-
-#### Scenario: Legacy implementation association
-- **WHEN** an explicitly registered legacy implementation uses supported version-1 linkage
-- **THEN** cleanup SHALL verify its historical specification association and the same archive-completion gates without rewriting its linkage
+## MODIFIED Requirements
 
 ### Requirement: Remote ref absence is a separate gate
 
@@ -51,31 +25,6 @@ The separately confirmed closed-unmerged discard operation SHALL be the only loc
 #### Scenario: Rejected-work remote ref changed or is protected
 - **WHEN** the discard candidate's remote ref is protected, reserved, ambiguous, or no longer equals the closed-unmerged PR head SHA
 - **THEN** cleanup SHALL preserve the remote ref and local worktree and report the blocker
-
-### Requirement: Automatic authority is explicitly registered and released
-
-Cleanup SHALL act only on locally registered paths bound to the Git common directory, repository identity, OpenSpec change, associated PR, worktree role, expected HEAD, and any exact local topic ref. Registration SHALL NOT itself authorize deletion. The owning delivery session SHALL explicitly release the candidate to the local cleanup service after stopping its use; a resumed session SHALL acquire ownership before touching it. Claim, release, and cleanup SHALL be mutually exclusive. Active, unknown-owner, stale-owner, and Git-locked worktrees SHALL remain protected; process disappearance or elapsed time alone SHALL NOT release ownership.
-
-#### Scenario: Owner has finished with the checkout
-- **WHEN** the owner explicitly releases a registered worktree and no session holds it
-- **THEN** cleanup SHALL be permitted to evaluate it without requesting another per-worktree confirmation
-
-#### Scenario: Another session owns or reacquires the worktree
-- **WHEN** a worktree has active ownership or a session wins the ownership claim before cleanup
-- **THEN** cleanup SHALL leave it untouched
-
-#### Scenario: Owner resumes to repair a failed PR check
-- **WHEN** a PR check fails, including a routine inherited failure, and the owning session resumes its retained checkout to repair it
-- **THEN** delivery SHALL fix and repush in the same worktree, branch, and PR without requiring a separate proposal solely for that repair, reclaiming any released registration before touching it
-- **AND** the repair SHALL preserve tested behavior and required validation gates, require current-head CI and renewed acceptance, and SHALL NOT authorize cleanup or merge
-
-#### Scenario: Session exits without release
-- **WHEN** ownership appears stale because the process disappeared or stopped reporting
-- **THEN** cleanup SHALL require explicit ownership recovery rather than assume the worktree is abandoned
-
-#### Scenario: Existing folder has no registration
-- **WHEN** a folder resembles a merged branch or contains an ancestor of a merged PR but has no explicit registration
-- **THEN** automatic cleanup SHALL leave it untouched and report it as unmanaged
 
 ### Requirement: Local identity and content checks fail closed
 A candidate SHALL remain a registered worktree of the expected repository, resolve inside the approved `.worktrees/` root, and have exactly its registered HEAD and branch attachment. That HEAD SHALL exactly match the associated merged PR head, a separately registered acceptance checkout of its verified merge commit, or—only for an explicitly confirmed discard—the exact head of the named closed-unmerged same-repository PR. Mere ancestry, age, naming similarity, or closed state alone SHALL NOT authorize deletion of an arbitrary checkout. Primary and current working directories, protected or reserved branches, path escapes, symlink or junction substitutions, and ambiguous registrations SHALL be excluded.
@@ -175,79 +124,7 @@ Each step SHALL be journaled so a retry can distinguish already-absent resources
 - **WHEN** a new directory or worktree occupies a previously removed path
 - **THEN** a retry SHALL preserve the replacement and require a new explicit registration
 
-### Requirement: Cleanup results are auditable without leaking credentials
-
-Each preview or execution SHALL report per-candidate disposition and reason, relevant PR/head/archive identities, remote-ref observations, local safety blockers, completed steps, and incomplete coverage. Execution evidence SHALL remain local outside removable worktrees, with bounded retention. Reports SHALL distinguish eligible, pending, blocked, unmanaged, removed, already-absent, partial, and deferred results; they SHALL NOT claim removal from PR state or command exit alone. Credentials and file contents SHALL NOT appear in reports or be published to GitHub.
-
-#### Scenario: Mixed candidate outcomes
-- **WHEN** one registered worktree is removed while another is dirty or active
-- **THEN** the report SHALL separately identify the actual removal and each retained candidate's reason
-
-#### Scenario: Authentication fails
-- **WHEN** remote evidence requests fail due to missing or expired authentication
-- **THEN** cleanup SHALL retain candidates and report a bounded diagnostic without token values or raw credential-bearing responses
-
-### Requirement: Completed delivery cleanup is one standardized operation
-The repository SHALL provide one explicit completed-delivery cleanup command that accepts the primary repository, exact worktree path, OpenSpec change, and source/candidate pull-request identity. The command SHALL own the bounded local procedure: capture and register the exact worktree when the invocation creates a new registration, apply the repository-owned disposable policy, release that registration, verify merged/archive/validation and remote-ref evidence, evaluate only the requested candidate for removal, and leave no broad cleanup authority enabled after it exits. Invoking this command after verified merge SHALL be the explicit cleanup authorization; implementation approval or merge observation alone SHALL NOT invoke it.
-
-The command SHALL be deterministic and idempotent for its exact candidate, SHALL run outside the removable worktree, and SHALL report whether it removed the worktree and unchanged local topic ref, found them already absent, or retained them for an exact blocker. It SHALL use the existing ownership, journaling, bounded remote-read, non-force Git removal, and compare-and-delete local-ref safeguards rather than implement a second deletion path.
-
-#### Scenario: Agent finishes a verified merged delivery
-- **WHEN** the owning agent invokes the standard completion command with the exact merged worktree, change, and pull request
-- **THEN** the command SHALL perform registration/release and one candidate-scoped cleanup evaluation without requiring the agent to choose disposable paths or assemble lifecycle subcommands
-- **AND** SHALL remove the eligible worktree and unchanged local topic ref through the existing journaled non-force procedure
-
-#### Scenario: Completed worktree is not yet eligible
-- **WHEN** merge/archive evidence, current validation, remote-ref absence, identity, or local content checks are incomplete or contradictory
-- **THEN** the command SHALL retain the worktree, disable its scoped mutation authority, and report the exact blocker
-- **AND** SHALL NOT fall back to manual deletion or broaden cleanup to another registration
-
-#### Scenario: Completion command is repeated
-- **WHEN** the exact registered candidate was already removed successfully
-- **THEN** the command SHALL report an already-absent/completed result without recreating ownership state, deleting another path, or failing because the worktree no longer exists
-
-### Requirement: Repository-generated worktree content has one central disposal policy
-The cleanup implementation SHALL own a versioned exact-path policy for generated content routinely created by repository commands, including installed dependency directories, generated build roots, OpenSpec finalization reports, repository validation reports under `.artifacts/validation`, and the native Cargo outputs at `native/process-guardian/target` and `native/terminal-host/target`. The standard completion command SHALL apply that policy automatically and SHALL NOT require each agent to select or delete those paths. A policy entry SHALL be accepted only when the path is ignored, remains inside the exact worktree, contains no nested repository/link/special-file boundary, and matches a repository-owned generated root. Staged, unstaged, untracked, unknown ignored, or policy-mismatched content SHALL remain blocking.
-
-The validation-report policy entry SHALL authorize only the exact `.artifacts/validation` root and descendants. Native build policy entries SHALL authorize only the two exact repository-owned Cargo `target` roots and descendants. They SHALL NOT authorize the `.artifacts` parent, sibling artifact directories, arbitrary `target` directories, sibling native projects, or near-match names. All approved native output SHALL remain subject to the existing dedicated generated-content allowance, operation deadline, and structural boundary checks.
-
-#### Scenario: Standard generated dependencies and reports remain
-- **WHEN** an otherwise eligible worktree contains only ignored generated content covered by the central policy, such as `node_modules/`, `.artifacts/openspec-archive/`, or `.artifacts/validation/`
-- **THEN** cleanup SHALL classify that content as disposable and complete normal non-force worktree removal without a second maintainer prompt
-
-#### Scenario: Exact native build outputs remain
-- **WHEN** an otherwise eligible worktree contains ignored generated content only below `native/process-guardian/target` or `native/terminal-host/target`
-- **THEN** cleanup SHALL inspect those exact roots under the dedicated generated-content allowance and complete normal non-force worktree removal
-
-#### Scenario: Native build policy remains exact
-- **WHEN** ignored content exists under another `target` directory, a sibling native project, or a near-match of an approved native root
-- **THEN** cleanup SHALL retain the worktree and identify that path rather than broadening native build authority
-
-#### Scenario: Validation-report policy remains exact
-- **WHEN** ignored content exists at `.artifacts/validation-user`, `.artifacts/other`, or another path outside the exact `.artifacts/validation` root
-- **THEN** cleanup SHALL retain the worktree and identify that path rather than broadening validation-report authority
-
-#### Scenario: Unknown ignored content remains
-- **WHEN** an ignored path is not covered by the exact central policy
-- **THEN** cleanup SHALL retain the worktree and identify the path rather than treating all ignored files as temporary
-
-### Requirement: Generated-content inspection has a dedicated bounded allowance
-When cleanup inspects a candidate containing repository-policy-approved generated roots, it SHALL account for those roots separately from ordinary repository content so a normal generated dependency tree does not consume the ordinary content allowance and defer an otherwise eligible cleanup.
-
-Both ordinary and generated-content inspection SHALL remain explicitly bounded by entry counts and the operation deadline. Every visited generated entry SHALL retain the existing nested-repository, link, and special-file checks; recognizing a generated root SHALL NOT authorize skipping those checks or accepting content outside the central disposal policy.
-
-#### Scenario: Generated dependencies exceed the ordinary allowance
-- **WHEN** an otherwise eligible completed worktree contains an ignored policy-approved dependency tree that exceeds the ordinary content entry allowance but remains within the generated-content allowance and deadline
-- **THEN** cleanup SHALL inspect the generated tree and proceed to normal non-force removal
-- **AND** it SHALL NOT defer solely because the generated tree exceeded the ordinary allowance
-
-#### Scenario: Generated-content allowance is exhausted
-- **WHEN** policy-approved generated content exceeds its dedicated entry allowance or the operation deadline
-- **THEN** cleanup SHALL retain the worktree and report a deferred inspection-budget result
-
-#### Scenario: Generated content crosses a protected boundary
-- **WHEN** a policy-approved generated root contains nested Git metadata, a link, or a special file
-- **THEN** cleanup SHALL retain the worktree under the existing content-boundary blocker regardless of the remaining generated-content allowance
+## ADDED Requirements
 
 ### Requirement: Closed-unmerged cleanup is one standardized discard operation
 The repository SHALL provide one explicit `discard` operation accepting the primary repository, exact worktree path, OpenSpec change, and pull-request identity plus an explicit closed-unmerged confirmation. It SHALL require a closed, unmerged, non-draft-or-draft same-repository PR targeting `develop`, bind the exact PR head and topic branch to the registered local worktree, apply the central generated-content policy, and refuse open, merged, forked, reserved, advanced, dirty, active, ambiguous, or unverifiable candidates.

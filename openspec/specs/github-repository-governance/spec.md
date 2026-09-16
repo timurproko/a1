@@ -121,12 +121,9 @@ An implementation association, introduction of a new active OpenSpec change, or 
 - **AND** its reserved records and authoritative association SHALL preserve the manual hold if labels or body markers are removed
 
 ### Requirement: Merged same-repository topic branches are reconciled safely
-After a pull request into `develop` is merged, trusted repository automation SHALL
-ensure that its same-repository remote topic branch no longer exists. Cleanup SHALL
-be independent of whether integration was automatic or manual. A deletion SHALL
-occur only when the live ref still equals the pull request's merged head SHA and the
-ref is not protected, default, release-owned, or otherwise reserved. Cleanup SHALL
-never operate on fork refs, local branches, or worktrees.
+After a pull request into `develop` is merged, trusted repository automation SHALL ensure that its same-repository remote topic branch no longer exists. Cleanup SHALL be independent of whether integration was automatic or manual. A deletion SHALL occur only when the live ref still equals the pull request's merged head SHA and the ref is not protected, default, release-owned, or otherwise reserved. Automatic merged-branch cleanup SHALL never operate on fork refs, local branches, or worktrees.
+
+Closing a pull request without merge SHALL NOT itself authorize automatic branch cleanup. A separate repository-owned local discard operation MAY delete that exact closed-unmerged PR's same-repository topic ref only after explicit candidate-specific confirmation, full local preflight, live closed-unmerged revalidation, protected/reserved-ref refusal, and expected-head compare-and-delete enforcement. This explicit authority SHALL NOT be inferred by close-event automation or applied to another PR or branch.
 
 #### Scenario: Platform deletion already succeeded
 - **WHEN** the merged pull request's remote head ref is absent
@@ -145,20 +142,24 @@ never operate on fork refs, local branches, or worktrees.
 - **THEN** cleanup SHALL refuse deletion and report both identities
 
 #### Scenario: Pull request was closed without merge
-- **WHEN** a pull request closes without a merge
-- **THEN** cleanup SHALL leave its branch unchanged
+- **WHEN** a pull request closes without a merge and no exact discard command is explicitly confirmed
+- **THEN** automatic cleanup SHALL leave its branch unchanged
+
+#### Scenario: Explicit discard of a closed-unmerged topic branch
+- **WHEN** the exact candidate-scoped discard operation verifies a closed-unmerged same-repository PR, an unprotected non-reserved topic ref equal to its recorded head SHA, and explicit discard confirmation
+- **THEN** it MAY compare-and-delete only that exact remote ref and SHALL verify absence before local cleanup continues
 
 #### Scenario: Head belongs to a fork
-- **WHEN** the merged pull request's head repository is not the governed repository
+- **WHEN** the pull request's head repository is not the governed repository
 - **THEN** cleanup SHALL perform no ref mutation
 
 #### Scenario: Reserved ref is presented
-- **WHEN** an event presents `develop`, `master`, a protected ref, a release ref, or malformed ref metadata as the head
+- **WHEN** an event or discard request presents `develop`, `master`, a protected ref, a release ref, or malformed ref metadata as the head
 - **THEN** cleanup SHALL fail closed without deletion
 
 #### Scenario: GitHub refuses deletion
 - **WHEN** an authorized matching deletion request fails
-- **THEN** the workflow SHALL fail and preserve the API outcome as bounded evidence
+- **THEN** the operation SHALL fail or report partial state and preserve the bounded remote outcome as local evidence
 
 ### Requirement: Documentation cannot stale generated governance evidence
 A documentation-only pull request SHALL remain exempt from product builds and product test suites, but it SHALL run every lightweight governance consistency check whose input surface includes its changed paths. OpenSpec changes SHALL additionally pass strict OpenSpec validation.

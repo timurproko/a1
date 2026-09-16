@@ -131,7 +131,27 @@ export async function inspectWorktree(identity, entry, {
   return { clean: true };
 }
 
-/** The only destructive Git primitives. A failed remove is never widened to recursive deletion. */
+/** Expected-SHA remote deletion; the lease is an atomic old-value guard, never an overwrite authority. */
+export async function removeRemoteRef(identity, entry, git = gitRunner()) {
+  if (!entry.ref || !safeRef(entry.ref) || entry.head.length !== 40) fail("remote-ref-unsafe");
+  const inspect = async () => {
+    const output = await git(identity.primary, ["ls-remote", "--heads", identity.remote, entry.ref]);
+    const rows = output.trim().split("\n").filter(Boolean);
+    if (!rows.length) return null;
+    if (rows.length !== 1) fail("remote-ref-ambiguous");
+    const [sha, ref, extra] = rows[0].split(/\s+/);
+    if (extra || ref !== entry.ref || !/^[a-f0-9]{40}$/.test(sha)) fail("remote-ref-identity");
+    return sha;
+  };
+  const before = await inspect();
+  if (before === null) return "already-absent";
+  if (before !== entry.head) fail("remote-ref-advanced");
+  await git(identity.primary, ["push", `--force-with-lease=${entry.ref}:${entry.head}`, identity.remote, `:${entry.ref}`]);
+  if (await inspect() !== null) fail("remote-ref-removal-partial");
+  return "removed";
+}
+
+/** The only destructive local Git primitives. A failed remove is never widened to recursive deletion. */
 export async function removeWorktree(identity, entry, git = gitRunner()) {
   await git(identity.primary, ["worktree", "remove", entry.path]);
   const rows = parseWorktrees(await git(identity.primary, ["worktree", "list", "--porcelain", "-z"]));
