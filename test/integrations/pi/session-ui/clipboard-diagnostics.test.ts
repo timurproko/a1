@@ -14,14 +14,22 @@ describe("clipboard diagnostic capture", () => {
     capture.copy({ ...event, payload: "private clipboard payload", path: "private/path", image: "secret-base64" } as ResponseCopyEvent);
     await capture.flush();
     capture.copy({ ...event, phase: "private clipboard payload" } as unknown as ResponseCopyEvent);
-    capture.paste({ request: -1, phase: "framing", atMs: 11, pending: 0, bytes: 20, transport: "terminal" });
+    capture.paste({ request: -1, phase: "shortcut-received", atMs: 10.5, pending: 0 });
+    capture.paste({ request: -1, phase: "shortcut-matched", atMs: 10.6, pending: 0 });
+    capture.paste({ request: -1, phase: "shortcut-admitted", atMs: 10.7, pending: 0 });
+    capture.paste({ request: -2, phase: "pointer-admitted", atMs: 10.8, pending: 0 });
+    capture.paste({ request: -3, phase: "framing", atMs: 11, pending: 0, bytes: 20, transport: "terminal" });
     capture.runtime({ phase: "write-end", revision: 2, atMs: 12, pendingDepth: 0, pendingPresentationDepth: 0, appliedRevision: 2 });
     await capture.flush();
     const data = snapshots.at(-1)!;
     expect(data).not.toMatch(/private|secret|base64|image|payload/);
     expect(JSON.parse(data).records).toEqual(expect.arrayContaining([
       expect.objectContaining({ source: "copy", phase: "submitting", transport: "native" }),
-      expect.objectContaining({ source: "paste", phase: "framing", request: -1 }),
+      expect.objectContaining({ source: "paste", phase: "shortcut-received", request: -1 }),
+      expect.objectContaining({ source: "paste", phase: "shortcut-matched", request: -1 }),
+      expect.objectContaining({ source: "paste", phase: "shortcut-admitted", request: -1 }),
+      expect.objectContaining({ source: "paste", phase: "pointer-admitted", request: -2 }),
+      expect.objectContaining({ source: "paste", phase: "framing", request: -3 }),
       expect.objectContaining({ source: "runtime", phase: "write-end" }),
     ]));
     capture.dispose();

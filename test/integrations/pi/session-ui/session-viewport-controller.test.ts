@@ -94,6 +94,50 @@ describe("session viewport interaction controller", () => {
     } finally { target.clearPointerState(); }
   });
 
+  it("admits the real first Ctrl+V once and records keyboard and right-click routing without payloads", () => {
+    const order: string[] = [];
+    const phases: Array<{ request: number; phase: string }> = [];
+    const pasteClipboard = vi.fn(() => { order.push("reservation"); return true; });
+    const target = new SessionViewportController({
+      enabled: true,
+      editor: editor({
+        activateKeybindings: () => { order.push("activate"); },
+        matchesTerminalKey: (data, key) => { order.push("match"); return data === "\u0016" && key === "ctrl+v"; },
+        pasteClipboard,
+      }),
+      requestRender() {},
+      pasteDiagnostics: event => phases.push({ request: event.request, phase: event.phase }),
+    });
+    try {
+      expect(target.handlePreInput("\u0016")).toEqual({ data: "", consumed: true });
+      expect(order).toEqual(["activate", "match", "reservation"]);
+      expect(pasteClipboard).toHaveBeenCalledOnce();
+      expect(phases.map(event => event.phase)).toEqual(["shortcut-received", "shortcut-matched", "shortcut-admitted"]);
+      expect(new Set(phases.map(event => event.request)).size).toBe(1);
+
+      frame(target, 30);
+      target.setEditorPointerFrame({ rowStart: 4, rowEnd: 5 });
+      target.handlePreInput("\u001b[<2;8;4M\u001b[<2;8;4m");
+      expect(pasteClipboard).toHaveBeenCalledTimes(2);
+      expect(phases.at(-1)?.phase).toBe("pointer-admitted");
+      expect(JSON.stringify(phases)).not.toMatch(/clipboard|payload|content|path|image/iu);
+    } finally { target.clearPointerState(); }
+  });
+
+  it("records an unmatched standard paste byte without consuming or admitting it", () => {
+    const phases: string[] = [];
+    const pasteClipboard = vi.fn(() => true);
+    const target = new SessionViewportController({
+      enabled: true,
+      editor: editor({ matchesTerminalKey: () => false, pasteClipboard }),
+      requestRender() {},
+      pasteDiagnostics: event => phases.push(event.phase),
+    });
+    expect(target.handlePreInput("\u0016")).toEqual({ data: "\u0016", consumed: false });
+    expect(phases).toEqual(["shortcut-received"]);
+    expect(pasteClipboard).not.toHaveBeenCalled();
+  });
+
   it.each(["replacement", "overlay"])("keeps transcript selection and wheel ownership with a %s open", kind => {
     const hiddenEditor = editor({ pasteClipboard: vi.fn(() => true), hasSelection: () => true, activateKeybindings: vi.fn() });
     const received: string[] = [];
