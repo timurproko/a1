@@ -60,3 +60,31 @@ Immediately before removal, cleanup SHALL verify staged, unstaged, and all untra
 #### Scenario: Primary or executing worktree is presented
 - **WHEN** a registered path is the primary worktree or contains the cleanup process's current working directory
 - **THEN** cleanup SHALL refuse its removal regardless of merge state
+
+### Requirement: Cleanup is local, opt-in, bounded, and resumable
+The repository SHALL provide read-only preview, one explicit exact-candidate completed-delivery operation, and separately enabled local queue execution with both one-pass and watch modes. Invoking the exact-candidate operation SHALL authorize only its named candidate and SHALL NOT enable or scan the persistent queue. Delivery guidance SHALL use that operation for normal completed worktrees; low-level registration/release and queue/watch modes SHALL remain available for diagnostics, pending legacy delivery, and separately authorized background reconciliation.
+
+While watch mode is running, it SHALL retry pending archive/ref/cleanliness conditions on bounded intervals without another deletion prompt for already released eligible candidates. If it is stopped or the machine is offline, the next enabled queue invocation SHALL resume evaluation; cleanup SHALL NOT promise immediate execution while no local process is running. Disabling the queue SHALL prevent `once`/`watch` deletion without revoking a later explicit exact-candidate `complete` invocation.
+
+Each operation SHALL bound candidate count, remote requests, subprocess duration, and elapsed time, report incomplete coverage, and resume fairly without starving later queue candidates. Stopping or disabling the queue SHALL prevent further queue deletions without altering retained worktrees. No automatic OS-service installation, remote execution on the developer machine, or product UI startup hook SHALL be required.
+
+#### Scenario: Archive merges after the delivery session ends
+- **WHEN** a released candidate's archive merges while the separately enabled local watcher is running
+- **THEN** a later bounded pass SHALL reevaluate and remove it once all gates pass
+
+#### Scenario: Machine was offline at merge time
+- **WHEN** a new enabled queue pass runs after connectivity returns
+- **THEN** it SHALL reverify remote evidence before resuming eligible cleanup
+
+#### Scenario: Scan budget is exhausted
+- **WHEN** a queue pass cannot evaluate all registrations within its limits
+- **THEN** it SHALL report deferred coverage and resume remaining candidates on a later pass
+
+#### Scenario: Preview or disabled mode
+- **WHEN** preview runs or queue cleanup is disabled
+- **THEN** preview SHALL NOT change any worktree, branch, remote-tracking ref, ownership record, or retry checkpoint and `once`/`watch` SHALL NOT delete while disabled
+
+#### Scenario: Exact candidate is explicitly completed while the queue is disabled
+- **WHEN** the owner invokes `complete` for one exact candidate while persistent queue/watch cleanup is disabled
+- **THEN** cleanup SHALL evaluate only that candidate under the ordinary evidence, identity, content, and journal safeguards
+- **AND** SHALL leave queue enablement and unrelated registrations unchanged

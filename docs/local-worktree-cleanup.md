@@ -4,6 +4,24 @@ Local cleanup completes the delivery order in [the archive runbook](openspec-arc
 
 The implementation is repository tooling, not part of the installed A1 product. It requires Node, Git, and GitHub read access. No product build, dependency installation, interactive UI, or OS-service provisioning is needed. It supports this repository's `origin` on github.com, via HTTPS or SSH.
 
+## Standard completed-delivery command
+
+After authorized merge, accepted/archive verification, and remote topic-ref removal, the owning agent runs one command from the primary checkout:
+
+```bash
+node scripts/governance/local-worktree-cleanup.mjs complete \
+  --repo D:/Git/a1 \
+  --path D:/Git/a1/.worktrees/example-task \
+  --change example-change \
+  --pr 123
+```
+
+`complete` is explicit cleanup authorization for that exact candidate. It creates and releases an exact registration when needed, applies the repository-owned generated-path policy, verifies live merge/archive/CI/ref evidence, evaluates only that candidate, uses journaled non-force Git removal, deletes only the unchanged local topic ref, and leaves persistent watcher authority unchanged. Repeating it reports the completed candidate as already absent. Existing conflicting ownership, identity drift, unavailable evidence, or unknown content remains blocking.
+
+The central disposable policy is `node_modules`, `dist`, `.builds`, and `.artifacts/openspec-archive`. Each encountered path must be ignored and stay inside the exact worktree with no link, special file, or nested repository boundary. Tracked/staged/unstaged/untracked content and every unknown ignored path still block. A tracked regular `.gitmodules` file alone is ordinary content; actual nested `.git` metadata, gitlinks, configured submodules, and submodule changes block.
+
+Agents do not manually remove generated content, call `git worktree remove`, or delete the local branch after delivery. The JSON result is authoritative: report success only for `removed` or verified `already-absent`; otherwise retain the worktree and report the exact blocker. Legacy roles can supply separate `--source-pr`, `--candidate-pr`, and `--role` values.
+
 ## Preview first
 
 From a checkout containing the reviewed tooling:
@@ -17,9 +35,9 @@ node scripts/governance/local-worktree-cleanup.mjs status --repo D:/Git/a1
 
 Remote reads use `GH_TOKEN`/`GITHUB_TOKEN`, otherwise existing `gh auth token --hostname github.com` authentication. Do not put tokens in command arguments, source files, reports, or PR comments. Missing/expired private-repository authentication blocks evidence checks.
 
-## Explicit local enablement
+## Explicit queue/watch enablement
 
-Only after the maintainer authorizes activation, use the reviewed tool in the primary/stable checkout outside `.worktrees/`:
+The exact-candidate `complete` command does not enable or scan the persistent queue. Only after the maintainer separately authorizes queue/watch activation, use the reviewed tool in the primary/stable checkout outside `.worktrees/`:
 
 ```bash
 node scripts/governance/local-worktree-cleanup.mjs enable --repo D:/Git/a1
@@ -60,7 +78,7 @@ Registration binds the repository, exact directory/filesystem identity, candidat
 
 A CI/base/older-ancestor checkout does not qualify automatically. Version 3 has no local acceptance/archive checkout to register. No local archive checkout is required when a legacy archive was generated entirely on GitHub. Legacy version-1/version-2 linkage remains supported, but individually reviewing and registering a legacy checkout is explicit adoption, not a bulk sweep.
 
-The disposable ignored-path allowlist defaults to **empty**. Only append flags such as `--disposable node_modules --disposable dist` when those exact generated directories may be discarded. This is not permission to discard tracked, staged, or untracked changes. Unknown ignored data, nested repositories/submodules, links, and special files remain blockers. Declaring a generated directory does not bypass safety or traversal bounds.
+Low-level `register` keeps an explicit disposable allowlist for legacy and diagnostic use. The standard `complete` command supplies the central repository policy automatically; agents do not choose flags for normal completed-delivery cleanup. Neither route permits discarding tracked, staged, unstaged, untracked, unknown ignored, linked, special, or actual nested repository/submodule content. Declaring or centrally recognizing a generated directory does not bypass ignored-path, identity, type, or traversal checks.
 
 Before handing a completed checkout to cleanup, stop its development processes, leave its directory, and release it using the returned ID and current generation:
 
@@ -70,7 +88,7 @@ node scripts/governance/local-worktree-cleanup.mjs release --repo D:/Git/a1 --id
 
 Release verifies ownership and the original directory, records the owner's current final HEAD/ref, and returns a new generation. It does not declare acceptance or archival. For version 3 the worker verifies the exact authorized human manual source merge, required CI, conditional manifest, synchronized specs/archive on current `develop`, and absence of the source topic ref. For legacy versions it still verifies the exact comment or human-manually-merged acceptance receipt, generated archive marker/merge/CI, archive contents, and all applicable topic refs. A bot/automatic/merge-queue acceptance, stale record, missing required CI, unmatched archive, or open/closed-unmerged PR blocks cleanup.
 
-After release, request a pass from the stable checkout if cleanup is enabled. A running watcher will also pick it up. Never release another session's worktree or use a clean status/dead PID as a substitute for ownership.
+After a low-level release, request a pass from the stable checkout if queue cleanup is enabled. A running watcher will also pick it up. Normal completed delivery instead uses `complete`. Never release another session's worktree or use a clean status/dead PID as a substitute for ownership.
 
 ## Resume or recover ownership
 

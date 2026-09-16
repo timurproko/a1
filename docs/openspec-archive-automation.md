@@ -212,7 +212,7 @@ After version-3 merge, verify:
 - the declared archive, conditional manifest, and synchronized specs match their digests; and
 - the unchanged remote topic ref is absent.
 
-Only then may the owning agent remove its clean local worktree or explicitly release it to the opt-in [local cleanup worker](local-worktree-cleanup.md). Registration, ownership token/generation, release, clean-tree, candidate identity, and disposable-path safeguards remain unchanged. Version 3 registers the implementation PR as both source and candidate; it does not wait for nonexistent acceptance/archive PRs.
+Only then shall the owning agent invoke the exact-candidate `complete` operation documented in [local cleanup](local-worktree-cleanup.md) from the primary checkout. The command owns registration/release, repository-generated disposables, one bounded evidence pass, non-force worktree removal, and unchanged local-ref cleanup; agents do not manually delete generated content, worktrees, or branches. Version 3 uses the implementation PR as both source and candidate and does not wait for nonexistent acceptance/archive PRs.
 
 Closing an unmerged PR does not authorize local or remote deletion. Remote cleanup deletes only the exact unchanged same-repository unprotected topic ref and never touches local worktrees.
 

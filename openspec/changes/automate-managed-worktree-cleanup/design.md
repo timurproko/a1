@@ -23,7 +23,7 @@ See `proposal.md` for motivation. The current cleanup engine already has strong 
 
 Extend the repository cleanup CLI with a `complete` operation accepting `--repo`, `--path`, `--change`, and `--pr` (with source/candidate overrides retained for legacy roles). For an unregistered exact path, the command creates an owned registration with an internal per-invocation token, applies central disposable defaults, immediately releases it after leaving the target directory, and runs one reconciliation filtered to that registration. Existing compatible released/completed registrations are reused idempotently; conflicting ownership or identity remains blocking.
 
-The command itself is explicit local cleanup authorization for that exact candidate. It does not persist broad watcher authority, evaluate unrelated registrations, or require agents to call `enable`/`disable`. Under the hood it uses the same state lock and reconcile transaction so there is one removal implementation.
+The command itself is explicit local cleanup authorization for that exact candidate. It does not persist broad watcher authority, evaluate unrelated registrations, or require agents to call `enable`/`disable`; the disabled sentinel continues to govern queue/watch execution, while a later explicit `complete` invocation remains separately authorized. Under the hood it uses the same state lock and reconcile transaction so there is one removal implementation.
 
 Alternative considered: document the existing five commands more strongly. This was rejected because it still leaves token handling, disposable selection, state restoration, and error interpretation to every agent.
 
