@@ -407,7 +407,14 @@ describe("prompt-style compaction in the real engine and shell", () => {
     } finally { await shell.dispose(); }
   });
 
-  it.each(["hidden", "always", "auto"] as const)("keeps prominent timestamps source-grey and baseline quiet/hover styling with a %s scrollbar", async appearance => {
+  it.each(["hidden", "always", "auto"] as const)("keeps timestamps metadata-grey across source, quiet, and hover states with a %s scrollbar", async appearance => {
+    const expectedScreen = new HeadlessXterm.Terminal({ cols: 1, rows: 1, allowProposedApi: true });
+    let expectedGreyStyle: readonly number[];
+    try {
+      await new Promise<void>(resolve => expectedScreen.write(`${piTheme().fg("dim", "x")}\u001b[0m`, resolve));
+      const cell = expectedScreen.buffer.active.getLine(0)!.getCell(0)!;
+      expectedGreyStyle = [cell.getFgColorMode(), cell.getFgColor(), cell.isDim(), cell.isBold()];
+    } finally { expectedScreen.dispose(); }
     const snapshots = [];
     for (const kind of ["compaction", "user"] as const) {
       const summary = compaction();
@@ -445,37 +452,75 @@ describe("prompt-style compaction in the real engine and shell", () => {
         const sourceTimeColumn = stripTerminalSequences(frames[0]![1]!).indexOf("14:35");
         expect(sourceTimeColumn).toBeGreaterThanOrEqual(0);
         const sourceTimeStyle = rendered[0]![1]![sourceTimeColumn]!.foreground!;
-        const sourceTimeColor = sourceTimeStyle.slice(0, 2);
-        // Compatibility: quiet and explicit hover retain baseline foreground and intensity.
-        for (const state of [2, 3, 4, 7]) {
-          for (let column = timeColumn; column < timeColumn + 5; column++) {
-            expect(rendered[state]![0]![column]!.foreground).toEqual(rendered[state]![0]![labelColumn]!.foreground);
-            expect(rendered[state]![0]![column]!.background).toEqual(rendered[state]![0]![labelColumn]!.background);
-          }
-        }
-        expect(rendered[3]![0]![labelColumn]!.foreground![2]).toBe(0);
-        expect(rendered[4]![0]![labelColumn]!.foreground![2]).not.toBe(0);
-        expect(rendered[6]).toEqual(rendered[1]);
-        expect(rendered[1]![0]![labelColumn]!.foreground!.slice(0, 2)).not.toEqual(sourceTimeColor);
-        expect(rendered[1]![0]![labelColumn]!.foreground![2]).toBe(0);
-        expect(rendered[2]![0]![labelColumn]!.foreground![2]).not.toBe(0);
-        for (const state of [1, 6, 8]) {
+        expect(sourceTimeStyle[2]).toBe(0);
+        expect(sourceTimeStyle[3]).toBe(0);
+        // Invariant: timestamp foreground and intensity stay on metadata grey in every state.
+        expect(sourceTimeStyle).toEqual(expectedGreyStyle);
+        expect(sourceTimeStyle.slice(0, 2)).not.toEqual(rendered[7]![0]![labelColumn]!.foreground!.slice(0, 2));
+        expect(rendered[5]![1]![sourceTimeColumn]!.foreground).toEqual(sourceTimeStyle);
+        for (const state of [1, 2, 3, 4, 6, 7, 8]) {
           for (let column = timeColumn; column < timeColumn + 5; column++) {
             expect(rendered[state]![0]![column]!.foreground).toEqual(sourceTimeStyle);
             expect(rendered[state]![0]![column]!.background).toEqual(rendered[state]![0]![labelColumn]!.background);
           }
         }
+        // Compatibility: prompt bodies still enter and leave quiet/hover presentation independently.
+        expect(rendered[3]![0]![labelColumn]!.foreground![2]).toBe(0);
+        expect(rendered[4]![0]![labelColumn]!.foreground![2]).not.toBe(0);
+        expect(rendered[6]).toEqual(rendered[1]);
+        expect(rendered[1]![0]![labelColumn]!.foreground![2]).toBe(0);
+        expect(rendered[2]![0]![labelColumn]!.foreground![2]).not.toBe(0);
         expect(rendered[8]).toEqual(rendered[1]);
-        // Compatibility: only timestamp glyphs change foreground on hover; the body retains its normal role.
         expect(rendered[7]![0]![labelColumn]!.foreground).toEqual(rendered[1]![0]![labelColumn]!.foreground);
-        expect(rendered[5]![1]![sourceTimeColumn]!.foreground).toEqual(sourceTimeStyle);
         snapshots.push(rendered);
       } finally { await shell.dispose(); }
     }
     expect(snapshots[0]).toEqual(snapshots[1]);
   });
 
-  it.each([undefined, null, Number.NaN, 8.64e15 + 1, time])("retains baseline quiet styling through resize and unavailable metadata (%s)", async timestamp => {
+  it("keeps selected source timestamp foreground and intensity while painting the selection background", async () => {
+    const { terminal, shell } = await fixture([user("Select the timestamp")], [], true);
+    try {
+      terminal.resize(80, 24);
+      const beforeFrame = shell.root.render(80);
+      const formatted = formatSubmittedPromptTime(time)!;
+      const rowIndex = beforeFrame.findIndex(row => stripTerminalSequences(row).includes(formatted));
+      expect(rowIndex).toBeGreaterThanOrEqual(0);
+      const timeColumn = stripTerminalSequences(beforeFrame[rowIndex]!).indexOf(formatted);
+      expect(timeColumn).toBeGreaterThanOrEqual(0);
+      const terminalRow = rowIndex + 1;
+      terminal.input(`\u001b[<0;${timeColumn + 1};${terminalRow}M`);
+      terminal.input(`\u001b[<32;${timeColumn + 5};${terminalRow}M`);
+      terminal.input(`\u001b[<0;${timeColumn + 5};${terminalRow}m`);
+      await nextImmediate();
+      const selectedRow = shell.root.render(80)[rowIndex]!;
+      const screen = new HeadlessXterm.Terminal({ cols: 80, rows: 3, allowProposedApi: true });
+      try {
+        await new Promise<void>(resolve => screen.write(
+          `${beforeFrame[rowIndex]}\u001b[0m\r\n${selectedRow}\u001b[0m\r\nsentinel`,
+          resolve,
+        ));
+        const before = screen.buffer.active.getLine(0)!;
+        const selected = screen.buffer.active.getLine(1)!;
+        for (let column = timeColumn; column < timeColumn + 5; column++) {
+          const beforeCell = before.getCell(column)!;
+          const selectedCell = selected.getCell(column)!;
+          expect([
+            selectedCell.getFgColorMode(), selectedCell.getFgColor(), selectedCell.isDim(), selectedCell.isBold(),
+          ]).toEqual([
+            beforeCell.getFgColorMode(), beforeCell.getFgColor(), beforeCell.isDim(), beforeCell.isBold(),
+          ]);
+          expect(selectedCell.getBgColor()).toBe(0x264f78);
+        }
+        const sentinel = screen.buffer.active.getLine(2)!.getCell(0)!;
+        expect(sentinel.getFgColor()).toBe(-1);
+        expect(sentinel.isDim()).toBe(0);
+        expect(sentinel.isBold()).toBe(0);
+      } finally { screen.dispose(); }
+    } finally { await shell.dispose(); }
+  });
+
+  it.each([undefined, null, Number.NaN, 8.64e15 + 1, time])("dims quiet bodies but keeps a fitting timestamp at normal intensity through resize and unavailable metadata (%s)", async timestamp => {
     for (const kind of ["user", "compaction"] as const) {
       const message = { ...(kind === "user" ? user("14:35 clock-like content") : compaction(281483, "Short summary.")), timestamp };
       const { adapter, terminal, shell } = await fixture([message, reply("tail")], [], true);
@@ -497,7 +542,7 @@ describe("prompt-style compaction in the real engine and shell", () => {
               const cell = line.getCell(column)!;
               if (!cell.getChars().trim()) continue;
               const isTimestamp = hasTimestamp && column >= width - 5;
-              expect(cell.isDim() !== 0, `${kind} width=${width} column=${column}`).toBe(true);
+              expect(cell.isDim() !== 0, `${kind} width=${width} column=${column}`).toBe(!isTimestamp);
               if (isTimestamp) expect(cell.isBold()).toBe(0);
               expect(cell.getBgColor()).toBe(line.getCell(0)!.getBgColor());
             }
@@ -548,7 +593,7 @@ describe("prompt-style compaction in the real engine and shell", () => {
     }
   });
 
-  it("replaces quiet timestamp metadata while dimming the whole row without leaking intensity", async () => {
+  it("replaces quiet timestamp metadata while dimming only the prompt body without leaking intensity", async () => {
     const later = { ...user("14:35 is content, not metadata"), timestamp: time + 60_000 };
     const { terminal, shell } = await fixture([compaction(281483, "Short summary."), reply("first"), later, reply("tail")], [], true);
     try {
@@ -569,7 +614,7 @@ describe("prompt-style compaction in the real engine and shell", () => {
           await new Promise<void>(resolve => screen.write(`${frame[0]}\r\nsentinel`, resolve));
           const row = screen.buffer.active.getLine(0)!;
           expect(row.translateToString().slice(74, 79)).toBe(expected);
-          for (let column = 74; column < 79; column++) expect(row.getCell(column)!.isDim()).not.toBe(0);
+          for (let column = 74; column < 79; column++) expect(row.getCell(column)!.isDim()).toBe(0);
           expect(row.getCell(2)!.isDim()).not.toBe(0);
           expect(row.getCell(73)!.isDim()).not.toBe(0);
           expect(screen.buffer.active.getLine(1)!.getCell(0)!.isDim()).toBe(0);
@@ -2403,7 +2448,7 @@ describe("OwnedUiSessionShell", () => {
     const detachedRaw = shell.root.render(60);
     const detached = detachedRaw.map(row => stripTerminalSequences(row));
     expect(detached).toHaveLength(12);
-    expect(detachedRaw[0]).toContain(piTheme().fg("userMessageText", "11:57"));
+    expect(detachedRaw[0]).toContain(piTheme().fg("dim", "11:57"));
     expect(detached.some(row => row.includes("Jump to bottom (Ctrl+End) ↓"))).toBe(true);
     expect(detached[0]).not.toContain("│");
     expect(detached.slice(1, -4).some(row => row.includes("│"))).toBe(true);
@@ -4560,6 +4605,50 @@ describe("OwnedUiSessionShell", () => {
     await shell.clearOrExit(1_200);
     await shell.dispose();
     expect(engine.calls).toContain("dispose");
+  });
+
+  it.each([
+    { route: "/quit", exit: (shell: OwnedUiSessionShell) => shell.submit("/quit") },
+    { route: "double Ctrl+C", exit: async (shell: OwnedUiSessionShell) => {
+      await shell.clearOrExit(1_000);
+      return shell.clearOrExit(1_200);
+    } },
+  ])("fully disposes the owned presentation after $route", async ({ exit }) => {
+    const { engine, shell, terminal } = await fixture([], [], true);
+    const appendWorkflowResult = vi.spyOn(shell.root, "appendWorkflowResult");
+    try {
+      await expect(exit(shell)).resolves.toEqual({ outcome: "completed", diagnostic: null });
+      await expect(shell.waitUntilStopped()).resolves.toBeUndefined();
+      expect(engine.calls).toContain("dispose");
+      expect(shell.runtime.active).toBe(false);
+      expect(terminal.active).toBe(false);
+      expect(appendWorkflowResult).not.toHaveBeenCalledWith(expect.objectContaining({ command: "quit" }));
+      expect(terminal.writes.join("")).toContain("\u001b[?1049l");
+    } finally { await shell.dispose(); }
+  });
+
+  it("coalesces overlapping quit requests through one complete shutdown", async () => {
+    const { engine, adapter, shell, terminal } = await fixture([], [], true);
+    let finishDispose!: () => void;
+    vi.spyOn(engine, "dispose").mockImplementation(() => new Promise<void>(resolve => { finishDispose = resolve; }));
+    const executeWorkflow = vi.spyOn(adapter, "executeWorkflow");
+    const first = shell.shutdown();
+    const second = shell.shutdown();
+    try {
+      await vi.waitFor(() => expect(finishDispose).toBeTypeOf("function"));
+      expect(executeWorkflow).toHaveBeenCalledTimes(1);
+      finishDispose();
+      await expect(Promise.all([first, second])).resolves.toEqual([
+        { outcome: "completed", diagnostic: null },
+        { outcome: "completed", diagnostic: null },
+      ]);
+      expect(shell.runtime.active).toBe(false);
+      expect(terminal.active).toBe(false);
+    } finally {
+      finishDispose?.();
+      await Promise.allSettled([first, second]);
+      await shell.dispose();
+    }
   });
 
   it("retains package identity in compact extension labels and uniquely identifies local entries", async () => {

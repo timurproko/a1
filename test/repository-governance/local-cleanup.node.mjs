@@ -11,22 +11,24 @@ import { promisify } from "node:util";
 import { atomicJson, createStateStore, registerEntry, transitionEntry, validateState, digest } from "../../scripts/governance/local-cleanup-state.mjs";
 import { canonical, captureWorktree, discoverRepository, inspectWorktree, exists, gitRunner, removeLocalRef, removeWorktree } from "../../scripts/governance/local-cleanup-git.mjs";
 import { reconcileLocalCleanup } from "../../scripts/governance/local-cleanup-reconcile.mjs";
+import { completeLocalCleanup, COMPLETION_DISPOSABLE_PATHS } from "../../scripts/governance/local-cleanup-complete.mjs";
 
 const owner = "fixture-owner-token-at-least-32-characters";
 function git(cwd, ...args) { return execFileSync("git", ["-C", cwd, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim(); }
-async function fixture(t, branch = false) {
+async function fixture(t, branch = false, registered = true) {
   const temporary = await canonical(await mkdtemp(join(tmpdir(), "local-cleanup-")));
   t.after(() => rm(temporary, { recursive: true, force: true }));
   const primary = join(temporary, "primary"); await mkdir(primary);
   git(primary, "init", "-b", "develop"); git(primary, "config", "core.autocrlf", "false"); git(primary, "config", "user.name", "Fixture"); git(primary, "config", "user.email", "fixture@example.invalid");
   await writeFile(join(primary, "tracked.txt"), "base\n");
-  await writeFile(join(primary, ".gitignore"), "node_modules/\nsecret.txt\n");
+  await mkdir(join(primary, "vendor")); await writeFile(join(primary, "vendor", ".gitmodules"), "");
+  await writeFile(join(primary, ".gitignore"), "node_modules/\nsecret.txt\n.artifacts/openspec-archive/\n.builds/\ndist/\n");
   git(primary, "add", "."); git(primary, "commit", "-m", "fixture"); git(primary, "remote", "add", "origin", "https://github.com/owner/repo.git");
   const path = join(primary, ".worktrees", "example");
   git(primary, "worktree", "add", ...(branch ? ["-b", "feature/example"] : ["--detach"]), path);
   const identity = await discoverRepository(primary), store = createStateStore(identity), snapshot = await captureWorktree(identity, path);
-  let entry;
-  await store.locked(async (state, save) => {
+  let entry = null;
+  if (registered) await store.locked(async (state, save) => {
     entry = registerEntry(state, { ...snapshot, change: "example", sourcePr: 20, candidatePr: 20, role: "implementation", disposable: [] }, owner);
     transitionEntry(entry, "release", owner, entry.generation); await save(state);
   });
@@ -34,7 +36,7 @@ async function fixture(t, branch = false) {
   const realGit = gitRunner();
   const boundedGit = async (cwd, args) => ["fetch", "merge-base"].includes(args[0]) ? "" : realGit(cwd, args);
   const pass = (options = {}) => reconcileLocalCleanup({ identity, store, reader: {}, cwd: primary, verify, git: boundedGit, ...options });
-  return { identity, store, entry, path, primary, temporary, pass, verify, boundedGit };
+  return { identity, store, entry, snapshot, path, primary, temporary, pass, verify, boundedGit };
 }
 
 test("registration rejects duplicate paths, malformed state and cross-repository identity", async t => {
@@ -80,6 +82,7 @@ test("CLI registration, ownership, recovery, preview and enable controls use the
   const invoke = (...args) => execFileSync(process.execPath, [cli, ...args, "--repo", f.primary], {
     cwd: f.primary, env: { ...process.env, LOCAL_CLEANUP_OWNER_TOKEN: owner, GH_TOKEN: "fixture-unused-token" }, encoding: "utf8",
   });
+  const help = invoke("--help"); assert.match(help, /complete/); assert.match(help, /\.artifacts\/openspec-archive/);
   const other = join(f.identity.root, "registered"); git(f.primary, "worktree", "add", "--detach", other);
   let record = JSON.parse(invoke("register", "--path", other, "--change", "example", "--source-pr", "20", "--candidate-pr", "20", "--role", "implementation", "--disposable", "node_modules"));
   assert.equal(record.state, "owned");
@@ -91,8 +94,65 @@ test("CLI registration, ownership, recovery, preview and enable controls use the
   record = JSON.parse(invoke("recover", "--id", record.id, "--generation", record.generation, "--confirm-stopped")); assert.equal(record.state, "owned");
   invoke("enable"); assert.equal(JSON.parse(invoke("status")).enabled, true);
   invoke("disable"); assert.equal(JSON.parse(invoke("status")).stopped, true);
+  assert.throws(() => invoke("complete", "--path", other, "--change", "example"), /completion-arguments/);
+  assert.throws(() => invoke("complete", "--path", other, "--change", "example", "--pr", "20", "--source-pr", "21"), /completion-arguments/);
   assert.equal(JSON.parse(invoke("watch")).error, "cleanup-disabled");
   assert.equal(invoke("status").includes(digest(owner)), false);
+});
+
+test("complete registers one exact candidate, applies central disposables, and is idempotent", async t => {
+  const f = await fixture(t, true, false);
+  const unrelatedPath = join(f.identity.root, "unrelated"); git(f.primary, "worktree", "add", "--detach", unrelatedPath);
+  const unrelatedSnapshot = await captureWorktree(f.identity, unrelatedPath);
+  await f.store.locked(async (state, save) => {
+    const unrelated = registerEntry(state, { ...unrelatedSnapshot, change: "unrelated", sourcePr: 21, candidatePr: 21,
+      role: "implementation", disposable: [] }, owner);
+    transitionEntry(unrelated, "release", owner, unrelated.generation); await save(state);
+  });
+  await mkdir(join(f.path, "node_modules")); await writeFile(join(f.path, "node_modules", "generated"), "fixture");
+  await mkdir(join(f.path, ".artifacts", "openspec-archive"), { recursive: true });
+  await writeFile(join(f.path, ".artifacts", "openspec-archive", "report.json"), "{}");
+  const options = { identity: f.identity, store: f.store, reader: {}, path: f.path, change: "example", sourcePr: 20,
+    cwd: f.primary, reconcileOptions: { verify: f.verify, git: f.boundedGit } };
+  const report = await completeLocalCleanup(options);
+  assert.equal(report.results.length, 1, JSON.stringify(report));
+  assert.equal(report.results[0].disposition, "removed", JSON.stringify(report));
+  assert.equal(JSON.stringify(report).includes(owner), false); assert.equal(JSON.stringify(report).includes("fixture"), false);
+  assert.equal(await exists(f.path), false); assert.equal(await exists(unrelatedPath), true);
+  const state = await f.store.read(), completed = state.entries.find(item => item.change === "example");
+  assert.deepEqual(completed.disposable, [...COMPLETION_DISPOSABLE_PATHS]);
+  assert.equal(completed.state, "done"); assert.equal(state.enabled, false);
+  const repeated = await completeLocalCleanup(options);
+  assert.equal(repeated.results.length, 1); assert.equal(repeated.results[0].disposition, "already-absent");
+});
+
+test("complete blocks unknown ignored content and conflicting ownership", async t => {
+  let f = await fixture(t, false, false); await writeFile(join(f.path, "secret.txt"), "preserve");
+  await mkdir(join(f.path, "node_modules-user")); await writeFile(join(f.path, "node_modules-user", "data"), "preserve-near-match");
+  const options = { identity: f.identity, store: f.store, reader: {}, path: f.path, change: "example", sourcePr: 20,
+    cwd: f.primary, reconcileOptions: { verify: f.verify, git: f.boundedGit } };
+  const blocked = await completeLocalCleanup(options);
+  assert.equal(blocked.results[0].reason, "worktree-content"); assert.equal(await readFile(join(f.path, "secret.txt"), "utf8"), "preserve");
+  assert.equal(await readFile(join(f.path, "node_modules-user", "data"), "utf8"), "preserve-near-match");
+  f = await fixture(t);
+  await f.store.locked(async (state, save) => { transitionEntry(state.entries[0], "claim", owner, state.entries[0].generation); await save(state); });
+  await assert.rejects(completeLocalCleanup({ identity: f.identity, store: f.store, reader: {}, path: f.path,
+    change: "example", sourcePr: 20, cwd: f.primary }), /owned-worktree/);
+  await assert.rejects(completeLocalCleanup({ ...options, identity: f.identity, store: f.store, path: f.path,
+    change: "different" }), /completion-registration-conflict/);
+});
+
+test("complete rejects primary, current, and cross-root candidates", async t => {
+  let f = await fixture(t, false, false);
+  await assert.rejects(completeLocalCleanup({ identity: f.identity, store: f.store, reader: {}, path: f.primary,
+    change: "example", sourcePr: 20, cwd: f.primary }), /worktree-path/);
+  const current = await completeLocalCleanup({ identity: f.identity, store: f.store, reader: {}, path: f.path,
+    change: "example", sourcePr: 20, cwd: f.path, reconcileOptions: { verify: f.verify, git: f.boundedGit } });
+  assert.equal(current.results[0].reason, "current-worktree"); assert.equal(await exists(f.path), true);
+  f = await fixture(t, false, false);
+  const outside = await canonical(await mkdtemp(join(tmpdir(), "outside-cleanup-"))); t.after(() => rm(outside, { recursive: true, force: true }));
+  await assert.rejects(completeLocalCleanup({ identity: f.identity, store: f.store, reader: {}, path: outside,
+    change: "example", sourcePr: 20, cwd: f.primary }), /worktree-path/);
 });
 
 test("another unavailable worktree's registration is never pruned", async t => {
@@ -197,6 +257,16 @@ test("generated ignored paths require explicit registration policy", async t => 
   assert.equal((await inspectWorktree(f.identity, { ...f.entry, disposable: ["node_modules"] }, { cwd: f.primary })).clean, true);
   await mkdir(join(f.path, "node_modules", ".git"));
   await assert.rejects(inspectWorktree(f.identity, { ...f.entry, disposable: ["node_modules"] }, { cwd: f.primary }), /nested-repository/);
+});
+
+test("tracked empty gitmodules is ordinary content while configured modules and gitlinks block", async t => {
+  const f = await fixture(t);
+  assert.equal((await inspectWorktree(f.identity, f.entry, { cwd: f.primary })).clean, true);
+  await writeFile(join(f.path, "vendor", ".gitmodules"), "[submodule \"nested\"]\n\tpath = nested\n\turl = https://example.invalid/nested.git\n");
+  await assert.rejects(inspectWorktree(f.identity, f.entry, { cwd: f.primary }), /nested-repository/);
+  git(f.path, "checkout", "--", "vendor/.gitmodules");
+  git(f.path, "update-index", "--add", "--cacheinfo", `160000,${f.snapshot.head},vendor/nested`);
+  await assert.rejects(inspectWorktree(f.identity, f.entry, { cwd: f.primary }), /nested-repository/);
 });
 
 test("locked, current, advanced and branch-rebound checkouts fail closed", async t => {

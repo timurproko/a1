@@ -498,6 +498,7 @@ jobs:
           const result = JSON.parse(await readFile(`.artifacts/validation/outcome-${process.env.GROUP}-${process.env.PLATFORM}-node${process.env.NODE_VERSION}-attempt-${process.env.GITHUB_RUN_ATTEMPT}.json`, "utf8"));
           const setup = Math.max(0, result.startedAt - Number(process.env.VALIDATION_JOB_STARTED_MS));
           console.log(`Setup: **${(setup / 1000).toFixed(2)}s**; gates: **${((result.completedAt - result.startedAt) / 1000).toFixed(2)}s**; invocations: **${result.outcomes.length}**.`);
+          for (const outcome of result.outcomes) console.log(`- ${outcome.scopes.join(", ")}: **${(outcome.durationMs / 1000).toFixed(2)}s** (${outcome.id})`);
           NODE
         env:
           GROUP: ${{ matrix.group }}
@@ -659,6 +660,18 @@ jobs:
           VALIDATION_IMPACT: .artifacts/validation/impact.json
           VALIDATION_OUTCOMES_DIR: .artifacts/validation/outcomes
         run: node scripts/release/require-modular-validation.mjs
+      - name: Report aggregate timing and cadence
+        if: needs.changes.outputs.acceptance-only != 'true' && needs.changes.outputs.docs-only != 'true' && needs.changes.outputs.version-only != 'true'
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE' >> "$GITHUB_STEP_SUMMARY"
+          import { readFile } from "node:fs/promises";
+          const report = JSON.parse(await readFile(".artifacts/validation/aggregate.json", "utf8"));
+          console.log(`Selected PR owners: **${report.selectedOwners.join(", ")}**.`);
+          console.log(`Deferred exhaustive owners: **${report.deferredOwners.join(", ") || "none"}**.`);
+          console.log(`Runner critical path: **${(report.criticalPathMs / 1000).toFixed(2)}s**; maximum scope: **${(report.maxScopeMs / 1000).toFixed(2)}s**; aggregate processing: **${(report.aggregateProcessingMs / 1000).toFixed(2)}s**.`);
+          console.log(`Targets: critical path **${report.targets.criticalPathMet ? "met" : "unmet"}** (≤8m); scope **${report.targets.scopeMet ? "met" : "unmet"}** (≤5m).`);
+          NODE
       - name: Upload aggregate evidence
         if: always() && needs.changes.outputs.acceptance-only != 'true' && needs.changes.outputs.docs-only != 'true' && needs.changes.outputs.version-only != 'true'
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6

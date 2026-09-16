@@ -36,7 +36,7 @@ const [
   { parseSessionSelection },
   { createConsoleProjectTrustPrompt },
   { createConsoleSessionForkPrompt },
-  { runOwnedUi },
+  { runOwnedUi, terminateOwnedUiProcess },
   { composeOwnedUi },
 ] = await modules;
 
@@ -63,7 +63,10 @@ Promise.resolve().then(() => {
     },
   });
 }).then(
-  code => { fatal?.remove(); process.exitCode = code; },
+  code => {
+    fatal?.remove();
+    return terminateOwnedUiProcess(code);
+  },
   error => {
     if (fatal && error?.name !== "PiSessionSelectionError") { fatal.fail(error); return; }
     fatal?.remove();

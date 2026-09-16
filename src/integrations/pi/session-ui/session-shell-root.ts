@@ -92,6 +92,7 @@ import {
 import {
   createPiShellTranscriptComponent,
   isPiPromptStyleCompaction,
+  paintPiSubmittedPromptTimestamp,
   renderPiShellPackageUpdateNotice,
   renderPiShellStartupDiagnostic,
   renderPiShellTranscriptBlock,
@@ -1454,7 +1455,7 @@ function withoutTerminalBackground(text: string): string {
   return text.replace(TERMINAL_BACKGROUND, "");
 }
 
-/** Preserve the established prompt foreground for quiet and hovered pinned timestamps. */
+/** Preserve the stable metadata-grey foreground for every pinned timestamp state. */
 function pinnedPromptSourceRow(
   block: OwnedUiSessionViewModel["transcript"][number],
   sourceRow: string,
@@ -1472,7 +1473,7 @@ function pinnedPromptSourceRow(
     sourceRow,
     rowWidth - timestampWidth,
     rowWidth,
-    piTheme().fg("userMessageText", timestamp),
+    paintPiSubmittedPromptTimestamp(timestamp),
   );
 }
 

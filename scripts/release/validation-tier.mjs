@@ -56,10 +56,13 @@ export async function createTierPlan(requested, repository = process.cwd(), opti
   function addCommand(command, owner) {
     const normalized = normalizeCommand(command);
     const existing = commandIds.get(normalized.id);
-    if (existing && JSON.stringify(existing.command) !== JSON.stringify(normalized)) throw new Error(`conflicting validation command id: ${normalized.id}`);
+    if (existing && JSON.stringify({ id: existing.id, executable: existing.executable, arguments: existing.arguments }) !== JSON.stringify(normalized)) {
+      throw new Error(`conflicting validation command id: ${normalized.id}`);
+    }
     if (!existing) {
-      commandIds.set(normalized.id, { command: normalized, owners: [owner] });
-      commands.push({ ...normalized, owners: [owner] });
+      const planned = { ...normalized, owners: [owner] };
+      commandIds.set(normalized.id, planned);
+      commands.push(planned);
     } else {
       existing.owners.push(owner);
     }
@@ -74,8 +77,8 @@ export async function createTierPlan(requested, repository = process.cwd(), opti
   const fast = definitions.find(({ definition }) => definition.kind === "vitest-remainder");
   const allResourceSensitiveTests = suites.scopes["fast-resource-sensitive"].tests;
   const resourceSensitiveTests = [
-    ...(atomic.includes("fast-resource-sensitive") ? allResourceSensitiveTests : []),
-    ...(atomic.includes("pr-selected-resource") ? additionalTests : []),
+    ...(atomic.includes("fast-resource-sensitive") ? allResourceSensitiveTests.map(test => ({ test, scope: "fast-resource-sensitive" })) : []),
+    ...(atomic.includes("pr-selected-resource") ? additionalTests.map(test => ({ test, scope: "pr-selected-resource" })) : []),
   ];
   // Invariant: sensitive selections get fresh serial invocations, never the generic explicit-file timeout.
   const explicitTests = definitions.filter(({ name }) => !["fast-resource-sensitive", "pr-selected-resource"].includes(name))
@@ -105,9 +108,10 @@ export async function createTierPlan(requested, repository = process.cwd(), opti
   const requestedPackageStartup = [...packageStartupTests].filter(path => selectedTestPaths.has(path));
   // Concurrency: each sensitive file gets a fresh serial Vitest process so prior Git, SQLite,
   // editor, and child-process workloads cannot consume another file's fixed five-second budget.
-  const resourceSensitiveInvocations = resourceSensitiveTests.map((test, index) => ({
+  const resourceSensitiveInvocations = resourceSensitiveTests.map(({ test, scope }, index) => ({
     id: `vitest-fast-resource-sensitive-${index + 1}`,
     arguments: ["vitest", "run", test, "--no-file-parallelism"],
+    scopes: [scope],
     evidence: {
       executionClass: "resource-sensitive",
       testFiles: [test],
@@ -118,27 +122,33 @@ export async function createTierPlan(requested, repository = process.cwd(), opti
       perFileTiming: "vitest-default-reporter",
     },
   }));
+  const explicitByScope = new Map();
+  for (const entry of regularExplicitTests) {
+    const tests = explicitByScope.get(entry.owner) ?? [];
+    tests.push(entry.test);
+    explicitByScope.set(entry.owner, tests);
+  }
   const regularInvocations = [
-    ...(fast ? [{ id: "vitest-fast", arguments: ["vitest", "run", fast.definition.includeRoot, ...[...fast.definition.exclude, ...allResourceSensitiveTests].flatMap(path => ["--exclude", path])] }] : []),
+    ...(fast ? [{ id: "vitest-fast", scopes: ["fast-remainder"], arguments: ["vitest", "run", fast.definition.includeRoot, ...[...fast.definition.exclude, ...allResourceSensitiveTests].flatMap(path => ["--exclude", path])] }] : []),
     ...resourceSensitiveInvocations,
-    ...boundedVitestInvocations("vitest-explicit", regularExplicitTests.map(entry => entry.test), ["--testTimeout=30000"]),
-    ...(requestedPerformance.length > 0 ? [{ id: "vitest-isolated-timing", arguments: ["vitest", "run", ...requestedPerformance, "--no-file-parallelism", "--testTimeout=120000"] }] : []),
-    ...requestedPackageSmoke.map((path, index) => ({ id: `vitest-package-smoke-${index + 1}`, arguments: ["vitest", "run", path, "--no-file-parallelism", "--testTimeout=120000"] })),
-    ...(requestedIsolated.length > 0 ? [{ id: "vitest-isolated-suites", arguments: ["vitest", "run", ...requestedIsolated, "--no-file-parallelism", "--testTimeout=600000"] }] : []),
-    ...(requestedPackageContracts.length > 0 ? [{ id: "vitest-package-contracts", arguments: ["vitest", "run", ...requestedPackageContracts, "--no-file-parallelism", "--testTimeout=600000"] }] : []),
-    ...(requestedPackageStartup.length > 0 ? [{ id: "vitest-package-startup", arguments: ["vitest", "run", ...requestedPackageStartup, "--no-file-parallelism", "--testTimeout=600000"] }] : []),
+    ...[...explicitByScope].flatMap(([scope, tests]) => boundedVitestInvocations(`vitest-explicit-${scope}`, tests, ["--testTimeout=30000"]).map(invocation => ({ ...invocation, scopes: [scope] }))),
+    ...(requestedPerformance.length > 0 ? [{ id: "vitest-isolated-timing", scopes: ["update-performance"], arguments: ["vitest", "run", ...requestedPerformance, "--no-file-parallelism", "--testTimeout=120000"] }] : []),
+    ...requestedPackageSmoke.map((path, index) => ({ id: `vitest-package-smoke-${index + 1}`, scopes: ["package-smoke"], arguments: ["vitest", "run", path, "--no-file-parallelism", "--testTimeout=120000"] })),
+    ...(requestedIsolated.length > 0 ? [{ id: "vitest-isolated-suites", scopes: selectedScopesForTests(explicitTests, requestedIsolated), arguments: ["vitest", "run", ...requestedIsolated, "--no-file-parallelism", "--testTimeout=600000"] }] : []),
+    ...(requestedPackageContracts.length > 0 ? [{ id: "vitest-package-contracts", scopes: ["package-contracts"], arguments: ["vitest", "run", ...requestedPackageContracts, "--no-file-parallelism", "--testTimeout=600000"] }] : []),
+    ...(requestedPackageStartup.length > 0 ? [{ id: "vitest-package-startup", scopes: ["package-startup"], arguments: ["vitest", "run", ...requestedPackageStartup, "--no-file-parallelism", "--testTimeout=600000"] }] : []),
   ];
   const vitest = full
     ? {
         mode: "full-deduplicated",
         invocations: [
-          { id: "vitest-full-without-isolated", arguments: ["vitest", "run", ...[...packageTests, ...independentlyTimedTests, ...resourceSensitiveTests].flatMap(path => ["--exclude", path]), "--testTimeout=30000"] },
+          { id: "vitest-full-without-isolated", scopes: atomic, arguments: ["vitest", "run", ...[...packageTests, ...independentlyTimedTests, ...resourceSensitiveTests.map(entry => entry.test)].flatMap(path => ["--exclude", path]), "--testTimeout=30000"] },
           ...resourceSensitiveInvocations,
-          { id: "vitest-isolated-timing", arguments: ["vitest", "run", ...performanceTests, "--no-file-parallelism", "--testTimeout=120000"] },
-          ...[...packageSmokeTests].map((path, index) => ({ id: `vitest-package-smoke-${index + 1}`, arguments: ["vitest", "run", path, "--no-file-parallelism", "--testTimeout=120000"] })),
-          { id: "vitest-isolated-suites", arguments: ["vitest", "run", ...isolatedTests, "--no-file-parallelism", "--testTimeout=600000"] },
-          { id: "vitest-package-contracts", arguments: ["vitest", "run", ...packageContractTests, "--no-file-parallelism", "--testTimeout=600000"] },
-          { id: "vitest-package-startup", arguments: ["vitest", "run", ...packageStartupTests, "--no-file-parallelism", "--testTimeout=600000"] },
+          { id: "vitest-isolated-timing", scopes: ["update-performance"], arguments: ["vitest", "run", ...performanceTests, "--no-file-parallelism", "--testTimeout=120000"] },
+          ...[...packageSmokeTests].map((path, index) => ({ id: `vitest-package-smoke-${index + 1}`, scopes: ["package-smoke"], arguments: ["vitest", "run", path, "--no-file-parallelism", "--testTimeout=120000"] })),
+          { id: "vitest-isolated-suites", scopes: ["rendering-stability"], arguments: ["vitest", "run", ...isolatedTests, "--no-file-parallelism", "--testTimeout=600000"] },
+          { id: "vitest-package-contracts", scopes: ["package-contracts"], arguments: ["vitest", "run", ...packageContractTests, "--no-file-parallelism", "--testTimeout=600000"] },
+          { id: "vitest-package-startup", scopes: ["package-startup"], arguments: ["vitest", "run", ...packageStartupTests, "--no-file-parallelism", "--testTimeout=600000"] },
         ],
       }
     : regularInvocations.length > 0
@@ -179,7 +189,7 @@ export async function runTierPlan(plan, options = {}) {
       try {
         await verifyBuild(buildReceiptPath, { repository });
         environment.VALIDATION_BUILD_RECEIPT = buildReceiptPath;
-        outcomes.push({ id: command.id, command: `${command.executable} ${command.arguments.join(" ")}`, exitCode: 0, durationMs: 0, skipped: "verified-existing-build" });
+        outcomes.push({ id: command.id, command: `${command.executable} ${command.arguments.join(" ")}`, exitCode: 0, durationMs: 0, scopes: command.owners, skipped: "verified-existing-build" });
         continue;
       } catch { rejectedReuse = true; }
     }
@@ -189,16 +199,17 @@ export async function runTierPlan(plan, options = {}) {
         const receipt = packageReceiptPath(candidate);
         await verifyPackage(receipt, candidate, { repository, buildReceipt: environment.VALIDATION_BUILD_RECEIPT, sourceIdentity: environment.VALIDATION_PACKAGE_SOURCE_IDENTITY });
         environment.VALIDATION_PACKAGE_RECEIPT = receipt;
-        outcomes.push({ id: command.id, command: `${command.executable} ${command.arguments.join(" ")}`, exitCode: 0, durationMs: 0, skipped: "verified-exact-package" });
+        outcomes.push({ id: command.id, command: `${command.executable} ${command.arguments.join(" ")}`, exitCode: 0, durationMs: 0, scopes: command.owners, skipped: "verified-exact-package" });
         continue;
       } catch { rejectedReuse = true; }
     }
     if (command.id === "code-documentation-full" && environment.VALIDATION_DOCUMENTATION_FULL_READY === "1") {
-      outcomes.push({ id: command.id, command: `${command.executable} ${command.arguments.join(" ")}`, exitCode: 0, durationMs: 0, skipped: "existing-full-documentation-review" });
+      outcomes.push({ id: command.id, command: `${command.executable} ${command.arguments.join(" ")}`, exitCode: 0, durationMs: 0, scopes: command.owners, skipped: "existing-full-documentation-review" });
       continue;
     }
     const executed = await executeCommand(command, environment, options.stdio ?? "inherit");
-    const outcome = rejectedReuse ? { ...executed, preparation: "receipt-missing-or-incompatible" } : executed;
+    const timed = { ...executed, scopes: command.owners };
+    const outcome = rejectedReuse ? { ...timed, preparation: "receipt-missing-or-incompatible" } : timed;
     outcomes.push(outcome);
     if (outcome.exitCode !== 0) return finish(false);
     if (command.id === "candidate-build") {
@@ -215,7 +226,8 @@ export async function runTierPlan(plan, options = {}) {
   if (plan.vitest) {
     for (const invocation of plan.vitest.invocations) {
       const executed = await executeCommand({ id: invocation.id, executable: "npx", arguments: invocation.arguments }, environment, options.stdio ?? "inherit");
-      const outcome = invocation.evidence ? { ...executed, evidence: invocation.evidence } : executed;
+      const timed = { ...executed, scopes: invocation.scopes };
+      const outcome = invocation.evidence ? { ...timed, evidence: invocation.evidence } : timed;
       outcomes.push(outcome);
       if (outcome.exitCode !== 0) return finish(false);
     }
@@ -290,6 +302,11 @@ async function validateValidationSuites(suites, repository) {
       throw new Error(`resource-sensitive test does not exist: ${test}`);
     }
   }
+}
+
+function selectedScopesForTests(entries, tests) {
+  const selected = new Set(tests);
+  return [...new Set(entries.filter(entry => selected.has(entry.test)).map(entry => entry.owner))];
 }
 
 function boundedVitestInvocations(id, tests, suffix, maximumCharacters = maximumPortableCommandCharacters) {

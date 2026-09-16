@@ -31,7 +31,7 @@ function selection(path: string) {
   const head = "b".repeat(40);
   const changes = [{ status: "M", path }];
   const integration = createIntegrationSelection({ base, head, mode: "conservative", ownership: {
-    schema: "a1-integration-ownership-v1", owners: [{ id: "fixture", scopes: ["fixture"], targets: [{ platform: "win32", architecture: "x64", node: 24 }], development: true }],
+    schema: "a1-integration-ownership-v2", owners: [{ id: "fixture", cadence: "pull-request", scopes: ["fixture"], targets: [{ platform: "win32", architecture: "x64", node: 24 }] }],
   } });
   const prCore = {
     schema: "a1-pr-core-selection-v1", mode: "conservative", exemption: null,

@@ -28,7 +28,7 @@ context: |
   Completion:
   - For version 3, derive the post-merge state `Archived` only after its one PR is verified `MERGED`, current `develop` contains its archive and synchronized specs, the shared reader verifies authorized manual acceptance, and the remote topic ref is absent. Keep the merged PR body as the immutable accepted snapshot; do not edit it after merge. For legacy versions, retain worktrees until their applicable implementation, acceptance, and archive PRs integrate.
   - Never remove a worktree whose PR is open or unverifiable. Closed-unmerged worktree removal needs explicit approval and does not authorize remote branch deletion. Before removal, stop on staged, unstaged, or untracked content unless the user separately approves discarding those identified changes.
-  - Optional local cleanup follows `docs/local-worktree-cleanup.md`: register only owned exact worktrees, claim before reuse, explicitly release after stopping use, and let only a separately enabled worker reconcile verified integration and remote-ref absence. Never infer release, adopt unmanaged folders, force-discard files, or provision live cleanup from implementation approval.
+  - After verified integration and remote-ref absence, the owning agent must run the exact-candidate `local-worktree-cleanup.mjs complete` command from the primary checkout. That command owns registration/release, repository-generated disposables, one bounded evidence pass, non-force worktree removal, and unchanged local-ref cleanup. Never choose disposable paths, delete generated files/worktrees/branches ad hoc, infer cleanup from implementation approval, adopt another session's worktree, or bypass a reported blocker.
 
 operations:
   archive:

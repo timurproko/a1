@@ -6,9 +6,9 @@ Development validation computes one exact base/head selection with:
 npm run select:validation-impact -- --base <full-base-sha> --head <full-head-sha> --output .artifacts/validation/impact.json
 ```
 
-The versioned `config/validation-ownership.json` registry maps stable product and test path groups to a mandatory PR core, affected unit tests, resource-sensitive tests, and integration owners. The initial coarse owners are UI/rendering, launch/startup, release/package/update, Pi, native containment, image/history, governance, and shared product inputs. A changed retained test selects its owner; shared support selects every declared consumer; copies, renames, and deletions inspect both identities. Reasons and changed paths are recorded in `impact.json`.
+The versioned `config/validation-ownership.json` registry maps stable product and test path groups to a mandatory PR core, affected unit tests, resource-sensitive tests, and integration owners. The initial coarse owners are UI/rendering, launch/startup, release/package/update, Pi, native containment, image/history, governance, and shared product inputs. Each integration owner in `config/integration-owners.json` declares `pull-request` or `exhaustive` cadence. A changed pull-request test selects its owner; a changed exhaustive test selects focused deterministic contracts and records the exhaustive owner as cadence-deferred. Shared support selects every declared PR consumer and records affected exhaustive consumers; copies, renames, and deletions inspect both identities. Reasons and changed paths are recorded in `impact.json`.
 
-Unknown operational inputs, malformed policy, unavailable comparison history, workflow/selector/suite/aggregate changes, and manual Development dispatch select complete applicable coverage. Documentation-only and version-only changes retain explicit exemptions. Selection does not require whole-repository source parsing.
+Unknown operational inputs, unavailable comparison history, workflow/selector/suite/aggregate changes, and manual Development dispatch select every pull-request owner. Missing, malformed, or unknown cadence blocks instead of guessing. Documentation-only and version-only changes retain explicit exemptions. Selection does not require whole-repository source parsing.
 
 ## Commands and coverage levels
 
@@ -24,7 +24,7 @@ npm run test:release               # release gates; publication authority is unc
 
 `test:pr-core` is not a replacement for `test:fast`: CI combines it with directly changed and coarse-owner tests from the exact impact selection. Selected resource-sensitive tests run independently on an isolated Windows runner. Selected package, startup, rendering, Pi, compatibility, and platform owners also run independently after their actual prerequisites.
 
-Conservative Development, Full regression, nightly, preview, and stable release retain complete tests and declared Windows Node 22/24, Linux Node 24, and macOS Node 24 coverage. Preview and release continue to consume exact candidate bytes under their channel-specific contracts. The generated ownership ledger command is:
+Conservative Development retains every pull-request owner but does not schedule exhaustive owners. Full regression and nightly/stable release retain both cadence classes and declared Windows Node 22/24, Linux Node 24, and macOS Node 24 coverage. The real three-release `update-predecessor` exact-package oracle is exhaustive; deterministic predecessor command, fixture, materialization, warmup, package, and update contracts remain PR-eligible. Preview and release continue to consume exact candidate bytes under their channel-specific contracts. Use manual Full regression before merge when a risky release change needs real published-history evidence. The generated ownership ledger command is:
 
 ```bash
 node scripts/release/generate-validation-ownership-ledger.mjs --output .artifacts/validation/ownership-ledger.json
@@ -48,15 +48,15 @@ Npm download bytes may be reused with integrity checks and `--prefer-offline`, w
 
 Download these artifacts from the exact workflow run:
 
-- `development-validation-impact`: base/head, global selection identity, PR-core tests, integration decisions, exclusions, and bounded reasons.
-- `development-validation-outcome-<job>-<platform>-node<node>-attempt-<attempt>`: attempt-qualified outcome, content-free envelope, scope authority, gate durations, and applicable exact-artifact evidence.
-- `development-validation-aggregate-<head>-<run>-<attempt>`: selected owners, accepted/reused attempts, evidence count, critical path, runner time, setup/gate time, cache state, and invocation count.
+- `development-validation-impact`: base/head, global selection identity, PR-core tests, selected pull-request owners, cadence-deferred exhaustive owners, exclusions, and bounded reasons.
+- `development-validation-outcome-<job>-<platform>-node<node>-attempt-<attempt>`: attempt-qualified outcome, content-free envelope, per-scope authority and duration, and applicable exact-artifact evidence.
+- `development-validation-aggregate-<head>-<run>-<attempt>`: selected/deferred owners, accepted/reused attempts, evidence count, runner critical path, total runner time, aggregate processing, setup/gate/scope time, cache state, and invocation count. It reports the eight-minute critical-path and five-minute individual-scope targets as met or unmet; hosted queue delay is not test execution and remains separate.
 - startup/resume phase JSONL and performance JSON: first-attempt launch evidence and retained failed setup/readiness records.
 
 A finalized version-3 PR keeps its phase-free body unchanged. Its ordinary exact-head workflow runs selected product/governance lanes and `Finalized delivery validation` in parallel, then emits the stable protected `Development validation required` aggregate only when both authorities succeed. Green CI enables maintainer review and manual merge but does not claim human acceptance or merge automatically. No lifecycle body edit or second workflow run is required. Any implementation commit changes the head and reruns applicable validation; any body change reruns finalized-record validation and must continue to match the committed manifest. Legacy acceptance-record-only PRs retain their separate trusted `Acceptance record validation` route. Queue availability remains explicitly unavailable inside a runner and is calculated from the Actions API during final run analysis rather than guessed.
 
 ## Rollback
 
-To disable selective execution without reducing coverage, use manual Development dispatch or force conservative ownership selection. To disable prior-attempt reuse, require all accepted attempts to equal the aggregate attempt; this must not remove attempt-qualified artifacts or failure visibility. To disable prerequisite reuse, unset readiness/tarball variables and receipt paths so tier orchestration rebuilds and repacks.
+To disable selective execution without reducing PR coverage, use manual Development dispatch or force conservative ownership selection. To restore the historical predecessor oracle to every applicable PR, change its cadence from `exhaustive` to `pull-request`; do not delete it from Full/nightly/release. To disable prior-attempt reuse, require all accepted attempts to equal the aggregate attempt; this must not remove attempt-qualified artifacts or failure visibility. To disable prerequisite reuse, unset readiness/tarball variables and receipt paths so tier orchestration rebuilds and repacks.
 
 Rollback must retain every test, startup budget, zero automatic retry policy, platform/runtime lane, exact-package identity, resource isolation, complete fast/full/release compositions, and the single stable protected-branch aggregate.

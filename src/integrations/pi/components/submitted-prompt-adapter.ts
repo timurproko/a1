@@ -23,6 +23,13 @@ export function isPiPromptStyleCompaction(block: OwnedUiTranscriptBlock): boolea
     && (block.payload as Record<string, unknown>).role === "compactionSummary";
 }
 
+/** Keep prompt timestamps metadata-grey even inside hover and quiet whole-row wrappers. */
+export function paintPiSubmittedPromptTimestamp(text: string): string {
+  // Protocol: combine the intensity/foreground reset so quietSticky does not immediately
+  // reapply faint; the semantic foreground that follows remains theme-controlled.
+  return `\u001b[22;39m${piTheme().fg("dim", text)}`;
+}
+
 /** Pi owns Markdown and theme adaptation; the injected composer owns neutral row geometry. */
 export function createPiSubmittedPromptComponent(
   block: OwnedUiTranscriptBlock,
@@ -50,7 +57,7 @@ export function createPiSubmittedPromptComponent(
       ];
       return [...composer.compose(rows, width, timestamp, {
         prefix: text => piTheme().fg("muted", text),
-        timestamp: text => piTheme().fg("dim", text),
+        timestamp: paintPiSubmittedPromptTimestamp,
       })];
     },
     invalidate() {

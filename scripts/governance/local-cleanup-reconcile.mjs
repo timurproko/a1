@@ -30,17 +30,22 @@ async function reportFile(store, report, now) {
 /** One bounded pass, with no implicit activation, foreground CI wait, or remote writes. */
 export async function reconcileLocalCleanup({ identity, store, reader, preview = true, now = Date.now, deadline = now() + 60000,
   cancelled = () => false, git = gitRunner({ deadline, now }), verify = verifyCleanupEvidence, inspect = inspectWorktree,
-  remove = removeWorktree, removeRef = removeLocalRef, cwd = process.cwd() }) {
+  remove = removeWorktree, removeRef = removeLocalRef, cwd = process.cwd(), entryIds = null, requireEnabled = true,
+  includeUnmanaged = true }) {
   const report = { version: 1, preview, results: [], coverage: { total: 0, visited: 0, complete: false }, at: now() };
   async function run(state, save) {
     const fresh = await discoverRepository(identity.primary, git);
     if (JSON.stringify(fresh) !== JSON.stringify(identity)) fail("repository-changed");
-    const entries = state.entries.filter(entry => entry.state !== "done");
+    const selectedIds = entryIds === null ? null : new Set(entryIds);
+    if (selectedIds && (selectedIds.size !== entryIds.length || entryIds.some(id => typeof id !== "string"))) fail("candidate-selection");
+    const selected = entry => selectedIds === null || selectedIds.has(entry.id);
+    const entries = state.entries.filter(entry => entry.state !== "done" && selected(entry));
+    if (selectedIds && !state.entries.some(selected)) fail("candidate-selection");
     report.coverage.total = entries.length;
     const start = entries.length ? state.cursor % entries.length : 0;
     async function enabled() {
       if (cancelled()) fail("cancelled");
-      if (!state.enabled || await store.disabled()) fail("cleanup-disabled");
+      if (requireEnabled && (!state.enabled || await store.disabled())) fail("cleanup-disabled");
       if (now() >= deadline) fail("pass-deadline");
     }
     if (!preview) await enabled();
@@ -90,11 +95,11 @@ export async function reconcileLocalCleanup({ identity, store, reader, preview =
         row.reason = reason(error);
         row.disposition = entry.state === "deleting" ? "partial" : deferred(row.reason) ? "deferred" : "blocked";
       } finally {
-        if (!preview) { state.cursor = start + offset + 1; await save(state); }
+        if (!preview) { if (selectedIds === null) state.cursor = start + offset + 1; await save(state); }
       }
     }
     report.coverage.complete = report.coverage.visited === entries.length;
-    const completed = state.entries.filter(item => item.state === "done" && !report.results.some(row => row.id === item.id));
+    const completed = state.entries.filter(item => item.state === "done" && selected(item) && !report.results.some(row => row.id === item.id));
     const completedBudget = Math.max(0, 100 - report.coverage.visited);
     for (const entry of completed.slice(0, completedBudget)) {
       if (now() >= deadline || cancelled()) { report.completedCoverage = "deferred"; break; }
@@ -109,7 +114,7 @@ export async function reconcileLocalCleanup({ identity, store, reader, preview =
       if (!report.results.some(existing => existing.id === entry.id)) report.results.push(row);
     }
     if (completed.length > completedBudget) report.completedCoverage = "truncated";
-    if (await exists(identity.root)) {
+    if (includeUnmanaged && await exists(identity.root)) {
       const registered = new Set(state.entries.map(entry => entry.path));
       const names = await readdir(identity.root, { withFileTypes: true });
       for (const name of names.slice(0, 100)) {

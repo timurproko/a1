@@ -39,8 +39,8 @@ async function fixtureRepository() {
   await put(repository, "src/leaf.ts", "export const leaf = 1;\n");
   await put(repository, "src/unrelated.ts", "export const unrelated = 1;\n");
   await put(repository, "test/fixture.test.ts", "export {};\n");
-  await put(repository, "config/integration-owners.json", JSON.stringify({ schema: "a1-integration-owner-registry-v1", owners: [{
-    id: "fixture", scopes: ["fixture"], targets: [{ platform: "win32", architecture: "x64", node: 24 }], development: true,
+  await put(repository, "config/integration-owners.json", JSON.stringify({ schema: "a1-integration-owner-registry-v2", owners: [{
+    id: "fixture", cadence: "pull-request", scopes: ["fixture"], targets: [{ platform: "win32", architecture: "x64", node: 24 }],
     entries: ["test/support/rendering/rendering-producer-worker.ts"], tests: [], support: [],
   }] }));
   await put(repository, "config/validation-suites.json", JSON.stringify({ schema: "a1-validation-suites-v1", tiers: {}, scopes: {
@@ -149,7 +149,7 @@ describe("development validation impact", () => {
     const bound = await selectValidationImpact({ repository, base, head, implementationBound: true });
     expect(bound.docsOnly).toBe(false);
     expect(bound.ordinaryScopes).toEqual(["typecheck", "architecture", "pr-core-tests"]);
-    expect(bound.integration.selection.owners.every(owner => owner.selected)).toBe(true);
+    expect(bound.integration.selection.owners.filter(owner => owner.cadence === "pull-request").every(owner => owner.selected)).toBe(true);
   });
 
   it("validates bounded selection evidence", async () => {

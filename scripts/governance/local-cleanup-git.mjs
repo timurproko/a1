@@ -81,6 +81,16 @@ export async function inspectWorktree(identity, entry, { git = gitRunner(), cwd 
   if (current === entry.path || inside(entry.path, current)) fail("current-worktree");
   const flags = await git(entry.path, ["ls-files", "-v", "-z"]);
   if (flags.split("\0").some(line => line && (line[0] === "S" || line[0] !== line[0].toUpperCase()))) fail("hidden-index-content");
+  const staged = await git(entry.path, ["ls-files", "--stage", "-z"]);
+  const indexRows = staged.split("\0").filter(Boolean);
+  if (indexRows.some(line => line.startsWith("160000 "))) fail("nested-repository");
+  for (const row of indexRows) {
+    const tab = row.indexOf("\t"); if (tab < 0) fail("git-index-format");
+    const path = row.slice(tab + 1);
+    if (path !== ".gitmodules" && !path.endsWith("/.gitmodules")) continue;
+    const modules = await readFile(join(entry.path, path), "utf8");
+    if (/^\s*\[submodule\s+"[^"]+"\]\s*$/mi.test(modules) || /^\s*path\s*=\s*\S+/mi.test(modules)) fail("nested-repository");
+  }
   const text = await git(entry.path, ["status", "--porcelain=v1", "-z", "--untracked-files=all", "--ignored", "--ignore-submodules=none"]);
   const tokens = text.split("\0"), blockers = [];
   for (let i = 0; i < tokens.length; i++) {
@@ -97,7 +107,7 @@ export async function inspectWorktree(identity, entry, { git = gitRunner(), cwd 
       if (now() >= deadline || ++visited > 20000) fail("content-inspection-budget");
       if (!prefix && item.name === ".git") continue;
       const path = prefix + item.name;
-      if (item.name === ".git" || item.name === ".gitmodules") fail("nested-repository");
+      if (item.name === ".git") fail("nested-repository");
       if (item.isSymbolicLink()) fail("content-link");
       if (item.isDirectory()) await walk(join(directory, item.name), `${path}/`);
       else if (!item.isFile()) fail("content-special-file");

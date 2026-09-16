@@ -27,7 +27,7 @@ import {
   isPiPromptStyleCompaction,
   type PiShellSubmittedPromptComposer,
 } from "./submitted-prompt-adapter.js";
-export { isPiPromptStyleCompaction, type PiShellSubmittedPromptComposer } from "./submitted-prompt-adapter.js";
+export { isPiPromptStyleCompaction, paintPiSubmittedPromptTimestamp, type PiShellSubmittedPromptComposer } from "./submitted-prompt-adapter.js";
 import {
   PINNED_PI_LAYOUT,
   piTheme,

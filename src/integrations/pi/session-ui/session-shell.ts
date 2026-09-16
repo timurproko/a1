@@ -146,6 +146,8 @@ export class OwnedUiSessionShell {
   #editorRevision = 0;
   #started = false;
   #disposed = false;
+  #shutdownPromise: Promise<AdapterCommandResult> | undefined;
+  #disposePromise: Promise<void> | undefined;
   #pointerReporting = false;
   readonly #customViewport: boolean;
   readonly #responseCopy: ResponseCopyCoordinator | null;
@@ -573,7 +575,7 @@ export class OwnedUiSessionShell {
         });
       }
       if (view.lifecycle === "ready" && this.#compactionQueue.length > 0) void this.#flushCompactionQueue();
-      if (event.type === "session-lifecycle" && event.lifecycle === "stopped") this.#resolveStopped?.();
+      if (event.type === "session-lifecycle" && event.lifecycle === "stopped") this.#settleStoppedLifecycle();
     });
     this.#unbindClipboardWriter = this.#responseCopy === null ? () => {} : this.backend.bindClipboardWriter(async text => {
       const result = await this.#responseCopy!.submitText(text);
@@ -1171,11 +1173,23 @@ export class OwnedUiSessionShell {
     this.runtime.requestRender();
   }
 
-  async shutdown(): Promise<AdapterCommandResult> {
-    return this.runWorkflow({ command: "quit", argument: "" });
+  shutdown(): Promise<AdapterCommandResult> {
+    this.#shutdownPromise ??= this.#shutdown();
+    return this.#shutdownPromise;
+  }
+
+  async #shutdown(): Promise<AdapterCommandResult> {
+    try {
+      const result = await this.backend.executeWorkflow({ command: "quit", argument: "" });
+      await this.dispose();
+      return workflowAdapterResult(result);
+    } finally {
+      this.#resolveStoppedLifecycle();
+    }
   }
 
   async runWorkflow(request: PiWorkflowRequest): Promise<AdapterCommandResult> {
+    if (request.command === "quit") return this.shutdown();
     const copyGeneration = request.command === "copy" ? this.backend.sessionBindingGeneration : undefined;
     if (request.command === "login" && request.selection !== undefined) {
       const setup = this.backend.pinnedAmbientAuthentication(request.selection);
@@ -1415,8 +1429,17 @@ export class OwnedUiSessionShell {
     this.runtime.writeControl(effective ? MOUSE_TRACKING_ON : MOUSE_TRACKING_OFF);
   }
 
-  async dispose(): Promise<void> {
-    if (this.#disposed) return;
+  dispose(): Promise<void> {
+    if (this.#disposePromise !== undefined) return this.#disposePromise;
+    if (this.#disposed) return Promise.resolve();
+    const pending = Promise.resolve().then(() => this.#dispose());
+    this.#disposePromise = pending;
+    const clear = () => { if (this.#disposePromise === pending) this.#disposePromise = undefined; };
+    void pending.then(clear, clear);
+    return pending;
+  }
+
+  async #dispose(): Promise<void> {
     this.#disposed = true;
     this.#responseCopy?.dispose();
     this.#cancelWaitingImages();
@@ -1456,6 +1479,19 @@ export class OwnedUiSessionShell {
     await boundedCleanup(() => this.backend.unbindExtensionUi()).catch(error => failures.push(error));
     if (failures.length > 0) throw new AggregateError(failures, "Owned UI disposal failed");
     if (fullscreenExitText.length > 0) this.runtime.writeAfterStop(`${fullscreenExitText}\n`);
+  }
+
+  #settleStoppedLifecycle(): void {
+    void this.dispose().then(
+      () => this.#resolveStoppedLifecycle(),
+      () => this.#resolveStoppedLifecycle(),
+    );
+  }
+
+  #resolveStoppedLifecycle(): void {
+    const resolve = this.#resolveStopped;
+    this.#resolveStopped = undefined;
+    resolve?.();
   }
 
   // Invariant: incremental block updates notify listeners with the same complete view contract.
