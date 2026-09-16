@@ -143,13 +143,13 @@ describe("update progress presentation", () => {
     [49.6, 50, 20],
     [100, 100, 40],
     [110, 100, 40],
-  ])("renders %s as a gray line with one space before the percentage", (input, percent, filled) => {
+  ])("renders %s with a teal completed run and one space before the percentage", (input, percent, filled) => {
     const frame = renderUpdateProgressBar(input);
     const bar = "━".repeat(filled) + "─".repeat(40 - filled);
 
     expect(stripVTControlCharacters(frame)).toBe(`${bar} ${percent}%`);
     expect(frame).toBe(
-      `\u001b[38;2;128;128;128m${"━".repeat(filled)}`
+      `\u001b[38;2;138;190;183m${"━".repeat(filled)}`
       + `\u001b[38;2;102;102;102m${"─".repeat(40 - filled)}`
       + `\u001b[38;2;128;128;128m ${percent}%\u001b[39m`,
     );
