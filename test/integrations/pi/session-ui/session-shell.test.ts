@@ -255,6 +255,14 @@ async function fixture(
 
 async function observedPasteFixture(clipboard: NonNullable<Parameters<typeof fixture>[4]>) {
   const trace = new NativeRegressionTrace("shell-paste");
+  const settlementWaiters: Array<(request: number) => void> = [];
+  const settledRequests: number[] = [];
+  const waitForPasteSettlement = () => {
+    const settled = settledRequests.shift();
+    return settled === undefined
+      ? new Promise<number>(resolve => settlementWaiters.push(resolve))
+      : Promise.resolve(settled);
+  };
   onTestFailed(() => trace.report());
   let value: Awaited<ReturnType<typeof fixture>> | undefined;
   let disposal: Promise<void> | undefined;
@@ -265,8 +273,13 @@ async function observedPasteFixture(clipboard: NonNullable<Parameters<typeof fix
   });
   value = await trace.measureAsync("setup", () => fixture([], [], true, undefined, clipboard,
     undefined, undefined, undefined, undefined, undefined, undefined,
-    event => trace.event(event.phase, { request: event.request, pending: event.pending })));
-  return { ...value, trace, dispose };
+    event => {
+      trace.event(event.phase, { request: event.request, pending: event.pending });
+      if (event.phase !== "settled") return;
+      const waiter = settlementWaiters.shift();
+      if (waiter) waiter(event.request); else settledRequests.push(event.request);
+    }));
+  return { ...value, trace, dispose, waitForPasteSettlement };
 }
 
 class InputImmediateScheduler {
@@ -3823,7 +3836,7 @@ describe("OwnedUiSessionShell", () => {
 
   it("keeps a focused atomic chip selected while repeated pastes insert before it", async () => {
     let clipboardText = "https://example.com/focused-chip";
-    const { terminal, shell } = await fixture([], [], true, undefined, {
+    const { terminal, shell, dispose, waitForPasteSettlement } = await observedPasteFixture({
       readText: async () => clipboardText,
       readImage: async () => null,
       writeText: async text => { clipboardText = text; },
@@ -3831,24 +3844,30 @@ describe("OwnedUiSessionShell", () => {
     terminal.resize(60, 12);
     shell.root.render(60);
 
+    const urlSettled = waitForPasteSettlement();
     terminal.input("\u0016");
-    await vi.waitFor(() => expect(shell.root.editor.getText()).toContain("[🔗 https://example.com/focused-chip]"));
+    await urlSettled;
+    expect(shell.root.editor.getText()).toContain("[🔗 https://example.com/focused-chip]");
     const chip = shell.root.editor.getText();
     terminal.input("\u001b[D");
 
     clipboardText = "first";
+    const firstSettled = waitForPasteSettlement();
     terminal.input("\u0016");
-    await vi.waitFor(() => expect(shell.root.editor.getText()).toBe(`first${chip}`));
+    await firstSettled;
+    expect(shell.root.editor.getText()).toBe(`first${chip}`);
     expect(shell.root.render(60).join("\n")).toContain("\u001b[7m");
 
     clipboardText = "second";
+    const secondSettled = waitForPasteSettlement();
     terminal.input("\u0016");
-    await vi.waitFor(() => expect(shell.root.editor.getText()).toBe(`firstsecond${chip}`));
+    await secondSettled;
+    expect(shell.root.editor.getText()).toBe(`firstsecond${chip}`);
     terminal.input("\u007f");
     await nextImmediate();
     expect(shell.root.editor.getText()).toBe("firstsecond");
 
-    await shell.dispose();
+    await dispose();
   });
 
   it("moves exactly one item left and exits a focused chip right in one press", async () => {

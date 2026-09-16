@@ -29,3 +29,14 @@ Tests for generators and evidence readers SHALL use temporary or versioned fixtu
 - **WHEN** audit shows a test's only oracle is an accepted change's static evidence or prose
 - **THEN** that assertion MAY be removed or replaced with a hermetic semantic test
 - **AND** current product assertions, retained suite ownership, release coverage, and the historical evidence itself SHALL remain intact
+
+#### Scenario: An isolated helper completes asynchronously
+- **WHEN** a regression assertion depends on an owned child process adopting a prepared value
+- **THEN** the fixture SHALL synchronize on the helper's structured completion event rather than use a generic polling deadline as completion authority
+- **AND** the semantic assertion, failure behavior, and production timeout policy SHALL remain unchanged
+
+#### Scenario: Resume behavior uses an exact package candidate
+- **WHEN** resume integration validates supervisor, guardian, and UI behavior from exact packed candidate bytes
+- **THEN** the fixture MAY prepare, certify, and activate those bytes through production release-store operations before starting the bounded public resume launch
+- **AND** separate exact-package and first-attempt startup scopes SHALL retain cold materialization and startup authority
+- **AND** the resume readiness timeout SHALL NOT be increased or retried

@@ -95,6 +95,14 @@ Before switching, record one current representative ordinary PR run and one cons
 
 The separate manual Full regression workflow is not an acceptance gate for an ordinary development PR. Complete post-merge coverage remains owned by nightly and release validation. Report the three-to-five-minute PR-core target as met or unmet. Do not create a separate benchmark PR or multi-run benchmark requirement, hide failed observations, relax product budgets, or block a correct structural simplification solely because hosted queue variance misses the target.
 
+### 7. Synchronize asynchronous fixtures at their actual contract boundaries
+
+Tests that exercise isolated paste helpers wait for the structured per-request `settled` lifecycle event before asserting the adopted editor value. They do not use a generic polling deadline as a proxy for child-process completion. The exact-package session-resume fixture prepares, certifies, and activates the candidate with the same production release-store operations before starting its public resume assertions. Its unchanged 30-second readiness bound therefore measures the selected release's supervisor, guardian, and UI path rather than also charging one-time package materialization, which remains covered by the separate exact-package and first-attempt startup scopes.
+
+Alternative: increase the paste polling or resume readiness timeout. Rejected because it would hide scheduling variance rather than synchronizing on the owned boundary.
+
+Alternative: rerun unchanged semantic failures until they pass. Rejected because first-attempt failures remain evidence and fixture correctness must not depend on retry.
+
 ## Risks / Trade-offs
 
 - **[Coarse ownership misses an indirect dependency]** -> Use broad stable groups, explicit shared inputs/invalidators, changed-test ownership, unknown-path conservative fallback, ownership completeness tests, and complete nightly/release coverage.
@@ -111,6 +119,8 @@ The separate manual Full regression workflow is not an acceptance gate for an or
 - **[Filesystem-heavy release cleanup competes with the parallel PR-core batch]** -> Classify its existing test file as resource-sensitive so it retains every assertion and timeout in a fresh serial invocation rather than increasing timeouts or retrying failures.
 - **[Validation-authority corrections leave secondary policy oracles stale]** -> Search all governance fixtures for affected membership and artifact identities, update every semantic oracle together, and run the complete repository-governance test directory serially before another hosted attempt.
 - **[An expected Acceptance-phase rejection looks like a broken Implementation test]** -> Skip trusted acceptance evaluation under a clearly non-acceptance identity during Implementation, publish a distinct non-protected successful implementation aggregate after product checks pass, and reserve both `Acceptance record validation` and the protected aggregate identity for Acceptance-phase or legacy acceptance-only candidates.
+- **[A cold paste helper leaves a provisional marker beyond a generic assertion poll]** -> Await its structured request settlement before asserting the adopted URL/text and preserve all semantic editor assertions unchanged.
+- **[One-time exact-package materialization consumes the resume UI readiness window]** -> Prepare and certify the exact candidate as fixture setup with production release-store operations, then retain the unchanged readiness bound for the public supervisor/guardian/UI resume path; first-attempt materialization and startup remain independently gated.
 
 ## Migration Plan
 
