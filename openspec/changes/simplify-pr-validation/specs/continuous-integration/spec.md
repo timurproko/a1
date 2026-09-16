@@ -108,6 +108,18 @@ The single protected-branch aggregate SHALL require the PR core and every scope 
 - **AND** a successful product aggregate SHALL use a distinct non-protected Implementation identity
 - **AND** neither the acceptance-validation identity nor the protected final aggregate identity SHALL be emitted until the same candidate declares the Acceptance phase
 
+#### Scenario: Exact-head implementation is promoted to Acceptance
+- **WHEN** the pull request changes only its declared phase from Implementation to Acceptance after `Implementation validation complete` succeeded for its unchanged exact head
+- **THEN** the Acceptance workflow SHALL skip change selection, product builds, product tests, rendering, naming, and changed-file documentation lanes
+- **AND** trusted acceptance policy SHALL validate the finalized delivery record
+- **AND** the protected aggregate SHALL require the prior successful Implementation workflow run for the same pull request and exact head
+- **AND** a missing, failed, stale, differently associated, or differently headed Implementation result SHALL block merge
+
+#### Scenario: Acceptance review rejects the implementation
+- **WHEN** manual Acceptance review finds a defect
+- **THEN** the pull request SHALL return to Implementation before code changes are pushed
+- **AND** the changed exact head SHALL run normal Implementation validation again before another Acceptance promotion
+
 #### Scenario: Complete validation is requested
 - **WHEN** conservative PR classification, Full regression, nightly, preview, or stable validation requests complete retained coverage
 - **THEN** every retained fast and applicable integration owner SHALL execute under its declared isolation and platform/runtime contract

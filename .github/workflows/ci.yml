@@ -24,6 +24,7 @@ jobs:
     timeout-minutes: 10
     outputs:
       acceptance-only: ${{ steps.route.outputs.acceptance_only || 'false' }}
+      acceptance-phase: "${{ github.event_name == 'pull_request' && startsWith(github.event.pull_request.body, '> Phase: Acceptance') && 'true' || 'false' }}"
       implementation-bound: ${{ steps.route.outputs.implementation_bound || 'true' }}
       docs-only: ${{ steps.selection.outputs.docs_only }}
       version-only: ${{ steps.selection.outputs.version_only }}
@@ -32,7 +33,7 @@ jobs:
       documentation-required: ${{ steps.selection.outputs.documentation_required }}
       naming-required: ${{ steps.selection.outputs.naming_required }}
       naming-mode: ${{ steps.selection.outputs.naming_mode }}
-      head-sha: ${{ steps.route.outputs.acceptance_only == 'true' && steps.route.outputs.head_sha || steps.selection.outputs.head_sha }}
+      head-sha: "${{ (steps.route.outputs.acceptance_only == 'true' || startsWith(github.event.pull_request.body, '> Phase: Acceptance')) && steps.route.outputs.head_sha || steps.selection.outputs.head_sha }}"
     steps:
       - name: Route exact acceptance candidate from trusted base
         id: route
@@ -61,7 +62,7 @@ jobs:
           fi
 
       - name: Check out head
-        if: steps.route.outputs.acceptance_only != 'true'
+        if: "steps.route.outputs.acceptance_only != 'true' && !startsWith(github.event.pull_request.body, '> Phase: Acceptance')"
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -69,19 +70,19 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        if: steps.route.outputs.acceptance_only != 'true'
+        if: "steps.route.outputs.acceptance_only != 'true' && !startsWith(github.event.pull_request.body, '> Phase: Acceptance')"
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: 24
           cache: npm
 
       - name: Install exact analysis dependencies
-        if: steps.route.outputs.acceptance_only != 'true'
+        if: "steps.route.outputs.acceptance_only != 'true' && !startsWith(github.event.pull_request.body, '> Phase: Acceptance')"
         run: npm ci --ignore-scripts
 
       - name: Select validation from the complete impact
         id: selection
-        if: steps.route.outputs.acceptance_only != 'true'
+        if: "steps.route.outputs.acceptance_only != 'true' && !startsWith(github.event.pull_request.body, '> Phase: Acceptance')"
         shell: bash
         env:
           EVENT_NAME: ${{ github.event_name }}
@@ -129,7 +130,7 @@ jobs:
           NODE
 
       - name: Upload exact impact selection
-        if: steps.route.outputs.acceptance_only != 'true'
+        if: "steps.route.outputs.acceptance_only != 'true' && !startsWith(github.event.pull_request.body, '> Phase: Acceptance')"
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: development-validation-impact
@@ -138,9 +139,9 @@ jobs:
           retention-days: 14
 
   acceptance:
-    name: "${{ (needs.changes.outputs.acceptance-only == 'true' || startsWith(github.event.pull_request.body, '> Phase: Acceptance')) && 'Acceptance record validation' || 'Acceptance validation not active' }}"
+    name: "${{ (needs.changes.outputs.acceptance-only == 'true' || needs.changes.outputs.acceptance-phase == 'true') && 'Acceptance record validation' || 'Acceptance validation not active' }}"
     needs: changes
-    if: "github.event_name == 'pull_request' && (needs.changes.outputs.acceptance-only == 'true' || startsWith(github.event.pull_request.body, '> Phase: Acceptance'))"
+    if: "github.event_name == 'pull_request' && (needs.changes.outputs.acceptance-only == 'true' || needs.changes.outputs.acceptance-phase == 'true')"
     permissions:
       contents: read
       pull-requests: read
@@ -194,7 +195,7 @@ jobs:
       pull-requests: read
       actions: read
     needs: changes
-    if: needs.changes.outputs.acceptance-only != 'true' && needs.changes.outputs.docs-only == 'true'
+    if: needs.changes.outputs.acceptance-only != 'true' && needs.changes.outputs.acceptance-phase != 'true' && needs.changes.outputs.docs-only == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -227,7 +228,7 @@ jobs:
   naming:
     name: Internal naming validation
     needs: changes
-    if: needs.changes.outputs.acceptance-only != 'true' && needs.changes.outputs.naming-required == 'true'
+    if: needs.changes.outputs.acceptance-only != 'true' && needs.changes.outputs.acceptance-phase != 'true' && needs.changes.outputs.naming-required == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     outputs:
@@ -275,7 +276,7 @@ jobs:
   documentation:
     name: Changed-file documentation validation
     needs: changes
-    if: needs.changes.outputs.acceptance-only != 'true' && needs.changes.outputs.docs-only != 'true' && needs.changes.outputs.version-only != 'true' && needs.changes.outputs.documentation-required == 'true'
+    if: needs.changes.outputs.acceptance-only != 'true' && needs.changes.outputs.acceptance-phase != 'true' && needs.changes.outputs.docs-only != 'true' && needs.changes.outputs.version-only != 'true' && needs.changes.outputs.documentation-required == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -320,7 +321,7 @@ jobs:
   modular:
     name: ${{ matrix.label }}
     needs: changes
-    if: needs.changes.outputs.acceptance-only != 'true' && needs.changes.outputs.docs-only != 'true' && needs.changes.outputs.version-only != 'true'
+    if: needs.changes.outputs.acceptance-only != 'true' && needs.changes.outputs.acceptance-phase != 'true' && needs.changes.outputs.docs-only != 'true' && needs.changes.outputs.version-only != 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -466,7 +467,7 @@ jobs:
   rendering:
     name: Rendering validation
     needs: changes
-    if: needs.changes.outputs.acceptance-only != 'true' && needs.changes.outputs.docs-only != 'true' && needs.changes.outputs.version-only != 'true' && needs.changes.outputs.rendering-tier != 'none'
+    if: needs.changes.outputs.acceptance-only != 'true' && needs.changes.outputs.acceptance-phase != 'true' && needs.changes.outputs.docs-only != 'true' && needs.changes.outputs.version-only != 'true' && needs.changes.outputs.rendering-tier != 'none'
     runs-on: windows-2025
     timeout-minutes: 20
     steps:
@@ -518,9 +519,13 @@ jobs:
           retention-days: 14
 
   required:
-    name: "${{ github.event_name == 'pull_request' && github.event.pull_request.draft && 'Draft validation intentionally skipped' || github.event_name == 'pull_request' && needs.changes.outputs.acceptance-only != 'true' && !startsWith(github.event.pull_request.body, '> Phase: Acceptance') && 'Implementation validation complete' || 'Development validation required' }}"
+    name: "${{ github.event_name == 'pull_request' && github.event.pull_request.draft && 'Draft validation intentionally skipped' || github.event_name == 'pull_request' && needs.changes.outputs.acceptance-only != 'true' && needs.changes.outputs.acceptance-phase != 'true' && 'Implementation validation complete' || 'Development validation required' }}"
     if: always() && (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
     needs: [changes, acceptance, docs, naming, documentation, modular, rendering]
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: read
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -530,7 +535,7 @@ jobs:
           ref: ${{ needs.changes.outputs.head-sha }}
           persist-credentials: false
       - name: Require acceptance policy for acceptance candidates
-        if: "github.event_name == 'pull_request' && (needs.changes.outputs.acceptance-only == 'true' || startsWith(github.event.pull_request.body, '> Phase: Acceptance'))"
+        if: "github.event_name == 'pull_request' && (needs.changes.outputs.acceptance-only == 'true' || needs.changes.outputs.acceptance-phase == 'true')"
         shell: bash
         env:
           ACCEPTANCE_RESULT: ${{ needs.acceptance.result }}
@@ -538,7 +543,9 @@ jobs:
       - name: Require current impact-selected validation
         env:
           ACCEPTANCE_ONLY: ${{ needs.changes.outputs.acceptance-only }}
+          ACCEPTANCE_PHASE: ${{ needs.changes.outputs.acceptance-phase }}
           ACCEPTANCE_CANDIDATE: ${{ needs.acceptance.outputs.acceptance-candidate }}
+          DELIVERY_CANDIDATE: ${{ needs.acceptance.outputs.delivery-candidate }}
           ACCEPTANCE_RESULT: ${{ needs.acceptance.result }}
           CHANGES_RESULT: ${{ needs.changes.result }}
           DOCS_RESULT: ${{ needs.docs.result }}
@@ -556,21 +563,29 @@ jobs:
           SELECTED_HEAD: ${{ needs.changes.outputs.head-sha }}
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: node scripts/release/require-development-validation.mjs
+      - name: Require prior exact-head Implementation validation
+        if: needs.changes.outputs.acceptance-phase == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IMPLEMENTATION_HEAD: ${{ needs.changes.outputs.head-sha }}
+          IMPLEMENTATION_PR_NUMBER: ${{ github.event.pull_request.number }}
+          CURRENT_RUN_ID: ${{ github.run_id }}
+        run: node scripts/release/require-development-validation.mjs --prior-implementation
       - name: Download exact impact selection
-        if: needs.changes.outputs.acceptance-only != 'true' && needs.changes.outputs.docs-only != 'true' && needs.changes.outputs.version-only != 'true'
+        if: needs.changes.outputs.acceptance-only != 'true' && needs.changes.outputs.acceptance-phase != 'true' && needs.changes.outputs.docs-only != 'true' && needs.changes.outputs.version-only != 'true'
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           name: development-validation-impact
           path: .artifacts/validation
       - name: Download all modular outcomes
-        if: needs.changes.outputs.acceptance-only != 'true' && needs.changes.outputs.docs-only != 'true' && needs.changes.outputs.version-only != 'true'
+        if: needs.changes.outputs.acceptance-only != 'true' && needs.changes.outputs.acceptance-phase != 'true' && needs.changes.outputs.docs-only != 'true' && needs.changes.outputs.version-only != 'true'
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           pattern: development-validation-outcome-*
           path: .artifacts/validation/outcomes
           merge-multiple: true
       - name: Require exact selected owner outcomes
-        if: needs.changes.outputs.acceptance-only != 'true' && needs.changes.outputs.docs-only != 'true' && needs.changes.outputs.version-only != 'true'
+        if: needs.changes.outputs.acceptance-only != 'true' && needs.changes.outputs.acceptance-phase != 'true' && needs.changes.outputs.docs-only != 'true' && needs.changes.outputs.version-only != 'true'
         env:
           VALIDATION_HEAD: ${{ needs.changes.outputs.head-sha }}
           VALIDATION_MODULAR_RESULT: ${{ needs.modular.result }}
@@ -578,7 +593,7 @@ jobs:
           VALIDATION_OUTCOMES_DIR: .artifacts/validation/outcomes
         run: node scripts/release/require-modular-validation.mjs
       - name: Upload aggregate evidence
-        if: always() && needs.changes.outputs.acceptance-only != 'true' && needs.changes.outputs.docs-only != 'true' && needs.changes.outputs.version-only != 'true'
+        if: always() && needs.changes.outputs.acceptance-only != 'true' && needs.changes.outputs.acceptance-phase != 'true' && needs.changes.outputs.docs-only != 'true' && needs.changes.outputs.version-only != 'true'
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: development-validation-aggregate-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}

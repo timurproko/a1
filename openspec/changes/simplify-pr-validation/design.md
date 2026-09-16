@@ -103,6 +103,16 @@ Alternative: increase the paste polling or resume readiness timeout. Rejected be
 
 Alternative: rerun unchanged semantic failures until they pass. Rejected because first-attempt failures remain evidence and fixture correctness must not depend on retry.
 
+### 8. Acceptance reuses exact-head Implementation authority instead of re-executing product tests
+
+Treat the phase-only edit from Implementation to Acceptance as a governance transition, not a new product candidate. The Acceptance route skips selection and every product, rendering, naming, and changed-file documentation lane. Trusted acceptance policy validates the finalized version-3 record, while the protected aggregate queries Actions evidence and requires one successful prior `Implementation validation complete` job from the reviewed Development workflow associated with the same PR and exact head. The current Acceptance run cannot satisfy its own prerequisite.
+
+Any commit changes the head and invalidates that evidence. A manual Acceptance rejection returns the PR to Implementation; fixes receive normal current-head product validation before promotion again.
+
+Alternative: rerun all product lanes after the phase-only body edit. Rejected because it spends another complete validation cycle on unchanged bytes and delays the intended manual review.
+
+Alternative: accept any successful run for the branch or commit. Rejected because PR association, workflow identity, exact head, completed success, and the Implementation aggregate identity are all required to prevent stale or unrelated evidence from satisfying the protected gate.
+
 ## Risks / Trade-offs
 
 - **[Coarse ownership misses an indirect dependency]** -> Use broad stable groups, explicit shared inputs/invalidators, changed-test ownership, unknown-path conservative fallback, ownership completeness tests, and complete nightly/release coverage.
@@ -121,6 +131,8 @@ Alternative: rerun unchanged semantic failures until they pass. Rejected because
 - **[An expected Acceptance-phase rejection looks like a broken Implementation test]** -> Skip trusted acceptance evaluation under a clearly non-acceptance identity during Implementation, publish a distinct non-protected successful implementation aggregate after product checks pass, and reserve both `Acceptance record validation` and the protected aggregate identity for Acceptance-phase or legacy acceptance-only candidates.
 - **[A cold paste helper leaves a provisional marker beyond a generic assertion poll]** -> Await its structured request settlement before asserting the adopted URL/text and preserve all semantic editor assertions unchanged.
 - **[One-time exact-package materialization consumes the resume UI readiness window]** -> Prepare and certify the exact candidate as fixture setup with production release-store operations, then retain the unchanged readiness bound for the public supervisor/guardian/UI resume path; first-attempt materialization and startup remain independently gated.
+- **[A phase-only Acceptance edit repeats unchanged product validation]** -> Route Acceptance directly to trusted record validation plus prior exact-head Implementation evidence, and skip every generic/product lane.
+- **[Prior green evidence belongs to another candidate]** -> Require the reviewed workflow, pull-request association, exact head, successful run, and unique `Implementation validation complete` job; fail closed on unavailable or contradictory Actions evidence.
 
 ## Migration Plan
 
