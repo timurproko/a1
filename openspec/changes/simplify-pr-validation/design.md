@@ -110,6 +110,7 @@ The separate manual Full regression workflow is not an acceptance gate for an or
 - **[A hermetic consumer fixture drifts behind the current validation-impact schema]** -> Build the fixture with the current versioned PR-core fields and computed selection identity so consumer tests exercise supported evidence rather than weakening parser validation.
 - **[Filesystem-heavy release cleanup competes with the parallel PR-core batch]** -> Classify its existing test file as resource-sensitive so it retains every assertion and timeout in a fresh serial invocation rather than increasing timeouts or retrying failures.
 - **[Validation-authority corrections leave secondary policy oracles stale]** -> Search all governance fixtures for affected membership and artifact identities, update every semantic oracle together, and run the complete repository-governance test directory serially before another hosted attempt.
+- **[An expected Acceptance-phase rejection looks like a broken Implementation test]** -> Skip trusted acceptance evaluation under a clearly non-acceptance identity during Implementation, publish a distinct non-protected successful implementation aggregate after product checks pass, and reserve both `Acceptance record validation` and the protected aggregate identity for Acceptance-phase or legacy acceptance-only candidates.
 
 ## Migration Plan
 

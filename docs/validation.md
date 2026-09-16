@@ -53,7 +53,7 @@ Download these artifacts from the exact workflow run:
 - `development-validation-aggregate-<head>-<run>-<attempt>`: selected owners, accepted/reused attempts, evidence count, critical path, runner time, setup/gate time, cache state, and invocation count.
 - startup/resume phase JSONL and performance JSON: first-attempt launch evidence and retained failed setup/readiness records.
 
-The stable `Development validation required` check rejects selected failures, cancellations, stale head/run/selection evidence, duplicate authority, missing outcomes, unexpected skips, and contradictory exact-artifact evidence. Queue availability remains explicitly unavailable inside a runner and is calculated from the Actions API during final run analysis rather than guessed.
+During `Phase: Implementation`, trusted acceptance evaluation is inactive and product aggregation uses the distinct non-protected `Implementation validation complete` identity. A green implementation identity means the exact-head product evidence is ready for phase promotion; it cannot satisfy branch protection. `Acceptance record validation` and the stable protected `Development validation required` identity appear only for `Phase: Acceptance` (or a trusted legacy acceptance-only route). The protected check rejects selected failures, cancellations, stale head/run/selection evidence, duplicate authority, missing outcomes, unexpected skips, and contradictory exact-artifact evidence. Queue availability remains explicitly unavailable inside a runner and is calculated from the Actions API during final run analysis rather than guessed.
 
 ## Rollback
 

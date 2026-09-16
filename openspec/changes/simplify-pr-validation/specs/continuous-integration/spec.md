@@ -102,6 +102,12 @@ The single protected-branch aggregate SHALL require the PR core and every scope 
 - **WHEN** a result belongs to another head, workflow run, or selection identity
 - **THEN** it SHALL NOT satisfy the current aggregate
 
+#### Scenario: Implementation candidate awaits acceptance promotion
+- **WHEN** a finalized implementation-bound pull request remains in the Implementation phase
+- **THEN** selected product validation SHALL run without presenting the intentionally unavailable Acceptance phase as a failed test
+- **AND** a successful product aggregate SHALL use a distinct non-protected Implementation identity
+- **AND** neither the acceptance-validation identity nor the protected final aggregate identity SHALL be emitted until the same candidate declares the Acceptance phase
+
 #### Scenario: Complete validation is requested
 - **WHEN** conservative PR classification, Full regression, nightly, preview, or stable validation requests complete retained coverage
 - **THEN** every retained fast and applicable integration owner SHALL execute under its declared isolation and platform/runtime contract

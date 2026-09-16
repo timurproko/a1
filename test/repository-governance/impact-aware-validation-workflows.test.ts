@@ -13,6 +13,7 @@ describe("impact-aware validation workflows", () => {
     expect(workflow.jobs.modular.strategy).not.toHaveProperty("max-parallel");
     expect(workflow.jobs.required.needs).toEqual(["changes", "acceptance", "docs", "naming", "documentation", "modular", "rendering"]);
     expect(workflow.jobs.required.name).toContain("Draft validation intentionally skipped");
+    expect(workflow.jobs.required.name).toContain("Implementation validation complete");
     expect(workflow.jobs.required.name).toContain("Development validation required");
   });
 
@@ -28,10 +29,17 @@ describe("impact-aware validation workflows", () => {
     for (const name of ["docs", "naming", "documentation", "modular", "rendering"]) {
       expect(workflow.jobs[name].if).toContain("needs.changes.outputs.acceptance-only != 'true'");
     }
+    expect(workflow.jobs.acceptance.name).toContain("Acceptance record validation");
+    expect(workflow.jobs.acceptance.name).toContain("Acceptance validation not active");
+    expect(workflow.jobs.acceptance.if).toContain("needs.changes.outputs.acceptance-only == 'true'");
+    expect(workflow.jobs.acceptance.if).toContain("startsWith(github.event.pull_request.body, '> Phase: Acceptance')");
     expect(workflow.jobs.acceptance.outputs["acceptance-candidate"])
       .toBe("${{ steps.validation.outputs.acceptance_candidate || 'false' }}");
     expect(workflow.jobs.acceptance.outputs["delivery-candidate"])
       .toBe("${{ steps.validation.outputs.delivery_candidate || 'false' }}");
+    const acceptanceGate = workflow.jobs.required.steps.find((step: { name: string }) => step.name === "Require acceptance policy for acceptance candidates");
+    expect(acceptanceGate.if).toContain("needs.changes.outputs.acceptance-only == 'true'");
+    expect(acceptanceGate.if).toContain("startsWith(github.event.pull_request.body, '> Phase: Acceptance')");
     const aggregate = workflow.jobs.required.steps.find((step: { name: string }) => step.name === "Require current impact-selected validation");
     expect(aggregate.env).toMatchObject({
       ACCEPTANCE_ONLY: "${{ needs.changes.outputs.acceptance-only }}",
@@ -97,7 +105,7 @@ describe("impact-aware validation workflows", () => {
     expect(workflow.on).toHaveProperty("workflow_dispatch");
     expect(workflow.jobs.changes.if).toBe("github.event_name != 'pull_request' || github.event.pull_request.draft == false");
     expect(workflow.jobs.required.if).toBe("always() && (github.event_name != 'pull_request' || github.event.pull_request.draft == false)");
-    expect(workflow.jobs.required.name).toBe("${{ github.event_name == 'pull_request' && github.event.pull_request.draft && 'Draft validation intentionally skipped' || 'Development validation required' }}");
+    expect(workflow.jobs.required.name).toBe("${{ github.event_name == 'pull_request' && github.event.pull_request.draft && 'Draft validation intentionally skipped' || github.event_name == 'pull_request' && needs.changes.outputs.acceptance-only != 'true' && !startsWith(github.event.pull_request.body, '> Phase: Acceptance') && 'Implementation validation complete' || 'Development validation required' }}");
     expect(source).toContain("manual_args=(--manual-no-comparison)");
     expect(source).toContain("implementation_args=(--implementation-bound)");
     expect(workflow.jobs.changes.outputs["implementation-bound"]).toContain("implementation_bound");

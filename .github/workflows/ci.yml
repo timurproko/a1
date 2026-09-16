@@ -138,9 +138,9 @@ jobs:
           retention-days: 14
 
   acceptance:
-    name: Acceptance record validation
+    name: "${{ (needs.changes.outputs.acceptance-only == 'true' || startsWith(github.event.pull_request.body, '> Phase: Acceptance')) && 'Acceptance record validation' || 'Acceptance validation not active' }}"
     needs: changes
-    if: github.event_name == 'pull_request'
+    if: "github.event_name == 'pull_request' && (needs.changes.outputs.acceptance-only == 'true' || startsWith(github.event.pull_request.body, '> Phase: Acceptance'))"
     permissions:
       contents: read
       pull-requests: read
@@ -518,7 +518,7 @@ jobs:
           retention-days: 14
 
   required:
-    name: ${{ github.event_name == 'pull_request' && github.event.pull_request.draft && 'Draft validation intentionally skipped' || 'Development validation required' }}
+    name: "${{ github.event_name == 'pull_request' && github.event.pull_request.draft && 'Draft validation intentionally skipped' || github.event_name == 'pull_request' && needs.changes.outputs.acceptance-only != 'true' && !startsWith(github.event.pull_request.body, '> Phase: Acceptance') && 'Implementation validation complete' || 'Development validation required' }}"
     if: always() && (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
     needs: [changes, acceptance, docs, naming, documentation, modular, rendering]
     runs-on: ubuntu-24.04
@@ -529,8 +529,8 @@ jobs:
         with:
           ref: ${{ needs.changes.outputs.head-sha }}
           persist-credentials: false
-      - name: Require acceptance policy for pull requests
-        if: github.event_name == 'pull_request'
+      - name: Require acceptance policy for acceptance candidates
+        if: "github.event_name == 'pull_request' && (needs.changes.outputs.acceptance-only == 'true' || startsWith(github.event.pull_request.body, '> Phase: Acceptance'))"
         shell: bash
         env:
           ACCEPTANCE_RESULT: ${{ needs.acceptance.result }}
