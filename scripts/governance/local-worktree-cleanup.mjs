@@ -9,12 +9,15 @@ import { cleanupReader } from "./local-cleanup-evidence.mjs";
 import { reconcileLocalCleanup } from "./local-cleanup-reconcile.mjs";
 import { watchLocalCleanup } from "./local-cleanup-watch.mjs";
 import { completeLocalCleanup, COMPLETION_DISPOSABLE_PATHS } from "./local-cleanup-complete.mjs";
+import { discardLocalCleanup } from "./local-cleanup-discard.mjs";
 
 const help = `Local worktree cleanup (disabled until explicitly enabled)
 Usage: node scripts/governance/local-worktree-cleanup.mjs COMMAND --repo PRIMARY [options]
-Commands: preview (default), status, complete, enable, disable, once, watch, register, claim, release, recover
+Commands: preview (default), status, complete, discard, enable, disable, once, watch, register, claim, release, recover
 Complete: --path PATH --change NAME --pr N [--role implementation|archive|acceptance]
   Runs one exact-candidate post-merge cleanup with repository-owned generated paths: ${COMPLETION_DISPOSABLE_PATHS.join(", ")}.
+Discard: --path PATH --change NAME --pr N --confirm-closed-unmerged
+  Deletes only one verified closed-unmerged PR's unchanged remote ref, worktree, and local ref.
 Registration: --path PATH --change NAME --source-pr N --candidate-pr N --role implementation|archive|acceptance
 Optional low-level registration: --disposable node_modules (repeat for each explicitly disposable generated path)
 Ownership: --id ID --generation GENERATION; LOCAL_CLEANUP_OWNER_TOKEN must contain at least 32 characters.
@@ -34,12 +37,12 @@ export async function main(args = process.argv.slice(2)) {
   const { values, positionals } = parseArgs({ args, allowPositionals: true, strict: true, options: {
     repo: { type: "string" }, path: { type: "string" }, change: { type: "string" }, pr: { type: "string" }, "source-pr": { type: "string" }, "candidate-pr": { type: "string" },
     role: { type: "string" }, disposable: { type: "string", multiple: true }, id: { type: "string" }, generation: { type: "string" },
-    "confirm-stopped": { type: "boolean" }, help: { type: "boolean" },
+    "confirm-stopped": { type: "boolean" }, "confirm-closed-unmerged": { type: "boolean" }, help: { type: "boolean" },
   } });
   if (values.help) { console.log(help); return; }
   if (positionals.length > 1) fail("command-count");
   const command = positionals[0] ?? "preview";
-  if (!["preview", "status", "complete", "enable", "disable", "once", "watch", "register", "claim", "release", "recover"].includes(command)) fail("unknown-command");
+  if (!["preview", "status", "complete", "discard", "enable", "disable", "once", "watch", "register", "claim", "release", "recover"].includes(command)) fail("unknown-command");
   const identity = await discoverRepository(values.repo ?? process.cwd());
   const store = createStateStore(identity);
   if (command === "status") { console.log(JSON.stringify({ ...summary(await store.read()), stopped: await store.disabled() }, null, 2)); return; }
@@ -50,6 +53,7 @@ export async function main(args = process.argv.slice(2)) {
       let entry;
       if (command === "register") {
         if (!values.path) fail("registration-path-required");
+        if (!["implementation", "archive", "acceptance"].includes(values.role)) fail("registration-role");
         const snapshot = await captureWorktree(identity, values.path);
         entry = registerEntry(state, { ...snapshot, change: values.change, sourcePr: Number(values["source-pr"]), candidatePr: Number(values["candidate-pr"]),
           role: values.role, disposable: values.disposable ?? [] }, owner);
@@ -71,7 +75,7 @@ export async function main(args = process.argv.slice(2)) {
     });
     return;
   }
-  if (["complete", "once", "watch"].includes(command) && inside(identity.root, await canonical(fileURLToPath(import.meta.url)))) fail("worker-code-inside-removable-root");
+  if (["complete", "discard", "once", "watch"].includes(command) && inside(identity.root, await canonical(fileURLToPath(import.meta.url)))) fail("worker-code-inside-removable-root");
   let nextAllowed = 0;
   async function authorizedReader(deadline) {
     let token = process.env.GH_TOKEN ?? process.env.GITHUB_TOKEN;
@@ -80,6 +84,18 @@ export async function main(args = process.argv.slice(2)) {
       catch { /* Security: private-repository evidence fails closed without authentication. */ }
     }
     return cleanupReader({ repository: identity.repository, token, deadline, onBackoff: time => { nextAllowed = Math.max(nextAllowed, time); } });
+  }
+  if (command === "discard") {
+    const sourcePr = Number(values.pr);
+    if (!values.path || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(values.change ?? "")
+      || !Number.isSafeInteger(sourcePr) || sourcePr < 1 || values["confirm-closed-unmerged"] !== true
+      || values["source-pr"] !== undefined || values["candidate-pr"] !== undefined || values.role !== undefined
+      || values.disposable !== undefined) fail("discard-arguments");
+    const deadline = Date.now() + 60000;
+    const report = await discardLocalCleanup({ identity, store, reader: await authorizedReader(deadline), path: values.path,
+      change: values.change, sourcePr, confirmed: true, cwd: process.cwd(), deadline });
+    console.log(JSON.stringify(report, null, 2));
+    return;
   }
   if (command === "complete") {
     const sourcePr = Number(values["source-pr"] ?? values.pr), candidatePr = Number(values["candidate-pr"] ?? values.pr ?? values["source-pr"]);

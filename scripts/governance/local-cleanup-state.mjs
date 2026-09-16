@@ -22,15 +22,16 @@ export function validateEntry(entry) {
   const keys = ["id", "path", "filesystem", "change", "sourcePr", "candidatePr", "role", "head", "ref", "disposable", "generation", "state", "ownerHash", "step"];
   if (!exact(entry, keys) || !uuid(entry.id) || !isAbsolute(entry.path) || typeof entry.filesystem !== "string"
     || !/^\d+:\d+:\d+(?:\.\d+)?$/.test(entry.filesystem) || typeof entry.change !== "string" || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(entry.change)
-    || !positive(entry.sourcePr) || !positive(entry.candidatePr) || !["implementation", "archive", "acceptance"].includes(entry.role)
+    || !positive(entry.sourcePr) || !positive(entry.candidatePr) || !["implementation", "archive", "acceptance", "discard"].includes(entry.role)
     || !sha(entry.head) || entry.ref !== null && !safeRef(entry.ref) || !Array.isArray(entry.disposable)
     || entry.disposable.some(value => !disposablePath(value)) || new Set(entry.disposable).size !== entry.disposable.length
     || !uuid(entry.generation) || !["owned", "released", "deleting", "done"].includes(entry.state)
     || typeof entry.ownerHash !== "string" || !/^[a-f0-9]{64}$/.test(entry.ownerHash)
-    || !["none", "remove-intent", "worktree-removed", "complete"].includes(entry.step)) fail("registration-schema");
+    || !["none", "remote-delete-intent", "remote-ref-removed", "remove-intent", "worktree-removed", "complete"].includes(entry.step)) fail("registration-schema");
   if ((entry.state === "done") !== (entry.step === "complete")
     || ["owned", "released"].includes(entry.state) && entry.step !== "none"
-    || entry.state === "deleting" && !["remove-intent", "worktree-removed"].includes(entry.step)) fail("registration-state");
+    || entry.state === "deleting" && !["remote-delete-intent", "remote-ref-removed", "remove-intent", "worktree-removed"].includes(entry.step)
+    || entry.role !== "discard" && ["remote-delete-intent", "remote-ref-removed"].includes(entry.step)) fail("registration-state");
   return entry;
 }
 export function validateState(state, identity) {

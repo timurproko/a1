@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { cleanupReader, verifyCleanupEvidence } from "../../scripts/governance/local-cleanup-evidence.mjs";
+import { cleanupReader, verifyCleanupEvidence, verifyDiscardEvidence } from "../../scripts/governance/local-cleanup-evidence.mjs";
 import { digest } from "../../scripts/governance/local-cleanup-state.mjs";
 
 function fixture(version = 2) {
@@ -121,4 +121,49 @@ test("rate limits request bounded retry rather than aggressive repeated calls", 
     fetchImpl: async () => new Response("private", { status: 429, headers: { "retry-after": "600" } }) });
   await assert.rejects(reader.get("/repos/owner/repo/pulls/20"), /remote-request-failed/); assert.equal(retry, 601000);
   await assert.rejects(reader.get("/repos/owner/repo/pulls/21"), /remote-backoff/);
+});
+
+function discardFixture() {
+  const repository = "owner/repo", prefix = `/repos/${repository}`, head = "a".repeat(40), ref = "fix/rejected";
+  const pull = { number: 40, state: "closed", merged: false, merged_at: null, draft: false,
+    body: `\`\`\`openspec-implementation\n${JSON.stringify({ version: 3, change: "rejected-change" })}\n\`\`\``,
+    base: { ref: "develop", repo: { full_name: repository } }, head: { sha: head, ref, repo: { full_name: repository } } };
+  const routes = { [`${prefix}/pulls/40`]: pull, [`${prefix}/git/ref/heads/fix%2Frejected`]: { object: { sha: head } },
+    [`${prefix}/branches/fix%2Frejected`]: { protected: false } };
+  const reader = { repository, prefix, async get(path) {
+    if (!Object.hasOwn(routes, path)) throw Object.assign(Error("github-not-found"), { archiveCode: "github-not-found" });
+    return routes[path];
+  } };
+  const entry = { sourcePr: 40, candidatePr: 40, change: "rejected-change", head, ref: "refs/heads/fix/rejected", role: "discard" };
+  return { repository, prefix, head, ref, pull, routes, reader, entry };
+}
+
+test("closed-unmerged discard evidence binds exact PR, head, repository, ref and protection", async () => {
+  let f = discardFixture();
+  assert.deepEqual(await verifyDiscardEvidence(f.reader, f.entry), {
+    disposition: "eligible", sourcePr: 40, sourceHead: f.head, ref: f.ref, expectedSha: f.head, actualSha: f.head, remoteRefPresent: true,
+  });
+  delete f.routes[`${f.prefix}/git/ref/heads/fix%2Frejected`]; delete f.routes[`${f.prefix}/branches/fix%2Frejected`];
+  assert.equal((await verifyDiscardEvidence(f.reader, f.entry)).remoteRefPresent, false);
+  f = discardFixture(); f.routes[`${f.prefix}/branches/fix%2Frejected`].protected = true;
+  await assert.rejects(verifyDiscardEvidence(f.reader, f.entry), /discard-ref-protected/);
+  f = discardFixture(); f.routes[`${f.prefix}/git/ref/heads/fix%2Frejected`].object.sha = "b".repeat(40);
+  assert.equal((await verifyDiscardEvidence(f.reader, f.entry)).reason, "remote-ref-advanced");
+});
+
+test("discard evidence refuses open, merged, forked, malformed and mismatched candidates", async () => {
+  for (const mutate of [
+    f => { f.pull.state = "open"; },
+    f => { f.pull.merged = true; f.pull.merged_at = "2026-09-16T00:00:00Z"; },
+    f => { f.pull.head.repo.full_name = "other/fork"; },
+    f => { f.pull.base.ref = "main"; },
+    f => { f.pull.body = "no association"; },
+    f => { f.entry.head = "b".repeat(40); },
+    f => { f.entry.ref = "refs/heads/release/1"; },
+  ]) {
+    const f = discardFixture(); mutate(f);
+    await assert.rejects(verifyDiscardEvidence(f.reader, f.entry), /discard-/);
+  }
+  const f = discardFixture(); delete f.routes[`${f.prefix}/branches/fix%2Frejected`];
+  await assert.rejects(verifyDiscardEvidence(f.reader, f.entry), /discard-remote-inconsistent/);
 });
