@@ -21,3 +21,7 @@ No merge/archive evidence, registration ownership, accepted disposable path, rem
 - A read-only invocation of the implemented `inspectWorktree` against the retained exact PR #434 worktree returned `{ "clean": true }` in **535 ms** with its released registration. This did not remove the worktree or alter cleanup state.
 
 The unrelated install-time `bin/pi-tui.d.ts` rewrite was restored and is not part of this change. No local fast, full, release, publication, or product command was run. No known gaps remain before exact-head CI and post-merge cleanup verification.
+
+## Hosted attempts
+
+Development run [35115356629](https://github.com/timurproko/a1/actions/runs/35115356629) is retained as a failed attempt against superseded head `e20cef07fe7ff05c87dd3295c6e06dcb18691460`. The resource-sensitive lane passed its first nineteen isolated files, then one assertion in `naming-selection.test.ts` exceeded the unchanged five-second Vitest default under hosted contention; the other nine assertions in that file passed. Every other completed product lane passed, but the protected aggregate failed as required. After reconciliation with current `develop`, `npx vitest run test/repository-governance/naming-selection.test.ts --no-file-parallelism` passed all **10 tests** in 4.10 seconds. No timeout, retry, workload, or assertion changed. The reconciled finalized head requires a fresh exact-head Development run.
