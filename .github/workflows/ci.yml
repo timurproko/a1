@@ -217,14 +217,14 @@ jobs:
           import { parseImplementation } from "./scripts/governance/openspec-archive-policy.mjs";
           console.log(`version=${parseImplementation(process.env.PULL_BODY ?? "")?.version ?? "unknown"}`);
           NODE
-      - name: Detect deployed no-promotion delivery policy
+      - name: Detect deployed phase-free delivery policy
         id: policy
         shell: bash
         run: |
-          if grep -q 'delivery-phase-not-implementation' scripts/governance/openspec-archive-github.mjs; then
+          if grep -q 'PHASE_FREE_VERSION3_BODY_POLICY = true' scripts/governance/openspec-acceptance-checklist.mjs; then
             echo 'installed=true' >> "$GITHUB_OUTPUT"
           else
-            echo 'No-promotion delivery policy is not deployed on the base; validating this bootstrap candidate with its full authority-changing head.' >> "$GITHUB_STEP_SUMMARY"
+            echo 'Phase-free delivery policy is not deployed on the base; validating this bootstrap candidate with its full authority-changing head.' >> "$GITHUB_STEP_SUMMARY"
           fi
       - name: Check out exact implementation policy for bootstrap
         if: steps.version.outputs.version == '3' && steps.policy.outputs.installed != 'true'
