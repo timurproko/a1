@@ -17,7 +17,8 @@ export type PasteSource =
   | { readonly kind: "text"; readonly text: string };
 export interface PasteEvent {
   readonly request: number;
-  readonly phase: "receipt" | "framing" | "admitted" | "predecessor" | "acquiring" | "acquired-text" | "acquired-image" | "classifying" | "path-fallback" | "prepared" | "inserting" | "settled" | "cleanup";
+  readonly phase: "receipt" | "shortcut-received" | "shortcut-matched" | "shortcut-admitted" | "pointer-admitted"
+    | "framing" | "admitted" | "predecessor" | "acquiring" | "acquired-text" | "acquired-image" | "classifying" | "path-fallback" | "prepared" | "inserting" | "settled" | "cleanup";
   readonly atMs: number;
   readonly elapsedMs?: number;
   readonly pending: number;

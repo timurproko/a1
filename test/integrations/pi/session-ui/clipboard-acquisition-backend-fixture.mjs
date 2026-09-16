@@ -1,7 +1,7 @@
 import { appendFileSync } from "node:fs";
 
 const { mode, text, trace } = JSON.parse(new URL(import.meta.url).searchParams.get("fixture"));
-if (!["native", "empty", "denied", "fallback", "blocked-command", "slow-path"].includes(mode) || typeof text !== "string") throw new Error("invalid clipboard fixture configuration");
+if (!["native", "native-empty", "empty", "denied", "fallback", "blocked-command", "slow-path"].includes(mode) || typeof text !== "string") throw new Error("invalid clipboard fixture configuration");
 let violated = false;
 let observations = 0;
 function observe(operation) {
@@ -14,7 +14,7 @@ export function availableFormats() { return ["text"]; }
 export async function getText() {
   observe("native-text");
   if (violated || ["denied", "fallback", "blocked-command"].includes(mode)) throw new Error("fixture unavailable");
-  return mode === "empty" ? "" : text;
+  return ["native-empty", "empty"].includes(mode) ? "" : text;
 }
 export async function setText(value) {
   observe("native-write");
@@ -38,5 +38,7 @@ export function execFile(command, args, options, callback) {
   } else observe(command);
   // Security: an invalid first backend stays failed even if production subsequently attempts a fallback.
   const denied = violated || mode === "denied" || mode === "blocked-command" || (mode === "fallback" && command === "wl-paste");
-  queueMicrotask(() => callback(denied || options.signal?.aborted ? new Error("fixture unavailable") : null, denied ? "" : mode === "empty" ? "" : text));
+  const firstBackendEmpty = mode === "native-empty" && process.platform !== "win32" && process.platform !== "darwin" && command === "wl-paste";
+  queueMicrotask(() => callback(denied || options.signal?.aborted ? new Error("fixture unavailable") : null,
+    denied || mode === "empty" || firstBackendEmpty ? "" : text));
 }

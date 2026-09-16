@@ -4,7 +4,7 @@ import type { ResponseCopyEvent } from "./response-copy-protocol.js";
 import type { PasteEvent } from "./paste-protocol.js";
 
 const PHASES = new Set(["capture", "selection-clear", "queued", "preparing", "extracted", "encoded", "submitting", "settled", "cleanup",
-  "framing", "admitted", "predecessor", "acquiring", "acquired-text", "acquired-image", "classifying", "path-fallback", "prepared", "inserting",
+  "shortcut-received", "shortcut-matched", "shortcut-admitted", "pointer-admitted", "framing", "admitted", "predecessor", "acquiring", "acquired-text", "acquired-image", "classifying", "path-fallback", "prepared", "inserting",
   "receipt", "semantic-start", "semantic-end", "composition-start", "composition-end", "write-start", "write-end", "heartbeat"]);
 interface RecordRow { readonly source: string; readonly phase: string; readonly atMs: number; readonly request: number; readonly pending: number; readonly bytes: number; readonly elapsedMs: number; readonly transport: string; readonly outcome: string; readonly sourceUnits: number; readonly pendingBytes: number }
 

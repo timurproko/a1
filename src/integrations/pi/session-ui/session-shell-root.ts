@@ -214,7 +214,8 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   readonly #imageAssets: PiShellImageAssetResolver | undefined;
   readonly #promptChips: PromptChipStore;
   readonly #editorHyperlinks = new EditorHyperlinkBudget();
-  #pasteFramingId = 0;
+  #pasteDiagnosticId = 0;
+  #terminalPasteDiagnosticRequest: number | undefined;
   readonly #customViewport: boolean;
   readonly #submittedPromptComposer: PiShellSubmittedPromptComposer | undefined;
   readonly #viewportController: SessionViewportController;
@@ -360,9 +361,14 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
           error => handlers.onPasteRejected?.(error),
           () => handlers.requestRender(),
         ),
-        onPasteInput: bytes => {
-          try { handlers.pasteDiagnostics?.({ request: --this.#pasteFramingId, phase: "framing", bytes, atMs: performance.now(), pending: 0, transport: "terminal" }); }
-          catch { /* Invariant: payload-free diagnostics cannot interfere with the input path. */ }
+        onPasteInput: (bytes, phase) => {
+          try {
+            if (phase === "framing") this.#terminalPasteDiagnosticRequest = --this.#pasteDiagnosticId;
+            const request = this.#terminalPasteDiagnosticRequest ?? --this.#pasteDiagnosticId;
+            handlers.pasteDiagnostics?.({ request, phase, bytes, atMs: performance.now(), pending: 0, transport: "terminal",
+              ...(phase === "settled" ? { outcome: "ready" as const } : {}) });
+            if (phase === "settled") this.#terminalPasteDiagnosticRequest = undefined;
+          } catch { /* Invariant: payload-free diagnostics cannot interfere with the input path. */ }
         },
         deferTextPaste: text => !canPreparePasteInline(text),
         beginTextPaste: text => this.#promptChips.beginPaste(
@@ -430,6 +436,8 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       requestRender: force => this.#componentRuntime.requestRender(force),
       requestHyperlinkCleanup: rows => handlers.requestHyperlinkCleanup?.(rows),
       hasEditorLinks: () => this.#promptChips.hyperlinkRanges(this.editor.getText()).length > 0,
+      ...(handlers.pasteDiagnostics === undefined ? {} : { pasteDiagnostics: handlers.pasteDiagnostics }),
+      nextPasteDiagnosticRequest: () => --this.#pasteDiagnosticId,
     });
     // Performance: stable painter identities let the neutral viewport retain row-level
     // selection variants while each callback still resolves the live Pi theme.
