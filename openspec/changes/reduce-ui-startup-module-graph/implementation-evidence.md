@@ -17,7 +17,7 @@ The exact scalar evidence is in `evidence/startup-package-local-node24.json`. It
 
 ### Startup graph
 
-- The A1 static eager graph contains 142 normalized files and 2,618,800 source bytes, with shortest introducing edges and executable broad-barrel rejection.
+- The A1 static eager graph contains 142 normalized files and 2,621,782 source bytes, with shortest introducing edges and executable broad-barrel rejection. The reviewed byte baseline includes the subsequently integrated first-paste reliability fix without adding an eager module.
 - The generated public-Pi artifact digest for the local candidate is `7a2716c0b70a121d55f9652e5cab0e7d8e4894640050eefc3ab3b85a776ad1bc`.
 - Its reviewed baseline is 1,747 contributing files and 11,054,687 evaluated bytes. The generated manifest records normalized grouped inputs and 54 dependency license identities with no undeclared licenses.
 - Settings presentation and history-editor implementation are excluded from the declared eager A1 graph and load on demand.
@@ -29,7 +29,11 @@ The exact scalar evidence is in `evidence/startup-package-local-node24.json`. It
 - The exact packed candidate preserved one Pi TUI identity, completed warmup, materialized and certified the release, started/replaced the supervisor, and rendered both profiles.
 - Runtime payload inventory declares the generated startup artifact as an entry and its normalized manifest as an asset.
 
+### Maintainer checkout smoke
+
+On 2026-09-16 the maintainer built the implementation checkout and launched both `./scripts/dev pi` and bare `./scripts/dev`. Immediate prompt submission, `/settings`, `/model`, `/resume`, dialog cancellation, and clean exit all passed with no reported delay, crash, duplicate UI, or missing dialog.
+
 ### Pending authoritative evidence
 
 - Exact-package Node 22 and current Node 24 hosted CI results remain pending.
-- Development publication and maintainer manual acceptance remain post-merge tasks.
+- Development publication and authorized exact-head manual merge remain later delivery tasks; the checkout smoke result is supporting evidence, not merge acceptance.
