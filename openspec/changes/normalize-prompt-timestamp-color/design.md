@@ -7,7 +7,7 @@ The viewport is intentionally presentation-neutral, and prompt anchors are alrea
 ## Goals / Non-Goals
 
 **Goals:**
-- Give natural and pinned prompt timestamps one shared selected-state foreground painter.
+- Give natural and pinned prompt timestamps one shared grey metadata foreground painter.
 - Ensure the timestamp explicitly returns to normal intensity inside a quiet/dimmed row without cancelling dimming on visible prompt-body glyphs.
 - Cover user prompts and completed compaction anchors at terminal-cell attribute level across normal, hover, quiet, and selection states.
 
@@ -18,15 +18,15 @@ The viewport is intentionally presentation-neutral, and prompt anchors are alrea
 
 ## Decisions
 
-### Use the existing selected prompt foreground role
+### Use the existing grey metadata foreground role
 
-The timestamp painter will use the same semantic foreground already visible on the selected/hover-highlighted prompt (`userMessageText` in the Pi integration), rather than adding a hard-coded color or a new theme token. This keeps custom themes authoritative and directly implements the requested selected-state color.
+The timestamp painter will use the existing semantic metadata-grey foreground (`dim` in the Pi integration), rather than adding a hard-coded color or a new theme token. It will use that color role without faint intensity so custom themes remain authoritative and hover or quiet wrappers cannot turn the timestamp white or darken it.
 
-Alternative considered: retain the `dim` token and only normalize pinned states. That would preserve the current natural timestamp but would not make all states match the selected color.
+Alternative considered: use the selected/hover prompt foreground. Manual review rejected that treatment because it makes the timestamp white instead of preserving its metadata-grey identity.
 
 ### Make normal intensity part of the timestamp span
 
-The shared painter will explicitly clear faint intensity at the timestamp span before applying its semantic foreground. Because the timestamp is the final visible span on the first prompt row, the surrounding quiet wrapper can continue dimming every earlier visible body cell while the timestamp remains normal intensity. Existing span replay/reset behavior will continue to contain styling at row boundaries.
+The shared painter will explicitly clear faint intensity at the timestamp span before applying its grey semantic foreground. Because the timestamp is the final visible span on the first prompt row, the surrounding quiet wrapper can continue dimming every earlier visible body cell while the timestamp remains normal intensity. Existing span replay/reset behavior will continue to contain styling at row boundaries.
 
 Alternative considered: stop dimming the whole quiet row. That would alter prompt-body presentation and violate the non-goal. A viewport-level timestamp callback was also rejected because it would leak Pi prompt semantics into the neutral viewport component.
 
@@ -38,13 +38,13 @@ Alternative considered: infer and repaint a trailing `HH:mm` string after viewpo
 
 ### Assert final terminal cell attributes
 
-Focused integration coverage will inspect parsed terminal cells for timestamp foreground mode/value and dim/bold intensity in natural, prominent pinned, hovered pinned, quiet pinned, and text-selected source states. Assertions will separately confirm that state-specific backgrounds and body dimming remain unchanged.
+Focused integration coverage will inspect parsed terminal cells for the grey timestamp foreground mode/value and dim/bold intensity in natural, prominent pinned, hovered pinned, quiet pinned, and text-selected source states. Assertions will separately confirm that state-specific backgrounds and body dimming remain unchanged.
 
 String-level ANSI assertions alone were rejected because equivalent escape ordering can produce different final terminal state, especially with nested faint and foreground wrappers.
 
 ## Risks / Trade-offs
 
-- [Theme implementations may encode the selected foreground differently] → Resolve the live semantic theme role at render time and compare final cell attributes instead of fixed escape strings.
+- [Theme implementations may encode metadata grey differently] → Resolve the live `dim` semantic theme role at render time and compare final cell attributes instead of fixed escape strings.
 - [Clearing faint intensity could leak past the timestamp] → Keep the timestamp as the final visible row span and retain existing row/style reset and replay behavior; add a following-row sentinel assertion.
 - [Pinned row variants could drift apart later] → Route both natural construction and pinned overlay through one timestamp painter and test user/compaction parity.
 - [Selection coverage could accidentally test only its background] → Assert foreground and intensity before and during selection while independently checking the selection background.

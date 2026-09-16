@@ -407,7 +407,14 @@ describe("prompt-style compaction in the real engine and shell", () => {
     } finally { await shell.dispose(); }
   });
 
-  it.each(["hidden", "always", "auto"] as const)("keeps timestamps on the selected foreground across source, quiet, and hover states with a %s scrollbar", async appearance => {
+  it.each(["hidden", "always", "auto"] as const)("keeps timestamps metadata-grey across source, quiet, and hover states with a %s scrollbar", async appearance => {
+    const expectedScreen = new HeadlessXterm.Terminal({ cols: 1, rows: 1, allowProposedApi: true });
+    let expectedGreyStyle: readonly number[];
+    try {
+      await new Promise<void>(resolve => expectedScreen.write(`${piTheme().fg("dim", "x")}\u001b[0m`, resolve));
+      const cell = expectedScreen.buffer.active.getLine(0)!.getCell(0)!;
+      expectedGreyStyle = [cell.getFgColorMode(), cell.getFgColor(), cell.isDim(), cell.isBold()];
+    } finally { expectedScreen.dispose(); }
     const snapshots = [];
     for (const kind of ["compaction", "user"] as const) {
       const summary = compaction();
@@ -447,8 +454,9 @@ describe("prompt-style compaction in the real engine and shell", () => {
         const sourceTimeStyle = rendered[0]![1]![sourceTimeColumn]!.foreground!;
         expect(sourceTimeStyle[2]).toBe(0);
         expect(sourceTimeStyle[3]).toBe(0);
-        // Contract: timestamp foreground and intensity are identical to selected/hover text in every state.
-        expect(sourceTimeStyle).toEqual(rendered[7]![0]![labelColumn]!.foreground);
+        // Contract: timestamp foreground and intensity stay on metadata grey in every state.
+        expect(sourceTimeStyle).toEqual(expectedGreyStyle);
+        expect(sourceTimeStyle.slice(0, 2)).not.toEqual(rendered[7]![0]![labelColumn]!.foreground!.slice(0, 2));
         expect(rendered[5]![1]![sourceTimeColumn]!.foreground).toEqual(sourceTimeStyle);
         for (const state of [1, 2, 3, 4, 6, 7, 8]) {
           for (let column = timeColumn; column < timeColumn + 5; column++) {

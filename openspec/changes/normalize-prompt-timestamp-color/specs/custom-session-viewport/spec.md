@@ -3,12 +3,12 @@
 ### Requirement: Submitted prompts carry their source timestamp
 A submitted user prompt SHALL render its source timestamp as local 24-hour `HH:mm` time, right-aligned on the prompt's first row when the row has enough width for the prompt prefix, useful prompt content, a separating margin, and the timestamp. Continuation rows SHALL align beneath the prompt text rather than beneath the prompt prefix. The timestamp is transcript metadata; the live input surface SHALL NOT gain a clock or timestamp from this milestone.
 
-Whenever it is rendered, the timestamp SHALL use the same normal-intensity foreground used by the selected or hover-highlighted prompt presentation. Its foreground and intensity SHALL remain unchanged when the source prompt is normal, text-selected, or otherwise repainted; selection MAY still change the timestamp background together with the selected range. Prompt-body styling SHALL remain independent of this timestamp rule.
+Whenever it is rendered, the timestamp SHALL use the grey metadata foreground at normal intensity. Its foreground and intensity SHALL remain unchanged when the source prompt is normal, hovered, quiet/dimmed, text-selected, or otherwise repainted; selection MAY still change the timestamp background together with the selected range. Prompt-body styling SHALL remain independent of this timestamp rule.
 
 #### Scenario: Render a submitted prompt
 - **WHEN** a user transcript block has a valid source timestamp and sufficient width
 - **THEN** its first row SHALL show that timestamp right-aligned as `HH:mm`
-- **AND** the timestamp SHALL use the selected-prompt foreground at normal intensity
+- **AND** the timestamp SHALL use the grey metadata foreground at normal intensity
 - **AND** the prompt text SHALL remain complete across its wrapped rows
 
 #### Scenario: Select a submitted-prompt timestamp
@@ -38,13 +38,13 @@ Whenever it is rendered, the timestamp SHALL use the same normal-intensity foreg
 ### Requirement: The governing submitted prompt remains pinned while scrolling
 When the first row of the most recent submitted user prompt or completed compaction summary at or before the viewport start has scrolled above the viewport, a copy of that first row SHALL occupy the viewport's first row without adding to the document's row count. The copy SHALL preserve the prompt-style prefix, content, background, and timestamp from the source row. It SHALL remain prominent while any continuation row of that block is visible and SHALL use the quiet theme role after the complete block is above the viewport. Activating it SHALL return the viewport to the source block. Completed compactions SHALL participate as navigation/context anchors, not as submitted user messages.
 
-The pinned timestamp SHALL use the same normal-intensity selected-prompt foreground as the naturally visible timestamp in every prominent, hovered, and quiet/dimmed presentation. Hover highlighting and quiet dimming SHALL continue to affect the rest of the row, but SHALL NOT change the timestamp's foreground or intensity. This rule SHALL also apply to completed compaction blocks using submitted-prompt pinning. Timestamp value, alignment, width-dependent omission, backgrounds, and body styling SHALL remain unchanged.
+The pinned timestamp SHALL use the same normal-intensity grey metadata foreground as the naturally visible timestamp in every prominent, hovered, and quiet/dimmed presentation. Hover highlighting and quiet dimming SHALL continue to affect the rest of the row, but SHALL NOT change the timestamp's foreground or intensity. This rule SHALL also apply to completed compaction blocks using submitted-prompt pinning. Timestamp value, alignment, width-dependent omission, backgrounds, and body styling SHALL remain unchanged.
 
 #### Scenario: Scroll within a multiline prompt
 - **WHEN** the prompt's first row is above the viewport but one of its continuation rows remains visible
 - **THEN** the prompt's first row SHALL be pinned at the top with its timestamp
 - **AND** it SHALL retain its prominent presentation
-- **AND** without hover its timestamp SHALL use the same selected-prompt foreground and normal intensity as the naturally visible source timestamp
+- **AND** without hover its timestamp SHALL use the same grey metadata foreground and normal intensity as the naturally visible source timestamp
 
 #### Scenario: Scroll beyond the complete prompt
 - **WHEN** the prompt and all of its continuation rows are above the viewport while later rows are visible
@@ -69,7 +69,7 @@ The pinned timestamp SHALL use the same normal-intensity selected-prompt foregro
 
 #### Scenario: Pin a completed compaction while its summary remains visible
 - **WHEN** a completed compaction header scrolls above the viewport while summary continuation rows remain visible and its pinned row is not hovered
-- **THEN** its pinned timestamp SHALL use the same selected-prompt foreground and normal intensity as an ordinary prompt timestamp
+- **THEN** its pinned timestamp SHALL use the same grey metadata foreground and normal intensity as an ordinary prompt timestamp
 
 #### Scenario: Hover and leave the prominent pinned row
 - **WHEN** the pointer enters and then leaves a prominent pinned prompt or compaction row
@@ -79,7 +79,7 @@ The pinned timestamp SHALL use the same normal-intensity selected-prompt foregro
 
 #### Scenario: Revisit the prominent state
 - **WHEN** reverse scrolling, resize, or scrollbar appearance leaves a non-hovered pinned row prominent with a fitting timestamp
-- **THEN** its timestamp SHALL retain the selected-prompt foreground at normal intensity without color leakage into adjacent text
+- **THEN** its timestamp SHALL retain the grey metadata foreground at normal intensity without color leakage into adjacent text
 
 #### Scenario: Pin and activate a compaction
 - **WHEN** the reader scrolls past the first row of a completed compaction

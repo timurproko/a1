@@ -1446,7 +1446,7 @@ function withoutTerminalBackground(text: string): string {
   return text.replace(TERMINAL_BACKGROUND, "");
 }
 
-/** Preserve the stable selected-state foreground for every pinned timestamp state. */
+/** Preserve the stable metadata-grey foreground for every pinned timestamp state. */
 function pinnedPromptSourceRow(
   block: OwnedUiSessionViewModel["transcript"][number],
   sourceRow: string,
