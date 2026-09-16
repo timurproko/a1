@@ -1,7 +1,7 @@
 import { loadPullRequestAcceptance } from "./openspec-acceptance-github.mjs";
 import { snapshotOpenSpec } from "./openspec-archive-staging.mjs";
 import { archiveFailure, assertMergedImplementation, inspectTasks, parseImplementation, parseAcceptance, selectAcceptance, SHA } from "./openspec-archive-policy.mjs";
-import { parseImplementationAcceptanceScenarios, parseImplementationDeliveryPhase } from "./openspec-acceptance-checklist.mjs";
+import { parseImplementationAcceptanceScenarios } from "./openspec-acceptance-checklist.mjs";
 import { assertManualAcceptanceMerge, digest, requireAcceptance } from "./openspec-acceptance-policy.mjs";
 import { parseConditionalAcceptance, verifyConditionalAcceptance } from "./openspec-delivery-policy.mjs";
 
@@ -60,7 +60,7 @@ async function snapshotBytes(snapshot, paths) {
   }));
 }
 
-export async function inspectVersion3DeliverySnapshot(reader, pull, implementation, sha) {
+export async function inspectVersion3DeliverySnapshot(reader, pull, implementation, sha, { allowLegacyVersion3Phase = false } = {}) {
   requireAcceptance(implementation?.version === 3 && implementation.archive && implementation.acceptanceManifest
     && implementation.acceptanceManifest === `${implementation.archive}acceptance.md`, "delivery-not-finalized");
   const snapshot = await snapshotOpenSpec(reader, sha);
@@ -86,7 +86,7 @@ export async function inspectVersion3DeliverySnapshot(reader, pull, implementati
     return match ? [match[1]] : [];
   }))];
   const specEntries = await snapshotBytes(snapshot, capabilities.map(capability => `openspec/specs/${capability}/spec.md`));
-  const scenarios = parseImplementationAcceptanceScenarios(pull.body ?? "", 3);
+  const scenarios = parseImplementationAcceptanceScenarios(pull.body ?? "", 3, { allowLegacyVersion3Phase });
   const verified = verifyConditionalAcceptance(manifest, { implementation, repository: reader.repository, sourcePr: pull.number,
     archiveEntries, specEntries, evidenceEntries, tasksBytes, scenarios, knownGaps: manifest.knownGaps });
   return { snapshot, manifest, archiveEntries, specEntries, evidenceEntries, tasksBytes, scenarios, ...verified };
@@ -106,7 +106,6 @@ export async function validateVersion3Candidate(reader, number) {
   requireAcceptance(target.object?.sha === pull.base.sha, "delivery-target-stale");
   await reader.ancestor(pull.base.sha, pull.head.sha);
   const value = await inspectVersion3DeliverySnapshot(reader, pull, implementation, pull.head.sha);
-  requireAcceptance(parseImplementationDeliveryPhase(pull.body ?? "") === "implementation", "delivery-phase-not-implementation");
   const changed = new Set(files.flatMap(file => [file.filename, ...(file.status === "renamed" ? [file.previous_filename] : [])]));
   requireAcceptance(value.archiveEntries.every(([path]) => changed.has(path)) && changed.has(implementation.acceptanceManifest),
     "delivery-diff-incomplete");
@@ -156,8 +155,8 @@ export async function loadImplementationEvidence(reader, number) {
       const selected = snapshot => [...snapshot.entries].filter(([path]) => path.startsWith(active)).sort(([a], [b]) => a.localeCompare(b));
       if (JSON.stringify(selected(source)) !== JSON.stringify(selected(merged))) throw archiveFailure("implementation-change-drift");
     } else {
-      await inspectVersion3DeliverySnapshot(reader, pull, implementation, pull.head.sha);
-      await inspectVersion3DeliverySnapshot(reader, pull, implementation, pull.merge_commit_sha);
+      await inspectVersion3DeliverySnapshot(reader, pull, implementation, pull.head.sha, { allowLegacyVersion3Phase: true });
+      await inspectVersion3DeliverySnapshot(reader, pull, implementation, pull.merge_commit_sha, { allowLegacyVersion3Phase: true });
     }
 
     return { disposition: "source", pull, implementation, targetSha, files };
@@ -175,7 +174,7 @@ export async function loadVersion3Acceptance(reader, source) {
   const permission = await reader.get(`${reader.prefix}/collaborators/${actor}/permission`);
   const events = await reader.pages(`/issues/${pull.number}/timeline`, 1000);
   assertManualAcceptanceMerge(pull, permission.permission, events);
-  const delivery = await inspectVersion3DeliverySnapshot(reader, pull, implementation, pull.head.sha);
+  const delivery = await inspectVersion3DeliverySnapshot(reader, pull, implementation, pull.head.sha, { allowLegacyVersion3Phase: true });
   const validation = await findImplementationValidation(reader, pull);
   await reader.ancestor(pull.merge_commit_sha, source.targetSha);
   const target = await snapshotOpenSpec(reader, source.targetSha);

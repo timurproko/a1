@@ -3,6 +3,7 @@ import { archiveFailure } from "./openspec-archive-policy.mjs";
 
 export const MIN_ACCEPTANCE_CHECKS = 1;
 export const MAX_ACCEPTANCE_CHECKS = 3;
+export const PHASE_FREE_VERSION3_BODY_POLICY = true;
 const MAX_BODY_BYTES = 256 * 1024;
 const MAX_CHECK_BYTES = 300;
 const genericChecks = [
@@ -77,10 +78,15 @@ export function parseImplementationAcceptanceChecks(body) {
   return parseAcceptanceSection(body, "Acceptance checks");
 }
 
-function assertVersion3BodyLayout(body) {
+function assertVersion3BodyLayout(body, { allowLegacyPhaseLine = false } = {}) {
   const lines = normalizedBody(body).split("\n");
-  const phaseLine = lines.find(line => line.trim());
-  if (!["> Phase: Implementation", "> Phase: Acceptance"].includes(phaseLine)) throw archiveFailure("acceptance-layout-phase");
+  const firstLine = lines.find(line => line.trim());
+  const legacyPhaseLine = ["> Phase: Implementation", "> Phase: Acceptance"].includes(firstLine);
+  const phaseLines = lines.filter(line => /^> Phase:/.test(line));
+  if (allowLegacyPhaseLine ? firstLine !== "## Proposal" && !legacyPhaseLine : firstLine !== "## Proposal") {
+    throw archiveFailure("acceptance-layout-phase");
+  }
+  if (phaseLines.length !== (allowLegacyPhaseLine && legacyPhaseLine ? 1 : 0)) throw archiveFailure("acceptance-layout-phase");
   const headings = [];
   let fence = null;
   let comment = false;
@@ -111,17 +117,12 @@ function assertVersion3BodyLayout(body) {
     || visible.at(-1) !== "</details>" || !automation.some(line => line === "```openspec-implementation")) {
     throw archiveFailure("acceptance-layout-automation");
   }
-  return phaseLine.slice("> Phase: ".length).toLocaleLowerCase("en-US");
 }
 
-export function parseImplementationDeliveryPhase(body) {
-  return assertVersion3BodyLayout(body);
-}
-
-export function parseImplementationAcceptanceScenarios(body, version) {
+export function parseImplementationAcceptanceScenarios(body, version, { allowLegacyVersion3Phase = false } = {}) {
   if (version === 2) return parseImplementationAcceptanceChecks(body);
   if (version === 3) {
-    assertVersion3BodyLayout(body);
+    assertVersion3BodyLayout(body, { allowLegacyPhaseLine: allowLegacyVersion3Phase });
     return parseAcceptanceSection(body, "Acceptance");
   }
   throw archiveFailure("acceptance-version");

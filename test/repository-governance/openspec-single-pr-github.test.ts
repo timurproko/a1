@@ -32,7 +32,7 @@ function fixture(merged: boolean, provenance: "manual" | "automatic" = "manual")
     tasksDigest: createHash("sha256").update(archiveFiles[`${archive}tasks.md`]!).digest("hex"),
     evidenceDigest: deliveryContentDigest(evidenceEntries), knownGaps: [] };
   const metadata = { version: 3, change: "example", archive, acceptanceManifest: `${archive}acceptance.md` };
-  const body = `> Phase: Implementation\n\n## Proposal\n\nDeliver the example behavior through one atomic OpenSpec pull request.\n\n## Implementation\n\n- Implement the example behavior and its governance evidence.\n\n## Acceptance\n\n- ${scenarios[0]}\n\n## Automation\n\n<details>\n<summary>Used by CI to link this PR to its OpenSpec change</summary>\n\n\`\`\`openspec-implementation\n${JSON.stringify(metadata)}\n\`\`\`\n\n</details>\n`;
+  const body = `## Proposal\n\nDeliver the example behavior through one atomic OpenSpec pull request.\n\n## Implementation\n\n- Implement the example behavior and its governance evidence.\n\n## Acceptance\n\n- ${scenarios[0]}\n\n## Automation\n\n<details>\n<summary>Used by CI to link this PR to its OpenSpec change</summary>\n\n\`\`\`openspec-implementation\n${JSON.stringify(metadata)}\n\`\`\`\n\n</details>\n`;
   const allFiles: Record<string, string> = { ...specFiles, ...archiveFiles, [`${archive}acceptance.md`]: conditionalAcceptanceBytes(manifest) };
   const blobs = new Map<string, Buffer>();
   const tree = () => ({ truncated: false, tree: Object.entries(allFiles).map(([path, text]) => {
@@ -84,10 +84,18 @@ describe("version-3 GitHub delivery authority", () => {
     });
   });
 
-  it("blocks a manual phase promotion because finalized delivery remains in Implementation", async () => {
+  it("rejects the superseded phase-prefixed layout for an open candidate", async () => {
     const f = fixture(false);
-    f.pull.body = f.pull.body.replace("> Phase: Implementation", "> Phase: Acceptance");
-    await expect(validateVersion3Candidate(f.reader, 42)).rejects.toThrow("delivery-phase-not-implementation");
+    f.pull.body = `> Phase: Implementation\n\n${f.pull.body}`;
+    await expect(validateVersion3Candidate(f.reader, 42)).rejects.toThrow("acceptance-layout-phase");
+  });
+
+  it("retains read-only compatibility for an immutable merged phase-prefixed delivery", async () => {
+    const f = fixture(true);
+    f.pull.body = `> Phase: Implementation\n\n${f.pull.body}`;
+    await expect(loadArchiveEvidence(f.reader, 42)).resolves.toMatchObject({
+      disposition: "eligible", implementation: { version: 3 }, acceptance: { kind: "single-pr", checks: scenarios },
+    });
   });
 
   it("fails closed on stale base, body drift, content drift, and unrelated OpenSpec paths", async () => {
