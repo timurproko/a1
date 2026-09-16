@@ -22,7 +22,7 @@ async function fixture(t, branch = false, registered = true) {
   git(primary, "init", "-b", "develop"); git(primary, "config", "core.autocrlf", "false"); git(primary, "config", "user.name", "Fixture"); git(primary, "config", "user.email", "fixture@example.invalid");
   await writeFile(join(primary, "tracked.txt"), "base\n");
   await mkdir(join(primary, "vendor")); await writeFile(join(primary, "vendor", ".gitmodules"), "");
-  await writeFile(join(primary, ".gitignore"), "node_modules/\nsecret.txt\n.artifacts/openspec-archive/\n.builds/\ndist/\n");
+  await writeFile(join(primary, ".gitignore"), "node_modules/\nsecret.txt\n.artifacts/openspec-archive/\n.artifacts/validation/\n.artifacts/validation-user/\n.artifacts/other/\n.builds/\ndist/\n");
   git(primary, "add", "."); git(primary, "commit", "-m", "fixture"); git(primary, "remote", "add", "origin", "https://github.com/owner/repo.git");
   const path = join(primary, ".worktrees", "example");
   git(primary, "worktree", "add", ...(branch ? ["-b", "feature/example"] : ["--detach"]), path);
@@ -83,6 +83,7 @@ test("CLI registration, ownership, recovery, preview and enable controls use the
     cwd: f.primary, env: { ...process.env, LOCAL_CLEANUP_OWNER_TOKEN: owner, GH_TOKEN: "fixture-unused-token" }, encoding: "utf8",
   });
   const help = invoke("--help"); assert.match(help, /complete/); assert.match(help, /\.artifacts\/openspec-archive/);
+  assert.match(help, /\.artifacts\/validation/); assert.equal(COMPLETION_DISPOSABLE_PATHS.includes(".artifacts"), false);
   const other = join(f.identity.root, "registered"); git(f.primary, "worktree", "add", "--detach", other);
   let record = JSON.parse(invoke("register", "--path", other, "--change", "example", "--source-pr", "20", "--candidate-pr", "20", "--role", "implementation", "--disposable", "node_modules"));
   assert.equal(record.state, "owned");
@@ -112,6 +113,9 @@ test("complete registers one exact candidate, applies central disposables, and i
   await mkdir(join(f.path, "node_modules")); await writeFile(join(f.path, "node_modules", "generated"), "fixture");
   await mkdir(join(f.path, ".artifacts", "openspec-archive"), { recursive: true });
   await writeFile(join(f.path, ".artifacts", "openspec-archive", "report.json"), "{}");
+  await mkdir(join(f.path, ".artifacts", "validation"), { recursive: true });
+  await writeFile(join(f.path, ".artifacts", "validation", "impact.json"), "{\"selection\":true}");
+  await writeFile(join(f.path, ".artifacts", "validation", "code-documentation.json"), "{\"passed\":true}");
   const options = { identity: f.identity, store: f.store, reader: {}, path: f.path, change: "example", sourcePr: 20,
     cwd: f.primary, reconcileOptions: { verify: f.verify, git: f.boundedGit } };
   const report = await completeLocalCleanup(options);
@@ -140,6 +144,18 @@ test("complete blocks unknown ignored content and conflicting ownership", async 
     change: "example", sourcePr: 20, cwd: f.primary }), /owned-worktree/);
   await assert.rejects(completeLocalCleanup({ ...options, identity: f.identity, store: f.store, path: f.path,
     change: "different" }), /completion-registration-conflict/);
+});
+
+test("complete blocks sibling and near-match validation artifact roots", async t => {
+  for (const root of [".artifacts/other", ".artifacts/validation-user"]) {
+    const f = await fixture(t, false, false), directory = join(f.path, ...root.split("/"));
+    await mkdir(directory, { recursive: true }); await writeFile(join(directory, "report.json"), "preserve");
+    const blocked = await completeLocalCleanup({ identity: f.identity, store: f.store, reader: {}, path: f.path,
+      change: "example", sourcePr: 20, cwd: f.primary, reconcileOptions: { verify: f.verify, git: f.boundedGit } });
+    assert.equal(blocked.results[0].reason, "worktree-content", JSON.stringify(blocked));
+    assert.ok(blocked.results[0].paths.some(path => path === root || path.startsWith(`${root}/`)), JSON.stringify(blocked));
+    assert.equal(await readFile(join(directory, "report.json"), "utf8"), "preserve");
+  }
 });
 
 test("complete rejects primary, current, and cross-root candidates", async t => {

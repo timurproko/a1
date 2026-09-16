@@ -54,6 +54,13 @@ describe("repository-owned atomic delivery guidance", () => {
     for (const match of skill.matchAll(/\]\((\.\.\/[^)]+)\)/g)) await access(resolve(dirname(path), match[1]!));
   });
 
+  it("documents the exact generated-artifact cleanup boundary", async () => {
+    const cleanup = await readFile("docs/local-worktree-cleanup.md", "utf8");
+    expect(cleanup).toContain("`.artifacts/validation`");
+    expect(cleanup).toContain("`.artifacts`, sibling directories");
+    expect(cleanup).toContain("`.artifacts/validation-user` remain blocking");
+  });
+
   it("documents valid draft and finalized single-PR links without inventing acceptance", async () => {
     const docs = await readFile("docs/openspec-archive-automation.md", "utf8");
     const examples = [...docs.matchAll(/```openspec-implementation\n([\s\S]*?)\n```/g)].map(match =>
