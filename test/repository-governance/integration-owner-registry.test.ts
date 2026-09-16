@@ -1,10 +1,14 @@
+import { execFile } from "node:child_process";
 import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve, sep } from "node:path";
+import { promisify } from "node:util";
 import { parse } from "yaml";
 import { describe, expect, it } from "vitest";
 import { loadIntegrationOwners } from "../../scripts/release/integration-owners.mjs";
 import { createTierPlan } from "../../scripts/release/validation-tier.mjs";
+
+const execFileAsync = promisify(execFile);
 
 async function discover(directory: string): Promise<string[]> {
   const paths: string[] = [];
@@ -29,7 +33,7 @@ function noDuplicates(label: string, paths: string[]) {
 }
 
 describe("integration owner registry", () => {
-  it("declares every current development integration owner and deliberate runtime target", async () => {
+  it("declares every integration owner, cadence, and deliberate runtime target", async () => {
     const owners = await loadIntegrationOwners();
     expect(owners.map(owner => owner.id)).toEqual([
       "pi-release-resume", "package-contracts", "startup", "image-compatibility", "history-compatibility", "unix-containment",
@@ -48,7 +52,20 @@ describe("integration owner registry", () => {
       "structured-runtime": ["win32-x64-node24"],
       "update-predecessor": ["win32-x64-node24"],
     });
-    expect(owners.filter(owner => !owner.development).map(owner => owner.id)).toEqual(["launch-integration", "update-performance", "structured-runtime", "update-predecessor"]);
+    expect(owners.filter(owner => owner.cadence === "exhaustive").map(owner => owner.id)).toEqual(["update-predecessor"]);
+    expect(owners.filter(owner => owner.cadence === "pull-request").map(owner => owner.id)).toEqual(owners.map(owner => owner.id).filter(id => id !== "update-predecessor"));
+  });
+
+  it("includes exact integration cadence in generated ownership evidence", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "a1-ownership-ledger-"));
+    const output = join(directory, "ledger.json");
+    try {
+      await execFileAsync(process.execPath, ["scripts/release/generate-validation-ownership-ledger.mjs", "--output", output]);
+      const ledger = JSON.parse(await readFile(output, "utf8"));
+      expect(ledger.integrationOwners.filter((owner: any) => owner.cadence === "exhaustive").map((owner: any) => owner.id)).toEqual(["update-predecessor"]);
+      expect(ledger.tests.find((entry: any) => entry.test === "test/foundation/release/update-predecessor.integration.test.ts").integrationTargets)
+        .toEqual([expect.objectContaining({ owner: "update-predecessor", cadence: "exhaustive", platform: "win32", node: 24 })]);
+    } finally { await rm(directory, { recursive: true, force: true }); }
   });
 
   it("assigns each retained integration test to one logical owner while permitting shared graph entries", async () => {
@@ -97,6 +114,9 @@ describe("integration owner registry", () => {
     ["missing entry", (value: any) => { value.owners[0].entries[0] = "test/missing.test.ts"; value.owners[0].tests[0] = "test/missing.test.ts"; }, "not a file"],
     ["wrong support kind", (value: any) => { value.owners[0].support = ["support-wrong/"]; }, "wrong kind"],
     ["duplicate scope target", (value: any) => { value.owners[1].scopes = value.owners[0].scopes; value.owners[1].targets = value.owners[0].targets; }, "duplicate integration scope"],
+    ["missing cadence", (value: any) => { delete value.owners[0].cadence; }, "owner definition"],
+    ["unknown cadence", (value: any) => { value.owners[0].cadence = "sometimes"; }, "owner definition"],
+    ["duplicate cadence authority", (value: any) => { value.owners[0].development = true; }, "owner definition"],
     ["test outside entries", (value: any) => { value.owners[0].tests.push("test/new.test.ts"); }, "owner path"],
     ["unknown field", (value: any) => { value.allowUnknown = true; }, "unsupported"],
   ] as const)("rejects invalid registry: %s", async (label, mutate, error) => {

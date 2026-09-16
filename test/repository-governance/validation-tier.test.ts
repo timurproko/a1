@@ -95,9 +95,10 @@ describe("validation tier planning", () => {
     });
     expect(selected.selected).toEqual(["typecheck", "architecture", "pr-core-tests", "pr-selected-tests"]);
     expect(selected.vitest?.invocations).toEqual([
-      expect.objectContaining({ id: "vitest-explicit", arguments: expect.arrayContaining(["test/cli/capabilities.test.ts", "test/features/workspace/capabilities.test.ts"]) }),
+      expect.objectContaining({ id: "vitest-explicit-pr-core-tests", scopes: ["pr-core-tests"], arguments: expect.arrayContaining(["test/cli/capabilities.test.ts"]) }),
+      expect.objectContaining({ id: "vitest-explicit-pr-selected-tests", scopes: ["pr-selected-tests"], arguments: expect.arrayContaining(["test/features/workspace/capabilities.test.ts"]) }),
     ]);
-    expect(selected.vitest?.invocations[0]!.arguments.filter(value => value === "test/cli/capabilities.test.ts")).toHaveLength(1);
+    expect(selected.vitest?.invocations.flatMap(invocation => invocation.arguments).filter(value => value === "test/cli/capabilities.test.ts")).toHaveLength(1);
     const resource = await createTierPlan(["pr-selected-resource"], process.cwd(), {
       additionalTests: ["test/foundation/release/release-gc.test.ts"],
     });
@@ -187,13 +188,24 @@ describe("validation tier planning", () => {
     expect(plan.commands.filter(command => command.id === "candidate-build")).toHaveLength(1);
     expect(plan.vitest).toMatchObject({
       mode: "explicit",
-      invocations: [{
-        arguments: expect.arrayContaining([
-          "test/features/launch/exact-pi-entry.integration.test.ts",
-          "test/integrations/pi/engine/conformance.test.ts",
-        ]),
-      }],
+      invocations: [
+        { scopes: ["launch-integration"], arguments: expect.arrayContaining(["test/features/launch/exact-pi-entry.integration.test.ts"]) },
+        { scopes: ["pi-engine-conformance"], arguments: expect.arrayContaining(["test/integrations/pi/engine/conformance.test.ts"]) },
+      ],
     });
+  });
+
+  it("records separate scope durations while sharing prerequisite preparation", async () => {
+    const plan = await createTierPlan(["launch-integration", "structured-runtime-integration"]);
+    expect(plan.commands.filter(command => command.id === "candidate-build")).toHaveLength(1);
+    const result = await runTierPlan({ ...plan, commands: [] }, {
+      stdio: "pipe",
+      executeCommand: async command => ({ id: command.id, command: command.id, exitCode: 0, durationMs: command.id.includes("launch") ? 11 : 7 }),
+    });
+    expect(result.outcomes).toEqual([
+      expect.objectContaining({ scopes: ["launch-integration"], durationMs: 11 }),
+      expect.objectContaining({ scopes: ["structured-runtime-integration"], durationMs: 7 }),
+    ]);
   });
 
   it("reuses an explicit install-time build without spawning another build", async () => {

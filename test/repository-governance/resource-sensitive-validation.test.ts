@@ -61,6 +61,7 @@ describe("resource-sensitive validation partition", () => {
       expect(resources[index]).toEqual({
         id: `vitest-fast-resource-sensitive-${index + 1}`,
         arguments: ["vitest", "run", test, "--no-file-parallelism"],
+        scopes: ["fast-resource-sensitive"],
         evidence: {
           executionClass: "resource-sensitive",
           testFiles: [test],
@@ -250,8 +251,8 @@ describe("resource-sensitive validation partition", () => {
       vitest: {
         mode: "fast-and-explicit",
         invocations: [
-          { id: "vitest-fast-resource-sensitive", arguments: ["vitest", "run", "fixture.test.ts", "--no-file-parallelism"], evidence },
-          { id: "must-not-run", arguments: ["vitest", "run", "later.test.ts"] },
+          { id: "vitest-fast-resource-sensitive", scopes: ["fast-resource-sensitive"], arguments: ["vitest", "run", "fixture.test.ts", "--no-file-parallelism"], evidence },
+          { id: "must-not-run", scopes: ["fast-remainder"], arguments: ["vitest", "run", "later.test.ts"] },
         ],
       },
     }, {

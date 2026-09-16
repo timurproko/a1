@@ -20,6 +20,24 @@ describe("CI and release operations runbook", () => {
     expect(runbook).toContain("a failed budget remains failed and is never retried");
   });
 
+  it("documents bounded PR cadence, exhaustive predecessor deferral, and latency targets", async () => {
+    const [runbook, validation] = await Promise.all([
+      readFile("docs/ci-release-runbook.md", "utf8"),
+      readFile("docs/validation.md", "utf8"),
+    ]);
+    for (const source of [runbook, validation]) {
+      expect(source).toContain("pull-request");
+      expect(source).toContain("exhaustive");
+      expect(source).toContain("update-predecessor");
+    }
+    expect(runbook).toContain("at most eight minutes");
+    expect(runbook).toContain("five minutes for one PR-required scope");
+    expect(validation).toContain("eight-minute critical-path and five-minute individual-scope targets");
+    expect(runbook).toContain("real published-history incompatibility to reach `develop` before nightly detects it");
+    expect(runbook).toContain("Full regression");
+    expect(validation).toContain("change its cadence from `exhaustive` to `pull-request`");
+  });
+
   it("keeps the exact-bytes safety rules", async () => {
     const runbook = await readFile("docs/ci-release-runbook.md", "utf8");
     expect(runbook).toContain("Never upload locally rebuilt bytes");

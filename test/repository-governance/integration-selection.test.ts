@@ -8,11 +8,11 @@ const windows = { platform: "win32", architecture: "x64", node: 22 } as const;
 
 function fixture() {
   const ownership: IntegrationOwnership = {
-    schema: "a1-integration-ownership-v1",
+    schema: "a1-integration-ownership-v2",
     owners: [
-      { id: "startup", scopes: ["fixture-startup"], targets: [windows], development: true },
-      { id: "package", scopes: ["fixture-package"], targets: [windows, { ...windows, platform: "linux", node: 24 }], development: true },
-      { id: "predecessor", scopes: ["fixture-predecessor"], targets: [windows], development: false },
+      { id: "startup", cadence: "pull-request", scopes: ["fixture-startup"], targets: [windows] },
+      { id: "package", cadence: "pull-request", scopes: ["fixture-package"], targets: [windows, { ...windows, platform: "linux", node: 24 }] },
+      { id: "predecessor", cadence: "exhaustive", scopes: ["fixture-predecessor"], targets: [windows] },
     ],
   };
   return { base, head, ownership };
@@ -22,7 +22,7 @@ function impactDecisions(): IntegrationDecision[] {
   return [
     { owner: "startup", selected: false, reasons: [{ code: "unrelated", paths: [] }] },
     { owner: "package", selected: true, reasons: [{ code: "coarse-owner", paths: ["bin/cli.js", "src/foundation/fixture.ts"] }] },
-    { owner: "predecessor", selected: true, reasons: [{ code: "changed-test", paths: ["test/fixture.test.ts"] }] },
+    { owner: "predecessor", selected: false, reasons: [{ code: "exhaustive-cadence", paths: ["test/fixture.test.ts"] }] },
   ];
 }
 
@@ -57,11 +57,11 @@ describe("versioned integration selection contract", () => {
     expect(createIntegrationSelection(authority)).toEqual(first);
   });
 
-  it("retains justified exclusions and promotes normally non-development owners", () => {
+  it("retains justified exclusions and explicit exhaustive cadence deferrals", () => {
     const authority = fixture();
     const selection = createIntegrationSelection({ ...authority, mode: "impact", decisions: impactDecisions() });
-    expect(selection.owners.find((owner: any) => owner.owner === "predecessor")).toMatchObject({ selected: true });
-    expect(selection.owners.find((owner: any) => owner.owner === "startup")).toMatchObject({ selected: false, reasons: [{ code: "unrelated", paths: [] }] });
+    expect(selection.owners.find((owner: any) => owner.owner === "predecessor")).toMatchObject({ cadence: "exhaustive", selected: false, reasons: [{ code: "exhaustive-cadence", paths: ["test/fixture.test.ts"] }] });
+    expect(selection.owners.find((owner: any) => owner.owner === "startup")).toMatchObject({ cadence: "pull-request", selected: false, reasons: [{ code: "unrelated", paths: [] }] });
     expect(assertIntegrationSelection(selection, authority)).toBe(selection);
     expect(() => createIntegrationSelection({ ...authority, mode: "impact" })).toThrow("explicit decisions");
   });
@@ -98,7 +98,8 @@ describe("versioned integration selection contract", () => {
     ["too many reasons", (v: any) => { v.owners[0].reasons = Array(65).fill({ code: "conservative-fallback", paths: [] }); }],
     ["contradictory reason", (v: any) => { v.owners[0].reasons = [{ code: "unrelated", paths: [] }]; }],
     ["silent conservative skip", (v: any) => { v.owners[0].selected = false; v.owners[0].reasons = [{ code: "unrelated", paths: [] }]; }],
-    ["false full-only declaration", (v: any) => { v.owners[0].selected = false; v.owners[0].reasons = [{ code: "not-development", paths: [] }]; }],
+    ["false exhaustive declaration", (v: any) => { v.owners[0].selected = false; v.owners[0].reasons = [{ code: "exhaustive-cadence", paths: [] }]; }],
+    ["selected exhaustive owner", (v: any) => { const owner = v.owners.find((entry: any) => entry.owner === "predecessor"); owner.selected = true; owner.reasons = [{ code: "conservative-fallback", paths: [] }]; }],
     ["pathless impact", (v: any) => { v.owners[0].reasons = [{ code: "coarse-owner", paths: [] }]; }],
     ["raw diagnostic field", (v: any) => { v.owners[0].reasons[0].error = "must not be accepted"; }],
     ["traversal path", (v: any) => { v.owners[0].reasons[0].paths = ["test/../private"]; }],
@@ -119,7 +120,8 @@ describe("versioned integration selection contract", () => {
     ["empty owners", (v: any) => { v.owners = []; }],
     ["too many owners", (v: any) => { v.owners = Array(65).fill(v.owners[0]); }],
     ["duplicate owner", (v: any) => { v.owners[1].id = v.owners[0].id; }],
-    ["unknown development applicability", (v: any) => { delete v.owners[0].development; }],
+    ["missing cadence", (v: any) => { delete v.owners[0].cadence; }],
+    ["unknown cadence", (v: any) => { v.owners[0].cadence = "sometimes"; }],
     ["unknown owner field", (v: any) => { v.owners[0].allowSkip = true; }],
     ["empty scopes", (v: any) => { v.owners[0].scopes = []; }],
     ["duplicate scope", (v: any) => { v.owners[0].scopes.push(v.owners[0].scopes[0]); }],
@@ -140,7 +142,7 @@ describe("versioned integration selection contract", () => {
     const changed = JSON.parse(JSON.stringify(selection));
     changed.owners[0].reasons[0].paths = ["test/other.test.ts"];
     expect(() => assertIntegrationSelection(changed, authority)).toThrow("selection identity mismatch");
-    authority.ownership.owners[0]!.development = false;
+    authority.ownership.owners[0]!.cadence = "exhaustive";
     expect(() => assertIntegrationSelection(selection, authority)).toThrow("ownership identity mismatch");
   });
 

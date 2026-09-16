@@ -4,7 +4,7 @@ const MAX_OWNERS = 64;
 const MAX_SCOPES = 64;
 const MAX_REASONS = 64;
 const SELECT_REASONS = new Set(["coarse-owner", "changed-test", "shared-support", "invalidator", "conservative-fallback"]);
-const EXCLUDE_REASONS = new Set(["unrelated", "not-development", "docs-only", "version-only"]);
+const EXCLUDE_REASONS = new Set(["unrelated", "exhaustive-cadence", "docs-only", "version-only"]);
 
 /**
  * Build a complete integration decision document. Digests bind content, not trust:
@@ -16,8 +16,8 @@ export function createIntegrationSelection({ base, head, ownership, mode = "cons
     if (mode === "impact") throw new TypeError("impact mode requires explicit decisions for every owner");
     decisions = ownership.owners.map(owner => ({
       owner: owner.id,
-      selected: mode === "conservative" && owner.development,
-      reasons: [{ code: mode === "exempt" ? exemption : owner.development ? "conservative-fallback" : "not-development", paths: [] }],
+      selected: mode === "conservative" && owner.cadence === "pull-request",
+      reasons: [{ code: mode === "exempt" ? exemption : owner.cadence === "pull-request" ? "conservative-fallback" : "exhaustive-cadence", paths: [] }],
     }));
   }
   if (!Array.isArray(decisions) || decisions.length !== ownership.owners.length) throw new TypeError("incomplete integration decisions");
@@ -28,10 +28,10 @@ export function createIntegrationSelection({ base, head, ownership, mode = "cons
     byId.set(decision.owner, decision);
   }
   const value = {
-    schema: "a1-integration-selection-v1", base, head, mode, exemption,
+    schema: "a1-integration-selection-v2", base, head, mode, exemption,
     ownershipId: digest(normalizedOwnership(ownership)),
     owners: normalizedOwnership(ownership).owners.map(owner => ({
-      owner: owner.id, scopes: owner.scopes, targets: owner.targets,
+      owner: owner.id, cadence: owner.cadence, scopes: owner.scopes, targets: owner.targets,
       selected: byId.get(owner.id).selected, reasons: byId.get(owner.id).reasons,
     })),
   };
@@ -51,7 +51,7 @@ export function assertIntegrationSelection(value, authority) {
 
 function assertPayload(value, authority) {
   exactKeys(value, ["schema", "base", "head", "mode", "exemption", "ownershipId", "owners", "selectionId"], "selection");
-  if (value.schema !== "a1-integration-selection-v1") throw new TypeError("unsupported integration selection schema");
+  if (value.schema !== "a1-integration-selection-v2") throw new TypeError("unsupported integration selection schema");
   if (!authority || !commit(authority.base) || !commit(authority.head)) throw new TypeError("trusted integration base/head authority is required");
   if (value.base !== authority.base || value.head !== authority.head) throw new TypeError("integration selection base/head mismatch");
   assertOwnership(authority.ownership);
@@ -64,8 +64,8 @@ function assertPayload(value, authority) {
   if (!Array.isArray(value.owners) || value.owners.length !== ownership.owners.length) throw new TypeError("incomplete integration owner selection");
   for (const [index, owner] of ownership.owners.entries()) {
     const decision = value.owners[index];
-    exactKeys(decision, ["owner", "scopes", "targets", "selected", "reasons"], "owner decision");
-    if (decision.owner !== owner.id || !Array.isArray(decision.scopes) || decision.scopes.length !== owner.scopes.length
+    exactKeys(decision, ["owner", "cadence", "scopes", "targets", "selected", "reasons"], "owner decision");
+    if (decision.owner !== owner.id || decision.cadence !== owner.cadence || !Array.isArray(decision.scopes) || decision.scopes.length !== owner.scopes.length
       || decision.scopes.some((scope, index) => scope !== owner.scopes[index])
       || !Array.isArray(decision.targets) || decision.targets.length !== owner.targets.length) throw new TypeError("integration owner or applicability mismatch");
     for (const [index, target] of decision.targets.entries()) {
@@ -80,9 +80,13 @@ function assertPayload(value, authority) {
       if (!Array.isArray(reason.paths) || reason.paths.length > 16 || reason.paths.some(path => !repositoryPath(path))) throw new TypeError("integration reason paths invalid or unbounded");
       if (["coarse-owner", "changed-test", "shared-support", "invalidator"].includes(reason.code) && reason.paths.length === 0) throw new TypeError("integration impact reason requires a path");
       if (["docs-only", "version-only"].includes(reason.code) && (value.mode !== "exempt" || reason.code !== value.exemption)) throw new TypeError("integration exclusion exemption mismatch");
-      if (reason.code === "not-development" && owner.development) throw new TypeError("development owner cannot be excluded as full-only");
+      if (reason.code === "exhaustive-cadence" && (owner.cadence !== "exhaustive" || value.mode === "exempt")) throw new TypeError("integration cadence deferral lacks exhaustive authority");
     }
-    if (value.mode === "conservative" && owner.development && !decision.selected) throw new TypeError("conservative selection must include every development owner");
+    if (owner.cadence === "exhaustive" && value.mode !== "exempt"
+      && (decision.selected || decision.reasons.some(reason => reason.code !== "exhaustive-cadence"))) {
+      throw new TypeError("exhaustive integration owner requires explicit cadence deferral");
+    }
+    if (value.mode === "conservative" && owner.cadence === "pull-request" && !decision.selected) throw new TypeError("conservative selection must include every pull-request owner");
     if (value.mode === "exempt" && (decision.selected || decision.reasons.some(reason => reason.code !== value.exemption))) throw new TypeError("exempt selection must explicitly exclude every owner");
   }
 }
@@ -90,15 +94,15 @@ function assertPayload(value, authority) {
 /** Validate reviewed ownership, including explicit platform/runtime repetitions. */
 function assertOwnership(ownership) {
   exactKeys(ownership, ["schema", "owners"], "ownership");
-  if (ownership.schema !== "a1-integration-ownership-v1") throw new TypeError("unsupported integration ownership schema");
+  if (ownership.schema !== "a1-integration-ownership-v2") throw new TypeError("unsupported integration ownership schema");
   if (!Array.isArray(ownership.owners) || ownership.owners.length === 0 || ownership.owners.length > MAX_OWNERS) throw new TypeError("integration ownership missing or unbounded");
   const ids = new Set();
   const executions = new Set();
   for (const owner of ownership.owners) {
-    exactKeys(owner, ["id", "scopes", "targets", "development"], "owner");
+    exactKeys(owner, ["id", "cadence", "scopes", "targets"], "owner");
     if (!identifier(owner.id) || ids.has(owner.id)) throw new TypeError("invalid or duplicate integration owner");
     ids.add(owner.id);
-    if (typeof owner.development !== "boolean") throw new TypeError("integration owner requires development applicability");
+    if (!["pull-request", "exhaustive"].includes(owner.cadence)) throw new TypeError("integration owner requires supported cadence");
     if (!Array.isArray(owner.scopes) || owner.scopes.length === 0 || owner.scopes.length > MAX_SCOPES
       || owner.scopes.some(scope => !identifier(scope)) || new Set(owner.scopes).size !== owner.scopes.length) throw new TypeError("integration scopes invalid or unbounded");
     if (!Array.isArray(owner.targets) || owner.targets.length === 0 || owner.targets.length > 16) throw new TypeError("integration targets missing or unbounded");

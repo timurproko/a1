@@ -1,10 +1,10 @@
-import type { IntegrationSelection, IntegrationTarget } from "./integration-selection.mjs";
+import type { IntegrationCadence, IntegrationSelection, IntegrationTarget } from "./integration-selection.mjs";
 import type { ValidationOwnershipSelection } from "./validation-ownership.mjs";
 export interface IntegrationImpactOwner {
   id: string;
   scopes: string[];
   targets: IntegrationTarget[];
-  development: boolean;
+  cadence: IntegrationCadence;
   entries: string[];
   tests: string[];
   support: string[];
