@@ -79,7 +79,8 @@ export function parseImplementationAcceptanceChecks(body) {
 
 function assertVersion3BodyLayout(body) {
   const lines = normalizedBody(body).split("\n");
-  if (lines.find(line => line.trim()) !== "> Phase: Acceptance") throw archiveFailure("acceptance-layout-phase");
+  const phaseLine = lines.find(line => line.trim());
+  if (!["> Phase: Implementation", "> Phase: Acceptance"].includes(phaseLine)) throw archiveFailure("acceptance-layout-phase");
   const headings = [];
   let fence = null;
   let comment = false;
@@ -110,6 +111,11 @@ function assertVersion3BodyLayout(body) {
     || visible.at(-1) !== "</details>" || !automation.some(line => line === "```openspec-implementation")) {
     throw archiveFailure("acceptance-layout-automation");
   }
+  return phaseLine.slice("> Phase: ".length).toLocaleLowerCase("en-US");
+}
+
+export function parseImplementationDeliveryPhase(body) {
+  return assertVersion3BodyLayout(body);
 }
 
 export function parseImplementationAcceptanceScenarios(body, version) {

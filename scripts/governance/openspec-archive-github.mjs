@@ -1,7 +1,7 @@
 import { loadPullRequestAcceptance } from "./openspec-acceptance-github.mjs";
 import { snapshotOpenSpec } from "./openspec-archive-staging.mjs";
 import { archiveFailure, assertMergedImplementation, inspectTasks, parseImplementation, parseAcceptance, selectAcceptance, SHA } from "./openspec-archive-policy.mjs";
-import { parseImplementationAcceptanceScenarios } from "./openspec-acceptance-checklist.mjs";
+import { parseImplementationAcceptanceScenarios, parseImplementationDeliveryPhase } from "./openspec-acceptance-checklist.mjs";
 import { assertManualAcceptanceMerge, digest, requireAcceptance } from "./openspec-acceptance-policy.mjs";
 import { parseConditionalAcceptance, verifyConditionalAcceptance } from "./openspec-delivery-policy.mjs";
 
@@ -106,6 +106,7 @@ export async function validateVersion3Candidate(reader, number) {
   requireAcceptance(target.object?.sha === pull.base.sha, "delivery-target-stale");
   await reader.ancestor(pull.base.sha, pull.head.sha);
   const value = await inspectVersion3DeliverySnapshot(reader, pull, implementation, pull.head.sha);
+  requireAcceptance(parseImplementationDeliveryPhase(pull.body ?? "") === "acceptance", "delivery-phase-not-acceptance");
   const changed = new Set(files.flatMap(file => [file.filename, ...(file.status === "renamed" ? [file.previous_filename] : [])]));
   requireAcceptance(value.archiveEntries.every(([path]) => changed.has(path)) && changed.has(implementation.acceptanceManifest),
     "delivery-diff-incomplete");

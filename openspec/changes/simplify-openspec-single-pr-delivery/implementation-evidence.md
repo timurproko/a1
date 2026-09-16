@@ -11,7 +11,7 @@
 ## Implemented outcomes
 
 - Version-3 metadata supports draft and exact finalized archive/manifest paths while retaining version-1/version-2 readers.
-- Every agent-created OpenSpec delivery PR starts with a quoted phase, separates a one-or-two-sentence `Proposal` intent from concrete `Implementation` details, removes routine validation-command noise, and ends with collapsed linkage under `Automation`; completed candidates use `> Phase: Acceptance` and visible `Acceptance` outcomes.
+- Every agent-created OpenSpec delivery PR starts at `> Phase: Proposal`, moves to `Implementation` after approval and through pending/failed tests, changes to `Acceptance` only after required exact-head product tests pass with only the phase gate blocked, and derives `Archived` after verified merge without editing the accepted body. Human sections separate a one-or-two-sentence proposal intent, concrete implementation details, and visible acceptance outcomes before collapsed `Automation` linkage.
 - Final PR acceptance uses one to three visible plain `## Acceptance` scenarios; checkboxes are rejected.
 - In-branch finalization uses the pinned OpenSpec engine in isolation, synchronizes deltas, moves the active change, writes a conditional manifest, computes deterministic archive/spec/task/evidence digests, and applies no remote mutation.
 - Trusted candidate validation binds the exact body, target baseline, archive, canonical specs, tasks/evidence, and complete implementation-required validation.
@@ -41,6 +41,8 @@ Exact required hosted Development CI is pending the pushed final candidate and r
 4. Typecheck initially found the new acceptance parser missing from its declaration and later found an intentionally mutated fixture map inferred too narrowly. Declarations and fixture typing were corrected; typecheck passes.
 5. One focused guidance/workflow run had three expectation-only failures after the runbook rewrite. Assertions were reconciled to the approved wording; no runtime policy changed, and the repeated selections passed.
 6. Exact-head Development run `35006946913` failed five fast-suite tests. Four still read evidence from the active `shorten-development-validation` path after that change had been archived and treated pre-squash observation commits as ancestors of current `develop`; they now read the immutable archive, retain exact observation-head identities, and verify the integrated implementation merge instead of requiring topic-ref retention. The fifth detected that the concise config rewrite had dropped the exact direct-Node-launch prohibition; the explicit prohibition was restored. The focused 14-test regression then passed.
+7. Development run `35008030730` reached a transient 10-second package-extraction hook timeout after its preceding 53 Pi/release tests passed. No timeout was weakened; a later exact-head run passed the same package lane.
+8. Development run `35009856258` passed every completed lane, including the prior package failure, but the changed full-only owner was cancelled at the existing 20-minute job limit while predecessor-update integration was still progressing. The missing aggregate outcome then failed closed. The failed attempt remains separate and does not authorize acceptance.
 
 ## Rollout boundary
 

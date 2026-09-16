@@ -34,7 +34,8 @@ describe("implementation-specific acceptance checklist", () => {
   });
 
   it("requires the canonical visible phase and section layout for completed deliveries", () => {
-    expect(() => parseImplementationAcceptanceScenarios(version3Body().replace("> Phase: Acceptance", "> Phase: Implementation"), 3))
+    expect(parseImplementationAcceptanceScenarios(version3Body().replace("> Phase: Acceptance", "> Phase: Implementation"), 3)).toEqual(checks);
+    expect(() => parseImplementationAcceptanceScenarios(version3Body().replace("> Phase: Acceptance", "> Phase: Proposal"), 3))
       .toThrow("acceptance-layout-phase");
     expect(() => parseImplementationAcceptanceScenarios(version3Body().replace("## Implementation", "## Intent"), 3))
       .toThrow("acceptance-layout-sections");

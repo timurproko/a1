@@ -85,6 +85,7 @@ export async function reconcileArchives({ reader, tool, publisherFactory, dryRun
           row.deliveryVersion = 3;
           row.change = evidence.implementation.change;
           row.disposition = "accepted-and-archived";
+          row.phase = "Archived";
           row.mergeCommit = evidence.pull.merge_commit_sha;
           row.archive = evidence.implementation.archive;
           row.validationRunId = evidence.validation.runId;

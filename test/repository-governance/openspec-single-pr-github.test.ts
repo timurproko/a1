@@ -84,6 +84,12 @@ describe("version-3 GitHub delivery authority", () => {
     });
   });
 
+  it("blocks manual-merge readiness until required tests advance the phase to acceptance", async () => {
+    const f = fixture(false);
+    f.pull.body = f.pull.body.replace("> Phase: Acceptance", "> Phase: Implementation");
+    await expect(validateVersion3Candidate(f.reader, 42)).rejects.toThrow("delivery-phase-not-acceptance");
+  });
+
   it("fails closed on stale base, body drift, content drift, and unrelated OpenSpec paths", async () => {
     let f = fixture(false); f.pull.base.sha = "d".repeat(40);
     await expect(validateVersion3Candidate(f.reader, 42)).rejects.toThrow("delivery-target-stale");
@@ -122,7 +128,7 @@ describe("version-3 GitHub delivery authority", () => {
       dryRun: false, pr: 42, publisherFactory: async () => { publications += 1; throw new Error("must not publish"); },
       loadEvidence: async () => evidence } as never);
     expect(report.results).toEqual([expect.objectContaining({ pr: 42, deliveryVersion: 3,
-      disposition: "accepted-and-archived", archive, validationRunId: 99 })]);
+      disposition: "accepted-and-archived", phase: "Archived", archive, validationRunId: 99 })]);
     expect(publications).toBe(0);
   });
 

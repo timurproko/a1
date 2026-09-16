@@ -8,14 +8,14 @@ Version-1 and version-2 deliveries and their existing comments, acceptance PRs, 
 
 ## Version-3 lifecycle
 
-1. **Draft plan:** create one normally named branch/PR such as `feature/...`, `fix/...`, or `chore/...`. Start the body with `> Phase: Planning`, use `Proposal` for one or two sentences of intent and `Implementation` for the concrete planned work, omit routine validation command lists, and keep machine linkage under final collapsed `Automation`. Keep it draft and include only planning artifacts until the maintainer approves the plan and explicitly requests implementation.
+1. **Draft plan:** create one normally named branch/PR such as `feature/...`, `fix/...`, or `chore/...`. Start the body with `> Phase: Proposal`, use `Proposal` for one or two sentences of intent and `Implementation` for the concrete planned work, omit routine validation command lists, and keep machine linkage under final collapsed `Automation`. Keep it draft and include only planning artifacts until the maintainer approves the plan and explicitly requests implementation.
 2. **Same-PR implementation:** change the first line to `> Phase: Implementation`, then continue in the same worktree, branch, history, and PR. Reconcile approved refinements in proposal, design, deltas, and tasks before corresponding code edits.
 3. **Complete evidence:** finish implementation, required tests/evidence, substantive tasks, and explicit known-gap disposition. CI success is objective evidence, not acceptance.
-4. **Plain acceptance list:** change the first line to `> Phase: Acceptance` and add final `## Acceptance` with one to three concise implementation-specific behavior-and-result bullets. Do not use checkboxes, generic review/CI/approval/archive statements, URLs, mentions, or automated-test inventory.
+4. **Plain acceptance list:** keep the first line at `> Phase: Implementation` and add final `## Acceptance` with one to three concise implementation-specific behavior-and-result bullets. Do not use checkboxes, generic review/CI/approval/archive statements, URLs, mentions, or automated-test inventory.
 5. **In-branch finalization:** reconcile current `origin/develop`, conservatively synchronize all deltas, move the active change into its dated archive, and stage the conditional acceptance manifest in the same branch.
-6. **Ready and validate:** mark the finalized PR ready. Normal exact-head CI validates the implementation plus synchronized specs, archive, manifest, tasks/evidence, and exact PR-body list. A new commit, body edit, or advanced target requires revalidation.
-7. **Manual merge accepts:** an authorized human manually merges the exact validated head. That single action means the listed scenarios are accepted and explicitly authorizes integration. Auto-merge, merge queue, Apps, bots, and documentation reconciliation are forbidden.
-8. **Verify and clean:** trusted post-merge policy reports `accepted-and-archived` from committed bytes and immutable GitHub provenance. It publishes no lifecycle branch or PR. Shared exact-head remote cleanup may delete the unchanged topic ref; local cleanup remains separately ownership-controlled.
+6. **Ready and validate:** mark the finalized PR ready while its phase remains `Implementation`. Normal exact-head CI validates the implementation plus synchronized specs, archive, manifest, tasks/evidence, and exact PR-body list. After every required product test passes and the phase gate is the only expected blocker, change only the first line to `> Phase: Acceptance`; its body-edit candidate validation must pass. A new commit, acceptance change, or advanced target requires full renewed validation.
+7. **Manual merge accepts:** an authorized human manually merges the exact validated head only after the validated phase is `Acceptance`. That single action means the listed scenarios are accepted and explicitly authorizes integration. Auto-merge, merge queue, Apps, bots, and documentation reconciliation are forbidden.
+8. **Verify and clean:** trusted post-merge policy derives `Archived` and reports `accepted-and-archived` from committed bytes and immutable GitHub provenance without editing the accepted PR body. It publishes no lifecycle branch or PR. Shared exact-head remote cleanup may delete the unchanged topic ref; local cleanup remains separately ownership-controlled.
 
 The implementation, synchronized canonical specs, conditional acceptance record, and archive therefore reach `develop` atomically. Closing the PR unmerged integrates none of them.
 
@@ -24,7 +24,7 @@ The implementation, synchronized canonical specs, conditional acceptance record,
 The first screen should separate purpose from delivery detail, not foreground CI mechanics. Distill `Proposal` into one or two sentences answering why the PR exists, then put two to five concrete points under `Implementation` answering what it will deliver:
 
 ```markdown
-> Phase: Planning
+> Phase: Proposal
 
 ## Proposal
 
@@ -46,10 +46,10 @@ Replace the multi-PR OpenSpec handoff with one manually merged development PR wh
 </details>
 ```
 
-Do not add a routine `Validation` section listing commands to an initial draft. Actual validation results belong in CI and the eventual implementation handoff. Change the first line to `> Phase: Implementation` after approval. When implementation is complete, use this visible order:
+Do not add a routine `Validation` section listing commands to an initial draft. Actual validation results belong in CI and the eventual implementation handoff. Change the first line to `> Phase: Implementation` after approval. When implementation is complete and ready for required tests, use this visible order:
 
 ```markdown
-> Phase: Acceptance
+> Phase: Implementation
 
 ## Proposal
 
@@ -73,7 +73,7 @@ Do not add a routine `Validation` section listing commands to an initial draft. 
 </details>
 ```
 
-Keep acceptance absent during planning so unfinished intent is not mistaken for final acceptance criteria.
+Keep acceptance absent during proposal review so unfinished intent is not mistaken for final acceptance criteria. Keep the finalized candidate at `Implementation` while required tests are pending or failed. After all required exact-head product tests pass and the phase gate is the only expected blocker, change only the first line to `> Phase: Acceptance` and wait for the resulting candidate-validation check before handoff. After manual merge, trusted verification derives `Archived`; do not rewrite the accepted body.
 
 ## Version-3 implementation metadata
 
