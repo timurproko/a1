@@ -4,19 +4,36 @@ import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { expect } from "vitest";
 import type { ValidationPhaseRecorder } from "../../../scripts/release/validation-phase.mjs";
+import { EXACT_PACKAGE_PREPARATION_ENV, installArguments, verifyExactPackagePreparation } from "../../../scripts/release/exact-package-preparation.mjs";
 import { loadValidationCandidate } from "./package-candidate-fixture.js";
 
 export async function installExactCandidate(phases: ValidationPhaseRecorder, label: string) {
   const candidate = await phases.run("load-candidate", () => loadValidationCandidate());
   phases.bindCandidate(candidate.bytes);
   const root = await mkdtemp(resolve(tmpdir(), label));
+  const handoffNames = Object.values(EXACT_PACKAGE_PREPARATION_ENV);
+  const handoffPresent = handoffNames.some(name => process.env[name] !== undefined);
+  if (process.env[EXACT_PACKAGE_PREPARATION_ENV.mode] === "runner") {
+    try {
+      const prepared = await phases.run("verify-shared-install", () => verifyExactPackagePreparation({ candidatePath: candidate.path }));
+      return { candidate, root, prefix: prepared.prefix, sharedPreparation: true };
+    } catch (error) {
+      await removeFixtureRoot(root).catch(() => {});
+      throw error;
+    }
+  }
+  if (handoffPresent) {
+    await removeFixtureRoot(root).catch(() => {});
+    throw new Error("exact-package preparation handoff is incomplete or contradictory");
+  }
+
   const prefix = resolve(root, "prefix");
   const npm = process.platform === "win32" ? "npm.cmd" : "npm";
   await phases.run("clean-global-install", async () => {
-    const installed = await runFixtureCommand(npm, ["install", "--global", "--prefix", prefix, candidate.path, "--ignore-scripts", "--no-audit", "--no-fund", "--prefer-offline"], root);
+    const installed = await runFixtureCommand(npm, installArguments(prefix, candidate.path), root);
     expect(installed.status, installed.stderr).toBe(0);
   });
-  return { candidate, root, prefix };
+  return { candidate, root, prefix, sharedPreparation: false };
 }
 
 export async function cleanupExactCandidate(phases: ValidationPhaseRecorder, root: string): Promise<void> {

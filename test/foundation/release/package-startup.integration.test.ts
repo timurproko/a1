@@ -1,5 +1,5 @@
 import crossSpawn from "cross-spawn";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createValidationPhaseRecorder } from "../../../scripts/release/validation-phase.mjs";
@@ -66,15 +66,25 @@ describe("fresh first-attempt startup of the exact candidate", () => {
     const startupModuleGraph = await loadStartupModuleGraph(packageRoot);
     const dataDir = resolve(root, "startup-data");
     const runtimeDir = resolve(root, "startup-runtime");
-    const environment = {
+    const configDir = resolve(root, "startup-config");
+    const homeDir = resolve(root, "startup-home");
+    const databasePath = resolve(root, "startup.sqlite3");
+    const environment: NodeJS.ProcessEnv = {
       ...process.env,
       [PRODUCT_IDENTITY.environment.dataDir]: dataDir,
       [PRODUCT_IDENTITY.environment.runtimeDir]: runtimeDir,
-      [PRODUCT_IDENTITY.environment.configDir]: resolve(root, "startup-config"),
-      [PRODUCT_IDENTITY.environment.databasePath]: resolve(root, "startup.sqlite3"),
-      HOME: resolve(root, "startup-home"),
-      USERPROFILE: resolve(root, "startup-home"),
+      [PRODUCT_IDENTITY.environment.configDir]: configDir,
+      [PRODUCT_IDENTITY.environment.databasePath]: databasePath,
+      HOME: homeDir,
+      USERPROFILE: homeDir,
     };
+    delete environment.NODE_COMPILE_CACHE;
+    await phases.run("startup-cold-state", async () => {
+      for (const path of [dataDir, runtimeDir, configDir, homeDir, databasePath]) {
+        await expect(accessPath(path)).resolves.toBe(false);
+      }
+      expect(environment.NODE_COMPILE_CACHE).toBeUndefined();
+    });
     const release = await phases.run("startup-materialization", () => materializeRelease(packageRoot, dataDir));
     const state = new CohortStateStore(dataDir);
     await phases.run("startup-record-candidate", () => state.recordCandidate(release));
@@ -226,6 +236,10 @@ async function stopPackagedSupervisor(
   }
   if (!owner || owner.ownership.liveInstanceIds.length !== 0) throw new Error("exact-package supervisor did not become idle");
   expect(await releaseVerifiedIdleOwner(owner, dataDir)).toBe(true);
+}
+
+async function accessPath(path: string): Promise<boolean> {
+  return access(path).then(() => true).catch(() => false);
 }
 
 async function expectWindowsDefenderProtection(): Promise<void> {

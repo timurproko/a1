@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Shared exact-package preparation preserves fixture independence
-An exact candidate's immutable clean installation MAY supply multiple validation owners within one platform/runtime lane only when every owner receives fresh mutable configuration, data, runtime, endpoint, process, and cleanup state. Consumers SHALL treat the installed package as read-only, SHALL verify its candidate identity before use, and SHALL NOT leave changes that affect another consumer. Owner execution order SHALL NOT serve as an oracle or prerequisite unless the suite contract explicitly declares that dependency.
+An exact candidate's immutable clean installation MAY supply multiple validation owners within one platform/runtime lane only when every owner receives fresh mutable configuration, data, runtime, endpoint, process, and cleanup state. Consumers SHALL treat the installed package as read-only, SHALL verify its candidate identity before use, and SHALL NOT leave changes that affect another consumer. Owner execution order SHALL NOT serve as an oracle or prerequisite unless the suite contract explicitly declares that dependency. A lane selecting startup SHALL schedule it immediately after shared preparation and before package-contract workload solely to isolate first-attempt runner load; installed bytes SHALL be reverified before a later owner consumes them.
 
 A first-attempt startup consumer SHALL remain cold with respect to product launch, release materialization, certification, warmup, supervisor state, compile caches, and profile state. Reusing downloaded dependency bytes or the immutable installed package SHALL NOT count as a prior launch and SHALL NOT permit startup evidence produced by another owner. Cleanup SHALL remove or safely defer only owner-specific mutable state and SHALL preserve the primary failure when cleanup also fails.
 
@@ -11,8 +11,8 @@ A first-attempt startup consumer SHALL remain cold with respect to product launc
 - **AND** neither owner's mutations or cleanup SHALL affect the other's assertions or outcome
 
 #### Scenario: Startup consumes shared preparation
-- **WHEN** the startup owner receives an immutable package installation previously inspected by a contract owner
-- **THEN** its first measured launch SHALL still begin without prior product launch, materialization, certification, warmup, supervisor, or mutable compile-cache state
+- **WHEN** the startup owner receives an immutable package installation shared with a contract owner
+- **THEN** startup SHALL run before the package-contract workload and its first measured launch SHALL begin without prior product launch, materialization, certification, warmup, supervisor, profile, or mutable compile-cache state
 - **AND** all first-attempt budgets and assertions SHALL remain unchanged and execute without retry
 
 #### Scenario: A consumer mutates the installed package

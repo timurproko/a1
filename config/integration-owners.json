@@ -58,6 +58,8 @@
         "test/foundation/release/package-install.integration.test.ts"
       ],
       "support": [
+        "scripts/release/exact-package-preparation.d.mts",
+        "scripts/release/exact-package-preparation.mjs",
         "test/foundation/release/package-candidate-fixture.ts",
         "test/foundation/release/package-install-fixture.ts"
       ],
@@ -83,6 +85,8 @@
         "test/foundation/release/package-startup.integration.test.ts"
       ],
       "support": [
+        "scripts/release/exact-package-preparation.d.mts",
+        "scripts/release/exact-package-preparation.mjs",
         "test/foundation/release/package-candidate-fixture.ts",
         "test/foundation/release/package-install-fixture.ts"
       ],

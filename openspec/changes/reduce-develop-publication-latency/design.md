@@ -1,6 +1,6 @@
 ## Context
 
-See `proposal.md` for motivation. Exact-package publication currently expands `package-install` into independently reported `package-contracts` and `package-startup` Vitest invocations. Both invoke `installExactCandidate`, so one lane performs two equivalent `npm install --global --ignore-scripts` operations and two fixture-root cleanup attempts. Hosted Windows evidence shows those installs consume about 97-127 seconds each under Defender, while the owners use the same candidate, platform, architecture, Node runtime, and install policy.
+See `proposal.md` for motivation. Exact-package publication currently expands `package-install` into independently reported `package-contracts` and `package-startup` Vitest invocations. Both invoke `installExactCandidate`, so one lane performs two equivalent `npm install --global --ignore-scripts` operations and two fixture-root cleanup attempts. Hosted Windows evidence shows those installs consume about 97-127 seconds each under Defender, while the owners use the same candidate, platform, architecture, Node runtime, and install policy. A later failed Windows Node 22 publication recorded equivalent installs of 158 and 248 seconds, a 21-second candidate repack after the downloaded receipt was rebound without the lane's build receipt, and a first-attempt startup budget failure after package-contract work had already loaded the runner.
 
 The owner split is still valuable for pull-request impact selection and result attribution. The solution therefore must remove repeated preparation without merging the owners, weakening their assertions, pre-warming measured startup state, or sharing mutable application roots.
 
@@ -8,7 +8,9 @@ The owner split is still valuable for pull-request impact selection and result a
 
 **Goals:**
 
+- Reuse a downloaded exact candidate when its lane-local package receipt is correctly rebound to the lane build receipt.
 - Give the common validation runner ownership of one exact installed-package preparation per candidate/platform/runtime lane.
+- Measure first-attempt startup immediately after shared preparation and before package-contract workload.
 - Preserve independent package-contract and startup invocations and outcomes.
 - Preserve direct focused execution of either test file outside the validation runner.
 - Make preparation identity, consumers, duration, count, and cleanup observable and fail closed.
@@ -25,7 +27,7 @@ The owner split is still valuable for pull-request impact selection and result a
 
 ### 1. The validation runner owns lane-scoped installation preparation
 
-The tier plan will declare a preparation lifecycle when selected scopes consume the clean installed exact package. Before consumer invocations, the runner will install the verified candidate once into a runner-owned temporary prefix using the current install command and policy. It will perform the existing proxy synchronization needed by both consumers, record a receipt, and expose the prefix and receipt to child invocations through bounded environment variables.
+The tier plan will declare a preparation lifecycle when selected scopes consume the clean installed exact package. Before consumer invocations, the runner will install the verified candidate once into a runner-owned temporary prefix using the current install command and policy. It will perform the existing proxy synchronization needed by both consumers, record a receipt, and expose the prefix and receipt to child invocations through bounded environment variables. When startup is selected, the runner will invoke it immediately after this preparation and before package-contract workload so first-attempt timing is not measured after the heavier contract suite.
 
 The receipt will bind at least the candidate digest, package name/version, platform, architecture, Node version, install-policy identity, prefix, preparation count, and consuming scopes. The consumer helper will verify the receipt and candidate bytes before returning the shared prefix. Missing, stale, contradictory, or out-of-bound preparation will fail rather than trigger an unreported second install during an authoritative validation run.
 
@@ -47,7 +49,13 @@ The validation runner will remove the shared preparation only after all consumer
 
 **Alternative considered:** Let the first owner create and own the prefix. Rejected because later owners would depend on test ordering and the first owner's cleanup behavior.
 
-### 3. Planning and evidence distinguish preparation from owners
+### 3. Downloaded candidate receipts remain reusable
+
+The validation workflow will bind the downloaded candidate receipt with the same lane build receipt that the common runner supplies during verification. A compatible downloaded candidate therefore records `verified-exact-package` and proceeds directly to shared installation; missing or contradictory bytes, source identity, or build identity still fail closed or invoke the existing explicit preparation fallback when authoritative reuse was not promised.
+
+This removes the observed lane-local `npm pack` without weakening exact-source or exact-byte evidence.
+
+### 4. Planning and evidence distinguish preparation from owners
 
 The machine-readable tier plan and result will represent shared installation preparation separately from each consumer invocation. Regression tests will prove that selecting package-contracts and package-startup creates one preparation, two owner invocations, one final cleanup, and no hidden fallback install. Selecting either owner alone also creates only one preparation. Differing candidate or lane identities never reuse the receipt.
 
@@ -60,13 +68,15 @@ Phase evidence will retain current owner-specific timings and add preparation id
 - **[A consumer mutates shared package bytes]** -> Prepare proxy state before consumers, verify receipt/package identity at each handoff, add mutation rejection coverage, and keep consumer-specific writes outside the prefix.
 - **[Standalone tests accidentally satisfy publication authority]** -> Mark fallback preparation as standalone and require the runner-owned receipt/count contract in authoritative validation results.
 - **[Parent cleanup masks an owner failure]** -> Preserve the first owner failure and report cleanup as a separate passed/deferred/failed outcome.
-- **[Shared preparation couples owner order]** -> Make the runner the sole preparation owner and test both individual and combined selections without declaring consumer-to-consumer dependencies.
+- **[Shared preparation couples owner order]** -> Make the runner the sole preparation owner, schedule startup first only to isolate runner load, reverify installed bytes between owners, and test both individual and combined selections without declaring consumer-to-consumer dependencies.
+- **[Downloaded receipt accidentally loses build binding]** -> Rebind it with the exact lane build receipt and test that compatible evidence bypasses repacking while contradictory evidence remains rejected.
 - **[Extra receipt hashing erodes the gain]** -> Reuse the already verified candidate digest and inspect bounded identity files rather than hashing the complete installed dependency tree again.
 
 ## Migration Plan
 
 1. Add the lane-scoped preparation/receipt lifecycle and focused identity/cleanup tests while retaining standalone fixture fallback.
 2. Migrate package-contract and startup fixtures to consume verified shared preparation and owner-specific mutable roots.
-3. Update validation planning, result evidence, suite-policy tests, and release workflow policy assertions.
-4. Compare structural install counts and phase timings against the recorded pre-change hosted runs; retain every semantic scenario and supported lane.
-5. Roll back by reverting the runner lifecycle and restoring owner-local installation; no persistent state or package migration is required.
+3. Correct the workflow's lane-local candidate receipt binding and schedule startup immediately after preparation.
+4. Update validation planning, result evidence, suite-policy tests, and release workflow policy assertions.
+5. Compare structural install counts and phase timings against the recorded pre-change hosted runs; retain every semantic scenario and supported lane.
+6. Roll back by reverting the runner lifecycle and restoring owner-local installation; no persistent state or package migration is required.

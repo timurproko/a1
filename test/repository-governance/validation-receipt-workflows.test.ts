@@ -56,6 +56,7 @@ describe("workflow prerequisite receipts", () => {
     const validate = workflow.jobs.validate;
     expect(step(validate, "Record verified install-time build").index).toBeLessThan(step(validate, "Bind downloaded package to this validation job").index);
     const bind = step(validate, "Bind downloaded package to this validation job").value.run;
+    expect(bind).toContain("--build-receipt .artifacts/validation/receipts/build.json");
     expect(bind).toContain("--source-identity .artifacts/release/candidate-identity.json");
     const run = step(validate, "Validate the exact package").value;
     expect(run.env).toMatchObject({

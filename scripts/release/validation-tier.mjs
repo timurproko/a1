@@ -2,6 +2,14 @@ import crossSpawn from "cross-spawn";
 import { readFile, stat } from "node:fs/promises";
 import { resolve } from "node:path";
 import { recordBuildReceipt, verifyBuildReceipt, verifyPackageReceipt } from "./validation-receipt.mjs";
+import {
+  cleanupExactPackagePreparation,
+  exactPackagePreparationEnvironment,
+  EXACT_PACKAGE_INSTALL_POLICY,
+  EXACT_PACKAGE_PREPARATION_ENV,
+  prepareExactPackageInstallation,
+  verifyExactPackagePreparation,
+} from "./exact-package-preparation.mjs";
 
 const npmExecutable = process.platform === "win32" ? "npm.cmd" : "npm";
 const npxExecutable = process.platform === "win32" ? "npx.cmd" : "npx";
@@ -106,6 +114,16 @@ export async function createTierPlan(requested, repository = process.cwd(), opti
   const requestedPackageSmoke = [...packageSmokeTests].filter(path => selectedTestPaths.has(path));
   const requestedPackageContracts = [...packageContractTests].filter(path => selectedTestPaths.has(path));
   const requestedPackageStartup = [...packageStartupTests].filter(path => selectedTestPaths.has(path));
+  const exactPackageConsumers = [
+    ...(requestedPackageStartup.length > 0 ? ["package-startup"] : []),
+    ...(requestedPackageContracts.length > 0 ? ["package-contracts"] : []),
+  ];
+  const exactPackagePreparation = exactPackageConsumers.length > 0 ? {
+    id: "exact-package-preparation",
+    count: 1,
+    policy: EXACT_PACKAGE_INSTALL_POLICY,
+    consumers: exactPackageConsumers,
+  } : null;
   // Concurrency: each sensitive file gets a fresh serial Vitest process so prior Git, SQLite,
   // editor, and child-process workloads cannot consume another file's fixed five-second budget.
   const resourceSensitiveInvocations = resourceSensitiveTests.map(({ test, scope }, index) => ({
@@ -135,8 +153,8 @@ export async function createTierPlan(requested, repository = process.cwd(), opti
     ...(requestedPerformance.length > 0 ? [{ id: "vitest-isolated-timing", scopes: ["update-performance"], arguments: ["vitest", "run", ...requestedPerformance, "--no-file-parallelism", "--testTimeout=120000"] }] : []),
     ...requestedPackageSmoke.map((path, index) => ({ id: `vitest-package-smoke-${index + 1}`, scopes: ["package-smoke"], arguments: ["vitest", "run", path, "--no-file-parallelism", "--testTimeout=120000"] })),
     ...(requestedIsolated.length > 0 ? [{ id: "vitest-isolated-suites", scopes: selectedScopesForTests(explicitTests, requestedIsolated), arguments: ["vitest", "run", ...requestedIsolated, "--no-file-parallelism", "--testTimeout=600000"] }] : []),
-    ...(requestedPackageContracts.length > 0 ? [{ id: "vitest-package-contracts", scopes: ["package-contracts"], arguments: ["vitest", "run", ...requestedPackageContracts, "--no-file-parallelism", "--testTimeout=600000"] }] : []),
     ...(requestedPackageStartup.length > 0 ? [{ id: "vitest-package-startup", scopes: ["package-startup"], arguments: ["vitest", "run", ...requestedPackageStartup, "--no-file-parallelism", "--testTimeout=600000"] }] : []),
+    ...(requestedPackageContracts.length > 0 ? [{ id: "vitest-package-contracts", scopes: ["package-contracts"], arguments: ["vitest", "run", ...requestedPackageContracts, "--no-file-parallelism", "--testTimeout=600000"] }] : []),
   ];
   const vitest = full
     ? {
@@ -147,8 +165,8 @@ export async function createTierPlan(requested, repository = process.cwd(), opti
           { id: "vitest-isolated-timing", scopes: ["update-performance"], arguments: ["vitest", "run", ...performanceTests, "--no-file-parallelism", "--testTimeout=120000"] },
           ...[...packageSmokeTests].map((path, index) => ({ id: `vitest-package-smoke-${index + 1}`, scopes: ["package-smoke"], arguments: ["vitest", "run", path, "--no-file-parallelism", "--testTimeout=120000"] })),
           { id: "vitest-isolated-suites", scopes: ["rendering-stability"], arguments: ["vitest", "run", ...isolatedTests, "--no-file-parallelism", "--testTimeout=600000"] },
-          { id: "vitest-package-contracts", scopes: ["package-contracts"], arguments: ["vitest", "run", ...packageContractTests, "--no-file-parallelism", "--testTimeout=600000"] },
           { id: "vitest-package-startup", scopes: ["package-startup"], arguments: ["vitest", "run", ...packageStartupTests, "--no-file-parallelism", "--testTimeout=600000"] },
+          { id: "vitest-package-contracts", scopes: ["package-contracts"], arguments: ["vitest", "run", ...packageContractTests, "--no-file-parallelism", "--testTimeout=600000"] },
         ],
       }
     : regularInvocations.length > 0
@@ -163,6 +181,7 @@ export async function createTierPlan(requested, repository = process.cwd(), opti
     consumesPackage,
     candidateTarball,
     structuralEvidence,
+    exactPackagePreparation,
     commands,
     vitest,
     releaseContracts: full ? suites.releaseContracts : undefined,
@@ -175,69 +194,225 @@ export async function runTierPlan(plan, options = {}) {
   const environment = { ...process.env, ...(options.env ?? {}) };
   delete environment.VALIDATION_SELECTION_JSON;
   delete environment.VALIDATION_TESTS_JSON;
+  delete environment.NODE_COMPILE_CACHE;
+  for (const name of Object.values(EXACT_PACKAGE_PREPARATION_ENV)) delete environment[name];
   const executeCommand = options.executeCommand ?? runCommand;
   const repository = resolve(options.repository ?? process.cwd());
   const verifyBuild = options.verifyBuildReceipt ?? verifyBuildReceipt;
   const verifyPackage = options.verifyPackageReceipt ?? verifyPackageReceipt;
   const recordBuild = options.recordBuildReceipt ?? recordBuildReceipt;
+  const prepareExactPackage = options.prepareExactPackageInstallation ?? prepareExactPackageInstallation;
+  const preparationEnvironment = options.exactPackagePreparationEnvironment ?? exactPackagePreparationEnvironment;
+  const verifyExactPackage = options.verifyExactPackagePreparation ?? verifyExactPackagePreparation;
+  const cleanupExactPackage = options.cleanupExactPackagePreparation ?? cleanupExactPackagePreparation;
+  const exactPackagePlan = plan.exactPackagePreparation ? assertExactPackagePreparationPlan(plan.exactPackagePreparation, plan.vitest) : null;
   const buildReceiptPath = resolve(environment.VALIDATION_BUILD_RECEIPT ?? resolve(repository, ".artifacts", "validation", "receipts", "build.json"));
   const packageReceiptPath = path => resolve(environment.VALIDATION_PACKAGE_RECEIPT ?? path.replace(/\.tgz$/u, ".receipt.json"));
+  let passed = true;
+  let preparation = null;
+  let preparationOutcome = null;
+  let preparationHandoff = null;
+  let primaryError = null;
 
-  for (const command of plan.commands) {
-    let rejectedReuse = false;
-    if (command.id === "candidate-build" && environment.VALIDATION_BUILD_READY === "1") {
-      try {
-        await verifyBuild(buildReceiptPath, { repository });
-        environment.VALIDATION_BUILD_RECEIPT = buildReceiptPath;
-        outcomes.push({ id: command.id, command: `${command.executable} ${command.arguments.join(" ")}`, exitCode: 0, durationMs: 0, scopes: command.owners, skipped: "verified-existing-build" });
+  try {
+    for (const command of plan.commands) {
+      let rejectedReuse = false;
+      if (command.id === "candidate-build" && environment.VALIDATION_BUILD_READY === "1") {
+        try {
+          await verifyBuild(buildReceiptPath, { repository });
+          environment.VALIDATION_BUILD_RECEIPT = buildReceiptPath;
+          outcomes.push({ id: command.id, command: `${command.executable} ${command.arguments.join(" ")}`, exitCode: 0, durationMs: 0, scopes: command.owners, skipped: "verified-existing-build" });
+          continue;
+        } catch { rejectedReuse = true; }
+      }
+      if (command.id === "candidate-pack" && environment.VALIDATION_CANDIDATE_TARBALL) {
+        try {
+          const candidate = resolve(environment.VALIDATION_CANDIDATE_TARBALL);
+          const receipt = packageReceiptPath(candidate);
+          await verifyPackage(receipt, candidate, { repository, buildReceipt: environment.VALIDATION_BUILD_RECEIPT, sourceIdentity: environment.VALIDATION_PACKAGE_SOURCE_IDENTITY });
+          environment.VALIDATION_PACKAGE_RECEIPT = receipt;
+          outcomes.push({ id: command.id, command: `${command.executable} ${command.arguments.join(" ")}`, exitCode: 0, durationMs: 0, scopes: command.owners, skipped: "verified-exact-package" });
+          continue;
+        } catch { rejectedReuse = true; }
+      }
+      if (command.id === "code-documentation-full" && environment.VALIDATION_DOCUMENTATION_FULL_READY === "1") {
+        outcomes.push({ id: command.id, command: `${command.executable} ${command.arguments.join(" ")}`, exitCode: 0, durationMs: 0, scopes: command.owners, skipped: "existing-full-documentation-review" });
         continue;
-      } catch { rejectedReuse = true; }
-    }
-    if (command.id === "candidate-pack" && environment.VALIDATION_CANDIDATE_TARBALL) {
-      try {
-        const candidate = resolve(environment.VALIDATION_CANDIDATE_TARBALL);
-        const receipt = packageReceiptPath(candidate);
-        await verifyPackage(receipt, candidate, { repository, buildReceipt: environment.VALIDATION_BUILD_RECEIPT, sourceIdentity: environment.VALIDATION_PACKAGE_SOURCE_IDENTITY });
-        environment.VALIDATION_PACKAGE_RECEIPT = receipt;
-        outcomes.push({ id: command.id, command: `${command.executable} ${command.arguments.join(" ")}`, exitCode: 0, durationMs: 0, scopes: command.owners, skipped: "verified-exact-package" });
-        continue;
-      } catch { rejectedReuse = true; }
-    }
-    if (command.id === "code-documentation-full" && environment.VALIDATION_DOCUMENTATION_FULL_READY === "1") {
-      outcomes.push({ id: command.id, command: `${command.executable} ${command.arguments.join(" ")}`, exitCode: 0, durationMs: 0, scopes: command.owners, skipped: "existing-full-documentation-review" });
-      continue;
-    }
-    const executed = await executeCommand(command, environment, options.stdio ?? "inherit");
-    const timed = { ...executed, scopes: command.owners };
-    const outcome = rejectedReuse ? { ...timed, preparation: "receipt-missing-or-incompatible" } : timed;
-    outcomes.push(outcome);
-    if (outcome.exitCode !== 0) return finish(false);
-    if (command.id === "candidate-build") {
-      await recordBuild({ repository, output: buildReceiptPath });
-      environment.VALIDATION_BUILD_READY = "1";
-      environment.VALIDATION_BUILD_RECEIPT = buildReceiptPath;
-    }
-    if (command.id === "candidate-pack") {
-      environment.VALIDATION_CANDIDATE_TARBALL = plan.candidateTarball;
-      environment.VALIDATION_PACKAGE_RECEIPT = packageReceiptPath(plan.candidateTarball);
-    }
-  }
-
-  if (plan.vitest) {
-    for (const invocation of plan.vitest.invocations) {
-      const executed = await executeCommand({ id: invocation.id, executable: "npx", arguments: invocation.arguments }, environment, options.stdio ?? "inherit");
-      const timed = { ...executed, scopes: invocation.scopes };
-      const outcome = invocation.evidence ? { ...timed, evidence: invocation.evidence } : timed;
+      }
+      const executed = await executeCommand(command, environment, options.stdio ?? "inherit");
+      const timed = { ...executed, scopes: command.owners };
+      const outcome = rejectedReuse ? { ...timed, preparation: "receipt-missing-or-incompatible" } : timed;
       outcomes.push(outcome);
-      if (outcome.exitCode !== 0) return finish(false);
+      if (outcome.exitCode !== 0) { passed = false; break; }
+      if (command.id === "candidate-build") {
+        await recordBuild({ repository, output: buildReceiptPath });
+        environment.VALIDATION_BUILD_READY = "1";
+        environment.VALIDATION_BUILD_RECEIPT = buildReceiptPath;
+      }
+      if (command.id === "candidate-pack") {
+        environment.VALIDATION_CANDIDATE_TARBALL = plan.candidateTarball;
+        environment.VALIDATION_PACKAGE_RECEIPT = packageReceiptPath(plan.candidateTarball);
+      }
+    }
+
+    if (passed && plan.vitest) {
+      for (const invocation of plan.vitest.invocations) {
+        const consumer = exactPackageConsumer(exactPackagePlan, invocation);
+        let invocationEnvironment = environment;
+        if (consumer) {
+          if (!preparation) {
+            const planned = exactPackagePlan;
+            const preparationStartedAt = Date.now();
+            try {
+              preparation = await prepareExactPackage({
+                candidatePath: environment.VALIDATION_CANDIDATE_TARBALL,
+                consumers: planned.consumers,
+                environment,
+              });
+              assertPreparedPackageMatchesPlan(preparation, planned);
+              preparationHandoff = preparationEnvironment(preparation);
+              preparationOutcome = {
+                id: planned.id,
+                command: "npm install --global <exact-candidate>",
+                exitCode: 0,
+                durationMs: preparation.durationMs ?? Date.now() - preparationStartedAt,
+                scopes: planned.consumers,
+                evidence: preparationEvidence(preparation.receipt),
+              };
+            } catch (error) {
+              preparationOutcome = {
+                id: planned.id,
+                command: "npm install --global <exact-candidate>",
+                exitCode: 1,
+                durationMs: Date.now() - preparationStartedAt,
+                scopes: planned.consumers,
+                evidence: {
+                  schema: "a1-exact-package-preparation-evidence-v1",
+                  count: 1,
+                  consumers: planned.consumers,
+                  cleanup: error?.cleanup ?? null,
+                },
+              };
+              outcomes.push(preparationOutcome);
+              passed = false;
+              break;
+            }
+            outcomes.push(preparationOutcome);
+          }
+          invocationEnvironment = {
+            ...environment,
+            ...preparationHandoff,
+            [EXACT_PACKAGE_PREPARATION_ENV.consumer]: consumer,
+          };
+          try {
+            await verifyExactPackage({ environment: invocationEnvironment, consumer });
+          } catch {
+            outcomes.push({
+              id: invocation.id,
+              command: `npx ${invocation.arguments.join(" ")}`,
+              exitCode: 1,
+              durationMs: 0,
+              scopes: invocation.scopes,
+              preparation: "identity-rejected",
+            });
+            passed = false;
+            break;
+          }
+        }
+
+        const executed = await executeCommand({ id: invocation.id, executable: "npx", arguments: invocation.arguments }, invocationEnvironment, options.stdio ?? "inherit");
+        let timed = { ...executed, scopes: invocation.scopes };
+        if (consumer) {
+          try {
+            await verifyExactPackage({ environment: invocationEnvironment, consumer });
+          } catch {
+            if (timed.exitCode === 0) timed = { ...timed, exitCode: 1, preparation: "identity-rejected" };
+            else timed = { ...timed, preparation: "owner-failed-and-identity-rejected" };
+          }
+        }
+        const outcome = invocation.evidence ? { ...timed, evidence: invocation.evidence } : timed;
+        outcomes.push(outcome);
+        if (outcome.exitCode !== 0) { passed = false; break; }
+      }
+    }
+  } catch (error) {
+    primaryError = error;
+    passed = false;
+  } finally {
+    if (preparation) {
+      let cleanup;
+      try { cleanup = await cleanupExactPackage(preparation); }
+      catch (error) { cleanup = { status: "failed", durationMs: 0, error: error instanceof Error ? error.message : "unknown cleanup failure" }; }
+      preparationOutcome.evidence.cleanup = cleanup;
+      if (cleanup.status === "failed" && passed) {
+        preparationOutcome.exitCode = 1;
+        passed = false;
+      }
     }
   }
 
-  return finish(true);
+  if (primaryError) throw primaryError;
+  return {
+    schema: "a1-validation-outcomes-v1",
+    passed,
+    startedAt,
+    completedAt: Date.now(),
+    exactPackagePreparation: preparationOutcome?.evidence ?? null,
+    outcomes,
+  };
+}
 
-  function finish(passed) {
-    return { schema: "a1-validation-outcomes-v1", passed, startedAt, completedAt: Date.now(), outcomes };
+function assertExactPackagePreparationPlan(plan, vitest) {
+  if (!plan || plan.id !== "exact-package-preparation" || plan.count !== 1 || plan.policy !== EXACT_PACKAGE_INSTALL_POLICY
+    || !Array.isArray(plan.consumers) || plan.consumers.length < 1 || plan.consumers.length > 2
+    || new Set(plan.consumers).size !== plan.consumers.length
+    || plan.consumers.some(consumer => !["package-startup", "package-contracts"].includes(consumer))) {
+    throw new Error("exact-package preparation plan is invalid");
   }
+  for (const consumer of plan.consumers) {
+    const expectedId = consumer === "package-startup" ? "vitest-package-startup" : "vitest-package-contracts";
+    const invocations = vitest?.invocations.filter(invocation => invocation.id === expectedId && invocation.scopes.includes(consumer)) ?? [];
+    if (invocations.length !== 1) throw new Error(`exact-package consumer ${consumer} must have one invocation`);
+  }
+  return plan;
+}
+
+function assertPreparedPackageMatchesPlan(preparation, plan) {
+  const receipt = preparation?.receipt;
+  if (!receipt || receipt.preparation?.count !== 1 || receipt.install?.policy !== plan.policy
+    || JSON.stringify(receipt.consumers) !== JSON.stringify(plan.consumers)
+    || !/^[0-9a-f]{64}$/u.test(receipt.candidate?.sha256 ?? "")) {
+    throw new Error("exact-package preparation evidence contradicts the validation plan");
+  }
+}
+
+function exactPackageConsumer(plan, invocation) {
+  if (!plan) return null;
+  const consumer = invocation.id === "vitest-package-startup" ? "package-startup"
+    : invocation.id === "vitest-package-contracts" ? "package-contracts" : null;
+  if (!consumer) return null;
+  if (!plan.consumers.includes(consumer) || !invocation.scopes.includes(consumer)) {
+    throw new Error("exact-package invocation contradicts its planned consumer");
+  }
+  return consumer;
+}
+
+function preparationEvidence(receipt) {
+  return {
+    schema: "a1-exact-package-preparation-evidence-v1",
+    receiptId: receipt.receiptId,
+    count: receipt.preparation.count,
+    durationMs: receipt.preparation.durationMs,
+    candidateSha256: receipt.candidate.sha256,
+    package: { name: receipt.candidate.name, version: receipt.candidate.version },
+    lane: receipt.lane,
+    policy: receipt.install.policy,
+    prefix: receipt.install.prefix,
+    installedIdentity: receipt.install.installedIdentity,
+    proxySynchronizations: receipt.preparation.proxySynchronizations,
+    consumers: receipt.consumers,
+    cleanup: null,
+  };
 }
 
 async function validateValidationSuites(suites, repository) {
