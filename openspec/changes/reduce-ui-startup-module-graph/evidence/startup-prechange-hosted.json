@@ -1,0 +1,47 @@
+{
+  "schema": "a1-startup-prechange-evidence-v1",
+  "source": {
+    "workflowRun": 35093836130,
+    "workflowAttempt": 1,
+    "head": "71058e27df33ca3ac08ab527417e87c78ab01fd5",
+    "packageVersion": "0.1.8-dev.428",
+    "candidateSha256": "9c7112c9f7e93bcf18c11d4cfd871fb1f3712a5e881b178f1f27a7d09b924c8a",
+    "platform": "win32-x64",
+    "defenderRealTimeProtection": true,
+    "automaticRetries": 0
+  },
+  "lanes": [
+    {
+      "nodeVersion": "v22.23.2",
+      "measurements": [
+        { "profile": "a1", "topology": "post-update", "firstInputReadyMs": 2499 },
+        { "profile": "a1", "topology": "no-live-supervisor", "firstInputReadyMs": 2681 },
+        { "profile": "a1", "topology": "warm", "firstInputReadyMs": 2434 },
+        { "profile": "pi", "topology": "post-update", "firstInputReadyMs": 2438 },
+        { "profile": "pi", "topology": "no-live-supervisor", "firstInputReadyMs": 2586 },
+        { "profile": "pi", "topology": "warm", "firstInputReadyMs": 2390 }
+      ]
+    },
+    {
+      "nodeVersion": "v24.20.0",
+      "measurements": [
+        { "profile": "a1", "topology": "post-update", "firstInputReadyMs": 1784 },
+        { "profile": "a1", "topology": "no-live-supervisor", "firstInputReadyMs": 1777 },
+        { "profile": "a1", "topology": "warm", "firstInputReadyMs": 1642 },
+        { "profile": "pi", "topology": "post-update", "firstInputReadyMs": 1744 },
+        { "profile": "pi", "topology": "no-live-supervisor", "firstInputReadyMs": 3443 },
+        {
+          "profile": "pi",
+          "topology": "warm",
+          "firstInputReadyMs": 4477,
+          "dominantPhases": [
+            { "phase": "ui-modules-loaded", "durationMs": 2563 },
+            { "phase": "ui-entry", "durationMs": 1457 },
+            { "phase": "guardian-start", "durationMs": 153 }
+          ]
+        }
+      ]
+    }
+  ],
+  "historicalGraphLimitation": "The pre-change package did not emit normalized module/file/evaluated-byte, release-id, or dependency-layer-id startup evidence. Those values cannot be reconstructed as runtime measurements after publication; run identity, exact package version and digest, Node lane, topology, first-attempt timing, and the retained failing phase breakdown are preserved here."
+}

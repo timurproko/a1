@@ -14,14 +14,15 @@ const productPaths = payload.paths.filter(path => !path.startsWith("node_modules
 const selected = await generateDependencyRuntimePayload(payload.packageRoot, payload.paths, productPaths);
 const startupEntry = "dist/integrations/pi/startup-public.js";
 const startupManifest = "dist/integrations/pi/startup-public.manifest.json";
-for (const required of [startupEntry, startupManifest]) {
+const startupDescriptor = "dist/foundation/startup/startup-descriptor.js";
+for (const required of [startupEntry, startupManifest, startupDescriptor]) {
   if (!productPaths.includes(required)) throw new Error(`optimized startup payload is missing ${required}`);
 }
 const declaredAssets = [...selected.paths.filter(path => /\.(?:json|node|wasm|css|html|png|jpg|jpeg|gif|svg)$/.test(path)
   || /(?:^|\/)LICENSE(?:\.|$)/i.test(path)), startupManifest].sort();
 const output = {
   schema: PRODUCT_IDENTITY.evidence.runtimePayloadSchema,
-  entryPoints: ["bin/cli.js", "bin/guardian.js", "bin/supervisor.js", "bin/ui.js", "bin/update-recovery.js", "bin/warmup.js", startupEntry],
+  entryPoints: ["bin/cli.js", "bin/guardian.js", "bin/supervisor.js", "bin/ui.js", "bin/update-recovery.js", "bin/warmup.js", startupDescriptor, startupEntry],
   declaredAssets,
   paths: selected.paths,
   classifications: selected.classifications,

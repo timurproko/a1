@@ -14,6 +14,16 @@ export const STARTUP_ROOTS = Object.freeze([
   "src/composition/owned-ui.ts",
 ]);
 
+const FIRST_PROMPT_PREFIXES = Object.freeze([
+  "src/contracts/agent-engine/",
+  "src/contracts/workspace/",
+  "src/features/launch/",
+  "src/features/prompt-history/",
+  "src/features/prompt-suggestions/",
+  "src/foundation/",
+  "src/integrations/pi/engine/",
+]);
+
 export const PROHIBITED_STARTUP_ENTRIES = new Set([
   "src/cli/index.ts",
   "src/features/launch/index.ts",
@@ -52,7 +62,12 @@ export async function inspectStartupReachability(root, options = {}) {
       if (!firstChain.has(target)) queue.push({ path: target, chain: [...current.chain, target] });
     }
   }
-  const modules = [...files].map(([path, bytes]) => ({ path, bytes, chain: firstChain.get(path) })).sort((a, b) => a.path.localeCompare(b.path));
+  const modules = [...files].map(([path, bytes]) => ({
+    path,
+    bytes,
+    classification: classifyStartupModule(path),
+    chain: firstChain.get(path),
+  })).sort((a, b) => a.path.localeCompare(b.path));
   const prohibited = modules.filter(module => PROHIBITED_STARTUP_ENTRIES.has(module.path));
   return {
     schema: "a1-startup-reachability-v1",
@@ -62,6 +77,12 @@ export async function inspectStartupReachability(root, options = {}) {
     edges: edges.sort((a, b) => a.from.localeCompare(b.from) || a.to.localeCompare(b.to)),
     errors: prohibited.map(module => `${module.path}: prohibited startup entry via ${module.chain.join(" -> ")}`),
   };
+}
+
+export function classifyStartupModule(path) {
+  return FIRST_PROMPT_PREFIXES.some(prefix => path.startsWith(prefix))
+    ? "first-prompt-correctness"
+    : "initial-render";
 }
 
 export function validateStartupReachabilityBaseline(report, baseline) {
@@ -74,6 +95,11 @@ export function validateStartupReachabilityBaseline(report, baseline) {
     errors.push(`startup graph has ${report.totals.sourceBytes} source bytes; maximum is ${baseline.a1Reachability.maximumSourceBytes}`);
   }
   const reached = new Set(report.modules.map(module => module.path));
+  for (const module of report.modules) {
+    if (!["initial-render", "first-prompt-correctness"].includes(module.classification)) {
+      errors.push(`${module.path}: eager module has no accepted readiness classification`);
+    }
+  }
   for (const optional of baseline.a1Reachability.optionalModules) {
     if (reached.has(optional)) errors.push(`${optional}: optional module is eagerly reachable`);
   }

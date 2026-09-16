@@ -3,23 +3,17 @@
 const startup = await import("../dist/foundation/startup/startup-runtime.js");
 startup.assertImmutableWarmupEnvironment(process.env);
 startup.enableEnvironmentCompileCache(process.env);
-const [{ fileURLToPath }, identity] = await Promise.all([
+const [{ fileURLToPath }, identity, descriptor] = await Promise.all([
   import("node:url"),
   import("./module-identity.js"),
+  import("../dist/foundation/startup/startup-descriptor.js"),
 ]);
 identity.configurePinnedPiPublicPackage(fileURLToPath(new URL("..", import.meta.url)));
 
 // Security: this entry imports the exact interactive graph but never composes it, so it
 // creates no terminal, profile/session path, trust callback, executable resource loader,
 // extension runner, or network client.
-const [launch, selection, trustPrompt, forkPrompt, run, composition] = await Promise.all([
-  import("../dist/features/launch/runtime-selection.js"),
-  import("../dist/foundation/lifecycle/session-selection.js"),
-  import("../dist/features/owned-ui/project-trust-prompt.js"),
-  import("../dist/features/owned-ui/session-fork-prompt.js"),
-  import("../dist/features/owned-ui/run.js"),
-  import("../dist/composition/owned-ui.js"),
-]);
+const [launch, selection, trustPrompt, forkPrompt, run, composition] = await descriptor.loadDeclaredStartupGraph();
 if (typeof identity.assertSinglePiTuiModuleAtLaunch !== "function"
   || typeof launch.runSelectedInteractiveRuntime !== "function"
   || typeof selection.parseSessionSelection !== "function"

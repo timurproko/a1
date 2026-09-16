@@ -218,8 +218,16 @@ try {
 const approvedPiFeatureImports = Array.isArray(piBoundaryBaseline?.featureToAdapterDependencies)
   ? piBoundaryBaseline.featureToAdapterDependencies
   : [];
-const startupReachability = await inspectStartupReachability(root);
-const startupBaseline = JSON.parse(await readFile(resolve(root, "config", "startup-graph-baseline.json"), "utf8"));
+let startupReachability = { modules: [], errors: [] };
+let startupBaseline = null;
+try {
+  startupBaseline = JSON.parse(await readFile(resolve(root, "config", "startup-graph-baseline.json"), "utf8"));
+  startupReachability = await inspectStartupReachability(root);
+} catch (error) {
+  // Rationale: synthetic architecture fixtures intentionally contain only the boundary under test;
+  // the real repository must always provide the startup roots and reviewed baseline.
+  if (rootArgument < 0) errors.push(`startup graph baseline or root is missing: ${error instanceof Error ? error.message : String(error)}`);
+}
 const startupLeafConsumers = new Set(startupReachability.modules.map(module => module.path));
 errors.push(...inspectProjectStructureImports(sourceFiles, approvedPiFeatureImports, startupLeafConsumers));
 errors.push(...inspectPiFeatureBoundaryImports(sourceFiles, approvedPiFeatureImports));
@@ -229,7 +237,8 @@ await inspectReleasePolicy();
 await inspectTerminalParityBoundary();
 await inspectFileNames();
 inspectOwnedShellModules();
-errors.push(...startupReachability.errors, ...validateStartupReachabilityBaseline(startupReachability, startupBaseline));
+errors.push(...startupReachability.errors);
+if (startupBaseline !== null) errors.push(...validateStartupReachabilityBaseline(startupReachability, startupBaseline));
 
 if (errors.length > 0) {
   console.error(`Architecture check failed (${errors.length}):\n${errors.map(error => `- ${error}`).join("\n")}`);

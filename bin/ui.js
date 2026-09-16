@@ -14,22 +14,16 @@ const fatal = profile === "a1" ? installFatalExit({
   releaseId: launchContext.releaseId,
   dispose: () => runningApplication?.dispose(),
 }) : undefined;
-const [{ fileURLToPath }, identity] = await Promise.all([
+const [{ fileURLToPath }, identity, descriptor] = await Promise.all([
   import("node:url"),
   import("./module-identity.js"),
+  import("../dist/foundation/startup/startup-descriptor.js"),
 ]);
 const packageRootPath = fileURLToPath(new URL("..", import.meta.url));
 identity.configurePinnedPiPublicPackage(packageRootPath);
 // Performance: begin the exact launch graph together while the trace write is pending.
 // Direct owned-module entries avoid evaluating unrelated barrel exports before first paint.
-const modules = Promise.all([
-  import("../dist/features/launch/runtime-selection.js"),
-  import("../dist/foundation/lifecycle/session-selection.js"),
-  import("../dist/features/owned-ui/project-trust-prompt.js"),
-  import("../dist/features/owned-ui/session-fork-prompt.js"),
-  import("../dist/features/owned-ui/run.js"),
-  import("../dist/composition/owned-ui.js"),
-]);
+const modules = descriptor.loadDeclaredStartupGraph();
 await startup.markStartupPhase(process.env, "ui-entry");
 const [
   { runSelectedInteractiveRuntime },

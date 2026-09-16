@@ -2,11 +2,13 @@ import { readFile, readdir, rename, writeFile } from "node:fs/promises";
 import { dirname, relative, resolve, sep } from "node:path";
 import { build } from "esbuild";
 import { createStartupPublicManifest, validateStartupPublicBaseline } from "./startup-public-artifact.mjs";
+import { createStartupDescriptor, serializeStartupDescriptor } from "./startup-descriptor.mjs";
 
 const root = process.cwd();
 const entry = "dist/integrations/pi/startup-public.js";
 const temporary = "dist/integrations/pi/startup-public.generated.js";
 const reportPath = "dist/integrations/pi/startup-public.manifest.json";
+const descriptorPath = "dist/foundation/startup/startup-descriptor.js";
 const external = ["#pi-tui", "@mariozechner/clipboard", "@silvia-odwyer/photon-node", "cross-spawn"];
 const rewrittenConsumers = await rewriteGeneratedPublicImports();
 
@@ -47,7 +49,9 @@ const baseline = JSON.parse(await readFile(resolve(root, "config", "startup-grap
 const baselineErrors = validateStartupPublicBaseline(manifest, baseline);
 if (baselineErrors.length > 0) throw new Error(baselineErrors.join("; "));
 await writeFile(resolve(root, reportPath), serialized);
-process.stdout.write(`[startup-public] ${manifest.output.sha256} ${manifest.output.bytes} bytes from ${manifest.totals.files} normalized inputs\n`);
+const descriptor = createStartupDescriptor({ artifact: manifest.output });
+await writeFile(resolve(root, descriptorPath), serializeStartupDescriptor(descriptor));
+process.stdout.write(`[startup-public] ${manifest.output.sha256} ${manifest.output.bytes} bytes from ${manifest.totals.files} normalized inputs; descriptor ${descriptor.identity}\n`);
 
 function preservePinnedPiModuleContext() {
   const marker = "/node_modules/@earendil-works/pi-coding-agent/dist/";

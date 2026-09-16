@@ -1,6 +1,7 @@
 export interface StartupReachabilityModule {
   readonly path: string;
   readonly bytes: number;
+  readonly classification: "initial-render" | "first-prompt-correctness";
   readonly chain: readonly string[];
 }
 
@@ -16,6 +17,7 @@ export interface StartupReachabilityReport {
 export const STARTUP_ROOTS: readonly string[];
 export const PROHIBITED_STARTUP_ENTRIES: ReadonlySet<string>;
 export function inspectStartupReachability(root: string, options?: { readonly roots?: readonly string[] }): Promise<StartupReachabilityReport>;
+export function classifyStartupModule(path: string): "initial-render" | "first-prompt-correctness";
 export function validateStartupReachabilityBaseline(report: StartupReachabilityReport, baseline: {
   readonly schema: string;
   readonly a1Reachability: { readonly maximumFiles: number; readonly maximumSourceBytes: number; readonly optionalModules: readonly string[] };
