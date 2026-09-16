@@ -7,6 +7,7 @@ import { routeMouseInput } from "../../../ui/components/mouse.js";
 import { scrollForTrackPage, scrollForThumbRow, scrollbarSelectionRows, scrollbarWheelRows } from "../../../ui/components/scrollbar.js";
 import type { SelectionCopySnapshot } from "../../../ui/components/selection-copy.js";
 import type { PiShellEditorPort } from "../components/shell-shared-facade.js";
+import type { PasteEvent } from "./paste-protocol.js";
 
 export interface SessionViewportControllerOptions {
   readonly enabled: boolean;
@@ -15,6 +16,9 @@ export interface SessionViewportControllerOptions {
   readonly requestHyperlinkCleanup?: (rows?: readonly number[]) => void;
   /** Whether mutable editor URL chips need targeted link-cell cleanup on deletion. */
   readonly hasEditorLinks?: () => boolean;
+  /** Payload-free first-use paste routing observations. */
+  readonly pasteDiagnostics?: (event: PasteEvent) => void;
+  readonly nextPasteDiagnosticRequest?: () => number;
 }
 
 export interface SessionViewportInputResult {
@@ -34,6 +38,9 @@ export class SessionViewportController {
   readonly #requestRender: (force?: boolean) => void;
   readonly #hasEditorLinks: () => boolean;
   readonly #requestHyperlinkCleanup: (rows?: readonly number[]) => void;
+  readonly #pasteDiagnostics: ((event: PasteEvent) => void) | undefined;
+  readonly #nextPasteDiagnosticRequest: () => number;
+  #pasteDiagnosticRequest = 0;
   readonly #viewport = new TranscriptViewport();
   #config: OwnedUiViewportSettings = {
     scrollbarAppearance: "auto",
@@ -70,6 +77,8 @@ export class SessionViewportController {
     };
     this.#hasEditorLinks = options.hasEditorLinks ?? (() => false);
     this.#requestHyperlinkCleanup = options.requestHyperlinkCleanup ?? (() => {});
+    this.#pasteDiagnostics = options.pasteDiagnostics;
+    this.#nextPasteDiagnosticRequest = options.nextPasteDiagnosticRequest ?? (() => --this.#pasteDiagnosticRequest);
   }
 
   get config(): OwnedUiViewportSettings {
@@ -222,6 +231,11 @@ export class SessionViewportController {
     this.#pointerOwner = undefined;
   }
 
+  #emitPasteRoute(request: number, phase: Extract<PasteEvent["phase"], "shortcut-received" | "shortcut-matched" | "shortcut-admitted" | "pointer-admitted">): void {
+    try { this.#pasteDiagnostics?.({ request, phase, atMs: performance.now(), pending: 0 }); }
+    catch { /* Invariant: payload-free diagnostics cannot interfere with input routing. */ }
+  }
+
   #cancelGesture(): void {
     const held = this.#pointerOwner !== undefined || this.#viewport.selectionActive || this.#editorPointerSelecting;
     const repaint = this.#viewport.hasSelection || held;
@@ -235,6 +249,11 @@ export class SessionViewportController {
 
   handlePreInput(data: string, allowWheel = true, now = Date.now(), editorActive = true): SessionViewportInputResult {
     if (!this.#enabled) return { data, consumed: false };
+    let pasteRequest: number | undefined;
+    if (editorActive && data === "\u0016") {
+      pasteRequest = this.#nextPasteDiagnosticRequest();
+      this.#emitPasteRoute(pasteRequest, "shortcut-received");
+    }
     // Compatibility: Pi components share one keybinding manager. Restore bare A1's aliases
     // before the focused vanilla editor handles this input.
     if (editorActive) this.#editor.activateKeybindings();
@@ -242,8 +261,14 @@ export class SessionViewportController {
     if (data.startsWith("\u001b[200~")) return { data, consumed: false };
     // Platform: handle the physical paste chord at the pre-input boundary. Windows
     // terminals vary between forwarding Ctrl+V and terminal-owned bracketed paste.
-    if (editorActive && this.#editor.matchesTerminalKey(data, "ctrl+v") && this.#editor.pasteClipboard()) {
-      return { data: "", consumed: true };
+    if (editorActive && this.#editor.matchesTerminalKey(data, "ctrl+v")) {
+      pasteRequest ??= this.#nextPasteDiagnosticRequest();
+      if (data !== "\u0016") this.#emitPasteRoute(pasteRequest, "shortcut-received");
+      this.#emitPasteRoute(pasteRequest, "shortcut-matched");
+      if (this.#editor.pasteClipboard()) {
+        this.#emitPasteRoute(pasteRequest, "shortcut-admitted");
+        return { data: "", consumed: true };
+      }
     }
     // Platform: URL chip deletion must overwrite terminal link cells in the same frame.
     if (editorActive && EDITOR_LINK_DELETION_INPUTS.has(data) && this.#hasEditorLinks()) {
@@ -401,7 +426,8 @@ export class SessionViewportController {
           && event.row >= editorFrame.rowStart && event.row <= editorFrame.rowEnd) {
           this.#stopSelectionAutoScroll();
           if (this.#viewport.clearSelection()) repaint = true;
-          this.#editor.pasteClipboard();
+          const request = this.#nextPasteDiagnosticRequest();
+          if (this.#editor.pasteClipboard()) this.#emitPasteRoute(request, "pointer-admitted");
           this.#dockPointerSuppressed = true;
           repaint = true;
           return true;

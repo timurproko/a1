@@ -1,6 +1,7 @@
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
 import { discoverReleasePayload } from "../../../../src/foundation/release/index.js";
 import { createResponseCopyExecutor } from "../../../../src/integrations/pi/session-ui/response-copy-transport.js";
@@ -33,12 +34,18 @@ describe("cold packaged clipboard executors", () => {
     } finally { job.cancel(); await job.stopped; }
   }, 5_000);
 
-  it("reads independent native text through the emitted paste helper and classification worker", async () => {
-    const job = startPasteExecutor(undefined, new AbortController().signal, () => {}, new URL("./clipboard-built-paste-fixture.mjs", import.meta.url));
+  it.each(["native", "native-empty", "fallback"])("reads independent text through a fresh emitted paste helper (%s)", async mode => {
+    const root = await mkdtemp(join(tmpdir(), "packaged-clipboard-read-"));
+    const script = join(root, "fixture.mjs");
+    const fixture = new URL("./clipboard-built-fixture-base.mjs", import.meta.url).href;
     try {
-      await expect(job.result).resolves.toEqual({ kind: "text", text: "packaged native text" });
-      await job.stopped;
-    } finally { job.cancel(); await job.stopped; }
+      await writeFile(script, `import {runBuiltClipboardFixture} from ${JSON.stringify(fixture)}; await runBuiltClipboardFixture('paste-helper',${JSON.stringify(mode)});`);
+      const job = startPasteExecutor(undefined, new AbortController().signal, () => {}, pathToFileURL(script));
+      try {
+        await expect(job.result).resolves.toEqual({ kind: "text", text: "packaged native text" });
+        await job.stopped;
+      } finally { job.cancel(); await job.stopped; }
+    } finally { await rm(root, { recursive: true, force: true }); }
   }, 5_000);
 
   it.each([false, true])("compacts only complete path lists in the cold worker (invalid suffix=%s)", async invalid => {

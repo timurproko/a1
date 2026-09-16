@@ -6,15 +6,16 @@ Define explicit planning approval, same-PR implementation and finalization, manu
 ## Requirements
 
 ### Requirement: Specification approval precedes implementation
-A new implementation-bound OpenSpec change SHALL begin as planning artifacts in one normally named draft pull request. Every agent-created OpenSpec delivery PR SHALL use one human-readable structure: a first-line quoted phase, `## Proposal` with one or two sentences explaining intent, `## Implementation` with concrete delivery details, final `## Acceptance` outcomes when complete, and last `## Automation` with required machine linkage in a clearly explained collapsed disclosure. The first line SHALL be `> Phase: Proposal` for the initial planning draft and `> Phase: Implementation` after implementation approval through required validation, maintainer review, and authorized manual merge. After merge, verification SHALL derive `Archived` without editing the accepted PR body. The body SHALL omit routine validation command listings. A request to prepare, write, design, or update a specification SHALL authorize only planning, not implementation. Implementation SHALL begin only after the maintainer approves the plan and explicitly requests implementation; the planning PR SHALL NOT need to merge first. Approved implementation SHALL continue in the same worktree, branch, commit history, and pull request, including its related documentation.
+A new implementation-bound OpenSpec change SHALL begin as planning artifacts in one normally named draft pull request. Every newly authored version-3 OpenSpec delivery PR SHALL use one human-readable structure: `## Proposal` as its first nonblank content with one or two sentences explaining intent, `## Implementation` with concrete delivery details, final `## Acceptance` outcomes when complete, and last `## Automation` with required machine linkage in a clearly explained collapsed disclosure. The body SHALL NOT add a quoted `Phase: Proposal` or `Phase: Implementation` line. GitHub draft/ready state, the visible sections, and explicit maintainer authorization SHALL communicate delivery posture without a redundant phase banner. After merge, verification SHALL derive `Archived` without editing the accepted PR body. The body SHALL omit routine validation command listings. A request to prepare, write, design, or update a specification SHALL authorize only planning, not implementation. Implementation SHALL begin only after the maintainer approves the plan and explicitly requests implementation; the planning PR SHALL NOT need to merge first. Approved implementation SHALL continue in the same worktree, branch, commit history, and pull request, including its related documentation.
 
-After implementation and required task/evidence preparation are complete, the same branch SHALL be finalized by conservatively synchronizing its deltas, staging its dated archive and conditional delivery record, and removing its active-change copy. The PR SHALL remain draft until that final candidate is ready for exact-head CI and review. One ordinary exact-head workflow SHALL validate both the finalized record and all applicable product/governance scopes and SHALL expose the stable protected check when they succeed. The finalized PR SHALL integrate only after required validation and an authorized maintainer manually merges it; that manual merge SHALL be the final implementation acceptance and merge authorization. No manual phase promotion or second phase-only workflow run SHALL be required.
+After implementation and required task/evidence preparation are complete, the same branch SHALL be finalized by conservatively synchronizing its deltas, staging its dated archive and conditional delivery record, and removing its active-change copy. The PR SHALL remain draft until that final candidate is ready for exact-head CI and review. One ordinary exact-head workflow SHALL validate both the finalized record and all applicable product/governance scopes and SHALL expose the stable protected check when they succeed. The finalized PR SHALL integrate only after required validation and an authorized maintainer manually merges it; that manual merge SHALL be the final implementation acceptance and merge authorization. No manual body-phase promotion or second phase-only workflow run SHALL be required.
 
 Approved refinements SHALL update the affected planning artifacts coherently before corresponding implementation edits in that same PR. New unimplemented deltas SHALL NOT be synchronized into canonical specs on `develop` during planning. Standalone revisions to existing merged planning artifacts SHALL remain OpenSpec-only unless specification and implementation refinement together is explicitly authorized in an existing implementation PR.
 
 #### Scenario: User requests a specification
 - **WHEN** the user asks an agent to plan a new implementation-bound change
-- **THEN** the agent SHALL create OpenSpec artifacts in a normally named draft PR whose first line is `> Phase: Proposal`
+- **THEN** the agent SHALL create OpenSpec artifacts in a normally named draft PR whose first nonblank body content is `## Proposal`
+- **AND** the body SHALL NOT contain a quoted proposal or implementation phase line
 - **AND** `Proposal` SHALL explain the intent in one or two sentences
 - **AND** the following `Implementation` bullets SHALL summarize what the implementation is meant to accomplish
 - **AND** SHALL keep machine linkage last under `Automation` in an explained collapsed disclosure rather than presenting JSON or validation commands as the main description
@@ -37,7 +38,7 @@ Approved refinements SHALL update the affected planning artifacts coherently bef
 #### Scenario: User approves implementation in the draft PR
 - **WHEN** the maintainer approves the plan and explicitly requests implementation
 - **THEN** the agent SHALL continue in the same worktree, branch, history, and PR without a planning merge
-- **AND** SHALL change the body's first line to `> Phase: Implementation`
+- **AND** SHALL NOT add or replace a body phase line merely to record the transition
 - **AND** plan approval SHALL NOT count as final implementation acceptance or merge authorization
 
 #### Scenario: Implementation changes the agreed approach
@@ -48,12 +49,12 @@ Approved refinements SHALL update the affected planning artifacts coherently bef
 #### Scenario: Completed implementation is finalized
 - **WHEN** implementation and its required evidence are complete
 - **THEN** the same branch SHALL stage conservative spec synchronization, the dated archive, and its conditional delivery record before the PR becomes ready
-- **AND** the finalized body SHALL remain `> Phase: Implementation` and present `Proposal`, `Implementation`, `Acceptance`, then collapsed `Automation` sections through validation, review, and manual merge
+- **AND** the finalized body SHALL present `Proposal`, `Implementation`, `Acceptance`, then collapsed `Automation` sections without a quoted phase line through validation, review, and manual merge
 - **AND** no acceptance-only, spec-only, archive-only, or phase-promotion follow-up SHALL be required for that delivery
 
 #### Scenario: Required tests pass
 - **WHEN** every required exact-head product, governance, and finalized-delivery check passes for the implementation candidate
-- **THEN** the stable protected check SHALL succeed without a body phase edit or second workflow run
+- **THEN** the stable protected check SHALL succeed without a body lifecycle edit or second workflow run
 - **AND** the agent SHALL hand off the unchanged candidate for maintainer review and authorized manual merge
 
 #### Scenario: Integrated delivery is verified

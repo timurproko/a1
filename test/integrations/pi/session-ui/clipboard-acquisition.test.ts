@@ -8,13 +8,13 @@ import { runPredecessorCommand } from "../../../support/predecessor-command.js";
 
 function operations(mode: string): string[] {
   if (process.platform === "win32" || process.platform === "darwin") {
-    return ["native-text", ...(["denied", "fallback"].includes(mode) ? [process.platform === "win32" ? "powershell.exe" : "pbpaste"] : [])];
+    return ["native-text", ...(["native-empty", "empty", "denied", "fallback"].includes(mode) ? [process.platform === "win32" ? "powershell.exe" : "pbpaste"] : [])];
   }
-  return ["wl-paste", ...(["denied", "fallback"].includes(mode) ? ["xclip"] : [])];
+  return ["wl-paste", ...(["native-empty", "empty", "denied", "fallback"].includes(mode) ? ["xclip"] : [])];
 }
 
 describe.each(["source", "emitted"])("hermetic %s clipboard acquisition", entry => {
-  it.each(["native", "empty", "denied", "fallback"])("keeps the real helper/classifier and observes the actual backend (%s)", async mode => {
+  it.each(["native", "native-empty", "empty", "denied", "fallback"])("keeps the real helper/classifier and observes the actual backend (%s)", async mode => {
     const root = await mkdtemp(join(tmpdir(), "clipboard-boundary-"));
     const trace = join(root, "operations");
     const script = join(root, "fixture.mjs");

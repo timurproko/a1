@@ -37,9 +37,14 @@ describe("impact-aware validation workflows", () => {
     expect(workflow.jobs.delivery.if).toContain("needs.changes.outputs.implementation-bound == 'true'");
     expect(workflow.jobs.delivery.steps.find((step: { name: string }) => step.name === "Check out trusted base delivery policy").with.ref)
       .toBe("${{ github.event.pull_request.base.sha }}");
+    const detector = workflow.jobs.delivery.steps.find((step: { name: string }) => step.name === "Detect deployed phase-free delivery policy");
+    expect(detector.run).toContain("PHASE_FREE_VERSION3_BODY_POLICY = true");
+    expect(detector.run).toContain("scripts/governance/openspec-acceptance-checklist.mjs");
     const bootstrap = workflow.jobs.delivery.steps.find((step: { name: string }) => step.name === "Check out exact implementation policy for bootstrap");
-    expect(bootstrap.if).toContain("steps.policy.outputs.installed != 'true'");
+    expect(bootstrap.if).toBe("steps.version.outputs.version == '3' && steps.policy.outputs.installed != 'true'");
     expect(bootstrap.with.ref).toBe("${{ needs.changes.outputs.head-sha }}");
+    expect(workflow.jobs.delivery.steps.filter((step: { with?: { ref?: string } }) => step.with?.ref === "${{ needs.changes.outputs.head-sha }}"))
+      .toHaveLength(1);
     expect(workflow.jobs.delivery.outputs["delivery-candidate"])
       .toBe("${{ steps.validation.outputs.delivery_candidate || steps.legacy.outputs.delivery_candidate || 'false' }}");
     expect(workflow.jobs.delivery.steps.find((step: { name: string }) => step.name === "Validate finalized version-3 delivery record").if)

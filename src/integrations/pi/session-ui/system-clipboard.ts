@@ -92,7 +92,9 @@ export async function readSystemClipboardText(signal?: AbortSignal, strict = fal
       try {
         const text = await native.getText();
         if (text.length > 0) return text;
-        if (strict) return null;
+        // Compatibility: a cold native adapter can report empty before the platform
+        // command can observe the existing clipboard. Treat empty as inconclusive
+        // and continue within this request's existing abort/deadline boundary.
       } catch {
         // Compatibility: fall through to the platform command.
       }
@@ -109,7 +111,9 @@ export async function readSystemClipboardText(signal?: AbortSignal, strict = fal
   if (process.platform === "darwin") return execClipboard("pbpaste", [], signal, strict);
   try {
     const value = await execClipboard("wl-paste", ["--no-newline", "--type", "text"], signal, strict);
-    if (strict || value !== null) return value;
+    // Compatibility: an empty Wayland result does not prove that the X11
+    // clipboard is empty on mixed sessions. Let the existing fallback decide.
+    if (value !== null) return value;
   } catch { /* Compatibility: X11 may be available when the Wayland command is not. */ }
   return execClipboard("xclip", ["-selection", "clipboard", "-o"], signal, strict);
 }
