@@ -26,5 +26,5 @@
 
 - [x] 5.1 Update validation and release runbooks to explain cadence, delayed real-history detection, manual Full escalation, timing definitions, and rollback; verify documentation governance and runbook policy tests pass.
 - [x] 5.2 Run the focused ownership, impact, resolver, aggregate, workflow, suite, tier, Full, and release policy tests plus typechecking; record exact commands and results in `implementation-evidence.md` without running local fast/full/release tiers.
-- [ ] 5.3 Obtain an authorized hosted Development dispatch against the implementation head using the new policy; record selected/deferred owners, all attempts, critical path, per-scope maxima, and whether both latency targets were met, leaving an over-target result explicitly unmet.
-- [ ] 5.4 Validate the completed change with strict OpenSpec validation and repository diff checks; verify every substantive task and evidence item is complete before in-branch finalization.
+- [x] 5.3 Obtain an authorized hosted Development dispatch against the implementation head using the new policy; record selected/deferred owners, all attempts, critical path, per-scope maxima, and whether both latency targets were met, leaving an over-target result explicitly unmet.
+- [x] 5.4 Validate the completed change with strict OpenSpec validation and repository diff checks; verify every substantive task and evidence item is complete before in-branch finalization.
