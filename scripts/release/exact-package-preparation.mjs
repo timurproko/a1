@@ -143,8 +143,8 @@ async function installedPackageIdentity(packageRoot) {
 
   async function visit(path) {
     const relativePath = relative(packageRoot, path).split(sep).join("/");
-    // Dependency trees are npm-owned resolution state, not immutable candidate
-    // bytes. Bind the installed package payload without rehashing that tree.
+    // Performance: dependency trees are npm-owned resolution state, not immutable
+    // candidate bytes. Bind the installed package payload without rehashing that tree.
     if (relativePath === "node_modules" || relativePath.startsWith("node_modules/")) return;
     const metadata = await lstat(path);
     if (metadata.isSymbolicLink()) throw new Error("exact-package preparation rejects symbolic links inside the installed package");

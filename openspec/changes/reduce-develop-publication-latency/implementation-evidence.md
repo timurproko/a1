@@ -39,6 +39,7 @@ Executed from `.worktrees/reduce-develop-publication-latency` on 2026-09-16:
 - `npm exec -- vitest run test/repository-governance/exact-package-preparation.test.ts test/repository-governance/package-install-fixture.test.ts test/repository-governance/validation-tier.test.ts test/repository-governance/package-suite-ownership.test.ts test/repository-governance/full-regression-policy.test.ts test/repository-governance/validation-suite-policy.test.ts test/repository-governance/integration-owner-registry.test.ts test/repository-governance/validation-receipt-workflows.test.ts test/repository-governance/release-gate-policy.test.ts test/repository-governance/resource-sensitive-validation.test.ts --no-file-parallelism --testTimeout=30000` — 10 files and 81 tests passed.
 - `node scripts/release/run-validation-tier.mjs package-install --plan` plus a bounded structural assertion — one preparation and startup-first owner ordering passed.
 - `openspec validate "reduce-develop-publication-latency" --strict` — passed.
+- `node scripts/governance/check-code-documentation.mjs --mode full` — passed after exact-head CI identified and the implementation comment corrected its required `Performance:` prefix.
 - `node --check scripts/release/exact-package-preparation.mjs`, `node --check scripts/release/validation-tier.mjs`, and `git diff --check` — passed.
 
 No prohibited local `test:fast`, `test:full`, or `test:release` aggregate was run. The exact packaged startup workload and publication workflow remain hosted evidence rather than local acceptance.
