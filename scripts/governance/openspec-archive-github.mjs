@@ -5,6 +5,8 @@ import { parseImplementationAcceptanceScenarios } from "./openspec-acceptance-ch
 import { assertManualAcceptanceMerge, digest, requireAcceptance } from "./openspec-acceptance-policy.mjs";
 import { parseConditionalAcceptance, verifyConditionalAcceptance } from "./openspec-delivery-policy.mjs";
 
+export const ACTIVE_TO_ARCHIVE_RENAME_POLICY = true;
+
 export function createArchiveReader({ repository, token, fetchImpl = fetch, apiUrl = "https://api.github.com", deadline = Infinity }) {
   if (!/^[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+$/.test(repository)) throw archiveFailure("repository-identity");
   const prefix = `/repos/${repository}`;
