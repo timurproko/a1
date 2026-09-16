@@ -11,7 +11,7 @@ import { createCommandOutcomeState } from "../integrations/pi/session-ui/command
 const [route, home] = process.argv.slice(2);
 if ((route !== "slash" && route !== "chord") || !home) throw new Error("Invalid graceful-quit fixture arguments");
 await mkdir(home, { recursive: true });
-// Regression: extensions can retain process-level handles after their session shutdown callback.
+// Rationale: extensions can retain process-level handles after their session shutdown callback.
 // Keep this server open deliberately; the executable boundary must still complete after owned cleanup.
 const retainedExtensionServer = createServer();
 await new Promise<void>((resolve, reject) => {

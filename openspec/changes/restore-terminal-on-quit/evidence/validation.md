@@ -20,6 +20,8 @@ Manual validation after the first finalized candidate restored the owned present
 
 The strengthened fixture reproduced two expected pre-fix timeouts, one for each quit route. After executable-boundary completion was added, both retained-handle cases passed. A rebuilt supported development launch with the configured extension server also exited zero after `/quit` and after double `Ctrl+C`, returning control about 2.2 seconds after each request. Bootstrap-boundary wiring (9 tests), owned runner behavior (6 tests), focused shell shutdown (3 tests), build, strict OpenSpec validation, and typechecking passed; the independent command-outcome parity scope passed all 4 tests.
 
+The first refined exact-head CI run failed only changed-file documentation governance (`DOC005`) because the retained-handle fixture's implementation comment used an unapproved `Regression:` prefix. The comment was relabeled with the required `Rationale:` prefix without changing behavior, and the full local code-documentation policy passed before refinalization.
+
 ## Gap disposition
 
 No known implementation or validation gaps remain after the live-acceptance refinement. Full regression and native host gates remain CI-owned under repository policy.
