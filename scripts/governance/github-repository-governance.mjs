@@ -67,11 +67,15 @@ export function inspectWorkflowSource(path, source) {
   const authority = [];
   if (source.includes("Development validation required")) authority.push("Development validation required");
   if (source.includes("acceptance-validation-route.mjs")) authority.push("acceptance-only-routing");
+  if (source.includes("delivery_candidate=")) authority.push("single-pr-finalization-validation");
   if (source.includes("manage-documentation-auto-merge.mjs")) authority.push("documentation-auto-merge", "matching-merged-head-delete", "archive-protected-integration");
   if (source.includes('VALIDATION_SELECTION_JSON: \'["full-release"]\'')) authority.push("complete-regression");
   if (source.includes("reconcile-merged-branch.mjs")) authority.push("matching-merged-head-delete");
   if (source.includes("reconcile-openspec-archive.mjs")) {
-    if (source.includes("OPENSPEC_ARCHIVE_APP_PRIVATE_KEY")) authority.push("openspec-archive-app-publication", "archive-read-only-audit");
+    if (source.includes("OPENSPEC_ARCHIVE_APP_PRIVATE_KEY")) {
+      authority.push("openspec-archive-app-publication", "archive-read-only-audit");
+      if (source.includes("atomic single-PR delivery")) authority.push("single-pr-delivery-verification");
+    }
     else {
       if (source.includes("--validate-candidate")) authority.push("archive-merge-result-validation");
       if (source.includes("--validate-acceptance")) authority.push("acceptance-record-validation");

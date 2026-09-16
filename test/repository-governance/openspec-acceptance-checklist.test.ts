@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { acceptanceChecklistDigest, acceptancePullBody, parseImplementationAcceptanceChecks,
-  verifyAcceptancePullBody } from "../../scripts/governance/openspec-acceptance-checklist.mjs";
+  parseImplementationAcceptanceScenarios, verifyAcceptancePullBody } from "../../scripts/governance/openspec-acceptance-checklist.mjs";
 import type { AcceptanceRecord } from "../../scripts/governance/openspec-acceptance-policy.mjs";
 
 const checks = [
@@ -8,6 +8,7 @@ const checks = [
   "Dragging the scrollbar updates the viewport while preserving the selected pane.",
 ];
 const sourceBody = (items = checks) => `## Summary\n\nScrollbar behavior is implemented.\n\n\`\`\`openspec-implementation\n{"version":2,"change":"scrollbar"}\n\`\`\`\n\n## Acceptance checks\n\n${items.map(item => `- ${item}`).join("\n")}`;
+const version3Body = (items = checks, prefix = "- ") => `> Phase: Acceptance\n\n## Proposal\n\nMake overflowing content easier to navigate without losing pane context.\n\n## Implementation\n\n- Add a viewport scrollbar synchronized with selection and scrolling.\n\n## Acceptance\n\n${items.map(item => `${prefix}${item}`).join("\n")}\n\n## Automation\n\n<details>\n<summary>Used by CI to link this PR to its OpenSpec change</summary>\n\n\`\`\`openspec-implementation\n{"version":3,"change":"scrollbar"}\n\`\`\`\n\n</details>`;
 const record = (): AcceptanceRecord => ({
   version: 2, repository: "owner/repo", change: "scrollbar", sourcePr: 42,
   sourceHead: "a".repeat(40), sourceMerge: "b".repeat(40), sourceBodyDigest: "c".repeat(64),
@@ -22,6 +23,28 @@ describe("implementation-specific acceptance checklist", () => {
     expect(parseImplementationAcceptanceChecks(sourceBody())).toEqual(checks);
     expect(parseImplementationAcceptanceChecks(sourceBody([checks[0]!]))).toEqual([checks[0]]);
     expect(acceptanceChecklistDigest(checks)).toMatch(/^[a-f0-9]{64}$/);
+  });
+
+  it("extracts version-3 plain acceptance scenarios and rejects checkbox state", () => {
+    expect(parseImplementationAcceptanceScenarios(version3Body(), 3)).toEqual(checks);
+    expect(parseImplementationAcceptanceScenarios(sourceBody(), 2)).toEqual(checks);
+    expect(() => parseImplementationAcceptanceScenarios(version3Body(checks, "- [ ] "), 3)).toThrow("acceptance-checklist-item");
+    expect(() => parseImplementationAcceptanceScenarios(sourceBody(), 3)).toThrow("acceptance-layout-phase");
+    expect(() => parseImplementationAcceptanceScenarios(version3Body(), 1)).toThrow("acceptance-version");
+  });
+
+  it("requires the canonical visible phase and section layout for completed deliveries", () => {
+    expect(parseImplementationAcceptanceScenarios(version3Body().replace("> Phase: Acceptance", "> Phase: Implementation"), 3)).toEqual(checks);
+    expect(() => parseImplementationAcceptanceScenarios(version3Body().replace("> Phase: Acceptance", "> Phase: Proposal"), 3))
+      .toThrow("acceptance-layout-phase");
+    expect(() => parseImplementationAcceptanceScenarios(version3Body().replace("## Implementation", "## Intent"), 3))
+      .toThrow("acceptance-layout-sections");
+    expect(() => parseImplementationAcceptanceScenarios(version3Body().replace("Used by CI to link this PR", "Machine data links this PR"), 3))
+      .toThrow("acceptance-layout-automation");
+    expect(() => parseImplementationAcceptanceScenarios(version3Body().replace("Make overflowing content easier to navigate without losing pane context.", "- Add a scrollbar."), 3))
+      .toThrow("acceptance-layout-proposal");
+    expect(() => parseImplementationAcceptanceScenarios(version3Body().replace("Make overflowing content easier to navigate without losing pane context.", "Improve navigation. Preserve pane context. Add more detail."), 3))
+      .toThrow("acceptance-layout-proposal");
   });
 
   it.each([

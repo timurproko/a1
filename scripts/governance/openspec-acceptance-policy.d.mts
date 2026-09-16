@@ -1,6 +1,12 @@
 import type { ImplementationMetadata } from "./openspec-archive-policy.mjs";
+import type { ConditionalAcceptanceManifest } from "./openspec-delivery-policy.mjs";
 export interface AcceptanceReference { url: string; outcome: string }
 export interface AcceptanceTask { id: string; text: string; done: boolean; digest: string; completion: "recorded" | "pending" | "evidenced" | "signoff-on-merge" | "archive-preparation"; evidence: AcceptanceReference[] }
+export interface SinglePrAcceptanceReceipt {
+  kind: "single-pr"; id: number; author: string; createdAt: string; bodyDigest: string;
+  checklistDigest: string; checklistComplete: true; checks: string[]; headSha: string; mergeSha: string;
+  manifest: ConditionalAcceptanceManifest;
+}
 export interface AcceptanceRecord {
   version: 1 | 2; repository: string; change: string; sourcePr: number; sourceHead: string; sourceMerge: string;
   sourceBodyDigest: string; artifactDigest: string; specBaseSha: string; acceptanceChecks?: string[];

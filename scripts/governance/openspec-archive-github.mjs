@@ -1,6 +1,9 @@
 import { loadPullRequestAcceptance } from "./openspec-acceptance-github.mjs";
 import { snapshotOpenSpec } from "./openspec-archive-staging.mjs";
-import { archiveFailure, assertMergedImplementation, parseImplementation, parseAcceptance, selectAcceptance, SHA } from "./openspec-archive-policy.mjs";
+import { archiveFailure, assertMergedImplementation, inspectTasks, parseImplementation, parseAcceptance, selectAcceptance, SHA } from "./openspec-archive-policy.mjs";
+import { parseImplementationAcceptanceScenarios, parseImplementationDeliveryPhase } from "./openspec-acceptance-checklist.mjs";
+import { assertManualAcceptanceMerge, digest, requireAcceptance } from "./openspec-acceptance-policy.mjs";
+import { parseConditionalAcceptance, verifyConditionalAcceptance } from "./openspec-delivery-policy.mjs";
 
 export function createArchiveReader({ repository, token, fetchImpl = fetch, apiUrl = "https://api.github.com", deadline = Infinity }) {
   if (!/^[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+$/.test(repository)) throw archiveFailure("repository-identity");
@@ -49,6 +52,72 @@ export function archiveReaderFromGet(repository, get) {
   return { repository, prefix, get, pages, ancestor };
 }
 
+async function snapshotBytes(snapshot, paths) {
+  return await Promise.all(paths.map(async path => {
+    const bytes = await snapshot.blob(path);
+    if (!bytes) throw archiveFailure("delivery-content-missing", path);
+    return [path, bytes];
+  }));
+}
+
+export async function inspectVersion3DeliverySnapshot(reader, pull, implementation, sha) {
+  requireAcceptance(implementation?.version === 3 && implementation.archive && implementation.acceptanceManifest
+    && implementation.acceptanceManifest === `${implementation.archive}acceptance.md`, "delivery-not-finalized");
+  const snapshot = await snapshotOpenSpec(reader, sha);
+  const active = `openspec/changes/${implementation.change}/`;
+  requireAcceptance(![...snapshot.entries.keys()].some(path => path.startsWith(active)), "delivery-change-still-active");
+  const archivePaths = [...snapshot.entries.keys()].filter(path => path.startsWith(implementation.archive)).sort();
+  for (const required of [".openspec.yaml", "proposal.md", "design.md", "tasks.md", "acceptance.md"]) {
+    requireAcceptance(archivePaths.includes(`${implementation.archive}${required}`), "delivery-artifact-missing");
+  }
+  const manifestText = (await snapshot.blob(implementation.acceptanceManifest))?.toString();
+  requireAcceptance(manifestText, "delivery-manifest-missing");
+  const manifest = parseConditionalAcceptance(manifestText);
+  requireAcceptance(manifest.specBaseSha === pull.base?.sha, "delivery-target-stale");
+  const contentPaths = archivePaths.filter(path => path !== implementation.acceptanceManifest);
+  const archiveEntries = await snapshotBytes(snapshot, contentPaths);
+  const evidenceEntries = archiveEntries.filter(([path]) => /(?:^|\/)(?:evidence\/|implementation-evidence\.md$)/.test(path));
+  const tasksBytes = await snapshot.blob(`${implementation.archive}tasks.md`);
+  requireAcceptance(tasksBytes, "delivery-tasks-missing");
+  inspectTasks(tasksBytes.toString());
+  const capabilities = [...new Set(contentPaths.flatMap(path => {
+    const suffix = path.slice(implementation.archive.length);
+    const match = /^specs\/(.+)\/spec\.md$/.exec(suffix);
+    return match ? [match[1]] : [];
+  }))];
+  const specEntries = await snapshotBytes(snapshot, capabilities.map(capability => `openspec/specs/${capability}/spec.md`));
+  const scenarios = parseImplementationAcceptanceScenarios(pull.body ?? "", 3);
+  const verified = verifyConditionalAcceptance(manifest, { implementation, repository: reader.repository, sourcePr: pull.number,
+    archiveEntries, specEntries, evidenceEntries, tasksBytes, scenarios, knownGaps: manifest.knownGaps });
+  return { snapshot, manifest, archiveEntries, specEntries, evidenceEntries, tasksBytes, scenarios, ...verified };
+}
+
+export async function validateVersion3Candidate(reader, number) {
+  if (!Number.isSafeInteger(number) || number < 1) throw archiveFailure("implementation-pr");
+  const pull = await reader.get(`${reader.prefix}/pulls/${number}`);
+  const implementation = parseImplementation(pull.body ?? "");
+  requireAcceptance(implementation?.version === 3, "delivery-version");
+  const files = await reader.pages(`/pulls/${number}/files`, 3000);
+  requireAcceptance(pull.number === number && pull.state === "open" && pull.draft === false && pull.base?.ref === "develop"
+    && pull.base?.repo?.full_name === reader.repository && pull.head?.repo?.full_name === reader.repository
+    && SHA.test(pull.base?.sha ?? "") && SHA.test(pull.head?.sha ?? "")
+    && files.length > 0 && files.length === pull.changed_files, "delivery-candidate-identity");
+  const target = await reader.get(`${reader.prefix}/git/ref/heads/develop`);
+  requireAcceptance(target.object?.sha === pull.base.sha, "delivery-target-stale");
+  await reader.ancestor(pull.base.sha, pull.head.sha);
+  const value = await inspectVersion3DeliverySnapshot(reader, pull, implementation, pull.head.sha);
+  requireAcceptance(parseImplementationDeliveryPhase(pull.body ?? "") === "acceptance", "delivery-phase-not-acceptance");
+  const changed = new Set(files.flatMap(file => [file.filename, ...(file.status === "renamed" ? [file.previous_filename] : [])]));
+  requireAcceptance(value.archiveEntries.every(([path]) => changed.has(path)) && changed.has(implementation.acceptanceManifest),
+    "delivery-diff-incomplete");
+  const specPaths = new Set(value.specEntries.map(([path]) => path));
+  for (const path of changed) {
+    if (path.startsWith("openspec/changes/") && !path.startsWith(implementation.archive)) throw archiveFailure("delivery-unexpected-openspec-path", path);
+    if (path.startsWith("openspec/specs/") && !specPaths.has(path)) throw archiveFailure("delivery-unexpected-openspec-path", path);
+  }
+  return { disposition: "ready-for-manual-merge", pull, implementation, targetSha: target.object.sha, ...value };
+}
+
 export async function loadImplementationEvidence(reader, number) {
   if (!Number.isSafeInteger(number) || number < 1) throw archiveFailure("implementation-pr");
   const { get, pages, prefix, repository, ancestor } = reader;
@@ -56,9 +125,15 @@ export async function loadImplementationEvidence(reader, number) {
   if (pull.number !== number) throw archiveFailure("implementation-pr");
   const implementation = parseImplementation(pull.body ?? "");
   if (!implementation) return { disposition: "unlinked", pull };
+  if (implementation.version === 3 && pull.merged !== true) {
+    if (pull.state === "closed") return { disposition: "closed", pull, implementation };
+    if (pull.draft !== false) return { disposition: "draft", pull, implementation };
+    if (!implementation.archive || !implementation.acceptanceManifest) return { disposition: "needs-finalization", pull, implementation };
+    return await validateVersion3Candidate(reader, number);
+  }
   try {
     const files = await pages(`/pulls/${number}/files`, 3000);
-    assertMergedImplementation(pull, repository, files);
+    assertMergedImplementation(pull, repository, files, { allowDocumentation: implementation.version === 3 });
     const target = await get(`${prefix}/git/ref/heads/develop`);
     const targetSha = target.object?.sha;
     if (!SHA.test(targetSha ?? "")) throw archiveFailure("target-identity");
@@ -73,26 +148,59 @@ export async function loadImplementationEvidence(reader, number) {
       const specFiles = await pages(`/pulls/${implementation.specificationPr}/files`, 3000);
       if (specFiles.length !== specification.changed_files || !specFiles.some(file => file.status === "added"
         && file.filename === `openspec/changes/${implementation.change}/.openspec.yaml`)) throw archiveFailure("specification-change-link");
-    } else {
+    } else if (implementation.version === 2) {
       const active = `openspec/changes/${implementation.change}/`;
       const source = await snapshotOpenSpec(reader, pull.head.sha);
       const merged = await snapshotOpenSpec(reader, pull.merge_commit_sha);
       if (!source.entries.has(`${active}.openspec.yaml`) || !merged.entries.has(`${active}.openspec.yaml`)) throw archiveFailure("implementation-change-missing");
       const selected = snapshot => [...snapshot.entries].filter(([path]) => path.startsWith(active)).sort(([a], [b]) => a.localeCompare(b));
       if (JSON.stringify(selected(source)) !== JSON.stringify(selected(merged))) throw archiveFailure("implementation-change-drift");
+    } else {
+      await inspectVersion3DeliverySnapshot(reader, pull, implementation, pull.head.sha);
+      await inspectVersion3DeliverySnapshot(reader, pull, implementation, pull.merge_commit_sha);
     }
 
-    return { disposition: "source", pull, implementation, targetSha };
+    return { disposition: "source", pull, implementation, targetSha, files };
   } catch (error) {
     error.archiveChange = implementation.change;
     throw error;
   }
 }
 
+export async function loadVersion3Acceptance(reader, source) {
+  const { implementation, pull } = source;
+  requireAcceptance(implementation.version === 3, "delivery-version");
+  const actor = pull.merged_by?.login;
+  requireAcceptance(/^[a-zA-Z0-9-]{1,39}$/.test(actor ?? ""), "acceptance-manual-authority");
+  const permission = await reader.get(`${reader.prefix}/collaborators/${actor}/permission`);
+  const events = await reader.pages(`/issues/${pull.number}/timeline`, 1000);
+  assertManualAcceptanceMerge(pull, permission.permission, events);
+  const delivery = await inspectVersion3DeliverySnapshot(reader, pull, implementation, pull.head.sha);
+  const validation = await findImplementationValidation(reader, pull);
+  await reader.ancestor(pull.merge_commit_sha, source.targetSha);
+  const target = await snapshotOpenSpec(reader, source.targetSha);
+  const retained = snapshot => [...snapshot.entries].filter(([path]) => path.startsWith(implementation.archive)).sort(([a], [b]) => a.localeCompare(b));
+  requireAcceptance(JSON.stringify(retained(target)) === JSON.stringify(retained(delivery.snapshot))
+    && ![...target.entries.keys()].some(path => path.startsWith(`openspec/changes/${implementation.change}/`)),
+  "delivery-archive-drift");
+  const manifestText = (await delivery.snapshot.blob(implementation.acceptanceManifest)).toString();
+  const acceptance = { kind: "single-pr", id: pull.number, author: actor, createdAt: pull.merged_at,
+    bodyDigest: digest(manifestText), checklistDigest: delivery.checklistDigest, checklistComplete: true,
+    checks: delivery.scenarios, headSha: pull.head.sha, mergeSha: pull.merge_commit_sha, manifest: delivery.manifest,
+    value: { version: 1, change: implementation.change, headSha: pull.head.sha, specBaseSha: delivery.manifest.specBaseSha,
+      verdict: "accepted", implementationComplete: true, manualReview: "passed", specSyncReviewed: true,
+      evidence: `Authorized manual merge of single delivery PR #${pull.number}; manifest SHA-256 ${digest(manifestText)}.` } };
+  return { ...source, disposition: "eligible", acceptance, validation, delivery };
+}
+
 export async function loadArchiveEvidence(reader, number, { allowMissing = false } = {}) {
   const source = await loadImplementationEvidence(reader, number);
-  if (source.disposition === "unlinked") return source;
+  if (["unlinked", "closed", "draft", "needs-finalization", "ready-for-manual-merge"].includes(source.disposition)) return source;
   const { implementation, pull } = source;
+  if (implementation.version === 3) {
+    try { return await loadVersion3Acceptance(reader, source); }
+    catch (error) { error.archiveChange = implementation.change; throw error; }
+  }
   const { get, pages, prefix, ancestor } = reader;
   try {
     const comments = await pages(`/issues/${number}/comments`);

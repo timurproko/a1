@@ -1,7 +1,7 @@
 # change-delivery-workflow Specification
 
 ## Purpose
-Define explicit planning approval and same-PR implementation delivery, implementation-bound documentation holds, and exact-head maintainer acceptance before manual integration and verified archival.
+Define explicit planning approval, same-PR implementation and finalization, manual-merge acceptance, atomic specification/archive integration, documentation holds, and verified cleanup.
 
 ## Requirements
 

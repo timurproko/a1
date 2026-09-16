@@ -17,10 +17,18 @@ function fixture(basePaths: string[] = [], headPaths: string[] = []) {
 }
 
 describe("implementation-bound documentation hold", () => {
-  it.each([1, 2])("holds version %s links regardless of documentation-only diff", async version => {
+  it.each([1, 2, 3])("holds version %s links regardless of documentation-only diff", async version => {
     const f = fixture();
     f.pull.body = block({ version, change: "example", ...(version === 1 ? { specificationPr: 10 } : {}) });
     expect(await inspectDocumentationLifecycle(f.pull, [{ filename: "README.md", status: "modified" }], f.reader)).toMatchObject({ held: true, reason: "implementation-associated" });
+    expect(f.requests).toHaveLength(0);
+  });
+  it("holds a finalized version-3 archive-shaped diff for manual integration", async () => {
+    const f = fixture();
+    f.pull.body = block({ version: 3, change: "example", archive: `${archived}`,
+      acceptanceManifest: `${archived}acceptance.md` });
+    expect(await inspectDocumentationLifecycle(f.pull, [{ filename: `${archived}acceptance.md`, status: "added" }], f.reader))
+      .toMatchObject({ held: true, reason: "implementation-associated" });
     expect(f.requests).toHaveLength(0);
   });
   it.each([

@@ -37,6 +37,15 @@ function fixture() {
 }
 
 describe("archive publication ownership and authority", () => {
+  it("refuses publication for an atomically finalized version-3 delivery", async () => {
+    const f = fixture();
+    const evidence = { ...f.evidence, implementation: { version: 3, change: "example" },
+      acceptance: { ...f.evidence.acceptance, kind: "single-pr" } };
+    expect(() => archiveMarker(evidence, f.candidate)).toThrow("delivery-publication-forbidden");
+    await expect(publishArchive({ ...f, evidence } as never)).rejects.toThrow("delivery-publication-forbidden");
+    expect(f.calls).toHaveLength(0); expect(f.mutations).toHaveLength(0);
+  });
+
   it("publishes with an expected-ref lease and leaves merging to documentation policy", async () => {
     const f = fixture();
     await expect(publishArchive(f)).resolves.toMatchObject({ disposition: "pending", archivePr: 50, generatedHead: f.generated });

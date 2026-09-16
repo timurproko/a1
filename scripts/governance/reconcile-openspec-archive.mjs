@@ -27,7 +27,8 @@ export async function discoverArchiveCheckpoint(reader) {
 }
 
 export async function reconcileArchives({ reader, tool, publisherFactory, dryRun = true, pr = null, retryClosed = false,
-  checkpoint = newArchiveCheckpoint(), now = Date.now, prepare = prepareArchive, publish = publishArchive }) {
+  checkpoint = newArchiveCheckpoint(), now = Date.now, prepare = prepareArchive, publish = publishArchive,
+  loadEvidence = loadArchiveEvidence }) {
   const started = now();
   const report = { version: 1, dryRun, coverage: null, results: [], checkpoint: null };
   let publisher;
@@ -52,17 +53,21 @@ export async function reconcileArchives({ reader, tool, publisherFactory, dryRun
       if (now() - started > 8 * 60 * 1000) break;
       const row = { pr: candidate.number, disposition: "blocked" };
       try {
-        let evidence = await loadArchiveEvidence(reader, candidate.number, { allowMissing: true });
+        let evidence = await loadEvidence(reader, candidate.number, { allowMissing: true });
         if (evidence.disposition === "unlinked" && evidence.pull.head?.ref?.startsWith("docs/accept-")) {
           const acceptance = await inspectAcceptanceCandidate(reader, evidence.pull, { requireComplete: false });
           if (acceptance) {
             row.acceptancePr = candidate.number;
             row.pr = acceptance.record.sourcePr;
-            evidence = await loadArchiveEvidence(reader, row.pr, { allowMissing: true });
+            evidence = await loadEvidence(reader, row.pr, { allowMissing: true });
           }
         }
         if (evidence.disposition === "unlinked") {
           row.disposition = "unlinked";
+        } else if (["closed", "draft", "needs-finalization", "ready-for-manual-merge"].includes(evidence.disposition)) {
+          row.deliveryVersion = 3;
+          row.change = evidence.implementation.change;
+          row.disposition = evidence.disposition;
         } else if (evidence.disposition === "acceptance-missing") {
           row.change = evidence.implementation.change;
           if (published) {
@@ -75,6 +80,15 @@ export async function reconcileArchives({ reader, tool, publisherFactory, dryRun
             publisher: dryRun ? null : await getPublisher(), retryClosed });
           Object.assign(row, result);
           published ||= result.published === true;
+        } else if (evidence.implementation.version === 3) {
+          row.accepted = true;
+          row.deliveryVersion = 3;
+          row.change = evidence.implementation.change;
+          row.disposition = "accepted-and-archived";
+          row.phase = "Archived";
+          row.mergeCommit = evidence.pull.merge_commit_sha;
+          row.archive = evidence.implementation.archive;
+          row.validationRunId = evidence.validation.runId;
         } else {
           row.accepted = true;
           if (evidence.acceptance.kind === "pull-request") row.acceptancePr = evidence.acceptance.id;
@@ -150,14 +164,17 @@ export async function reconcileArchives({ reader, tool, publisherFactory, dryRun
           }
         }
       } catch (error) {
-        if (row.accepted) row.disposition = "accepted-archive-blocked";
+        const provenance = ["acceptance-manual-authority", "acceptance-merge-provenance", "acceptance-not-merged"]
+          .includes(error.archiveCode);
+        if (provenance && error.archiveChange) row.disposition = "invalid-provenance";
+        else if (row.accepted) row.disposition = "accepted-archive-blocked";
         row.reason = error.archiveCode ?? "internal-error";
         if (error.archiveChange) row.change = error.archiveChange;
         if (error.archiveDetail && /^[a-zA-Z0-9,./-]{1,256}$/.test(error.archiveDetail)) row.detail = error.archiveDetail;
       }
       report.results.push(row);
       processed.push(candidate);
-      if (!dryRun && row.change) {
+      if (!dryRun && row.change && row.deliveryVersion !== 3) {
         try {
           const reporter = await getPublisher();
           await updateArchiveComment(reader, reporter, row);

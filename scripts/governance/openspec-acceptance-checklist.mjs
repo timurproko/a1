@@ -25,7 +25,7 @@ const normalizedCheck = value => value.normalize("NFKC").toLocaleLowerCase("en-U
   .replaceAll(/[^\p{L}\p{N}]+/gu, " ").trim();
 const checklistHash = checks => createHash("sha256").update(JSON.stringify(checks.map(normalizedCheck))).digest("hex");
 
-function assertChecks(values) {
+export function assertAcceptanceScenarios(values) {
   if (!Array.isArray(values) || values.length < MIN_ACCEPTANCE_CHECKS || values.length > MAX_ACCEPTANCE_CHECKS) {
     throw archiveFailure("acceptance-checklist-count");
   }
@@ -43,7 +43,7 @@ function assertChecks(values) {
 }
 
 /** Extract the final reviewed handoff rather than deriving a robot list from source tasks. */
-export function parseImplementationAcceptanceChecks(body) {
+function parseAcceptanceSection(body, heading) {
   const lines = normalizedBody(body).split("\n");
   let fence = null;
   const headings = [];
@@ -55,13 +55,13 @@ export function parseImplementationAcceptanceChecks(body) {
       continue;
     }
     if (marker) { fence = { character: marker[0], length: marker.length }; continue; }
-    if (/^## Acceptance checks\s*$/.test(line)) headings.push(index);
+    if (line === `## ${heading}`) headings.push(index);
   }
   if (headings.length !== 1) throw archiveFailure(headings.length ? "acceptance-checklist-duplicate-section" : "acceptance-checklist-missing");
   const start = headings[0] + 1;
   let end = lines.length;
   for (let index = start; index < lines.length; index += 1) {
-    if (/^##\s+/.test(lines[index])) { end = index; break; }
+    if (/^##\s+/.test(lines[index]) || lines[index] === "<details>") { end = index; break; }
   }
   const checks = [];
   for (const line of lines.slice(start, end)) {
@@ -70,11 +70,65 @@ export function parseImplementationAcceptanceChecks(body) {
     if (!item) throw archiveFailure("acceptance-checklist-section");
     checks.push(item[1]);
   }
-  return assertChecks(checks);
+  return assertAcceptanceScenarios(checks);
+}
+
+export function parseImplementationAcceptanceChecks(body) {
+  return parseAcceptanceSection(body, "Acceptance checks");
+}
+
+function assertVersion3BodyLayout(body) {
+  const lines = normalizedBody(body).split("\n");
+  const phaseLine = lines.find(line => line.trim());
+  if (!["> Phase: Implementation", "> Phase: Acceptance"].includes(phaseLine)) throw archiveFailure("acceptance-layout-phase");
+  const headings = [];
+  let fence = null;
+  let comment = false;
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    if (comment) { if (line.includes("-->")) comment = false; continue; }
+    if (line.includes("<!--")) { if (!line.includes("-->")) comment = true; continue; }
+    const marker = /^ {0,3}(`{3,}|~{3,})/.exec(line)?.[1];
+    if (fence) {
+      if (new RegExp(`^ {0,3}${fence.character}{${fence.length},}\\s*$`).test(line)) fence = null;
+      continue;
+    }
+    if (marker) { fence = { character: marker[0], length: marker.length }; continue; }
+    const heading = /^## (\S.*)$/.exec(line);
+    if (heading) headings.push({ name: heading[1], index });
+  }
+  if (JSON.stringify(headings.map(({ name }) => name)) !== JSON.stringify(["Proposal", "Implementation", "Acceptance", "Automation"])) {
+    throw archiveFailure("acceptance-layout-sections");
+  }
+  const proposalLines = lines.slice(headings[0].index + 1, headings[1].index).filter(line => line.trim());
+  const proposal = proposalLines.join(" ").trim();
+  const sentenceCount = proposal.match(/[.!?](?=\s|$)/g)?.length ?? 0;
+  if (!proposal || Buffer.byteLength(proposal) > 600 || proposalLines.some(line => /^(?:[-*+] |#|>|<)/.test(line))
+    || sentenceCount < 1 || sentenceCount > 2 || !/[.!?]$/.test(proposal)) throw archiveFailure("acceptance-layout-proposal");
+  const automation = lines.slice(headings[3].index + 1);
+  const visible = automation.filter(line => line.trim());
+  if (visible[0] !== "<details>" || visible[1] !== "<summary>Used by CI to link this PR to its OpenSpec change</summary>"
+    || visible.at(-1) !== "</details>" || !automation.some(line => line === "```openspec-implementation")) {
+    throw archiveFailure("acceptance-layout-automation");
+  }
+  return phaseLine.slice("> Phase: ".length).toLocaleLowerCase("en-US");
+}
+
+export function parseImplementationDeliveryPhase(body) {
+  return assertVersion3BodyLayout(body);
+}
+
+export function parseImplementationAcceptanceScenarios(body, version) {
+  if (version === 2) return parseImplementationAcceptanceChecks(body);
+  if (version === 3) {
+    assertVersion3BodyLayout(body);
+    return parseAcceptanceSection(body, "Acceptance");
+  }
+  throw archiveFailure("acceptance-version");
 }
 
 export function acceptanceChecklistDigest(checks) {
-  return checklistHash(assertChecks(checks));
+  return checklistHash(assertAcceptanceScenarios(checks));
 }
 
 const display = value => String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll("`", "\\`");
@@ -108,7 +162,7 @@ export function acceptancePullBody(record, sourceTitle) {
   if (record.version === 1) return legacyItems(record, sourceTitle).map(item => `- [ ] ${item}`).join("\n");
   const subject = display(sourceSubject(sourceTitle, record.change));
   const reference = `Implementation: [#${record.sourcePr}: ${subject}](https://github.com/${record.repository}/pull/${record.sourcePr})`;
-  return `${reference}\n\n${assertChecks(record.acceptanceChecks).map(item => `- [ ] ${display(item)}`).join("\n")}`;
+  return `${reference}\n\n${assertAcceptanceScenarios(record.acceptanceChecks).map(item => `- [ ] ${display(item)}`).join("\n")}`;
 }
 
 /** Permit checkbox-state edits only; post-merge callers additionally require every item checked. */

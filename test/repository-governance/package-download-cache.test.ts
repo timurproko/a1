@@ -51,11 +51,11 @@ describe("clean installation download-cache controls", () => {
   });
 
   it("retains one cold and one offline warm control with identical payload bytes and fresh prefixes", async () => {
-    const report = JSON.parse(await readFile("openspec/changes/shorten-development-validation/evidence/package-download-cache-local.json", "utf8"));
+    const report = JSON.parse(await readFile("openspec/changes/archive/2026-09-15-shorten-development-validation/evidence/package-download-cache-local.json", "utf8"));
     expect(report).toMatchObject({ schema: "a1-package-download-cache-audit-v1", platform: "win32", architecture: "x64",
       productionMode: "prefer-offline-with-network-fallback", cleanup: "passed", failure: null });
-    expect(report.sourceHead).toMatch(/^[0-9a-f]{40}$/);
-    await expect(exec("git", ["merge-base", "--is-ancestor", report.sourceHead, "HEAD"])).resolves.toBeDefined();
+    expect(report.sourceHead).toBe("967584314716f231393659e3f18ff4ff4561d98f");
+    await expect(exec("git", ["merge-base", "--is-ancestor", "4f7b18c235af5c99b630865fbdc455dd42047ab7", "HEAD"])).resolves.toBeDefined();
     expect(report.attempts.map((attempt: any) => [attempt.kind, attempt.mode, attempt.prefixFresh])).toEqual([
       ["cold", "prefer-offline-empty-cache", true], ["warm", "offline-same-cache", true],
     ]);

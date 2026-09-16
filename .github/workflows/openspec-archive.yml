@@ -73,7 +73,7 @@ jobs:
           run-id: ${{ steps.checkpoint.outputs.checkpoint_run }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Reconcile archives without bypassing validation
+      - name: Reconcile legacy archives or verify atomic single-PR delivery
         shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

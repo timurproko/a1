@@ -4,10 +4,18 @@ export const ARCHIVE_TASKS: Readonly<Record<"recordEvidence" | "stageArchive", s
 export const SHA: RegExp;
 export const CHANGE: RegExp;
 export interface ArchiveFailure extends Error { archiveCode: string; archiveDetail: string }
-export type ImplementationMetadata = {
+type LegacyImplementationMetadata = {
   change: string;
   archivePreparationTasks?: Partial<Record<keyof typeof ARCHIVE_TASKS, string>>;
 } & ({ version: 1; specificationPr: number } | { version: 2; specificationPr?: never });
+export type ImplementationMetadata = LegacyImplementationMetadata | {
+  version: 3;
+  change: string;
+  specificationPr?: never;
+  archivePreparationTasks?: never;
+  archive?: string;
+  acceptanceManifest?: string;
+};
 export interface AcceptanceMetadata {
   version: 1;
   change: string;
@@ -28,7 +36,7 @@ export function parseAcceptance(text: string): AcceptanceMetadata | null;
 export function selectAcceptance(comments: readonly unknown[], implementation: ImplementationMetadata, headSha: string): {
   value: AcceptanceMetadata; id: number; author: string; createdAt: string; bodyDigest: string;
 };
-export function assertMergedImplementation(pull: unknown, repository: string, files: readonly PullRequestChangedFile[]): void;
+export function assertMergedImplementation(pull: unknown, repository: string, files: readonly PullRequestChangedFile[], options?: { allowDocumentation?: boolean }): void;
 export function assertRepositoryPath(value: unknown): string;
 export function inspectTasks(text: string, mapping?: ImplementationMetadata["archivePreparationTasks"], options?: { allowIncomplete?: boolean }): { id: string; done: boolean; text: string }[];
 export function completePreparationTask(text: string, mapping: NonNullable<ImplementationMetadata["archivePreparationTasks"]>, kind: keyof typeof ARCHIVE_TASKS): string;
