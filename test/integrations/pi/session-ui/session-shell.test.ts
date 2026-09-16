@@ -454,7 +454,7 @@ describe("prompt-style compaction in the real engine and shell", () => {
         const sourceTimeStyle = rendered[0]![1]![sourceTimeColumn]!.foreground!;
         expect(sourceTimeStyle[2]).toBe(0);
         expect(sourceTimeStyle[3]).toBe(0);
-        // Contract: timestamp foreground and intensity stay on metadata grey in every state.
+        // Invariant: timestamp foreground and intensity stay on metadata grey in every state.
         expect(sourceTimeStyle).toEqual(expectedGreyStyle);
         expect(sourceTimeStyle.slice(0, 2)).not.toEqual(rendered[7]![0]![labelColumn]!.foreground!.slice(0, 2));
         expect(rendered[5]![1]![sourceTimeColumn]!.foreground).toEqual(sourceTimeStyle);
@@ -2448,7 +2448,7 @@ describe("OwnedUiSessionShell", () => {
     const detachedRaw = shell.root.render(60);
     const detached = detachedRaw.map(row => stripTerminalSequences(row));
     expect(detached).toHaveLength(12);
-    expect(detachedRaw[0]).toContain(piTheme().fg("userMessageText", "11:57"));
+    expect(detachedRaw[0]).toContain(piTheme().fg("dim", "11:57"));
     expect(detached.some(row => row.includes("Jump to bottom (Ctrl+End) ↓"))).toBe(true);
     expect(detached[0]).not.toContain("│");
     expect(detached.slice(1, -4).some(row => row.includes("│"))).toBe(true);
