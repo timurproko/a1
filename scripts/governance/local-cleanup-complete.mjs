@@ -9,6 +9,7 @@ export const COMPLETION_DISPOSABLE_PATHS = Object.freeze([
   "dist",
   ".builds",
   ".artifacts/openspec-archive",
+  ".artifacts/validation",
 ]);
 
 const sameIdentity = (entry, snapshot) => ["path", "filesystem", "head", "ref"].every(key => entry[key] === snapshot[key]);
