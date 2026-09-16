@@ -110,6 +110,6 @@ export async function discardLocalCleanup({ identity, store, reader, path, chang
     row.disposition = selected?.state === "deleting" ? "partial" : "blocked";
   }
   report.coverage.visited = 1; report.coverage.complete = true;
-  try { await writeLocalCleanupReport(store, report, now()); } catch { /* The mutation result remains authoritative on stdout. */ }
+  try { await writeLocalCleanupReport(store, report, now()); } catch { /* Rationale: The mutation result remains authoritative on stdout. */ }
   return report;
 }
