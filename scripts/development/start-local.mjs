@@ -25,7 +25,10 @@ const directProfile = command.kind === "launch" ? command.profileId : null;
 const childArguments = command.kind === "launch" ? sessionSelectionArguments(command.sessionSelection) : inspectedArguments;
 const prepared = directProfile === null ? null : await prepareDirectProfile(directProfile, environment);
 const { withLaunchContext } = await import("../../dist/foundation/launch-context/index.js");
-const childEnvironment = prepared === null ? environment : withLaunchContext(prepared.environment, { launchProfile: directProfile });
+const profileEnvironment = prepared === null ? environment : withLaunchContext(prepared.environment, { launchProfile: directProfile });
+// Performance: mutable development builds create fresh compile-cache identities whose exit-time
+// serialization occurs after terminal restoration. Production launch and warmup caching stay intact.
+const childEnvironment = directProfile === null ? profileEnvironment : { ...profileEnvironment, NODE_DISABLE_COMPILE_CACHE: "1" };
 
 if (launchArguments[0] === "--print-environment") {
   process.stdout.write(`${JSON.stringify({ checkoutId, instanceId, releaseId: release.releaseId, developmentRoot, launchArguments: inspectedArguments, childArguments, directProfile, profileConfigurationRoot: prepared?.configurationRoot ?? null, environment: {
@@ -34,6 +37,7 @@ if (launchArguments[0] === "--print-environment") {
     A1_RUNTIME_DIR: childEnvironment.A1_RUNTIME_DIR,
     A1_DATABASE_PATH: childEnvironment.A1_DATABASE_PATH,
     PI_CODING_AGENT_DIR: childEnvironment.PI_CODING_AGENT_DIR ?? null,
+    NODE_DISABLE_COMPILE_CACHE: childEnvironment.NODE_DISABLE_COMPILE_CACHE ?? null,
   } }, null, 2)}\n`);
 } else {
   const entry = directProfile === null ? identity.artifacts.cliEntry : identity.artifacts.uiEntry;

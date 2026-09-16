@@ -1,6 +1,6 @@
 ## Context
 
-See `proposal.md` for motivation and `specs/owned-pi-ui-foundation/spec.md` for the observable contract. Today both `/quit` and the second `Ctrl+C` call the shell's quit workflow. That workflow disposes the engine adapter, but presentation cleanup was deferred to the outer application runner after a delivered stopped event. The first implementation made that handoff explicit and restores the terminal, but live acceptance exposed a second boundary failure: a loaded extension can leave an active Node handle after all owned UI cleanup resolves. The UI entry then sets `process.exitCode` but never terminates, leaving the restored terminal without a parent-shell prompt. The shell already has idempotent terminal cleanup and the outer runner already provides bounded final cleanup, so executable termination can safely occur only after those layers finish.
+See `proposal.md` for motivation and `specs/owned-pi-ui-foundation/spec.md` for the observable contract. Today both `/quit` and the second `Ctrl+C` call the shell's quit workflow. That workflow disposes the engine adapter, but presentation cleanup was deferred to the outer application runner after a delivered stopped event. The first implementation made that handoff explicit and restores the terminal, but live acceptance exposed a second boundary failure: a loaded extension can leave an active Node handle after all owned UI cleanup resolves. The UI entry then set `process.exitCode` but never terminated, leaving the restored terminal without a parent-shell prompt. Explicit executable completion fixed that hang, but live timing evidence exposed a development-only pause after restoration: Node serializes the repository-local UI process's fresh compile cache during `process.exit()`, leaving a blinking terminal for roughly two seconds before the development launcher observes child close. The shell already has idempotent terminal cleanup and the outer runner already provides bounded final cleanup, so executable termination can safely occur only after those layers finish.
 
 ## Goals / Non-Goals
 
@@ -10,6 +10,7 @@ See `proposal.md` for motivation and `specs/owned-pi-ui-foundation/spec.md` for 
 - Couple successful backend shutdown with prompt presentation disposal and terminal restoration instead of relying only on asynchronous lifecycle delivery.
 - Preserve outer-runner cleanup as a final idempotent safety net.
 - Prove real child-process exit and terminal return even when an extension leaves an event-loop handle alive.
+- Remove the visible post-restoration compile-cache pause from repository-local interactive launches without weakening production cleanup.
 
 **Non-Goals:**
 
@@ -37,7 +38,13 @@ The owned UI executable entry will explicitly terminate with the successful runn
 
 Setting only `process.exitCode` is insufficient because third-party extensions can create servers, timers, or other event-loop handles that outlive their session shutdown callback. Attempting to discover and close arbitrary extension handles is rejected because ownership and cleanup semantics are unknowable. Early `process.exit()` is also rejected because it can bypass the cleanup that restores the terminal; the executable boundary is the only safe location after that work resolves.
 
-### 4. Verify both in-process sequencing and process-level terminal release
+### 4. Keep development-only compile-cache persistence out of terminal return
+
+The repository-local launcher will disable Node's process compile cache only for the interactive child it starts. Fresh development build identities otherwise make Node serialize a large new cache during `process.exit()`, after A1 has already restored the terminal; profiling showed owned cleanup completing in about 70 ms while child close arrived roughly 1.8–2.1 seconds later. With the compile cache disabled for that child, child close followed owned cleanup in about 20 ms. Production launch, guardian, CLI, and warmup cache behavior remains unchanged.
+
+Moving cache serialization earlier into shutdown is rejected because it merely hides the blinking cursor while preserving the delay. Flushing immediately after first render is also rejected because it synchronously freezes input. Scoping the opt-out to the mutable repository-local UI child avoids both costs and does not alter immutable release startup caching.
+
+### 5. Verify both in-process sequencing and process-level terminal release
 
 Focused shell tests will cover `/quit`, the second `Ctrl+C`, duplicate/concurrent shutdown requests, stop settlement, and absence of post-disposal rendering. A process regression will retain a synthetic extension-style server handle while driving each quit route, then assert bounded child completion plus terminal restoration/parent-shell continuation. Existing autocomplete/component fixtures will assert the exact `Quit` description.
 
@@ -48,6 +55,7 @@ Unit-only adapter tests are insufficient because they can pass while the present
 - **[Risk] Backend and presentation cleanup can be requested concurrently by event delivery, extension callbacks, or outer `finally` cleanup.** → Use one memoized/idempotent shell shutdown path and retain idempotent lower-level disposal.
 - **[Risk] Disposing presentation before all final output is captured can lose the configured exit transcript or resume hint.** → Continue using the existing shell disposal routine and preserve its current output capture and write-after-stop ordering.
 - **[Risk] Explicit executable termination can truncate pending terminal output.** → Wait for pending stdout/stderr writes with a short bound, and invoke termination only after the owned runner has completed all cleanup.
+- **[Risk] Disabling compile caching broadly would regress installed startup.** → Set the opt-out only in the repository-local launcher's interactive child environment; leave production release, guardian, CLI, and warmup paths unchanged.
 - **[Risk] A process test can be timing-sensitive on Windows terminals.** → Use bounded readiness/exit observation and semantic restoration or continuation markers rather than fixed sleeps or screenshot bytes.
 - **[Trade-off] Complete quit moves special handling out of the generic workflow-result tail and requires an executable-only termination step.** → Keep lifecycle handling out of reusable APIs; all other workflows retain the shared path.
 

@@ -17,6 +17,11 @@ The owned interactive UI SHALL treat `/quit` and the second `Ctrl+C` in the exis
 - **THEN** the interactive A1 executable SHALL preserve completed terminal restoration and configured exit output
 - **AND** it SHALL still terminate successfully and return control to the parent shell
 
+#### Scenario: Repository-local quit returns promptly
+- **WHEN** a user quits an interactive A1 session launched through the supported repository-local development command
+- **THEN** development-only cache persistence SHALL NOT introduce a visible post-restoration pause before the parent-shell prompt appears
+- **AND** production compile-cache behavior and completed owned cleanup SHALL remain unchanged
+
 #### Scenario: Describe the quit command
 - **WHEN** slash-command autocomplete presents the built-in `quit` command
 - **THEN** its description SHALL be `Quit`

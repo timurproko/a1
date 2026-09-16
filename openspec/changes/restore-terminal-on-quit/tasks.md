@@ -16,3 +16,8 @@
 
 - [x] 4.1 Reproduce the live post-cleanup hang with an extension-style active server handle and strengthen the child-process regression so terminal restoration without actual process completion fails.
 - [x] 4.2 Add executable-boundary completion only after owned cleanup and bounded output drain; verify both quit routes exit successfully with the retained handle, then rerun focused validation and record the refined evidence.
+
+## 5. Prompt Return Latency
+
+- [x] 5.1 Profile the live repository-local quit path and identify work occurring after terminal restoration; add focused launch-environment coverage for the responsible boundary.
+- [x] 5.2 Remove the development-only post-restoration delay without weakening owned cleanup or production compile-cache behavior; rebuild and verify both quit routes return promptly, then update evidence.

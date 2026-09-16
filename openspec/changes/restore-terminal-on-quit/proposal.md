@@ -6,6 +6,7 @@ Invoking `/quit` or pressing `Ctrl+C` twice can stop the agent backend while lea
 
 - Make `/quit` complete the entire owned-UI shutdown path, including terminal restoration and process completion even when an extension retains an event-loop handle.
 - Make the second `Ctrl+C` in the existing clear/exit chord use the same complete shutdown path.
+- Prevent repository-local development launches from serializing a fresh Node compile cache after terminal restoration, so the parent prompt appears promptly.
 - Present the built-in quit command description as `Quit`.
 - Add focused lifecycle and terminal-host regression coverage for both quit entry points.
 
@@ -21,5 +22,5 @@ None.
 
 ## Impact
 
-- Affected areas: owned Pi session-shell shutdown coordination, executable completion after cleanup, workflow-result handling, slash-command autocomplete metadata, and process/terminal lifecycle tests.
+- Affected areas: owned Pi session-shell shutdown coordination, executable completion after cleanup, repository-local launch environment, workflow-result handling, slash-command autocomplete metadata, and process/terminal lifecycle tests.
 - No public API, dependency, session-format, or keybinding changes are intended.
