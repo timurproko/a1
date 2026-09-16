@@ -38,11 +38,17 @@ async function fixtureRepository() {
   await put(repository, "src/rendered.ts", "export * from './leaf.js';\n");
   await put(repository, "src/leaf.ts", "export const leaf = 1;\n");
   await put(repository, "src/unrelated.ts", "export const unrelated = 1;\n");
+  await put(repository, "test/fixture.test.ts", "export {};\n");
   await put(repository, "config/integration-owners.json", JSON.stringify({ schema: "a1-integration-owner-registry-v1", owners: [{
     id: "fixture", scopes: ["fixture"], targets: [{ platform: "win32", architecture: "x64", node: 24 }], development: true,
     entries: ["test/support/rendering/rendering-producer-worker.ts"], tests: [], support: [],
   }] }));
-  await put(repository, "config/integration-dependencies.json", JSON.stringify({ schema: "a1-integration-dependencies-v1", emittedRoot: "dist", sourceRoot: "src", invalidators: ["config/"], unrelated: ["docs/", "test/repository-governance/"], generated: [], reviewed: [] }));
+  await put(repository, "config/validation-suites.json", JSON.stringify({ schema: "a1-validation-suites-v1", tiers: {}, scopes: {
+    "fast-remainder": { kind: "vitest-remainder", includeRoot: "test", exclude: [] },
+    "fast-resource-sensitive": { kind: "vitest-resource-sensitive", tests: [] },
+  } }));
+  await put(repository, "config/validation-ownership.json", JSON.stringify({ schema: "a1-validation-ownership-v1", mandatoryTests: ["test/fixture.test.ts"],
+    invalidators: ["config/validation-suites.json"], unrelated: ["docs/"], shared: [], owners: [{ id: "fixture", paths: ["src/", "test/"], testPaths: ["test/"], integrationOwners: ["fixture"] }] }));
   await put(repository, "package.json", JSON.stringify({ name: "@fixture/impact" }));
   const base = await commit(repository, "base");
   return { repository, base };
@@ -75,13 +81,13 @@ describe("development validation impact", () => {
     expect(changes).toContainEqual(expect.objectContaining({ status: "R", oldPath: "src/rendered.ts", path: "src/renamed.ts" }));
   });
 
-  it("classifies transitive rendering dependencies and unrelated source", async () => {
+  it("classifies reviewed rendering surfaces coarsely and leaves unrelated source unselected", async () => {
     const { repository, base } = await fixtureRepository();
-    await put(repository, "src/leaf.ts", "export const leaf = 2;\n");
-    const head = await commit(repository, "leaf");
+    await put(repository, "src/ui/components/leaf.ts", "export const leaf = 2;\n");
+    const head = await commit(repository, "rendering leaf");
     const selected = await selectValidationImpact({ repository, base, head });
     expect(selected.rendering).toMatchObject({ tier: "smoke", fallbacks: [] });
-    expect(selected.rendering.reasons.join(" ")).toContain("src/rendered.ts -> src/leaf.ts");
+    expect(selected.rendering.reasons).toContain("coarse-owner:src/ui/components/leaf.ts");
 
     await put(repository, "src/unrelated.ts", "export const unrelated = 2;\n");
     const unrelatedHead = await commit(repository, "unrelated");
@@ -89,14 +95,14 @@ describe("development validation impact", () => {
     expect(await classifyRenderingImpact(repository, head, unrelatedHead, unrelatedChanges)).toMatchObject({ tier: "none" });
   });
 
-  it("uses base reachability for a deleted dependency and full for invalidators", async () => {
+  it("uses both identities for deleted rendering paths and full coverage for invalidators", async () => {
     const { repository, base } = await fixtureRepository();
     await git(repository, "rm", "src/leaf.ts");
-    await put(repository, "src/rendered.ts", "export const rendered = 1;\n");
+    await put(repository, "src/ui/components/deleted.ts", "export const rendered = 1;\n");
     const head = await commit(repository, "delete leaf");
     const deleted = await selectValidationImpact({ repository, base, head });
     expect(deleted.rendering.tier).toBe("smoke");
-    expect(deleted.changes).toContainEqual(expect.objectContaining({ status: "D", path: "src/leaf.ts" }));
+    expect(deleted.changes).toContainEqual(expect.objectContaining({ status: "A", path: "src/ui/components/deleted.ts" }));
 
     await put(repository, "config/validation-suites.json", "{}\n");
     const fullHead = await commit(repository, "validation config");
@@ -114,13 +120,13 @@ describe("development validation impact", () => {
     }
   });
 
-  it("fails closed when a reachable relative dependency cannot resolve", async () => {
+  it("fails closed to complete PR ownership for an unknown operational path", async () => {
     const { repository, base } = await fixtureRepository();
-    await put(repository, "src/rendered.ts", "export * from './missing.js';\n");
-    const head = await commit(repository, "break graph");
-    expect(await selectValidationImpact({ repository, base, head })).toMatchObject({
-      rendering: { tier: "full", fallbacks: ["dependency-resolution-incomplete"] },
-    });
+    await put(repository, "scripts/unknown.mjs", "export {};\n");
+    const head = await commit(repository, "unknown operation");
+    const selected = await selectValidationImpact({ repository, base, head });
+    expect(selected.prCore.mode).toBe("conservative");
+    expect(selected.prCore.owners.every(owner => owner.selected)).toBe(true);
   });
 
   it("includes local modified, staged, renamed, and untracked documentation inputs", async () => {
@@ -142,7 +148,7 @@ describe("development validation impact", () => {
     expect(ordinary).toMatchObject({ docsOnly: true, ordinaryScopes: [] });
     const bound = await selectValidationImpact({ repository, base, head, implementationBound: true });
     expect(bound.docsOnly).toBe(false);
-    expect(bound.ordinaryScopes).toEqual(["typecheck", "architecture", "fast", "dist-integration"]);
+    expect(bound.ordinaryScopes).toEqual(["typecheck", "architecture", "pr-core-tests"]);
     expect(bound.integration.selection.owners.every(owner => owner.selected)).toBe(true);
   });
 

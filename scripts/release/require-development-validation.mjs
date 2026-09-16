@@ -7,14 +7,16 @@ export function requireDevelopmentValidation(value) {
   if (value.acceptanceOnly === "true") {
     requireResult(value.acceptanceResult, "acceptance record validation");
     if (value.acceptanceCandidate !== "true") throw new Error("trusted acceptance candidate validation is missing");
-    requireSkipped(value.docsResult, "documentation governance");
-    requireSkipped(value.namingResult, "internal naming validation");
-    requireSkipped(value.documentationResult, "changed-file documentation");
-    requireSkipped(value.modularResult, "modular validation");
-    requireSkipped(value.renderingResult, "rendering validation");
+    requireGenericLanesSkipped(value);
     return { mode: "acceptance" };
   }
   if (value.acceptanceOnly !== "false") throw new Error("acceptance-only routing result is missing");
+  if (value.implementationBound === "true") {
+    requireResult(value.deliveryResult, "finalized delivery validation");
+    if (value.deliveryCandidate !== "true") throw new Error("finalized delivery candidate validation is missing");
+  } else if (value.implementationBound === "false") {
+    requireSkipped(value.deliveryResult, "finalized delivery validation");
+  } else throw new Error("implementation-bound routing result is missing");
   if (value.namingRequired === "true") {
     requireResult(value.namingResult, "internal naming validation");
     if (value.namingHead !== value.expectedHead) throw new Error("naming validation result is stale or missing its head");
@@ -42,6 +44,14 @@ export function requireDevelopmentValidation(value) {
   return { mode: "code", renderingTier: value.renderingTier, documentationRequired: value.documentationRequired === "true" };
 }
 
+function requireGenericLanesSkipped(value) {
+  requireSkipped(value.docsResult, "documentation governance");
+  requireSkipped(value.namingResult, "internal naming validation");
+  requireSkipped(value.documentationResult, "changed-file documentation");
+  requireSkipped(value.modularResult, "modular validation");
+  requireSkipped(value.renderingResult, "rendering validation");
+}
+
 function requireResult(result, label) {
   if (result !== "success") throw new Error(`${label} must succeed, received ${result ?? "missing"}`);
 }
@@ -53,8 +63,11 @@ function requireSkipped(result, label) {
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const value = Object.fromEntries(Object.entries({
     acceptanceOnly: "ACCEPTANCE_ONLY",
+    implementationBound: "IMPLEMENTATION_BOUND",
     acceptanceCandidate: "ACCEPTANCE_CANDIDATE",
+    deliveryCandidate: "DELIVERY_CANDIDATE",
     acceptanceResult: "ACCEPTANCE_RESULT",
+    deliveryResult: "DELIVERY_RESULT",
     changesResult: "CHANGES_RESULT",
     docsResult: "DOCS_RESULT",
     namingResult: "NAMING_RESULT",

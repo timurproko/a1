@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 const MAX_OWNERS = 64;
 const MAX_SCOPES = 64;
 const MAX_REASONS = 64;
-const SELECT_REASONS = new Set(["reachable", "changed-test", "shared-support", "invalidator", "conservative-fallback"]);
+const SELECT_REASONS = new Set(["coarse-owner", "changed-test", "shared-support", "invalidator", "conservative-fallback"]);
 const EXCLUDE_REASONS = new Set(["unrelated", "not-development", "docs-only", "version-only"]);
 
 /**
@@ -78,7 +78,7 @@ function assertPayload(value, authority) {
       exactKeys(reason, ["code", "paths"], "reason");
       if (!(decision.selected ? SELECT_REASONS : EXCLUDE_REASONS).has(reason.code)) throw new TypeError("integration reason contradicts decision");
       if (!Array.isArray(reason.paths) || reason.paths.length > 16 || reason.paths.some(path => !repositoryPath(path))) throw new TypeError("integration reason paths invalid or unbounded");
-      if (["reachable", "changed-test", "shared-support", "invalidator"].includes(reason.code) && reason.paths.length === 0) throw new TypeError("integration impact reason requires a path");
+      if (["coarse-owner", "changed-test", "shared-support", "invalidator"].includes(reason.code) && reason.paths.length === 0) throw new TypeError("integration impact reason requires a path");
       if (["docs-only", "version-only"].includes(reason.code) && (value.mode !== "exempt" || reason.code !== value.exemption)) throw new TypeError("integration exclusion exemption mismatch");
       if (reason.code === "not-development" && owner.development) throw new TypeError("development owner cannot be excluded as full-only");
     }

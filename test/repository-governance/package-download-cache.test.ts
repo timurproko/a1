@@ -1,14 +1,11 @@
-import { execFile } from "node:child_process";
 import { gzipSync } from "node:zlib";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
 import { inspectDownloadCache, packageInstallArguments, verifyInstalledCandidate } from "../../scripts/release/package-download-cache.mjs";
 
 const roots: string[] = [];
-const exec = promisify(execFile);
 afterEach(async () => { await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))); });
 
 describe("clean installation download-cache controls", () => {
@@ -50,21 +47,21 @@ describe("clean installation download-cache controls", () => {
     expect(await inspectDownloadCache(join(root, "cache"))).toEqual({ files: 2, bytes: 8 });
   });
 
-  it("retains one cold and one offline warm control with identical payload bytes and fresh prefixes", async () => {
-    const report = JSON.parse(await readFile("openspec/changes/archive/2026-09-15-shorten-development-validation/evidence/package-download-cache-local.json", "utf8"));
-    expect(report).toMatchObject({ schema: "a1-package-download-cache-audit-v1", platform: "win32", architecture: "x64",
-      productionMode: "prefer-offline-with-network-fallback", cleanup: "passed", failure: null });
-    expect(report.sourceHead).toBe("967584314716f231393659e3f18ff4ff4561d98f");
-    await expect(exec("git", ["merge-base", "--is-ancestor", "4f7b18c235af5c99b630865fbdc455dd42047ab7", "HEAD"])).resolves.toBeDefined();
-    expect(report.attempts.map((attempt: any) => [attempt.kind, attempt.mode, attempt.prefixFresh])).toEqual([
-      ["cold", "prefer-offline-empty-cache", true], ["warm", "offline-same-cache", true],
+  it("verifies identical candidate bytes independently in two fresh installation roots", async () => {
+    const cold = await mkdtemp(join(tmpdir(), "a1-cold-prefix-"));
+    const warm = await mkdtemp(join(tmpdir(), "a1-warm-prefix-"));
+    roots.push(cold, warm);
+    const manifest = { name: "@fixture/app", version: "1.0.0", bin: { app: "bin/cli.js" } };
+    const candidate = tarball({ "package/package.json": JSON.stringify(manifest), "package/bin/cli.js": "export const exact = true;" });
+    for (const root of [cold, warm]) {
+      await put(root, "package.json", JSON.stringify(manifest));
+      await put(root, "bin/cli.js", "export const exact = true;");
+    }
+    const [coldIdentity, warmIdentity] = await Promise.all([
+      verifyInstalledCandidate(candidate, cold), verifyInstalledCandidate(candidate, warm),
     ]);
-    expect(report.attempts[0].cacheBefore).toEqual({ files: 0, bytes: 0 });
-    expect(report.attempts[1].cacheBefore).toEqual(report.attempts[0].cacheAfter);
-    expect(report.attempts[0].payload).toEqual(report.attempts[1].payload);
-    const identity = JSON.parse(await readFile("src/product-identity.json", "utf8"));
-    expect(report.attempts[0].payload).toMatchObject({ files: 598, name: identity.packageName, bin: { [identity.commandName]: identity.artifacts.cliEntry } });
-    expect(JSON.stringify(report)).not.toMatch(/prefix-(?:cold|warm)|AppData|\\Users\\|certification|startup.*cache/i);
+    expect(cold).not.toBe(warm);
+    expect(coldIdentity).toEqual(warmIdentity);
   });
 });
 

@@ -446,11 +446,12 @@ Repository governance SHALL classify a supported version-3 OpenSpec association 
 #### Scenario: Finalized delivery is still under test
 - **WHEN** a finalized version-3 body has phase `Implementation`
 - **THEN** its proposal, implementation, acceptance, automation, archive, and manifest structure SHALL remain mechanically valid
-- **AND** candidate validation SHALL block manual-merge readiness with `delivery-phase-not-acceptance`
+- **AND** candidate validation SHALL allow the stable protected aggregate to succeed only after ordinary exact-head validation passes
+- **AND** no later Acceptance phase SHALL be required before authorized manual merge
 
 #### Scenario: Final delivery body is validated
-- **WHEN** version-3 candidate validation evaluates a completed implementation PR after required tests pass
-- **THEN** its first nonblank line SHALL be exactly `> Phase: Acceptance`
+- **WHEN** version-3 candidate validation evaluates a completed implementation PR
+- **THEN** its first nonblank line SHALL be exactly `> Phase: Implementation`
 - **AND** one each of `Proposal`, `Implementation`, `Acceptance`, and `Automation` SHALL appear in that order
 - **AND** `Proposal` SHALL contain only one or two sentences of visible intent
 

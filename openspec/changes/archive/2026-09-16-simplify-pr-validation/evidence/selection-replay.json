@@ -1,0 +1,580 @@
+{
+  "schema": "a1-validation-selection-replay-v1",
+  "policyId": "4aca3b7475be969b4005494728d4f77582796657fb1ef6723b95e3162d45fc08",
+  "retainedTests": 354,
+  "scenarios": [
+    {
+      "id": "unrelated-governance",
+      "path": "scripts/governance/check-architecture.mjs",
+      "mode": "impact",
+      "selectedOwners": [
+        "governance"
+      ],
+      "integrationOwners": [],
+      "tests": {
+        "regular": 98,
+        "resourceSensitive": 4,
+        "digest": "001582a70d5999d7e0282ce78d66e18dd2c8d3cd1de06ab40d3110bb2a0647ca"
+      },
+      "reasons": [
+        {
+          "owner": "governance",
+          "reasons": [
+            {
+              "code": "owned-path",
+              "paths": [
+                "scripts/governance/check-architecture.mjs"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ui-rendering",
+      "path": "src/ui/components/transcript-viewport.ts",
+      "mode": "impact",
+      "selectedOwners": [
+        "ui-rendering"
+      ],
+      "integrationOwners": [],
+      "tests": {
+        "regular": 65,
+        "resourceSensitive": 2,
+        "digest": "29de6399502111161eb48c7ef4151c16401bb66e8d6efd6f8222548e64b5ac9c"
+      },
+      "reasons": [
+        {
+          "owner": "ui-rendering",
+          "reasons": [
+            {
+              "code": "owned-path",
+              "paths": [
+                "src/ui/components/transcript-viewport.ts"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "launch-startup",
+      "path": "src/features/launch/runtime-selection.ts",
+      "mode": "impact",
+      "selectedOwners": [
+        "launch-startup"
+      ],
+      "integrationOwners": [
+        "launch-integration",
+        "startup"
+      ],
+      "tests": {
+        "regular": 26,
+        "resourceSensitive": 1,
+        "digest": "1b1274db8dcdeaa04f6d35b04f4f8df3ddb2d27a8b45436a8ed4ff9472345f65"
+      },
+      "reasons": [
+        {
+          "owner": "launch-startup",
+          "reasons": [
+            {
+              "code": "owned-path",
+              "paths": [
+                "src/features/launch/runtime-selection.ts"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "release-package-update",
+      "path": "src/foundation/release/bootstrap.ts",
+      "mode": "impact",
+      "selectedOwners": [
+        "release-package-update"
+      ],
+      "integrationOwners": [
+        "package-contracts",
+        "pi-release-resume",
+        "startup",
+        "update-performance",
+        "update-predecessor"
+      ],
+      "tests": {
+        "regular": 32,
+        "resourceSensitive": 3,
+        "digest": "b810abec23d3d0c7ab7889b487fb239739569b52a6e040793adf4caae89fd0cb"
+      },
+      "reasons": [
+        {
+          "owner": "release-package-update",
+          "reasons": [
+            {
+              "code": "owned-path",
+              "paths": [
+                "src/foundation/release/bootstrap.ts"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "pi",
+      "path": "src/integrations/pi/engine/agent-engine.ts",
+      "mode": "impact",
+      "selectedOwners": [
+        "pi"
+      ],
+      "integrationOwners": [
+        "history-compatibility",
+        "image-compatibility",
+        "pi-release-resume"
+      ],
+      "tests": {
+        "regular": 79,
+        "resourceSensitive": 8,
+        "digest": "9ccf07e7fa84efc5e4560d3867865841e564197202a142017d135dc901842396"
+      },
+      "reasons": [
+        {
+          "owner": "pi",
+          "reasons": [
+            {
+              "code": "owned-path",
+              "paths": [
+                "src/integrations/pi/engine/agent-engine.ts"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "native-containment",
+      "path": "native/process-guardian/src/main.rs",
+      "mode": "impact",
+      "selectedOwners": [
+        "native-containment"
+      ],
+      "integrationOwners": [
+        "unix-containment"
+      ],
+      "tests": {
+        "regular": 18,
+        "resourceSensitive": 0,
+        "digest": "b1ed2db1b3af291faf363f9061058dcc683e5a9f6134c95b65a07ba1c142e052"
+      },
+      "reasons": [
+        {
+          "owner": "native-containment",
+          "reasons": [
+            {
+              "code": "owned-path",
+              "paths": [
+                "native/process-guardian/src/main.rs"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "image-history",
+      "path": "src/features/prompt-history/service.ts",
+      "mode": "impact",
+      "selectedOwners": [
+        "image-history"
+      ],
+      "integrationOwners": [
+        "history-compatibility",
+        "image-compatibility"
+      ],
+      "tests": {
+        "regular": 10,
+        "resourceSensitive": 1,
+        "digest": "6afa993136dbe1dbb444c452183717211319ed78f4c5c7243d24596c24345ffc"
+      },
+      "reasons": [
+        {
+          "owner": "image-history",
+          "reasons": [
+            {
+              "code": "owned-path",
+              "paths": [
+                "src/features/prompt-history/service.ts"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "shared-support",
+      "path": "test/support/shared-fixture.ts",
+      "mode": "impact",
+      "selectedOwners": [
+        "ui-rendering",
+        "launch-startup",
+        "release-package-update",
+        "pi",
+        "native-containment",
+        "image-history",
+        "governance",
+        "shared-product"
+      ],
+      "integrationOwners": [
+        "history-compatibility",
+        "image-compatibility",
+        "launch-integration",
+        "package-contracts",
+        "pi-release-resume",
+        "startup",
+        "structured-runtime",
+        "unix-containment",
+        "update-performance",
+        "update-predecessor"
+      ],
+      "tests": {
+        "regular": 309,
+        "resourceSensitive": 20,
+        "digest": "221379d1b1cd49cdc970f245bedb255a1a5bf8334205b346d0d9f134230c77d9"
+      },
+      "reasons": [
+        {
+          "owner": "ui-rendering",
+          "reasons": [
+            {
+              "code": "shared-support",
+              "paths": [
+                "test/support/shared-fixture.ts"
+              ]
+            }
+          ]
+        },
+        {
+          "owner": "launch-startup",
+          "reasons": [
+            {
+              "code": "shared-support",
+              "paths": [
+                "test/support/shared-fixture.ts"
+              ]
+            }
+          ]
+        },
+        {
+          "owner": "release-package-update",
+          "reasons": [
+            {
+              "code": "shared-support",
+              "paths": [
+                "test/support/shared-fixture.ts"
+              ]
+            }
+          ]
+        },
+        {
+          "owner": "pi",
+          "reasons": [
+            {
+              "code": "shared-support",
+              "paths": [
+                "test/support/shared-fixture.ts"
+              ]
+            }
+          ]
+        },
+        {
+          "owner": "native-containment",
+          "reasons": [
+            {
+              "code": "shared-support",
+              "paths": [
+                "test/support/shared-fixture.ts"
+              ]
+            }
+          ]
+        },
+        {
+          "owner": "image-history",
+          "reasons": [
+            {
+              "code": "shared-support",
+              "paths": [
+                "test/support/shared-fixture.ts"
+              ]
+            }
+          ]
+        },
+        {
+          "owner": "governance",
+          "reasons": [
+            {
+              "code": "shared-support",
+              "paths": [
+                "test/support/shared-fixture.ts"
+              ]
+            }
+          ]
+        },
+        {
+          "owner": "shared-product",
+          "reasons": [
+            {
+              "code": "shared-support",
+              "paths": [
+                "test/support/shared-fixture.ts"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "validation-authority",
+      "path": "config/validation-ownership.json",
+      "mode": "conservative",
+      "selectedOwners": [
+        "ui-rendering",
+        "launch-startup",
+        "release-package-update",
+        "pi",
+        "native-containment",
+        "image-history",
+        "governance",
+        "shared-product"
+      ],
+      "integrationOwners": [
+        "history-compatibility",
+        "image-compatibility",
+        "launch-integration",
+        "package-contracts",
+        "pi-release-resume",
+        "startup",
+        "structured-runtime",
+        "unix-containment",
+        "update-performance",
+        "update-predecessor"
+      ],
+      "tests": {
+        "regular": 309,
+        "resourceSensitive": 20,
+        "digest": "221379d1b1cd49cdc970f245bedb255a1a5bf8334205b346d0d9f134230c77d9"
+      },
+      "reasons": [
+        {
+          "owner": "ui-rendering",
+          "reasons": [
+            {
+              "code": "invalidator",
+              "paths": [
+                "config/validation-ownership.json"
+              ]
+            }
+          ]
+        },
+        {
+          "owner": "launch-startup",
+          "reasons": [
+            {
+              "code": "invalidator",
+              "paths": [
+                "config/validation-ownership.json"
+              ]
+            }
+          ]
+        },
+        {
+          "owner": "release-package-update",
+          "reasons": [
+            {
+              "code": "invalidator",
+              "paths": [
+                "config/validation-ownership.json"
+              ]
+            }
+          ]
+        },
+        {
+          "owner": "pi",
+          "reasons": [
+            {
+              "code": "invalidator",
+              "paths": [
+                "config/validation-ownership.json"
+              ]
+            }
+          ]
+        },
+        {
+          "owner": "native-containment",
+          "reasons": [
+            {
+              "code": "invalidator",
+              "paths": [
+                "config/validation-ownership.json"
+              ]
+            }
+          ]
+        },
+        {
+          "owner": "image-history",
+          "reasons": [
+            {
+              "code": "invalidator",
+              "paths": [
+                "config/validation-ownership.json"
+              ]
+            }
+          ]
+        },
+        {
+          "owner": "governance",
+          "reasons": [
+            {
+              "code": "invalidator",
+              "paths": [
+                "config/validation-ownership.json"
+              ]
+            }
+          ]
+        },
+        {
+          "owner": "shared-product",
+          "reasons": [
+            {
+              "code": "invalidator",
+              "paths": [
+                "config/validation-ownership.json"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "unknown-operational",
+      "path": "scripts/unknown-operation",
+      "mode": "conservative",
+      "selectedOwners": [
+        "ui-rendering",
+        "launch-startup",
+        "release-package-update",
+        "pi",
+        "native-containment",
+        "image-history",
+        "governance",
+        "shared-product"
+      ],
+      "integrationOwners": [
+        "history-compatibility",
+        "image-compatibility",
+        "launch-integration",
+        "package-contracts",
+        "pi-release-resume",
+        "startup",
+        "structured-runtime",
+        "unix-containment",
+        "update-performance",
+        "update-predecessor"
+      ],
+      "tests": {
+        "regular": 309,
+        "resourceSensitive": 20,
+        "digest": "221379d1b1cd49cdc970f245bedb255a1a5bf8334205b346d0d9f134230c77d9"
+      },
+      "reasons": [
+        {
+          "owner": "ui-rendering",
+          "reasons": [
+            {
+              "code": "unknown-path",
+              "paths": [
+                "scripts/unknown-operation"
+              ]
+            }
+          ]
+        },
+        {
+          "owner": "launch-startup",
+          "reasons": [
+            {
+              "code": "unknown-path",
+              "paths": [
+                "scripts/unknown-operation"
+              ]
+            }
+          ]
+        },
+        {
+          "owner": "release-package-update",
+          "reasons": [
+            {
+              "code": "unknown-path",
+              "paths": [
+                "scripts/unknown-operation"
+              ]
+            }
+          ]
+        },
+        {
+          "owner": "pi",
+          "reasons": [
+            {
+              "code": "unknown-path",
+              "paths": [
+                "scripts/unknown-operation"
+              ]
+            }
+          ]
+        },
+        {
+          "owner": "native-containment",
+          "reasons": [
+            {
+              "code": "unknown-path",
+              "paths": [
+                "scripts/unknown-operation"
+              ]
+            }
+          ]
+        },
+        {
+          "owner": "image-history",
+          "reasons": [
+            {
+              "code": "unknown-path",
+              "paths": [
+                "scripts/unknown-operation"
+              ]
+            }
+          ]
+        },
+        {
+          "owner": "governance",
+          "reasons": [
+            {
+              "code": "unknown-path",
+              "paths": [
+                "scripts/unknown-operation"
+              ]
+            }
+          ]
+        },
+        {
+          "owner": "shared-product",
+          "reasons": [
+            {
+              "code": "unknown-path",
+              "paths": [
+                "scripts/unknown-operation"
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -18,6 +18,14 @@
         }
       ]
     },
+    "pr-core": {
+      "kind": "composition",
+      "includes": [
+        "typecheck",
+        "architecture",
+        "pr-core-tests"
+      ]
+    },
     "fast": {
       "kind": "composition",
       "includes": [
@@ -51,6 +59,26 @@
     }
   },
   "scopes": {
+    "pr-selected-tests": {
+      "kind": "dynamic-vitest",
+      "requiresBuild": true
+    },
+    "pr-selected-resource": {
+      "kind": "dynamic-vitest-resource-sensitive",
+      "requiresBuild": true
+    },
+    "pr-core-tests": {
+      "kind": "vitest-files",
+      "tests": [
+        "test/cli/capabilities.test.ts",
+        "test/cli/dispatch.test.ts",
+        "test/composition/composition.test.ts",
+        "test/features/launch/runtime-selection.test.ts",
+        "test/features/launch/terminal-colour-fidelity.test.ts",
+        "test/foundation/launch-context/context.test.ts",
+        "test/repository-governance/validation-suite-policy.test.ts"
+      ]
+    },
     "fast-remainder": {
       "kind": "vitest-remainder",
       "includeRoot": "test",
@@ -93,6 +121,7 @@
         "test/repository-governance/local-cleanup.test.ts",
         "test/foundation/storage/storage.test.ts",
         "test/foundation/release/cohort-state.test.ts",
+        "test/foundation/release/release-gc.test.ts",
         "test/foundation/release/update-live-cohort.test.ts",
         "test/features/workspace/reconciliation.test.ts",
         "test/features/workspace/workspace.test.ts",
@@ -352,6 +381,13 @@
     }
   },
   "fullReleaseSupersedes": {
+    "fast-remainder": [
+      "pr-core-tests",
+      "pr-selected-tests"
+    ],
+    "fast-resource-sensitive": [
+      "pr-selected-resource"
+    ],
     "documentation-full": [
       "documentation-changed"
     ],
