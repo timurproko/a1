@@ -16,7 +16,7 @@ The manual merge accepts these scenarios:
   "archive": "openspec/changes/archive/2026-09-16-reduce-ui-startup-module-graph/",
   "acceptanceManifest": "openspec/changes/archive/2026-09-16-reduce-ui-startup-module-graph/acceptance.md",
   "finalizedDate": "2026-09-16",
-  "specBaseSha": "5ba547a0d571d2a67a5aab6bcb81277186aa4ef4",
+  "specBaseSha": "5f3021ca80fb5402309bafe96db6791241c93f49",
   "acceptanceScenarios": [
     "Installed A1 and Pi launches reach input-ready within the 2.0/2.5-second first-attempt budgets while respecting independent eager-graph limits.",
     "The public Pi startup artifact preserves providers, extensions, settings, resources, and one Pi TUI identity without private distribution imports.",
