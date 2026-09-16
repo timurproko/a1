@@ -64,10 +64,12 @@ export function installFatalExit(options: FatalExitOptions): { fail(error: unkno
       } catch {}
       process.exit(1);
     };
-    const deadline = setTimeout(finish, options.timeoutMs ?? 1000);
+    const cleanupTimeoutMs = options.timeoutMs ?? 1000;
+    // Rationale: a short cleanup budget must not terminate the process while its bounded diagnostic write is still in flight.
+    const deadline = setTimeout(finish, Math.max(1000, cleanupTimeoutMs));
     void Promise.all([
       writeFatalDiagnostic(options.directory, origin, error, options.releaseId).then(path => { record = path; }),
-      boundedCleanup(() => options.dispose?.(), options.timeoutMs ?? 1000).catch(() => undefined),
+      boundedCleanup(() => options.dispose?.(), cleanupTimeoutMs).catch(() => undefined),
     ]).then(() => { clearTimeout(deadline); finish(); }, finish);
   };
   const exception = (error: Error) => terminate("uncaughtException", error);
