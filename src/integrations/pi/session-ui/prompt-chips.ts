@@ -3,9 +3,9 @@ import path from "node:path";
 import type {
   PiShellClipboardContent,
   PiShellEditorTextRange,
-} from "../components/index.js";
+} from "../components/shell-shared-facade.js";
 import { canonicalizeClipboardImage } from "./clipboard-image.js";
-import { assertImageEncodedSize, assertPromptImages, ImageAttachmentError } from "../../../contracts/owned-ui/index.js";
+import { assertImageEncodedSize, assertPromptImages, ImageAttachmentError } from "../../../contracts/owned-ui/image-attachments.js";
 import { ImagePreparationClient, type ImagePasteJob } from "./image-preparation-client.js";
 import type { PreparedImage } from "./image-preparation.js";
 import { preparePasteText, type PreparedPasteText } from "./paste-text-preparation.js";

@@ -10,10 +10,20 @@ const phases = createValidationPhaseRecorder("package-startup");
 let root = "";
 let prefix = "";
 let candidate: Awaited<ReturnType<typeof loadValidationCandidate>>;
+interface StartupModuleGraph {
+  readonly artifactSha256: string;
+  readonly artifactBytes: number;
+  readonly loadedFiles: number;
+  readonly evaluatedBytes: number;
+  readonly groups: readonly { readonly group: string; readonly files: number; readonly evaluatedBytes: number }[];
+}
 const startupMeasurements: Array<{
   profileId: "a1" | "pi";
   launchKind: "post-update" | "no-live-supervisor" | "warm";
   elapsedMs: number;
+  releaseId: string | null;
+  dependencyLayerIds: readonly string[];
+  moduleGraph: StartupModuleGraph;
   phases: Array<{ phase: string; durationMs: number }>;
 }> = [];
 
@@ -53,6 +63,7 @@ describe("fresh first-attempt startup of the exact candidate", () => {
       const repaired = await runFixtureCommand(process.execPath, [resolve(packageRoot, "bin", "sync-pi-tui-proxy.js")], root);
       expect(repaired.status, repaired.stderr).toBe(0);
     });
+    const startupModuleGraph = await loadStartupModuleGraph(packageRoot);
     const dataDir = resolve(root, "startup-data");
     const runtimeDir = resolve(root, "startup-runtime");
     const environment = {
@@ -79,13 +90,13 @@ describe("fresh first-attempt startup of the exact candidate", () => {
     try {
       for (const profileId of ["a1", "pi"] as const) {
         const postUpdate = await captureReadyLaunch(packageRoot, environment, profileId, "post-update");
-        recordStartupMeasurement(profileId, "post-update", postUpdate);
-        assertStartupPerformanceBudget({ profileId, launchKind: "post-update", events: postUpdate });
+        recordStartupMeasurement(profileId, "post-update", postUpdate, startupModuleGraph);
+        assertStartupPerformanceBudget({ profileId, launchKind: "post-update", events: postUpdate, moduleGraph: startupModuleGraph });
         await phases.run(`supervisor-stop-${profileId}`, () => stopPackagedSupervisor(cohort.endpointMetadataPath, dataDir, releaseVerifiedIdleOwner));
 
         const restarted = await captureReadyLaunch(packageRoot, environment, profileId, "no-live-supervisor");
-        recordStartupMeasurement(profileId, "no-live-supervisor", restarted);
-        assertStartupPerformanceBudget({ profileId, launchKind: "no-live-supervisor", events: restarted });
+        recordStartupMeasurement(profileId, "no-live-supervisor", restarted, startupModuleGraph);
+        assertStartupPerformanceBudget({ profileId, launchKind: "no-live-supervisor", events: restarted, moduleGraph: startupModuleGraph });
         const observedPhases = restarted.map(event => event.phase);
         expect(observedPhases).toEqual(expect.arrayContaining([
           "durable-validation-start", "durable-validation-complete", "replacement-supervisor-start", "replacement-supervisor-ready",
@@ -95,8 +106,8 @@ describe("fresh first-attempt startup of the exact candidate", () => {
         expect(validationComplete.fileReadOperations - validationStart.fileReadOperations).toBeLessThan(64);
 
         const warm = await captureReadyLaunch(packageRoot, environment, profileId, "warm");
-        recordStartupMeasurement(profileId, "warm", warm);
-        assertStartupPerformanceBudget({ profileId, launchKind: "warm", events: warm });
+        recordStartupMeasurement(profileId, "warm", warm, startupModuleGraph);
+        assertStartupPerformanceBudget({ profileId, launchKind: "warm", events: warm, moduleGraph: startupModuleGraph });
       }
     } finally {
       await phases.cleanup("supervisor-final-stop", () => stopPackagedSupervisor(cohort.endpointMetadataPath, dataDir, releaseVerifiedIdleOwner)).catch(() => {});
@@ -107,7 +118,8 @@ describe("fresh first-attempt startup of the exact candidate", () => {
 function recordStartupMeasurement(
   profileId: "a1" | "pi",
   launchKind: "post-update" | "no-live-supervisor" | "warm",
-  events: readonly { phase: string; elapsedMs: number }[],
+  events: readonly { phase: string; elapsedMs: number; releaseId: string | null; dependencyLayerIds: readonly string[] }[],
+  moduleGraph: StartupModuleGraph,
 ): void {
   const ordered = [...events].sort((left, right) => left.elapsedMs - right.elapsedMs);
   const elapsedMs = ordered.findLast(event => event.phase === "first-input-ready-render")?.elapsedMs ?? Number.POSITIVE_INFINITY;
@@ -115,8 +127,37 @@ function recordStartupMeasurement(
     phase: event.phase,
     durationMs: event.elapsedMs - (ordered[index - 1]?.elapsedMs ?? 0),
   }));
-  startupMeasurements.push({ profileId, launchKind, elapsedMs, phases: measurements });
+  const ready = ordered.findLast(event => event.phase === "first-input-ready-render");
+  startupMeasurements.push({
+    profileId,
+    launchKind,
+    elapsedMs,
+    releaseId: ready?.releaseId ?? null,
+    dependencyLayerIds: ready?.dependencyLayerIds ?? [],
+    moduleGraph,
+    phases: measurements,
+  });
   process.stdout.write(`[startup-budget] node=${process.version} profile=${profileId} kind=${launchKind} elapsed=${Math.round(elapsedMs)}ms\n`);
+}
+
+async function loadStartupModuleGraph(packageRoot: string): Promise<StartupModuleGraph> {
+  const manifest = JSON.parse(await readFile(resolve(packageRoot, "dist", "integrations", "pi", "startup-public.manifest.json"), "utf8")) as {
+    output: { sha256: string; bytes: number };
+    totals: { loadedFiles: number; evaluatedBytes: number };
+    inputs: Array<{ group: string; evaluatedBytes: number }>;
+  };
+  const groups = new Map<string, { files: number; evaluatedBytes: number }>();
+  for (const input of manifest.inputs.filter(input => input.evaluatedBytes > 0)) {
+    const current = groups.get(input.group) ?? { files: 0, evaluatedBytes: 0 };
+    groups.set(input.group, { files: current.files + 1, evaluatedBytes: current.evaluatedBytes + input.evaluatedBytes });
+  }
+  return {
+    artifactSha256: manifest.output.sha256,
+    artifactBytes: manifest.output.bytes,
+    loadedFiles: manifest.totals.loadedFiles,
+    evaluatedBytes: manifest.totals.evaluatedBytes,
+    groups: [...groups].map(([group, value]) => ({ group, ...value })).sort((left, right) => left.group.localeCompare(right.group)),
+  };
 }
 
 async function captureReadyLaunch(

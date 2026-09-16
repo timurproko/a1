@@ -1,6 +1,6 @@
 import { fork, type ChildProcess, type ForkOptions, type SpawnOptions } from "node:child_process";
-import type { PiShellClipboardContent } from "../components/index.js";
-import { ImageAttachmentError } from "../../../contracts/owned-ui/index.js";
+import type { PiShellClipboardContent } from "../components/shell-shared-facade.js";
+import { ImageAttachmentError } from "../../../contracts/owned-ui/image-attachments.js";
 import { MAX_SOURCE_IMAGE_BYTES } from "./image-source.js";
 import { PASTE_CHUNK_UNITS, PASTE_REQUESTS, PASTE_STOP_MS, PASTE_TEXT_BYTES, pasteFragments, type PasteHelperInput, type PasteHelperOutput, type PreparedPaste, type PasteEvent } from "./paste-protocol.js";
 import type { ClipboardPath } from "./paste-text-preparation.js";

@@ -24,7 +24,7 @@
   "scripts": {
     "postinstall": "node bin/sync-pi-tui-proxy.js",
     "clean": "node scripts/clean.mjs",
-    "build": "npm run clean && tsc -p tsconfig.build.json && node scripts/development/build-process-guardian.mjs && node scripts/release/generate-runtime-payload-inventory.mjs",
+    "build": "npm run clean && tsc -p tsconfig.build.json && node scripts/pi/build-startup-public.mjs && node scripts/development/build-process-guardian.mjs && node scripts/release/generate-runtime-payload-inventory.mjs",
     "build:process-guardian": "node scripts/development/build-process-guardian.mjs",
     "typecheck": "tsgo -p tsconfig.json --noEmit",
     "check:architecture": "node scripts/governance/check-architecture.mjs && node scripts/governance/check-product-identity-boundaries.mjs && node scripts/governance/check-package-identity.mjs && node scripts/governance/check-pinned-pi-source-ledger.mjs && node scripts/governance/check-terminal-host-provenance.mjs",
@@ -81,6 +81,7 @@
     "@types/semver": "7.8.0",
     "@typescript/native-preview": "7.0.0-dev.20260707.2",
     "@xterm/headless": "6.0.0",
+    "esbuild": "0.25.10",
     "node-pty": "1.1.0",
     "tsx": "4.20.3",
     "typescript": "5.9.2",

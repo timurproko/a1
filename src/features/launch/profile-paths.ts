@@ -2,7 +2,7 @@ import { homedir } from "node:os";
 import { posix, win32, type PlatformPath } from "node:path";
 import type { LaunchProfileId } from "./intent.js";
 import { PRODUCT_IDENTITY } from "../../product-identity.js";
-import { resolveProductPaths } from "../../foundation/lifecycle/index.js";
+import { resolveProductPaths } from "../../foundation/lifecycle/paths.js";
 
 export interface LaunchProfilePaths {
   readonly home: string;

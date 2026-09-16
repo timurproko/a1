@@ -4,7 +4,7 @@ import {
   isWriteToolResult,
   type ExtensionAPI,
   type InlineExtension,
-} from "@earendil-works/pi-coding-agent";
+} from "../startup-public.js";
 import { lstat, unlink } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 

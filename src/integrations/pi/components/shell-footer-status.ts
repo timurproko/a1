@@ -1,4 +1,4 @@
-import { rawKeyHint, VERSION } from "@earendil-works/pi-coding-agent";
+import { rawKeyHint, VERSION } from "../startup-public.js";
 import {
   Spacer,
   Text,

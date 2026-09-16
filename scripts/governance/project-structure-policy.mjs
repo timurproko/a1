@@ -60,7 +60,7 @@ export function inspectProjectOwnerLayout(paths) {
   return errors;
 }
 
-export function inspectProjectStructureImports(files, approvedImports = []) {
+export function inspectProjectStructureImports(files, approvedImports = [], directLeafConsumers = new Set()) {
   const approved = new Set(approvedImports.map(record => approvalKey(record.path, record.specifier, record.statement)));
   const errors = [];
   for (const [rawPath, source] of Object.entries(files)) {
@@ -78,11 +78,13 @@ export function inspectProjectStructureImports(files, approvedImports = []) {
         continue;
       }
       if (provider.id === consumer.id) continue;
-      if (provider.id !== "product-identity" && !consumer.mayImport.includes(provider.id)) {
+      const sharedPiStartupBoundary = targetPath === "src/integrations/pi/startup-public.ts"
+        && (consumer.id === "pi-engine-adapter" || consumer.id === "pi-component-adapter");
+      if (!sharedPiStartupBoundary && provider.id !== "product-identity" && !consumer.mayImport.includes(provider.id)) {
         errors.push(`${path}: ${consumer.id} may not import ${provider.id} (${specifier})`);
         continue;
       }
-      if (targetPath !== provider.publicEntry) {
+      if (!sharedPiStartupBoundary && targetPath !== provider.publicEntry && !directLeafConsumers.has(path)) {
         errors.push(`${path}: cross-owner import '${specifier}' must use ${provider.publicEntry}`);
       }
     }
@@ -119,6 +121,7 @@ export function inspectPiFeatureBoundaryImports(files, approvedImports = []) {
 export function projectOwnerForPath(path) {
   const normalized = normalize(path);
   if (normalized === "src/product-identity.ts" || normalized === "src/product-identity.json") return PROJECT_OWNERS["product-identity"];
+  if (normalized === "src/integrations/pi/startup-public.ts") return PROJECT_OWNERS["pi-engine-adapter"];
   return Object.values(PROJECT_OWNERS)
     .filter(value => value.id !== "product-identity")
     .find(value => normalized === value.sourceRoot || normalized.startsWith(`${value.sourceRoot}/`)) ?? null;

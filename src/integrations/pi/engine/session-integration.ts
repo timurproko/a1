@@ -1,4 +1,4 @@
-import type { AgentSession, AgentSessionEvent, PromptOptions } from "@earendil-works/pi-coding-agent";
+import type { AgentSession, AgentSessionEvent, PromptOptions } from "../startup-public.js";
 import {
   AGENT_ENGINE_CONTRACT_VERSION,
   type AgentCommandOutcome,

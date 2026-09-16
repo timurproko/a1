@@ -1,4 +1,4 @@
-import type { SettingsManager } from "@earendil-works/pi-coding-agent";
+import type { SettingsManager } from "../startup-public.js";
 import type {
   AgentJsonValue,
   AgentSettingChangeOutcome,

@@ -2,7 +2,7 @@ import {
   hasTrustRequiringProjectResources,
   ProjectTrustStore,
   SettingsManager,
-} from "@earendil-works/pi-coding-agent";
+} from "../startup-public.js";
 
 export interface PiProjectTrustPreflightRequest {
   readonly cwd: string;

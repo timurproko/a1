@@ -1,7 +1,7 @@
 import { accessSync, constants, existsSync, realpathSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { resolve } from "node:path";
-import { SessionManager, type SessionInfo } from "@earendil-works/pi-coding-agent";
+import { SessionManager, type SessionInfo } from "../startup-public.js";
 
 // Invariant: the engine accepts a storage request, not launch/control infrastructure.
 // Public argv validation remains at CLI, guardian, and UI entry boundaries.

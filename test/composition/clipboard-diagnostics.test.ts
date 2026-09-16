@@ -7,29 +7,29 @@ import type { OwnedUiSessionShellOptions } from "../../src/integrations/pi/sessi
 const observed = vi.hoisted(() => ({ options: undefined as OwnedUiSessionShellOptions | undefined,
   captures: [] as ClipboardDiagnosticCapture[], writes: [] as { file: string; data: string }[], failure: "" }));
 // Rationale: exercise real diagnostic capture and launch wiring without provider, terminal, or user-file effects.
-vi.mock("../../src/integrations/pi/components/index.js", () => ({ applyConfiguredPiTheme() {}, getAvailablePiThemes: () => [], loadHistoryEditor: vi.fn() }));
-vi.mock("../../src/integrations/pi/engine/index.js", () => ({ createPiEngineAdapter: vi.fn() }));
-vi.mock("../../src/integrations/pi/tui-runtime/index.js", () => ({ createPiTerminalBridge: vi.fn() }));
+vi.mock("../../src/integrations/pi/components/upstream/theme/theme.js", () => ({ applyConfiguredPiTheme() {}, getAvailablePiThemes: () => [] }));
+vi.mock("../../src/integrations/pi/engine/adapter.js", () => ({ createPiEngineAdapter: vi.fn() }));
+vi.mock("../../src/integrations/pi/tui-runtime/presentation-adapter.js", () => ({ createPiTerminalBridge: vi.fn() }));
 vi.mock("../../src/composition/settings-route-host.js", () => ({ createOwnedRouteHost: () => null }));
-vi.mock("../../src/ui/settings/index.js", () => ({
-  OwnedUiSettingsStore: class {},
+vi.mock("../../src/ui/settings/store.js", () => ({ OwnedUiSettingsStore: class {} }));
+vi.mock("../../src/ui/settings/session.js", () => ({
   OwnedUiSettingsSession: class { value(key: string) { return key === "promptHistoryEnabled" ? false : undefined; } },
 }));
-vi.mock("../../src/integrations/pi/session-ui/index.js", async () => {
-  const { ClipboardDiagnosticCapture: Capture } = await import("../../src/integrations/pi/session-ui/clipboard-diagnostics.js");
-  return {
-    ClipboardDiagnosticCapture: class extends Capture {
-      constructor(file: string) { super(file, async (file, data) => { observed.writes.push({ file, data }); }); observed.captures.push(this); }
-    },
-    OwnedUiSessionShell: class {
-      constructor(options: OwnedUiSessionShellOptions) {
-        observed.options = options;
-        if (observed.failure === "construct") throw new Error("synthetic construction failure");
-      }
-      async dispose() { if (observed.failure === "dispose") throw new Error("synthetic disposal failure"); }
-    },
-  };
+vi.mock("../../src/integrations/pi/session-ui/clipboard-diagnostics.js", async importOriginal => {
+  const { ClipboardDiagnosticCapture: Capture } = await importOriginal<typeof import("../../src/integrations/pi/session-ui/clipboard-diagnostics.js")>();
+  return { ClipboardDiagnosticCapture: class extends Capture {
+    constructor(file: string) { super(file, async (destination, data) => { observed.writes.push({ file: destination, data }); }); observed.captures.push(this); }
+  } };
 });
+vi.mock("../../src/integrations/pi/session-ui/session-shell.js", () => ({
+  OwnedUiSessionShell: class {
+    constructor(options: OwnedUiSessionShellOptions) {
+      observed.options = options;
+      if (observed.failure === "construct") throw new Error("synthetic construction failure");
+    }
+    async dispose() { if (observed.failure === "dispose") throw new Error("synthetic disposal failure"); }
+  },
+}));
 beforeEach(() => {
   vi.useFakeTimers();
   vi.stubEnv(PRODUCT_IDENTITY.environment.clipboardDiagnostics, undefined);
