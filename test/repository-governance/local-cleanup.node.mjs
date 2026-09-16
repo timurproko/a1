@@ -23,7 +23,7 @@ async function fixture(t, branch = false, registered = true) {
   await writeFile(join(primary, "tracked.txt"), "base\n");
   await mkdir(join(primary, "vendor")); await writeFile(join(primary, "vendor", ".gitmodules"), "");
   await mkdir(join(primary, "node_modules-cache")); await writeFile(join(primary, "node_modules-cache", "tracked.txt"), "ordinary content\n");
-  await writeFile(join(primary, ".gitignore"), "node_modules/\nsecret.txt\n.artifacts/openspec-archive/\n.artifacts/validation/\n.artifacts/validation-user/\n.artifacts/other/\n.builds/\ndist/\n");
+  await writeFile(join(primary, ".gitignore"), "node_modules/\nsecret.txt\n.artifacts/openspec-archive/\n.artifacts/validation/\n.artifacts/validation-user/\n.artifacts/other/\n.builds/\ndist/\n/native/process-guardian/target/\n/native/terminal-host/target/\n/target/\n/native/other/target/\n/native/process-guardian/target-user/\n");
   git(primary, "add", "."); git(primary, "commit", "-m", "fixture"); git(primary, "remote", "add", "origin", "https://github.com/owner/repo.git");
   const path = join(primary, ".worktrees", "example");
   git(primary, "worktree", "add", ...(branch ? ["-b", "feature/example"] : ["--detach"]), path);
@@ -47,6 +47,8 @@ test("registration rejects duplicate paths, malformed state and cross-repository
   const input = { ...f.entry }; for (const key of ["id", "generation", "state", "ownerHash", "step"]) delete input[key];
   assert.throws(() => registerEntry(state, input, owner), /duplicate/);
   assert.throws(() => registerEntry(state, { ...input, ref: "refs/heads/develop" }, owner), /registration-schema/);
+  assert.throws(() => registerEntry(state, { ...input, disposable: ["target"] }, owner), /registration-schema/);
+  assert.throws(() => registerEntry(state, { ...input, disposable: ["native/other/target"] }, owner), /registration-schema/);
 });
 
 test("ownership is generation-bound and cannot expire or be stolen", async t => {
@@ -84,7 +86,9 @@ test("CLI registration, ownership, recovery, preview and enable controls use the
     cwd: f.primary, env: { ...process.env, LOCAL_CLEANUP_OWNER_TOKEN: owner, GH_TOKEN: "fixture-unused-token" }, encoding: "utf8",
   });
   const help = invoke("--help"); assert.match(help, /complete/); assert.match(help, /\.artifacts\/openspec-archive/);
-  assert.match(help, /\.artifacts\/validation/); assert.equal(COMPLETION_DISPOSABLE_PATHS.includes(".artifacts"), false);
+  assert.match(help, /\.artifacts\/validation/); assert.match(help, /native\/process-guardian\/target/);
+  assert.match(help, /native\/terminal-host\/target/); assert.equal(COMPLETION_DISPOSABLE_PATHS.includes(".artifacts"), false);
+  assert.equal(COMPLETION_DISPOSABLE_PATHS.includes("target"), false); assert.equal(COMPLETION_DISPOSABLE_PATHS.includes("native\/*\/target"), false);
   const other = join(f.identity.root, "registered"); git(f.primary, "worktree", "add", "--detach", other);
   let record = JSON.parse(invoke("register", "--path", other, "--change", "example", "--source-pr", "20", "--candidate-pr", "20", "--role", "implementation", "--disposable", "node_modules"));
   assert.equal(record.state, "owned");
@@ -145,6 +149,30 @@ test("complete blocks unknown ignored content and conflicting ownership", async 
     change: "example", sourcePr: 20, cwd: f.primary }), /owned-worktree/);
   await assert.rejects(completeLocalCleanup({ ...options, identity: f.identity, store: f.store, path: f.path,
     change: "different" }), /completion-registration-conflict/);
+});
+
+test("complete accepts only the two exact native Cargo output roots", async t => {
+  for (const root of ["native/process-guardian/target", "native/terminal-host/target"]) {
+    const f = await fixture(t, true, false), directory = join(f.path, ...root.split("/"));
+    await mkdir(join(directory, "release", "deps"), { recursive: true });
+    await writeFile(join(directory, "release", "deps", "artifact.rlib"), "generated");
+    const report = await completeLocalCleanup({ identity: f.identity, store: f.store, reader: {}, path: f.path,
+      change: "example", sourcePr: 20, cwd: f.primary, reconcileOptions: { verify: f.verify, git: f.boundedGit } });
+    assert.equal(report.results[0].disposition, "removed", JSON.stringify(report));
+    assert.equal(await exists(f.path), false);
+  }
+});
+
+test("complete blocks arbitrary, sibling, and near-match native target roots", async t => {
+  for (const root of ["target", "native/other/target", "native/process-guardian/target-user"]) {
+    const f = await fixture(t, false, false), directory = join(f.path, ...root.split("/"));
+    await mkdir(directory, { recursive: true }); await writeFile(join(directory, "artifact"), "preserve");
+    const blocked = await completeLocalCleanup({ identity: f.identity, store: f.store, reader: {}, path: f.path,
+      change: "example", sourcePr: 20, cwd: f.primary, reconcileOptions: { verify: f.verify, git: f.boundedGit } });
+    assert.equal(blocked.results[0].reason, "worktree-content", JSON.stringify(blocked));
+    assert.ok(blocked.results[0].paths.some(path => path === root || path.startsWith(`${root}/`)), JSON.stringify(blocked));
+    assert.equal(await readFile(join(directory, "artifact"), "utf8"), "preserve");
+  }
 });
 
 test("complete blocks sibling and near-match validation artifact roots", async t => {
