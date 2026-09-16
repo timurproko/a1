@@ -1,0 +1,173 @@
+{
+  "schema": "a1-validation-ownership-v1",
+  "mandatoryTests": [
+    "test/cli/capabilities.test.ts",
+    "test/cli/dispatch.test.ts",
+    "test/composition/composition.test.ts",
+    "test/features/launch/runtime-selection.test.ts",
+    "test/features/launch/terminal-colour-fidelity.test.ts",
+    "test/foundation/launch-context/context.test.ts",
+    "test/repository-governance/validation-suite-policy.test.ts"
+  ],
+  "invalidators": [
+    ".github/workflows/ci.yml",
+    ".github/workflows/full-regression.yml",
+    ".github/workflows/release.yml",
+    "config/validation-ownership.json",
+    "config/validation-suites.json",
+    "config/integration-owners.json",
+    "package.json",
+    "package-lock.json",
+    "tsconfig.json",
+    "tsconfig.build.json",
+    "vitest.config.ts",
+    "scripts/release/integration-impact.mjs",
+    "scripts/release/integration-owners.mjs",
+    "scripts/release/integration-selection.mjs",
+    "scripts/release/require-modular-validation.mjs",
+    "scripts/release/resolve-validation-job.mjs",
+    "scripts/release/select-validation-impact.mjs",
+    "scripts/release/validation-impact.mjs",
+    "scripts/release/validation-ownership.mjs",
+    "scripts/release/validation-tier.mjs"
+  ],
+  "unrelated": [
+    "docs/",
+    "openspec/",
+    "LICENSE",
+    ".gitignore"
+  ],
+  "shared": [
+    {
+      "paths": ["test/support/", "test/fixtures/"],
+      "owners": [
+        "ui-rendering",
+        "launch-startup",
+        "release-package-update",
+        "pi",
+        "native-containment",
+        "image-history",
+        "governance",
+        "shared-product"
+      ]
+    },
+    {
+      "paths": ["src/contracts/"],
+      "owners": ["ui-rendering", "launch-startup", "pi", "shared-product"]
+    },
+    {
+      "paths": ["bin/"],
+      "owners": ["launch-startup", "release-package-update", "pi"]
+    }
+  ],
+  "owners": [
+    {
+      "id": "ui-rendering",
+      "paths": [
+        "src/ui/",
+        "src/features/owned-ui/",
+        "src/features/prompt-suggestions/",
+        "src/features/workspace/",
+        "src/integrations/pi/tui-runtime/"
+      ],
+      "testPaths": [
+        "test/ui/",
+        "test/features/owned-ui/",
+        "test/features/prompt-suggestions/",
+        "test/features/workspace/",
+        "test/integrations/pi/tui-runtime/"
+      ],
+      "integrationOwners": []
+    },
+    {
+      "id": "launch-startup",
+      "paths": [
+        "src/features/launch/",
+        "src/foundation/launch-context/",
+        "src/foundation/launch-guardian/",
+        "src/foundation/lifecycle/",
+        "src/foundation/startup/",
+        "src/foundation/supervision/",
+        "src/foundation/terminal-cleanup/",
+        "scripts/development/",
+        "scripts/dev"
+      ],
+      "testPaths": [
+        "test/features/launch/",
+        "test/foundation/launch-context/",
+        "test/foundation/launch-guardian/",
+        "test/foundation/lifecycle/",
+        "test/foundation/startup/",
+        "test/foundation/supervision/",
+        "test/foundation/terminal-cleanup/"
+      ],
+      "integrationOwners": ["launch-integration", "startup"]
+    },
+    {
+      "id": "release-package-update",
+      "paths": ["src/foundation/release/", "scripts/release/", "config/"],
+      "testPaths": ["test/foundation/release/"],
+      "integrationOwners": [
+        "pi-release-resume",
+        "package-contracts",
+        "startup",
+        "update-performance",
+        "update-predecessor"
+      ]
+    },
+    {
+      "id": "pi",
+      "paths": ["src/integrations/pi/", "scripts/pi/"],
+      "testPaths": [
+        "test/integrations/pi/components/",
+        "test/integrations/pi/engine/",
+        "test/integrations/pi/session-ui/"
+      ],
+      "integrationOwners": ["pi-release-resume", "image-compatibility", "history-compatibility"]
+    },
+    {
+      "id": "native-containment",
+      "paths": [
+        "native/",
+        "src/foundation/native-host-protocol/",
+        "src/foundation/process-containment/",
+        "src/foundation/protocol/"
+      ],
+      "testPaths": [
+        "test/foundation/native-host-protocol/",
+        "test/foundation/process-containment/",
+        "test/foundation/protocol/"
+      ],
+      "integrationOwners": ["unix-containment"]
+    },
+    {
+      "id": "image-history",
+      "paths": ["src/features/prompt-history/"],
+      "testPaths": ["test/features/prompt-history/"],
+      "integrationOwners": ["image-compatibility", "history-compatibility"]
+    },
+    {
+      "id": "governance",
+      "paths": ["scripts/governance/", "test/repository-governance/", "config/github-", "config/internal-", "config/product-"],
+      "testPaths": ["test/repository-governance/", "test/product-identity/"],
+      "integrationOwners": []
+    },
+    {
+      "id": "shared-product",
+      "paths": [
+        "src/cli/",
+        "src/composition/",
+        "src/foundation/storage/",
+        "src/foundation/structured-agent-runtime/"
+      ],
+      "testPaths": [
+        "test/cli/",
+        "test/composition/",
+        "test/contracts/",
+        "test/foundation/storage/",
+        "test/foundation/structured-agent-runtime/"
+      ],
+      "integrationOwners": ["structured-runtime"]
+    }
+  ]
+}

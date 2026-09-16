@@ -5,7 +5,8 @@ import { validationOutcomeAuthority } from "./validation-outcome.mjs";
 
 const requested = selectionFromEnvironment() ?? positionalArguments();
 if (requested.length === 0) throw new Error("usage: node scripts/release/run-validation-tier.mjs <tier-or-scope> [...] or set VALIDATION_SELECTION_JSON");
-const plan = await createTierPlan(requested);
+const additionalTests = testsFromEnvironment();
+const plan = await createTierPlan(requested, process.cwd(), { additionalTests });
 
 if (process.argv.includes("--plan")) {
   process.stdout.write(`${JSON.stringify(plan, null, 2)}\n`);
@@ -26,6 +27,13 @@ function selectionFromEnvironment() {
   if (!process.env.VALIDATION_SELECTION_JSON) return null;
   const value = JSON.parse(process.env.VALIDATION_SELECTION_JSON);
   if (!Array.isArray(value) || value.some(entry => typeof entry !== "string")) throw new Error("VALIDATION_SELECTION_JSON must be a JSON string array");
+  return value;
+}
+
+function testsFromEnvironment() {
+  if (!process.env.VALIDATION_TESTS_JSON) return [];
+  const value = JSON.parse(process.env.VALIDATION_TESTS_JSON);
+  if (!Array.isArray(value) || value.some(entry => typeof entry !== "string")) throw new Error("VALIDATION_TESTS_JSON must be a JSON string array");
   return value;
 }
 

@@ -43,20 +43,22 @@ describe("impact-aware validation workflows", () => {
     }
   });
 
-  it("keeps complete fast partitions separate and resource-sensitive work isolated", async () => {
+  it("keeps the bounded PR core and selected resource-sensitive work isolated", async () => {
     const workflow = parse(await readFile(".github/workflows/ci.yml", "utf8"));
     const entries = workflow.jobs.modular.strategy.matrix.include as any[];
-    expect(entries.find(entry => entry.group === "fast")).toMatchObject({ os: "windows-2025", node: 24, build: true, guardian: true });
+    expect(entries.find(entry => entry.group === "core")).toMatchObject({ os: "windows-2025", node: 24, build: true, guardian: true });
     expect(entries.find(entry => entry.group === "resource")).toMatchObject({ os: "windows-2025", node: 24, build: false, guardian: false });
-    expect(entries.filter(entry => ["fast", "resource"].includes(entry.group))).toHaveLength(2);
+    expect(entries.filter(entry => ["core", "resource"].includes(entry.group))).toHaveLength(2);
     const resolver = workflow.jobs.modular.steps.find((step: any) => step.id === "job-selection");
     expect(resolver.run).toContain("resolve-validation-job.mjs");
     const run = workflow.jobs.modular.steps.find((step: any) => step.name === "Run exact selected scopes");
     const envelope = workflow.jobs.modular.steps.find((step: any) => step.name === "Complete content-free job envelope");
     expect(envelope.if).toBe("always()");
     expect(envelope.run).toContain("mkdirSync");
+    expect(envelope.run).toContain("attempt-${process.env.GITHUB_RUN_ATTEMPT}");
     expect(envelope.run).not.toContain("readFileSync");
     expect(run.env.VALIDATION_SELECTION_JSON).toBe("${{ steps.job-selection.outputs.scopes_json }}");
+    expect(run.env.VALIDATION_TESTS_JSON).toBe("${{ steps.job-selection.outputs.tests_json }}");
     expect(run.env).toMatchObject({ VALIDATION_HEAD: "${{ steps.job-selection.outputs.head }}", VALIDATION_SELECTION_ID: "${{ steps.job-selection.outputs.selection_id }}" });
   });
 
@@ -81,6 +83,9 @@ describe("impact-aware validation workflows", () => {
       expect.objectContaining({ name: "Upload aggregate evidence", with: expect.objectContaining({ "if-no-files-found": "error" }) }),
     ]));
     expect(required.steps.find((step: any) => step.name === "Require current impact-selected validation").env).toMatchObject({ MODULAR_RESULT: "${{ needs.modular.result }}", EXPECTED_HEAD: "${{ github.event.pull_request.head.sha || github.sha }}" });
+    const upload = workflow.jobs.modular.steps.find((step: any) => step.name === "Upload modular outcome and fixture phases");
+    expect(upload.with.name).toContain("attempt-${{ github.run_attempt }}");
+    expect(JSON.stringify(workflow.jobs.modular)).not.toMatch(/retry|rerun-failed|attempts?:\s*[2-9]/iu);
   });
 
   it("preserves documentation, version, draft, manual fallback, rendering, and naming controls", async () => {

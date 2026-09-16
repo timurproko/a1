@@ -1,0 +1,3367 @@
+{
+  "schema": "a1-validation-ownership-ledger-v2",
+  "policyId": "4aca3b7475be969b4005494728d4f77582796657fb1ef6723b95e3162d45fc08",
+  "retainedTests": 354,
+  "prCoreTests": 7,
+  "fastRemainderTests": 309,
+  "resourceSensitiveTests": 20,
+  "integrationTargetExecutions": 49,
+  "owners": [
+    {
+      "id": "ui-rendering",
+      "tests": 67,
+      "integrationOwners": []
+    },
+    {
+      "id": "launch-startup",
+      "tests": 26,
+      "integrationOwners": [
+        "launch-integration",
+        "startup"
+      ]
+    },
+    {
+      "id": "release-package-update",
+      "tests": 35,
+      "integrationOwners": [
+        "pi-release-resume",
+        "package-contracts",
+        "startup",
+        "update-performance",
+        "update-predecessor"
+      ]
+    },
+    {
+      "id": "pi",
+      "tests": 84,
+      "integrationOwners": [
+        "pi-release-resume",
+        "image-compatibility",
+        "history-compatibility"
+      ]
+    },
+    {
+      "id": "native-containment",
+      "tests": 11,
+      "integrationOwners": [
+        "unix-containment"
+      ]
+    },
+    {
+      "id": "image-history",
+      "tests": 5,
+      "integrationOwners": [
+        "image-compatibility",
+        "history-compatibility"
+      ]
+    },
+    {
+      "id": "governance",
+      "tests": 97,
+      "integrationOwners": []
+    },
+    {
+      "id": "shared-product",
+      "tests": 29,
+      "integrationOwners": [
+        "structured-runtime"
+      ]
+    }
+  ],
+  "tests": [
+    {
+      "test": "test/cli/capabilities.test.ts",
+      "owner": "shared-product",
+      "prCore": true,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [
+        "pr-core-tests"
+      ],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/cli/dispatch.test.ts",
+      "owner": "shared-product",
+      "prCore": true,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [
+        "pr-core-tests"
+      ],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/cli/package-message-parity.test.ts",
+      "owner": "shared-product",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/cli/packages.test.ts",
+      "owner": "shared-product",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/cli/update-cli.test.ts",
+      "owner": "shared-product",
+      "prCore": false,
+      "fastOwner": null,
+      "completeOwners": [
+        "dist-integration"
+      ],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/cli/version-stats.test.ts",
+      "owner": "shared-product",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/composition/clipboard-diagnostics.test.ts",
+      "owner": "shared-product",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/composition/composition.test.ts",
+      "owner": "shared-product",
+      "prCore": true,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [
+        "pr-core-tests"
+      ],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/composition/prompt-history.test.ts",
+      "owner": "shared-product",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/composition/prompt-suggestion-diagnostics.test.ts",
+      "owner": "shared-product",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/composition/settings-route-host.test.ts",
+      "owner": "shared-product",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/contracts/agent-engine/capability-ports.test.ts",
+      "owner": "shared-product",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/contracts/agent-engine/contracts.test.ts",
+      "owner": "shared-product",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/contracts/agent-engine/domain-contracts.test.ts",
+      "owner": "shared-product",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/contracts/agent-engine/package-ports.test.ts",
+      "owner": "shared-product",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/contracts/owned-ui/contracts.test.ts",
+      "owner": "shared-product",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/contracts/owned-ui/extension-ui-contract.test.ts",
+      "owner": "shared-product",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/contracts/owned-ui/image-attachments.test.ts",
+      "owner": "shared-product",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/contracts/owned-ui/prompt-history.test.ts",
+      "owner": "shared-product",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/contracts/owned-ui/transcript-lifecycle.test.ts",
+      "owner": "shared-product",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/contracts/presentation/contracts.test.ts",
+      "owner": "shared-product",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/contracts/workspace/contracts.test.ts",
+      "owner": "shared-product",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/features/launch/development-launch.test.ts",
+      "owner": "launch-startup",
+      "prCore": false,
+      "fastOwner": null,
+      "completeOwners": [
+        "dist-integration"
+      ],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/features/launch/exact-pi-entry.integration.test.ts",
+      "owner": "launch-startup",
+      "prCore": false,
+      "fastOwner": null,
+      "completeOwners": [
+        "launch-integration"
+      ],
+      "integrationTargets": [
+        {
+          "owner": "launch-integration",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ]
+    },
+    {
+      "test": "test/features/launch/initialize-profile-race.test.ts",
+      "owner": "launch-startup",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/features/launch/initialize-profile.test.ts",
+      "owner": "launch-startup",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/features/launch/launch-profiles.test.ts",
+      "owner": "launch-startup",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/features/launch/pi-tui-identity-installed.test.ts",
+      "owner": "launch-startup",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/features/launch/pi-tui-identity.test.ts",
+      "owner": "launch-startup",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/features/launch/pi-tui-proxy-sync.test.ts",
+      "owner": "launch-startup",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/features/launch/prepare-launch.test.ts",
+      "owner": "launch-startup",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/features/launch/profile-isolation.integration.test.ts",
+      "owner": "launch-startup",
+      "prCore": false,
+      "fastOwner": null,
+      "completeOwners": [
+        "launch-integration"
+      ],
+      "integrationTargets": [
+        {
+          "owner": "launch-integration",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ]
+    },
+    {
+      "test": "test/features/launch/profile-paths.test.ts",
+      "owner": "launch-startup",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/features/launch/prompt-history-paths.test.ts",
+      "owner": "launch-startup",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/features/launch/runtime-selection.test.ts",
+      "owner": "launch-startup",
+      "prCore": true,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [
+        "pr-core-tests"
+      ],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/features/launch/terminal-colour-fidelity.test.ts",
+      "owner": "launch-startup",
+      "prCore": true,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [
+        "pr-core-tests"
+      ],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/features/owned-ui/customization.test.ts",
+      "owner": "ui-rendering",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/features/owned-ui/diagnostics.test.ts",
+      "owner": "ui-rendering",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/features/owned-ui/event-frame-clock.test.ts",
+      "owner": "ui-rendering",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/features/owned-ui/pi-event-frame-parity.test.ts",
+      "owner": "ui-rendering",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/features/owned-ui/pi-raw-terminal-parity.test.ts",
+      "owner": "ui-rendering",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/features/owned-ui/pi-startup-composition-parity.test.ts",
+      "owner": "ui-rendering",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/features/owned-ui/pi-static-parity.test.ts",
+      "owner": "ui-rendering",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts",
+      "owner": "ui-rendering",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/features/owned-ui/project-trust-prompt.test.ts",
+      "owner": "ui-rendering",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/features/owned-ui/run-settings.test.ts",
+      "owner": "ui-rendering",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/features/owned-ui/run.test.ts",
+      "owner": "ui-rendering",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/features/owned-ui/session-fork-prompt.test.ts",
+      "owner": "ui-rendering",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/features/owned-ui/settings-app.test.ts",
+      "owner": "ui-rendering",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/features/prompt-history/concurrency.integration.test.ts",
+      "owner": "image-history",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [
+        "history-compatibility"
+      ],
+      "integrationTargets": [
+        {
+          "owner": "history-compatibility",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 22
+        },
+        {
+          "owner": "history-compatibility",
+          "platform": "linux",
+          "architecture": "x64",
+          "node": 24
+        },
+        {
+          "owner": "history-compatibility",
+          "platform": "darwin",
+          "architecture": "arm64",
+          "node": 24
+        }
+      ]
+    },
+    {
+      "test": "test/features/prompt-history/image-sidecar.test.ts",
+      "owner": "image-history",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [
+        "history-compatibility"
+      ],
+      "integrationTargets": [
+        {
+          "owner": "history-compatibility",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 22
+        },
+        {
+          "owner": "history-compatibility",
+          "platform": "linux",
+          "architecture": "x64",
+          "node": 24
+        },
+        {
+          "owner": "history-compatibility",
+          "platform": "darwin",
+          "architecture": "arm64",
+          "node": 24
+        }
+      ]
+    },
+    {
+      "test": "test/features/prompt-history/service.test.ts",
+      "owner": "image-history",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [
+        "history-compatibility"
+      ],
+      "integrationTargets": [
+        {
+          "owner": "history-compatibility",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 22
+        },
+        {
+          "owner": "history-compatibility",
+          "platform": "linux",
+          "architecture": "x64",
+          "node": 24
+        },
+        {
+          "owner": "history-compatibility",
+          "platform": "darwin",
+          "architecture": "arm64",
+          "node": 24
+        }
+      ]
+    },
+    {
+      "test": "test/features/prompt-history/store.test.ts",
+      "owner": "image-history",
+      "prCore": false,
+      "fastOwner": "fast-resource-sensitive",
+      "completeOwners": [
+        "fast-resource-sensitive",
+        "history-compatibility"
+      ],
+      "integrationTargets": [
+        {
+          "owner": "history-compatibility",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 22
+        },
+        {
+          "owner": "history-compatibility",
+          "platform": "linux",
+          "architecture": "x64",
+          "node": 24
+        },
+        {
+          "owner": "history-compatibility",
+          "platform": "darwin",
+          "architecture": "arm64",
+          "node": 24
+        }
+      ]
+    },
+    {
+      "test": "test/features/prompt-history/worker-package.test.ts",
+      "owner": "image-history",
+      "prCore": false,
+      "fastOwner": null,
+      "completeOwners": [
+        "dist-integration",
+        "history-compatibility"
+      ],
+      "integrationTargets": [
+        {
+          "owner": "history-compatibility",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 22
+        },
+        {
+          "owner": "history-compatibility",
+          "platform": "linux",
+          "architecture": "x64",
+          "node": 24
+        },
+        {
+          "owner": "history-compatibility",
+          "platform": "darwin",
+          "architecture": "arm64",
+          "node": 24
+        }
+      ]
+    },
+    {
+      "test": "test/features/prompt-suggestions/diagnostics.test.ts",
+      "owner": "ui-rendering",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/features/workspace/capabilities.test.ts",
+      "owner": "ui-rendering",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/features/workspace/presentation.test.ts",
+      "owner": "ui-rendering",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/features/workspace/reconciliation.test.ts",
+      "owner": "ui-rendering",
+      "prCore": false,
+      "fastOwner": "fast-resource-sensitive",
+      "completeOwners": [
+        "fast-resource-sensitive"
+      ],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/features/workspace/router.test.ts",
+      "owner": "ui-rendering",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/features/workspace/workspace.test.ts",
+      "owner": "ui-rendering",
+      "prCore": false,
+      "fastOwner": "fast-resource-sensitive",
+      "completeOwners": [
+        "fast-resource-sensitive"
+      ],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/foundation/launch-context/context.test.ts",
+      "owner": "launch-startup",
+      "prCore": true,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [
+        "pr-core-tests",
+        "unix-containment"
+      ],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/foundation/launch-context/cutover.test.ts",
+      "owner": "launch-startup",
+      "prCore": false,
+      "fastOwner": "fast-resource-sensitive",
+      "completeOwners": [
+        "fast-resource-sensitive",
+        "unix-containment"
+      ],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/foundation/launch-guardian/concurrency.integration.test.ts",
+      "owner": "launch-startup",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/foundation/launch-guardian/launch-guardian.test.ts",
+      "owner": "launch-startup",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/foundation/launch-guardian/source-boundary.test.ts",
+      "owner": "launch-startup",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/foundation/lifecycle/launch-instance.test.ts",
+      "owner": "launch-startup",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/foundation/lifecycle/launch-profile-identity.test.ts",
+      "owner": "launch-startup",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/foundation/lifecycle/paths.test.ts",
+      "owner": "launch-startup",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/foundation/native-host-protocol/evidence.test.ts",
+      "owner": "native-containment",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/foundation/native-host-protocol/proof-gate.test.ts",
+      "owner": "native-containment",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/foundation/native-host-protocol/protocol.test.ts",
+      "owner": "native-containment",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/foundation/process-containment/artifact.test.ts",
+      "owner": "native-containment",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [
+        "unix-containment"
+      ],
+      "integrationTargets": [
+        {
+          "owner": "unix-containment",
+          "platform": "linux",
+          "architecture": "x64",
+          "node": 24
+        },
+        {
+          "owner": "unix-containment",
+          "platform": "darwin",
+          "architecture": "arm64",
+          "node": 24
+        }
+      ]
+    },
+    {
+      "test": "test/foundation/process-containment/contracts.test.ts",
+      "owner": "native-containment",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [
+        "unix-containment"
+      ],
+      "integrationTargets": [
+        {
+          "owner": "unix-containment",
+          "platform": "linux",
+          "architecture": "x64",
+          "node": 24
+        },
+        {
+          "owner": "unix-containment",
+          "platform": "darwin",
+          "architecture": "arm64",
+          "node": 24
+        }
+      ]
+    },
+    {
+      "test": "test/foundation/process-containment/darwin-process-inspector.test.ts",
+      "owner": "native-containment",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [
+        "unix-containment"
+      ],
+      "integrationTargets": [
+        {
+          "owner": "unix-containment",
+          "platform": "linux",
+          "architecture": "x64",
+          "node": 24
+        },
+        {
+          "owner": "unix-containment",
+          "platform": "darwin",
+          "architecture": "arm64",
+          "node": 24
+        }
+      ]
+    },
+    {
+      "test": "test/foundation/process-containment/source-boundary.test.ts",
+      "owner": "native-containment",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [
+        "unix-containment"
+      ],
+      "integrationTargets": [
+        {
+          "owner": "unix-containment",
+          "platform": "linux",
+          "architecture": "x64",
+          "node": 24
+        },
+        {
+          "owner": "unix-containment",
+          "platform": "darwin",
+          "architecture": "arm64",
+          "node": 24
+        }
+      ]
+    },
+    {
+      "test": "test/foundation/process-containment/unix-process-group.integration.test.ts",
+      "owner": "native-containment",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [
+        "unix-containment"
+      ],
+      "integrationTargets": [
+        {
+          "owner": "unix-containment",
+          "platform": "linux",
+          "architecture": "x64",
+          "node": 24
+        },
+        {
+          "owner": "unix-containment",
+          "platform": "darwin",
+          "architecture": "arm64",
+          "node": 24
+        }
+      ]
+    },
+    {
+      "test": "test/foundation/process-containment/windows-job.integration.test.ts",
+      "owner": "native-containment",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [
+        "unix-containment"
+      ],
+      "integrationTargets": [
+        {
+          "owner": "unix-containment",
+          "platform": "linux",
+          "architecture": "x64",
+          "node": 24
+        },
+        {
+          "owner": "unix-containment",
+          "platform": "darwin",
+          "architecture": "arm64",
+          "node": 24
+        }
+      ]
+    },
+    {
+      "test": "test/foundation/process-containment/windows-process-inspector.test.ts",
+      "owner": "native-containment",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [
+        "unix-containment"
+      ],
+      "integrationTargets": [
+        {
+          "owner": "unix-containment",
+          "platform": "linux",
+          "architecture": "x64",
+          "node": 24
+        },
+        {
+          "owner": "unix-containment",
+          "platform": "darwin",
+          "architecture": "arm64",
+          "node": 24
+        }
+      ]
+    },
+    {
+      "test": "test/foundation/protocol/protocol.test.ts",
+      "owner": "native-containment",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/foundation/release/bootstrap-boundary.test.ts",
+      "owner": "release-package-update",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/foundation/release/cohort-activation.test.ts",
+      "owner": "release-package-update",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/foundation/release/cohort-state.test.ts",
+      "owner": "release-package-update",
+      "prCore": false,
+      "fastOwner": "fast-resource-sensitive",
+      "completeOwners": [
+        "fast-resource-sensitive"
+      ],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/foundation/release/dependency-certification-release.test.ts",
+      "owner": "release-package-update",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/foundation/release/dependency-certification.test.ts",
+      "owner": "release-package-update",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [
+        "unix-containment"
+      ],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/foundation/release/dependency-layer.test.ts",
+      "owner": "release-package-update",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [
+        "unix-containment"
+      ],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/foundation/release/endpoint-metadata-compatibility.test.ts",
+      "owner": "release-package-update",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/foundation/release/native-regression-trace.test.ts",
+      "owner": "release-package-update",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/foundation/release/package-install.integration.test.ts",
+      "owner": "release-package-update",
+      "prCore": false,
+      "fastOwner": null,
+      "completeOwners": [
+        "package-contracts"
+      ],
+      "integrationTargets": [
+        {
+          "owner": "package-contracts",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 22
+        }
+      ]
+    },
+    {
+      "test": "test/foundation/release/package-startup.integration.test.ts",
+      "owner": "release-package-update",
+      "prCore": false,
+      "fastOwner": null,
+      "completeOwners": [
+        "package-startup"
+      ],
+      "integrationTargets": [
+        {
+          "owner": "startup",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 22
+        }
+      ]
+    },
+    {
+      "test": "test/foundation/release/package-surface.test.ts",
+      "owner": "release-package-update",
+      "prCore": false,
+      "fastOwner": null,
+      "completeOwners": [
+        "package-smoke"
+      ],
+      "integrationTargets": [
+        {
+          "owner": "pi-release-resume",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ]
+    },
+    {
+      "test": "test/foundation/release/predecessor-command-errors.test.ts",
+      "owner": "release-package-update",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/foundation/release/predecessor-command-faults.test.ts",
+      "owner": "release-package-update",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/foundation/release/predecessor-command-lifecycle.test.ts",
+      "owner": "release-package-update",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/foundation/release/predecessor-command.test.ts",
+      "owner": "release-package-update",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/foundation/release/predecessor-fixture.test.ts",
+      "owner": "release-package-update",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/foundation/release/release-gc.test.ts",
+      "owner": "release-package-update",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [
+        "unix-containment"
+      ],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/foundation/release/release-store.test.ts",
+      "owner": "release-package-update",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/foundation/release/release.test.ts",
+      "owner": "release-package-update",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/foundation/release/restart-certification.test.ts",
+      "owner": "release-package-update",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [
+        "unix-containment"
+      ],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/foundation/release/session-resume-diagnostics.test.ts",
+      "owner": "release-package-update",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/foundation/release/session-resume.integration.test.ts",
+      "owner": "release-package-update",
+      "prCore": false,
+      "fastOwner": null,
+      "completeOwners": [
+        "package-smoke"
+      ],
+      "integrationTargets": [
+        {
+          "owner": "pi-release-resume",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ]
+    },
+    {
+      "test": "test/foundation/release/stable-release.test.ts",
+      "owner": "release-package-update",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/foundation/release/supervisor-startup.test.ts",
+      "owner": "release-package-update",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/foundation/release/update-activation.test.ts",
+      "owner": "release-package-update",
+      "prCore": false,
+      "fastOwner": "fast-resource-sensitive",
+      "completeOwners": [
+        "fast-resource-sensitive"
+      ],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/foundation/release/update-launch.test.ts",
+      "owner": "release-package-update",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/foundation/release/update-live-cohort.test.ts",
+      "owner": "release-package-update",
+      "prCore": false,
+      "fastOwner": "fast-resource-sensitive",
+      "completeOwners": [
+        "fast-resource-sensitive"
+      ],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/foundation/release/update-performance.integration.test.ts",
+      "owner": "release-package-update",
+      "prCore": false,
+      "fastOwner": null,
+      "completeOwners": [
+        "update-performance"
+      ],
+      "integrationTargets": [
+        {
+          "owner": "update-performance",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ]
+    },
+    {
+      "test": "test/foundation/release/update-predecessor.integration.test.ts",
+      "owner": "release-package-update",
+      "prCore": false,
+      "fastOwner": null,
+      "completeOwners": [
+        "update-predecessor"
+      ],
+      "integrationTargets": [
+        {
+          "owner": "update-predecessor",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ]
+    },
+    {
+      "test": "test/foundation/release/update-process-exit.test.ts",
+      "owner": "release-package-update",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/foundation/release/update-recovery.test.ts",
+      "owner": "release-package-update",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/foundation/release/update-transaction.test.ts",
+      "owner": "release-package-update",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/foundation/release/update-transition.integration.test.ts",
+      "owner": "release-package-update",
+      "prCore": false,
+      "fastOwner": null,
+      "completeOwners": [
+        "release-update",
+        "unix-containment"
+      ],
+      "integrationTargets": [
+        {
+          "owner": "pi-release-resume",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ]
+    },
+    {
+      "test": "test/foundation/release/update.test.ts",
+      "owner": "release-package-update",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/foundation/release/warmup.test.ts",
+      "owner": "release-package-update",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/foundation/startup/startup-runtime.test.ts",
+      "owner": "launch-startup",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/foundation/storage/storage.test.ts",
+      "owner": "shared-product",
+      "prCore": false,
+      "fastOwner": "fast-resource-sensitive",
+      "completeOwners": [
+        "fast-resource-sensitive"
+      ],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/foundation/structured-agent-runtime/backpressure.test.ts",
+      "owner": "shared-product",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/foundation/structured-agent-runtime/commands.test.ts",
+      "owner": "shared-product",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/foundation/structured-agent-runtime/handshake.test.ts",
+      "owner": "shared-product",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/foundation/structured-agent-runtime/reconnection.test.ts",
+      "owner": "shared-product",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/foundation/structured-agent-runtime/runtime.integration.test.ts",
+      "owner": "shared-product",
+      "prCore": false,
+      "fastOwner": null,
+      "completeOwners": [
+        "structured-runtime-integration"
+      ],
+      "integrationTargets": [
+        {
+          "owner": "structured-runtime",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ]
+    },
+    {
+      "test": "test/foundation/structured-agent-runtime/state.test.ts",
+      "owner": "shared-product",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/foundation/supervision/foreground-terminal-lease.test.ts",
+      "owner": "launch-startup",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/foundation/supervision/supervisor-release-exit.test.ts",
+      "owner": "launch-startup",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/foundation/terminal-cleanup/fatal-exit.test.ts",
+      "owner": "launch-startup",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/components/compaction-prompt.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/components/components.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/components/conformance.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/components/editor-atomic-segmentation.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/components/editor-autocomplete-placement.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/components/editor-paste-presentation.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/components/editor-text-paste.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-resource-sensitive",
+      "completeOwners": [
+        "fast-resource-sensitive"
+      ],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/components/extension-ui-bridge.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/components/history-editor-core.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/components/history-editor-shell.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/components/path-word-editing.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/components/path-word-ranges.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/components/pi-terminal-capabilities.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/components/pinned-assistant-content-parity.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/components/pinned-reconciled-source-ports.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/components/pinned-status-indicator-parity.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/components/pinned-theme-parity.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/components/prompt-input-ux.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/components/provider-auth-parity.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/components/scoped-model-platform-hints.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/components/session-selector.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/components/shell-components.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/components/tool-image-presentation.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/components/tool-shell-parity.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/components/transcript-image-resolver.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/engine/adapter.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/engine/candidate-capability-mutations.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/engine/changelog.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/engine/command-resources.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/engine/conformance.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": null,
+      "completeOwners": [
+        "pi-engine-conformance"
+      ],
+      "integrationTargets": [
+        {
+          "owner": "pi-release-resume",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ]
+    },
+    {
+      "test": "test/integrations/pi/engine/http-dispatcher.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/engine/model-auth-integration.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/engine/package-integration.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/engine/pending-delivery.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/engine/project-trust-context.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/engine/project-trust-preflight.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/engine/prompt-suggestion-provider.integration.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/engine/resource-extension-integration.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/engine/runtime-integration.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": null,
+      "completeOwners": [
+        "pi-engine-conformance"
+      ],
+      "integrationTargets": [
+        {
+          "owner": "pi-release-resume",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ]
+    },
+    {
+      "test": "test/integrations/pi/engine/session-integration.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": null,
+      "completeOwners": [
+        "pi-engine-conformance"
+      ],
+      "integrationTargets": [
+        {
+          "owner": "pi-release-resume",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ]
+    },
+    {
+      "test": "test/integrations/pi/engine/session-selection.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/engine/settings-effects.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/engine/settings-integration.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/engine/theme-settings.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/engine/tool-rendering.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/engine/transcript-image-assets.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/engine/windows-filesystem-hygiene.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/engine/workflow-controllers.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/engine/workflows.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/session-ui/clipboard-acquisition.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/session-ui/clipboard-diagnostics.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/session-ui/clipboard-executor-lifecycle.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-resource-sensitive",
+      "completeOwners": [
+        "fast-resource-sensitive"
+      ],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/session-ui/clipboard-image.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/session-ui/clipboard-packaged.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-resource-sensitive",
+      "completeOwners": [
+        "fast-resource-sensitive"
+      ],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/session-ui/cold-clipboard-entries.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/session-ui/command-message-inventory.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/session-ui/command-message-parity.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-resource-sensitive",
+      "completeOwners": [
+        "fast-resource-sensitive"
+      ],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/session-ui/command-outcome-parity.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-resource-sensitive",
+      "completeOwners": [
+        "fast-resource-sensitive"
+      ],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/session-ui/editor-hyperlink-budget.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/session-ui/image-preparation.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [
+        "image-compatibility"
+      ],
+      "integrationTargets": [
+        {
+          "owner": "image-compatibility",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 22
+        },
+        {
+          "owner": "image-compatibility",
+          "platform": "linux",
+          "architecture": "x64",
+          "node": 24
+        },
+        {
+          "owner": "image-compatibility",
+          "platform": "darwin",
+          "architecture": "arm64",
+          "node": 24
+        }
+      ]
+    },
+    {
+      "test": "test/integrations/pi/session-ui/image-worker-package.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": null,
+      "completeOwners": [
+        "dist-integration",
+        "image-compatibility"
+      ],
+      "integrationTargets": [
+        {
+          "owner": "image-compatibility",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 22
+        },
+        {
+          "owner": "image-compatibility",
+          "platform": "linux",
+          "architecture": "x64",
+          "node": 24
+        },
+        {
+          "owner": "image-compatibility",
+          "platform": "darwin",
+          "architecture": "arm64",
+          "node": 24
+        }
+      ]
+    },
+    {
+      "test": "test/integrations/pi/session-ui/paste-chip-lifecycle.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/session-ui/paste-executor.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-resource-sensitive",
+      "completeOwners": [
+        "fast-resource-sensitive"
+      ],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/session-ui/paste-preparation-client.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/session-ui/path-chip-presentation.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/session-ui/prompt-chips.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/session-ui/prompt-history-controller.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-resource-sensitive",
+      "completeOwners": [
+        "fast-resource-sensitive"
+      ],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/session-ui/prompt-suggestion-controller.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/session-ui/response-copy-baseline.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/session-ui/response-copy-coordinator.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/session-ui/response-copy-transport.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/session-ui/session-bottom-hover.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/session-ui/session-shell.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-resource-sensitive",
+      "completeOwners": [
+        "fast-resource-sensitive"
+      ],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/session-ui/session-viewport-controller.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/session-ui/stream-presentation-coalescer.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/session-ui/system-clipboard.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/session-ui/text-paste.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/session-ui/transcript-attachment-ownership.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/session-ui/transcript-content-retention.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/session-ui/transcript-image-conversion.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/session-ui/transcript-payload-limits.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/session-ui/transcript-presentation-lifetime.test.ts",
+      "owner": "pi",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/tui-runtime/adapter.test.ts",
+      "owner": "ui-rendering",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/tui-runtime/conformance.test.ts",
+      "owner": "ui-rendering",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/tui-runtime/content-producer.test.ts",
+      "owner": "ui-rendering",
+      "prCore": false,
+      "fastOwner": null,
+      "completeOwners": [
+        "rendering-stability"
+      ],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/tui-runtime/damage-aware-terminal.test.ts",
+      "owner": "ui-rendering",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/tui-runtime/ghost-link-fixture.test.ts",
+      "owner": "ui-rendering",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/tui-runtime/input-budgets.test.ts",
+      "owner": "ui-rendering",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/tui-runtime/input-evidence.test.ts",
+      "owner": "ui-rendering",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/tui-runtime/input-frame-observation.test.ts",
+      "owner": "ui-rendering",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/tui-runtime/input-frame-work.test.ts",
+      "owner": "ui-rendering",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/tui-runtime/input-presentation-coordinator.test.ts",
+      "owner": "ui-rendering",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/tui-runtime/input-producer.test.ts",
+      "owner": "ui-rendering",
+      "prCore": false,
+      "fastOwner": null,
+      "completeOwners": [
+        "rendering-stability"
+      ],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/tui-runtime/input-responsiveness-budgets.test.ts",
+      "owner": "ui-rendering",
+      "prCore": false,
+      "fastOwner": null,
+      "completeOwners": [
+        "rendering-stability"
+      ],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/tui-runtime/input-responsiveness-smoke.test.ts",
+      "owner": "ui-rendering",
+      "prCore": false,
+      "fastOwner": null,
+      "completeOwners": [
+        "rendering-smoke"
+      ],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/tui-runtime/mouse-report-input.test.ts",
+      "owner": "ui-rendering",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/tui-runtime/overlay-geometry.test.ts",
+      "owner": "ui-rendering",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/tui-runtime/pinned-wheel-parity.test.ts",
+      "owner": "ui-rendering",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/tui-runtime/rendering-budget-policy.test.ts",
+      "owner": "ui-rendering",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/tui-runtime/rendering-budgets.test.ts",
+      "owner": "ui-rendering",
+      "prCore": false,
+      "fastOwner": null,
+      "completeOwners": [
+        "rendering-stability"
+      ],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/tui-runtime/rendering-producer.test.ts",
+      "owner": "ui-rendering",
+      "prCore": false,
+      "fastOwner": null,
+      "completeOwners": [
+        "rendering-stability"
+      ],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/tui-runtime/rendering-smoke.test.ts",
+      "owner": "ui-rendering",
+      "prCore": false,
+      "fastOwner": null,
+      "completeOwners": [
+        "rendering-smoke"
+      ],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/tui-runtime/rendering-write-evidence.test.ts",
+      "owner": "ui-rendering",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/tui-runtime/streaming-workloads.test.ts",
+      "owner": "ui-rendering",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/tui-runtime/terminal-paint-evidence.test.ts",
+      "owner": "ui-rendering",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/integrations/pi/tui-runtime/width-parity.test.ts",
+      "owner": "ui-rendering",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/product-identity/product-identity.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/acceptance-evidence-concurrency.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/acceptance-validation-route.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/candidate-evidence.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/change-delivery-guidance.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/ci-release-runbook.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/code-documentation-command.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/code-documentation.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-resource-sensitive",
+      "completeOwners": [
+        "fast-resource-sensitive"
+      ],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/damage-aware-terminal-boundary.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/deprecated-dependencies.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/development-validation-baseline.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/development-validation-required.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/docs-sensitive-governance.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/documentation-auto-merge.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/documentation-lifecycle.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/full-regression-policy.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/github-repository-governance.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/github-rulesets.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/history-editor-source.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/impact-aware-validation-workflows.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/input-presentation-boundary.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/integration-impact.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/integration-owner-registry.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/integration-selection.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/local-cleanup.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-resource-sensitive",
+      "completeOwners": [
+        "fast-resource-sensitive"
+      ],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/merged-branch-cleanup.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/modular-validation-aggregate.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/naming-inspection.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/naming-selection.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-resource-sensitive",
+      "completeOwners": [
+        "fast-resource-sensitive"
+      ],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/native-host-boundary.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/npm-pack-metadata.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/openspec-acceptance-checklist.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/openspec-acceptance-github.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/openspec-acceptance-policy.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/openspec-archive-git.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/openspec-archive-github.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/openspec-archive-policy.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/openspec-archive-publication.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/openspec-archive-staging.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/openspec-archive-version-compatibility.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/openspec-archive-workflow.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/openspec-delivery-finalization.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/openspec-delivery-policy.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/openspec-single-pr-github.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/owned-settings-interaction-boundary.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/owned-ui-customization-prerequisite.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/owned-ui-documentation.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/owned-ui-research-baseline.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/package-download-cache.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/package-suite-ownership.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/pi-api-boundary-baseline.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/pi-api-boundary-policy.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/pi-boundary-manual-checkpoint.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/pi-candidate-evaluator.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/pi-compatibility-authority.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/pi-component-adaptation.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/pi-component-constructor-boundary.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/pi-engine-adapter-types.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/pi-maintenance-workflows.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/pi-modal-surface-inventory.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/pi-parity-capability-boundary.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/pi-parity-evidence.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/pi-presenter-ownership-inventory.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/pi-session-shell-provenance.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/pi-session-ui-responsibilities.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/pi-settings-inventory.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/pi-settings-metadata.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/pinned-pi-behavior-inventory.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/pinned-pi-source-ledger.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/product-identifier-inventory.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/product-identity-boundaries.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/product-identity-documentation.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/product-identity-governance.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/product-identity-inventory.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/progress-status-presentation-boundary.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/project-structure-policy.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/prompt-history-boundary.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/release-command.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": null,
+      "completeOwners": [
+        "release-update"
+      ],
+      "integrationTargets": [
+        {
+          "owner": "pi-release-resume",
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ]
+    },
+    {
+      "test": "test/repository-governance/release-gate-policy.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/release-pipeline-policy.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/release-target.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/repair-native-executable-modes.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/replacement-drops-nothing.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/resource-data-policy.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/resource-sensitive-validation.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/shortcut-hint-governance.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/terminal-architecture-policy.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/terminal-host-proof-gate.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/terminal-host-provenance.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/validation-impact.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-resource-sensitive",
+      "completeOwners": [
+        "fast-resource-sensitive"
+      ],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/validation-ownership.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/validation-phase.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/validation-receipt-workflows.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/validation-receipt.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/validation-suite-policy.test.ts",
+      "owner": "governance",
+      "prCore": true,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [
+        "pr-core-tests"
+      ],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/validation-tier.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/repository-governance/viewport-frame-descriptor.test.ts",
+      "owner": "governance",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/ui/apps/host.test.ts",
+      "owner": "ui-rendering",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/ui/components/frame.test.ts",
+      "owner": "ui-rendering",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/ui/components/line-input.test.ts",
+      "owner": "ui-rendering",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/ui/components/list-block.test.ts",
+      "owner": "ui-rendering",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/ui/components/list-view.test.ts",
+      "owner": "ui-rendering",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/ui/components/mouse.test.ts",
+      "owner": "ui-rendering",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/ui/components/progress-status.test.ts",
+      "owner": "ui-rendering",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/ui/components/prompt-input.test.ts",
+      "owner": "ui-rendering",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/ui/components/scrollbar.test.ts",
+      "owner": "ui-rendering",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/ui/components/selection-copy.test.ts",
+      "owner": "ui-rendering",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/ui/components/selection-scrollbar-edge.test.ts",
+      "owner": "ui-rendering",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/ui/components/shortcuts.test.ts",
+      "owner": "ui-rendering",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/ui/components/spans.test.ts",
+      "owner": "ui-rendering",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/ui/components/submitted-prompt.test.ts",
+      "owner": "ui-rendering",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/ui/components/text-selection.test.ts",
+      "owner": "ui-rendering",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/ui/components/text.test.ts",
+      "owner": "ui-rendering",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/ui/components/transcript-viewport.test.ts",
+      "owner": "ui-rendering",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/ui/components/value-menu.test.ts",
+      "owner": "ui-rendering",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/ui/components/visible-hyperlinks.test.ts",
+      "owner": "ui-rendering",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/ui/settings/declarations.test.ts",
+      "owner": "ui-rendering",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/ui/settings/resolution.test.ts",
+      "owner": "ui-rendering",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/ui/settings/sections.test.ts",
+      "owner": "ui-rendering",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/ui/settings/session.test.ts",
+      "owner": "ui-rendering",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    },
+    {
+      "test": "test/ui/settings/store.integration.test.ts",
+      "owner": "ui-rendering",
+      "prCore": false,
+      "fastOwner": "fast-remainder",
+      "completeOwners": [],
+      "integrationTargets": []
+    }
+  ]
+}

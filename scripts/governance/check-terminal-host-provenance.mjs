@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 
 const identity = JSON.parse(await readFile(resolve("src/product-identity.json"), "utf8"));
 const evidenceArgument = process.argv.indexOf("--evidence");
-const evidencePath = resolve(evidenceArgument >= 0 ? process.argv[evidenceArgument + 1] : "openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/terminal-host-provenance.json");
+const evidencePath = resolve(evidenceArgument >= 0 ? process.argv[evidenceArgument + 1] : "config/terminal-host-provenance.json");
 const errors = [];
 let value;
 try {

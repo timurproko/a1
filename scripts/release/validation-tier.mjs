@@ -13,8 +13,17 @@ export async function loadValidationSuites(repository = process.cwd()) {
   return suites;
 }
 
-export async function createTierPlan(requested, repository = process.cwd()) {
+export async function createTierPlan(requested, repository = process.cwd(), options = {}) {
   const suites = await loadValidationSuites(repository);
+  const additionalTests = options.additionalTests ?? [];
+  if (!Array.isArray(additionalTests) || additionalTests.length > 2048 || new Set(additionalTests).size !== additionalTests.length
+    || additionalTests.some(test => typeof test !== "string" || !test.startsWith("test/") || !test.endsWith(".test.ts") || test.includes("\\") || test.includes(".."))) {
+    throw new Error("additional validation tests are invalid or unbounded");
+  }
+  for (const test of additionalTests) {
+    try { if (!(await stat(resolve(repository, test))).isFile()) throw new Error("not a file"); }
+    catch { throw new Error(`additional validation test does not exist: ${test}`); }
+  }
   const atomic = [];
   const visiting = new Set();
 
@@ -63,10 +72,17 @@ export async function createTierPlan(requested, repository = process.cwd()) {
 
   const fast = definitions.find(({ definition }) => definition.kind === "vitest-remainder");
   const allResourceSensitiveTests = suites.scopes["fast-resource-sensitive"].tests;
-  const resourceSensitiveTests = atomic.includes("fast-resource-sensitive") ? [...allResourceSensitiveTests] : [];
-  // Invariant: the sensitive owner gets its own invocation, never the generic explicit-file timeout.
-  const explicitTests = definitions.filter(({ name }) => name !== "fast-resource-sensitive")
+  const resourceSensitiveTests = [
+    ...(atomic.includes("fast-resource-sensitive") ? allResourceSensitiveTests : []),
+    ...(atomic.includes("pr-selected-resource") ? additionalTests : []),
+  ];
+  // Invariant: sensitive selections get fresh serial invocations, never the generic explicit-file timeout.
+  const explicitTests = definitions.filter(({ name }) => !["fast-resource-sensitive", "pr-selected-resource"].includes(name))
     .flatMap(({ name, definition }) => (definition.tests ?? []).map(test => ({ test, owner: name })));
+  if (atomic.includes("pr-selected-tests")) {
+    const alreadySelected = new Set(explicitTests.map(entry => entry.test));
+    for (const test of additionalTests) if (!alreadySelected.has(test)) explicitTests.push({ test, owner: "pr-selected-tests" });
+  }
   const duplicateTests = explicitTests.filter((entry, index) => explicitTests.findIndex(candidate => candidate.test === entry.test) !== index);
   if (!full && duplicateTests.length > 0) throw new Error(`tests have duplicate selected owners: ${duplicateTests.map(entry => entry.test).join(", ")}`);
 

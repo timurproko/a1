@@ -21,7 +21,7 @@ function fixture() {
 function impactDecisions(): IntegrationDecision[] {
   return [
     { owner: "startup", selected: false, reasons: [{ code: "unrelated", paths: [] }] },
-    { owner: "package", selected: true, reasons: [{ code: "reachable", paths: ["bin/cli.js", "src/foundation/fixture.ts"] }] },
+    { owner: "package", selected: true, reasons: [{ code: "coarse-owner", paths: ["bin/cli.js", "src/foundation/fixture.ts"] }] },
     { owner: "predecessor", selected: true, reasons: [{ code: "changed-test", paths: ["test/fixture.test.ts"] }] },
   ];
 }
@@ -99,7 +99,7 @@ describe("versioned integration selection contract", () => {
     ["contradictory reason", (v: any) => { v.owners[0].reasons = [{ code: "unrelated", paths: [] }]; }],
     ["silent conservative skip", (v: any) => { v.owners[0].selected = false; v.owners[0].reasons = [{ code: "unrelated", paths: [] }]; }],
     ["false full-only declaration", (v: any) => { v.owners[0].selected = false; v.owners[0].reasons = [{ code: "not-development", paths: [] }]; }],
-    ["pathless impact", (v: any) => { v.owners[0].reasons = [{ code: "reachable", paths: [] }]; }],
+    ["pathless impact", (v: any) => { v.owners[0].reasons = [{ code: "coarse-owner", paths: [] }]; }],
     ["raw diagnostic field", (v: any) => { v.owners[0].reasons[0].error = "must not be accepted"; }],
     ["traversal path", (v: any) => { v.owners[0].reasons[0].paths = ["test/../private"]; }],
     ["absolute path", (v: any) => { v.owners[0].reasons[0].paths = ["C:/private"]; }],

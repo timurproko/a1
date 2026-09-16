@@ -42,6 +42,7 @@
     "develop": "node scripts/development/develop.mjs",
     "release": "node scripts/release/release.mjs",
     "test": "npm run test:fast",
+    "test:pr-core": "node scripts/release/run-validation-tier.mjs pr-core",
     "test:fast": "node scripts/release/run-validation-tier.mjs typecheck documentation-changed fast",
     "test:scope": "node scripts/release/run-validation-tier.mjs",
     "test:full": "node scripts/release/run-validation-tier.mjs full-release",

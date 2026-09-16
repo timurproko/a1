@@ -15,7 +15,7 @@ export interface IntegrationOwnership {
   owners: IntegrationOwner[];
 }
 export interface IntegrationReason {
-  code: "reachable" | "changed-test" | "shared-support" | "invalidator" | "conservative-fallback"
+  code: "coarse-owner" | "changed-test" | "shared-support" | "invalidator" | "conservative-fallback"
     | "unrelated" | "not-development" | IntegrationExemption;
   paths: string[];
 }

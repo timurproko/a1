@@ -1,43 +1,62 @@
 # Validation ownership and evidence
 
-Development validation computes one exact base/head impact document with:
+Development validation computes one exact base/head selection with:
 
 ```bash
 npm run select:validation-impact -- --base <full-base-sha> --head <full-head-sha> --output .artifacts/validation/impact.json
 ```
 
-A manual Development dispatch has no trusted PR comparison and uses `--manual-no-comparison`, which selects every development integration owner. Unknown operational inputs, unavailable history, unsupported dependency loads, malformed policy, and classifier errors also select conservatively. Documentation-only and version-only changes retain their explicit exemptions. Use each owner's `reasons` and `paths` in `impact.json` to explain selection; do not infer a skip from a missing owner.
+The versioned `config/validation-ownership.json` registry maps stable product and test path groups to a mandatory PR core, affected unit tests, resource-sensitive tests, and integration owners. The initial coarse owners are UI/rendering, launch/startup, release/package/update, Pi, native containment, image/history, governance, and shared product inputs. A changed retained test selects its owner; shared support selects every declared consumer; copies, renames, and deletions inspect both identities. Reasons and changed paths are recorded in `impact.json`.
 
-## Commands
+Unknown operational inputs, malformed policy, unavailable comparison history, workflow/selector/suite/aggregate changes, and manual Development dispatch select complete applicable coverage. Documentation-only and version-only changes retain explicit exemptions. Selection does not require whole-repository source parsing.
 
-The public commands remain:
+## Commands and coverage levels
+
+The public complete commands remain unchanged:
 
 ```bash
+npm run test:pr-core               # mandatory type/architecture checks and bounded smoke tests
 npm run test:fast                  # typecheck, changed docs, complete fast composition
 npm run test:scope -- <scope...>   # named atomic scopes
 npm run test:full                  # complete deduplicated local composition
 npm run test:release               # release gates; publication authority is unchanged
 ```
 
-Important atomic scopes are `fast-remainder`, `fast-resource-sensitive`, `dist-integration`, `pi-engine-conformance`, `release-update`, `package-smoke`, `package-contracts`, `package-startup`, `image-compatibility`, `history-compatibility`, and `unix-containment`. `fast` still composes both fast partitions. `package-install` still composes package contracts and startup. `full-release` includes every successor scope and deduplicates files.
+`test:pr-core` is not a replacement for `test:fast`: CI combines it with directly changed and coarse-owner tests from the exact impact selection. Selected resource-sensitive tests run independently on an isolated Windows runner. Selected package, startup, rendering, Pi, compatibility, and platform owners also run independently after their actual prerequisites.
 
-## Receipts and cache boundaries
+Conservative Development, Full regression, nightly, preview, and stable release retain complete tests and declared Windows Node 22/24, Linux Node 24, and macOS Node 24 coverage. Preview and release continue to consume exact candidate bytes under their channel-specific contracts. The generated ownership ledger command is:
 
-A build receipt binds checkout head, complete build inputs, toolchain, emitted files, and native artifacts. A package receipt additionally binds exact tarball bytes, packed entries, manifest/bin identity, producer, and its verified build receipt or release source identity. `VALIDATION_BUILD_READY` and `VALIDATION_CANDIDATE_TARBALL` only locate prerequisites; they never authorize reuse without matching receipts. Input, toolchain, output, native, candidate, entry, manifest, or producer drift invalidates reuse and performs fresh preparation or fails.
+```bash
+node scripts/release/generate-validation-ownership-ledger.mjs --output .artifacts/validation/ownership-ledger.json
+```
 
-Npm download bytes may be reused with integrity checks and `--prefer-offline`, with normal network fallback. Every install prefix remains fresh. Installed package trees, dependency certification, startup/profile/compile state, mutable fixture repositories, passing outcomes, and publication evidence are never restored from validation caches.
+## Failed-job reruns and attempt evidence
+
+Every modular outcome, content-free job envelope, and uploaded artifact name is qualified by `github.run_attempt`. Authority remains bound to the workflow run ID, exact head, complete selection identity, logical job, and platform/runtime target.
+
+For GitHub's explicit **re-run failed jobs** action, a successful job that GitHub did not rerun may be reused only from an earlier attempt of that same run/head/selection. A job executed in the current attempt must use its current outcome; failure, cancellation, malformed evidence, duplicate authority, or missing evidence blocks the aggregate. No result is reused across commits, workflow runs, or changed selections. The aggregate lists each reused job and original attempt. Workflows do not automatically retry semantic assertions or performance failures.
+
+## Receipts and artifact boundaries
+
+Checkout-bound type, architecture, governance, unit, and smoke outcomes bind head/run/selection/scope authority without inventing package identity. Build and package receipts remain mandatory wherever validation consumes emitted or packed bytes: package, startup, update, compatibility, preview, release, and publication boundaries.
+
+A build receipt binds checkout head, complete build inputs, toolchain, emitted files, and native artifacts. A package receipt additionally binds exact tarball bytes, packed entries, manifest/bin identity, producer, and verified build/source authority. `VALIDATION_BUILD_READY` and `VALIDATION_CANDIDATE_TARBALL` only locate prerequisites; stale or tampered receipts cause fresh preparation or failure.
+
+Npm download bytes may be reused with integrity checks and `--prefer-offline`, with normal network fallback. Every installation prefix remains fresh. Installed package trees, dependency certification, startup/profile state, mutable fixture repositories, passing outcomes, and publication evidence are never restored from caches.
 
 ## Evidence inspection
 
 Download these artifacts from the exact workflow run:
 
-- `development-validation-impact`: base/head, selection identity, decisions, and reasons.
-- `development-validation-outcome-*`: content-free job envelope, exact selected scopes, head/run/selection authority, gate durations, receipts, and bounded fixture phases.
-- `development-validation-aggregate-*`: selected owners, evidence count, critical-path estimate, runner time, setup/gate time, cache state, and invocation counts.
+- `development-validation-impact`: base/head, global selection identity, PR-core tests, integration decisions, exclusions, and bounded reasons.
+- `development-validation-outcome-<job>-<platform>-node<node>-attempt-<attempt>`: attempt-qualified outcome, content-free envelope, scope authority, gate durations, and applicable exact-artifact evidence.
+- `development-validation-aggregate-<head>-<run>-<attempt>`: selected owners, accepted/reused attempts, evidence count, critical path, runner time, setup/gate time, cache state, and invocation count.
 - startup/resume phase JSONL and performance JSON: first-attempt launch evidence and retained failed setup/readiness records.
 
-A selected job failure, cancellation, missing or duplicate artifact, stale head/run/selection, malformed outcome, unexpected skip, or evidence from an excluded owner fails `Development validation required`. Queue availability is reported as unavailable when GitHub does not expose a runner-side availability timestamp; it is calculated from the Actions API during final run analysis instead of guessed.
+The stable `Development validation required` check rejects selected failures, cancellations, stale head/run/selection evidence, duplicate authority, missing outcomes, unexpected skips, and contradictory exact-artifact evidence. Queue availability remains explicitly unavailable inside a runner and is calculated from the Actions API during final run analysis rather than guessed.
 
 ## Rollback
 
-To disable impact skips without removing coverage, make the selector use conservative mode (or dispatch Development manually). To disable prerequisite reuse, unset the readiness/tarball variables and their receipt paths; tier orchestration rebuilds and repacks. To audit from entirely fresh download state, use a new npm cache directory and fresh install prefix. Rollback must keep all scopes, startup budgets, Defender, retries/timeouts, platform/runtime lanes, exact-package identity, and the stable required aggregate. Receipts and PR evidence never change release publication authority.
+To disable selective execution without reducing coverage, use manual Development dispatch or force conservative ownership selection. To disable prior-attempt reuse, require all accepted attempts to equal the aggregate attempt; this must not remove attempt-qualified artifacts or failure visibility. To disable prerequisite reuse, unset readiness/tarball variables and receipt paths so tier orchestration rebuilds and repacks.
+
+Rollback must retain every test, startup budget, zero automatic retry policy, platform/runtime lane, exact-package identity, resource isolation, complete fast/full/release compositions, and the single stable protected-branch aggregate.

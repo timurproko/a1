@@ -88,6 +88,25 @@ describe("validation tier planning", () => {
     expect(plan.vitest?.invocations[0]?.arguments).toContain("test/integrations/pi/tui-runtime/input-responsiveness-budgets.test.ts");
   });
 
+  it("plans the bounded PR core and dynamic affected tests without redefining fast", async () => {
+    const selected = await createTierPlan(["typecheck", "architecture", "pr-core-tests", "pr-selected-tests"], process.cwd(), {
+      additionalTests: ["test/cli/capabilities.test.ts", "test/features/workspace/capabilities.test.ts"],
+    });
+    expect(selected.selected).toEqual(["typecheck", "architecture", "pr-core-tests", "pr-selected-tests"]);
+    expect(selected.vitest?.invocations).toEqual([
+      expect.objectContaining({ id: "vitest-explicit", arguments: expect.arrayContaining(["test/cli/capabilities.test.ts", "test/features/workspace/capabilities.test.ts"]) }),
+    ]);
+    expect(selected.vitest?.invocations[0]!.arguments.filter(value => value === "test/cli/capabilities.test.ts")).toHaveLength(1);
+    const resource = await createTierPlan(["pr-selected-resource"], process.cwd(), {
+      additionalTests: ["test/foundation/storage/storage.test.ts"],
+    });
+    expect(resource.vitest?.invocations).toEqual([
+      expect.objectContaining({ id: "vitest-fast-resource-sensitive-1", evidence: expect.objectContaining({ retries: 0, fileParallelism: false }) }),
+    ]);
+    const completeFast = await createTierPlan(["fast"]);
+    expect(completeFast.selected).toEqual(["fast-remainder", "fast-resource-sensitive"]);
+  });
+
   it("serializes smoke and full rendering evidence outside the fast worker pool", async () => {
     const smoke = await createTierPlan(["fast", "rendering-smoke"]);
     expect(smoke.vitest?.invocations[0]).toEqual(expect.objectContaining({ id: "vitest-fast" }));
