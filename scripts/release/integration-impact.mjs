@@ -20,7 +20,11 @@ export function classifyIntegrationImpact({ baseId, headId, changes, owners, cor
     if (linked.has(owner.id)) reasons.push({ code: "coarse-owner", paths: coarsePaths(coreSelection, owner.id) });
     if (directTests.length > 0) reasons.push({ code: "changed-test", paths: directTests.slice(0, 16) });
     if (support.length > 0) reasons.push({ code: "shared-support", paths: support.slice(0, 16) });
-    return { owner: owner.id, selected: reasons.length > 0, reasons: reasons.length > 0 ? reasons : [{ code: owner.development ? "unrelated" : "not-development", paths: [] }] };
+    if (owner.cadence === "exhaustive") {
+      const affectedPaths = [...new Set(reasons.flatMap(reason => reason.paths))].slice(0, 16);
+      return { owner: owner.id, selected: false, reasons: [{ code: "exhaustive-cadence", paths: affectedPaths }] };
+    }
+    return { owner: owner.id, selected: reasons.length > 0, reasons: reasons.length > 0 ? reasons : [{ code: "unrelated", paths: [] }] };
   });
   const selection = createIntegrationSelection({ base: baseId, head: headId, ownership: selectionOwnership(owners), mode: "impact", decisions });
   return { selection, fallback: null };
@@ -41,7 +45,9 @@ export function selectIntegrationImpact(options) {
 export function conservativeIntegrationImpact({ base, head, owners, reason = "classifier-failure" }) {
   assertOwners(owners);
   if (!commit(base) || !commit(head)) throw new TypeError("conservative integration selection requires authoritative commits");
-  const decisions = owners.map(owner => ({ owner: owner.id, selected: true, reasons: [{ code: "conservative-fallback", paths: [] }] }));
+  const decisions = owners.map(owner => owner.cadence === "pull-request"
+    ? { owner: owner.id, selected: true, reasons: [{ code: "conservative-fallback", paths: [] }] }
+    : { owner: owner.id, selected: false, reasons: [{ code: "exhaustive-cadence", paths: [] }] });
   return { selection: createIntegrationSelection({ base, head, ownership: selectionOwnership(owners), mode: "conservative", decisions }), fallback: reason };
 }
 
@@ -60,18 +66,18 @@ function conservativeReason(selection) {
   return code ?? "classifier-failure";
 }
 function selectionOwnership(owners) {
-  return { schema: "a1-integration-ownership-v1", owners: owners.map(({ id, scopes, targets, development }) => ({ id, scopes, targets, development })) };
+  return { schema: "a1-integration-ownership-v2", owners: owners.map(({ id, cadence, scopes, targets }) => ({ id, cadence, scopes, targets })) };
 }
 function assertOwners(owners) {
   if (!Array.isArray(owners) || owners.length === 0 || owners.length > MAX_OWNERS) throw new TypeError("integration owner population missing or unbounded");
   const ids = new Set();
   for (const owner of owners) {
-    const keys = ["id", "scopes", "targets", "development", "entries", "tests", "support"];
+    const keys = ["id", "cadence", "scopes", "targets", "entries", "tests", "support"];
     if (!owner || typeof owner !== "object" || Array.isArray(owner) || Object.keys(owner).length !== keys.length || keys.some(key => !Object.hasOwn(owner, key))
       || !/^[a-z][a-z0-9-]{0,63}$/u.test(owner.id) || ids.has(owner.id)) throw new TypeError("invalid integration owner definition");
     ids.add(owner.id);
     for (const key of ["scopes", "targets", "entries", "tests", "support"]) if (!Array.isArray(owner[key]) || owner[key].length > 512) throw new TypeError("invalid integration owner list");
-    if (owner.entries.length === 0 || owner.scopes.length === 0 || owner.targets.length === 0 || typeof owner.development !== "boolean") throw new TypeError("incomplete integration owner definition");
+    if (owner.entries.length === 0 || owner.scopes.length === 0 || owner.targets.length === 0 || !["pull-request", "exhaustive"].includes(owner.cadence)) throw new TypeError("incomplete integration owner definition");
   }
 }
 function completePaths(changes) {

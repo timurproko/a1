@@ -5,11 +5,11 @@ import type { ValidationOwnershipSelection } from "../../scripts/release/validat
 const baseId = "a".repeat(40), headId = "b".repeat(40);
 const target = { platform: "win32", architecture: "x64", node: 22 } as const;
 const owners: IntegrationImpactOwner[] = [
-  { id: "startup", scopes: ["startup"], targets: [target], development: true,
+  { id: "startup", cadence: "pull-request", scopes: ["startup"], targets: [target],
     entries: ["test/startup.test.ts"], tests: ["test/startup.test.ts"], support: ["test/support/startup/"] },
-  { id: "images", scopes: ["images"], targets: [target], development: true,
+  { id: "images", cadence: "pull-request", scopes: ["images"], targets: [target],
     entries: ["test/images.test.ts"], tests: ["test/images.test.ts"], support: ["test/support/images/"] },
-  { id: "predecessor", scopes: ["predecessor"], targets: [target], development: false,
+  { id: "predecessor", cadence: "exhaustive", scopes: ["predecessor"], targets: [target],
     entries: ["test/predecessor.test.ts"], tests: ["test/predecessor.test.ts"], support: ["test/support/predecessor/"] },
 ];
 
@@ -34,9 +34,9 @@ describe("coarse integration ownership", () => {
     expect(decision(result, "images").selected).toBe(false);
   });
 
-  it("promotes a directly changed retained test even for a full-only owner", () => {
+  it("defers a directly changed exhaustive test with its affected path", () => {
     const result = classify([{ status: "M", path: "test/predecessor.test.ts" }]);
-    expect(decision(result, "predecessor")).toMatchObject({ selected: true, reasons: [expect.objectContaining({ code: "changed-test" })] });
+    expect(decision(result, "predecessor")).toMatchObject({ selected: false, reasons: [{ code: "exhaustive-cadence", paths: ["test/predecessor.test.ts"] }] });
   });
 
   it.each([
@@ -48,11 +48,13 @@ describe("coarse integration ownership", () => {
     expect(decision(classify([change]), "startup").reasons).toEqual(expect.arrayContaining([expect.objectContaining({ code: "shared-support" })]));
   });
 
-  it("selects every owner for conservative and manual comparisons", () => {
+  it("selects every pull-request owner and defers exhaustive owners for conservative and manual comparisons", () => {
     const conservative = classify([{ status: "M", path: "config/validation-ownership.json" }], core("conservative"));
-    expect(conservative.selection.owners.every(owner => owner.selected)).toBe(true);
+    expect(conservative.selection.owners.filter(owner => owner.cadence === "pull-request").every(owner => owner.selected)).toBe(true);
+    expect(decision(conservative, "predecessor")).toMatchObject({ cadence: "exhaustive", selected: false, reasons: [{ code: "exhaustive-cadence", paths: [] }] });
     const manual = selectIntegrationImpact({ baseId, headId, owners: structuredClone(owners), coreSelection: core("conservative"), manualNoComparison: true });
     expect(manual).toMatchObject({ fallback: "manual-no-comparison", selection: { mode: "conservative" } });
+    expect(decision(manual, "predecessor").selected).toBe(false);
   });
 
   it.each(["docs-only", "version-only"] as const)("explicitly excludes all owners for %s", exemption => {

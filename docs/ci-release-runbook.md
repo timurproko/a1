@@ -46,7 +46,7 @@ effect of stable publication, not a trigger.
 
 | Trigger | Validation and outcome |
 | --- | --- |
-| Pull request into `develop` | Modular fast validation; changed/new source documentation is checked once, and rendering runs as `none`, `smoke`, or `full` from the exact impact |
+| Pull request into `develop` | Bounded PR-cadence validation; changed/new source documentation is checked once, rendering runs as `none`, `smoke`, or `full`, and exhaustive owners are reported as deferred |
 | `npm run develop` | Preview package gates on Windows, Linux, and macOS; an existing numbered preview is an early successful no-op |
 | Nightly at `03:17 UTC` | One full documentation review plus the complete non-physical suite on Windows, Linux, and macOS, every night |
 | `npm run release -- ...` | Complete exact-byte stable gates, then npm `latest`, tag, GitHub Release, and `master` |
@@ -57,6 +57,12 @@ effect of stable publication, not a trigger.
 `scripts/release/select-validation-impact.mjs` is the single pull-request selector. It records the complete merge-base-to-head name-status diff, changed/new documentation inputs, rendering dependency reasons, conservative fallbacks, and the exact head SHA in a machine-readable artifact. Missing history, unresolved rendering dependencies, unknown relevant inputs, or classifier failure select full rendering rather than silently skipping it.
 
 Ordinary type, architecture, unit/contract, and dist checks always run for code changes. Changed-file documentation and rendering run as independent parallel jobs. Rendered shell/component changes select `smoke`; viewport, scheduler, terminal adapter, evidence harness, package identity, and selector changes select `full`; unrelated changes select `none`. The aggregate accepts a skipped modular job only when the current selector requested the skip.
+
+Integration owners declare one cadence in `config/integration-owners.json`. Impact mode selects affected `pull-request` owners; an invalidator, unknown operational path, or manual Development dispatch selects every `pull-request` owner. `exhaustive` owners are never silently skipped or reported as passed: impact and aggregate evidence list them as cadence-deferred, and malformed cadence blocks selection. Full regression and nightly/stable release still execute both cadence classes.
+
+The real three-release `update-predecessor` scenario is exhaustive because four fresh npm installations dominated recent PR critical paths. PR validation retains deterministic predecessor command, lifecycle, fault, fixture, materialization, warmup, package, and update contracts. This permits a real published-history incompatibility to reach `develop` before nightly detects it; nightly failure still blocks publication. For a high-risk release/update change, explicitly dispatch `.github/workflows/full-regression.yml` before merge instead of adding the exhaustive owner back to ordinary Development.
+
+Development outcomes report each owner/scope invocation separately while sharing authenticated build/package preparation. The aggregate reports setup, scope, job, aggregate-processing, total runner, and runner-critical-path durations. The acceptance targets are at most eight minutes of runner critical path and five minutes for one PR-required scope; an over-target result remains unmet without retries, timeout increases, workload reduction, or mutable installation caches. Hosted queue time is reported separately when available and is not counted as test execution.
 
 Inspect local committed and worktree impact without running tests:
 
@@ -107,7 +113,7 @@ node scripts/release/report-resource-sensitive-validation.mjs --repeats 3 --outp
 
 Each selected startup lane runs the package-install scenarios once: a failed budget remains failed and is never retried to obtain a warmed result. Both post-update profiles must reach input-ready state within five seconds, and both warm profiles must remain within three seconds. Node 24 runtime support, other PR jobs, Defender, and publication gates are unchanged. Full validation retains every deferred startup, image, and history test through its existing suite owners.
 
-The trade-off is delayed detection: a Node-24-specific regression can reach `develop` before nightly catches it. A green Node 22 PR check does not certify Node 24, and nightly failure still blocks its publication. When Node 24 feedback is needed before nightly, explicitly request the non-publishing Full regression workflow for the desired branch or tag:
+The trade-off is delayed detection: a Node-24-specific regression can reach `develop` before nightly catches it, and the same is true for a real published-predecessor regression. A green bounded PR check does not certify Node 24 or real historical predecessor execution, and nightly failure still blocks its publication. When deferred feedback is needed before nightly, explicitly request the non-publishing Full regression workflow for the desired branch or tag:
 
 ```sh
 gh workflow run full-regression.yml --ref <branch-or-tag>
@@ -233,7 +239,8 @@ Rules that do not bend:
 
 ## When something fails
 
-- **PR validation fails:** fix the code and push; do not mark a failed tier optional.
+- **PR validation fails:** fix the code and push; do not mark a failed PR-cadence tier optional. If real predecessor history is needed, run Full regression rather than changing the exhaustive result into PR success.
+- **Nightly exhaustive predecessor validation fails:** treat the focused PR result as insufficient, keep publication blocked, and repair the incompatibility without reducing predecessor count, timeouts, or exact-package isolation.
 - **Documentation auto-merge fails:** leave the pull request open, inspect its exact
   changed-file classification, docs-sensitive inventory, and workflow permissions,
   and never broaden the allowlist to make one pull request pass.

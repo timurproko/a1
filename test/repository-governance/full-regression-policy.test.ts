@@ -98,6 +98,28 @@ describe("complete regression automation", () => {
       .flatMap(invocation => invocation.arguments)).toContain("test/features/prompt-history/store.test.ts");
   });
 
+  it("retains the unchanged three-release predecessor oracle in complete validation", async () => {
+    const [suites, source] = await Promise.all([
+      readFile("config/validation-suites.json", "utf8").then(JSON.parse),
+      readFile("test/foundation/release/update-predecessor.integration.test.ts", "utf8"),
+    ]);
+    expect(suites.tiers["full-release"].includes).toContain("update-predecessor");
+    expect(suites.scopes["update-predecessor"]).toMatchObject({
+      requiresBuild: true,
+      consumesPackage: true,
+      tests: ["test/foundation/release/update-predecessor.integration.test.ts"],
+    });
+    const plan = await createTierPlan(["full-release"]);
+    expect(plan.selected).toContain("update-predecessor");
+    const fullArguments = plan.vitest!.invocations.find(invocation => invocation.id === "vitest-full-without-isolated")!.arguments;
+    const exclusions = fullArguments.filter((_argument, index) => fullArguments[index - 1] === "--exclude");
+    expect(exclusions).not.toContain("test/foundation/release/update-predecessor.integration.test.ts");
+    expect(source).toContain('UPDATE_PREDECESSOR_COUNT ?? "3"');
+    expect(source).toContain("fixture.phase(900_000");
+    expect(source).toContain("fixture.phase(1_800_000");
+    expect(source).not.toMatch(/retry|cache/i);
+  });
+
   it("reports owned failures and timings without publication authority", async () => {
     const workflow = await readFile(".github/workflows/full-regression.yml", "utf8");
     expect(workflow).toContain("Report gate ownership and timing");
