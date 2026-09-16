@@ -49,7 +49,7 @@ export const PINNED_PI_BUILTIN_SLASH_COMMANDS = [
   { name: "compact", description: "Manually compact the session context" },
   { name: "resume", description: "Resume a different session" },
   { name: "reload", description: "Reload keybindings, extensions, skills, prompts, themes, and context files" },
-  { name: "quit", description: "Quit pi" },
+  { name: "quit", description: "Quit" },
 ];
 
 export function createPiShellEditor(options: PiShellEditorOptions): PiShellEditorPort {

@@ -250,6 +250,10 @@ describe("Pi shell public component adapters", () => {
 
   it("binds the pinned built-in command manifest to public editor autocomplete", async () => {
     expect(PINNED_PI_BUILTIN_SLASH_COMMANDS.map(command => command.name)).toHaveLength(22);
+    expect(PINNED_PI_BUILTIN_SLASH_COMMANDS.find(command => command.name === "quit")).toEqual({
+      name: "quit",
+      description: "Quit",
+    });
     const editor = createPiShellEditor({
       getColumns: () => 80,
       getRows: () => 24,

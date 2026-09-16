@@ -91,13 +91,16 @@ describe("repository-local development launch", () => {
         launchArguments: [],
         directProfile: "a1",
         profileConfigurationRoot: resolve(profileHome, ".a1/agent"),
-        environment: { PI_CODING_AGENT_DIR: resolve(profileHome, ".a1/agent") },
+        environment: {
+          PI_CODING_AGENT_DIR: resolve(profileHome, ".a1/agent"),
+          NODE_DISABLE_COMPILE_CACHE: "1",
+        },
       });
       expect(JSON.parse(pi.stdout)).toMatchObject({
         launchArguments: ["pi"],
         directProfile: "pi",
         profileConfigurationRoot: null,
-        environment: { PI_CODING_AGENT_DIR: null },
+        environment: { PI_CODING_AGENT_DIR: null, NODE_DISABLE_COMPILE_CACHE: "1" },
       });
       expect(JSON.parse(owned.stdout).environment.PI_CODING_AGENT_DIR).not.toBe(inheritedPiProfile);
     } finally {
