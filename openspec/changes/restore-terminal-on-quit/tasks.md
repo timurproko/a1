@@ -11,3 +11,8 @@
 
 - [x] 3.1 Add a bounded child-process or PTY regression that drives `/quit` and double `Ctrl+C` through the supported launch boundary; verify each child exits successfully, terminal modes are restored, and a parent-shell continuation marker can run without an extra signal.
 - [x] 3.2 Run the focused session-shell, autocomplete, launch/process, and terminal-restoration test scopes plus typechecking; record passing evidence or explicitly disposition every observed gap before finalization.
+
+## 4. Live Acceptance Refinement
+
+- [x] 4.1 Reproduce the live post-cleanup hang with an extension-style active server handle and strengthen the child-process regression so terminal restoration without actual process completion fails.
+- [x] 4.2 Add executable-boundary completion only after owned cleanup and bounded output drain; verify both quit routes exit successfully with the retained handle, then rerun focused validation and record the refined evidence.

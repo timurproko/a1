@@ -12,6 +12,11 @@ The owned interactive UI SHALL treat `/quit` and the second `Ctrl+C` in the exis
 - **WHEN** the user presses `Ctrl+C` twice within the existing clear/exit interval
 - **THEN** the second press SHALL complete the same graceful shutdown, terminal restoration, successful process exit, and parent-shell return as `/quit`
 
+#### Scenario: An extension retains an event-loop handle
+- **WHEN** owned UI cleanup has completed but a loaded extension leaves a server, timer, or comparable event-loop handle active
+- **THEN** the interactive A1 executable SHALL preserve completed terminal restoration and configured exit output
+- **AND** it SHALL still terminate successfully and return control to the parent shell
+
 #### Scenario: Describe the quit command
 - **WHEN** slash-command autocomplete presents the built-in `quit` command
 - **THEN** its description SHALL be `Quit`

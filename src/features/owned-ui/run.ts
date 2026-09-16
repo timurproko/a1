@@ -3,6 +3,8 @@ import type { OwnedUiSettingsSession } from "../../ui/settings/index.js";
 import { markStartupPhase } from "../../foundation/startup/index.js";
 import { boundedCleanup } from "../../foundation/terminal-cleanup/index.js";
 
+const PROCESS_OUTPUT_FLUSH_TIMEOUT_MS = 250;
+
 export interface OwnedUiRunOptions {
   readonly application: OwnedUiApplicationPort;
   /**
@@ -10,6 +12,17 @@ export interface OwnedUiRunOptions {
    * values for the life of the session. Omitted when the caller runs without settings.
    */
   readonly settings?: OwnedUiSettingsSession;
+}
+
+/**
+ * Completes the interactive executable only after runOwnedUi has restored its terminal.
+ * Extensions are untrusted process guests and can retain servers or timers after session
+ * shutdown, so assigning exitCode alone cannot guarantee return to the invoking shell.
+ */
+export async function terminateOwnedUiProcess(code: number): Promise<never> {
+  process.exitCode = code;
+  await Promise.all([flushProcessOutput(process.stdout), flushProcessOutput(process.stderr)]);
+  return process.exit(code);
 }
 
 export async function runOwnedUi(options: OwnedUiRunOptions): Promise<number> {
@@ -34,4 +47,19 @@ export async function runOwnedUi(options: OwnedUiRunOptions): Promise<number> {
       throw error;
     }
   }
+}
+
+async function flushProcessOutput(stream: NodeJS.WriteStream): Promise<void> {
+  if (stream.destroyed || !stream.writable) return;
+  await new Promise<void>(resolve => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      resolve();
+    };
+    const timeout = setTimeout(finish, PROCESS_OUTPUT_FLUSH_TIMEOUT_MS);
+    try { stream.write("", finish); } catch { finish(); }
+  });
 }

@@ -22,6 +22,7 @@ describe("owned UI graceful quit process boundary", () => {
       altScreenRestored: boolean;
       mouseReportingDisabled: boolean;
       parentShellContinuation: string;
+      retainedExtensionHandle: boolean;
     };
     expect(result).toEqual({
       route,
@@ -32,6 +33,7 @@ describe("owned UI graceful quit process boundary", () => {
       altScreenRestored: true,
       mouseReportingDisabled: true,
       parentShellContinuation: "parent-shell-ready",
+      retainedExtensionHandle: true,
     });
   }, 15_000);
 });

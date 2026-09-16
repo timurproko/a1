@@ -1,7 +1,8 @@
 import { mkdir } from "node:fs/promises";
+import { createServer } from "node:net";
 import { join } from "node:path";
 import * as pi from "@earendil-works/pi-coding-agent";
-import { runOwnedUi } from "../../src/features/owned-ui/index.js";
+import { runOwnedUi, terminateOwnedUiProcess } from "../../src/features/owned-ui/index.js";
 import { createPiEngineAdapter } from "../../src/integrations/pi/engine/index.js";
 import { OwnedUiSessionShell } from "../../src/integrations/pi/session-ui/index.js";
 import { TestPresentationTerminal } from "../features/owned-ui/neutral-port-doubles.js";
@@ -10,6 +11,16 @@ import { createCommandOutcomeState } from "../integrations/pi/session-ui/command
 const [route, home] = process.argv.slice(2);
 if ((route !== "slash" && route !== "chord") || !home) throw new Error("Invalid graceful-quit fixture arguments");
 await mkdir(home, { recursive: true });
+// Regression: extensions can retain process-level handles after their session shutdown callback.
+// Keep this server open deliberately; the executable boundary must still complete after owned cleanup.
+const retainedExtensionServer = createServer();
+await new Promise<void>((resolve, reject) => {
+  retainedExtensionServer.once("error", reject);
+  retainedExtensionServer.listen(0, "127.0.0.1", () => {
+    retainedExtensionServer.off("error", reject);
+    resolve();
+  });
+});
 const state = createCommandOutcomeState(home, { command: "quit", condition: "success" }, pi);
 const adapter = await createPiEngineAdapter({
   cwd: home,
@@ -56,4 +67,6 @@ process.stdout.write(`${JSON.stringify({
   altScreenRestored: controls.includes("\u001b[?1049l"),
   mouseReportingDisabled: controls.includes("\u001b[?1003l") && controls.includes("\u001b[?1006l"),
   parentShellContinuation: "parent-shell-ready",
+  retainedExtensionHandle: retainedExtensionServer.listening,
 })}\n`);
+await terminateOwnedUiProcess(exitCode);
