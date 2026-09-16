@@ -58,7 +58,12 @@ describe("repository-owned atomic delivery guidance", () => {
     const cleanup = await readFile("docs/local-worktree-cleanup.md", "utf8");
     expect(cleanup).toContain("`.artifacts/validation`");
     expect(cleanup).toContain("`.artifacts`, sibling directories");
-    expect(cleanup).toContain("`.artifacts/validation-user` remain blocking");
+    expect(cleanup).toContain("`.artifacts/validation-user`");
+    expect(cleanup).toContain("`native/process-guardian/target`");
+    expect(cleanup).toContain("`native/terminal-host/target`");
+    expect(cleanup).toContain("arbitrary `target` directories");
+    expect(cleanup).toContain("bounded to 20,000 ordinary entries plus 100,000 entries beneath exact approved generated roots");
+    expect(cleanup).toContain("exhausting either allowance never grants deletion authority");
   });
 
   it("documents valid draft and finalized single-PR links without inventing acceptance", async () => {

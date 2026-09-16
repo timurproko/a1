@@ -10,6 +10,8 @@ export const COMPLETION_DISPOSABLE_PATHS = Object.freeze([
   ".builds",
   ".artifacts/openspec-archive",
   ".artifacts/validation",
+  "native/process-guardian/target",
+  "native/terminal-host/target",
 ]);
 
 const sameIdentity = (entry, snapshot) => ["path", "filesystem", "head", "ref"].every(key => entry[key] === snapshot[key]);
