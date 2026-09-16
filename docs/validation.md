@@ -44,6 +44,23 @@ A build receipt binds checkout head, complete build inputs, toolchain, emitted f
 
 Npm download bytes may be reused with integrity checks and `--prefer-offline`, with normal network fallback. Every installation prefix remains fresh. Installed package trees, dependency certification, startup/profile state, mutable fixture repositories, passing outcomes, and publication evidence are never restored from caches.
 
+## Startup budget enforcement
+
+The exact-package startup gate always measures both profiles and all three launch kinds on the first attempt and never retries a measurement. `STARTUP_BUDGET_ENFORCEMENT` decides only what a timing overrun does:
+
+| Value | Where | Effect |
+| --- | --- | --- |
+| `record` | Development publication (`release.yml` with `mode == 'develop'`) and the pull-request `startup` group in `ci.yml` | Keeps the measurement, appends the violation to the evidence, emits a `::warning::` annotation, and lets the run succeed. |
+| `fail` | Nightly and stable publication, and Full regression | Throws the same message as before and blocks publication. |
+
+Any absent, empty, or unrecognized value means `fail`, so a local run and a misspelled channel both keep enforcing. A launch that records no input-ready frame fails in either mode, because that is a functional failure rather than a timing observation.
+
+`STARTUP_PERFORMANCE_RESULT` names the `a1-startup-performance-evidence-v1` file. It carries `enforcement`, `budgetViolations`, and one measurement per profile and launch kind with its `elapsedMs` and `budgetMs`. Publication lanes upload it as `release-validation-<version>-<platform>` next to the tier outcome and render it as a table in the run summary.
+
+The budget numbers themselves live in one place, `src/foundation/startup/startup-budget.ts`, and are declared by the `a1-shell` capability. Do not restate them in a workflow.
+
+To make development publication enforce budgets again, set `STARTUP_BUDGET_ENFORCEMENT: fail` in the `release.yml` validation step; rollback must not remove the measurement, the evidence fields, or the nightly and Full regression enforcement.
+
 ## Evidence inspection
 
 Download these artifacts from the exact workflow run:

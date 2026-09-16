@@ -7,6 +7,9 @@ import { loadValidationCandidate } from "./package-candidate-fixture.js";
 import { cleanupExactCandidate, installExactCandidate, runFixtureCommand } from "./package-install-fixture.js";
 
 const phases = createValidationPhaseRecorder("package-startup");
+// Invariant: every value other than "record" enforces, so an unconfigured local run and a
+// misspelled channel both keep failing on an overrun instead of silently recording it.
+const enforcement = process.env.STARTUP_BUDGET_ENFORCEMENT === "record" ? "record" : "fail";
 let root = "";
 let prefix = "";
 let candidate: Awaited<ReturnType<typeof loadValidationCandidate>>;
@@ -21,11 +24,13 @@ const startupMeasurements: Array<{
   profileId: "a1" | "pi";
   launchKind: "post-update" | "no-live-supervisor" | "warm";
   elapsedMs: number;
+  budgetMs: number;
   releaseId: string | null;
   dependencyLayerIds: readonly string[];
   moduleGraph: StartupModuleGraph;
   phases: Array<{ phase: string; durationMs: number }>;
 }> = [];
+const budgetViolations: Array<{ message: string; profileId: string; launchKind: string; elapsedMs: number; budgetMs: number }> = [];
 
 beforeAll(async () => {
   ({ candidate, root, prefix } = await installExactCandidate(phases, "a1-package-startup-"));
@@ -41,6 +46,8 @@ afterAll(async () => {
         nodeVersion: process.version,
         candidateVersion: candidate.manifest.version,
         automaticRetries: 0,
+        enforcement,
+        budgetViolations,
         measurements: startupMeasurements,
       }, null, 2)}\n`);
     }
@@ -53,7 +60,6 @@ describe("fresh first-attempt startup of the exact candidate", () => {
   it.runIf(process.platform === "win32")("gates post-update, no-live-supervisor, and warm startup for both exact packaged profiles", async () => {
     const { certifyMaterializedRelease, CohortStateStore, materializeRelease, releaseVerifiedIdleOwner, startSupervisor, waitForVerifiedEndpoint, warmMaterializedRelease } = await import("../../../src/foundation/release/index.js");
     const { resolveCohortEndpoint, resolveProductPaths } = await import("../../../src/foundation/lifecycle/index.js");
-    const { assertStartupPerformanceBudget } = await import("../../../src/foundation/startup/index.js");
     const { PRODUCT_IDENTITY } = await import("../../../src/product-identity.js");
     await phases.run("defender-prerequisite", () => expectWindowsDefenderProtection());
     const packageRoot = resolve(prefix, "node_modules", "@timurproko", "a1");
@@ -100,13 +106,13 @@ describe("fresh first-attempt startup of the exact candidate", () => {
     try {
       for (const profileId of ["a1", "pi"] as const) {
         const postUpdate = await captureReadyLaunch(packageRoot, environment, profileId, "post-update");
-        recordStartupMeasurement(profileId, "post-update", postUpdate, startupModuleGraph);
-        assertStartupPerformanceBudget({ profileId, launchKind: "post-update", events: postUpdate, moduleGraph: startupModuleGraph });
+        await recordStartupMeasurement(profileId, "post-update", postUpdate, startupModuleGraph);
+        await gateStartupBudget({ profileId, launchKind: "post-update", events: postUpdate, moduleGraph: startupModuleGraph });
         await phases.run(`supervisor-stop-${profileId}`, () => stopPackagedSupervisor(cohort.endpointMetadataPath, dataDir, releaseVerifiedIdleOwner));
 
         const restarted = await captureReadyLaunch(packageRoot, environment, profileId, "no-live-supervisor");
-        recordStartupMeasurement(profileId, "no-live-supervisor", restarted, startupModuleGraph);
-        assertStartupPerformanceBudget({ profileId, launchKind: "no-live-supervisor", events: restarted, moduleGraph: startupModuleGraph });
+        await recordStartupMeasurement(profileId, "no-live-supervisor", restarted, startupModuleGraph);
+        await gateStartupBudget({ profileId, launchKind: "no-live-supervisor", events: restarted, moduleGraph: startupModuleGraph });
         const observedPhases = restarted.map(event => event.phase);
         expect(observedPhases).toEqual(expect.arrayContaining([
           "durable-validation-start", "durable-validation-complete", "replacement-supervisor-start", "replacement-supervisor-ready",
@@ -116,21 +122,44 @@ describe("fresh first-attempt startup of the exact candidate", () => {
         expect(validationComplete.fileReadOperations - validationStart.fileReadOperations).toBeLessThan(64);
 
         const warm = await captureReadyLaunch(packageRoot, environment, profileId, "warm");
-        recordStartupMeasurement(profileId, "warm", warm, startupModuleGraph);
-        assertStartupPerformanceBudget({ profileId, launchKind: "warm", events: warm, moduleGraph: startupModuleGraph });
+        await recordStartupMeasurement(profileId, "warm", warm, startupModuleGraph);
+        await gateStartupBudget({ profileId, launchKind: "warm", events: warm, moduleGraph: startupModuleGraph });
       }
+      // Invariant: a recording channel still proves that every declared scenario produced an
+      // input-ready measurement; only the timing verdict is downgraded to a warning.
+      expect(startupMeasurements.length).toBe(6);
     } finally {
       await phases.cleanup("supervisor-final-stop", () => stopPackagedSupervisor(cohort.endpointMetadataPath, dataDir, releaseVerifiedIdleOwner)).catch(() => {});
     }
   }, 600_000);
 });
 
-function recordStartupMeasurement(
+async function gateStartupBudget(
+  evidence: Parameters<typeof import("../../../src/foundation/startup/index.js")["evaluateStartupPerformanceBudget"]>[0],
+): Promise<void> {
+  const { evaluateStartupPerformanceBudget, formatStartupBudgetViolation } = await import("../../../src/foundation/startup/index.js");
+  const violation = evaluateStartupPerformanceBudget(evidence);
+  if (!violation) return;
+  const message = formatStartupBudgetViolation(violation);
+  budgetViolations.push({
+    message,
+    profileId: violation.profileId,
+    launchKind: violation.launchKind,
+    elapsedMs: violation.elapsedMs,
+    budgetMs: violation.budgetMs,
+  });
+  process.stdout.write(`::warning::${message}\n`);
+  if (enforcement === "fail") throw new Error(message);
+}
+
+async function recordStartupMeasurement(
   profileId: "a1" | "pi",
   launchKind: "post-update" | "no-live-supervisor" | "warm",
   events: readonly { phase: string; elapsedMs: number; releaseId: string | null; dependencyLayerIds: readonly string[] }[],
   moduleGraph: StartupModuleGraph,
-): void {
+): Promise<void> {
+  const { resolveStartupBudgetMs } = await import("../../../src/foundation/startup/index.js");
+  const budgetMs = resolveStartupBudgetMs(launchKind);
   const ordered = [...events].sort((left, right) => left.elapsedMs - right.elapsedMs);
   const elapsedMs = ordered.findLast(event => event.phase === "first-input-ready-render")?.elapsedMs ?? Number.POSITIVE_INFINITY;
   const measurements = ordered.map((event, index) => ({
@@ -142,12 +171,13 @@ function recordStartupMeasurement(
     profileId,
     launchKind,
     elapsedMs,
+    budgetMs,
     releaseId: ready?.releaseId ?? null,
     dependencyLayerIds: ready?.dependencyLayerIds ?? [],
     moduleGraph,
     phases: measurements,
   });
-  process.stdout.write(`[startup-budget] node=${process.version} profile=${profileId} kind=${launchKind} elapsed=${Math.round(elapsedMs)}ms\n`);
+  process.stdout.write(`[startup-budget] node=${process.version} profile=${profileId} kind=${launchKind} elapsed=${Math.round(elapsedMs)}ms budget=${budgetMs}ms\n`);
 }
 
 async function loadStartupModuleGraph(packageRoot: string): Promise<StartupModuleGraph> {

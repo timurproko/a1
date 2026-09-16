@@ -55,7 +55,7 @@ describe("exact-package startup and non-timing ownership", () => {
     expect(startup).toContain('(Get-MpComputerStatus).RealTimeProtectionEnabled');
     expect(startup).toContain('for (const profileId of ["a1", "pi"] as const)');
     for (const kind of ["post-update", "no-live-supervisor", "warm"]) {
-      expect(startup.match(new RegExp(`assertStartupPerformanceBudget\\(\\{ profileId, launchKind: "${kind}"`, "g")), kind).toHaveLength(1);
+      expect(startup.match(new RegExp(`gateStartupBudget\\(\\{ profileId, launchKind: "${kind}"`, "g")), kind).toHaveLength(1);
       expect(startup).toContain(`recordStartupMeasurement(profileId, "${kind}"`);
     }
     expect(startup).toContain('phases.run("startup-cold-state"');
@@ -64,6 +64,12 @@ describe("exact-package startup and non-timing ownership", () => {
     expect(startup).toContain("validationComplete.fileReadOperations - validationStart.fileReadOperations");
     expect(startup).toContain("const deadline = Date.now() + 15_000");
     expect(startup).toContain("automaticRetries: 0");
+    expect(startup).toContain('process.env.STARTUP_BUDGET_ENFORCEMENT === "record" ? "record" : "fail"');
+    expect(startup).toContain("evaluateStartupPerformanceBudget(evidence)");
+    expect(startup).toContain('if (enforcement === "fail") throw new Error(message)');
+    expect(startup).toContain("expect(startupMeasurements.length).toBe(6)");
+    expect(startup).toContain("enforcement,");
+    expect(startup).toContain("budgetViolations,");
     expect(contracts).toContain("createPackagedCleanupBacklog(dataDir, 42, 128)");
   });
 
