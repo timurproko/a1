@@ -674,6 +674,50 @@ describe("prompt-style compaction in the real engine and shell", () => {
 });
 
 describe("OwnedUiSessionShell", () => {
+  it("reserves and settles the cold first Ctrl+V exactly once before any mouse paste", async () => {
+    let release!: (value: string) => void;
+    const readText = vi.fn(() => new Promise<string>(resolve => { release = resolve; }));
+    const events: Array<{ request: number; phase: string }> = [];
+    const { shell, terminal } = await fixture([], [], true, undefined, { readText }, undefined, undefined, undefined, undefined, undefined, undefined,
+      event => events.push({ request: event.request, phase: event.phase }));
+    try {
+      terminal.input("\u0016");
+      const reservation = shell.root.editor.getText();
+      expect(reservation).toMatch(/^\[📷 screenshot-[a-f0-9]+\]$/u);
+      expect(shell.root.hasPendingPastes(reservation)).toBe(true);
+      await vi.waitFor(() => expect(readText).toHaveBeenCalledOnce());
+      const route = events.filter(event => event.request < 0);
+      expect(route.map(event => event.phase)).toEqual(["shortcut-received", "shortcut-matched", "shortcut-admitted"]);
+      expect(new Set(route.map(event => event.request)).size).toBe(1);
+      expect(events.filter(event => event.request > 0 && event.phase === "admitted")).toHaveLength(1);
+
+      terminal.input(" after");
+      release("cold first paste");
+      await vi.waitFor(() => expect(shell.root.editor.getText()).toBe("cold first paste after"), { timeout: 5_000 });
+      expect(readText).toHaveBeenCalledOnce();
+      expect(events.filter(event => event.request > 0 && event.phase === "inserting")).toHaveLength(1);
+      expect(events.filter(event => event.request > 0 && event.phase === "settled")).toHaveLength(1);
+      expect(JSON.stringify(events)).not.toMatch(/cold first paste|clipboard payload|screenshot-/u);
+    } finally { await shell.dispose(); }
+  });
+
+  it("records first terminal-owned inline paste through truthful framing, insertion, and settlement", async () => {
+    const readText = vi.fn(async () => "must not be read");
+    const events: Array<{ request: number; phase: string; transport: string | undefined; outcome: string | undefined }> = [];
+    const { shell, terminal } = await fixture([], [], true, undefined, { readText }, undefined, undefined, undefined, undefined, undefined, undefined,
+      event => events.push({ request: event.request, phase: event.phase, transport: event.transport, outcome: event.outcome }));
+    try {
+      terminal.input("\u001b[200~terminal first\u001b[201~ after");
+      await nextImmediate();
+      expect(shell.root.editor.getText()).toBe("terminal first after");
+      expect(readText).not.toHaveBeenCalled();
+      expect(events.map(event => event.phase)).toEqual(["framing", "inserting", "settled"]);
+      expect(new Set(events.map(event => event.request)).size).toBe(1);
+      expect(events.every(event => event.request < 0 && event.transport === "terminal")).toBe(true);
+      expect(events.at(-1)?.outcome).toBe("ready");
+    } finally { await shell.dispose(); }
+  });
+
   it.each(["native", "terminal"] as const)("bounds near-limit URL presentation without losing its value (%s)", async route => {
     const text = "https://example.com/" + "x".repeat(16 * 1024 * 1024 - 64);
     const readText = vi.fn(async () => text);

@@ -141,7 +141,7 @@ export interface PromptSelectionUxOptions {
   readonly beginTextPaste?: (text: string) => PiShellPasteReservation;
   readonly deferTextPaste?: (text: string) => boolean;
   readonly onPasteRejected?: (error: unknown) => void;
-  readonly onPasteInput?: (bytes: number) => void;
+  readonly onPasteInput?: (bytes: number, phase: "framing" | "inserting" | "settled") => void;
   readonly transformPastedContent: (content: PiShellClipboardContent) => string;
   readonly atomicRanges: (line: string) => readonly PiShellEditorTextRange[];
   readonly hiddenRanges?: (line: string) => readonly PiShellEditorTextRange[];
@@ -586,17 +586,20 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
     append(fragment.slice(0, end));
     const remaining = fragment.slice(end + 6);
     this.#terminalPaste = undefined;
-    this.options.onPasteInput?.(pending.bytes);
     if (pending.oversized) {
+      this.options.onPasteInput?.(pending.bytes, "framing");
       this.options.onPasteRejected?.(new ImageAttachmentError("paste-size"));
       if (remaining.length > 0) this.handleInput(remaining, (replacement = remaining) => next(replacement));
       return true;
     }
     const text = pending.parts.join("") + pending.piece;
+    const deferred = text.length > 0 && this.options.beginTextPaste !== undefined && (this.options.deferTextPaste?.(text) ?? true);
+    this.options.onPasteInput?.(pending.bytes, "framing");
     if (text.length > 0) this.#redoStack = [];
     if (text.length === 0) this.pasteClipboard();
-    else if (this.options.beginTextPaste !== undefined && (this.options.deferTextPaste?.(text) ?? true)) this.#pasteFromClipboard(text);
+    else if (deferred) this.#pasteFromClipboard(text);
     else {
+      this.options.onPasteInput?.(pending.bytes, "inserting");
       const transformed = this.options.transformPastedContent({ kind: "text", text });
       if (transformed === text && this.#orderedSelection() === undefined) next(`\x1b[200~${text}\x1b[201~`);
       else {
@@ -605,6 +608,7 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
         this.#redoStack = [];
         this.#requestRender();
       }
+      this.options.onPasteInput?.(pending.bytes, "settled");
     }
     if (remaining.length > 0) this.handleInput(remaining, (replacement = remaining) => next(replacement));
     return true;

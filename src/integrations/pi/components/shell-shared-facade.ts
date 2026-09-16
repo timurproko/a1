@@ -208,7 +208,7 @@ export interface PiShellEditorOptions {
   readonly beginTextPaste?: (text: string) => PiShellPasteReservation;
   readonly deferTextPaste?: (text: string) => boolean;
   readonly onPasteRejected?: (error: unknown) => void;
-  readonly onPasteInput?: (bytes: number) => void;
+  readonly onPasteInput?: (bytes: number, phase: "framing" | "inserting" | "settled") => void;
   readonly editorHiddenRanges?: (line: string) => readonly PiShellEditorTextRange[];
   readonly transformPastedContent?: (content: PiShellClipboardContent) => string;
   readonly editorAtomicRanges?: (line: string) => readonly PiShellEditorTextRange[];
