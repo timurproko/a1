@@ -25,6 +25,8 @@ describe("repository-owned atomic delivery guidance", () => {
     expect(config).toContain("one to three concise implementation-specific behavior-and-result bullets");
     expect(config).toContain("no acceptance, spec-only, or archive-only follow-up PR");
     expect(config).toContain("Standalone existing-spec/OpenSpec revisions and ordinary docs retain this route");
+    expect(config).toContain("`local-worktree-cleanup.mjs complete`");
+    expect(config).toContain("Never choose disposable paths");
     expect(config).not.toContain("After the initial specification merges");
   });
 
@@ -45,6 +47,8 @@ describe("repository-owned atomic delivery guidance", () => {
     expect(skill).toContain("approves the plan and explicitly requests implementation");
     expect(skill).toContain("## Acceptance");
     expect(skill).toContain("Create no acceptance, spec-only, or archive-only follow-up PR");
+    expect(skill).toContain("`local-worktree-cleanup.mjs complete`");
+    expect(skill).toContain("never delete those ad hoc");
     expect(skill).not.toMatch(/version/i);
     expect(skill.split(/\s+/).length).toBeLessThan(600);
     for (const match of skill.matchAll(/\]\((\.\.\/[^)]+)\)/g)) await access(resolve(dirname(path), match[1]!));
@@ -75,6 +79,8 @@ describe("repository-owned atomic delivery guidance", () => {
     expect(docs).toContain("standalone spec/docs PR retaining auto-merge");
     expect(docs).toContain("## Legacy delivery");
     expect(docs).toContain("Unit tests or API success alone are not live acceptance");
+    expect(docs).toContain("exact-candidate `complete` operation");
+    expect(docs).toContain("agents do not manually delete generated content");
   });
 
   it("updates canonical purpose text for atomic manual delivery", async () => {
