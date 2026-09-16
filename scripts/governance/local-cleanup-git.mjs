@@ -80,6 +80,7 @@ const GENERATED_CONTENT_ENTRY_LIMIT = 100_000;
 export async function inspectWorktree(identity, entry, {
   git = gitRunner(), cwd = process.cwd(), deadline = Infinity, now = Date.now,
   ordinaryEntryLimit = ORDINARY_CONTENT_ENTRY_LIMIT, generatedEntryLimit = GENERATED_CONTENT_ENTRY_LIMIT,
+  readDirectory = readdir,
 } = {}) {
   const actual = await captureWorktree(identity, entry.path, git);
   if (["path", "filesystem", "head", "ref"].some(key => actual[key] !== entry[key])) fail("worktree-identity-changed");
@@ -116,7 +117,7 @@ export async function inspectWorktree(identity, entry, {
   };
   async function walk(directory, prefix = "") {
     if (now() >= deadline) fail("content-inspection-budget");
-    for (const item of await readdir(directory, { withFileTypes: true })) {
+    for (const item of await readDirectory(directory, { withFileTypes: true })) {
       if (now() >= deadline) fail("content-inspection-budget");
       if (!prefix && item.name === ".git") continue;
       const path = prefix + item.name;

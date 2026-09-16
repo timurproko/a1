@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, writeFile, readFile, rm, symlink, rename, utimes } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, readFile, readdir, rm, symlink, rename, utimes } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -8,7 +8,7 @@ import { randomUUID } from "node:crypto";
 import { execFile, execFileSync, spawn } from "node:child_process";
 import { once } from "node:events";
 import { promisify } from "node:util";
-import { atomicJson, createStateStore, registerEntry, transitionEntry, validateState, digest } from "../../scripts/governance/local-cleanup-state.mjs";
+import { atomicJson, createStateStore, registerEntry, transitionEntry, validateEntry, validateState, digest } from "../../scripts/governance/local-cleanup-state.mjs";
 import { canonical, captureWorktree, discoverRepository, inspectWorktree, exists, gitRunner, removeLocalRef, removeWorktree } from "../../scripts/governance/local-cleanup-git.mjs";
 import { reconcileLocalCleanup } from "../../scripts/governance/local-cleanup-reconcile.mjs";
 import { completeLocalCleanup, COMPLETION_DISPOSABLE_PATHS } from "../../scripts/governance/local-cleanup-complete.mjs";
@@ -23,7 +23,7 @@ async function fixture(t, branch = false, registered = true) {
   await writeFile(join(primary, "tracked.txt"), "base\n");
   await mkdir(join(primary, "vendor")); await writeFile(join(primary, "vendor", ".gitmodules"), "");
   await mkdir(join(primary, "node_modules-cache")); await writeFile(join(primary, "node_modules-cache", "tracked.txt"), "ordinary content\n");
-  await writeFile(join(primary, ".gitignore"), "node_modules/\nsecret.txt\n.artifacts/openspec-archive/\n.artifacts/validation/\n.artifacts/validation-user/\n.artifacts/other/\n.builds/\ndist/\n");
+  await writeFile(join(primary, ".gitignore"), "node_modules/\nsecret.txt\n.artifacts/openspec-archive/\n.artifacts/validation/\n.artifacts/validation-user/\n.artifacts/other/\n.builds/\ndist/\nnative/process-guardian/target/\nnative/process-guardian/target-user/\nnative/terminal-host/target/\n");
   git(primary, "add", "."); git(primary, "commit", "-m", "fixture"); git(primary, "remote", "add", "origin", "https://github.com/owner/repo.git");
   const path = join(primary, ".worktrees", "example");
   git(primary, "worktree", "add", ...(branch ? ["-b", "feature/example"] : ["--detach"]), path);
@@ -47,6 +47,10 @@ test("registration rejects duplicate paths, malformed state and cross-repository
   const input = { ...f.entry }; for (const key of ["id", "generation", "state", "ownerHash", "step"]) delete input[key];
   assert.throws(() => registerEntry(state, input, owner), /duplicate/);
   assert.throws(() => registerEntry(state, { ...input, ref: "refs/heads/develop" }, owner), /registration-schema/);
+  assert.doesNotThrow(() => validateEntry({ ...f.entry, disposable: ["native/process-guardian/target"] }));
+  for (const path of ["target", "native/process-guardian", "native/process-guardian/target-user", "native/terminal-host/target"]) {
+    assert.throws(() => validateEntry({ ...f.entry, disposable: [path] }), /registration-schema/);
+  }
 });
 
 test("ownership is generation-bound and cannot expire or be stolen", async t => {
@@ -84,7 +88,13 @@ test("CLI registration, ownership, recovery, preview and enable controls use the
     cwd: f.primary, env: { ...process.env, LOCAL_CLEANUP_OWNER_TOKEN: owner, GH_TOKEN: "fixture-unused-token" }, encoding: "utf8",
   });
   const help = invoke("--help"); assert.match(help, /complete/); assert.match(help, /\.artifacts\/openspec-archive/);
-  assert.match(help, /\.artifacts\/validation/); assert.equal(COMPLETION_DISPOSABLE_PATHS.includes(".artifacts"), false);
+  assert.match(help, /\.artifacts\/validation/); assert.match(help, /native\/process-guardian\/target/);
+  assert.equal(COMPLETION_DISPOSABLE_PATHS.includes(".artifacts"), false);
+  assert.equal(COMPLETION_DISPOSABLE_PATHS.includes("native/process-guardian/target"), true);
+  assert.equal(COMPLETION_DISPOSABLE_PATHS.includes("target"), false);
+  assert.equal(COMPLETION_DISPOSABLE_PATHS.includes("native/terminal-host/target"), false);
+  const runbook = await readFile(fileURLToPath(new URL("../../docs/local-worktree-cleanup.md", import.meta.url)), "utf8");
+  for (const path of COMPLETION_DISPOSABLE_PATHS) assert.ok(runbook.includes(`\`${path}\``), `runbook omits ${path}`);
   const other = join(f.identity.root, "registered"); git(f.primary, "worktree", "add", "--detach", other);
   let record = JSON.parse(invoke("register", "--path", other, "--change", "example", "--source-pr", "20", "--candidate-pr", "20", "--role", "implementation", "--disposable", "node_modules"));
   assert.equal(record.state, "owned");
@@ -117,6 +127,9 @@ test("complete registers one exact candidate, applies central disposables, and i
   await mkdir(join(f.path, ".artifacts", "validation"), { recursive: true });
   await writeFile(join(f.path, ".artifacts", "validation", "impact.json"), "{\"selection\":true}");
   await writeFile(join(f.path, ".artifacts", "validation", "code-documentation.json"), "{\"passed\":true}");
+  await mkdir(join(f.path, "native", "process-guardian", "target", "release"), { recursive: true });
+  await writeFile(join(f.path, "native", "process-guardian", "target", "release", "process-guardian.exe"), "generated");
+  await writeFile(join(f.path, "native", "process-guardian", "target", ".rustc_info.json"), "{}");
   const options = { identity: f.identity, store: f.store, reader: {}, path: f.path, change: "example", sourcePr: 20,
     cwd: f.primary, reconcileOptions: { verify: f.verify, git: f.boundedGit } };
   const report = await completeLocalCleanup(options);
@@ -147,8 +160,8 @@ test("complete blocks unknown ignored content and conflicting ownership", async 
     change: "different" }), /completion-registration-conflict/);
 });
 
-test("complete blocks sibling and near-match validation artifact roots", async t => {
-  for (const root of [".artifacts/other", ".artifacts/validation-user"]) {
+test("complete blocks sibling and near-match generated roots", async t => {
+  for (const root of [".artifacts/other", ".artifacts/validation-user", "native/process-guardian/target-user", "native/terminal-host/target"]) {
     const f = await fixture(t, false, false), directory = join(f.path, ...root.split("/"));
     await mkdir(directory, { recursive: true }); await writeFile(join(directory, "report.json"), "preserve");
     const blocked = await completeLocalCleanup({ identity: f.identity, store: f.store, reader: {}, path: f.path,
@@ -278,6 +291,36 @@ test("generated ignored paths require explicit registration policy", async t => 
   const outside = join(f.temporary, "generated-link-target"); await mkdir(outside);
   await symlink(outside, join(f.path, "node_modules", "linked"), process.platform === "win32" ? "junction" : "dir");
   await assert.rejects(inspectWorktree(f.identity, { ...f.entry, disposable: ["node_modules"] }, { cwd: f.primary }), /content-link/);
+});
+
+test("approved Cargo target uses the generated allowance and preserves content boundaries", async t => {
+  const f = await fixture(t), root = join(f.path, "native", "process-guardian", "target"), generated = join(root, "release");
+  await mkdir(generated, { recursive: true });
+  await Promise.all([0, 1, 2, 3].map(value => writeFile(join(generated, `${value}.bin`), "fixture")));
+  const entry = { ...f.entry, disposable: ["native/process-guardian/target"] };
+  assert.equal((await inspectWorktree(f.identity, entry, {
+    cwd: f.primary, ordinaryEntryLimit: 8, generatedEntryLimit: 6,
+  })).clean, true);
+  await assert.rejects(inspectWorktree(f.identity, entry, {
+    cwd: f.primary, ordinaryEntryLimit: 7, generatedEntryLimit: 100,
+  }), /content-inspection-budget/);
+  await assert.rejects(inspectWorktree(f.identity, entry, {
+    cwd: f.primary, ordinaryEntryLimit: 100, generatedEntryLimit: 5,
+  }), /content-inspection-budget/);
+  await mkdir(join(root, ".git"));
+  await assert.rejects(inspectWorktree(f.identity, entry, { cwd: f.primary }), /nested-repository/);
+  await rm(join(root, ".git"), { recursive: true });
+  const outside = join(f.temporary, "cargo-link-target"); await mkdir(outside);
+  const linked = join(root, "linked");
+  await symlink(outside, linked, process.platform === "win32" ? "junction" : "dir");
+  await assert.rejects(inspectWorktree(f.identity, entry, { cwd: f.primary }), /content-link/);
+  await rm(linked, { recursive: true });
+  const special = { name: "pipe", isSymbolicLink: () => false, isDirectory: () => false, isFile: () => false };
+  const readDirectory = async (directory, options) => {
+    const items = await readdir(directory, options);
+    return directory === root ? [...items, special] : items;
+  };
+  await assert.rejects(inspectWorktree(f.identity, entry, { cwd: f.primary, readDirectory }), /content-special-file/);
 });
 
 test("generated traversal has a separate bounded allowance from ordinary content", async t => {

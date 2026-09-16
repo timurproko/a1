@@ -8,6 +8,7 @@ export const COMPLETION_DISPOSABLE_PATHS = Object.freeze([
   "node_modules",
   "dist",
   ".builds",
+  "native/process-guardian/target",
   ".artifacts/openspec-archive",
   ".artifacts/validation",
 ]);
