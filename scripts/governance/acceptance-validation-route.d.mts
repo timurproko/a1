@@ -6,6 +6,7 @@ export interface AcceptanceRouteFile {
 
 export interface AcceptanceRouteDecision {
   acceptanceOnly: boolean;
+  implementationBound?: boolean;
   reason: string;
   headSha?: string;
   path?: string;

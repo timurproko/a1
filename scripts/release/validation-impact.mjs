@@ -95,9 +95,11 @@ export async function selectValidationImpact(options = {}) {
   if (options.includeWorktree === true) changes = mergeChanges(changes, await collectWorktreeChanges(repository));
   if (changes.length > MAX_CHANGES) throw new Error(`validation selection exceeds ${MAX_CHANGES} changed entries`);
 
-  const docsOnly = changes.length > 0 && changes.every(change => isDocumentationOnlyPath(change.path) && (change.oldPath === undefined || isDocumentationOnlyPath(change.oldPath)));
+  const implementationBound = options.implementationBound === true;
+  const docsOnly = !implementationBound && changes.length > 0
+    && changes.every(change => isDocumentationOnlyPath(change.path) && (change.oldPath === undefined || isDocumentationOnlyPath(change.oldPath)));
   const openspecTouched = changes.some(change => change.path.startsWith("openspec/") || change.oldPath?.startsWith("openspec/"));
-  const versionOnly = await isVersionOnlyChange(repository, base, head, changes, options.includeWorktree === true);
+  const versionOnly = !implementationBound && await isVersionOnlyChange(repository, base, head, changes, options.includeWorktree === true);
   const documentationPaths = [...new Set(changes
     .filter(change => change.status !== "D")
     .map(change => change.path)
@@ -105,7 +107,8 @@ export async function selectValidationImpact(options = {}) {
   const rendering = docsOnly || versionOnly
     ? { tier: "none", reasons: [], fallbacks: [], changedPaths: [] }
     : await classifyRenderingImpact(repository, base, head, changes);
-  const integration = await completeIntegrationSelection({ repository, base, head, changes, docsOnly, versionOnly, manualNoComparison: options.manualNoComparison === true });
+  const integration = await completeIntegrationSelection({ repository, base, head, changes, docsOnly, versionOnly,
+    manualNoComparison: options.manualNoComparison === true || implementationBound });
   const selection = {
     schema: "a1-validation-impact-v1",
     base,

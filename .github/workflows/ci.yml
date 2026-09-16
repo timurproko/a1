@@ -3,7 +3,7 @@ name: Development validation
 on:
   pull_request:
     branches: [develop]
-    types: [opened, synchronize, reopened, ready_for_review]
+    types: [opened, edited, synchronize, reopened, ready_for_review]
   workflow_dispatch:
 
 permissions:
@@ -24,6 +24,7 @@ jobs:
     timeout-minutes: 10
     outputs:
       acceptance-only: ${{ steps.route.outputs.acceptance_only || 'false' }}
+      implementation-bound: ${{ steps.route.outputs.implementation_bound || 'true' }}
       docs-only: ${{ steps.selection.outputs.docs_only }}
       version-only: ${{ steps.selection.outputs.version_only }}
       openspec-touched: ${{ steps.selection.outputs.openspec_touched }}
@@ -54,6 +55,7 @@ jobs:
           else
             echo "::notice::Trusted acceptance router is unavailable at base $BASE_SHA; using generic validation."
             echo "acceptance_only=false" >> "$GITHUB_OUTPUT"
+            echo "implementation_bound=true" >> "$GITHUB_OUTPUT"
             echo "head_sha=$EXPECTED_HEAD" >> "$GITHUB_OUTPUT"
             echo "route_reason=trusted-router-unavailable" >> "$GITHUB_OUTPUT"
           fi
@@ -85,14 +87,17 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           EVENT_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
           EVENT_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          IMPLEMENTATION_BOUND: ${{ steps.route.outputs.implementation_bound || 'false' }}
         run: |
           set -euo pipefail
           base_args=()
           manual_args=()
+          implementation_args=()
           if [ -n "$EVENT_BASE_SHA" ]; then base_args=(--base "$EVENT_BASE_SHA"); fi
           if [ "$EVENT_NAME" != "pull_request" ]; then manual_args=(--manual-no-comparison); fi
+          if [ "$IMPLEMENTATION_BOUND" = 'true' ]; then implementation_args=(--implementation-bound); fi
           node scripts/release/select-validation-impact.mjs \
-            "${base_args[@]}" "${manual_args[@]}" \
+            "${base_args[@]}" "${manual_args[@]}" "${implementation_args[@]}" \
             --head "$EVENT_HEAD_SHA" \
             --output .artifacts/validation/impact.json \
             > "$RUNNER_TEMP/impact.json"
@@ -142,6 +147,7 @@ jobs:
     timeout-minutes: 10
     outputs:
       acceptance-candidate: ${{ steps.validation.outputs.acceptance_candidate || 'false' }}
+      delivery-candidate: ${{ steps.validation.outputs.delivery_candidate || 'false' }}
     steps:
       - name: Check out trusted base policy only
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
@@ -176,6 +182,7 @@ jobs:
           import { readFile } from "node:fs/promises";
           const value = JSON.parse(await readFile(process.env.RESULT_PATH, "utf8"));
           console.log(`acceptance_candidate=${value.disposition === "awaiting-manual-acceptance-merge"}`);
+          console.log(`delivery_candidate=${value.disposition === "ready-for-manual-merge"}`);
           NODE
 
   docs:
