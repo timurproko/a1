@@ -32,6 +32,12 @@ describe("bounded PR-core ownership", () => {
     expect(result.tests).toEqual(expect.arrayContaining(authority.ledger.filter((entry: any) => entry.owner === owner && entry.fastOwner === "fast-remainder").map((entry: any) => entry.test)));
   });
 
+  it("selects filesystem-heavy release cleanup only in the resource partition", () => {
+    const result = select(["src/foundation/release/bootstrap.ts"]);
+    expect(result.resourceTests).toContain("test/foundation/release/release-gc.test.ts");
+    expect(result.tests).not.toContain("test/foundation/release/release-gc.test.ts");
+  });
+
   it("selects changed tests, shared support consumers, and both rename identities", () => {
     const changed = select(["test/cli/dispatch.test.ts"]);
     expect(changed.owners.find(owner => owner.owner === "shared-product")?.reasons).toEqual(expect.arrayContaining([expect.objectContaining({ code: "changed-test" })]));

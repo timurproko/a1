@@ -3,8 +3,8 @@
   "policyId": "4aca3b7475be969b4005494728d4f77582796657fb1ef6723b95e3162d45fc08",
   "retainedTests": 354,
   "prCoreTests": 7,
-  "fastRemainderTests": 309,
-  "resourceSensitiveTests": 20,
+  "fastRemainderTests": 308,
+  "resourceSensitiveTests": 21,
   "integrationTargetExecutions": 49,
   "owners": [
     {
@@ -1120,8 +1120,9 @@
       "test": "test/foundation/release/release-gc.test.ts",
       "owner": "release-package-update",
       "prCore": false,
-      "fastOwner": "fast-remainder",
+      "fastOwner": "fast-resource-sensitive",
       "completeOwners": [
+        "fast-resource-sensitive",
         "unix-containment"
       ],
       "integrationTargets": []

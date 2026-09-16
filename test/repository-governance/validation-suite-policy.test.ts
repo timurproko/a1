@@ -115,6 +115,7 @@ describe("validation suite ownership", () => {
       "test/repository-governance/local-cleanup.test.ts",
       "test/foundation/storage/storage.test.ts",
       "test/foundation/release/cohort-state.test.ts",
+      "test/foundation/release/release-gc.test.ts",
       "test/foundation/release/update-live-cohort.test.ts",
       "test/features/workspace/reconciliation.test.ts",
       "test/features/workspace/workspace.test.ts",
