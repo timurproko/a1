@@ -81,6 +81,7 @@ import {
   createPiShellUserMessageSelector,
   onPiThemeChange,
   isPiPromptStyleCompaction,
+  paintPiSubmittedPromptTimestamp,
   piShellVisibleWidth,
   piShellTruncateToWidth,
   piTheme,
@@ -1445,7 +1446,7 @@ function withoutTerminalBackground(text: string): string {
   return text.replace(TERMINAL_BACKGROUND, "");
 }
 
-/** Preserve the established prompt foreground for quiet and hovered pinned timestamps. */
+/** Preserve the stable selected-state foreground for every pinned timestamp state. */
 function pinnedPromptSourceRow(
   block: OwnedUiSessionViewModel["transcript"][number],
   sourceRow: string,
@@ -1463,7 +1464,7 @@ function pinnedPromptSourceRow(
     sourceRow,
     rowWidth - timestampWidth,
     rowWidth,
-    piTheme().fg("userMessageText", timestamp),
+    paintPiSubmittedPromptTimestamp(timestamp),
   );
 }
 
