@@ -22,10 +22,10 @@ The manual merge accepts these scenarios:
     "The public Pi startup artifact preserves providers, extensions, settings, resources, and one Pi TUI identity without private distribution imports.",
     "Interactive launch and update warmup use one certified startup descriptor while optional settings and history presentation remain on demand."
   ],
-  "archiveDigest": "b3394880a738bb94993c5ab6519354b47d09eaa382f9ec28ec0ffeebb12c0cee",
+  "archiveDigest": "5ba2cb2ea90100183b3c7f2ffcda2f24d9e2d048b1543c087c9f8af0c43e4431",
   "specDigest": "2452391909c1e19a4f6704b064b60da1a674be439317a03e204f0198cd38321f",
   "tasksDigest": "b42eac0582f0f10223b373d35098c57d1f2debc0fda1f123778aef949b6afa23",
-  "evidenceDigest": "a7ec50c223cca65efc6ac5514332391716cba0748f8aeea367c508d887e6a313",
+  "evidenceDigest": "dd790f6b1acac1ea21b8439808b159e82c80a6d9df137ba8861cf5b53c4dc9d2",
   "knownGaps": [
     "Historical package module-census, release-id, and dependency-layer-id fields were not emitted and cannot be reconstructed; exact package digest, lane, topology, timing, and failing phases are retained.",
     "No independently packaged A1-only intermediate timing candidate exists because leaf-import and Pi-artifact changes were developed together; deterministic reachability and final exact-package evidence cover the outcome.",

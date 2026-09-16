@@ -2,501 +2,501 @@
   "schema": "a1-startup-performance-evidence-v1",
   "nodeVersion": "v24.16.0",
   "candidateVersion": "0.1.8-dev",
-  "candidateSha256": "d3e696c899ade08310e4680ba0eae1213f0fbdf554a1d16e9b122ff1b906c0f9",
-  "startupDescriptorIdentity": "f36dc423932ce34e0ca71ebbb3bf86b6623b7f2e75d8efc540ff6c48f926d187",
+  "candidateSha256": "a6be3409bafa0e00888c6050620e9d6d8fd9123d9dcbb0eb220cea741699062e",
+  "startupDescriptorIdentity": "fb00d3c36b3bcb0aa2f5402fa06ac758cac7585961cc483118f430e617632a48",
   "automaticRetries": 0,
   "measurements": [
     {
       "profileId": "a1",
       "launchKind": "post-update",
-      "elapsedMs": 1057.9521484375,
-      "releaseId": "0.1.8-dev-e96d14af2acccb8cb7de",
+      "elapsedMs": 1024.842041015625,
+      "releaseId": "0.1.8-dev-cb606dcb778c5abf31bb",
       "dependencyLayerIds": [
         "dependencies-b5ce538fc9e7077e6bf569fcd191ad81"
       ],
       "moduleGraph": {
-        "artifactSha256": "7a2716c0b70a121d55f9652e5cab0e7d8e4894640050eefc3ab3b85a776ad1bc",
-        "artifactBytes": 11235604,
-        "loadedFiles": 1747,
-        "evaluatedBytes": 11054687,
+        "artifactSha256": "bb67e0c4d0448ee596fc34a13c834416ec865c79a3d47c9d949d56e44be2ad57",
+        "artifactBytes": 8287198,
+        "loadedFiles": 1744,
+        "evaluatedBytes": 8283311,
         "groups": [
           {
             "group": "dependency",
             "files": 110,
-            "evaluatedBytes": 1081832
+            "evaluatedBytes": 770250
           },
           {
             "group": "pi-public",
-            "files": 1637,
-            "evaluatedBytes": 9972855
+            "files": 1634,
+            "evaluatedBytes": 7513061
           }
         ]
       },
       "phases": [
         {
           "phase": "command-invoked",
-          "durationMs": 9.351318359375
+          "durationMs": 8.798828125
         },
         {
           "phase": "bootstrap-start",
-          "durationMs": 66.955322265625
+          "durationMs": 65.947021484375
         },
         {
           "phase": "bootstrap-selected",
-          "durationMs": 28.933837890625
+          "durationMs": 26.8994140625
         },
         {
           "phase": "guardian-start",
-          "durationMs": 55.87451171875
+          "durationMs": 54.048828125
         },
         {
           "phase": "guardian-connected",
-          "durationMs": 210.744140625
+          "durationMs": 213.820068359375
         },
         {
           "phase": "ui-entry",
-          "durationMs": 301.26025390625
+          "durationMs": 294.5673828125
         },
         {
           "phase": "ui-modules-loaded",
-          "durationMs": 278.426513671875
+          "durationMs": 262.75927734375
         },
         {
           "phase": "settings-loaded",
-          "durationMs": 16.9326171875
+          "durationMs": 8.478759765625
         },
         {
           "phase": "pi-services",
-          "durationMs": 25.369384765625
+          "durationMs": 26.89892578125
         },
         {
           "phase": "resource-discovery",
-          "durationMs": 0.92919921875
+          "durationMs": 0.544677734375
         },
         {
           "phase": "session-created",
-          "durationMs": 3.465087890625
+          "durationMs": 3.266845703125
         },
         {
           "phase": "first-input-ready-render",
-          "durationMs": 59.7099609375
+          "durationMs": 58.81201171875
         }
       ]
     },
     {
       "profileId": "a1",
       "launchKind": "no-live-supervisor",
-      "elapsedMs": 1165.013916015625,
-      "releaseId": "0.1.8-dev-e96d14af2acccb8cb7de",
+      "elapsedMs": 1147.093017578125,
+      "releaseId": "0.1.8-dev-cb606dcb778c5abf31bb",
       "dependencyLayerIds": [
         "dependencies-b5ce538fc9e7077e6bf569fcd191ad81"
       ],
       "moduleGraph": {
-        "artifactSha256": "7a2716c0b70a121d55f9652e5cab0e7d8e4894640050eefc3ab3b85a776ad1bc",
-        "artifactBytes": 11235604,
-        "loadedFiles": 1747,
-        "evaluatedBytes": 11054687,
+        "artifactSha256": "bb67e0c4d0448ee596fc34a13c834416ec865c79a3d47c9d949d56e44be2ad57",
+        "artifactBytes": 8287198,
+        "loadedFiles": 1744,
+        "evaluatedBytes": 8283311,
         "groups": [
           {
             "group": "dependency",
             "files": 110,
-            "evaluatedBytes": 1081832
+            "evaluatedBytes": 770250
           },
           {
             "group": "pi-public",
-            "files": 1637,
-            "evaluatedBytes": 9972855
+            "files": 1634,
+            "evaluatedBytes": 7513061
           }
         ]
       },
       "phases": [
         {
           "phase": "command-invoked",
-          "durationMs": 8.681640625
+          "durationMs": 10.95458984375
         },
         {
           "phase": "bootstrap-start",
-          "durationMs": 89.23193359375
+          "durationMs": 92.18994140625
         },
         {
           "phase": "durable-validation-start",
-          "durationMs": 5.56201171875
+          "durationMs": 7.386962890625
         },
         {
           "phase": "durable-validation-complete",
-          "durationMs": 6.27001953125
+          "durationMs": 4.893310546875
         },
         {
           "phase": "replacement-supervisor-start",
-          "durationMs": 0.4912109375
+          "durationMs": 0.418701171875
         },
         {
           "phase": "replacement-supervisor-ready",
-          "durationMs": 198.75390625
+          "durationMs": 153.5126953125
         },
         {
           "phase": "bootstrap-selected",
-          "durationMs": 0.43994140625
+          "durationMs": 0.537109375
         },
         {
           "phase": "guardian-start",
-          "durationMs": 51.130126953125
+          "durationMs": 51.178466796875
         },
         {
           "phase": "guardian-connected",
-          "durationMs": 138.93798828125
+          "durationMs": 125.567138671875
         },
         {
           "phase": "ui-entry",
-          "durationMs": 300.414306640625
+          "durationMs": 288.879638671875
         },
         {
           "phase": "ui-modules-loaded",
-          "durationMs": 261.306396484375
+          "durationMs": 307.294921875
         },
         {
           "phase": "settings-loaded",
-          "durationMs": 8.341796875
+          "durationMs": 9.251220703125
         },
         {
           "phase": "pi-services",
-          "durationMs": 25.73876953125
+          "durationMs": 27.93017578125
         },
         {
           "phase": "resource-discovery",
-          "durationMs": 0.61474609375
+          "durationMs": 1.052978515625
         },
         {
           "phase": "session-created",
-          "durationMs": 2.9482421875
+          "durationMs": 3.623779296875
         },
         {
           "phase": "first-input-ready-render",
-          "durationMs": 66.15087890625
+          "durationMs": 62.42138671875
         }
       ]
     },
     {
       "profileId": "a1",
       "launchKind": "warm",
-      "elapsedMs": 941.596435546875,
-      "releaseId": "0.1.8-dev-e96d14af2acccb8cb7de",
+      "elapsedMs": 1025.88818359375,
+      "releaseId": "0.1.8-dev-cb606dcb778c5abf31bb",
       "dependencyLayerIds": [
         "dependencies-b5ce538fc9e7077e6bf569fcd191ad81"
       ],
       "moduleGraph": {
-        "artifactSha256": "7a2716c0b70a121d55f9652e5cab0e7d8e4894640050eefc3ab3b85a776ad1bc",
-        "artifactBytes": 11235604,
-        "loadedFiles": 1747,
-        "evaluatedBytes": 11054687,
+        "artifactSha256": "bb67e0c4d0448ee596fc34a13c834416ec865c79a3d47c9d949d56e44be2ad57",
+        "artifactBytes": 8287198,
+        "loadedFiles": 1744,
+        "evaluatedBytes": 8283311,
         "groups": [
           {
             "group": "dependency",
             "files": 110,
-            "evaluatedBytes": 1081832
+            "evaluatedBytes": 770250
           },
           {
             "group": "pi-public",
-            "files": 1637,
-            "evaluatedBytes": 9972855
+            "files": 1634,
+            "evaluatedBytes": 7513061
           }
         ]
       },
       "phases": [
         {
           "phase": "command-invoked",
-          "durationMs": 10.2958984375
+          "durationMs": 9.21240234375
         },
         {
           "phase": "bootstrap-start",
-          "durationMs": 85.230224609375
+          "durationMs": 82.78515625
         },
         {
           "phase": "bootstrap-selected",
-          "durationMs": 27.972412109375
+          "durationMs": 29.46337890625
         },
         {
           "phase": "guardian-start",
-          "durationMs": 54.43603515625
+          "durationMs": 53.0498046875
         },
         {
           "phase": "guardian-connected",
-          "durationMs": 141.361083984375
+          "durationMs": 156.3271484375
         },
         {
           "phase": "ui-entry",
-          "durationMs": 262.2275390625
+          "durationMs": 319.70166015625
         },
         {
           "phase": "ui-modules-loaded",
-          "durationMs": 258.30712890625
+          "durationMs": 276.71435546875
         },
         {
           "phase": "settings-loaded",
-          "durationMs": 9.482421875
+          "durationMs": 9.16748046875
         },
         {
           "phase": "pi-services",
-          "durationMs": 29.93359375
+          "durationMs": 26.69091796875
         },
         {
           "phase": "resource-discovery",
-          "durationMs": 0.854248046875
+          "durationMs": 0.612060546875
         },
         {
           "phase": "session-created",
-          "durationMs": 3.203369140625
+          "durationMs": 3.10888671875
         },
         {
           "phase": "first-input-ready-render",
-          "durationMs": 58.29248046875
+          "durationMs": 59.054931640625
         }
       ]
     },
     {
       "profileId": "pi",
       "launchKind": "post-update",
-      "elapsedMs": 917.258056640625,
-      "releaseId": "0.1.8-dev-e96d14af2acccb8cb7de",
+      "elapsedMs": 926.25244140625,
+      "releaseId": "0.1.8-dev-cb606dcb778c5abf31bb",
       "dependencyLayerIds": [
         "dependencies-b5ce538fc9e7077e6bf569fcd191ad81"
       ],
       "moduleGraph": {
-        "artifactSha256": "7a2716c0b70a121d55f9652e5cab0e7d8e4894640050eefc3ab3b85a776ad1bc",
-        "artifactBytes": 11235604,
-        "loadedFiles": 1747,
-        "evaluatedBytes": 11054687,
+        "artifactSha256": "bb67e0c4d0448ee596fc34a13c834416ec865c79a3d47c9d949d56e44be2ad57",
+        "artifactBytes": 8287198,
+        "loadedFiles": 1744,
+        "evaluatedBytes": 8283311,
         "groups": [
           {
             "group": "dependency",
             "files": 110,
-            "evaluatedBytes": 1081832
+            "evaluatedBytes": 770250
           },
           {
             "group": "pi-public",
-            "files": 1637,
-            "evaluatedBytes": 9972855
+            "files": 1634,
+            "evaluatedBytes": 7513061
           }
         ]
       },
       "phases": [
         {
           "phase": "command-invoked",
-          "durationMs": 9.02880859375
+          "durationMs": 11.211181640625
         },
         {
           "phase": "bootstrap-start",
-          "durationMs": 90.780517578125
+          "durationMs": 85.86767578125
         },
         {
           "phase": "bootstrap-selected",
-          "durationMs": 27.3837890625
+          "durationMs": 29.697021484375
         },
         {
           "phase": "guardian-start",
-          "durationMs": 51.57177734375
+          "durationMs": 52.3056640625
         },
         {
           "phase": "guardian-connected",
-          "durationMs": 134.4462890625
+          "durationMs": 136.774658203125
         },
         {
           "phase": "ui-entry",
-          "durationMs": 268.934326171875
+          "durationMs": 262.422607421875
         },
         {
           "phase": "ui-modules-loaded",
-          "durationMs": 249.83203125
+          "durationMs": 256.937255859375
         },
         {
           "phase": "settings-loaded",
-          "durationMs": 7.912109375
+          "durationMs": 8.352783203125
         },
         {
           "phase": "pi-services",
-          "durationMs": 24.754150390625
+          "durationMs": 25.87109375
         },
         {
           "phase": "resource-discovery",
-          "durationMs": 0.681884765625
+          "durationMs": 0.902099609375
         },
         {
           "phase": "session-created",
-          "durationMs": 3.110595703125
+          "durationMs": 3.55517578125
         },
         {
           "phase": "first-input-ready-render",
-          "durationMs": 48.82177734375
+          "durationMs": 52.355224609375
         }
       ]
     },
     {
       "profileId": "pi",
       "launchKind": "no-live-supervisor",
-      "elapsedMs": 1017.5947265625,
-      "releaseId": "0.1.8-dev-e96d14af2acccb8cb7de",
+      "elapsedMs": 1033.0810546875,
+      "releaseId": "0.1.8-dev-cb606dcb778c5abf31bb",
       "dependencyLayerIds": [
         "dependencies-b5ce538fc9e7077e6bf569fcd191ad81"
       ],
       "moduleGraph": {
-        "artifactSha256": "7a2716c0b70a121d55f9652e5cab0e7d8e4894640050eefc3ab3b85a776ad1bc",
-        "artifactBytes": 11235604,
-        "loadedFiles": 1747,
-        "evaluatedBytes": 11054687,
+        "artifactSha256": "bb67e0c4d0448ee596fc34a13c834416ec865c79a3d47c9d949d56e44be2ad57",
+        "artifactBytes": 8287198,
+        "loadedFiles": 1744,
+        "evaluatedBytes": 8283311,
         "groups": [
           {
             "group": "dependency",
             "files": 110,
-            "evaluatedBytes": 1081832
+            "evaluatedBytes": 770250
           },
           {
             "group": "pi-public",
-            "files": 1637,
-            "evaluatedBytes": 9972855
+            "files": 1634,
+            "evaluatedBytes": 7513061
           }
         ]
       },
       "phases": [
         {
           "phase": "command-invoked",
-          "durationMs": 8.35009765625
+          "durationMs": 9.587646484375
         },
         {
           "phase": "bootstrap-start",
-          "durationMs": 83.510009765625
+          "durationMs": 84.385498046875
         },
         {
           "phase": "durable-validation-start",
-          "durationMs": 7.41259765625
+          "durationMs": 5.427734375
         },
         {
           "phase": "durable-validation-complete",
-          "durationMs": 5.68017578125
+          "durationMs": 5.718017578125
         },
         {
           "phase": "replacement-supervisor-start",
-          "durationMs": 0.476806640625
+          "durationMs": 0.828857421875
         },
         {
           "phase": "replacement-supervisor-ready",
-          "durationMs": 153.02783203125
+          "durationMs": 157.633544921875
         },
         {
           "phase": "bootstrap-selected",
-          "durationMs": 0.83984375
+          "durationMs": 0.74072265625
         },
         {
           "phase": "guardian-start",
-          "durationMs": 44.749267578125
+          "durationMs": 47.907958984375
         },
         {
           "phase": "guardian-connected",
-          "durationMs": 117.7490234375
+          "durationMs": 128.99853515625
         },
         {
           "phase": "ui-entry",
-          "durationMs": 253.83447265625
+          "durationMs": 253.812255859375
         },
         {
           "phase": "ui-modules-loaded",
-          "durationMs": 258.43994140625
+          "durationMs": 253.335693359375
         },
         {
           "phase": "settings-loaded",
-          "durationMs": 7.94677734375
+          "durationMs": 8.737548828125
         },
         {
           "phase": "pi-services",
-          "durationMs": 22.24560546875
+          "durationMs": 24.365234375
         },
         {
           "phase": "resource-discovery",
-          "durationMs": 0.587158203125
+          "durationMs": 0.859375
         },
         {
           "phase": "session-created",
-          "durationMs": 3.32666015625
+          "durationMs": 3.771240234375
         },
         {
           "phase": "first-input-ready-render",
-          "durationMs": 49.41845703125
+          "durationMs": 46.97119140625
         }
       ]
     },
     {
       "profileId": "pi",
       "launchKind": "warm",
-      "elapsedMs": 891.464599609375,
-      "releaseId": "0.1.8-dev-e96d14af2acccb8cb7de",
+      "elapsedMs": 923.30908203125,
+      "releaseId": "0.1.8-dev-cb606dcb778c5abf31bb",
       "dependencyLayerIds": [
         "dependencies-b5ce538fc9e7077e6bf569fcd191ad81"
       ],
       "moduleGraph": {
-        "artifactSha256": "7a2716c0b70a121d55f9652e5cab0e7d8e4894640050eefc3ab3b85a776ad1bc",
-        "artifactBytes": 11235604,
-        "loadedFiles": 1747,
-        "evaluatedBytes": 11054687,
+        "artifactSha256": "bb67e0c4d0448ee596fc34a13c834416ec865c79a3d47c9d949d56e44be2ad57",
+        "artifactBytes": 8287198,
+        "loadedFiles": 1744,
+        "evaluatedBytes": 8283311,
         "groups": [
           {
             "group": "dependency",
             "files": 110,
-            "evaluatedBytes": 1081832
+            "evaluatedBytes": 770250
           },
           {
             "group": "pi-public",
-            "files": 1637,
-            "evaluatedBytes": 9972855
+            "files": 1634,
+            "evaluatedBytes": 7513061
           }
         ]
       },
       "phases": [
         {
           "phase": "command-invoked",
-          "durationMs": 8.99365234375
+          "durationMs": 9.380126953125
         },
         {
           "phase": "bootstrap-start",
-          "durationMs": 78.0419921875
+          "durationMs": 84.664794921875
         },
         {
           "phase": "bootstrap-selected",
-          "durationMs": 29.36181640625
+          "durationMs": 26.240966796875
         },
         {
           "phase": "guardian-start",
-          "durationMs": 49.07421875
+          "durationMs": 54.926025390625
         },
         {
           "phase": "guardian-connected",
-          "durationMs": 132.31201171875
+          "durationMs": 134.831298828125
         },
         {
           "phase": "ui-entry",
-          "durationMs": 260.98095703125
+          "durationMs": 259.639404296875
         },
         {
           "phase": "ui-modules-loaded",
-          "durationMs": 248.3427734375
+          "durationMs": 261.134765625
         },
         {
           "phase": "settings-loaded",
-          "durationMs": 7.2587890625
+          "durationMs": 9.601318359375
         },
         {
           "phase": "pi-services",
-          "durationMs": 23.473388671875
+          "durationMs": 29.02685546875
         },
         {
           "phase": "resource-discovery",
-          "durationMs": 0.81982421875
+          "durationMs": 0.822509765625
         },
         {
           "phase": "session-created",
-          "durationMs": 3.5703125
+          "durationMs": 3.379638671875
         },
         {
           "phase": "first-input-ready-render",
-          "durationMs": 49.23486328125
+          "durationMs": 49.661376953125
         }
       ]
     }

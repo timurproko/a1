@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 import { createStartupPublicManifest, normalizeStartupInput, startupInputGroup, validateStartupPublicBaseline } from "../../scripts/pi/startup-public-artifact.mjs";
 
@@ -46,6 +47,14 @@ describe("generated public Pi startup artifact evidence", () => {
       "Pi startup artifact has 8 evaluated bytes; maximum is 7",
     ]);
     expect(first.serialized).not.toMatch(/prompt|credential|process\.env|[A-Za-z]:[\\/]/i);
+  });
+
+  it("minifies syntax and whitespace without renaming public symbols or dropping legal notices", async () => {
+    const source = await readFile("scripts/pi/build-startup-public.mjs", "utf8");
+    expect(source).toContain("minifySyntax: true");
+    expect(source).toContain("minifyWhitespace: true");
+    expect(source).toContain("keepNames: true");
+    expect(source).toContain('legalComments: "eof"');
   });
 
   it("rejects absolute and escaping input identities", () => {
