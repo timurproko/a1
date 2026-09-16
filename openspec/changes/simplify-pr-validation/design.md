@@ -109,6 +109,7 @@ The separate manual Full regression workflow is not an acceptance gate for an or
 - **[A cold resource fixture polls before its worker is ready]** -> Synchronize the fixture on the service's first structured snapshot instead of increasing a timeout or retrying a semantic assertion.
 - **[A hermetic consumer fixture drifts behind the current validation-impact schema]** -> Build the fixture with the current versioned PR-core fields and computed selection identity so consumer tests exercise supported evidence rather than weakening parser validation.
 - **[Filesystem-heavy release cleanup competes with the parallel PR-core batch]** -> Classify its existing test file as resource-sensitive so it retains every assertion and timeout in a fresh serial invocation rather than increasing timeouts or retrying failures.
+- **[Validation-authority corrections leave secondary policy oracles stale]** -> Search all governance fixtures for affected membership and artifact identities, update every semantic oracle together, and run the complete repository-governance test directory serially before another hosted attempt.
 
 ## Migration Plan
 

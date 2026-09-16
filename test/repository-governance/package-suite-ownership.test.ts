@@ -92,6 +92,6 @@ describe("exact-package startup and non-timing ownership", () => {
     ]);
     const run = workflow.jobs.modular.steps.find((step: { name?: string }) => step.name === "Run exact selected scopes");
     expect(run.env).toMatchObject({ VALIDATION_SELECTION_JSON: "${{ steps.job-selection.outputs.scopes_json }}", VALIDATION_BUILD_READY: "${{ matrix.build && '1' || '0' }}" });
-    expect(run.run).toContain("outcome-${{ matrix.group }}-${{ matrix.platform }}-node${{ matrix.node }}.json");
+    expect(run.run).toContain("outcome-${{ matrix.group }}-${{ matrix.platform }}-node${{ matrix.node }}-attempt-${{ github.run_attempt }}.json");
   });
 });
