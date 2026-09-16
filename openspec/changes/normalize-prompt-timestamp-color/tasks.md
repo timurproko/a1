@@ -11,4 +11,4 @@
 ## 3. Validate and hand off
 
 - [x] 3.1 Run the focused submitted-prompt and session-shell tests plus `npm run typecheck`; verify all commands pass without weakening unrelated viewport assertions.
-- [ ] 3.2 Build the candidate and hand off the repository checkout through `./scripts/dev` for visual review; verify the timestamp stays grey in normal, hover, quiet/dimmed, and text-selected prompt states while the prompt body still changes normally.
+- [x] 3.2 Build the candidate and hand off the repository checkout through `./scripts/dev` for visual review; verify the timestamp stays grey in normal, hover, quiet/dimmed, and text-selected prompt states while the prompt body still changes normally.
