@@ -23,7 +23,7 @@ import {
   type AgentSessionServices,
   type ExtensionUIContext,
   type SessionInfo,
-} from "@earendil-works/pi-coding-agent";
+} from "../startup-public.js";
 import {
   OWNED_UI_EXTENSION_CONTRACT_VERSION,
   OWNED_UI_EXTENSION_RENDER_CALLBACKS,

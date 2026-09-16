@@ -7,7 +7,7 @@ import {
   getMarkdownTheme,
   parseSkillBlock,
   UserMessageComponent,
-} from "@earendil-works/pi-coding-agent";
+} from "../startup-public.js";
 import { ToolExecutionComponent } from "./upstream/components/tool-execution.js";
 import { SkillInvocationMessageComponent } from "./upstream/components/skill-invocation-message.js";
 import { piToolArguments as toolArguments, updatePiToolResult as updateToolResult } from "./tool-result-adapter.js";

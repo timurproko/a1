@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { DefaultPackageManager, ModelRuntime, SettingsManager } from "@earendil-works/pi-coding-agent";
+import { DefaultPackageManager, ModelRuntime, SettingsManager } from "../startup-public.js";
 import {
   agentPackageOutcome,
   type AgentPackageDescriptor,

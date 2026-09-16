@@ -37,6 +37,8 @@ describe("exact packed npm command surface", () => {
       "dist/product-identity.json",
       "dist/product-identity.d.ts",
       "dist/integrations/pi/engine/public-main-entry.js",
+      "dist/integrations/pi/startup-public.js",
+      "dist/integrations/pi/startup-public.manifest.json",
       `dist/native/${process.platform}-${process.arch}/manifest.json`,
       `dist/native/${process.platform}-${process.arch}/${process.platform === "win32" ? "process-guardian.exe" : "process-guardian"}`,
     ]));

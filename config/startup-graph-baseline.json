@@ -1,0 +1,15 @@
+{
+  "schema": "a1-startup-graph-baseline-v1",
+  "a1Reachability": {
+    "maximumFiles": 142,
+    "maximumSourceBytes": 2618800,
+    "optionalModules": [
+      "src/features/owned-ui/settings-app.ts",
+      "src/integrations/pi/components/history-editor-loader.ts"
+    ]
+  },
+  "piPublicArtifact": {
+    "maximumLoadedFiles": 1747,
+    "maximumEvaluatedBytes": 11054687
+  }
+}

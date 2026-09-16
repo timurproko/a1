@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
-import type { PiShellClipboardContent } from "../components/index.js";
+import type { PiShellClipboardContent } from "../components/shell-shared-facade.js";
 import { canonicalizeClipboardImage } from "./clipboard-image.js";
-import { ImageAttachmentError } from "../../../contracts/owned-ui/index.js";
+import { ImageAttachmentError } from "../../../contracts/owned-ui/image-attachments.js";
 import { assertSourceBytes } from "./image-source.js";
 
 const MAX_CLIPBOARD_BYTES = 16 * 1024 * 1024;

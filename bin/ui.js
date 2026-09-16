@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 
-const startup = await import("../dist/foundation/startup/index.js");
+const startup = await import("../dist/foundation/startup/startup-runtime.js");
 startup.enableEnvironmentCompileCache(process.env);
 const { readLaunchContext } = await import("../dist/foundation/launch-context/index.js");
 const launchContext = readLaunchContext(process.env, "profile");
 const profile = launchContext.launchProfile;
-const { installFatalExit } = await import("../dist/foundation/terminal-cleanup/index.js");
-const { resolveProductPaths } = await import("../dist/foundation/lifecycle/index.js");
+const { installFatalExit } = await import("../dist/foundation/terminal-cleanup/fatal-exit.js");
+const { resolveProductPaths } = await import("../dist/foundation/lifecycle/paths.js");
 const { join } = await import("node:path");
 let runningApplication;
 const fatal = profile === "a1" ? installFatalExit({
@@ -14,11 +14,15 @@ const fatal = profile === "a1" ? installFatalExit({
   releaseId: launchContext.releaseId,
   dispose: () => runningApplication?.dispose(),
 }) : undefined;
+const [{ fileURLToPath }, identity] = await Promise.all([
+  import("node:url"),
+  import("./module-identity.js"),
+]);
+const packageRootPath = fileURLToPath(new URL("..", import.meta.url));
+identity.configurePinnedPiPublicPackage(packageRootPath);
 // Performance: begin the exact launch graph together while the trace write is pending.
 // Direct owned-module entries avoid evaluating unrelated barrel exports before first paint.
 const modules = Promise.all([
-  import("./module-identity.js"),
-  import("node:url"),
   import("../dist/features/launch/runtime-selection.js"),
   import("../dist/foundation/lifecycle/session-selection.js"),
   import("../dist/features/owned-ui/project-trust-prompt.js"),
@@ -28,8 +32,6 @@ const modules = Promise.all([
 ]);
 await startup.markStartupPhase(process.env, "ui-entry");
 const [
-  { assertSinglePiTuiModuleAtLaunch },
-  { fileURLToPath },
   { runSelectedInteractiveRuntime },
   { parseSessionSelection },
   { createConsoleProjectTrustPrompt },
@@ -40,7 +42,7 @@ const [
 
 // Compatibility: before the composition uses pinned Pi's terminal stack: confirm A1 and Pi
 // resolve it to the same copy, so extensions and the owned UI share one module identity.
-assertSinglePiTuiModuleAtLaunch(fileURLToPath(new URL("..", import.meta.url)), message => process.stderr.write(message));
+identity.assertSinglePiTuiModuleAtLaunch(packageRootPath, message => process.stderr.write(message));
 await startup.markStartupPhase(process.env, "ui-modules-loaded");
 
 const sessionSelection = parseSessionSelection(process.argv.slice(2));

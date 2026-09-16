@@ -1,4 +1,4 @@
-import { MAX_COPY_SOURCE_UNITS, type SelectionCopySnapshot } from "../../../ui/components/index.js";
+import { MAX_COPY_SOURCE_UNITS, type SelectionCopySnapshot } from "../../../ui/components/selection-copy.js";
 import { COPY_CLEANUP_MS, COPY_DEADLINE_MS, type CopyResult, type ResponseCopyEvent } from "./response-copy-protocol.js";
 import type { ResponseCopyExecutor, ResponseCopyJob } from "./response-copy-transport.js";
 

@@ -39,8 +39,11 @@ describe("owned settings route theme", () => {
 
     const surface = createOwnedRouteHost(session).open("settings");
     expect(surface).not.toBeNull();
-    await Promise.resolve();
-    const initial = surface!.render(48, 12);
+    let initial = surface!.render(48, 12);
+    for (let attempt = 0; attempt < 200 && !initial.some(line => line.replace(STYLE, "").includes("Mode")); attempt += 1) {
+      await new Promise(resolve => setTimeout(resolve, 10));
+      initial = surface!.render(48, 12);
+    }
     const row = initial.findIndex(line => line.replace(STYLE, "").includes("Mode"));
     const column = (initial[row] ?? "").replace(STYLE, "").indexOf("auto") + 1;
     surface!.handleMouse({ kind: "press", button: 0, row: row + 1, column });

@@ -3,6 +3,7 @@ import { extname, relative, resolve, sep } from "node:path";
 import { inspectPiFeatureBoundaryImports, inspectProjectOwnerLayout, inspectProjectStructureImports, projectOwnerForPath, testOwnerForPath } from "./project-structure-policy.mjs";
 import { inspectPiProductionBoundary } from "./pi-api-boundary-policy.mjs";
 import { PRINTABLE_HELPER_PATH, isExactPrintableHelper, readPinnedKeySource } from "./history-editor-source-policy.mjs";
+import { inspectStartupReachability, validateStartupReachabilityBaseline } from "./startup-graph-policy.mjs";
 
 const rootArgument = process.argv.indexOf("--root");
 const allowPartialLayout = process.argv.includes("--allow-partial-layout");
@@ -46,7 +47,8 @@ for (const file of await walk(sourceRoot)) {
     // Invariant: `#pi-tui` is A1's own alias for pinned Pi's terminal package, so it is a Pi
     // import wherever it appears and belongs to the same adapter boundary.
     const isPi = !specifier.startsWith(".") && /(?:^|[#/])(?:pi-agent|pi-ai|pi-coding-agent|pi-tui|@mariozechner\/pi-|@oh-my-pi\/pi-)/.test(specifier);
-    const piAdapterPath = /^src\/(?:integrations\/pi\/(?:engine|components|tui-runtime)|drivers\/pi|profiles\/pi)\//.test(path);
+    const piAdapterPath = path === "src/integrations/pi/startup-public.ts"
+      || /^src\/(?:integrations\/pi\/(?:engine|components|tui-runtime)|drivers\/pi|profiles\/pi)\//.test(path);
     if (/@oh-my-pi\//.test(specifier)) {
       errors.push(`${path}: oh-my-pi fork package import '${specifier}' is forbidden`);
     }
@@ -216,7 +218,10 @@ try {
 const approvedPiFeatureImports = Array.isArray(piBoundaryBaseline?.featureToAdapterDependencies)
   ? piBoundaryBaseline.featureToAdapterDependencies
   : [];
-errors.push(...inspectProjectStructureImports(sourceFiles, approvedPiFeatureImports));
+const startupReachability = await inspectStartupReachability(root);
+const startupBaseline = JSON.parse(await readFile(resolve(root, "config", "startup-graph-baseline.json"), "utf8"));
+const startupLeafConsumers = new Set(startupReachability.modules.map(module => module.path));
+errors.push(...inspectProjectStructureImports(sourceFiles, approvedPiFeatureImports, startupLeafConsumers));
 errors.push(...inspectPiFeatureBoundaryImports(sourceFiles, approvedPiFeatureImports));
 errors.push(...inspectPiProductionBoundary(sourceFiles, piBoundaryBaseline));
 await inspectRepositoryStructure();
@@ -224,6 +229,7 @@ await inspectReleasePolicy();
 await inspectTerminalParityBoundary();
 await inspectFileNames();
 inspectOwnedShellModules();
+errors.push(...startupReachability.errors, ...validateStartupReachabilityBaseline(startupReachability, startupBaseline));
 
 if (errors.length > 0) {
   console.error(`Architecture check failed (${errors.length}):\n${errors.map(error => `- ${error}`).join("\n")}`);

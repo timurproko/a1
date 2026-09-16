@@ -1,4 +1,4 @@
-import { getSelectListTheme } from "@earendil-works/pi-coding-agent";
+import { getSelectListTheme } from "../startup-public.js";
 import {
   CombinedAutocompleteProvider,
   matchesKey,

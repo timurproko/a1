@@ -1,4 +1,4 @@
-import { acceptsTranscriptUpdate } from "../../../contracts/owned-ui/index.js";
+import { acceptsTranscriptUpdate } from "../../../contracts/owned-ui/transcript-lifecycle.js";
 import type {
   OwnedUiCommand,
   OwnedUiDialog,
@@ -10,86 +10,97 @@ import type {
   SuggestionDecision,
   SuggestionDiagnosticObserver,
 } from "../../../contracts/owned-ui/index.js";
-import type { PiTuiPointerSurface } from "../tui-runtime/index.js";
-import type { UiRouteHost } from "../../../ui/apps/index.js";
+import type { PiTuiPointerSurface } from "../tui-runtime/contracts.js";
+import type { UiRouteHost } from "../../../ui/apps/contracts.js";
+import { caretCell } from "../../../ui/components/line-input.js";
+import { PromptInput, promptArrow } from "../../../ui/components/prompt-input.js";
+import {
+  composeSubmittedPromptRows,
+  formatSubmittedPromptTime,
+  submittedPromptLayout,
+} from "../../../ui/components/submitted-prompt.js";
 import {
   backgroundSgrSpan,
-  caretCell,
-  composeSubmittedPromptRows,
-  PromptInput,
-  promptArrow,
-  displayWidth,
-  faint,
-  formatSubmittedPromptTime,
   heldNativeHyperlinkStyle,
   hyperlinkSgrSpan,
   nativeHyperlinkStyle,
   overlaySpan,
-  progressStatusText,
-  submittedPromptLayout,
-  stripAnsi,
-  type TranscriptPromptAnchor,
-  type TranscriptViewportFrame,
-  type TranscriptViewportFrameDescriptor,
-  type TranscriptViewportFrameInput,
-  type TranscriptViewportTheme,
-} from "../../../ui/components/index.js";
+} from "../../../ui/components/spans.js";
+import { progressStatusText } from "../../../ui/components/progress-status.js";
+import { displayWidth, faint, stripAnsi } from "../../../ui/components/text.js";
+import type {
+  TranscriptPromptAnchor,
+  TranscriptViewportFrame,
+  TranscriptViewportFrameDescriptor,
+  TranscriptViewportFrameInput,
+  TranscriptViewportTheme,
+} from "../../../ui/components/transcript-viewport.js";
+import { PINNED_PI_HIDDEN_COMMAND_NAMES, PINNED_PI_WORKFLOW_COMMAND_NAMES } from "../engine/workflows.js";
+import type {
+  AdapterCommandResult,
+  OwnedPiExtensionResourceSummary,
+  OwnedPiExtensionSourceSummary,
+  PiEngineAdapter,
+} from "../engine/adapter.js";
+import type {
+  PiWorkflowInteractionRequest,
+  PiWorkflowLoginNotification,
+  PiWorkflowLoginStart,
+  PiWorkflowMessage,
+  PiWorkflowRequest,
+  PiWorkflowResult,
+  PiWorkflowRoute,
+} from "../engine/workflows.js";
+import { createPiExtensionUiBridge, type PiExtensionUiBridge } from "../components/shell-extension-ui.js";
+import { createPiShellEditor } from "../components/shell-editor-autocomplete.js";
 import {
-  PINNED_PI_HIDDEN_COMMAND_NAMES,
-  PINNED_PI_WORKFLOW_COMMAND_NAMES,
-  type AdapterCommandResult,
-  type OwnedPiExtensionResourceSummary,
-  type OwnedPiExtensionSourceSummary,
-  type PiEngineAdapter,
-  type PiWorkflowInteractionRequest,
-  type PiWorkflowLoginNotification,
-  type PiWorkflowLoginStart,
-  type PiWorkflowMessage,
-  type PiWorkflowRequest,
-  type PiWorkflowResult,
-  type PiWorkflowRoute,
-} from "../engine/index.js";
-import {
-  createPiExtensionUiBridge,
   createPiQueuedInputStatus,
+  createPiShellFooter,
+  createPiShellHeader,
+  createPiShellLoadedResources,
+  createPiShellStatus,
+} from "../components/shell-footer-status.js";
+import {
   createPiShellArmin,
   createPiShellAuthProviderSelector,
-  createPiShellChangelog,
-  createPiShellCollapsedChangelog,
   createPiShellDaxnuts,
   createPiShellDialog,
   createPiShellEarendilAnnouncement,
-  createPiShellEditor,
   createPiShellExtensionSelector,
-  createPiShellFooter,
-  createPiShellHeader,
-  createPiShellHotkeys,
-  createPiShellLoadedResources,
   createPiShellLoginDialog,
   createPiShellModelSelector,
   createPiShellOperationLoader,
   createPiShellReloadBox,
   createPiShellScopedModelsSelector,
   createPiShellSelector,
-  createPiShellSessionInfo,
   createPiShellSessionSelector,
   createPiShellSettingsSelector,
-  createPiShellStatus,
-  createPiShellTranscriptComponent,
   createPiShellTreeSelector,
   createPiShellTrustSelector,
   createPiShellUserMessageSelector,
-  onPiThemeChange,
-  isPiPromptStyleCompaction,
-  piShellVisibleWidth,
-  piShellTruncateToWidth,
-  piTheme,
+  type PiShellLoginDialogPort,
+  type PiShellScopedModelsSelectorPort,
+} from "../components/shell-selectors-dialogs.js";
+import {
+  createPiShellChangelog,
+  createPiShellCollapsedChangelog,
+  createPiShellHotkeys,
+  createPiShellSessionInfo,
   renderPiShellCommandMessage,
+  renderPiShellStatusText,
+} from "../components/shell-presenters-info.js";
+import {
+  createPiShellTranscriptComponent,
+  isPiPromptStyleCompaction,
   renderPiShellPackageUpdateNotice,
   renderPiShellStartupDiagnostic,
-  renderPiShellStatusText,
   renderPiShellTranscriptBlock,
-  type PiExtensionUiBridge,
+  type PiShellSubmittedPromptComposer,
+} from "../components/shell-presenters-transcript.js";
+import { onPiThemeChange, piTheme } from "../components/upstream/theme/theme.js";
+import {
+  piShellTruncateToWidth,
+  piShellVisibleWidth,
   type PiShellClipboardContent,
   type PiShellComponentPort,
   type PiShellEditorPort,
@@ -98,27 +109,25 @@ import {
   type PiShellHeaderPort,
   type PiShellImageAssetResolver,
   type PiShellLoadedResourcesPort,
-  type PiShellLoginDialogPort,
   type PiShellQueuedInputPort,
   type PiShellResourceEntry,
-  type PiShellScopedModelsSelectorPort,
   type PiShellSelectorOption,
   type PiShellStatusPort,
-  type PiShellSubmittedPromptComposer,
   type PiShellTranscriptComponentPort,
   type PiShellViewComponentPort,
-} from "../components/index.js";
+} from "../components/shell-shared-facade.js";
 import {
-  PiTuiRuntimeAdapter,
   classifyPiTuiInput,
-  type PiTuiComponentPort,
-  type PiTuiInputSurfaceKind,
   type PiTuiInputCoordinationScheduler,
-  type PiTuiInputDiagnosticsEvent,
-  type PiTuiLayoutNode,
-  type PiTuiOverlayHandle,
-  type PiTuiTerminalPort,
-} from "../tui-runtime/index.js";
+  type PiTuiInputSurfaceKind,
+} from "../tui-runtime/input-presentation-coordinator.js";
+import type {
+  PiTuiComponentPort,
+  PiTuiInputDiagnosticsEvent,
+  PiTuiLayoutNode,
+  PiTuiOverlayHandle,
+  PiTuiTerminalPort,
+} from "../tui-runtime/contracts.js";
 import { PromptChipStore, type PreparedPrompt } from "./prompt-chips.js";
 import { EditorHyperlinkBudget } from "./editor-hyperlink-budget.js";
 import { SessionViewportController, type SessionViewportInputResult } from "./session-viewport-controller.js";

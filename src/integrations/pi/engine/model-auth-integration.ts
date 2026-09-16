@@ -1,4 +1,4 @@
-import type { ModelRuntime } from "@earendil-works/pi-coding-agent";
+import type { ModelRuntime } from "../startup-public.js";
 import type {
   AgentAuthenticationPort,
   AgentModelDescriptor,

@@ -88,12 +88,30 @@ function followProxyReExport(resolvedPath) {
  * require resolves pi-tui, which publishes no `exports` map at all.
  */
 export function resolvePinnedPiTui(packageRoot) {
+  const pinnedRoot = resolvePinnedPiRoot(packageRoot);
+  return canonical(createRequire(pathToFileURL(join(pinnedRoot, "package.json")).href).resolve("@earendil-works/pi-tui"));
+}
+
+/**
+ * Bind Pi's documented package-asset override to the exact public package root.
+ * The generated startup facade otherwise inherits its own A1 `import.meta.url`,
+ * which would make Pi read A1's package metadata and themes.
+ */
+export function configurePinnedPiPublicPackage(packageRoot, environment = process.env) {
+  const pinnedRoot = resolvePinnedPiRoot(packageRoot);
+  const manifest = JSON.parse(readFileSync(join(pinnedRoot, "package.json"), "utf8"));
+  if (manifest.name !== "@earendil-works/pi-coding-agent" || typeof manifest.version !== "string") {
+    throw new Error("pinned Pi public package identity is invalid");
+  }
+  environment.PI_PACKAGE_DIR = pinnedRoot;
+  return { root: pinnedRoot, version: manifest.version };
+}
+
+function resolvePinnedPiRoot(packageRoot) {
   let directory = packageRoot;
   while (true) {
     const candidate = join(directory, "node_modules", "@earendil-works", "pi-coding-agent");
-    if (existsSync(join(candidate, "package.json"))) {
-      return canonical(createRequire(pathToFileURL(join(candidate, "package.json")).href).resolve("@earendil-works/pi-tui"));
-    }
+    if (existsSync(join(candidate, "package.json"))) return canonical(candidate);
     const parent = dirname(directory);
     if (parent === directory) throw new Error("pinned Pi is not installed beneath this package root");
     directory = parent;

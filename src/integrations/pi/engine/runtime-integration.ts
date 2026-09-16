@@ -10,13 +10,13 @@ import {
   type AgentSessionServices,
   type CreateAgentSessionRuntimeFactory,
   type ScopedModel,
-} from "@earendil-works/pi-coding-agent";
+} from "../startup-public.js";
 import {
   resolvePiProjectTrustPreflight,
   type PiProjectTrustPreflightPrompt,
 } from "./project-trust-preflight.js";
 import { openSelectedPiSession, resolveSessionArgumentPath, type PiSessionForkPrompt, type PiSessionSelection } from "./session-selection.js";
-import { markStartupPhase } from "../../../foundation/startup/index.js";
+import { markStartupPhase } from "../../../foundation/startup/startup-runtime.js";
 import { createWindowsNulCleanupExtension } from "./windows-filesystem-hygiene.js";
 
 export interface PiRuntimeIntegrationOptions {

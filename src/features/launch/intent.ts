@@ -1,7 +1,9 @@
-import { sessionSelectionArguments, type SessionSelection, type LaunchProfileId } from "../../foundation/lifecycle/index.js";
+import { sessionSelectionArguments, type SessionSelection } from "../../foundation/lifecycle/session-selection.js";
+import type { LaunchProfileId } from "../../foundation/lifecycle/model.js";
 
-export { parseSessionSelection } from "../../foundation/lifecycle/index.js";
-export type { LaunchProfileId, SessionSelection } from "../../foundation/lifecycle/index.js";
+export { parseSessionSelection } from "../../foundation/lifecycle/session-selection.js";
+export type { SessionSelection } from "../../foundation/lifecycle/session-selection.js";
+export type { LaunchProfileId } from "../../foundation/lifecycle/model.js";
 
 export interface InteractiveLaunchIntent {
   readonly kind: "interactive";

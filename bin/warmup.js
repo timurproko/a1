@@ -1,14 +1,18 @@
 #!/usr/bin/env node
 
-const startup = await import("../dist/foundation/startup/index.js");
+const startup = await import("../dist/foundation/startup/startup-runtime.js");
 startup.assertImmutableWarmupEnvironment(process.env);
 startup.enableEnvironmentCompileCache(process.env);
+const [{ fileURLToPath }, identity] = await Promise.all([
+  import("node:url"),
+  import("./module-identity.js"),
+]);
+identity.configurePinnedPiPublicPackage(fileURLToPath(new URL("..", import.meta.url)));
 
 // Security: this entry imports the exact interactive graph but never composes it, so it
 // creates no terminal, profile/session path, trust callback, executable resource loader,
 // extension runner, or network client.
-const [identity, launch, selection, trustPrompt, forkPrompt, run, composition] = await Promise.all([
-  import("./module-identity.js"),
+const [launch, selection, trustPrompt, forkPrompt, run, composition] = await Promise.all([
   import("../dist/features/launch/runtime-selection.js"),
   import("../dist/foundation/lifecycle/session-selection.js"),
   import("../dist/features/owned-ui/project-trust-prompt.js"),

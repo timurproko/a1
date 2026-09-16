@@ -1,6 +1,6 @@
 {
   "schema": "a1-legacy-identity-allowlist-v1",
-  "generatedAt": "2026-09-11T06:44:39.704Z",
+  "generatedAt": "2026-09-16T13:25:23.459Z",
   "inventorySchema": "a1-legacy-identity-inventory-v1",
   "occurrences": [
     {
@@ -280,9 +280,9 @@
       "reason": "explicit legacy rejection fixture"
     },
     {
-      "id": "test/foundation/release/package-surface.test.ts:43:32",
+      "id": "test/foundation/release/package-surface.test.ts:45:32",
       "value": "addone",
-      "fingerprint": "406a6bed89773e0b690a6eb642a8f32cec74b80bf35e1bf3a1e69f06f2ddd29e",
+      "fingerprint": "abe8614dcb7209f06224fd07ff0a1b95e9e3d64fed4183c0c64f1caa49b45031",
       "reason": "explicit legacy rejection fixture"
     },
     {

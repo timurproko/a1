@@ -2,14 +2,17 @@
 
 const commandStartedAtMs = performance.timeOrigin + performance.now();
 const packageRoot = new URL("..", import.meta.url);
-const startup = await import("../dist/foundation/startup/index.js");
+const startup = await import("../dist/foundation/startup/startup-runtime.js");
 const startupProfile = process.argv[2] === "pi" ? "pi" : "a1";
 startup.initializeStartupTrace(process.env, startupProfile, commandStartedAtMs);
 startup.enableEnvironmentCompileCache(process.env);
 await startup.markStartupPhase(process.env, "command-invoked");
 const { fileURLToPath } = await import("node:url");
 const { readFile } = await import("node:fs/promises");
-const { cliCapabilities, dispatchCli } = await import("../dist/cli/index.js");
+const [{ cliCapabilities }, { dispatchCli }] = await Promise.all([
+  import("../dist/cli/capabilities.js"),
+  import("../dist/cli/dispatch.js"),
+]);
 
 // Compatibility: which commands this build exposes follows from the build's own version, so a
 // released a1 cannot be argued into offering the development profiles.
@@ -18,8 +21,8 @@ const capabilities = cliCapabilities(JSON.parse(await readFile(new URL("package.
 process.exitCode = await dispatchCli(process.argv.slice(2), {
   launch: async intent => {
     const [{ prepareInteractiveLaunch }, { runBootstrap }, { healModuleIdentityAtLaunch, releaseCopyIsLaunchable }] = await Promise.all([
-      import("../dist/features/launch/index.js"),
-      import("../dist/foundation/release/index.js"),
+      import("../dist/features/launch/prepare-launch.js"),
+      import("../dist/foundation/release/bootstrap.js"),
       import("./module-identity.js"),
     ]);
     // Compatibility: self-heal the installed tree before the release store copies it: npm 12
@@ -36,18 +39,20 @@ process.exitCode = await dispatchCli(process.argv.slice(2), {
     });
   },
   version: async () => {
-    const { runVersionStats } = await import("../dist/cli/index.js");
+    const { runVersionStats } = await import("../dist/cli/version-stats.js");
     return await runVersionStats({ packageRoot: fileURLToPath(packageRoot) });
   },
   update: async (channel, target) => {
-    const { runSelfUpdate } = await import("../dist/foundation/release/index.js");
+    const { runSelfUpdate } = await import("../dist/foundation/release/update.js");
     return await runSelfUpdate({ packageRoot: fileURLToPath(packageRoot), channel, ...(target === undefined ? {} : { target }) });
   },
   packages: async request => {
-    const [{ runPackageCommand }, { createPiPackagesPort }] = await Promise.all([
-      import("../dist/cli/index.js"),
-      import("../dist/integrations/pi/engine/index.js"),
+    const [{ runPackageCommand }, identity] = await Promise.all([
+      import("../dist/cli/packages.js"),
+      import("./module-identity.js"),
     ]);
+    identity.configurePinnedPiPublicPackage(fileURLToPath(packageRoot));
+    const { createPiPackagesPort } = await import("../dist/integrations/pi/engine/package-integration.js");
     return await runPackageCommand(request, { createPort: createPiPackagesPort });
   },
 }, {

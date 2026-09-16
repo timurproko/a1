@@ -1,4 +1,4 @@
-import { getMarkdownTheme } from "@earendil-works/pi-coding-agent";
+import { getMarkdownTheme } from "../startup-public.js";
 import { Box, Markdown, Text, type Component } from "#pi-tui";
 import type { OwnedUiTranscriptBlock } from "../../../contracts/owned-ui/index.js";
 import { piTheme } from "./theme.js";

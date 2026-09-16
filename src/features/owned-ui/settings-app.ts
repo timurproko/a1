@@ -52,9 +52,8 @@ import type {
   OwnedUiSettingsEntry,
   OwnedUiSettingsSession,
 } from "../../ui/settings/index.js";
-
-export const SETTINGS_APP_ID = "settings";
-export const SETTINGS_ROUTE = "settings";
+import { SETTINGS_APP_ID, SETTINGS_ROUTE } from "./settings-route.js";
+export { SETTINGS_APP_ID, SETTINGS_ROUTE } from "./settings-route.js";
 const SCOPE = SETTINGS_APP_ID;
 /** The panel a setting with parts opens: its own keys, its own hint. */
 const DIALOG_SCOPE = `${SETTINGS_APP_ID}-parts`;

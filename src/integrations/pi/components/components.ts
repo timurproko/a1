@@ -2,7 +2,7 @@ import {
   AssistantMessageComponent,
   ToolExecutionComponent,
   UserMessageComponent,
-} from "@earendil-works/pi-coding-agent";
+} from "../startup-public.js";
 import type { OwnedUiTranscriptBlock } from "../../../contracts/owned-ui/index.js";
 import { createTuiFacade, validatedAssistantMessage } from "./shell-components.js";
 import { ensurePiTheme } from "./theme.js";

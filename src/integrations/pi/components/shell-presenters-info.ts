@@ -1,4 +1,4 @@
-import { DynamicBorder, getMarkdownTheme } from "@earendil-works/pi-coding-agent";
+import { DynamicBorder, getMarkdownTheme } from "../startup-public.js";
 import { Container, Markdown, Spacer, Text, type KeybindingsConfig } from "#pi-tui";
 import { KeybindingsManager } from "./upstream/adjacent/core/keybindings.js";
 import { PINNED_PI_LAYOUT, piTheme } from "./theme.js";
