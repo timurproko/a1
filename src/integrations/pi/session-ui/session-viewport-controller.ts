@@ -1,18 +1,12 @@
-import { samePointerSurfaces, type PiTuiPointerSurface } from "../tui-runtime/index.js";
+import { samePointerSurfaces } from "../tui-runtime/overlay-geometry.js";
+import type { PiTuiPointerSurface } from "../tui-runtime/contracts.js";
 import type { OwnedUiViewportSettings } from "../../../contracts/owned-ui/index.js";
-import {
-  TranscriptViewport,
-  readVisibleHyperlinks,
-  routeMouseInput,
-  scrollForTrackPage,
-  scrollForThumbRow,
-  scrollbarSelectionRows,
-  scrollbarWheelRows,
-  type SelectionCopySnapshot,
-  type TranscriptViewportFrame,
-  type TranscriptViewportFrameInput,
-} from "../../../ui/components/index.js";
-import type { PiShellEditorPort } from "../components/index.js";
+import { TranscriptViewport, type TranscriptViewportFrame, type TranscriptViewportFrameInput } from "../../../ui/components/transcript-viewport.js";
+import { readVisibleHyperlinks } from "../../../ui/components/visible-hyperlinks.js";
+import { routeMouseInput } from "../../../ui/components/mouse.js";
+import { scrollForTrackPage, scrollForThumbRow, scrollbarSelectionRows, scrollbarWheelRows } from "../../../ui/components/scrollbar.js";
+import type { SelectionCopySnapshot } from "../../../ui/components/selection-copy.js";
+import type { PiShellEditorPort } from "../components/shell-shared-facade.js";
 import type { PasteEvent } from "./paste-protocol.js";
 
 export interface SessionViewportControllerOptions {

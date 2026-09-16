@@ -1,5 +1,5 @@
 import { writeFile } from "node:fs/promises";
-import type { PiTuiInputDiagnosticsEvent } from "../tui-runtime/index.js";
+import type { PiTuiInputDiagnosticsEvent } from "../tui-runtime/contracts.js";
 import type { ResponseCopyEvent } from "./response-copy-protocol.js";
 import type { PasteEvent } from "./paste-protocol.js";
 

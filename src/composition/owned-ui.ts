@@ -1,18 +1,21 @@
-import { SuggestionDiagnosticCapture } from "../features/prompt-suggestions/index.js";
+import { SuggestionDiagnosticCapture } from "../features/prompt-suggestions/diagnostics.js";
 import { PRODUCT_IDENTITY } from "../product-identity.js";
-import { PromptHistoryService, PromptImageSidecar, resolvePromptHistoryPath } from "../features/prompt-history/index.js";
-import { resolvePromptHistoryDataDir } from "../features/launch/index.js";
-import { resolveProductPaths, type SessionSelection } from "../foundation/lifecycle/index.js";
-import { applyConfiguredPiTheme, getAvailablePiThemes, loadHistoryEditor } from "../integrations/pi/components/index.js";
-import {
-  createPiEngineAdapter,
-  type PiEngineAdapter,
-  type PiProjectTrustPreflightPrompt,
-  type PiSessionForkPrompt,
-} from "../integrations/pi/engine/index.js";
-import { ClipboardDiagnosticCapture, OwnedUiSessionShell } from "../integrations/pi/session-ui/index.js";
-import { OwnedUiSettingsSession, OwnedUiSettingsStore } from "../ui/settings/index.js";
-import { createPiTerminalBridge } from "../integrations/pi/tui-runtime/index.js";
+import { PromptHistoryService } from "../features/prompt-history/service.js";
+import { PromptImageSidecar } from "../features/prompt-history/image-sidecar.js";
+import { resolvePromptHistoryPath } from "../features/prompt-history/paths.js";
+import { resolvePromptHistoryDataDir } from "../features/launch/profile-paths.js";
+import { resolveProductPaths } from "../foundation/lifecycle/paths.js";
+import type { SessionSelection } from "../foundation/lifecycle/session-selection.js";
+import { applyConfiguredPiTheme, getAvailablePiThemes } from "../integrations/pi/components/upstream/theme/theme.js";
+import { createPiEngineAdapter } from "../integrations/pi/engine/adapter.js";
+import type { PiEngineAdapter } from "../integrations/pi/engine/adapter.js";
+import type { PiProjectTrustPreflightPrompt } from "../integrations/pi/engine/project-trust-preflight.js";
+import type { PiSessionForkPrompt } from "../integrations/pi/engine/session-selection.js";
+import { ClipboardDiagnosticCapture } from "../integrations/pi/session-ui/clipboard-diagnostics.js";
+import { OwnedUiSessionShell } from "../integrations/pi/session-ui/session-shell.js";
+import { OwnedUiSettingsSession } from "../ui/settings/session.js";
+import { OwnedUiSettingsStore } from "../ui/settings/store.js";
+import { createPiTerminalBridge } from "../integrations/pi/tui-runtime/presentation-adapter.js";
 import type { OwnedUiApplicationPort, PresentationTerminalPort } from "../contracts/presentation/index.js";
 import type { OwnedUiViewportSettings, OwnedUiViewportSettingsPort } from "../contracts/owned-ui/index.js";
 import { createOwnedRouteHost } from "./settings-route-host.js";
@@ -122,7 +125,10 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     }),
     ...(viewportSettings === null ? {} : { viewportSettings }),
     ...(promptSuggestions === null ? {} : { promptSuggestions }),
-    ...(promptHistory === null ? {} : { promptHistory: { ...promptHistory, editor: await loadHistoryEditor() } }),
+    ...(promptHistory === null ? {} : { promptHistory: {
+      ...promptHistory,
+      editor: await import("../integrations/pi/components/history-editor-loader.js").then(module => module.loadHistoryEditor()),
+    } }),
     });
   } catch (error) {
     clipboardDiagnostics?.dispose(); suggestionDiagnostics?.dispose();

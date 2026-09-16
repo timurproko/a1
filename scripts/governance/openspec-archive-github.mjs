@@ -5,6 +5,8 @@ import { parseImplementationAcceptanceScenarios } from "./openspec-acceptance-ch
 import { assertManualAcceptanceMerge, digest, requireAcceptance } from "./openspec-acceptance-policy.mjs";
 import { parseConditionalAcceptance, verifyConditionalAcceptance } from "./openspec-delivery-policy.mjs";
 
+export const ACTIVE_TO_ARCHIVE_RENAME_POLICY = true;
+
 export function createArchiveReader({ repository, token, fetchImpl = fetch, apiUrl = "https://api.github.com", deadline = Infinity }) {
   if (!/^[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+$/.test(repository)) throw archiveFailure("repository-identity");
   const prefix = `/repos/${repository}`;
@@ -110,8 +112,16 @@ export async function validateVersion3Candidate(reader, number) {
   requireAcceptance(value.archiveEntries.every(([path]) => changed.has(path)) && changed.has(implementation.acceptanceManifest),
     "delivery-diff-incomplete");
   const specPaths = new Set(value.specEntries.map(([path]) => path));
+  const activePrefix = `openspec/changes/${implementation.change}/`;
+  const archivedRenameSources = new Set(files.flatMap(file => {
+    if (file.status !== "renamed" || typeof file.previous_filename !== "string" || !file.previous_filename.startsWith(activePrefix)) return [];
+    const expected = `${implementation.archive}${file.previous_filename.slice(activePrefix.length)}`;
+    return file.filename === expected ? [file.previous_filename] : [];
+  }));
   for (const path of changed) {
-    if (path.startsWith("openspec/changes/") && !path.startsWith(implementation.archive)) throw archiveFailure("delivery-unexpected-openspec-path", path);
+    if (path.startsWith("openspec/changes/") && !path.startsWith(implementation.archive) && !archivedRenameSources.has(path)) {
+      throw archiveFailure("delivery-unexpected-openspec-path", path);
+    }
     if (path.startsWith("openspec/specs/") && !specPaths.has(path)) throw archiveFailure("delivery-unexpected-openspec-path", path);
   }
   return { disposition: "ready-for-manual-merge", pull, implementation, targetSha: target.object.sha, ...value };

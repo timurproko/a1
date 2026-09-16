@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 
-const startup = await import("../dist/foundation/startup/index.js");
+const startup = await import("../dist/foundation/startup/startup-runtime.js");
 startup.enableEnvironmentCompileCache(process.env);
 await startup.markStartupPhase(process.env, "guardian-start");
 const { resolve } = await import("node:path");
-const { parseSessionSelection } = await import("../dist/foundation/lifecycle/index.js");
-const { runLaunchGuardian } = await import("../dist/foundation/launch-guardian/index.js");
+const { parseSessionSelection } = await import("../dist/foundation/lifecycle/session-selection.js");
+const { runLaunchGuardian } = await import("../dist/foundation/launch-guardian/main.js");
 
 const { readLaunchContext } = await import("../dist/foundation/launch-context/index.js");
 const launchContext = readLaunchContext(process.env, "release");

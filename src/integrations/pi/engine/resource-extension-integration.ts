@@ -1,4 +1,4 @@
-import type { AgentSession } from "@earendil-works/pi-coding-agent";
+import type { AgentSession } from "../startup-public.js";
 import type {
   AgentExtensionBinding,
   AgentExtensionFailure,

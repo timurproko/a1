@@ -1,4 +1,4 @@
-import { assertLaunchProfileId, type LaunchProfileId } from "../../foundation/lifecycle/index.js";
+import { assertLaunchProfileId, type LaunchProfileId } from "../../foundation/lifecycle/model.js";
 
 /**
  * Both interactive commands use the owned composition. Bare A1 enables product

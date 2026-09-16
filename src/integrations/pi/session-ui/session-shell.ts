@@ -2,10 +2,11 @@ import { ResponseCopyCoordinator } from "./response-copy-coordinator.js";
 import { createResponseCopyExecutor, hasAsyncClipboardOutput, responseCopyDestination } from "./response-copy-transport.js";
 import { MAX_COPY_CONTROL_BYTES } from "./response-copy-protocol.js";
 import { PromptHistoryController } from "./prompt-history-controller.js";
-import type { PromptHistoryKind } from "../../../contracts/owned-ui/index.js";
+import type { PromptHistoryKind } from "../../../contracts/owned-ui/prompt-history.js";
 import { PRODUCT_TEXT } from "../../../product-identity.js";
-import { boundedCleanup } from "../../../foundation/terminal-cleanup/index.js";
-import { assertOwnedUiCommand, assertPromptImages, ImageAttachmentError } from "../../../contracts/owned-ui/index.js";
+import { boundedCleanup } from "../../../foundation/terminal-cleanup/terminal-reset.js";
+import { assertOwnedUiCommand } from "../../../contracts/owned-ui/validation.js";
+import { assertPromptImages, ImageAttachmentError } from "../../../contracts/owned-ui/image-attachments.js";
 import type {
   OwnedUiCommand,
   OwnedUiDialog,
@@ -15,86 +16,93 @@ import type {
   OwnedUiThinkingLevel,
   SuggestionDecision,
 } from "../../../contracts/owned-ui/index.js";
-import type { UiRouteHost } from "../../../ui/apps/index.js";
+import type { UiRouteHost } from "../../../ui/apps/contracts.js";
 import { ContextualPromptSuggestionController } from "./prompt-suggestion-controller.js";
-import { MOUSE_TRACKING_OFF, MOUSE_TRACKING_ON, parseMouseInput, readVisibleHyperlinks } from "../../../ui/components/index.js";
+import { MOUSE_TRACKING_OFF, MOUSE_TRACKING_ON, parseMouseInput } from "../../../ui/components/mouse.js";
+import { readVisibleHyperlinks } from "../../../ui/components/visible-hyperlinks.js";
+import { PINNED_PI_HIDDEN_COMMAND_NAMES, PINNED_PI_WORKFLOW_COMMAND_NAMES } from "../engine/workflows.js";
+import type {
+  AdapterCommandResult,
+  OwnedPiExtensionResourceSummary,
+  OwnedPiExtensionSourceSummary,
+  PiEngineAdapter,
+} from "../engine/adapter.js";
+import type {
+  PiWorkflowInteractionRequest,
+  PiWorkflowLoginNotification,
+  PiWorkflowLoginStart,
+  PiWorkflowRequest,
+  PiWorkflowResult,
+  PiWorkflowRoute,
+} from "../engine/workflows.js";
+import { createPiExtensionUiBridge, type PiExtensionUiBridge } from "../components/shell-extension-ui.js";
+import { createPiShellEditor } from "../components/shell-editor-autocomplete.js";
 import {
-  PINNED_PI_HIDDEN_COMMAND_NAMES,
-  PINNED_PI_WORKFLOW_COMMAND_NAMES,
-  type AdapterCommandResult,
-  type OwnedPiExtensionResourceSummary,
-  type OwnedPiExtensionSourceSummary,
-  type PiEngineAdapter,
-  type PiWorkflowInteractionRequest,
-  type PiWorkflowLoginNotification,
-  type PiWorkflowLoginStart,
-  type PiWorkflowRequest,
-  type PiWorkflowResult,
-  type PiWorkflowRoute,
-} from "../engine/index.js";
-import {
-  createPiExtensionUiBridge,
   createPiQueuedInputStatus,
+  createPiShellFooter,
+  createPiShellHeader,
+  createPiShellLoadedResources,
+  createPiShellStatus,
+} from "../components/shell-footer-status.js";
+import {
   createPiShellArmin,
   createPiShellAuthProviderSelector,
-  createPiShellChangelog,
   createPiShellDaxnuts,
   createPiShellDialog,
   createPiShellEarendilAnnouncement,
-  createPiShellEditor,
   createPiShellExtensionSelector,
-  createPiShellFooter,
-  createPiShellHeader,
-  createPiShellHotkeys,
-  createPiShellLoadedResources,
   createPiShellLoginDialog,
   createPiShellModelSelector,
   createPiShellOperationLoader,
   createPiShellReloadBox,
   createPiShellScopedModelsSelector,
   createPiShellSelector,
-  createPiShellSessionInfo,
   createPiShellSessionSelector,
   createPiShellSettingsSelector,
-  createPiShellStatus,
-  createPiShellTranscriptComponent,
   createPiShellTreeSelector,
   createPiShellTrustSelector,
   createPiShellUserMessageSelector,
-  onPiThemeChange,
-  piTheme,
+  type PiShellLoginDialogPort,
+  type PiShellScopedModelsSelectorPort,
+} from "../components/shell-selectors-dialogs.js";
+import {
+  createPiShellChangelog,
+  createPiShellHotkeys,
+  createPiShellSessionInfo,
+  renderPiShellStatusText,
+} from "../components/shell-presenters-info.js";
+import {
+  createPiShellTranscriptComponent,
   renderPiShellPackageUpdateNotice,
   renderPiShellStartupDiagnostic,
-  renderPiShellStatusText,
   renderPiShellTranscriptBlock,
-  type PiExtensionUiBridge,
-  type PiShellComponentPort,
-  type PiShellClipboardContent,
-  type PiShellEditorPort,
-  type PiShellExtensionRendererResolver,
-  type PiShellHeaderOptions,
-  type PiShellHeaderPort,
-  type PiShellLoadedResourcesPort,
-  type PiShellLoginDialogPort,
-  type PiShellQueuedInputPort,
-  type PiShellResourceEntry,
-  type PiShellScopedModelsSelectorPort,
-  type PiShellSelectorOption,
-  type PiShellStatusPort,
-  type PiShellTranscriptComponentPort,
-  type PiShellViewComponentPort,
-} from "../components/index.js";
-import {
-  DamageAwareTerminalAdapter,
-  PiTuiRuntimeAdapter,
-  classifyPiTuiInput,
-  type PiTuiComponentPort,
-  type PiTuiDamageDecision,
-  type PiTuiLayoutNode,
-  type PiTuiOverlayHandle,
-  type PiTuiRuntimeAdapterOptions,
-  type PiTuiTerminalPort,
-} from "../tui-runtime/index.js";
+} from "../components/shell-presenters-transcript.js";
+import { onPiThemeChange, piTheme } from "../components/upstream/theme/theme.js";
+import type {
+  PiShellComponentPort,
+  PiShellClipboardContent,
+  PiShellEditorPort,
+  PiShellExtensionRendererResolver,
+  PiShellHeaderOptions,
+  PiShellHeaderPort,
+  PiShellLoadedResourcesPort,
+  PiShellQueuedInputPort,
+  PiShellResourceEntry,
+  PiShellSelectorOption,
+  PiShellStatusPort,
+  PiShellTranscriptComponentPort,
+  PiShellViewComponentPort,
+} from "../components/shell-shared-facade.js";
+import { DamageAwareTerminalAdapter, type PiTuiDamageDecision } from "../tui-runtime/damage-aware-terminal.js";
+import { PiTuiRuntimeAdapter } from "../tui-runtime/adapter.js";
+import { classifyPiTuiInput } from "../tui-runtime/input-presentation-coordinator.js";
+import type {
+  PiTuiComponentPort,
+  PiTuiLayoutNode,
+  PiTuiOverlayHandle,
+  PiTuiRuntimeAdapterOptions,
+  PiTuiTerminalPort,
+} from "../tui-runtime/contracts.js";
 
 
 import { runImageWorker } from "./image-preparation-client.js";

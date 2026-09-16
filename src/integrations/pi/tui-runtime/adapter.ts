@@ -15,7 +15,7 @@ import {
 } from "#pi-tui";
 import { MouseReportInput } from "./mouse-report-input.js";
 import { GeometryObservedAltScreen, OverlayGeometryTracker } from "./overlay-geometry.js";
-import { boundedCleanup, EMERGENCY_TERMINAL_RESET } from "../../../foundation/terminal-cleanup/index.js";
+import { boundedCleanup, EMERGENCY_TERMINAL_RESET } from "../../../foundation/terminal-cleanup/terminal-reset.js";
 import {
   InputPresentationCoordinator,
   type PiTuiInputCoordinationTrace,

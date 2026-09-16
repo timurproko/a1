@@ -1,4 +1,4 @@
-import { convertToPng } from "@earendil-works/pi-coding-agent";
+import { convertToPng } from "../startup-public.js";
 import { getCapabilities, Image, Text, type Component } from "#pi-tui";
 import { piTheme } from "./theme.js";
 

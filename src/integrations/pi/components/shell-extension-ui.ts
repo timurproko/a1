@@ -3,7 +3,7 @@ import {
   ExtensionSelectorComponent,
   type ExtensionUIContext,
   getSelectListTheme,
-} from "@earendil-works/pi-coding-agent";
+} from "../startup-public.js";
 import {
   ExtensionEditorComponent,
 } from "./upstream/components/extension-editor.js";

@@ -1,6 +1,6 @@
 import { fork, type ForkOptions, type SpawnOptions } from "node:child_process";
 import { fstatSync } from "node:fs";
-import type { SelectionCopySnapshot } from "../../../ui/components/index.js";
+import type { SelectionCopySnapshot } from "../../../ui/components/selection-copy.js";
 import { COPY_CHUNK_UNITS, COPY_CLEANUP_MS, MAX_COPY_BYTES, MAX_COPY_CONTROL_BYTES, type CopyHelperInput, type CopyHelperOutput, type CopyResult } from "./response-copy-protocol.js";
 
 type HelperResult = Extract<CopyHelperOutput, { kind: "result" }> & { readonly text?: string; readonly bytes?: number };

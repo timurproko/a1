@@ -1,7 +1,7 @@
 import type { OwnedUiApplicationPort } from "../../contracts/presentation/index.js";
 import type { OwnedUiSettingsSession } from "../../ui/settings/index.js";
-import { markStartupPhase } from "../../foundation/startup/index.js";
-import { boundedCleanup } from "../../foundation/terminal-cleanup/index.js";
+import { markStartupPhase } from "../../foundation/startup/startup-runtime.js";
+import { boundedCleanup } from "../../foundation/terminal-cleanup/terminal-reset.js";
 
 const PROCESS_OUTPUT_FLUSH_TIMEOUT_MS = 250;
 

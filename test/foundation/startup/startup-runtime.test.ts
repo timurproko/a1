@@ -97,18 +97,22 @@ describe("opt-in startup evidence and compile cache", () => {
       profileId: "a1",
       launchKind: "post-update",
       events: [event("command-invoked", 0), event("ui-modules-loaded", 5_500), event("first-input-ready-render", 6_000)],
-    })).toThrow(/ui-modules-loaded 5500ms/);
+      moduleGraph: { loadedFiles: 42, evaluatedBytes: 12_345, groups: [{ group: "pi-public", files: 30, evaluatedBytes: 10_000 }] },
+    })).toThrow(/ui-modules-loaded 5500ms.*module graph: 42 files, 12345 evaluated bytes.*pi-public 30\/10000/);
     expect(() => assertStartupPerformanceBudget({
       profileId: "a1",
       launchKind: "no-live-supervisor",
       events: [event("command-invoked", 0), event("ui-modules-loaded", 5_500), event("first-input-ready-render", 6_000)],
     })).toThrow(/no-live-supervisor/);
     expect(() => assertStartupPerformanceBudget({
-      profileId: "pi", launchKind: "warm", events: [event("first-input-ready-render", 3_000)],
+      profileId: "pi", launchKind: "post-update", events: [event("first-input-ready-render", 2_000)],
     })).not.toThrow();
     expect(() => assertStartupPerformanceBudget({
-      profileId: "pi", launchKind: "warm", events: [event("first-input-ready-render", 3_001)],
-    })).toThrow(/3001ms exceeds 3000ms/);
+      profileId: "pi", launchKind: "warm", events: [event("first-input-ready-render", 2_001)],
+    })).toThrow(/2001ms exceeds 2000ms/);
+    expect(() => assertStartupPerformanceBudget({
+      profileId: "pi", launchKind: "no-live-supervisor", events: [event("first-input-ready-render", 2_501)],
+    })).toThrow(/2501ms exceeds 2500ms/);
   });
 
   it("falls back without behavior changes when cache storage is unavailable", async () => {

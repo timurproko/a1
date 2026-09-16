@@ -16,7 +16,7 @@ import {
   ThemeSelectorComponent,
   ThinkingSelectorComponent,
   UserMessageSelectorComponent,
-} from "@earendil-works/pi-coding-agent";
+} from "../startup-public.js";
 import {
   DaxnutsComponent,
 } from "./upstream/components/daxnuts.js";
