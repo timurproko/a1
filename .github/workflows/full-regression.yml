@@ -101,6 +101,7 @@ jobs:
           A1_CONFIG_DIR: ${{ runner.temp }}/a1-full-config
           A1_DATA_DIR: ${{ runner.temp }}/a1-full-data
           A1_RUNTIME_DIR: ${{ runner.temp }}/a1-full-runtime
+          STARTUP_BUDGET_ENFORCEMENT: fail
         run: node scripts/release/run-validation-tier.mjs --result .artifacts/validation/full-regression.json
 
       - name: Report gate ownership and timing

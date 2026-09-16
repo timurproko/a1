@@ -488,6 +488,9 @@ jobs:
           A1_DATA_DIR: ${{ runner.temp }}/a1-${{ matrix.group }}-data
           A1_RUNTIME_DIR: ${{ runner.temp }}/a1-${{ matrix.group }}-runtime
           RUN_PROCESS_CONTAINMENT_INTEGRATION: "1"
+          # Shared runners measure startup reliably but time it unreliably; this owner records
+          # an overrun, and nightly publication and Full regression still fail on it.
+          STARTUP_BUDGET_ENFORCEMENT: record
           STARTUP_PERFORMANCE_RESULT: .artifacts/validation/startup-node${{ matrix.node }}-performance.json
         run: node scripts/release/run-validation-tier.mjs --result .artifacts/validation/outcome-${{ matrix.group }}-${{ matrix.platform }}-node${{ matrix.node }}-attempt-${{ github.run_attempt }}.json
       - name: Add modular timing summary
