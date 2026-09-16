@@ -1,9 +1,10 @@
 export interface DevelopmentValidationResults {
   readonly acceptanceOnly?: string | undefined;
-  readonly acceptancePhase?: string;
+  readonly implementationBound?: string | undefined;
   readonly acceptanceCandidate?: string;
   readonly deliveryCandidate?: string;
   readonly acceptanceResult?: string;
+  readonly deliveryResult?: string;
   readonly changesResult?: string;
   readonly docsResult?: string;
   readonly namingResult?: string;
@@ -21,26 +22,8 @@ export interface DevelopmentValidationResults {
   readonly expectedHead?: string;
 }
 
-export interface PriorImplementationValidationOptions {
-  readonly repository: string;
-  readonly pullNumber: number;
-  readonly head: string;
-  readonly currentRunId: number;
-  readonly request(path: string): Promise<unknown>;
-}
-
-export interface PriorImplementationValidation {
-  readonly runId: number;
-  readonly attempt: number;
-  readonly jobId: number;
-  readonly head: string;
-}
-
 export function requireDevelopmentValidation(value: DevelopmentValidationResults):
   | { readonly mode: "acceptance" }
-  | { readonly mode: "delivery-acceptance" }
   | { readonly mode: "docs"; readonly openspec: boolean }
   | { readonly mode: "version" }
   | { readonly mode: "code"; readonly renderingTier: string; readonly documentationRequired: boolean };
-
-export function requirePriorImplementationValidation(value: PriorImplementationValidationOptions): Promise<PriorImplementationValidation>;

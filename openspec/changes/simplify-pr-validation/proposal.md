@@ -10,6 +10,7 @@ Ordinary pull-request feedback still takes too long and consumes broad integrati
 - Remove permanent regression assertions that merely reread one-time OpenSpec implementation evidence or exact prose. Validate generators and policy semantics with hermetic fixtures, and leave historical evidence validation to OpenSpec finalization/audit.
 - Narrow custom receipts and aggregate evidence to boundaries where exact artifact identity is material, especially package and publication gates; rely on native Actions conclusions for ordinary checkout-bound test execution.
 - Retain fail-closed outcomes, first-attempt performance semantics, current product assertions, and no automatic retry of semantic failures.
+- Let one successful finalized exact-head Implementation run satisfy the stable protected check so manual review can proceed directly to a human merge without a PR-body phase promotion or second workflow run.
 
 ## Capabilities
 
@@ -21,7 +22,9 @@ None.
 
 - `continuous-integration`: Define a bounded mandatory PR core, coarse reviewed ownership selection, same-head failed-job reruns, simpler aggregation, and complete conservative fallback/cadence.
 - `isolated-regression-testing`: Require durable regression tests to protect current behavior without depending on mutable planning evidence or exact policy prose, while preserving hermetic integration and release coverage.
+- `change-delivery-workflow`: Keep finalized version-3 deliveries in Implementation through authorized manual merge, with green exact-head CI enabling review rather than requiring a metadata transition.
+- `github-repository-governance`: Validate the finalized Implementation body and expose the stable protected aggregate in the same workflow run as product validation.
 
 ## Impact
 
-Implementation would affect development workflow topology under `.github/workflows/`, validation ownership and suite configuration under `config/`, selection/tier/aggregate tooling under `scripts/release/`, brittle governance tests, and `docs/validation.md`. It may remove or rewrite tests whose only oracle is archived change evidence, but it will not remove current product assertions, weaken release/package identity, increase product timeouts, add success retries, change publication authority, or alter the public API.
+Implementation would affect development workflow topology under `.github/workflows/`, validation ownership and suite configuration under `config/`, selection/tier/aggregate tooling under `scripts/release/`, version-3 delivery policy and candidate readers, brittle governance tests, and validation/delivery documentation. It may remove or rewrite tests whose only oracle is archived change evidence, but it will not remove current product assertions, weaken release/package identity, increase product timeouts, add success retries, change publication authority, or alter the public API.

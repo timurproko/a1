@@ -103,15 +103,17 @@ Alternative: increase the paste polling or resume readiness timeout. Rejected be
 
 Alternative: rerun unchanged semantic failures until they pass. Rejected because first-attempt failures remain evidence and fixture correctness must not depend on retry.
 
-### 8. Acceptance reuses exact-head Implementation authority instead of re-executing product tests
+### 8. One finalized Implementation run unlocks manual review and merge
 
-Treat the phase-only edit from Implementation to Acceptance as a governance transition, not a new product candidate. The Acceptance route skips selection and every product, rendering, naming, and changed-file documentation lane. Trusted acceptance policy validates the finalized version-3 record, while the protected aggregate queries Actions evidence and requires one successful prior `Implementation validation complete` job from the reviewed Development workflow associated with the same PR and exact head. The current Acceptance run cannot satisfy its own prerequisite.
+Keep a finalized version-3 pull request in `Phase: Implementation` through manual merge. The ordinary exact-head Development workflow runs impact-selected product/governance validation and finalized-delivery validation in parallel, then emits the stable protected `Development validation required` aggregate only after both authorities succeed. Green CI means the merge button is available for the maintainer's manual product review; it does not claim human acceptance and does not merge automatically.
 
-Any commit changes the head and invalidates that evidence. A manual Acceptance rejection returns the PR to Implementation; fixes receive normal current-head product validation before promotion again.
+Any commit changes the head and requires the full applicable workflow again. Any body change reruns candidate validation and must remain identical to the committed acceptance manifest. If manual review finds a defect, the PR simply remains open while fixes are pushed; no lifecycle state must be rolled backward or promoted.
 
-Alternative: rerun all product lanes after the phase-only body edit. Rejected because it spends another complete validation cycle on unchanged bytes and delays the intended manual review.
+Legacy exact acceptance-record-only pull requests retain their trusted base-controlled route. They do not change the version-3 single-run path.
 
-Alternative: accept any successful run for the branch or commit. Rejected because PR association, workflow identity, exact head, completed success, and the Implementation aggregate identity are all required to prevent stale or unrelated evidence from satisfying the protected gate.
+Alternative: require a phase-only edit from Implementation to Acceptance after green tests. Rejected because it creates a manual metadata ceremony, leaves the protected check pending after successful tests, and starts a second workflow solely to authorize the same unchanged bytes.
+
+Alternative: infer human acceptance from successful CI or merge automatically. Rejected because CI supplies machine evidence only; an authorized maintainer's explicit manual merge remains the acceptance decision.
 
 ## Risks / Trade-offs
 
@@ -128,11 +130,11 @@ Alternative: accept any successful run for the branch or commit. Rejected becaus
 - **[A hermetic consumer fixture drifts behind the current validation-impact schema]** -> Build the fixture with the current versioned PR-core fields and computed selection identity so consumer tests exercise supported evidence rather than weakening parser validation.
 - **[Filesystem-heavy release cleanup competes with the parallel PR-core batch]** -> Classify its existing test file as resource-sensitive so it retains every assertion and timeout in a fresh serial invocation rather than increasing timeouts or retrying failures.
 - **[Validation-authority corrections leave secondary policy oracles stale]** -> Search all governance fixtures for affected membership and artifact identities, update every semantic oracle together, and run the complete repository-governance test directory serially before another hosted attempt.
-- **[An expected Acceptance-phase rejection looks like a broken Implementation test]** -> Skip trusted acceptance evaluation under a clearly non-acceptance identity during Implementation, publish a distinct non-protected successful implementation aggregate after product checks pass, and reserve both `Acceptance record validation` and the protected aggregate identity for Acceptance-phase or legacy acceptance-only candidates.
+- **[Finalized delivery validation is mistaken for human acceptance]** -> Name it as candidate/finalization validation, keep the protected aggregate as machine evidence only, leave auto-merge disabled, and require an authorized human manual merge.
 - **[A cold paste helper leaves a provisional marker beyond a generic assertion poll]** -> Await its structured request settlement before asserting the adopted URL/text and preserve all semantic editor assertions unchanged.
 - **[One-time exact-package materialization consumes the resume UI readiness window]** -> Prepare and certify the exact candidate as fixture setup with production release-store operations, then retain the unchanged readiness bound for the public supervisor/guardian/UI resume path; first-attempt materialization and startup remain independently gated.
-- **[A phase-only Acceptance edit repeats unchanged product validation]** -> Route Acceptance directly to trusted record validation plus prior exact-head Implementation evidence, and skip every generic/product lane.
-- **[Prior green evidence belongs to another candidate]** -> Require the reviewed workflow, pull-request association, exact head, successful run, and unique `Implementation validation complete` job; fail closed on unavailable or contradictory Actions evidence.
+- **[Green product tests leave the protected check pending]** -> Emit the stable protected aggregate in the same exact-head run after product and finalized-delivery validation, with no later phase edit.
+- **[A body or code change follows green evidence]** -> Let the normal edited/synchronize event rerun validation for the current body/head and never reuse another head's aggregate.
 
 ## Migration Plan
 
@@ -141,5 +143,5 @@ Alternative: accept any successful run for the branch or commit. Rejected becaus
 3. Replace historical-evidence/prose assertions with hermetic semantic tests, keeping accepted evidence files and current behavior coverage.
 4. Introduce attempt-qualified artifacts and attempt-aware aggregate fixtures, then prove failed-only reruns without changing branch protection.
 5. Switch Development scheduling to PR core plus selected owners. Keep a conservative switch that selects complete coverage without changing suite membership.
-6. Before version-3 finalization, record the deterministic ordinary-path replay and the exact hosted evidence plan. After in-branch finalization, run exact-head normal Development CI and record the PR-core observation, selected owners, actual latency, runner cost, every failed attempt, and any explicit known gap without inventing speedup evidence. Do not manually dispatch Full regression for ordinary PR acceptance; nightly and release retain complete post-merge coverage. Post-finalization hosted gates are acceptance prerequisites, not pre-finalization task-completeness prerequisites.
+6. Before version-3 finalization, record the deterministic ordinary-path replay and the exact hosted evidence plan. After in-branch finalization, run one exact-head normal Development workflow that validates the finalized delivery plus the PR core and selected owners, emits the stable protected aggregate, and records actual latency, runner cost, every failed attempt, and any explicit known gap without inventing speedup evidence. Do not manually dispatch Full regression for ordinary PR acceptance; nightly and release retain complete post-merge coverage. Post-finalization hosted gates are acceptance prerequisites, not pre-finalization task-completeness prerequisites.
 7. Roll back by selecting complete coverage for every code PR and disabling prior-attempt reuse. Rollback must retain all tests, exact-package receipts, budgets, platform/runtime lanes, and the stable aggregate.

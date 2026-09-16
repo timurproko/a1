@@ -9,7 +9,7 @@ describe("repository-owned atomic delivery guidance", () => {
     expect(config).toContain("one normally named draft PR");
     expect(config).toContain("`> Phase: Proposal`");
     expect(config).toContain("`> Phase: Implementation`");
-    expect(config).toContain("`> Phase: Acceptance`");
+    expect(config).toContain("no phase promotion or second validation run is required");
     expect(config).toContain("derive the post-merge state `Archived`");
     expect(config).toContain("`## Proposal`");
     expect(config).toContain("one or two sentences of intent");
@@ -34,7 +34,7 @@ describe("repository-owned atomic delivery guidance", () => {
     expect(skill).toContain("same worktree, branch, history, and PR");
     expect(skill).toContain("`> Phase: Proposal`");
     expect(skill).toContain("`> Phase: Implementation`");
-    expect(skill).toContain("`> Phase: Acceptance`");
+    expect(skill).toContain("Do not promote the body to another phase");
     expect(skill).toContain("report `Archived`");
     expect(skill).toContain("`## Proposal`");
     expect(skill).toContain("one or two sentences of intent");
@@ -61,7 +61,8 @@ describe("repository-owned atomic delivery guidance", () => {
     expect(docs).toContain("## Proposal");
     expect(docs).toContain("> Phase: Proposal");
     expect(docs).toContain("> Phase: Implementation");
-    expect(docs).toContain("> Phase: Acceptance");
+    expect(docs).toContain("no phase-only body edit or second workflow run is required");
+    expect(docs).not.toContain("> Phase: Acceptance");
     expect(docs).toContain("derives `Archived`");
     expect(docs).toContain("## Implementation");
     expect(docs).toContain("## Automation");

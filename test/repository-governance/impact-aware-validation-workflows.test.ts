@@ -11,55 +11,57 @@ describe("impact-aware validation workflows", () => {
     expect(workflow.jobs.rendering.needs).toBe("changes");
     expect(workflow.jobs.modular.strategy["fail-fast"]).toBe(false);
     expect(workflow.jobs.modular.strategy).not.toHaveProperty("max-parallel");
-    expect(workflow.jobs.required.needs).toEqual(["changes", "acceptance", "docs", "naming", "documentation", "modular", "rendering"]);
+    expect(workflow.jobs.required.needs).toEqual(["changes", "acceptance", "delivery", "docs", "naming", "documentation", "modular", "rendering"]);
     expect(workflow.jobs.required.name).toContain("Draft validation intentionally skipped");
-    expect(workflow.jobs.required.name).toContain("Implementation validation complete");
     expect(workflow.jobs.required.name).toContain("Development validation required");
+    expect(workflow.jobs.required.name).not.toContain("Implementation validation complete");
   });
 
-  it("skips every generic lane for delivery Acceptance and requires prior exact-head Implementation validation", async () => {
+  it("validates finalized Implementation and product evidence in one protected workflow run", async () => {
     const workflow = parse(await readFile(".github/workflows/ci.yml", "utf8"));
     const changes = workflow.jobs.changes;
     expect(changes.permissions).toEqual({ contents: "read", "pull-requests": "read" });
+    expect(changes.outputs).not.toHaveProperty("acceptance-phase");
     for (const name of ["Check out head", "Set up Node", "Install exact analysis dependencies",
       "Select validation from the complete impact", "Upload exact impact selection"]) {
-      const condition = changes.steps.find((step: { name: string }) => step.name === name)?.if;
-      expect(condition).toContain("steps.route.outputs.acceptance_only != 'true'");
-      expect(condition).toContain("!startsWith(github.event.pull_request.body, '> Phase: Acceptance')");
+      expect(changes.steps.find((step: { name: string }) => step.name === name)?.if)
+        .toBe("steps.route.outputs.acceptance_only != 'true'");
     }
     for (const name of ["docs", "naming", "documentation", "modular", "rendering"]) {
       expect(workflow.jobs[name].if).toContain("needs.changes.outputs.acceptance-only != 'true'");
-      expect(workflow.jobs[name].if).toContain("needs.changes.outputs.acceptance-phase != 'true'");
+      expect(workflow.jobs[name].if).not.toContain("acceptance-phase");
     }
-    expect(changes.outputs["acceptance-phase"]).toContain("Phase: Acceptance");
-    expect(changes.outputs["head-sha"]).toContain("Phase: Acceptance");
-    expect(workflow.jobs.acceptance.name).toContain("Acceptance record validation");
-    expect(workflow.jobs.acceptance.name).toContain("Acceptance validation not active");
+    expect(workflow.jobs.acceptance.name).toBe("Acceptance record validation");
     expect(workflow.jobs.acceptance.if).toContain("needs.changes.outputs.acceptance-only == 'true'");
-    expect(workflow.jobs.acceptance.if).toContain("needs.changes.outputs.acceptance-phase == 'true'");
-    expect(workflow.jobs.acceptance.outputs["acceptance-candidate"])
-      .toBe("${{ steps.validation.outputs.acceptance_candidate || 'false' }}");
-    expect(workflow.jobs.acceptance.outputs["delivery-candidate"])
-      .toBe("${{ steps.validation.outputs.delivery_candidate || 'false' }}");
-    const acceptanceGate = workflow.jobs.required.steps.find((step: { name: string }) => step.name === "Require acceptance policy for acceptance candidates");
-    expect(acceptanceGate.if).toContain("needs.changes.outputs.acceptance-only == 'true'");
-    expect(acceptanceGate.if).toContain("needs.changes.outputs.acceptance-phase == 'true'");
+    expect(workflow.jobs.delivery.name).toBe("Finalized delivery validation");
+    expect(workflow.jobs.delivery.if).toContain("needs.changes.outputs.implementation-bound == 'true'");
+    expect(workflow.jobs.delivery.steps.find((step: { name: string }) => step.name === "Check out trusted base delivery policy").with.ref)
+      .toBe("${{ github.event.pull_request.base.sha }}");
+    const bootstrap = workflow.jobs.delivery.steps.find((step: { name: string }) => step.name === "Check out exact implementation policy for bootstrap");
+    expect(bootstrap.if).toContain("steps.policy.outputs.installed != 'true'");
+    expect(bootstrap.with.ref).toBe("${{ needs.changes.outputs.head-sha }}");
+    expect(workflow.jobs.delivery.outputs["delivery-candidate"])
+      .toBe("${{ steps.validation.outputs.delivery_candidate || steps.legacy.outputs.delivery_candidate || 'false' }}");
+    expect(workflow.jobs.delivery.steps.find((step: { name: string }) => step.name === "Validate finalized version-3 delivery record").if)
+      .toBe("steps.version.outputs.version == '3'");
+    expect(workflow.jobs.delivery.steps.find((step: { name: string }) => step.name === "Preserve legacy implementation validation route").if)
+      .toContain("version == '2'");
+    const deliveryGate = workflow.jobs.required.steps.find((step: { name: string }) => step.name === "Require finalized delivery policy for implementation candidates");
+    expect(deliveryGate.if).toBe("needs.changes.outputs.implementation-bound == 'true'");
     const aggregate = workflow.jobs.required.steps.find((step: { name: string }) => step.name === "Require current impact-selected validation");
     expect(aggregate.env).toMatchObject({
       ACCEPTANCE_ONLY: "${{ needs.changes.outputs.acceptance-only }}",
-      ACCEPTANCE_PHASE: "${{ needs.changes.outputs.acceptance-phase }}",
+      IMPLEMENTATION_BOUND: "${{ needs.changes.outputs.implementation-bound }}",
       ACCEPTANCE_CANDIDATE: "${{ needs.acceptance.outputs.acceptance-candidate }}",
-      DELIVERY_CANDIDATE: "${{ needs.acceptance.outputs.delivery-candidate }}",
+      DELIVERY_CANDIDATE: "${{ needs.delivery.outputs.delivery-candidate }}",
       ACCEPTANCE_RESULT: "${{ needs.acceptance.result }}",
+      DELIVERY_RESULT: "${{ needs.delivery.result }}",
     });
-    const prior = workflow.jobs.required.steps.find((step: { name: string }) => step.name === "Require prior exact-head Implementation validation");
-    expect(prior.if).toBe("needs.changes.outputs.acceptance-phase == 'true'");
-    expect(prior.run).toContain("--prior-implementation");
-    expect(workflow.jobs.required.permissions).toEqual({ actions: "read", contents: "read", "pull-requests": "read" });
+    expect(workflow.jobs.required.steps.some((step: { name: string }) => step.name === "Require prior exact-head Implementation validation")).toBe(false);
     for (const name of ["Download exact impact selection", "Download all modular outcomes", "Require exact selected owner outcomes", "Upload aggregate evidence"]) {
       const condition = workflow.jobs.required.steps.find((step: { name: string }) => step.name === name)?.if;
       expect(condition).toContain("needs.changes.outputs.acceptance-only != 'true'");
-      expect(condition).toContain("needs.changes.outputs.acceptance-phase != 'true'");
+      expect(condition).not.toContain("acceptance-phase");
     }
   });
 
@@ -116,7 +118,7 @@ describe("impact-aware validation workflows", () => {
     expect(workflow.on).toHaveProperty("workflow_dispatch");
     expect(workflow.jobs.changes.if).toBe("github.event_name != 'pull_request' || github.event.pull_request.draft == false");
     expect(workflow.jobs.required.if).toBe("always() && (github.event_name != 'pull_request' || github.event.pull_request.draft == false)");
-    expect(workflow.jobs.required.name).toBe("${{ github.event_name == 'pull_request' && github.event.pull_request.draft && 'Draft validation intentionally skipped' || github.event_name == 'pull_request' && needs.changes.outputs.acceptance-only != 'true' && needs.changes.outputs.acceptance-phase != 'true' && 'Implementation validation complete' || 'Development validation required' }}");
+    expect(workflow.jobs.required.name).toBe("${{ github.event_name == 'pull_request' && github.event.pull_request.draft && 'Draft validation intentionally skipped' || 'Development validation required' }}");
     expect(source).toContain("manual_args=(--manual-no-comparison)");
     expect(source).toContain("implementation_args=(--implementation-bound)");
     expect(workflow.jobs.changes.outputs["implementation-bound"]).toContain("implementation_bound");

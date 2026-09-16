@@ -1,23 +1,23 @@
 import { describe, expect, it } from "vitest";
-import {
-  requireDevelopmentValidation,
-  requirePriorImplementationValidation,
-} from "../../scripts/release/require-development-validation.mjs";
+import { requireDevelopmentValidation } from "../../scripts/release/require-development-validation.mjs";
 
 const head = "a".repeat(40);
 const valid = {
-  acceptanceOnly: "false", acceptancePhase: "false", acceptanceCandidate: "false", deliveryCandidate: "false", acceptanceResult: "success",
-  changesResult: "success", docsResult: "skipped", namingRequired: "false", namingResult: "skipped", namingHead: head,
-  documentationResult: "skipped", modularResult: "success", renderingResult: "skipped", docsOnly: "false", versionOnly: "false",
+  acceptanceOnly: "false", implementationBound: "true", acceptanceCandidate: "false", deliveryCandidate: "true",
+  acceptanceResult: "skipped", deliveryResult: "success", changesResult: "success", docsResult: "skipped",
+  namingRequired: "false", namingResult: "skipped", namingHead: head, documentationResult: "skipped",
+  modularResult: "success", renderingResult: "skipped", docsOnly: "false", versionOnly: "false",
   openspecTouched: "false", documentationRequired: "false", renderingTier: "none", selectedHead: head, expectedHead: head,
 };
 
 describe("development validation aggregate", () => {
-  it("accepts only a current trusted acceptance candidate when every generic lane is skipped", () => {
+  it("accepts only a current trusted legacy acceptance candidate when every generic lane is skipped", () => {
     const acceptance = {
       ...valid,
       acceptanceOnly: "true",
       acceptanceCandidate: "true",
+      acceptanceResult: "success",
+      deliveryResult: "skipped",
       docsResult: "skipped",
       namingResult: "skipped",
       documentationResult: "skipped",
@@ -37,25 +37,21 @@ describe("development validation aggregate", () => {
     ]) expect(() => requireDevelopmentValidation({ ...acceptance, ...override })).toThrow();
   });
 
-  it("accepts a delivery Acceptance phase only when trusted finalization passes and generic lanes skip", () => {
-    const acceptance = {
-      ...valid,
-      acceptancePhase: "true",
-      deliveryCandidate: "true",
-      modularResult: "skipped",
-    };
-    expect(requireDevelopmentValidation(acceptance)).toEqual({ mode: "delivery-acceptance" });
+  it("requires finalized delivery validation in the same run for implementation-bound candidates", () => {
+    expect(requireDevelopmentValidation(valid)).toMatchObject({ mode: "code" });
     for (const override of [
-      { acceptanceOnly: "true" },
+      { implementationBound: undefined },
       { deliveryCandidate: "false" },
-      { acceptanceResult: "failure" },
-      { docsResult: "success" },
-      { namingResult: "success" },
-      { documentationResult: "success" },
-      { modularResult: "success" },
-      { renderingResult: "success" },
-      { selectedHead: "b".repeat(40) },
-    ]) expect(() => requireDevelopmentValidation({ ...acceptance, ...override })).toThrow();
+      { deliveryResult: "failure" },
+      { deliveryResult: "skipped" },
+    ]) expect(() => requireDevelopmentValidation({ ...valid, ...override })).toThrow();
+  });
+
+  it("requires the delivery lane to skip for non-implementation validation", () => {
+    const ordinary = { ...valid, implementationBound: "false", deliveryCandidate: "false", deliveryResult: "skipped" };
+    expect(requireDevelopmentValidation(ordinary)).toMatchObject({ mode: "code" });
+    expect(() => requireDevelopmentValidation({ ...ordinary, deliveryResult: "success" }))
+      .toThrow("finalized delivery validation must be skipped");
   });
 
   it("accepts exact docs, version, code, smoke, and full selections", () => {
@@ -95,56 +91,4 @@ describe("development validation aggregate", () => {
     ["stale naming", { namingRequired: "true", namingResult: "success", namingHead: "b".repeat(40) }],
     ["unexpected naming", { namingRequired: "false", namingResult: "success" }],
   ])("rejects %s", (_label, override) => { expect(() => requireDevelopmentValidation({ ...valid, ...override })).toThrow(); });
-
-  it("requires the newest prior exact-head Implementation authority from the same pull request", async () => {
-    const run = implementationRun();
-    const result = await requirePriorImplementationValidation(priorFixture([run], new Map([[run.id, [implementationJob()]]])));
-    expect(result).toEqual({ runId: 700, attempt: 1, jobId: 900, head });
-  });
-
-  it("rejects missing, stale, differently associated, current-run, and failed Implementation evidence", async () => {
-    const cases = [
-      { runs: [], jobs: new Map<number, any[]>() },
-      { runs: [implementationRun({ head_sha: "b".repeat(40) })], jobs: new Map([[700, [implementationJob()]]]) },
-      { runs: [implementationRun({ pull_requests: [{ number: 43, head: { sha: head } }] })], jobs: new Map([[700, [implementationJob()]]]) },
-      { runs: [implementationRun({ id: 800 })], jobs: new Map([[800, [implementationJob()]]]) },
-      { runs: [implementationRun({ conclusion: "failure" })], jobs: new Map([[700, [implementationJob({ conclusion: "failure" })]]]) },
-    ];
-    for (const value of cases) {
-      await expect(requirePriorImplementationValidation(priorFixture(value.runs, value.jobs))).rejects.toThrow();
-    }
-  });
-
-  it("does not fall back to an older success after the newest exact-head Implementation run fails", async () => {
-    const newest = implementationRun({ id: 701, run_number: 11, conclusion: "failure" });
-    const older = implementationRun({ id: 700, run_number: 10 });
-    await expect(requirePriorImplementationValidation(priorFixture([older, newest], new Map([
-      [701, [implementationJob({ id: 901, conclusion: "failure" })]],
-      [700, [implementationJob()]],
-    ])))).rejects.toThrow("latest exact-head Implementation validation did not succeed");
-  });
 });
-
-function implementationRun(overrides: Record<string, unknown> = {}) {
-  return {
-    id: 700, run_number: 10, run_attempt: 1, head_sha: head, event: "pull_request", path: ".github/workflows/ci.yml",
-    status: "completed", conclusion: "success", head_repository: { full_name: "timurproko/a1" },
-    pull_requests: [{ number: 42, head: { sha: head } }], ...overrides,
-  };
-}
-
-function implementationJob(overrides: Record<string, unknown> = {}) {
-  return { id: 900, name: "Implementation validation complete", status: "completed", conclusion: "success", ...overrides };
-}
-
-function priorFixture(runs: any[], jobs: Map<number, any[]>) {
-  return {
-    repository: "timurproko/a1", pullNumber: 42, head, currentRunId: 800,
-    request: async (path: string) => {
-      if (path.includes("/actions/workflows/ci.yml/runs?")) return { total_count: runs.length, workflow_runs: runs };
-      const match = /\/actions\/runs\/(\d+)\/jobs/u.exec(path);
-      if (match) return { total_count: (jobs.get(Number(match[1])) ?? []).length, jobs: jobs.get(Number(match[1])) ?? [] };
-      throw new Error(`unexpected path: ${path}`);
-    },
-  };
-}

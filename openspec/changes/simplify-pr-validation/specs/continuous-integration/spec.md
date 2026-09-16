@@ -102,23 +102,16 @@ The single protected-branch aggregate SHALL require the PR core and every scope 
 - **WHEN** a result belongs to another head, workflow run, or selection identity
 - **THEN** it SHALL NOT satisfy the current aggregate
 
-#### Scenario: Implementation candidate awaits acceptance promotion
-- **WHEN** a finalized implementation-bound pull request remains in the Implementation phase
-- **THEN** selected product validation SHALL run without presenting the intentionally unavailable Acceptance phase as a failed test
-- **AND** a successful product aggregate SHALL use a distinct non-protected Implementation identity
-- **AND** neither the acceptance-validation identity nor the protected final aggregate identity SHALL be emitted until the same candidate declares the Acceptance phase
+#### Scenario: Finalized Implementation candidate completes validation
+- **WHEN** a finalized implementation-bound pull request in the Implementation phase runs ordinary exact-head validation
+- **THEN** selected product validation and finalized-delivery validation SHALL both execute for that candidate
+- **AND** the stable protected aggregate SHALL succeed in the same workflow run only after every selected result and the finalized delivery record succeed
+- **AND** no Acceptance phase edit or second workflow run SHALL be required before manual review and merge
 
-#### Scenario: Exact-head implementation is promoted to Acceptance
-- **WHEN** the pull request changes only its declared phase from Implementation to Acceptance after `Implementation validation complete` succeeded for its unchanged exact head
-- **THEN** the Acceptance workflow SHALL skip change selection, product builds, product tests, rendering, naming, and changed-file documentation lanes
-- **AND** trusted acceptance policy SHALL validate the finalized delivery record
-- **AND** the protected aggregate SHALL require the prior successful Implementation workflow run for the same pull request and exact head
-- **AND** a missing, failed, stale, differently associated, or differently headed Implementation result SHALL block merge
-
-#### Scenario: Acceptance review rejects the implementation
-- **WHEN** manual Acceptance review finds a defect
-- **THEN** the pull request SHALL return to Implementation before code changes are pushed
-- **AND** the changed exact head SHALL run normal Implementation validation again before another Acceptance promotion
+#### Scenario: Manual review rejects the implementation
+- **WHEN** manual review finds a defect after the protected aggregate succeeds
+- **THEN** the pull request SHALL remain open in Implementation while fixes are pushed
+- **AND** the changed exact head SHALL run normal validation again before merge
 
 #### Scenario: Complete validation is requested
 - **WHEN** conservative PR classification, Full regression, nightly, preview, or stable validation requests complete retained coverage
