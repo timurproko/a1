@@ -7,7 +7,8 @@ export interface ArchiveReader {
 }
 export function createArchiveReader(options: { repository: string; token?: string; fetchImpl?: typeof fetch; apiUrl?: string; deadline?: number }): ArchiveReader;
 export function archiveReaderFromGet(repository: string, get: ArchiveReader["get"]): ArchiveReader;
-export function inspectVersion3DeliverySnapshot(reader: ArchiveReader, pull: any, implementation: any, sha: string): Promise<any>;
+export function inspectVersion3DeliverySnapshot(reader: ArchiveReader, pull: any, implementation: any, sha: string,
+  options?: { allowLegacyVersion3Phase?: boolean }): Promise<any>;
 export function validateVersion3Candidate(reader: ArchiveReader, number: number): Promise<any>;
 export function loadImplementationEvidence(reader: ArchiveReader, number: number): Promise<any>;
 export function loadVersion3Acceptance(reader: ArchiveReader, source: any): Promise<any>;

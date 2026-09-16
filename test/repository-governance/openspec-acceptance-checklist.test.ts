@@ -8,7 +8,8 @@ const checks = [
   "Dragging the scrollbar updates the viewport while preserving the selected pane.",
 ];
 const sourceBody = (items = checks) => `## Summary\n\nScrollbar behavior is implemented.\n\n\`\`\`openspec-implementation\n{"version":2,"change":"scrollbar"}\n\`\`\`\n\n## Acceptance checks\n\n${items.map(item => `- ${item}`).join("\n")}`;
-const version3Body = (items = checks, prefix = "- ") => `> Phase: Implementation\n\n## Proposal\n\nMake overflowing content easier to navigate without losing pane context.\n\n## Implementation\n\n- Add a viewport scrollbar synchronized with selection and scrolling.\n\n## Acceptance\n\n${items.map(item => `${prefix}${item}`).join("\n")}\n\n## Automation\n\n<details>\n<summary>Used by CI to link this PR to its OpenSpec change</summary>\n\n\`\`\`openspec-implementation\n{"version":3,"change":"scrollbar"}\n\`\`\`\n\n</details>`;
+const version3Body = (items = checks, prefix = "- ") => `## Proposal\n\nMake overflowing content easier to navigate without losing pane context.\n\n## Implementation\n\n- Add a viewport scrollbar synchronized with selection and scrolling.\n\n## Acceptance\n\n${items.map(item => `${prefix}${item}`).join("\n")}\n\n## Automation\n\n<details>\n<summary>Used by CI to link this PR to its OpenSpec change</summary>\n\n\`\`\`openspec-implementation\n{"version":3,"change":"scrollbar"}\n\`\`\`\n\n</details>`;
+const legacyVersion3Body = (phase = "Implementation") => `> Phase: ${phase}\n\n${version3Body()}`;
 const record = (): AcceptanceRecord => ({
   version: 2, repository: "owner/repo", change: "scrollbar", sourcePr: 42,
   sourceHead: "a".repeat(40), sourceMerge: "b".repeat(40), sourceBodyDigest: "c".repeat(64),
@@ -33,9 +34,13 @@ describe("implementation-specific acceptance checklist", () => {
     expect(() => parseImplementationAcceptanceScenarios(version3Body(), 1)).toThrow("acceptance-version");
   });
 
-  it("requires the canonical visible phase and section layout for completed deliveries", () => {
-    expect(parseImplementationAcceptanceScenarios(version3Body().replace("> Phase: Implementation", "> Phase: Acceptance"), 3)).toEqual(checks);
-    expect(() => parseImplementationAcceptanceScenarios(version3Body().replace("> Phase: Implementation", "> Phase: Proposal"), 3))
+  it("requires the canonical phase-free section layout and scopes historical compatibility", () => {
+    expect(version3Body().split("\n")[0]).toBe("## Proposal");
+    expect(() => parseImplementationAcceptanceScenarios(legacyVersion3Body(), 3)).toThrow("acceptance-layout-phase");
+    expect(() => parseImplementationAcceptanceScenarios(legacyVersion3Body("Acceptance"), 3)).toThrow("acceptance-layout-phase");
+    expect(parseImplementationAcceptanceScenarios(legacyVersion3Body(), 3, { allowLegacyVersion3Phase: true })).toEqual(checks);
+    expect(parseImplementationAcceptanceScenarios(legacyVersion3Body("Acceptance"), 3, { allowLegacyVersion3Phase: true })).toEqual(checks);
+    expect(() => parseImplementationAcceptanceScenarios(legacyVersion3Body("Proposal"), 3, { allowLegacyVersion3Phase: true }))
       .toThrow("acceptance-layout-phase");
     expect(() => parseImplementationAcceptanceScenarios(version3Body().replace("## Implementation", "## Intent"), 3))
       .toThrow("acceptance-layout-sections");
