@@ -4562,6 +4562,50 @@ describe("OwnedUiSessionShell", () => {
     expect(engine.calls).toContain("dispose");
   });
 
+  it.each([
+    { route: "/quit", exit: (shell: OwnedUiSessionShell) => shell.submit("/quit") },
+    { route: "double Ctrl+C", exit: async (shell: OwnedUiSessionShell) => {
+      await shell.clearOrExit(1_000);
+      return shell.clearOrExit(1_200);
+    } },
+  ])("fully disposes the owned presentation after $route", async ({ exit }) => {
+    const { engine, shell, terminal } = await fixture([], [], true);
+    const appendWorkflowResult = vi.spyOn(shell.root, "appendWorkflowResult");
+    try {
+      await expect(exit(shell)).resolves.toEqual({ outcome: "completed", diagnostic: null });
+      await expect(shell.waitUntilStopped()).resolves.toBeUndefined();
+      expect(engine.calls).toContain("dispose");
+      expect(shell.runtime.active).toBe(false);
+      expect(terminal.active).toBe(false);
+      expect(appendWorkflowResult).not.toHaveBeenCalledWith(expect.objectContaining({ command: "quit" }));
+      expect(terminal.writes.join("")).toContain("\u001b[?1049l");
+    } finally { await shell.dispose(); }
+  });
+
+  it("coalesces overlapping quit requests through one complete shutdown", async () => {
+    const { engine, adapter, shell, terminal } = await fixture([], [], true);
+    let finishDispose!: () => void;
+    vi.spyOn(engine, "dispose").mockImplementation(() => new Promise<void>(resolve => { finishDispose = resolve; }));
+    const executeWorkflow = vi.spyOn(adapter, "executeWorkflow");
+    const first = shell.shutdown();
+    const second = shell.shutdown();
+    try {
+      await vi.waitFor(() => expect(finishDispose).toBeTypeOf("function"));
+      expect(executeWorkflow).toHaveBeenCalledTimes(1);
+      finishDispose();
+      await expect(Promise.all([first, second])).resolves.toEqual([
+        { outcome: "completed", diagnostic: null },
+        { outcome: "completed", diagnostic: null },
+      ]);
+      expect(shell.runtime.active).toBe(false);
+      expect(terminal.active).toBe(false);
+    } finally {
+      finishDispose?.();
+      await Promise.allSettled([first, second]);
+      await shell.dispose();
+    }
+  });
+
   it("retains package identity in compact extension labels and uniquely identifies local entries", async () => {
     const { shell } = await fixture([], [
       {
