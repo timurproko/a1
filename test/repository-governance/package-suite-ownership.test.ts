@@ -28,7 +28,7 @@ describe("exact-package startup and non-timing ownership", () => {
     expect((contracts + startup).match(/^\s*it(?:\.runIf\([^\n]+\))?\(/gmu)).toHaveLength(7);
   });
 
-  it("gives each owner its own fresh exact candidate installation", async () => {
+  it("gives each owner fresh mutable state while sharing only verified installed bytes", async () => {
     const [contracts, startup, fixture] = await Promise.all([
       readFile("test/foundation/release/package-install.integration.test.ts", "utf8"),
       readFile("test/foundation/release/package-startup.integration.test.ts", "utf8"),
@@ -38,11 +38,12 @@ describe("exact-package startup and non-timing ownership", () => {
     expect(startup).toContain('installExactCandidate(phases, "a1-package-startup-")');
     expect(contracts).toContain("cleanupExactCandidate(phases, root)");
     expect(startup).toContain("cleanupExactCandidate(phases, root)");
-    expect(fixture).toContain('["install", "--global", "--prefix", prefix, candidate.path, "--ignore-scripts", "--no-audit", "--no-fund", "--prefer-offline"]');
-    expect(fixture).toContain('"--prefer-offline"');
-    expect(fixture).not.toContain('"--offline"');
+    expect(fixture).toContain("verifyExactPackagePreparation({ candidatePath: candidate.path })");
+    expect(fixture).toContain("installArguments(prefix, candidate.path)");
     expect(fixture).toContain("mkdtemp");
-    expect(fixture).not.toMatch(/reuse|restore|certif/i);
+    expect(fixture).toContain("sharedPreparation: true");
+    expect(fixture).toContain("sharedPreparation: false");
+    expect(fixture).toContain("handoff is incomplete or contradictory");
   });
 
   it("preserves Defender, both profiles, all three launch kinds, budgets, warmup, and workload sizes", async () => {
@@ -57,6 +58,8 @@ describe("exact-package startup and non-timing ownership", () => {
       expect(startup.match(new RegExp(`assertStartupPerformanceBudget\\(\\{ profileId, launchKind: "${kind}"`, "g")), kind).toHaveLength(1);
       expect(startup).toContain(`recordStartupMeasurement(profileId, "${kind}"`);
     }
+    expect(startup).toContain('phases.run("startup-cold-state"');
+    expect(startup).toContain("delete environment.NODE_COMPILE_CACHE");
     expect(startup).toContain('phases.run("startup-declared-warmup"');
     expect(startup).toContain("validationComplete.fileReadOperations - validationStart.fileReadOperations");
     expect(startup).toContain("const deadline = Date.now() + 15_000");
@@ -73,8 +76,11 @@ describe("exact-package startup and non-timing ownership", () => {
     expect(complete.selected).toEqual(["package-contracts", "package-startup"]);
     expect(contracts.vitest!.invocations).toEqual([expect.objectContaining({ id: "vitest-package-contracts", arguments: expect.arrayContaining(["test/foundation/release/package-install.integration.test.ts"]) })]);
     expect(startup.vitest!.invocations).toEqual([expect.objectContaining({ id: "vitest-package-startup", arguments: expect.arrayContaining(["test/foundation/release/package-startup.integration.test.ts"]) })]);
-    expect(complete.vitest!.invocations).toEqual([...contracts.vitest!.invocations, ...startup.vitest!.invocations]);
+    expect(complete.vitest!.invocations).toEqual([...startup.vitest!.invocations, ...contracts.vitest!.invocations]);
     expect(full.vitest!.invocations).toEqual(expect.arrayContaining([...complete.vitest!.invocations]));
+    expect(contracts.exactPackagePreparation).toMatchObject({ count: 1, consumers: ["package-contracts"] });
+    expect(startup.exactPackagePreparation).toMatchObject({ count: 1, consumers: ["package-startup"] });
+    expect(complete.exactPackagePreparation).toMatchObject({ count: 1, consumers: ["package-startup", "package-contracts"] });
     for (const plan of [contracts, startup]) {
       expect(plan.requiresBuild).toBe(true);
       expect(plan.consumesPackage).toBe(true);
