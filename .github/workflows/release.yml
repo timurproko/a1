@@ -410,6 +410,7 @@ jobs:
           node scripts/release/record-validation-prerequisite.mjs package
           --candidate .artifacts/release/candidate.tgz
           --output .artifacts/release/candidate.receipt.json
+          --build-receipt .artifacts/validation/receipts/build.json
           --source-identity .artifacts/release/candidate-identity.json
 
       - name: Select validation scope

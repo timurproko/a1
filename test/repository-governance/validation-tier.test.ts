@@ -44,6 +44,12 @@ describe("validation tier planning", () => {
       "update-predecessor",
     ]);
     expect(plan.vitest?.mode).toBe("full-deduplicated");
+    expect(plan.exactPackagePreparation).toEqual({
+      id: "exact-package-preparation",
+      count: 1,
+      policy: "npm-global-ignore-scripts-prefer-offline-v1",
+      consumers: ["package-startup", "package-contracts"],
+    });
     const invocations = plan.vitest!.invocations;
     expect(invocations.find(invocation => invocation.id === "vitest-full-without-isolated")?.arguments)
       .toEqual(expect.arrayContaining(["--exclude", "test/foundation/release/update-performance.integration.test.ts", "--exclude", "test/foundation/release/package-surface.test.ts", "test/foundation/release/package-install.integration.test.ts", "--exclude", "test/repository-governance/validation-impact.test.ts"]));
@@ -61,6 +67,8 @@ describe("validation tier planning", () => {
       .toEqual(expect.arrayContaining(["test/foundation/release/package-install.integration.test.ts", "--no-file-parallelism"]));
     expect(invocations.find(invocation => invocation.id === "vitest-package-startup")?.arguments)
       .toEqual(expect.arrayContaining(["test/foundation/release/package-startup.integration.test.ts", "--no-file-parallelism"]));
+    expect(invocations.findIndex(invocation => invocation.id === "vitest-package-startup"))
+      .toBeLessThan(invocations.findIndex(invocation => invocation.id === "vitest-package-contracts"));
     expect(plan.requiresBuild).toBe(true);
     expect(plan.commands.map(command => command.id)).toEqual([
       "candidate-build",
@@ -82,6 +90,7 @@ describe("validation tier planning", () => {
     expect(plan.consumesPackage).toBe(false);
     expect(plan.commands.map(command => command.id)).toEqual(["candidate-build", "typecheck"]);
     expect(plan.vitest?.mode).toBe("fast-and-explicit");
+    expect(plan.exactPackagePreparation).toBeNull();
     expect(plan.vitest?.invocations[0]?.arguments).toContain("--exclude");
     expect(plan.vitest?.invocations[0]?.arguments).toContain("test/foundation/release/package-surface.test.ts");
     expect(plan.vitest?.invocations[0]?.arguments).toContain("test/foundation/release/package-install.integration.test.ts");
@@ -208,6 +217,116 @@ describe("validation tier planning", () => {
     ]);
   });
 
+  it("prepares one shared install, runs startup first, verifies every handoff, and cleans once", async () => {
+    const plan = await createTierPlan(["package-install"]);
+    const calls: string[] = [];
+    const consumers: string[] = [];
+    let preparations = 0;
+    let cleanups = 0;
+    const result = await runTierPlan({ ...plan, commands: [] }, {
+      env: { VALIDATION_CANDIDATE_TARBALL: "candidate.tgz" },
+      stdio: "pipe",
+      prepareExactPackageInstallation: async () => { preparations += 1; return fakePreparation(plan.exactPackagePreparation!.consumers); },
+      exactPackagePreparationEnvironment: () => ({ VALIDATION_EXACT_PACKAGE_PREPARATION: "runner" }),
+      verifyExactPackagePreparation: async ({ consumer }: any) => { consumers.push(consumer); return {}; },
+      cleanupExactPackagePreparation: async () => { cleanups += 1; return { status: "deferred", durationMs: 3, error: null }; },
+      executeCommand: async (command, environment) => {
+        calls.push(command.id);
+        expect(environment.VALIDATION_EXACT_PACKAGE_PREPARATION).toBe("runner");
+        expect(environment.NODE_COMPILE_CACHE).toBeUndefined();
+        expect(environment.VALIDATION_EXACT_PACKAGE_CONSUMER).toBe(command.id === "vitest-package-startup" ? "package-startup" : "package-contracts");
+        return { id: command.id, command: command.id, exitCode: 0, durationMs: 7 };
+      },
+    });
+    expect(result.passed).toBe(true);
+    expect(preparations).toBe(1);
+    expect(cleanups).toBe(1);
+    expect(calls).toEqual(["vitest-package-startup", "vitest-package-contracts"]);
+    expect(consumers).toEqual(["package-startup", "package-startup", "package-contracts", "package-contracts"]);
+    expect(result.exactPackagePreparation).toMatchObject({ count: 1, consumers: ["package-startup", "package-contracts"], cleanup: { status: "deferred" } });
+    expect(result.outcomes.filter(outcome => outcome.id === "exact-package-preparation")).toHaveLength(1);
+  });
+
+  it("keeps full-suite ownership labels from activating preparation outside dedicated consumers", async () => {
+    const plan = await createTierPlan(["full-release"]);
+    let preparations = 0;
+    const handedOff: string[] = [];
+    const result = await runTierPlan({ ...plan, commands: [] }, {
+      env: { VALIDATION_CANDIDATE_TARBALL: "candidate.tgz" },
+      prepareExactPackageInstallation: async () => { preparations += 1; return fakePreparation(plan.exactPackagePreparation!.consumers); },
+      exactPackagePreparationEnvironment: () => ({ VALIDATION_EXACT_PACKAGE_PREPARATION: "runner" }),
+      verifyExactPackagePreparation: async () => ({}),
+      cleanupExactPackagePreparation: async () => ({ status: "passed", durationMs: 1, error: null }),
+      executeCommand: async (command, environment) => {
+        if (environment.VALIDATION_EXACT_PACKAGE_PREPARATION) handedOff.push(command.id);
+        return { id: command.id, command: command.id, exitCode: 0, durationMs: 1 };
+      },
+    });
+    expect(result.passed).toBe(true);
+    expect(preparations).toBe(1);
+    expect(handedOff).toEqual(["vitest-package-startup", "vitest-package-contracts"]);
+  });
+
+  it("blocks all dependent owners when preparation fails", async () => {
+    const plan = await createTierPlan(["package-install"]);
+    const calls: string[] = [];
+    const failure: any = new Error("install failed");
+    failure.cleanup = { status: "passed", error: null };
+    const result = await runTierPlan({ ...plan, commands: [] }, {
+      env: { VALIDATION_CANDIDATE_TARBALL: "candidate.tgz" },
+      prepareExactPackageInstallation: async () => { throw failure; },
+      executeCommand: async command => { calls.push(command.id); return { id: command.id, command: command.id, exitCode: 0, durationMs: 1 }; },
+    });
+    expect(result.passed).toBe(false);
+    expect(calls).toEqual([]);
+    expect(result.outcomes).toEqual([expect.objectContaining({ id: "exact-package-preparation", exitCode: 1, scopes: ["package-startup", "package-contracts"] })]);
+  });
+
+  it("rejects contradictory shared-preparation consumer identity", async () => {
+    const plan = await createTierPlan(["package-install"]);
+    const calls: string[] = [];
+    const contradictory = fakePreparation(["package-contracts"]);
+    const result = await runTierPlan({ ...plan, commands: [] }, {
+      env: { VALIDATION_CANDIDATE_TARBALL: "candidate.tgz" },
+      prepareExactPackageInstallation: async () => contradictory,
+      exactPackagePreparationEnvironment: () => ({}),
+      cleanupExactPackagePreparation: async () => ({ status: "passed", durationMs: 1, error: null }),
+      executeCommand: async command => { calls.push(command.id); return { id: command.id, command: command.id, exitCode: 0, durationMs: 1 }; },
+    });
+    expect(result.passed).toBe(false);
+    expect(calls).toEqual([]);
+    expect(result.outcomes).toEqual([expect.objectContaining({ id: "exact-package-preparation", exitCode: 1 })]);
+  });
+
+  it("detects mutation before a later owner and preserves an earlier owner failure over cleanup failure", async () => {
+    const plan = await createTierPlan(["package-install"]);
+    let verifications = 0;
+    const calls: string[] = [];
+    const mutated = await runTierPlan({ ...plan, commands: [] }, {
+      env: { VALIDATION_CANDIDATE_TARBALL: "candidate.tgz" },
+      prepareExactPackageInstallation: async () => fakePreparation(plan.exactPackagePreparation!.consumers),
+      exactPackagePreparationEnvironment: () => ({}),
+      verifyExactPackagePreparation: async () => { if (++verifications === 3) throw new Error("mutated"); return {}; },
+      cleanupExactPackagePreparation: async () => ({ status: "passed", durationMs: 1, error: null }),
+      executeCommand: async command => { calls.push(command.id); return { id: command.id, command: command.id, exitCode: 0, durationMs: 1 }; },
+    });
+    expect(mutated.passed).toBe(false);
+    expect(calls).toEqual(["vitest-package-startup"]);
+    expect(mutated.outcomes.at(-1)).toMatchObject({ id: "vitest-package-contracts", exitCode: 1, preparation: "identity-rejected" });
+
+    const ownerFailure = await runTierPlan({ ...plan, commands: [] }, {
+      env: { VALIDATION_CANDIDATE_TARBALL: "candidate.tgz" },
+      prepareExactPackageInstallation: async () => fakePreparation(plan.exactPackagePreparation!.consumers),
+      exactPackagePreparationEnvironment: () => ({}),
+      verifyExactPackagePreparation: async () => ({}),
+      cleanupExactPackagePreparation: async () => ({ status: "failed", durationMs: 1, error: "locked" }),
+      executeCommand: async command => ({ id: command.id, command: command.id, exitCode: 9, durationMs: 2 }),
+    });
+    expect(ownerFailure.passed).toBe(false);
+    expect(ownerFailure.outcomes.find(outcome => outcome.id === "vitest-package-startup")).toMatchObject({ exitCode: 9 });
+    expect(ownerFailure.exactPackagePreparation).toMatchObject({ cleanup: { status: "failed", error: "locked" } });
+  });
+
   it("reuses an explicit install-time build without spawning another build", async () => {
     const result = await runTierPlan({
       schema: "a1-validation-plan-v1",
@@ -277,3 +396,21 @@ describe("validation tier planning", () => {
     await expect(createTierPlan(["not-a-suite"])).rejects.toThrow("unknown validation tier or scope");
   });
 });
+
+function fakePreparation(consumers: string[]) {
+  return {
+    root: "fixture-root",
+    prefix: "fixture-prefix",
+    packageRoot: "fixture-package",
+    receiptPath: "fixture-receipt",
+    durationMs: 5,
+    receipt: {
+      receiptId: "a".repeat(64),
+      candidate: { sha256: "b".repeat(64), name: "@fixture/app", version: "1.0.0" },
+      lane: { platform: process.platform, architecture: process.arch, nodeVersion: process.version, runId: "local", runAttempt: "1" },
+      install: { policy: "npm-global-ignore-scripts-prefer-offline-v1", prefix: "fixture-prefix", installedIdentity: { sha256: "c".repeat(64) } },
+      preparation: { count: 1, durationMs: 5, proxySynchronizations: 1 },
+      consumers,
+    },
+  };
+}

@@ -54,6 +54,8 @@ describe("complete regression automation", () => {
     expect(selection.run).toContain('if [ "$MODE" = "develop" ]; then');
     expect(selection.run).toContain("selected='[\"package-smoke\",\"package-install\"]'");
     expect(selection.run).toContain("selected='[\"full-release\"]'");
+    const bindStep = releaseJob.steps.find((step: { name: string }) => step.name === "Bind downloaded package to this validation job");
+    expect(bindStep.run).toContain("--build-receipt .artifacts/validation/receipts/build.json");
     const packageStep = releaseJob.steps.find((step: { name: string }) => step.name === "Validate the exact package");
     expect(packageStep.if).toBeUndefined();
     expect(packageStep.env.VALIDATION_SELECTION_JSON).toBe("${{ steps.selection.outputs.selected }}");
@@ -94,6 +96,9 @@ describe("complete regression automation", () => {
     expect(invocations.find(invocation => invocation.id === "vitest-package-startup")?.arguments).toEqual([
       "vitest", "run", "test/foundation/release/package-startup.integration.test.ts", "--no-file-parallelism", "--testTimeout=600000",
     ]);
+    expect(invocations.findIndex(invocation => invocation.id === "vitest-package-startup"))
+      .toBeLessThan(invocations.findIndex(invocation => invocation.id === "vitest-package-contracts"));
+    expect(plan.exactPackagePreparation).toMatchObject({ count: 1, consumers: ["package-startup", "package-contracts"] });
     expect(invocations.filter(invocation => invocation.id.startsWith("vitest-fast-resource-sensitive-"))
       .flatMap(invocation => invocation.arguments)).toContain("test/features/prompt-history/store.test.ts");
   });
