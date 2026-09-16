@@ -77,7 +77,7 @@ export async function main(args = process.argv.slice(2)) {
     let token = process.env.GH_TOKEN ?? process.env.GITHUB_TOKEN;
     if (!token) {
       try { token = (await execute("gh", ["auth", "token", "--hostname", "github.com"], { timeout: 10000, encoding: "utf8", windowsHide: true })).stdout.trim(); }
-      catch { /* Private-repository evidence will fail closed without authentication. */ }
+      catch { /* Security: private-repository evidence fails closed without authentication. */ }
     }
     return cleanupReader({ repository: identity.repository, token, deadline, onBackoff: time => { nextAllowed = Math.max(nextAllowed, time); } });
   }
