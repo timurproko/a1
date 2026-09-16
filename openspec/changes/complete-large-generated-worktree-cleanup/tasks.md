@@ -10,4 +10,4 @@
 
 ## 3. Validation
 
-- [x] 3.1 Run the focused local-cleanup Node fixtures and project typecheck, recording successful commands as task evidence. Evidence: `node --test test/repository-governance/local-cleanup.node.mjs` passed 34 tests; `npm run typecheck` passed.
+- [x] 3.1 Run the focused local-cleanup Node fixtures and project typecheck, recording successful commands as task evidence. Evidence: the three-file local-cleanup Node command passed 47 tests; `npm run typecheck` passed; exact read-only inspection of the retained PR #434 worktree completed cleanly in 710 ms.
