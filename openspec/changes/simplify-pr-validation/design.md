@@ -105,7 +105,8 @@ The separate manual Full regression workflow is not an acceptance gate for an or
 - **[Simpler checkout evidence weakens exact-package trust]** -> Keep receipts unchanged at every emitted/packed artifact and publication boundary; simplify only jobs whose authority is the checked-out source result.
 - **[CI-policy implementation necessarily selects everything]** -> Accept the one-time conservative Development cost; evaluate ordinary-path improvement through reviewed selection fixtures and a representative non-policy PR rather than weakening the implementation PR's own gate or adding a separate Full regression gate.
 - **[A skipped draft workflow appears to satisfy branch protection]** -> Give draft-only aggregate checks a distinct non-required identity so only a non-draft exact-head aggregate can satisfy the protected context.
-- **[A conservative explicit test selection exceeds a platform command-line limit]** -> Partition the exact selected file list into bounded invocations while preserving complete membership, failures, and one logical owner outcome.
+- **[A conservative explicit test selection exceeds a platform process limit]** -> Partition the exact selected file list into bounded invocations and remove consumed orchestration payloads from child environments while preserving complete membership, failures, and one logical owner outcome.
+- **[A cold resource fixture polls before its worker is ready]** -> Synchronize the fixture on the service's first structured snapshot instead of increasing a timeout or retrying a semantic assertion.
 
 ## Migration Plan
 

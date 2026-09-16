@@ -128,8 +128,11 @@ describe("validation tier planning", () => {
 
     const calls: string[] = [];
     const result = await runTierPlan({ ...plan, commands: [] }, {
+      env: { VALIDATION_SELECTION_JSON: JSON.stringify(plan.selected), VALIDATION_TESTS_JSON: JSON.stringify(tests) },
       stdio: "pipe",
-      executeCommand: async command => {
+      executeCommand: async (command, environment) => {
+        expect(environment).not.toHaveProperty("VALIDATION_SELECTION_JSON");
+        expect(environment).not.toHaveProperty("VALIDATION_TESTS_JSON");
         calls.push(command.id);
         return { id: command.id, command: command.id, exitCode: calls.length === 2 ? 1 : 0, durationMs: 1 };
       },

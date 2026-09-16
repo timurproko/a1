@@ -1496,17 +1496,23 @@ describe("OwnedUiSessionShell", () => {
     const dataDir = await mkdtemp(join(tmpdir(), "text-paste-history-"));
     const options = { dataDir, profileRoot: join(dataDir, "profile"), limit: 100 };
     const payload = "日本語 👩‍💻 [📷 literal] [paste #999 1001 chars]\n  indented\n".repeat(12).trim();
+    const firstSnapshot = (store: PromptHistoryService) => new Promise<void>(resolvePromise => {
+      let unsubscribe = () => {};
+      unsubscribe = store.onSnapshot(() => { unsubscribe(); resolvePromise(); });
+    });
     let shell: OwnedUiSessionShell | undefined;
     try {
+      const firstStore = new PromptHistoryService(options); const firstReady = firstSnapshot(firstStore);
       const first = await fixture([], [], true, undefined, { readText: async () => payload }, undefined, undefined, undefined,
-        { store: new PromptHistoryService(options), limit: 100 });
-      shell = first.shell; first.terminal.input("\x16");
+        { store: firstStore, limit: 100 });
+      shell = first.shell; await firstReady; first.terminal.input("\x16");
       await vi.waitFor(() => expect(shell!.root.editor.getText()).toMatch(/^\[paste #1 /u));
       await shell.submit(shell.root.editor.getText()); await shell.dispose(); shell = undefined;
+      const secondStore = new PromptHistoryService(options); const secondReady = firstSnapshot(secondStore);
       const second = await fixture([], [], true, undefined, undefined, undefined, undefined, undefined,
-        { store: new PromptHistoryService(options), limit: 100 });
-      shell = second.shell;
-      await vi.waitFor(() => expect(shell!.root.editor.recall?.position().total).toBe(1));
+        { store: secondStore, limit: 100 });
+      shell = second.shell; await secondReady;
+      expect(shell.root.editor.recall?.position().total).toBe(1);
       second.terminal.input("\x1b[A");
       await vi.waitFor(() => expect(shell!.root.editor.getText()).toBe(payload));
       await shell.submit(shell.root.editor.getText());

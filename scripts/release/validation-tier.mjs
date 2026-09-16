@@ -163,6 +163,8 @@ export async function runTierPlan(plan, options = {}) {
   const startedAt = Date.now();
   const outcomes = [];
   const environment = { ...process.env, ...(options.env ?? {}) };
+  delete environment.VALIDATION_SELECTION_JSON;
+  delete environment.VALIDATION_TESTS_JSON;
   const executeCommand = options.executeCommand ?? runCommand;
   const repository = resolve(options.repository ?? process.cwd());
   const verifyBuild = options.verifyBuildReceipt ?? verifyBuildReceipt;
