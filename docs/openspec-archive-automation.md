@@ -214,7 +214,7 @@ After version-3 merge, verify:
 
 Only then shall the owning agent invoke the exact-candidate `complete` operation documented in [local cleanup](local-worktree-cleanup.md) from the primary checkout. The command owns registration/release, repository-generated disposables, one bounded evidence pass, non-force worktree removal, and unchanged local-ref cleanup; agents do not manually delete generated content, worktrees, or branches. Version 3 uses the implementation PR as both source and candidate and does not wait for nonexistent acceptance/archive PRs.
 
-Closing an unmerged PR does not authorize local or remote deletion. Remote cleanup deletes only the exact unchanged same-repository unprotected topic ref and never touches local worktrees.
+Closing an unmerged PR does not by itself authorize local or remote deletion. After explicit candidate-specific rejection and remote-deletion confirmation, the repository-owned local `discard` command may compare-and-delete only that closed-unmerged PR's exact unchanged same-repository unprotected topic ref, then apply the ordinary non-force local safeguards. Automatic remote cleanup remains merge-only and never touches local worktrees.
 
 ## Legacy delivery
 

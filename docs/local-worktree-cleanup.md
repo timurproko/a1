@@ -1,8 +1,8 @@
 # Local worktree cleanup after verified delivery
 
-Local cleanup completes the delivery order in [the archive runbook](openspec-archive-automation.md). For version 3 that is one authorized manual implementation/acceptance/archive merge, read-only verification, remote topic-ref deletion, then safe local cleanup. Legacy versions still require their applicable acceptance-record and automatic archive merges. GitHub Actions never reaches into a developer machine. This command neither publishes archives nor merges PRs or deletes remote refs.
+Local cleanup completes the delivery order in [the archive runbook](openspec-archive-automation.md). For version 3 that is one authorized manual implementation/acceptance/archive merge, read-only verification, remote topic-ref deletion, then safe local cleanup. Legacy versions still require their applicable acceptance-record and automatic archive merges. GitHub Actions never reaches into a developer machine. Local cleanup never publishes archives or merges PRs; `complete`, preview, and queue/watch do not delete remote refs, while explicitly confirmed closed-unmerged `discard` owns only its exact expected-SHA topic-ref deletion.
 
-The implementation is repository tooling, not part of the installed A1 product. It requires Node, Git, and GitHub read access. No product build, dependency installation, interactive UI, or OS-service provisioning is needed. It supports this repository's `origin` on github.com, via HTTPS or SSH.
+The implementation is repository tooling, not part of the installed A1 product. It requires Node, Git, and GitHub read access; the explicit closed-unmerged discard operation additionally requires authenticated permission to delete its exact remote topic ref. No product build, dependency installation, interactive UI, or OS-service provisioning is needed. It supports this repository's `origin` on github.com, via HTTPS or SSH.
 
 ## Standard completed-delivery command
 
@@ -21,6 +21,23 @@ node scripts/governance/local-worktree-cleanup.mjs complete \
 The central disposable policy is `node_modules`, `dist`, `.builds`, `.artifacts/openspec-archive`, `.artifacts/validation`, `native/process-guardian/target`, and `native/terminal-host/target`. The artifact roots contain repository-generated finalization and validation reports; the two native roots contain repository-generated Cargo output. Each encountered path must be ignored and stay inside the exact worktree with no link, special file, or nested repository boundary. Authority is component-exact: `.artifacts`, sibling directories such as `.artifacts/other`, near matches such as `.artifacts/validation-user`, arbitrary `target` directories, and sibling native projects remain blocking. Tracked/staged/unstaged/untracked content and every unknown ignored path still block. A tracked regular `.gitmodules` file alone is ordinary content; actual nested `.git` metadata, gitlinks, configured submodules, and submodule changes block. Ordinary content and these approved generated roots are traversed under separate finite entry allowances, so a normal dependency installation does not consume the ordinary source-tree allowance; both allowances retain the same deadline and content-boundary checks.
 
 Agents do not manually remove generated content, call `git worktree remove`, or delete the local branch after delivery. The JSON result is authoritative: report success only for `removed` or verified `already-absent`; otherwise retain the worktree and report the exact blocker. Legacy roles can supply separate `--source-pr`, `--candidate-pr`, and `--role` values.
+
+## Explicit closed-unmerged discard
+
+Closing a PR does not itself authorize deletion. After the maintainer explicitly rejects one exact PR and separately confirms remote deletion, run the candidate-scoped command from the primary checkout:
+
+```bash
+node scripts/governance/local-worktree-cleanup.mjs discard \
+  --repo D:/Git/a1 \
+  --path D:/Git/a1/.worktrees/rejected-task \
+  --change rejected-change \
+  --pr 123 \
+  --confirm-closed-unmerged
+```
+
+`discard` requires the named PR to remain closed without merge, target `develop`, belong to this repository, and identify the exact registered worktree HEAD and branch. It first applies the same clean-content and generated-root inspection used by `complete`. It then verifies the remote topic branch is unprotected, non-reserved, and still equals the PR head; deletes only that ref with an expected-SHA lease; verifies remote absence; rechecks the local candidate; removes the worktree non-forcibly; and atomically deletes only the unchanged local branch.
+
+An open, merged, reopened, forked, protected, reserved, advanced, dirty, active, linked, nested, replaced, current, or unverifiable candidate remains blocking. Remote deletion followed by a Windows lock or later local blocker is reported as `partial`; the journal preserves the remaining worktree/local ref for the same exact confirmed command to inspect and resume. The command never scans by age or name, adopts another session's checkout, enables queue/watch, or turns PR close events into automatic discard authority.
 
 ## Preview first
 

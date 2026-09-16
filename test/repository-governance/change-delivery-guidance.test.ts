@@ -26,6 +26,8 @@ describe("repository-owned atomic delivery guidance", () => {
     expect(config).toContain("no acceptance, spec-only, or archive-only follow-up PR");
     expect(config).toContain("Standalone existing-spec/OpenSpec revisions and ordinary docs retain this route");
     expect(config).toContain("`local-worktree-cleanup.mjs complete`");
+    expect(config).toContain("`discard --confirm-closed-unmerged`");
+    expect(config).toContain("PR closure alone authorizes nothing");
     expect(config).toContain("Never choose disposable paths");
     expect(config).not.toContain("After the initial specification merges");
   });
@@ -48,6 +50,8 @@ describe("repository-owned atomic delivery guidance", () => {
     expect(skill).toContain("## Acceptance");
     expect(skill).toContain("Create no acceptance, spec-only, or archive-only follow-up PR");
     expect(skill).toContain("`local-worktree-cleanup.mjs complete`");
+    expect(skill).toContain("`discard --confirm-closed-unmerged`");
+    expect(skill).toContain("PR closure alone authorizes nothing");
     expect(skill).toContain("never delete those ad hoc");
     expect(skill).not.toMatch(/version/i);
     expect(skill.split(/\s+/).length).toBeLessThan(600);
@@ -64,6 +68,10 @@ describe("repository-owned atomic delivery guidance", () => {
     expect(cleanup).toContain("arbitrary `target` directories");
     expect(cleanup).toContain("bounded to 20,000 ordinary entries plus 100,000 entries beneath exact approved generated roots");
     expect(cleanup).toContain("exhausting either allowance never grants deletion authority");
+    expect(cleanup).toContain("## Explicit closed-unmerged discard");
+    expect(cleanup).toContain("--confirm-closed-unmerged");
+    expect(cleanup).toContain("expected-SHA lease");
+    expect(cleanup).toContain("never scans by age or name");
   });
 
   it("documents valid draft and finalized single-PR links without inventing acceptance", async () => {
@@ -92,6 +100,7 @@ describe("repository-owned atomic delivery guidance", () => {
     expect(docs).toContain("## Legacy delivery");
     expect(docs).toContain("Unit tests or API success alone are not live acceptance");
     expect(docs).toContain("exact-candidate `complete` operation");
+    expect(docs).toContain("local `discard` command");
     expect(docs).toContain("agents do not manually delete generated content");
   });
 

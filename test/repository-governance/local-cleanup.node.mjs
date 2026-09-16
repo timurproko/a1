@@ -9,9 +9,10 @@ import { execFile, execFileSync, spawn } from "node:child_process";
 import { once } from "node:events";
 import { promisify } from "node:util";
 import { atomicJson, createStateStore, registerEntry, transitionEntry, validateState, digest } from "../../scripts/governance/local-cleanup-state.mjs";
-import { canonical, captureWorktree, discoverRepository, inspectWorktree, exists, gitRunner, removeLocalRef, removeWorktree } from "../../scripts/governance/local-cleanup-git.mjs";
+import { canonical, captureWorktree, discoverRepository, inspectWorktree, exists, gitRunner, removeLocalRef, removeRemoteRef, removeWorktree } from "../../scripts/governance/local-cleanup-git.mjs";
 import { reconcileLocalCleanup } from "../../scripts/governance/local-cleanup-reconcile.mjs";
 import { completeLocalCleanup, COMPLETION_DISPOSABLE_PATHS } from "../../scripts/governance/local-cleanup-complete.mjs";
+import { discardLocalCleanup } from "../../scripts/governance/local-cleanup-discard.mjs";
 
 const owner = "fixture-owner-token-at-least-32-characters";
 function git(cwd, ...args) { return execFileSync("git", ["-C", cwd, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim(); }
@@ -85,7 +86,8 @@ test("CLI registration, ownership, recovery, preview and enable controls use the
   const invoke = (...args) => execFileSync(process.execPath, [cli, ...args, "--repo", f.primary], {
     cwd: f.primary, env: { ...process.env, LOCAL_CLEANUP_OWNER_TOKEN: owner, GH_TOKEN: "fixture-unused-token" }, encoding: "utf8",
   });
-  const help = invoke("--help"); assert.match(help, /complete/); assert.match(help, /\.artifacts\/openspec-archive/);
+  const help = invoke("--help"); assert.match(help, /complete/); assert.match(help, /discard/); assert.match(help, /confirm-closed-unmerged/);
+  assert.match(help, /\.artifacts\/openspec-archive/);
   assert.match(help, /\.artifacts\/validation/); assert.match(help, /native\/process-guardian\/target/);
   assert.match(help, /native\/terminal-host\/target/); assert.equal(COMPLETION_DISPOSABLE_PATHS.includes(".artifacts"), false);
   assert.equal(COMPLETION_DISPOSABLE_PATHS.includes("target"), false); assert.equal(COMPLETION_DISPOSABLE_PATHS.includes("native\/*\/target"), false);
@@ -102,6 +104,8 @@ test("CLI registration, ownership, recovery, preview and enable controls use the
   invoke("disable"); assert.equal(JSON.parse(invoke("status")).stopped, true);
   assert.throws(() => invoke("complete", "--path", other, "--change", "example"), /completion-arguments/);
   assert.throws(() => invoke("complete", "--path", other, "--change", "example", "--pr", "20", "--source-pr", "21"), /completion-arguments/);
+  assert.throws(() => invoke("discard", "--path", other, "--change", "example", "--pr", "20"), /discard-arguments/);
+  assert.throws(() => invoke("register", "--path", other, "--change", "example", "--source-pr", "20", "--candidate-pr", "20", "--role", "discard"), /registration-role/);
   assert.equal(JSON.parse(invoke("watch")).error, "cleanup-disabled");
   assert.equal(invoke("status").includes(digest(owner)), false);
 });
@@ -185,6 +189,113 @@ test("complete blocks sibling and near-match validation artifact roots", async t
     assert.ok(blocked.results[0].paths.some(path => path === root || path.startsWith(`${root}/`)), JSON.stringify(blocked));
     assert.equal(await readFile(join(directory, "report.json"), "utf8"), "preserve");
   }
+});
+
+test("expected-SHA remote deletion uses a lease and verifies absence", async () => {
+  const entry = { ref: "refs/heads/fix/rejected", head: "a".repeat(40) }, identity = { primary: "C:/repo", remote: "origin" };
+  const calls = []; let present = true;
+  const git = async (_cwd, args) => {
+    calls.push(args);
+    if (args[0] === "ls-remote") return present ? `${entry.head}\t${entry.ref}\n` : "";
+    if (args[0] === "push") { present = false; return ""; }
+    throw Error("unexpected git call");
+  };
+  assert.equal(await removeRemoteRef(identity, entry, git), "removed");
+  assert.deepEqual(calls[1], ["push", `--force-with-lease=${entry.ref}:${entry.head}`, "origin", `:${entry.ref}`]);
+  assert.equal(await removeRemoteRef(identity, entry, git), "already-absent");
+  present = true;
+  await assert.rejects(removeRemoteRef(identity, { ...entry, head: "b".repeat(40) }, git), /remote-ref-advanced/);
+  await assert.rejects(removeRemoteRef(identity, { ...entry, ref: "refs/heads/release/1" }, git), /remote-ref-unsafe/);
+  await assert.rejects(removeRemoteRef(identity, entry, async () => "malformed"), /remote-ref-identity/);
+  await assert.rejects(removeRemoteRef(identity, entry, async () => { throw Error("authentication failed with PRIVATE"); }), /authentication/);
+});
+
+function discardHarness(f, remote = { present: true }) {
+  const verify = async (_reader, entry) => ({ disposition: "eligible", sourcePr: entry.sourcePr, sourceHead: entry.head,
+    ref: entry.ref.slice("refs/heads/".length), expectedSha: entry.head, actualSha: remote.present ? entry.head : undefined,
+    remoteRefPresent: remote.present });
+  const removeRemote = async () => { if (!remote.present) return "already-absent"; remote.present = false; return "removed"; };
+  return { verify, removeRemote, remote };
+}
+
+test("discard removes only one exact rejected remote ref, worktree and local ref", async t => {
+  const f = await fixture(t, true, false), unrelated = join(f.identity.root, "unrelated");
+  git(f.primary, "worktree", "add", "--detach", unrelated);
+  const d = discardHarness(f);
+  const report = await discardLocalCleanup({ identity: f.identity, store: f.store, reader: {}, path: f.path,
+    change: "example", sourcePr: 20, confirmed: true, cwd: f.primary, git: f.boundedGit, verify: d.verify, removeRemote: d.removeRemote });
+  assert.equal(report.results[0].disposition, "discarded", JSON.stringify(report));
+  assert.deepEqual(report.results[0].steps, ["remote-ref-removed", "worktree-removed", "local-ref-removed"]);
+  assert.equal(d.remote.present, false); assert.equal(await exists(f.path), false); assert.equal(await exists(unrelated), true);
+  assert.equal(git(f.primary, "for-each-ref", "refs/heads/feature/example"), "");
+  const repeated = await discardLocalCleanup({ identity: f.identity, store: f.store, reader: {}, path: f.path,
+    change: "example", sourcePr: 20, confirmed: true, cwd: f.primary, git: f.boundedGit, verify: d.verify, removeRemote: d.removeRemote });
+  assert.equal(repeated.results[0].disposition, "already-discarded", JSON.stringify(repeated));
+  git(f.primary, "worktree", "add", "--detach", f.path);
+  const reused = await discardLocalCleanup({ identity: f.identity, store: f.store, reader: {}, path: f.path,
+    change: "example", sourcePr: 20, confirmed: true, cwd: f.primary, git: f.boundedGit, verify: d.verify, removeRemote: d.removeRemote });
+  assert.equal(reused.results[0].reason, "residual-or-reused-path");
+});
+
+test("discard inspects locally before remote mutation and retains partial state after remote deletion", async t => {
+  let f = await fixture(t, true, false), d = discardHarness(f), remoteCalls = 0;
+  await writeFile(join(f.path, "secret.txt"), "preserve");
+  let report = await discardLocalCleanup({ identity: f.identity, store: f.store, reader: {}, path: f.path,
+    change: "example", sourcePr: 20, confirmed: true, cwd: f.primary, git: f.boundedGit, verify: d.verify,
+    removeRemote: async (...args) => { remoteCalls++; return d.removeRemote(...args); } });
+  assert.equal(report.results[0].reason, "worktree-content"); assert.equal(remoteCalls, 0); assert.equal(d.remote.present, true);
+
+  f = await fixture(t, true, false); d = discardHarness(f); let inspections = 0;
+  report = await discardLocalCleanup({ identity: f.identity, store: f.store, reader: {}, path: f.path,
+    change: "example", sourcePr: 20, confirmed: true, cwd: f.primary, git: f.boundedGit, verify: d.verify, removeRemote: d.removeRemote,
+    inspect: async (...args) => ++inspections === 1 ? inspectWorktree(...args) : { clean: false, reason: "worktree-content", paths: ["late"] } });
+  assert.equal(report.results[0].disposition, "partial", JSON.stringify(report));
+  assert.equal(report.results[0].reason, "worktree-content"); assert.equal(d.remote.present, false); assert.equal(await exists(f.path), true);
+  assert.notEqual(git(f.primary, "for-each-ref", "refs/heads/feature/example"), "");
+});
+
+test("discard journals interruption, refuses reopened PRs, and is never queue-evaluated", async t => {
+  let f = await fixture(t, true, false), d = discardHarness(f), verifies = 0;
+  const reopened = async (...args) => { if (++verifies >= 3) throw Object.assign(Error("discard-source-association"), { cleanupCode: "discard-source-association" }); return d.verify(...args); };
+  let report = await discardLocalCleanup({ identity: f.identity, store: f.store, reader: {}, path: f.path,
+    change: "example", sourcePr: 20, confirmed: true, cwd: f.primary, git: f.boundedGit, verify: reopened, removeRemote: d.removeRemote });
+  assert.equal(report.results[0].disposition, "partial"); assert.equal(report.results[0].reason, "discard-source-association");
+  assert.equal(await exists(f.path), true); assert.equal(d.remote.present, false);
+  report = await discardLocalCleanup({ identity: f.identity, store: f.store, reader: {}, path: f.path,
+    change: "example", sourcePr: 20, confirmed: true, cwd: f.primary, git: f.boundedGit, verify: d.verify, removeRemote: d.removeRemote });
+  assert.equal(report.results[0].disposition, "discarded", JSON.stringify(report));
+  assert.ok(report.results[0].steps.includes("remote-ref-already-absent"), JSON.stringify(report));
+
+  f = await fixture(t, true, false); d = discardHarness(f);
+  report = await discardLocalCleanup({ identity: f.identity, store: f.store, reader: {}, path: f.path,
+    change: "example", sourcePr: 20, confirmed: true, cwd: f.primary, git: f.boundedGit, verify: d.verify, removeRemote: d.removeRemote,
+    remove: async () => { throw Error("simulated Windows lock"); } });
+  assert.equal(report.results[0].disposition, "partial"); assert.equal((await f.store.read()).entries[0].step, "remove-intent");
+  assert.equal(await exists(f.path), true); assert.equal(d.remote.present, false);
+  assert.equal((await f.pass()).coverage.total, 0, "queue preview must ignore discard entries");
+});
+
+test("discard confirmation, ownership, current worktree and mutation lock fail closed", async t => {
+  let f = await fixture(t, true, false), d = discardHarness(f), calls = 0;
+  let report = await discardLocalCleanup({ identity: f.identity, store: f.store, reader: {}, path: f.path,
+    change: "example", sourcePr: 20, confirmed: false, cwd: f.primary, git: f.boundedGit, verify: d.verify,
+    removeRemote: async () => { calls++; } });
+  assert.equal(report.results[0].reason, "discard-confirmation-required"); assert.equal(calls, 0);
+  report = await discardLocalCleanup({ identity: f.identity, store: f.store, reader: {}, path: f.path,
+    change: "example", sourcePr: 20, confirmed: true, cwd: f.path, git: f.boundedGit, verify: d.verify,
+    removeRemote: async () => { calls++; } });
+  assert.equal(report.results[0].reason, "current-worktree"); assert.equal(calls, 0);
+
+  f = await fixture(t, true); d = discardHarness(f);
+  await f.store.locked(async (state, save) => { transitionEntry(state.entries[0], "claim", owner, state.entries[0].generation); await save(state); });
+  report = await discardLocalCleanup({ identity: f.identity, store: f.store, reader: {}, path: f.path,
+    change: "example", sourcePr: 20, confirmed: true, cwd: f.primary, git: f.boundedGit, verify: d.verify, removeRemote: d.removeRemote });
+  assert.equal(report.results[0].reason, "owned-worktree"); assert.equal(d.remote.present, true);
+  await f.store.locked(async () => {
+    const busy = await discardLocalCleanup({ identity: f.identity, store: f.store, reader: {}, path: f.path,
+      change: "example", sourcePr: 20, confirmed: true, cwd: f.primary, git: f.boundedGit, verify: d.verify, removeRemote: d.removeRemote });
+    assert.equal(busy.results[0].reason, "mutation-busy");
+  });
 });
 
 test("complete rejects primary, current, and cross-root candidates", async t => {

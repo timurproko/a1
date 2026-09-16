@@ -35,6 +35,6 @@ End a runnable handoff with exactly two lines: `🧪 Manual test:` and one copy-
 
 ## Cleanup
 
-Retain the worktree until the PR is confirmed merged, the archive/specs/acceptance are verified on current `develop`, and the remote topic ref is absent. Never remove an open, unverifiable, dirty, or unowned worktree. Closed-unmerged and dirty cleanup each need explicit approval.
+Retain worktrees until merge/archive verification and remote-ref absence. Never remove open, unverifiable, dirty, or unowned work. Closed-unmerged cleanup requires exact candidate and remote-deletion confirmation; PR closure alone authorizes nothing.
 
-After verified merge/archive and remote-ref absence, follow [local cleanup](../../../docs/local-worktree-cleanup.md): run `local-worktree-cleanup.mjs complete` from primary. It owns registration, disposables, and worktree/ref removal; never delete those ad hoc or bypass blockers.
+Follow [local cleanup](../../../docs/local-worktree-cleanup.md): run `local-worktree-cleanup.mjs complete` for integrated work or exact `discard --confirm-closed-unmerged` for explicitly rejected work. Both run from primary and own registration, disposables, applicable remote authority, and worktree/ref removal; never delete those ad hoc or bypass blockers.

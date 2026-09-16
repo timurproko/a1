@@ -12,7 +12,7 @@ async function absent(identity, entry, git) {
   const rows = parseWorktrees(await git(identity.primary, ["worktree", "list", "--porcelain", "-z"]));
   if (rows.some(row => resolve(row.worktree).replaceAll("\\", "/") === entry.path)) fail("retained-worktree-metadata");
 }
-async function reportFile(store, report, now) {
+export async function writeLocalCleanupReport(store, report, now) {
   await atomicJson(join(store.directory, `report-${now}-${randomUUID()}.json`), report);
   const files = [];
   for (const name of await readdir(store.directory)) {
@@ -39,7 +39,7 @@ export async function reconcileLocalCleanup({ identity, store, reader, preview =
     const selectedIds = entryIds === null ? null : new Set(entryIds);
     if (selectedIds && (selectedIds.size !== entryIds.length || entryIds.some(id => typeof id !== "string"))) fail("candidate-selection");
     const selected = entry => selectedIds === null || selectedIds.has(entry.id);
-    const entries = state.entries.filter(entry => entry.state !== "done" && selected(entry));
+    const entries = state.entries.filter(entry => entry.state !== "done" && entry.role !== "discard" && selected(entry));
     if (selectedIds && !state.entries.some(selected)) fail("candidate-selection");
     report.coverage.total = entries.length;
     const start = entries.length ? state.cursor % entries.length : 0;
@@ -99,7 +99,8 @@ export async function reconcileLocalCleanup({ identity, store, reader, preview =
       }
     }
     report.coverage.complete = report.coverage.visited === entries.length;
-    const completed = state.entries.filter(item => item.state === "done" && selected(item) && !report.results.some(row => row.id === item.id));
+    const completed = state.entries.filter(item => item.state === "done" && item.role !== "discard" && selected(item)
+      && !report.results.some(row => row.id === item.id));
     const completedBudget = Math.max(0, 100 - report.coverage.visited);
     for (const entry of completed.slice(0, completedBudget)) {
       if (now() >= deadline || cancelled()) { report.completedCoverage = "deferred"; break; }
@@ -123,7 +124,7 @@ export async function reconcileLocalCleanup({ identity, store, reader, preview =
       }
       if (names.length > 100) report.unmanagedCoverage = "truncated";
     }
-    if (!preview) await reportFile(store, report, now());
+    if (!preview) await writeLocalCleanupReport(store, report, now());
   }
   try {
     if (preview) await run(await store.read(), () => fail("preview-mutation"));
