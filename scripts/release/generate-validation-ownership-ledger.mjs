@@ -9,7 +9,7 @@ const integration = JSON.parse(await readFile(resolve(repository, "config/integr
 const integrationTests = new Map();
 for (const owner of integration.owners) for (const test of owner.tests) {
   const targets = integrationTests.get(test) ?? [];
-  targets.push(...owner.targets.map(target => ({ owner: owner.id, ...target })));
+  targets.push(...owner.targets.map(target => ({ owner: owner.id, cadence: owner.cadence, ...target })));
   integrationTests.set(test, targets);
 }
 const tests = authority.ledger.map(entry => ({ ...entry, integrationTargets: integrationTests.get(entry.test) ?? [] }));
@@ -23,6 +23,7 @@ const report = {
   fastRemainderTests: tests.filter(test => test.fastOwner === "fast-remainder").length,
   resourceSensitiveTests: tests.filter(test => test.fastOwner === "fast-resource-sensitive").length,
   integrationTargetExecutions: tests.reduce((total, test) => total + test.integrationTargets.length, 0),
+  integrationOwners: integration.owners.map(owner => ({ id: owner.id, cadence: owner.cadence, scopes: owner.scopes, targets: owner.targets })),
   owners: authority.policy.owners.map(owner => ({ id: owner.id, tests: tests.filter(test => test.owner === owner.id).length,
     integrationOwners: owner.integrationOwners })),
   tests,

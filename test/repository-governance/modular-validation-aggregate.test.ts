@@ -6,7 +6,7 @@ import { requireModularValidation, selectModularEvidenceFiles, selectModularOutc
 const head = "b".repeat(40), base = "a".repeat(40), runId = "123", selectionId = "d".repeat(64);
 const registry = JSON.parse(await readFile("config/integration-owners.json", "utf8"));
 const owners = registry.owners;
-const ownership = { schema: "a1-integration-ownership-v1" as const, owners: owners.map(({ id, scopes, targets, development }: any) => ({ id, scopes, targets, development })) };
+const ownership = { schema: "a1-integration-ownership-v2" as const, owners: owners.map(({ id, cadence, scopes, targets }: any) => ({ id, cadence, scopes, targets })) };
 
 describe("attempt-aware modular development aggregate", () => {
   it("accepts only attempt-qualified evidence and known support directories", () => {
@@ -22,7 +22,7 @@ describe("attempt-aware modular development aggregate", () => {
 
   it("requires exact-head evidence for every conservative target", () => {
     const fixture = conservativeFixture();
-    expect(requireModularValidation(fixture)).toMatchObject({ mode: "conservative", evidenceCount: 9, reused: [] });
+    expect(requireModularValidation(fixture)).toMatchObject({ mode: "conservative", deferredOwners: ["update-predecessor"], evidenceCount: 9, reused: [] });
   });
 
   it("reuses successful prior-attempt jobs only within the same run/head/selection", () => {
@@ -85,9 +85,21 @@ describe("attempt-aware modular development aggregate", () => {
     }
   });
 
+  it("rejects malformed per-scope timing evidence", () => {
+    for (const mutate of [
+      (gate: any) => { delete gate.scopes; },
+      (gate: any) => { gate.scopes = ["bad scope"]; },
+      (gate: any) => { gate.durationMs = -1; },
+    ]) {
+      const fixture = conservativeFixture();
+      mutate(fixture.outcomes[0].outcomes[0]);
+      expect(() => requireModularValidation(fixture)).toThrow("malformed gate");
+    }
+  });
+
   it("accepts bounded exclusions and rejects evidence from an excluded owner", () => {
     const decisions = owners.map((owner: any) => ({ owner: owner.id, selected: owner.id === "startup",
-      reasons: [{ code: owner.id === "startup" ? "coarse-owner" : "unrelated", paths: owner.id === "startup" ? ["src/foundation/startup/index.ts"] : [] }] }));
+      reasons: [{ code: owner.id === "startup" ? "coarse-owner" : owner.cadence === "exhaustive" ? "exhaustive-cadence" : "unrelated", paths: owner.id === "startup" ? ["src/foundation/startup/index.ts"] : [] }] }));
     const selection = createIntegrationSelection({ base, head, ownership, mode: "impact", decisions });
     const outcomes = [coreOutcome(1), outcome(selection.selectionId, "startup", "win32", 22, ["startup"], ["package-startup"], 1)];
     const fixture = impactFixture(selection, outcomes, 1, []);
@@ -96,16 +108,24 @@ describe("attempt-aware modular development aggregate", () => {
     fixture.outcomes.push(unexpected); fixture.envelopes.push(envelope(unexpected.authority, "success"));
     expect(() => requireModularValidation(fixture)).toThrow("excluded owner produced unexpected evidence");
   });
+
+  it("rejects exhaustive evidence as a substitute for cadence deferral", () => {
+    const fixture = conservativeFixture();
+    const promoted = fixture.outcomes.find((value: any) => value.authority.job === "promoted");
+    promoted.authority.owners.push("update-predecessor");
+    promoted.authority.selected.push("update-predecessor");
+    expect(() => requireModularValidation(fixture)).toThrow("excluded owner produced unexpected evidence");
+  });
 });
 
 function conservativeFixture(): any {
-  const selection = createIntegrationSelection({ base, head, ownership, mode: "conservative", decisions: owners.map((owner: any) => ({
+  const selection = createIntegrationSelection({ base, head, ownership, mode: "conservative", decisions: owners.map((owner: any) => owner.cadence === "pull-request" ? ({
     owner: owner.id, selected: true, reasons: [{ code: "conservative-fallback", paths: [] }],
-  })) });
+  }) : ({ owner: owner.id, selected: false, reasons: [{ code: "exhaustive-cadence", paths: [] }] })) });
   const outcomes = [
     coreOutcome(1), resourceOutcome(1),
     outcome(selection.selectionId, "pi", "win32", 24, ["pi-release-resume"], ["pi-engine-conformance", "package-smoke", "release-update"], 1),
-    outcome(selection.selectionId, "promoted", "win32", 24, ["launch-integration", "update-performance", "structured-runtime", "update-predecessor"], ["launch-integration", "update-performance", "structured-runtime-integration", "update-predecessor"], 1),
+    outcome(selection.selectionId, "promoted", "win32", 24, ["launch-integration", "update-performance", "structured-runtime"], ["launch-integration", "update-performance", "structured-runtime-integration"], 1),
     outcome(selection.selectionId, "package", "win32", 22, ["package-contracts"], ["package-contracts"], 1),
     outcome(selection.selectionId, "startup", "win32", 22, ["startup"], ["package-startup"], 1),
     outcome(selection.selectionId, "compatibility", "win32", 22, ["image-compatibility", "history-compatibility"], ["image-compatibility", "history-compatibility"], 1),
@@ -121,7 +141,7 @@ function impactFixture(selection: any, outcomes: any[], runAttempt: number, reso
 function coreOutcome(attempt: number) { return outcome(selectionId, "core", "win32", 24, ["pr-core"], ["typecheck", "architecture", "pr-core-tests", "pr-selected-tests"], attempt); }
 function resourceOutcome(attempt: number) { return outcome(selectionId, "resource", "win32", 24, ["pr-resource"], ["pr-selected-resource"], attempt); }
 function outcome(_integrationSelectionId: string, job: string, platform: string, node: number, selectedOwners: string[], selected: string[], attempt: number) {
-  return { passed: true, startedAt: 2, completedAt: 3, outcomes: [{ id: "gate", exitCode: 0 }], selected,
+  return { passed: true, startedAt: 2, completedAt: 3, outcomes: [{ id: "gate", exitCode: 0, durationMs: 1, scopes: selected }], selected,
     authority: { schema: "a1-validation-outcome-authority-v1", head, runId, runAttempt: attempt, selectionId, job, platform,
       architecture: platform === "darwin" ? "arm64" : "x64", node, owners: selectedOwners, requested: selected, selected, jobStartedAt: 1, cacheState: "test" } };
 }

@@ -10,4 +10,4 @@ export function requireModularValidation(options: {
   head: string;
   runId: string;
   runAttempt: number;
-}): { mode: string; selectionId: string; selectedOwners: string[]; evidenceCount: number; attempts: { job: string; attempt: number; reused: boolean }[]; reused: { job: string; attempt: number }[] };
+}): { mode: string; selectionId: string; selectedOwners: string[]; deferredOwners: string[]; evidenceCount: number; attempts: { job: string; attempt: number; reused: boolean }[]; reused: { job: string; attempt: number }[] };

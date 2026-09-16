@@ -4,19 +4,20 @@ export interface IntegrationTarget {
   architecture: "x64" | "arm64";
   node: 22 | 24;
 }
+export type IntegrationCadence = "pull-request" | "exhaustive";
 export interface IntegrationOwner {
   id: string;
+  cadence: IntegrationCadence;
   scopes: string[];
   targets: IntegrationTarget[];
-  development: boolean;
 }
 export interface IntegrationOwnership {
-  schema: "a1-integration-ownership-v1";
+  schema: "a1-integration-ownership-v2";
   owners: IntegrationOwner[];
 }
 export interface IntegrationReason {
   code: "coarse-owner" | "changed-test" | "shared-support" | "invalidator" | "conservative-fallback"
-    | "unrelated" | "not-development" | IntegrationExemption;
+    | "unrelated" | "exhaustive-cadence" | IntegrationExemption;
   paths: string[];
 }
 export interface IntegrationDecision {
@@ -31,14 +32,14 @@ export interface IntegrationAuthority {
   exemption?: IntegrationExemption | null;
 }
 export interface IntegrationSelection {
-  schema: "a1-integration-selection-v1";
+  schema: "a1-integration-selection-v2";
   base: string;
   head: string;
   ownershipId: string;
   selectionId: string;
   mode: "impact" | "conservative" | "exempt";
   exemption: IntegrationExemption | null;
-  owners: (IntegrationDecision & { scopes: string[]; targets: IntegrationTarget[] })[];
+  owners: (IntegrationDecision & { cadence: IntegrationCadence; scopes: string[]; targets: IntegrationTarget[] })[];
 }
 /** Build a complete contract; this does not authorize workflow skips by itself. */
 export function createIntegrationSelection(options: IntegrationAuthority & {

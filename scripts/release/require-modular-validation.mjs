@@ -1,13 +1,14 @@
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { evaluateDevelopmentValidationTiming } from "./development-validation-timing.mjs";
 import { assertIntegrationSelection } from "./integration-selection.mjs";
 import { assertValidationOutcomeAuthority } from "./validation-outcome.mjs";
 
 /** Resolve current-attempt results plus same-run successful evidence from jobs GitHub did not rerun. */
 export function requireModularValidation({ impact, owners, outcomes, envelopes = [], modularResult, head, runId, runAttempt }) {
   if (!impact || impact.head !== head || impact.selectionId === undefined) throw new Error("modular validation impact is stale or missing");
-  const ownership = { schema: "a1-integration-ownership-v1", owners: owners.map(({ id, scopes, targets, development }) => ({ id, scopes, targets, development })) };
+  const ownership = { schema: "a1-integration-ownership-v2", owners: owners.map(({ id, cadence, scopes, targets }) => ({ id, cadence, scopes, targets })) };
   const selection = assertIntegrationSelection(impact.integration?.selection, { base: impact.base, head, ownership, exemption: impact.integration?.selection?.exemption });
   const exempt = selection.mode === "exempt";
   const expectedResult = exempt ? "skipped" : "success";
@@ -17,7 +18,11 @@ export function requireModularValidation({ impact, owners, outcomes, envelopes =
 
   const evidence = outcomes.map(outcome => {
     if (typeof outcome?.passed !== "boolean" || !Array.isArray(outcome.outcomes)
-      || outcome.outcomes.some(gate => !gate || !Number.isInteger(gate.exitCode))) throw new Error("modular validation outcome contains a malformed gate");
+      || outcome.outcomes.some(gate => !gate || !Number.isInteger(gate.exitCode) || !Number.isSafeInteger(gate.durationMs) || gate.durationMs < 0
+        || !Array.isArray(gate.scopes) || gate.scopes.length === 0 || gate.scopes.length > 64
+        || gate.scopes.some(scope => !/^[a-z][a-z0-9-]{0,79}$/u.test(scope)) || new Set(gate.scopes).size !== gate.scopes.length)) {
+      throw new Error("modular validation outcome contains a malformed gate");
+    }
     const successful = outcome.passed && outcome.outcomes.every(gate => gate.exitCode === 0);
     if (outcome.passed !== successful) throw new Error("modular validation outcome contradicts its gates");
     const authority = assertValidationOutcomeAuthority(outcome.authority);
@@ -73,7 +78,9 @@ export function requireModularValidation({ impact, owners, outcomes, envelopes =
   }
   const attempts = used.map(item => ({ job: item.key, attempt: item.authority.runAttempt, reused: item.authority.runAttempt < runAttempt }));
   return { mode: selection.mode, selectionId: impact.selectionId,
-    selectedOwners: selection.owners.filter(owner => owner.selected).map(owner => owner.owner), evidenceCount: used.length, attempts, reused };
+    selectedOwners: selection.owners.filter(owner => owner.selected).map(owner => owner.owner),
+    deferredOwners: selection.owners.filter(owner => owner.cadence === "exhaustive" && !owner.selected).map(owner => owner.owner),
+    evidenceCount: used.length, attempts, reused };
 }
 
 export function selectModularEvidenceFiles(entries) {
@@ -122,6 +129,7 @@ function groupFor(owner, platform) {
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  const aggregateStartedAt = Date.now();
   const impact = JSON.parse(await readFile(resolve(process.env.VALIDATION_IMPACT ?? ".artifacts/validation/impact.json"), "utf8"));
   const registry = JSON.parse(await readFile(resolve("config/integration-owners.json"), "utf8"));
   const directory = resolve(process.env.VALIDATION_OUTCOMES_DIR ?? ".artifacts/validation/outcomes");
@@ -139,10 +147,13 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     .map(outcome => ({ job: outcome.authority.job, platform: outcome.authority.platform, architecture: outcome.authority.architecture, node: outcome.authority.node,
       attempt: outcome.authority.runAttempt, reused: acceptedAttempts.get(targetKey(outcome.authority))?.reused === true,
       setupMs: Math.max(0, outcome.startedAt - outcome.authority.jobStartedAt), gateMs: Math.max(0, outcome.completedAt - outcome.startedAt),
-      runnerMs: Math.max(0, outcome.completedAt - outcome.authority.jobStartedAt), invocations: outcome.outcomes.length, cacheState: outcome.authority.cacheState }));
-  const report = { schema: "a1-development-validation-aggregate-v2", ...result, head: impact.head, runId: process.env.GITHUB_RUN_ID,
-    runAttempt: Number(process.env.GITHUB_RUN_ATTEMPT), classifierMs: impact.timing.classifierMs,
-    criticalPathMs: jobs.reduce((maximum, job) => Math.max(maximum, job.runnerMs), 0), runnerMs: jobs.reduce((total, job) => total + job.runnerMs, 0),
+      runnerMs: Math.max(0, outcome.completedAt - outcome.authority.jobStartedAt), invocations: outcome.outcomes.length, cacheState: outcome.authority.cacheState,
+      scopeDurations: outcome.outcomes.flatMap(gate => gate.scopes.filter(scope => !scope.endsWith("-prerequisite"))
+        .map(scope => ({ id: gate.id, scope, durationMs: gate.durationMs }))) }));
+  const aggregateProcessingMs = Math.max(0, Date.now() - aggregateStartedAt);
+  const timing = evaluateDevelopmentValidationTiming({ jobs, aggregateProcessingMs });
+  const report = { schema: "a1-development-validation-aggregate-v3", ...result, head: impact.head, runId: process.env.GITHUB_RUN_ID,
+    runAttempt: Number(process.env.GITHUB_RUN_ATTEMPT), classifierMs: impact.timing.classifierMs, ...timing,
     availableQueueMs: null, availableQueueReason: "GitHub job availability timestamp is not exposed inside the runner", jobs };
   const output = resolve(process.env.VALIDATION_AGGREGATE_OUTPUT ?? ".artifacts/validation/aggregate.json");
   await mkdir(dirname(output), { recursive: true });

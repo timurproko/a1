@@ -1,5 +1,5 @@
 {
-  "schema": "a1-integration-owner-registry-v1",
+  "schema": "a1-integration-owner-registry-v2",
   "owners": [
     {
       "id": "pi-release-resume",
@@ -15,7 +15,6 @@
           "node": 24
         }
       ],
-      "development": true,
       "entries": [
         "test/integrations/pi/engine/conformance.test.ts",
         "test/integrations/pi/engine/runtime-integration.test.ts",
@@ -37,7 +36,8 @@
       "support": [
         "test/support/session-resume-fixture.ts",
         "test/foundation/release/package-candidate-fixture.ts"
-      ]
+      ],
+      "cadence": "pull-request"
     },
     {
       "id": "package-contracts",
@@ -51,7 +51,6 @@
           "node": 22
         }
       ],
-      "development": true,
       "entries": [
         "test/foundation/release/package-install.integration.test.ts"
       ],
@@ -61,7 +60,8 @@
       "support": [
         "test/foundation/release/package-candidate-fixture.ts",
         "test/foundation/release/package-install-fixture.ts"
-      ]
+      ],
+      "cadence": "pull-request"
     },
     {
       "id": "startup",
@@ -75,7 +75,6 @@
           "node": 22
         }
       ],
-      "development": true,
       "entries": [
         "bin/cli.js",
         "test/foundation/release/package-startup.integration.test.ts"
@@ -86,7 +85,8 @@
       "support": [
         "test/foundation/release/package-candidate-fixture.ts",
         "test/foundation/release/package-install-fixture.ts"
-      ]
+      ],
+      "cadence": "pull-request"
     },
     {
       "id": "image-compatibility",
@@ -110,7 +110,6 @@
           "node": 24
         }
       ],
-      "development": true,
       "entries": [
         "test/integrations/pi/session-ui/image-preparation.test.ts",
         "test/integrations/pi/session-ui/image-worker-package.test.ts"
@@ -119,7 +118,8 @@
         "test/integrations/pi/session-ui/image-preparation.test.ts",
         "test/integrations/pi/session-ui/image-worker-package.test.ts"
       ],
-      "support": []
+      "support": [],
+      "cadence": "pull-request"
     },
     {
       "id": "history-compatibility",
@@ -143,7 +143,6 @@
           "node": 24
         }
       ],
-      "development": true,
       "entries": [
         "test/features/prompt-history/concurrency.integration.test.ts",
         "test/features/prompt-history/image-sidecar.test.ts",
@@ -158,7 +157,8 @@
         "test/features/prompt-history/store.test.ts",
         "test/features/prompt-history/worker-package.test.ts"
       ],
-      "support": []
+      "support": [],
+      "cadence": "pull-request"
     },
     {
       "id": "unix-containment",
@@ -178,7 +178,6 @@
           "node": 24
         }
       ],
-      "development": true,
       "entries": [
         "test/foundation/process-containment/artifact.test.ts",
         "test/foundation/process-containment/contracts.test.ts",
@@ -214,7 +213,8 @@
       ],
       "support": [
         "test/foundation/process-containment/"
-      ]
+      ],
+      "cadence": "pull-request"
     },
     {
       "id": "launch-integration",
@@ -228,7 +228,6 @@
           "node": 24
         }
       ],
-      "development": false,
       "entries": [
         "test/features/launch/exact-pi-entry.integration.test.ts",
         "test/features/launch/profile-isolation.integration.test.ts"
@@ -237,7 +236,8 @@
         "test/features/launch/exact-pi-entry.integration.test.ts",
         "test/features/launch/profile-isolation.integration.test.ts"
       ],
-      "support": []
+      "support": [],
+      "cadence": "pull-request"
     },
     {
       "id": "update-performance",
@@ -251,14 +251,14 @@
           "node": 24
         }
       ],
-      "development": false,
       "entries": [
         "test/foundation/release/update-performance.integration.test.ts"
       ],
       "tests": [
         "test/foundation/release/update-performance.integration.test.ts"
       ],
-      "support": []
+      "support": [],
+      "cadence": "pull-request"
     },
     {
       "id": "structured-runtime",
@@ -272,14 +272,14 @@
           "node": 24
         }
       ],
-      "development": false,
       "entries": [
         "test/foundation/structured-agent-runtime/runtime.integration.test.ts"
       ],
       "tests": [
         "test/foundation/structured-agent-runtime/runtime.integration.test.ts"
       ],
-      "support": []
+      "support": [],
+      "cadence": "pull-request"
     },
     {
       "id": "update-predecessor",
@@ -293,14 +293,16 @@
           "node": 24
         }
       ],
-      "development": false,
       "entries": [
         "test/foundation/release/update-predecessor.integration.test.ts"
       ],
       "tests": [
         "test/foundation/release/update-predecessor.integration.test.ts"
       ],
-      "support": []
+      "support": [
+        "test/support/predecessor-fixture.ts"
+      ],
+      "cadence": "exhaustive"
     }
   ]
 }

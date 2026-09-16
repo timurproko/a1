@@ -1,0 +1,175 @@
+{
+  "schema": "a1-development-validation-replay-v1",
+  "classification": "recorded-pr429-structural-replay-not-hosted-acceptance",
+  "targets": {
+    "criticalPathMs": 480000,
+    "scopeMs": 300000
+  },
+  "scenarios": [
+    {
+      "id": "conservative-invalidator",
+      "path": ".github/workflows/ci.yml",
+      "mode": "conservative",
+      "fallback": "invalidator",
+      "selectedPullRequestOwners": [
+        "history-compatibility",
+        "image-compatibility",
+        "launch-integration",
+        "package-contracts",
+        "pi-release-resume",
+        "startup",
+        "structured-runtime",
+        "unix-containment",
+        "update-performance"
+      ],
+      "deferredExhaustiveOwners": [
+        {
+          "owner": "update-predecessor",
+          "reasons": [
+            {
+              "code": "exhaustive-cadence",
+              "paths": []
+            }
+          ]
+        }
+      ],
+      "focusedPredecessorTests": [
+        "test/foundation/release/predecessor-command-errors.test.ts",
+        "test/foundation/release/predecessor-command-faults.test.ts",
+        "test/foundation/release/predecessor-command-lifecycle.test.ts",
+        "test/foundation/release/predecessor-command.test.ts",
+        "test/foundation/release/predecessor-fixture.test.ts"
+      ]
+    },
+    {
+      "id": "ordinary-release-update",
+      "path": "src/foundation/release/bootstrap.ts",
+      "mode": "impact",
+      "fallback": null,
+      "selectedPullRequestOwners": [
+        "package-contracts",
+        "pi-release-resume",
+        "startup",
+        "update-performance"
+      ],
+      "deferredExhaustiveOwners": [
+        {
+          "owner": "update-predecessor",
+          "reasons": [
+            {
+              "code": "exhaustive-cadence",
+              "paths": [
+                "src/foundation/release/bootstrap.ts"
+              ]
+            }
+          ]
+        }
+      ],
+      "focusedPredecessorTests": [
+        "test/foundation/release/predecessor-command-errors.test.ts",
+        "test/foundation/release/predecessor-command-faults.test.ts",
+        "test/foundation/release/predecessor-command-lifecycle.test.ts",
+        "test/foundation/release/predecessor-command.test.ts",
+        "test/foundation/release/predecessor-fixture.test.ts"
+      ]
+    },
+    {
+      "id": "direct-exhaustive-test",
+      "path": "test/foundation/release/update-predecessor.integration.test.ts",
+      "mode": "impact",
+      "fallback": null,
+      "selectedPullRequestOwners": [
+        "package-contracts",
+        "pi-release-resume",
+        "startup",
+        "update-performance"
+      ],
+      "deferredExhaustiveOwners": [
+        {
+          "owner": "update-predecessor",
+          "reasons": [
+            {
+              "code": "exhaustive-cadence",
+              "paths": [
+                "test/foundation/release/update-predecessor.integration.test.ts"
+              ]
+            }
+          ]
+        }
+      ],
+      "focusedPredecessorTests": [
+        "test/foundation/release/predecessor-command-errors.test.ts",
+        "test/foundation/release/predecessor-command-faults.test.ts",
+        "test/foundation/release/predecessor-command-lifecycle.test.ts",
+        "test/foundation/release/predecessor-command.test.ts",
+        "test/foundation/release/predecessor-fixture.test.ts"
+      ]
+    }
+  ],
+  "timing": {
+    "recordedPr429": {
+      "aggregateProcessingMs": 10000,
+      "criticalPathMs": 969000,
+      "runnerMs": 1357000,
+      "maxScopeMs": 834568,
+      "scopes": [
+        {
+          "job": "promoted",
+          "id": "vitest-predecessor",
+          "scope": "update-predecessor",
+          "durationMs": 834568
+        },
+        {
+          "job": "startup",
+          "id": "vitest-startup",
+          "scope": "package-startup",
+          "durationMs": 274000
+        }
+      ],
+      "targets": {
+        "criticalPathLimitMs": 480000,
+        "scopeLimitMs": 300000,
+        "criticalPathMet": false,
+        "scopeMet": false
+      }
+    },
+    "cadenceFilteredReplay": {
+      "aggregateProcessingMs": 10000,
+      "criticalPathMs": 408000,
+      "runnerMs": 498000,
+      "maxScopeMs": 274000,
+      "scopes": [
+        {
+          "job": "promoted",
+          "id": "vitest-launch",
+          "scope": "launch-integration",
+          "durationMs": 3000
+        },
+        {
+          "job": "promoted",
+          "id": "vitest-runtime",
+          "scope": "structured-runtime-integration",
+          "durationMs": 1000
+        },
+        {
+          "job": "promoted",
+          "id": "vitest-update-performance",
+          "scope": "update-performance",
+          "durationMs": 20955
+        },
+        {
+          "job": "startup",
+          "id": "vitest-startup",
+          "scope": "package-startup",
+          "durationMs": 274000
+        }
+      ],
+      "targets": {
+        "criticalPathLimitMs": 480000,
+        "scopeLimitMs": 300000,
+        "criticalPathMet": true,
+        "scopeMet": true
+      }
+    }
+  }
+}

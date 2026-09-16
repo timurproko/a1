@@ -6,7 +6,7 @@ import { conservativeIntegrationImpact } from "./integration-impact.mjs";
 export async function loadIntegrationOwners(repository = process.cwd()) {
   const value = JSON.parse(await readFile(resolve(repository, "config", "integration-owners.json"), "utf8"));
   if (!value || typeof value !== "object" || Array.isArray(value)
-    || Object.keys(value).length !== 2 || value.schema !== "a1-integration-owner-registry-v1" || !Array.isArray(value.owners)) {
+    || Object.keys(value).length !== 2 || value.schema !== "a1-integration-owner-registry-v2" || !Array.isArray(value.owners)) {
     throw new TypeError("unsupported integration owner registry");
   }
   // Invariant: the selection validator owns schema, target, and duplicate-scope checks.

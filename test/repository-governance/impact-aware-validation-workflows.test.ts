@@ -110,6 +110,14 @@ describe("impact-aware validation workflows", () => {
       expect.objectContaining({ name: "Upload aggregate evidence", with: expect.objectContaining({ "if-no-files-found": "error" }) }),
     ]));
     expect(required.steps.find((step: any) => step.name === "Require current impact-selected validation").env).toMatchObject({ MODULAR_RESULT: "${{ needs.modular.result }}", EXPECTED_HEAD: "${{ github.event.pull_request.head.sha || github.sha }}" });
+    const report = required.steps.find((step: any) => step.name === "Report aggregate timing and cadence");
+    expect(report.run).toContain("report.deferredOwners");
+    expect(report.run).toContain("report.maxScopeMs");
+    expect(report.run).toContain("criticalPathMet");
+    expect(report.run).toContain("scopeMet");
+    const modularSummary = workflow.jobs.modular.steps.find((step: any) => step.name === "Add modular timing summary");
+    expect(modularSummary.run).toContain("outcome.scopes.join");
+    expect(modularSummary.run).toContain("outcome.durationMs");
     const upload = workflow.jobs.modular.steps.find((step: any) => step.name === "Upload modular outcome and fixture phases");
     expect(upload.with.name).toContain("attempt-${{ github.run_attempt }}");
     expect(JSON.stringify(workflow.jobs.modular)).not.toMatch(/retry|rerun-failed|attempts?:\s*[2-9]/iu);
