@@ -1,0 +1,17 @@
+{
+  "schema": "a1-terminal-host-proof-policy-v1",
+  "hostMode": "console-inside-existing-terminal",
+  "technicalVerdictRequired": "accepted",
+  "physicalVerdictRequired": "accepted",
+  "isolatedPhysicalWorkerRequired": true,
+  "maximumInputToProcessP95Ms": 16,
+  "maximumOutputToPresentP95Ms": 33,
+  "maximumMissedFrames": 0,
+  "maximumResizePaintGaps": 0,
+  "failureWaivable": false,
+  "integrationAllowedBeforeAcceptance": false,
+  "milestoneMergeAllowedBeforeAcceptance": false,
+  "structuredWorkIndependent": true,
+  "transparentModesIndependent": true,
+  "desktopNativeShellInScope": false
+}

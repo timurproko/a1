@@ -42,7 +42,7 @@ export interface ValidationPlan {
 }
 
 export function loadValidationSuites(repository?: string): Promise<Record<string, unknown>>;
-export function createTierPlan(requested: string[], repository?: string): Promise<ValidationPlan>;
+export function createTierPlan(requested: string[], repository?: string, options?: { additionalTests?: string[] }): Promise<ValidationPlan>;
 export function runTierPlan(plan: ValidationPlan, options?: {
   env?: NodeJS.ProcessEnv;
   stdio?: "inherit" | "pipe";

@@ -5,7 +5,13 @@ import { stripVTControlCharacters } from "node:util";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { resolveCohortEndpoint, resolveProductPaths } from "../../../src/foundation/lifecycle/index.js";
-import { readEndpointMetadata, releaseVerifiedIdleOwner } from "../../../src/foundation/release/index.js";
+import {
+  CohortStateStore,
+  certifyMaterializedRelease,
+  materializeRelease,
+  readEndpointMetadata,
+  releaseVerifiedIdleOwner,
+} from "../../../src/foundation/release/index.js";
 import { writeResumeFixture } from "../../support/session-resume-fixture.js";
 import { extractValidationCandidate, loadValidationCandidate } from "./package-candidate-fixture.js";
 import { createValidationPhaseRecorder } from "../../../scripts/release/validation-phase.mjs";
@@ -17,6 +23,7 @@ let environment: NodeJS.ProcessEnv;
 let cwd: string;
 let store: string;
 let sequence = 0;
+let candidatePreparation: Promise<void> | undefined;
 const children = new Set<ChildProcess>();
 const closedChildren = new WeakSet<ChildProcess>();
 
@@ -170,7 +177,23 @@ async function launchHint(hint: string) {
   return launch([], { command: "bash", args: ["--noprofile", "--norc", "-c", command] });
 }
 
+async function prepareExactCandidate(): Promise<void> {
+  candidatePreparation ??= phases.run("prepare-candidate-release", async () => {
+    const paths = resolveProductPaths(environment);
+    const release = await materializeRelease(extracted.packageRoot, paths.dataDir);
+    const state = new CohortStateStore(paths.dataDir);
+    await state.recordCandidate(release);
+    const diagnosticsPath = await certifyMaterializedRelease(release, paths.dataDir);
+    await state.approve(release.releaseId, diagnosticsPath);
+    await state.activate(release.releaseId);
+  });
+  await candidatePreparation;
+}
+
 async function launch(args: string[], shell?: { command: string; args: string[] }) {
+  // Rationale: fixture setup is outside the unchanged readiness budget. Exact-package and
+  // first-attempt startup scopes retain cold materialization authority; this file owns resume.
+  await prepareExactCandidate();
   const launchId = ++sequence;
   const startedAt = performance.now();
   const tracePath = resolve(extracted.root, `launch-${launchId}.jsonl`);

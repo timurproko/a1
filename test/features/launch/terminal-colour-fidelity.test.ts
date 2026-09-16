@@ -52,8 +52,11 @@ describe("terminal colour fidelity", () => {
 
     expect(developmentEntry.startsWith("#!/bin/sh")).toBe(true);
     expect(developmentEntry).toMatch(/exec node .*development\/start-local\.mjs/u);
-    expect(workflow).toContain("./scripts/dev");
-    expect(workflow).toContain("Never hand off a direct `node scripts/development/dev-launch.mjs`");
+    expect(workflow).toMatch(/interactive[\s\S]{0,300}`\.\/scripts\/dev` or `\.\/scripts\/dev pi`/u);
+    const handoffPolicy = workflow.split(/\r?\n/u).filter(line => /hand ?off|invoke|launch/iu.test(line)).join("\n");
+    expect(handoffPolicy).toContain("scripts/development/dev-launch.mjs");
+    expect(handoffPolicy).toMatch(/never|do not|must not/iu);
+    expect(handoffPolicy).toMatch(/direct Node launch/iu);
   });
 
   // Platform: npm runs scripts through cmd.exe on Windows, where the MSYS shell is not on

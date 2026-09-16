@@ -3,18 +3,21 @@ import { requireDevelopmentValidation } from "../../scripts/release/require-deve
 
 const head = "a".repeat(40);
 const valid = {
-  acceptanceOnly: "false", acceptanceCandidate: "false", acceptanceResult: "success",
-  changesResult: "success", docsResult: "skipped", namingRequired: "false", namingResult: "skipped", namingHead: head,
-  documentationResult: "skipped", modularResult: "success", renderingResult: "skipped", docsOnly: "false", versionOnly: "false",
+  acceptanceOnly: "false", implementationBound: "true", acceptanceCandidate: "false", deliveryCandidate: "true",
+  acceptanceResult: "skipped", deliveryResult: "success", changesResult: "success", docsResult: "skipped",
+  namingRequired: "false", namingResult: "skipped", namingHead: head, documentationResult: "skipped",
+  modularResult: "success", renderingResult: "skipped", docsOnly: "false", versionOnly: "false",
   openspecTouched: "false", documentationRequired: "false", renderingTier: "none", selectedHead: head, expectedHead: head,
 };
 
 describe("development validation aggregate", () => {
-  it("accepts only a current trusted acceptance candidate when every generic lane is skipped", () => {
+  it("accepts only a current trusted legacy acceptance candidate when every generic lane is skipped", () => {
     const acceptance = {
       ...valid,
       acceptanceOnly: "true",
       acceptanceCandidate: "true",
+      acceptanceResult: "success",
+      deliveryResult: "skipped",
       docsResult: "skipped",
       namingResult: "skipped",
       documentationResult: "skipped",
@@ -32,6 +35,23 @@ describe("development validation aggregate", () => {
       { renderingResult: "success" },
       { selectedHead: "b".repeat(40) },
     ]) expect(() => requireDevelopmentValidation({ ...acceptance, ...override })).toThrow();
+  });
+
+  it("requires finalized delivery validation in the same run for implementation-bound candidates", () => {
+    expect(requireDevelopmentValidation(valid)).toMatchObject({ mode: "code" });
+    for (const override of [
+      { implementationBound: undefined },
+      { deliveryCandidate: "false" },
+      { deliveryResult: "failure" },
+      { deliveryResult: "skipped" },
+    ]) expect(() => requireDevelopmentValidation({ ...valid, ...override })).toThrow();
+  });
+
+  it("requires the delivery lane to skip for non-implementation validation", () => {
+    const ordinary = { ...valid, implementationBound: "false", deliveryCandidate: "false", deliveryResult: "skipped" };
+    expect(requireDevelopmentValidation(ordinary)).toMatchObject({ mode: "code" });
+    expect(() => requireDevelopmentValidation({ ...ordinary, deliveryResult: "success" }))
+      .toThrow("finalized delivery validation must be skipped");
   });
 
   it("accepts exact docs, version, code, smoke, and full selections", () => {

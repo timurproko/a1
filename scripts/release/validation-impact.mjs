@@ -1,17 +1,14 @@
 import { execFile } from "node:child_process";
 import { readFile } from "node:fs/promises";
-import { dirname, extname, posix, resolve } from "node:path";
+import { extname, resolve } from "node:path";
 import { promisify } from "node:util";
-import ts from "typescript";
 import { classifyCodeDocumentationSource, normalizeCodeDocumentationPath } from "../governance/code-documentation-policy.mjs";
 import { selectNamingImpact } from "../governance/naming-source-policy.mjs";
-import { selectIntegrationImpact, conservativeIntegrationImpact } from "./integration-impact.mjs";
+import { selectIntegrationImpact } from "./integration-impact.mjs";
 import { loadIntegrationOwners } from "./integration-owners.mjs";
-import { createRevisionDependencyReader } from "./revision-dependencies.mjs";
+import { loadValidationOwnership, selectValidationOwnership, validationSelectionDigest } from "./validation-ownership.mjs";
 
 const execFileAsync = promisify(execFile);
-const SOURCE_EXTENSIONS = [".ts", ".tsx", ".mts", ".cts", ".js", ".mjs", ".cjs", ".json"];
-const RENDERING_ENTRIES = Object.freeze(["test/support/rendering/rendering-producer-worker.ts"]);
 const FULL_EXACT = new Set([
   ".github/workflows/ci.yml",
   ".github/workflows/full-regression.yml",
@@ -38,11 +35,21 @@ const FULL_PRODUCTION = Object.freeze([
   /^src\/integrations\/pi\/session-ui\/(?:session-viewport-controller|stream-presentation-coalescer)\.ts$/u,
   /^src\/ui\/components\/(?:text-selection|transcript-viewport)\.ts$/u,
 ]);
+const RENDERING_SOURCE_EXTENSIONS = new Set([".ts", ".tsx", ".mts", ".cts", ".js", ".mjs", ".cjs", ".json"]);
 const RENDERING_SURFACE_PREFIXES = Object.freeze([
   "src/integrations/pi/components/",
   "src/integrations/pi/session-ui/",
   "src/integrations/pi/tui-runtime/",
-  "src/ui/components/",
+  "src/ui/",
+  "src/features/owned-ui/",
+  "src/features/prompt-suggestions/",
+  "src/features/workspace/",
+  "test/integrations/pi/tui-runtime/",
+  "test/ui/",
+  "test/features/owned-ui/",
+  "test/support/rendering/",
+  "test/support/input-responsiveness/",
+  "test/fixtures/rendering/",
 ]);
 const MAX_CHANGES = 4096;
 const MAX_REASONS = 256;
@@ -104,32 +111,38 @@ export async function selectValidationImpact(options = {}) {
     .filter(change => change.status !== "D")
     .map(change => change.path)
     .filter(isDocumentationPolicyPath))].sort();
+  const exemption = docsOnly ? "docs-only" : versionOnly ? "version-only" : null;
+  const [ownership, integrationOwners] = await Promise.all([loadValidationOwnership(repository), loadIntegrationOwners(repository)]);
+  const prCore = selectValidationOwnership({ authority: ownership, changes,
+    manualNoComparison: options.manualNoComparison === true || implementationBound, exemption });
   const rendering = docsOnly || versionOnly
     ? { tier: "none", reasons: [], fallbacks: [], changedPaths: [] }
     : await classifyRenderingImpact(repository, base, head, changes);
-  const integration = await completeIntegrationSelection({ repository, base, head, changes, docsOnly, versionOnly,
-    manualNoComparison: options.manualNoComparison === true || implementationBound });
+  const integration = selectIntegrationImpact({ baseId: base, headId: head, changes, owners: integrationOwners, coreSelection: prCore,
+    manualNoComparison: options.manualNoComparison === true || implementationBound, ...(exemption ? { exemption } : {}) });
   const selection = {
-    schema: "a1-validation-impact-v1",
+    schema: "a1-validation-impact-v2",
     base,
     head,
     changes,
     docsOnly,
     versionOnly,
     openspecTouched,
-    ordinaryScopes: docsOnly || versionOnly ? [] : ["typecheck", "architecture", "fast", "dist-integration"],
+    ordinaryScopes: docsOnly || versionOnly ? [] : ["typecheck", "architecture", "pr-core-tests"],
+    prCore,
     integration,
     rendering,
     naming: selectNamingImpact(changes),
     documentation: { required: documentationPaths.length > 0, paths: documentationPaths },
     timing: { classifierMs: Math.max(0, Date.now() - startedAt) },
   };
+  selection.selectionId = validationSelectionDigest({ base, head, prCore, integration: integration.selection, rendering });
   assertValidationImpact(selection);
   return selection;
 }
 
 export function assertValidationImpact(value) {
-  if (typeof value !== "object" || value === null || value.schema !== "a1-validation-impact-v1") throw new TypeError("unsupported validation impact schema");
+  if (typeof value !== "object" || value === null || value.schema !== "a1-validation-impact-v2") throw new TypeError("unsupported validation impact schema");
   if (!isCommit(value.base) || !isCommit(value.head)) throw new TypeError("validation impact requires full base and head commits");
   if (!Array.isArray(value.changes) || value.changes.length > MAX_CHANGES) throw new TypeError("validation impact changes are invalid or unbounded");
   for (const change of value.changes) {
@@ -147,6 +160,9 @@ export function assertValidationImpact(value) {
   if (value.documentation.required !== (value.documentation.paths.length > 0)) throw new TypeError("validation impact documentation requirement disagrees with paths");
   if (JSON.stringify(value.naming) !== JSON.stringify(selectNamingImpact(value.changes))) throw new TypeError("naming impact differs from the complete change");
   if (!Array.isArray(value.ordinaryScopes) || value.ordinaryScopes.some(scope => typeof scope !== "string")) throw new TypeError("validation impact ordinary scopes are invalid");
+  if (!/^[0-9a-f]{64}$/u.test(value.selectionId ?? "") || value.selectionId !== validationSelectionDigest({ base: value.base, head: value.head,
+    prCore: value.prCore, integration: value.integration?.selection, rendering: value.rendering })) throw new TypeError("validation impact selection identity is invalid");
+  if (!value.prCore || !Array.isArray(value.prCore.tests) || !Array.isArray(value.prCore.resourceTests)) throw new TypeError("validation impact PR core is invalid");
   if (value.integration?.selection?.base !== value.base || value.integration?.selection?.head !== value.head
     || !/^[0-9a-f]{64}$/u.test(value.integration?.selection?.selectionId ?? "") || !Array.isArray(value.integration?.selection?.owners)
     || value.integration.selection.owners.length === 0) throw new TypeError("validation impact integration selection is invalid or stale");
@@ -154,24 +170,7 @@ export function assertValidationImpact(value) {
   return value;
 }
 
-async function completeIntegrationSelection({ repository, base, head, changes, docsOnly, versionOnly, manualNoComparison }) {
-  const owners = await loadIntegrationOwners(repository);
-  const exemption = docsOnly ? "docs-only" : versionOnly ? "version-only" : null;
-  if (exemption || manualNoComparison) return selectIntegrationImpact({
-    baseId: base, headId: head, owners, exemption, manualNoComparison,
-  });
-  try {
-    const reader = createRevisionDependencyReader(repository);
-    const [baseSnapshot, headSnapshot] = await Promise.all([reader.read(base), reader.read(head)]);
-    const basePolicy = JSON.parse(baseSnapshot.files.get("config/integration-dependencies.json")?.source ?? "null");
-    const headPolicy = JSON.parse(headSnapshot.files.get("config/integration-dependencies.json")?.source ?? "null");
-    return { ...selectIntegrationImpact({ baseId: base, headId: head, base: baseSnapshot, head: headSnapshot, changes, owners, basePolicy, headPolicy }), readerStats: reader.stats };
-  } catch {
-    return { ...conservativeIntegrationImpact({ base, head, owners, reason: "history-or-policy-unavailable" }), readerStats: null };
-  }
-}
-
-export async function classifyRenderingImpact(repository, base, head, changes) {
+export async function classifyRenderingImpact(_repository, _base, _head, changes) {
   const changedPaths = [...new Set(changes.flatMap(change => [change.path, ...(change.oldPath ? [change.oldPath] : [])]))].sort();
   const exactFull = changedPaths.filter(isFullRenderingPath);
   if (exactFull.length > 0) return {
@@ -180,75 +179,20 @@ export async function classifyRenderingImpact(repository, base, head, changes) {
     fallbacks: [],
     changedPaths,
   };
-  const unsupported = changedPaths.filter(path => RENDERING_SURFACE_PREFIXES.some(prefix => path.startsWith(prefix)) && !SOURCE_EXTENSIONS.includes(extname(path)));
+  const owned = changedPaths.filter(path => RENDERING_SURFACE_PREFIXES.some(prefix => path.startsWith(prefix)));
+  const unsupported = owned.filter(path => !RENDERING_SOURCE_EXTENSIONS.has(extname(path)));
   if (unsupported.length > 0) return {
     tier: "full",
     reasons: unsupported.slice(0, MAX_REASONS).map(path => `unsupported-rendering-input:${path}`),
     fallbacks: ["unsupported-rendering-input"],
     changedPaths,
   };
-
-  try {
-    const [baseGraph, headGraph] = await Promise.all([
-      renderingReachability(repository, base),
-      renderingReachability(repository, head),
-    ]);
-    const unresolved = [...new Set([...baseGraph.unresolved, ...headGraph.unresolved])];
-    if (unresolved.length > 0) return {
-      tier: "full",
-      reasons: unresolved.slice(0, MAX_REASONS).map(value => `unresolved:${value}`),
-      fallbacks: ["dependency-resolution-incomplete"],
-      changedPaths,
-    };
-    const reasons = [];
-    for (const path of changedPaths) {
-      const chain = headGraph.chains.get(path) ?? baseGraph.chains.get(path);
-      if (chain) reasons.push(`reachable:${chain.join(" -> ")}`);
-    }
-    return { tier: reasons.length > 0 ? "smoke" : "none", reasons: reasons.slice(0, MAX_REASONS), fallbacks: [], changedPaths };
-  } catch (error) {
-    return {
-      tier: "full",
-      reasons: [`classifier-error:${error instanceof Error ? error.message : String(error)}`],
-      fallbacks: ["dependency-classifier-failed"],
-      changedPaths,
-    };
-  }
-}
-
-async function renderingReachability(repository, revision) {
-  const { stdout } = await git(repository, ["ls-tree", "-r", "--name-only", "-z", revision], "buffer");
-  const paths = new Set(stdout.toString("utf8").split("\0").filter(Boolean).map(normalizeSelectionPath));
-  const chains = new Map();
-  const unresolved = [];
-  const queue = RENDERING_ENTRIES.map(path => ({ path, chain: [path] }));
-  for (const entry of RENDERING_ENTRIES) if (!paths.has(entry)) unresolved.push(`${entry}@${revision}`);
-  while (queue.length > 0) {
-    const current = queue.shift();
-    if (chains.has(current.path) || !paths.has(current.path)) continue;
-    chains.set(current.path, current.chain);
-    if (!isScriptPath(current.path)) continue;
-    const source = (await git(repository, ["show", `${revision}:${current.path}`], "utf8")).stdout;
-    const imports = ts.preProcessFile(source, true, true).importedFiles.map(record => record.fileName);
-    for (const specifier of imports) {
-      if (!specifier.startsWith(".")) continue;
-      const target = resolveRepositoryImport(current.path, specifier, paths);
-      if (!target) unresolved.push(`${current.path}:${specifier}@${revision}`);
-      else if (!chains.has(target)) queue.push({ path: target, chain: [...current.chain, target] });
-    }
-  }
-  return { chains, unresolved };
-}
-
-function resolveRepositoryImport(containingPath, specifier, paths) {
-  const base = posix.normalize(posix.join(dirname(containingPath).replaceAll("\\", "/"), specifier));
-  const extension = extname(base);
-  const withoutRuntimeExtension = [".js", ".mjs", ".cjs"].includes(extension) ? base.slice(0, -extension.length) : base;
-  const candidates = [];
-  if (SOURCE_EXTENSIONS.includes(extension)) candidates.push(base);
-  for (const candidateExtension of SOURCE_EXTENSIONS) candidates.push(`${withoutRuntimeExtension}${candidateExtension}`);
-  for (const candidateExtension of SOURCE_EXTENSIONS) candidates.push(`${base}/index${candidateExtension}`);
-  return candidates.find(candidate => paths.has(candidate));
+  return {
+    tier: owned.length > 0 ? "smoke" : "none",
+    reasons: owned.slice(0, MAX_REASONS).map(path => `coarse-owner:${path}`),
+    fallbacks: [],
+    changedPaths,
+  };
 }
 
 function mergeChanges(committed, worktree) {
@@ -306,10 +250,6 @@ export function isDocumentationPolicyPath(path) {
 
 function isFullRenderingPath(path) {
   return FULL_EXACT.has(path) || FULL_PREFIXES.some(prefix => path.startsWith(prefix)) || FULL_PRODUCTION.some(pattern => pattern.test(path));
-}
-
-function isScriptPath(path) {
-  return [".ts", ".tsx", ".mts", ".cts", ".js", ".mjs", ".cjs"].includes(extname(path));
 }
 
 function normalizeSelectionPath(path) {

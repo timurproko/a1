@@ -13,8 +13,8 @@ Version-1 and version-2 deliveries and their existing comments, acceptance PRs, 
 3. **Complete evidence:** finish implementation, required tests/evidence, substantive tasks, and explicit known-gap disposition. CI success is objective evidence, not acceptance.
 4. **Plain acceptance list:** keep the first line at `> Phase: Implementation` and add final `## Acceptance` with one to three concise implementation-specific behavior-and-result bullets. Do not use checkboxes, generic review/CI/approval/archive statements, URLs, mentions, or automated-test inventory.
 5. **In-branch finalization:** reconcile current `origin/develop`, conservatively synchronize all deltas, move the active change into its dated archive, and stage the conditional acceptance manifest in the same branch.
-6. **Ready and validate:** mark the finalized PR ready while its phase remains `Implementation`. Normal exact-head CI validates the implementation plus synchronized specs, archive, manifest, tasks/evidence, and exact PR-body list. After every required product test passes and the phase gate is the only expected blocker, change only the first line to `> Phase: Acceptance`; its body-edit candidate validation must pass. A new commit, acceptance change, or advanced target requires full renewed validation.
-7. **Manual merge accepts:** an authorized human manually merges the exact validated head only after the validated phase is `Acceptance`. That single action means the listed scenarios are accepted and explicitly authorizes integration. Auto-merge, merge queue, Apps, bots, and documentation reconciliation are forbidden.
+6. **Ready and validate:** mark the finalized PR ready while its phase remains `Implementation`. One normal exact-head workflow validates the implementation, synchronized specs, archive, manifest, tasks/evidence, exact PR-body list, and every selected product/governance scope before emitting the stable protected aggregate. A new commit, acceptance-list change, or advanced target requires full renewed validation; no phase-only body edit or second workflow run is required.
+7. **Manual merge accepts:** after the stable protected aggregate succeeds, an authorized human reviews and manually merges the exact validated `Implementation` head. That single action means the listed scenarios are accepted and explicitly authorizes integration. Auto-merge, merge queue, Apps, bots, and documentation reconciliation are forbidden.
 8. **Verify and clean:** trusted post-merge policy derives `Archived` and reports `accepted-and-archived` from committed bytes and immutable GitHub provenance without editing the accepted PR body. It publishes no lifecycle branch or PR. Shared exact-head remote cleanup may delete the unchanged topic ref; local cleanup remains separately ownership-controlled.
 
 The implementation, synchronized canonical specs, conditional acceptance record, and archive therefore reach `develop` atomically. Closing the PR unmerged integrates none of them.
@@ -73,7 +73,7 @@ Do not add a routine `Validation` section listing commands to an initial draft. 
 </details>
 ```
 
-Keep acceptance absent during proposal review so unfinished intent is not mistaken for final acceptance criteria. Keep the finalized candidate at `Implementation` while required tests are pending or failed. After all required exact-head product tests pass and the phase gate is the only expected blocker, change only the first line to `> Phase: Acceptance` and wait for the resulting candidate-validation check before handoff. After manual merge, trusted verification derives `Archived`; do not rewrite the accepted body.
+Keep acceptance absent during proposal review so unfinished intent is not mistaken for final acceptance criteria. Keep the finalized candidate at `Implementation` through exact-head validation, maintainer review, and authorized manual merge. The same workflow run validates its finalized delivery record and applicable product/governance scopes before the stable protected aggregate succeeds. Do not promote the body to another phase or start a phase-only validation run. After manual merge, trusted verification derives `Archived`; do not rewrite the accepted body.
 
 ## Version-3 implementation metadata
 
@@ -131,7 +131,7 @@ Use plain bullets:
 
 The committed conditional manifest contains the same ordered text. Trusted policy validates membership but never checks or edits it and never claims that the scenarios passed. Manual merge is the acceptance decision; no acceptance comment, checkbox edit, review-approval requirement, JSON edit, acceptance PR, archive PR, or later command is needed.
 
-If the body list changes, candidate validation reruns and compares it with the committed manifest. If the head changes, all prior exact-head CI is stale. If only the body changes to disagree with the manifest, integration remains blocked until the list and committed candidate agree again.
+If the body list changes, candidate validation reruns and compares it with the committed manifest. If the head changes, all prior exact-head CI is stale. If only the body changes to disagree with the manifest, integration remains blocked until the list and committed candidate agree again. No lifecycle body edit is needed after green CI.
 
 ## Finalization command
 
@@ -189,7 +189,7 @@ Unavailable, stale, automatic, unauthorized, conflicting, or contradictory prove
 
 Normal Development CI remains complete for the implementation. An archive-shaped final diff does not select documentation-only validation because the authoritative version-3 association remains implementation-bound. The trusted acceptance-policy job validates finalization from base-controlled policy while ordinary impact selection retains all applicable product and governance owners.
 
-`pull_request` body edits rerun required CI. Documentation auto-merge's trusted owner also reevaluates lifecycle association and disables any armed merge. Every publication entry point explicitly refuses version 3.
+`pull_request` body edits rerun required CI. The ordinary finalized `Implementation` run exposes the stable protected aggregate directly; it does not wait for an Acceptance-phase edit. Documentation auto-merge's trusted owner also reevaluates lifecycle association and disables any armed merge. Every publication entry point explicitly refuses version 3.
 
 The OpenSpec archive workflow remains default-branch trusted. For version 3 it uses read-only contents, PR, and Actions access to report the integrated result; App credentials are unnecessary and are not minted. For legacy candidates it retains its existing scoped App publication behavior.
 

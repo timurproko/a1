@@ -1,3 +1,4 @@
+import { readFile, readdir } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 import { createTierPlan, runTierPlan } from "../../scripts/release/validation-tier.mjs";
 
@@ -88,10 +89,66 @@ describe("validation tier planning", () => {
     expect(plan.vitest?.invocations[0]?.arguments).toContain("test/integrations/pi/tui-runtime/input-responsiveness-budgets.test.ts");
   });
 
+  it("plans the bounded PR core and dynamic affected tests without redefining fast", async () => {
+    const selected = await createTierPlan(["typecheck", "architecture", "pr-core-tests", "pr-selected-tests"], process.cwd(), {
+      additionalTests: ["test/cli/capabilities.test.ts", "test/features/workspace/capabilities.test.ts"],
+    });
+    expect(selected.selected).toEqual(["typecheck", "architecture", "pr-core-tests", "pr-selected-tests"]);
+    expect(selected.vitest?.invocations).toEqual([
+      expect.objectContaining({ id: "vitest-explicit", arguments: expect.arrayContaining(["test/cli/capabilities.test.ts", "test/features/workspace/capabilities.test.ts"]) }),
+    ]);
+    expect(selected.vitest?.invocations[0]!.arguments.filter(value => value === "test/cli/capabilities.test.ts")).toHaveLength(1);
+    const resource = await createTierPlan(["pr-selected-resource"], process.cwd(), {
+      additionalTests: ["test/foundation/release/release-gc.test.ts"],
+    });
+    expect(resource.vitest?.invocations).toEqual([
+      expect.objectContaining({
+        id: "vitest-fast-resource-sensitive-1",
+        arguments: ["vitest", "run", "test/foundation/release/release-gc.test.ts", "--no-file-parallelism"],
+        evidence: expect.objectContaining({ retries: 0, fileParallelism: false }),
+      }),
+    ]);
+    const completeFast = await createTierPlan(["fast"]);
+    expect(completeFast.selected).toEqual(["fast-remainder", "fast-resource-sensitive"]);
+  });
+
+  it("partitions conservative explicit tests below portable command limits without hiding failures", async () => {
+    const suites = JSON.parse(await readFile("config/validation-suites.json", "utf8"));
+    const excluded = new Set([
+      ...suites.scopes["fast-remainder"].exclude,
+      ...suites.scopes["fast-resource-sensitive"].tests,
+    ]);
+    const tests = (await readdir("test", { recursive: true }))
+      .map(path => `test/${path.replaceAll("\\", "/")}`)
+      .filter(path => path.endsWith(".test.ts") && !excluded.has(path))
+      .sort();
+    const plan = await createTierPlan(["pr-core-tests", "pr-selected-tests"], process.cwd(), { additionalTests: tests });
+    const invocations = plan.vitest!.invocations.filter(invocation => invocation.id.startsWith("vitest-explicit"));
+    expect(invocations.length).toBeGreaterThan(1);
+    expect(invocations.every(invocation => `npx ${invocation.arguments.join(" ")}`.length <= 6_000)).toBe(true);
+    const plannedTests = invocations.flatMap(invocation => invocation.arguments.filter(argument => argument.endsWith(".test.ts")));
+    expect(plannedTests.sort()).toEqual(tests);
+    expect(new Set(plannedTests).size).toBe(plannedTests.length);
+
+    const calls: string[] = [];
+    const result = await runTierPlan({ ...plan, commands: [] }, {
+      env: { VALIDATION_SELECTION_JSON: JSON.stringify(plan.selected), VALIDATION_TESTS_JSON: JSON.stringify(tests) },
+      stdio: "pipe",
+      executeCommand: async (command, environment) => {
+        expect(environment).not.toHaveProperty("VALIDATION_SELECTION_JSON");
+        expect(environment).not.toHaveProperty("VALIDATION_TESTS_JSON");
+        calls.push(command.id);
+        return { id: command.id, command: command.id, exitCode: calls.length === 2 ? 1 : 0, durationMs: 1 };
+      },
+    });
+    expect(result.passed).toBe(false);
+    expect(calls).toEqual(invocations.slice(0, 2).map(invocation => invocation.id));
+  });
+
   it("serializes smoke and full rendering evidence outside the fast worker pool", async () => {
     const smoke = await createTierPlan(["fast", "rendering-smoke"]);
     expect(smoke.vitest?.invocations[0]).toEqual(expect.objectContaining({ id: "vitest-fast" }));
-    expect(smoke.vitest?.invocations.filter(invocation => invocation.id.startsWith("vitest-fast-resource-sensitive-"))).toHaveLength(20);
+    expect(smoke.vitest?.invocations.filter(invocation => invocation.id.startsWith("vitest-fast-resource-sensitive-"))).toHaveLength(21);
     expect(smoke.vitest?.invocations.at(-1)).toEqual(expect.objectContaining({
       id: "vitest-isolated-suites",
       arguments: expect.arrayContaining([

@@ -6,6 +6,7 @@ import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 import { selectNamingImpact } from "../../scripts/governance/naming-source-policy.mjs";
 import { createIntegrationSelection } from "../../scripts/release/integration-selection.mjs";
+import { validationSelectionDigest } from "../../scripts/release/validation-ownership.mjs";
 
 const execFileAsync = promisify(execFile);
 const checker = "scripts/governance/check-code-documentation.mjs";
@@ -26,23 +27,33 @@ async function repositoryFixture(source = "export const value = 1;\n") {
 }
 
 function selection(path: string) {
-  const integration = createIntegrationSelection({ base: "a".repeat(40), head: "b".repeat(40), mode: "conservative", ownership: {
+  const base = "a".repeat(40);
+  const head = "b".repeat(40);
+  const changes = [{ status: "M", path }];
+  const integration = createIntegrationSelection({ base, head, mode: "conservative", ownership: {
     schema: "a1-integration-ownership-v1", owners: [{ id: "fixture", scopes: ["fixture"], targets: [{ platform: "win32", architecture: "x64", node: 24 }], development: true }],
   } });
+  const prCore = {
+    schema: "a1-pr-core-selection-v1", mode: "conservative", exemption: null,
+    policyId: "c".repeat(64), mandatoryTests: [], tests: [], resourceTests: [], owners: [], integrationOwners: ["fixture"], invalidators: [], unknown: [path],
+  };
+  const rendering = { tier: "none", reasons: [], fallbacks: [], changedPaths: [path] };
   return {
-    schema: "a1-validation-impact-v1",
-    base: "a".repeat(40),
-    head: "b".repeat(40),
-    changes: [{ status: "M", path }],
+    schema: "a1-validation-impact-v2",
+    base,
+    head,
+    changes,
     docsOnly: false,
     versionOnly: false,
     openspecTouched: false,
-    ordinaryScopes: ["fast"],
+    ordinaryScopes: ["typecheck", "architecture", "pr-core-tests"],
+    prCore,
     integration: { selection: integration, dependency: null, fallback: "fixture" },
-    rendering: { tier: "none", reasons: [], fallbacks: [], changedPaths: [path] },
-    naming: selectNamingImpact([{ status: "M", path }]),
+    rendering,
+    naming: selectNamingImpact(changes),
     documentation: { required: true, paths: [path] },
     timing: { classifierMs: 1 },
+    selectionId: validationSelectionDigest({ base, head, prCore, integration, rendering }),
   };
 }
 

@@ -24,7 +24,7 @@ jobs:
     timeout-minutes: 10
     outputs:
       acceptance-only: ${{ steps.route.outputs.acceptance_only || 'false' }}
-      implementation-bound: ${{ steps.route.outputs.implementation_bound || 'true' }}
+      implementation-bound: "${{ github.event_name == 'pull_request' && (steps.route.outputs.implementation_bound || 'true') || 'false' }}"
       docs-only: ${{ steps.selection.outputs.docs_only }}
       version-only: ${{ steps.selection.outputs.version_only }}
       openspec-touched: ${{ steps.selection.outputs.openspec_touched }}
@@ -122,7 +122,9 @@ jobs:
           console.log(`Documentation files: **${value.documentation.paths.length}**`);
           console.log(`Classifier: **${value.timing.classifierMs}ms**`);
           console.log(`Integration mode: **${value.integration.selection.mode}**; selection: \`${value.integration.selection.selectionId}\`\n`);
-          for (const owner of value.integration.selection.owners) console.log(`- ${owner.owner}: **${owner.selected ? "selected" : "excluded"}** (${owner.reasons.map(reason => reason.code).join(", ")})`);
+          console.log(`PR core: **${value.prCore.tests.length}** regular tests; **${value.prCore.resourceTests.length}** resource-sensitive tests; selection: \`${value.selectionId}\``);
+          for (const owner of value.prCore.owners) console.log(`- ${owner.owner}: **${owner.selected ? "selected" : "excluded"}** (${owner.reasons.map(reason => reason.code).join(", ")})`);
+          for (const owner of value.integration.selection.owners) console.log(`- integration/${owner.owner}: **${owner.selected ? "selected" : "excluded"}** (${owner.reasons.map(reason => reason.code).join(", ")})`);
           for (const reason of [...value.rendering.reasons, ...value.rendering.fallbacks].slice(0, 20)) console.log(`- rendering: ${reason}`);
           NODE
 
@@ -138,7 +140,7 @@ jobs:
   acceptance:
     name: Acceptance record validation
     needs: changes
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' && needs.changes.outputs.acceptance-only == 'true'
     permissions:
       contents: read
       pull-requests: read
@@ -147,7 +149,6 @@ jobs:
     timeout-minutes: 10
     outputs:
       acceptance-candidate: ${{ steps.validation.outputs.acceptance_candidate || 'false' }}
-      delivery-candidate: ${{ steps.validation.outputs.delivery_candidate || 'false' }}
     steps:
       - name: Check out trusted base policy only
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
@@ -182,8 +183,78 @@ jobs:
           import { readFile } from "node:fs/promises";
           const value = JSON.parse(await readFile(process.env.RESULT_PATH, "utf8"));
           console.log(`acceptance_candidate=${value.disposition === "awaiting-manual-acceptance-merge"}`);
+          NODE
+
+  delivery:
+    name: Finalized delivery validation
+    needs: changes
+    if: github.event_name == 'pull_request' && needs.changes.outputs.acceptance-only != 'true' && needs.changes.outputs.implementation-bound == 'true'
+    permissions:
+      contents: read
+      pull-requests: read
+      actions: read
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      delivery-candidate: ${{ steps.validation.outputs.delivery_candidate || steps.legacy.outputs.delivery_candidate || 'false' }}
+    steps:
+      - name: Check out trusted base delivery policy
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+      - name: Set up Node
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 24
+      - name: Detect implementation delivery version
+        id: version
+        env:
+          PULL_BODY: ${{ github.event.pull_request.body }}
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE' >> "$GITHUB_OUTPUT"
+          import { parseImplementation } from "./scripts/governance/openspec-archive-policy.mjs";
+          console.log(`version=${parseImplementation(process.env.PULL_BODY ?? "")?.version ?? "unknown"}`);
+          NODE
+      - name: Detect deployed no-promotion delivery policy
+        id: policy
+        shell: bash
+        run: |
+          if grep -q 'delivery-phase-not-implementation' scripts/governance/openspec-archive-github.mjs; then
+            echo 'installed=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'No-promotion delivery policy is not deployed on the base; validating this bootstrap candidate with its full authority-changing head.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Check out exact implementation policy for bootstrap
+        if: steps.version.outputs.version == '3' && steps.policy.outputs.installed != 'true'
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ needs.changes.outputs.head-sha }}
+          persist-credentials: false
+      - name: Validate finalized version-3 delivery record
+        id: validation
+        if: steps.version.outputs.version == '3'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DELIVERY_PR_NUMBER: ${{ github.event.pull_request.number }}
+        shell: bash
+        run: |
+          result="$RUNNER_TEMP/delivery-validation.json"
+          node scripts/governance/reconcile-openspec-archive.mjs --validate-acceptance --pr "$DELIVERY_PR_NUMBER" > "$result"
+          cat "$result"
+          RESULT_PATH="$result" node --input-type=module <<'NODE' >> "$GITHUB_OUTPUT"
+          import { readFile } from "node:fs/promises";
+          const value = JSON.parse(await readFile(process.env.RESULT_PATH, "utf8"));
           console.log(`delivery_candidate=${value.disposition === "ready-for-manual-merge"}`);
           NODE
+      - name: Preserve legacy implementation validation route
+        id: legacy
+        if: steps.version.outputs.version == '1' || steps.version.outputs.version == '2'
+        shell: bash
+        run: |
+          echo 'delivery_candidate=true' >> "$GITHUB_OUTPUT"
+          echo 'Legacy version-1/version-2 implementation keeps its established validation and acceptance route.' >> "$GITHUB_STEP_SUMMARY"
 
   docs:
     name: Documentation governance validation
@@ -323,7 +394,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { group: fast, label: Fast remainder and repository gates, os: windows-2025, platform: win32, architecture: x64, node: 24, build: true, guardian: true, defender: false, binary: process-guardian.exe }
+          - { group: core, label: PR core and affected unit owners, os: windows-2025, platform: win32, architecture: x64, node: 24, build: true, guardian: true, defender: false, binary: process-guardian.exe }
           - { group: resource, label: Resource-sensitive fast partition, os: windows-2025, platform: win32, architecture: x64, node: 24, build: false, guardian: false, defender: false, binary: process-guardian.exe }
           - { group: pi, label: Pi release and resume integration, os: windows-2025, platform: win32, architecture: x64, node: 24, build: true, guardian: false, defender: false, binary: process-guardian.exe }
           - { group: promoted, label: Changed full-only integration owners, os: windows-2025, platform: win32, architecture: x64, node: 24, build: true, guardian: false, defender: false, binary: process-guardian.exe }
@@ -399,6 +470,7 @@ jobs:
         shell: bash
         env:
           VALIDATION_SELECTION_JSON: ${{ steps.job-selection.outputs.scopes_json }}
+          VALIDATION_TESTS_JSON: ${{ steps.job-selection.outputs.tests_json }}
           VALIDATION_BUILD_READY: ${{ matrix.build && '1' || '0' }}
           VALIDATION_BUILD_RECEIPT: ${{ github.workspace }}/.artifacts/validation/receipts/build.json
           VALIDATION_HEAD: ${{ steps.job-selection.outputs.head }}
@@ -416,14 +488,14 @@ jobs:
           A1_RUNTIME_DIR: ${{ runner.temp }}/a1-${{ matrix.group }}-runtime
           RUN_PROCESS_CONTAINMENT_INTEGRATION: "1"
           STARTUP_PERFORMANCE_RESULT: .artifacts/validation/startup-node${{ matrix.node }}-performance.json
-        run: node scripts/release/run-validation-tier.mjs --result .artifacts/validation/outcome-${{ matrix.group }}-${{ matrix.platform }}-node${{ matrix.node }}.json
+        run: node scripts/release/run-validation-tier.mjs --result .artifacts/validation/outcome-${{ matrix.group }}-${{ matrix.platform }}-node${{ matrix.node }}-attempt-${{ github.run_attempt }}.json
       - name: Add modular timing summary
         if: always() && steps.job-selection.outputs.active == 'true'
         shell: bash
         run: |
           node --input-type=module <<'NODE' >> "$GITHUB_STEP_SUMMARY"
           import { readFile } from "node:fs/promises";
-          const result = JSON.parse(await readFile(`.artifacts/validation/outcome-${process.env.GROUP}-${process.env.PLATFORM}-node${process.env.NODE_VERSION}.json`, "utf8"));
+          const result = JSON.parse(await readFile(`.artifacts/validation/outcome-${process.env.GROUP}-${process.env.PLATFORM}-node${process.env.NODE_VERSION}-attempt-${process.env.GITHUB_RUN_ATTEMPT}.json`, "utf8"));
           const setup = Math.max(0, result.startedAt - Number(process.env.VALIDATION_JOB_STARTED_MS));
           console.log(`Setup: **${(setup / 1000).toFixed(2)}s**; gates: **${((result.completedAt - result.startedAt) / 1000).toFixed(2)}s**; invocations: **${result.outcomes.length}**.`);
           NODE
@@ -442,12 +514,13 @@ jobs:
           SELECTED_HEAD: ${{ needs.changes.outputs.head-sha }}
           JOB_STATUS: ${{ job.status }}
           ACTIVE: ${{ steps.job-selection.outputs.active || 'unknown' }}
-        run: node -e 'const fs=require("fs"),p=`.artifacts/validation/job-envelope-${process.env.GROUP}-${process.env.PLATFORM}-node${process.env.NODE_VERSION}.json`,x={schema:"a1-validation-job-envelope-v1",head:process.env.SELECTED_HEAD,runId:process.env.GITHUB_RUN_ID,runAttempt:Number(process.env.GITHUB_RUN_ATTEMPT),job:process.env.GROUP,platform:process.env.PLATFORM,architecture:process.env.ARCHITECTURE,node:Number(process.env.NODE_VERSION),startedAt:Number(process.env.VALIDATION_JOB_STARTED_MS),completedAt:Date.now(),status:process.env.JOB_STATUS,active:process.env.ACTIVE};fs.mkdirSync(".artifacts/validation",{recursive:true});fs.writeFileSync(p,JSON.stringify(x,null,2)+"\n")'
+          SELECTION_ID: ${{ steps.job-selection.outputs.selection_id }}
+        run: node -e 'const fs=require("fs"),p=`.artifacts/validation/job-envelope-${process.env.GROUP}-${process.env.PLATFORM}-node${process.env.NODE_VERSION}-attempt-${process.env.GITHUB_RUN_ATTEMPT}.json`,x={schema:"a1-validation-job-envelope-v2",head:process.env.SELECTED_HEAD,runId:process.env.GITHUB_RUN_ID,runAttempt:Number(process.env.GITHUB_RUN_ATTEMPT),selectionId:process.env.SELECTION_ID,job:process.env.GROUP,platform:process.env.PLATFORM,architecture:process.env.ARCHITECTURE,node:Number(process.env.NODE_VERSION),startedAt:Number(process.env.VALIDATION_JOB_STARTED_MS),completedAt:Date.now(),status:process.env.JOB_STATUS,active:process.env.ACTIVE};fs.mkdirSync(".artifacts/validation",{recursive:true});fs.writeFileSync(p,JSON.stringify(x,null,2)+"\n")'
       - name: Upload modular outcome and fixture phases
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
-          name: development-validation-outcome-${{ matrix.group }}-${{ matrix.platform }}-node${{ matrix.node }}
+          name: development-validation-outcome-${{ matrix.group }}-${{ matrix.platform }}-node${{ matrix.node }}-attempt-${{ github.run_attempt }}
           path: |
             .artifacts/validation/job-envelope-*.json
             .artifacts/validation/outcome-*.json
@@ -514,9 +587,13 @@ jobs:
           retention-days: 14
 
   required:
-    name: Development validation required
+    name: "${{ github.event_name == 'pull_request' && github.event.pull_request.draft && 'Draft validation intentionally skipped' || 'Development validation required' }}"
     if: always() && (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
-    needs: [changes, acceptance, docs, naming, documentation, modular, rendering]
+    needs: [changes, acceptance, delivery, docs, naming, documentation, modular, rendering]
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: read
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -525,8 +602,8 @@ jobs:
         with:
           ref: ${{ needs.changes.outputs.head-sha }}
           persist-credentials: false
-      - name: Require acceptance policy for pull requests
-        if: github.event_name == 'pull_request'
+      - name: Require acceptance policy for acceptance candidates
+        if: github.event_name == 'pull_request' && needs.changes.outputs.acceptance-only == 'true'
         shell: bash
         env:
           ACCEPTANCE_RESULT: ${{ needs.acceptance.result }}
@@ -534,8 +611,11 @@ jobs:
       - name: Require current impact-selected validation
         env:
           ACCEPTANCE_ONLY: ${{ needs.changes.outputs.acceptance-only }}
+          IMPLEMENTATION_BOUND: ${{ needs.changes.outputs.implementation-bound }}
           ACCEPTANCE_CANDIDATE: ${{ needs.acceptance.outputs.acceptance-candidate }}
+          DELIVERY_CANDIDATE: ${{ needs.delivery.outputs.delivery-candidate }}
           ACCEPTANCE_RESULT: ${{ needs.acceptance.result }}
+          DELIVERY_RESULT: ${{ needs.delivery.result }}
           CHANGES_RESULT: ${{ needs.changes.result }}
           DOCS_RESULT: ${{ needs.docs.result }}
           NAMING_RESULT: ${{ needs.naming.result }}
@@ -552,6 +632,12 @@ jobs:
           SELECTED_HEAD: ${{ needs.changes.outputs.head-sha }}
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: node scripts/release/require-development-validation.mjs
+      - name: Require finalized delivery policy for implementation candidates
+        if: needs.changes.outputs.implementation-bound == 'true'
+        shell: bash
+        env:
+          DELIVERY_RESULT: ${{ needs.delivery.result }}
+        run: test "$DELIVERY_RESULT" = 'success'
       - name: Download exact impact selection
         if: needs.changes.outputs.acceptance-only != 'true' && needs.changes.outputs.docs-only != 'true' && needs.changes.outputs.version-only != 'true'
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7

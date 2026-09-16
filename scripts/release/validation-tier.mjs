@@ -5,6 +5,7 @@ import { recordBuildReceipt, verifyBuildReceipt, verifyPackageReceipt } from "./
 
 const npmExecutable = process.platform === "win32" ? "npm.cmd" : "npm";
 const npxExecutable = process.platform === "win32" ? "npx.cmd" : "npx";
+const maximumPortableCommandCharacters = 6_000;
 
 export async function loadValidationSuites(repository = process.cwd()) {
   const suites = JSON.parse(await readFile(resolve(repository, "config", "validation-suites.json"), "utf8"));
@@ -13,8 +14,17 @@ export async function loadValidationSuites(repository = process.cwd()) {
   return suites;
 }
 
-export async function createTierPlan(requested, repository = process.cwd()) {
+export async function createTierPlan(requested, repository = process.cwd(), options = {}) {
   const suites = await loadValidationSuites(repository);
+  const additionalTests = options.additionalTests ?? [];
+  if (!Array.isArray(additionalTests) || additionalTests.length > 2048 || new Set(additionalTests).size !== additionalTests.length
+    || additionalTests.some(test => typeof test !== "string" || !test.startsWith("test/") || !test.endsWith(".test.ts") || test.includes("\\") || test.includes(".."))) {
+    throw new Error("additional validation tests are invalid or unbounded");
+  }
+  for (const test of additionalTests) {
+    try { if (!(await stat(resolve(repository, test))).isFile()) throw new Error("not a file"); }
+    catch { throw new Error(`additional validation test does not exist: ${test}`); }
+  }
   const atomic = [];
   const visiting = new Set();
 
@@ -63,10 +73,17 @@ export async function createTierPlan(requested, repository = process.cwd()) {
 
   const fast = definitions.find(({ definition }) => definition.kind === "vitest-remainder");
   const allResourceSensitiveTests = suites.scopes["fast-resource-sensitive"].tests;
-  const resourceSensitiveTests = atomic.includes("fast-resource-sensitive") ? [...allResourceSensitiveTests] : [];
-  // Invariant: the sensitive owner gets its own invocation, never the generic explicit-file timeout.
-  const explicitTests = definitions.filter(({ name }) => name !== "fast-resource-sensitive")
+  const resourceSensitiveTests = [
+    ...(atomic.includes("fast-resource-sensitive") ? allResourceSensitiveTests : []),
+    ...(atomic.includes("pr-selected-resource") ? additionalTests : []),
+  ];
+  // Invariant: sensitive selections get fresh serial invocations, never the generic explicit-file timeout.
+  const explicitTests = definitions.filter(({ name }) => !["fast-resource-sensitive", "pr-selected-resource"].includes(name))
     .flatMap(({ name, definition }) => (definition.tests ?? []).map(test => ({ test, owner: name })));
+  if (atomic.includes("pr-selected-tests")) {
+    const alreadySelected = new Set(explicitTests.map(entry => entry.test));
+    for (const test of additionalTests) if (!alreadySelected.has(test)) explicitTests.push({ test, owner: "pr-selected-tests" });
+  }
   const duplicateTests = explicitTests.filter((entry, index) => explicitTests.findIndex(candidate => candidate.test === entry.test) !== index);
   if (!full && duplicateTests.length > 0) throw new Error(`tests have duplicate selected owners: ${duplicateTests.map(entry => entry.test).join(", ")}`);
 
@@ -104,7 +121,7 @@ export async function createTierPlan(requested, repository = process.cwd()) {
   const regularInvocations = [
     ...(fast ? [{ id: "vitest-fast", arguments: ["vitest", "run", fast.definition.includeRoot, ...[...fast.definition.exclude, ...allResourceSensitiveTests].flatMap(path => ["--exclude", path])] }] : []),
     ...resourceSensitiveInvocations,
-    ...(regularExplicitTests.length > 0 ? [{ id: "vitest-explicit", arguments: ["vitest", "run", ...regularExplicitTests.map(entry => entry.test), "--testTimeout=30000"] }] : []),
+    ...boundedVitestInvocations("vitest-explicit", regularExplicitTests.map(entry => entry.test), ["--testTimeout=30000"]),
     ...(requestedPerformance.length > 0 ? [{ id: "vitest-isolated-timing", arguments: ["vitest", "run", ...requestedPerformance, "--no-file-parallelism", "--testTimeout=120000"] }] : []),
     ...requestedPackageSmoke.map((path, index) => ({ id: `vitest-package-smoke-${index + 1}`, arguments: ["vitest", "run", path, "--no-file-parallelism", "--testTimeout=120000"] })),
     ...(requestedIsolated.length > 0 ? [{ id: "vitest-isolated-suites", arguments: ["vitest", "run", ...requestedIsolated, "--no-file-parallelism", "--testTimeout=600000"] }] : []),
@@ -146,6 +163,8 @@ export async function runTierPlan(plan, options = {}) {
   const startedAt = Date.now();
   const outcomes = [];
   const environment = { ...process.env, ...(options.env ?? {}) };
+  delete environment.VALIDATION_SELECTION_JSON;
+  delete environment.VALIDATION_TESTS_JSON;
   const executeCommand = options.executeCommand ?? runCommand;
   const repository = resolve(options.repository ?? process.cwd());
   const verifyBuild = options.verifyBuildReceipt ?? verifyBuildReceipt;
@@ -271,6 +290,28 @@ async function validateValidationSuites(suites, repository) {
       throw new Error(`resource-sensitive test does not exist: ${test}`);
     }
   }
+}
+
+function boundedVitestInvocations(id, tests, suffix, maximumCharacters = maximumPortableCommandCharacters) {
+  if (tests.length === 0) return [];
+  const prefix = ["vitest", "run"];
+  const batches = [];
+  let batch = [];
+  for (const test of tests) {
+    const candidate = [...prefix, ...batch, test, ...suffix];
+    if (`npx ${candidate.join(" ")}`.length > maximumCharacters) {
+      if (batch.length === 0) throw new Error(`validation test path exceeds the portable command bound: ${test}`);
+      batches.push(batch);
+      batch = [test];
+    } else {
+      batch.push(test);
+    }
+  }
+  if (batch.length > 0) batches.push(batch);
+  return batches.map((paths, index) => ({
+    id: batches.length === 1 ? id : `${id}-${index + 1}`,
+    arguments: [...prefix, ...paths, ...suffix],
+  }));
 }
 
 function normalizeCommand(command) {

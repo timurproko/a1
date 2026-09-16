@@ -42,6 +42,7 @@ describe("validation suite ownership", () => {
     const tests = await discoverTests(resolve("test"));
     const explicitOwners = new Map<string, string[]>();
     for (const [scope, definition] of Object.entries(suites.scopes)) {
+      if (scope === "pr-core-tests") continue;
       for (const test of definition.tests ?? []) {
         const owners = explicitOwners.get(test) ?? [];
         owners.push(scope);
@@ -100,7 +101,11 @@ describe("validation suite ownership", () => {
         arguments: ["--yes", "@fission-ai/openspec@1.8.0", "validate", "--all", "--strict", "--no-interactive"],
       }],
     });
+    expect(suites.tiers["pr-core"]).toEqual({ kind: "composition", includes: ["typecheck", "architecture", "pr-core-tests"] });
     expect(suites.tiers["fast"]).toEqual({ kind: "composition", includes: ["fast-remainder", "fast-resource-sensitive"] });
+    expect(suites.scopes["pr-core-tests"]!.tests).toHaveLength(7);
+    expect(suites.scopes["pr-selected-tests"]!.kind).toBe("dynamic-vitest");
+    expect(suites.scopes["pr-selected-resource"]!.kind).toBe("dynamic-vitest-resource-sensitive");
     expect(suites.scopes["fast-resource-sensitive"]!.requiresBuild).toBe(true);
     expect(suites.scopes["fast-resource-sensitive"]!.tests).toEqual([
       "test/repository-governance/validation-impact.test.ts",
@@ -110,6 +115,7 @@ describe("validation suite ownership", () => {
       "test/repository-governance/local-cleanup.test.ts",
       "test/foundation/storage/storage.test.ts",
       "test/foundation/release/cohort-state.test.ts",
+      "test/foundation/release/release-gc.test.ts",
       "test/foundation/release/update-live-cohort.test.ts",
       "test/features/workspace/reconciliation.test.ts",
       "test/features/workspace/workspace.test.ts",

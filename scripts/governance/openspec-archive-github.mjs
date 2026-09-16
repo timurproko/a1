@@ -106,7 +106,7 @@ export async function validateVersion3Candidate(reader, number) {
   requireAcceptance(target.object?.sha === pull.base.sha, "delivery-target-stale");
   await reader.ancestor(pull.base.sha, pull.head.sha);
   const value = await inspectVersion3DeliverySnapshot(reader, pull, implementation, pull.head.sha);
-  requireAcceptance(parseImplementationDeliveryPhase(pull.body ?? "") === "acceptance", "delivery-phase-not-acceptance");
+  requireAcceptance(parseImplementationDeliveryPhase(pull.body ?? "") === "implementation", "delivery-phase-not-implementation");
   const changed = new Set(files.flatMap(file => [file.filename, ...(file.status === "renamed" ? [file.previous_filename] : [])]));
   requireAcceptance(value.archiveEntries.every(([path]) => changed.has(path)) && changed.has(implementation.acceptanceManifest),
     "delivery-diff-incomplete");
