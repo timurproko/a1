@@ -15,7 +15,7 @@ PR #455 (run 35204508906, mode `impact`): 323 PR-core tests, 21 resource-sensiti
 | `test/support/session-resume-fixture.ts` | 8 owners | `release-package-update` + `pi` |
 | `test/support/no-such-helper.ts` (unreferenced) | 8 owners | 8 owners, reason `shared-support-declared` |
 
-The graph scans 454 files under `test/`; `loadValidationOwnership` still completes well inside the classifier's existing budget (the self-selection run on this branch reported `classifierMs` in the same range as before).
+The graph scans 454 files under `test/`; `loadValidationOwnership` still completes well inside the classifier's existing budget (the self-selection run on this branch reported `classifierMs` 618, in the range earlier runs recorded).
 
 ## Focused tests
 
@@ -23,7 +23,7 @@ The graph scans 454 files under `test/`; `loadValidationOwnership` still complet
 | --- | --- |
 | `npx vitest run test/repository-governance/validation-ownership.test.ts` | 19 passed, including the import-graph attribution, transitive reach, declared fallback, missing-graph fallback, and PR #455 replay cases. |
 | `npx vitest run test/repository-governance/integration-owner-registry.test.ts test/repository-governance/full-regression-policy.test.ts test/repository-governance/github-repository-governance.test.ts test/repository-governance/integration-impact.test.ts test/repository-governance/validation-impact.test.ts test/repository-governance/impact-aware-validation-workflows.test.ts test/repository-governance/ci-release-runbook.test.ts` | 58 passed: both exhaustive owners listed, the nightly cron pinned in the workflow and governance inventory, the runbook text pinned. |
-| `npx vitest run test/repository-governance` | See the recorded run below. |
+| `npx vitest run test/repository-governance` | First run: 9 failures, all fixtures that listed `update-performance` as a pull-request owner (`modular-validation-aggregate`, `validation-job-selection`, `development-validation-replay`) plus the two known load-sensitive files; after updating those fixtures the three files pass (19 tests) and `terminal-architecture-policy` passes in isolation. `startup-descriptor` needs a built `dist/` this worktree does not have. |
 
 ## Governance commands
 
