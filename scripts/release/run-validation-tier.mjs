@@ -14,7 +14,7 @@ if (process.argv.includes("--prepare-exact-package")) {
   const handoff = await prepareSharedExactPackage(plan);
   await mkdir(dirname(resolve(handoffPath)), { recursive: true });
   await writeFile(resolve(handoffPath), `${JSON.stringify(handoff, null, 2)}\n`, { mode: 0o600 });
-  process.stdout.write(`${JSON.stringify({ prepared: 1, consumers: handoff.consumers, durationMs: handoff.durationMs }, null, 2)}\n`);
+  process.stdout.write(`${JSON.stringify({ prepared: 1, consumers: handoff.consumers, durationMs: handoff.durationMs, phases: handoff.receipt.preparation.phases }, null, 2)}\n`);
 } else if (process.argv.includes("--plan")) {
   process.stdout.write(`${JSON.stringify(plan, null, 2)}\n`);
 } else {
