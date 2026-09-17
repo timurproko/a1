@@ -1094,7 +1094,9 @@ describe("OwnedUiSessionShell", () => {
       await nextImmediate();
       terminal.input("\u0016");
       fail();
-      await vi.waitFor(() => expect(shell.root.render(80).map(stripTerminalSequences).join("\n")).toContain("clipboard is unavailable"));
+      // Invariant: the paste error is transcript content, so it supersedes the copy-failure dock notice.
+      await vi.waitFor(() => expect(shell.root.render(80).map(stripTerminalSequences).join("\n")).toContain("Paste skipped because the preceding copy failed."));
+      expect(shell.root.render(80).map(stripTerminalSequences).join("\n")).not.toContain("clipboard is unavailable");
       await nextImmediate();
       expect(readText).not.toHaveBeenCalled();
       expect(shell.root.editor.getText()).toBe("");
@@ -5746,6 +5748,84 @@ describe("OwnedUiSessionShell", () => {
     expect(editorBorder).toBe(latest + 2);
     expect(rows[latest + 1]?.trim()).toBe("");
     await shell.dispose();
+  });
+
+  it("shows bare-A1 informational messages as one transient dock notice above the editor", async () => {
+    const { engine, adapter, terminal, shell } = await fixture([], [], true);
+    try {
+      terminal.resize(80, 20);
+      const plainRows = () => shell.root.render(80).map(row => stripTerminalSequences(row).trimEnd());
+      const rowOf = (rows: readonly string[], text: string) => rows.findIndex(row => row.includes(text));
+
+      shell.root.appendWorkflowStatus("Switched to GPT-5.6 Sol (thinking: high)");
+      let rows = plainRows();
+      const notice = rowOf(rows, "Switched to GPT-5.6 Sol (thinking: high)");
+      const border = rows.findIndex((row, index) => index > notice && /^─+$/.test(row));
+      expect(notice).toBeGreaterThan(0);
+      expect(rows.slice(0, notice - 1).every(row => row === "")).toBe(true);
+      expect(rows[notice - 1]).toBe("");
+      expect(rows[notice + 1]).toBe("");
+      expect(border).toBe(notice + 2);
+      const descriptor = shell.root.viewportFrameDescriptor();
+      expect(descriptor?.dock?.rowStart).toBeLessThanOrEqual(notice + 1);
+      expect(descriptor?.nextDocumentRange.end).toBe(0);
+
+      shell.root.appendWorkflowStatus("Thinking level: medium");
+      rows = plainRows();
+      expect(rowOf(rows, "Switched to")).toBe(-1);
+      expect(rowOf(rows, "Thinking level: medium")).toBe(notice);
+
+      engine.session.emit({ type: "agent_start" });
+      const streamed = { role: "assistant", timestamp: 10, content: [{ type: "text", text: "streamed" }] };
+      engine.session.emit({ type: "message_start", message: streamed });
+      await adapter.flushEvents();
+      rows = plainRows();
+      expect(rowOf(rows, "Thinking level: medium")).toBe(-1);
+
+      shell.root.appendWorkflowStatus("Switched to GPT-6 Astra (thinking: high)");
+      rows = plainRows();
+      const working = rowOf(rows, "Working...");
+      let astra = rowOf(rows, "Switched to GPT-6 Astra");
+      expect(working).toBeGreaterThan(rowOf(rows, "streamed"));
+      expect(astra).toBeGreaterThan(working);
+      expect(rows[astra - 1]).toBe("");
+      expect(rows.findIndex((row, index) => index > astra && /^─+$/.test(row))).toBe(astra + 2);
+
+      const longer = { ...streamed, content: [{ type: "text", text: "streamed further" }] };
+      engine.session.emit({ type: "message_update", message: longer, assistantMessageEvent: { type: "text_delta", delta: " further" } });
+      await adapter.flushEvents();
+      rows = plainRows();
+      astra = rowOf(rows, "Switched to GPT-6 Astra");
+      expect(rowOf(rows, "streamed further")).toBeGreaterThan(-1);
+      expect(astra).toBeGreaterThan(rowOf(rows, "Working..."));
+
+      engine.session.emit({ type: "message_end", message: longer });
+      engine.session.emit({ type: "message_start", message: { role: "assistant", timestamp: 11, content: [{ type: "text", text: "next block" }] } });
+      await adapter.flushEvents();
+      rows = plainRows();
+      expect(rowOf(rows, "next block")).toBeGreaterThan(-1);
+      expect(rowOf(rows, "Switched to GPT-6 Astra")).toBe(-1);
+
+      shell.root.appendWorkflowStatus("Copied selected message to clipboard");
+      shell.root.appendWorkflowResult({ command: "import", outcome: "failed", message: "Usage: /import <path.jsonl>" });
+      rows = plainRows();
+      expect(rowOf(rows, "Copied selected message")).toBe(-1);
+      expect(rowOf(rows, "Error: Usage: /import <path.jsonl>")).toBeGreaterThan(-1);
+
+      shell.root.appendWorkflowStatus("Model selection saved to settings");
+      shell.runtime.renderNow();
+      expect(rowOf(plainRows(), "Model selection saved to settings")).toBeGreaterThan(-1);
+      // Performance: a notice changes the dock height once; keyboard input beside it keeps dock-only reuse.
+      const work = shell.root.viewportCompositionEvidence();
+      terminal.input("x"); await nextImmediate(); await nextImmediate();
+      expect(shell.root.viewportCompositionEvidence().full).toBe(work.full);
+      expect(shell.root.viewportCompositionEvidence().dockOnly).toBeGreaterThan(work.dockOnly);
+      expect(rowOf(plainRows(), "Model selection saved to settings")).toBeGreaterThan(-1);
+      shell.root.resetWorkflowPresentation();
+      expect(rowOf(plainRows(), "Model selection saved to settings")).toBe(-1);
+    } finally {
+      await shell.dispose();
+    }
   });
 
   it("renders /session with pinned structured groups, styles, and indentation instead of JSON", async () => {
