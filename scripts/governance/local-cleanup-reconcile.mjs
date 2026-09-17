@@ -3,7 +3,8 @@ import { join, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import { atomicJson, fail } from "./local-cleanup-state.mjs";
 import { discoverRepository, exists, inspectResidue, inspectWorktree, parseWorktrees, purgeDisposable, removeLocalRef, removeWorktree, repairResidue, gitRunner } from "./local-cleanup-git.mjs";
-import { verifyCleanupEvidence } from "./local-cleanup-evidence.mjs";
+import { acceptedHead, verifyCleanupEvidence } from "./local-cleanup-evidence.mjs";
+import { pruneMergedBranches } from "./local-cleanup-branches.mjs";
 
 const reason = error => error.cleanupCode ?? error.archiveCode ?? "local-operation-failed";
 const deferred = code => ["pass-deadline", "remote-budget", "remote-backoff", "content-inspection-budget", "mutation-busy"].includes(code);
@@ -31,8 +32,14 @@ export async function writeLocalCleanupReport(store, report, now) {
 export async function reconcileLocalCleanup({ identity, store, reader, preview = true, now = Date.now, deadline = now() + 60000,
   cancelled = () => false, git = gitRunner({ deadline, now }), verify = verifyCleanupEvidence, inspect = inspectWorktree,
   remove = removeWorktree, removeRef = removeLocalRef, purge = purgeDisposable, repair = repairResidue,
-  cwd = process.cwd(), entryIds = null, requireEnabled = true, includeUnmanaged = true }) {
+  cwd = process.cwd(), entryIds = null, requireEnabled = true, includeUnmanaged = true, stopSince = null, pruneBranches = false,
+  ancestorOf = (sha, head) => acceptedHead(reader, sha, head) }) {
   const report = { version: 1, preview, results: [], coverage: { total: 0, visited: 0, complete: false }, at: now() };
+  // Protocol: a completed-delivery HEAD or tip is accepted when every reachable commit is reachable from the merged head.
+  const acceptedFor = (entry, evidence) => {
+    const head = entry.role === "acceptance" ? null : evidence[entry.role === "archive" ? "archiveHead" : "sourceHead"];
+    return async sha => typeof head === "string" && await ancestorOf(sha, head);
+  };
   async function run(state, save) {
     const fresh = await discoverRepository(identity.primary, git);
     if (JSON.stringify(fresh) !== JSON.stringify(identity)) fail("repository-changed");
@@ -46,6 +53,7 @@ export async function reconcileLocalCleanup({ identity, store, reader, preview =
     async function enabled() {
       if (cancelled()) fail("cancelled");
       if (requireEnabled && (!state.enabled || await store.disabled())) fail("cleanup-disabled");
+      if (!requireEnabled && stopSince !== null && await store.disabled(stopSince)) fail("cleanup-disabled");
       if (now() >= deadline) fail("pass-deadline");
     }
     if (!preview) await enabled();
@@ -58,10 +66,11 @@ export async function reconcileLocalCleanup({ identity, store, reader, preview =
         if (entry.state === "owned") { row.reason = "owned-worktree"; continue; }
         let evidence = await verify(reader, entry); Object.assign(row, evidence);
         if (evidence.disposition !== "eligible") continue;
+        const accepted = acceptedFor(entry, evidence);
         // Protocol: a released path deleted by hand is judged by its journal, not by a directory that no longer exists.
         const absentBeforeRemoval = entry.step === "none" && !await exists(entry.path);
         if (entry.step === "none" && !absentBeforeRemoval) {
-          const content = await inspect(identity, entry, { git, cwd, deadline, now });
+          const content = await inspect(identity, entry, { git, cwd, deadline, now, accepted });
           if (!content.clean) { Object.assign(row, content, { disposition: "blocked" }); continue; }
         } else if (entry.step === "remove-intent" || absentBeforeRemoval) {
           const residue = await inspectResidue(identity, entry, { git, cwd, deadline, now, inspect });
@@ -82,10 +91,12 @@ export async function reconcileLocalCleanup({ identity, store, reader, preview =
           evidence = await verify(reader, entry);
           if (evidence.disposition !== "eligible") { Object.assign(row, evidence); continue; }
           if (JSON.stringify(await discoverRepository(identity.primary, git)) !== JSON.stringify(identity)) fail("repository-changed");
-          const content = await inspect(identity, entry, { git, cwd, deadline, now });
+          const content = await inspect(identity, entry, { git, cwd, deadline, now, accepted });
           if (!content.clean) { Object.assign(row, content, { disposition: "blocked" }); continue; }
           // Invariant: generated roots go first with bounded retries, so a held handle blocks before any journaled intent.
           await enabled(); await purge(entry, { deadline, now }); await enabled();
+          // Provenance: journal the accepted live HEAD so residue verification and ref deletion compare against the tree Git removes.
+          if (content.head !== entry.head) { entry.head = content.head; row.head = content.head; }
           entry.state = "deleting"; entry.step = "remove-intent"; await save(state);
           await remove(identity, entry, git); row.steps.push("worktree-removed");
           entry.step = "worktree-removed"; await save(state);
@@ -104,7 +115,7 @@ export async function reconcileLocalCleanup({ identity, store, reader, preview =
         if (evidence.disposition !== "eligible") { Object.assign(row, evidence, { disposition: "partial" }); continue; }
         if (JSON.stringify(await discoverRepository(identity.primary, git)) !== JSON.stringify(identity)) fail("repository-changed");
         await absent(identity, entry, git); await enabled();
-        row.steps.push(`local-ref-${await removeRef(identity, entry, git)}`);
+        row.steps.push(`local-ref-${await removeRef(identity, entry, git, accepted)}`);
         // Invariant: Git worktree remove prunes its own registration. Never sweep unrelated stale registrations.
         await absent(identity, entry, git);
         entry.state = "done"; entry.step = "complete"; await save(state);
@@ -141,6 +152,11 @@ export async function reconcileLocalCleanup({ identity, store, reader, preview =
         if (!registered.has(path)) report.results.push({ path, disposition: "unmanaged", reason: "not-registered" });
       }
       if (names.length > 100) report.unmanagedCoverage = "truncated";
+    }
+    if (pruneBranches && !preview) {
+      // Rationale: an exhausted candidate pass defers branch pruning to the next sweep instead of failing the whole report.
+      try { await enabled(); report.branches = await pruneMergedBranches({ identity, state, reader, git, deadline, now, ancestorOf, cancelled, enabled }); }
+      catch (error) { report.branches = { results: [], coverage: { total: 0, visited: 0, complete: false }, deferred: reason(error) }; }
     }
     if (!preview) await writeLocalCleanupReport(store, report, now());
   }

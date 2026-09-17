@@ -1,6 +1,6 @@
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, writeFile, readFile, rm, symlink, rename, utimes } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, readFile, readdir, rm, symlink, rename, utimes } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -11,7 +11,9 @@ import { promisify } from "node:util";
 import { atomicJson, createStateStore, registerEntry, transitionEntry, validateState, digest } from "../../scripts/governance/local-cleanup-state.mjs";
 import { canonical, captureWorktree, discoverRepository, inspectWorktree, exists, gitRunner, removeLocalRef, removeRemoteRef, removeWorktree } from "../../scripts/governance/local-cleanup-git.mjs";
 import { reconcileLocalCleanup } from "../../scripts/governance/local-cleanup-reconcile.mjs";
-import { completeLocalCleanup, COMPLETION_DISPOSABLE_PATHS } from "../../scripts/governance/local-cleanup-complete.mjs";
+import { completeLocalCleanup, handoffLocalCleanup, COMPLETION_DISPOSABLE_PATHS } from "../../scripts/governance/local-cleanup-complete.mjs";
+import { pruneMergedBranches } from "../../scripts/governance/local-cleanup-branches.mjs";
+import { sweepLines } from "../../scripts/governance/local-worktree-cleanup.mjs";
 import { discardLocalCleanup } from "../../scripts/governance/local-cleanup-discard.mjs";
 
 const owner = "fixture-owner-token-at-least-32-characters";
@@ -35,11 +37,13 @@ async function fixture(t, branch = false, registered = true) {
     entry = registerEntry(state, { ...snapshot, change: "example", sourcePr: 20, candidatePr: 20, role: "implementation", disposable: [] }, owner);
     transitionEntry(entry, "release", owner, entry.generation); await save(state);
   });
-  const verify = async () => ({ disposition: "eligible", sourcePr: 20, sourceMerge: snapshot.head, archivePr: 21, archiveMerge: snapshot.head, targetSha: snapshot.head, refs: [] });
+  const verify = async () => ({ disposition: "eligible", sourcePr: 20, sourceHead: snapshot.head, sourceMerge: snapshot.head, archivePr: 21, archiveMerge: snapshot.head, targetSha: snapshot.head, refs: [] });
   const realGit = gitRunner();
   const boundedGit = async (cwd, args, options) => ["fetch", "merge-base"].includes(args[0]) ? "" : realGit(cwd, args, options);
-  const pass = (options = {}) => reconcileLocalCleanup({ identity, store, reader: {}, cwd: primary, verify, git: boundedGit, ...options });
-  return { identity, store, entry, snapshot, path, primary, temporary, pass, verify, boundedGit };
+  // Rationale: ancestry is answered by the temporary repository itself, standing in for the GitHub compare the reader performs.
+  const ancestorOf = async (sha, head) => { try { await git(primary, "merge-base", "--is-ancestor", sha, head); return true; } catch { return false; } };
+  const pass = (options = {}) => reconcileLocalCleanup({ identity, store, reader: {}, cwd: primary, verify, git: boundedGit, ancestorOf, ...options });
+  return { identity, store, entry, snapshot, path, primary, temporary, pass, verify, boundedGit, ancestorOf };
 }
 
 // Performance: every case owns a private temporary repository, so cases run concurrently instead of
@@ -414,11 +418,29 @@ test("completed paths report absence and need fresh registration after reuse", a
   });
 });
 
-test("a busy or stale mutation lock is never automatically evicted", async t => {
-  const f = await fixture(t);
-  await f.store.locked(async () => { await assert.rejects(f.store.locked(() => {}), /mutation-busy/); });
-  await writeFile(join(f.store.directory, "mutation.lock"), '{"pid":9999999}');
+test("a dead holder's silent lock is evicted once, journaled, and a live or fresh lock is kept", async t => {
+  const f = await fixture(t), lock = join(f.store.directory, "mutation.lock");
+  await f.store.locked(async () => {
+    await assert.rejects(f.store.locked(() => {}), /mutation-busy/);
+    const record = JSON.parse(await readFile(lock, "utf8"));
+    assert.equal(record.pid, process.pid); assert.equal(record.version, 2); assert.ok(Number.isFinite(record.heartbeatAt));
+  });
+  assert.equal(await exists(lock), false);
+  const dead = { version: 2, pid: 9999999, nonce: "x", startedAt: 0, heartbeatAt: 0 };
+  await writeFile(lock, JSON.stringify({ ...dead, heartbeatAt: Date.now() }));
   await assert.rejects(f.store.locked(() => {}), /mutation-busy/);
+  await writeFile(lock, JSON.stringify({ ...dead, pid: process.pid }));
+  await assert.rejects(f.store.locked(() => {}), /mutation-busy/);
+  await writeFile(lock, JSON.stringify(dead));
+  let ran = false; await f.store.locked(async () => { ran = true; }); assert.equal(ran, true);
+  assert.equal(await exists(lock), false);
+  const notes = (await readdir(f.store.directory)).filter(name => name.startsWith("lock-evicted-"));
+  assert.equal(notes.length, 1); const note = JSON.parse(await readFile(join(f.store.directory, notes[0]), "utf8"));
+  assert.equal(note.lock.pid, 9999999); assert.equal(note.evictedBy, process.pid);
+  await writeFile(lock, '{"version":1,"pid":9999999,"nonce":"legacy"}'); const old = new Date(Date.now() - 600000); await utimes(lock, old, old);
+  ran = false; await f.store.locked(async () => { ran = true; }); assert.equal(ran, true, "a legacy lock is judged by its mtime");
+  await writeFile(lock, "not json"); const fresh = new Date(); await utimes(lock, fresh, fresh);
+  await assert.rejects(f.store.locked(() => {}), /mutation-busy/, "an unreadable fresh lock is busy");
 });
 
 test("preview and disabled execution preserve local refs, files and state", async t => {
@@ -754,6 +776,248 @@ test("a locked disposable root blocks before any journaled intent and completes 
   const report = await f.pass({ preview: false });
   assert.equal(report.results[0].disposition, "removed", JSON.stringify(report));
   assert.deepEqual(report.results[0].steps, ["worktree-removed", "local-ref-removed"]);
+  assert.equal(await exists(f.path), false);
+});
+
+test("handoff registers and releases a clean pushed worktree, is idempotent, and records repair pushes", async t => {
+  const f = await fixture(t, true, false);
+  await mkdir(join(f.path, "node_modules")); await writeFile(join(f.path, "node_modules", "generated"), "fixture");
+  const options = { identity: f.identity, store: f.store, path: f.path, change: "example", sourcePr: 20 };
+  const first = await handoffLocalCleanup(options);
+  assert.equal(first.disposition, "released"); assert.equal(first.state, "released"); assert.equal(first.head, f.snapshot.head);
+  assert.equal(await exists(f.path), true); assert.equal((await f.store.read()).enabled, false);
+  let state = await f.store.read(); assert.equal(state.entries.length, 1); assert.equal(state.entries[0].step, "none");
+  assert.deepEqual(state.entries[0].disposable, [...COMPLETION_DISPOSABLE_PATHS]);
+  const again = await handoffLocalCleanup(options);
+  assert.equal(again.id, first.id); assert.notEqual(again.generation, first.generation); assert.equal(again.state, "released");
+  await git(f.path, "commit", "--allow-empty", "-m", "repair");
+  const repaired = await handoffLocalCleanup(options);
+  assert.equal(repaired.id, first.id); assert.equal(repaired.head, await git(f.path, "rev-parse", "HEAD"));
+  state = await f.store.read(); assert.equal(state.entries.length, 1); assert.equal(state.entries[0].head, repaired.head);
+  assert.equal(JSON.stringify(state).includes(owner), false);
+  await assert.rejects(handoffLocalCleanup({ ...options, change: "other" }), /completion-registration-conflict/);
+  await assert.rejects(handoffLocalCleanup({ ...options, path: join(f.identity.root, "missing") }), /worktree-absent-unregistered/);
+  await assert.rejects(handoffLocalCleanup({ ...options, path: f.primary }), /worktree-path/);
+});
+
+for (const kind of ["unstaged", "staged", "untracked"]) test(`handoff blocks ${kind} content and keeps the registration owned`, async t => {
+  const f = await fixture(t, true, false);
+  const filename = kind === "untracked" ? "new.txt" : "tracked.txt";
+  await writeFile(join(f.path, filename), "unpushed\n"); if (kind === "staged") await git(f.path, "add", filename);
+  await writeFile(join(f.path, "secret.txt"), "ignored is judged at removal, not at hand-off\n");
+  await assert.rejects(handoffLocalCleanup({ identity: f.identity, store: f.store, path: f.path, change: "example", sourcePr: 20 }),
+    error => error.cleanupCode === "worktree-content" && error.paths.includes(filename) && !error.paths.includes("secret.txt"));
+  assert.equal((await f.store.read()).entries.length, 0);
+  await assert.rejects(handoffLocalCleanup({ identity: f.identity, store: f.store, path: f.path, change: "example", sourcePr: 20 }), /worktree-content/);
+});
+
+test("handoff refuses an owned or replaced registration and a changed branch", async t => {
+  const f = await fixture(t, true);
+  await f.store.locked(async (state, save) => { transitionEntry(state.entries[0], "claim", owner, state.entries[0].generation); await save(state); });
+  const options = { identity: f.identity, store: f.store, path: f.path, change: "example", sourcePr: 20 };
+  await assert.rejects(handoffLocalCleanup(options), /owned-worktree/);
+  await assert.rejects(handoffLocalCleanup({ ...options, ownerToken: "wrong-owner-token-at-least-32-characters" }), /owned-worktree/);
+  assert.equal((await f.store.read()).entries[0].state, "owned");
+  const released = await handoffLocalCleanup({ ...options, ownerToken: owner });
+  assert.equal(released.state, "released"); assert.equal(released.id, f.entry.id);
+  assert.deepEqual((await f.store.read()).entries[0].disposable, [...COMPLETION_DISPOSABLE_PATHS]);
+  await git(f.path, "checkout", "-b", "feature/rebound");
+  await assert.rejects(handoffLocalCleanup(options), /worktree-identity-changed/);
+  await git(f.path, "checkout", "feature/example"); await git(f.path, "branch", "-D", "feature/rebound");
+  await f.store.locked(async (state, save) => { state.entries[0].filesystem = "1:2:3"; await save(state); });
+  await assert.rejects(handoffLocalCleanup(options), /directory-replaced/);
+});
+
+test("a finalization commit on top of the registered head is removed with its accepted-ancestry ref", async t => {
+  const f = await fixture(t, true);
+  await git(f.path, "commit", "--allow-empty", "-m", "finalize (App)");
+  const merged = await git(f.path, "rev-parse", "HEAD");
+  const verify = async () => ({ ...await f.verify(), sourceHead: merged, sourceMerge: merged, archiveMerge: merged });
+  const preview = await f.pass({ verify }); assert.equal(preview.results[0].disposition, "eligible", JSON.stringify(preview));
+  const report = await f.pass({ preview: false, verify, requireEnabled: false });
+  assert.equal(report.results[0].disposition, "removed", JSON.stringify(report));
+  assert.equal(report.results[0].head, merged);
+  assert.deepEqual(report.results[0].steps, ["worktree-removed", "local-ref-removed"]);
+  assert.equal(await git(f.primary, "for-each-ref", "refs/heads/feature/example"), "");
+  assert.equal((await f.store.read()).entries[0].head, merged);
+});
+
+test("a local-only commit after registration still blocks removal and keeps the ref", async t => {
+  const f = await fixture(t, true);
+  await git(f.path, "commit", "--allow-empty", "-m", "local work");
+  const report = await f.pass({ preview: false, requireEnabled: false });
+  assert.equal(report.results[0].disposition, "blocked"); assert.equal(report.results[0].reason, "worktree-identity-changed");
+  assert.equal(await exists(f.path), true);
+  await removeWorktree(f.identity, { ...f.entry, path: f.path });
+  await assert.rejects(removeLocalRef(f.identity, f.entry, undefined, async sha => f.ancestorOf(sha, f.snapshot.head)), /local-ref-advanced/);
+  assert.notEqual(await git(f.primary, "for-each-ref", "refs/heads/feature/example"), "");
+});
+
+test("a hand-deleted worktree whose branch gained the finalization commit completes through its journal", async t => {
+  const f = await fixture(t, true);
+  await git(f.path, "commit", "--allow-empty", "-m", "finalize (App)");
+  const merged = await git(f.path, "rev-parse", "HEAD");
+  await rm(f.path, { recursive: true, force: true });
+  const verify = async () => ({ ...await f.verify(), sourceHead: merged, sourceMerge: merged, archiveMerge: merged });
+  const report = await f.pass({ preview: false, verify, requireEnabled: false });
+  assert.equal(report.results[0].disposition, "removed", JSON.stringify(report));
+  assert.deepEqual(report.results[0].steps, ["worktree-already-absent", "local-ref-removed"]);
+  assert.equal(await git(f.primary, "for-each-ref", "refs/heads/feature/example"), "");
+});
+
+function branchReader(primary, pulls, remote = new Set()) {
+  const repository = "owner/repo", prefix = `/repos/${repository}`, calls = [];
+  return { repository, prefix, calls,
+    async pages(path) {
+      calls.push(path);
+      const name = decodeURIComponent(new URL(`https://api.github.com${path}`).searchParams.get("head")).split(":")[1];
+      return pulls.filter(pull => pull.head.ref === name).map(pull => ({ base: { ref: "develop", repo: { full_name: repository } },
+        ...pull, head: { repo: { full_name: repository }, ...pull.head } }));
+    },
+    async get(path) {
+      calls.push(path);
+      const name = decodeURIComponent(path.slice(`${prefix}/git/ref/heads/`.length));
+      if (path.startsWith(`${prefix}/git/ref/heads/`) && remote.has(name)) return { object: { sha: "0".repeat(40) } };
+      throw Object.assign(Error("github-not-found"), { archiveCode: "github-not-found" });
+    } };
+}
+
+test("sweep prunes merged local branches by pull-request evidence and retains everything else", async t => {
+  const f = await fixture(t, false, false);
+  const base = await git(f.primary, "rev-parse", "HEAD");
+  const branch = async (name, commits = 1) => {
+    await git(f.primary, "checkout", "-q", "-b", name, base);
+    for (let i = 0; i < commits; i++) await git(f.primary, "commit", "--allow-empty", "-m", `${name} ${i}`);
+    const tip = await git(f.primary, "rev-parse", "HEAD"); await git(f.primary, "checkout", "-q", "develop"); return tip;
+  };
+  const mergedTip = await branch("fix/merged"), behindTip = await branch("fix/behind", 2), aheadTip = await branch("fix/ahead");
+  const openTip = await branch("fix/open"), closedTip = await branch("fix/closed"), remoteTip = await branch("fix/remote"), noneTip = await branch("fix/none");
+  await git(f.primary, "branch", "-f", "fix/behind", `${behindTip}~1`);
+  await git(f.primary, "branch", "fix/checked-out", base); await git(f.primary, "worktree", "add", join(f.identity.root, "checked-out"), "fix/checked-out");
+  const registeredPath = join(f.identity.root, "registered"); await git(f.primary, "worktree", "add", "-b", "fix/registered", registeredPath, base);
+  const registeredSnapshot = await captureWorktree(f.identity, registeredPath);
+  await f.store.locked(async (state, save) => {
+    const entry = registerEntry(state, { ...registeredSnapshot, change: "registered", sourcePr: 30, candidatePr: 30, role: "implementation", disposable: [] }, owner);
+    transitionEntry(entry, "release", owner, entry.generation); await save(state);
+  });
+  await git(f.primary, "worktree", "remove", registeredPath);
+  const pulls = [
+    { number: 1, state: "closed", merged_at: "2026-09-17T10:00:00Z", head: { ref: "fix/merged", sha: mergedTip } },
+    { number: 2, state: "closed", merged_at: "2026-09-17T10:00:00Z", head: { ref: "fix/behind", sha: behindTip } },
+    { number: 3, state: "closed", merged_at: "2026-09-17T09:00:00Z", head: { ref: "fix/ahead", sha: base } },
+    { number: 4, state: "open", merged_at: null, head: { ref: "fix/open", sha: openTip } },
+    { number: 5, state: "closed", merged_at: null, head: { ref: "fix/closed", sha: closedTip } },
+    { number: 6, state: "closed", merged_at: "2026-09-17T10:00:00Z", head: { ref: "fix/remote", sha: remoteTip } },
+    { number: 7, state: "closed", merged_at: "2026-09-17T10:00:00Z", head: { ref: "fix/checked-out", sha: base } },
+    { number: 8, state: "closed", merged_at: "2026-09-17T10:00:00Z", head: { ref: "fix/registered", sha: registeredSnapshot.head } },
+    { number: 9, state: "closed", merged_at: "2026-09-17T10:00:00Z", head: { ref: "fix/merged", sha: "1".repeat(40) } },
+    { number: 10, state: "closed", merged_at: "2026-09-17T11:00:00Z", head: { ref: "fix/merged", sha: mergedTip } },
+  ];
+  const reader = branchReader(f.primary, pulls, new Set(["fix/remote"]));
+  const verify = async () => ({ disposition: "pending", reason: "remote-ref-present" });
+  const report = await f.pass({ preview: false, requireEnabled: false, pruneBranches: true, reader, verify });
+  assert.equal(report.error, undefined, JSON.stringify(report));
+  const outcome = Object.fromEntries(report.branches.results.map(row => [row.ref.slice("refs/heads/".length), `${row.disposition}${row.reason ? `:${row.reason}` : ""}${row.sourcePr ? `:#${row.sourcePr}` : ""}`]));
+  assert.deepEqual(outcome, {
+    "fix/merged": "removed:#10", "fix/behind": "removed:#2", "fix/ahead": "retained:branch-unmerged-commits:#3",
+    "fix/open": "retained:branch-open-pull-request:#4", "fix/closed": "retained:branch-closed-pull-request",
+    "fix/remote": "retained:branch-remote-present:#6", "fix/checked-out": "retained:branch-checked-out", "fix/none": "retained:branch-no-pull-request",
+  });
+  assert.equal(report.branches.coverage.complete, true);
+  const remaining = (await git(f.primary, "for-each-ref", "--format=%(refname:short)", "refs/heads/")).split("\n").sort();
+  assert.deepEqual(remaining, ["develop", "fix/ahead", "fix/checked-out", "fix/closed", "fix/none", "fix/open", "fix/registered", "fix/remote"]);
+  assert.equal(await git(f.primary, "rev-parse", "fix/ahead"), aheadTip); assert.equal(await git(f.primary, "rev-parse", "fix/none"), noneTip);
+  assert.equal(reader.calls.some(call => call.includes("fix%2Fregistered") || call.includes("owner%3Adevelop")), false, "registered and protected refs are never looked up");
+  assert.equal(await exists(join(f.identity.root, "checked-out")), true);
+  const lines = sweepLines(report);
+  assert.ok(lines.some(line => line === "branch fix/merged: removed #10"), lines.join("\n"));
+  assert.ok(lines.some(line => line.startsWith("#30 registered: pending")), lines.join("\n"));
+  const preview = await f.pass({ pruneBranches: true, reader, verify });
+  assert.equal(preview.branches, undefined); assert.equal(await git(f.primary, "rev-parse", "fix/open"), openTip);
+});
+
+test("branch pruning compare-and-deletes the tip read immediately before and defers on exhausted budgets", async t => {
+  const f = await fixture(t, false, false);
+  const base = await git(f.primary, "rev-parse", "HEAD");
+  await git(f.primary, "branch", "fix/racy", base); await git(f.primary, "branch", "fix/second", base);
+  const pulls = [{ number: 1, state: "closed", merged_at: "2026-09-17T10:00:00Z", head: { ref: "fix/racy", sha: base } },
+    { number: 2, state: "closed", merged_at: "2026-09-17T10:00:00Z", head: { ref: "fix/second", sha: base } }];
+  const reader = branchReader(f.primary, pulls);
+  let moved = false;
+  const enabled = async () => { if (!moved) { moved = true; await git(f.primary, "commit", "--allow-empty", "-m", "late"); await git(f.primary, "branch", "-f", "fix/racy", "HEAD"); await git(f.primary, "reset", "-q", "--hard", base); } };
+  const state = await f.store.read();
+  const result = await pruneMergedBranches({ identity: f.identity, state, reader, git: f.boundedGit, ancestorOf: f.ancestorOf, enabled });
+  const racy = result.results.find(row => row.ref === "refs/heads/fix/racy");
+  assert.equal(racy.disposition, "retained"); assert.equal(racy.reason, "branch-unmerged-commits");
+  assert.notEqual(await git(f.primary, "for-each-ref", "refs/heads/fix/racy"), "");
+  assert.equal(result.results.find(row => row.ref === "refs/heads/fix/second").disposition, "removed");
+  await git(f.primary, "branch", "fix/second", base);
+  const exhausted = { ...reader, async pages() { throw Object.assign(Error("remote-budget"), { cleanupCode: "remote-budget" }); } };
+  const deferred = await pruneMergedBranches({ identity: f.identity, state, reader: exhausted, git: f.boundedGit, ancestorOf: f.ancestorOf });
+  assert.equal(deferred.deferred, "remote-budget"); assert.equal(deferred.coverage.complete, false);
+  assert.equal(deferred.results.length, 1); assert.equal(deferred.results[0].reason, "remote-budget");
+  assert.notEqual(await git(f.primary, "for-each-ref", "refs/heads/fix/second"), "");
+});
+
+test("sweep completes released candidates without queue enablement, reports unmerged ones, and honors a fresh stop only", async t => {
+  const f = await fixture(t, true);
+  const pendingPath = join(f.identity.root, "pending"); await git(f.primary, "worktree", "add", "-b", "feature/pending", pendingPath);
+  const rejectedPath = join(f.identity.root, "rejected"); await git(f.primary, "worktree", "add", "-b", "feature/rejected", rejectedPath);
+  const snapshots = { pending: await captureWorktree(f.identity, pendingPath), rejected: await captureWorktree(f.identity, rejectedPath) };
+  await f.store.locked(async (state, save) => {
+    for (const [name, snapshot] of Object.entries(snapshots)) {
+      const entry = registerEntry(state, { ...snapshot, change: name, sourcePr: name === "pending" ? 21 : 22, candidatePr: name === "pending" ? 21 : 22, role: "implementation", disposable: [] }, owner);
+      transitionEntry(entry, "release", owner, entry.generation);
+    }
+    await save(state);
+  });
+  await f.store.disable();
+  await new Promise(resolve => setTimeout(resolve, 20));
+  const verify = async (reader, entry) => entry.sourcePr === 20 ? f.verify()
+    : entry.sourcePr === 21 ? { disposition: "pending", reason: "pr-open", sourcePr: 21 } : { disposition: "awaiting-discard", reason: "pr-closed-unmerged", sourcePr: 22 };
+  const started = Date.now();
+  const report = await f.pass({ preview: false, requireEnabled: false, stopSince: started, verify });
+  assert.equal(report.error, undefined, JSON.stringify(report));
+  const byPr = Object.fromEntries(report.results.filter(row => row.sourcePr).map(row => [row.sourcePr, row.disposition]));
+  assert.deepEqual(byPr, { 20: "removed", 21: "pending", 22: "awaiting-discard" });
+  assert.equal(await exists(f.path), false); assert.equal(await exists(pendingPath), true); assert.equal(await exists(rejectedPath), true);
+  assert.notEqual(await git(f.primary, "for-each-ref", "refs/heads/feature/rejected"), "");
+  assert.equal((await f.store.read()).enabled, false);
+  const lines = sweepLines(report);
+  assert.ok(lines.includes("#20 example: removed [worktree-removed, local-ref-removed]"), lines.join("\n"));
+  assert.ok(lines.includes("#22 rejected: awaiting-discard (pr-closed-unmerged)"), lines.join("\n"));
+  const g = await fixture(t, true);
+  const fresh = await g.pass({ preview: false, requireEnabled: false, stopSince: Date.now(), remove: async (...args) => { await removeWorktree(...args); await g.store.disable(); } });
+  assert.equal(fresh.results[0].disposition, "partial"); assert.equal(fresh.results[0].reason, "cleanup-disabled");
+  assert.notEqual(await git(g.primary, "for-each-ref", "refs/heads/feature/example"), "");
+  assert.deepEqual(sweepLines({ error: "mutation-busy", results: [] }), ["sweep deferred: another cleanup holds the mutation lock"]);
+  assert.deepEqual(sweepLines({ results: [], coverage: { complete: true } }), ["sweep: nothing handed off, nothing to prune"]);
+});
+
+test("CLI handoff and sweep use the documented surface", async t => {
+  const f = await fixture(t, true, false);
+  const cli = fileURLToPath(new URL("../../scripts/governance/local-worktree-cleanup.mjs", import.meta.url));
+  const invoke = (...args) => execFileSync(process.execPath, [cli, ...args, "--repo", f.primary], {
+    cwd: f.primary, env: { ...process.env, GH_TOKEN: "fixture-unused-token" }, encoding: "utf8",
+  });
+  const help = invoke("--help"); assert.match(help, /handoff/); assert.match(help, /sweep/);
+  const record = JSON.parse(invoke("handoff", "--path", f.path, "--change", "example", "--pr", "20"));
+  assert.equal(record.disposition, "released"); assert.equal(record.head, f.snapshot.head);
+  assert.throws(() => invoke("handoff", "--path", f.path, "--change", "example"), /handoff-arguments/);
+  assert.throws(() => invoke("handoff", "--path", f.path, "--change", "example", "--pr", "20", "--role", "archive"), /handoff-arguments/);
+  const status = JSON.parse(invoke("status")); assert.equal(status.entries[0].state, "released"); assert.equal(status.enabled, false);
+});
+
+test("complete releases an owned registration only for the holder of its owner token", async t => {
+  const f = await fixture(t, true);
+  await f.store.locked(async (state, save) => { transitionEntry(state.entries[0], "claim", owner, state.entries[0].generation); await save(state); });
+  const options = { identity: f.identity, store: f.store, reader: {}, path: f.path, change: "example", sourcePr: 20, cwd: f.primary,
+    reconcileOptions: { verify: f.verify, git: f.boundedGit } };
+  await assert.rejects(completeLocalCleanup(options), /owned-worktree/);
+  await assert.rejects(completeLocalCleanup({ ...options, ownerToken: "wrong-owner-token-at-least-32-characters" }), /owned-worktree/);
+  assert.equal(await exists(f.path), true); assert.equal((await f.store.read()).entries[0].state, "owned");
+  const report = await completeLocalCleanup({ ...options, ownerToken: owner });
+  assert.equal(report.results[0].disposition, "removed", JSON.stringify(report));
   assert.equal(await exists(f.path), false);
 });
 

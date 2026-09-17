@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { cleanupReader, verifyCleanupEvidence, verifyDiscardEvidence } from "../../scripts/governance/local-cleanup-evidence.mjs";
+import { acceptedHead, cleanupReader, verifyCleanupEvidence, verifyDiscardEvidence } from "../../scripts/governance/local-cleanup-evidence.mjs";
 import { digest } from "../../scripts/governance/local-cleanup-state.mjs";
 
 function fixture(version = 2) {
@@ -37,18 +37,18 @@ function fixture(version = 2) {
     [`${prefix}/actions/runs/7/jobs`]: { total_count: 1, jobs: [{ name: "Development validation required", status: "completed", conclusion: "success", head_sha: head }] },
     [`${prefix}/actions/runs/8/jobs`]: { total_count: 1, jobs: [{ name: "Development validation required", status: "completed", conclusion: "success", head_sha: archiveHead }] },
   };
-  const calls = [];
+  const calls = [], diverged = new Set();
   const fetchImpl = async (url, init) => {
     calls.push({ url, method: init.method }); const parsed = new URL(url), path = parsed.pathname;
     const comparison = /\/compare\/([a-f0-9]{40})\.\.\./.exec(path);
     let result = routes[path];
     if (path.endsWith("/actions/workflows/ci.yml/runs")) result = { total_count: 1, workflow_runs: [run(parsed.searchParams.get("head_sha") === head ? source : archive)] };
-    if (comparison) result = { status: "ahead", merge_base_commit: { sha: comparison[1] } };
+    if (comparison) result = diverged.has(comparison[1]) ? { status: "diverged", merge_base_commit: { sha: spec } } : { status: "ahead", merge_base_commit: { sha: comparison[1] } };
     return new Response(JSON.stringify(result ?? null), { status: result === undefined ? 404 : 200 });
   };
   const reader = cleanupReader({ repository, token: "private-fixture-token", deadline: Date.now() + 60000, fetchImpl });
   const entry = { sourcePr: 20, candidatePr: 20, change: "example", head, ref: null, role: "implementation" };
-  return { reader, entry, routes, source, archive, marker, comment, calls, prefix, head, merge, target, spec, archiveHead, archiveMerge, fetchImpl };
+  return { reader, entry, routes, source, archive, marker, comment, calls, diverged, prefix, head, merge, target, spec, archiveHead, archiveMerge, fetchImpl };
 }
 
 for (const version of [1, 2]) test(`verifies version-${version} implementation, accepted automatic archive, CI and absent refs using GET only`, async () => {
@@ -85,8 +85,12 @@ test("source body and archive marker or artifact drift blocks cleanup", async ()
 });
 
 test("exact candidate roles, heads, refs and archive actor are verified", async () => {
-  let f = fixture(); f.entry.head = f.spec;
+  let f = fixture(); f.entry.head = "8".repeat(40); f.diverged.add("8".repeat(40));
   await assert.rejects(verifyCleanupEvidence(f.reader, f.entry), /candidate-head-association/);
+  f = fixture(); f.entry.head = "9".repeat(40);
+  assert.equal((await verifyCleanupEvidence(f.reader, f.entry)).disposition, "eligible", "an ancestor of the merged head is accepted");
+  assert.ok(f.calls.some(call => call.url.includes(`/compare/${"9".repeat(40)}...${f.head}`)));
+
   f = fixture(); f.entry.ref = "refs/heads/fix/unrelated";
   await assert.rejects(verifyCleanupEvidence(f.reader, f.entry), /candidate-ref-association/);
   f = fixture(); f.archive.user.type = "User";
@@ -166,4 +170,37 @@ test("discard evidence refuses open, merged, forked, malformed and mismatched ca
   }
   const f = discardFixture(); delete f.routes[`${f.prefix}/branches/fix%2Frejected`];
   await assert.rejects(verifyDiscardEvidence(f.reader, f.entry), /discard-remote-inconsistent/);
+});
+
+test("unmerged version-3 hand-offs report pending or awaiting-discard without evidence failure", async () => {
+  const f = discardFixture(), entry = { ...f.entry, role: "implementation" };
+  assert.deepEqual(await verifyCleanupEvidence(f.reader, entry), { disposition: "awaiting-discard", reason: "pr-closed-unmerged", sourcePr: 40 });
+  Object.assign(f.pull, { state: "open", draft: true });
+  assert.deepEqual(await verifyCleanupEvidence(f.reader, entry), { disposition: "pending", reason: "pr-open", sourcePr: 40 });
+  Object.assign(f.pull, { draft: false });
+  assert.equal((await verifyCleanupEvidence(f.reader, entry)).disposition, "pending", "a ready but unfinalized candidate is still pending");
+  await assert.rejects(verifyCleanupEvidence(f.reader, { ...entry, change: "other-change" }), /source-association/);
+});
+
+test("accepted heads are the merged head or a GitHub-known ancestor; unknown commits and budgets are not silently accepted", async () => {
+  const f = fixture(), unknown = "7".repeat(40);
+  assert.equal(await acceptedHead(f.reader, f.head, f.head), true);
+  assert.equal(await acceptedHead(f.reader, "9".repeat(40), f.head), true);
+  f.diverged.add(unknown); assert.equal(await acceptedHead(f.reader, unknown, f.head), false);
+  assert.equal(await acceptedHead(f.reader, "not-a-sha", f.head), false);
+  const missing = { repository: "owner/repo", prefix: "/repos/owner/repo", async ancestor() { throw Object.assign(Error("github-not-found"), { archiveCode: "github-not-found" }); } };
+  assert.equal(await acceptedHead(missing, unknown, f.head), false);
+  const exhausted = { ...missing, async ancestor() { throw Object.assign(Error("remote-budget"), { cleanupCode: "remote-budget" }); } };
+  await assert.rejects(acceptedHead(exhausted, unknown, f.head), /remote-budget/);
+});
+
+test("SHA-addressed blobs, trees, commits, and comparisons are fetched once per reader while PR and ref state is refetched", async () => {
+  const f = fixture();
+  await verifyCleanupEvidence(f.reader, f.entry); const first = f.calls.length;
+  await verifyCleanupEvidence(f.reader, f.entry); const second = f.calls.slice(first);
+  const immutable = url => /\/git\/(?:blobs|trees|commits)\/[a-f0-9]{40}|\/compare\//.test(url);
+  assert.ok(f.calls.slice(0, first).some(call => immutable(call.url)), "the first verification fetched content by SHA");
+  assert.equal(second.filter(call => immutable(call.url)).length, 0, "the second verification reused every SHA-addressed object");
+  assert.ok(second.some(call => call.url.includes("/pulls/20")), "pull-request state was refetched");
+  assert.ok(second.some(call => call.url.includes("/git/ref/heads/")), "ref state was refetched");
 });
