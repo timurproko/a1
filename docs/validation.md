@@ -44,6 +44,23 @@ A build receipt binds checkout head, complete build inputs, toolchain, emitted f
 
 Npm download bytes may be reused with integrity checks and `--prefer-offline`, with normal network fallback. Every installation prefix remains fresh. Installed package trees, dependency certification, startup/profile state, mutable fixture repositories, passing outcomes, and publication evidence are never restored from caches.
 
+## Shared exact-package preparation
+
+A publication or Full regression lane installs the exact candidate once and shares that installation between `package-startup` and `package-contracts`. The installation is a separate command from the one that runs those owners, so the workflow can change runner state in between:
+
+```
+node scripts/release/run-validation-tier.mjs --prepare-exact-package --handoff <path>
+node scripts/release/run-validation-tier.mjs --exact-package-handoff <path> --result <path>
+```
+
+The preparing command verifies the existing build receipt and the package receipt for the exact candidate, installs once, and writes an `a1-exact-package-handoff-v1` document with its consumers, prepared paths, measured duration, and verified receipt. It runs no other planned command, so Full regression's real work is not executed twice.
+
+The consuming command re-verifies that handoff against the lane, candidate digest, installation policy, declared consumers, and installed bytes before any owner runs, and records the result as `verified-shared-preparation`. A malformed handoff, one that contradicts the plan, or one that fails verification produces a single failed `exact-package-preparation` outcome and stops the run; it never falls back to a second installation. Removing the prepared installation stays with the consuming command either way.
+
+Without `--exact-package-handoff`, preparation stays lazy and bound to the first consuming invocation. Local runs and ordinary pull-request CI are unchanged.
+
+This split exists so Windows Defender real-time protection can be enabled between installation and the gates that launch the packaged product. Dependency installation and candidate extraction run in the runner's default protection state; the `defender-prerequisite` phase inside the startup gate remains the authority that protection is on when the product actually launches. To roll back, put the Defender step before `npm ci` again and drop both flags; do not remove the phase check or the receipt verification.
+
 ## Startup budget enforcement
 
 The exact-package startup gate always measures both profiles and all three launch kinds on the first attempt and never retries a measurement. `STARTUP_BUDGET_ENFORCEMENT` decides only what a timing overrun does:

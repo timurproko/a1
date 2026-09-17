@@ -1,6 +1,6 @@
 import { readFile, readdir } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
-import { createTierPlan, runTierPlan } from "../../scripts/release/validation-tier.mjs";
+import { createTierPlan, prepareSharedExactPackage, runTierPlan } from "../../scripts/release/validation-tier.mjs";
 
 describe("validation tier planning", () => {
   it("keeps planning validation free of builds and runtime tests", async () => {
@@ -265,6 +265,122 @@ describe("validation tier planning", () => {
     expect(result.passed).toBe(true);
     expect(preparations).toBe(1);
     expect(handedOff).toEqual(["vitest-package-startup", "vitest-package-contracts"]);
+  });
+
+  it("prepares the shared install once and hands it off without running the plan", async () => {
+    const plan = await createTierPlan(["package-install"]);
+    const verified: string[] = [];
+    let preparations = 0;
+    const handoff = await prepareSharedExactPackage(plan, {
+      env: {
+        VALIDATION_BUILD_READY: "1",
+        VALIDATION_BUILD_RECEIPT: "fixture-build.json",
+        VALIDATION_CANDIDATE_TARBALL: "candidate.tgz",
+        VALIDATION_PACKAGE_RECEIPT: "candidate.receipt.json",
+      },
+      verifyBuildReceipt: async () => { verified.push("build"); return {}; },
+      verifyPackageReceipt: async () => { verified.push("package"); return {}; },
+      prepareExactPackageInstallation: async () => { preparations += 1; return fakePreparation(plan.exactPackagePreparation!.consumers); },
+      exactPackagePreparationEnvironment: () => ({ VALIDATION_EXACT_PACKAGE_PREPARATION: "runner" }),
+    });
+    expect(verified).toEqual(["build", "package"]);
+    expect(preparations).toBe(1);
+    expect(handoff).toMatchObject({
+      schema: "a1-exact-package-handoff-v1",
+      consumers: ["package-startup", "package-contracts"],
+      durationMs: 5,
+      handoffEnvironment: { VALIDATION_EXACT_PACKAGE_PREPARATION: "runner" },
+    });
+    expect(handoff.receipt.receiptId).toBe("a".repeat(64));
+  });
+
+  it("refuses to prepare without a planned consumer, a verified build, or an exact candidate", async () => {
+    const packaged = await createTierPlan(["package-install"]);
+    const unpackaged = await createTierPlan(["typecheck", "fast"]);
+    await expect(prepareSharedExactPackage(unpackaged, { env: { VALIDATION_BUILD_READY: "1" } }))
+      .rejects.toThrow(/exact-package preparation plan is invalid/);
+    await expect(prepareSharedExactPackage(packaged, { env: { VALIDATION_BUILD_READY: "0" } }))
+      .rejects.toThrow(/verified install-time build/);
+    await expect(prepareSharedExactPackage(packaged, {
+      env: { VALIDATION_BUILD_READY: "1", VALIDATION_CANDIDATE_TARBALL: "" },
+      verifyBuildReceipt: async () => ({}),
+    })).rejects.toThrow(/exact candidate tarball/);
+  });
+
+  it("verifies a shared preparation handoff instead of installing a second time", async () => {
+    const plan = await createTierPlan(["package-install"]);
+    const calls: string[] = [];
+    const consumers: string[] = [];
+    let preparations = 0;
+    let cleanups = 0;
+    const prepared = fakePreparation(plan.exactPackagePreparation!.consumers);
+    const result = await runTierPlan({ ...plan, commands: [] }, {
+      env: { VALIDATION_CANDIDATE_TARBALL: "candidate.tgz" },
+      exactPackageHandoff: "handoff.json",
+      readExactPackageHandoff: async () => ({
+        schema: "a1-exact-package-handoff-v1",
+        consumers: plan.exactPackagePreparation!.consumers,
+        durationMs: 5,
+        handoffEnvironment: { VALIDATION_EXACT_PACKAGE_PREPARATION: "runner" },
+      }),
+      prepareExactPackageInstallation: async () => { preparations += 1; return prepared; },
+      verifyExactPackagePreparation: async ({ consumer }: any) => { consumers.push(consumer); return prepared; },
+      cleanupExactPackagePreparation: async () => { cleanups += 1; return { status: "passed", durationMs: 2, error: null }; },
+      executeCommand: async (command, environment) => {
+        calls.push(command.id);
+        expect(environment.VALIDATION_EXACT_PACKAGE_PREPARATION).toBe("runner");
+        return { id: command.id, command: command.id, exitCode: 0, durationMs: 4 };
+      },
+    });
+    expect(result.passed).toBe(true);
+    expect(preparations).toBe(0);
+    expect(cleanups).toBe(1);
+    expect(calls).toEqual(["vitest-package-startup", "vitest-package-contracts"]);
+    expect(consumers).toEqual(["package-startup", "package-startup", "package-startup", "package-contracts", "package-contracts"]);
+    expect(result.outcomes[0]).toMatchObject({
+      id: "exact-package-preparation",
+      skipped: "verified-shared-preparation",
+      exitCode: 0,
+      durationMs: 5,
+      scopes: ["package-startup", "package-contracts"],
+    });
+    expect(result.exactPackagePreparation).toMatchObject({ count: 1, cleanup: { status: "passed" } });
+  });
+
+  it("rejects a contradictory or unverifiable handoff without installing again", async () => {
+    const plan = await createTierPlan(["package-install"]);
+    const contradictory = await runTierPlan({ ...plan, commands: [] }, {
+      env: { VALIDATION_CANDIDATE_TARBALL: "candidate.tgz" },
+      exactPackageHandoff: "handoff.json",
+      readExactPackageHandoff: async () => ({
+        schema: "a1-exact-package-handoff-v1",
+        consumers: ["package-contracts"],
+        handoffEnvironment: { VALIDATION_EXACT_PACKAGE_PREPARATION: "runner" },
+      }),
+      prepareExactPackageInstallation: async () => { throw new Error("must not install"); },
+      executeCommand: async () => { throw new Error("must not execute"); },
+    });
+    expect(contradictory.passed).toBe(false);
+    expect(contradictory.outcomes).toEqual([expect.objectContaining({
+      id: "exact-package-preparation", exitCode: 1, preparation: "handoff-rejected",
+    })]);
+
+    const unverifiable = await runTierPlan({ ...plan, commands: [] }, {
+      env: { VALIDATION_CANDIDATE_TARBALL: "candidate.tgz" },
+      exactPackageHandoff: "handoff.json",
+      readExactPackageHandoff: async () => ({
+        schema: "a1-exact-package-handoff-v1",
+        consumers: plan.exactPackagePreparation!.consumers,
+        handoffEnvironment: { VALIDATION_EXACT_PACKAGE_PREPARATION: "runner" },
+      }),
+      verifyExactPackagePreparation: async () => { throw new Error("installed bytes changed after preparation"); },
+      prepareExactPackageInstallation: async () => { throw new Error("must not install"); },
+      cleanupExactPackagePreparation: async () => { throw new Error("must not clean an unverified root"); },
+      executeCommand: async () => { throw new Error("must not execute"); },
+    });
+    expect(unverifiable.passed).toBe(false);
+    expect(unverifiable.outcomes[0]).toMatchObject({ id: "exact-package-preparation", exitCode: 1, preparation: "handoff-rejected" });
+    expect(unverifiable.outcomes[0]?.evidence).toMatchObject({ count: 0, reason: expect.stringContaining("installed bytes changed after preparation") });
   });
 
   it("blocks all dependent owners when preparation fails", async () => {

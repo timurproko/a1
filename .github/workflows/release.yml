@@ -385,19 +385,6 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
           cache: npm
-      - name: Enable Defender real-time protection for startup acceptance
-        if: runner.os == 'Windows'
-        shell: powershell
-        run: |
-          $ErrorActionPreference = "Stop"
-          Set-MpPreference -DisableRealtimeMonitoring $false
-          $deadline = (Get-Date).AddSeconds(30)
-          do {
-            $enabled = (Get-MpComputerStatus).RealTimeProtectionEnabled
-            if ($enabled) { break }
-            Start-Sleep -Seconds 1
-          } while ((Get-Date) -lt $deadline)
-          if (-not $enabled) { throw "Windows Defender real-time protection could not be enabled" }
       - run: npm ci
       - name: Record verified install-time build
         run: node scripts/release/record-validation-prerequisite.mjs build
@@ -425,6 +412,32 @@ jobs:
             selected='["full-release"]'
           fi
           echo "selected=$selected" >> "$GITHUB_OUTPUT"
+      - name: Prepare the exact package
+        shell: bash
+        env:
+          VALIDATION_SELECTION_JSON: ${{ steps.selection.outputs.selected }}
+          VALIDATION_BUILD_READY: "1"
+          VALIDATION_BUILD_RECEIPT: ${{ github.workspace }}/.artifacts/validation/receipts/build.json
+          VALIDATION_CANDIDATE_TARBALL: ${{ github.workspace }}/.artifacts/release/candidate.tgz
+          VALIDATION_PACKAGE_RECEIPT: ${{ github.workspace }}/.artifacts/release/candidate.receipt.json
+          VALIDATION_PACKAGE_SOURCE_IDENTITY: ${{ github.workspace }}/.artifacts/release/candidate-identity.json
+        run: >-
+          node scripts/release/run-validation-tier.mjs
+          --prepare-exact-package
+          --handoff .artifacts/validation/exact-package-handoff.json
+      - name: Enable Defender real-time protection for startup acceptance
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          Set-MpPreference -DisableRealtimeMonitoring $false
+          $deadline = (Get-Date).AddSeconds(30)
+          do {
+            $enabled = (Get-MpComputerStatus).RealTimeProtectionEnabled
+            if ($enabled) { break }
+            Start-Sleep -Seconds 1
+          } while ((Get-Date) -lt $deadline)
+          if (-not $enabled) { throw "Windows Defender real-time protection could not be enabled" }
       - name: Validate the exact package
         shell: bash
         env:
@@ -441,7 +454,10 @@ jobs:
           A1_RUNTIME_DIR: ${{ runner.temp }}/a1-release-runtime
           STARTUP_BUDGET_ENFORCEMENT: ${{ needs.plan.outputs.mode == 'develop' && 'record' || 'fail' }}
           STARTUP_PERFORMANCE_RESULT: .artifacts/validation/startup-${{ matrix.platform }}.json
-        run: node scripts/release/run-validation-tier.mjs --result .artifacts/validation/${{ matrix.platform }}.json
+        run: >-
+          node scripts/release/run-validation-tier.mjs
+          --exact-package-handoff .artifacts/validation/exact-package-handoff.json
+          --result .artifacts/validation/${{ matrix.platform }}.json
       - name: Summarize first-attempt startup measurements
         if: always() && runner.os == 'Windows'
         shell: bash

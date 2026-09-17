@@ -24,7 +24,9 @@ describe("complete regression automation", () => {
     expect(workflow).toContain("VALIDATION_SELECTION_JSON: '[\"full-release\"]'");
     expect(workflow).toContain('VALIDATION_BUILD_READY: "1"');
     expect(workflow).toContain("VALIDATION_CANDIDATE_TARBALL:");
-    expect(workflow).toContain("node scripts/release/run-validation-tier.mjs --result .artifacts/validation/full-regression.json");
+    expect(workflow.split("node scripts/release/run-validation-tier.mjs")).toHaveLength(3);
+    expect(workflow).toContain("--prepare-exact-package");
+    expect(workflow).toContain("--result .artifacts/validation/full-regression.json");
   });
 
   it("retains both Windows runtimes, Defender, and exact-package gates outside PR startup", async () => {
@@ -44,7 +46,16 @@ describe("complete regression automation", () => {
       expect(job.steps[defender].if).toBe("runner.os == 'Windows'");
       expect(job.steps[defender].run).toContain("Set-MpPreference -DisableRealtimeMonitoring $false");
       expect(job.steps[defender].run).toContain('throw "Windows Defender real-time protection could not be enabled"');
-      expect(defender).toBeLessThan(job.steps.findIndex((step: { run: string }) => step.run === "npm ci"));
+      const install = job.steps.findIndex((step: { run: string }) => step.run === "npm ci");
+      const prepare = job.steps.findIndex((step: { name: string }) => step.name === "Prepare the exact package");
+      const consume = job.steps.findIndex((step: { name: string }) => ["Validate the exact package", "Run complete non-physical validation"].includes(step.name));
+      expect(install).toBeGreaterThanOrEqual(0);
+      expect(prepare).toBeGreaterThan(install);
+      expect(defender).toBeGreaterThan(prepare);
+      expect(defender).toBeLessThan(consume);
+      expect(job.steps[prepare].run).toContain("--prepare-exact-package");
+      expect(job.steps[prepare].run).toContain("--handoff .artifacts/validation/exact-package-handoff.json");
+      expect(job.steps[consume].run).toContain("--exact-package-handoff .artifacts/validation/exact-package-handoff.json");
       expect(JSON.stringify(job)).not.toMatch(/continue-on-error|--retry/);
     }
     expect(release.on.schedule).toEqual([{ cron: "17 3 * * *" }]);

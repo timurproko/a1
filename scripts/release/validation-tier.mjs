@@ -205,6 +205,8 @@ export async function runTierPlan(plan, options = {}) {
   const preparationEnvironment = options.exactPackagePreparationEnvironment ?? exactPackagePreparationEnvironment;
   const verifyExactPackage = options.verifyExactPackagePreparation ?? verifyExactPackagePreparation;
   const cleanupExactPackage = options.cleanupExactPackagePreparation ?? cleanupExactPackagePreparation;
+  const readExactPackageHandoff = options.readExactPackageHandoff
+    ?? (async path => JSON.parse(await readFile(resolve(path), "utf8")));
   const exactPackagePlan = plan.exactPackagePreparation ? assertExactPackagePreparationPlan(plan.exactPackagePreparation, plan.vitest) : null;
   const buildReceiptPath = resolve(environment.VALIDATION_BUILD_RECEIPT ?? resolve(repository, ".artifacts", "validation", "receipts", "build.json"));
   const packageReceiptPath = path => resolve(environment.VALIDATION_PACKAGE_RECEIPT ?? path.replace(/\.tgz$/u, ".receipt.json"));
@@ -252,6 +254,51 @@ export async function runTierPlan(plan, options = {}) {
       if (command.id === "candidate-pack") {
         environment.VALIDATION_CANDIDATE_TARBALL = plan.candidateTarball;
         environment.VALIDATION_PACKAGE_RECEIPT = packageReceiptPath(plan.candidateTarball);
+      }
+    }
+
+    if (passed && options.exactPackageHandoff) {
+      // Invariant: a rejected handoff stops the run. Falling back to a second installation would
+      // hide the rejection and reintroduce the duplicated install this split exists to remove.
+      try {
+        if (!exactPackagePlan) throw new Error("the selected validation scopes prepare no exact package");
+        const handoff = assertExactPackageHandoff(await readExactPackageHandoff(options.exactPackageHandoff), exactPackagePlan);
+        const consumer = exactPackagePlan.consumers[0];
+        const verified = await verifyExactPackage({
+          environment: { ...environment, ...handoff.handoffEnvironment, [EXACT_PACKAGE_PREPARATION_ENV.consumer]: consumer },
+          consumer,
+        });
+        assertPreparedPackageMatchesPlan(verified, exactPackagePlan);
+        preparation = verified;
+        preparationHandoff = handoff.handoffEnvironment;
+        preparationOutcome = {
+          id: exactPackagePlan.id,
+          command: "npm install --global <exact-candidate>",
+          exitCode: 0,
+          durationMs: verified.durationMs,
+          scopes: exactPackagePlan.consumers,
+          skipped: "verified-shared-preparation",
+          evidence: preparationEvidence(verified.receipt),
+        };
+        outcomes.push(preparationOutcome);
+      } catch (error) {
+        preparationOutcome = {
+          id: exactPackagePlan?.id ?? "exact-package-preparation",
+          command: "npm install --global <exact-candidate>",
+          exitCode: 1,
+          durationMs: 0,
+          scopes: exactPackagePlan?.consumers ?? [],
+          preparation: "handoff-rejected",
+          evidence: {
+            schema: "a1-exact-package-preparation-evidence-v1",
+            count: 0,
+            consumers: exactPackagePlan?.consumers ?? [],
+            reason: error instanceof Error ? error.message : "unknown exact-package handoff failure",
+            cleanup: null,
+          },
+        };
+        outcomes.push(preparationOutcome);
+        passed = false;
       }
     }
 
@@ -360,6 +407,58 @@ export async function runTierPlan(plan, options = {}) {
     exactPackagePreparation: preparationOutcome?.evidence ?? null,
     outcomes,
   };
+}
+
+export const EXACT_PACKAGE_HANDOFF_SCHEMA = "a1-exact-package-handoff-v1";
+
+/** Perform the one shared exact-package installation ahead of the command that consumes it. */
+export async function prepareSharedExactPackage(plan, options = {}) {
+  const environment = { ...process.env, ...(options.env ?? {}) };
+  for (const name of Object.values(EXACT_PACKAGE_PREPARATION_ENV)) delete environment[name];
+  const repository = resolve(options.repository ?? process.cwd());
+  const verifyBuild = options.verifyBuildReceipt ?? verifyBuildReceipt;
+  const verifyPackage = options.verifyPackageReceipt ?? verifyPackageReceipt;
+  const prepareExactPackage = options.prepareExactPackageInstallation ?? prepareExactPackageInstallation;
+  const preparationEnvironment = options.exactPackagePreparationEnvironment ?? exactPackagePreparationEnvironment;
+  const planned = assertExactPackagePreparationPlan(plan.exactPackagePreparation, plan.vitest);
+  // Rationale: the consuming command still runs the whole plan, so this entry point verifies only
+  // what shared preparation itself depends on. Replaying the command list here would run the
+  // complete regression plan's real work twice.
+  if (environment.VALIDATION_BUILD_READY !== "1") throw new Error("shared exact-package preparation requires a verified install-time build");
+  const buildReceiptPath = resolve(environment.VALIDATION_BUILD_RECEIPT ?? resolve(repository, ".artifacts", "validation", "receipts", "build.json"));
+  await verifyBuild(buildReceiptPath, { repository });
+  if (!environment.VALIDATION_CANDIDATE_TARBALL) throw new Error("shared exact-package preparation requires an exact candidate tarball");
+  const candidate = resolve(environment.VALIDATION_CANDIDATE_TARBALL);
+  const receiptPath = resolve(environment.VALIDATION_PACKAGE_RECEIPT ?? candidate.replace(/\.tgz$/u, ".receipt.json"));
+  await verifyPackage(receiptPath, candidate, {
+    repository,
+    buildReceipt: buildReceiptPath,
+    sourceIdentity: environment.VALIDATION_PACKAGE_SOURCE_IDENTITY,
+  });
+  const startedAt = Date.now();
+  const preparation = await prepareExactPackage({ candidatePath: candidate, consumers: planned.consumers, environment });
+  assertPreparedPackageMatchesPlan(preparation, planned);
+  return {
+    schema: EXACT_PACKAGE_HANDOFF_SCHEMA,
+    consumers: planned.consumers,
+    root: preparation.root,
+    prefix: preparation.prefix,
+    packageRoot: preparation.packageRoot,
+    receiptPath: preparation.receiptPath,
+    receipt: preparation.receipt,
+    durationMs: preparation.durationMs ?? Date.now() - startedAt,
+    handoffEnvironment: preparationEnvironment(preparation),
+  };
+}
+
+function assertExactPackageHandoff(handoff, plan) {
+  if (!handoff || handoff.schema !== EXACT_PACKAGE_HANDOFF_SCHEMA
+    || JSON.stringify(handoff.consumers) !== JSON.stringify(plan.consumers)
+    || !handoff.handoffEnvironment || typeof handoff.handoffEnvironment !== "object"
+    || handoff.handoffEnvironment[EXACT_PACKAGE_PREPARATION_ENV.mode] !== "runner") {
+    throw new Error("exact-package preparation handoff is malformed or contradicts the validation plan");
+  }
+  return handoff;
 }
 
 function assertExactPackagePreparationPlan(plan, vitest) {
