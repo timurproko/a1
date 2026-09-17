@@ -13,7 +13,7 @@ Bare A1 SHALL declare Escape on a sole top-level slash-command search as an inpu
 - **THEN** the menu SHALL close and the prompt SHALL be empty
 
 #### Scenario: Escape a search with further slashes
-- **WHEN** the user types `////` or `/a/b` in bare A1 so the slash-command menu opens with the cursor at the end and then presses Escape
+- **WHEN** the user types `////` or `/sk/rev` in bare A1 so the slash-command menu opens with the cursor at the end and then presses Escape
 - **THEN** the menu SHALL close and the prompt SHALL be empty
 - **AND** the shell interrupt handler SHALL NOT run
 

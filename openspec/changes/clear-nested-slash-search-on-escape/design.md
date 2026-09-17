@@ -22,7 +22,7 @@ Replace `^/[^\s/]*$` with `^/\S*$`. The provider decides "command search" by `st
 
 ### 2. Extend the existing focused test instead of adding a suite
 
-The `escape on a slash-command search` case in `test/integrations/pi/components/editor-autocomplete-placement.test.ts` iterates typed inputs; adding `////` and `/a/b` to that list covers the change with the same interrupt-count and comparison-profile assertions.
+The `escape on a slash-command search` case in `test/integrations/pi/components/editor-autocomplete-placement.test.ts` iterates typed inputs; adding `////` and `/sk/rev` to that list covers the change with the same interrupt-count and comparison-profile assertions.
 
 ## Risks / Trade-offs
 
