@@ -2,7 +2,7 @@ import crossSpawn from "cross-spawn";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { relative, resolve, sep } from "node:path";
-import { createTierPlan } from "./validation-tier.mjs";
+import { createTierPlan, RESOURCE_SENSITIVE_TIMEOUT_MS } from "./validation-tier.mjs";
 
 const repository = process.cwd();
 const output = resolve(valueAfter("--output") ?? ".artifacts/validation/resource-sensitive-focused.json");
@@ -10,13 +10,16 @@ const repeats = Number(valueAfter("--repeats") ?? "3");
 if (!Number.isInteger(repeats) || repeats < 1 || repeats > 10) throw new Error("--repeats must be an integer from 1 through 10");
 
 const plan = await createTierPlan(["fast"], repository);
-const invocations = plan.vitest?.invocations.filter(candidate => candidate.id.startsWith("vitest-fast-resource-sensitive-")) ?? [];
+const invocations = plan.vitest?.invocations.filter(candidate => candidate.evidence?.executionClass === "resource-sensitive") ?? [];
+// Rationale: the partition's bound is a hang detector; a test body near the former five-second
+// default is still worth a look, so the report names those tests without failing on them.
+const attentionThresholdMs = 5_000;
 if (!invocations.length) throw new Error("resource-sensitive validation invocations are missing");
 if (invocations.some(invocation => !invocation.arguments.includes("--no-file-parallelism"))) {
   throw new Error("resource-sensitive validation is not serialized");
 }
-if (invocations.some(invocation => invocation.arguments.some(argument => argument.toLowerCase().includes("timeout")))) {
-  throw new Error("resource-sensitive validation must retain the default timeout");
+if (invocations.some(invocation => !invocation.arguments.includes(`--testTimeout=${RESOURCE_SENSITIVE_TIMEOUT_MS}`))) {
+  throw new Error("resource-sensitive validation must carry the explicit hang bound");
 }
 
 const temporary = await mkdtemp(resolve(tmpdir(), "a1-resource-sensitive-validation-"));
@@ -53,17 +56,19 @@ const evidence = {
   node: process.version,
   policy: {
     fileParallelism: false,
-    timeoutMs: 5_000,
-    timeoutSource: "vitest-default",
+    timeoutMs: RESOURCE_SENSITIVE_TIMEOUT_MS,
+    timeoutSource: "explicit",
     retries: 0,
-    timeoutOverridePresent: false,
+    timeoutOverridePresent: true,
+    attentionThresholdMs,
   },
   invocation: {
-    id: "vitest-fast-resource-sensitive-per-file",
-    arguments: ["vitest", "run", "<one-declared-file>", "--no-file-parallelism"],
+    id: "vitest-fast-resource-sensitive",
+    arguments: ["vitest", "run", "<declared-files>", "--no-file-parallelism", `--testTimeout=${RESOURCE_SENSITIVE_TIMEOUT_MS}`],
     testFiles: invocations.flatMap(invocation => invocation.evidence?.testFiles ?? []),
   },
   runs,
+  slowTests: [...new Set(runs.flatMap(run => run.files.flatMap(file => file.slowTests)))].sort(),
 };
 await mkdir(resolve(output, ".."), { recursive: true });
 await writeFile(output, `${JSON.stringify(evidence, null, 2)}\n`);
@@ -74,7 +79,9 @@ function summarizeFile(result, root) {
   const testBodyDurationMs = assertions.map(assertion => Number(assertion.duration ?? 0)).filter(Number.isFinite);
   const durationMs = Number.isFinite(result.endTime - result.startTime) ? result.endTime - result.startTime : 0;
   const totalTestBodyDurationMs = testBodyDurationMs.reduce((total, duration) => total + duration, 0);
+  const slowTests = assertions.filter(assertion => Number(assertion.duration ?? 0) > attentionThresholdMs).map(assertion => assertion.fullName);
   return {
+    slowTests,
     path: normalizePath(relative(root, result.name)),
     status: result.status,
     durationMs,

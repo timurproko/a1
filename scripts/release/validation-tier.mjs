@@ -14,6 +14,8 @@ import {
 const npmExecutable = process.platform === "win32" ? "npm.cmd" : "npm";
 const npxExecutable = process.platform === "win32" ? "npx.cmd" : "npx";
 const maximumPortableCommandCharacters = 6_000;
+/** Hang bound for the resource-sensitive partition; the same explicit bound the other fast-tier invocations use. */
+export const RESOURCE_SENSITIVE_TIMEOUT_MS = 30_000;
 
 export async function loadValidationSuites(repository = process.cwd()) {
   const suites = JSON.parse(await readFile(resolve(repository, "config", "validation-suites.json"), "utf8"));
@@ -124,18 +126,19 @@ export async function createTierPlan(requested, repository = process.cwd(), opti
     policy: EXACT_PACKAGE_INSTALL_POLICY,
     consumers: exactPackageConsumers,
   } : null;
-  // Concurrency: each sensitive file gets a fresh serial Vitest process so prior Git, SQLite,
-  // editor, and child-process workloads cannot consume another file's fixed five-second budget.
-  const resourceSensitiveInvocations = resourceSensitiveTests.map(({ test, scope }, index) => ({
-    id: `vitest-fast-resource-sensitive-${index + 1}`,
-    arguments: ["vitest", "run", test, "--no-file-parallelism"],
-    scopes: [scope],
+  // Concurrency: the sensitive files share one serial Vitest process on an isolated runner, paying
+  // one cold start instead of one per file. The explicit bound is a hang detector, not a performance
+  // gate; per-test durations stay in the reporter evidence for the focused timing report.
+  const resourceSensitiveInvocations = boundedVitestInvocations("vitest-fast-resource-sensitive", resourceSensitiveTests.map(entry => entry.test),
+    ["--no-file-parallelism", `--testTimeout=${RESOURCE_SENSITIVE_TIMEOUT_MS}`]).map(invocation => ({
+    ...invocation,
+    scopes: [...new Set(resourceSensitiveTests.map(entry => entry.scope))],
     evidence: {
       executionClass: "resource-sensitive",
-      testFiles: [test],
+      testFiles: invocation.arguments.filter(argument => resourceSensitiveTests.some(entry => entry.test === argument)),
       fileParallelism: false,
-      timeoutMs: 5_000,
-      timeoutSource: "vitest-default",
+      timeoutMs: RESOURCE_SENSITIVE_TIMEOUT_MS,
+      timeoutSource: "explicit",
       retries: 0,
       perFileTiming: "vitest-default-reporter",
     },

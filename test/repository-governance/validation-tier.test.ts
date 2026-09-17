@@ -53,8 +53,8 @@ describe("validation tier planning", () => {
     const invocations = plan.vitest!.invocations;
     expect(invocations.find(invocation => invocation.id === "vitest-full-without-isolated")?.arguments)
       .toEqual(expect.arrayContaining(["--exclude", "test/foundation/release/update-performance.integration.test.ts", "--exclude", "test/foundation/release/package-surface.test.ts", "test/foundation/release/package-install.integration.test.ts", "--exclude", "test/repository-governance/validation-impact.test.ts"]));
-    expect(invocations.filter(invocation => invocation.id.startsWith("vitest-fast-resource-sensitive-"))
-      .flatMap(invocation => invocation.arguments)).toEqual(expect.arrayContaining(["test/repository-governance/validation-impact.test.ts", "--no-file-parallelism"]));
+    expect(invocations.filter(invocation => invocation.evidence?.executionClass === "resource-sensitive")
+      .flatMap(invocation => invocation.arguments)).toEqual(expect.arrayContaining(["test/repository-governance/validation-impact.test.ts", "--no-file-parallelism", "--testTimeout=30000"]));
     expect(invocations.find(invocation => invocation.id === "vitest-isolated-timing")?.arguments)
       .toEqual(expect.arrayContaining(["test/foundation/release/update-performance.integration.test.ts", "--no-file-parallelism"]));
     expect(invocations.find(invocation => invocation.id === "vitest-package-smoke-1")?.arguments)
@@ -113,9 +113,10 @@ describe("validation tier planning", () => {
     });
     expect(resource.vitest?.invocations).toEqual([
       expect.objectContaining({
-        id: "vitest-fast-resource-sensitive-1",
-        arguments: ["vitest", "run", "test/foundation/release/release-gc.test.ts", "--no-file-parallelism"],
-        evidence: expect.objectContaining({ retries: 0, fileParallelism: false }),
+        id: "vitest-fast-resource-sensitive",
+        arguments: ["vitest", "run", "test/foundation/release/release-gc.test.ts", "--no-file-parallelism", "--testTimeout=30000"],
+        scopes: ["pr-selected-resource"],
+        evidence: expect.objectContaining({ retries: 0, fileParallelism: false, timeoutMs: 30000, timeoutSource: "explicit" }),
       }),
     ]);
     const completeFast = await createTierPlan(["fast"]);
@@ -158,7 +159,8 @@ describe("validation tier planning", () => {
   it("serializes smoke and full rendering evidence outside the fast worker pool", async () => {
     const smoke = await createTierPlan(["fast", "rendering-smoke"]);
     expect(smoke.vitest?.invocations[0]).toEqual(expect.objectContaining({ id: "vitest-fast" }));
-    expect(smoke.vitest?.invocations.filter(invocation => invocation.id.startsWith("vitest-fast-resource-sensitive-"))).toHaveLength(21);
+    expect(smoke.vitest?.invocations.filter(invocation => invocation.evidence?.executionClass === "resource-sensitive")).toHaveLength(1);
+    expect(smoke.vitest?.invocations.find(invocation => invocation.id === "vitest-fast-resource-sensitive")?.evidence?.testFiles).toHaveLength(21);
     expect(smoke.vitest?.invocations.at(-1)).toEqual(expect.objectContaining({
       id: "vitest-isolated-suites",
       arguments: expect.arrayContaining([
