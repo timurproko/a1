@@ -3,7 +3,7 @@
 ### Requirement: Hand-off parks the worktree for post-merge cleanup
 The repository SHALL provide one explicit hand-off command that accepts the primary repository, exact worktree path, OpenSpec change, and pull-request identity. It SHALL register the exact worktree when no registration exists or reclaim the existing one, record the current HEAD and branch attachment, apply the repository-owned disposable policy, and release the registration to local cleanup. It SHALL NOT evaluate, delete, enable the persistent queue, or start a process. The delivering agent SHALL invoke it from the primary checkout when it hands the validated candidate to the maintainer and again after any repair push. That release SHALL be the candidate-scoped completed-delivery cleanup authorization for the exact worktree and its topic ref, exercised only after the merge, archive, validation, and remote-ref gates later verify; it SHALL NOT confer discard authority for a later closed-unmerged pull request.
 
-Hand-off SHALL be idempotent for its exact worktree: a repeated invocation SHALL update the recorded head and release again rather than create a second registration. Tracked, staged, unstaged, or untracked content outside the central disposable policy SHALL block hand-off with the affected paths and leave the registration owned; a primary, foreign, or identity-changed path SHALL block with a named reason.
+Hand-off SHALL be idempotent for its exact worktree: a repeated invocation SHALL update the recorded head and release again rather than create a second registration. Tracked, staged, unstaged, or untracked content outside the central disposable policy SHALL block hand-off with the affected paths and leave the registration owned; a primary, foreign, or identity-changed path SHALL block with a named reason. A registration still owned by a low-level registration SHALL be released by hand-off or by the exact-candidate completed-delivery command only when the invoking session presents that registration's owner token; any other invocation SHALL block with `owned-worktree`.
 
 #### Scenario: Agent hands off a validated candidate
 - **WHEN** the owning agent invokes hand-off for the pushed, clean worktree of a ready pull request
@@ -13,6 +13,11 @@ Hand-off SHALL be idempotent for its exact worktree: a repeated invocation SHALL
 #### Scenario: Hand-off is repeated after a repair push
 - **WHEN** the owner reclaims a handed-off worktree, pushes a repair, and invokes hand-off again
 - **THEN** the same registration SHALL record the new head and be released again without a duplicate entry
+
+#### Scenario: Owner hands off its own low-level registration
+- **WHEN** the worktree is registered and still owned and the invoking session presents the matching owner token
+- **THEN** hand-off (or the exact-candidate completed-delivery command) SHALL release that registration itself without a separate release step
+- **AND** a missing or mismatched token SHALL block with `owned-worktree` and leave the registration owned
 
 #### Scenario: Hand-off finds unpushed content
 - **WHEN** the worktree holds tracked, staged, unstaged, or untracked content outside the central disposable policy

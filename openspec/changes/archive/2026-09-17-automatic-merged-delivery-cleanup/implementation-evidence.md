@@ -33,5 +33,6 @@ The tooling was copied to a scratch directory outside `.worktrees/` (the CLI ref
 
 ## Known gaps
 
+- After the first live runs another session reported that `complete` blocked with `owned-worktree` after a low-level `register` until it ran `release` with its token; `handoff` and `complete` now release such an entry themselves when `LOCAL_CLEANUP_OWNER_TOKEN` matches (fixture-covered, 81 cases pass).
 - Registration #452 (`build-script-stdout`) stays `blocked` with `source-association` on every sweep because its merged PR has no `openspec-implementation` fence; its worktree and branch are already gone. Retiring such an entry needs an explicit operation and is out of scope here.
 - The sweep prunes only branches that GitHub can associate with a merged pull request by head ref name; a branch renamed locally after its PR merged is retained as `branch-no-pull-request`.

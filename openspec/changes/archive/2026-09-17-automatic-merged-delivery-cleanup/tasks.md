@@ -2,6 +2,7 @@
 
 - [x] 1.1 In `scripts/governance/local-worktree-cleanup.mjs` and `scripts/governance/local-cleanup-complete.mjs`, add `handoff --repo --path --change --pr`: register the exact worktree when no registration exists or reclaim the existing one, record current HEAD and branch, apply the central disposable policy, and release; block with the affected paths on tracked/staged/unstaged/untracked content, and with a named reason on a primary, foreign, or identity-changed path. Never evaluate, delete, or enable.
 - [x] 1.2 Fixtures: hand-off of a clean pushed worktree yields one released entry and leaves the tree; repeated hand-off updates the head without a second entry; hand-off after a repair push records the new head; a dirty worktree blocks and stays owned.
+- [x] 1.3 Let `handoff` and `complete` release a still-owned low-level registration when `LOCAL_CLEANUP_OWNER_TOKEN` matches its owner hash; a missing or wrong token keeps `owned-worktree`. Fixtures cover both commands.
 
 ## 2. Finalization Ancestry
 

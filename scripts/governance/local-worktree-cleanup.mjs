@@ -16,6 +16,7 @@ Usage: node scripts/governance/local-worktree-cleanup.mjs COMMAND --repo PRIMARY
 Commands: preview (default), status, handoff, sweep, complete, discard, enable, disable, once, watch, register, claim, release, recover
 Handoff: --path PATH --change NAME --pr N
   Registers and releases the exact pushed worktree at maintainer hand-off; deletes nothing and enables nothing.
+  An entry still owned by a low-level register is released when LOCAL_CLEANUP_OWNER_TOKEN matches its owner (same for complete).
 Sweep: one bounded pass that completes every handed-off candidate whose PR is verified merged, reports open ones as
   pending and rejected ones as awaiting-discard, and prunes merged local topic branches by pull-request evidence.
 Complete: --path PATH --change NAME --pr N [--role implementation|archive|acceptance]
@@ -121,7 +122,7 @@ export async function main(args = process.argv.slice(2)) {
     const sourcePr = Number(values.pr);
     if (!values.path || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(values.change ?? "") || !Number.isSafeInteger(sourcePr) || sourcePr < 1
       || values["source-pr"] !== undefined || values["candidate-pr"] !== undefined || values.role !== undefined || values.disposable !== undefined) fail("handoff-arguments");
-    const report = await handoffLocalCleanup({ identity, store, path: values.path, change: values.change, sourcePr });
+    const report = await handoffLocalCleanup({ identity, store, path: values.path, change: values.change, sourcePr, ownerToken: process.env.LOCAL_CLEANUP_OWNER_TOKEN ?? null });
     console.log(JSON.stringify(report, null, 2));
     return;
   }
@@ -146,7 +147,7 @@ export async function main(args = process.argv.slice(2)) {
       || role === "implementation" && sourcePr !== candidatePr) fail("completion-arguments");
     const deadline = Date.now() + 60000;
     const report = await completeLocalCleanup({ identity, store, reader: await authorizedReader(deadline), path: values.path,
-      change: values.change, sourcePr, candidatePr, role, cwd: process.cwd(), reconcileOptions: { deadline } });
+      change: values.change, sourcePr, candidatePr, role, cwd: process.cwd(), ownerToken: process.env.LOCAL_CLEANUP_OWNER_TOKEN ?? null, reconcileOptions: { deadline } });
     console.log(JSON.stringify(report, null, 2));
     return;
   }

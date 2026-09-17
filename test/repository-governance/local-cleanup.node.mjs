@@ -816,7 +816,11 @@ test("handoff refuses an owned or replaced registration and a changed branch", a
   await f.store.locked(async (state, save) => { transitionEntry(state.entries[0], "claim", owner, state.entries[0].generation); await save(state); });
   const options = { identity: f.identity, store: f.store, path: f.path, change: "example", sourcePr: 20 };
   await assert.rejects(handoffLocalCleanup(options), /owned-worktree/);
-  await f.store.locked(async (state, save) => { transitionEntry(state.entries[0], "release", owner, state.entries[0].generation); await save(state); });
+  await assert.rejects(handoffLocalCleanup({ ...options, ownerToken: "wrong-owner-token-at-least-32-characters" }), /owned-worktree/);
+  assert.equal((await f.store.read()).entries[0].state, "owned");
+  const released = await handoffLocalCleanup({ ...options, ownerToken: owner });
+  assert.equal(released.state, "released"); assert.equal(released.id, f.entry.id);
+  assert.deepEqual((await f.store.read()).entries[0].disposable, [...COMPLETION_DISPOSABLE_PATHS]);
   await git(f.path, "checkout", "-b", "feature/rebound");
   await assert.rejects(handoffLocalCleanup(options), /worktree-identity-changed/);
   await git(f.path, "checkout", "feature/example"); await git(f.path, "branch", "-D", "feature/rebound");
@@ -1002,6 +1006,19 @@ test("CLI handoff and sweep use the documented surface", async t => {
   assert.throws(() => invoke("handoff", "--path", f.path, "--change", "example"), /handoff-arguments/);
   assert.throws(() => invoke("handoff", "--path", f.path, "--change", "example", "--pr", "20", "--role", "archive"), /handoff-arguments/);
   const status = JSON.parse(invoke("status")); assert.equal(status.entries[0].state, "released"); assert.equal(status.enabled, false);
+});
+
+test("complete releases an owned registration only for the holder of its owner token", async t => {
+  const f = await fixture(t, true);
+  await f.store.locked(async (state, save) => { transitionEntry(state.entries[0], "claim", owner, state.entries[0].generation); await save(state); });
+  const options = { identity: f.identity, store: f.store, reader: {}, path: f.path, change: "example", sourcePr: 20, cwd: f.primary,
+    reconcileOptions: { verify: f.verify, git: f.boundedGit } };
+  await assert.rejects(completeLocalCleanup(options), /owned-worktree/);
+  await assert.rejects(completeLocalCleanup({ ...options, ownerToken: "wrong-owner-token-at-least-32-characters" }), /owned-worktree/);
+  assert.equal(await exists(f.path), true); assert.equal((await f.store.read()).entries[0].state, "owned");
+  const report = await completeLocalCleanup({ ...options, ownerToken: owner });
+  assert.equal(report.results[0].disposition, "removed", JSON.stringify(report));
+  assert.equal(await exists(f.path), false);
 });
 
 test("pass deadline reports incomplete coverage without mutation", async t => {
