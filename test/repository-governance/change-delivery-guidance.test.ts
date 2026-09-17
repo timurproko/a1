@@ -88,6 +88,19 @@ describe("repository-owned atomic delivery guidance", () => {
     expect(docs).not.toContain("> Phase: Proposal");
     expect(docs).not.toContain("> Phase: Implementation");
     expect(docs).toContain("no lifecycle body edit or second workflow run is required");
+    expect(docs).toContain("## Automated finalization");
+    expect(docs).toContain("Ready and automated finalization");
+    expect(docs).toContain("Do not revert a finalization commit to make a fix");
+    expect(docs).toContain("pull before pushing");
+    expect(docs).toContain("`finalization-merge-conflict`");
+    expect(docs).toContain("Awaiting automated finalization");
+    const config = await readFile("openspec/config.yaml", "utf8");
+    const skill = await readFile(".agents/skills/change-delivery/SKILL.md", "utf8");
+    for (const text of [config, skill]) {
+      expect(text).toContain("`OpenSpec finalization` workflow");
+      expect(text).toContain("never revert a finalization commit");
+      expect(text).toMatch(/[Pp]ull before pushing/);
+    }
     expect(docs).not.toContain("> Phase: Acceptance");
     expect(docs).toContain("derives `Archived`");
     expect(docs).toContain("## Implementation");

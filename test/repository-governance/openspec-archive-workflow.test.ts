@@ -67,6 +67,41 @@ describe("trusted archive workflow wiring", () => {
     } finally { await rm(root, { recursive: true, force: true }); }
   });
 
+  it("finalizes ready candidates from trusted policy with the App identity and never runs PR-head code", async () => {
+    const source = await readFile(".github/workflows/openspec-finalization.yml", "utf8");
+    expect(inspectWorkflowSource(".github/workflows/openspec-finalization.yml", source)).toMatchObject({
+      triggers: ["pull_request_target", "pull_request_target:edited", "workflow_dispatch"],
+      permissions: ["contents: read", "pull-requests: read"],
+      trustedSource: "default-branch", concurrency: "openspec-finalization-", authority: ["single-pr-finalization-publication"],
+    });
+    expect(source).toContain("types: [synchronize, ready_for_review, reopened, edited]");
+    expect(source).toContain("branches: [develop]");
+    expect(source).toContain("cancel-in-progress: false");
+    expect(source).toContain("timeout-minutes: 10");
+    expect(source).toContain("github.event.pull_request.draft == false");
+    expect(source).toContain("github.event.pull_request.merged != true");
+    expect(source).toContain("persist-credentials: false");
+    expect(source).toContain("npm ci --ignore-scripts");
+    expect(source).toContain("OPENSPEC_ARCHIVE_APP_ID:");
+    expect(source).toContain("OPENSPEC_ARCHIVE_APP_PRIVATE_KEY:");
+    expect(source).toContain("publish-openspec-finalization.mjs");
+    expect(source).toContain("--dry-run");
+    expect(source).not.toContain("github.event.pull_request.head");
+    expect(source).not.toContain("contents: write");
+    expect(source).not.toMatch(/npm run|npx |vitest/);
+    expect(source.match(/uses: actions\/checkout@/g)).toHaveLength(1);
+    for (const match of source.matchAll(/uses: ([^\s]+)@([^\s]+)/g)) expect(match[2]).toMatch(/^[a-f0-9]{40}$/);
+  });
+
+  it("reports automated finalization as the pending action for an unfinalized ready head", async () => {
+    const source = await readFile(".github/workflows/ci.yml", "utf8");
+    const deliveryJob = source.match(/\n  delivery:[\s\S]*?(?=\n  [\w-]+:|$)/)?.[0] ?? "";
+    expect(deliveryJob).toContain("grep -q 'delivery-not-finalized'");
+    expect(deliveryJob).toContain("Awaiting automated finalization");
+    expect(deliveryJob).toContain("actions/workflows/openspec-finalization.yml");
+    expect(deliveryJob).toContain("exit 1");
+  });
+
   it("documents the actual metadata and mechanical task contract without implying code auto-merge", async () => {
     const docs = await readFile("docs/openspec-archive-automation.md", "utf8");
     const config = await readFile("openspec/config.yaml", "utf8");

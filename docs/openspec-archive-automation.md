@@ -12,8 +12,8 @@ Version-1 and version-2 deliveries and their existing comments, acceptance PRs, 
 2. **Same-PR implementation:** continue after explicit approval in the same worktree, branch, history, draft PR, and phase-free body. Reconcile approved refinements in proposal, design, deltas, and tasks before corresponding code edits.
 3. **Complete evidence:** finish implementation, required tests/evidence, substantive tasks, and explicit known-gap disposition. CI success is objective evidence, not acceptance.
 4. **Plain acceptance list:** keep the body phase-free and add final `## Acceptance` with one to three concise implementation-specific behavior-and-result bullets. Do not use checkboxes, generic review/CI/approval/archive statements, URLs, mentions, or automated-test inventory.
-5. **In-branch finalization:** reconcile current `origin/develop`, conservatively synchronize all deltas, move the active change into its dated archive, and stage the conditional acceptance manifest in the same branch.
-6. **Ready and validate:** mark the finalized PR ready without changing its body lifecycle marker because none exists. One normal exact-head workflow validates the implementation, synchronized specs, archive, manifest, tasks/evidence, exact PR-body list, and every selected product/governance scope before emitting the stable protected aggregate. A new commit, acceptance-list change, or advanced target requires full renewed validation; no lifecycle body edit or second workflow run is required.
+5. **Ready and automated finalization:** mark the PR ready. The trusted `OpenSpec finalization` workflow reconciles current `develop`, conservatively synchronizes all deltas, moves the active change into its dated archive, stages the conditional acceptance manifest, commits that to the same branch with the archive App identity, and writes the emitted paths into the body's implementation fence. Running the [finalization command](#finalization-command) locally first is optional and yields the same bytes.
+6. **Validate:** one normal exact-head workflow validates the finalized head: implementation, synchronized specs, archive, manifest, tasks/evidence, exact PR-body list, and every selected product/governance scope before emitting the stable protected aggregate. A new commit or acceptance-list change re-finalizes automatically when needed and requires full renewed validation; no lifecycle body edit or second workflow run is required.
 7. **Manual merge accepts:** after the stable protected aggregate succeeds, an authorized human reviews and manually merges the exact validated head. That single action means the listed scenarios are accepted and explicitly authorizes integration. Auto-merge, merge queue, Apps, bots, and documentation reconciliation are forbidden.
 8. **Verify and clean:** trusted post-merge policy derives `Archived` and reports `accepted-and-archived` from committed bytes and immutable GitHub provenance without editing the accepted PR body. It publishes no lifecycle branch or PR. Shared exact-head remote cleanup may delete the unchanged topic ref; local cleanup remains separately ownership-controlled.
 
@@ -69,7 +69,7 @@ Do not add a quoted phase line or a routine `Validation` section listing command
 </details>
 ```
 
-Keep acceptance absent during proposal review so unfinished intent is not mistaken for final acceptance criteria. Keep the finalized phase-free body unchanged through exact-head validation, maintainer review, and authorized manual merge. The same workflow run validates its finalized delivery record and applicable product/governance scopes before the stable protected aggregate succeeds. Do not add a lifecycle body edit or start a second validation run. After manual merge, trusted verification derives `Archived`; do not rewrite the accepted body.
+Keep acceptance absent during proposal review so unfinished intent is not mistaken for final acceptance criteria. The finalization workflow rewrites only the implementation fence; keep the rest of the phase-free body unchanged through exact-head validation, maintainer review, and authorized manual merge. The same workflow run validates its finalized delivery record and applicable product/governance scopes before the stable protected aggregate succeeds. Do not add a lifecycle body edit or start a second validation run. After manual merge, trusted verification derives `Archived`; do not rewrite the accepted body.
 
 ## Version-3 implementation metadata
 
@@ -129,9 +129,22 @@ The committed conditional manifest contains the same ordered text. Trusted polic
 
 If the body list changes, candidate validation reruns and compares it with the committed manifest. If the head changes, all prior exact-head CI is stale. If only the body changes to disagree with the manifest, integration remains blocked until the list and committed candidate agree again. No lifecycle body edit is needed after green CI.
 
+## Automated finalization
+
+The `OpenSpec finalization` workflow (`.github/workflows/openspec-finalization.yml`) runs on `pull_request_target` for `synchronize`, `ready_for_review`, `reopened`, and `edited` events of every non-draft PR targeting `develop`, one event at a time per PR. It checks out default-branch policy, installs the pinned tooling without hooks, and runs `scripts/governance/publish-openspec-finalization.mjs --pr <n>`; the PR head enters that process only as the `openspec/` tree the pinned OpenSpec engine reads. Drafts, closed, legacy, and unassociated PRs are skipped. For a version-3 candidate it reconciles the head to its finalized form:
+
+- **Active and current:** ordinary finalization with today's UTC date; one `docs(openspec): finalize <change>` commit.
+- **Finalized, valid, and current:** nothing is pushed; the run reports `already-finalized`.
+- **Finalized but drifted:** a later commit edited the archived tasks, evidence, design, or deltas, or the acceptance list changed. Finalization reruns from the archived form under the same archive date; one `docs(openspec): refinalize <change>` commit replaces the manifest and resynchronized specs.
+- **Behind `develop`:** a restore commit returns the archive to its active form with the merge-base's spec bytes, a merge of `develop` follows, and finalization runs against the new tip. A merge conflict outside `openspec/` stops the run with `finalization-merge-conflict`; rebase or merge `develop` yourself and push.
+
+The commit is pushed with a lease on the head the run read, so a developer push in between makes the run report `retry` and the next event finishes the work. Only after the push does the workflow `PATCH` the body fence, and only when the body is unchanged since it was read. The workflow's own push and body edit trigger further runs that report `already-finalized`. Every pushed commit is either a merge of the exact `develop` tip or confined to the change's active path, its archive path, and its declared canonical specs.
+
+Because the branch gains commits from the archive App, pull before pushing. A rebase that drops them is harmless: the next push is reconciled from whatever the head contains. Do not revert a finalization commit to make a fix; push the fix and let the workflow re-finalize. When the workflow fails, its summary names the finalization code (`tasks-incomplete`, `acceptance-*`, `delivery-known-gaps`, `openspec-operation`, `finalization-merge-conflict`, ...), nothing is pushed, and `Finalized delivery validation` on the unfinalized head reports that automated finalization is pending.
+
 ## Finalization command
 
-Finalization has inspection mode by default and an explicit `--write` mode. It never commits, pushes, edits GitHub, marks a PR ready, or merges. Use a temporary body file so the operation can update exact version-3 paths without mutating remote PR state:
+The local command remains available for inspection or when a developer prefers to finalize before marking the PR ready; the workflow then verifies the head and pushes nothing. It has inspection mode by default and an explicit `--write` mode. It never commits, pushes, edits GitHub, marks a PR ready, or merges. Use a temporary body file so the operation can update exact version-3 paths without mutating remote PR state:
 
 ```bash
 git fetch origin develop
@@ -164,7 +177,7 @@ Use repeated `--known-gap "exact disposition"` only for an actually reviewed exp
 
 The operation validates the active change strictly, requires complete substantive tasks, runs the pinned OpenSpec archive/synchronization engine in isolation, verifies the resulting canonical specs, retains every archive artifact, computes deterministic content digests, writes `acceptance.md`, and applies only the allowed OpenSpec diff. Repeating it against identical finalized inputs is verification-only and byte-stable.
 
-Before finalization, canonical specs must still equal the selected target. If `develop` advances, rebase/reconcile and regenerate. To refine a finalized but unmerged change, restore the active artifacts with ordinary branch history, update plan/code coherently, and rerun finalization; never hand-edit only the synchronized spec or archive copy.
+Before a first finalization, canonical specs must still equal the selected target. On an already finalized head the command re-finalizes from the archived form: it resets the synchronized specs to the target's bytes, reapplies the deltas, and rewrites the manifest under the same archive path, reporting `refinalized` (or `would-refinalize` without `--write`). If `develop` advances, merge or rebase onto it and rerun; the archive engine, not a hand edit, must produce the synchronized spec and archive copy.
 
 ## Conditional acceptance and derived receipt
 
@@ -183,11 +196,11 @@ Unavailable, stale, automatic, unauthorized, conflicting, or contradictory prove
 
 ## CI and automation ownership
 
-Normal Development CI remains complete for the implementation. An archive-shaped final diff does not select documentation-only validation because the authoritative version-3 association remains implementation-bound. The trusted acceptance-policy job validates finalization from base-controlled policy while ordinary impact selection retains all applicable product and governance owners.
+Normal Development CI remains complete for the implementation. An archive-shaped final diff does not select documentation-only validation because the authoritative version-3 association remains implementation-bound. The trusted acceptance-policy job validates finalization from base-controlled policy while ordinary impact selection retains all applicable product and governance owners. A ready head that still holds the active change fails that job with an `Awaiting automated finalization` notice pointing at the finalization workflow; the head the workflow pushes receives its own complete validation, and `Development validation` cancels the superseded run.
 
 `pull_request` body edits rerun required CI. The ordinary finalized phase-free run exposes the stable protected aggregate directly; it does not wait for a lifecycle body edit. Documentation auto-merge's trusted owner also reevaluates lifecycle association and disables any armed merge. Every publication entry point explicitly refuses version 3.
 
-The OpenSpec archive workflow remains default-branch trusted. For version 3 it uses read-only contents, PR, and Actions access to report the integrated result; App credentials are unnecessary and are not minted. For legacy candidates it retains its existing scoped App publication behavior.
+The OpenSpec archive workflow remains default-branch trusted. For version 3 it uses read-only contents, PR, and Actions access to report the integrated result; App credentials are unnecessary and are not minted for post-merge verification. For legacy candidates it retains its existing scoped App publication behavior. The OpenSpec finalization workflow is the one version-3 user of the archive App: it mints a short-lived installation token with `contents: write` and `pull_requests: write`, pushes only to the candidate's own branch under a lease, edits only the body fence, and revokes the token when the run ends.
 
 ## Status and audit
 
@@ -230,7 +243,7 @@ This bootstrap policy itself finishes under deployed version-2 authority. The fi
 
 - draft planning remaining unmerged;
 - explicit plan approval and same-PR implementation;
-- current-target finalization and exact-head CI;
+- automated current-target finalization and exact-head CI;
 - authorized human manual merge with plain acceptance scenarios;
 - integrated canonical specs/archive and no generated acceptance/archive PR;
 - read-only `accepted-and-archived` verification and exact-head branch cleanup;
