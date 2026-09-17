@@ -4,7 +4,7 @@ The owned settings screen draws its list scrollbar whenever the list overflows, 
 
 ## What Changes
 
-- The settings list rail resolves the effective live `scrollbarAppearance` and `scrollbarStyle`, including an accepted value pending source reflection, through the shared scrollbar presentation policy: `always` draws the rail whenever the list overflows, `auto` draws it only while the pointer is over the rail or dragging its thumb, and `hidden` never draws it.
+- The settings list rail resolves the effective live `scrollbarAppearance` and `scrollbarStyle`, including an accepted value pending source reflection, through the shared scrollbar presentation policy: `always` draws the rail whenever the list overflows, `auto` draws it while the list scrolls and for the transcript's linger afterwards, or while the pointer is over the rail or dragging its thumb, and `hidden` never draws it.
 - The settings rail gains the same pointer behavior as the transcript rail: hovering reveals it under `auto` and thickens the thumb, dragging the thumb scrolls the list, and pressing the track above or below the thumb pages.
 - **BREAKING**: `Ctrl+Home` and `Ctrl+End` replace `Home` and `End` as the settings shortcuts for the first and last setting, in the list and while searching. Unmodified `Home` and `End` move the search input's cursor while searching and do nothing in the list.
 - Shortcut declarations, the standing status bar, and the settings regression tests follow the new bindings and the appearance-dependent rail.

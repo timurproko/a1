@@ -1,6 +1,6 @@
 ## Context
 
-See `proposal.md` for motivation. The settings screen already resolves the effective live `scrollbarSpeed` through the shared scrollbar policy for wheel distance, but its rail is drawn by `withScrollbarRail`, which paints the thin rail whenever `scrollbarGeometry` reports overflow. The transcript viewport decides rail visibility through `scrollbarPresentation` (appearance, style, hover, drag) and reserves the rail column for `auto` and `always`. The shared `ScrollbarRails` helper for keyed hover and drag state exists in the component layer but has no consumer yet.
+See `proposal.md` for motivation. The settings screen already resolves the effective live `scrollbarSpeed` through the shared scrollbar policy for wheel distance, but its rail is drawn by `withScrollbarRail`, which paints the thin rail whenever `scrollbarGeometry` reports overflow. The transcript viewport decides rail visibility through `scrollbarPresentation` (appearance, style, hover, drag, and a 900 ms activity window after every scroll, repainted by a 925 ms timer) and reserves the rail column for `auto` and `always`. The shared `ScrollbarRails` helper for keyed hover and drag state exists in the component layer but has no consumer yet.
 
 The settings key table maps `[H` and `[F` to `home` and `end`, which the shortcut registry binds to the first and last setting; the search branch intercepts the same two keys before the shared line input sees them. The transcript route (`fix-home-end-shortcuts`, archived 2026-09-14) settled on `Ctrl+Home`/`Ctrl+End` for content boundaries and left unmodified `Home`/`End` to the prompt line.
 
@@ -12,7 +12,6 @@ The settings key table maps `[H` and `[F` to `home` and `end`, which the short
 - The same boundary chords across the agent view and the settings screen.
 
 **Non-Goals:**
-- No timed reveal after wheel scrolling; the transcript rail does not have one either, and adding a timer to the settings app would be a new behavior rather than parity.
 - No change to `scrollbarGeometry`, `scrollbarPresentation`, the settings declarations, migrations, or the transcript viewport.
 - No shortcut customization, no new key decoder, and no change to search-input editing keys beyond letting the shared line input keep the ones it already handles.
 
@@ -24,7 +23,7 @@ Generalize the existing `#scrollbarSpeed()` lookup into one helper that reads an
 
 ### 2. Present the rail through the shared policy and the shared rail state
 
-`render` computes `scrollbarGeometry` as today, then `scrollbarPresentation` with the resolved appearance and style, the rail's hover and drag state from a `ScrollbarRails` instance keyed `settings`, no activity window, and `Date.now()`. `withScrollbarRail` takes that presentation: when `reservesSpace` is false the rail columns are not reserved and content uses the full width; when it is true but `visible` is false the rail cell is blank; when visible, the track and thumb use the presentation's glyphs, so `thick` and a hovered or dragged thumb draw `┃`. The hit region (rail column at the right edge, rows from the top inset to the body height, current geometry) is recorded per frame the way `#frameRows` already is, and is null when nothing is reserved or the list fits.
+`render` computes `scrollbarGeometry` as today, then `scrollbarPresentation` with the resolved appearance and style, the rail's hover and drag state from a `ScrollbarRails` instance keyed `settings`, the activity window, and `Date.now()`. The activity window is the transcript's: a frame whose scroll position differs from the previous frame extends it by 900 ms and arms one 925 ms timer that requests a render, so the rail fades without another input. Noticing the move in `render` covers the wheel, a drag, a track page, keyboard jumps, and a search that resets the scroll with one check. Closing the app clears the timer and the rail state. `withScrollbarRail` takes that presentation: when `reservesSpace` is false the rail columns are not reserved and content uses the full width; when it is true but `visible` is false the rail cell is blank; when visible, the track and thumb use the presentation's glyphs, so `thick` and a hovered or dragged thumb draw `┃`. The hit region (rail column at the right edge, rows from the top inset to the body height, current geometry) is recorded per frame the way `#frameRows` already is, and is null when nothing is reserved or the list fits.
 
 ### 3. Pointer ownership of the rail
 

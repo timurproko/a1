@@ -1,7 +1,7 @@
 ## 1. Follow the shared scrollbar settings
 
 - [x] 1.1 Resolve the effective live `scrollbarAppearance` and `scrollbarStyle` in the settings app through one helper shared with the existing speed lookup, keeping `scrollbarWheelRows(this.#scrollbarSpeed())` for wheel distance; verify a pending accepted value is used before source reflection.
-- [x] 1.2 Present the settings rail through `scrollbarPresentation` and a keyed `ScrollbarRails` state, extending `withScrollbarRail` to honor reservation, visibility, and glyphs; verify `auto` reserves a blank rail, `always` draws thin or thick, `hidden` releases the columns, and changing the mode on the screen updates the rail on the next frame.
+- [x] 1.2 Present the settings rail through `scrollbarPresentation` and a keyed `ScrollbarRails` state with the transcript's scroll activity window and fade timer, extending `withScrollbarRail` to honor reservation, visibility, and glyphs; verify `auto` reserves a blank rail, lights it on a scroll and fades it after the linger, `always` draws thin or thick, `hidden` releases the columns, and changing the mode on the screen updates the rail on the next frame.
 - [x] 1.3 Give the rail pointer ownership: hover reveal and thick thumb, thumb drag with grab offset, track paging, and hover clearing when the pointer leaves; verify no row hover is set by rail motion, wheel ownership is unchanged, and the dialog and menu keep precedence.
 
 ## 2. Use the content-boundary chords

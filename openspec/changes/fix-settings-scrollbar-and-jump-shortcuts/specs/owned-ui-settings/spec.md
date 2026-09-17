@@ -1,14 +1,19 @@
 ## ADDED Requirements
 
 ### Requirement: The settings list scrollbar follows the shared scrollbar settings
-The owned settings screen SHALL present its list scrollbar through the shared scrollbar presentation policy using the currently effective `scrollbarAppearance` and `scrollbarStyle`, including an accepted live value pending source reflection, rather than drawing a rail whenever the list overflows. Under `always` the rail SHALL be drawn whenever the list overflows. Under `auto` the rail SHALL be drawn only while the pointer is over the rail or dragging its thumb. Under `hidden` no rail SHALL be drawn and no rail column SHALL be reserved. Under `auto` and `always` the rail column SHALL remain reserved while the list fits, so revealing the rail does not reflow the rows. `thick`, a hovered thumb, and a dragged thumb SHALL use the shared thick glyph.
+The owned settings screen SHALL present its list scrollbar through the shared scrollbar presentation policy using the currently effective `scrollbarAppearance` and `scrollbarStyle`, including an accepted live value pending source reflection, rather than drawing a rail whenever the list overflows. Under `always` the rail SHALL be drawn whenever the list overflows. Under `auto` the rail SHALL be drawn while the list scrolls and for the transcript's linger afterwards, or while the pointer is over the rail or dragging its thumb, and SHALL fade on its own once the linger passes. Under `hidden` no rail SHALL be drawn and no rail column SHALL be reserved. Under `auto` and `always` the rail column SHALL remain reserved while the list fits, so revealing the rail does not reflow the rows. `thick`, a hovered thumb, and a dragged thumb SHALL use the shared thick glyph.
 
 The settings rail SHALL own pointer reports inside its hit region: pointer motion SHALL update rail hover, pressing the thumb and moving SHALL scroll the list with the thumb, and pressing the track above or below the thumb SHALL page in that direction. Rail hover SHALL NOT set a row hover state. The whole-pane wheel ownership, the structured dialog, and the value menu SHALL keep their existing pointer precedence.
 
 #### Scenario: Overflow under auto without a pointer
-- **WHEN** `scrollbarAppearance` resolves to `auto`, the list overflows, and no pointer is over the rail
+- **WHEN** `scrollbarAppearance` resolves to `auto`, the list overflows, it has not scrolled within the linger, and no pointer is over the rail
 - **THEN** the rail column SHALL be reserved and blank
 - **AND** no track or thumb glyph SHALL be drawn
+
+#### Scenario: Scroll under auto
+- **WHEN** `scrollbarAppearance` resolves to `auto` and the list scrolls by wheel, drag, track page, keyboard jump, or a search that resets the position
+- **THEN** the next frame SHALL draw the track and thumb
+- **AND** the rail SHALL stay drawn for the shared linger and then be blanked by a repaint the screen requests itself
 
 #### Scenario: Hover the rail under auto
 - **WHEN** `scrollbarAppearance` resolves to `auto`, the list overflows, and the pointer moves onto the rail column within the track
@@ -37,7 +42,7 @@ The settings rail SHALL own pointer reports inside its hit region: pointer motio
 
 #### Scenario: Page from the track
 - **WHEN** the reader presses the rail track above or below the thumb
-- **THEN** the list SHALL scroll one body height in that direction, clamped to the list extent
+- **THEN** the list SHALL scroll by the rows in view in that direction, clamped to the list extent
 
 ### Requirement: Settings boundary jumps use the content-boundary chords
 The owned settings screen SHALL jump to the first setting on `Ctrl+Home` and to the last setting on `Ctrl+End`, in the list and while searching, matching the bare-A1 transcript's content-boundary chords. Unmodified `Home` and `End` SHALL NOT move the settings selection: in the list they SHALL be ignored, and while searching they SHALL move the search input's cursor to its start and end through the shared line input. The shortcut declarations SHALL name `ctrl+home` and `ctrl+end` for these actions so listings and the status bar derive from the effective bindings. The xterm modifier and rxvt Ctrl encodings of both chords SHALL produce the same action.

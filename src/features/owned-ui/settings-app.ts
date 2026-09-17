@@ -71,6 +71,9 @@ const DIALOG_SCOPE = `${SETTINGS_APP_ID}-parts`;
 const SCROLLBAR_TOP_INSET = 1;
 /** Identity of the settings list rail in the shared rail state. */
 const RAIL_KEY = "settings";
+// Compatibility: the transcript rail stays lit this long after a scroll, and repaints just after.
+const SCROLL_LINGER_MS = 900;
+const SCROLL_LINGER_REPAINT_MS = 925;
 const SEARCH_PLACEHOLDER = "search settings";
 /** What a structured value offers instead of printing itself. */
 const CONFIGURE = "configure";
@@ -179,6 +182,10 @@ export class SettingsApp implements UiApp {
   readonly #rails = new ScrollbarRails();
   // Rationale: the rail as drawn in the last frame, or null when nothing can be pointed at.
   #railFrame: { readonly rail: RailPosition; readonly geometry: ScrollbarGeometry; readonly page: number } | null = null;
+  // Invariant: a scroll lights the rail until this time; the timer repaints once it has passed.
+  #activeUntil = 0;
+  #activityTimer: ReturnType<typeof setTimeout> | undefined;
+  #renderedScroll: number | undefined;
 
   constructor(session: OwnedUiSettingsSession) {
     this.#session = session;
@@ -189,6 +196,11 @@ export class SettingsApp implements UiApp {
       this.#loading = false;
       host.requestRender();
     });
+  }
+
+  onClose(): void {
+    this.#clearActivityTimer();
+    this.#rails.clear();
   }
 
   render(rect: PaneRect, host: AppHostServices): readonly string[] {
@@ -209,6 +221,11 @@ export class SettingsApp implements UiApp {
 
     const layout = layoutList(rows, bodyHeight, this.#scroll);
     this.#scroll = layout.scroll;
+    const now = Date.now();
+    // Rationale: every way of scrolling ends in this frame, so a moved list is noticed here
+    // once rather than at each wheel, drag, key, and search branch.
+    if (this.#renderedScroll !== undefined && this.#renderedScroll !== layout.scroll) this.#noteScrollActivity(host, now);
+    this.#renderedScroll = layout.scroll;
     // Invariant: auto and always keep the rail columns while the list fits, so a revealed
     // rail never reflows the rows; hidden gives the columns back to the rows.
     const appearance = this.#scrollbarAppearance();
@@ -227,8 +244,8 @@ export class SettingsApp implements UiApp {
       style: this.#scrollbarStyle(),
       hovered: this.#rails.isHovered(RAIL_KEY),
       dragging: this.#rails.isDragging(RAIL_KEY),
-      activeUntil: 0,
-      now: Date.now(),
+      activeUntil: this.#activeUntil,
+      now,
     });
     this.#railFrame = reservesRail && geometry !== null
       ? {
@@ -456,6 +473,21 @@ export class SettingsApp implements UiApp {
       this.#scroll = scrollForTrackPage(frame.geometry, pointer.row - frame.rail.rowStart, this.#scroll, frame.page);
     }
     return { owned: true, changed: true };
+  }
+
+  #noteScrollActivity(host: AppHostServices, now: number): void {
+    this.#activeUntil = Math.max(this.#activeUntil, now + SCROLL_LINGER_MS);
+    this.#clearActivityTimer();
+    this.#activityTimer = setTimeout(() => {
+      this.#activityTimer = undefined;
+      host.requestRender();
+    }, SCROLL_LINGER_REPAINT_MS);
+    this.#activityTimer.unref?.();
+  }
+
+  #clearActivityTimer(): void {
+    if (this.#activityTimer !== undefined) clearTimeout(this.#activityTimer);
+    this.#activityTimer = undefined;
   }
 
   #openMenu(rows: readonly Row[], selected: number): void {

@@ -657,6 +657,41 @@ describe("the input row and status line behind the screen", () => {
     expect(railCells(target).every(cell => cell === " ")).toBe(true);
   });
 
+  it("lights the rail under auto while the list scrolls and lets it fade as the transcript does", async () => {
+    vi.useFakeTimers();
+    try {
+      const { app: target } = await app(false, undefined, RAIL_SETTINGS);
+      const requestRender = vi.fn();
+      const host = { ...HOST, requestRender };
+      const cells = () => target.render(RAIL_RECT, host)
+        .slice(0, RAIL_RECT.height - 1)
+        .map(line => line.replace(STYLE, ""))
+        .map(line => (line.length >= RAIL_COLUMN ? line.charAt(RAIL_COLUMN - 1) : ""));
+      expect(cells().every(cell => cell === " ")).toBe(true);
+
+      target.onMouse?.({ kind: "wheel-down", button: 0, row: 1, column: 40 }, host);
+      const lit = cells();
+      expect(lit).toContain("│");
+      expect(lit).not.toContain("┃");
+
+      // Invariant: the rail stays lit for the shared linger, then one repaint takes it away.
+      vi.advanceTimersByTime(800);
+      expect(cells()).toContain("│");
+      expect(requestRender).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(200);
+      expect(requestRender).toHaveBeenCalledTimes(1);
+      expect(cells().every(cell => cell === " ")).toBe(true);
+
+      target.onInput?.(CTRL_END, host);
+      expect(cells()).toContain("│");
+      target.onClose?.(host);
+      vi.advanceTimersByTime(2000);
+      expect(requestRender).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("draws the rail whenever the list overflows under always, in the configured style", async () => {
     const thin = await app(false, undefined, RAIL_SETTINGS, { scrollbarAppearance: "always" });
     const thinCells = railCells(thin.app);
