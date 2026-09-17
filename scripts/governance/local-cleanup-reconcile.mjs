@@ -2,8 +2,8 @@ import { readdir, lstat, unlink } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import { atomicJson, fail } from "./local-cleanup-state.mjs";
-import { discoverRepository, exists, inspectResidue, inspectWorktree, parseWorktrees, purgeDisposable, removeLocalRef, removeWorktree, repairResidue, gitRunner } from "./local-cleanup-git.mjs";
-import { acceptedHead, verifyCleanupEvidence } from "./local-cleanup-evidence.mjs";
+import { discoverRepository, exists, inspectResidue, inspectWorktree, nothingLeft, parseWorktrees, purgeDisposable, removeLocalRef, removeWorktree, repairResidue, retireRegistration, gitRunner } from "./local-cleanup-git.mjs";
+import { acceptedHead, mergedIntoDevelop, verifyCleanupEvidence } from "./local-cleanup-evidence.mjs";
 import { pruneMergedBranches } from "./local-cleanup-branches.mjs";
 
 const reason = error => error.cleanupCode ?? error.archiveCode ?? "local-operation-failed";
@@ -33,7 +33,7 @@ export async function reconcileLocalCleanup({ identity, store, reader, preview =
   cancelled = () => false, git = gitRunner({ deadline, now }), verify = verifyCleanupEvidence, inspect = inspectWorktree,
   remove = removeWorktree, removeRef = removeLocalRef, purge = purgeDisposable, repair = repairResidue,
   cwd = process.cwd(), entryIds = null, requireEnabled = true, includeUnmanaged = true, stopSince = null, pruneBranches = false,
-  ancestorOf = (sha, head) => acceptedHead(reader, sha, head) }) {
+  ancestorOf = (sha, head) => acceptedHead(reader, sha, head), merged = entry => mergedIntoDevelop(reader, entry) }) {
   const report = { version: 1, preview, results: [], coverage: { total: 0, visited: 0, complete: false }, at: now() };
   // Protocol: a completed-delivery HEAD or tip is accepted when every reachable commit is reachable from the merged head.
   const acceptedFor = (entry, evidence) => {
@@ -64,7 +64,20 @@ export async function reconcileLocalCleanup({ identity, store, reader, preview =
       report.results.push(row); report.coverage.visited++;
       try {
         if (entry.state === "owned") { row.reason = "owned-worktree"; continue; }
-        let evidence = await verify(reader, entry); Object.assign(row, evidence);
+        let evidence;
+        try { evidence = await verify(reader, entry); }
+        catch (error) {
+          // Protocol: unverifiable evidence with nothing left on disk or in refs retires the journal instead of blocking forever.
+          const code = reason(error);
+          if (preview || entry.step !== "none" || deferred(code) || !await nothingLeft(identity, entry, git) || !await merged(entry)) throw error;
+          await enabled();
+          await retireRegistration(identity, entry, git, { deadline, now });
+          Object.assign(entry, { state: "done", step: "complete", completion: "retired-nothing-left", completionReason: code });
+          await save(state);
+          Object.assign(row, { disposition: "retired", reason: code, steps: ["retired-nothing-left"] });
+          continue;
+        }
+        Object.assign(row, evidence);
         if (evidence.disposition !== "eligible") continue;
         const accepted = acceptedFor(entry, evidence);
         // Protocol: a released path deleted by hand is judged by its journal, not by a directory that no longer exists.

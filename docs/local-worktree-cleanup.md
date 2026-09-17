@@ -22,6 +22,20 @@ node scripts/governance/local-worktree-cleanup.mjs sweep --repo D:/Git/a1
 
 `sweep` evaluates every released registration in one pass under the queue limits (100 registrations, 500 remote requests, a durable round-robin cursor) with a 180-second elapsed budget, since each merged candidate costs three evidence loads, and completes each candidate whose PR is verified merged using exactly the `complete` safeguards. It needs no `enable` and starts no process: its authority is each candidate's release. A candidate whose PR is open, draft, or not yet finalized reports `pending`; a candidate whose PR closed without merge reports `awaiting-discard` and is never touched; blockers report their exact reason. An old stop sentinel does not prevent a sweep, but `disable` run while a sweep is executing stops it before its next destructive step. If another session holds the mutation lock the sweep reports `mutation-busy` and the agent relays it as deferred rather than waiting. The JSON report carries a `lines` array with one relayable line per candidate and pruned branch, for example `#458 close-absent-and-skewed-cleanup: removed [worktree-removed, local-ref-removed]`. Pending or blocked results never delay the new delivery.
 
+### Nothing left to remove
+
+A released entry whose evidence can never verify (for example `delivery-content-drift` after a stale-base merge, or `source-association` for a PR without an `openspec-implementation` fence) would otherwise be re-verified and reported `blocked` on every sweep. When such an entry's worktree path is gone, Git holds no live row for it (its own dangling row is retired), and its local topic ref is absent, the sweep and `complete` ask GitHub only whether the pull request merged into `develop` in this repository and then mark the journal `done` with `retired-nothing-left` and the original evidence reason. Nothing is deleted; a present path, row, or ref keeps the entry blocked, an unmerged PR keeps it `pending` or `awaiting-discard`, a deferred failure such as `remote-budget` is never treated as unverifiable, and preview retires nothing. For an all-absent entry whose PR is not merged, the maintainer runs the explicit form, which reads nothing from GitHub and deletes nothing:
+
+```bash
+node scripts/governance/local-worktree-cleanup.mjs forget --repo D:/Git/a1 --id REGISTRATION_ID --confirm-nothing-left
+```
+
+`forget` refuses without the flag, for an owned or deleting entry, and while the path, a live Git row, or the ref still exists (`something-remains`). `status` shows both notes under `completion`.
+
+### Keep the base current before merge
+
+The `develop` ruleset requires the pull request head to be up to date with `develop`. When another delivery merges first, the PR shows `BEHIND`: merge `origin/develop` into the branch (or use "Update branch"), push, let the `OpenSpec finalization` workflow re-finalize with digests of the merged bytes, wait for validation, and hand off again. Merging a stale finalized head is what produced `delivery-content-drift` for #461; with the strict policy GitHub refuses that merge.
+
 ### Accepted ancestry
 
 Since the `OpenSpec finalization` workflow pushes its commit onto the PR branch after the agent's last push, the registered head is normally one commit behind the merged head. Cleanup therefore accepts a registered head, live worktree HEAD, or local topic-ref tip that equals the merged PR head or is one of its ancestors on GitHub, verified with the compare API: every commit reachable from such a tip is reachable from a head the maintainer accepted, so nothing is lost. A tip that holds a commit outside the merged head, or a commit GitHub does not know, still blocks with `candidate-head-association`, `worktree-identity-changed`, or `local-ref-advanced`, and the branch attachment must still be the registered one. Ref deletion reads the tip immediately before deleting, requires it to be accepted, and uses it as the compare-and-delete expectation. Ancestry of `develop` is never used, because the repository squash-merges.
@@ -162,6 +176,8 @@ State, journals, stop controls, and execution reports live in `<git-common-dir>/
 - `unmanaged`: no local registration; no automatic adoption.
 - `removed`: worktree and eligible local-ref operations were verified.
 - `already-absent`: a completed journal's path/ref are still absent.
+- `retired`: evidence was unverifiable but nothing remained to delete and the PR is merged; the journal is complete with `retired-nothing-left`.
+- `forgotten`: the maintainer explicitly closed an all-absent entry with `forget`.
 - `partial`: a destructive step began but all cleanup could not be verified; the same command resumes it.
 - `deferred`: a bounded pass or concurrent mutation owner prevented evaluation.
 

@@ -108,6 +108,13 @@ export async function acceptedHead(reader, sha, head) {
   catch (error) { if (["commit-ancestry", "github-not-found"].includes(error.archiveCode)) return false; throw error; }
 }
 
+/** The one mutable fact retirement needs: this repository's pull request merged into `develop`. */
+export async function mergedIntoDevelop(reader, entry) {
+  const pull = await reader.get(`${reader.prefix}/pulls/${entry.sourcePr}`);
+  return pull?.number === entry.sourcePr && pull.merged === true && pull.state === "closed" && pull.base?.ref === "develop"
+    && pull.base.repo?.full_name === reader.repository && pull.head?.repo?.full_name === reader.repository && SHA.test(pull.merge_commit_sha ?? "");
+}
+
 /** A status comment or absent branch is never proof of integrated archival. */
 export async function verifyCleanupEvidence(reader, entry) {
   const source = await loadArchiveEvidence(reader, entry.sourcePr);

@@ -20,6 +20,11 @@ describe("reviewable GitHub rulesets", () => {
     expect(develop!.rules.map(rule => rule.type)).toEqual(expect.arrayContaining(["pull_request", "required_status_checks"]));
     const pullRequest = develop!.rules.find(rule => rule.type === "pull_request")!;
     expect(pullRequest.parameters).toMatchObject({ required_approving_review_count: 0, require_last_push_approval: false, required_review_thread_resolution: true });
+    // Rationale: a finalized manifest digests the base it was cut against; merging a stale head lets a concurrent
+    // merge drift those bytes, so develop requires the head to be current before the required check counts.
+    const statusChecks = develop!.rules.find(rule => rule.type === "required_status_checks")!;
+    expect(statusChecks.parameters).toMatchObject({ strict_required_status_checks_policy: true,
+      required_status_checks: [{ context: "Development validation required" }] });
     // Security: master only ever fast-forwards to a commit the release already published, and
     // a tag is cut from an already-validated commit. Neither carries a check; what
     // matters is that neither can be rewritten.

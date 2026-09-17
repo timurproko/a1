@@ -30,6 +30,9 @@ describe("repository-owned atomic delivery guidance", () => {
     expect(config).toContain("`local-worktree-cleanup.mjs handoff`");
     expect(config).toContain("never waits for the merge or starts a watcher");
     expect(config).toContain("prunes merged local topic branches by pull-request evidence");
+    expect(config).toContain("requires an up-to-date base");
+    expect(config).toContain("`retired-nothing-left`");
+    expect(config).toContain("`forget --id --confirm-nothing-left`");
     expect(config).toContain("`discard --confirm-closed-unmerged`");
     expect(config).toContain("PR closure alone authorizes nothing");
     expect(config).toContain("Never choose disposable paths");
@@ -56,6 +59,7 @@ describe("repository-owned atomic delivery guidance", () => {
     expect(skill).toContain("`local-worktree-cleanup.mjs complete`");
     expect(skill).toContain("`local-worktree-cleanup.mjs sweep --repo <primary>`");
     expect(skill).toContain("`local-worktree-cleanup.mjs handoff`");
+    expect(skill).toContain("A `BEHIND` PR: merge `origin/develop`, push, re-finalize, hand off again.");
     expect(skill).toContain("`discard --confirm-closed-unmerged`");
     expect(skill).toContain("PR closure alone authorizes nothing");
     expect(skill).toContain("never delete those ad hoc");
@@ -90,6 +94,10 @@ describe("repository-owned atomic delivery guidance", () => {
     expect(cleanup).toContain("### Merged branch pruning");
     expect(cleanup).toContain("`branch-unmerged-commits`");
     expect(cleanup).toContain("a preview never prunes");
+    expect(cleanup).toContain("### Nothing left to remove");
+    expect(cleanup).toContain("forget --repo D:/Git/a1 --id REGISTRATION_ID --confirm-nothing-left");
+    expect(cleanup).toContain("### Keep the base current before merge");
+    expect(cleanup).toContain("requires the pull request head to be up to date with `develop`");
   });
 
   it("documents valid draft and finalized single-PR links without inventing acceptance", async () => {
