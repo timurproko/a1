@@ -28,6 +28,7 @@
     "scripts/release/resolve-validation-job.mjs",
     "scripts/release/select-validation-impact.mjs",
     "scripts/release/validation-impact.mjs",
+    "scripts/release/validation-matrix.mjs",
     "scripts/release/validation-ownership.mjs",
     "scripts/release/validation-tier.mjs"
   ],

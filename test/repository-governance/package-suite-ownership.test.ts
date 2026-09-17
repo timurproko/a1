@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { parse } from "yaml";
 import { describe, expect, it } from "vitest";
+import { DEVELOPMENT_VALIDATION_MATRIX } from "../../scripts/release/validation-matrix.mjs";
 import { createTierPlan } from "../../scripts/release/validation-tier.mjs";
 
 const nonTimingScenarios = [
@@ -97,7 +98,7 @@ describe("exact-package startup and non-timing ownership", () => {
 
   it("schedules startup and non-timing package owners on separate fresh Node 22 runners", async () => {
     const workflow = parse(await readFile(".github/workflows/ci.yml", "utf8"));
-    const entries = workflow.jobs.modular.strategy.matrix.include as Array<{ group: string; os: string; platform: string; node: number; defender: boolean }>;
+    const entries = DEVELOPMENT_VALIDATION_MATRIX as ReadonlyArray<{ group: string; os: string; platform: string; node: number; defender: boolean }>;
     expect(entries.filter(entry => ["startup", "package"].includes(entry.group))).toEqual([
       expect.objectContaining({ group: "package", os: "windows-2025", platform: "win32", node: 22, defender: false }),
       expect.objectContaining({ group: "startup", os: "windows-2025", platform: "win32", node: 22, defender: true }),
