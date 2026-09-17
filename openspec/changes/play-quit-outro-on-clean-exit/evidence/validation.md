@@ -16,7 +16,7 @@ At the planning base the existing session-shell exit tests asserted the old beha
 - Owned settings scopes (98 tests) and settings screen (32 tests): `quitEffect` and `quitEffectDurationMs` declare the `Quit` section with `fall` and 800 defaults, the settings version advanced to 5 with a no-op migration, section jumps and rows include `Effect` and `Duration`, and the `fullscreenExitOutput` row is absent from bare A1.
 - Graceful-quit process scope: `/quit` and double `Ctrl+C` exit zero with a retained extension handle and restore alternate-screen and mouse modes.
 - Combined session-ui, owned-ui, ui, tui-runtime, and composition run: 985 tests passed. Engine, component, and contract suites: 913 passed; one editor paste test failed once under parallel load and passed alone (timing, unrelated).
-- TypeScript project typecheck, architecture, naming, code-documentation, and docs governance: passed. The startup graph byte baseline rose from 2624606 to 2630918 for the shell, runtime, adapter, contract, and settings additions; the outro modules are registered as optional and load only at quit.
+- TypeScript project typecheck, architecture, naming, code-documentation, and docs governance: passed. The startup graph byte baseline rose from 2624606 to 2631862 for the shell, runtime, adapter, contract, and settings additions plus the editor bytes that reached `develop` in #451 without a baseline update; the outro modules are registered as optional and load only at quit.
 
 ## Physical acceptance
 
