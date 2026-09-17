@@ -99,7 +99,7 @@ import {
   renderPiShellTranscriptBlock,
   type PiShellSubmittedPromptComposer,
 } from "../components/shell-presenters-transcript.js";
-import { onPiThemeChange, piTheme } from "../components/upstream/theme/theme.js";
+import { onPiThemeChange, PINNED_PI_LAYOUT, piTheme } from "../components/upstream/theme/theme.js";
 import {
   piShellTruncateToWidth,
   piShellVisibleWidth,
@@ -632,8 +632,9 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   }
 
   #mountTranscript(block: OwnedUiSessionViewModel["transcript"][number]): PiShellTranscriptComponentPort {
-    // Invariant: new content dismisses the notice; a revision of a mounted block keeps it.
-    this.#dismissDockNotice();
+    // Invariant: the notice answers the reader's last command, so only their next prompt or
+    // shell command retires it; assistant, tool, and compaction blocks streaming in keep it.
+    if (block.kind === "user" || block.kind === "bash") this.#dismissDockNotice();
     const created = createPiShellTranscriptComponent(
       block, this.#cwd, this.#extensionRenderers, this.#submittedPromptComposer,
       this.#outputPad, !this.#thinkingVisible, this.#mermaidRenderingMode,
@@ -853,7 +854,8 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
 
   #renderDockNotice(width: number): readonly string[] {
     if (this.#dockNotice === undefined) return [];
-    return ["", ...renderPiShellStatusText(this.#dockNotice, width, this.#outputPad)];
+    // Compatibility: Pi pads its status text by one cell regardless of the output pad setting.
+    return ["", ...renderPiShellStatusText(this.#dockNotice, width, PINNED_PI_LAYOUT.outputPad)];
   }
 
   #dismissDockNotice(): void {

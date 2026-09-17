@@ -5764,6 +5764,7 @@ describe("OwnedUiSessionShell", () => {
       expect(notice).toBeGreaterThan(0);
       expect(rows.slice(0, notice - 1).every(row => row === "")).toBe(true);
       expect(rows[notice - 1]).toBe("");
+      expect(rows[notice]!.startsWith(" Switched to")).toBe(true);
       expect(rows[notice + 1]).toBe("");
       expect(border).toBe(notice + 2);
       const descriptor = shell.root.viewportFrameDescriptor();
@@ -5780,7 +5781,7 @@ describe("OwnedUiSessionShell", () => {
       engine.session.emit({ type: "message_start", message: streamed });
       await adapter.flushEvents();
       rows = plainRows();
-      expect(rowOf(rows, "Thinking level: medium")).toBe(-1);
+      expect(rowOf(rows, "Thinking level: medium")).toBeGreaterThan(rowOf(rows, "Working..."));
 
       shell.root.appendWorkflowStatus("Switched to GPT-6 Astra (thinking: high)");
       rows = plainRows();
@@ -5800,10 +5801,23 @@ describe("OwnedUiSessionShell", () => {
       expect(astra).toBeGreaterThan(rowOf(rows, "Working..."));
 
       engine.session.emit({ type: "message_end", message: longer });
-      engine.session.emit({ type: "message_start", message: { role: "assistant", timestamp: 11, content: [{ type: "text", text: "next block" }] } });
+      const toolCall = { role: "assistant", timestamp: 11, content: [{ type: "toolCall", id: "call-1", name: "read", arguments: { path: "a.txt" } }] };
+      engine.session.emit({ type: "message_start", message: toolCall });
+      engine.session.emit({ type: "message_end", message: toolCall });
+      engine.session.emit({ type: "message_start", message: { role: "assistant", timestamp: 12, content: [{ type: "text", text: "next block" }] } });
       await adapter.flushEvents();
       rows = plainRows();
       expect(rowOf(rows, "next block")).toBeGreaterThan(-1);
+      expect(rowOf(rows, "Switched to GPT-6 Astra")).toBeGreaterThan(rowOf(rows, "next block"));
+
+      engine.session.emit({ type: "agent_end", messages: [] });
+      engine.session.emit({ type: "agent_settled" });
+      await adapter.flushEvents();
+      expect(rowOf(plainRows(), "Switched to GPT-6 Astra")).toBeGreaterThan(-1);
+      engine.session.emit({ type: "message_start", message: { role: "user", timestamp: 13, content: [{ type: "text", text: "next prompt" }] } });
+      await adapter.flushEvents();
+      rows = plainRows();
+      expect(rowOf(rows, "next prompt")).toBeGreaterThan(-1);
       expect(rowOf(rows, "Switched to GPT-6 Astra")).toBe(-1);
 
       shell.root.appendWorkflowStatus("Copied selected message to clipboard");
