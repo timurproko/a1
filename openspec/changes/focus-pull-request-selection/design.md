@@ -9,11 +9,11 @@ The ownership policy maps `test/support/` and `test/fixtures/` to every PR-core 
 `selectValidationOwnership` uses the map for shared paths only. For a changed path that matches a `shared` rule:
 
 - when at least one retained test reaches it, the selection records `shared-support` for each owner of a reaching test, with the reaching tests as the reason paths (bounded to sixteen);
-- otherwise (no importer, an importer outside `test/`, or a scan failure) it records `shared-support` for every owner the rule declares, exactly as today, with the reason marked `declared-fallback`.
+- otherwise (no retained test reaches it, which includes a helper consumed only from outside `test/`, or the scan failed) it records `shared-support-declared` for every owner the rule declares, exactly as today's selection.
 
 Owned and changed-test rules are unchanged, so a support file that is also an owner's `paths` match still selects that owner. Integration owners follow from the narrowed core selection through the existing `coarse-owner` link and through their own explicit `support` declarations, which this change does not touch. The spec's rule that reachability is never the sole authority for a known coarse owner holds: reachability only narrows the shared rule's declared set, and the declared set remains the floor whenever reachability cannot answer.
 
-Replaying PR #455's change list through the new rule selects the `pi` and `ui-rendering` owners (the fixture's importers are `adapter.test.ts`, `prompt-suggestion-provider.integration.test.ts`, and `session-shell.test.ts`) and the integration owners they link, instead of all eight and nine.
+Replaying PR #455's change list through the new rule selects `pi` (the fixture's importers are `adapter.test.ts`, `prompt-suggestion-provider.integration.test.ts`, and `session-shell.test.ts`, all Pi-owned) and `release-package-update` (for `config/startup-graph-baseline.json`), 104 tests instead of 323 and 12 resource-sensitive tests instead of 21, with five pull-request integration owners instead of nine.
 
 ## A nightly that exists
 

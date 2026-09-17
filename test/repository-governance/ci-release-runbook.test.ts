@@ -35,7 +35,9 @@ describe("CI and release operations runbook", () => {
     expect(runbook).toContain("at most eight minutes");
     expect(runbook).toContain("five minutes for one PR-required scope");
     expect(validation).toContain("eight-minute critical-path and five-minute individual-scope targets");
-    expect(runbook).toContain("real published-history incompatibility to reach `develop` before nightly detects it");
+    expect(runbook).toContain("real published-history incompatibility or update slowdown to reach `develop` before the next exhaustive run detects it");
+    expect(runbook).toContain("runs every night at `02:47 UTC`");
+    expect(runbook).toContain("`update-performance` is exhaustive");
     expect(runbook).toContain("Full regression");
     expect(validation).toContain("change its cadence from `exhaustive` to `pull-request`");
   });

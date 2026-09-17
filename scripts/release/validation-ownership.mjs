@@ -1,18 +1,23 @@
 import { createHash } from "node:crypto";
 import { readdir, readFile, stat } from "node:fs/promises";
-import { relative, resolve, sep } from "node:path";
+import { posix, relative, resolve, sep } from "node:path";
 
 const TEST = /\.test\.[cm]?[jt]sx?$/u;
 const OPERATIONAL = /\.(?:[cm]?[jt]s|[jt]sx|json|ya?ml|toml|rs)$/u;
 const MAX_TESTS = 2048;
+const TEST_TREE_SOURCE = /\.[cm]?[jt]sx?$/u;
+const MAX_TEST_TREE_FILES = 8192;
+const MAX_TEST_TREE_BYTES = 64 * 1024 * 1024;
+const SPECIFIER = /(?:\bfrom|\bimport|\brequire\s*\(|\bvi\.mock\s*\()\s*\(?\s*["'](\.\.?\/[^"'\n]+)["']/gu;
 
 /** Load and validate the bounded path/test ownership policy. */
 export async function loadValidationOwnership(repository = process.cwd()) {
   const root = resolve(repository);
-  const [policy, suites, tests] = await Promise.all([
+  const [policy, suites, tests, supportGraph] = await Promise.all([
     readFile(resolve(root, "config/validation-ownership.json"), "utf8").then(JSON.parse),
     readFile(resolve(root, "config/validation-suites.json"), "utf8").then(JSON.parse),
     discoverTests(resolve(root, "test"), root),
+    buildSupportGraph(root).catch(() => null),
   ]);
   assertPolicy(policy);
   if (suites?.schema !== "a1-validation-suites-v1") throw new TypeError("validation ownership requires the supported suite registry");
@@ -48,12 +53,72 @@ export async function loadValidationOwnership(repository = process.cwd()) {
     fastOwner: resourceTests.has(entry.test) ? "fast-resource-sensitive" : excluded.has(entry.test) ? null : "fast-remainder",
     completeOwners: suiteOwners.get(entry.test) ?? [],
   }));
-  return { policy, suites, tests, ledger, policyId: digest(policy) };
+  return { policy, suites, tests, ledger, supportGraph, policyId: digest(policy) };
+}
+
+/**
+ * Reverse static import graph of the test tree, so a shared support path can name the retained tests that reach it.
+ * Only relative specifiers inside `test/` form edges; anything unresolvable is dropped, which can only widen the
+ * declared-owner fallback in selection.
+ */
+export async function buildSupportGraph(root) {
+  const files = await discoverTestTree(resolve(root, "test"), root);
+  if (files.length > MAX_TEST_TREE_FILES) throw new TypeError("test tree is unbounded");
+  const present = new Set(files);
+  const importers = new Map();
+  let bytes = 0;
+  for (const file of files) {
+    const source = await readFile(resolve(root, file), "utf8");
+    bytes += source.length;
+    if (bytes > MAX_TEST_TREE_BYTES) throw new TypeError("test tree is too large to scan");
+    for (const match of source.matchAll(SPECIFIER)) {
+      const target = resolveTestSpecifier(file, match[1], present);
+      if (!target) continue;
+      const values = importers.get(target) ?? new Set();
+      values.add(file);
+      importers.set(target, values);
+    }
+  }
+  function reachingTests(path) {
+    const seen = new Set([path]);
+    const queue = [path];
+    const reached = new Set();
+    while (queue.length > 0) {
+      const current = queue.shift();
+      for (const importer of importers.get(current) ?? []) {
+        if (seen.has(importer)) continue;
+        seen.add(importer);
+        if (TEST.test(importer)) reached.add(importer);
+        queue.push(importer);
+      }
+    }
+    return [...reached].sort();
+  }
+  return { files: files.length, reachingTests };
+}
+
+function resolveTestSpecifier(file, specifier, present) {
+  const base = posix.normalize(posix.join(posix.dirname(file), specifier));
+  if (!base.startsWith("test/")) return null;
+  const candidates = [base, base.replace(/\.js$/u, ".ts"), base.replace(/\.mjs$/u, ".mts"), base.replace(/\.cjs$/u, ".cts"),
+    `${base}.ts`, `${base}.mts`, `${base}.js`, `${base}.mjs`, `${base}/index.ts`, `${base}/index.js`];
+  return candidates.find(candidate => present.has(candidate)) ?? null;
+}
+
+async function discoverTestTree(directory, root) {
+  const found = [];
+  for (const entry of await readdir(directory, { withFileTypes: true })) {
+    const path = resolve(directory, entry.name);
+    if (entry.isDirectory()) found.push(...await discoverTestTree(path, root));
+    else if (entry.isFile() && TEST_TREE_SOURCE.test(entry.name)) found.push(relative(root, path).split(sep).join("/"));
+  }
+  return found.sort();
 }
 
 /** Select mandatory core tests, coarse unit owners, and linked integration owners. */
 export function selectValidationOwnership({ authority, changes, manualNoComparison = false, exemption = null }) {
   const { policy, ledger, policyId } = authority;
+  const testOwner = new Map(ledger.map(entry => [entry.test, entry.owner]));
   const paths = completePaths(changes);
   const invalidators = paths.filter(path => policy.invalidators.some(pattern => matches(path, pattern)));
   const ownerReasons = new Map(policy.owners.map(owner => [owner.id, []]));
@@ -63,7 +128,18 @@ export function selectValidationOwnership({ authority, changes, manualNoComparis
       if (owner.testPaths.some(pattern => matches(path, pattern))) ownerReasons.get(owner.id).push({ code: "changed-test", path });
     }
     for (const shared of policy.shared) if (shared.paths.some(pattern => matches(path, pattern))) {
-      for (const owner of shared.owners) ownerReasons.get(owner).push({ code: "shared-support", path });
+      const reaching = authority.supportGraph?.reachingTests(path) ?? [];
+      const reachingOwners = [...new Set(reaching.map(test => testOwner.get(test)).filter(Boolean))];
+      if (reachingOwners.length > 0) {
+        for (const owner of reachingOwners) {
+          ownerReasons.get(owner).push({ code: "shared-support", path });
+          for (const test of reaching.filter(item => testOwner.get(item) === owner).slice(0, 15)) ownerReasons.get(owner).push({ code: "shared-support", path: test });
+        }
+      } else {
+        // Rationale: a support path no retained test reaches keeps the declared owner set, so an unscanned or
+        // externally consumed helper can only widen selection, never drop an owner.
+        for (const owner of shared.owners) ownerReasons.get(owner).push({ code: "shared-support-declared", path });
+      }
     }
   }
   const unknown = paths.filter(path => isOperational(path)

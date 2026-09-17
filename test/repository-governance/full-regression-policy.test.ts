@@ -5,13 +5,13 @@ import { createTierPlan } from "../../scripts/release/validation-tier.mjs";
 import { publicationValidationMatrix } from "../../scripts/release/publication-validation-matrix.mjs";
 
 describe("complete regression automation", () => {
-  it("remains available on explicit demand while nightly ownership lives with publication", async () => {
+  it("runs on its own nightly schedule and on explicit demand, apart from publication", async () => {
     const [regression, release] = await Promise.all([
       readFile(".github/workflows/full-regression.yml", "utf8"),
       readFile(".github/workflows/release.yml", "utf8"),
     ]);
     expect(regression).toContain("workflow_dispatch:");
-    expect(regression).not.toContain("schedule:");
+    expect(regression).toContain("cron: '47 2 * * *'");
     expect(release).toContain('cron: "17 3 * * *"');
     expect(release).toContain('selected=\'["full-release"]\'');
   });
@@ -72,7 +72,7 @@ describe("complete regression automation", () => {
       expect(JSON.stringify(job)).not.toMatch(/continue-on-error|--retry/);
     }
     expect(release.on.schedule).toEqual([{ cron: "17 3 * * *" }]);
-    expect(regression.on).toEqual({ workflow_dispatch: null });
+    expect(regression.on).toEqual({ schedule: [{ cron: "47 2 * * *" }], workflow_dispatch: null });
     const selection = releaseJob.steps.find((step: { id: string }) => step.id === "selection");
     expect(selection.env.MODE).toBe("${{ needs.plan.outputs.mode }}");
     expect(selection.run).toContain('if [ "$MODE" = "develop" ]; then');

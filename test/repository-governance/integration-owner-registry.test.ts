@@ -53,8 +53,8 @@ describe("integration owner registry", () => {
       "structured-runtime": ["win32-x64-node24"],
       "update-predecessor": ["win32-x64-node24"],
     });
-    expect(owners.filter(owner => owner.cadence === "exhaustive").map(owner => owner.id)).toEqual(["update-predecessor"]);
-    expect(owners.filter(owner => owner.cadence === "pull-request").map(owner => owner.id)).toEqual(owners.map(owner => owner.id).filter(id => id !== "update-predecessor"));
+    expect(owners.filter(owner => owner.cadence === "exhaustive").map(owner => owner.id)).toEqual(["update-performance", "update-predecessor"]);
+    expect(owners.filter(owner => owner.cadence === "pull-request").map(owner => owner.id)).toEqual(owners.map(owner => owner.id).filter(id => !["update-performance", "update-predecessor"].includes(id)));
   });
 
   it("includes exact integration cadence in generated ownership evidence", async () => {
@@ -63,7 +63,7 @@ describe("integration owner registry", () => {
     try {
       await execFileAsync(process.execPath, ["scripts/release/generate-validation-ownership-ledger.mjs", "--output", output]);
       const ledger = JSON.parse(await readFile(output, "utf8"));
-      expect(ledger.integrationOwners.filter((owner: any) => owner.cadence === "exhaustive").map((owner: any) => owner.id)).toEqual(["update-predecessor"]);
+      expect(ledger.integrationOwners.filter((owner: any) => owner.cadence === "exhaustive").map((owner: any) => owner.id)).toEqual(["update-performance", "update-predecessor"]);
       expect(ledger.tests.find((entry: any) => entry.test === "test/foundation/release/update-predecessor.integration.test.ts").integrationTargets)
         .toEqual([expect.objectContaining({ owner: "update-predecessor", cadence: "exhaustive", platform: "win32", node: 24 })]);
     } finally { await rm(directory, { recursive: true, force: true }); }

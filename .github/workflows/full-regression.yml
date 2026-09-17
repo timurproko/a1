@@ -1,6 +1,8 @@
 name: Full regression
 
 on:
+  schedule:
+    - cron: '47 2 * * *'
   workflow_dispatch:
 
 permissions:
