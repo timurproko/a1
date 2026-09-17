@@ -3,6 +3,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { evaluateDevelopmentValidationTiming } from "./development-validation-timing.mjs";
 import { assertIntegrationSelection } from "./integration-selection.mjs";
+import { validationJobGroup } from "./validation-matrix.mjs";
 import { assertValidationOutcomeAuthority } from "./validation-outcome.mjs";
 
 /** Resolve current-attempt results plus same-run successful evidence from jobs GitHub did not rerun. */
@@ -49,7 +50,7 @@ export function requireModularValidation({ impact, owners, outcomes, envelopes =
       scopes: ["pr-selected-resource"] });
   }
   for (const decision of selection.owners) for (const target of decision.targets) {
-    const descriptor = { owner: decision.owner, job: groupFor(decision.owner, target.platform), platform: target.platform,
+    const descriptor = { owner: decision.owner, job: validationJobGroup(decision.owner, target.platform), platform: target.platform,
       architecture: target.architecture, node: target.node, scopes: decision.scopes };
     if (decision.selected) expected.push(descriptor);
     else if (evidence.some(({ authority }) => matchesOwnerTarget(authority, descriptor))) throw new Error(`excluded owner produced unexpected evidence: ${decision.owner}`);
@@ -117,15 +118,6 @@ function matchesOwnerTarget(authority, expected) {
 }
 function matchesOwner(authority, expected) {
   return matchesOwnerTarget(authority, expected) && expected.scopes.every(scope => authority.selected.includes(scope));
-}
-function groupFor(owner, platform) {
-  if (owner === "pi-release-resume") return "pi";
-  if (["launch-integration", "update-performance", "structured-runtime", "update-predecessor"].includes(owner)) return "promoted";
-  if (owner === "package-contracts") return "package";
-  if (owner === "startup") return "startup";
-  if (["image-compatibility", "history-compatibility"].includes(owner)) return platform === "win32" ? "compatibility" : "containment";
-  if (owner === "unix-containment") return "containment";
-  throw new Error(`unknown modular owner: ${owner}`);
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

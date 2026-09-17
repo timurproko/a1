@@ -32,6 +32,7 @@ jobs:
       documentation-required: ${{ steps.selection.outputs.documentation_required }}
       naming-required: ${{ steps.selection.outputs.naming_required }}
       naming-mode: ${{ steps.selection.outputs.naming_mode }}
+      modular-matrix: ${{ steps.matrix.outputs.modular_matrix }}
       head-sha: ${{ steps.route.outputs.acceptance_only == 'true' && steps.route.outputs.head_sha || steps.selection.outputs.head_sha }}
     steps:
       - name: Route exact acceptance candidate from trusted base
@@ -126,6 +127,21 @@ jobs:
           for (const owner of value.prCore.owners) console.log(`- ${owner.owner}: **${owner.selected ? "selected" : "excluded"}** (${owner.reasons.map(reason => reason.code).join(", ")})`);
           for (const owner of value.integration.selection.owners) console.log(`- integration/${owner.owner}: **${owner.selected ? "selected" : "excluded"}** (${owner.reasons.map(reason => reason.code).join(", ")})`);
           for (const reason of [...value.rendering.reasons, ...value.rendering.fallbacks].slice(0, 20)) console.log(`- rendering: ${reason}`);
+          NODE
+
+      - name: Select modular jobs from the trusted selection
+        id: matrix
+        if: steps.route.outputs.acceptance_only != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/release/validation-matrix.mjs --impact .artifacts/validation/impact.json > "$RUNNER_TEMP/modular-matrix.json"
+          node --input-type=module <<'NODE' >> "$GITHUB_STEP_SUMMARY"
+          import { readFile } from "node:fs/promises";
+          const matrix = JSON.parse(await readFile(`${process.env.RUNNER_TEMP}/modular-matrix.json`, "utf8"));
+          console.log(`\nModular jobs scheduled: **${matrix.include.length}**; left unscheduled by the selection: **${matrix.inactive.length}**.`);
+          for (const entry of matrix.include) console.log(`- scheduled: ${entry.label} (${entry.platform}, node ${entry.node})`);
+          for (const entry of matrix.inactive) console.log(`- unscheduled: ${entry.label} (${entry.platform}, node ${entry.node})`);
           NODE
 
       - name: Upload exact impact selection
@@ -393,17 +409,9 @@ jobs:
     if: needs.changes.outputs.acceptance-only != 'true' && needs.changes.outputs.docs-only != 'true' && needs.changes.outputs.version-only != 'true'
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - { group: core, label: PR core and affected unit owners, os: windows-2025, platform: win32, architecture: x64, node: 24, build: true, guardian: true, defender: false, binary: process-guardian.exe }
-          - { group: resource, label: Resource-sensitive fast partition, os: windows-2025, platform: win32, architecture: x64, node: 24, build: false, guardian: false, defender: false, binary: process-guardian.exe }
-          - { group: pi, label: Pi release and resume integration, os: windows-2025, platform: win32, architecture: x64, node: 24, build: true, guardian: false, defender: false, binary: process-guardian.exe }
-          - { group: promoted, label: Changed full-only integration owners, os: windows-2025, platform: win32, architecture: x64, node: 24, build: true, guardian: false, defender: false, binary: process-guardian.exe }
-          - { group: package, label: Exact-package contracts, os: windows-2025, platform: win32, architecture: x64, node: 22, build: true, guardian: false, defender: false, binary: process-guardian.exe }
-          - { group: startup, label: First-attempt startup budget, os: windows-2025, platform: win32, architecture: x64, node: 22, build: true, guardian: false, defender: true, binary: process-guardian.exe }
-          - { group: compatibility, label: Image and history compatibility, os: windows-2025, platform: win32, architecture: x64, node: 22, build: true, guardian: false, defender: false, binary: process-guardian.exe }
-          - { group: containment, label: Unix integration (Linux), os: ubuntu-24.04, platform: linux, architecture: x64, node: 24, build: true, guardian: true, defender: false, binary: process-guardian }
-          - { group: containment, label: Unix integration (macOS), os: macos-15, platform: darwin, architecture: arm64, node: 24, build: true, guardian: true, defender: false, binary: process-guardian }
+      # The trusted selection schedules only active entries; declared entries live in
+      # scripts/release/validation-matrix.mjs, and the in-job resolver remains the second check.
+      matrix: ${{ fromJSON(needs.changes.outputs.modular-matrix) }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     steps:

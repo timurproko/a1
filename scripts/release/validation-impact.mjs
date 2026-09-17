@@ -114,12 +114,12 @@ export async function selectValidationImpact(options = {}) {
   const exemption = docsOnly ? "docs-only" : versionOnly ? "version-only" : null;
   const [ownership, integrationOwners] = await Promise.all([loadValidationOwnership(repository), loadIntegrationOwners(repository)]);
   const prCore = selectValidationOwnership({ authority: ownership, changes,
-    manualNoComparison: options.manualNoComparison === true || implementationBound, exemption });
+    manualNoComparison: options.manualNoComparison === true, exemption });
   const rendering = docsOnly || versionOnly
     ? { tier: "none", reasons: [], fallbacks: [], changedPaths: [] }
     : await classifyRenderingImpact(repository, base, head, changes);
   const integration = selectIntegrationImpact({ baseId: base, headId: head, changes, owners: integrationOwners, coreSelection: prCore,
-    manualNoComparison: options.manualNoComparison === true || implementationBound, ...(exemption ? { exemption } : {}) });
+    manualNoComparison: options.manualNoComparison === true, ...(exemption ? { exemption } : {}) });
   const selection = {
     schema: "a1-validation-impact-v2",
     base,
