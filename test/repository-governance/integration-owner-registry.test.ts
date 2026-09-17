@@ -7,6 +7,7 @@ import { parse } from "yaml";
 import { describe, expect, it } from "vitest";
 import { loadIntegrationOwners } from "../../scripts/release/integration-owners.mjs";
 import { createTierPlan } from "../../scripts/release/validation-tier.mjs";
+import { publicationValidationMatrix } from "../../scripts/release/publication-validation-matrix.mjs";
 
 const execFileAsync = promisify(execFile);
 
@@ -101,13 +102,13 @@ describe("integration owner registry", () => {
     const full = await planPaths(["full-release"], paths);
     expect(full.sort()).toEqual(paths.sort());
     noDuplicates("full-release", full);
-    for (const workflowPath of [".github/workflows/full-regression.yml", ".github/workflows/release.yml"]) {
-      const workflow = parse(await readFile(workflowPath, "utf8"));
-      const job = workflowPath.includes("full-regression") ? workflow.jobs["full-regression"] : workflow.jobs.validate;
-      expect(job.strategy.matrix.include.map((value: { os: string; node: number }) => `${value.os}:node${value.node}`).sort()).toEqual([
-        "macos-15:node24", "ubuntu-24.04:node24", "windows-2025:node22", "windows-2025:node24",
-      ]);
-    }
+    const lanes = (matrix: { include: { os: string; node: number }[] }) => matrix.include.map(value => `${value.os}:node${value.node}`).sort();
+    const allLanes = ["macos-15:node24", "ubuntu-24.04:node24", "windows-2025:node22", "windows-2025:node24"];
+    const regression = parse(await readFile(".github/workflows/full-regression.yml", "utf8"));
+    expect(lanes(regression.jobs["full-regression"].strategy.matrix)).toEqual(allLanes);
+    const release = parse(await readFile(".github/workflows/release.yml", "utf8"));
+    expect(release.jobs.validate.strategy.matrix).toBe("${{ fromJson(needs.plan.outputs.validate_matrix) }}");
+    for (const mode of ["nightly", "stable"]) expect(lanes(publicationValidationMatrix(mode))).toEqual(allLanes);
   });
 
   it.each([

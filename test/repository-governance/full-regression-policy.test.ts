@@ -2,6 +2,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
 import { createTierPlan } from "../../scripts/release/validation-tier.mjs";
+import { publicationValidationMatrix } from "../../scripts/release/publication-validation-matrix.mjs";
 
 describe("complete regression automation", () => {
   it("remains available on explicit demand while nightly ownership lives with publication", async () => {
@@ -29,16 +30,28 @@ describe("complete regression automation", () => {
     expect(workflow).toContain("--result .artifacts/validation/full-regression.json");
   });
 
-  it("retains both Windows runtimes, Defender, and exact-package gates outside PR startup", async () => {
+  it("retains both Windows runtimes outside development previews, Defender, and exact-package gates outside PR startup", async () => {
     const release = parse(await readFile(".github/workflows/release.yml", "utf8"));
     const regression = parse(await readFile(".github/workflows/full-regression.yml", "utf8"));
     const releaseJob = release.jobs.validate;
     const fullJob = regression.jobs["full-regression"];
+    const lanes = (matrix: { include: { os: string; node: number }[] }) => matrix.include.map(({ os, node }) => `${os}:${node}`).sort();
+    expect(lanes(fullJob.strategy.matrix)).toEqual(["macos-15:24", "ubuntu-24.04:24", "windows-2025:22", "windows-2025:24"]);
+    expect(releaseJob.strategy.matrix).toBe("${{ fromJson(needs.plan.outputs.validate_matrix) }}");
+    expect(release.jobs.plan.outputs.validate_matrix).toBe("${{ steps.lanes.outputs.validate_matrix }}");
+    const lanesStep = release.jobs.plan.steps.find((step: { id: string }) => step.id === "lanes");
+    expect(lanesStep.env.MODE).toBe("${{ needs.source.outputs.mode }}");
+    expect(lanesStep.run).toContain('node scripts/release/publication-validation-matrix.mjs --mode "$MODE"');
+    for (const mode of ["nightly", "stable"]) {
+      expect(lanes(publicationValidationMatrix(mode))).toEqual(["macos-15:24", "ubuntu-24.04:24", "windows-2025:22", "windows-2025:24"]);
+    }
+    expect(lanes(publicationValidationMatrix("develop"))).toEqual(["macos-15:24", "ubuntu-24.04:24", "windows-2025:24"]);
+    expect(() => publicationValidationMatrix("preview")).toThrow(/unknown publication mode/);
+    const guardianCache = release.jobs.guardians.steps.find((step: { name: string }) => step.name === "Cache process guardian build");
+    expect(guardianCache.uses).toBe("Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6");
+    expect(guardianCache.with).toEqual({ workspaces: "native/process-guardian" });
+    expect(release.jobs.guardians.steps.indexOf(guardianCache)).toBeLessThan(release.jobs.guardians.steps.findIndex((step: { run: string }) => step.run === "npm run build:process-guardian"));
     for (const job of [releaseJob, fullJob]) {
-      const matrix = job.strategy.matrix.include as { os: string; node: number }[];
-      expect(matrix.map(({ os, node }) => `${os}:${node}`).sort()).toEqual([
-        "macos-15:24", "ubuntu-24.04:24", "windows-2025:22", "windows-2025:24",
-      ]);
       expect(job.strategy["fail-fast"]).toBe(false);
       expect(job["continue-on-error"]).toBeUndefined();
       const defender = job.steps.findIndex((step: { name: string }) => step.name === "Enable Defender real-time protection for startup acceptance");

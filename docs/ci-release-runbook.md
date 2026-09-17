@@ -106,12 +106,12 @@ node scripts/release/report-resource-sensitive-validation.mjs --repeats 3 --outp
 
 `Development validation required` remains the merge gate for every pull request. For applicable code changes, it requires the dedicated Defender-enabled exact-package startup lane on Windows Node 22. Development validation (including manual dispatch) does not schedule a Windows Node 24 startup lane. The Node 22 lane retains the complete package-install, image preparation/package, and durable-history checks plus startup evidence artifacts. A missing, cancelled, failed, or unexpectedly skipped required startup result still blocks the aggregate; documentation-only, version-only, and draft exemptions are unchanged.
 
-| Startup runtime | Development validation (PR or manual) | Nightly/release validation | Manual Full regression |
-| --- | --- | --- | --- |
-| Windows Node 22 | Required for applicable changes | Retained | Retained |
-| Windows Node 24 | Not scheduled | Retained | Retained |
+| Startup runtime | Development validation (PR or manual) | Development preview (`npm run develop`) | Nightly and stable publication | Manual Full regression |
+| --- | --- | --- | --- | --- |
+| Windows Node 22 | Required for applicable changes | Not scheduled | Retained | Retained |
+| Windows Node 24 | Not scheduled | Retained | Retained | Retained |
 
-Each selected startup lane runs the package-install scenarios once: a failed budget remains failed and is never retried to obtain a warmed result. Both post-update profiles must reach input-ready state within five seconds, and both warm profiles must remain within three seconds. Node 24 runtime support, other PR jobs, Defender, and publication gates are unchanged. Full validation retains every deferred startup, image, and history test through its existing suite owners.
+Each selected startup lane runs the package-install scenarios once: a failed budget remains failed and is never retried to obtain a warmed result. The budgets are the ones the `a1-shell` capability declares (2 seconds after an update and on a warm launch, 2.5 seconds with no live supervisor); development validation and development previews record an overrun as a warning, while nightly, stable, and Full regression fail on it (see `STARTUP_BUDGET_ENFORCEMENT` in [validation](validation.md)). The publication lane set comes from `scripts/release/publication-validation-matrix.mjs`: a numbered preview validates on the Windows, Linux, and macOS Node 24 lanes, and nightly covers the same head on Windows Node 22 within a day. Node 24 runtime support, other PR jobs, Defender, and publication gates are unchanged. Full validation retains every deferred startup, image, and history test through its existing suite owners.
 
 The trade-off is delayed detection: a Node-24-specific regression can reach `develop` before nightly catches it, and the same is true for a real published-predecessor regression. A green bounded PR check does not certify Node 24 or real historical predecessor execution, and nightly failure still blocks its publication. When deferred feedback is needed before nightly, explicitly request the non-publishing Full regression workflow for the desired branch or tag:
 

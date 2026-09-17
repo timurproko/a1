@@ -28,6 +28,7 @@ export interface ExactPackagePreparationEvidence {
   prefix?: string;
   installedIdentity?: Record<string, unknown>;
   proxySynchronizations?: 1;
+  phases?: { installMs: number; proxySynchronizationMs: number; installedIdentityMs: number };
   consumers: Array<"package-startup" | "package-contracts">;
   cleanup: null | { status: "passed" | "deferred" | "failed"; durationMs?: number; error: string | null };
 }

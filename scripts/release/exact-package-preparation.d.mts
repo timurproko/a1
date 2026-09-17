@@ -18,7 +18,12 @@ export interface ExactPackagePreparationReceipt {
     packageRoot: string;
     installedIdentity: { name: string; version: string; files: number; bytes: number; sha256: string };
   };
-  preparation: { count: 1; durationMs: number; proxySynchronizations: 1 };
+  preparation: {
+    count: 1;
+    durationMs: number;
+    proxySynchronizations: 1;
+    phases: { installMs: number; proxySynchronizationMs: number; installedIdentityMs: number };
+  };
   consumers: Array<"package-contracts" | "package-startup">;
   receiptId: string;
 }

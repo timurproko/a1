@@ -53,7 +53,7 @@ node scripts/release/run-validation-tier.mjs --prepare-exact-package --handoff <
 node scripts/release/run-validation-tier.mjs --exact-package-handoff <path> --result <path>
 ```
 
-The preparing command verifies the existing build receipt and the package receipt for the exact candidate, installs once, and writes an `a1-exact-package-handoff-v1` document with its consumers, prepared paths, measured duration, and verified receipt. It runs no other planned command, so Full regression's real work is not executed twice.
+The preparing command verifies the existing build receipt and the package receipt for the exact candidate, installs once, and writes an `a1-exact-package-handoff-v1` document with its consumers, prepared paths, measured duration, and verified receipt. The receipt's `preparation.phases` splits that duration into `installMs` (the npm global install), `proxySynchronizationMs` (the pi-tui proxy repair), and `installedIdentityMs` (the installed-package identity walk); on hosted Windows runners the install phase is the cost, because npm writes roughly 13,000 dependency files there. It runs no other planned command, so Full regression's real work is not executed twice.
 
 The consuming command re-verifies that handoff against the lane, candidate digest, installation policy, declared consumers, and installed bytes before any owner runs, and records the result as `verified-shared-preparation`. A malformed handoff, one that contradicts the plan, or one that fails verification produces a single failed `exact-package-preparation` outcome and stops the run; it never falls back to a second installation. Removing the prepared installation stays with the consuming command either way.
 

@@ -12,8 +12,10 @@ describe("CI and release operations runbook", () => {
 
   it("distinguishes the single-runtime PR startup gate from retained Node 24 full validation", async () => {
     const runbook = await readFile("docs/ci-release-runbook.md", "utf8");
-    expect(runbook).toContain("| Windows Node 22 | Required for applicable changes | Retained | Retained |");
-    expect(runbook).toContain("| Windows Node 24 | Not scheduled | Retained | Retained |");
+    expect(runbook).toContain("| Windows Node 22 | Required for applicable changes | Not scheduled | Retained | Retained |");
+    expect(runbook).toContain("| Windows Node 24 | Not scheduled | Retained | Retained | Retained |");
+    expect(runbook).toContain("scripts/release/publication-validation-matrix.mjs");
+    expect(runbook).not.toMatch(/within five seconds|within three seconds/);
     expect(runbook).toContain("gh workflow run full-regression.yml --ref <branch-or-tag>");
     expect(runbook).toContain("a Node-24-specific regression can reach `develop` before nightly catches it");
     expect(runbook).toContain("nightly failure still blocks its publication");
