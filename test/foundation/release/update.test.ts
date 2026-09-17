@@ -171,7 +171,7 @@ describe("A1 self-update orchestration", () => {
       { command: "npm", arguments: installArguments(latest), request: { captureStdout: true } },
       syncProxyInvocation(harness.packageRoot),
     ]);
-    expect(harness.stdout.join("")).toContain(`a1 updated successfully: ${latest}`);
+    expect(harness.stdout.join("")).toContain(`a1 updated successfully to ${latest}`);
   });
 
   it("installs an exact newer version for a canonical managed global package", async () => {
@@ -192,7 +192,7 @@ describe("A1 self-update orchestration", () => {
       { command: "npm", arguments: installArguments("1.3.0"), request: { captureStdout: true } },
       syncProxyInvocation(harness.packageRoot),
     ]);
-    expect(harness.stdout.join("")).toBe("a1 update: 1.2.3 → 1.3.0\na1 updated successfully: 1.3.0\n");
+    expect(harness.stdout.join("")).toBe("a1 update: 1.2.3 → 1.3.0\na1 updated successfully to 1.3.0\n");
     expect(harness.stderr).toEqual([]);
   });
 
@@ -214,7 +214,7 @@ describe("A1 self-update orchestration", () => {
       { command: "npm", arguments: installArguments("1.3.0-dev.1"), request: { captureStdout: true } },
       syncProxyInvocation(harness.packageRoot),
     ]);
-    expect(harness.stdout.join("")).toBe("a1 update: 1.3.0-dev.0 → 1.3.0-dev.1\na1 updated successfully: 1.3.0-dev.1\n");
+    expect(harness.stdout.join("")).toBe("a1 update: 1.3.0-dev.0 → 1.3.0-dev.1\na1 updated successfully to 1.3.0-dev.1\n");
   });
 
   it("installs the preview a development number names", async () => {
@@ -309,7 +309,7 @@ describe("A1 self-update orchestration", () => {
     })).resolves.toBe(0);
 
     expect(observations).toEqual(["maintenance:false"]);
-    expect(harness.stdout.join("")).toContain("a1 updated successfully: 1.3.0");
+    expect(harness.stdout.join("")).toContain("a1 updated successfully to 1.3.0");
   });
 
   it("keeps the update active through maintenance and publishes success only afterward", async () => {
@@ -379,7 +379,7 @@ describe("A1 self-update orchestration", () => {
 
     expect(packageReplacement).toHaveBeenCalledOnce();
     expect(harness.invocations.some(call => call.arguments[0] === "install")).toBe(false);
-    expect(harness.stdout.join("")).toContain("updated successfully: 1.3.0");
+    expect(harness.stdout.join("")).toContain("updated successfully to 1.3.0");
   });
 
   it("acknowledges cancellation only after protected replacement restores a launcher", async () => {
@@ -475,7 +475,7 @@ describe("A1 self-update orchestration", () => {
       expect(bar).toHaveLength(heading!.length);
       expect(frame.endsWith("\u001b[39m")).toBe(true);
     }
-    expect(text).toContain(`${RETURN}${" ".repeat(46)}${RETURN}a1 updated successfully:`);
+    expect(text).toContain(`${RETURN}${" ".repeat(46)}${RETURN}a1 updated successfully to`);
   });
 
   it("gives the progress row back to the line that says what was installed", async () => {
@@ -490,7 +490,7 @@ describe("A1 self-update orchestration", () => {
     expect(text).not.toContain("100%");
     expect(rendered(text)).toEqual([
       "a1 update: 1.2.3 → 1.3.0",
-      "a1 updated successfully: 1.3.0",
+      "a1 updated successfully to 1.3.0",
     ]);
   });
 
@@ -598,7 +598,7 @@ describe("A1 self-update orchestration", () => {
       "shutdown:1.3.0",
       `activate:${harness.packageRoot}:1.3.0`,
     ]);
-    expect(harness.stdout.join("")).toBe("a1 update: 1.2.3 → 1.3.0\na1 updated successfully: 1.3.0\n");
+    expect(harness.stdout.join("")).toBe("a1 update: 1.2.3 → 1.3.0\na1 updated successfully to 1.3.0\n");
   });
 
   it("records deterministic timing for every completed update phase", async () => {
