@@ -1481,6 +1481,10 @@ export class OwnedUiSessionShell {
     attempt(() => this.#unsubscribe());
     attempt(() => this.#dialogHandle?.hide());
     attempt(() => this.#extensionBridge.dispose());
+    // Invariant: from here to the leave nothing but the outro paints. A throttled frame the
+    // renderer still has queued would otherwise land during the stop-time input drain and
+    // flash the prompt and footer, whether or not an effect plays.
+    attempt(() => this.#freezeQuitPresentation());
     await this.#playQuitOutro(outroFrame);
     // Invariant: terminal restoration precedes any potentially stalled backend teardown. The
     // fullscreen leave preserves the screen: the pinned runtime never dumps its final document
@@ -1508,6 +1512,11 @@ export class OwnedUiSessionShell {
     }
   }
 
+  #freezeQuitPresentation(): void {
+    if (!this.#customViewport || !this.runtime.active || this.runtime.mode !== "fullscreen") return;
+    this.runtime.freezePresentation();
+  }
+
   // Rationale: any failure here only skips the effect; restoration always follows.
   async #playQuitOutro(capture: QuitOutroCapture | null): Promise<void> {
     const outro = this.#quitOutro;
@@ -1517,7 +1526,6 @@ export class OwnedUiSessionShell {
       const { captureQuitOutroFrame, playQuitOutro } = await import("./quit-outro.js");
       const frame = captureQuitOutroFrame(capture.rows, capture.columns, capture.height);
       if (frame === null || !this.runtime.active) return;
-      this.runtime.freezePresentation();
       await playQuitOutro(frame, capture.settings.effect, capture.settings.durationMs, {
         write: data => this.runtime.writeControl(data),
         ...(outro.now === undefined ? {} : { now: outro.now }),

@@ -2457,6 +2457,33 @@ describe("OwnedUiSessionShell", () => {
     expect(terminal.active).toBe(false);
   });
 
+  // Rationale: with the animation off nothing froze the presentation, so a render that landed
+  // during the stop-time input drain flashed the prompt and footer before the leave.
+  it("drops a frame scheduled during disposal when the exit animation is off", async () => {
+    const { shell, terminal } = await fixture([
+      { role: "assistant", content: [{ type: "text", text: "quiet answer" }] },
+    ], [], true, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, {
+      interactive: true, snapshot: () => ({ enabled: false, effect: "fall", durationMs: 800 }),
+    });
+    // Rationale: a throttled frame is still queued when quit begins, and the stop-time
+    // input drain gives its timer room to fire, exactly as a real terminal does.
+    vi.spyOn(terminal, "drainInput").mockImplementation(() => new Promise(resolve => setTimeout(resolve, 40)));
+    shell.runtime.renderNow();
+    shell.root.editor.setText("pending frame");
+    shell.runtime.requestRender();
+    const before = terminal.writes.length;
+    await shell.dispose();
+    const writes = terminal.writes.slice(before);
+    const bytes = writes.join("");
+    const leave = bytes.indexOf("\x1b[?1049l");
+    expect(leave).toBeGreaterThanOrEqual(0);
+    expect(bytes.slice(0, leave)).not.toContain(";1H\x1b[2K");
+    expect(bytes.slice(0, leave)).not.toContain("quiet answer");
+    expect(writes.some(write => write.startsWith("\x1b[?2026h\x1b[?25l\x1b[2J\x1b[H"))).toBe(false);
+    expect(bytes.match(/\x1b\[\?1049l/g)).toHaveLength(1);
+    expect(terminal.active).toBe(false);
+  });
+
   it("plays the default effect when the exit animation is switched on", async () => {
     let clock = 0;
     const { shell, terminal } = await fixture([

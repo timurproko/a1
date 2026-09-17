@@ -7,6 +7,7 @@
 ## 2. Quit Integration
 
 - [x] 2.1 Add `enabled` to `OwnedUiQuitOutroSettings`, drop `off` from `OwnedUiQuitEffect`, read `quitAnimation` in the composition snapshot, and gate `#captureQuitOutroFrame` on `enabled`; verify the session-shell quit fixture that previously used an `off` effect now uses a disabled toggle and still proves a single alternate-screen leave with no paint, and that an enabled toggle with the default effect plays the outro.
+- [x] 2.2 Freeze the presentation for every bare-A1 fullscreen quit before the stop-time input drain, not only when an effect plays; verify a shell test that queues a throttled frame before a disabled-toggle quit sees no frame bytes before the single leave, and that it fails without the freeze.
 
 ## 3. Validation
 

@@ -16,6 +16,7 @@ When an interactive bare-A1 session quits through `/quit`, the second `Ctrl+C` o
 #### Scenario: Exit animation is switched off
 - **WHEN** `quitAnimation` is `false` and the user quits through any interactive route
 - **THEN** A1 SHALL leave the alternate screen without capturing a frame or writing any outro paint
+- **AND** no frame the renderer still has queued SHALL reach the terminal between the quit request and the leave
 - **AND** restoration, the resume hint, and successful process completion SHALL be unchanged
 - **AND** the stored `quitEffect` and `quitEffectDurationMs` SHALL be ignored for that quit
 
