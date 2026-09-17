@@ -90,11 +90,11 @@ return class extends Base {
       && !this.isShowingAutocomplete();
   }
 
-  /** True when autocomplete is searching one top-level slash command that is the editor's only content. */
+  /** True when autocomplete is searching one space-free slash command that is the editor's only content. */
   isTopLevelCommandSearch(): boolean {
     if (!this.isShowingAutocomplete()) return false;
     const text = this.getText();
-    if (!/^\/[^\s/]*$/.test(text)) return false;
+    if (!/^\/\S*$/.test(text)) return false;
     const cursor = this.getCursor();
     return cursor.line === 0 && cursor.col === text.length;
   }

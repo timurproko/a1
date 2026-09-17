@@ -1,4 +1,4 @@
-import { isThumbRow, type ScrollbarGeometry } from "./scrollbar.js";
+import { isThumbRow, type ScrollbarGeometry, type ScrollbarPresentation } from "./scrollbar.js";
 import { displayWidth } from "./text.js";
 import type { UiTheme } from "./theme.js";
 
@@ -10,9 +10,14 @@ export const RAIL_COLUMNS = 2;
 export interface RailOptions {
   /** Rows at the top the rail does not run beside, such as a sticky header. */
   readonly topInset?: number;
+  /** How the rail shows. Absent draws the thin rail whenever the content overflows. */
+  readonly presentation?: ScrollbarPresentation;
 }
 
-/** Draws the rail beside each row, padding the rows to a common width first. */
+/**
+ * Draws the rail beside each row, padding the rows to a common width first.
+ * A presentation that reserves no space returns the rows untouched.
+ */
 export function withScrollbarRail(
   lines: readonly string[],
   geometry: ScrollbarGeometry | null,
@@ -21,10 +26,16 @@ export function withScrollbarRail(
   options: RailOptions = {},
 ): readonly string[] {
   const inset = options.topInset ?? 0;
+  const presentation = options.presentation
+    ?? { visible: geometry !== null, reservesSpace: true, trackGlyph: "│", thumbGlyph: "│" };
+  if (!presentation.reservesSpace) return lines;
+  const drawn = presentation.visible && geometry !== null;
   return lines.map((line, offset) => {
-    const cell = offset < inset || geometry === null
+    const cell = offset < inset || !drawn
       ? " "
-      : isThumbRow(geometry, offset - inset) ? theme.fg("accent", "│") : theme.fg("dim", "│");
+      : isThumbRow(geometry, offset - inset)
+        ? theme.fg("accent", presentation.thumbGlyph)
+        : theme.fg("dim", presentation.trackGlyph);
     return `${pad(line, contentWidth)} ${cell}`;
   });
 }
