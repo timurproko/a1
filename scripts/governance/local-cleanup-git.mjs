@@ -94,12 +94,28 @@ export async function captureWorktree(identity, path, git = gitRunner()) {
 const ORDINARY_CONTENT_ENTRY_LIMIT = 20_000;
 const GENERATED_CONTENT_ENTRY_LIMIT = 100_000;
 
+/** Status rows outside the disposable roots; ignored rows count only when the caller asks for them. */
+export async function statusBlockers(git, path, disposable, { ignored = true } = {}) {
+  const text = await git(path, ["status", "--porcelain=v1", "-z", "--untracked-files=all", ...(ignored ? ["--ignored"] : []), "--ignore-submodules=none"]);
+  const tokens = text.split("\0"), blockers = [];
+  for (let i = 0; i < tokens.length; i++) {
+    const line = tokens[i]; if (!line) continue;
+    const status = line.slice(0, 2), path = line.slice(3).replace(/\/$/, "");
+    if (status !== "!!" || !disposable.some(allowed => path === allowed || path.startsWith(`${allowed}/`))) blockers.push(path);
+    if (/[RC]/.test(status)) { if (tokens[i + 1]) blockers.push(tokens[++i]); }
+  }
+  return blockers;
+}
+
 export async function inspectWorktree(identity, entry, {
   git = gitRunner(), cwd = process.cwd(), deadline = Infinity, now = Date.now,
   ordinaryEntryLimit = ORDINARY_CONTENT_ENTRY_LIMIT, generatedEntryLimit = GENERATED_CONTENT_ENTRY_LIMIT,
+  accepted = async () => false,
 } = {}) {
   const actual = await captureWorktree(identity, entry.path, git);
-  if (["path", "filesystem", "head", "ref"].some(key => actual[key] !== entry[key])) fail("worktree-identity-changed");
+  if (["path", "filesystem", "ref"].some(key => actual[key] !== entry[key])) fail("worktree-identity-changed");
+  // Protocol: a HEAD that moved after registration is identity-consistent only when every reachable commit was accepted.
+  if (actual.head !== entry.head && !await accepted(actual.head)) fail("worktree-identity-changed");
   const current = await canonical(cwd);
   if (current === entry.path || inside(entry.path, current)) fail("current-worktree");
   const flags = await git(entry.path, ["ls-files", "-v", "-z"]);
@@ -114,14 +130,7 @@ export async function inspectWorktree(identity, entry, {
     const modules = await readFile(join(entry.path, path), "utf8");
     if (/^\s*\[submodule\s+"[^"]+"\]\s*$/mi.test(modules) || /^\s*path\s*=\s*\S+/mi.test(modules)) fail("nested-repository");
   }
-  const text = await git(entry.path, ["status", "--porcelain=v1", "-z", "--untracked-files=all", "--ignored", "--ignore-submodules=none"]);
-  const tokens = text.split("\0"), blockers = [];
-  for (let i = 0; i < tokens.length; i++) {
-    const line = tokens[i]; if (!line) continue;
-    const status = line.slice(0, 2), path = line.slice(3).replace(/\/$/, "");
-    if (status !== "!!" || !entry.disposable.some(allowed => path === allowed || path.startsWith(`${allowed}/`))) blockers.push(path);
-    if (/[RC]/.test(status)) { if (tokens[i + 1]) blockers.push(tokens[++i]); }
-  }
+  const blockers = await statusBlockers(git, entry.path, entry.disposable);
   if (blockers.length) return { clean: false, reason: "worktree-content", paths: blockers.slice(0, 100), truncated: blockers.length > 100 };
   if (![ordinaryEntryLimit, generatedEntryLimit].every(value => Number.isSafeInteger(value) && value > 0)) fail("content-inspection-budget");
   let ordinaryVisited = 0, generatedVisited = 0;
@@ -145,7 +154,7 @@ export async function inspectWorktree(identity, entry, {
     }
   }
   await walk(entry.path);
-  return { clean: true };
+  return { clean: true, head: actual.head };
 }
 
 /** Remove only the entry's declared disposable roots, after inspection has bounded them, so Git deletes tracked content alone. */
@@ -281,17 +290,28 @@ export async function removeWorktree(identity, entry, git = gitRunner()) {
   const rows = parseWorktrees(await git(identity.primary, ["worktree", "list", "--porcelain", "-z"]));
   if (await exists(entry.path) || rows.some(row => resolve(row.worktree).replaceAll("\\", "/") === entry.path)) fail("worktree-removal-partial");
 }
-export async function removeLocalRef(identity, entry, git = gitRunner()) {
+export async function removeLocalRef(identity, entry, git = gitRunner(), accepted = async () => false) {
   if (!entry.ref) return "not-applicable";
   if (!safeRef(entry.ref) || await exists(entry.path)) fail("local-ref-unsafe");
   const rows = parseWorktrees(await git(identity.primary, ["worktree", "list", "--porcelain", "-z"]));
   if (rows.some(row => row.branch === entry.ref || resolve(row.worktree).replaceAll("\\", "/") === entry.path)) fail("local-ref-checked-out");
-  const output = await git(identity.primary, ["for-each-ref", "--format=%(refname) %(objectname)", entry.ref]);
-  const exact = output.trim().split("\n").filter(line => line.startsWith(`${entry.ref} `));
-  if (!exact.length) return "already-absent";
-  if (exact.length !== 1 || exact[0] !== `${entry.ref} ${entry.head}`) fail("local-ref-advanced");
-  await git(identity.primary, ["update-ref", "-d", entry.ref, entry.head]);
-  const after = await git(identity.primary, ["for-each-ref", "--format=%(refname)", entry.ref]);
-  if (after.trim().split("\n").includes(entry.ref)) fail("local-ref-removal-partial");
+  const tip = await readLocalRef(identity, entry.ref, git);
+  if (tip === null) return "already-absent";
+  // Protocol: the tip read here is the compare-and-delete expectation; it must be the journaled head or an accepted ancestor.
+  if (tip !== entry.head && !await accepted(tip)) fail("local-ref-advanced");
+  await deleteLocalRef(identity, entry.ref, tip, git);
   return "removed";
+}
+export async function readLocalRef(identity, ref, git = gitRunner()) {
+  const output = await git(identity.primary, ["for-each-ref", "--format=%(refname) %(objectname)", ref]);
+  const exact = output.trim().split("\n").filter(line => line.startsWith(`${ref} `));
+  if (!exact.length) return null;
+  const sha = exact[0].slice(ref.length + 1);
+  if (exact.length !== 1 || !/^[a-f0-9]{40}$/.test(sha)) fail("local-ref-advanced");
+  return sha;
+}
+export async function deleteLocalRef(identity, ref, tip, git = gitRunner()) {
+  await git(identity.primary, ["update-ref", "-d", ref, tip]);
+  const after = await git(identity.primary, ["for-each-ref", "--format=%(refname)", ref]);
+  if (after.trim().split("\n").includes(ref)) fail("local-ref-removal-partial");
 }

@@ -5,13 +5,29 @@ import { acceptanceBranch, archivedAcceptanceMatches, receiptIdentityMatches } f
 import { parseImplementation, SHA } from "./openspec-archive-policy.mjs";
 import { digest, fail } from "./local-cleanup-state.mjs";
 
+const IMMUTABLE_CACHE_ENTRIES = 1000, IMMUTABLE_CACHE_BYTES = 64 * 1024 * 1024;
+/** Content-addressed objects cannot change under a SHA, so one pass may reuse them across its revalidations. */
+const immutablePath = path => /^\/repos\/[^/]+\/[^/]+\/(?:git\/(?:blobs|trees|commits)\/[a-f0-9]{40}(?:\?[A-Za-z0-9=&_-]*)?|compare\/[a-f0-9]{40}\.\.\.[a-f0-9]{40})$/.test(path);
+
 /** Remote reads only; shared archive policy retains acceptance and legacy-link authority. */
 export function cleanupReader({ repository, token, deadline, now = Date.now, fetchImpl = fetch, budget = { remaining: 500 }, onBackoff = () => {} }) {
   const prefix = `/repos/${repository}`;
   let blockedUntil = 0;
+  const cache = new Map(); let cachedBytes = 0;
   const reader = archiveReaderFromGet(repository, async path => {
     if (now() < blockedUntil) fail("remote-backoff");
     if (!path.startsWith(`${prefix}/`) || /[\r\n]/.test(path)) fail("remote-scope");
+    // Performance: pull-request, ref, run, and timeline state is always refetched; only SHA-addressed content is memoized.
+    const cacheable = immutablePath(path);
+    if (cacheable && cache.has(path)) return cache.get(path);
+    const value = await fetchOnce(path);
+    if (cacheable) {
+      const bytes = JSON.stringify(value).length;
+      if (cache.size < IMMUTABLE_CACHE_ENTRIES && cachedBytes + bytes <= IMMUTABLE_CACHE_BYTES) { cache.set(path, value); cachedBytes += bytes; }
+    }
+    return value;
+  });
+  async function fetchOnce(path) {
     if (--budget.remaining < 0 || now() >= deadline) fail("remote-budget");
     let response;
     try {
@@ -42,7 +58,7 @@ export function cleanupReader({ repository, token, deadline, now = Date.now, fet
     } catch (error) { if (error.cleanupCode) throw error; fail("remote-response-unavailable"); }
     finally { stream.releaseLock(); }
     try { return JSON.parse(Buffer.concat(chunks).toString("utf8")); } catch { fail("remote-response-json"); }
-  });
+  }
   return reader;
 }
 function merged(pull, repository) {
@@ -84,12 +100,25 @@ export async function verifyDiscardEvidence(reader, entry) {
     expectedSha: pull.head.sha, actualSha, remoteRefPresent: true };
 }
 
+/** True when `sha` is `head` or one of its ancestors on GitHub; unknown commits and divergence are false, budgets still throw. */
+export async function acceptedHead(reader, sha, head) {
+  if (!SHA.test(sha ?? "") || !SHA.test(head ?? "")) return false;
+  if (sha === head) return true;
+  try { await reader.ancestor(sha, head); return true; }
+  catch (error) { if (["commit-ancestry", "github-not-found"].includes(error.archiveCode)) return false; throw error; }
+}
+
 /** A status comment or absent branch is never proof of integrated archival. */
 export async function verifyCleanupEvidence(reader, entry) {
   const source = await loadArchiveEvidence(reader, entry.sourcePr);
+  if (source.implementation?.version === 3 && source.implementation.change === entry.change) {
+    // Protocol: an unmerged hand-off is reported, never acted on; closure alone grants no discard authority.
+    if (source.disposition === "closed") return { disposition: "awaiting-discard", reason: "pr-closed-unmerged", sourcePr: source.pull.number };
+    if (["draft", "needs-finalization", "ready-for-manual-merge"].includes(source.disposition)) return { disposition: "pending", reason: "pr-open", sourcePr: source.pull.number };
+  }
   if (source.disposition !== "eligible" || source.implementation.change !== entry.change) fail("source-association");
   if (source.implementation.version === 3) {
-    if (entry.role !== "implementation" || entry.candidatePr !== source.pull.number || entry.head !== source.pull.head.sha
+    if (entry.role !== "implementation" || entry.candidatePr !== source.pull.number || !await acceptedHead(reader, entry.head, source.pull.head.sha)
       || entry.ref !== null && entry.ref !== `refs/heads/${source.pull.head.ref}`) fail("candidate-head-association");
     const target = await snapshotOpenSpec(reader, source.targetSha);
     if ([...target.entries.keys()].some(path => path.startsWith(`openspec/changes/${entry.change}/`))
@@ -134,7 +163,8 @@ export async function verifyCleanupEvidence(reader, entry) {
   const acceptance = (await target.blob(`${marker.archive}acceptance.md`))?.toString();
   if (!archivedAcceptanceMatches(acceptance, source, reader.repository)) fail("archived-acceptance");
   const associated = entry.role === "archive" ? archive : source.pull;
-  if (entry.candidatePr !== associated.number || entry.head !== (entry.role === "acceptance" ? associated.merge_commit_sha : associated.head.sha)) fail("candidate-head-association");
+  if (entry.candidatePr !== associated.number || (entry.role === "acceptance" ? entry.head !== associated.merge_commit_sha
+    : !await acceptedHead(reader, entry.head, associated.head.sha))) fail("candidate-head-association");
   if (entry.ref !== null && entry.ref !== `refs/heads/${associated.head.ref}`) fail("candidate-ref-association");
   const refs = [...new Set([source.pull.head.ref, archive.head.ref, associated.head.ref,
     ...(source.acceptance.kind === "pull-request" ? [acceptanceBranch(source.acceptance.record)] : [])])];
