@@ -40,10 +40,13 @@ class FakeSession {
     },
   };
   contextUsage: { tokens: number | null; contextWindow: number; percent: number | null } | undefined;
+  branchEntries: readonly unknown[] | undefined;
   readonly sessionManager = {
     getSessionName: () => "adapter-test",
     getEntries: () => this.messages.map(message => ({ type: "message", message })),
+    getBranch: () => this.branchEntries ?? this.messages.map(message => ({ type: "message", message })),
   };
+  readonly queued: Array<{ mode: "steer" | "followUp"; text: string; images?: readonly unknown[] }> = [];
   readonly calls: string[] = [];
   extensionBindings: unknown;
   extensionCommands: readonly Record<string, unknown>[] = [];
@@ -81,12 +84,25 @@ class FakeSession {
     this.emit({ type: "agent_settled" });
   }
 
-  async steer(text: string): Promise<void> {
+  async steer(text: string, images?: readonly unknown[]): Promise<void> {
     this.calls.push(`steer:${text}`);
+    this.queued.push({ mode: "steer", text, ...(images === undefined ? {} : { images }) });
+    this.emit({ type: "queue_update", steering: this.queued.filter(item => item.mode === "steer").map(item => item.text), followUp: this.queued.filter(item => item.mode === "followUp").map(item => item.text) });
   }
 
-  async followUp(text: string): Promise<void> {
+  async followUp(text: string, images?: readonly unknown[]): Promise<void> {
     this.calls.push(`followUp:${text}`);
+    this.queued.push({ mode: "followUp", text, ...(images === undefined ? {} : { images }) });
+    this.emit({ type: "queue_update", steering: this.queued.filter(item => item.mode === "steer").map(item => item.text), followUp: this.queued.filter(item => item.mode === "followUp").map(item => item.text) });
+  }
+
+  clearQueue(): { steering: string[]; followUp: string[] } {
+    this.calls.push("clearQueue");
+    const steering = this.queued.filter(item => item.mode === "steer").map(item => item.text);
+    const followUp = this.queued.filter(item => item.mode === "followUp").map(item => item.text);
+    this.queued.length = 0;
+    this.emit({ type: "queue_update", steering: [], followUp: [] });
+    return { steering, followUp };
   }
 
   async abort(): Promise<void> {
@@ -765,6 +781,147 @@ describe("Pi engine adapter", () => {
     await adapter.flushEvents();
     expect(adapter.view().lifecycle).toBe("ready");
     expect(adapter.view().status.workingMessage).toBeNull();
+  });
+
+  it("queues input during compaction through the engine queue and starts one run from it after a manual compaction", async () => {
+    const runtime = new FakeRuntime(new FakeSession("pi-session-1"));
+    const { adapter } = await adapterWithRuntime(runtime);
+    const session = runtime.session as FakeSession;
+    const image = { type: "image" as const, data: "aA==", mimeType: "image/png" };
+
+    session.isCompacting = true;
+    session.emit({ type: "compaction_start", reason: "manual" });
+    await adapter.flushEvents();
+    await adapter.execute({ type: "steer", correlationId: "s1", sessionId: adapter.sessionId, text: "first", images: [image] });
+    await adapter.execute({ type: "steer", correlationId: "s2", sessionId: adapter.sessionId, text: "second" });
+    await adapter.execute({ type: "follow-up", correlationId: "f1", sessionId: adapter.sessionId, text: "third" });
+    await adapter.flushEvents();
+    expect(session.calls.filter(call => call.startsWith("prompt:"))).toEqual([]);
+    expect(adapter.view().editor.queuedSubmissions).toEqual(["first", "second", "third"]);
+
+    session.isCompacting = false;
+    session.emit({ type: "compaction_end", reason: "manual", aborted: false, willRetry: false });
+    await adapter.flushEvents();
+    await new Promise(resolve => setImmediate(resolve));
+    expect(session.calls.filter(call => call.startsWith("prompt:") || call.startsWith("steer:") || call.startsWith("followUp:")).slice(-3))
+      .toEqual(["prompt:first:steer", "steer:second", "followUp:third"]);
+    expect(session.queued).toEqual([{ mode: "steer", text: "second" }, { mode: "followUp", text: "third" }]);
+    expect(adapter.view().diagnostics.filter(diagnostic => diagnostic.severity === "error")).toEqual([]);
+  });
+
+  it("does not start a run itself after an automatic compaction", async () => {
+    const runtime = new FakeRuntime(new FakeSession("pi-session-1"));
+    const { adapter } = await adapterWithRuntime(runtime);
+    const session = runtime.session as FakeSession;
+    session.isCompacting = true;
+    session.emit({ type: "agent_start" });
+    session.emit({ type: "compaction_start", reason: "threshold" });
+    await adapter.flushEvents();
+    await adapter.execute({ type: "steer", correlationId: "s1", sessionId: adapter.sessionId, text: "held" });
+    session.isCompacting = false;
+    session.emit({ type: "compaction_end", reason: "threshold", aborted: false, willRetry: false });
+    await adapter.flushEvents();
+    await new Promise(resolve => setImmediate(resolve));
+    expect(session.calls.filter(call => call.startsWith("prompt:"))).toEqual([]);
+    expect(session.queued).toEqual([{ mode: "steer", text: "held" }]);
+  });
+
+  it("reports a refused post-compaction start as a diagnostic and keeps the queue", async () => {
+    const runtime = new FakeRuntime(new FakeSession("pi-session-1"));
+    const { adapter } = await adapterWithRuntime(runtime);
+    const session = runtime.session as FakeSession;
+    session.isCompacting = true;
+    session.emit({ type: "compaction_start", reason: "manual" });
+    await adapter.flushEvents();
+    await adapter.execute({ type: "steer", correlationId: "s1", sessionId: adapter.sessionId, text: "first" });
+    session.isCompacting = false;
+    session.prompt = async (_text, options) => {
+      (options as { preflightResult?: (success: boolean) => void } | undefined)?.preflightResult?.(false);
+      throw new Error("No model selected");
+    };
+    session.emit({ type: "compaction_end", reason: "manual", aborted: true, willRetry: false });
+    await adapter.flushEvents();
+    await new Promise(resolve => setImmediate(resolve));
+    await adapter.flushEvents();
+    expect(session.queued).toEqual([{ mode: "steer", text: "first" }]);
+    expect(adapter.view().diagnostics.at(-1)).toMatchObject({ severity: "error", message: expect.stringContaining("No model selected") });
+  });
+
+  it("estimates compaction progress from the observed summary stream against the previous summary", async () => {
+    const runtime = new FakeRuntime(new FakeSession("pi-session-1"));
+    const session = runtime.session as FakeSession;
+    const streams: Array<{ events: unknown[]; push(event: unknown): void; end(): void }> = [];
+    const streamFunction = vi.fn(async () => {
+      const queue: unknown[] = [];
+      const waiters: Array<(value: IteratorResult<unknown>) => void> = [];
+      let done = false;
+      const stream = {
+        events: queue,
+        push(event: unknown) { const waiter = waiters.shift(); if (waiter) waiter({ value: event, done: false }); else queue.push(event); },
+        end() { done = true; for (const waiter of waiters.splice(0)) waiter({ value: undefined, done: true }); },
+        [Symbol.asyncIterator]() {
+          return { next: () => queue.length > 0 ? Promise.resolve({ value: queue.shift(), done: false }) : done ? Promise.resolve({ value: undefined, done: true }) : new Promise<IteratorResult<unknown>>(resolve => waiters.push(resolve)) };
+        },
+        result: () => Promise.resolve({}),
+      };
+      streams.push(stream);
+      return stream;
+    });
+    (session.agent as { streamFunction?: unknown }).streamFunction = streamFunction;
+    session.branchEntries = [{ type: "compaction", summary: "x".repeat(400) }, { type: "message", message: { role: "user", content: [] } }];
+    const { adapter, events } = await adapterWithRuntime(runtime);
+    const progress = () => events.filter(event => event.type === "status").map(event => (event as { status: { workingMessage: string | null; workingProgress?: number | null } }).status).map(status => `${status.workingMessage}:${status.workingProgress ?? "-"}`);
+
+    // Invariant: outside compaction the wrapper passes the stream through unobserved.
+    const agent = session.agent as unknown as { streamFunction: (...args: unknown[]) => Promise<unknown> };
+    await agent.streamFunction({}, {}, {});
+    streams[0]!.push({ type: "text_delta", delta: "ignored" });
+    streams[0]!.end();
+    await adapter.flushEvents();
+    expect(progress()).toEqual([]);
+
+    session.emit({ type: "compaction_start", reason: "manual" });
+    await adapter.flushEvents();
+    await agent.streamFunction({}, {}, {});
+    await new Promise(resolve => setImmediate(resolve));
+    await adapter.flushEvents();
+    expect(progress().at(-1)).toBe("Compacting:0");
+    streams[1]!.push({ type: "text_delta", delta: "a".repeat(100) });
+    streams[1]!.push({ type: "text_delta", delta: "b".repeat(100) });
+    streams[1]!.push({ type: "thinking_delta", delta: "c".repeat(100) });
+    await new Promise(resolve => setImmediate(resolve));
+    await adapter.flushEvents();
+    expect(adapter.view().status).toMatchObject({ workingMessage: "Compacting", workingProgress: 50 });
+    streams[1]!.push({ type: "text_delta", delta: "d".repeat(1000) });
+    await new Promise(resolve => setImmediate(resolve));
+    await adapter.flushEvents();
+    expect(adapter.view().status.workingProgress).toBe(99);
+    streams[1]!.end();
+
+    session.emit({ type: "compaction_end", reason: "manual", aborted: false, willRetry: false });
+    await adapter.flushEvents();
+    expect(adapter.view().status).toMatchObject({ workingMessage: null, workingProgress: null });
+    expect(progress().filter(entry => entry.startsWith("Compacting:"))).toEqual(["Compacting:-", "Compacting:0", "Compacting:25", "Compacting:50", "Compacting:99"]);
+
+    // Invariant: a stream after compaction ended reports nothing, and unbinding restores the original.
+    await agent.streamFunction({}, {}, {});
+    streams[2]!.push({ type: "text_delta", delta: "late" });
+    streams[2]!.end();
+    await new Promise(resolve => setImmediate(resolve));
+    await adapter.flushEvents();
+    expect(adapter.view().status.workingProgress).toBeNull();
+    await adapter.dispose();
+    expect(agent.streamFunction).toBe(streamFunction);
+  });
+
+  it("shows plain compaction when the agent exposes no stream function", async () => {
+    const runtime = new FakeRuntime(new FakeSession("pi-session-1"));
+    const { adapter, events } = await adapterWithRuntime(runtime);
+    const session = runtime.session as FakeSession;
+    session.emit({ type: "compaction_start", reason: "manual" });
+    await adapter.flushEvents();
+    expect(adapter.view().status).toMatchObject({ workingMessage: "Compacting", workingProgress: null });
+    expect(events.filter(event => event.type === "status")).toHaveLength(1);
   });
 
   it("leaves a compaction outside a run idle rather than working", async () => {

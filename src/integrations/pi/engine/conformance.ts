@@ -22,7 +22,7 @@ export interface PiCapabilityConformanceResult {
 export const REQUIRED_PI_CAPABILITY_OPERATIONS = Object.freeze({
   "public-exports": ["services.create", "session.create", "runtime.create"],
   "session-lifecycle": ["session.new", "session.resume", "session.rebind", "session.dispose"],
-  "commands-events": ["prompt", "steer", "followUp", "abort", "compact", "setModel", "setThinkingLevel", "subscribe", "dispose"],
+  "commands-events": ["prompt", "steer", "followUp", "clearQueue", "abort", "compact", "setModel", "setThinkingLevel", "subscribe", "dispose"],
   "models-authentication": ["models.list", "models.refresh", "models.completeSimple", "auth.status", "auth.login", "auth.logout", "auth.cancel"],
   settings: ["settings.read", "settings.write", "settings.flush"],
   "resources-extensions": ["resources.discover", "extensions.inline", "extensions.bind", "extensions.reload", "renderers.invoke"],
@@ -107,7 +107,7 @@ export async function runPiUpgradeConformance(): Promise<PiUpgradeConformanceRep
       });
       const session = created.session;
       sessionId = session.sessionId;
-      requireMethods(session, "session commands", ["prompt", "steer", "followUp", "abort", "compact", "setModel", "setThinkingLevel", "subscribe", "dispose"]);
+      requireMethods(session, "session commands", ["prompt", "steer", "followUp", "clearQueue", "abort", "compact", "setModel", "setThinkingLevel", "subscribe", "dispose"]);
       requireMethods(services.modelRuntime, "models/authentication", ["getModels", "getModel", "completeSimple", "checkAuth", "login", "logout", "refresh"]);
       requireMethods(services.settingsManager, "settings", ["getGlobalSettings", "getProjectSettings", "flush"]);
       requireMethods(services.resourceLoader, "resources/extensions", ["getExtensions", "getSkills", "getPrompts", "getThemes", "reload"]);
@@ -118,7 +118,7 @@ export async function runPiUpgradeConformance(): Promise<PiUpgradeConformanceRep
       throw new PiUpgradeConformanceError("session", error);
     }
 
-    const commandSurface = ["prompt", "steer", "followUp", "abort", "compact", "setModel", "setThinkingLevel", "subscribe", "dispose"] as const;
+    const commandSurface = ["prompt", "steer", "followUp", "clearQueue", "abort", "compact", "setModel", "setThinkingLevel", "subscribe", "dispose"] as const;
     const capabilities = Object.entries(REQUIRED_PI_CAPABILITY_OPERATIONS)
       .map(([capabilityName, operations]) => capability(capabilityName, operations));
     validatePiCapabilityResults(VERSION, capabilities);

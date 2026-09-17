@@ -207,20 +207,20 @@ describe("the settings screen", () => {
     const selectedRow = lines.findIndex(line => line.includes("<accent>→ </accent>"));
     expect(selectedRow).toBeGreaterThanOrEqual(0);
     const selected = lines[selectedRow]!;
-    expect(selected).toContain("<accent>Scrollbar mode");
-    expect(selected).toContain("<muted>auto</muted>");
-    expect(selected).not.toContain("<accent>auto");
+    expect(selected).toContain("<accent>Exit animation");
+    expect(selected).toContain("<muted>yes</muted>");
+    expect(selected).not.toContain("<accent>yes");
     const unselected = lines.find(line => line.includes("Scrollbar style"))!;
     expect(unselected).toContain("<muted>thin</muted>");
     expect(unselected).not.toContain("<accent>");
 
-    const valueColumn = screen(target)[selectedRow]!.indexOf("auto") + 1;
+    const valueColumn = screen(target)[selectedRow]!.indexOf("yes") + 1;
     target.onMouse?.({ kind: "motion", button: 0, row: selectedRow + 1, column: valueColumn }, NAMING_HOST);
     const pointed = named()[selectedRow]!;
-    expect(pointed).toContain("<accent>Scrollbar mode");
-    expect(pointed).toMatch(/\s+auto$/);
-    expect(pointed).not.toContain("<muted>auto");
-    expect(pointed).not.toContain("<accent>auto");
+    expect(pointed).toContain("<accent>Exit animation");
+    expect(pointed).toMatch(/\s+yes$/);
+    expect(pointed).not.toContain("<muted>yes");
+    expect(pointed).not.toContain("<accent>yes");
   });
 
   it("keeps the moved control stable through section jumps, search, refresh, keyboard, and pointer changes", async () => {

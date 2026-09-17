@@ -165,12 +165,6 @@ export class OwnedUiSessionShell {
   #showImages = true;
   #imageWidthCells = 80;
   #fullscreenExitOutput: "transcript" | "resume-hint" = "transcript";
-  #compactionQueue: Array<{
-    readonly text: string;
-    readonly draft: string;
-    readonly type: "steer" | "follow-up";
-    readonly images?: readonly OwnedUiImageAttachment[];
-  }> = [];
   readonly #waitingImages = new Map<string, { controller: AbortController; result: Promise<AdapterCommandResult> }>();
   #lastClearTime = 0;
   #lastEscapeTime = 0;
@@ -579,7 +573,6 @@ export class OwnedUiSessionShell {
           model: event.model,
         });
       }
-      if (view.lifecycle === "ready" && this.#compactionQueue.length > 0) void this.#flushCompactionQueue();
       if (event.type === "session-lifecycle" && event.lifecycle === "stopped") this.#settleStoppedLifecycle();
     });
     this.#unbindClipboardWriter = this.#responseCopy === null ? () => {} : this.backend.bindClipboardWriter(async text => {
@@ -719,18 +712,8 @@ export class OwnedUiSessionShell {
         }
       }
     }
-    if (this.view().status.workingMessage?.startsWith("Compacting") === true) {
-      this.#rememberInput(displayInput, "steer");
-      this.#compactionQueue.push({
-        text: input,
-        draft: displayInput,
-        type: "steer",
-        ...(prepared.images.length === 0 ? {} : { images: prepared.images }),
-      });
-      this.root.appendWorkflowResult({ command: "compact", outcome: "completed", message: `Queued during compaction: ${input}` });
-      this.runtime.requestRender();
-      return { outcome: "completed", diagnostic: null };
-    }
+    // Compatibility: match interactive Pi: input during compaction is queued steering; the engine
+    // shows it in the pending rows and delivers it when compaction ends.
     const type = this.view().lifecycle === "busy" ? "steer" as const : "prompt" as const;
     this.#rememberInput(displayInput, type);
     this.root.resumeViewportFollowing();
@@ -855,15 +838,6 @@ export class OwnedUiSessionShell {
     this.#rememberInput(displayInput, "follow-up");
     if (this.root.editor.getText() === draft) this.root.editor.setText("");
     this.root.resumeViewportFollowing();
-    if (this.view().status.workingMessage?.startsWith("Compacting") === true) {
-      this.#compactionQueue.push({
-        text,
-        draft: displayInput,
-        type: "follow-up",
-        ...(prepared.images.length === 0 ? {} : { images: prepared.images }),
-      });
-      return { outcome: "completed", diagnostic: null };
-    }
     return this.#execute({
       type: "follow-up",
       correlationId: this.#correlation("follow-up"),
@@ -874,9 +848,8 @@ export class OwnedUiSessionShell {
   }
 
   restoreQueuedInput(): void {
-    const queued = [...this.#waitingImages.keys(), ...this.backend.clearQueuedWorkflows(), ...this.#compactionQueue.map(item => item.draft)];
+    const queued = [...this.#waitingImages.keys(), ...this.backend.clearQueuedWorkflows()];
     this.#cancelWaitingImages();
-    this.#compactionQueue = [];
     if (queued.length === 0) return;
     this.root.editor.setText(queued.join("\n"));
     this.runtime.requestRender();
@@ -1838,20 +1811,6 @@ export class OwnedUiSessionShell {
     this.#activeLoginDialog = undefined;
     this.root.setInputSurface(null);
     this.runtime.requestRender();
-  }
-
-  async #flushCompactionQueue(): Promise<void> {
-    const queued = this.#compactionQueue;
-    this.#compactionQueue = [];
-    for (const item of queued) {
-      await this.#execute({
-        type: item.type,
-        correlationId: this.#correlation(`compaction-${item.type}`),
-        sessionId: this.backend.sessionId,
-        text: item.text,
-        ...(item.images === undefined ? {} : { images: item.images }),
-      }, item.draft);
-    }
   }
 
   async #execute(command: OwnedUiCommand, draft?: string): Promise<AdapterCommandResult> {

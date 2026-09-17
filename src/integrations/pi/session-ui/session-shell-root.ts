@@ -352,6 +352,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     });
     this.resources = createPiShellLoadedResources(startup.resources ?? [], startup.expanded ?? false);
     this.#status = createPiShellStatus(view, progressStatusText, handlers);
+    this.#status.setProgressPresentation(this.#customViewport ? "custom-viewport" : "pinned");
     this.#footer = createPiShellFooter(this.#viewWithExtensionStatuses(view), cwd, this.#customViewport ? "a1" : "pi");
     this.#queued = createPiQueuedInputStatus(
       view.editor.queuedSubmissions,
