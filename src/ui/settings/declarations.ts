@@ -1,4 +1,4 @@
-export const OWNED_UI_SETTINGS_VERSION = 4;
+export const OWNED_UI_SETTINGS_VERSION = 5;
 
 export type OwnedUiSettingValue = string | number | boolean;
 
@@ -20,6 +20,12 @@ const MAX_ID_LENGTH = 64;
 const ID_PATTERN = /^[a-z][a-z0-9]*(?:[A-Z][a-z0-9]*)*$/;
 
 const SCROLL_SECTION = Object.freeze({ id: "scroll", title: "Scroll" });
+const QUIT_SECTION = Object.freeze({ id: "quit", title: "Quit" });
+
+/** Playback lengths the quit outro offers, in milliseconds. */
+export const QUIT_EFFECT_DURATIONS_MS: readonly number[] = Object.freeze(
+  Array.from({ length: 18 }, (_, index) => 300 + index * 100),
+);
 
 export const OWNED_UI_SETTING_DECLARATIONS: readonly OwnedUiSettingDeclaration[] = Object.freeze([
   Object.freeze({
@@ -66,6 +72,24 @@ export const OWNED_UI_SETTING_DECLARATIONS: readonly OwnedUiSettingDeclaration[]
     application: "restart",
     defaultValue: 100,
     allowedValues: Object.freeze([10, 20, 30, 40, 50, 60, 70, 80, 90, 100]),
+  }),
+  Object.freeze({
+    id: "quitEffect",
+    label: "Effect",
+    section: QUIT_SECTION,
+    description: "Animation played over the last screen when the session quits.",
+    application: "live",
+    defaultValue: "fall",
+    allowedValues: Object.freeze(["fall", "dissolve", "starburst", "waves", "off"]),
+  }),
+  Object.freeze({
+    id: "quitEffectDurationMs",
+    label: "Duration",
+    section: QUIT_SECTION,
+    description: "Milliseconds the quit animation plays before the terminal is restored.",
+    application: "live",
+    defaultValue: 800,
+    allowedValues: QUIT_EFFECT_DURATIONS_MS,
   }),
   Object.freeze({
     id: "promptSuggestions",

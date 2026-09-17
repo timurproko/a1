@@ -83,6 +83,19 @@ export interface OwnedUiViewportSettingsPort {
   onChange(listener: (settings: OwnedUiViewportSettings) => void): () => void;
 }
 
+export type OwnedUiQuitEffect = "fall" | "dissolve" | "starburst" | "waves" | "off";
+
+/** Profile-local quit outro choice, read at the moment bare A1 quits. */
+export interface OwnedUiQuitOutroSettings {
+  readonly effect: OwnedUiQuitEffect;
+  /** Requested playback length; the player clamps it to its supported range. */
+  readonly durationMs: number;
+}
+
+export interface OwnedUiQuitOutroSettingsPort {
+  snapshot(): OwnedUiQuitOutroSettings;
+}
+
 export interface OwnedUiTerminalSurface {
   readonly columns: number;
   readonly rows: number;

@@ -181,6 +181,51 @@ describe("PiTuiRuntimeAdapter", () => {
     expect(terminal.writes.at(-1)).toBe("progress:false");
   });
 
+  it("drops renderer frames while presentation is frozen but still passes control writes and the stop sequence", async () => {
+    const terminal = new TestTerminal();
+    const root = new TestComponent(["frozen", "before"]);
+    const runtime = new PiTuiRuntimeAdapter({ root, terminal, mode: "fullscreen", mouse: false });
+    runtime.start();
+    runtime.renderNow(true);
+    expect(runtime.presentationFrozen).toBe(false);
+    runtime.freezePresentation();
+    expect(runtime.presentationFrozen).toBe(true);
+    const before = terminal.writes.length;
+    root.lines = ["frozen", "after"];
+    runtime.renderNow(true);
+    runtime.invalidate();
+    runtime.renderNow();
+    expect(terminal.writes).toHaveLength(before);
+    runtime.writeControl("\x1b[?1003l");
+    expect(terminal.writes.at(-1)).toBe("\x1b[?1003l");
+    await runtime.stop({ drainInput: false, preserveScreen: true });
+    expect(runtime.state).toBe("stopped");
+    expect(runtime.presentationFrozen).toBe(false);
+    const afterControl = terminal.writes.slice(before + 1).join("");
+    expect(afterControl).toContain("\x1b[?1049l");
+    expect(afterControl).not.toContain("after");
+    expect(afterControl).not.toContain("\r\x1b[2K");
+  });
+
+  it("leaves the alternate screen with the last document only when the screen is not preserved", async () => {
+    const dumped = new TestTerminal();
+    const dumping = new PiTuiRuntimeAdapter({ root: new TestComponent(["dump me"]), terminal: dumped, mode: "fullscreen", mouse: false });
+    dumping.start();
+    dumping.renderNow(true);
+    await dumping.stop({ drainInput: false });
+    const dumpedParent = dumped.writes.join("").split("\x1b[?1049l").at(-1)!;
+    expect(dumpedParent).toContain("dump me");
+
+    const preserved = new TestTerminal();
+    const preserving = new PiTuiRuntimeAdapter({ root: new TestComponent(["keep me"]), terminal: preserved, mode: "fullscreen", mouse: false });
+    preserving.start();
+    preserving.renderNow(true);
+    await preserving.stop({ drainInput: false, preserveScreen: true });
+    const preservedParent = preserved.writes.join("").split("\x1b[?1049l").at(-1)!;
+    expect(preservedParent).not.toContain("keep me");
+    expect(preserved.writes.join("").match(/\x1b\[\?1049l/g)).toHaveLength(1);
+  });
+
   it("reports progress control failure and still performs unconditional cleanup", async () => {
     const terminal = new TestTerminal();
     const runtime = new PiTuiRuntimeAdapter({ root: new TestComponent(["root"]), terminal });

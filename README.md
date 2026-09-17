@@ -71,6 +71,15 @@ preferred when consistent with your intent; genuinely unclear cases can remain
 empty. [Private diagnostic capture](docs/architecture/prompt-suggestions.md)
 explains how to distinguish skipped, empty, rejected, and timed-out suggestions.
 
+## Quitting
+
+`/quit`, `Ctrl+C` twice, and `Ctrl+D` on an empty prompt end a bare A1 session.
+The last screen dissolves on the alternate screen, the terminal is restored once,
+and only the dim `To resume this session:` hint is printed; the conversation is
+not echoed into your scrollback. `/settings` → Quit chooses the effect (`fall`,
+`dissolve`, `starburst`, `waves`, or `off`) and its duration (300–2000 ms). The
+`a1 pi` comparison profile keeps Pi's `fullscreenExitOutput` behavior.
+
 ## Prompt history
 
 Bare A1 recalls recent unique prompts across sessions with Up/Down. History is

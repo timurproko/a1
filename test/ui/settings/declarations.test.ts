@@ -28,6 +28,8 @@ describe("owned UI setting declarations", () => {
       "scrollbarSpeed",
       "promptHistoryEnabled",
       "promptHistoryMaxItems",
+      "quitEffect",
+      "quitEffectDurationMs",
       "promptSuggestions",
     ]);
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "promptSuggestions")).toMatchObject({
@@ -69,6 +71,21 @@ describe("owned UI setting declarations", () => {
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "promptHistoryMaxItems")).toMatchObject({
       label: "History limit", section: { id: "history", title: "History" }, application: "restart", defaultValue: 100, allowedValues: [10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
     });
+  });
+
+  it("declares live quit outro effect and duration controls with prototype defaults", () => {
+    expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "quitEffect")).toMatchObject({
+      label: "Effect", section: { id: "quit", title: "Quit" }, application: "live", defaultValue: "fall",
+      allowedValues: ["fall", "dissolve", "starburst", "waves", "off"],
+    });
+    expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "quitEffectDurationMs")).toMatchObject({
+      label: "Duration", section: { id: "quit", title: "Quit" }, application: "live", defaultValue: 800,
+    });
+    const durations = findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "quitEffectDurationMs")?.allowedValues ?? [];
+    expect(durations).toHaveLength(18);
+    expect(durations[0]).toBe(300);
+    expect(durations.at(-1)).toBe(2000);
+    expect(durations.every((value, index) => value === 300 + index * 100)).toBe(true);
   });
 
   it("rejects a default outside the allowed values", () => {
@@ -126,7 +143,7 @@ describe("owned UI settings migrations", () => {
   });
 
   it("migrates the former speed and appearance names", () => {
-    expect(OWNED_UI_SETTINGS_MIGRATIONS).toHaveLength(3);
+    expect(OWNED_UI_SETTINGS_MIGRATIONS).toHaveLength(4);
     expect(OWNED_UI_SETTINGS_MIGRATIONS[0]?.migrate({ scrollbarSpeed: "high", future: true }))
       .toEqual({ scrollbarSpeed: "fast", future: true });
     expect(OWNED_UI_SETTINGS_MIGRATIONS[1]?.migrate({ scrollbarAppearance: "hover", future: true }))
@@ -135,6 +152,8 @@ describe("owned UI settings migrations", () => {
       .toEqual({ scrollbarAppearance: "always" });
     expect(OWNED_UI_SETTINGS_MIGRATIONS[2]?.migrate({ future: true }))
       .toEqual({ future: true });
+    expect(OWNED_UI_SETTINGS_MIGRATIONS[3]?.migrate({ scrollbarSpeed: "fast", promptSuggestions: false }))
+      .toEqual({ scrollbarSpeed: "fast", promptSuggestions: false });
   });
 
   it("rejects a list with a gap or a wrong end version", () => {

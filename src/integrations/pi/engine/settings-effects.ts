@@ -33,7 +33,6 @@ export type PiSettingVisualClass =
   | "menu-geometry"
   | "terminal-frame"
   | "terminal-status"
-  | "restored-parent-output"
   | "hidden";
 
 export interface PiSettingVisualEvidence {
@@ -86,7 +85,7 @@ export const PI_SETTING_EFFECTS: Readonly<Record<PiSettingKey, PiSettingEffectDe
   clearOnShrink: effect("live", "terminal", "terminal-frame", "pinned resize clearing and resulting terminal frame", "pi-terminal-operation-parity"),
   showTerminalProgress: effect("live", "terminal", "terminal-status", "pinned OSC progress lifecycle", "pi-terminal-operation-parity"),
   tuiMode: hiddenEffect("next-session", "shell", "pinned regular/fullscreen selector and terminal lifecycle", "pi-terminal-operation-parity"),
-  fullscreenExitOutput: effect("current-exit", "shutdown", "restored-parent-output", "pinned styled transcript and compact dim resume hint", "pinned-fullscreen-exit-parity"),
+  fullscreenExitOutput: hiddenEffect("current-exit", "shutdown", "pinned styled transcript and compact dim resume hint", "pinned-fullscreen-exit-parity"),
   fullscreenScrollbar: hiddenEffect("live", "shell", "pinned fullscreen scrollbar reservation", "pi-terminal-operation-parity"),
   warnings: effect("live", "agent", "transcript-notice", "pinned warning rows by warning part", "pinned-transcript-lifecycle-parity"),
 });

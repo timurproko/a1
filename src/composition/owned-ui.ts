@@ -17,7 +17,7 @@ import { OwnedUiSettingsSession } from "../ui/settings/session.js";
 import { OwnedUiSettingsStore } from "../ui/settings/store.js";
 import { createPiTerminalBridge } from "../integrations/pi/tui-runtime/presentation-adapter.js";
 import type { OwnedUiApplicationPort, PresentationTerminalPort } from "../contracts/presentation/index.js";
-import type { OwnedUiViewportSettings, OwnedUiViewportSettingsPort } from "../contracts/owned-ui/index.js";
+import type { OwnedUiQuitOutroSettings, OwnedUiViewportSettings, OwnedUiViewportSettingsPort } from "../contracts/owned-ui/index.js";
 import { createOwnedRouteHost } from "./settings-route-host.js";
 
 export interface OwnedUiCompositionOptions {
@@ -124,6 +124,9 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
       inputPresentation: { onEvent: event => clipboardDiagnostics.runtime(event) },
     }),
     ...(viewportSettings === null ? {} : { viewportSettings }),
+    ...(settings === null || !ownedSurfaces ? {} : {
+      quitOutro: { snapshot: () => quitOutroSettingsSnapshot(settings), interactive: process.stdout.isTTY === true },
+    }),
     ...(promptSuggestions === null ? {} : { promptSuggestions }),
     ...(promptHistory === null ? {} : { promptHistory: {
       ...promptHistory,
@@ -144,6 +147,15 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     },
   };
   return { application, settings };
+}
+
+function quitOutroSettingsSnapshot(settings: OwnedUiSettingsSession): OwnedUiQuitOutroSettings {
+  const effect = settings.value("quitEffect");
+  const durationMs = settings.value("quitEffectDurationMs");
+  return {
+    effect: effect === "dissolve" || effect === "starburst" || effect === "waves" || effect === "off" ? effect : "fall",
+    durationMs: typeof durationMs === "number" ? durationMs : 800,
+  };
 }
 
 function viewportSettingsSnapshot(settings: OwnedUiSettingsSession): OwnedUiViewportSettings {
