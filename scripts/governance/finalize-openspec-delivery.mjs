@@ -5,7 +5,8 @@ import { promisify } from "node:util";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { prepareSinglePrDelivery } from "./openspec-delivery-finalization.mjs";
-import { CHANGE, SHA } from "./openspec-archive-policy.mjs";
+import { readCanonicalSpecs } from "./openspec-delivery-git.mjs";
+import { CHANGE, parseImplementation, SHA } from "./openspec-archive-policy.mjs";
 
 const execute = promisify(execFile);
 
@@ -36,11 +37,14 @@ export async function main(args = process.argv.slice(2), { cwd = process.cwd() }
   const body = await readFile(bodyPath, "utf8");
   const head = (await execute("git", ["rev-parse", "HEAD"], { cwd: root })).stdout.trim();
   await execute("git", ["merge-base", "--is-ancestor", options.target, head], { cwd: root });
+  const finalized = Boolean(parseImplementation(body)?.archive);
   const specDiff = await execute("git", ["diff", "--name-only", options.target, "--", "openspec/specs"], { cwd: root });
-  if (specDiff.stdout.trim()) throw new Error("canonical specs already differ from the target; reconcile before finalization");
+  // Rationale: a finalized head legitimately carries synchronized specs; re-finalization rebuilds them from the target.
+  if (specDiff.stdout.trim() && !finalized) throw new Error("canonical specs already differ from the target; reconcile before finalization");
   const result = await prepareSinglePrDelivery({ root, change: options.change, repository: options.repository,
     sourcePr: Number(options.pr), body, specBaseSha: options.target, date: options.date, knownGaps: options.gaps,
-    write: options.write, bodyPath: options.write ? bodyPath : null });
+    write: options.write, bodyPath: options.write ? bodyPath : null,
+    targetSpecs: await readCanonicalSpecs({ cwd: root, sha: options.target }) });
   process.stdout.write(`${JSON.stringify({ disposition: result.disposition, archive: result.paths?.archive ?? result.implementation?.archive,
     acceptanceManifest: result.paths ? `${result.paths.archive}acceptance.md` : result.implementation?.acceptanceManifest,
     changedPaths: result.changes.map(change => change.filename), bodyFile: bodyPath }, null, 2)}\n`);

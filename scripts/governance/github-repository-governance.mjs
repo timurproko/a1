@@ -81,6 +81,7 @@ export function inspectWorkflowSource(path, source) {
       if (source.includes("--validate-acceptance")) authority.push("acceptance-record-validation");
     }
   }
+  if (source.includes("publish-openspec-finalization.mjs") && source.includes("OPENSPEC_ARCHIVE_APP_PRIVATE_KEY")) authority.push("single-pr-finalization-publication");
   if (source.includes('channel = "next"')) authority.push("npm-next");
   if (source.includes('channel = "latest"')) authority.push("npm-latest");
   if (source.includes("ref=refs/tags/")) authority.push("release-tag");
