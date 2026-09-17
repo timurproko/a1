@@ -41,7 +41,7 @@ describe("shared prompt input presentation", () => {
     expect(rows[1]?.trimEnd()).toBe("❯ first");
     expect(rows[2]?.trimEnd()).toBe("  second");
     expect(rows[3]).toContain("↓ 2");
-    expect(rows[4]?.trimEnd()).toBe("  menu");
+    expect(rows[4]?.trimEnd()).toBe("menu");
     expect(input.geometry(10, 2)).toEqual({ prefixWidth: 2, innerWidth: 8, paddingX: 2, contentWidth: 4, layoutWidth: 4 });
     expect(input.geometry(2, 3).contentWidth).toBe(3);
   });

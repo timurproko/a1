@@ -178,7 +178,8 @@ describe.each([false, true])("above-prompt autocomplete (history=%s)", history =
           for (const width of [12, 40, 80]) {
             height(8);
             const actual = parts(editor, width);
-            const expected = reference.editor.render(width - 2).slice(3).map(row => `  ${row}`);
+            // Rationale: menu rows sit flush with the prompt glyph; the reference renders at inner width, so pad right to the frame.
+            const expected = reference.editor.render(width - 2).slice(3).map(row => `${row}  `);
             const counter = limit < items.length ? expected.pop() : undefined;
             expect(actual.menu).toEqual(expected);
             if (counter !== undefined) {
@@ -193,7 +194,7 @@ describe.each([false, true])("above-prompt autocomplete (history=%s)", history =
         }
         // Compatibility: keep the existing active-list setting semantics as well as future-list sizing.
         editor.setAutocompleteMaxVisible(8); reference.editor.setAutocompleteMaxVisible(8);
-        const referenceRows = reference.editor.render(78).slice(3).map(row => `  ${row}`);
+        const referenceRows = reference.editor.render(78).slice(3).map(row => `${row}  `);
         if (limit < items.length) referenceRows.pop();
         expect(parts(editor, 80).menu).toEqual(referenceRows);
         for (const target of [editor, reference.editor]) target.handleInput?.("\t");

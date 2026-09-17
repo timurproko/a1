@@ -66,7 +66,9 @@ export class PromptInput {
       ...(ruled ? [rule(body.topRule)] : []),
       ...rows,
       ...(ruled ? [rule(body.bottomRule)] : []),
-      ...(body.after ?? []).map(row => fit(`${" ".repeat(prefixWidth)}${row}`)),
+      // Rationale: menu rows sit flush with the prompt glyph so the selection
+      // marker lines up under it; the row keeps its own internal column gap.
+      ...(body.after ?? []).map(row => fit(row)),
     ];
   }
 }
