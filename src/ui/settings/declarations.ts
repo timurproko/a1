@@ -1,4 +1,4 @@
-export const OWNED_UI_SETTINGS_VERSION = 5;
+export const OWNED_UI_SETTINGS_VERSION = 6;
 
 export type OwnedUiSettingValue = string | number | boolean;
 
@@ -19,6 +19,8 @@ export interface OwnedUiSettingDeclaration {
 const MAX_ID_LENGTH = 64;
 const ID_PATTERN = /^[a-z][a-z0-9]*(?:[A-Z][a-z0-9]*)*$/;
 
+/** Declared first so the settings screen opens on it; sections follow first-declaration order. */
+const GENERIC_SECTION = Object.freeze({ id: "generic", title: "Generic" });
 const SCROLL_SECTION = Object.freeze({ id: "scroll", title: "Scroll" });
 const QUIT_SECTION = Object.freeze({ id: "quit", title: "Quit" });
 
@@ -28,6 +30,15 @@ export const QUIT_EFFECT_DURATIONS_MS: readonly number[] = Object.freeze(
 );
 
 export const OWNED_UI_SETTING_DECLARATIONS: readonly OwnedUiSettingDeclaration[] = Object.freeze([
+  Object.freeze({
+    id: "quitAnimation",
+    label: "Exit animation",
+    section: GENERIC_SECTION,
+    description: "Play the quit effect when the session quits. Off returns to the terminal immediately.",
+    application: "live",
+    defaultValue: true,
+    allowedValues: Object.freeze([true, false]),
+  }),
   Object.freeze({
     id: "scrollbarAppearance",
     label: "Scrollbar mode",
@@ -80,7 +91,7 @@ export const OWNED_UI_SETTING_DECLARATIONS: readonly OwnedUiSettingDeclaration[]
     description: "Animation played over the last screen when the session quits.",
     application: "live",
     defaultValue: "fall",
-    allowedValues: Object.freeze(["fall", "dissolve", "starburst", "waves", "off"]),
+    allowedValues: Object.freeze(["fall", "dissolve", "starburst", "waves"]),
   }),
   Object.freeze({
     id: "quitEffectDurationMs",

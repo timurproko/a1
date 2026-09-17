@@ -83,10 +83,12 @@ export interface OwnedUiViewportSettingsPort {
   onChange(listener: (settings: OwnedUiViewportSettings) => void): () => void;
 }
 
-export type OwnedUiQuitEffect = "fall" | "dissolve" | "starburst" | "waves" | "off";
+export type OwnedUiQuitEffect = "fall" | "dissolve" | "starburst" | "waves";
 
 /** Profile-local quit outro choice, read at the moment bare A1 quits. */
 export interface OwnedUiQuitOutroSettings {
+  /** False leaves the terminal immediately; the effect and duration are then ignored. */
+  readonly enabled: boolean;
   readonly effect: OwnedUiQuitEffect;
   /** Requested playback length; the player clamps it to its supported range. */
   readonly durationMs: number;

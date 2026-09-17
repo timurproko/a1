@@ -153,7 +153,8 @@ function quitOutroSettingsSnapshot(settings: OwnedUiSettingsSession): OwnedUiQui
   const effect = settings.value("quitEffect");
   const durationMs = settings.value("quitEffectDurationMs");
   return {
-    effect: effect === "dissolve" || effect === "starburst" || effect === "waves" || effect === "off" ? effect : "fall",
+    enabled: settings.value("quitAnimation") !== false,
+    effect: effect === "dissolve" || effect === "starburst" || effect === "waves" ? effect : "fall",
     durationMs: typeof durationMs === "number" ? durationMs : 800,
   };
 }
