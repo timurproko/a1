@@ -62,7 +62,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   const { include, inactive } = selectDevelopmentValidationMatrix({ impact, registry });
   process.stdout.write(`${JSON.stringify({ include, inactive })}\n`);
   if (process.env.GITHUB_OUTPUT) {
-    // The matrix output carries only `include`: any other key would become a matrix vector.
+    // Invariant: the matrix output carries only `include`; any other key would become a matrix vector.
     const { appendFile } = await import("node:fs/promises");
     await appendFile(process.env.GITHUB_OUTPUT, `modular_matrix=${JSON.stringify({ include })}\n`);
   }
