@@ -46,7 +46,7 @@ Automated validation SHALL scale with what is being shipped. Documentation and s
 ### Requirement: Development validation impact is classified deterministically
 The development workflow SHALL derive one machine-readable validation selection from the complete merge-base-to-head change, including additions, modifications, copies, deletions, rename sources, and rename destinations. Selection SHALL use a bounded, reviewed ownership registry that maps stable path groups, changed tests, shared support, explicit invalidators, and integration execution cadence to logical scopes and platform/runtime targets. The ownership result SHALL be understandable from path and policy records without requiring successful whole-repository source parsing. Dependency reachability MAY add scope reasons but SHALL NOT be the sole authority for a known coarse owner.
 
-Every changed pull-request-eligible retained test SHALL select its owning scope, including tests outside the PR core. A changed exhaustive-only test SHALL be recorded as deferred from ordinary PR execution and SHALL select its focused deterministic contract coverage rather than its exhaustive owner. Changes to shared test support SHALL select all declared affected pull-request owners and SHALL record affected exhaustive owners for Full/nightly execution. Unknown ownership, unavailable history, malformed policy, or classifier failure SHALL select complete applicable pull-request coverage or block rather than produce an empty selection. Typechecking, architecture, applicable naming/documentation governance, validation-policy integrity, directly changed pull-request tests, and the declared smoke contracts SHALL remain mandatory in the PR core. Manual Development validation without a complete trusted change comparison SHALL run all retained pull-request scopes; Full regression and nightly/release coverage SHALL remain complete and SHALL not be reduced by PR impact selection.
+Every changed pull-request-eligible retained test SHALL select its owning scope, including tests outside the PR core. A changed exhaustive-only test SHALL be recorded as deferred from ordinary PR execution and SHALL select its focused deterministic contract coverage rather than its exhaustive owner. Changes to shared test support SHALL select all declared affected pull-request owners and SHALL record affected exhaustive owners for Full/nightly execution. Unknown ownership, unavailable history, malformed policy, or classifier failure SHALL select complete applicable pull-request coverage or block rather than produce an empty selection. Typechecking, architecture, applicable naming/documentation governance, validation-policy integrity, directly changed pull-request tests, and the declared smoke contracts SHALL remain mandatory in the PR core. Manual Development validation without a complete trusted change comparison SHALL run all retained pull-request scopes; Full regression and nightly/release coverage SHALL remain complete and SHALL not be reduced by PR impact selection. An implementation-bound lifecycle association SHALL disable the documentation-only and version-only exemptions so the PR core always runs, and SHALL NOT by itself select conservative ownership; the associated pull request's unit and integration owners SHALL still be chosen by impact from its complete change.
 
 #### Scenario: Changed source is transitively rendered
 - **WHEN** a changed operational path belongs to the reviewed UI/rendering owner or a declared shared input affects rendering
@@ -98,6 +98,16 @@ Every changed pull-request-eligible retained test SHALL select its owning scope,
 - **WHEN** Development validation is manually dispatched without a complete authoritative change comparison
 - **THEN** every retained pull-request scope SHALL run rather than treating an empty diff as proof of no impact
 - **AND** the maintainer SHALL use Full regression when exhaustive validation is required
+
+#### Scenario: Implementation-bound diff is documentation-shaped
+- **WHEN** an implementation-bound pull request's complete diff touches only documentation, OpenSpec, or archive paths
+- **THEN** the PR core SHALL run without the documentation-only exemption
+- **AND** ownership selection SHALL remain `impact` with no integration owner selected merely because of the association
+
+#### Scenario: Implementation-bound diff touches owned source
+- **WHEN** an implementation-bound pull request changes a path with a reviewed coarse owner
+- **THEN** selection SHALL choose that owner's tests and the integration owners its ownership links
+- **AND** unrelated pull-request owners SHALL remain explicitly unselected
 
 ### Requirement: Rendering evidence is modular without losing contract coverage
 Rendering selection SHALL have exactly three outcomes: `none`, `smoke`, and `full`. `smoke` SHALL exercise representative independent producer, terminal-paint, semantic parity, and logical-damage evidence for a rendered shell or component change. `full` SHALL exercise every declared deterministic rendering workload when viewport composition, stream scheduling, terminal adaptation, rendering evidence infrastructure, package/terminal identity, or impact classification changes. Each selected workload SHALL be produced at most once within one gate, and its captured result SHALL supply all applicable semantic, paint, parity, determinism, and budget assertions. Rendering validation SHALL run independently and in parallel with ordinary fast validation, while the single required aggregate check SHALL require its success whenever its tier is not `none`.
@@ -559,7 +569,7 @@ The README release section, release runbook, and command help SHALL document `np
 ### Requirement: Independent development partitions do not serialize feedback
 Development validation SHALL schedule the mandatory PR core and each selected integration partition independently after its actual prerequisites. Resource-sensitive files selected by ownership SHALL remain non-file-parallel on an isolated runner, with the same authoritative membership and unchanged timeout semantics used by complete validation. No selected test SHALL be duplicated between partitions on the same platform/runtime merely because job boundaries changed. Cross-platform and cross-runtime executions SHALL remain distinct evidence where selected.
 
-The single protected-branch aggregate SHALL require the PR core and every scope selected for the current head and selection identity. It SHALL reject missing, failed, cancelled, stale, malformed, or unexpectedly skipped selected results. A skipped integration scope SHALL be acceptable only when the current trustworthy selection explicitly excludes it. Independent jobs SHALL not share mutable application state or owned process trees.
+The single protected-branch aggregate SHALL require the PR core and every scope selected for the current head and selection identity. It SHALL reject missing, failed, cancelled, stale, malformed, or unexpectedly skipped selected results. A skipped integration scope SHALL be acceptable only when the current trustworthy selection explicitly excludes it. Independent jobs SHALL not share mutable application state or owned process trees. The modular job matrix SHALL be derived from the trusted selection by one reviewed repository script that declares every Development modular job; an entry the selection leaves inactive SHALL NOT be scheduled, each scheduled job SHALL still resolve its own owners from the uploaded selection, and the aggregate SHALL still require successful evidence for every selected owner.
 
 #### Scenario: Fast work and resume checks are selected
 - **WHEN** a code PR requires the PR core, a resource-sensitive owner, and package resume integration
@@ -593,6 +603,11 @@ The single protected-branch aggregate SHALL require the PR core and every scope 
 #### Scenario: Complete validation is requested
 - **WHEN** conservative PR classification, Full regression, nightly, preview, or stable validation requests complete retained coverage
 - **THEN** every retained fast and applicable integration owner SHALL execute under its declared isolation and platform/runtime contract
+
+#### Scenario: Inactive matrix entries are not scheduled
+- **WHEN** the trusted selection activates only some declared modular jobs
+- **THEN** the workflow SHALL schedule only the active entries and record the unscheduled ones in the run summary
+- **AND** the aggregate SHALL fail when an active entry produced no successful evidence
 
 ### Requirement: Reused validation setup retains exact identity
 Validation SHALL avoid repeated successful builds and candidate packing within a job when the consuming scopes use unchanged source, platform, architecture, toolchain, dependencies, and build inputs. Reuse SHALL depend on verified prerequisite evidence and present artifacts rather than an unchecked environment flag. Missing or incompatible setup evidence SHALL cause fresh preparation or an explicit failure before tests, never successful validation with stale artifacts.

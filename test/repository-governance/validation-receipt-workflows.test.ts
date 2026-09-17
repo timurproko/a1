@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { parse } from "yaml";
 import { describe, expect, it } from "vitest";
+import { DEVELOPMENT_VALIDATION_MATRIX } from "../../scripts/release/validation-matrix.mjs";
 
 function step(job: any, name: string) {
   const index = job.steps.findIndex((candidate: any) => candidate.name === name);
@@ -20,7 +21,7 @@ describe("workflow prerequisite receipts", () => {
     expect(receipt.value.run).toBe("node scripts/release/record-validation-prerequisite.mjs build");
     expect(run.value.env.VALIDATION_BUILD_RECEIPT).toContain(".artifacts/validation/receipts/build.json");
     expect(step(job, "Cache process guardian build").index).toBeLessThan(receipt.index);
-    expect(job.strategy.matrix.include.find((entry: any) => entry.group === "startup")).toMatchObject({ node: 22, build: true, defender: true });
+    expect(DEVELOPMENT_VALIDATION_MATRIX.find(entry => entry.group === "startup")).toMatchObject({ node: 22, build: true, defender: true });
   });
 
   it("verifies the build immediately before packing and then binds the exact package receipt", async () => {

@@ -11,6 +11,9 @@ import {
   parseNameStatusZ,
   selectValidationImpact,
 } from "../../scripts/release/validation-impact.mjs";
+import { selectIntegrationImpact } from "../../scripts/release/integration-impact.mjs";
+import { loadIntegrationOwners } from "../../scripts/release/integration-owners.mjs";
+import { loadValidationOwnership, selectValidationOwnership } from "../../scripts/release/validation-ownership.mjs";
 
 const execFileAsync = promisify(execFile);
 
@@ -140,7 +143,7 @@ describe("development validation impact", () => {
     expect(selected.changes).toContainEqual(expect.objectContaining({ status: "R", oldPath: "src/leaf.ts", path: "src/renamed.ts" }));
   });
 
-  it("forces complete validation for an implementation-associated documentation-shaped diff", async () => {
+  it("keeps the PR core without the docs-only exemption for an implementation-associated documentation-shaped diff", async () => {
     const { repository, base } = await fixtureRepository();
     await put(repository, "openspec/changes/archive/2026-09-15-example/proposal.md", "Archived proposal.\n");
     const head = await commit(repository, "finalized delivery");
@@ -149,7 +152,70 @@ describe("development validation impact", () => {
     const bound = await selectValidationImpact({ repository, base, head, implementationBound: true });
     expect(bound.docsOnly).toBe(false);
     expect(bound.ordinaryScopes).toEqual(["typecheck", "architecture", "pr-core-tests"]);
-    expect(bound.integration.selection.owners.filter(owner => owner.cadence === "pull-request").every(owner => owner.selected)).toBe(true);
+    expect(bound.prCore.mode).toBe("impact");
+    expect(bound.prCore.owners.every(owner => !owner.selected)).toBe(true);
+    expect(bound.prCore.mandatoryTests).toEqual(["test/fixture.test.ts"]);
+    expect(bound.integration.selection.mode).toBe("impact");
+    expect(bound.integration.selection.owners.every(owner => !owner.selected)).toBe(true);
+  });
+
+  it("selects only the owners an implementation-associated source change touches", async () => {
+    const { repository, base } = await fixtureRepository();
+    await put(repository, "src/leaf.ts", "export const leaf = 2;\n");
+    await put(repository, "openspec/changes/archive/2026-09-15-example/tasks.md", "- [x] 1.1 Done.\n");
+    const head = await commit(repository, "finalized implementation");
+    const bound = await selectValidationImpact({ repository, base, head, implementationBound: true });
+    expect(bound.prCore.mode).toBe("impact");
+    expect(bound.prCore.owners).toEqual([expect.objectContaining({ owner: "fixture", selected: true, reasons: [{ code: "owned-path", paths: ["src/leaf.ts"] }] })]);
+    expect(bound.integration.selection.mode).toBe("impact");
+    expect(bound.integration.selection.owners).toEqual([expect.objectContaining({ owner: "fixture", selected: true })]);
+    expect(bound.integration.fallback).toBeNull();
+    const manual = await selectValidationImpact({ repository, base, head, implementationBound: true, manualNoComparison: true });
+    expect(manual.prCore.mode).toBe("conservative");
+    expect(manual.prCore.owners[0]?.reasons[0]?.code).toBe("manual-no-comparison");
+    expect(manual.integration.fallback).toBe("manual-no-comparison");
+  });
+
+  it("replays the PR #441 change list through the retained registry as an impact selection", async () => {
+    // Provenance: run 35126055417 selected all 316 PR-core tests, 21 resource-sensitive tests, and
+    // every pull-request integration owner for this governance-and-documentation diff.
+    const changes = [
+      { status: "M", path: ".agents/skills/change-delivery/SKILL.md" },
+      { status: "M", path: "docs/local-worktree-cleanup.md" },
+      { status: "M", path: "docs/openspec-archive-automation.md" },
+      { status: "C", score: 100, oldPath: "openspec/changes/archive/2026-09-16-automate-managed-worktree-cleanup/.openspec.yaml",
+        path: "openspec/changes/archive/2026-09-16-discard-closed-unmerged-worktrees/.openspec.yaml" },
+      { status: "A", path: "openspec/changes/archive/2026-09-16-discard-closed-unmerged-worktrees/acceptance.md" },
+      { status: "A", path: "openspec/changes/archive/2026-09-16-discard-closed-unmerged-worktrees/design.md" },
+      { status: "A", path: "openspec/changes/archive/2026-09-16-discard-closed-unmerged-worktrees/implementation-evidence.md" },
+      { status: "A", path: "openspec/changes/archive/2026-09-16-discard-closed-unmerged-worktrees/proposal.md" },
+      { status: "A", path: "openspec/changes/archive/2026-09-16-discard-closed-unmerged-worktrees/specs/github-repository-governance/spec.md" },
+      { status: "A", path: "openspec/changes/archive/2026-09-16-discard-closed-unmerged-worktrees/specs/local-worktree-cleanup/spec.md" },
+      { status: "A", path: "openspec/changes/archive/2026-09-16-discard-closed-unmerged-worktrees/tasks.md" },
+      { status: "M", path: "openspec/config.yaml" },
+      { status: "M", path: "openspec/specs/github-repository-governance/spec.md" },
+      { status: "M", path: "openspec/specs/local-worktree-cleanup/spec.md" },
+      { status: "A", path: "scripts/governance/local-cleanup-discard.mjs" },
+      { status: "M", path: "scripts/governance/local-cleanup-evidence.mjs" },
+      { status: "M", path: "scripts/governance/local-cleanup-git.mjs" },
+      { status: "M", path: "scripts/governance/local-cleanup-reconcile.mjs" },
+      { status: "M", path: "scripts/governance/local-cleanup-state.mjs" },
+      { status: "M", path: "scripts/governance/local-worktree-cleanup.mjs" },
+      { status: "M", path: "test/repository-governance/change-delivery-guidance.test.ts" },
+      { status: "M", path: "test/repository-governance/local-cleanup-evidence.node.mjs" },
+      { status: "M", path: "test/repository-governance/local-cleanup.node.mjs" },
+    ];
+    const authority = await loadValidationOwnership();
+    const owners = await loadIntegrationOwners();
+    const prCore = selectValidationOwnership({ authority, changes });
+    expect(prCore.mode).toBe("impact");
+    expect(prCore.owners.filter(owner => owner.selected).map(owner => owner.owner)).toEqual(["governance"]);
+    expect(prCore.tests.length).toBeLessThan(160);
+    expect(prCore.resourceTests.length).toBeLessThan(8);
+    const integration = selectIntegrationImpact({ baseId: "a".repeat(40), headId: "b".repeat(40), changes, owners, coreSelection: prCore });
+    expect(integration.fallback).toBeNull();
+    expect(integration.selection.mode).toBe("impact");
+    expect(integration.selection.owners.filter(owner => owner.selected)).toEqual([]);
   });
 
   it("validates bounded selection evidence", async () => {

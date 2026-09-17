@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 import { createIntegrationSelection } from "../../scripts/release/integration-selection.mjs";
 import { requireModularValidation, selectModularEvidenceFiles, selectModularOutcomeFiles } from "../../scripts/release/require-modular-validation.mjs";
+import { selectDevelopmentValidationMatrix } from "../../scripts/release/validation-matrix.mjs";
 
 const head = "b".repeat(40), base = "a".repeat(40), runId = "123", selectionId = "d".repeat(64);
 const registry = JSON.parse(await readFile("config/integration-owners.json", "utf8"));
@@ -107,6 +108,21 @@ describe("attempt-aware modular development aggregate", () => {
     const unexpected = outcome(selection.selectionId, "pi", "win32", 24, ["pi-release-resume"], ["package-smoke"], 1);
     fixture.outcomes.push(unexpected); fixture.envelopes.push(envelope(unexpected.authority, "success"));
     expect(() => requireModularValidation(fixture)).toThrow("excluded owner produced unexpected evidence");
+  });
+
+  it("requires every scheduled matrix entry and tolerates only entries the selection left unscheduled", () => {
+    const decisions = owners.map((owner: any) => ({ owner: owner.id, selected: owner.id === "startup",
+      reasons: [{ code: owner.id === "startup" ? "coarse-owner" : owner.cadence === "exhaustive" ? "exhaustive-cadence" : "unrelated", paths: owner.id === "startup" ? ["src/foundation/startup/index.ts"] : [] }] }));
+    const selection = createIntegrationSelection({ base, head, ownership, mode: "impact", decisions });
+    const fixture = impactFixture(selection, [coreOutcome(1), outcome(selection.selectionId, "startup", "win32", 22, ["startup"], ["package-startup"], 1)], 1, []);
+    const matrix = selectDevelopmentValidationMatrix({ impact: fixture.impact, registry });
+    expect(matrix.include.map(entry => `${entry.group}:${entry.platform}:${entry.node}`)).toEqual(["core:win32:24", "startup:win32:22"]);
+    expect(matrix.inactive).toHaveLength(7);
+    expect(requireModularValidation(fixture)).toMatchObject({ selectedOwners: ["startup"], evidenceCount: 2 });
+    const unscheduled = fixture.envelopes.find((value: any) => value.job === "startup");
+    fixture.outcomes = fixture.outcomes.filter((value: any) => value.authority.job !== "startup");
+    fixture.envelopes = fixture.envelopes.filter((value: any) => value !== unscheduled);
+    expect(() => requireModularValidation(fixture)).toThrow("required modular outcome missing: startup/win32/node22");
   });
 
   it("rejects exhaustive evidence as a substitute for cadence deferral", () => {

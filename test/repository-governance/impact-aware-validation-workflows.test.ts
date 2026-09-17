@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
+import { DEVELOPMENT_VALIDATION_MATRIX } from "../../scripts/release/validation-matrix.mjs";
 
 describe("impact-aware validation workflows", () => {
   it("computes one trusted selection and fans out independent matrix cells", async () => {
@@ -11,6 +12,11 @@ describe("impact-aware validation workflows", () => {
     expect(workflow.jobs.rendering.needs).toBe("changes");
     expect(workflow.jobs.modular.strategy["fail-fast"]).toBe(false);
     expect(workflow.jobs.modular.strategy).not.toHaveProperty("max-parallel");
+    expect(workflow.jobs.modular.strategy.matrix).toBe("${{ fromJSON(needs.changes.outputs.modular-matrix) }}");
+    expect(workflow.jobs.changes.outputs["modular-matrix"]).toBe("${{ steps.matrix.outputs.modular_matrix }}");
+    const matrixStep = workflow.jobs.changes.steps.find((step: { id?: string }) => step.id === "matrix");
+    expect(matrixStep.run).toContain("validation-matrix.mjs --impact .artifacts/validation/impact.json");
+    expect(matrixStep.run).not.toContain("--manual-no-comparison");
     expect(workflow.jobs.required.needs).toEqual(["changes", "acceptance", "delivery", "docs", "naming", "documentation", "modular", "rendering"]);
     expect(workflow.jobs.required.name).toContain("Draft validation intentionally skipped");
     expect(workflow.jobs.required.name).toContain("Development validation required");
@@ -23,7 +29,7 @@ describe("impact-aware validation workflows", () => {
     expect(changes.permissions).toEqual({ contents: "read", "pull-requests": "read" });
     expect(changes.outputs).not.toHaveProperty("acceptance-phase");
     for (const name of ["Check out head", "Set up Node", "Install exact analysis dependencies",
-      "Select validation from the complete impact", "Upload exact impact selection"]) {
+      "Select validation from the complete impact", "Select modular jobs from the trusted selection", "Upload exact impact selection"]) {
       expect(changes.steps.find((step: { name: string }) => step.name === name)?.if)
         .toBe("steps.route.outputs.acceptance_only != 'true'");
     }
@@ -74,7 +80,7 @@ describe("impact-aware validation workflows", () => {
 
   it("keeps the bounded PR core and selected resource-sensitive work isolated", async () => {
     const workflow = parse(await readFile(".github/workflows/ci.yml", "utf8"));
-    const entries = workflow.jobs.modular.strategy.matrix.include as any[];
+    const entries = DEVELOPMENT_VALIDATION_MATRIX as any[];
     expect(entries.find(entry => entry.group === "core")).toMatchObject({ os: "windows-2025", node: 24, build: true, guardian: true });
     expect(entries.find(entry => entry.group === "resource")).toMatchObject({ os: "windows-2025", node: 24, build: false, guardian: false });
     expect(entries.filter(entry => ["core", "resource"].includes(entry.group))).toHaveLength(2);
@@ -93,7 +99,7 @@ describe("impact-aware validation workflows", () => {
 
   it("retains Node 22 Defender startup and all declared platform/runtime owner targets", async () => {
     const workflow = parse(await readFile(".github/workflows/ci.yml", "utf8"));
-    const entries = workflow.jobs.modular.strategy.matrix.include as any[];
+    const entries = DEVELOPMENT_VALIDATION_MATRIX as any[];
     expect(entries.find(entry => entry.group === "startup")).toMatchObject({ os: "windows-2025", platform: "win32", node: 22, defender: true });
     expect(entries.filter(entry => entry.group === "containment").map(entry => `${entry.platform}:${entry.node}`).sort()).toEqual(["darwin:24", "linux:24"]);
     expect(entries.some(entry => entry.group === "startup" && entry.node === 24)).toBe(false);
