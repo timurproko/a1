@@ -258,7 +258,16 @@ jobs:
         shell: bash
         run: |
           result="$RUNNER_TEMP/delivery-validation.json"
-          node scripts/governance/reconcile-openspec-archive.mjs --validate-acceptance --pr "$DELIVERY_PR_NUMBER" > "$result"
+          errors="$RUNNER_TEMP/delivery-validation.err"
+          if ! node scripts/governance/reconcile-openspec-archive.mjs --validate-acceptance --pr "$DELIVERY_PR_NUMBER" > "$result" 2> "$errors"; then
+            cat "$errors" >&2
+            if grep -q 'delivery-not-finalized' "$errors"; then
+              runs="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/workflows/openspec-finalization.yml"
+              echo "::error::Awaiting automated finalization: this head still holds the active change. The OpenSpec finalization workflow finalizes ready pull requests and pushes the finalized head, which then receives its own validation: $runs"
+              printf '## Finalized delivery validation\n\nAwaiting automated finalization. This head still holds the active change; the [OpenSpec finalization workflow](%s) pushes the finalized head, which receives its own validation. If that workflow failed, its summary names the finalization blocker.\n' "$runs" >> "$GITHUB_STEP_SUMMARY"
+            fi
+            exit 1
+          fi
           cat "$result"
           RESULT_PATH="$result" node --input-type=module <<'NODE' >> "$GITHUB_OUTPUT"
           import { readFile } from "node:fs/promises";
