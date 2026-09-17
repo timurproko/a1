@@ -387,7 +387,7 @@ A1 SHALL declare `promptHistoryEnabled` as a boolean defaulting to true and `pro
 - **AND** the Pi comparison and `~/.pi/agent` SHALL remain untouched
 
 ### Requirement: Quit settings declare the outro effect and duration
-A1 SHALL declare `quitEffect` as a choice of exactly `fall`, `dissolve`, `starburst`, `waves`, and `off`, in that order, defaulting to `fall`, and `quitEffectDurationMs` as an integer allowing 300 through 2000 in steps of 100, defaulting to 800. They SHALL appear in bare A1's `Quit` settings section as `Effect` and `Duration`, using existing shared settings controls, profile-local A1 settings persistence, validation, and migration. Both SHALL declare a live application boundary: the values stored when the session quits SHALL govern that quit. No Pi settings document SHALL be used, and `a1 pi` SHALL neither expose nor apply these settings.
+A1 SHALL declare `quitEffect` as a choice of exactly `fall`, `dissolve`, `starburst`, and `waves`, in that order, defaulting to `fall`, and `quitEffectDurationMs` as an integer allowing 300 through 2000 in steps of 100, defaulting to 800. They SHALL appear in bare A1's `Quit` settings section as `Effect` and `Duration`, using existing shared settings controls, profile-local A1 settings persistence, validation, and migration. Both SHALL declare a live application boundary: the values stored when the session quits SHALL govern that quit. Both SHALL be retained while `quitAnimation` is `false` and SHALL govern playback again once it is `true`. A settings document whose stored `quitEffect` is `off` SHALL migrate to `quitAnimation` `false` with `quitEffect` resolving to its default. No Pi settings document SHALL be used, and `a1 pi` SHALL neither expose nor apply these settings.
 
 #### Scenario: Resolve defaults
 - **WHEN** the active A1 profile has no stored quit values
@@ -395,22 +395,29 @@ A1 SHALL declare `quitEffect` as a choice of exactly `fall`, `dissolve`, `starbu
 - **AND** `quitEffectDurationMs` SHALL resolve to 800
 
 #### Scenario: Migrate an older settings document
-- **WHEN** a settings document from the previous version is read
+- **WHEN** a settings document from the previous version is read and its stored `quitEffect` is not `off`
 - **THEN** migration SHALL advance its version without altering stored values
 - **AND** absent quit values SHALL resolve to the declared defaults
+
+#### Scenario: Migrate a disabled effect into the toggle
+- **WHEN** a settings document from the previous version stores `quitEffect` as `off`
+- **THEN** migration SHALL store `quitAnimation` as `false`
+- **AND** `quitEffect` SHALL resolve to `fall`
+- **AND** the next quit SHALL leave the terminal without animating
 
 #### Scenario: Reject an invalid value
 - **WHEN** a stored effect is not one of the declared choices or a stored duration is not one of 300, 400, …, 2000
 - **THEN** existing settings validation SHALL reject that value and resolve the declared default without blocking startup
 
 #### Scenario: Change the effect before quitting
-- **WHEN** the user saves a different effect or duration and then quits the same session
+- **WHEN** the user saves a different effect or duration and then quits the same session while `quitAnimation` is `true`
 - **THEN** that quit SHALL play the newly saved effect for the newly saved duration
 
 #### Scenario: Inspect the Quit settings section
 - **WHEN** the owned settings screen is presented
-- **THEN** it SHALL offer the declared effect choices and duration steps under `Quit`
+- **THEN** it SHALL offer exactly the four animation choices and the duration steps under `Quit`
 - **AND** those controls SHALL be labeled `Effect` and `Duration`
+- **AND** no `off` effect choice SHALL be offered
 
 ### Requirement: The settings list scrollbar follows the shared scrollbar settings
 The owned settings screen SHALL present its list scrollbar through the shared scrollbar presentation policy using the currently effective `scrollbarAppearance` and `scrollbarStyle`, including an accepted live value pending source reflection, rather than drawing a rail whenever the list overflows. Under `always` the rail SHALL be drawn whenever the list overflows. Under `auto` the rail SHALL be drawn while the list scrolls and for the transcript's linger afterwards, or while the pointer is over the rail or dragging its thumb, and SHALL fade on its own once the linger passes. Under `hidden` no rail SHALL be drawn and no rail column SHALL be reserved. Under `auto` and `always` the rail column SHALL remain reserved while the list fits, so revealing the rail does not reflow the rows. `thick`, a hovered thumb, and a dragged thumb SHALL use the shared thick glyph.
@@ -481,3 +488,19 @@ The owned settings screen SHALL jump to the first setting on `Ctrl+Home` and to 
 #### Scenario: Decode equivalent terminal reports
 - **WHEN** a terminal delivers the xterm modifier or rxvt Ctrl encoding of `Ctrl+Home` or `Ctrl+End`
 - **THEN** the settings screen SHALL perform the same boundary jump
+
+### Requirement: Generic settings lead the screen with the exit-animation toggle
+A1 SHALL declare `quitAnimation` as a boolean defaulting to `true`, labeled `Exit animation`, in a `Generic` section that SHALL be the first section of bare A1's owned settings screen, ahead of `Scroll`, `History`, `Quit`, and `Agent`. It SHALL use existing shared settings controls, profile-local A1 settings persistence, validation, and migration, and SHALL declare a live application boundary: the value stored when the session quits SHALL govern that quit. No Pi settings document SHALL be used, and `a1 pi` SHALL neither expose nor apply this setting.
+
+#### Scenario: Resolve the default
+- **WHEN** the active A1 profile has no stored `quitAnimation` value
+- **THEN** `quitAnimation` SHALL resolve to `true`
+
+#### Scenario: Inspect the Generic settings section
+- **WHEN** the owned settings screen is presented
+- **THEN** its first section SHALL be `Generic`
+- **AND** that section SHALL offer `quitAnimation` as an on/off choice labeled `Exit animation`
+
+#### Scenario: Reject an invalid value
+- **WHEN** a stored `quitAnimation` value is not a boolean
+- **THEN** existing settings validation SHALL reject that value and resolve `true` without blocking startup

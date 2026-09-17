@@ -176,6 +176,8 @@ describe("the settings screen", () => {
   it("groups concise scrollbar controls with defaults but no default wording", async () => {
     const { app: target } = await app();
     const lines = screen(target);
+    expect(lines.findIndex(line => line.trim() === "Generic")).toBeLessThan(lines.findIndex(line => line.trim() === "Scroll"));
+    expect(lines.some(line => line.includes("Exit animation") && line.includes("yes"))).toBe(true);
     expect(lines.some(line => line.trim() === "Scroll")).toBe(true);
     expect(lines.some(line => line.includes("Scrollbar mode") && line.includes("auto"))).toBe(true);
     expect(lines.some(line => line.includes("Fullscreen scrollbar"))).toBe(false);
@@ -224,6 +226,8 @@ describe("the settings screen", () => {
   it("keeps the moved control stable through section jumps, search, refresh, keyboard, and pointer changes", async () => {
     const { app: target, session, writes } = await app();
     screen(target);
+    expect(find(target, "Exit animation").trimStart()).toMatch(/^→/);
+    target.onInput?.(`${ESC}[1;2B`, HOST);
     target.onInput?.(`${ESC}[1;2B`, HOST);
     target.onInput?.(`${ESC}[1;2B`, HOST);
     expect(find(target, "Effect").trimStart()).toMatch(/^→/);
@@ -439,8 +443,8 @@ describe("the settings screen", () => {
     target.onInput?.(CTRL_HOME, HOST);
     const lines = target.render({ width: 80, height: 13 }, HOST).map(line => line.replace(STYLE, "").trimEnd());
     expect(lines[0]).toBe("");
-    expect(lines[1]).toContain("Scroll");
-    expect(lines[2]?.trimStart()).toMatch(/^→\s+Scrollbar mode/);
+    expect(lines[1]).toContain("Generic");
+    expect(lines[2]?.trimStart()).toMatch(/^→\s+Exit animation/);
   });
 
   it("moves the last result onto the final body row when Ctrl+End is used during search", async () => {

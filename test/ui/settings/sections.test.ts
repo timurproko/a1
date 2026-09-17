@@ -70,16 +70,22 @@ describe("owned UI settings sections", () => {
   it("places the owned suggestion control once after engine entries in a single Agent group", () => {
     const resolved = resolveOwnedUiSettings({
       declarations: OWNED_UI_SETTING_DECLARATIONS, migrations: [],
-      document: { version: 5, values: { promptSuggestions: false } },
+      document: { version: 6, values: { promptSuggestions: false } },
     });
     const sections = buildOwnedUiSettingsSections({ resolution: resolved, agent: AGENT });
     expect(sections.map(section => [section.id, section.title])).toEqual([
-      ["scroll", "Scroll"], ["history", "History"], ["quit", "Quit"], ["agent", "Agent"],
+      ["generic", "Generic"], ["scroll", "Scroll"], ["history", "History"], ["quit", "Quit"], ["agent", "Agent"],
     ]);
-    expect(sections[0]?.entries.map(entry => entry.id)).toEqual(["scrollbarAppearance", "scrollbarStyle", "scrollbarSpeed"]);
-    expect(sections[1]?.entries.map(entry => entry.id)).toEqual(["promptHistoryEnabled", "promptHistoryMaxItems"]);
-    expect(sections[2]?.entries.map(entry => entry.id)).toEqual(["quitEffect", "quitEffectDurationMs"]);
-    expect(sections[3]?.entries.map(entry => [entry.backend, entry.id])).toEqual([
+    const entries = (id: string) => sections.find(section => section.id === id)?.entries.map(entry => entry.id);
+    expect(entries("generic")).toEqual(["quitAnimation"]);
+    expect(entries("scroll")).toEqual(["scrollbarAppearance", "scrollbarStyle", "scrollbarSpeed"]);
+    expect(entries("history")).toEqual(["promptHistoryEnabled", "promptHistoryMaxItems"]);
+    expect(entries("quit")).toEqual(["quitEffect", "quitEffectDurationMs"]);
+    expect(findOwnedUiSettingsEntry(sections, "quitAnimation", "a1")).toMatchObject({
+      label: "Exit animation", value: true, origin: "default", application: "live", choices: [true, false],
+    });
+    expect(findOwnedUiSettingsEntry(sections, "quitEffect", "a1")?.choices).toEqual(["fall", "dissolve", "starburst", "waves"]);
+    expect(sections.find(section => section.id === "agent")?.entries.map(entry => [entry.backend, entry.id])).toEqual([
       ["agent", "autoCompact"], ["agent", "thinkingLevel"], ["agent", "providerProfile"], ["a1", "promptSuggestions"],
     ]);
     expect(sections.flatMap(section => section.entries).filter(entry => entry.id === "promptSuggestions")).toHaveLength(1);
@@ -104,7 +110,7 @@ describe("owned UI settings sections", () => {
       resolution: resolveOwnedUiSettings({ declarations: OWNED_UI_SETTING_DECLARATIONS, migrations: [], document: null }),
       agent,
     });
-    expect(sections.map(section => section.id)).toEqual(["scroll", "history", "quit", "agent"]);
+    expect(sections.map(section => section.id)).toEqual(["generic", "scroll", "history", "quit", "agent"]);
     const group = sections.find(section => section.id === "agent");
     expect(group).toMatchObject({ title: "Agent", unavailableReason: null, readOnlyReason: null });
     expect(group?.entries).toHaveLength(1);

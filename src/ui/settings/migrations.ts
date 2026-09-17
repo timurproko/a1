@@ -44,6 +44,18 @@ export const OWNED_UI_SETTINGS_MIGRATIONS: readonly OwnedUiSettingsMigration[] =
       return { ...values };
     },
   }),
+  Object.freeze({
+    to: 6,
+    description: "Move the disabled quit effect into the exit-animation toggle.",
+    migrate(values: Readonly<Record<string, unknown>>): Record<string, unknown> {
+      // Invariant: a profile that chose off keeps quitting without an animation; the
+      // effect it stored is no longer a choice, so it resolves to the default.
+      if (values.quitEffect !== "off") return { ...values };
+      const migrated: Record<string, unknown> = { ...values, quitAnimation: false };
+      delete migrated.quitEffect;
+      return migrated;
+    },
+  }),
 ]);
 
 export function assertOwnedUiSettingsMigrations(

@@ -104,7 +104,7 @@ describe("owned UI settings session", () => {
       const target = new OwnedUiSettingsSession({ store, agent: state === "absent" ? null : port });
       await target.load();
       expect(readFileSync(store.file, "utf8")).toBe(before);
-      expect(target.resolution).toMatchObject({ version: 5, migrated: false, notices: [] });
+      expect(target.resolution).toMatchObject({ version: 6, migrated: false, notices: [] });
       const group = target.sections().find(section => section.id === "agent");
       const entry = group?.entries.find(candidate => candidate.id === "promptSuggestions");
       expect(group).toMatchObject({ unavailableReason: null, readOnlyReason: null });
@@ -121,7 +121,7 @@ describe("owned UI settings session", () => {
       expect(liveValues).toEqual([true, false]);
       expect(port.writes).toEqual([]);
       expect(port.flushed()).toBe(0);
-      expect(JSON.parse(readFileSync(store.file, "utf8"))).toEqual({ version: 5, values: { promptSuggestions: false } });
+      expect(JSON.parse(readFileSync(store.file, "utf8"))).toEqual({ version: 6, values: { promptSuggestions: false } });
       const restarted = new OwnedUiSettingsSession({ store, agent: state === "absent" ? null : port });
       await restarted.load();
       expect(restarted.sections().find(section => section.id === "agent")?.entries.at(-1)).toMatchObject({
