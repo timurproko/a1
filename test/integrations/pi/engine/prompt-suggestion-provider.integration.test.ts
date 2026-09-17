@@ -20,9 +20,14 @@ Return nothing when the next input is unclear, the previous response failed, or 
 Do not answer as the assistant. Do not add a label, explanation, quotation marks, Markdown, or multiple sentences.
 Return only 2-12 words, except a natural one-word command or answer is allowed.`;
 
+// Performance: providers cache prompts only above a minimum prefix size, so the smoke conversation is
+// padded with a deterministic system prompt that clears that threshold on every provider.
+const PADDED_SYSTEM_PROMPT = `You are a coding assistant.\n\n${Array.from({ length: 160 }, (_, index) =>
+  `Guideline ${index + 1}: prefer small, verified changes; run the relevant tests before reporting; keep unrelated files untouched.`).join("\n")}`;
+
 /** Credential-gated smoke comparison; ordinary CI never contacts a provider. */
 describe.skipIf(!enabled)("contextual prompt suggestion real-provider comparison", () => {
-  it("compares five baseline/revised archive predictions and required-testing abstention in memory", async () => {
+  it("compares five baseline/revised archive predictions, legacy request-shape cache reads, and required-testing abstention in memory", async () => {
     const agentDir = process.env.PROMPT_SUGGESTION_AGENT_DIR!;
     const directory = await mkdtemp(join(tmpdir(), "suggestion-provider-"));
     try {
@@ -32,14 +37,15 @@ describe.skipIf(!enabled)("contextual prompt suggestion real-provider comparison
         modelsStorePath: join(agentDir, "models-store.json"), allowModelNetwork: false,
         signal: AbortSignal.timeout(15000),
       });
-      const summaries: Array<{ variant: string; outcomes: string[]; elapsedMs: number[]; archivalCandidates: number; reasoning: string }> = [];
-      for (const variant of ["baseline", "revised", "required-testing"] as const) {
+      type Usage = { input: number; cacheRead: number; cacheWrite: number; output: number };
+      const summaries: Array<{ variant: string; outcomes: string[]; elapsedMs: number[]; usage: Usage[]; errors: string[]; archivalCandidates: number; reasoning: string }> = [];
+      for (const variant of ["baseline", "legacy-shape", "revised", "required-testing"] as const) {
         const settingsManager = SettingsManager.inMemory(saved);
         const resourceLoader = new DefaultResourceLoader({
           cwd: directory, agentDir, settingsManager,
           noExtensions: true, noSkills: true, noPromptTemplates: true, noThemes: true,
           agentsFilesOverride: () => ({ agentsFiles: [] }),
-          systemPromptOverride: () => "You are a coding assistant.",
+          systemPromptOverride: () => PADDED_SYSTEM_PROMPT,
         });
         await resourceLoader.reload();
         const sessionManager = SessionManager.inMemory(directory);
@@ -49,9 +55,22 @@ describe.skipIf(!enabled)("contextual prompt suggestion real-provider comparison
         });
         const fixture = variant === "required-testing" ? SUGGESTION_CONVERSATIONS.requiredTesting : SUGGESTION_CONVERSATIONS.archive;
         session.agent.state.messages = structuredClone(fixture.messages) as unknown as typeof session.agent.state.messages;
-        const completeSimple: typeof modelRuntime.completeSimple = (model, context, options) => modelRuntime.completeSimple(model,
-          variant === "baseline" ? { ...context, messages: [...context.messages.slice(0, -1), { role: "user", content: BASELINE_INSTRUCTION, timestamp: Date.now() }] } : context,
-          variant === "baseline" ? { ...options, reasoning: "high" } : options);
+        // Compatibility: `legacy-shape` replays the pre-change request (lowest reasoning, no session identity)
+        // so the cache-read difference against `revised` is measured on the same conversation.
+        const lowestLevel = session.getAvailableThinkingLevels().find(level => level !== "off");
+        const usage: Usage[] = [];
+        const errors: string[] = [];
+        const completeSimple: typeof modelRuntime.completeSimple = async (model, context, options) => {
+          const { sessionId: _sessionId, thinkingBudgets: _budgets, transport: _transport, onPayload: _onPayload, ...legacyOptions } = options ?? {};
+          const response = await modelRuntime.completeSimple(model,
+            variant === "baseline" ? { ...context, messages: [...context.messages.slice(0, -1), { role: "user", content: BASELINE_INSTRUCTION, timestamp: Date.now() }] } : context,
+            variant === "baseline" ? { ...options, reasoning: "high" }
+              : variant === "legacy-shape" ? { ...legacyOptions, ...(lowestLevel === undefined ? {} : { reasoning: lowestLevel }) }
+              : options);
+          usage.push({ input: response.usage?.input ?? 0, cacheRead: response.usage?.cacheRead ?? 0, cacheWrite: response.usage?.cacheWrite ?? 0, output: response.usage?.output ?? 0 });
+          if (response.errorMessage) errors.push(response.errorMessage.slice(0, 200));
+          return response;
+        };
         const adapter = await createPiEngineAdapter({
           cwd: directory, agentDir,
           createRuntime: async () => ({
@@ -62,7 +81,10 @@ describe.skipIf(!enabled)("contextual prompt suggestion real-provider comparison
             setRebindSession() {}, dispose: async () => session.dispose(),
           }) as unknown as AgentSessionRuntime,
         });
-        const summary = { variant, outcomes: [] as string[], elapsedMs: [] as number[], archivalCandidates: 0, reasoning: variant === "baseline" ? "high" : adapter.suggestionReasoningPolicy() };
+        const summary = {
+          variant, outcomes: [] as string[], elapsedMs: [] as number[], usage, errors, archivalCandidates: 0,
+          reasoning: variant === "baseline" ? "high" : variant === "legacy-shape" ? lowestLevel ?? "ordinary" : adapter.suggestionReasoningPolicy(),
+        };
         try {
           const model = adapter.view().activeModel;
           expect(model, "selected profile must have an available model").not.toBeNull();
