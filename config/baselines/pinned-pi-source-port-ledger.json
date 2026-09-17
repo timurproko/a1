@@ -1221,7 +1221,7 @@
       "localDestination": "src/integrations/pi/components/upstream/components/owned-editor.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "A1-owned class name and synchronized A1 keybinding contract replace the nominal private upstream keybinding constructor dependency; bare A1 injects the shared Settings/agent input frame, transient contextual-suggestion branch, and explicit body geometry for selection and above-prompt autocomplete.",
+      "modifications": "A1-owned class name and synchronized A1 keybinding contract replace the nominal private upstream keybinding constructor dependency; bare A1 injects the shared Settings/agent input frame, transient contextual-suggestion branch, and explicit body geometry for selection and above-prompt autocomplete. Bare A1 also clears a sole top-level slash-command search on Escape.",
       "approvedDeviations": [
         {
           "id": "owned-shared-input-frame",
@@ -1233,6 +1233,12 @@
           "id": "above-prompt-autocomplete-placement",
           "reason": "The accepted show-autocomplete-above-prompt change moves the existing menu above bare A1's input with a matching top line, without changing either editor implementation or completion semantics.",
           "upstreamBehavior": "The comparison editor retains pinned below-input row order. Bare A1 moves the complete existing menu after body decoration, adds one line matching the prompt border color/width, and relocates the existing counter into that line at the history-label inset in dim color without parentheses or a duplicate trailing row. The select-list presentation callback supplies counter-row ownership; body offsets include only the resulting rows. Candidate backgrounds, padding, sizing, selection-window semantics, history, and key handling remain unchanged; no panel shading is applied.",
+          "acceptanceTest": "test/integrations/pi/components/editor-autocomplete-placement.test.ts"
+        },
+        {
+          "id": "clear-command-search-on-escape",
+          "reason": "The accepted clear-command-search-on-escape change returns bare A1 to the empty prompt when Escape dismisses a sole top-level slash-command search, restoring the earlier A1 v2 hotkey behavior.",
+          "upstreamBehavior": "The pinned editor and the comparison profile only close the list on Escape and keep the typed text. Bare A1 clears the prompt through the public setText only when the single-line content is a slash followed by non-space, non-slash characters with the cursor at its end and the menu open; argument, path/resource, extension-provider, spaced, nested, multi-line, and no-menu Escape paths retain pinned behavior.",
           "acceptanceTest": "test/integrations/pi/components/editor-autocomplete-placement.test.ts"
         }
       ],
@@ -1258,7 +1264,7 @@
         "test/integrations/pi/components/shell-components.test.ts",
         "test/integrations/pi/session-ui/session-shell.test.ts"
       ],
-      "localSha256": "5e9954bc6cd74445c09f9119818a30014a342e37a5ba98fa3e2f976066678a24"
+      "localSha256": "4c60441204cbd5236e759ce83bf9212a2af8c56ef0a9e25efebc86793fca04ff"
     },
     {
       "id": "pi-coding-agent:src/modes/interactive/components/custom-entry",

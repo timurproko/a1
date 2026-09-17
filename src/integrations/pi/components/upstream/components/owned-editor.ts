@@ -28,6 +28,8 @@ export interface OwnedEditorOptions extends EditorOptions {
   readonly terminalRows?: () => number;
   /** Reuses the editor's established atomic-aware visual layout when available. */
   readonly getVisualLineCount?: (width: number) => number | undefined;
+  /** Bare-A1 exception: Escape on a sole top-level slash-command search also clears the prompt. */
+  readonly clearCommandSearchOnEscape?: boolean;
 }
 
 export interface ShellEditorInstance extends EditorSurface {
@@ -61,6 +63,7 @@ return class extends Base {
   readonly #styleSuggestionCaret: (text: string) => string;
   readonly #terminalRows: () => number;
   readonly #getVisualLineCount: ((width: number) => number | undefined) | undefined;
+  readonly #clearCommandSearchOnEscape: boolean;
   #renderedBodyRowCount = 0;
 
   constructor(tui: TUI, theme: EditorTheme, private readonly keybindings: KeybindingsManager, options: OwnedEditorOptions = {}) {
@@ -70,6 +73,7 @@ return class extends Base {
     this.#styleSuggestionCaret = options.styleSuggestionCaret ?? (text => `\u001b[7m${text}\u001b[27m`);
     this.#terminalRows = options.terminalRows ?? (() => 24);
     this.#getVisualLineCount = options.getVisualLineCount;
+    this.#clearCommandSearchOnEscape = options.clearCommandSearchOnEscape === true;
   }
 
   getRenderedBodyRowCount(): number { return this.#renderedBodyRowCount; }
@@ -84,6 +88,15 @@ return class extends Base {
       && !this.disableSubmit
       && this.getText().length === 0
       && !this.isShowingAutocomplete();
+  }
+
+  /** True when autocomplete is searching one top-level slash command that is the editor's only content. */
+  isTopLevelCommandSearch(): boolean {
+    if (!this.isShowingAutocomplete()) return false;
+    const text = this.getText();
+    if (!/^\/[^\s/]*$/.test(text)) return false;
+    const cursor = this.getCursor();
+    return cursor.line === 0 && cursor.col === text.length;
   }
 
   override setText(text: string): void {
@@ -130,6 +143,10 @@ return class extends Base {
       if (!this.isShowingAutocomplete()) {
         const handler = this.onEscape ?? this.actionHandlers.get("app.interrupt");
         if (handler) { handler(); return; }
+      } else if (this.#clearCommandSearchOnEscape && this.isTopLevelCommandSearch()) {
+        // Escape on a bare slash-command search restores the empty prompt instead of only closing the menu.
+        this.setText("");
+        return;
       }
       super.handleInput(data);
       return;
