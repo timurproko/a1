@@ -24,7 +24,9 @@ describe("bounded Development selection replay", () => {
       ]);
       for (const scenario of report.scenarios) {
         expect(scenario.selectedPullRequestOwners).not.toContain("update-predecessor");
+        expect(scenario.selectedPullRequestOwners).not.toContain("update-performance");
         expect(scenario.deferredExhaustiveOwners).toEqual([
+          expect.objectContaining({ owner: "update-performance", reasons: [expect.objectContaining({ code: "exhaustive-cadence" })] }),
           expect.objectContaining({ owner: "update-predecessor", reasons: [expect.objectContaining({ code: "exhaustive-cadence" })] }),
         ]);
       }

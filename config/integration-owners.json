@@ -262,7 +262,7 @@
         "test/foundation/release/update-performance.integration.test.ts"
       ],
       "support": [],
-      "cadence": "pull-request"
+      "cadence": "exhaustive"
     },
     {
       "id": "structured-runtime",
