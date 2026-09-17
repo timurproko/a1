@@ -21,4 +21,4 @@
 ## 5. Validation
 
 - [x] 5.1 Run the focused session-shell, tui-runtime, owned-settings, settings-conformance, and graceful-quit scopes plus typechecking; record passing evidence or explicitly disposition every observed gap before finalization.
-- [ ] 5.2 Hand off the exact built candidate for a physical check of the outro effect and the clean parent terminal on the user's terminal for both quit routes; record the outcome.
+- [x] 5.2 Hand off the exact built candidate for a physical check of the outro effect and the clean parent terminal on the user's terminal for both quit routes; record the outcome.
