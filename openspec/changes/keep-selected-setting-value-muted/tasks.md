@@ -11,4 +11,4 @@
 ## 3. Validation
 
 - [x] 3.1 Run the list-view, settings-screen, pinned settings parity, provenance governance, and docs governance scopes plus typechecking; record passing evidence or explicitly disposition every observed gap before finalization.
-- [ ] 3.2 Hand off the exact built candidate for a physical check that the selected row shows a cyan label with a grey value that brightens under the pointer; record the outcome.
+- [x] 3.2 Hand off the exact built candidate for a physical check that the selected row shows a cyan label with a grey value that brightens under the pointer; record the outcome.

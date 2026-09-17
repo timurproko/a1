@@ -16,8 +16,8 @@ Against the planning base, the new list-view assertions failed as expected: the 
 
 ## Physical acceptance
 
-Pending: hand off the built candidate for a check that the selected row shows a cyan label with a grey value that brightens when the pointer is over it.
+The user ran the rebuilt candidate through `./scripts/dev` on Windows (Git Bash) and confirmed the selected row shows the accent label with a grey value that brightens under the pointer, reporting "tested approve".
 
 ## Gap disposition
 
-No known implementation or validation gaps remain beyond the pending physical check. Full regression and native host gates remain CI-owned under repository policy.
+No known implementation or validation gaps remain. Full regression and native host gates remain CI-owned under repository policy.
