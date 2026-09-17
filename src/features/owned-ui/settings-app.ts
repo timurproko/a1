@@ -198,7 +198,7 @@ export class SettingsApp implements UiApp {
     });
   }
 
-  onClose(): void {
+  onClose(_host: AppHostServices): void {
     this.#clearActivityTimer();
     this.#rails.clear();
   }
