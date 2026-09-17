@@ -12,9 +12,11 @@ export function prepareSinglePrDelivery(options: {
   knownGaps?: string[];
   write?: boolean;
   bodyPath?: string | null;
+  targetSpecs?: Map<string, Buffer> | null;
   toolRoot?: string;
 }): Promise<{
-  disposition: "would-finalize" | "finalized" | "already-finalized";
+  disposition: "would-finalize" | "finalized" | "would-refinalize" | "refinalized" | "already-finalized";
+  refinalized?: boolean;
   paths?: { active: string; archive: string; specs: string[]; branch: string };
   changes: { filename: string; status: string; data: Buffer | null }[];
   body: string;

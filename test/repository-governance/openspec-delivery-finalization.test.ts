@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -57,6 +58,52 @@ describe("in-branch OpenSpec delivery finalization", () => {
     const repeated = await prepareSinglePrDelivery({ ...options, body: finalBody });
     expect(repeated).toMatchObject({ disposition: "already-finalized", changes: [] });
   }, 30_000);
+
+  it("re-finalizes a drifted archive in place and rebuilds specs from an advanced target", async () => {
+    const root = await fixture();
+    const bodyPath = join(root, "body.md");
+    await writeFile(bodyPath, body());
+    const baseline = Buffer.from(spec(requirement("preserve existing behavior")));
+    const options = { root, change: "example", repository: "owner/repo", sourcePr: 42, body: body(), specBaseSha: "a".repeat(40),
+      date: "2026-09-15", bodyPath, toolRoot: resolve("node_modules/@fission-ai/openspec"),
+      targetSpecs: new Map([["openspec/specs/example/spec.md", baseline]]) };
+    await prepareSinglePrDelivery({ ...options, write: true });
+    const finalBody = await readFile(bodyPath, "utf8");
+    const archive = "openspec/changes/archive/2026-09-15-example/";
+    const tasksPath = join(root, archive, "tasks.md");
+    await writeFile(tasksPath, `${await readFile(tasksPath, "utf8")}- [x] 1.2 Repair the example after validation.\n`);
+    await expect(prepareSinglePrDelivery({ ...options, body: finalBody, targetSpecs: null })).rejects.toThrow("delivery-content-drift");
+    const inspected = await prepareSinglePrDelivery({ ...options, body: finalBody, date: "2026-09-16" });
+    expect(inspected.disposition).toBe("would-refinalize");
+    expect(inspected.changes.map(change => change.filename)).toEqual([`${archive}acceptance.md`]);
+    expect(await readFile(join(root, archive, "acceptance.md"), "utf8")).not.toContain("1.2");
+    const repaired = await prepareSinglePrDelivery({ ...options, body: finalBody, date: "2026-09-16", write: true });
+    expect(repaired.disposition).toBe("refinalized");
+    expect(repaired.paths?.archive).toBe(archive);
+    expect(parseConditionalAcceptance(await readFile(join(root, archive, "acceptance.md"), "utf8")).tasksDigest)
+      .toBe(createHash("sha256").update(await readFile(tasksPath)).digest("hex"));
+    expect(await prepareSinglePrDelivery({ ...options, body: finalBody })).toMatchObject({ disposition: "already-finalized", changes: [] });
+
+    const advanced = new Map([["openspec/specs/example/spec.md",
+      Buffer.from(spec(`${requirement("preserve existing behavior")}\n### Requirement: Other behavior\nThe system SHALL keep the other behavior.\n\n#### Scenario: Other\n- **WHEN** the other path runs\n- **THEN** it SHALL keep working\n`))]]);
+    const moved = await prepareSinglePrDelivery({ ...options, body: finalBody, specBaseSha: "b".repeat(40), targetSpecs: advanced, write: true });
+    expect(moved.disposition).toBe("refinalized");
+    expect(moved.changes.map(change => change.filename).sort()).toEqual([`${archive}acceptance.md`, "openspec/specs/example/spec.md"]);
+    const synchronized = await readFile(join(root, "openspec/specs/example/spec.md"), "utf8");
+    expect(synchronized).toContain("preserve updated behavior");
+    expect(synchronized).toContain("Other behavior");
+    expect(parseConditionalAcceptance(await readFile(join(root, archive, "acceptance.md"), "utf8")).specBaseSha).toBe("b".repeat(40));
+    expect(await prepareSinglePrDelivery({ ...options, body: finalBody, specBaseSha: "b".repeat(40), targetSpecs: advanced }))
+      .toMatchObject({ disposition: "already-finalized" });
+  }, 60_000);
+
+  it("refuses to finalize an active head whose canonical specs already differ from the target", async () => {
+    const root = await fixture();
+    await expect(prepareSinglePrDelivery({ root, change: "example", repository: "owner/repo", sourcePr: 42, body: body(),
+      specBaseSha: "a".repeat(40), date: "2026-09-15", toolRoot: resolve("node_modules/@fission-ai/openspec"),
+      targetSpecs: new Map([["openspec/specs/example/spec.md", Buffer.from(spec(requirement("preserve other behavior")))]]) }))
+      .rejects.toThrow("delivery-specs-diverged");
+  });
 
   it("refuses incomplete work before changing the source tree", async () => {
     const root = await fixture({ incomplete: true });

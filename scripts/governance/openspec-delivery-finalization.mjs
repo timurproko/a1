@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { cp, mkdir, mkdtemp, readFile, readdir, realpath, rename, rm, unlink, writeFile } from "node:fs/promises";
 import { join, relative, resolve } from "node:path";
 import { tmpdir } from "node:os";
-import { archiveFailure, archivePaths, assertArchiveDiff, inspectTasks, parseImplementation, SHA } from "./openspec-archive-policy.mjs";
+import { archiveFailure, archivePaths, assertArchiveDiff, assertRepositoryPath, inspectTasks, parseImplementation, SHA } from "./openspec-archive-policy.mjs";
 import { parseImplementationAcceptanceScenarios } from "./openspec-acceptance-checklist.mjs";
 import { conditionalAcceptanceBytes, deliveryContentDigest, parseConditionalAcceptance,
   verifyConditionalAcceptance } from "./openspec-delivery-policy.mjs";
@@ -115,25 +115,70 @@ async function applyChanges(root, changes, bodyPath, updatedBody) {
   }
 }
 
+const CANONICAL_SPECS = "openspec/specs/";
+
+function assertTargetSpecs(targetSpecs) {
+  if (!(targetSpecs instanceof Map) || targetSpecs.size > 20_000) throw archiveFailure("delivery-target-specs");
+  for (const [path, bytes] of targetSpecs) {
+    if (typeof path !== "string" || !path.startsWith(CANONICAL_SPECS) || !Buffer.isBuffer(bytes) || bytes.length > MAX_FILE) throw archiveFailure("delivery-target-specs");
+    assertRepositoryPath(path);
+  }
+}
+
+/** Replace the sandbox's canonical specs with the target's so a delta is applied against a fresh baseline. */
+async function resetCanonicalSpecs(sandbox, current, targetSpecs) {
+  for (const path of current.keys()) if (path.startsWith(CANONICAL_SPECS)) await rm(join(sandbox, path), { force: true });
+  for (const [path, bytes] of targetSpecs) {
+    await mkdir(join(sandbox, path, ".."), { recursive: true });
+    await writeFile(join(sandbox, path), bytes);
+  }
+}
+
+function canonicalSpecsMatch(entries, targetSpecs) {
+  const current = [...entries].filter(([path]) => path.startsWith(CANONICAL_SPECS));
+  return current.length === targetSpecs.size && current.every(([path, bytes]) => targetSpecs.get(path)?.equals(bytes));
+}
+
+/**
+ * Prepare, verify, or repeat the single-PR finalization of one change. With `targetSpecs` (the target's complete
+ * `openspec/specs/**` bytes) a finalized head whose record no longer verifies is re-finalized from its archived form
+ * under the same archive date instead of failing on drift.
+ */
 export async function prepareSinglePrDelivery({ root, change, repository, sourcePr, body, specBaseSha, date,
-  knownGaps = [], write = false, bodyPath = null, toolRoot = join(root, "node_modules/@fission-ai/openspec") }) {
+  knownGaps = [], write = false, bodyPath = null, targetSpecs = null, toolRoot = join(root, "node_modules/@fission-ai/openspec") }) {
   root = resolve(root);
   if (!SHA.test(specBaseSha ?? "")) throw archiveFailure("delivery-target-identity");
+  if (targetSpecs !== null) assertTargetSpecs(targetSpecs);
   const implementation = parseImplementation(body);
   if (implementation?.version !== 3 || implementation.change !== change) throw archiveFailure("delivery-implementation-identity");
-  if (implementation.archive || implementation.acceptanceManifest) {
-    const verified = await verifyPrepared({ root, body, repository, sourcePr, specBaseSha, knownGaps });
-    return { disposition: "already-finalized", changes: [], body, ...verified };
-  }
   const active = `openspec/changes/${change}/`;
-  const taskText = await readFile(join(root, active, "tasks.md"), "utf8").catch(() => { throw archiveFailure("delivery-tasks-missing"); });
+  let source = active;
+  let refinalize = false;
+  if (implementation.archive || implementation.acceptanceManifest) {
+    try {
+      const verified = await verifyPrepared({ root, body, repository, sourcePr, specBaseSha, knownGaps });
+      return { disposition: "already-finalized", changes: [], body, ...verified };
+    } catch (error) {
+      if (targetSpecs === null || !error.archiveCode || error.archiveCode === "delivery-not-finalized") throw error;
+    }
+    refinalize = true;
+    source = implementation.archive;
+    date = implementation.archive.slice("openspec/changes/archive/".length, "openspec/changes/archive/".length + 10);
+  }
+  const taskText = await readFile(join(root, source, "tasks.md"), "utf8").catch(() => { throw archiveFailure("delivery-tasks-missing"); });
   inspectTasks(taskText);
   const scenarios = parseImplementationAcceptanceScenarios(body, 3);
   if (!Array.isArray(knownGaps) || knownGaps.some(gap => typeof gap !== "string" || !gap.trim())) throw archiveFailure("delivery-known-gaps");
   const before = await collect(root);
+  if (targetSpecs !== null && !refinalize && !canonicalSpecsMatch(before, targetSpecs)) throw archiveFailure("delivery-specs-diverged");
   const sandbox = await realpath(await mkdtemp(join(tmpdir(), "openspec-delivery-")));
   try {
     await cp(join(root, "openspec"), join(sandbox, "openspec"), { recursive: true, errorOnExist: true });
+    if (refinalize) {
+      await resetCanonicalSpecs(sandbox, before, targetSpecs);
+      await rm(join(sandbox, implementation.acceptanceManifest), { force: true });
+      await rename(join(sandbox, implementation.archive), join(sandbox, active)).catch(() => { throw archiveFailure("delivery-artifact-missing"); });
+    }
     const tool = await loadArchiveTool(toolRoot);
     const status = await tool.command(sandbox, ["status", "--change", change, "--json"]);
     if (status.schemaName !== "spec-driven" || status.planningHome?.kind !== "repo"
@@ -148,7 +193,7 @@ export async function prepareSinglePrDelivery({ root, change, repository, source
     });
     if (!capabilities.length && status.artifacts.find(item => item.id === "specs")?.status !== "skipped") throw archiveFailure("delta-missing");
     const paths = archivePaths(change, date, capabilities);
-    if ([...before.keys()].some(path => path.startsWith(paths.archive))) throw archiveFailure("archive-target-collision");
+    if (!refinalize && [...before.keys()].some(path => path.startsWith(paths.archive))) throw archiveFailure("archive-target-collision");
     const oldArchives = new Set(await readdir(join(sandbox, "openspec/changes/archive")));
     await tool.command(sandbox, ["archive", change, "--yes", "--json"]);
     const created = (await readdir(join(sandbox, "openspec/changes/archive"))).filter(name => !oldArchives.has(name));
@@ -182,6 +227,7 @@ export async function prepareSinglePrDelivery({ root, change, repository, source
       await applyChanges(root, changes, bodyPath, updatedBody);
       await rm(join(root, paths.active), { recursive: true, force: true });
     }
-    return { disposition: write ? "finalized" : "would-finalize", paths, changes, body: updatedBody, manifest };
+    const disposition = write ? (refinalize ? "refinalized" : "finalized") : (refinalize ? "would-refinalize" : "would-finalize");
+    return { disposition, refinalized: refinalize, paths, changes, body: updatedBody, manifest };
   } finally { await rm(sandbox, { recursive: true, force: true }); }
 }
