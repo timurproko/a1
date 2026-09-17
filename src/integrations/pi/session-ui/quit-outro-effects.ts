@@ -225,7 +225,7 @@ function wavesPlan(rowWidths: readonly number[], seed: number): QuitOutroPlan {
     clears.push(cell);
   };
 
-  // Clear the frame in the same outward direction as the expanding signal.
+  // Rationale: clear the frame in the same outward direction as the expanding signal.
   for (let row = 0; row < rowWidths.length; row++) {
     for (let col = 0; col < rowWidth(rowWidths, row); col++) {
       const x = (col - baseCenterCol) / Math.max(1, width * 0.5);

@@ -49,12 +49,12 @@ describe("quit outro effects", () => {
       expect(withinBounds(first.clears, rowWidths)).toBe(true);
       expect(first.sparkles.every((cell, index) => index === 0 || first.sparkles[index - 1]!.start <= cell.start)).toBe(true);
       expect(first.clears.every((cell, index) => index === 0 || first.clears[index - 1]!.end <= cell.end)).toBe(true);
-      // Every visible cell is cleared by the end of the plan.
+      // Invariant: every visible cell is cleared by the end of the plan.
       const cleared = new Set(first.clears.map(cell => `${cell.row}:${cell.col}`));
       for (let row = 0; row < rowWidths.length; row += 1) {
         for (let col = 0; col < rowWidths[row]!; col += 1) expect(cleared.has(`${row}:${col}`)).toBe(true);
       }
-      // Every sparkle is eventually cleared, so the surface ends blank.
+      // Invariant: every sparkle is eventually cleared, so the surface ends blank.
       for (const sparkle of first.sparkles) expect(cleared.has(`${sparkle.row}:${sparkle.col}`)).toBe(true);
       if (rowWidths.reduce((sum, width) => sum + width, 0) >= 20) expect(first.sparkles.length).toBeGreaterThan(0);
     }
@@ -118,7 +118,7 @@ describe("quit outro playback", () => {
     expect(writes.slice(1, -1).some(write => write.includes("\x1b[2J"))).toBe(false);
     expect(writes.join("")).toContain("\x1b[38;2;238;238;238m");
     expect(writes.length).toBeGreaterThan(3);
-    // Playback ends once the last clear lands, never later than the duration plus one tick.
+    // Invariant: playback ends once the last clear lands, never later than the duration plus one tick.
     expect(clock).toBeGreaterThan(300);
     expect(clock).toBeLessThanOrEqual(600 + 1000 / 30);
   });
@@ -130,7 +130,7 @@ describe("quit outro playback", () => {
     await playQuitOutro(frame, "dissolve", 300, {
       write: data => writes.push(data),
       now: () => clock,
-      // A clock that never advances cannot reach the duration; the tick ceiling ends playback.
+      // Rationale: a clock that never advances cannot reach the duration; the tick ceiling ends playback.
       sleep: async () => { clock += 0; },
       seed: 3,
     });
