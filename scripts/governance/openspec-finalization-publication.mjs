@@ -114,7 +114,7 @@ export async function reconcileFinalization({ reader, publisher, number, toolRoo
     if (archive && activePresent) throw archiveFailure("finalization-archive-ambiguous");
     let effectiveDate = archive ? archive.slice(ARCHIVE_ROOT.length, ARCHIVE_ROOT.length + 10) : date;
     let body = pull.body ?? "";
-    // The tree, not the fence, says whether the head is finalized: a body edit may lag a finalization push.
+    // Invariant: the tree, not the fence, says whether the head is finalized; a body edit may lag a finalization push.
     body = replaceImplementationMetadata(body, archive
       ? { version: 3, change, archive, acceptanceManifest: `${archive}acceptance.md` } : { version: 3, change });
     const capabilities = archive ? await archiveCapabilities(checkout, archive) : [];
@@ -124,7 +124,7 @@ export async function reconcileFinalization({ reader, publisher, number, toolRoo
       const mergeBase = await git(["merge-base", target, head]);
       if (!SHA.test(mergeBase)) throw archiveFailure("finalization-merge-base");
       if (archive) {
-        // Restore the active form against the merge-base so develop's spec bytes win the merge without conflict.
+        // Rationale: restoring the active form against the merge-base lets develop's spec bytes win the merge without conflict.
         const baseline = await readCanonicalSpecs({ cwd: checkout, sha: mergeBase, env, gitImpl });
         for (const path of scope.specs) {
           const bytes = baseline.get(path);

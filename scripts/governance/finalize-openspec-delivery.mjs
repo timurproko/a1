@@ -39,7 +39,7 @@ export async function main(args = process.argv.slice(2), { cwd = process.cwd() }
   await execute("git", ["merge-base", "--is-ancestor", options.target, head], { cwd: root });
   const finalized = Boolean(parseImplementation(body)?.archive);
   const specDiff = await execute("git", ["diff", "--name-only", options.target, "--", "openspec/specs"], { cwd: root });
-  // A finalized head legitimately carries synchronized specs; re-finalization rebuilds them from the target.
+  // Rationale: a finalized head legitimately carries synchronized specs; re-finalization rebuilds them from the target.
   if (specDiff.stdout.trim() && !finalized) throw new Error("canonical specs already differ from the target; reconcile before finalization");
   const result = await prepareSinglePrDelivery({ root, change: options.change, repository: options.repository,
     sourcePr: Number(options.pr), body, specBaseSha: options.target, date: options.date, knownGaps: options.gaps,
