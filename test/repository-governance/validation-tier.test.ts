@@ -380,7 +380,7 @@ describe("validation tier planning", () => {
     });
     expect(unverifiable.passed).toBe(false);
     expect(unverifiable.outcomes[0]).toMatchObject({ id: "exact-package-preparation", exitCode: 1, preparation: "handoff-rejected" });
-    expect(unverifiable.outcomes[0].evidence.reason).toContain("installed bytes changed after preparation");
+    expect(unverifiable.outcomes[0]?.evidence).toMatchObject({ count: 0, reason: expect.stringContaining("installed bytes changed after preparation") });
   });
 
   it("blocks all dependent owners when preparation fails", async () => {
