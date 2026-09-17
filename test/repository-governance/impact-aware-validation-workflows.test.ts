@@ -82,7 +82,9 @@ describe("impact-aware validation workflows", () => {
     const workflow = parse(await readFile(".github/workflows/ci.yml", "utf8"));
     const entries = DEVELOPMENT_VALIDATION_MATRIX as any[];
     expect(entries.find(entry => entry.group === "core")).toMatchObject({ os: "windows-2025", node: 24, build: true, guardian: true });
-    expect(entries.find(entry => entry.group === "resource")).toMatchObject({ os: "windows-2025", node: 24, build: false, guardian: false });
+    expect(entries.find(entry => entry.group === "resource")).toMatchObject({ os: "windows-2025", node: 24, build: true, guardian: false });
+    expect(entries.every(entry => entry.build)).toBe(true);
+    expect(workflow.jobs.modular.steps.some((step: any) => step.name === "Install exact analysis dependencies")).toBe(false);
     expect(entries.filter(entry => ["core", "resource"].includes(entry.group))).toHaveLength(2);
     const resolver = workflow.jobs.modular.steps.find((step: any) => step.id === "job-selection");
     expect(resolver.run).toContain("resolve-validation-job.mjs");

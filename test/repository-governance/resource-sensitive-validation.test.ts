@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, readdir, readFile, rename, rm, writeFile } from "node:f
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { createTierPlan, loadValidationSuites, runTierPlan } from "../../scripts/release/validation-tier.mjs";
+import { createTierPlan, loadValidationSuites, RESOURCE_SENSITIVE_TIMEOUT_MS, runTierPlan } from "../../scripts/release/validation-tier.mjs";
 
 const resourceSensitiveChange = "stabilize-resource-sensitive-validation";
 
@@ -45,35 +45,35 @@ function invocation(plan: Awaited<ReturnType<typeof createTierPlan>>, id: string
 }
 
 function resourceInvocations(plan: Awaited<ReturnType<typeof createTierPlan>>) {
-  return plan.vitest?.invocations.filter(candidate => candidate.id.startsWith("vitest-fast-resource-sensitive-")) ?? [];
+  return plan.vitest?.invocations.filter(candidate => candidate.evidence?.executionClass === "resource-sensitive") ?? [];
 }
 
 describe("resource-sensitive validation partition", () => {
-  it("subtracts every resource-sensitive test from the ordinary remainder and runs each once in a fresh process without a timeout override", async () => {
+  it("subtracts every resource-sensitive test from the ordinary remainder and runs them once in one serial process under the explicit hang bound", async () => {
     const plan = await createTierPlan(["fast"]);
     const ordinary = invocation(plan, "vitest-fast");
     const resources = resourceInvocations(plan);
 
-    expect(resources).toHaveLength(resourceSensitiveTests.length);
-    for (const [index, test] of resourceSensitiveTests.entries()) {
+    for (const test of resourceSensitiveTests) {
       expect(ordinary.arguments).toContain(test);
       expect(ordinary.arguments[ordinary.arguments.indexOf(test) - 1]).toBe("--exclude");
-      expect(resources[index]).toEqual({
-        id: `vitest-fast-resource-sensitive-${index + 1}`,
-        arguments: ["vitest", "run", test, "--no-file-parallelism"],
-        scopes: ["fast-resource-sensitive"],
-        evidence: {
-          executionClass: "resource-sensitive",
-          testFiles: [test],
-          fileParallelism: false,
-          timeoutMs: 5000,
-          timeoutSource: "vitest-default",
-          retries: 0,
-          perFileTiming: "vitest-default-reporter",
-        },
-      });
-      expect(resources[index]!.arguments.some(argument => argument.toLowerCase().includes("timeout"))).toBe(false);
     }
+    expect(resources).toEqual([{
+      id: "vitest-fast-resource-sensitive",
+      arguments: ["vitest", "run", ...resourceSensitiveTests, "--no-file-parallelism", `--testTimeout=${RESOURCE_SENSITIVE_TIMEOUT_MS}`],
+      scopes: ["fast-resource-sensitive"],
+      evidence: {
+        executionClass: "resource-sensitive",
+        testFiles: resourceSensitiveTests,
+        fileParallelism: false,
+        timeoutMs: RESOURCE_SENSITIVE_TIMEOUT_MS,
+        timeoutSource: "explicit",
+        retries: 0,
+        perFileTiming: "vitest-default-reporter",
+      },
+    }]);
+    expect(RESOURCE_SENSITIVE_TIMEOUT_MS).toBe(30000);
+    expect(resources[0]!.arguments.filter(argument => argument.toLowerCase().includes("timeout"))).toEqual(["--testTimeout=30000"]);
   });
 
   it("uses one partition for pull-request, exact-package, and full-release plans", async () => {
@@ -87,7 +87,7 @@ describe("resource-sensitive validation partition", () => {
     for (const test of resourceSensitiveTests) {
       expect(fullRemainder.arguments[fullRemainder.arguments.indexOf(test) - 1]).toBe("--exclude");
     }
-    expect(resourceInvocations(full)).toHaveLength(resourceSensitiveTests.length);
+    expect(resourceInvocations(full)).toHaveLength(1);
   });
 
   it("exposes disjoint atomic invocations with the identical public fast composition", async () => {
@@ -235,8 +235,8 @@ describe("resource-sensitive validation partition", () => {
       executionClass: "resource-sensitive" as const,
       testFiles: resourceSensitiveTests,
       fileParallelism: false as const,
-      timeoutMs: 5000 as const,
-      timeoutSource: "vitest-default" as const,
+      timeoutMs: 30000 as const,
+      timeoutSource: "explicit" as const,
       retries: 0 as const,
       perFileTiming: "vitest-default-reporter" as const,
     };

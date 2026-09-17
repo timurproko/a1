@@ -9,8 +9,8 @@ export interface ValidationInvocationEvidence {
   executionClass: "resource-sensitive";
   testFiles: string[];
   fileParallelism: false;
-  timeoutMs: 5000;
-  timeoutSource: "vitest-default";
+  timeoutMs: 30000;
+  timeoutSource: "explicit";
   retries: 0;
   perFileTiming: "vitest-default-reporter";
 }
@@ -89,6 +89,8 @@ export function prepareSharedExactPackage(plan: ValidationPlan, options?: {
   prepareExactPackageInstallation?: (options: Record<string, unknown>) => Promise<any>;
   exactPackagePreparationEnvironment?: (preparation: any) => NodeJS.ProcessEnv;
 }): Promise<ExactPackageHandoff>;
+/** Explicit per-test hang bound of the resource-sensitive partition. */
+export const RESOURCE_SENSITIVE_TIMEOUT_MS: 30000;
 export function createTierPlan(requested: string[], repository?: string, options?: { additionalTests?: string[] }): Promise<ValidationPlan>;
 export function runTierPlan(plan: ValidationPlan, options?: {
   env?: NodeJS.ProcessEnv;

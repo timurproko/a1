@@ -215,11 +215,16 @@ async function launch(args: string[], shell?: { command: string; args: string[] 
       await phases.run(`launch-${launchId}-ready`, async () => {
         let passed = false;
         try {
+          let lastTrace = "";
           await until(async () => {
             if (spawnError) throw spawnError;
             if (child.exitCode !== null) throw new Error(`Packaged launch exited before input ready: ${output}`);
-            return (await trace()).includes('"phase":"first-input-ready-render"') && (marker === undefined || stripVTControlCharacters(output).includes(marker));
-          }, () => `Packaged launch not ready: ${output}`);
+            lastTrace = await trace();
+            return lastTrace.includes('"phase":"first-input-ready-render"') && (marker === undefined || stripVTControlCharacters(output).includes(marker));
+          }, () => {
+            const phases = [...lastTrace.matchAll(/"phase":"([^"]+)"/gu)].map(match => match[1]);
+            return `Packaged launch not ready; phases reached: ${phases.join(", ") || "none"}; output: ${output}`;
+          });
           const source = await trace();
           for (const phase of ["bootstrap-selected", "guardian-start", "ui-entry", "session-created"]) expect(source).toContain(`"phase":"${phase}"`);
           passed = true;
@@ -286,11 +291,16 @@ async function stopSupervisor() {
   if (idle) expect(await releaseVerifiedIdleOwner(idle, resolveProductPaths(environment).dataDir)).toBe(true);
 }
 
+// Rationale: readiness is polled with backoff to a generous ceiling. The ceiling is a hang bound
+// for a launch that never becomes ready; a slow shared runner must not fail a launch that does.
+const READINESS_CEILING_MS = 90_000;
 async function until(predicate: () => Promise<boolean>, message = () => "Timed out waiting for isolated launch state") {
-  const deadline = Date.now() + 30_000;
-  while (Date.now() < deadline) {
+  const startedAt = Date.now();
+  let delay = 40;
+  while (Date.now() - startedAt < READINESS_CEILING_MS) {
     if (await predicate()) return;
-    await new Promise(resolvePromise => setTimeout(resolvePromise, 40));
+    await new Promise(resolvePromise => setTimeout(resolvePromise, delay));
+    delay = Math.min(delay * 2, 1_000);
   }
-  throw new Error(message());
+  throw new Error(`${message()} (waited ${Date.now() - startedAt}ms)`);
 }

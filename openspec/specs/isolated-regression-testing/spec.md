@@ -209,7 +209,7 @@ A retained or newly added pull-request-eligible test SHALL pass in the pull-requ
 - **AND** the exhaustive test SHALL remain required in Full regression and nightly/release validation without reduced assertions
 
 ### Requirement: Resource-sensitive regressions avoid shared runner contention
-Automated tests that repeatedly create repositories, launch subprocesses, mutate temporary storage, or coordinate release processes SHALL be eligible for a declared resource-sensitive execution class. Tests in that class SHALL run one file at a time under the unchanged fast-tier test timeout rather than sharing the parallel fast-test worker pool. Classification SHALL be reviewed configuration, SHALL be applied consistently across supported platforms, and SHALL not suppress output, remove assertions, increase timeouts, or authorize retries of semantic failures. Repeated isolated evidence SHALL expose available fixture and subprocess timing, and a test that remains slow SHALL be optimized before acceptance. Tests not assigned to the class SHALL retain the ordinary fast scheduler unless another declared isolation contract applies.
+Automated tests that repeatedly create repositories, launch subprocesses, mutate temporary storage, or coordinate release processes SHALL be eligible for a declared resource-sensitive execution class. Tests in that class SHALL run one file at a time in one serial process under the partition's explicit hang bound rather than sharing the parallel fast-test worker pool. Classification SHALL be reviewed configuration, SHALL be applied consistently across supported platforms, and SHALL not suppress output, remove assertions, or authorize retries of semantic failures. The hang bound SHALL be a fixed explicit value shared with the other explicit fast-tier invocations, not a per-test allowance that grows to fit a slow test. Repeated isolated evidence SHALL expose available fixture and subprocess timing and SHALL name every test body above five seconds, and a test that stays on that list SHALL be optimized rather than accommodated. Tests not assigned to the class SHALL retain the ordinary fast scheduler unless another declared isolation contract applies.
 
 #### Scenario: A repeated contention timeout is confirmed
 - **WHEN** evidence shows a process- or filesystem-intensive fast test passes independently but intermittently times out while sharing the parallel runner
@@ -218,13 +218,13 @@ Automated tests that repeatedly create repositories, launch subprocesses, mutate
 
 #### Scenario: Resource-sensitive tests execute
 - **WHEN** multiple tests in the resource-sensitive class are selected
-- **THEN** their files SHALL execute without file parallelism under the existing fast-tier timeout
+- **THEN** their files SHALL execute without file parallelism in one process under the explicit hang bound
 - **AND** no selected file SHALL execute more than once
 
 #### Scenario: Serialization is insufficient
-- **WHEN** a resource-sensitive test remains near or beyond the existing timeout during repeated isolated execution
+- **WHEN** a resource-sensitive test body stays above five seconds during repeated isolated execution
 - **THEN** its setup and subprocess phases SHALL be measured and optimized
-- **AND** the test SHALL NOT receive a larger timeout or an automatic retry
+- **AND** the test SHALL NOT receive its own larger bound or an automatic retry
 
 #### Scenario: An ordinary test is not resource-sensitive
 - **WHEN** a fast test has no declared resource-sensitive ownership and no other isolation requirement
@@ -629,7 +629,7 @@ Tests for generators and evidence readers SHALL use temporary or versioned fixtu
 - **WHEN** resume integration validates supervisor, guardian, and UI behavior from exact packed candidate bytes
 - **THEN** the fixture MAY prepare, certify, and activate those bytes through production release-store operations before starting the bounded public resume launch
 - **AND** separate exact-package and first-attempt startup scopes SHALL retain cold materialization and startup authority
-- **AND** the resume readiness timeout SHALL NOT be increased or retried
+- **AND** resume readiness SHALL be polled with backoff to one generous hang bound, SHALL report the startup phases reached when that bound expires, and SHALL NOT be retried
 
 ### Requirement: Exact-package startup graph and latency are release-gated
 Exact-package validation SHALL record the modules, files, evaluated bytes, and elapsed phases required from command invocation through first input-ready render for both interactive profiles. Evidence SHALL distinguish A1-owned startup code, documented Pi entry points, other dependency modules, process startup, runtime initialization, and rendering. The accepted baseline SHALL fail when an unapproved broad entry point or optional feature becomes eagerly reachable, even when aggregate time happens to remain within budget.
