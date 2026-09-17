@@ -965,6 +965,11 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
     return this.#settingsIntegration;
   }
 
+  /** Which settings surface this adapter serves; hidden-in-bare effects are unbindable in bare mode. */
+  get settingsProductMode(): "bare" | "comparison" {
+    return this.#settingsProductMode;
+  }
+
   bindSettingsOwner(owner: AgentSettingOwner, handlers: PiSettingOwnerHandlers): () => void {
     const settings = this.settingsPort();
     if (settings === null) return () => {};

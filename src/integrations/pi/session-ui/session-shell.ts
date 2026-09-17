@@ -383,8 +383,8 @@ export class OwnedUiSessionShell {
     this.#terminalProgressEnabled = initialPiSettings.showTerminalProgress;
     this.#fullscreenExitOutput = initialPiSettings.fullscreenExitOutput;
     // Invariant: bare A1 prints only the resume hint at exit, so the pinned exit-output
-    // choice is hidden there; the comparison profile still binds and honors it.
-    this.#unbindShutdownSettings = this.#customViewport ? () => {} : this.backend.bindSettingsOwner("shutdown", {
+    // choice is hidden there and cannot be bound; the comparison profile binds and honors it.
+    this.#unbindShutdownSettings = this.backend.settingsProductMode === "bare" ? () => {} : this.backend.bindSettingsOwner("shutdown", {
       fullscreenExitOutput: { apply() {} },
     });
     this.#unbindTerminalSettings = this.backend.bindSettingsOwner("terminal", {
