@@ -24,10 +24,18 @@ class FakeSession {
   isRetrying = false;
   isCompacting = false;
   readonly messages: readonly unknown[] = [];
-  readonly agent = {
+  readonly agent: {
+    state: { systemPrompt: string; messages: unknown[]; tools: unknown[] };
+    sessionId?: string;
+    thinkingBudgets?: unknown;
+    transport?: string;
+    convertToLlm?: (messages: unknown[]) => unknown[];
+    transformContext?: (messages: unknown[], signal?: AbortSignal) => Promise<unknown[]>;
+    onPayload?: (payload: unknown, model: unknown) => unknown;
+  } = {
     state: {
       systemPrompt: "You are a coding agent.",
-      messages: [] as unknown[],
+      messages: [],
       tools: [{ name: "read", description: "Read a file", parameters: { type: "object", properties: {} } }],
     },
   };
@@ -419,15 +427,14 @@ describe("Pi engine adapter", () => {
   });
 
   it.each([
-    [false, ["off"], "ordinary", undefined],
-    [true, ["off", "low", "high"], "off", undefined],
-    [true, ["low", "medium", "high"], "low", "low"],
-    [true, ["minimal", "low", "high"], "minimal", "minimal"],
-  ] as const)("isolates high main thinking from model reasoning %s / %j", async (reasoning, levels, policy, effort) => {
+    [false, "high", "ordinary", undefined],
+    [true, "off", "off", undefined],
+    [true, "high", "high", "high"],
+    [true, "minimal", "minimal", "minimal"],
+  ] as const)("sends the session's own thinking level (reasoning %s, level %s)", async (reasoning, level, policy, effort) => {
     const session = new FakeSession("reasoning-fixture");
     session.model = { provider: "openai", id: "gpt-5", name: "GPT-5", reasoning };
-    session.availableThinkingLevels = [...levels];
-    session.thinkingLevel = "high";
+    session.thinkingLevel = level;
     const runtime = new FakeRuntime(session);
     const { adapter } = await adapterWithRuntime(runtime);
     try {
@@ -440,9 +447,61 @@ describe("Pi engine adapter", () => {
         expect(call.model).toBe(session.model);
         if (effort === undefined) expect(call.options).not.toHaveProperty("reasoning");
         else expect(call.options).toHaveProperty("reasoning", effort);
-        expect(session.thinkingLevel).toBe("high");
+        expect(session.thinkingLevel).toBe(level);
         expect(session.calls).toEqual([]);
       }
+    } finally { await adapter.dispose(); }
+  });
+
+  it("mirrors the primary loop's request shape so the conversation prefix stays cacheable", async () => {
+    const session = new FakeSession("cache-parity-fixture");
+    session.model = { provider: "anthropic", id: "claude", name: "Claude", reasoning: true };
+    session.thinkingLevel = "high";
+    const conversation = [
+      { role: "compactionSummary", summary: "Earlier work was summarized.", timestamp: 1 },
+      { role: "user", content: "continue", timestamp: 2 },
+      { role: "assistant", content: [{ type: "text", text: "Done. Commit it?" }], stopReason: "stop", timestamp: 3 },
+      { role: "assistant", content: [{ type: "text", text: "Ready when you are." }], stopReason: "stop", timestamp: 4 },
+    ];
+    session.setMessages(conversation);
+    const contextMessage = { role: "custom", content: "extension context", timestamp: 5 };
+    const transformCalls: unknown[][] = [];
+    session.agent.sessionId = "pi-session-cache-parity";
+    session.agent.thinkingBudgets = { high: 8192 };
+    session.agent.transport = "sse";
+    session.agent.transformContext = async messages => { transformCalls.push(messages); return [...messages, contextMessage]; };
+    session.agent.convertToLlm = messages => messages.map(message => {
+      const record = message as { role: string; summary?: string; content?: unknown; timestamp: number };
+      return record.role === "compactionSummary" || record.role === "custom"
+        ? { role: "user", content: [{ type: "text", text: record.summary ?? String(record.content) }], timestamp: record.timestamp }
+        : message;
+    });
+    const onPayload = async (payload: unknown) => payload;
+    session.agent.onPayload = onPayload;
+    const runtime = new FakeRuntime(session);
+    const { adapter } = await adapterWithRuntime(runtime);
+    try {
+      const identity = { sessionId: adapter.sessionId, sessionGeneration: adapter.sessionGeneration, runSequence: 0, responseSequence: 0, model: adapter.view().activeModel! };
+      const signal = new AbortController().signal;
+      await expect(adapter.generate({ identity, signal })).resolves.toMatchObject({ outcome: "candidate", text: "run the tests" });
+      expect(transformCalls).toEqual([conversation]);
+      const call = runtime.suggestionCalls[0]!;
+      expect(call.context).toEqual({
+        systemPrompt: "You are a coding agent.",
+        tools: session.agent.state.tools,
+        messages: [
+          { role: "user", content: [{ type: "text", text: "Earlier work was summarized." }], timestamp: 1 },
+          ...conversation.slice(1),
+          { role: "user", content: [{ type: "text", text: "extension context" }], timestamp: 5 },
+          { role: "user", content: CONTEXTUAL_PROMPT_SUGGESTION_INSTRUCTION, timestamp: expect.any(Number) },
+        ],
+      });
+      expect(call.options).toEqual({
+        signal, reasoning: "high", sessionId: "pi-session-cache-parity", thinkingBudgets: { high: 8192 }, transport: "sse", onPayload,
+      });
+      expect(session.agent.state.messages).toEqual(conversation);
+      expect(session.thinkingLevel).toBe("high");
+      expect(session.calls).toEqual([]);
     } finally { await adapter.dispose(); }
   });
 

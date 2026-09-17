@@ -441,10 +441,8 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
     const session = this.#session;
     if (!session?.model) return "unavailable";
     if (!session.model.reasoning) return "ordinary";
-    const levels = session.getAvailableThinkingLevels?.() ?? [];
-    // Compatibility: capability order, not the user's current setting or a provider-name heuristic.
-    return (["off", "minimal", "low", "medium", "high", "xhigh", "max"] as const)
-      .find(level => levels.includes(level)) ?? "unavailable";
+    // Performance: the run's own level keeps the provider's thinking parameters, and the cached prefix, identical.
+    return readSuggestionReasoning(session.thinkingLevel);
   }
 
   async generate(request: OwnedUiPromptSuggestionRequest): Promise<OwnedUiPromptSuggestionResult> {
@@ -465,17 +463,23 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
     }
 
     const model = session.model;
-    const agentState = session.agent.state;
+    const agent = session.agent;
+    const agentState = agent.state;
     const policy = this.suggestionReasoningPolicy();
     if (model === undefined || policy === "unavailable" || typeof runtime.services.modelRuntime.completeSimple !== "function") {
       return { identity, outcome: "unavailable", text: null };
     }
-    const messages = agentState.messages.filter(message =>
-      message.role === "user" || message.role === "assistant" || message.role === "toolResult",
-    );
+    // Performance: mirror the primary loop's request shape so the provider serves the conversation prefix
+    // from the run's prompt cache. `onResponse` stays out: extensions must not see a suggestion as a response.
     const reasoning = policy === "ordinary" || policy === "off" ? undefined : policy;
     let response: unknown;
     try {
+      const transformed = typeof agent.transformContext === "function"
+        ? await agent.transformContext(agentState.messages, request.signal)
+        : agentState.messages;
+      const messages = typeof agent.convertToLlm === "function"
+        ? await agent.convertToLlm(transformed)
+        : transformed.filter(message => message.role === "user" || message.role === "assistant" || message.role === "toolResult");
       response = await runtime.services.modelRuntime.completeSimple(model, {
         systemPrompt: agentState.systemPrompt,
         messages: [
@@ -486,6 +490,10 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
       }, {
         signal: request.signal,
         ...(reasoning === undefined ? {} : { reasoning }),
+        ...(agent.sessionId === undefined ? {} : { sessionId: agent.sessionId }),
+        ...(agent.thinkingBudgets === undefined ? {} : { thinkingBudgets: agent.thinkingBudgets }),
+        ...(agent.transport === undefined ? {} : { transport: agent.transport }),
+        ...(agent.onPayload === undefined ? {} : { onPayload: agent.onPayload }),
       });
     } catch {
       return { identity, outcome: request.signal.aborted ? "cancelled" : "provider-failure", text: null };
@@ -3459,6 +3467,12 @@ function readModel(value: unknown): OwnedUiModelInfo | null {
     modelId,
     displayName: stringValue(value.name) ?? modelId,
   };
+}
+
+function readSuggestionReasoning(value: unknown): OwnedUiPromptSuggestionReasoning {
+  return value === "minimal" || value === "low" || value === "medium" || value === "high" || value === "xhigh" || value === "max"
+    ? value
+    : "off";
 }
 
 function readThinkingLevel(value: unknown): OwnedUiThinkingLevel {
