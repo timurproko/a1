@@ -27,4 +27,9 @@ async function main() {
   log(`published ${preview.version}`);
 }
 
-await main();
+try {
+  await main();
+} catch (error) {
+  log(error instanceof Error ? error.message : String(error));
+  process.exitCode = 1;
+}

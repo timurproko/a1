@@ -633,6 +633,41 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
+      - name: Download validation evidence for the failure summary
+        if: always() && needs.plan.outputs.work == 'true' && (needs.package.result != 'success' || needs.validate.result != 'success' || (needs.plan.outputs.build == 'true' && needs.publish.result != 'success'))
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          pattern: release-validation-${{ needs.plan.outputs.version }}-*
+          path: .artifacts/lanes
+      - name: Summarize the failed outcome
+        if: always() && needs.plan.outputs.work == 'true' && (needs.package.result != 'success' || needs.validate.result != 'success' || (needs.plan.outputs.build == 'true' && needs.publish.result != 'success'))
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.plan.outputs.version }}
+        run: |
+          node --input-type=module <<'NODE' >> "$GITHUB_STEP_SUMMARY"
+          import { execFileSync } from "node:child_process";
+          import { readdirSync, readFileSync, statSync } from "node:fs";
+          import { basename, join } from "node:path";
+          const jobs = JSON.parse(execFileSync("gh", ["api", `repos/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}/jobs?per_page=100`, "--jq", "[.jobs[] | select(.conclusion == \"failure\") | .name]"], { encoding: "utf8" }));
+          console.log(`## ${process.env.VERSION} was not published`);
+          console.log("");
+          console.log(jobs.length > 0 ? `Failed jobs: ${jobs.map(name => `**${name}**`).join(", ")}` : "No job reported failure; inspect the run for a cancelled or skipped dependency.");
+          const files = [];
+          const walk = directory => { for (const entry of readdirSync(directory)) { const path = join(directory, entry); if (statSync(path).isDirectory()) walk(path); else if (entry.endsWith(".json")) files.push(path); } };
+          try { walk(".artifacts/lanes"); } catch {}
+          for (const path of files.sort()) {
+            const evidence = JSON.parse(readFileSync(path, "utf8"));
+            if (evidence.schema === "a1-validation-outcomes-v1") {
+              for (const outcome of evidence.outcomes.filter(item => item.exitCode !== 0)) {
+                console.log(`- ${basename(path, ".json")}: \`${outcome.id}\` exited ${outcome.exitCode} after ${(outcome.durationMs / 1000).toFixed(1)}s (\`${outcome.command}\`)${outcome.preparation ? ` [${outcome.preparation}]` : ""}`);
+              }
+            } else if (evidence.schema === "a1-startup-performance-evidence-v1") {
+              for (const violation of evidence.budgetViolations ?? []) console.log(`- ${basename(path, ".json")} (${evidence.enforcement}): ${violation.message}`);
+            }
+          }
+          NODE
       - name: Require the selected outcome
         shell: bash
         env:
