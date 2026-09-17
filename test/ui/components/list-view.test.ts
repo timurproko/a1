@@ -29,11 +29,29 @@ describe("list rows against the reader's terminal", () => {
     expect(line).not.toContain("<muted>Theme");
   });
 
-  it("carries the selection on the label", () => {
+  it("carries the selection on the cursor and label only", () => {
     const line = render({ selected: true, hovered: false, region: "label" });
 
+    expect(line).toContain("<accent>→ </accent>");
     expect(line).toContain("<accent>Theme");
-    expect(line).toContain("<accent>light</accent>");
+    expect(line).toContain("<muted>light</muted>");
+    expect(line).not.toContain("<accent>light");
+  });
+
+  // Rationale: the selected value once regressed to the accent through pinned-row parity;
+  // this pins that selection never changes how a value is painted.
+  it("paints a selected value exactly like an unselected one, at rest and under the pointer", () => {
+    const unselectedRest = render({ selected: false, hovered: false, region: "label" });
+    const selectedRest = render({ selected: true, hovered: false, region: "label" });
+    const unselectedPointed = render({ selected: false, hovered: true, region: "value" });
+    const selectedPointed = render({ selected: true, hovered: true, region: "value" });
+
+    const valueOf = (line: string) => line.trimEnd().match(/S+$/)?.[0];
+    expect(valueOf(selectedRest)).toBe(valueOf(unselectedRest));
+    expect(valueOf(selectedPointed)).toBe(valueOf(unselectedPointed));
+    expect(selectedPointed).toContain("<accent>Theme");
+    expect(selectedPointed).not.toContain("<muted>light");
+    expect(selectedPointed).not.toContain("<accent>light");
   });
 
   it("brightens a pointed-at value to the terminal's own foreground", () => {

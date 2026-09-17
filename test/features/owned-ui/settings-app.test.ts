@@ -6,6 +6,7 @@ import type { AgentJsonValue, AgentSettingDescriptor, AgentSettingsPort } from "
 import { OWNED_UI_SETTING_DECLARATIONS, OwnedUiSettingsSession, OwnedUiSettingsStore, type OwnedUiSettingDeclaration } from "../../../src/ui/settings/index.js";
 import { SettingsApp } from "../../../src/features/owned-ui/index.js";
 import type { AppHostServices } from "../../../src/ui/apps/index.js";
+import type { UiTheme, UiThemeToken } from "../../../src/ui/components/index.js";
 
 const ESC = String.fromCharCode(27);
 const DOWN = `${ESC}[B`;
@@ -78,6 +79,17 @@ const HOST: AppHostServices = {
   interruptArmed: false,
   closeOnInterrupt: true,
 };
+
+/** Names every token it paints, so a screen line says which role each part took. */
+const NAMING_THEME: UiTheme = Object.freeze({
+  fg: (token: UiThemeToken, text: string) => `<${token}>${text}</${token}>`,
+  bold: (text: string) => text,
+  plain: (text: string) => text,
+  highlight: (text: string) => `<highlight>${text}</highlight>`,
+  disabled: (text: string) => `<disabled>${text}</disabled>`,
+  panel: (text: string) => `<panel>${text}</panel>`,
+});
+const NAMING_HOST: AppHostServices = { ...HOST, theme: NAMING_THEME };
 
 let root: string;
 
@@ -182,6 +194,31 @@ describe("the settings screen", () => {
     expect(lines.findIndex(line => line.includes("Prompt suggestions"))).toBeGreaterThan(lines.findIndex(line => line.includes("Output padding")));
     expect(lines.join("\n")).not.toContain("(default)");
     expect(lines.join("\n")).not.toContain("When the session transcript scrollbar is visible.");
+  });
+
+  // Rationale: the selected value once regressed to the accent through pinned-row parity;
+  // the screen itself now pins that only the cursor and label take the selection colour.
+  it("paints the selected row's label in the accent and its value like every other value", async () => {
+    const { app: target } = await app();
+    const named = () => target.render({ width: 80, height: 24 }, NAMING_HOST).map(line => line.trimEnd());
+    const lines = named();
+    const selectedRow = lines.findIndex(line => line.includes("<accent>→ </accent>"));
+    expect(selectedRow).toBeGreaterThanOrEqual(0);
+    const selected = lines[selectedRow]!;
+    expect(selected).toContain("<accent>Scrollbar mode");
+    expect(selected).toContain("<muted>auto</muted>");
+    expect(selected).not.toContain("<accent>auto");
+    const unselected = lines.find(line => line.includes("Scrollbar style"))!;
+    expect(unselected).toContain("<muted>thin</muted>");
+    expect(unselected).not.toContain("<accent>");
+
+    const valueColumn = screen(target)[selectedRow]!.indexOf("auto") + 1;
+    target.onMouse?.({ kind: "motion", button: 0, row: selectedRow + 1, column: valueColumn }, NAMING_HOST);
+    const pointed = named()[selectedRow]!;
+    expect(pointed).toContain("<accent>Scrollbar mode");
+    expect(pointed).toMatch(/\s+auto$/);
+    expect(pointed).not.toContain("<muted>auto");
+    expect(pointed).not.toContain("<accent>auto");
   });
 
   it("keeps the moved control stable through section jumps, search, refresh, keyboard, and pointer changes", async () => {

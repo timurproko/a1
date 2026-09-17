@@ -78,14 +78,13 @@ export function renderListRow(
     : `${cursor}${theme.plain(labelPadded)}`;
   const gap = Math.max(2, valueColumn - displayWidth(leftRaw));
 
-  // Compatibility: pinned SettingsList gives the selected label and value the same accent
-  // role. Pointer hover may brighten an unselected value without changing the
-  // keyboard selection.
+  // Rationale: a declared difference from pinned SettingsList, which paints the selected
+  // value in the accent too. Here only the cursor and label carry the selection; the
+  // value reads the same on every row, and pointer hover brightens it without moving
+  // the keyboard selection.
   const valueHovered = state.hovered && state.region !== "label";
   const stepper = row.stepper !== undefined && valueHovered;
-  const value = state.selected
-    ? theme.fg("accent", row.value)
-    : valueHovered ? theme.plain(row.value) : theme.fg("muted", row.value);
+  const value = valueHovered ? theme.plain(row.value) : theme.fg("muted", row.value);
 
   const minus = stepper
     ? row.stepper?.lower === true
