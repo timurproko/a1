@@ -22,10 +22,10 @@ The manual merge accepts these scenarios:
     "Bare A1 prints neither its final fullscreen frame nor the conversation transcript after restoration, while `a1 pi` keeps pinned `fullscreenExitOutput` behavior.",
     "`/settings` → Quit offers `Effect` (default `fall`) and `Duration` (default 800 ms), and `off` restores the terminal immediately."
   ],
-  "archiveDigest": "2421f7c2191f22e7a33f49d47fbc99c3b045cdccff37046224a12aaad7f1d7f0",
+  "archiveDigest": "b6d4d74636502ec90509e73f7101a9a83a6bf9fab31ef73167bad120c2d4716c",
   "specDigest": "1a818f8c2ce44b04e9558b64bcab687f917a2c6da292a97a5f38f0e514480630",
   "tasksDigest": "a8e4cd0f442bff801f73ec5ab773908f340510518f521754732ea3c1fe8e3bf5",
-  "evidenceDigest": "6388911d9c6324c06e2eb620f2f3be4eccf8ce8987ad3c4b24696fe22c8d1893",
+  "evidenceDigest": "a7c48bebee9031442a86e41702ed129bf28fedd02853018d9008298eabffea4d",
   "knownGaps": []
 }
 ```

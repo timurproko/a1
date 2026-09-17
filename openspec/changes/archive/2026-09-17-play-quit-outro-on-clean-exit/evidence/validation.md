@@ -16,7 +16,7 @@ At the planning base the existing session-shell exit tests asserted the old beha
 - Owned settings scopes (98 tests) and settings screen (32 tests): `quitEffect` and `quitEffectDurationMs` declare the `Quit` section with `fall` and 800 defaults, the settings version advanced to 5 with a no-op migration, section jumps and rows include `Effect` and `Duration`, and the `fullscreenExitOutput` row is absent from bare A1.
 - Graceful-quit process scope: `/quit` and double `Ctrl+C` exit zero with a retained extension handle and restore alternate-screen and mouse modes.
 - Combined session-ui, owned-ui, ui, tui-runtime, and composition run: 985 tests passed. Engine, component, and contract suites: 913 passed; one editor paste test failed once under parallel load and passed alone (timing, unrelated).
-- TypeScript project typecheck, architecture, naming, code-documentation, and docs governance: passed. The startup graph byte baseline rose from 2624606 to 2631862 for the shell, runtime, adapter, contract, and settings additions plus the editor bytes that reached `develop` in #451 without a baseline update; the outro modules are registered as optional and load only at quit.
+- TypeScript project typecheck, architecture, naming, code-documentation, and docs governance: passed. The startup graph byte baseline rose from 2624606 to 2632100 for the shell, runtime, adapter, contract, and settings additions plus the editor bytes that reached `develop` in #451 without a baseline update; the outro modules are registered as optional and load only at quit.
 
 ## Physical acceptance
 
@@ -25,3 +25,7 @@ The user ran the rebuilt candidate through `./scripts/dev` on Windows (Git Bash)
 ## Gap disposition
 
 No known implementation or validation gaps remain. Full regression and native host gates remain CI-owned under repository policy.
+
+## Exact-head CI refinements
+
+The first ready-head run failed changed-file documentation governance on five unlabeled implementation comments in the new outro files; they were relabeled with the required prefixes. The second run failed the resource-sensitive command-outcome parity worker, which builds a pinned-layout shell on a bare-mode adapter: the shell had gated the pinned `fullscreenExitOutput` binding on layout and tried to bind the now-hidden effect. The binding is gated on the adapter's settings product mode instead, and the parity scope passes. The third run failed the architecture check because that adapter getter added 238 eager bytes; the startup graph baseline was raised to 2632100 to match.
