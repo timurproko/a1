@@ -4,7 +4,7 @@ import { pathToFileURL, fileURLToPath } from "node:url";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { createStateStore, digest, fail, registerEntry, transitionEntry } from "./local-cleanup-state.mjs";
-import { captureWorktree, discoverRepository, inside, canonical } from "./local-cleanup-git.mjs";
+import { captureWorktree, discoverRepository, inside, canonical, gitRunner, nothingLeft, retireRegistration } from "./local-cleanup-git.mjs";
 import { cleanupReader } from "./local-cleanup-evidence.mjs";
 import { reconcileLocalCleanup } from "./local-cleanup-reconcile.mjs";
 import { watchLocalCleanup } from "./local-cleanup-watch.mjs";
@@ -13,7 +13,9 @@ import { discardLocalCleanup } from "./local-cleanup-discard.mjs";
 
 const help = `Local worktree cleanup (disabled until explicitly enabled)
 Usage: node scripts/governance/local-worktree-cleanup.mjs COMMAND --repo PRIMARY [options]
-Commands: preview (default), status, handoff, sweep, complete, discard, enable, disable, once, watch, register, claim, release, recover
+Commands: preview (default), status, handoff, sweep, complete, discard, forget, enable, disable, once, watch, register, claim, release, recover
+Forget: --id ID --confirm-nothing-left
+  Marks a released entry whose worktree, Git row, and local ref are all already absent as forgotten; reads nothing remote, deletes nothing.
 Handoff: --path PATH --change NAME --pr N
   Registers and releases the exact pushed worktree at maintainer hand-off; deletes nothing and enables nothing.
   An entry still owned by a low-level register is released when LOCAL_CLEANUP_OWNER_TOKEN matches its owner (same for complete).
@@ -58,15 +60,28 @@ export async function main(args = process.argv.slice(2)) {
   const { values, positionals } = parseArgs({ args, allowPositionals: true, strict: true, options: {
     repo: { type: "string" }, path: { type: "string" }, change: { type: "string" }, pr: { type: "string" }, "source-pr": { type: "string" }, "candidate-pr": { type: "string" },
     role: { type: "string" }, disposable: { type: "string", multiple: true }, id: { type: "string" }, generation: { type: "string" },
-    "confirm-stopped": { type: "boolean" }, "confirm-closed-unmerged": { type: "boolean" }, help: { type: "boolean" },
+    "confirm-stopped": { type: "boolean" }, "confirm-closed-unmerged": { type: "boolean" }, "confirm-nothing-left": { type: "boolean" }, help: { type: "boolean" },
   } });
   if (values.help) { console.log(help); return; }
   if (positionals.length > 1) fail("command-count");
   const command = positionals[0] ?? "preview";
-  if (!["preview", "status", "handoff", "sweep", "complete", "discard", "enable", "disable", "once", "watch", "register", "claim", "release", "recover"].includes(command)) fail("unknown-command");
+  if (!["preview", "status", "handoff", "sweep", "complete", "discard", "forget", "enable", "disable", "once", "watch", "register", "claim", "release", "recover"].includes(command)) fail("unknown-command");
   const identity = await discoverRepository(values.repo ?? process.cwd());
   const store = createStateStore(identity);
   if (command === "status") { console.log(JSON.stringify({ ...summary(await store.read()), stopped: await store.disabled() }, null, 2)); return; }
+  if (command === "forget") {
+    if (!values.id || values["confirm-nothing-left"] !== true) fail("forget-arguments");
+    await store.locked(async (state, save) => {
+      const entry = state.entries.find(item => item.id === values.id); if (!entry) fail("unknown-registration");
+      if (entry.state !== "released") fail(entry.state === "done" ? "already-complete" : entry.state === "owned" ? "owned-worktree" : "cleanup-in-progress");
+      if (!await nothingLeft(identity, entry)) fail("something-remains");
+      await retireRegistration(identity, entry, gitRunner(), {});
+      Object.assign(entry, { state: "done", step: "complete", completion: "forgotten", completionReason: null });
+      await save(state);
+      console.log(JSON.stringify({ id: entry.id, path: entry.path, sourcePr: entry.sourcePr, disposition: "forgotten" }));
+    });
+    return;
+  }
   if (command === "enable" || command === "disable") { await store[command](); console.log(`Local cleanup ${command}d; no worktrees removed.`); return; }
   if (["register", "claim", "release", "recover"].includes(command)) {
     const owner = process.env.LOCAL_CLEANUP_OWNER_TOKEN;

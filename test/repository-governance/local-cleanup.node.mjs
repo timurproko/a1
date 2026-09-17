@@ -1021,6 +1021,70 @@ test("complete releases an owned registration only for the holder of its owner t
   assert.equal(await exists(f.path), false);
 });
 
+test("a released entry whose worktree and ref are gone is retired when its PR merged, and kept blocked otherwise", async t => {
+  const unverifiable = async () => { throw Object.assign(Error("delivery-content-drift"), { archiveCode: "delivery-content-drift" }); };
+  const f = await fixture(t, true);
+  await rm(f.path, { recursive: true, force: true });
+  const kept = await f.pass({ preview: false, requireEnabled: false, verify: unverifiable, merged: async () => true });
+  assert.equal(kept.results[0].disposition, "blocked"); assert.equal(kept.results[0].reason, "delivery-content-drift");
+  assert.notEqual(await git(f.primary, "for-each-ref", "refs/heads/feature/example"), "", "a present ref keeps the entry blocked and is never deleted");
+  await git(f.primary, "update-ref", "-d", "refs/heads/feature/example");
+  const unmerged = await f.pass({ preview: false, requireEnabled: false, verify: unverifiable, merged: async () => false });
+  assert.equal(unmerged.results[0].disposition, "blocked"); assert.equal((await f.store.read()).entries[0].state, "released");
+  const preview = await f.pass({ verify: unverifiable, merged: async () => true });
+  assert.equal(preview.results[0].disposition, "blocked"); assert.equal((await f.store.read()).entries[0].state, "released");
+  let asked = 0;
+  const retired = await f.pass({ preview: false, requireEnabled: false, verify: unverifiable, merged: async entry => { asked++; return entry.sourcePr === 20; } });
+  assert.equal(retired.results[0].disposition, "retired", JSON.stringify(retired));
+  assert.equal(retired.results[0].reason, "delivery-content-drift"); assert.deepEqual(retired.results[0].steps, ["retired-nothing-left"]); assert.equal(asked, 1);
+  assert.doesNotMatch(await git(f.primary, "worktree", "list", "--porcelain"), /prunable/);
+  const entry = (await f.store.read()).entries[0];
+  assert.equal(entry.state, "done"); assert.equal(entry.completion, "retired-nothing-left"); assert.equal(entry.completionReason, "delivery-content-drift");
+  const next = await f.pass({ preview: false, requireEnabled: false, verify: unverifiable, merged: async () => { throw Error("must not be asked again"); } });
+  assert.equal(next.coverage.total, 0); assert.equal(next.results[0].disposition, "already-absent");
+  assert.ok(sweepLines(retired).includes("#20 example: retired (delivery-content-drift) [retired-nothing-left]"), sweepLines(retired).join("\n"));
+});
+
+test("retirement never fires for a deferred evidence failure or a journaled removal step", async t => {
+  const f = await fixture(t, true);
+  await rm(f.path, { recursive: true, force: true }); await git(f.primary, "update-ref", "-d", "refs/heads/feature/example");
+  const budget = async () => { throw Object.assign(Error("remote-budget"), { cleanupCode: "remote-budget" }); };
+  const report = await f.pass({ preview: false, requireEnabled: false, verify: budget, merged: async () => true });
+  assert.equal(report.results[0].disposition, "deferred"); assert.equal((await f.store.read()).entries[0].state, "released");
+});
+
+test("forget records an all-absent released entry and refuses anything that still exists", async t => {
+  const f = await fixture(t, true);
+  const cli = fileURLToPath(new URL("../../scripts/governance/local-worktree-cleanup.mjs", import.meta.url));
+  const invoke = (...args) => execFileSync(process.execPath, [cli, ...args, "--repo", f.primary], { cwd: f.primary, env: { ...process.env, GH_TOKEN: "fixture-unused-token" }, encoding: "utf8" });
+  assert.throws(() => invoke("forget", "--id", f.entry.id), /forget-arguments/);
+  assert.throws(() => invoke("forget", "--id", f.entry.id, "--confirm-nothing-left"), /something-remains/);
+  await rm(f.path, { recursive: true, force: true });
+  assert.throws(() => invoke("forget", "--id", f.entry.id, "--confirm-nothing-left"), /something-remains/, "a present ref still counts as something left");
+  assert.notEqual(await git(f.primary, "for-each-ref", "refs/heads/feature/example"), "");
+  await git(f.primary, "update-ref", "-d", "refs/heads/feature/example");
+  await f.store.locked(async (state, save) => { transitionEntry(state.entries[0], "claim", owner, state.entries[0].generation); await save(state); });
+  assert.throws(() => invoke("forget", "--id", f.entry.id, "--confirm-nothing-left"), /owned-worktree/);
+  await f.store.locked(async (state, save) => { transitionEntry(state.entries[0], "release", owner, state.entries[0].generation); await save(state); });
+  const result = JSON.parse(invoke("forget", "--id", f.entry.id, "--confirm-nothing-left"));
+  assert.equal(result.disposition, "forgotten");
+  const entry = (await f.store.read()).entries[0];
+  assert.equal(entry.state, "done"); assert.equal(entry.completion, "forgotten"); assert.equal(entry.completionReason, null);
+  assert.doesNotMatch(await git(f.primary, "worktree", "list", "--porcelain"), /prunable/);
+  assert.throws(() => invoke("forget", "--id", f.entry.id, "--confirm-nothing-left"), /already-complete/);
+  assert.match(invoke("--help"), /forget/);
+});
+
+test("journals written before completion notes still load and report", async t => {
+  const f = await fixture(t, true);
+  const path = join(f.store.directory, "state.json"), state = JSON.parse(await readFile(path, "utf8"));
+  for (const entry of state.entries) { delete entry.completion; delete entry.completionReason; }
+  await writeFile(path, JSON.stringify(state));
+  const read = await f.store.read(); assert.equal(read.entries[0].completion, null); assert.equal(read.entries[0].completionReason, null);
+  assert.throws(() => validateState({ ...read, entries: [{ ...read.entries[0], completion: "retired-nothing-left" }] }, f.identity), /registration-state/);
+  assert.throws(() => validateState({ ...read, entries: [{ ...read.entries[0], completion: "made-up" }] }, f.identity), /registration-schema/);
+});
+
 test("pass deadline reports incomplete coverage without mutation", async t => {
   const f = await fixture(t); await f.store.enable();
   const report = await f.pass({ deadline: 0, preview: false }); assert.equal(report.error, "pass-deadline"); assert.equal(await exists(f.path), true);

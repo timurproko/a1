@@ -173,7 +173,7 @@ const worktreeRows = async (identity, git) => parseWorktrees(await git(identity.
 const rowsAt = (rows, path) => rows.filter(row => normalized(row.worktree) === path);
 
 /** Retire only this candidate's dangling registration: a prunable row whose gitdir file names the removed pointer. */
-async function retireRegistration(identity, entry, git, timing) {
+export async function retireRegistration(identity, entry, git, timing) {
   const rows = rowsAt(await worktreeRows(identity, git), entry.path);
   if (!rows.length) return false;
   if (rows.length !== 1 || rows[0].prunable === undefined || rows[0].locked !== undefined) fail("retained-worktree-metadata");
@@ -190,6 +190,18 @@ async function retireRegistration(identity, entry, git, timing) {
     return true;
   }
   fail("retained-worktree-metadata");
+}
+
+/**
+ * True only when cleanup has nothing left to delete for this entry: the path is gone, Git holds no live row for it,
+ * and the exact local topic ref is absent. Any doubt reads as "something remains".
+ */
+export async function nothingLeft(identity, entry, git = gitRunner()) {
+  if (await exists(entry.path)) return false;
+  const rows = rowsAt(await worktreeRows(identity, git), entry.path);
+  if (rows.some(row => row.prunable === undefined || row.locked !== undefined)) return false;
+  if (entry.ref && await readLocalRef(identity, entry.ref, git) !== null) return false;
+  return true;
 }
 
 /**
