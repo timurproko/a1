@@ -1,5 +1,5 @@
 import crossSpawn from "cross-spawn";
-import { rm } from "node:fs/promises";
+import { readFile, rm } from "node:fs/promises";
 import { resolve } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { guardianBinaryReference } from "../../../scripts/governance/candidate-evidence.mjs";
@@ -62,6 +62,15 @@ describe("exact packed npm command surface", () => {
       if (!binary) throw new Error(`packed guardian binary is missing: ${reference.binaryPath}`);
       expect(binary.mode & 0o111, `${reference.binaryPath} packed with mode ${binary.mode.toString(8)}`).not.toBe(0);
     }
+  });
+
+  it("resolves Pi's lazily loaded OAuth and bedrock modules from the packed startup artifact", async () => {
+    const artifact = await readFile(resolve(extracted.packageRoot, "dist", "integrations", "pi", "startup-public.js"), "utf8");
+    expect(artifact).not.toMatch(/\bimportOAuthModule\("|\bimportNodeOnlyApi\("/);
+    for (const flow of ["anthropic", "openai-codex", "github-copilot", "openrouter", "kimi-coding", "xai", "radius"]) {
+      expect(artifact, flow).not.toContain(`"./${flow}.ts"`);
+    }
+    expect(artifact).toContain('__piResolve("@earendil-works/pi-ai/api/bedrock-converse-stream")');
   });
 
   it("launches the exact packed public entry and a1 shim with repository dependencies", () => {

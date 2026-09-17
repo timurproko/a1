@@ -3,6 +3,7 @@ import { dirname, relative, resolve, sep } from "node:path";
 import { build } from "esbuild";
 import { createStartupPublicManifest, validateStartupPublicBaseline } from "./startup-public-artifact.mjs";
 import { createStartupDescriptor, serializeStartupDescriptor } from "./startup-descriptor.mjs";
+import { isStartupLazyImportModule, rewriteStartupLazyImports } from "./startup-lazy-imports.mjs";
 
 const root = process.cwd();
 const entry = "dist/integrations/pi/startup-public.js";
@@ -28,7 +29,7 @@ const result = await build({
   legalComments: "eof",
   alias: { "@earendil-works/pi-tui": "#pi-tui" },
   external,
-  plugins: [preservePinnedPiModuleContext()],
+  plugins: [preservePinnedPiModuleContext(), inlineLazyPiModules()],
   banner: { js: [
     "import { createRequire as __createRequire } from 'node:module';",
     "import { configurePinnedPiPublicPackageEntry as __piConfigure, pinnedPiModuleUrl as __piModuleUrl, resolvePinnedPiImport as __piResolve } from '../../../bin/pinned-pi-public.js';",
@@ -71,6 +72,22 @@ function preservePinnedPiModuleContext() {
           contents: source
             .replaceAll("import.meta.resolve(", "__piResolve(")
             .replaceAll("import.meta.url", `__piModuleUrl(${JSON.stringify(relativeModule)})`),
+          loader: "js",
+          resolveDir: dirname(args.path),
+        };
+      });
+    },
+  };
+}
+
+function inlineLazyPiModules() {
+  return {
+    name: "inline-lazy-pi-modules",
+    setup(buildContext) {
+      buildContext.onLoad({ filter: /.js$/ }, async args => {
+        if (!isStartupLazyImportModule(args.path)) return undefined;
+        return {
+          contents: rewriteStartupLazyImports(await readFile(args.path, "utf8")),
           loader: "js",
           resolveDir: dirname(args.path),
         };
