@@ -11,6 +11,10 @@ const ESC = String.fromCharCode(27);
 const DOWN = `${ESC}[B`;
 const HOME = `${ESC}[H`;
 const END = `${ESC}[F`;
+const CTRL_HOME = `${ESC}[1;5H`;
+const CTRL_END = `${ESC}[1;5F`;
+const RXVT_CTRL_HOME = `${ESC}[7^`;
+const RXVT_CTRL_END = `${ESC}[8^`;
 const ENTER = "\r";
 const SPACE = " ";
 const STYLE = new RegExp(`${ESC}\\[[0-9;]*m`, "g");
@@ -78,19 +82,43 @@ const HOST: AppHostServices = {
 let root: string;
 
 // Rationale: fixed numbered rows verify exact wheel distances independently of the product's settings inventory.
+const WHEEL_ROWS: readonly OwnedUiSettingDeclaration[] = Array.from({ length: 20 }, (_, index) => ({
+  id: `wheelRow${index + 1}`, label: `Wheel row ${String(index + 1).padStart(2, "0")}`,
+  section: { id: "wheel-test", title: "Wheel test" }, description: "Numbered wheel fixture.",
+  application: "live" as const, defaultValue: false, allowedValues: [false, true],
+}));
 const WHEEL_SETTINGS: readonly OwnedUiSettingDeclaration[] = [
   { ...OWNED_UI_SETTING_DECLARATIONS.find(setting => setting.id === "scrollbarSpeed")!, section: { id: "wheel-test", title: "Wheel test" } },
-  ...Array.from({ length: 20 }, (_, index) => ({
-    id: `wheelRow${index + 1}`, label: `Wheel row ${String(index + 1).padStart(2, "0")}`,
-    section: { id: "wheel-test", title: "Wheel test" }, description: "Numbered wheel fixture.",
-    application: "live" as const, defaultValue: false, allowedValues: [false, true],
-  })),
+  ...WHEEL_ROWS,
 ];
+// Rationale: the three Scroll settings ahead of the numbered rows, so the rail can be changed from the screen it draws on.
+const RAIL_SETTINGS: readonly OwnedUiSettingDeclaration[] = [
+  ...["scrollbarAppearance", "scrollbarStyle", "scrollbarSpeed"].map(id => ({
+    ...OWNED_UI_SETTING_DECLARATIONS.find(setting => setting.id === id)!,
+    section: { id: "wheel-test", title: "Wheel test" },
+  })),
+  ...WHEEL_ROWS,
+];
+const RAIL_RECT = { width: 80, height: 12 };
+const RAIL_COLUMN = RAIL_RECT.width;
+
+/** The rows of a rail-sized frame, with styling taken off. */
+function railScreen(target: SettingsApp): string[] {
+  return target.render(RAIL_RECT, HOST).map(line => line.replace(STYLE, ""));
+}
+
+/** The rail cells of a rail-sized frame, top to bottom. */
+function railCells(target: SettingsApp): string[] {
+  return railScreen(target)
+    .slice(0, RAIL_RECT.height - 1)
+    .map(line => (line.length >= RAIL_COLUMN ? line.charAt(RAIL_COLUMN - 1) : ""));
+}
 
 async function app(
   failWrites = false,
   scrollbarSpeed?: "normal" | "fast" | "high",
   declarations: readonly OwnedUiSettingDeclaration[] = OWNED_UI_SETTING_DECLARATIONS,
+  stored: Readonly<Record<string, string>> = {},
 ): Promise<{ app: SettingsApp; session: OwnedUiSettingsSession; writes: { key: string; value: AgentJsonValue }[] }> {
   const backing = port(failWrites);
   const store = new OwnedUiSettingsStore({
@@ -100,6 +128,7 @@ async function app(
     migrations: [],
   });
   if (scrollbarSpeed !== undefined) store.write(store.read(), "scrollbarSpeed", scrollbarSpeed);
+  for (const [id, value] of Object.entries(stored)) store.write(store.read(), id, value);
   const session = new OwnedUiSettingsSession({ store, agent: backing.port });
   await session.load();
   return { app: new SettingsApp(session), session, writes: backing.writes };
@@ -367,24 +396,24 @@ describe("the settings screen", () => {
     expect([...visited].sort()).toEqual(["History limit", "Output padding", "Persistent history", "Prompt suggestions", "Thinking level"]);
   });
 
-  it("restores the opening blank row when Home returns to the beginning during search", async () => {
+  it("restores the opening blank row when Ctrl+Home returns to the beginning during search", async () => {
     const { app: target } = await app();
     target.onInput?.("/", HOST);
     target.render({ width: 80, height: 13 }, HOST);
     target.onMouse?.({ kind: "wheel-down", button: 0, row: 1, column: 70 }, HOST);
     target.render({ width: 80, height: 13 }, HOST);
 
-    target.onInput?.(HOME, HOST);
+    target.onInput?.(CTRL_HOME, HOST);
     const lines = target.render({ width: 80, height: 13 }, HOST).map(line => line.replace(STYLE, "").trimEnd());
     expect(lines[0]).toBe("");
     expect(lines[1]).toContain("Generic");
     expect(lines[2]?.trimStart()).toMatch(/^→\s+Exit animation/);
   });
 
-  it("moves the last result onto the final body row when End is used during search", async () => {
+  it("moves the last result onto the final body row when Ctrl+End is used during search", async () => {
     const { app: target } = await app();
     target.onInput?.("/", HOST);
-    target.onInput?.(END, HOST);
+    target.onInput?.(CTRL_END, HOST);
 
     const lines = target.render({ width: 80, height: 8 }, HOST).map(line => line.replace(STYLE, "").trimEnd());
     const searchRow = lines.findIndex(line => line.includes("search settings"));
@@ -392,6 +421,47 @@ describe("the settings screen", () => {
     expect(lines.find(line => line.includes("Prompt suggestions"))?.trimStart()).toMatch(/^→/);
     // Invariant: the ruled search footer leaves its final result on the last body row.
     expect(lines[searchRow - 2]).toContain("Prompt suggestions");
+  });
+
+  it("jumps to the first and last setting on Ctrl+Home and Ctrl+End in either encoding", async () => {
+    const { app: target } = await app(false, undefined, WHEEL_SETTINGS);
+    const arrowRow = () => screen(target).find(line => line.trimStart().startsWith("→")) ?? "";
+
+    // Invariant: the Agent section follows the wheel rows, so its last entry is the very last setting.
+    target.onInput?.(CTRL_END, HOST);
+    expect(arrowRow()).toContain("Output padding");
+    target.onInput?.(CTRL_HOME, HOST);
+    expect(arrowRow()).toContain("Speed");
+    target.onInput?.(RXVT_CTRL_END, HOST);
+    expect(arrowRow()).toContain("Output padding");
+    target.onInput?.(RXVT_CTRL_HOME, HOST);
+    expect(arrowRow()).toContain("Speed");
+  });
+
+  it("leaves the list alone on plain Home and End", async () => {
+    const { app: target } = await app(false, undefined, WHEEL_SETTINGS);
+    target.render(RAIL_RECT, HOST);
+    target.onMouse?.({ kind: "wheel-down", button: 0, row: 1, column: 70 }, HOST);
+    const before = target.render(RAIL_RECT, HOST).map(line => line.replace(STYLE, "").trimEnd());
+
+    expect(target.onInput?.(HOME, HOST)).toEqual({ consumed: false });
+    expect(target.onInput?.(END, HOST)).toEqual({ consumed: false });
+    expect(target.render(RAIL_RECT, HOST).map(line => line.replace(STYLE, "").trimEnd())).toEqual(before);
+  });
+
+  it("moves the search cursor on plain Home and End without moving the selection", async () => {
+    const { app: target } = await app();
+    target.onInput?.("/", HOST);
+    for (const character of "cr") target.onInput?.(character, HOST);
+    target.onInput?.(DOWN, HOST);
+    expect(find(target, "→")).toContain("Scrollbar style");
+
+    target.onInput?.(HOME, HOST);
+    target.onInput?.("s", HOST);
+    target.onInput?.(END, HOST);
+    target.onInput?.("o", HOST);
+    expect(screen(target).some(line => line.includes("scro"))).toBe(true);
+    expect(find(target, "→")).toContain("Scrollbar style");
   });
 
   it("jumps a section from the search, as the arrows move through it", async () => {
@@ -573,6 +643,146 @@ describe("the input row and status line behind the screen", () => {
     target.onMouse?.({ kind: "wheel-down", button: 0, row: 1, column: 70 }, HOST);
     const visible = target.render({ width: 80, height: 3 }, HOST).map(line => line.replace(STYLE, "")).join("\n");
     expect(visible).toContain("Wheel row 06");
+  });
+
+  it("keeps the rail blank under auto until the pointer reaches it", async () => {
+    const { app: target } = await app(false, undefined, RAIL_SETTINGS);
+    const blank = railCells(target);
+    expect(blank.every(cell => cell === " ")).toBe(true);
+
+    target.onMouse?.({ kind: "motion", button: 0, row: 3, column: RAIL_COLUMN }, HOST);
+    const revealed = railCells(target);
+    expect(revealed).toContain("│");
+    expect(revealed).toContain("┃");
+    // Invariant: the rail is not a row: pointing at it lights nothing in the list.
+    expect(railScreen(target).some(line => line.includes("❯"))).toBe(false);
+
+    target.onMouse?.({ kind: "motion", button: 0, row: 3, column: 10 }, HOST);
+    expect(railCells(target).every(cell => cell === " ")).toBe(true);
+  });
+
+  it("lights the rail under auto while the list scrolls and lets it fade as the transcript does", async () => {
+    vi.useFakeTimers();
+    try {
+      const { app: target } = await app(false, undefined, RAIL_SETTINGS);
+      const requestRender = vi.fn();
+      const host = { ...HOST, requestRender };
+      const cells = () => target.render(RAIL_RECT, host)
+        .slice(0, RAIL_RECT.height - 1)
+        .map(line => line.replace(STYLE, ""))
+        .map(line => (line.length >= RAIL_COLUMN ? line.charAt(RAIL_COLUMN - 1) : ""));
+      expect(cells().every(cell => cell === " ")).toBe(true);
+
+      target.onMouse?.({ kind: "wheel-down", button: 0, row: 1, column: 40 }, host);
+      const lit = cells();
+      expect(lit).toContain("│");
+      expect(lit).not.toContain("┃");
+
+      // Invariant: the rail stays lit for the shared linger, then one repaint takes it away.
+      vi.advanceTimersByTime(800);
+      expect(cells()).toContain("│");
+      expect(requestRender).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(200);
+      expect(requestRender).toHaveBeenCalledTimes(1);
+      expect(cells().every(cell => cell === " ")).toBe(true);
+
+      target.onInput?.(CTRL_END, host);
+      expect(cells()).toContain("│");
+      target.onClose?.(host);
+      vi.advanceTimersByTime(2000);
+      expect(requestRender).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("draws the rail whenever the list overflows under always, in the configured style", async () => {
+    const thin = await app(false, undefined, RAIL_SETTINGS, { scrollbarAppearance: "always" });
+    const thinCells = railCells(thin.app);
+    expect(thinCells).toContain("│");
+    expect(thinCells).not.toContain("┃");
+
+    const thick = await app(false, undefined, RAIL_SETTINGS, { scrollbarAppearance: "always", scrollbarStyle: "thick" });
+    const thickCells = railCells(thick.app);
+    expect(thickCells).toContain("┃");
+    expect(thickCells).not.toContain("│");
+  });
+
+  it("draws no rail and gives the rows its columns under hidden", async () => {
+    const { app: target } = await app(false, undefined, RAIL_SETTINGS, { scrollbarAppearance: "hidden" });
+    const lines = target.render(RAIL_RECT, HOST).map(line => line.replace(STYLE, ""));
+    expect(lines.join("\n")).not.toMatch(/[│┃]/);
+    target.onMouse?.({ kind: "motion", button: 0, row: 3, column: RAIL_COLUMN }, HOST);
+    expect(target.render(RAIL_RECT, HOST).map(line => line.replace(STYLE, "")).join("\n")).not.toMatch(/[│┃]/);
+
+    // Invariant: the former rail column is ordinary list space; pressing it pages nothing.
+    const before = screen(target);
+    target.onMouse?.({ kind: "press", button: 0, row: RAIL_RECT.height - 1, column: RAIL_COLUMN }, HOST);
+    expect(screen(target)).toEqual(before);
+
+    // Rationale: at 23 columns the value only reaches the screen when the rail gives its columns back.
+    const reserved = (await app(false, undefined, RAIL_SETTINGS, { scrollbarAppearance: "auto" })).app;
+    const modeRow = (candidate: SettingsApp) => candidate.render({ width: 23, height: 12 }, HOST)
+      .map(line => line.replace(STYLE, "").trimEnd())
+      .find(line => line.includes("Scrollbar mode")) ?? "";
+    expect(modeRow(target)).toBe("→ Scrollbar mode     hi");
+    expect(modeRow(reserved)).toBe("→ Scrollbar mode");
+  });
+
+  it("follows a mode changed on the screen before the store reflects it", async () => {
+    const { app: target, session } = await app(false, undefined, RAIL_SETTINGS);
+    const change = vi.spyOn(session, "change").mockReturnValue(new Promise(() => {}));
+    expect(railCells(target).every(cell => cell === " ")).toBe(true);
+
+    target.onInput?.(ENTER, HOST);
+    expect(change).toHaveBeenCalledWith("a1", "scrollbarAppearance", "always");
+    expect(session.value("scrollbarAppearance")).toBe("auto");
+    expect(railCells(target)).toContain("│");
+
+    target.onInput?.(ENTER, HOST);
+    expect(change).toHaveBeenCalledWith("a1", "scrollbarAppearance", "hidden");
+    expect(target.render(RAIL_RECT, HOST).join("\n")).not.toMatch(/[│┃]/);
+  });
+
+  it("scrolls the list by dragging the thumb and pages from the track", async () => {
+    const { app: target } = await app(false, undefined, RAIL_SETTINGS, { scrollbarAppearance: "always" });
+    const visible = () => railScreen(target).join("\n");
+    // Rationale: the rows without the rail, whose thumb changes glyph as the drag ends.
+    const content = () => railScreen(target).map(line => line.slice(0, RAIL_COLUMN - 2)).join("\n");
+    const arrow = () => railScreen(target).find(line => line.trimStart().startsWith("→"));
+    expect(visible()).toContain("Scrollbar mode");
+    expect(arrow()).toContain("Scrollbar mode");
+
+    // Invariant: the thumb starts at the top of the track, so pane row 2 is track row 0.
+    target.onMouse?.({ kind: "press", button: 0, row: 2, column: RAIL_COLUMN }, HOST);
+    target.onMouse?.({ kind: "motion", button: 0, row: 8, column: RAIL_COLUMN }, HOST);
+    const dragged = content();
+    expect(dragged).not.toContain("Scrollbar mode");
+    expect(dragged).toContain("Wheel row 20");
+    expect(railCells(target)).toContain("┃");
+    target.onMouse?.({ kind: "release", button: 0, row: 8, column: RAIL_COLUMN }, HOST);
+    target.onMouse?.({ kind: "motion", button: 0, row: 2, column: 40 }, HOST);
+    expect(content()).toBe(dragged);
+    expect(railCells(target)).not.toContain("┃");
+    // Invariant: the selection stays where it was, off screen for now.
+    expect(arrow()).toBeUndefined();
+
+    // Rationale: pointing at the rail thickens the thumb, which says where to grab it for the way back up.
+    target.onMouse?.({ kind: "motion", button: 0, row: 2, column: RAIL_COLUMN }, HOST);
+    const thumbRow = railCells(target).indexOf("┃") + 1;
+    expect(thumbRow).toBeGreaterThan(2);
+    target.onMouse?.({ kind: "press", button: 0, row: thumbRow, column: RAIL_COLUMN }, HOST);
+    target.onMouse?.({ kind: "motion", button: 0, row: 2, column: RAIL_COLUMN }, HOST);
+    target.onMouse?.({ kind: "release", button: 0, row: 2, column: RAIL_COLUMN }, HOST);
+    expect(visible()).toContain("Scrollbar mode");
+    expect(arrow()).toContain("Scrollbar mode");
+
+    // Invariant: the track below the thumb pages down by the rows in view.
+    target.onMouse?.({ kind: "press", button: 0, row: RAIL_RECT.height - 1, column: RAIL_COLUMN }, HOST);
+    target.onMouse?.({ kind: "release", button: 0, row: RAIL_RECT.height - 1, column: RAIL_COLUMN }, HOST);
+    const paged = visible();
+    expect(paged).not.toContain("Scrollbar mode");
+    expect(paged).toContain("Wheel row 10");
   });
 
   it("reports a failed write instead of the hint", async () => {
