@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { repairNativeExecutableModes } from "./repair-native-executable-modes.mjs";
-import { normalizeNpmPackMetadata } from "./npm-pack-metadata.mjs";
+import { normalizeNpmPackMetadata, parseNpmPackOutput } from "./npm-pack-metadata.mjs";
 import { createValidationPhaseRecorder } from "./validation-phase.mjs";
 import { recordPackageReceipt, verifyBuildReceipt } from "./validation-receipt.mjs";
 
@@ -20,7 +20,7 @@ const metadata = phases.runSync("npm-pack", () => {
     cwd: process.cwd(), encoding: "utf8", env: process.env, windowsHide: true,
   });
   if (result.status !== 0) throw new Error(result.stderr || `npm pack failed with ${result.status}`);
-  return normalizeNpmPackMetadata(JSON.parse(result.stdout));
+  return normalizeNpmPackMetadata(parseNpmPackOutput(result.stdout));
 });
 const source = resolve(outputDirectory, metadata.filename);
 const target = resolve(outputDirectory, "candidate.tgz");
