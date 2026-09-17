@@ -1220,9 +1220,9 @@ When an interactive bare-A1 session quits through `/quit`, the second `Ctrl+C` o
 - **AND** every visible cell of the captured frame SHALL be cleared by the end of the plan
 
 ### Requirement: Informational messages are a transient dock notice
-Bare A1 SHALL present informational workflow status messages, including model and thinking-level confirmations, reload and compaction confirmations, generic completed command results, `status`-kind workflow messages, and extension `info` notifications, as one transient notice at the top of the dock rather than as transcript content. The notice SHALL consist of one blank row followed by the message in the existing dim status style with the configured output padding, SHALL be placed after any non-live dock status rows and before above-editor widgets and the editor, and SHALL therefore sit directly below the live working status when that status is visible and directly above the editor group otherwise. The notice SHALL wrap at the dock width and SHALL NOT scroll with transcript content.
+Bare A1 SHALL present informational workflow status messages, including model and thinking-level confirmations, reload and compaction confirmations, generic completed command results, `status`-kind workflow messages, and extension `info` notifications, as one transient notice at the top of the dock rather than as transcript content. The notice SHALL consist of one blank row followed by the message in the existing dim status style with Pi's one-cell status padding regardless of the output pad setting, SHALL be placed after any non-live dock status rows and before above-editor widgets and the editor, and SHALL therefore sit directly below the live working status when that status is visible and directly above the editor group otherwise. The notice SHALL wrap at the dock width and SHALL NOT scroll with transcript content.
 
-A newer informational message SHALL replace the current notice in place. The notice SHALL be removed when a transcript block with a new identity is mounted, when a non-informational workflow presentation such as an error, warning, structured command output, or celebratory component is appended to the transcript, and when workflow presentation is reset for a new, resumed, forked, or replaced session. A revision update to an already mounted block SHALL NOT remove it, and no timer SHALL remove it. The notice SHALL NOT enter transcript order, the selectable document, copied text, prompt navigation, persisted session content, or the pinned `a1 pi` route, whose transcript placement of status text SHALL remain unchanged.
+A newer informational message SHALL replace the current notice in place. The notice SHALL be removed when a submitted prompt or shell command block is mounted, when a non-informational workflow presentation such as an error, warning, structured command output, or celebratory component is appended to the transcript, and when workflow presentation is reset for a new, resumed, forked, or replaced session. Assistant, thinking, tool, custom, and compaction blocks that start or update while the agent works SHALL NOT remove it, the agent finishing SHALL NOT remove it, and no timer SHALL remove it. The notice SHALL NOT enter transcript order, the selectable document, copied text, prompt navigation, persisted session content, or the pinned `a1 pi` route, whose transcript placement of status text SHALL remain unchanged.
 
 #### Scenario: Confirm a model switch in a fresh session
 - **WHEN** `/model` completes in a bare-A1 session with no transcript content
@@ -1233,8 +1233,8 @@ A newer informational message SHALL replace the current notice in place. The not
 #### Scenario: Switch models while the agent is working
 - **WHEN** an informational message arrives while the live working status is visible
 - **THEN** the working status SHALL remain immediately above the dock and the notice SHALL render directly below it
-- **AND** streamed updates to the current assistant block SHALL NOT remove the notice
-- **AND** the next newly mounted transcript block SHALL remove it
+- **AND** streamed updates, further assistant blocks, and tool blocks in that run SHALL NOT remove the notice
+- **AND** the notice SHALL remain after the run finishes until the next submitted prompt
 
 #### Scenario: Replace and dismiss
 - **WHEN** a second informational message arrives before any new transcript content
