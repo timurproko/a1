@@ -7,6 +7,7 @@ import type {
   OwnedUiThinkingLevel,
   OwnedUiViewportSettings,
   OwnedUiViewportSettingsPort,
+  OwnedUiQuitOutroSettingsPort,
   SuggestionDecision,
   SuggestionDiagnosticObserver,
 } from "../../../contracts/owned-ui/index.js";
@@ -171,6 +172,17 @@ export interface OwnedUiSessionShellOptions {
   readonly sessionLayout?: "pinned" | "custom-viewport";
   /** Live profile-local settings, supplied only to the bare-A1 composition. */
   readonly viewportSettings?: OwnedUiViewportSettingsPort;
+  /**
+   * Quit outro settings and seams, supplied only to the bare-A1 composition.
+   * `interactive` states whether the terminal can show the animation; production
+   * passes stdout's TTY state, tests opt in explicitly.
+   */
+  readonly quitOutro?: OwnedUiQuitOutroSettingsPort & {
+    readonly interactive: boolean;
+    readonly now?: () => number;
+    readonly sleep?: (ms: number) => Promise<void>;
+    readonly seed?: number;
+  };
   /** Optional platform seam; production uses A1's system clipboard adapter. */
   readonly clipboard?: OwnedUiClipboardPort;
   /** Owned response-copy transport and payload-free diagnostic seams. Comparison profiles ignore them. */

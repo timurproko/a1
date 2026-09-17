@@ -3,7 +3,7 @@ import { SuggestionDiagnosticCapture } from "../../../../src/features/prompt-sug
 import { memoryHistory } from "./prompt-history-fixture.js";
 import { createResponseCopyExecutor } from "../../../../src/integrations/pi/session-ui/response-copy-transport.js";
 import HeadlessXterm from "@xterm/headless";
-import { formatSubmittedPromptTime, selectionCopyRowText } from "../../../../src/ui/components/index.js";
+import { formatSubmittedPromptTime, selectionCopyRowText, stripAnsi } from "../../../../src/ui/components/index.js";
 import { PromptHistoryService } from "../../../../src/features/prompt-history/index.js";
 import { PromptHistoryStore } from "../../../../src/features/prompt-history/store.js";
 import { resolvePromptHistoryPath } from "../../../../src/features/prompt-history/paths.js";
@@ -220,6 +220,7 @@ async function fixture(
   configureEngine?: (engine: Runtime) => void,
   responseCopy?: OwnedUiSessionShellOptions["responseCopy"],
   pasteDiagnostics?: OwnedUiSessionShellOptions["pasteDiagnostics"],
+  quitOutro?: OwnedUiSessionShellOptions["quitOutro"],
 ) {
   const engine = new Runtime(messages);
   configureEngine?.(engine);
@@ -245,6 +246,7 @@ async function fixture(
     ...(streamPresentation === undefined ? {} : { streamPresentation }),
     ...(inputPresentation === undefined ? {} : { inputPresentation }),
     ...(pasteDiagnostics === undefined ? {} : { pasteDiagnostics }),
+    ...(quitOutro === undefined ? {} : { quitOutro }),
     ...(promptSuggestions === undefined ? {} : { promptSuggestions }),
     ...(promptHistory === undefined ? {} : { promptHistory: { ...promptHistory, editor: await loadHistoryEditor() } }),
   });
@@ -1972,7 +1974,7 @@ describe("OwnedUiSessionShell", () => {
 
   it.each(["exit-render", "unbind-error", "unbind-stall"])("restores the terminal despite %s during disposal", async failure => {
     const { shell, terminal, adapter } = await fixture([], [], true);
-    if (failure === "exit-render") vi.spyOn(shell.root, "exitTranscript").mockImplementation(() => { throw new Error("render failed"); });
+    if (failure === "exit-render") vi.spyOn(adapter, "currentSessionResumeMetadata").mockImplementation(() => { throw new Error("render failed"); });
     else vi.spyOn(adapter, "unbindExtensionUi").mockImplementation(() => failure === "unbind-stall" ? new Promise(() => {}) : Promise.reject(new Error("unbind failed")));
     await expect(shell.dispose()).rejects.toThrow("disposal failed");
     expect(terminal.active).toBe(false);
@@ -2362,19 +2364,131 @@ describe("OwnedUiSessionShell", () => {
     await pinned.shell.dispose();
   });
 
-  it("restores fullscreen before printing the bounded final transcript", async () => {
+  it("leaves bare A1's parent terminal without any frame or transcript rows", async () => {
     const { shell, terminal } = await fixture([
       { role: "user", content: [{ type: "text", text: "exit user" }] },
       { role: "assistant", content: [{ type: "text", text: "exit answer" }] },
     ], [], true);
+    expect(terminal.writes.join("")).toContain("exit answer");
     await shell.dispose();
     const bytes = terminal.writes.join("");
-    expect(bytes.indexOf("\x1b[?1049l")).toBeGreaterThanOrEqual(0);
-    expect(bytes.lastIndexOf("exit answer")).toBeGreaterThan(bytes.lastIndexOf("\x1b[?1049l"));
-    expect(bytes.slice(bytes.lastIndexOf("\x1b[?1049l"))).not.toContain("\x1b[?1049h");
+    expect(bytes.match(/\x1b\[\?1049h/g)).toHaveLength(1);
+    expect(bytes.match(/\x1b\[\?1049l/g)).toHaveLength(1);
+    const parent = bytes.slice(bytes.indexOf("\x1b[?1049l"));
+    expect(parent).not.toContain("exit answer");
+    expect(parent).not.toContain("\x1b[2K");
+    expect(stripAnsi(parent).trim()).toBe("");
   });
 
-  it("prints styled transcript and a dim compact resume hint only after restoration", async ({ onTestFinished }) => {
+  it("prints the comparison profile's fullscreen transcript after restoration without a frame dump", async () => {
+    const { shell, terminal } = await fixture([
+      { role: "user", content: [{ type: "text", text: "exit user" }] },
+      { role: "assistant", content: [{ type: "text", text: "exit answer" }] },
+    ], [], false, undefined, undefined, undefined, undefined, undefined, undefined, engine => {
+      Object.assign(engine.services.settingsManager, { getTuiMode: () => "fullscreen", getFullscreenExitOutput: () => "transcript" });
+    });
+    expect(shell.runtime.mode).toBe("fullscreen");
+    await shell.dispose();
+    const bytes = terminal.writes.join("");
+    const restored = bytes.lastIndexOf("\x1b[?1049l");
+    expect(restored).toBeGreaterThanOrEqual(0);
+    expect(bytes.lastIndexOf("exit answer")).toBeGreaterThan(restored);
+    const parent = bytes.slice(restored);
+    expect(parent).not.toContain("\x1b[?1049h");
+    expect(parent).not.toContain("\r\x1b[2K");
+  });
+
+  it("plays the quit outro on the alternate screen before the only leave and drops frames meanwhile", async () => {
+    let clock = 0;
+    const shellRef: { current?: OwnedUiSessionShell } = {};
+    const { shell, terminal } = await fixture([
+      { role: "user", content: [{ type: "text", text: "outro user" }] },
+      { role: "assistant", content: [{ type: "text", text: "outro answer" }] },
+    ], [], true, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, {
+      interactive: true,
+      snapshot: () => ({ effect: "dissolve", durationMs: 300 }),
+      now: () => clock,
+      seed: 7,
+      sleep: async ms => {
+        clock += ms;
+        // Invariant: a render scheduled mid-outro must not reach the terminal.
+        shellRef.current?.runtime.renderNow(true);
+      },
+    });
+    shellRef.current = shell;
+    const before = terminal.writes.length;
+    await shell.dispose();
+    const writes = terminal.writes.slice(before);
+    const bytes = writes.join("");
+    const outroStart = writes.findIndex(write => write.startsWith("\x1b[?2026h\x1b[?25l\x1b[2J\x1b[H"));
+    const leave = writes.findIndex(write => write.includes("\x1b[?1049l"));
+    expect(outroStart).toBeGreaterThanOrEqual(0);
+    expect(leave).toBeGreaterThan(outroStart);
+    const held = writes.slice(outroStart, leave);
+    // Invariant: nothing but outro ticks and the stop sequence reach the terminal once the
+    // outro starts; the render forced from the sleep seam must have been dropped.
+    expect(held.join("")).not.toContain(";1H\x1b[2K");
+    const outroWrites = held.filter(write => write.startsWith("\x1b[?2026h\x1b[?25l") || write.startsWith("\x1b[?2026h\x1b[0m"));
+    expect(outroWrites.length).toBeGreaterThan(2);
+    expect(outroWrites.every(write => write.endsWith("\x1b[?2026l"))).toBe(true);
+    expect(outroWrites.at(-1)).toContain("\x1b[2J\x1b[H\x1b[0m\x1b[?2026l");
+    expect(outroWrites.join("")).toContain("\x1b[38;2;238;238;238m");
+    expect(bytes.match(/\x1b\[\?1049l/g)).toHaveLength(1);
+    expect(bytes).not.toContain("\x1b[?1049h");
+    const parent = bytes.slice(bytes.indexOf("\x1b[?1049l"));
+    expect(parent).not.toContain("\x1b[2J");
+    expect(stripAnsi(parent).trim()).toBe("");
+    expect(clock).toBeGreaterThanOrEqual(300);
+    expect(clock).toBeLessThan(300 + 500 + 100);
+  });
+
+  it.each([
+    ["an off effect", { interactive: true, snapshot: () => ({ effect: "off" as const, durationMs: 800 }) }],
+    ["a non-interactive terminal", { interactive: false, snapshot: () => ({ effect: "fall" as const, durationMs: 800 }) }],
+  ])("skips the quit outro for %s while restoring normally", async (_label, quitOutro) => {
+    const { shell, terminal } = await fixture([
+      { role: "assistant", content: [{ type: "text", text: "skip answer" }] },
+    ], [], true, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, quitOutro);
+    const before = terminal.writes.length;
+    await shell.dispose();
+    const writes = terminal.writes.slice(before);
+    expect(writes.some(write => write.startsWith("\x1b[?2026h\x1b[?25l\x1b[2J\x1b[H"))).toBe(false);
+    expect(writes.join("").match(/\x1b\[\?1049l/g)).toHaveLength(1);
+    expect(terminal.active).toBe(false);
+  });
+
+  it("does not play the quit outro for the pinned regular-mode profile", async () => {
+    const { shell, terminal } = await fixture([
+      { role: "assistant", content: [{ type: "text", text: "pinned answer" }] },
+    ], [], false, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, {
+      interactive: true, snapshot: () => ({ effect: "fall", durationMs: 800 }),
+    });
+    expect(shell.runtime.mode).toBe("regular");
+    const before = terminal.writes.length;
+    await shell.dispose();
+    expect(terminal.writes.slice(before).some(write => write.startsWith("\x1b[?2026h\x1b[?25l\x1b[2J\x1b[H"))).toBe(false);
+    expect(terminal.active).toBe(false);
+  });
+
+  it("restores the terminal when the quit outro paint fails", async () => {
+    const { shell, terminal } = await fixture([
+      { role: "assistant", content: [{ type: "text", text: "failing answer" }] },
+    ], [], true, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, {
+      interactive: true, snapshot: () => ({ effect: "waves", durationMs: 300 }), now: () => 0, sleep: async () => {},
+    });
+    const write = terminal.write.bind(terminal);
+    vi.spyOn(terminal, "write").mockImplementation(data => {
+      if (data.startsWith("\x1b[?2026h\x1b[?25l\x1b[2J\x1b[H")) throw new Error("terminal write failed");
+      write(data);
+    });
+    await shell.dispose();
+    const bytes = terminal.writes.join("");
+    expect(bytes.match(/\x1b\[\?1049l/g)).toHaveLength(1);
+    expect(terminal.active).toBe(false);
+    expect(shell.runtime.state).toBe("stopped");
+  });
+
+  it("prints only the dim compact resume hint after bare A1 restoration", async ({ onTestFinished }) => {
     const directory = await mkdtemp(join(tmpdir(), "a1-hint-"));
     onTestFinished(() => rm(directory, { recursive: true, force: true }));
     const path = join(directory, "raw-session-file.jsonl");
@@ -2397,8 +2511,38 @@ describe("OwnedUiSessionShell", () => {
     const restored = bytes.lastIndexOf("\u001b[?1049l");
     const parent = bytes.slice(restored);
     expect(parent).toContain("\u001b[");
+    expect(parent).not.toContain("styled exit answer");
+    expect(parent).toContain("\u001b[2mTo resume this session:\u001b[22m a1 --session compact-id");
+    expect(parent).not.toContain("raw-session-file.jsonl");
+    expect(stripAnsi(parent).trim()).toBe("To resume this session: a1 --session compact-id");
+  });
+
+  it("prints the styled transcript and the resume hint for the comparison profile's transcript mode", async ({ onTestFinished }) => {
+    const directory = await mkdtemp(join(tmpdir(), "a1-hint-"));
+    onTestFinished(() => rm(directory, { recursive: true, force: true }));
+    const path = join(directory, "raw-session-file.jsonl");
+    await writeFile(path, "persisted session fixture");
+    const { shell, engine, terminal } = await fixture([
+      { role: "user", content: [{ type: "text", text: "styled exit user" }], timestamp: 1 },
+      { role: "assistant", content: [{ type: "text", text: "styled exit answer" }], stopReason: "stop", timestamp: 2 },
+    ], [], false, undefined, undefined, undefined, undefined, undefined, undefined, runtime => {
+      Object.assign(runtime.services.settingsManager, { getTuiMode: () => "fullscreen", getFullscreenExitOutput: () => "transcript" });
+    });
+    Object.assign(engine.session, {
+      sessionManager: {
+        isPersisted: () => true,
+        getSessionFile: () => path,
+        getSessionId: () => "compact-id",
+        getSessionDir: () => "D:/default/sessions",
+        usesDefaultSessionDir: () => true,
+      },
+    });
+    await shell.dispose();
+    const bytes = terminal.writes.join("");
+    const parent = bytes.slice(bytes.lastIndexOf("\u001b[?1049l"));
     expect(parent).toContain("styled exit answer");
     expect(parent).toContain("\u001b[2mTo resume this session:\u001b[22m a1 --session compact-id");
+    expect(parent.indexOf("styled exit answer")).toBeLessThan(parent.indexOf("To resume this session:"));
     expect(parent).not.toContain("raw-session-file.jsonl");
   });
 

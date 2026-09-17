@@ -107,6 +107,20 @@ describe("A1-owned damage-aware terminal adapter", () => {
     expect(actual.final.rows.slice(0, 8)).toEqual(["B", "C", "D", "E", "F", "G", "editor", "footer"]);
   });
 
+  it("snapshots the presented rows as written and forgets them after invalidation", () => {
+    const { adapter, terminal } = initialized();
+    expect(adapter.presentedRows()).toEqual(initialRows);
+    adapter.arm({ ...descriptor(2), cause: "dock-input" }, { ...SAFE, replacementSurfaceActive: true });
+    adapter.write(fullscreenWrite(["\u001b[1medited\u001b[0m"], 7, 7));
+    expect(adapter.presentedRows()).toEqual([...initialRows.slice(0, 6), "\u001b[1medited\u001b[0m", "footer"]);
+    // Invariant: rows the adapter never saw at this geometry read as empty rather than stale.
+    terminal.rows = 10;
+    expect(adapter.presentedRows()).toHaveLength(10);
+    expect(adapter.presentedRows().slice(8)).toEqual(["", ""]);
+    adapter.write("\u001b[2J");
+    expect(adapter.presentedRows()).toEqual(Array.from({ length: 10 }, () => ""));
+  });
+
   it("forwards a dock-only input differential without touching stable transcript rows", () => {
     const { adapter, terminal } = initialized();
     const dockWrite = fullscreenWrite(["edited"], 7, 7);

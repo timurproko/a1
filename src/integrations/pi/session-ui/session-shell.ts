@@ -12,6 +12,7 @@ import type {
   OwnedUiDialog,
   OwnedUiImageAttachment,
   OwnedUiPromptSuggestionIdentity,
+  OwnedUiQuitEffect,
   OwnedUiSessionViewModel,
   OwnedUiThinkingLevel,
   SuggestionDecision,
@@ -153,6 +154,7 @@ export class OwnedUiSessionShell {
   readonly #responseCopy: ResponseCopyCoordinator | null;
   readonly #unbindClipboardWriter: () => void;
   readonly #damageTerminal: DamageAwareTerminalAdapter | null;
+  readonly #quitOutro: OwnedUiSessionShellOptions["quitOutro"];
   readonly #streamPresentation: StreamPresentationCoalescer;
   readonly #removeViewportPreInput: () => void;
   readonly #unsubscribeSettings: () => void;
@@ -344,6 +346,7 @@ export class OwnedUiSessionShell {
     runtime = new PiTuiRuntimeAdapter(runtimeOptions);
     this.runtime = runtime;
     this.#damageTerminal = damageTerminal ?? null;
+    this.#quitOutro = options.quitOutro;
     const presentationInterval = options.streamPresentation?.intervalMs ?? STREAM_PRESENTATION_INTERVAL_MS;
     streamPresentation = options.streamPresentation?.scheduler === undefined
       ? new StreamPresentationCoalescer(() => this.runtime.requestRender(), presentationInterval)
@@ -379,7 +382,9 @@ export class OwnedUiSessionShell {
     this.runtime.setClearOnShrink(initialPiSettings.clearOnShrink);
     this.#terminalProgressEnabled = initialPiSettings.showTerminalProgress;
     this.#fullscreenExitOutput = initialPiSettings.fullscreenExitOutput;
-    this.#unbindShutdownSettings = this.backend.bindSettingsOwner("shutdown", {
+    // Invariant: bare A1 prints only the resume hint at exit, so the pinned exit-output
+    // choice is hidden there; the comparison profile still binds and honors it.
+    this.#unbindShutdownSettings = this.#customViewport ? () => {} : this.backend.bindSettingsOwner("shutdown", {
       fullscreenExitOutput: { apply() {} },
     });
     this.#unbindTerminalSettings = this.backend.bindSettingsOwner("terminal", {
@@ -1441,6 +1446,8 @@ export class OwnedUiSessionShell {
 
   async #dispose(): Promise<void> {
     this.#disposed = true;
+    // Invariant: the outro frame is what the terminal shows now, before any cleanup writes.
+    const outroFrame = this.#captureQuitOutroFrame();
     this.#responseCopy?.dispose();
     this.#cancelWaitingImages();
     const failures: unknown[] = [];
@@ -1459,11 +1466,13 @@ export class OwnedUiSessionShell {
     let fullscreenExitText = "";
     attempt(() => {
       const exitMode = this.backend.disposed ? this.#fullscreenExitOutput : this.backend.pinnedSettingsSnapshot().fullscreenExitOutput;
-      const exitTranscript = this.root.exitTranscript(this.runtime.viewport().columns);
       const resume = this.backend.currentSessionResumeMetadata();
       const resumeHint = resume === null ? "" : `${dim("To resume this session:")} ${formatSessionResumeCommand(resume)}`;
+      // Invariant: bare A1 leaves only the hint behind; the pinned comparison profile still
+      // honors fullscreenExitOutput, including the styled transcript.
       fullscreenExitText = this.runtime.mode !== "fullscreen" ? ""
-        : exitMode === "resume-hint" ? resumeHint : [exitTranscript, resumeHint].filter(Boolean).join("\n\n");
+        : this.#customViewport || exitMode === "resume-hint" ? resumeHint
+        : [this.root.exitTranscript(this.runtime.viewport().columns), resumeHint].filter(Boolean).join("\n\n");
     });
     attempt(() => this.#unbindClipboardWriter());
     attempt(() => this.#unbindPiSettings());
@@ -1472,13 +1481,52 @@ export class OwnedUiSessionShell {
     attempt(() => this.#unsubscribe());
     attempt(() => this.#dialogHandle?.hide());
     attempt(() => this.#extensionBridge.dispose());
-    // Invariant: terminal restoration precedes any potentially stalled backend teardown.
-    await this.runtime.dispose().catch(error => failures.push(error));
+    await this.#playQuitOutro(outroFrame);
+    // Invariant: terminal restoration precedes any potentially stalled backend teardown. The
+    // fullscreen leave preserves the screen: the pinned runtime never dumps its final document
+    // into the parent terminal, so only the configured exit text follows the leave.
+    await this.runtime.dispose({ preserveScreen: this.runtime.mode === "fullscreen" }).catch(error => failures.push(error));
     await historyCleanup.catch(() => false); // Security: background durability outcomes never enter terminal output.
     await boundedCleanup(() => pasteCleanup).catch(error => failures.push(error));
     await boundedCleanup(() => this.backend.unbindExtensionUi()).catch(error => failures.push(error));
     if (failures.length > 0) throw new AggregateError(failures, "Owned UI disposal failed");
     if (fullscreenExitText.length > 0) this.runtime.writeAfterStop(`${fullscreenExitText}\n`);
+  }
+
+  // Invariant: the snapshot is synchronous; the outro module itself loads only at quit.
+  #captureQuitOutroFrame(): QuitOutroCapture | null {
+    const outro = this.#quitOutro;
+    if (outro === undefined || !outro.interactive || !this.#customViewport || this.#damageTerminal === null) return null;
+    if (!this.runtime.active || this.runtime.mode !== "fullscreen") return null;
+    try {
+      const { effect, durationMs } = outro.snapshot();
+      if (effect === "off") return null;
+      const viewport = this.runtime.viewport();
+      return { rows: this.#damageTerminal.presentedRows(), columns: viewport.columns, height: viewport.rows, settings: { effect, durationMs } };
+    } catch {
+      return null;
+    }
+  }
+
+  // Rationale: any failure here only skips the effect; restoration always follows.
+  async #playQuitOutro(capture: QuitOutroCapture | null): Promise<void> {
+    const outro = this.#quitOutro;
+    if (capture === null || outro === undefined || !this.runtime.active) return;
+    try {
+      // Rationale: the effects stay off the startup graph; quit is the only time they load.
+      const { captureQuitOutroFrame, playQuitOutro } = await import("./quit-outro.js");
+      const frame = captureQuitOutroFrame(capture.rows, capture.columns, capture.height);
+      if (frame === null || !this.runtime.active) return;
+      this.runtime.freezePresentation();
+      await playQuitOutro(frame, capture.settings.effect, capture.settings.durationMs, {
+        write: data => this.runtime.writeControl(data),
+        ...(outro.now === undefined ? {} : { now: outro.now }),
+        ...(outro.sleep === undefined ? {} : { sleep: outro.sleep }),
+        ...(outro.seed === undefined ? {} : { seed: outro.seed }),
+      });
+    } catch {
+      // Rationale: a failed or interrupted effect must never hold the terminal; restoration follows.
+    }
   }
 
   #settleStoppedLifecycle(): void {
@@ -1907,6 +1955,13 @@ function workflowAdapterResult(result: PiWorkflowResult): AdapterCommandResult {
 
 const INTERRUPT = "\u0003";
 const INTERRUPT_CHORD_MS = 1_500;
+
+interface QuitOutroCapture {
+  readonly rows: readonly string[];
+  readonly columns: number;
+  readonly height: number;
+  readonly settings: { readonly effect: Exclude<OwnedUiQuitEffect, "off">; readonly durationMs: number };
+}
 
 function isWorkflowRoute(value: string): value is PiWorkflowRoute {
   return (PINNED_PI_WORKFLOW_COMMAND_NAMES as readonly string[]).includes(value)

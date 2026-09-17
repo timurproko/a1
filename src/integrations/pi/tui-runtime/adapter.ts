@@ -160,6 +160,7 @@ export class PiTuiRuntimeAdapter {
   #stopPromise: Promise<void> | undefined;
   #rootDisposed = false;
   #terminalProgress = false;
+  #presentationFrozen = false;
 
   constructor(options: PiTuiRuntimeAdapterOptions) {
     this.#root = options.root;
@@ -167,9 +168,13 @@ export class PiTuiRuntimeAdapter {
     this.#terminal = options.terminal ?? new ProcessTerminal();
     this.#inputDiagnostics = options.inputDiagnostics;
     this.#diagnosticNow = options.inputDiagnostics?.now ?? (() => performance.now());
+    // Invariant: the pinned renderer's frames pass through this gate, while writeControl and
+    // the stop sequence reach the terminal directly. Freezing drops frames without touching
+    // the renderer, so a scheduled repaint cannot land on top of the quit outro.
+    const gatedTerminal = frozenGateTerminal(this.#terminal, () => this.#presentationFrozen);
     const tracedTerminal = options.inputDiagnostics === undefined
-      ? this.#terminal
-      : diagnosticTerminal(this.#terminal, phase => this.#traceRuntimePhase(phase));
+      ? gatedTerminal
+      : diagnosticTerminal(gatedTerminal, phase => this.#traceRuntimePhase(phase));
     const decoratedTerminal = options.decorateTerminal?.(tracedTerminal) ?? tracedTerminal;
     const coordination = options.inputCoordination ?? (options.inputDiagnostics === undefined
       ? undefined
@@ -344,12 +349,27 @@ export class PiTuiRuntimeAdapter {
 
   /**
    * Writes a terminal control sequence. Used to enable and disable mouse
-   * reporting while an A1-owned application is presented, and for nothing else:
-   * the transparent and pinned paths never call it.
+   * reporting while an A1-owned application is presented and to paint the quit
+   * outro while presentation is frozen, and for nothing else: the transparent
+   * and pinned paths never call it.
    */
   writeControl(data: string): void {
     this.#assertRunning("control sequence");
     this.#terminal.write(data);
+  }
+
+  /**
+   * Drops every pinned frame write until the runtime stops. The quit outro owns
+   * the alternate screen between the last presented frame and the leave; the
+   * renderer keeps scheduling but nothing it paints reaches the terminal.
+   */
+  freezePresentation(): void {
+    this.#assertRunning("presentation freeze");
+    this.#presentationFrozen = true;
+  }
+
+  get presentationFrozen(): boolean {
+    return this.#presentationFrozen;
   }
 
   addPreInputListener(listener: PiTuiPreInputListener): () => void {
@@ -478,6 +498,9 @@ export class PiTuiRuntimeAdapter {
 
     try {
       const stopOptions = options.preserveScreen === undefined ? undefined : { preserveScreen: options.preserveScreen };
+      // Invariant: the gate opens only for the synchronous stop sequence, so no render
+      // scheduled during the outro can slip in before the alternate screen is left.
+      this.#presentationFrozen = false;
       this.#tui.stop(stopOptions);
     } catch (error) {
       failure ??= new PiTuiRuntimeError("restoration", error);
@@ -608,6 +631,7 @@ export class PiTuiRuntimeAdapter {
   }
 
   #restoreAfterFailedStart(): void {
+    this.#presentationFrozen = false;
     try {
       this.#tui.stop();
     } catch {
@@ -623,6 +647,7 @@ export class PiTuiRuntimeAdapter {
   }
 
   #bestEffortTerminalRestore(): void {
+    this.#presentationFrozen = false;
     this.#clearTerminalProgress();
     try { if (this.mode === "fullscreen") this.#terminal.write(EMERGENCY_TERMINAL_RESET); } catch {}
     try {
@@ -715,6 +740,26 @@ function diagnosticTerminal(
     clearLine: () => terminal.clearLine(),
     clearFromCursor: () => terminal.clearFromCursor(),
     clearScreen: () => terminal.clearScreen(),
+    setTitle: title => terminal.setTitle(title),
+    setProgress: active => terminal.setProgress(active),
+  };
+}
+
+function frozenGateTerminal(terminal: PiTuiTerminalPort, frozen: () => boolean): PiTuiTerminalPort {
+  return {
+    get columns() { return terminal.columns; },
+    get rows() { return terminal.rows; },
+    get kittyProtocolActive() { return terminal.kittyProtocolActive; },
+    start: (onInput, onResize) => terminal.start(onInput, onResize),
+    stop: () => terminal.stop(),
+    drainInput: (maxMs, idleMs) => terminal.drainInput(maxMs, idleMs),
+    write: data => { if (!frozen()) terminal.write(data); },
+    moveBy: lines => { if (!frozen()) terminal.moveBy(lines); },
+    hideCursor: () => { if (!frozen()) terminal.hideCursor(); },
+    showCursor: () => { if (!frozen()) terminal.showCursor(); },
+    clearLine: () => { if (!frozen()) terminal.clearLine(); },
+    clearFromCursor: () => { if (!frozen()) terminal.clearFromCursor(); },
+    clearScreen: () => { if (!frozen()) terminal.clearScreen(); },
     setTitle: title => terminal.setTitle(title),
     setProgress: active => terminal.setProgress(active),
   };

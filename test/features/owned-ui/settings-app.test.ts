@@ -142,6 +142,10 @@ describe("the settings screen", () => {
     expect(lines.join("\n")).not.toContain("fixture reason must stay hidden");
     expect(lines.some(line => line.includes("Scrollbar style") && line.includes("thin"))).toBe(true);
     expect(lines.some(line => line.includes("Speed") && line.includes("normal"))).toBe(true);
+    expect(lines.some(line => line.trim() === "Quit")).toBe(true);
+    expect(lines.some(line => line.includes("Effect") && line.includes("fall"))).toBe(true);
+    expect(lines.some(line => line.includes("Duration") && line.includes("800"))).toBe(true);
+    expect(lines.some(line => line.includes("Fullscreen exit output"))).toBe(false);
     expect(lines.some(line => line.trim() === "A1")).toBe(false);
     expect(lines.filter(line => line.trim() === "Agent")).toHaveLength(1);
     expect(lines.filter(line => line.includes("Prompt suggestions"))).toHaveLength(1);
@@ -155,6 +159,8 @@ describe("the settings screen", () => {
     const { app: target, session, writes } = await app();
     screen(target);
     target.onInput?.(`${ESC}[1;2B`, HOST);
+    target.onInput?.(`${ESC}[1;2B`, HOST);
+    expect(find(target, "Effect").trimStart()).toMatch(/^→/);
     target.onInput?.(`${ESC}[1;2B`, HOST);
     expect(find(target, "Warnings").trimStart()).toMatch(/^→/);
     selectRow(target, "Prompt suggestions");
