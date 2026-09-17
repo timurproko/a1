@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { lstat, realpath, readdir, readFile } from "node:fs/promises";
+import { lstat, realpath, readdir, readFile, rm } from "node:fs/promises";
 import { resolve, relative, isAbsolute, join } from "node:path";
 import { fail, safeRef } from "./local-cleanup-state.mjs";
 
@@ -9,19 +9,36 @@ export const inside = (root, path) => { const suffix = relative(root, path); ret
 export const canonical = async path => (await realpath(path)).replaceAll("\\", "/");
 export const exists = async path => { try { await lstat(path); return true; } catch (error) { if (error.code === "ENOENT") return false; throw error; } };
 const fingerprint = stat => `${stat.dev}:${stat.ino}:${stat.birthtimeMs}`;
+const normalized = path => resolve(path).replaceAll("\\", "/");
+const samePath = (a, b) => process.platform === "win32" ? a.toLowerCase() === b.toLowerCase() : a === b;
 
 /** Bounded argument-vector Git calls; never use a shell or candidate-supplied hooks. */
 export function gitRunner({ deadline = Infinity, now = Date.now } = {}) {
-  return async (cwd, args) => {
+  return async (cwd, args, { input = "" } = {}) => {
     const remaining = deadline - now(); if (remaining <= 0) fail("pass-deadline");
     const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith("GIT_")));
     Object.assign(env, { GIT_TERMINAL_PROMPT: "0", GIT_OPTIONAL_LOCKS: "0" });
     try {
-      const result = await execute("git", ["-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null", "-c", "protocol.ext.allow=never", "-c", "gc.auto=0", "-c", "maintenance.auto=false", "-C", cwd, ...args],
+      const pending = execute("git", ["-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null", "-c", "protocol.ext.allow=never", "-c", "gc.auto=0", "-c", "maintenance.auto=false", "-C", cwd, ...args],
         { env, timeout: Math.min(10000, remaining), maxBuffer: 8 * 1024 * 1024, encoding: "utf8", windowsHide: true });
-      return result.stdout;
+      pending.child.stdin.on("error", () => {}); pending.child.stdin.end(input);
+      return (await pending).stdout;
     } catch { fail("git-operation-failed"); }
   };
+}
+
+/** Bounded retry for transient Windows sharing violations; a handle still held afterwards surfaces as the named code. */
+const REMOVAL_ATTEMPTS = 6, REMOVAL_BACKOFF_MS = 300, TRANSIENT_REMOVAL = new Set(["EBUSY", "EPERM", "EACCES", "ENOTEMPTY"]);
+async function removeTree(path, code, reported, { deadline = Infinity, now = Date.now } = {}) {
+  for (let attempt = 1; ; attempt++) {
+    try { await rm(path, { recursive: true, force: true, maxRetries: 0 }); break; }
+    catch (error) {
+      const wait = REMOVAL_BACKOFF_MS * attempt;
+      if (!TRANSIENT_REMOVAL.has(error.code) || attempt >= REMOVAL_ATTEMPTS || now() + wait >= deadline) fail(code, { paths: [reported] });
+      await new Promise(resolve => setTimeout(resolve, wait));
+    }
+  }
+  if (await exists(path)) fail(code, { paths: [reported] });
 }
 export function parseWorktrees(text) {
   const rows = []; let row = {};
@@ -129,6 +146,113 @@ export async function inspectWorktree(identity, entry, {
   }
   await walk(entry.path);
   return { clean: true };
+}
+
+/** Remove only the entry's declared disposable roots, after inspection has bounded them, so Git deletes tracked content alone. */
+export async function purgeDisposable(entry, timing = {}) {
+  for (const root of entry.disposable) {
+    const target = join(entry.path, root);
+    let stat;
+    try { stat = await lstat(target); } catch (error) { if (error.code === "ENOENT") continue; throw error; }
+    if (stat.isSymbolicLink()) fail("content-link");
+    if (!stat.isDirectory()) fail("content-special-file");
+    await removeTree(target, "disposable-path-locked", root, timing);
+  }
+}
+
+const worktreeRows = async (identity, git) => parseWorktrees(await git(identity.primary, ["worktree", "list", "--porcelain", "-z"]));
+const rowsAt = (rows, path) => rows.filter(row => normalized(row.worktree) === path);
+
+/** Retire only this candidate's dangling registration: a prunable row whose gitdir file names the removed pointer. */
+async function retireRegistration(identity, entry, git, timing) {
+  const rows = rowsAt(await worktreeRows(identity, git), entry.path);
+  if (!rows.length) return false;
+  if (rows.length !== 1 || rows[0].prunable === undefined || rows[0].locked !== undefined) fail("retained-worktree-metadata");
+  const base = join(identity.common, "worktrees");
+  for (const name of await readdir(base)) {
+    const directory = join(base, name), stat = await lstat(directory);
+    if (!stat.isDirectory() || stat.isSymbolicLink()) continue;
+    let pointer;
+    try { pointer = (await readFile(join(directory, "gitdir"), "utf8")).trim(); } catch { continue; }
+    if (!samePath(normalized(pointer), `${entry.path}/.git`)) continue;
+    if (await exists(join(directory, "locked"))) fail("worktree-locked-or-unknown");
+    await removeTree(directory, "retained-worktree-metadata", name, timing);
+    if (rowsAt(await worktreeRows(identity, git), entry.path).length) fail("retained-worktree-metadata");
+    return true;
+  }
+  fail("retained-worktree-metadata");
+}
+
+/**
+ * Classify a path whose removal intent is journaled: absent, still the exact worktree, or residue Git left behind.
+ * Residue is clean only when every regular file is below a disposable root or byte-identical to the journaled head.
+ */
+export async function inspectResidue(identity, entry, {
+  git = gitRunner(), cwd = process.cwd(), deadline = Infinity, now = Date.now, inspect = inspectWorktree,
+  ordinaryEntryLimit = ORDINARY_CONTENT_ENTRY_LIMIT, generatedEntryLimit = GENERATED_CONTENT_ENTRY_LIMIT,
+} = {}) {
+  const current = await canonical(cwd);
+  if (current === entry.path || inside(entry.path, current)) fail("current-worktree");
+  const rows = rowsAt(await worktreeRows(identity, git), entry.path);
+  if (!await exists(entry.path)) {
+    if (rows.some(row => row.prunable === undefined)) fail("retained-worktree-metadata");
+    return { clean: true, shape: "absent" };
+  }
+  let snapshot = null;
+  try { snapshot = await captureWorktree(identity, entry.path, git); } catch { /* Protocol: a dismantled worktree is inspected as residue below. */ }
+  if (snapshot) {
+    if (["path", "filesystem", "head", "ref"].some(key => snapshot[key] !== entry[key])) fail("residual-or-reused-path");
+    const content = await inspect(identity, entry, { git, cwd, deadline, now, ordinaryEntryLimit, generatedEntryLimit });
+    return content.clean ? { clean: true, shape: "worktree" } : content;
+  }
+  if (rows.some(row => row.prunable === undefined) || await exists(join(entry.path, ".git"))) fail("residual-or-reused-path");
+  if (!/^[a-f0-9]{40}$/.test(entry.head)) fail("worktree-head-mismatch");
+  const tracked = new Map();
+  for (const line of (await git(identity.primary, ["ls-tree", "-r", "-z", entry.head])).split("\0")) {
+    if (!line) continue;
+    const tab = line.indexOf("\t"); if (tab < 0) fail("git-index-format");
+    const [, type, object] = line.slice(0, tab).split(" ");
+    if (type === "blob") tracked.set(line.slice(tab + 1), object);
+  }
+  const blockers = [], candidates = [];
+  let ordinaryVisited = 0, generatedVisited = 0;
+  const generated = path => entry.disposable.some(root => path === root || path.startsWith(`${root}/`));
+  async function walk(directory, prefix = "") {
+    if (now() >= deadline) fail("content-inspection-budget");
+    for (const item of await readdir(directory, { withFileTypes: true })) {
+      if (now() >= deadline) fail("content-inspection-budget");
+      const path = prefix + item.name;
+      if (generated(path)) { if (++generatedVisited > generatedEntryLimit) fail("content-inspection-budget"); }
+      else if (++ordinaryVisited > ordinaryEntryLimit) fail("content-inspection-budget");
+      if (item.name === ".git" || item.isSymbolicLink() || !(item.isDirectory() || item.isFile()) || /[\r\n]/.test(path)) { blockers.push(path); continue; }
+      if (item.isDirectory()) await walk(join(directory, item.name), `${path}/`);
+      else if (!generated(path)) { if (tracked.has(path)) candidates.push(path); else blockers.push(path); }
+    }
+  }
+  await walk(entry.path);
+  if (candidates.length) {
+    const input = candidates.map(path => `${join(entry.path, path)}\n`).join("");
+    const hashes = (await git(identity.primary, ["hash-object", "--stdin-paths"], { input })).split("\n").filter(Boolean);
+    if (hashes.length !== candidates.length) fail("git-operation-failed");
+    candidates.forEach((path, index) => { if (hashes[index] !== tracked.get(path)) blockers.push(path); });
+  }
+  if (blockers.length) return { clean: false, reason: "residual-content", paths: blockers.slice(0, 100), truncated: blockers.length > 100 };
+  return { clean: true, shape: "residue" };
+}
+
+/** Finish a journaled removal: retry Git on an intact worktree, delete verified residue, and retire the dangling registration. */
+export async function repairResidue(identity, entry, { git = gitRunner(), remove = removeWorktree, purge = purgeDisposable, ...options } = {}) {
+  const residue = await inspectResidue(identity, entry, { git, ...options });
+  if (!residue.clean) return residue;
+  const timing = { deadline: options.deadline, now: options.now };
+  if (residue.shape === "worktree") {
+    await purge(entry, timing);
+    await remove(identity, entry, git);
+    return { clean: true, step: "worktree-removed" };
+  }
+  if (residue.shape === "residue") await removeTree(entry.path, "residual-locked", entry.path, timing);
+  await retireRegistration(identity, entry, git, timing);
+  return { clean: true, step: residue.shape === "residue" ? "residue-removed" : "worktree-already-absent" };
 }
 
 /** Expected-SHA remote deletion; the lease is an atomic old-value guard, never an overwrite authority. */

@@ -4,7 +4,7 @@ import { isAbsolute, join } from "node:path";
 
 /** Local-only ownership authority. Absence of a process never transfers ownership. */
 export const digest = value => createHash("sha256").update(value).digest("hex");
-export const fail = code => { throw Object.assign(new Error(code), { cleanupCode: code }); };
+export const fail = (code, details = {}) => { throw Object.assign(new Error(code), { cleanupCode: code, ...details }); };
 const sha = value => typeof value === "string" && /^[a-f0-9]{40}$/.test(value);
 const uuid = value => typeof value === "string" && /^[a-f0-9-]{36}$/.test(value);
 const positive = value => Number.isSafeInteger(value) && value > 0;

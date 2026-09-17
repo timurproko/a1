@@ -37,7 +37,7 @@ async function fixture(t, branch = false, registered = true) {
   });
   const verify = async () => ({ disposition: "eligible", sourcePr: 20, sourceMerge: snapshot.head, archivePr: 21, archiveMerge: snapshot.head, targetSha: snapshot.head, refs: [] });
   const realGit = gitRunner();
-  const boundedGit = async (cwd, args) => ["fetch", "merge-base"].includes(args[0]) ? "" : realGit(cwd, args);
+  const boundedGit = async (cwd, args, options) => ["fetch", "merge-base"].includes(args[0]) ? "" : realGit(cwd, args, options);
   const pass = (options = {}) => reconcileLocalCleanup({ identity, store, reader: {}, cwd: primary, verify, git: boundedGit, ...options });
   return { identity, store, entry, snapshot, path, primary, temporary, pass, verify, boundedGit };
 }
@@ -471,13 +471,81 @@ test("directory replacements and junction escapes cannot inherit authority", asy
   await assert.rejects(captureWorktree(f.identity, f.path), /path/);
 });
 
-test("non-force removal failures preserve residual contents and journal", async t => {
-  const f = await fixture(t); await f.store.enable();
+test("non-force removal failures preserve residual contents and journal, then retry the intact worktree", async t => {
+  const f = await fixture(t, true); await f.store.enable();
   const report = await f.pass({ preview: false, remove: async () => { throw Error("locked file with PRIVATE token"); } });
   assert.equal(report.results[0].disposition, "partial"); assert.equal(await exists(f.path), true);
   assert.equal(JSON.stringify(report).includes("PRIVATE"), false);
   assert.equal((await f.store.read()).entries[0].step, "remove-intent");
-  assert.equal((await f.pass({ preview: false })).results[0].reason, "residual-or-reused-path");
+  assert.equal(await readFile(join(f.path, "tracked.txt"), "utf8"), "base\n");
+  await writeFile(join(f.path, "late-user-file"), "preserve");
+  const dirty = await f.pass({ preview: false });
+  assert.equal(dirty.results[0].disposition, "partial"); assert.equal(dirty.results[0].reason, "worktree-content");
+  assert.deepEqual(dirty.results[0].paths, ["late-user-file"]); assert.equal(await exists(f.path), true);
+  await rm(join(f.path, "late-user-file"));
+  const retried = await f.pass({ preview: false });
+  assert.equal(retried.results[0].disposition, "removed", JSON.stringify(retried));
+  assert.deepEqual(retried.results[0].steps, ["worktree-removed", "local-ref-removed"]);
+  assert.equal(await exists(f.path), false); assert.equal(await git(f.primary, "for-each-ref", "refs/heads/feature/example"), "");
+});
+
+/** Mimic Git's directory-order removal stopping at a held handle: pointer and earlier entries gone, the rest left behind. */
+const dismantle = f => async () => {
+  await rm(join(f.path, ".git")); await rm(join(f.path, ".gitignore")); await rm(join(f.path, "node_modules-cache"), { recursive: true });
+  throw Object.assign(Error("sharing violation"), { cleanupCode: "git-operation-failed" });
+};
+
+test("verified residue of an interrupted removal is removed and only its own registration retired", async t => {
+  const f = await fixture(t, true); await f.store.enable();
+  const unrelated = join(f.identity.root, "unrelated"); await git(f.primary, "worktree", "add", "--detach", unrelated);
+  await f.store.locked(async (state, save) => { state.entries[0].disposable = ["node_modules"]; await save(state); });
+  const report = await f.pass({ preview: false, remove: dismantle(f) });
+  assert.equal(report.results[0].disposition, "partial"); assert.equal(report.results[0].reason, "git-operation-failed");
+  await mkdir(join(f.path, "node_modules")); await writeFile(join(f.path, "node_modules", "dep.js"), "generated");
+  assert.match(await git(f.primary, "worktree", "list", "--porcelain"), /prunable/);
+  const preview = await f.pass(); assert.equal(preview.results[0].disposition, "eligible", JSON.stringify(preview));
+  assert.equal(await exists(f.path), true);
+  const repaired = await f.pass({ preview: false });
+  assert.equal(repaired.results[0].disposition, "removed", JSON.stringify(repaired));
+  assert.deepEqual(repaired.results[0].steps, ["residue-removed", "local-ref-removed"]);
+  assert.equal(await exists(f.path), false); assert.doesNotMatch(await git(f.primary, "worktree", "list", "--porcelain"), /prunable|example/);
+  assert.match(await git(f.primary, "worktree", "list", "--porcelain"), /unrelated/); assert.equal(await exists(unrelated), true);
+  assert.equal(await git(f.primary, "for-each-ref", "refs/heads/feature/example"), "");
+  assert.equal((await f.store.read()).entries[0].state, "done");
+});
+
+test("residue with changed, foreign, or linked content is retained and named", async t => {
+  const f = await fixture(t, true); await f.store.enable();
+  await f.pass({ preview: false, remove: dismantle(f) });
+  await writeFile(join(f.path, "tracked.txt"), "edited\n"); await writeFile(join(f.path, "vendor", "notes.txt"), "keep");
+  const changed = await f.pass({ preview: false });
+  assert.equal(changed.results[0].disposition, "partial"); assert.equal(changed.results[0].reason, "residual-content");
+  assert.deepEqual(changed.results[0].paths.sort(), ["tracked.txt", "vendor/notes.txt"]);
+  assert.equal(await readFile(join(f.path, "tracked.txt"), "utf8"), "edited\n");
+  assert.equal((await f.store.read()).entries[0].step, "remove-intent");
+  await writeFile(join(f.path, "tracked.txt"), "base\n"); await rm(join(f.path, "vendor", "notes.txt"));
+  await symlink(f.primary, join(f.path, "escape"), process.platform === "win32" ? "junction" : "dir");
+  const linked = await f.pass({ preview: false });
+  assert.equal(linked.results[0].reason, "residual-content"); assert.deepEqual(linked.results[0].paths, ["escape"]);
+  await rm(join(f.path, "escape")); await mkdir(join(f.path, "nested")); await writeFile(join(f.path, "nested", ".git"), "gitdir: elsewhere");
+  const nested = await f.pass({ preview: false });
+  assert.equal(nested.results[0].reason, "residual-content"); assert.deepEqual(nested.results[0].paths, ["nested/.git"]);
+  await rm(join(f.path, "nested"), { recursive: true });
+  await rm(f.path, { recursive: true }); await git(f.primary, "worktree", "add", "-f", "--detach", f.path);
+  const reused = await f.pass({ preview: false });
+  assert.equal(reused.results[0].reason, "residual-or-reused-path"); assert.equal(await exists(join(f.path, "tracked.txt")), true);
+  assert.equal(await exists(f.path), true);
+});
+
+test("absent residue with a dangling registration is retired only for the exact candidate", async t => {
+  const f = await fixture(t, true); await f.store.enable();
+  await f.pass({ preview: false, remove: dismantle(f) });
+  await rm(f.path, { recursive: true });
+  assert.match(await git(f.primary, "worktree", "list", "--porcelain"), /prunable/);
+  const report = await f.pass({ preview: false });
+  assert.equal(report.results[0].disposition, "removed", JSON.stringify(report));
+  assert.deepEqual(report.results[0].steps, ["worktree-already-absent", "local-ref-removed"]);
+  assert.doesNotMatch(await git(f.primary, "worktree", "list", "--porcelain"), /prunable/);
 });
 
 test("restart completes branch-only cleanup and refuses a reused path", async t => {
@@ -525,66 +593,103 @@ test("bounded passes fairly resume candidates after the first hundred", async t 
   const second = await f.pass({ preview: false, verify }); assert.equal(second.results[0].path, f.entry.path + "100");
 });
 
-test("Windows exclusive file handles produce a safe partial result with closed stdin", { skip: process.platform !== "win32" }, async t => {
-  const f = await fixture(t, true); await f.store.enable();
-  const lockedPath = join(f.path, "tracked.txt"), releasePath = join(f.temporary, "release-lock");
-  // Protocol: hold until explicit release outside the target, not Console.ReadLine/EOF on a CI pipe.
-  const script = "$ErrorActionPreference='Stop'; $s=[System.IO.File]::Open($env:CLEANUP_LOCK_FIXTURE,'Open','Read','None'); try { [Console]::WriteLine('READY'); [Console]::Out.Flush(); $deadline=[DateTime]::UtcNow.AddSeconds(30); while(-not [System.IO.File]::Exists($env:CLEANUP_LOCK_RELEASE)) { if([DateTime]::UtcNow -gt $deadline) { throw 'fixture-release-timeout' }; [System.Threading.Thread]::Sleep(20) } } finally { $s.Dispose() }";
-  // Invariant: prove Win32 ERROR_SHARING_VIOLATION, not a Node readFile rejection that differs on hosted Windows.
-  const probe = "$ErrorActionPreference='Stop'; try { $p=[System.IO.File]::Open($env:CLEANUP_LOCK_FIXTURE,'Open','Read','ReadWrite'); $p.Dispose(); throw 'fixture-lock-not-held' } catch { $e=$_.Exception; while($e.InnerException) { $e=$e.InnerException }; if(($e.HResult -band 65535) -ne 32) { throw }; [Console]::WriteLine('SHARING_VIOLATION') }";
+// Protocol: hold until explicit release outside the target, not Console.ReadLine/EOF on a CI pipe.
+const HOLD_SCRIPT = "$ErrorActionPreference='Stop'; $s=[System.IO.File]::Open($env:CLEANUP_LOCK_FIXTURE,'Open','Read','None'); try { [Console]::WriteLine('READY'); [Console]::Out.Flush(); $deadline=[DateTime]::UtcNow.AddSeconds(60); while(-not [System.IO.File]::Exists($env:CLEANUP_LOCK_RELEASE)) { if([DateTime]::UtcNow -gt $deadline) { throw 'fixture-release-timeout' }; [System.Threading.Thread]::Sleep(20) } } finally { $s.Dispose() }";
+// Invariant: prove Win32 ERROR_SHARING_VIOLATION, not a Node readFile rejection that differs on hosted Windows.
+const PROBE_SCRIPT = "$ErrorActionPreference='Stop'; try { $p=[System.IO.File]::Open($env:CLEANUP_LOCK_FIXTURE,'Open','Read','ReadWrite'); $p.Dispose(); throw 'fixture-lock-not-held' } catch { $e=$_.Exception; while($e.InnerException) { $e=$e.InnerException }; if(($e.HResult -band 65535) -ne 32) { throw }; [Console]::WriteLine('SHARING_VIOLATION') }";
+const powershell = (script, env) => spawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], { env: { ...process.env, ...env }, stdio: ["ignore", "pipe", "pipe"] });
+
+/** Windows-only exclusive handle on one file, released only by an explicit sentinel written outside the target. */
+function exclusiveHandle(f, lockedPath) {
+  const releasePath = join(f.temporary, `release-${randomUUID()}`);
+  let child, ended, diagnostic = "";
   const assertNativeLock = async () => {
-    const result = await promisify(execFile)("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", probe], {
+    const result = await promisify(execFile)("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", PROBE_SCRIPT], {
       env: { ...process.env, CLEANUP_LOCK_FIXTURE: lockedPath }, timeout: 10000, maxBuffer: 65536, encoding: "utf8",
     });
     assert.equal(result.stdout.trim(), "SHARING_VIOLATION");
   };
-  await assert.rejects(assertNativeLock, /fixture-lock-not-held/, "the probe must reject an unlocked file");
-  let child, ended, diagnostic = "", removalAttempted = false, fixtureFailure;
+  const hold = async () => {
+    child = powershell(HOLD_SCRIPT, { CLEANUP_LOCK_FIXTURE: lockedPath, CLEANUP_LOCK_RELEASE: releasePath });
+    ended = once(child, "close").then(([code, signal]) => ({ code, signal }), error => ({ error: error.message }));
+    child.stderr.on("data", data => { diagnostic += data.toString(); });
+    await new Promise((resolve, reject) => {
+      let output = "";
+      const timer = setTimeout(() => finish(Error("fixture-lock-timeout")), 10000);
+      const exited = () => finish(Error(`fixture-lock-exited: ${diagnostic}`));
+      const failed = error => finish(error);
+      const ready = data => { output += data.toString(); if (output.split(/\r?\n/).includes("READY")) finish(); };
+      function finish(error) {
+        clearTimeout(timer); child.stdout.off("data", ready); child.off("exit", exited); child.off("error", failed);
+        error ? reject(error) : resolve();
+      }
+      child.stdout.on("data", ready); child.once("exit", exited); child.once("error", failed);
+    });
+    await assertNativeLock();
+  };
+  const release = async () => {
+    if (!child) return;
+    await writeFile(releasePath, "release\n");
+    const timer = setTimeout(() => child.kill(), 10000);
+    try { assert.deepEqual(await ended, { code: 0, signal: null }, diagnostic); }
+    finally { clearTimeout(timer); child = null; }
+    await assert.rejects(assertNativeLock, /fixture-lock-not-held/, "the probe must observe explicit release");
+  };
+  return { assertNativeLock, hold, release, context: () => JSON.stringify({ diagnostic, exitCode: child?.exitCode }) };
+}
+
+test("Windows exclusive file handles produce a safe partial result that the next pass completes", { skip: process.platform !== "win32" }, async t => {
+  const f = await fixture(t, true); await f.store.enable();
+  const lockedPath = join(f.path, "tracked.txt"), lock = exclusiveHandle(f, lockedPath);
+  await assert.rejects(lock.assertNativeLock, /fixture-lock-not-held/, "the probe must reject an unlocked file");
+  let removalAttempted = false;
   try {
     const report = await f.pass({ preview: false, remove: async (...args) => {
-      child = spawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], {
-        env: { ...process.env, CLEANUP_LOCK_FIXTURE: lockedPath, CLEANUP_LOCK_RELEASE: releasePath }, stdio: ["ignore", "pipe", "pipe"],
-      });
-      ended = once(child, "close").then(([code, signal]) => ({ code, signal }), error => ({ error: error.message }));
-      child.stderr.on("data", data => { diagnostic += data.toString(); });
-      await new Promise((resolve, reject) => {
-        let output = "";
-        const timer = setTimeout(() => finish(Error("fixture-lock-timeout")), 10000);
-        const exited = () => finish(Error(`fixture-lock-exited: ${diagnostic}`));
-        const failed = error => finish(error);
-        const ready = data => { output += data.toString(); if (output.split(/\r?\n/).includes("READY")) finish(); };
-        function finish(error) {
-          clearTimeout(timer); child.stdout.off("data", ready); child.off("exit", exited); child.off("error", failed);
-          error ? reject(error) : resolve();
-        }
-        child.stdout.on("data", ready); child.once("exit", exited); child.once("error", failed);
-      });
-      try { await assertNativeLock(); }
-      catch (error) { fixtureFailure = error.message; throw error; }
-      removalAttempted = true;
+      await lock.hold(); removalAttempted = true;
       await removeWorktree(...args);
     } });
-    const context = JSON.stringify({ report, diagnostic, fixtureFailure, exitCode: child?.exitCode });
+    const context = JSON.stringify({ report }) + lock.context();
     assert.equal(removalAttempted, true, context);
     assert.equal(report.results[0].disposition, "partial", context);
     assert.ok(["git-operation-failed", "worktree-removal-partial"].includes(report.results[0].reason), context);
-    assert.equal(child.exitCode, null, context);
-    await assertNativeLock();
+    await lock.assertNativeLock();
     assert.equal(await exists(f.path), true);
     assert.equal((await f.store.read()).entries[0].step, "remove-intent");
     assert.equal(await git(f.primary, "rev-parse", "refs/heads/feature/example"), f.entry.head);
-  } finally {
-    if (child) {
-      await writeFile(releasePath, "release\n");
-      const timer = setTimeout(() => child.kill(), 10000);
-      try { assert.deepEqual(await ended, { code: 0, signal: null }, diagnostic); }
-      finally { clearTimeout(timer); }
-    }
-  }
-  await assert.rejects(assertNativeLock, /fixture-lock-not-held/, "the probe must observe explicit release");
+    // Invariant: a still-held handle keeps the residue and journal; nothing is force-deleted around the lock.
+    const locked = await f.pass({ preview: false });
+    assert.equal(locked.results[0].disposition, "partial", JSON.stringify(locked));
+    assert.ok(["residual-locked", "git-operation-failed", "worktree-content"].includes(locked.results[0].reason), JSON.stringify(locked));
+    assert.equal(await exists(lockedPath), true);
+    assert.equal((await f.store.read()).entries[0].step, "remove-intent");
+  } finally { await lock.release(); }
   assert.equal(await readFile(lockedPath, "utf8"), "base\n");
-  assert.equal((await f.pass({ preview: false })).results[0].reason, "residual-or-reused-path");
-  assert.equal(await readFile(lockedPath, "utf8"), "base\n");
+  const repaired = await f.pass({ preview: false });
+  assert.equal(repaired.results[0].disposition, "removed", JSON.stringify(repaired));
+  assert.equal(repaired.results[0].steps.at(-1), "local-ref-removed");
+  assert.equal(await exists(f.path), false); assert.equal(await git(f.primary, "for-each-ref", "refs/heads/feature/example"), "");
+  assert.doesNotMatch(await git(f.primary, "worktree", "list", "--porcelain"), /prunable/);
+});
+
+test("a locked disposable root blocks before any journaled intent and completes after release", { skip: process.platform !== "win32" }, async t => {
+  const f = await fixture(t, true); await f.store.enable();
+  await mkdir(join(f.path, "node_modules")); await writeFile(join(f.path, "node_modules", "held.js"), "generated");
+  await f.store.locked(async (state, save) => { state.entries[0].disposable = ["node_modules"]; await save(state); });
+  const lock = exclusiveHandle(f, join(f.path, "node_modules", "held.js"));
+  let removalAttempted = false;
+  try {
+    await lock.hold();
+    const report = await f.pass({ preview: false, remove: async () => { removalAttempted = true; throw Error("must not run"); } });
+    assert.equal(removalAttempted, false);
+    assert.equal(report.results[0].disposition, "blocked", JSON.stringify(report));
+    assert.equal(report.results[0].reason, "disposable-path-locked"); assert.deepEqual(report.results[0].paths, ["node_modules"]);
+    assert.equal(await exists(join(f.path, ".git")), true); assert.equal(await exists(join(f.path, "node_modules", "held.js")), true);
+    const entry = (await f.store.read()).entries[0]; assert.equal(entry.state, "released"); assert.equal(entry.step, "none");
+  } finally { await lock.release(); }
+  const report = await f.pass({ preview: false });
+  assert.equal(report.results[0].disposition, "removed", JSON.stringify(report));
+  assert.deepEqual(report.results[0].steps, ["worktree-removed", "local-ref-removed"]);
+  assert.equal(await exists(f.path), false);
 });
 
 test("pass deadline reports incomplete coverage without mutation", async t => {
