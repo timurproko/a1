@@ -625,7 +625,7 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
     await transactionStore.clearCompleted().catch(() => undefined);
     options.onPhaseTiming?.({ phase: "transaction-complete", durationMs: Math.max(0, now() - transactionStartedAt) });
     progress.finish();
-    output.stdout(`${PRODUCT_TEXT.commandName} updated successfully: ${targetVersion}\n`);
+    output.stdout(`${PRODUCT_TEXT.commandName} updated successfully to ${targetVersion}\n`);
     return 0;
   } catch (error) {
     progress.clear();

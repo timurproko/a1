@@ -134,7 +134,7 @@ describe("release-gating N-1 update transitions", () => {
     // "develop" — and the success line names the version alone, the channel having
     // already been said.
     expect(stdout.join("")).toContain("a1 update: 1.0.0 → 1.1.0");
-    expect(stdout.join("")).toContain("a1 updated successfully: 1.1.0");
+    expect(stdout.join("")).toContain("a1 updated successfully to 1.1.0");
     expect(JSON.stringify(calls)).not.toMatch(/taskkill|Remove-Item|release-state deletion|database deletion/i);
   });
 });
