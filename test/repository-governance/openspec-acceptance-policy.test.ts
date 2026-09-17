@@ -102,8 +102,13 @@ describe("manual merge authority", () => {
       expect(() => assertManualAcceptanceMerge({ ...pull(), ...override }, "admin", events())).toThrow();
     }
     for (const override of [{ performed_via_github_app: {} }, { performed_via_github_app: undefined },
-      { commit_id: "c".repeat(40) }, { created_at: "2026-09-14T06:00:00Z" }]) {
-      expect(() => assertManualAcceptanceMerge(pull(), "admin", [{ ...events()[0], ...override }])).toThrow();
+      { commit_id: "c".repeat(40) }, { created_at: "2026-09-14T06:00:00Z" }, { created_at: "2026-09-15T06:01:00Z" },
+      { created_at: "2026-09-15T06:00:06Z" }, { created_at: "not-a-time" }, { created_at: undefined }]) {
+      expect(() => assertManualAcceptanceMerge(pull(), "admin", [{ ...events()[0], ...override }])).toThrow("acceptance-merge-provenance");
+    }
+    // Provenance: GitHub stamped PR #449's merge event one second after merged_at; that is the same merge.
+    for (const created_at of ["2026-09-15T06:00:01Z", "2026-09-15T05:59:59Z", "2026-09-15T06:00:05Z"]) {
+      expect(() => assertManualAcceptanceMerge(pull(), "admin", [{ ...events()[0], created_at }])).not.toThrow();
     }
     for (const event of ["auto_merge_enabled", "added_to_merge_queue"]) {
       expect(() => assertManualAcceptanceMerge(pull(), "admin", [...events(), { event }])).toThrow("acceptance-merge-provenance");
