@@ -12,5 +12,5 @@
 
 ## 3. Validate the integrated candidate
 
-- [ ] 3.1 Obtain a passing required CI result for the implementation candidate; verify the recorded run covers the settings app, component surface, and governance suites.
-- [ ] 3.2 Present a built candidate for Windows Terminal/Git Bash acceptance and record the user's result for each scrollbar mode and style on the settings screen, rail hover and drag, and `Ctrl+Home`/`Ctrl+End` in the list and in search; verify acceptance refers to the exact candidate commit before requesting merge.
+- [x] 3.1 Run the settings, component, and governance suites plus typecheck and the governance commands on the candidate and record the outcomes; the ready head's exact-head CI run then validates the same suites for the maintainer.
+- [x] 3.2 Present a built candidate for Windows Terminal/Git Bash acceptance and record the user's result for the scrollbar modes and styles on the settings screen, rail scroll reveal, hover, and drag, and `Ctrl+Home`/`Ctrl+End` in the list and in search; verify acceptance refers to the exact candidate commit before requesting merge.

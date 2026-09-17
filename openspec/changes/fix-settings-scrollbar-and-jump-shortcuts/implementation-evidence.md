@@ -21,6 +21,10 @@ All commands were run from the delivery worktree `D:/Git/a1/.worktrees/fix-setti
 | `npm run check:code-documentation` | `Code documentation governance OK: no violations`. |
 | `npm run check:names` | `967 files; 0 violations`. |
 
+## Physical acceptance
+
+The maintainer built candidate `8f769474` in the delivery worktree, launched it with `./scripts/dev` in Windows Terminal/Git Bash, and reported it accepted on 2026-09-17. An earlier round on `e1ff627c` showed the rail only on hover under `auto`; that round added the scroll reveal and fade. The accepted round covered the settings rail under each scrollbar mode and style, its reveal on scrolling and hover, dragging the thumb, and `Ctrl+Home`/`Ctrl+End` in the list and in search.
+
 ## Behavior notes
 
 - The settings rail asks `scrollbarPresentation` with the transcript's activity window: a frame whose scroll differs from the previous one lights the rail for 900 ms and arms one 925 ms repaint timer, so `auto` reveals on scroll, hover, or drag and fades on its own.
