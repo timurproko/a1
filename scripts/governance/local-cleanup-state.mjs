@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, open, readFile, rename, unlink, lstat } from "node:fs/promises";
+import { mkdir, open, readFile, rename, unlink, lstat, utimes } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
 
 /** Local-only ownership authority. Absence of a process never transfers ownership. */
@@ -10,6 +10,12 @@ const uuid = value => typeof value === "string" && /^[a-f0-9-]{36}$/.test(value)
 const positive = value => Number.isSafeInteger(value) && value > 0;
 const exact = (value, keys) => value && typeof value === "object" && !Array.isArray(value)
   && Object.keys(value).sort().join() === [...keys].sort().join();
+export const LOCK_HEARTBEAT_MS = 5000, LOCK_STALE_MS = 120000;
+/** Signal 0 only probes existence; a PID we may not signal (EPERM) is still alive, so the lock is kept. */
+export function processAlive(pid) {
+  if (!Number.isSafeInteger(pid) || pid <= 0) return false;
+  try { process.kill(pid, 0); return true; } catch (error) { return error.code !== "ESRCH"; }
+}
 export const safeRef = ref => typeof ref === "string" && /^refs\/heads\/(?:feature|fix|refactor|docs|test|chore|style)\/[A-Za-z0-9][A-Za-z0-9._/-]*$/.test(ref)
   && !/(?:\.\.|\/\.|\/\/|\/$|\.$|\.lock(?:\/|$))/.test(ref);
 const disposablePath = value => typeof value === "string" && /^(?:(?:node_modules|dist|\.builds|\.artifacts)(?:\/[A-Za-z0-9_-]+)*|native\/(?:process-guardian|terminal-host)\/target(?:\/[A-Za-z0-9_-]+)*)$/.test(value);
@@ -79,23 +85,54 @@ export function createStateStore(identity) {
     } catch (error) { if (error.code === "ENOENT") return initial(); throw error; }
   }
   async function save(state) { validateState(state, identity); await regular(path, true); await atomicJson(path, state); }
-  async function locked(action) {
+  async function readLock() {
+    try { return JSON.parse(await readFile(lock, "utf8")); } catch { return null; }
+  }
+  /**
+   * Evict a lock only when its holder is provably gone: no heartbeat for LOCK_STALE_MS and a PID that no longer exists.
+   * A reused or foreign PID reads as alive, which keeps the lock; the eviction itself is journaled beside the state.
+   */
+  async function evictStaleLock(now) {
+    let stat;
+    try { stat = await lstat(lock); } catch (error) { if (error.code === "ENOENT") return false; throw error; }
+    const record = await readLock();
+    const heartbeat = Number.isFinite(record?.heartbeatAt) ? record.heartbeatAt : stat.mtimeMs;
+    if (now - heartbeat < LOCK_STALE_MS || processAlive(record?.pid)) return false;
+    await atomicJson(join(directory, `lock-evicted-${now}-${randomUUID()}.json`), { version: 1, evictedAt: now, evictedBy: process.pid, lock: record, mtimeMs: stat.mtimeMs });
+    await unlink(lock).catch(error => { if (error.code !== "ENOENT") throw error; });
+    return true;
+  }
+  async function locked(action, now = Date.now) {
     await checkDirectory(true);
     let handle;
-    try { handle = await open(lock, "wx", 0o600); }
-    catch (error) { if (error.code === "EEXIST") fail("mutation-busy"); throw error; }
+    for (let attempt = 0; ; attempt++) {
+      try { handle = await open(lock, "wx", 0o600); break; }
+      catch (error) {
+        if (error.code !== "EEXIST") throw error;
+        if (attempt === 0 && await evictStaleLock(now())) continue;
+        fail("mutation-busy");
+      }
+    }
+    const record = { version: 2, pid: process.pid, nonce: randomUUID(), startedAt: now(), heartbeatAt: now() };
+    const write = async () => { const text = JSON.stringify(record); await handle.truncate(0); await handle.write(text, 0, "utf8"); await handle.sync(); };
+    // Concurrency: the heartbeat lets a later process distinguish a slow holder from one that was killed before its finally ran.
+    const timer = setInterval(() => { record.heartbeatAt = now(); write().catch(() => {}); }, LOCK_HEARTBEAT_MS);
+    timer.unref();
     try {
-      await handle.writeFile(JSON.stringify({ version: 1, pid: process.pid, nonce: randomUUID() })); await handle.sync();
+      await write();
       return await action(await read(), save);
-    } finally { await handle.close(); await unlink(lock); }
+    } finally { clearInterval(timer); await handle.close(); await unlink(lock).catch(error => { if (error.code !== "ENOENT") throw error; }); }
   }
-  async function disabled() {
-    try { await lstat(stop); return true; } catch (error) { if (error.code === "ENOENT") return false; throw error; }
+  /** With `since`, only a sentinel written at or after that time counts, so an old stop does not veto an explicit sweep. */
+  async function disabled(since = null) {
+    try { const stat = await lstat(stop); return since === null || stat.mtimeMs >= since; }
+    catch (error) { if (error.code === "ENOENT") return false; throw error; }
   }
-  async function disable() {
+  async function disable(now = Date.now) {
     // Concurrency: a stop sentinel does not wait for the potentially busy mutation owner.
     await checkDirectory(true); await regular(stop, true);
     const handle = await open(stop, "a", 0o600); await handle.close();
+    const time = new Date(now()); await utimes(stop, time, time);
   }
   async function enable() {
     return locked(async (state, save) => { state.enabled = true; await save(state); await regular(stop, true); await unlink(stop).catch(error => { if (error.code !== "ENOENT") throw error; }); });

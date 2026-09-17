@@ -15,8 +15,13 @@
 - [ ] 3.2 Add the branch-pruning pass to `sweep`: enumerate `refs/heads/` topic branches not checked out and not registered, look up same-repository pull requests by head ref name, require one merged-into-`develop` PR and no open PR, tip equal to or ancestor of that merged head, and absent remote ref; compare-and-delete; report retained branches with `branch-no-pull-request`, `branch-open-pull-request`, `branch-unmerged-commits`, `branch-checked-out`, or `branch-remote-present`. Optionally prune-fetch `origin` first.
 - [ ] 3.3 Fixtures: a sweep after merge removes a handed-off worktree and ref while an open candidate stays `pending` and a closed-unmerged candidate reports `awaiting-discard`; a hand-deleted worktree's branch is pruned; a branch with a local-only commit, an open PR, or a checkout is retained; a disabled queue does not stop the sweep but a stop sentinel does.
 
-## 4. Guidance And Evidence
+## 4. Stale Mutation Lock
 
-- [ ] 4.1 Update `docs/local-worktree-cleanup.md` (hand-off, sweep, ancestry, branch pruning, outcome list) and the CLI help text.
-- [ ] 4.2 Update `openspec/config.yaml` and `.agents/skills/change-delivery/SKILL.md`: hand off with `handoff` at maintainer hand-off and after repair pushes; run `sweep` from the primary checkout at the start of every delivery session and on verified or reported merge; relay its per-candidate line.
-- [ ] 4.3 Run the focused cleanup fixtures, typechecking, and the governance commands; record outcomes. After merge, run `sweep` on the delivering machine and record the dispositions for the released #457 and #458 entries as post-merge evidence.
+- [ ] 4.1 In `scripts/governance/local-cleanup-state.mjs`, write PID, nonce, start, and heartbeat into `mutation.lock`, refresh the heartbeat every five seconds while held, and on `EEXIST` evict once when the heartbeat (or legacy mtime) is older than two minutes and the PID does not exist, journaling `lock-evicted-*.json`; otherwise fail `mutation-busy`.
+- [ ] 4.2 Fixtures: a dead PID with a stale heartbeat is evicted and journaled; a fresh heartbeat, a live PID, and an unreadable fresh file stay busy; a legacy lock is judged by its mtime.
+
+## 5. Guidance And Evidence
+
+- [ ] 5.1 Update `docs/local-worktree-cleanup.md` (hand-off, sweep, ancestry, branch pruning, outcome list) and the CLI help text.
+- [ ] 5.2 Update `openspec/config.yaml` and `.agents/skills/change-delivery/SKILL.md`: hand off with `handoff` at maintainer hand-off and after repair pushes; run `sweep` from the primary checkout at the start of every delivery session and on verified or reported merge; relay its per-candidate line.
+- [ ] 5.3 Run the focused cleanup fixtures, typechecking, and the governance commands; record outcomes. After merge, run `sweep` on the delivering machine and record the dispositions for the released #457 and #458 entries as post-merge evidence.

@@ -26,6 +26,10 @@ describe("repository-owned atomic delivery guidance", () => {
     expect(config).toContain("no acceptance, spec-only, or archive-only follow-up PR");
     expect(config).toContain("Standalone existing-spec/OpenSpec revisions and ordinary docs retain this route");
     expect(config).toContain("`local-worktree-cleanup.mjs complete`");
+    expect(config).toContain("local-worktree-cleanup.mjs sweep --repo <primary>");
+    expect(config).toContain("`local-worktree-cleanup.mjs handoff`");
+    expect(config).toContain("never waits for the merge or starts a watcher");
+    expect(config).toContain("prunes merged local topic branches by pull-request evidence");
     expect(config).toContain("`discard --confirm-closed-unmerged`");
     expect(config).toContain("PR closure alone authorizes nothing");
     expect(config).toContain("Never choose disposable paths");
@@ -50,6 +54,8 @@ describe("repository-owned atomic delivery guidance", () => {
     expect(skill).toContain("## Acceptance");
     expect(skill).toContain("Create no acceptance, spec-only, or archive-only follow-up PR");
     expect(skill).toContain("`local-worktree-cleanup.mjs complete`");
+    expect(skill).toContain("`local-worktree-cleanup.mjs sweep --repo <primary>`");
+    expect(skill).toContain("`local-worktree-cleanup.mjs handoff`");
     expect(skill).toContain("`discard --confirm-closed-unmerged`");
     expect(skill).toContain("PR closure alone authorizes nothing");
     expect(skill).toContain("never delete those ad hoc");
@@ -74,6 +80,16 @@ describe("repository-owned atomic delivery guidance", () => {
     expect(cleanup).toContain("--confirm-closed-unmerged");
     expect(cleanup).toContain("expected-SHA lease");
     expect(cleanup).toContain("never scans by age or name");
+    expect(cleanup).toContain("## Hand-off and sweep: the ordinary agent path");
+    expect(cleanup).toContain("local-worktree-cleanup.mjs handoff");
+    expect(cleanup).toContain("local-worktree-cleanup.mjs sweep --repo D:/Git/a1");
+    expect(cleanup).toContain("It needs no `enable` and starts no process");
+    expect(cleanup).toContain("`awaiting-discard`");
+    expect(cleanup).toContain("### Accepted ancestry");
+    expect(cleanup).toContain("Ancestry of `develop` is never used, because the repository squash-merges");
+    expect(cleanup).toContain("### Merged branch pruning");
+    expect(cleanup).toContain("`branch-unmerged-commits`");
+    expect(cleanup).toContain("a preview never prunes");
   });
 
   it("documents valid draft and finalized single-PR links without inventing acceptance", async () => {

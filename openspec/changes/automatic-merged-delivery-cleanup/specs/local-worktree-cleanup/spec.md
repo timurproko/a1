@@ -25,7 +25,7 @@ Hand-off SHALL be idempotent for its exact worktree: a repeated invocation SHALL
 ### Requirement: Released merged deliveries are swept without per-candidate commands
 The repository SHALL provide one explicit sweep operation, invoked from the primary checkout, that evaluates every released registration bound to this repository in one bounded pass and completes each candidate whose implementation pull request is verified merged, using exactly the completed-delivery evidence, remote-ref, identity, content, ownership, journaling, non-force removal, and compare-and-delete safeguards of the exact-candidate operation. The sweep SHALL NOT require queue enablement, SHALL NOT start a persistent process, SHALL NOT adopt unregistered worktrees, SHALL NOT discard closed-unmerged candidates, and SHALL leave no broad authority enabled after it exits. A disabled queue SHALL NOT prevent a sweep, but a stop sentinel written while a sweep runs SHALL stop it before its next destructive step.
 
-Candidates whose pull request is open or whose evidence is still pending SHALL be reported `pending` and left untouched; candidates whose pull request closed without merge SHALL be reported `awaiting-discard` and left untouched; blocked candidates SHALL report their exact reason. The sweep SHALL apply the same candidate, remote-request, subprocess, and elapsed-time limits as a queue pass, report incomplete coverage, resume from a durable cursor on the next invocation, and yield `deferred` rather than wait when another session holds the mutation lock. Its report SHALL give one line per candidate suitable for relaying to the maintainer.
+Candidates whose pull request is open or whose evidence is still pending SHALL be reported `pending` and left untouched; candidates whose pull request closed without merge SHALL be reported `awaiting-discard` and left untouched; blocked candidates SHALL report their exact reason. The sweep SHALL apply the same candidate, remote-request, and subprocess limits as a queue pass and a fixed elapsed-time limit, report incomplete coverage, resume from a durable cursor on the next invocation, and yield `deferred` rather than wait when another session holds the mutation lock. Its report SHALL give one line per candidate suitable for relaying to the maintainer.
 
 #### Scenario: New session starts after merges
 - **WHEN** an agent session invokes the sweep before creating its worktree and handed-off candidates have since merged with verified archives and absent remote refs
@@ -73,6 +73,21 @@ The sweep SHALL also evaluate local branches under `refs/heads/` that follow the
 #### Scenario: Branch is checked out or still on the remote
 - **WHEN** a worktree has the branch checked out or `origin` still has the ref
 - **THEN** the sweep SHALL retain the branch and report `branch-checked-out` or `branch-remote-present`
+
+### Requirement: A dead holder's mutation lock is evicted only on proof
+The per-repository mutation lock SHALL record its holder's process identity and a heartbeat that the holder refreshes while it runs. A later operation that finds the lock present SHALL evict it only when the heartbeat (or, for a lock without one, the file's modification time) is older than a fixed silence threshold of at least two minutes and the recorded process no longer exists; a process that exists, cannot be probed, or is the caller itself SHALL keep the lock. Eviction SHALL be journaled beside the state with the evicted record and the evicting process, SHALL happen at most once per acquisition attempt, and SHALL NOT release ownership, advance any journal step, or delete anything else. A lock that is fresh, unreadable but fresh, or held by a live process SHALL still report `mutation-busy`.
+
+#### Scenario: Holder was killed before releasing the lock
+- **WHEN** a cleanup process is terminated without reaching its release and no heartbeat has been written for longer than the threshold
+- **THEN** the next mutation SHALL journal and evict that lock, acquire its own, and proceed under the ordinary safeguards
+
+#### Scenario: Holder is slow but alive
+- **WHEN** the recorded process still exists, however old the heartbeat
+- **THEN** the lock SHALL be kept and the operation SHALL report `mutation-busy`
+
+#### Scenario: Lock is fresh or unreadable
+- **WHEN** the heartbeat or modification time is within the threshold, or the record cannot be parsed but the file is fresh
+- **THEN** the lock SHALL be kept and the operation SHALL report `mutation-busy`
 
 ## MODIFIED Requirements
 

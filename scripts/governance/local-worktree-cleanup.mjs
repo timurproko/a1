@@ -8,12 +8,16 @@ import { captureWorktree, discoverRepository, inside, canonical } from "./local-
 import { cleanupReader } from "./local-cleanup-evidence.mjs";
 import { reconcileLocalCleanup } from "./local-cleanup-reconcile.mjs";
 import { watchLocalCleanup } from "./local-cleanup-watch.mjs";
-import { completeLocalCleanup, COMPLETION_DISPOSABLE_PATHS } from "./local-cleanup-complete.mjs";
+import { completeLocalCleanup, handoffLocalCleanup, COMPLETION_DISPOSABLE_PATHS } from "./local-cleanup-complete.mjs";
 import { discardLocalCleanup } from "./local-cleanup-discard.mjs";
 
 const help = `Local worktree cleanup (disabled until explicitly enabled)
 Usage: node scripts/governance/local-worktree-cleanup.mjs COMMAND --repo PRIMARY [options]
-Commands: preview (default), status, complete, discard, enable, disable, once, watch, register, claim, release, recover
+Commands: preview (default), status, handoff, sweep, complete, discard, enable, disable, once, watch, register, claim, release, recover
+Handoff: --path PATH --change NAME --pr N
+  Registers and releases the exact pushed worktree at maintainer hand-off; deletes nothing and enables nothing.
+Sweep: one bounded pass that completes every handed-off candidate whose PR is verified merged, reports open ones as
+  pending and rejected ones as awaiting-discard, and prunes merged local topic branches by pull-request evidence.
 Complete: --path PATH --change NAME --pr N [--role implementation|archive|acceptance]
   Runs one exact-candidate post-merge cleanup with repository-owned generated paths: ${COMPLETION_DISPOSABLE_PATHS.join(", ")}.
 Discard: --path PATH --change NAME --pr N --confirm-closed-unmerged
@@ -27,6 +31,22 @@ Preview performs read-only remote queries, without changing repository refs, fil
 Watch must run outside removable worktrees. Stop with Ctrl+C or disable from another process.
 No force discard, remote mutation, OS service installation, or automatic legacy adoption is provided.`;
 const execute = promisify(execFile);
+/** One relayable line per candidate and branch; identities only, never file contents or credentials. */
+export function sweepLines(report) {
+  const lines = [];
+  if (report.error) lines.push(`sweep ${report.error === "mutation-busy" ? "deferred: another cleanup holds the mutation lock" : `failed: ${report.error}`}`);
+  for (const row of report.results ?? []) {
+    if (row.disposition === "unmanaged") continue;
+    const label = row.sourcePr ? `#${row.sourcePr}` : "candidate", name = row.path?.split("/").pop() ?? row.path;
+    lines.push(`${label} ${name}: ${row.disposition}${row.reason ? ` (${row.reason})` : ""}${row.steps?.length ? ` [${row.steps.join(", ")}]` : ""}`);
+  }
+  for (const row of report.branches?.results ?? []) {
+    lines.push(`branch ${row.ref.slice("refs/heads/".length)}: ${row.disposition}${row.reason ? ` (${row.reason})` : ""}${row.sourcePr ? ` #${row.sourcePr}` : ""}`);
+  }
+  if (report.coverage && !report.coverage.complete && !report.error || report.branches?.deferred) lines.push("sweep deferred: coverage incomplete, rerun to continue");
+  if (!lines.length) lines.push("sweep: nothing handed off, nothing to prune");
+  return lines;
+}
 function summary(state) {
   return { version: state.version, enabled: state.enabled, cursor: state.cursor,
     entries: state.entries.map(({ ownerHash, ...entry }) => entry) };
@@ -42,7 +62,7 @@ export async function main(args = process.argv.slice(2)) {
   if (values.help) { console.log(help); return; }
   if (positionals.length > 1) fail("command-count");
   const command = positionals[0] ?? "preview";
-  if (!["preview", "status", "complete", "discard", "enable", "disable", "once", "watch", "register", "claim", "release", "recover"].includes(command)) fail("unknown-command");
+  if (!["preview", "status", "handoff", "sweep", "complete", "discard", "enable", "disable", "once", "watch", "register", "claim", "release", "recover"].includes(command)) fail("unknown-command");
   const identity = await discoverRepository(values.repo ?? process.cwd());
   const store = createStateStore(identity);
   if (command === "status") { console.log(JSON.stringify({ ...summary(await store.read()), stopped: await store.disabled() }, null, 2)); return; }
@@ -75,7 +95,7 @@ export async function main(args = process.argv.slice(2)) {
     });
     return;
   }
-  if (["complete", "discard", "once", "watch"].includes(command) && inside(identity.root, await canonical(fileURLToPath(import.meta.url)))) fail("worker-code-inside-removable-root");
+  if (["complete", "discard", "sweep", "once", "watch"].includes(command) && inside(identity.root, await canonical(fileURLToPath(import.meta.url)))) fail("worker-code-inside-removable-root");
   let nextAllowed = 0;
   async function authorizedReader(deadline) {
     let token = process.env.GH_TOKEN ?? process.env.GITHUB_TOKEN;
@@ -95,6 +115,24 @@ export async function main(args = process.argv.slice(2)) {
     const report = await discardLocalCleanup({ identity, store, reader: await authorizedReader(deadline), path: values.path,
       change: values.change, sourcePr, confirmed: true, cwd: process.cwd(), deadline });
     console.log(JSON.stringify(report, null, 2));
+    return;
+  }
+  if (command === "handoff") {
+    const sourcePr = Number(values.pr);
+    if (!values.path || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(values.change ?? "") || !Number.isSafeInteger(sourcePr) || sourcePr < 1
+      || values["source-pr"] !== undefined || values["candidate-pr"] !== undefined || values.role !== undefined || values.disposable !== undefined) fail("handoff-arguments");
+    const report = await handoffLocalCleanup({ identity, store, path: values.path, change: values.change, sourcePr });
+    console.log(JSON.stringify(report, null, 2));
+    return;
+  }
+  if (command === "sweep") {
+    // Performance: each merged candidate costs three evidence loads, so a sweep gets three queue passes' worth of time.
+    const started = Date.now(), deadline = started + 180000;
+    const report = await reconcileLocalCleanup({ identity, store, reader: await authorizedReader(deadline), preview: false, deadline,
+      requireEnabled: false, stopSince: started, pruneBranches: true, cwd: process.cwd() });
+    report.lines = sweepLines(report);
+    console.log(JSON.stringify(report, null, 2));
+    if (report.error) process.exitCode = 1;
     return;
   }
   if (command === "complete") {

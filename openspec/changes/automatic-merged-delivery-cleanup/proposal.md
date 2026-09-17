@@ -8,6 +8,7 @@ Version-3 delivery ends when the agent hands the validated candidate to the main
 - Add one bounded `sweep` operation that every delivery session runs from the primary checkout before creating a worktree, and again when it verifies or is told of a merge. It evaluates every released registration, completes each candidate whose PR is verified merged under exactly the existing evidence, identity, content, journal, and non-force removal safeguards, reports open or pending candidates untouched, reports closed-unmerged candidates as awaiting explicit discard, and needs neither queue enablement nor a persistent process.
 - Accept the finalization App's commits: a registered head, live worktree HEAD, or local topic-ref tip that equals or is an ancestor of the merged PR head is eligible; a tip holding commits outside the merged PR head still blocks.
 - Let the sweep prune merged local topic branches that have no live registration when one same-repository PR with that head ref name merged into `develop`, no PR with that name is open, the tip equals or is an ancestor of that merged head, the remote ref is absent, and no worktree has the branch checked out; every other branch is reported and retained.
+- Evict a stale mutation lock only on proof: the holder refreshes a heartbeat in the lock, and a later operation evicts it only when the heartbeat is more than two minutes old and the recorded PID no longer exists, journaling the eviction; today a process killed mid-command (agent tool timeouts do this) leaves every later `complete` at `mutation-busy` until someone deletes the file by hand.
 - Update `docs/local-worktree-cleanup.md`, `openspec/config.yaml`, and the change-delivery skill so hand-off and session-start sweep are the documented agent steps.
 
 ## Capabilities
@@ -18,7 +19,7 @@ None.
 
 ### Modified Capabilities
 
-- `local-worktree-cleanup`: hand-off release, released-candidate sweep, finalization ancestry, and evidence-based local branch pruning.
+- `local-worktree-cleanup`: hand-off release, released-candidate sweep, finalization ancestry, evidence-based local branch pruning, and proof-based stale-lock eviction.
 - `change-delivery-workflow`: agents hand off through the standard command and sweep at session start and on observed merge.
 
 ## Impact

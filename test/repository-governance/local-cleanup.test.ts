@@ -5,9 +5,9 @@ import { expect, it } from "vitest";
 const execute = promisify(execFile);
 
 // Rationale: use the same dependency-free fixtures for local diagnosis and the Windows fast CI gate.
-// The child bound is a hang detector well above the concurrent run's cost (about 40 s locally);
+// The child bound is a hang detector well above the concurrent run's cost (about 60 s locally);
 // a slow runner must not turn a passing suite into a SIGTERM.
-const CHILD_TIMEOUT_MS = 180_000;
+const CHILD_TIMEOUT_MS = 240_000;
 it("verifies local cleanup identity, archive authority, ownership, recovery, and bounded watch behavior", async () => {
   let result;
   try { result = await execute(process.execPath, ["--test",

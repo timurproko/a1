@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { resolve } from "node:path";
-import { captureWorktree, exists } from "./local-cleanup-git.mjs";
+import { captureWorktree, exists, gitRunner, statusBlockers } from "./local-cleanup-git.mjs";
 import { fail, registerEntry, transitionEntry } from "./local-cleanup-state.mjs";
 import { reconcileLocalCleanup } from "./local-cleanup-reconcile.mjs";
 
@@ -13,7 +13,8 @@ export const COMPLETION_DISPOSABLE_PATHS = Object.freeze([
   "native/terminal-host/target",
 ]);
 
-const sameIdentity = (entry, snapshot) => ["path", "filesystem", "head", "ref"].every(key => entry[key] === snapshot[key]);
+// Protocol: the head may have moved to an accepted ancestor of the merged PR head; the reconciler judges that, not the binder.
+const sameIdentity = (entry, snapshot) => ["path", "filesystem", "ref"].every(key => entry[key] === snapshot[key]);
 const sameCandidate = (entry, request) => entry.change === request.change && entry.sourcePr === request.sourcePr
   && entry.candidatePr === request.candidatePr && entry.role === request.role;
 
@@ -49,4 +50,37 @@ export async function completeLocalCleanup({ identity, store, reader, path, chan
   });
   return await reconcile({ identity, store, reader, preview: false, cwd, entryIds: [selected.id], requireEnabled: false,
     includeUnmanaged: false, ...reconcileOptions });
+}
+
+/**
+ * Park a handed-off worktree: register or reclaim it, record its current head, and release it to the sweep.
+ * Nothing is evaluated, deleted, or enabled; unpushed content blocks so the release never covers unaccepted work.
+ */
+export async function handoffLocalCleanup({ identity, store, path, change, sourcePr, candidatePr = sourcePr,
+  role = "implementation", git = gitRunner() }) {
+  const absolute = resolve(path).replaceAll("\\", "/");
+  return await store.locked(async (state, save) => {
+    const request = { change, sourcePr, candidatePr, role };
+    if (!await exists(absolute)) fail("worktree-absent-unregistered");
+    const snapshot = await captureWorktree(identity, absolute, git);
+    const paths = await statusBlockers(git, absolute, COMPLETION_DISPOSABLE_PATHS, { ignored: false });
+    if (paths.length) fail("worktree-content", { paths: paths.slice(0, 100) });
+    const token = randomBytes(32).toString("hex");
+    const existing = state.entries.find(entry => entry.path === absolute);
+    let entry;
+    if (existing && existing.state !== "done") {
+      if (!sameCandidate(existing, request)) fail("completion-registration-conflict");
+      if (existing.state === "owned") fail("owned-worktree");
+      if (existing.filesystem !== snapshot.filesystem) fail("directory-replaced");
+      if (existing.ref !== snapshot.ref) fail("worktree-identity-changed");
+      transitionEntry(existing, "claim", token, existing.generation);
+      Object.assign(existing, snapshot);
+      existing.disposable = [...new Set([...existing.disposable, ...COMPLETION_DISPOSABLE_PATHS])];
+      entry = existing;
+    } else entry = registerEntry(state, { ...snapshot, ...request, disposable: [...COMPLETION_DISPOSABLE_PATHS] }, token);
+    transitionEntry(entry, "release", token, entry.generation);
+    await save(state);
+    return { disposition: "released", id: entry.id, generation: entry.generation, state: entry.state, path: entry.path, head: entry.head, ref: entry.ref,
+      sourcePr: entry.sourcePr, candidatePr: entry.candidatePr, change: entry.change };
+  });
 }
