@@ -404,7 +404,7 @@ Release validation SHALL exercise the physical global package and launcher bound
 ### Requirement: Exact-package startup performance is release-gated
 The accepted Windows release runner SHALL measure command invocation through first input-ready frame for exact packaged `a1` and `a1 pi` launches. Evidence SHALL include a newly addressed cold release path, the first launch after completed update handling, a launch of an approved active release after its supervisor has stopped, and a subsequent warm launch, with phase durations and immutable content identities. Each release-gating scenario SHALL execute once without automatic retry, and acceptance evidence SHALL demonstrate reliable margin on every supported Windows Node lane rather than relying on a preceding failed launch to warm the path.
 
-The measured budgets SHALL be the interactive startup budgets declared by the A1 shell capability rather than separately restated numbers. Measurement SHALL be unconditional; enforcement SHALL depend on the declared channel. Nightly publication, stable publication, and complete regression SHALL fail on an overrun. A launch that records no input-ready frame SHALL fail in every channel.
+The measured budgets SHALL be the interactive startup budgets declared by the A1 shell capability rather than separately restated numbers. Measurement SHALL be unconditional; enforcement SHALL depend on the declared channel. Windows Defender real-time protection SHALL be enabled before the first packaged launch of a measured scenario, and MAY be disabled while dependencies and the exact candidate are installed and extracted. Nightly publication, stable publication, and complete regression SHALL fail on an overrun. A launch that records no input-ready frame SHALL fail in every channel.
 
 #### Scenario: First launch follows update
 - **WHEN** an exact packaged update activates a release whose product path has not previously launched on the worker
@@ -438,6 +438,15 @@ The measured budgets SHALL be the interactive startup budgets declared by the A1
 #### Scenario: Supported Windows Node lanes differ
 - **WHEN** the same exact candidate passes a warm startup budget on one supported Windows Node version and fails it on another
 - **THEN** acceptance SHALL remain blocked until phase-attributed evidence shows the slower supported lane meets the unchanged budget with reliable first-attempt margin
+
+#### Scenario: Protection is enabled after installation
+- **WHEN** a Windows validation lane installs its dependencies and extracts the exact candidate with real-time protection in the runner default state
+- **THEN** protection SHALL be enabled before the first measured packaged launch
+- **AND** the startup gate SHALL prove enabled protection from inside the measured run rather than from workflow order alone
+
+#### Scenario: Protection is not enabled at launch
+- **WHEN** the startup gate observes real-time protection disabled when it begins measuring
+- **THEN** the gate SHALL fail in every channel before recording a measurement
 
 ### Requirement: Optimized runtime payload and layers are exact-package validated
 Release gates SHALL prove minimal-payload completeness, unchanged-layer reuse, changed-layer isolation, persistent compile-cache invalidation, side-effect-free warmup, full-copy rollback compatibility, extension loading, native assets, and terminal module identity against exact packed bytes.

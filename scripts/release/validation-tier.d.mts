@@ -18,7 +18,8 @@ export interface ValidationInvocationEvidence {
 export interface ExactPackagePreparationEvidence {
   schema: "a1-exact-package-preparation-evidence-v1";
   receiptId?: string;
-  count: 1;
+  count: 0 | 1;
+  reason?: string;
   durationMs?: number;
   candidateSha256?: string;
   package?: { name: string; version: string };
@@ -38,7 +39,7 @@ export interface ValidationExecutionOutcome {
   durationMs: number;
   scopes: string[];
   skipped?: string;
-  preparation?: "receipt-missing-or-incompatible" | "identity-rejected" | "owner-failed-and-identity-rejected";
+  preparation?: "receipt-missing-or-incompatible" | "identity-rejected" | "owner-failed-and-identity-rejected" | "handoff-rejected";
   evidence?: ValidationInvocationEvidence | ExactPackagePreparationEvidence;
 }
 
@@ -64,7 +65,29 @@ export interface ValidationPlan {
   releaseContracts?: Record<string, string>;
 }
 
+export const EXACT_PACKAGE_HANDOFF_SCHEMA: "a1-exact-package-handoff-v1";
+
+export interface ExactPackageHandoff {
+  schema: "a1-exact-package-handoff-v1";
+  consumers: Array<"package-startup" | "package-contracts">;
+  root: string;
+  prefix: string;
+  packageRoot: string;
+  receiptPath: string;
+  receipt: Record<string, any>;
+  durationMs: number;
+  handoffEnvironment: NodeJS.ProcessEnv;
+}
+
 export function loadValidationSuites(repository?: string): Promise<Record<string, unknown>>;
+export function prepareSharedExactPackage(plan: ValidationPlan, options?: {
+  env?: NodeJS.ProcessEnv;
+  repository?: string;
+  verifyBuildReceipt?: (path: string, options: { repository: string }) => Promise<unknown>;
+  verifyPackageReceipt?: (receipt: string, candidate: string, options: Record<string, unknown>) => Promise<unknown>;
+  prepareExactPackageInstallation?: (options: Record<string, unknown>) => Promise<any>;
+  exactPackagePreparationEnvironment?: (preparation: any) => NodeJS.ProcessEnv;
+}): Promise<ExactPackageHandoff>;
 export function createTierPlan(requested: string[], repository?: string, options?: { additionalTests?: string[] }): Promise<ValidationPlan>;
 export function runTierPlan(plan: ValidationPlan, options?: {
   env?: NodeJS.ProcessEnv;
@@ -78,6 +101,8 @@ export function runTierPlan(plan: ValidationPlan, options?: {
   exactPackagePreparationEnvironment?: (preparation: any) => NodeJS.ProcessEnv;
   verifyExactPackagePreparation?: (options: Record<string, unknown>) => Promise<any>;
   cleanupExactPackagePreparation?: (preparation: any) => Promise<{ status: "passed" | "deferred" | "failed"; durationMs: number; error: string | null }>;
+  exactPackageHandoff?: string;
+  readExactPackageHandoff?: (path: string) => Promise<unknown>;
 }): Promise<{
   schema: string;
   passed: boolean;

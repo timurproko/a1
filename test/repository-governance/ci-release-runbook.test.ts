@@ -67,14 +67,18 @@ describe("CI and release operations runbook", () => {
     expect(development).toContain("STARTUP_BUDGET_ENFORCEMENT: record");
   });
 
-  it("enables Defender before accepted Windows exact-package startup gates", async () => {
+  it("enables Defender after installation and before accepted Windows exact-package startup gates", async () => {
     for (const path of [".github/workflows/release.yml", ".github/workflows/full-regression.yml"]) {
       const workflow = await readFile(path, "utf8");
       expect(workflow).toContain("Set-MpPreference -DisableRealtimeMonitoring $false");
       expect(workflow).toContain("Get-MpComputerStatus).RealTimeProtectionEnabled");
       const protection = workflow.indexOf("Enable Defender real-time protection for startup acceptance");
-      expect(protection).toBeGreaterThanOrEqual(0);
-      expect(protection).toBeLessThan(workflow.indexOf("run: npm ci", protection));
+      const prepare = workflow.indexOf("Prepare the exact package");
+      const consume = workflow.indexOf("--exact-package-handoff .artifacts/validation/exact-package-handoff.json");
+      expect(prepare).toBeGreaterThanOrEqual(0);
+      expect(protection).toBeGreaterThan(prepare);
+      expect(consume).toBeGreaterThan(protection);
+      expect(workflow.indexOf("run: npm ci")).toBeLessThan(prepare);
     }
   });
 });

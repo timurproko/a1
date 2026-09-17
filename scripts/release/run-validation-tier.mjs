@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
-import { createTierPlan, runTierPlan } from "./validation-tier.mjs";
+import { createTierPlan, prepareSharedExactPackage, runTierPlan } from "./validation-tier.mjs";
 import { validationOutcomeAuthority } from "./validation-outcome.mjs";
 
 const requested = selectionFromEnvironment() ?? positionalArguments();
@@ -8,10 +8,17 @@ if (requested.length === 0) throw new Error("usage: node scripts/release/run-val
 const additionalTests = testsFromEnvironment();
 const plan = await createTierPlan(requested, process.cwd(), { additionalTests });
 
-if (process.argv.includes("--plan")) {
+if (process.argv.includes("--prepare-exact-package")) {
+  const handoffPath = valueAfter("--handoff");
+  if (!handoffPath) throw new Error("usage: node scripts/release/run-validation-tier.mjs --prepare-exact-package --handoff <path>");
+  const handoff = await prepareSharedExactPackage(plan);
+  await mkdir(dirname(resolve(handoffPath)), { recursive: true });
+  await writeFile(resolve(handoffPath), `${JSON.stringify(handoff, null, 2)}\n`, { mode: 0o600 });
+  process.stdout.write(`${JSON.stringify({ prepared: 1, consumers: handoff.consumers, durationMs: handoff.durationMs }, null, 2)}\n`);
+} else if (process.argv.includes("--plan")) {
   process.stdout.write(`${JSON.stringify(plan, null, 2)}\n`);
 } else {
-  const result = await runTierPlan(plan);
+  const result = await runTierPlan(plan, { exactPackageHandoff: valueAfter("--exact-package-handoff") });
   const summary = { passed: result.passed, durationMs: result.completedAt - result.startedAt, outcomes: result.outcomes };
   const resultPath = valueAfter("--result");
   if (resultPath) {
@@ -38,10 +45,11 @@ function testsFromEnvironment() {
 }
 
 function positionalArguments() {
+  const valued = new Set(["--result", "--handoff", "--exact-package-handoff"]);
   const values = [];
   for (let index = 2; index < process.argv.length; index += 1) {
     const value = process.argv[index];
-    if (value === "--result") { index += 1; continue; }
+    if (valued.has(value)) { index += 1; continue; }
     if (!value.startsWith("--")) values.push(value);
   }
   return values;
