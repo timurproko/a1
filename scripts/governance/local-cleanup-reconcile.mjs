@@ -2,7 +2,7 @@ import { readdir, lstat, unlink } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import { atomicJson, fail } from "./local-cleanup-state.mjs";
-import { discoverRepository, exists, inspectWorktree, parseWorktrees, removeLocalRef, removeWorktree, gitRunner } from "./local-cleanup-git.mjs";
+import { discoverRepository, exists, inspectResidue, inspectWorktree, parseWorktrees, purgeDisposable, removeLocalRef, removeWorktree, repairResidue, gitRunner } from "./local-cleanup-git.mjs";
 import { verifyCleanupEvidence } from "./local-cleanup-evidence.mjs";
 
 const reason = error => error.cleanupCode ?? error.archiveCode ?? "local-operation-failed";
@@ -30,8 +30,8 @@ export async function writeLocalCleanupReport(store, report, now) {
 /** One bounded pass, with no implicit activation, foreground CI wait, or remote writes. */
 export async function reconcileLocalCleanup({ identity, store, reader, preview = true, now = Date.now, deadline = now() + 60000,
   cancelled = () => false, git = gitRunner({ deadline, now }), verify = verifyCleanupEvidence, inspect = inspectWorktree,
-  remove = removeWorktree, removeRef = removeLocalRef, cwd = process.cwd(), entryIds = null, requireEnabled = true,
-  includeUnmanaged = true }) {
+  remove = removeWorktree, removeRef = removeLocalRef, purge = purgeDisposable, repair = repairResidue,
+  cwd = process.cwd(), entryIds = null, requireEnabled = true, includeUnmanaged = true }) {
   const report = { version: 1, preview, results: [], coverage: { total: 0, visited: 0, complete: false }, at: now() };
   async function run(state, save) {
     const fresh = await discoverRepository(identity.primary, git);
@@ -61,6 +61,9 @@ export async function reconcileLocalCleanup({ identity, store, reader, preview =
         if (entry.step === "none") {
           const content = await inspect(identity, entry, { git, cwd, deadline, now });
           if (!content.clean) { Object.assign(row, content, { disposition: "blocked" }); continue; }
+        } else if (entry.step === "remove-intent") {
+          const residue = await inspectResidue(identity, entry, { git, cwd, deadline, now, inspect });
+          if (!residue.clean) { Object.assign(row, residue, { disposition: "partial" }); continue; }
         } else await absent(identity, entry, git);
         if (preview) continue;
         await enabled();
@@ -73,9 +76,16 @@ export async function reconcileLocalCleanup({ identity, store, reader, preview =
           if (JSON.stringify(await discoverRepository(identity.primary, git)) !== JSON.stringify(identity)) fail("repository-changed");
           const content = await inspect(identity, entry, { git, cwd, deadline, now });
           if (!content.clean) { Object.assign(row, content, { disposition: "blocked" }); continue; }
-          await enabled(); entry.state = "deleting"; entry.step = "remove-intent"; await save(state);
+          // Invariant: generated roots go first with bounded retries, so a held handle blocks before any journaled intent.
+          await enabled(); await purge(entry, { deadline, now }); await enabled();
+          entry.state = "deleting"; entry.step = "remove-intent"; await save(state);
           await remove(identity, entry, git); row.steps.push("worktree-removed");
           entry.step = "worktree-removed"; await save(state);
+        } else if (entry.step === "remove-intent") {
+          // Protocol: an interrupted removal resumes only through verified residue or the exact intact worktree.
+          const repaired = await repair(identity, entry, { git, cwd, deadline, now, inspect, remove, purge });
+          if (!repaired.clean) { Object.assign(row, repaired, { disposition: "partial" }); continue; }
+          row.steps.push(repaired.step); entry.step = "worktree-removed"; await save(state);
         } else {
           // Protocol: an absent path and its Git metadata prove the journaled step, not a reused directory.
           await absent(identity, entry, git); entry.step = "worktree-removed"; await save(state);
@@ -92,7 +102,7 @@ export async function reconcileLocalCleanup({ identity, store, reader, preview =
         entry.state = "done"; entry.step = "complete"; await save(state);
         row.disposition = "removed";
       } catch (error) {
-        row.reason = reason(error);
+        row.reason = reason(error); if (Array.isArray(error.paths)) row.paths = error.paths;
         row.disposition = entry.state === "deleting" ? "partial" : deferred(row.reason) ? "deferred" : "blocked";
       } finally {
         if (!preview) { if (selectedIds === null) state.cursor = start + offset + 1; await save(state); }

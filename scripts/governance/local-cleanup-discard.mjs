@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { resolve } from "node:path";
-import { captureWorktree, discoverRepository, exists, gitRunner, inspectWorktree, parseWorktrees,
-  removeLocalRef, removeRemoteRef, removeWorktree } from "./local-cleanup-git.mjs";
+import { captureWorktree, discoverRepository, exists, gitRunner, inspectWorktree, parseWorktrees, purgeDisposable,
+  removeLocalRef, removeRemoteRef, removeWorktree, repairResidue } from "./local-cleanup-git.mjs";
 import { COMPLETION_DISPOSABLE_PATHS } from "./local-cleanup-complete.mjs";
 import { verifyDiscardEvidence } from "./local-cleanup-evidence.mjs";
 import { writeLocalCleanupReport } from "./local-cleanup-reconcile.mjs";
@@ -22,7 +22,7 @@ async function assertAbsent(identity, entry, git) {
 export async function discardLocalCleanup({ identity, store, reader, path, change, sourcePr, confirmed = false,
   cwd = process.cwd(), now = Date.now, deadline = now() + 60000, git = gitRunner({ deadline, now }),
   verify = verifyDiscardEvidence, inspect = inspectWorktree, removeRemote = removeRemoteRef,
-  remove = removeWorktree, removeRef = removeLocalRef }) {
+  remove = removeWorktree, removeRef = removeLocalRef, purge = purgeDisposable, repair = repairResidue }) {
   const absolute = resolve(path).replaceAll("\\", "/");
   const report = { version: 1, operation: "discard", results: [], coverage: { total: 1, visited: 0, complete: false }, at: now() };
   const row = { path: absolute, sourcePr, disposition: "blocked", steps: [] };
@@ -88,12 +88,14 @@ export async function discardLocalCleanup({ identity, store, reader, path, chang
         if (evidence.disposition !== "eligible" || evidence.remoteRefPresent) fail("remote-ref-recreated");
         const content = await inspect(identity, entry, { git, cwd, deadline, now });
         if (!content.clean) { Object.assign(row, content, { disposition: "partial" }); return; }
+        await purge(entry, { deadline, now });
         entry.step = "remove-intent"; await save(state);
         await remove(identity, entry, git); row.steps.push("worktree-removed");
         entry.step = "worktree-removed"; await save(state);
       } else if (entry.step === "remove-intent") {
-        await assertAbsent(identity, entry, git); entry.step = "worktree-removed"; await save(state);
-        row.steps.push("worktree-already-absent");
+        const repaired = await repair(identity, entry, { git, cwd, deadline, now, inspect, remove, purge });
+        if (!repaired.clean) { Object.assign(row, repaired, { disposition: "partial" }); return; }
+        row.steps.push(repaired.step); entry.step = "worktree-removed"; await save(state);
       }
       if (entry.step === "worktree-removed") {
         const evidence = await verify(reader, entry); Object.assign(row, evidence);
@@ -106,7 +108,7 @@ export async function discardLocalCleanup({ identity, store, reader, path, chang
       }
     });
   } catch (error) {
-    row.reason = reason(error);
+    row.reason = reason(error); if (Array.isArray(error.paths)) row.paths = error.paths;
     row.disposition = selected?.state === "deleting" ? "partial" : "blocked";
   }
   report.coverage.visited = 1; report.coverage.complete = true;
