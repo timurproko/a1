@@ -1,5 +1,13 @@
 import type { AppHostServices, UiApp } from "../../ui/apps/index.js";
-import type { ListViewRow, NumericRange, ScrollbarSpeed } from "../../ui/components/index.js";
+import type {
+  ListViewRow,
+  NumericRange,
+  RailPosition,
+  ScrollbarAppearance,
+  ScrollbarGeometry,
+  ScrollbarSpeed,
+  ScrollbarStyle,
+} from "../../ui/components/index.js";
 import {
   GLOBAL_SCOPE,
   LineInput,
@@ -37,7 +45,10 @@ import {
   moveSelection,
   rowKey,
   scrollForSelection,
+  scrollForTrackPage,
   scrollbarGeometry,
+  scrollbarPresentation,
+  ScrollbarRails,
   scrollbarWheelRows,
   selectableIndexes,
   type ListRow,
@@ -58,6 +69,8 @@ const SCOPE = SETTINGS_APP_ID;
 /** The panel a setting with parts opens: its own keys, its own hint. */
 const DIALOG_SCOPE = `${SETTINGS_APP_ID}-parts`;
 const SCROLLBAR_TOP_INSET = 1;
+/** Identity of the settings list rail in the shared rail state. */
+const RAIL_KEY = "settings";
 const SEARCH_PLACEHOLDER = "search settings";
 /** What a structured value offers instead of printing itself. */
 const CONFIGURE = "configure";
@@ -75,8 +88,10 @@ SETTINGS_SHORTCUTS.declare({ key: "shift+up", scope: SCOPE, description: "Previo
 SETTINGS_SHORTCUTS.declare({ key: "shift+down", scope: SCOPE, description: "Next section", section: "Navigate", hint: { keys: "Shift+↑↓", does: "to jump" } }, "block-down");
 SETTINGS_SHORTCUTS.declare({ key: "pageUp", scope: SCOPE, description: "Up a page", section: "Navigate" }, "page-up");
 SETTINGS_SHORTCUTS.declare({ key: "pageDown", scope: SCOPE, description: "Down a page", section: "Navigate" }, "page-down");
-SETTINGS_SHORTCUTS.declare({ key: "home", scope: SCOPE, description: "First setting", section: "Navigate" }, "first");
-SETTINGS_SHORTCUTS.declare({ key: "end", scope: SCOPE, description: "Last setting", section: "Navigate" }, "last");
+// Compatibility: the same chords the transcript uses for its content boundaries; plain
+// Home and End stay with the search input's cursor.
+SETTINGS_SHORTCUTS.declare({ key: "ctrl+home", scope: SCOPE, description: "First setting", section: "Navigate" }, "first");
+SETTINGS_SHORTCUTS.declare({ key: "ctrl+end", scope: SCOPE, description: "Last setting", section: "Navigate" }, "last");
 SETTINGS_SHORTCUTS.declare({ key: "enter", scope: SCOPE, description: "Change value", section: "Change", hint: { keys: "Enter/Space", does: "to change" } }, "activate");
 SETTINGS_SHORTCUTS.declare({ key: "space", scope: SCOPE, description: "Change value", section: "Change", hint: { keys: "Enter/Space", does: "to change" } }, "activate");
 SETTINGS_SHORTCUTS.declare({ key: "left", scope: SCOPE, description: "Previous value", section: "Change", hint: { keys: "←→", does: "to adjust" } }, "previous-value");
@@ -99,8 +114,11 @@ const KEYS: Readonly<Record<string, string>> = {
   "\u001b[C": "right",
   "\u001b[5~": "pageUp",
   "\u001b[6~": "pageDown",
-  "\u001b[H": "home",
-  "\u001b[F": "end",
+  // Protocol: xterm modifier form, then the rxvt Ctrl form of the same chords.
+  "\u001b[1;5H": "ctrl+home",
+  "\u001b[1;5F": "ctrl+end",
+  "\u001b[7^": "ctrl+home",
+  "\u001b[8^": "ctrl+end",
   "\u001b": "escape",
   "\r": "enter",
   "\n": "enter",
@@ -157,6 +175,10 @@ export class SettingsApp implements UiApp {
   #hoverRegion: "label" | "value" | "minus" | "plus" = "label";
   #frameRows: { key: string; screenRow: number; valueColumn: number; valueWidth: number; stepper: boolean }[] = [];
   #menuFrame: { top: number; column: number; width: number; rows: number } | null = null;
+  // Invariant: rail hover and drag live in the shared keyed state, as the transcript's do.
+  readonly #rails = new ScrollbarRails();
+  // Rationale: the rail as drawn in the last frame, or null when nothing can be pointed at.
+  #railFrame: { readonly rail: RailPosition; readonly geometry: ScrollbarGeometry; readonly page: number } | null = null;
 
   constructor(session: OwnedUiSettingsSession) {
     this.#session = session;
@@ -187,7 +209,11 @@ export class SettingsApp implements UiApp {
 
     const layout = layoutList(rows, bodyHeight, this.#scroll);
     this.#scroll = layout.scroll;
-    const contentWidth = Math.max(0, rect.width - RAIL_COLUMNS);
+    // Invariant: auto and always keep the rail columns while the list fits, so a revealed
+    // rail never reflows the rows; hidden gives the columns back to the rows.
+    const appearance = this.#scrollbarAppearance();
+    const reservesRail = appearance !== "hidden";
+    const contentWidth = reservesRail ? Math.max(0, rect.width - RAIL_COLUMNS) : rect.width;
     const valueColumn = this.#valueColumn(rows);
     const geometry = scrollbarGeometry({
       contentLength: rows.length,
@@ -195,6 +221,22 @@ export class SettingsApp implements UiApp {
       scroll: layout.scroll,
       trackHeight: Math.max(0, bodyHeight - SCROLLBAR_TOP_INSET),
     });
+    const presentation = scrollbarPresentation({
+      geometry,
+      appearance,
+      style: this.#scrollbarStyle(),
+      hovered: this.#rails.isHovered(RAIL_KEY),
+      dragging: this.#rails.isDragging(RAIL_KEY),
+      activeUntil: 0,
+      now: Date.now(),
+    });
+    this.#railFrame = reservesRail && geometry !== null
+      ? {
+        rail: { key: RAIL_KEY, column: rect.width, rowStart: SCROLLBAR_TOP_INSET, trackHeight: geometry.trackHeight },
+        geometry,
+        page: layout.visible,
+      }
+      : null;
 
     const body: string[] = [];
     this.#frameRows = [];
@@ -223,8 +265,9 @@ export class SettingsApp implements UiApp {
 
     const withRail = withScrollbarRail(body.slice(0, bodyHeight), geometry, contentWidth, theme, {
       topInset: SCROLLBAR_TOP_INSET,
+      presentation,
     });
-    return this.#withMenu([...withRail, ...footer], selected, layout, valueColumn, theme, rect);
+    return this.#withMenu([...withRail, ...footer], selected, layout, valueColumn, theme, rect, reservesRail ? RAIL_COLUMNS : 0);
   }
 
   onInput(data: string, host: AppHostServices): PaneInputResult {
@@ -353,6 +396,9 @@ export class SettingsApp implements UiApp {
       return { consumed: true };
     }
 
+    const rail = this.#railPointer(event);
+    if (rail.owned) return { consumed: true };
+
     const row = this.#frameRows.find(candidate => candidate.screenRow === event.row - 1);
     const previousKey = this.#hoverKey;
     const previousRegion = this.#hoverRegion;
@@ -360,7 +406,7 @@ export class SettingsApp implements UiApp {
     if (row === undefined) {
       this.#hoverKey = null;
       this.#hoverRegion = "label";
-      return { consumed: event.kind !== "motion", render: previousKey !== null };
+      return { consumed: event.kind !== "motion", render: previousKey !== null || rail.changed };
     }
 
     this.#hoverKey = row.key;
@@ -378,8 +424,38 @@ export class SettingsApp implements UiApp {
       }
       return { consumed: true };
     }
-    const changed = previousKey !== this.#hoverKey || previousRegion !== this.#hoverRegion;
+    const changed = previousKey !== this.#hoverKey || previousRegion !== this.#hoverRegion || rail.changed;
     return { consumed: event.kind !== "motion", render: changed };
+  }
+
+  // Rationale: the rail takes its share of a pointer report first: hover, a thumb drag, or a
+  // track page. Owned means the list must not see the report; changed means the rail looks different.
+  #railPointer(event: PaneMouseEvent): { readonly owned: boolean; readonly changed: boolean } {
+    const frame = this.#railFrame;
+    const wasHovered = this.#rails.isHovered(RAIL_KEY);
+    if (frame === null) {
+      this.#rails.clear();
+      return { owned: false, changed: wasHovered };
+    }
+    const pointer = { column: event.column, row: event.row - 1 };
+    if (this.#rails.isDragging(RAIL_KEY)) {
+      // Invariant: a drag keeps the pointer wherever it goes until the button comes up.
+      if (event.kind === "release") this.#rails.endDrag();
+      else {
+        const target = this.#rails.dragTo(frame.rail, frame.geometry, pointer);
+        if (target !== null) this.#scroll = target;
+      }
+      return { owned: true, changed: true };
+    }
+    const over = this.#rails.notePointer([frame.rail], pointer) !== null;
+    if (!over) return { owned: false, changed: wasHovered };
+    // Invariant: the rail is not a row: pointing at it lights nothing in the list.
+    this.#hoverKey = null;
+    this.#hoverRegion = "label";
+    if (event.kind === "press" && !this.#rails.beginDrag(frame.rail, frame.geometry, pointer)) {
+      this.#scroll = scrollForTrackPage(frame.geometry, pointer.row - frame.rail.rowStart, this.#scroll, frame.page);
+    }
+    return { owned: true, changed: true };
   }
 
   #openMenu(rows: readonly Row[], selected: number): void {
@@ -423,6 +499,7 @@ export class SettingsApp implements UiApp {
     // thing under the pointer, so it stops looking like it.
     this.#hoverKey = null;
     this.#hoverRegion = "label";
+    this.#rails.clear();
     this.#structured = { entry, flags: entry.flags.map(flag => flag.key), index: 0, record };
   }
 
@@ -485,13 +562,15 @@ export class SettingsApp implements UiApp {
     if (input === null) return { consumed: false };
 
     const key = KEYS[data];
-    if (key === "home" || key === "end") {
+    // Rationale: the boundary chords jump through the results; plain Home and End stay with
+    // the search cursor, which the shared line input moves below.
+    if (key === "ctrl+home" || key === "ctrl+end") {
       const rows = this.#rows();
       const selectable = selectableIndexes(rows);
-      const target = key === "end" ? selectable.at(-1) : selectable[0];
+      const target = key === "ctrl+end" ? selectable.at(-1) : selectable[0];
       if (target !== undefined) {
         this.#select(rows, target);
-        if (key === "home") this.#scroll = 0;
+        if (key === "ctrl+home") this.#scroll = 0;
       }
       return { consumed: true };
     }
@@ -574,11 +653,25 @@ export class SettingsApp implements UiApp {
   }
 
   #scrollbarSpeed(): ScrollbarSpeed {
+    const value = this.#scrollSetting("scrollbarSpeed");
+    return isScrollbarSpeed(value) ? value : "normal";
+  }
+
+  #scrollbarAppearance(): ScrollbarAppearance {
+    const value = this.#scrollSetting("scrollbarAppearance");
+    return value === "always" || value === "hidden" ? value : "auto";
+  }
+
+  #scrollbarStyle(): ScrollbarStyle {
+    return this.#scrollSetting("scrollbarStyle") === "thick" ? "thick" : "thin";
+  }
+
+  // Invariant: a Scroll setting reads as the screen shows it: an accepted value first, then the source.
+  #scrollSetting(id: "scrollbarAppearance" | "scrollbarStyle" | "scrollbarSpeed"): OwnedUiSettingValue | null {
     const entry = this.#session.sections()
       .flatMap(section => section.entries)
-      .find(candidate => candidate.backend === "a1" && candidate.id === "scrollbarSpeed");
-    const value = entry === undefined ? this.#session.value("scrollbarSpeed") : this.#shownValue(entry);
-    return isScrollbarSpeed(value) ? value : "normal";
+      .find(candidate => candidate.backend === "a1" && candidate.id === id);
+    return entry === undefined ? this.#session.value(id) : this.#shownValue(entry);
   }
 
   #jump(rows: readonly Row[], target: number): void {
@@ -674,6 +767,7 @@ export class SettingsApp implements UiApp {
     valueColumn: number,
     theme: UiTheme,
     rect: PaneRect,
+    reservedRight: number,
   ): readonly string[] {
     const menu = this.#menu;
     const anchor = menu === null ? undefined : this.#frameRows.find(candidate => candidate.key === menu.anchorKey);
@@ -690,7 +784,7 @@ export class SettingsApp implements UiApp {
     const frame = valueMenuFrame(state, { screenRow: anchor.screenRow, valueColumn }, {
       bodyHeight: lines.length - this.#footerHeight,
       surfaceWidth: rect.width,
-      reservedRight: RAIL_COLUMNS,
+      reservedRight,
     });
     this.#menuFrame = frame;
     return renderValueMenu(lines, state, frame, theme);

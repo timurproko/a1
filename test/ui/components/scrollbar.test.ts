@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  PLAIN_THEME,
   ScrollbarRails,
   isThumbRow,
+  withScrollbarRail,
   scrollForThumbRow,
   scrollForTrackPage,
   scrollbarGeometry,
@@ -107,6 +109,35 @@ describe("scrollbar presentation policy", () => {
     expect(presentation({ style: "thick" })).toMatchObject({ trackGlyph: "┃", thumbGlyph: "┃" });
     expect(presentation({ geometry: null })).toMatchObject({ visible: false, reservesSpace: true });
     expect(presentation({ geometry: null, appearance: "hidden" })).toMatchObject({ visible: false, reservesSpace: false });
+  });
+});
+
+describe("the shared rail beside list rows", () => {
+  const rows = ["a", "b", "c", "d"];
+  const at = scrollbarGeometry({ contentLength: 8, viewportHeight: 4, scroll: 0, trackHeight: 3 })!;
+  const presentation = (overrides: Partial<Parameters<typeof scrollbarPresentation>[0]> = {}) => scrollbarPresentation({
+    geometry: at, appearance: "auto", style: "thin", hovered: false, dragging: false, activeUntil: 0, now: 0, ...overrides,
+  });
+
+  it("draws the thin rail on overflow when no presentation is given", () => {
+    expect(withScrollbarRail(rows, at, 3, PLAIN_THEME, { topInset: 1 })).toEqual(["a    ", "b   │", "c   │", "d   │"]);
+    expect(withScrollbarRail(rows, null, 3, PLAIN_THEME)).toEqual(["a    ", "b    ", "c    ", "d    "]);
+  });
+
+  it("reserves a blank rail while the presentation keeps it out of sight", () => {
+    expect(withScrollbarRail(rows, at, 3, PLAIN_THEME, { topInset: 1, presentation: presentation() }))
+      .toEqual(["a    ", "b    ", "c    ", "d    "]);
+  });
+
+  it("draws the presentation glyphs once it shows", () => {
+    expect(withScrollbarRail(rows, at, 3, PLAIN_THEME, { topInset: 1, presentation: presentation({ hovered: true }) }))
+      .toEqual(["a    ", "b   ┃", "c   ┃", "d   │"]);
+    expect(withScrollbarRail(rows, at, 3, PLAIN_THEME, { topInset: 1, presentation: presentation({ appearance: "always", style: "thick" }) }))
+      .toEqual(["a    ", "b   ┃", "c   ┃", "d   ┃"]);
+  });
+
+  it("returns the rows untouched when the presentation reserves no space", () => {
+    expect(withScrollbarRail(rows, at, 3, PLAIN_THEME, { topInset: 1, presentation: presentation({ appearance: "hidden" }) })).toBe(rows);
   });
 });
 
