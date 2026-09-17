@@ -298,3 +298,48 @@ describe.each([false, true])("above-prompt autocomplete (history=%s)", history =
     } finally { await dispose(); }
   });
 });
+
+describe("escape on a slash-command search", () => {
+  it("clears a bare top-level command search but only closes other menus", async () => {
+    const interrupts: number[] = [];
+    const { editor, dispose } = await fixture(false, {
+      onInterrupt: () => interrupts.push(1),
+      autocompleteCommands: [{ name: "skill:review", description: "Skill" }],
+    });
+    try {
+      for (const typed of ["/", "/mod", "/skill:r"]) {
+        editor.setText("");
+        for (const character of typed) editor.handleInput?.(character);
+        await expect.poll(() => parts(editor, 80).menu.length, { message: typed }).toBeGreaterThan(0);
+        editor.handleInput?.("");
+        expect(editor.getText(), typed).toBe("");
+        expect(parts(editor, 80).menu, typed).toHaveLength(0);
+      }
+      expect(interrupts).toHaveLength(0);
+
+      editor.addAutocompleteProvider(() => provider);
+      editor.setText("abc "); editor.handleInput?.("@");
+      await expect.poll(() => parts(editor, 80).menu.length).toBeGreaterThan(0);
+      editor.handleInput?.("");
+      expect(parts(editor, 80).menu).toHaveLength(0);
+      expect(editor.getText()).toBe("abc @");
+      expect(interrupts).toHaveLength(0);
+
+      editor.setText("");
+      editor.handleInput?.("");
+      expect(interrupts).toHaveLength(1);
+    } finally { await dispose(); }
+  });
+
+  it("keeps pinned Escape cancellation in the comparison profile", async () => {
+    const { editor, dispose } = await fixture(false, { keybindingProfile: "pi" });
+    try {
+      editor.setText("");
+      for (const character of "/mod") editor.handleInput?.(character);
+      await expect.poll(() => editor.render(80).length).toBeGreaterThan(3);
+      editor.handleInput?.("");
+      expect(editor.render(80)).toHaveLength(3);
+      expect(editor.getText()).toBe("/mod");
+    } finally { await dispose(); }
+  });
+});

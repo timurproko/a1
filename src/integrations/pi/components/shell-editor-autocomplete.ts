@@ -85,6 +85,7 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
     ...(options.keybindingProfile === "a1" ? {
       terminalRows: options.getRows,
       getVisualLineCount: (width: number) => editorVisualLineCount(editor, width),
+      clearCommandSearchOnEscape: true,
     } : {}),
     ...(options.keybindingProfile === "a1" && options.promptPresentation !== undefined ? {
       ...(inputPresentation === undefined ? {} : { inputPresentation }),
