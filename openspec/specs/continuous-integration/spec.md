@@ -7,7 +7,7 @@ Defines proportionate automated validation: fast checks during development, pack
 ## Requirements
 
 ### Requirement: Validation effort matches the change and the channel
-Automated validation SHALL scale with what is being shipped. Documentation and specification changes SHALL require no product build or product test execution, but SHALL run every lightweight governance consistency check whose scanned inputs they change; OpenSpec changes SHALL also pass strict OpenSpec validation. Pull requests into `develop` SHALL require a bounded PR core consisting of typechecking, architecture and applicable governance checks, directly changed tests, reviewed path-owned test scopes, and a small current-product smoke set. They SHALL select additional rendering, startup, package, compatibility, and platform evidence only when coarse reviewed ownership marks it affected. Unknown operational inputs and changes to validation authority SHALL select complete development validation. Preview publication SHALL additionally require the complete fast tier and exact-package gates on every supported platform. Stable publication SHALL require the complete automated suite on every supported platform. The scheduled nightly workflow SHALL run one full tracked-repository documentation review and complete retained automated coverage against its authoritative `origin/develop` source before publication can succeed.
+Automated validation SHALL scale with what is being shipped. Documentation and specification changes SHALL require no product build or product test execution, but SHALL run every lightweight governance consistency check whose scanned inputs they change; OpenSpec changes SHALL also pass strict OpenSpec validation. Pull requests into `develop` SHALL require a bounded PR core consisting of typechecking, architecture and applicable governance checks, directly changed tests, reviewed path-owned test scopes, and a small current-product smoke set. They SHALL select additional rendering, startup, package, compatibility, and platform evidence only when coarse reviewed ownership marks it affected. Unknown operational inputs and changes to validation authority SHALL select complete development validation. Preview publication SHALL additionally require the complete fast tier and exact-package gates on every supported platform. A numbered development preview SHALL validate the exact package on the Windows, Linux, and macOS Node 24 lanes; Windows Node 22 coverage of every development head SHALL be provided by nightly publication and complete regression rather than by each preview. The lane set SHALL be derived from the publication mode by one reviewed repository script rather than a literal workflow matrix. Stable publication SHALL require the complete automated suite on every supported platform. The scheduled nightly workflow SHALL run one full tracked-repository documentation review and complete retained automated coverage against its authoritative `origin/develop` source before publication can succeed.
 
 #### Scenario: Docs-only pull request
 - **WHEN** every changed path is documentation, an OpenSpec artifact, a Markdown file, `LICENSE`, or `.gitignore`
@@ -36,6 +36,12 @@ Automated validation SHALL scale with what is being shipped. Documentation and s
 - **WHEN** the nightly publication workflow resolves the authoritative `origin/develop` commit
 - **THEN** one platform-independent job SHALL inspect documentation governance across every tracked policy-relevant file at that exact commit
 - **AND** the retained platform validation matrix SHALL execute complete coverage without repeating the same documentation review
+
+#### Scenario: Development preview lanes are selected
+- **WHEN** a manual development publication resolves its validation matrix
+- **THEN** it SHALL validate the exact package on Windows Node 24, Linux Node 24, and macOS Node 24
+- **AND** nightly and stable publication SHALL keep validating on Windows Node 22 as well
+- **AND** the selected lanes SHALL come from the reviewed matrix script for that mode
 
 ### Requirement: Development validation impact is classified deterministically
 The development workflow SHALL derive one machine-readable validation selection from the complete merge-base-to-head change, including additions, modifications, copies, deletions, rename sources, and rename destinations. Selection SHALL use a bounded, reviewed ownership registry that maps stable path groups, changed tests, shared support, explicit invalidators, and integration execution cadence to logical scopes and platform/runtime targets. The ownership result SHALL be understandable from path and policy records without requiring successful whole-repository source parsing. Dependency reachability MAY add scope reasons but SHALL NOT be the sole authority for a known coarse owner.
@@ -606,6 +612,11 @@ Persistent caches SHALL be limited to integrity-checked dependency downloads and
 - **THEN** it SHALL verify their integrity and install into a new isolated prefix
 - **AND** first-attempt startup evidence SHALL not be replaced by warmed fixture or prior-run evidence
 
+#### Scenario: A native guardian compiler cache is warm
+- **WHEN** a publication guardian build can reuse cached compiler intermediates for the same toolchain and dependency lockfile
+- **THEN** the locked release build SHALL still run and its emitted artifact identity SHALL still be recorded
+- **AND** a changed guardian source or lockfile SHALL rebuild the affected units rather than reuse a stale binary
+
 ### Requirement: Feedback optimization is measured without weakening coverage
 Development validation SHALL report selection time, available queue time, setup/build/pack time, repository gate time, per-scope outcomes, and aggregate elapsed time separately. Package fixtures SHALL report bounded phase timings for installation, materialization, certification/warmup, launch, shutdown, and cleanup where executed, including unsuccessful phases. Evidence SHALL identify head, selection, runner, Node version, candidate digest where applicable, cache state, build/pack counts, and test ownership. Reporting SHALL not expose credentials or raw user content.
 
@@ -712,7 +723,7 @@ These targets SHALL be evaluated by removing or optimizing inappropriate work, n
 - **AND** validation SHALL retain the original assertions, timeout, first-attempt outcome, and failure visibility
 
 ### Requirement: Publication lanes deduplicate exact-package installation
-When one preview, nightly, or stable publication platform/runtime lane selects multiple exact-package owners that consume the same candidate and require the same clean installed package, validation SHALL reuse a compatible downloaded candidate receipt without repacking and SHALL prepare that immutable installation once for the lane. The lane-local receipt SHALL bind the downloaded candidate to the same exact build receipt used by validation. Each selected owner SHALL retain a distinct outcome, its declared assertions, and all applicable platform/runtime coverage. Validation SHALL record the preparation identity, count, duration, candidate digest, and consuming owners, and SHALL fail closed if any consumer cannot prove it used that exact preparation.
+When one preview, nightly, or stable publication platform/runtime lane selects multiple exact-package owners that consume the same candidate and require the same clean installed package, validation SHALL reuse a compatible downloaded candidate receipt without repacking and SHALL prepare that immutable installation once for the lane. The lane-local receipt SHALL bind the downloaded candidate to the same exact build receipt used by validation. Each selected owner SHALL retain a distinct outcome, its declared assertions, and all applicable platform/runtime coverage. Validation SHALL record the preparation identity, count, duration, separate installation, proxy-synchronization, and installed-identity durations, candidate digest, and consuming owners, and SHALL fail closed if any consumer cannot prove it used that exact preparation.
 
 Reusable preparation SHALL remain scoped to one lane and one exact candidate. It SHALL NOT cross platform, architecture, Node runtime, workflow run, run attempt, candidate digest, or installation-policy identity boundaries. Failure or cancellation of shared preparation SHALL fail every dependent owner and SHALL block publication without reporting an owner as passed or skipped.
 
@@ -741,6 +752,11 @@ Reusable preparation SHALL remain scoped to one lane and one exact candidate. It
 - **WHEN** validation evidence for a lane selecting multiple exact-package consumers is reviewed
 - **THEN** it SHALL show one preparation count and duration plus each consuming owner's independent duration and outcome
 - **AND** a repeated equivalent clean install SHALL fail the structural regression contract rather than being hidden in aggregate elapsed time
+
+#### Scenario: Preparation cost is attributed
+- **WHEN** a lane records its shared exact-package preparation
+- **THEN** the receipt and evidence SHALL show the installation, proxy-synchronization, and installed-identity durations separately
+- **AND** the total SHALL remain the single preparation duration already reported
 
 ### Requirement: Startup budget enforcement is declared per channel
 Validation SHALL select startup budget enforcement through the `STARTUP_BUDGET_ENFORCEMENT` contract. The value `fail` SHALL enforce the declared budgets by failing the gate on an overrun. The value `record` SHALL retain every measurement, record each overrun as evidence and as a run annotation, and allow the run to succeed. An absent or unrecognized value SHALL mean `fail`.

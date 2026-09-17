@@ -26,10 +26,16 @@ describe("lane-scoped exact-package preparation", () => {
       candidate: { name: "@fixture/app", version: "1.2.3", sha256: expect.stringMatching(/^[0-9a-f]{64}$/) },
       lane: { platform: process.platform, architecture: process.arch, nodeVersion: process.version, runId: "123", runAttempt: "4" },
       install: { policy: EXACT_PACKAGE_INSTALL_POLICY, root: fixture.preparation.root, prefix: fixture.preparation.prefix },
-      preparation: { count: 1, proxySynchronizations: 1 },
+      preparation: {
+        count: 1,
+        proxySynchronizations: 1,
+        phases: { installMs: expect.any(Number), proxySynchronizationMs: expect.any(Number), installedIdentityMs: expect.any(Number) },
+      },
       consumers: ["package-startup", "package-contracts"],
       receiptId: expect.stringMatching(/^[0-9a-f]{64}$/),
     });
+    const phases = fixture.preparation.receipt.preparation.phases;
+    expect(phases.installMs + phases.proxySynchronizationMs + phases.installedIdentityMs).toBeLessThanOrEqual(fixture.preparation.receipt.preparation.durationMs);
     const environment = { ...fixture.environment, [EXACT_PACKAGE_PREPARATION_ENV.consumer]: "package-startup" };
     await expect(verifyExactPackagePreparation({ environment })).resolves.toMatchObject({ prefix: fixture.preparation.prefix });
   });

@@ -1,5 +1,6 @@
 import { readdir, readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
+import { publicationValidationMatrix } from "../../scripts/release/publication-validation-matrix.mjs";
 
 async function workflow(): Promise<string> {
   return await readFile(".github/workflows/release.yml", "utf8");
@@ -69,7 +70,10 @@ describe("deliberate publication pipeline", () => {
   it("packs new candidates once and validates exact bytes on each platform", async () => {
     const source = await workflow();
     expect(source.match(/node scripts\/release\/prepare-validation-package\.mjs/g)).toHaveLength(1);
-    for (const platform of ["win32", "linux", "darwin"]) expect(source).toContain(`platform: ${platform}`);
+    expect(source).toContain("matrix: ${{ fromJson(needs.plan.outputs.validate_matrix) }}");
+    for (const platform of ["win32", "linux", "darwin"]) {
+      expect(publicationValidationMatrix("develop").include.some(lane => lane.platform.startsWith(platform))).toBe(true);
+    }
     expect(source).toContain("VALIDATION_CANDIDATE_TARBALL:");
     expect(source).toContain('npm publish "$release_tarball"');
     expect(source).toContain("--provenance");

@@ -35,17 +35,24 @@ export async function prepareExactPackageInstallation(options = {}) {
   const receiptPath = resolve(root, "preparation.receipt.json");
   const npm = lane.platform === "win32" ? "npm.cmd" : "npm";
   const execute = options.runCommand ?? runCommand;
-  const startedAt = options.now?.() ?? Date.now();
+  const now = options.now ?? Date.now;
+  const startedAt = now();
 
   try {
     await mkdir(prefix, { recursive: true });
+    const installStartedAt = now();
     const installed = await execute(npm, installArguments(prefix, candidatePath), root, environment);
     if (installed.status !== 0) throw new Error(`exact-package clean install failed: ${installed.stderr || `exit ${installed.status}`}`);
+    const installMs = Math.max(0, now() - installStartedAt);
+    const proxyStartedAt = now();
     const synchronized = await execute(process.execPath, [resolve(packageRoot, "bin", "sync-pi-tui-proxy.js")], root, environment);
     if (synchronized.status !== 0) throw new Error(`exact-package proxy synchronization failed: ${synchronized.stderr || `exit ${synchronized.status}`}`);
+    const proxySynchronizationMs = Math.max(0, now() - proxyStartedAt);
 
+    const identityStartedAt = now();
     const installedIdentity = await installedPackageIdentity(packageRoot);
-    const durationMs = Math.max(0, (options.now?.() ?? Date.now()) - startedAt);
+    const installedIdentityMs = Math.max(0, now() - identityStartedAt);
+    const durationMs = Math.max(0, now() - startedAt);
     const payload = {
       schema: EXACT_PACKAGE_PREPARATION_SCHEMA,
       authority: "validation-runner",
@@ -60,7 +67,9 @@ export async function prepareExactPackageInstallation(options = {}) {
         packageRoot,
         installedIdentity,
       },
-      preparation: { count: 1, durationMs, proxySynchronizations: 1 },
+      // Performance: the phases attribute the Windows cost to npm reification, proxy repair, or
+      // the identity walk so a latency change can be judged on evidence rather than a guess.
+      preparation: { count: 1, durationMs, proxySynchronizations: 1, phases: { installMs, proxySynchronizationMs, installedIdentityMs } },
       consumers,
     };
     const receipt = { ...payload, receiptId: digest(payload) };
@@ -169,6 +178,10 @@ function assertReceipt(receipt) {
   validateConsumers(receipt.consumers);
   if (receipt.preparation?.count !== 1 || receipt.preparation?.proxySynchronizations !== 1
     || !Number.isSafeInteger(receipt.preparation?.durationMs) || receipt.preparation.durationMs < 0) throw new Error("exact-package preparation count is invalid");
+  const phases = receipt.preparation.phases;
+  if (!phases || ["installMs", "proxySynchronizationMs", "installedIdentityMs"].some(key => !Number.isSafeInteger(phases[key]) || phases[key] < 0)) {
+    throw new Error("exact-package preparation phase timing is invalid");
+  }
   if (!receipt.candidate || !/^[0-9a-f]{64}$/u.test(receipt.candidate.sha256 ?? "") || !Number.isSafeInteger(receipt.candidate.size)
     || receipt.candidate.size < 1 || typeof receipt.candidate.name !== "string" || typeof receipt.candidate.version !== "string") throw new Error("exact-package preparation candidate is malformed");
   if (!receipt.install || typeof receipt.install.installedIdentity?.sha256 !== "string") throw new Error("exact-package installed identity is malformed");
