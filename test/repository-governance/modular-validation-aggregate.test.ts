@@ -23,7 +23,7 @@ describe("attempt-aware modular development aggregate", () => {
 
   it("requires exact-head evidence for every conservative target", () => {
     const fixture = conservativeFixture();
-    expect(requireModularValidation(fixture)).toMatchObject({ mode: "conservative", deferredOwners: ["update-predecessor"], evidenceCount: 9, reused: [] });
+    expect(requireModularValidation(fixture)).toMatchObject({ mode: "conservative", deferredOwners: ["update-performance", "update-predecessor"], evidenceCount: 9, reused: [] });
   });
 
   it("reuses successful prior-attempt jobs only within the same run/head/selection", () => {
@@ -141,7 +141,7 @@ function conservativeFixture(): any {
   const outcomes = [
     coreOutcome(1), resourceOutcome(1),
     outcome(selection.selectionId, "pi", "win32", 24, ["pi-release-resume"], ["pi-engine-conformance", "package-smoke", "release-update"], 1),
-    outcome(selection.selectionId, "promoted", "win32", 24, ["launch-integration", "update-performance", "structured-runtime"], ["launch-integration", "update-performance", "structured-runtime-integration"], 1),
+    outcome(selection.selectionId, "promoted", "win32", 24, ["launch-integration", "structured-runtime"], ["launch-integration", "structured-runtime-integration"], 1),
     outcome(selection.selectionId, "package", "win32", 22, ["package-contracts"], ["package-contracts"], 1),
     outcome(selection.selectionId, "startup", "win32", 22, ["startup"], ["package-startup"], 1),
     outcome(selection.selectionId, "compatibility", "win32", 22, ["image-compatibility", "history-compatibility"], ["image-compatibility", "history-compatibility"], 1),

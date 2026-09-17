@@ -42,7 +42,9 @@ describe("bounded PR-core ownership", () => {
     const changed = select(["test/cli/dispatch.test.ts"]);
     expect(changed.owners.find(owner => owner.owner === "shared-product")?.reasons).toEqual(expect.arrayContaining([expect.objectContaining({ code: "changed-test" })]));
     const shared = select(["test/support/session-resume-fixture.ts"]);
-    expect(shared.owners.every(owner => owner.selected)).toBe(true);
+    expect(shared.owners.filter(owner => owner.selected).map(owner => owner.owner)).toEqual(["release-package-update", "pi"]);
+    expect(shared.owners.find(owner => owner.owner === "pi")?.reasons).toEqual([{ code: "shared-support",
+      paths: ["test/support/session-resume-fixture.ts", "test/integrations/pi/engine/runtime-integration.test.ts"] }]);
     const renamed = select([{ status: "R", oldPath: "src/ui/components/old.ts", path: "src/features/launch/new.ts" }]);
     expect(renamed.owners.filter(owner => owner.selected).map(owner => owner.owner)).toEqual(expect.arrayContaining(["ui-rendering", "launch-startup"]));
   });
@@ -51,6 +53,50 @@ describe("bounded PR-core ownership", () => {
     const result = select([path]);
     expect(result.mode).toBe("conservative");
     expect(result.owners.every(owner => owner.selected)).toBe(true);
+  });
+
+  it("attributes shared support through the test tree's import graph and falls back to the declared owners", () => {
+    const graph = authority.supportGraph;
+    expect(graph.files).toBeGreaterThan(authority.tests.length);
+    const fixture = "test/fixtures/prompt-suggestion-conversations.ts";
+    expect(graph.reachingTests(fixture)).toEqual([
+      "test/integrations/pi/engine/adapter.test.ts",
+      "test/integrations/pi/engine/prompt-suggestion-provider.integration.test.ts",
+      "test/integrations/pi/session-ui/session-shell.test.ts",
+    ]);
+    const direct = select([fixture]);
+    expect(direct.mode).toBe("impact");
+    expect(direct.owners.filter(owner => owner.selected).map(owner => owner.owner)).toEqual(["pi"]);
+    expect(direct.integrationOwners).toEqual(["history-compatibility", "image-compatibility", "pi-release-resume"]);
+
+    const transitive = graph.reachingTests("test/support/rendering/rendering-matrix.ts");
+    expect(transitive).toEqual(expect.arrayContaining(graph.reachingTests("test/support/rendering/rendering-budgets.ts")));
+    expect(transitive).toEqual(expect.arrayContaining(graph.reachingTests("test/support/rendering/rendering-gate.ts")));
+    expect(transitive.length).toBeGreaterThan(0);
+
+    const declared = authority.policy.shared.find((rule: any) => rule.paths.includes("test/support/"));
+    const unreferenced = select(["test/support/no-such-helper.ts"]);
+    expect(unreferenced.mode).toBe("impact");
+    expect(unreferenced.owners.filter(owner => owner.selected).map(owner => owner.owner)).toEqual(declared.owners);
+    expect(unreferenced.owners[0]!.reasons).toEqual([{ code: "shared-support-declared", paths: ["test/support/no-such-helper.ts"] }]);
+
+    const withoutGraph = selectValidationOwnership({ authority: { ...authority, supportGraph: null }, changes: [{ status: "M", path: fixture }] });
+    expect(withoutGraph.owners.filter(owner => owner.selected).map(owner => owner.owner)).toEqual(declared.owners);
+  });
+
+  it("replays PR #455 to two owners instead of the complete pull-request suite", () => {
+    const archive = "openspec/changes/archive/2026-09-17-prompt-suggestion-cache-parity/";
+    const replay = select([
+      "config/startup-graph-baseline.json", `${archive}.openspec.yaml`, `${archive}acceptance.md`, `${archive}design.md`,
+      `${archive}implementation-evidence.md`, `${archive}proposal.md`, `${archive}specs/contextual-prompt-suggestions/spec.md`, `${archive}tasks.md`,
+      "openspec/specs/contextual-prompt-suggestions/spec.md", "src/integrations/pi/engine/adapter.ts",
+      "test/fixtures/prompt-suggestion-conversations.ts", "test/integrations/pi/engine/adapter.test.ts",
+    ]);
+    expect(replay.mode).toBe("impact");
+    expect(replay.owners.filter(owner => owner.selected).map(owner => owner.owner)).toEqual(["release-package-update", "pi"]);
+    expect(replay.tests.length).toBeLessThan(authority.ledger.filter((entry: any) => entry.fastOwner === "fast-remainder").length / 2);
+    expect(replay.integrationOwners).not.toContain("unix-containment");
+    expect(replay.integrationOwners).not.toContain("launch-integration");
   });
 
   it("fails closed for unknown operational paths and manual dispatch", () => {

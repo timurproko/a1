@@ -148,7 +148,7 @@
       "name": "Full regression",
       "path": ".github/workflows/full-regression.yml",
       "state": "active",
-      "triggers": ["workflow_dispatch"],
+      "triggers": ["schedule", "workflow_dispatch"],
       "permissions": ["contents: read"],
       "trustedSource": "dispatch-commit",
       "authority": ["complete-regression"],

@@ -46,7 +46,7 @@ Automated validation SHALL scale with what is being shipped. Documentation and s
 ### Requirement: Development validation impact is classified deterministically
 The development workflow SHALL derive one machine-readable validation selection from the complete merge-base-to-head change, including additions, modifications, copies, deletions, rename sources, and rename destinations. Selection SHALL use a bounded, reviewed ownership registry that maps stable path groups, changed tests, shared support, explicit invalidators, and integration execution cadence to logical scopes and platform/runtime targets. The ownership result SHALL be understandable from path and policy records without requiring successful whole-repository source parsing. Dependency reachability MAY add scope reasons but SHALL NOT be the sole authority for a known coarse owner.
 
-Every changed pull-request-eligible retained test SHALL select its owning scope, including tests outside the PR core. A changed exhaustive-only test SHALL be recorded as deferred from ordinary PR execution and SHALL select its focused deterministic contract coverage rather than its exhaustive owner. Changes to shared test support SHALL select all declared affected pull-request owners and SHALL record affected exhaustive owners for Full/nightly execution. Unknown ownership, unavailable history, malformed policy, or classifier failure SHALL select complete applicable pull-request coverage or block rather than produce an empty selection. Typechecking, architecture, applicable naming/documentation governance, validation-policy integrity, directly changed pull-request tests, and the declared smoke contracts SHALL remain mandatory in the PR core. Manual Development validation without a complete trusted change comparison SHALL run all retained pull-request scopes; Full regression and nightly/release coverage SHALL remain complete and SHALL not be reduced by PR impact selection. An implementation-bound lifecycle association SHALL disable the documentation-only and version-only exemptions so the PR core always runs, and SHALL NOT by itself select conservative ownership; the associated pull request's unit and integration owners SHALL still be chosen by impact from its complete change.
+Every changed pull-request-eligible retained test SHALL select its owning scope, including tests outside the PR core. A changed exhaustive-only test SHALL be recorded as deferred from ordinary PR execution and SHALL select its focused deterministic contract coverage rather than its exhaustive owner. Changes to shared test support SHALL select the pull-request owners of every retained test that reaches the changed path through the test tree's static import graph, and SHALL record affected exhaustive owners for Full/nightly execution; when no retained test reaches the path (including support consumed only from outside the test tree) or the graph cannot be built, the change SHALL select every owner the shared rule declares and SHALL record that fallback. Reachability SHALL only narrow a shared rule's declared owner set and SHALL never remove an owner selected by its own path or changed-test rules. Unknown ownership, unavailable history, malformed policy, or classifier failure SHALL select complete applicable pull-request coverage or block rather than produce an empty selection. Typechecking, architecture, applicable naming/documentation governance, validation-policy integrity, directly changed pull-request tests, and the declared smoke contracts SHALL remain mandatory in the PR core. Manual Development validation without a complete trusted change comparison SHALL run all retained pull-request scopes; Full regression and nightly/release coverage SHALL remain complete and SHALL not be reduced by PR impact selection. An implementation-bound lifecycle association SHALL disable the documentation-only and version-only exemptions so the PR core always runs, and SHALL NOT by itself select conservative ownership; the associated pull request's unit and integration owners SHALL still be chosen by impact from its complete change.
 
 #### Scenario: Changed source is transitively rendered
 - **WHEN** a changed operational path belongs to the reviewed UI/rendering owner or a declared shared input affects rendering
@@ -74,9 +74,14 @@ Every changed pull-request-eligible retained test SHALL select its owning scope,
 
 #### Scenario: Integration tests or shared fixtures change
 - **WHEN** a retained pull-request integration test or its declared shared support changes without production changes
-- **THEN** all declared pull-request owners of that test or support SHALL execute in current-head PR validation
+- **THEN** the pull-request owners of that test, and of every retained test that imports the changed support directly or through other support files, SHALL execute in current-head PR validation with the reaching tests recorded as the reason
 - **AND** affected exhaustive-only owners SHALL be recorded as deferred rather than silently omitted
 - **AND** unknown test ownership SHALL select complete applicable pull-request coverage or block
+
+#### Scenario: Shared support has no known importer
+- **WHEN** a changed path under a shared-support rule is reached by no retained test, including one consumed only from outside the test tree, or the import graph cannot be built
+- **THEN** classification SHALL select every owner the shared rule declares
+- **AND** the selection SHALL record the declared fallback as the reason
 
 #### Scenario: Exhaustive predecessor test changes
 - **WHEN** the real multi-release predecessor test or its exhaustive-only support changes
@@ -182,11 +187,16 @@ validation ran against.
 - **THEN** it SHALL contain no dependency installation, build, or packing step
 
 ### Requirement: The complete suite remains available on demand
-The complete non-physical automated suite SHALL remain runnable locally (`npm run test:full`) and through manual workflow dispatch, so a maintainer can widen validation when a change feels risky. Routine development SHALL NOT require it.
+The complete non-physical automated suite SHALL remain runnable locally (`npm run test:full`) and through manual workflow dispatch, so a maintainer can widen validation when a change feels risky, and SHALL run on a nightly schedule against the current `develop` tip so exhaustive owners and enforced budgets are exercised every day independent of publication. Routine development SHALL NOT require it.
 
 #### Scenario: Maintainer requests full validation
 - **WHEN** the maintainer dispatches the full-regression workflow or runs the full tier locally
 - **THEN** every non-physical scope SHALL execute and report per-scope timing and outcomes
+
+#### Scenario: Nightly schedule fires
+- **WHEN** the scheduled Full regression runs
+- **THEN** it SHALL validate the current `develop` tip with every pull-request and exhaustive owner and enforced startup budgets
+- **AND** its failure SHALL be visible as a workflow failure without changing publication authority
 
 ### Requirement: Publication follows from what was pushed
 Publication SHALL use one workflow whose source is the exact current `origin/develop`
@@ -690,7 +700,7 @@ Checkout-bound type, architecture, governance, unit, and smoke jobs SHALL bind t
 - **THEN** the required aggregate SHALL fail rather than infer success
 
 ### Requirement: Integration owners declare pull-request or exhaustive cadence
-Every retained integration owner SHALL declare exactly one execution cadence: `pull-request` or `exhaustive`. Ordinary `pull_request` and manual Development validation SHALL schedule only pull-request owners. Impact selection SHALL choose affected pull-request owners, while conservative selection SHALL choose all pull-request owners. Exhaustive owners SHALL remain mandatory in manual Full regression and scheduled nightly/stable release validation and SHALL never satisfy, replace, or be inferred from focused PR coverage.
+Every retained integration owner SHALL declare exactly one execution cadence: `pull-request` or `exhaustive`. Ordinary `pull_request` and manual Development validation SHALL schedule only pull-request owners. Impact selection SHALL choose affected pull-request owners, while conservative selection SHALL choose all pull-request owners. Exhaustive owners SHALL remain mandatory in manual and scheduled Full regression and nightly/stable release validation and SHALL never satisfy, replace, or be inferred from focused PR coverage. An owner whose assertion is wall-clock timing on shared runners SHALL be exhaustive, with its deterministic contracts covered by pull-request owners.
 
 A malformed, missing, or unknown cadence declaration SHALL block selection rather than default an exhaustive owner into or out of PR validation. Selection evidence SHALL list selected pull-request owners and deferred exhaustive owners separately. The protected aggregate SHALL require every selected PR owner and SHALL neither wait for nor accept evidence from a cadence-deferred owner.
 
@@ -702,7 +712,7 @@ A malformed, missing, or unknown cadence declaration SHALL block selection rathe
 #### Scenario: Ordinary release implementation changes
 - **WHEN** a pull request changes package or update production code
 - **THEN** affected pull-request package, update, startup, and deterministic predecessor contracts SHALL run
-- **AND** the real multi-release predecessor owner SHALL remain deferred to Full/nightly validation
+- **AND** the real multi-release predecessor owner and the update timing owner SHALL remain deferred to Full/nightly validation
 
 #### Scenario: Full regression is requested
 - **WHEN** a maintainer dispatches Full regression
