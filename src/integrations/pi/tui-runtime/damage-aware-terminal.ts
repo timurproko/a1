@@ -122,6 +122,18 @@ export class DamageAwareTerminalAdapter implements PiTuiTerminalPort {
   get lastDecision(): PiTuiDamageDecision { return this.#decision; }
   get hyperlinkCleanupPending(): boolean { return this.#cleanupRevision > this.#cleanedRevision; }
 
+  /**
+   * The rows as last forwarded to the terminal, top to bottom, with styling
+   * intact. A row the adapter has not seen since its last invalidation is empty.
+   * The quit outro animates over this snapshot because it is what the terminal
+   * shows, not what a fresh render would produce.
+   */
+  presentedRows(): readonly string[] {
+    const presented: string[] = [];
+    for (let row = 1; row <= this.rows; row += 1) presented.push(this.#rows.get(row) ?? "");
+    return presented;
+  }
+
   /** Latches the former link rows, including rows whose replacement contains no link. */
   requestHyperlinkCleanup(rows?: readonly number[]): void {
     this.#cleanupRevision += 1;
