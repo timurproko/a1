@@ -24,8 +24,17 @@ export function validateIdentity(identity) {
   if (!exact(identity, identityKeys) || ![identity.primary, identity.root, identity.common].every(isAbsolute)
     || !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(identity.repository) || identity.remote !== "origin") fail("repository-identity");
 }
+export const COMPLETION_NOTES = Object.freeze(["retired-nothing-left", "forgotten"]);
+/** Entries written before completion notes existed read as ordinary completions. */
+export function normalizeEntry(entry) {
+  if (entry && typeof entry === "object" && !Array.isArray(entry)) {
+    if (!("completion" in entry)) entry.completion = null;
+    if (!("completionReason" in entry)) entry.completionReason = null;
+  }
+  return entry;
+}
 export function validateEntry(entry) {
-  const keys = ["id", "path", "filesystem", "change", "sourcePr", "candidatePr", "role", "head", "ref", "disposable", "generation", "state", "ownerHash", "step"];
+  const keys = ["id", "path", "filesystem", "change", "sourcePr", "candidatePr", "role", "head", "ref", "disposable", "generation", "state", "ownerHash", "step", "completion", "completionReason"];
   if (!exact(entry, keys) || !uuid(entry.id) || !isAbsolute(entry.path) || typeof entry.filesystem !== "string"
     || !/^\d+:\d+:\d+(?:\.\d+)?$/.test(entry.filesystem) || typeof entry.change !== "string" || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(entry.change)
     || !positive(entry.sourcePr) || !positive(entry.candidatePr) || !["implementation", "archive", "acceptance", "discard"].includes(entry.role)
@@ -33,7 +42,10 @@ export function validateEntry(entry) {
     || entry.disposable.some(value => !disposablePath(value)) || new Set(entry.disposable).size !== entry.disposable.length
     || !uuid(entry.generation) || !["owned", "released", "deleting", "done"].includes(entry.state)
     || typeof entry.ownerHash !== "string" || !/^[a-f0-9]{64}$/.test(entry.ownerHash)
-    || !["none", "remote-delete-intent", "remote-ref-removed", "remove-intent", "worktree-removed", "complete"].includes(entry.step)) fail("registration-schema");
+    || !["none", "remote-delete-intent", "remote-ref-removed", "remove-intent", "worktree-removed", "complete"].includes(entry.step)
+    || entry.completion !== null && !COMPLETION_NOTES.includes(entry.completion)
+    || entry.completionReason !== null && !(typeof entry.completionReason === "string" && /^[a-z0-9-]{1,80}$/.test(entry.completionReason))) fail("registration-schema");
+  if ((entry.completion !== null || entry.completionReason !== null) && entry.state !== "done") fail("registration-state");
   if ((entry.state === "done") !== (entry.step === "complete")
     || ["owned", "released"].includes(entry.state) && entry.step !== "none"
     || entry.state === "deleting" && !["remote-delete-intent", "remote-ref-removed", "remove-intent", "worktree-removed"].includes(entry.step)
@@ -47,7 +59,7 @@ export function validateState(state, identity) {
     || !Number.isSafeInteger(state.cursor) || state.cursor < 0 || !Array.isArray(state.entries) || state.entries.length > 10000) fail("state-schema");
   const ids = new Set(), paths = new Set();
   for (const entry of state.entries) {
-    validateEntry(entry);
+    validateEntry(normalizeEntry(entry));
     if (ids.has(entry.id) || paths.has(entry.path)) fail("duplicate-registration");
     ids.add(entry.id); paths.add(entry.path);
   }
@@ -143,7 +155,7 @@ export function createStateStore(identity) {
 /** Pure ownership transitions; callers persist only while holding the common lock. */
 export function registerEntry(state, input, token) {
   if (typeof token !== "string" || token.length < 32) fail("owner-token");
-  const entry = validateEntry({ ...input, id: randomUUID(), generation: randomUUID(), state: "owned", ownerHash: digest(token), step: "none" });
+  const entry = validateEntry({ ...input, id: randomUUID(), generation: randomUUID(), state: "owned", ownerHash: digest(token), step: "none", completion: null, completionReason: null });
   const previous = state.entries.findIndex(old => old.path === entry.path);
   if (previous !== -1) {
     if (state.entries[previous].state !== "done") fail("duplicate-registration");
