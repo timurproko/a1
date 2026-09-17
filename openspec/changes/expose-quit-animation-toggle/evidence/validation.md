@@ -17,8 +17,8 @@ At the planning base the declaration, section, settings-screen, and session-shel
 
 ## Physical acceptance
 
-First round: the user ran the built candidate through `./scripts/dev` and reported that switching the animation off in-session and quitting flashed the status bar and prompt, while relaunching with the switch off quit immediately; fixed as described above. Pending: a second check on the rebuilt candidate that the in-session switch-off quit is now immediate and clean.
+First round: the user ran the built candidate through `./scripts/dev` and reported that switching the animation off in-session and quitting flashed the status bar and prompt, while relaunching with the switch off quit immediately; fixed as described above. Second round: the user ran the rebuilt candidate (with the quit-time freeze) through `./scripts/dev` on Windows (Git Bash) and confirmed the `Generic` section opens the settings screen, switching `Exit animation` off in-session quits immediately without a flash, and switching it back on restores the effect, reporting "tested 461 works good".
 
 ## Gap disposition
 
-No known implementation or validation gaps remain beyond the pending physical check. Full regression and native host gates remain CI-owned under repository policy.
+No known implementation or validation gaps remain. Full regression and native host gates remain CI-owned under repository policy.

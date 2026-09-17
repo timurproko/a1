@@ -12,4 +12,4 @@
 ## 3. Validation
 
 - [x] 3.1 Run the focused owned-settings, settings-conformance, settings-screen, session-shell quit, and composition scopes plus typechecking; record passing evidence or explicitly disposition every observed gap before finalization.
-- [ ] 3.2 Hand off the exact built candidate for a physical check that the `Generic` section opens first, toggling `Exit animation` off returns to the terminal immediately on `/quit` and the second `Ctrl+C`, and toggling it back on restores the effect; record the outcome.
+- [x] 3.2 Hand off the exact built candidate for a physical check that the `Generic` section opens first, toggling `Exit animation` off returns to the terminal immediately on `/quit` and the second `Ctrl+C`, and toggling it back on restores the effect; record the outcome.
