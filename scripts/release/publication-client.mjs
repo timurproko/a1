@@ -54,10 +54,50 @@ export async function registryVersion(packageName, version, fetchImpl = fetch) {
   return manifest;
 }
 
-export async function dispatchPublication(channel, source, version) {
-  gh(["auth", "status"], { stdio: "inherit" });
-  const requestId = randomUUID();
-  gh([
+const MAX_FAILURE_LINES = 10;
+
+/** Turn a failed run into the failed job names and their recorded failure messages. */
+export function describePublicationFailure(runId, options = {}) {
+  const execute = options.run ?? run;
+  const repository = options.repository ?? repositoryName();
+  const jobs = JSON.parse(execute("gh", [
+    "api", `repos/${repository}/actions/runs/${runId}/jobs?per_page=100`,
+    "--jq", "[.jobs[] | {id: .id, name: .name, conclusion: .conclusion}]",
+  ]));
+  const failed = jobs.filter(job => job.conclusion === "failure");
+  const lines = [];
+  for (const job of failed) {
+    let annotations = [];
+    try {
+      annotations = JSON.parse(execute("gh", [
+        "api", `repos/${repository}/check-runs/${job.id}/annotations`,
+        "--jq", '[.[] | select(.annotation_level == "failure") | .message]',
+      ]));
+    } catch {
+      annotations = [];
+    }
+    for (const message of annotations) {
+      const text = String(message ?? "").split("\n")[0].trim();
+      // Rationale: the generic exit-code annotation restates that the step failed without
+      // saying why, so it is dropped in favour of the assertion or error that preceded it.
+      if (!text || /^Process completed with exit code \d+\.?$/.test(text)) continue;
+      const line = `${job.name}: ${text}`;
+      if (!lines.includes(line)) lines.push(line);
+      if (lines.length >= MAX_FAILURE_LINES) break;
+    }
+    if (lines.length >= MAX_FAILURE_LINES) break;
+  }
+  const names = failed.map(job => job.name).join(", ") || "no job reported failure";
+  return `publication run ${runId} failed in ${names}${lines.length > 0 ? `\n  ${lines.join("\n  ")}` : ""}`;
+}
+
+export async function dispatchPublication(channel, source, version, options = {}) {
+  const execute = options.run ?? run;
+  const write = options.write ?? (text => process.stdout.write(text));
+  const wait = options.sleep ?? sleep;
+  execute("gh", ["auth", "status"], { stdio: "inherit" });
+  const requestId = options.requestId ?? randomUUID();
+  execute("gh", [
     "workflow", "run", "release.yml", "--ref", "develop",
     "-f", `channel=${channel}`,
     "-f", `source_sha=${source}`,
@@ -67,18 +107,23 @@ export async function dispatchPublication(channel, source, version) {
   const deadline = Date.now() + RUN_APPEAR_TIMEOUT_MS;
   let runId;
   while (Date.now() < deadline) {
-    const runs = JSON.parse(gh([
+    const runs = JSON.parse(execute("gh", [
       "run", "list", "--workflow", "release.yml", "--event", "workflow_dispatch",
       "--json", "databaseId,displayTitle", "--limit", "50",
     ]));
     runId = runs.find(entry => entry.displayTitle?.includes(requestId))?.databaseId;
     if (runId !== undefined) break;
-    await sleep(POLL_INTERVAL_MS);
+    await wait(POLL_INTERVAL_MS);
   }
   if (runId === undefined) throw new Error(`publication request ${requestId} did not appear in GitHub Actions within 5 minutes`);
 
-  process.stdout.write(`[publication] workflow run ${runId} is responsible for ${version}\n`);
-  run("gh", ["run", "watch", String(runId), "--exit-status"], { stdio: "inherit" });
+  const url = execute("gh", ["run", "view", String(runId), "--json", "url", "--jq", ".url"]);
+  write(`[publication] workflow run ${runId} is responsible for ${version}\n[publication] ${url}\n`);
+  try {
+    execute("gh", ["run", "watch", String(runId), "--exit-status"], { stdio: "inherit" });
+  } catch {
+    throw new Error(describePublicationFailure(runId, { run: execute, repository: options.repository }));
+  }
   return runId;
 }
 

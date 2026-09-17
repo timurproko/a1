@@ -115,7 +115,10 @@ describe("maintainer publication commands", () => {
     expect(manifest.scripts.develop).toBe("node scripts/development/develop.mjs");
     expect(script.indexOf("const existing = await registryVersion")).toBeLessThan(script.indexOf('await dispatchPublication("develop"'));
     expect(script).toContain("already exists");
-    expect(script).not.toContain("process.exit");
+    expect(script).not.toContain("process.exit(");
+    expect(script).toContain("process.exitCode = 1");
+    expect(script.indexOf("try {")).toBeLessThan(script.indexOf("await main();"));
+    expect(script).toContain("log(error instanceof Error ? error.message : String(error))");
     expect(script).not.toMatch(/npm publish|npm pack/);
   });
 
