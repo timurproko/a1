@@ -1,6 +1,6 @@
 # Implementation evidence
 
-All commands were run from the delivery worktree `D:/Git/a1/.worktrees/resume-locked-worktree-removal` on top of `develop` at `e52df799`, on Windows 11 with Git 2.53.0.windows.1 and Node 24.16.0. `test:fast`, `test:full`, and `test:release` were not run; the maintainer did not request them.
+All commands were run from the delivery worktree `D:/Git/a1/.worktrees/resume-locked-worktree-removal` on top of `develop` at `38bc5c73`, on Windows 11 with Git 2.53.0.windows.1 and Node 24.16.0. `test:fast`, `test:full`, and `test:release` were not run; the maintainer did not request them.
 
 ## Focused fixtures
 
