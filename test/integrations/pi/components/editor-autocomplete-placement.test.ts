@@ -307,7 +307,7 @@ describe("escape on a slash-command search", () => {
       autocompleteCommands: [{ name: "skill:review", description: "Skill" }],
     });
     try {
-      for (const typed of ["/", "/mod", "/skill:r"]) {
+      for (const typed of ["/", "/mod", "/skill:r", "////", "/sk/rev"]) {
         editor.setText("");
         for (const character of typed) editor.handleInput?.(character);
         await expect.poll(() => parts(editor, 80).menu.length, { message: typed }).toBeGreaterThan(0);

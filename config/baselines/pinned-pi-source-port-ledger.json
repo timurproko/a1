@@ -1238,7 +1238,7 @@
         {
           "id": "clear-command-search-on-escape",
           "reason": "The accepted clear-command-search-on-escape change returns bare A1 to the empty prompt when Escape dismisses a sole top-level slash-command search, restoring the earlier A1 v2 hotkey behavior.",
-          "upstreamBehavior": "The pinned editor and the comparison profile only close the list on Escape and keep the typed text. Bare A1 clears the prompt through the public setText only when the single-line content is a slash followed by non-space, non-slash characters with the cursor at its end and the menu open; argument, path/resource, extension-provider, spaced, nested, multi-line, and no-menu Escape paths retain pinned behavior.",
+          "upstreamBehavior": "The pinned editor and the comparison profile only close the list on Escape and keep the typed text. Bare A1 clears the prompt through the public setText only when the single-line content is a slash followed by non-whitespace characters, further slashes included, with the cursor at its end and the menu open; argument, path/resource, extension-provider, spaced, multi-line, and no-menu Escape paths retain pinned behavior.",
           "acceptanceTest": "test/integrations/pi/components/editor-autocomplete-placement.test.ts"
         }
       ],
@@ -1264,7 +1264,7 @@
         "test/integrations/pi/components/shell-components.test.ts",
         "test/integrations/pi/session-ui/session-shell.test.ts"
       ],
-      "localSha256": "4c60441204cbd5236e759ce83bf9212a2af8c56ef0a9e25efebc86793fca04ff"
+      "localSha256": "d2d343c3b6adda59b7071ff61f132bade792bb7b3fa9c31ef349f8608a8db283"
     },
     {
       "id": "pi-coding-agent:src/modes/interactive/components/custom-entry",
