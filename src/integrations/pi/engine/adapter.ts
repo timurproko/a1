@@ -78,6 +78,7 @@ import {
 } from "./workflows.js";
 import { createPiRuntimeIntegration } from "./runtime-integration.js";
 import { PiSessionCommandIntegration } from "./session-integration.js";
+import { observeCompactionProgress, type CompactionProgressObserver } from "./compaction-progress.js";
 import { PiSettingsIntegration } from "./settings-integration.js";
 import type { PiSettingOwnerHandlers } from "./settings-effects.js";
 import type { PiProjectTrustPreflightPrompt } from "./project-trust-preflight.js";
@@ -356,6 +357,7 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
   #assistantResponseSequence = 0;
   #statusKind: "working" | "retry" | "compaction" | null = null;
   #sessionCommands: PiSessionCommandIntegration | undefined;
+  #compactionProgress: CompactionProgressObserver | null = null;
   #gitBranch: string | null = null;
   #extensionUi: ExtensionUIContext | undefined;
   #extensionShutdown: (() => void | Promise<void>) | undefined;
@@ -1286,6 +1288,7 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
   clearQueuedWorkflows(): readonly string[] {
     const session = this.#requireWorkflowSession();
     const result = session.clearQueue?.();
+    this.#sessionCommands?.forgetQueuedImages();
     if (!isRecord(result)) return [];
     return [...readStringArray(result.steering), ...readStringArray(result.followUp)];
   }
@@ -1459,6 +1462,8 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
     this.#emitEvent({ type: "session-lifecycle", lifecycle: "stopping", reason: null });
     this.#unsubscribe?.();
     this.#unsubscribe = undefined;
+    this.#compactionProgress?.dispose();
+    this.#compactionProgress = null;
     await this.#runtime?.dispose();
     this.#lifecycle = "stopped";
     this.#emitEvent({ type: "session-lifecycle", lifecycle: "stopped", reason: null });
@@ -2179,6 +2184,10 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
     this.#activeCommandIds = [];
     this.#completedCommands.clear();
     this.#sessionCommands = new PiSessionCommandIntegration(session);
+    this.#compactionProgress?.dispose();
+    this.#compactionProgress = observeCompactionProgress(session, percent => {
+      if (this.#session === session && !this.#disposed) this.#publishCompactionProgress(percent);
+    });
     this.#editor = {
       text: "",
       queuedSubmissions: [],
@@ -2187,7 +2196,7 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
       historyRevision: this.#editor.historyRevision + 1,
       submitEnabled: true,
     };
-    this.#status = { ...this.#status, workingMessage: null, badges: [] };
+    this.#status = { ...this.#status, workingMessage: null, workingProgress: null, badges: [] };
     this.#statusKind = null;
     this.#agentRunActive = false;
     this.#agentRunSequence = 0;
@@ -2274,7 +2283,7 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
     const wasBusy = this.#lifecycle === "busy";
     this.#statusKind = kind;
     this.#lifecycle = "busy";
-    this.#status = { ...this.#status, workingMessage: message };
+    this.#status = { ...this.#status, workingMessage: message, workingProgress: null };
     if (!wasBusy) this.#emitEvent({ type: "session-lifecycle", lifecycle: "busy", reason: null });
     this.#emitEvent({ type: "status", status: this.#status });
   }
@@ -2292,9 +2301,30 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
   #leaveWorkStates(): void {
     this.#statusKind = null;
     this.#lifecycle = "ready";
-    this.#status = { ...this.#status, workingMessage: null };
+    this.#status = { ...this.#status, workingMessage: null, workingProgress: null };
     this.#emitEvent({ type: "session-lifecycle", lifecycle: "ready", reason: null });
     this.#emitEvent({ type: "status", status: this.#status });
+  }
+
+  // Invariant: progress belongs to the compaction state only and is published when the integer changes.
+  #publishCompactionProgress(percent: number): void {
+    if (this.#statusKind !== "compaction" || this.#status.workingProgress === percent) return;
+    this.#status = { ...this.#status, workingProgress: percent };
+    this.#emitEvent({ type: "status", status: this.#status });
+  }
+
+  // Rationale: a manual compaction ends with an idle session, so the engine would never consume
+  // the messages queued during it; automatic compaction returns to a run or a pending prompt.
+  #deliverQueuedAfterCompaction(): void {
+    const commands = this.#sessionCommands;
+    const generation = this.#sessionGeneration;
+    if (commands === undefined) return;
+    const report = (error: unknown): void => {
+      if (generation !== this.#sessionGeneration || this.#disposed) return;
+      this.#addDiagnostic("error", "engine-command", `Queued input could not be sent after compaction: ${error instanceof Error ? error.message : String(error)}`, true);
+      this.#emitView();
+    };
+    commands.deliverQueuedAfterCompaction(report).catch(report);
   }
 
   #handlePiEvent(event: unknown): void {
@@ -2436,9 +2466,12 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
         return;
       case "compaction_start":
         this.#enterWorkState("compaction", "Compacting");
+        this.#compactionProgress?.begin();
         return;
       case "compaction_end":
+        this.#compactionProgress?.end();
         this.#endWorkState("compaction");
+        if (event.reason === "manual") this.#deliverQueuedAfterCompaction();
         return;
       case "thinking_level_changed":
         this.#thinkingLevel = readThinkingLevel(event.level);
@@ -2976,9 +3009,10 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
     const canResume = cancelled === true && this.#runningCommands === 0;
     this.#admissionStopped = !canResume;
     this.#unsubscribe?.(); this.#unsubscribe = undefined;
+    this.#compactionProgress?.dispose(); this.#compactionProgress = null;
     ++this.#sessionGeneration;
     this.#agentRunActive = false; this.#statusKind = null;
-    this.#status = { ...this.#status, workingMessage: null };
+    this.#status = { ...this.#status, workingMessage: null, workingProgress: null };
     this.#lifecycle = this.#disposed ? "stopped" : canResume ? "ready" : "failed";
     this.#editor = { ...this.#editor, submitEnabled: canResume && !this.#disposed };
     this.#viewRevision += 1;

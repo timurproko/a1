@@ -146,6 +146,8 @@ export interface OwnedUiFooterView {
 export interface OwnedUiStatusView {
   readonly title: string;
   readonly workingMessage: string | null;
+  /** Estimated progress of the shown work state as an integer percent below 100, when the engine can measure it. */
+  readonly workingProgress?: number | null;
   readonly diagnostics: readonly string[];
   readonly badges: readonly string[];
   readonly usage?: OwnedUiUsageView;

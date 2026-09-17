@@ -84,13 +84,32 @@ class Session {
   subscribe(listener: (event: unknown) => void): () => void { this.#listeners.add(listener); return () => this.#listeners.delete(listener); }
   emit(event: unknown): void { for (const listener of this.#listeners) listener(event); }
   async prompt(text: string, options?: unknown): Promise<void> { this.calls.push(`prompt:${text}`); this.promptOptions.push(options); }
-  async steer(text: string): Promise<void> { this.calls.push(`steer:${text}`); }
-  async followUp(text: string): Promise<void> { this.calls.push(`followUp:${text}`); }
+  readonly queued: Array<{ mode: "steer" | "followUp"; text: string; images?: readonly unknown[] }> = [];
+  #emitQueue(): void {
+    this.emit({ type: "queue_update", steering: this.queued.filter(item => item.mode === "steer").map(item => item.text), followUp: this.queued.filter(item => item.mode === "followUp").map(item => item.text) });
+  }
+  async steer(text: string, images?: readonly unknown[]): Promise<void> {
+    this.calls.push(`steer:${text}`);
+    this.queued.push({ mode: "steer", text, ...(images === undefined ? {} : { images }) });
+    this.#emitQueue();
+  }
+  async followUp(text: string, images?: readonly unknown[]): Promise<void> {
+    this.calls.push(`followUp:${text}`);
+    this.queued.push({ mode: "followUp", text, ...(images === undefined ? {} : { images }) });
+    this.#emitQueue();
+  }
   async abort(): Promise<void> { this.calls.push("abort"); }
   abortRetry(): void { this.calls.push("abortRetry"); }
   abortCompaction(): void { this.calls.push("abortCompaction"); }
   async compact(): Promise<void> { this.calls.push("compact"); }
-  clearQueue(): unknown { this.calls.push("clearQueue"); return { steering: ["queued steer"], followUp: ["queued follow"] }; }
+  clearQueue(): { steering: string[]; followUp: string[] } {
+    this.calls.push("clearQueue");
+    const steering = this.queued.filter(item => item.mode === "steer").map(item => item.text);
+    const followUp = this.queued.filter(item => item.mode === "followUp").map(item => item.text);
+    this.queued.length = 0;
+    this.#emitQueue();
+    return { steering, followUp };
+  }
   async executeBash(command: string, _onChunk: unknown, options: { excludeFromContext: boolean }): Promise<unknown> {
     this.calls.push(`bash:${command}:${options.excludeFromContext}`);
     return { output: command, exitCode: 0, cancelled: false, truncated: false };
@@ -1509,7 +1528,7 @@ describe("OwnedUiSessionShell", () => {
     const payload = "original payload 👩‍💻\n".repeat(12).trim();
     const { shell, terminal, engine, adapter } = await fixture([], [], true, undefined, { readText: () => read });
     try {
-      if (mode.startsWith("compaction")) engine.session.emit({ type: "compaction_start", reason: "manual" });
+      if (mode.startsWith("compaction")) { engine.session.isCompacting = true; engine.session.emit({ type: "compaction_start", reason: "manual" }); }
       else if (mode !== "ordinary") engine.session.emit({ type: "agent_start" });
       await adapter.flushEvents();
       terminal.input("before "); terminal.input("\x16");
@@ -1520,9 +1539,13 @@ describe("OwnedUiSessionShell", () => {
       expect(engine.session.promptOptions).toHaveLength(0);
       release(payload); expect((await pending).outcome).toBe("completed"); await duplicate;
       if (mode.startsWith("compaction")) {
+        // Invariant: the engine queue holds the captured payload once while compaction runs; ending it starts the run.
         expect(engine.session.promptOptions).toHaveLength(0);
+        expect(engine.session.queued).toEqual([{ mode: mode.endsWith("follow-up") ? "followUp" : "steer", text: `before ${payload}` }]);
+        engine.session.isCompacting = false;
         engine.session.emit({ type: "compaction_end", reason: "manual", result: {}, aborted: false, willRetry: false });
         await adapter.flushEvents(); await nextImmediate();
+        expect(engine.session.queued).toEqual([]);
       }
       expect(engine.session.calls.filter(call => call.startsWith("prompt:"))).toEqual([`prompt:before ${payload}`]);
       expect(engine.session.promptOptions).toHaveLength(1);
@@ -1577,19 +1600,23 @@ describe("OwnedUiSessionShell", () => {
     const payload = "literal [paste #999 1001 chars]\n".repeat(12).trim();
     const { shell, terminal, engine, adapter } = await fixture([], [], true, undefined, { readText: () => read });
     try {
-      if (mode === "compaction") { engine.session.emit({ type: "compaction_start", reason: "manual" }); await adapter.flushEvents(); }
+      if (mode === "compaction") { engine.session.isCompacting = true; engine.session.emit({ type: "compaction_start", reason: "manual" }); await adapter.flushEvents(); }
+      await engine.session.steer("queued steer");
       terminal.input("\x16"); const draft = shell.root.editor.getText();
       const pending = shell.submit(draft);
       if (mode === "compaction") { release(payload); await pending; }
+      await engine.session.followUp("queued follow");
       shell.restoreQueuedInput();
       if (mode === "waiting") { release(payload); await pending; }
       await vi.waitFor(() => expect(shell.root.hasPendingPastes(draft)).toBe(false));
       expect(engine.session.promptOptions).toHaveLength(0);
       const restored = shell.root.preparePromptSubmission(shell.root.editor.getText()).text;
-      expect(restored).toBe(mode === "waiting" ? `${payload}\nqueued steer\nqueued follow` : `queued steer\nqueued follow\n${payload}`);
+      expect(restored).toBe(mode === "waiting" ? `${payload}\nqueued steer\nqueued follow` : `queued steer\n${payload}\nqueued follow`);
       if (mode === "compaction") {
+        engine.session.isCompacting = false;
         engine.session.emit({ type: "compaction_end", reason: "manual", result: {}, aborted: false, willRetry: false });
         await adapter.flushEvents(); await nextImmediate();
+        expect(engine.session.calls.filter(call => call.startsWith("prompt:"))).toEqual([]);
       }
       await shell.submit(shell.root.editor.getText());
       expect(engine.session.calls.filter(call => call.startsWith("prompt:"))).toEqual([`prompt:${restored}`]);
@@ -1772,7 +1799,7 @@ describe("OwnedUiSessionShell", () => {
     const read = new Promise<{ data: string; mimeType: string }>(resolve => { release = resolve; });
     const { shell, terminal, engine, adapter } = await fixture([], [], true, undefined, { readText: async () => null, readImage: () => read });
     try {
-      if (mode === "compaction") engine.session.emit({ type: "compaction_start", reason: "manual" });
+      if (mode === "compaction") { engine.session.isCompacting = true; engine.session.emit({ type: "compaction_start", reason: "manual" }); }
       else engine.session.emit({ type: "agent_start" });
       await adapter.flushEvents();
       terminal.input("\u0016");
@@ -1783,8 +1810,11 @@ describe("OwnedUiSessionShell", () => {
       await pending;
       if (mode === "compaction") {
         expect(engine.session.promptOptions).toHaveLength(0);
+        expect(engine.session.queued).toEqual([expect.objectContaining({ mode: "steer", images: [expect.objectContaining({ type: "image", mimeType: "image/png" })] })]);
+        engine.session.isCompacting = false;
         engine.session.emit({ type: "compaction_end", reason: "manual", result: {}, aborted: false, willRetry: false });
         await adapter.flushEvents(); await nextImmediate();
+        expect(engine.session.promptOptions.at(-1)).toMatchObject({ images: [expect.objectContaining({ type: "image", mimeType: "image/png" })] });
       }
       expect(engine.session.promptOptions).toHaveLength(1);
       expect(engine.session.promptOptions.at(-1)).toMatchObject({ streamingBehavior: mode === "follow-up" ? "followUp" : "steer" });
@@ -1800,6 +1830,7 @@ describe("OwnedUiSessionShell", () => {
       terminal.input("\u0016");
       const draft = shell.root.editor.getText();
       const pending = shell.submit(draft);
+      await engine.session.steer("queued steer"); await engine.session.followUp("queued follow");
       shell.restoreQueuedInput();
       expect(shell.root.editor.getText()).toBe(`${draft}\nqueued steer\nqueued follow`);
       release({ data: screenshotPng(8, 8).toString("base64"), mimeType: "image/png" });
@@ -5509,15 +5540,18 @@ describe("OwnedUiSessionShell", () => {
   it.each(["steer", "follow-up"])("rejects an invalid deferred %s once and continues valid queued work", async type => {
     const { engine, adapter, shell } = await fixture([], [], true);
     try {
+      engine.session.isCompacting = true;
       engine.session.emit({ type: "compaction_start", reason: "manual" });
       await adapter.flushEvents();
-      const attachment = { type: "image" as const, data: "aA==", mimeType: "image/png" };
+      const attachment = { type: "image" as const, data: "invalid!", mimeType: "image/png" };
       const preparation = vi.spyOn(shell.root, "preparePromptSubmission").mockReturnValueOnce({ text: "bad later", images: [attachment] });
       if (type === "follow-up") { shell.root.editor.setText("bad later"); await shell.queueFollowUp(); }
       else await shell.submit("bad later");
       preparation.mockRestore();
+      expect(engine.session.queued).toEqual([]);
       await shell.submit("good later");
-      attachment.data = "invalid!";
+      expect(engine.session.queued).toEqual([{ mode: "steer", text: "good later" }]);
+      engine.session.isCompacting = false;
       engine.session.emit({ type: "compaction_end", reason: "manual", result: {}, aborted: false, willRetry: false });
       await adapter.flushEvents();
       await nextImmediate();
@@ -5527,20 +5561,56 @@ describe("OwnedUiSessionShell", () => {
     } finally { await shell.dispose(); }
   });
 
-  it("retains compaction-time input and restores queued steering and follow-up text", async () => {
+  it("queues compaction-time input through the engine and starts one run from it when the manual compaction ends", async () => {
     const { engine, adapter, shell } = await fixture();
+    engine.session.isCompacting = true;
     engine.session.emit({ type: "compaction_start", reason: "manual" });
     await adapter.flushEvents();
     await shell.submit("after compaction");
-    expect(engine.session.calls).not.toContain("steer:after compaction");
+    shell.root.editor.setText("and then"); await shell.queueFollowUp();
+    expect(engine.session.calls.filter(call => call.startsWith("prompt:"))).toEqual([]);
+    expect(engine.session.calls).toEqual(expect.arrayContaining(["steer:after compaction", "followUp:and then"]));
+    await adapter.flushEvents();
+    expect(adapter.view().editor.queuedSubmissions).toEqual(["after compaction", "and then"]);
+    engine.session.isCompacting = false;
     engine.session.emit({ type: "compaction_end", reason: "manual", result: {}, aborted: false, willRetry: false });
     await adapter.flushEvents();
     await new Promise(resolve => setTimeout(resolve, 0));
-    expect(engine.session.calls).toContain("prompt:after compaction");
+    expect(engine.session.calls.filter(call => call.startsWith("prompt:"))).toEqual(["prompt:after compaction"]);
+    expect(engine.session.promptOptions.at(-1)).toMatchObject({ streamingBehavior: "steer" });
+    expect(engine.session.queued).toEqual([{ mode: "followUp", text: "and then" }]);
 
+    await engine.session.steer("queued steer");
     shell.restoreQueuedInput();
-    expect(shell.root.editor.getText()).toBe("queued steer\nqueued follow");
+    expect(shell.root.editor.getText()).toBe("queued steer\nand then");
     await shell.dispose();
+  });
+
+  it("shows compaction-time input as pending steering rows that the dequeue action takes back", async () => {
+    const { engine, adapter, shell, terminal } = await fixture([], [], true);
+    try {
+      terminal.resize(80, 20);
+      engine.session.isCompacting = true;
+      engine.session.emit({ type: "compaction_start", reason: "manual" });
+      await adapter.flushEvents();
+      await shell.submit("first");
+      await shell.submit("second");
+      await adapter.flushEvents();
+      const frame = stripTerminalSequences(shell.root.render(80).join("\n"));
+      expect(frame).toContain("Steering: first");
+      expect(frame).toContain("Steering: second");
+      expect(frame).toContain("↳ Alt+Up to edit all queued messages");
+      expect(frame).toContain("Compacting...");
+      expect(frame).not.toContain("Queued during compaction");
+      shell.restoreQueuedInput();
+      expect(shell.root.editor.getText()).toBe("first\nsecond");
+      await adapter.flushEvents();
+      expect(stripTerminalSequences(shell.root.render(80).join("\n"))).not.toContain("Steering:");
+      engine.session.isCompacting = false;
+      engine.session.emit({ type: "compaction_end", reason: "manual", result: {}, aborted: false, willRetry: false });
+      await adapter.flushEvents(); await nextImmediate();
+      expect(engine.session.calls.filter(call => call.startsWith("prompt:"))).toEqual([]);
+    } finally { await shell.dispose(); }
   });
 
   it("cancels the share operation through its loader without rendering late success", async () => {

@@ -104,17 +104,27 @@ export function createPiShellStatus(
   const statusUi = createTuiFacade(runtime ?? { getColumns: () => 80, getRows: () => 24, requestRender() {} });
   let workingOverride: string | undefined;
   let outputPad: 0 | 1 = PINNED_PI_LAYOUT.outputPad;
+  let progressPresentation: "pinned" | "custom-viewport" = "pinned";
   let placement: PiShellStatusPlacement = statusPlacement(view, workingOverride);
-  let component = statusComponent(view, statusUi, workingOverride, outputPad, formatProgressStatus, placement);
-  let signature = statusSignature(view, workingOverride, outputPad, placement);
+  const liveStatusText = () => formatProgressStatus(liveWorkingText(view, workingOverride, progressPresentation));
+  let component = statusComponent(view, statusUi, outputPad, liveStatusText, placement);
+  let signature = statusSignature(view, workingOverride, outputPad, placement, progressPresentation);
   const rebuild = () => {
     const nextPlacement = statusPlacement(view, workingOverride);
-    const nextSignature = statusSignature(view, workingOverride, outputPad, nextPlacement);
+    const nextSignature = statusSignature(view, workingOverride, outputPad, nextPlacement, progressPresentation);
     if (nextSignature === signature) return;
+    // Performance: progress ticks change only the live message; the spinner keeps its frame and timer.
+    if (placement === "live" && nextPlacement === "live" && component instanceof WorkingStatusIndicator
+      && statusSignature(view, workingOverride, outputPad, nextPlacement, progressPresentation, false)
+        === statusSignature(view, workingOverride, outputPad, placement, progressPresentation, false)) {
+      component.setMessage(liveStatusText());
+      signature = nextSignature;
+      return;
+    }
     if (component !== undefined && "dispose" in component && typeof component.dispose === "function") component.dispose();
     placement = nextPlacement;
     signature = nextSignature;
-    component = statusComponent(view, statusUi, workingOverride, outputPad, formatProgressStatus, placement);
+    component = statusComponent(view, statusUi, outputPad, liveStatusText, placement);
   };
   return {
     render: width => component?.render(width) ?? [],
@@ -132,6 +142,10 @@ export function createPiShellStatus(
     },
     setOutputPad(padding) {
       outputPad = padding;
+      rebuild();
+    },
+    setProgressPresentation(presentation) {
+      progressPresentation = presentation;
       rebuild();
     },
     dispose() {
@@ -177,16 +191,29 @@ function statusPlacement(view: OwnedUiSessionViewModel, workingOverride: string 
   return view.status.workingMessage === null ? "hidden" : "dock";
 }
 
+// Rationale: the engine publishes the semantic working word and a separate measured percent; bare A1
+// composes them here, while the pinned route keeps the bare word for comparison with Pi.
+function liveWorkingText(
+  view: OwnedUiSessionViewModel,
+  workingOverride: string | undefined,
+  progressPresentation: "pinned" | "custom-viewport",
+): string {
+  const message = workingOverride ?? view.status.workingMessage ?? "Working";
+  const progress = view.status.workingProgress;
+  return workingOverride === undefined && progressPresentation === "custom-viewport" && typeof progress === "number"
+    ? `${message} (${progress}%)`
+    : message;
+}
+
 function statusComponent(
   view: OwnedUiSessionViewModel,
   ui: TUI,
-  workingOverride: string | undefined,
   outputPad: 0 | 1,
-  formatProgressStatus: (message: string) => string,
+  liveStatusText: () => string,
   placement: PiShellStatusPlacement,
 ): Component | undefined {
   if (placement === "live") {
-    return new WorkingStatusIndicator(ui, formatProgressStatus(workingOverride ?? view.status.workingMessage ?? "Working"));
+    return new WorkingStatusIndicator(ui, liveStatusText());
   }
   if (placement === "dock") {
     if (view.lifecycle === "failed") {
@@ -202,8 +229,11 @@ function statusSignature(
   workingOverride: string | undefined,
   outputPad: 0 | 1,
   placement: PiShellStatusPlacement,
+  progressPresentation: "pinned" | "custom-viewport",
+  withMessage = true,
 ): string {
-  return `${placement}\u0000${outputPad}\u0000${view.lifecycle}\u0000${workingOverride ?? ""}\u0000${view.status.workingMessage ?? ""}\u0000${view.status.diagnostics.at(-1) ?? ""}`;
+  const message = withMessage ? `${workingOverride ?? ""}\u0000${view.status.workingMessage ?? ""}\u0000${view.status.workingProgress ?? ""}` : "";
+  return `${placement}\u0000${outputPad}\u0000${view.lifecycle}\u0000${progressPresentation}\u0000${message}\u0000${view.status.diagnostics.at(-1) ?? ""}`;
 }
 
 function queuedInputText(

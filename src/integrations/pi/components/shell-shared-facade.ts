@@ -105,6 +105,8 @@ export type PiShellStatusPlacement = "live" | "dock" | "hidden";
 export interface PiShellStatusPort extends PiShellViewComponentPort {
   setWorkingOverride(message: string | undefined): void;
   setOutputPad(padding: 0 | 1): void;
+  /** Bare A1 shows engine-measured progress beside the working word; the pinned route keeps the bare word. */
+  setProgressPresentation(presentation: "pinned" | "custom-viewport"): void;
   /** Semantic row placement; callers must not inspect rendered text. */
   placement(): PiShellStatusPlacement;
   renderDock(width: number): readonly string[];
