@@ -1094,7 +1094,7 @@ describe("OwnedUiSessionShell", () => {
       await nextImmediate();
       terminal.input("\u0016");
       fail();
-      // The paste error is transcript content, so it supersedes the copy-failure dock notice.
+      // Invariant: the paste error is transcript content, so it supersedes the copy-failure dock notice.
       await vi.waitFor(() => expect(shell.root.render(80).map(stripTerminalSequences).join("\n")).toContain("Paste skipped because the preceding copy failed."));
       expect(shell.root.render(80).map(stripTerminalSequences).join("\n")).not.toContain("clipboard is unavailable");
       await nextImmediate();
@@ -5815,7 +5815,7 @@ describe("OwnedUiSessionShell", () => {
       shell.root.appendWorkflowStatus("Model selection saved to settings");
       shell.runtime.renderNow();
       expect(rowOf(plainRows(), "Model selection saved to settings")).toBeGreaterThan(-1);
-      // A notice changes the dock height once; keyboard input beside it keeps dock-only reuse.
+      // Performance: a notice changes the dock height once; keyboard input beside it keeps dock-only reuse.
       const work = shell.root.viewportCompositionEvidence();
       terminal.input("x"); await nextImmediate(); await nextImmediate();
       expect(shell.root.viewportCompositionEvidence().full).toBe(work.full);
