@@ -1,0 +1,114 @@
+import type { AgentSession } from "../startup-public.js";
+
+/** Expected summary size for a first compaction, when no previous summary on the branch can serve as the estimate. */
+export const DEFAULT_EXPECTED_COMPACTION_SUMMARY_CHARS = 4000;
+
+/** The percent shown while a compaction is still running never reaches this value. */
+const MAX_RUNNING_PERCENT = 99;
+
+type StreamFunction = AgentSession["agent"]["streamFunction"];
+
+/** The public session surface compaction progress reads: the agent's stream function and the branch entries. */
+export interface CompactionProgressSession {
+  readonly agent?: { streamFunction?: unknown } | undefined;
+  readonly sessionManager?: { getBranch?(): readonly unknown[] } | undefined;
+}
+
+export interface CompactionProgressObserver {
+  /** Marks `compaction_start`: resets the streamed count and captures the expected summary size. */
+  begin(): void;
+  /** Marks `compaction_end`: later stream chunks are ignored. */
+  end(): void;
+  /** Restores the original stream function; the observer reports nothing afterwards. */
+  dispose(): void;
+}
+
+/**
+ * Observes the summarization stream of a compaction through the session agent's public stream
+ * function and reports an estimated integer percent. Pi never iterates that stream itself (it
+ * reads only its final result), so the observer iterates it in the background between
+ * `begin()` and `end()` and returns the same stream object to Pi. Outside that window the
+ * wrapper is a pass-through. Returns null when the agent exposes no callable stream function,
+ * in which case compaction proceeds without progress.
+ */
+export function observeCompactionProgress(
+  session: CompactionProgressSession,
+  onProgress: (percent: number) => void,
+): CompactionProgressObserver | null {
+  const agent = session.agent;
+  if (agent === undefined || typeof agent.streamFunction !== "function") return null;
+  const original = agent.streamFunction as StreamFunction;
+  let active = false;
+  let disposed = false;
+  let generation = 0;
+  let streamed = 0;
+  let expected = DEFAULT_EXPECTED_COMPACTION_SUMMARY_CHARS;
+  let reported: number | null = null;
+
+  const report = (): void => {
+    const percent = Math.min(MAX_RUNNING_PERCENT, Math.floor((100 * streamed) / expected));
+    if (percent === reported) return;
+    reported = percent;
+    onProgress(percent);
+  };
+
+  const wrapped: StreamFunction = async (model, context, options) => {
+    const stream = await original(model, context, options);
+    if (!active || disposed) return stream;
+    const observed = generation;
+    void (async () => {
+      report();
+      // Invariant: observation never affects the request; a stream that cannot be iterated ends observation only.
+      try {
+        for await (const event of stream) {
+          if (observed !== generation || !active) return;
+          if (event.type === "text_delta") {
+            streamed += event.delta.length;
+            report();
+          }
+        }
+      } catch {
+        return;
+      }
+    })();
+    return stream;
+  };
+  agent.streamFunction = wrapped;
+
+  return {
+    begin() {
+      generation += 1;
+      streamed = 0;
+      reported = null;
+      expected = latestCompactionSummaryLength(session) ?? DEFAULT_EXPECTED_COMPACTION_SUMMARY_CHARS;
+      active = true;
+    },
+    end() {
+      active = false;
+      generation += 1;
+    },
+    dispose() {
+      if (disposed) return;
+      disposed = true;
+      active = false;
+      generation += 1;
+      if (agent.streamFunction === wrapped) agent.streamFunction = original;
+    },
+  };
+}
+
+function latestCompactionSummaryLength(session: CompactionProgressSession): number | null {
+  let entries: readonly unknown[];
+  try {
+    entries = session.sessionManager?.getBranch?.() ?? [];
+  } catch {
+    return null;
+  }
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    const entry = entries[index];
+    if (typeof entry !== "object" || entry === null) continue;
+    const { type, summary } = entry as { type?: unknown; summary?: unknown };
+    if (type === "compaction" && typeof summary === "string" && summary.length > 0) return summary.length;
+  }
+  return null;
+}

@@ -15,7 +15,7 @@ describe("Pi public upgrade conformance", () => {
     expect(report.serviceDiagnostics).toBeGreaterThanOrEqual(0);
     expect(report.sessionId).toMatch(/^[a-f0-9-]+$/i);
     expect(report.commandSurface).toEqual([
-      "prompt", "steer", "followUp", "abort", "compact", "setModel", "setThinkingLevel", "subscribe", "dispose",
+      "prompt", "steer", "followUp", "clearQueue", "abort", "compact", "setModel", "setThinkingLevel", "subscribe", "dispose",
     ]);
     expect(report.capabilities.map(result => result.capability)).toEqual([
       "public-exports", "session-lifecycle", "commands-events", "models-authentication",
