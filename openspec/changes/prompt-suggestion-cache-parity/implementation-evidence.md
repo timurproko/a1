@@ -1,6 +1,6 @@
 # Implementation evidence
 
-All commands were run from the delivery worktree `D:/Git/a1/.worktrees/prompt-suggestion-cache-parity` on `develop` at `e52df799` after `npm ci`. `test:fast`, `test:full`, and `test:release` were not run; the maintainer did not request them.
+All commands were run from the delivery worktree `D:/Git/a1/.worktrees/prompt-suggestion-cache-parity` on `develop` at `7ad07975` after `npm ci`. `test:fast`, `test:full`, and `test:release` were not run; the maintainer did not request them.
 
 ## Regression reproduction
 
@@ -32,7 +32,7 @@ The probe also needed two fixture repairs to run at all on current Pi: synthetic
 | Command | Outcome |
 | --- | --- |
 | `npx openspec validate prompt-suggestion-cache-parity --strict` | `Change 'prompt-suggestion-cache-parity' is valid`. |
-| `npm run check:architecture` | Architecture boundaries, product identity, pinned Pi source ledger, terminal host provenance OK; the startup graph stays within its 2,624,606 source-byte baseline after trimming the new comments (a first draft exceeded it by 157 bytes). |
+| `npm run check:architecture` | Architecture boundaries, product identity, pinned Pi source ledger, terminal host provenance OK. `adapter.ts` grows by 956 bytes in the eager startup graph, and `config/startup-graph-baseline.json` had no headroom after #449 set `maximumSourceBytes` to its exact total, so this change raises it from 2,632,100 to the new exact total 2,633,056 (an explicitly reviewed baseline change; file count and every other bound are unchanged). The first CI run (35203999449) failed on exactly this bound before the bump. |
 | `npm run check:names` | 957 files, 0 violations. |
 | `npm run check:code-documentation` | No violations. |
 
