@@ -3,7 +3,7 @@ import { dirname, relative, resolve, sep } from "node:path";
 import { build } from "esbuild";
 import { createStartupPublicManifest, validateStartupPublicBaseline } from "./startup-public-artifact.mjs";
 import { createStartupDescriptor, serializeStartupDescriptor } from "./startup-descriptor.mjs";
-import { isStartupLazyImportModule, rewriteStartupLazyImports } from "./startup-lazy-imports.mjs";
+import { hasDynamicImport, isStartupLazyImportModule, pinnedDynamicImportPath, rewriteStartupLazyImports, validatePinnedDynamicImports } from "./startup-lazy-imports.mjs";
 
 const root = process.cwd();
 const entry = "dist/integrations/pi/startup-public.js";
@@ -50,7 +50,10 @@ const { manifest, serialized } = createStartupPublicManifest({
   licenses: await collectLicenses(Object.keys(result.metafile.inputs)),
 });
 const baseline = JSON.parse(await readFile(resolve(root, "config", "startup-graph-baseline.json"), "utf8"));
-const baselineErrors = validateStartupPublicBaseline(manifest, baseline);
+const baselineErrors = [
+  ...validateStartupPublicBaseline(manifest, baseline),
+  ...validatePinnedDynamicImports(await observePinnedDynamicImports(Object.keys(result.metafile.inputs)), baseline.pinnedDynamicImports),
+];
 if (baselineErrors.length > 0) throw new Error(baselineErrors.join("; "));
 await writeFile(resolve(root, reportPath), serialized);
 const descriptor = createStartupDescriptor({ artifact: manifest.output });
@@ -94,6 +97,16 @@ function inlineLazyPiModules() {
       });
     },
   };
+}
+
+async function observePinnedDynamicImports(inputs) {
+  const observed = new Set();
+  for (const input of inputs) {
+    const pinned = pinnedDynamicImportPath(input);
+    if (pinned === undefined || !input.endsWith(".js")) continue;
+    if (hasDynamicImport(await readFile(resolve(root, input), "utf8"))) observed.add(pinned);
+  }
+  return observed;
 }
 
 async function collectLicenses(inputs) {

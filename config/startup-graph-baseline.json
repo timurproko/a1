@@ -11,5 +11,27 @@
   "piPublicArtifact": {
     "maximumLoadedFiles": 1754,
     "maximumEvaluatedBytes": 8351904
-  }
+  },
+  "pinnedDynamicImports": [
+    {
+      "path": "@earendil-works/pi-coding-agent/dist/core/extensions/loader.js",
+      "handling": "extension-path"
+    },
+    {
+      "path": "@earendil-works/pi-ai/dist/api/bedrock-converse-stream.lazy.js",
+      "handling": "pinned-tree"
+    },
+    {
+      "path": "@earendil-works/pi-ai/dist/auth/context.js",
+      "handling": "bare-specifier"
+    },
+    {
+      "path": "@earendil-works/pi-ai/dist/auth/oauth/load.js",
+      "handling": "inlined"
+    },
+    {
+      "path": "@earendil-works/pi-ai/dist/env-api-keys.js",
+      "handling": "bare-specifier"
+    }
+  ]
 }

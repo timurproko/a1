@@ -73,6 +73,25 @@ describe("exact packed npm command surface", () => {
     expect(artifact).toContain('__piResolve("@earendil-works/pi-ai/api/bedrock-converse-stream")');
   });
 
+  it("derives OAuth auth and loads the bedrock API through the packed startup artifact", () => {
+    const probe = crossSpawn.sync(process.execPath, [resolve(import.meta.dirname, "startup-artifact-lazy-probe.mjs"), extracted.packageRoot], {
+      cwd: extracted.root, encoding: "utf8", env: process.env, windowsHide: true,
+    });
+    expect(probe.status, probe.stderr).toBe(0);
+    const { oauth, bedrock } = JSON.parse(probe.stdout) as {
+      oauth: Record<string, { source?: string; derived?: boolean; error?: string }>;
+      bedrock: { api?: string; events: string[]; error?: string };
+    };
+    expect(Object.keys(oauth).sort()).toEqual(["anthropic", "github-copilot", "kimi-coding", "openai-codex", "openrouter", "radius", "xai"]);
+    for (const [providerId, result] of Object.entries(oauth)) {
+      expect(result, providerId).toEqual({ source: "OAuth", derived: true });
+    }
+    expect(bedrock.api).toBe("bedrock-converse-stream");
+    expect(bedrock.events).toEqual(["error"]);
+    expect(bedrock.error).not.toMatch(/Cannot find module/);
+    expect(bedrock.error).toMatch(/abort/i);
+  });
+
   it("launches the exact packed public entry and a1 shim with repository dependencies", () => {
     const publicEntry = resolve(extracted.packageRoot, "dist", "integrations", "pi", "engine", "public-main-entry.js");
     const oracle = crossSpawn.sync(process.execPath, [publicEntry, "--version"], { cwd: extracted.root, encoding: "utf8", env: process.env, windowsHide: true });
