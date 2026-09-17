@@ -8,7 +8,7 @@ const WINDOWS = { os: "windows-2025", platform: "win32", architecture: "x64", bi
 /** Every Development modular job GitHub may schedule; the workflow takes its matrix from the active subset. */
 export const DEVELOPMENT_VALIDATION_MATRIX = Object.freeze([
   { group: "core", label: "PR core and affected unit owners", ...WINDOWS, node: 24, build: true, guardian: true, defender: false },
-  { group: "resource", label: "Resource-sensitive fast partition", ...WINDOWS, node: 24, build: false, guardian: false, defender: false },
+  { group: "resource", label: "Resource-sensitive fast partition", ...WINDOWS, node: 24, build: true, guardian: false, defender: false },
   { group: "pi", label: "Pi release and resume integration", ...WINDOWS, node: 24, build: true, guardian: false, defender: false },
   { group: "promoted", label: "Changed full-only integration owners", ...WINDOWS, node: 24, build: true, guardian: false, defender: false },
   { group: "package", label: "Exact-package contracts", ...WINDOWS, node: 22, build: true, guardian: false, defender: false },

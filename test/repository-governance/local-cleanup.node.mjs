@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, mkdir, writeFile, readFile, rm, symlink, rename, utimes } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -15,19 +15,20 @@ import { completeLocalCleanup, COMPLETION_DISPOSABLE_PATHS } from "../../scripts
 import { discardLocalCleanup } from "../../scripts/governance/local-cleanup-discard.mjs";
 
 const owner = "fixture-owner-token-at-least-32-characters";
-function git(cwd, ...args) { return execFileSync("git", ["-C", cwd, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim(); }
+const execFileAsync = promisify(execFile);
+async function git(cwd, ...args) { return (await execFileAsync("git", ["-C", cwd, ...args], { encoding: "utf8", windowsHide: true })).stdout.trim(); }
 async function fixture(t, branch = false, registered = true) {
   const temporary = await canonical(await mkdtemp(join(tmpdir(), "local-cleanup-")));
   t.after(() => rm(temporary, { recursive: true, force: true }));
   const primary = join(temporary, "primary"); await mkdir(primary);
-  git(primary, "init", "-b", "develop"); git(primary, "config", "core.autocrlf", "false"); git(primary, "config", "user.name", "Fixture"); git(primary, "config", "user.email", "fixture@example.invalid");
+  await git(primary, "init", "-b", "develop"); await git(primary, "config", "core.autocrlf", "false"); await git(primary, "config", "user.name", "Fixture"); await git(primary, "config", "user.email", "fixture@example.invalid");
   await writeFile(join(primary, "tracked.txt"), "base\n");
   await mkdir(join(primary, "vendor")); await writeFile(join(primary, "vendor", ".gitmodules"), "");
   await mkdir(join(primary, "node_modules-cache")); await writeFile(join(primary, "node_modules-cache", "tracked.txt"), "ordinary content\n");
   await writeFile(join(primary, ".gitignore"), "node_modules/\nsecret.txt\n.artifacts/openspec-archive/\n.artifacts/validation/\n.artifacts/validation-user/\n.artifacts/other/\n.builds/\ndist/\n/native/process-guardian/target/\n/native/terminal-host/target/\n/target/\n/native/other/target/\n/native/process-guardian/target-user/\n");
-  git(primary, "add", "."); git(primary, "commit", "-m", "fixture"); git(primary, "remote", "add", "origin", "https://github.com/owner/repo.git");
+  await git(primary, "add", "."); await git(primary, "commit", "-m", "fixture"); await git(primary, "remote", "add", "origin", "https://github.com/owner/repo.git");
   const path = join(primary, ".worktrees", "example");
-  git(primary, "worktree", "add", ...(branch ? ["-b", "feature/example"] : ["--detach"]), path);
+  await git(primary, "worktree", "add", ...(branch ? ["-b", "feature/example"] : ["--detach"]), path);
   const identity = await discoverRepository(primary), store = createStateStore(identity), snapshot = await captureWorktree(identity, path);
   let entry = null;
   if (registered) await store.locked(async (state, save) => {
@@ -40,6 +41,10 @@ async function fixture(t, branch = false, registered = true) {
   const pass = (options = {}) => reconcileLocalCleanup({ identity, store, reader: {}, cwd: primary, verify, git: boundedGit, ...options });
   return { identity, store, entry, snapshot, path, primary, temporary, pass, verify, boundedGit };
 }
+
+// Performance: every case owns a private temporary repository, so cases run concurrently instead of
+// serially; a bounded width keeps Git and child-process load predictable on shared runners.
+describe("local cleanup", { concurrency: 4 }, () => {
 
 test("registration rejects duplicate paths, malformed state and cross-repository identity", async t => {
   const f = await fixture(t); const state = await f.store.read();
@@ -91,7 +96,7 @@ test("CLI registration, ownership, recovery, preview and enable controls use the
   assert.match(help, /\.artifacts\/validation/); assert.match(help, /native\/process-guardian\/target/);
   assert.match(help, /native\/terminal-host\/target/); assert.equal(COMPLETION_DISPOSABLE_PATHS.includes(".artifacts"), false);
   assert.equal(COMPLETION_DISPOSABLE_PATHS.includes("target"), false); assert.equal(COMPLETION_DISPOSABLE_PATHS.includes("native\/*\/target"), false);
-  const other = join(f.identity.root, "registered"); git(f.primary, "worktree", "add", "--detach", other);
+  const other = join(f.identity.root, "registered"); await git(f.primary, "worktree", "add", "--detach", other);
   let record = JSON.parse(invoke("register", "--path", other, "--change", "example", "--source-pr", "20", "--candidate-pr", "20", "--role", "implementation", "--disposable", "node_modules"));
   assert.equal(record.state, "owned");
   const before = await readFile(join(f.store.directory, "state.json"), "utf8");
@@ -112,7 +117,7 @@ test("CLI registration, ownership, recovery, preview and enable controls use the
 
 test("complete registers one exact candidate, applies central disposables, and is idempotent", async t => {
   const f = await fixture(t, true, false);
-  const unrelatedPath = join(f.identity.root, "unrelated"); git(f.primary, "worktree", "add", "--detach", unrelatedPath);
+  const unrelatedPath = join(f.identity.root, "unrelated"); await git(f.primary, "worktree", "add", "--detach", unrelatedPath);
   const unrelatedSnapshot = await captureWorktree(f.identity, unrelatedPath);
   await f.store.locked(async (state, save) => {
     const unrelated = registerEntry(state, { ...unrelatedSnapshot, change: "unrelated", sourcePr: 21, candidatePr: 21,
@@ -220,18 +225,18 @@ function discardHarness(f, remote = { present: true }) {
 
 test("discard removes only one exact rejected remote ref, worktree and local ref", async t => {
   const f = await fixture(t, true, false), unrelated = join(f.identity.root, "unrelated");
-  git(f.primary, "worktree", "add", "--detach", unrelated);
+  await git(f.primary, "worktree", "add", "--detach", unrelated);
   const d = discardHarness(f);
   const report = await discardLocalCleanup({ identity: f.identity, store: f.store, reader: {}, path: f.path,
     change: "example", sourcePr: 20, confirmed: true, cwd: f.primary, git: f.boundedGit, verify: d.verify, removeRemote: d.removeRemote });
   assert.equal(report.results[0].disposition, "discarded", JSON.stringify(report));
   assert.deepEqual(report.results[0].steps, ["remote-ref-removed", "worktree-removed", "local-ref-removed"]);
   assert.equal(d.remote.present, false); assert.equal(await exists(f.path), false); assert.equal(await exists(unrelated), true);
-  assert.equal(git(f.primary, "for-each-ref", "refs/heads/feature/example"), "");
+  assert.equal(await git(f.primary, "for-each-ref", "refs/heads/feature/example"), "");
   const repeated = await discardLocalCleanup({ identity: f.identity, store: f.store, reader: {}, path: f.path,
     change: "example", sourcePr: 20, confirmed: true, cwd: f.primary, git: f.boundedGit, verify: d.verify, removeRemote: d.removeRemote });
   assert.equal(repeated.results[0].disposition, "already-discarded", JSON.stringify(repeated));
-  git(f.primary, "worktree", "add", "--detach", f.path);
+  await git(f.primary, "worktree", "add", "--detach", f.path);
   const reused = await discardLocalCleanup({ identity: f.identity, store: f.store, reader: {}, path: f.path,
     change: "example", sourcePr: 20, confirmed: true, cwd: f.primary, git: f.boundedGit, verify: d.verify, removeRemote: d.removeRemote });
   assert.equal(reused.results[0].reason, "residual-or-reused-path");
@@ -251,7 +256,7 @@ test("discard inspects locally before remote mutation and retains partial state 
     inspect: async (...args) => ++inspections === 1 ? inspectWorktree(...args) : { clean: false, reason: "worktree-content", paths: ["late"] } });
   assert.equal(report.results[0].disposition, "partial", JSON.stringify(report));
   assert.equal(report.results[0].reason, "worktree-content"); assert.equal(d.remote.present, false); assert.equal(await exists(f.path), true);
-  assert.notEqual(git(f.primary, "for-each-ref", "refs/heads/feature/example"), "");
+  assert.notEqual(await git(f.primary, "for-each-ref", "refs/heads/feature/example"), "");
 });
 
 test("discard journals interruption, refuses reopened PRs, and is never queue-evaluated", async t => {
@@ -313,10 +318,10 @@ test("complete rejects primary, current, and cross-root candidates", async t => 
 
 test("another unavailable worktree's registration is never pruned", async t => {
   const f = await fixture(t); await f.store.enable();
-  const other = join(f.identity.root, "unavailable"); git(f.primary, "worktree", "add", "--detach", other);
+  const other = join(f.identity.root, "unavailable"); await git(f.primary, "worktree", "add", "--detach", other);
   await rm(other, { recursive: true, force: true });
   assert.equal((await f.pass({ preview: false })).results[0].disposition, "removed");
-  assert.ok(git(f.primary, "worktree", "list", "--porcelain").includes("unavailable"));
+  assert.ok((await git(f.primary, "worktree", "list", "--porcelain")).includes("unavailable"));
 });
 
 test("report retention is bounded without evicting unresolved state or unrelated files", async t => {
@@ -335,7 +340,7 @@ test("report retention is bounded without evicting unresolved state or unrelated
 test("completed paths report absence and need fresh registration after reuse", async t => {
   const f = await fixture(t); await f.store.enable(); await f.pass({ preview: false });
   assert.equal((await f.pass()).results[0].disposition, "already-absent");
-  git(f.primary, "worktree", "add", "--detach", f.path);
+  await git(f.primary, "worktree", "add", "--detach", f.path);
   assert.equal((await f.pass()).results[0].reason, "residual-or-reused-path");
   const snapshot = await captureWorktree(f.identity, f.path);
   await f.store.locked(async (state, save) => {
@@ -353,9 +358,9 @@ test("a busy or stale mutation lock is never automatically evicted", async t => 
 
 test("preview and disabled execution preserve local refs, files and state", async t => {
   const f = await fixture(t, true), file = join(f.store.directory, "state.json");
-  const before = await readFile(file, "utf8"), refs = git(f.primary, "show-ref");
+  const before = await readFile(file, "utf8"), refs = await git(f.primary, "show-ref");
   const preview = await f.pass(); assert.equal(preview.results[0].disposition, "eligible");
-  assert.equal(await readFile(file, "utf8"), before); assert.equal(git(f.primary, "show-ref"), refs);
+  assert.equal(await readFile(file, "utf8"), before); assert.equal(await git(f.primary, "show-ref"), refs);
   const disabled = await f.pass({ preview: false }); assert.equal(disabled.error, "cleanup-disabled");
   assert.equal(await exists(f.path), true); assert.equal(await readFile(file, "utf8"), before);
 });
@@ -363,7 +368,7 @@ test("preview and disabled execution preserve local refs, files and state", asyn
 test("merged archive removes a released clean worktree and exact local ref", async t => {
   const f = await fixture(t, true); await f.store.enable();
   const report = await f.pass({ preview: false }); assert.equal(report.results[0].disposition, "removed", JSON.stringify(report));
-  assert.equal(await exists(f.path), false); assert.equal(git(f.primary, "for-each-ref", "refs/heads/feature/example"), "");
+  assert.equal(await exists(f.path), false); assert.equal(await git(f.primary, "for-each-ref", "refs/heads/feature/example"), "");
   assert.equal((await f.store.read()).entries[0].state, "done");
   assert.equal((await f.pass({ preview: false })).coverage.total, 0);
 });
@@ -381,16 +386,16 @@ test("pending archive, active ownership, and unmanaged directories stay untouche
 for (const kind of ["unstaged", "staged", "untracked", "ignored"]) test(`preserves ${kind} content`, async t => {
   const f = await fixture(t); await f.store.enable();
   const filename = kind === "ignored" ? "secret.txt" : kind === "untracked" ? "new.txt" : "tracked.txt";
-  await writeFile(join(f.path, filename), "do not discard\n"); if (kind === "staged") git(f.path, "add", filename);
+  await writeFile(join(f.path, filename), "do not discard\n"); if (kind === "staged") await git(f.path, "add", filename);
   const report = await f.pass({ preview: false }); assert.equal(report.results[0].reason, "worktree-content");
   assert.equal(await readFile(join(f.path, filename), "utf8"), "do not discard\n");
 });
 
 test("assume-unchanged and swapped Git pointers cannot hide work", async t => {
   const f = await fixture(t); await f.store.enable();
-  git(f.path, "update-index", "--assume-unchanged", "tracked.txt"); await writeFile(join(f.path, "tracked.txt"), "hidden user work\n");
+  await git(f.path, "update-index", "--assume-unchanged", "tracked.txt"); await writeFile(join(f.path, "tracked.txt"), "hidden user work\n");
   assert.equal((await f.pass({ preview: false })).results[0].reason, "hidden-index-content");
-  const other = join(f.identity.root, "other"); git(f.primary, "worktree", "add", "--detach", other);
+  const other = join(f.identity.root, "other"); await git(f.primary, "worktree", "add", "--detach", other);
   await rm(join(f.path, ".git"));
   await writeFile(join(f.path, ".git"), await readFile(join(other, ".git")));
   await assert.rejects(captureWorktree(f.identity, f.path), /worktree-backlink/);
@@ -404,7 +409,7 @@ test("concurrent reconciler defers and ref recreation blocks the remaining delet
   let calls = 0;
   const report = await f.pass({ preview: false, verify: async () => ++calls > 2 ? { disposition: "pending", reason: "remote-ref-present" } : f.verify() });
   assert.equal(report.results[0].disposition, "partial"); assert.equal(await exists(f.path), false);
-  assert.notEqual(git(f.primary, "for-each-ref", "refs/heads/feature/example"), "");
+  assert.notEqual(await git(f.primary, "for-each-ref", "refs/heads/feature/example"), "");
 });
 
 test("generated ignored paths require explicit registration policy", async t => {
@@ -440,20 +445,20 @@ test("tracked empty gitmodules is ordinary content while configured modules and 
   assert.equal((await inspectWorktree(f.identity, f.entry, { cwd: f.primary })).clean, true);
   await writeFile(join(f.path, "vendor", ".gitmodules"), "[submodule \"nested\"]\n\tpath = nested\n\turl = https://example.invalid/nested.git\n");
   await assert.rejects(inspectWorktree(f.identity, f.entry, { cwd: f.primary }), /nested-repository/);
-  git(f.path, "checkout", "--", "vendor/.gitmodules");
-  git(f.path, "update-index", "--add", "--cacheinfo", `160000,${f.snapshot.head},vendor/nested`);
+  await git(f.path, "checkout", "--", "vendor/.gitmodules");
+  await git(f.path, "update-index", "--add", "--cacheinfo", `160000,${f.snapshot.head},vendor/nested`);
   await assert.rejects(inspectWorktree(f.identity, f.entry, { cwd: f.primary }), /nested-repository/);
 });
 
 test("locked, current, advanced and branch-rebound checkouts fail closed", async t => {
   const f = await fixture(t);
   await assert.rejects(inspectWorktree(f.identity, f.entry, { cwd: f.path }), /current-worktree/);
-  git(f.primary, "worktree", "lock", f.path);
+  await git(f.primary, "worktree", "lock", f.path);
   await assert.rejects(captureWorktree(f.identity, f.path), /locked/);
-  git(f.primary, "worktree", "unlock", f.path);
-  git(f.path, "checkout", "-b", "feature/rebound");
+  await git(f.primary, "worktree", "unlock", f.path);
+  await git(f.path, "checkout", "-b", "feature/rebound");
   await assert.rejects(inspectWorktree(f.identity, f.entry, { cwd: f.primary }), /identity-changed/);
-  git(f.path, "commit", "--allow-empty", "-m", "new-work");
+  await git(f.path, "commit", "--allow-empty", "-m", "new-work");
   await assert.rejects(inspectWorktree(f.identity, f.entry, { cwd: f.primary }), /identity-changed/);
 });
 
@@ -487,9 +492,9 @@ test("restart completes branch-only cleanup and refuses a reused path", async t 
 
 test("advanced and checked-out refs survive branch cleanup", async t => {
   const f = await fixture(t, true); await removeWorktree(f.identity, f.entry);
-  git(f.primary, "commit", "--allow-empty", "-m", "advanced"); git(f.primary, "branch", "-f", "feature/example", "HEAD");
+  await git(f.primary, "commit", "--allow-empty", "-m", "advanced"); await git(f.primary, "branch", "-f", "feature/example", "HEAD");
   await assert.rejects(removeLocalRef(f.identity, f.entry), /advanced/);
-  git(f.primary, "checkout", "feature/example");
+  await git(f.primary, "checkout", "feature/example");
   await assert.rejects(removeLocalRef(f.identity, f.entry), /checked-out/);
 });
 
@@ -497,7 +502,7 @@ test("disable interrupts between removal and ref deletion without deleting the r
   const f = await fixture(t, true); await f.store.enable();
   const report = await f.pass({ preview: false, remove: async (...args) => { await removeWorktree(...args); await f.store.disable(); } });
   assert.equal(report.results[0].disposition, "partial"); assert.equal(report.results[0].reason, "cleanup-disabled");
-  assert.notEqual(git(f.primary, "for-each-ref", "refs/heads/feature/example"), "");
+  assert.notEqual(await git(f.primary, "for-each-ref", "refs/heads/feature/example"), "");
 });
 
 test("dirty content appearing during revalidation prevents deletion", async t => {
@@ -567,7 +572,7 @@ test("Windows exclusive file handles produce a safe partial result with closed s
     await assertNativeLock();
     assert.equal(await exists(f.path), true);
     assert.equal((await f.store.read()).entries[0].step, "remove-intent");
-    assert.equal(git(f.primary, "rev-parse", "refs/heads/feature/example"), f.entry.head);
+    assert.equal(await git(f.primary, "rev-parse", "refs/heads/feature/example"), f.entry.head);
   } finally {
     if (child) {
       await writeFile(releasePath, "release\n");
@@ -585,4 +590,6 @@ test("Windows exclusive file handles produce a safe partial result with closed s
 test("pass deadline reports incomplete coverage without mutation", async t => {
   const f = await fixture(t); await f.store.enable();
   const report = await f.pass({ deadline: 0, preview: false }); assert.equal(report.error, "pass-deadline"); assert.equal(await exists(f.path), true);
+});
+
 });

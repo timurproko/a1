@@ -125,7 +125,7 @@ describe("complete regression automation", () => {
     expect(invocations.findIndex(invocation => invocation.id === "vitest-package-startup"))
       .toBeLessThan(invocations.findIndex(invocation => invocation.id === "vitest-package-contracts"));
     expect(plan.exactPackagePreparation).toMatchObject({ count: 1, consumers: ["package-startup", "package-contracts"] });
-    expect(invocations.filter(invocation => invocation.id.startsWith("vitest-fast-resource-sensitive-"))
+    expect(invocations.filter(invocation => invocation.evidence?.executionClass === "resource-sensitive")
       .flatMap(invocation => invocation.arguments)).toContain("test/features/prompt-history/store.test.ts");
   });
 
