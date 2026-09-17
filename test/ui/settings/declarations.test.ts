@@ -7,6 +7,7 @@ import {
   assertOwnedUiSettingsMigrations,
   findOwnedUiSettingDeclaration,
   migrationsFrom,
+  resolveOwnedUiSettings,
   type OwnedUiSettingDeclaration,
   type OwnedUiSettingsMigration,
 } from "../../../src/ui/settings/index.js";
@@ -23,6 +24,7 @@ describe("owned UI setting declarations", () => {
 
   it("declares the grouped live viewport appearance, style, and speed controls", () => {
     expect(OWNED_UI_SETTING_DECLARATIONS.map(setting => setting.id)).toEqual([
+      "quitAnimation",
       "scrollbarAppearance",
       "scrollbarStyle",
       "scrollbarSpeed",
@@ -73,10 +75,18 @@ describe("owned UI setting declarations", () => {
     });
   });
 
+  it("declares the leading Generic exit-animation toggle", () => {
+    expect(OWNED_UI_SETTING_DECLARATIONS[0]).toMatchObject({
+      id: "quitAnimation", label: "Exit animation", section: { id: "generic", title: "Generic" },
+      application: "live", defaultValue: true, allowedValues: [true, false],
+    });
+    expect(OWNED_UI_SETTING_DECLARATIONS[0]?.description).toContain("Off returns to the terminal immediately");
+  });
+
   it("declares live quit outro effect and duration controls with prototype defaults", () => {
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "quitEffect")).toMatchObject({
       label: "Effect", section: { id: "quit", title: "Quit" }, application: "live", defaultValue: "fall",
-      allowedValues: ["fall", "dissolve", "starburst", "waves", "off"],
+      allowedValues: ["fall", "dissolve", "starburst", "waves"],
     });
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "quitEffectDurationMs")).toMatchObject({
       label: "Duration", section: { id: "quit", title: "Quit" }, application: "live", defaultValue: 800,
@@ -143,7 +153,7 @@ describe("owned UI settings migrations", () => {
   });
 
   it("migrates the former speed and appearance names", () => {
-    expect(OWNED_UI_SETTINGS_MIGRATIONS).toHaveLength(4);
+    expect(OWNED_UI_SETTINGS_MIGRATIONS).toHaveLength(5);
     expect(OWNED_UI_SETTINGS_MIGRATIONS[0]?.migrate({ scrollbarSpeed: "high", future: true }))
       .toEqual({ scrollbarSpeed: "fast", future: true });
     expect(OWNED_UI_SETTINGS_MIGRATIONS[1]?.migrate({ scrollbarAppearance: "hover", future: true }))
@@ -154,6 +164,22 @@ describe("owned UI settings migrations", () => {
       .toEqual({ future: true });
     expect(OWNED_UI_SETTINGS_MIGRATIONS[3]?.migrate({ scrollbarSpeed: "fast", promptSuggestions: false }))
       .toEqual({ scrollbarSpeed: "fast", promptSuggestions: false });
+  });
+
+  it("moves a disabled quit effect into the exit-animation toggle", () => {
+    expect(OWNED_UI_SETTINGS_MIGRATIONS[4]?.migrate({ quitEffect: "off", quitEffectDurationMs: 500, future: true }))
+      .toEqual({ quitEffectDurationMs: 500, future: true, quitAnimation: false });
+    expect(OWNED_UI_SETTINGS_MIGRATIONS[4]?.migrate({ quitEffect: "waves", quitAnimation: false }))
+      .toEqual({ quitEffect: "waves", quitAnimation: false });
+    expect(OWNED_UI_SETTINGS_MIGRATIONS[4]?.migrate({ future: true }))
+      .toEqual({ future: true });
+    const resolved = resolveOwnedUiSettings({
+      declarations: OWNED_UI_SETTING_DECLARATIONS, migrations: OWNED_UI_SETTINGS_MIGRATIONS,
+      document: { version: 5, values: { quitEffect: "off" } },
+    });
+    expect(resolved).toMatchObject({ version: 6, migrated: true, notices: [] });
+    expect(resolved.settings.find(setting => setting.declaration.id === "quitAnimation")).toMatchObject({ value: false, source: "stored" });
+    expect(resolved.settings.find(setting => setting.declaration.id === "quitEffect")).toMatchObject({ value: "fall", source: "default" });
   });
 
   it("rejects a list with a gap or a wrong end version", () => {

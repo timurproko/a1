@@ -2406,7 +2406,7 @@ describe("OwnedUiSessionShell", () => {
       { role: "assistant", content: [{ type: "text", text: "outro answer" }] },
     ], [], true, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, {
       interactive: true,
-      snapshot: () => ({ effect: "dissolve", durationMs: 300 }),
+      snapshot: () => ({ enabled: true, effect: "dissolve", durationMs: 300 }),
       now: () => clock,
       seed: 7,
       sleep: async ms => {
@@ -2443,8 +2443,8 @@ describe("OwnedUiSessionShell", () => {
   });
 
   it.each([
-    ["an off effect", { interactive: true, snapshot: () => ({ effect: "off" as const, durationMs: 800 }) }],
-    ["a non-interactive terminal", { interactive: false, snapshot: () => ({ effect: "fall" as const, durationMs: 800 }) }],
+    ["a switched-off exit animation", { interactive: true, snapshot: () => ({ enabled: false, effect: "fall" as const, durationMs: 800 }) }],
+    ["a non-interactive terminal", { interactive: false, snapshot: () => ({ enabled: true, effect: "fall" as const, durationMs: 800 }) }],
   ])("skips the quit outro for %s while restoring normally", async (_label, quitOutro) => {
     const { shell, terminal } = await fixture([
       { role: "assistant", content: [{ type: "text", text: "skip answer" }] },
@@ -2457,11 +2457,31 @@ describe("OwnedUiSessionShell", () => {
     expect(terminal.active).toBe(false);
   });
 
+  it("plays the default effect when the exit animation is switched on", async () => {
+    let clock = 0;
+    const { shell, terminal } = await fixture([
+      { role: "assistant", content: [{ type: "text", text: "default answer" }] },
+    ], [], true, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, {
+      interactive: true, snapshot: () => ({ enabled: true, effect: "fall", durationMs: 800 }), now: () => clock, seed: 3,
+      sleep: async ms => { clock += ms; },
+    });
+    const before = terminal.writes.length;
+    await shell.dispose();
+    const writes = terminal.writes.slice(before);
+    const outroStart = writes.findIndex(write => write.startsWith("\x1b[?2026h\x1b[?25l\x1b[2J\x1b[H"));
+    const leave = writes.findIndex(write => write.includes("\x1b[?1049l"));
+    expect(outroStart).toBeGreaterThanOrEqual(0);
+    expect(leave).toBeGreaterThan(outroStart);
+    expect(writes.join("").match(/\x1b\[\?1049l/g)).toHaveLength(1);
+    expect(clock).toBeGreaterThanOrEqual(800);
+    expect(terminal.active).toBe(false);
+  });
+
   it("does not play the quit outro for the pinned regular-mode profile", async () => {
     const { shell, terminal } = await fixture([
       { role: "assistant", content: [{ type: "text", text: "pinned answer" }] },
     ], [], false, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, {
-      interactive: true, snapshot: () => ({ effect: "fall", durationMs: 800 }),
+      interactive: true, snapshot: () => ({ enabled: true, effect: "fall", durationMs: 800 }),
     });
     expect(shell.runtime.mode).toBe("regular");
     const before = terminal.writes.length;
@@ -2474,7 +2494,7 @@ describe("OwnedUiSessionShell", () => {
     const { shell, terminal } = await fixture([
       { role: "assistant", content: [{ type: "text", text: "failing answer" }] },
     ], [], true, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, {
-      interactive: true, snapshot: () => ({ effect: "waves", durationMs: 300 }), now: () => 0, sleep: async () => {},
+      interactive: true, snapshot: () => ({ enabled: true, effect: "waves", durationMs: 300 }), now: () => 0, sleep: async () => {},
     });
     const write = terminal.write.bind(terminal);
     vi.spyOn(terminal, "write").mockImplementation(data => {

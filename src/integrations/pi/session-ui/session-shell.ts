@@ -1499,8 +1499,8 @@ export class OwnedUiSessionShell {
     if (outro === undefined || !outro.interactive || !this.#customViewport || this.#damageTerminal === null) return null;
     if (!this.runtime.active || this.runtime.mode !== "fullscreen") return null;
     try {
-      const { effect, durationMs } = outro.snapshot();
-      if (effect === "off") return null;
+      const { enabled, effect, durationMs } = outro.snapshot();
+      if (!enabled) return null;
       const viewport = this.runtime.viewport();
       return { rows: this.#damageTerminal.presentedRows(), columns: viewport.columns, height: viewport.rows, settings: { effect, durationMs } };
     } catch {
@@ -1960,7 +1960,7 @@ interface QuitOutroCapture {
   readonly rows: readonly string[];
   readonly columns: number;
   readonly height: number;
-  readonly settings: { readonly effect: Exclude<OwnedUiQuitEffect, "off">; readonly durationMs: number };
+  readonly settings: { readonly effect: OwnedUiQuitEffect; readonly durationMs: number };
 }
 
 function isWorkflowRoute(value: string): value is PiWorkflowRoute {
