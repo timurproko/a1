@@ -10,3 +10,16 @@ export function normalizeNpmPackMetadata(parsed) {
   }
   return value;
 }
+
+/**
+ * Parse npm pack's stdout, naming the first non-JSON line when a lifecycle script or build
+ * step wrote a diagnostic where the caller expected machine-readable output only.
+ */
+export function parseNpmPackOutput(stdout) {
+  try { return JSON.parse(stdout); }
+  catch (error) {
+    const lines = String(stdout).split(/\r?\n/u);
+    const offending = lines.find(line => line.trim() && !/^[[{]/u.test(line.trimStart())) ?? String(stdout).slice(0, 200);
+    throw new Error(`npm pack stdout is not JSON (${error.message}); first non-JSON line: ${offending.slice(0, 200)}`);
+  }
+}
