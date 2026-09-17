@@ -131,6 +131,13 @@ export function assertAcceptanceDiff(pull, files, path, repository) {
     && files[0].filename === path && !files[0].previous_filename, "acceptance-diff-scope");
 }
 
+/** GitHub stamps the pull request and its timeline event from different services; a few seconds of skew is the same merge. */
+const MERGE_EVENT_SKEW_MS = 5000;
+const sameMergeTime = (event, merged) => {
+  const a = Date.parse(event ?? ""), b = Date.parse(merged ?? "");
+  return Number.isFinite(a) && Number.isFinite(b) && Math.abs(a - b) <= MERGE_EVENT_SKEW_MS;
+};
+
 /** REST retains auto_merge after automatic integration; missing provenance is not null. */
 export function assertManualAcceptanceMerge(pull, permission, events) {
   const actor = pull.merged_by;
@@ -143,7 +150,7 @@ export function assertManualAcceptanceMerge(pull, permission, events) {
   const merges = events.filter(event => event.event === "merged");
   requireAcceptance(merges.length === 1 && merges[0].actor?.login === actor.login && merges[0].actor?.type === "User"
     && merges[0].performed_via_github_app === null && merges[0].commit_id === pull.merge_commit_sha
-    && merges[0].created_at === pull.merged_at, "acceptance-merge-provenance");
+    && sameMergeTime(merges[0].created_at, pull.merged_at), "acceptance-merge-provenance");
 }
 
 function legacyReceiptIdentity(receipt) {

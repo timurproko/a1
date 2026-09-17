@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { resolve } from "node:path";
-import { captureWorktree } from "./local-cleanup-git.mjs";
+import { captureWorktree, exists } from "./local-cleanup-git.mjs";
 import { fail, registerEntry, transitionEntry } from "./local-cleanup-state.mjs";
 import { reconcileLocalCleanup } from "./local-cleanup-reconcile.mjs";
 
@@ -8,8 +8,7 @@ export const COMPLETION_DISPOSABLE_PATHS = Object.freeze([
   "node_modules",
   "dist",
   ".builds",
-  ".artifacts/openspec-archive",
-  ".artifacts/validation",
+  ".artifacts",
   "native/process-guardian/target",
   "native/terminal-host/target",
 ]);
@@ -30,14 +29,18 @@ export async function completeLocalCleanup({ identity, store, reader, path, chan
       if (!sameCandidate(existing, request)) fail("completion-registration-conflict");
       if (existing.state === "owned") fail("owned-worktree");
       if (existing.state === "released") {
-        const snapshot = await captureWorktree(identity, absolute);
-        if (!sameIdentity(existing, snapshot)) fail("worktree-identity-changed");
+        // Protocol: a hand-deleted directory has no identity to recapture; the journaled head still binds the ref step.
+        if (await exists(absolute)) {
+          const snapshot = await captureWorktree(identity, absolute);
+          if (!sameIdentity(existing, snapshot)) fail("worktree-identity-changed");
+        }
         existing.disposable = [...new Set([...existing.disposable, ...COMPLETION_DISPOSABLE_PATHS])];
         await save(state);
       }
       selected = existing;
       return;
     }
+    if (!await exists(absolute)) fail("worktree-absent-unregistered");
     const snapshot = await captureWorktree(identity, absolute);
     const token = randomBytes(32).toString("hex");
     selected = registerEntry(state, { ...snapshot, ...request, disposable: [...COMPLETION_DISPOSABLE_PATHS] }, token);

@@ -25,7 +25,7 @@ async function fixture(t, branch = false, registered = true) {
   await writeFile(join(primary, "tracked.txt"), "base\n");
   await mkdir(join(primary, "vendor")); await writeFile(join(primary, "vendor", ".gitmodules"), "");
   await mkdir(join(primary, "node_modules-cache")); await writeFile(join(primary, "node_modules-cache", "tracked.txt"), "ordinary content\n");
-  await writeFile(join(primary, ".gitignore"), "node_modules/\nsecret.txt\n.artifacts/openspec-archive/\n.artifacts/validation/\n.artifacts/validation-user/\n.artifacts/other/\n.builds/\ndist/\n/native/process-guardian/target/\n/native/terminal-host/target/\n/target/\n/native/other/target/\n/native/process-guardian/target-user/\n");
+  await writeFile(join(primary, ".gitignore"), "node_modules/\nsecret.txt\n/.artifacts/\n/.artifacts-user/\n/artifacts/\n.builds/\ndist/\n/native/process-guardian/target/\n/native/terminal-host/target/\n/target/\n/native/other/target/\n/native/process-guardian/target-user/\n");
   await git(primary, "add", "."); await git(primary, "commit", "-m", "fixture"); await git(primary, "remote", "add", "origin", "https://github.com/owner/repo.git");
   const path = join(primary, ".worktrees", "example");
   await git(primary, "worktree", "add", ...(branch ? ["-b", "feature/example"] : ["--detach"]), path);
@@ -92,9 +92,9 @@ test("CLI registration, ownership, recovery, preview and enable controls use the
     cwd: f.primary, env: { ...process.env, LOCAL_CLEANUP_OWNER_TOKEN: owner, GH_TOKEN: "fixture-unused-token" }, encoding: "utf8",
   });
   const help = invoke("--help"); assert.match(help, /complete/); assert.match(help, /discard/); assert.match(help, /confirm-closed-unmerged/);
-  assert.match(help, /\.artifacts\/openspec-archive/);
-  assert.match(help, /\.artifacts\/validation/); assert.match(help, /native\/process-guardian\/target/);
-  assert.match(help, /native\/terminal-host\/target/); assert.equal(COMPLETION_DISPOSABLE_PATHS.includes(".artifacts"), false);
+  assert.match(help, /\.artifacts,/); assert.match(help, /native\/process-guardian\/target/);
+  assert.match(help, /native\/terminal-host\/target/); assert.equal(COMPLETION_DISPOSABLE_PATHS.includes(".artifacts"), true);
+  assert.equal(COMPLETION_DISPOSABLE_PATHS.includes(".artifacts/validation"), false);
   assert.equal(COMPLETION_DISPOSABLE_PATHS.includes("target"), false); assert.equal(COMPLETION_DISPOSABLE_PATHS.includes("native\/*\/target"), false);
   const other = join(f.identity.root, "registered"); await git(f.primary, "worktree", "add", "--detach", other);
   let record = JSON.parse(invoke("register", "--path", other, "--change", "example", "--source-pr", "20", "--candidate-pr", "20", "--role", "implementation", "--disposable", "node_modules"));
@@ -130,6 +130,8 @@ test("complete registers one exact candidate, applies central disposables, and i
   await mkdir(join(f.path, ".artifacts", "validation"), { recursive: true });
   await writeFile(join(f.path, ".artifacts", "validation", "impact.json"), "{\"selection\":true}");
   await writeFile(join(f.path, ".artifacts", "validation", "code-documentation.json"), "{\"passed\":true}");
+  await mkdir(join(f.path, ".artifacts", "final-package")); await writeFile(join(f.path, ".artifacts", "final-package", "pack.json"), "{}");
+  await writeFile(join(f.path, ".artifacts", "run-35072062726-core.log"), "agent log");
   const options = { identity: f.identity, store: f.store, reader: {}, path: f.path, change: "example", sourcePr: 20,
     cwd: f.primary, reconcileOptions: { verify: f.verify, git: f.boundedGit } };
   const report = await completeLocalCleanup(options);
@@ -184,9 +186,9 @@ test("complete blocks arbitrary, sibling, and near-match native target roots", a
   }
 });
 
-test("complete blocks sibling and near-match validation artifact roots", async t => {
-  for (const root of [".artifacts/other", ".artifacts/validation-user"]) {
-    const f = await fixture(t, false, false), directory = join(f.path, ...root.split("/"));
+test("complete blocks near-match artifact roots and boundary crossings inside the artifact root", async t => {
+  for (const root of [".artifacts-user", "artifacts"]) {
+    const f = await fixture(t, false, false), directory = join(f.path, root);
     await mkdir(directory, { recursive: true }); await writeFile(join(directory, "report.json"), "preserve");
     const blocked = await completeLocalCleanup({ identity: f.identity, store: f.store, reader: {}, path: f.path,
       change: "example", sourcePr: 20, cwd: f.primary, reconcileOptions: { verify: f.verify, git: f.boundedGit } });
@@ -194,6 +196,69 @@ test("complete blocks sibling and near-match validation artifact roots", async t
     assert.ok(blocked.results[0].paths.some(path => path === root || path.startsWith(`${root}/`)), JSON.stringify(blocked));
     assert.equal(await readFile(join(directory, "report.json"), "utf8"), "preserve");
   }
+  const f = await fixture(t, false, false);
+  await mkdir(join(f.path, ".artifacts")); await writeFile(join(f.path, ".artifacts", "run.log"), "keep");
+  await symlink(f.primary, join(f.path, ".artifacts", "escape"), process.platform === "win32" ? "junction" : "dir");
+  const linked = await completeLocalCleanup({ identity: f.identity, store: f.store, reader: {}, path: f.path,
+    change: "example", sourcePr: 20, cwd: f.primary, reconcileOptions: { verify: f.verify, git: f.boundedGit } });
+  assert.equal(linked.results[0].reason, "content-link", JSON.stringify(linked));
+  assert.equal(await readFile(join(f.path, ".artifacts", "run.log"), "utf8"), "keep");
+});
+
+test("legacy artifact subroot registrations are widened to the artifact root", async t => {
+  const f = await fixture(t, false, false);
+  await f.store.locked(async (state, save) => {
+    const entry = registerEntry(state, { ...f.snapshot, change: "example", sourcePr: 20, candidatePr: 20, role: "implementation",
+      disposable: [".artifacts/validation"] }, owner);
+    transitionEntry(entry, "release", owner, entry.generation); await save(state);
+  });
+  await mkdir(join(f.path, ".artifacts", "validation"), { recursive: true }); await writeFile(join(f.path, ".artifacts", "validation", "impact.json"), "{}");
+  await writeFile(join(f.path, ".artifacts", "stray.log"), "agent log");
+  const report = await completeLocalCleanup({ identity: f.identity, store: f.store, reader: {}, path: f.path,
+    change: "example", sourcePr: 20, cwd: f.primary, reconcileOptions: { verify: f.verify, git: f.boundedGit } });
+  assert.equal(report.results[0].disposition, "removed", JSON.stringify(report));
+  const entry = (await f.store.read()).entries[0];
+  assert.ok(entry.disposable.includes(".artifacts")); assert.ok(entry.disposable.includes(".artifacts/validation"));
+});
+
+test("a released worktree deleted by hand completes through its journal", async t => {
+  for (const pruned of [false, true]) {
+    const f = await fixture(t, true); await f.store.enable();
+    await rm(f.path, { recursive: true, force: true });
+    if (pruned) await git(f.primary, "worktree", "prune");
+    else assert.match(await git(f.primary, "worktree", "list", "--porcelain"), /prunable/);
+    const preview = await f.pass(); assert.equal(preview.results[0].disposition, "eligible", JSON.stringify(preview));
+    assert.equal((await f.store.read()).entries[0].step, "none");
+    const report = await f.pass({ preview: false });
+    assert.equal(report.results[0].disposition, "removed", JSON.stringify(report));
+    assert.deepEqual(report.results[0].steps, ["worktree-already-absent", "local-ref-removed"]);
+    assert.doesNotMatch(await git(f.primary, "worktree", "list", "--porcelain"), /prunable/);
+    assert.equal(await git(f.primary, "for-each-ref", "refs/heads/feature/example"), "");
+    const entry = (await f.store.read()).entries[0]; assert.equal(entry.state, "done"); assert.equal(entry.step, "complete");
+    assert.equal((await f.pass()).results[0].disposition, "already-absent");
+  }
+});
+
+test("complete finishes a hand-deleted registration and refuses an unregistered absent path", async t => {
+  const f = await fixture(t, true, false);
+  const options = { identity: f.identity, store: f.store, reader: {}, path: f.path, change: "example", sourcePr: 20,
+    cwd: f.primary, reconcileOptions: { verify: f.verify, git: f.boundedGit } };
+  await f.store.locked(async (state, save) => {
+    const entry = registerEntry(state, { ...f.snapshot, change: "example", sourcePr: 20, candidatePr: 20, role: "implementation", disposable: [] }, owner);
+    transitionEntry(entry, "release", owner, entry.generation); await save(state);
+  });
+  await rm(f.path, { recursive: true, force: true });
+  const report = await completeLocalCleanup(options);
+  assert.equal(report.results[0].disposition, "removed", JSON.stringify(report));
+  assert.deepEqual(report.results[0].steps, ["worktree-already-absent", "local-ref-removed"]);
+  const g = await fixture(t, true); await g.store.enable();
+  await rm(g.path, { recursive: true, force: true }); await git(g.primary, "worktree", "add", "-f", "--detach", g.path);
+  const reused = await g.pass({ preview: false });
+  assert.equal(reused.results[0].disposition, "blocked"); assert.equal(reused.results[0].reason, "worktree-identity-changed");
+  assert.equal(await readFile(join(g.path, "tracked.txt"), "utf8"), "base\n");
+  const missing = join(f.identity.root, "never-registered");
+  await assert.rejects(completeLocalCleanup({ ...options, path: missing, change: "other", sourcePr: 21 }), /worktree-absent-unregistered/);
+  assert.equal((await f.store.read()).entries.some(entry => entry.path.endsWith("never-registered")), false);
 });
 
 test("expected-SHA remote deletion uses a lease and verifies absence", async () => {
