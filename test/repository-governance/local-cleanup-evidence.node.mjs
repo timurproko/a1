@@ -193,3 +193,14 @@ test("accepted heads are the merged head or a GitHub-known ancestor; unknown com
   const exhausted = { ...missing, async ancestor() { throw Object.assign(Error("remote-budget"), { cleanupCode: "remote-budget" }); } };
   await assert.rejects(acceptedHead(exhausted, unknown, f.head), /remote-budget/);
 });
+
+test("SHA-addressed blobs, trees, commits, and comparisons are fetched once per reader while PR and ref state is refetched", async () => {
+  const f = fixture();
+  await verifyCleanupEvidence(f.reader, f.entry); const first = f.calls.length;
+  await verifyCleanupEvidence(f.reader, f.entry); const second = f.calls.slice(first);
+  const immutable = url => /\/git\/(?:blobs|trees|commits)\/[a-f0-9]{40}|\/compare\//.test(url);
+  assert.ok(f.calls.slice(0, first).some(call => immutable(call.url)), "the first verification fetched content by SHA");
+  assert.equal(second.filter(call => immutable(call.url)).length, 0, "the second verification reused every SHA-addressed object");
+  assert.ok(second.some(call => call.url.includes("/pulls/20")), "pull-request state was refetched");
+  assert.ok(second.some(call => call.url.includes("/git/ref/heads/")), "ref state was refetched");
+});

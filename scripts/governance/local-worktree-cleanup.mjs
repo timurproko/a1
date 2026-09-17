@@ -36,7 +36,7 @@ export function sweepLines(report) {
   const lines = [];
   if (report.error) lines.push(`sweep ${report.error === "mutation-busy" ? "deferred: another cleanup holds the mutation lock" : `failed: ${report.error}`}`);
   for (const row of report.results ?? []) {
-    if (row.disposition === "unmanaged") continue;
+    if (row.disposition === "unmanaged" || row.disposition === "already-absent" && row.reason === "verified-completed-journal") continue;
     const label = row.sourcePr ? `#${row.sourcePr}` : "candidate", name = row.path?.split("/").pop() ?? row.path;
     lines.push(`${label} ${name}: ${row.disposition}${row.reason ? ` (${row.reason})` : ""}${row.steps?.length ? ` [${row.steps.join(", ")}]` : ""}`);
   }

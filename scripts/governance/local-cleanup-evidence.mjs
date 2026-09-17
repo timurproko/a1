@@ -5,13 +5,29 @@ import { acceptanceBranch, archivedAcceptanceMatches, receiptIdentityMatches } f
 import { parseImplementation, SHA } from "./openspec-archive-policy.mjs";
 import { digest, fail } from "./local-cleanup-state.mjs";
 
+const IMMUTABLE_CACHE_ENTRIES = 1000, IMMUTABLE_CACHE_BYTES = 64 * 1024 * 1024;
+/** Content-addressed objects cannot change under a SHA, so one pass may reuse them across its revalidations. */
+const immutablePath = path => /^\/repos\/[^/]+\/[^/]+\/(?:git\/(?:blobs|trees|commits)\/[a-f0-9]{40}(?:\?[A-Za-z0-9=&_-]*)?|compare\/[a-f0-9]{40}\.\.\.[a-f0-9]{40})$/.test(path);
+
 /** Remote reads only; shared archive policy retains acceptance and legacy-link authority. */
 export function cleanupReader({ repository, token, deadline, now = Date.now, fetchImpl = fetch, budget = { remaining: 500 }, onBackoff = () => {} }) {
   const prefix = `/repos/${repository}`;
   let blockedUntil = 0;
+  const cache = new Map(); let cachedBytes = 0;
   const reader = archiveReaderFromGet(repository, async path => {
     if (now() < blockedUntil) fail("remote-backoff");
     if (!path.startsWith(`${prefix}/`) || /[\r\n]/.test(path)) fail("remote-scope");
+    // Performance: pull-request, ref, run, and timeline state is always refetched; only SHA-addressed content is memoized.
+    const cacheable = immutablePath(path);
+    if (cacheable && cache.has(path)) return cache.get(path);
+    const value = await fetchOnce(path);
+    if (cacheable) {
+      const bytes = JSON.stringify(value).length;
+      if (cache.size < IMMUTABLE_CACHE_ENTRIES && cachedBytes + bytes <= IMMUTABLE_CACHE_BYTES) { cache.set(path, value); cachedBytes += bytes; }
+    }
+    return value;
+  });
+  async function fetchOnce(path) {
     if (--budget.remaining < 0 || now() >= deadline) fail("remote-budget");
     let response;
     try {
@@ -42,7 +58,7 @@ export function cleanupReader({ repository, token, deadline, now = Date.now, fet
     } catch (error) { if (error.cleanupCode) throw error; fail("remote-response-unavailable"); }
     finally { stream.releaseLock(); }
     try { return JSON.parse(Buffer.concat(chunks).toString("utf8")); } catch { fail("remote-response-json"); }
-  });
+  }
   return reader;
 }
 function merged(pull, repository) {
