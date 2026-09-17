@@ -259,6 +259,8 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   readonly #workflowStatusAnchors = new Map<string, number>();
   readonly #workflowStatusMessages = new Map<string, string>();
   #lastWorkflowStatusId: string | undefined;
+  // Invariant: the notice is dock chrome, never transcript content; the custom viewport alone uses it.
+  #dockNotice: string | undefined;
   #inputSurface: PiShellComponentPort;
   #inputSurfaceCoordination: PiTuiInputSurfaceKind = "editor";
   readonly #dockInputReuseEnabled: boolean;
@@ -630,6 +632,8 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   }
 
   #mountTranscript(block: OwnedUiSessionViewModel["transcript"][number]): PiShellTranscriptComponentPort {
+    // Invariant: new content dismisses the notice; a revision of a mounted block keeps it.
+    this.#dismissDockNotice();
     const created = createPiShellTranscriptComponent(
       block, this.#cwd, this.#extensionRenderers, this.#submittedPromptComposer,
       this.#outputPad, !this.#thinkingVisible, this.#mermaidRenderingMode,
@@ -832,7 +836,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   } {
     const queued = this.#customViewport ? [] : this.#renderQueued(width);
     const statusRows = this.#customViewport ? this.#status.renderDock(width) : this.#renderStatus(width);
-    const transientRows = [...queued, ...statusRows];
+    const transientRows = [...queued, ...statusRows, ...this.#renderDockNotice(width)];
     const aboveWidgets = this.#renderWidgets("aboveEditor", width);
     const input = this.#inputSurface.render(width);
     // Invariant: pointer rows describe the body, not the autocomplete block now preceding it.
@@ -845,6 +849,17 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       editorOffset: transientRows.length + aboveWidgets.length + (body?.rowOffset ?? 0),
       inputRows: body?.rowCount ?? input.length,
     };
+  }
+
+  #renderDockNotice(width: number): readonly string[] {
+    if (this.#dockNotice === undefined) return [];
+    return ["", ...renderPiShellStatusText(this.#dockNotice, width, this.#outputPad)];
+  }
+
+  #dismissDockNotice(): void {
+    if (this.#dockNotice === undefined) return;
+    this.#dockNotice = undefined;
+    this.#invalidateChrome();
   }
 
   #renderQueued(width: number): readonly string[] {
@@ -1043,6 +1058,14 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   }
 
   appendWorkflowStatus(message: string): void {
+    // Rationale: bare A1 acknowledges commands in one dock notice above the editor, where the
+    // reader's eye already is, instead of a transcript row that opens an empty session at the
+    // top-left or sinks into a long feed. The pinned route keeps Pi's chat placement.
+    if (this.#customViewport) {
+      this.#dockNotice = message;
+      this.#invalidateChrome();
+      return;
+    }
     const previousId = this.#lastWorkflowStatusId;
     if (previousId !== undefined
       && this.#transcriptOrder.at(-1) === previousId
@@ -1184,6 +1207,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   }
 
   resetWorkflowPresentation(): void {
+    this.#dockNotice = undefined;
     for (const id of this.#workflowStatusAnchors.keys()) {
       this.#transcript.get(id)?.dispose?.();
       this.#transcript.delete(id);
@@ -1373,6 +1397,8 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   }
 
   #appendAnchoredWorkflowComponent(render: (width: number) => readonly string[], dispose?: () => void): string {
+    // Invariant: transcript-bound workflow output supersedes a pending acknowledgement.
+    this.#dismissDockNotice();
     this.#workflowTranscriptSequence += 1;
     const id = `workflow-status-${this.#workflowTranscriptSequence}`;
     const component: PiShellTranscriptComponentPort = {
