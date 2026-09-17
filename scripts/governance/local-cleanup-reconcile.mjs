@@ -58,10 +58,12 @@ export async function reconcileLocalCleanup({ identity, store, reader, preview =
         if (entry.state === "owned") { row.reason = "owned-worktree"; continue; }
         let evidence = await verify(reader, entry); Object.assign(row, evidence);
         if (evidence.disposition !== "eligible") continue;
-        if (entry.step === "none") {
+        // Protocol: a released path deleted by hand is judged by its journal, not by a directory that no longer exists.
+        const absentBeforeRemoval = entry.step === "none" && !await exists(entry.path);
+        if (entry.step === "none" && !absentBeforeRemoval) {
           const content = await inspect(identity, entry, { git, cwd, deadline, now });
           if (!content.clean) { Object.assign(row, content, { disposition: "blocked" }); continue; }
-        } else if (entry.step === "remove-intent") {
+        } else if (entry.step === "remove-intent" || absentBeforeRemoval) {
           const residue = await inspectResidue(identity, entry, { git, cwd, deadline, now, inspect });
           if (!residue.clean) { Object.assign(row, residue, { disposition: "partial" }); continue; }
         } else await absent(identity, entry, git);
@@ -70,6 +72,12 @@ export async function reconcileLocalCleanup({ identity, store, reader, preview =
         // Provenance: bind freshly fetched integration objects without moving primary HEAD.
         await git(identity.primary, ["fetch", "--no-tags", "origin", "refs/heads/develop:refs/remotes/origin/develop"]);
         for (const commit of [evidence.sourceMerge, evidence.archiveMerge]) await git(identity.primary, ["merge-base", "--is-ancestor", commit, "refs/remotes/origin/develop"]);
+        if (absentBeforeRemoval) {
+          evidence = await verify(reader, entry);
+          if (evidence.disposition !== "eligible") { Object.assign(row, evidence); continue; }
+          if (JSON.stringify(await discoverRepository(identity.primary, git)) !== JSON.stringify(identity)) fail("repository-changed");
+          await enabled(); entry.state = "deleting"; entry.step = "remove-intent"; await save(state);
+        }
         if (entry.step === "none") {
           evidence = await verify(reader, entry);
           if (evidence.disposition !== "eligible") { Object.assign(row, evidence); continue; }

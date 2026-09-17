@@ -60,9 +60,11 @@ describe("repository-owned atomic delivery guidance", () => {
 
   it("documents the exact generated-artifact cleanup boundary", async () => {
     const cleanup = await readFile("docs/local-worktree-cleanup.md", "utf8");
-    expect(cleanup).toContain("`.artifacts/validation`");
-    expect(cleanup).toContain("`.artifacts`, sibling directories");
-    expect(cleanup).toContain("`.artifacts/validation-user`");
+    expect(cleanup).toContain("`.artifacts`, `native/process-guardian/target`");
+    expect(cleanup).toContain("widened to the root on the next `complete`");
+    expect(cleanup).toContain("near matches such as `.artifacts-user` or `artifacts`");
+    expect(cleanup).toContain("worktree-absent-unregistered");
+    expect(cleanup).toContain("within five seconds of the pull request's `merged_at`");
     expect(cleanup).toContain("`native/process-guardian/target`");
     expect(cleanup).toContain("`native/terminal-host/target`");
     expect(cleanup).toContain("arbitrary `target` directories");
