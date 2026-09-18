@@ -84,7 +84,7 @@ jobs:
           git config user.name 'openspec-ci[bot]'
           git config user.email '329165293+openspec-ci[bot]@users.noreply.github.com'
           git checkout -B "$BRANCH"
-          git add -A -- . ':!.artifacts'
+          git add -A
           git commit -m "chore(pi): propose the upgrade to Pi $VERSION" -m "Proposed by the nightly upstream sync; review items are listed in the pull request."
           git push --force-with-lease origin "$BRANCH"
 
