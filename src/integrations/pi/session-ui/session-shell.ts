@@ -1,5 +1,5 @@
 import { ResponseCopyCoordinator } from "./response-copy-coordinator.js";
-import { createResponseCopyExecutor, hasAsyncClipboardOutput, responseCopyDestination } from "./response-copy-transport.js";
+import { createResponseCopyExecutor, hasAsyncClipboardOutput, responseCopyDestination, type OwnedResponseCopyExecutor } from "./response-copy-transport.js";
 import { MAX_COPY_CONTROL_BYTES } from "./response-copy-protocol.js";
 import { PromptHistoryController } from "./prompt-history-controller.js";
 import type { PromptHistoryKind } from "../../../contracts/owned-ui/prompt-history.js";
@@ -161,6 +161,8 @@ export class OwnedUiSessionShell {
   #pointerReporting = false;
   readonly #customViewport: boolean;
   readonly #responseCopy: ResponseCopyCoordinator | null;
+  // Rationale: only an executor this shell created owns a spare copy helper worth warming and disposing.
+  #copyExecutor: OwnedResponseCopyExecutor | undefined;
   readonly #unbindClipboardWriter: () => void;
   readonly #damageTerminal: DamageAwareTerminalAdapter | null;
   readonly #quitOutro: OwnedUiShellPresentationOptions["quitOutro"];
@@ -186,7 +188,7 @@ export class OwnedUiSessionShell {
   constructor(options: OwnedUiSessionShellOptions) {
     const { backend, cwd, routeHost, sessionLayout } = options.engine;
     const { terminal, startup, viewportSettings, quitOutro, reload: reloadPresentation, stream: streamPresentationOptions, input: inputPresentation } = options.presentation ?? {};
-    const { clipboard, responseCopy, paste: pasteDiagnostics } = options.diagnostics ?? {};
+    const { clipboard, responseCopy, paste: pasteDiagnostics, pastePreparation } = options.diagnostics ?? {};
     const promptHistory = options.history;
     this.backend = backend;
     this.#sessionGeneration = this.backend.sessionGeneration;
@@ -205,7 +207,7 @@ export class OwnedUiSessionShell {
     let promptSuggestionController: ContextualPromptSuggestionController | null = null;
     const terminalCopy = terminal !== undefined || hasAsyncClipboardOutput();
     this.#responseCopy = this.#customViewport ? new ResponseCopyCoordinator({
-      execute: responseCopy?.execute ?? createResponseCopyExecutor({
+      execute: responseCopy?.execute ?? (this.#copyExecutor = createResponseCopyExecutor({
         ...(terminal === undefined && clipboard === undefined ? {} : { destination: "terminal" }),
         ...(clipboard?.writeText === undefined ? {} : { writeText: (text, signal) => clipboard!.writeText!(text, signal) }),
         ...(terminalCopy ? { terminal: { submit: async (control, signal) => {
@@ -216,7 +218,7 @@ export class OwnedUiSessionShell {
           }
           runtime.writeControl(control);
         } } } : {}),
-      }),
+      })),
       ...(responseCopy?.onEvent === undefined ? {} : { onEvent: responseCopy.onEvent }),
       onFailure: result => {
         if (this.#disposed || !runtime?.active) return;
@@ -300,6 +302,7 @@ export class OwnedUiSessionShell {
         return { kind: "native", before };
       },
       ...(pasteDiagnostics === undefined ? {} : { pasteDiagnostics: pasteDiagnostics }),
+      ...(pastePreparation === undefined ? {} : { pastePreparation }),
     }, {
       ...startup,
       resources: startup?.resources ?? shellResourceEntries(this.backend),
@@ -624,6 +627,12 @@ export class OwnedUiSessionShell {
     if (this.#customViewport) this.#setPointerReporting(true);
     void this.backend.bindExtensionUi(this.#extensionBridge.context, () => { void this.shutdown(); });
     this.#syncView();
+    // Performance: the spare clipboard helpers fork after the first frame is out, so startup never waits on them.
+    setImmediate(() => {
+      if (this.#disposed || !this.#customViewport) return;
+      this.root.warmPastePreparation();
+      this.#copyExecutor?.warm();
+    });
   }
 
   onView(listener: (view: OwnedUiSessionViewModel) => void): () => void {
@@ -1450,6 +1459,7 @@ export class OwnedUiSessionShell {
     // Invariant: the outro frame is what the terminal shows now, before any cleanup writes.
     const outroFrame = this.#captureQuitOutroFrame();
     this.#responseCopy?.dispose();
+    this.#copyExecutor?.dispose();
     this.#cancelWaitingImages();
     const failures: unknown[] = [];
     const attempt = (action: () => void) => { try { action(); } catch (error) { failures.push(error); } };

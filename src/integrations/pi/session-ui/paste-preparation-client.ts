@@ -1,6 +1,7 @@
 import { ImageAttachmentError } from "../../../contracts/owned-ui/index.js";
 import type { PiShellClipboardContent } from "../components/index.js";
-import { startPasteExecutor, type PasteExecutorJob } from "./paste-executor.js";
+import { createPasteHelperPool, startPasteExecutor, type PasteExecutorJob } from "./paste-executor.js";
+import type { HelperPool } from "./helper-pool.js";
 import { PASTE_READ_MS, PASTE_REQUESTS, PASTE_STOP_MS, PASTE_TOTAL_MS, type PasteEvent, type PasteSource, type PreparedPaste } from "./paste-protocol.js";
 
 export interface PreparedPasteJob<T> {
@@ -10,13 +11,39 @@ export interface PreparedPasteJob<T> {
   isCurrent(): boolean;
 }
 interface ActivePaste { readonly controller: AbortController; readonly stopped: Promise<void> }
+/** Starts one isolated preparation; the production starter forks the paste helper, tests may prepare in process. */
+export type PasteExecutorStarter = typeof startPasteExecutor;
+export interface PastePreparationClientOptions {
+  readonly onEvent?: (event: PasteEvent) => void;
+  /** Test seam: replaces the forked helper entirely; no spare is kept when it is set. */
+  readonly execute?: PasteExecutorStarter;
+  /** Package/fault-test seam for the forked helper's entry. */
+  readonly helper?: URL;
+  /** Idle bound for the spare helper; production keeps the default. */
+  readonly spareIdleMs?: number;
+}
 
 /** Keeps eight distinct paste transactions alive through insertion; canceled executors retain capacity until fenced. */
 export class PastePreparationClient {
   readonly #active = new Set<ActivePaste>();
+  readonly #onEvent: ((event: PasteEvent) => void) | undefined;
+  readonly #execute: PasteExecutorStarter;
+  readonly #helper: URL | undefined;
+  readonly #pool: HelperPool | undefined;
   #sequence = 0;
   #disposed = false;
-  constructor(private readonly onEvent?: (event: PasteEvent) => void) {}
+  constructor(options: PastePreparationClientOptions = {}) {
+    this.#onEvent = options.onEvent;
+    this.#execute = options.execute ?? startPasteExecutor;
+    this.#helper = options.helper;
+    this.#pool = options.execute === undefined ? createPasteHelperPool(options.helper, options.spareIdleMs) : undefined;
+  }
+
+  /** Forks the spare helper now so the first paste takes a live child; later pastes rewarm it themselves. */
+  warm(): void { this.#pool?.warm(); }
+
+  /** Whether a spare helper is held; diagnostics and tests only. */
+  get warmed(): boolean { return this.#pool?.warmed ?? false; }
 
   start<T>(source: PasteSource, adopt: (value: PreparedPaste, signal: AbortSignal) => Promise<T> | T, onImage: () => void, onText: () => void = () => {}): PreparedPasteJob<T> {
     const controller = new AbortController();
@@ -29,7 +56,7 @@ export class PastePreparationClient {
     const result = new Promise<T>((ok, fail) => { resolve = ok; reject = fail; });
     const emit = (phase: PasteEvent["phase"], bytes?: number, outcome?: PasteEvent["outcome"]) => {
       const atMs = performance.now();
-      try { this.onEvent?.({ request: id, phase, atMs, elapsedMs: atMs - admitted, pending: this.#active.size, transport: source.kind === "text" ? "terminal" : source.kind,
+      try { this.#onEvent?.({ request: id, phase, atMs, elapsedMs: atMs - admitted, pending: this.#active.size, transport: source.kind === "text" ? "terminal" : source.kind,
         ...(bytes === undefined ? {} : { bytes }), ...(outcome === undefined ? {} : { outcome }) }); } catch { /* Invariant: observations never affect input. */ }
     };
     const total = setTimeout(() => controller.abort(new ImageAttachmentError("paste-timeout")), PASTE_TOTAL_MS);
@@ -83,7 +110,7 @@ export class PastePreparationClient {
             if (read === null) { emit("inserting"); resolve(await adopt(null, controller.signal)); await committed; return; }
             content = read;
           }
-          executor = startPasteExecutor(content, controller.signal, (phase, bytes) => {
+          executor = this.#execute(content, controller.signal, (phase, bytes) => {
             // Protocol: helper exit precedes adoption; only the request's finally block reports complete cleanup.
             if (phase === "cleanup") return;
             if (phase === "acquired-text" || phase === "acquired-image") clearRead();
@@ -91,7 +118,7 @@ export class PastePreparationClient {
             if (phase === "acquired-image") onImage();
             if (phase === "acquired-text") onText();
             emit(phase, bytes);
-          });
+          }, this.#helper, this.#pool);
           const value = await executor.result;
           if (controller.signal.aborted) return;
           emit("inserting");
@@ -120,6 +147,7 @@ export class PastePreparationClient {
 
   async dispose(): Promise<void> {
     this.#disposed = true; this.reset();
+    this.#pool?.dispose();
     let timer: ReturnType<typeof setTimeout> | undefined;
     await Promise.race([Promise.all([...this.#active].map(active => active.stopped)),
       new Promise<void>(resolve => { timer = setTimeout(resolve, PASTE_STOP_MS); timer.unref(); })]);

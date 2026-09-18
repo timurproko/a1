@@ -10,7 +10,7 @@ import { ImagePreparationClient, type ImagePasteJob } from "./image-preparation-
 import type { PreparedImage } from "./image-preparation.js";
 import { preparePasteText, type PreparedPasteText } from "./paste-text-preparation.js";
 import { pathChipTag } from "./path-chip-presentation.js";
-import { PastePreparationClient, type PreparedPasteJob } from "./paste-preparation-client.js";
+import { PastePreparationClient, type PastePreparationClientOptions, type PreparedPasteJob } from "./paste-preparation-client.js";
 import type { PasteEvent, PasteSource, PreparedPaste } from "./paste-protocol.js";
 
 export interface PromptImageAttachment {
@@ -63,9 +63,14 @@ export class PromptChipStore {
   readonly #provisionalOwners = new Map<string, Set<symbol>>();
   readonly #ownedChipTags = new Map<symbol, Set<string>>();
 
-  constructor(options: { readonly isolated?: boolean; readonly onEvent?: (event: PasteEvent) => void } = {}) {
-    this.#isolated = options.isolated ? new PastePreparationClient(options.onEvent) : undefined;
+  constructor(options: { readonly isolated?: boolean; readonly onEvent?: (event: PasteEvent) => void; readonly preparation?: Omit<PastePreparationClientOptions, "onEvent"> } = {}) {
+    this.#isolated = options.isolated
+      ? new PastePreparationClient({ ...options.preparation, ...(options.onEvent === undefined ? {} : { onEvent: options.onEvent }) })
+      : undefined;
   }
+
+  /** Forks the spare paste helper so the session's first paste does not pay for helper startup. */
+  warm(): void { this.#isolated?.warm(); }
 
   beginPaste(
     currentText: string,
