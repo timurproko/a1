@@ -6,33 +6,33 @@
   "manualAcceptanceStatus": "blocked-pending-independent-parity",
   "evidenceClassification": "regression-only-not-parity",
   "invalidation": {
-    "reason": "User-controlled smoke testing contradicted the synthetic parity claim: vanilla startup composition and command discovery were absent, ordinary prompt submission produced no visible turn, and most pinned workflows were not implemented. The fixtures were regenerated for Pi 0.84.2 but remain AddOne-authored regression evidence only.",
+    "reason": "User-controlled smoke testing contradicted the synthetic parity claim: vanilla startup composition and command discovery were absent, ordinary prompt submission produced no visible turn, and most pinned workflows were not implemented. The fixtures were regenerated for Pi 0.85.1 but remain AddOne-authored regression evidence only.",
     "invalidatedByTask": "7.2",
     "replacementInventory": "config/baselines/pinned-pi-interactive-baseline.json",
     "requiredReplacement": "Separate pinned-upstream and AddOne producers must replace every circular fixture before parity can pass."
   },
   "source": {
     "repository": "https://github.com/earendil-works/pi.git",
-    "commit": "914cf1472e715297caa30db4b9535d534a9eb718",
+    "commit": "d981de1229ef899957bbe968bc8dcda02a21f477",
     "license": "MIT"
   },
   "a1ParityBaselineCommit": "b854210fd4aa69b9664be1e31f7986930416f4ee",
   "packages": [
     {
       "name": "@earendil-works/pi-coding-agent",
-      "version": "0.84.2",
-      "integrity": "sha512-l4E+B7hgXKWddRo8bC/eSue2aWZjEgJ9xIpf5p0Og+lq8a2TArCwJ0HCoCPCgaBP/tN4zbYH/wOwvx9pJpeLCA=="
+      "version": "0.85.1",
+      "integrity": "sha512-FGRN+OHbWaefBPGaTggAdLjrIHW+s2PzLyglz/5dfLzb9of7uuXMXYC0fJIeZTw+shS32o2cuQ9jF7YSDuL/oQ=="
     },
     {
       "name": "@earendil-works/pi-tui",
-      "version": "0.84.2",
-      "integrity": "sha512-ds2TLihOnM5sLJB3VpXV6y0uR5efVuHf4MN7yDpsty6hA2DUO/EDVzjp/0od0G2JslzVLMjT8T8zavtxVb+qbg=="
+      "version": "0.85.1",
+      "integrity": "sha512-OIzw9efInmO4WOBnD4TxcTdBjmzvYJpzslkgoUro946nEGoYWg5rwv1p4fDt3/JvMx9QybryUCUwlm7j8Dreig=="
     }
   ],
   "fixtures": [
     {
       "path": "test/features/owned-ui/fixtures/pi-component-parity.json",
-      "sha256": "2f9a3a56345359851cb7a23072d97b0664ed1465da6a1add83148ce25d8162dd",
+      "sha256": "4eee1ac058218910a43dfbc47bf32753d6719b0b6ae7b8b824cf2f5954c7d20a",
       "cases": 4,
       "colorMode": "truecolor",
       "classification": "AddOne-generated regression fixture; no independent upstream producer",
@@ -66,7 +66,7 @@
     },
     {
       "path": "test/features/owned-ui/fixtures/pi-event-frame-parity.json",
-      "sha256": "f1e0fd6f1e3512c2512b9f41771b47b660d050c47bab4573099632e3eda34bba",
+      "sha256": "406a23d3664d5ad7c3c28ac9c9a658cc3af5b892bf78926446d0a5e57aa500c5",
       "stateTransitions": 12,
       "capturedFrames": 5,
       "colorMode": "truecolor",

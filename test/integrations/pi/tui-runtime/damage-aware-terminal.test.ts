@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { readPinnedPiIdentity } from "../../../../scripts/governance/pinned-pi-identity.mjs";
 import { readVisibleHyperlinks } from "../../../../src/ui/components/visible-hyperlinks.js";
 import {
   DamageAwareTerminalAdapter,
@@ -71,7 +72,7 @@ function initialized(options: { readonly regionalScroll?: boolean } = {}) {
 
 describe("A1-owned damage-aware terminal adapter", () => {
   it("pins one public-boundary grammar to the installed Pi package identity", () => {
-    expect(PINNED_PI_TUI_DAMAGE_GRAMMAR).toBe("@earendil-works/pi-tui@0.84.2:tui-alt-screen-one-write-v1");
+    expect(PINNED_PI_TUI_DAMAGE_GRAMMAR).toBe(`@earendil-works/pi-tui@${(await readPinnedPiIdentity(".")).version}:tui-alt-screen-one-write-v1`);
   });
 
   it("replaces a broad one-row follow rewrite with regional movement and exposed-row paint", async () => {

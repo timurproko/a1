@@ -4,11 +4,11 @@
   "recordedAt": "2026-08-16T12:00:00.000Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
-    "commit": "914cf1472e715297caa30db4b9535d534a9eb718",
+    "commit": "d981de1229ef899957bbe968bc8dcda02a21f477",
     "license": "MIT",
     "packages": [
-      { "name": "@earendil-works/pi-coding-agent", "version": "0.84.2" },
-      { "name": "@earendil-works/pi-tui", "version": "0.84.2" }
+      { "name": "@earendil-works/pi-coding-agent", "version": "0.85.1" },
+      { "name": "@earendil-works/pi-tui", "version": "0.85.1" }
     ]
   },
   "publicExports": [
@@ -33,7 +33,7 @@
   "orchestrationPorts": [
     {
       "upstreamSource": "packages/coding-agent/src/modes/interactive/interactive-mode.ts",
-      "upstreamCommit": "914cf1472e715297caa30db4b9535d534a9eb718",
+      "upstreamCommit": "d981de1229ef899957bbe968bc8dcda02a21f477",
       "upstreamLines": [528, 994],
       "localFile": "src/app/session-shell/session-shell.ts",
       "adapterFile": "src/integrations/pi/components/shell-components.ts",
@@ -52,7 +52,7 @@
     },
     {
       "upstreamSource": "packages/coding-agent/src/core/slash-commands.ts and packages/coding-agent/src/modes/interactive/interactive-mode.ts",
-      "upstreamCommit": "914cf1472e715297caa30db4b9535d534a9eb718",
+      "upstreamCommit": "d981de1229ef899957bbe968bc8dcda02a21f477",
       "upstreamLines": [[3, 42], [638, 740]],
       "localFile": "src/integrations/pi/components/shell-components.ts",
       "behavior": "complete advertised built-in command autocomplete, vanilla descriptions and argument hints",
@@ -63,7 +63,7 @@
     },
     {
       "upstreamSource": "packages/coding-agent/src/modes/interactive/interactive-mode.ts",
-      "upstreamCommit": "914cf1472e715297caa30db4b9535d534a9eb718",
+      "upstreamCommit": "d981de1229ef899957bbe968bc8dcda02a21f477",
       "upstreamLines": [[2870, 3058], [3998, 6205], [6207, 6374]],
       "localFile": "src/integrations/pi/engine/adapter.ts",
       "shellFile": "src/app/session-shell/session-shell.ts",
@@ -87,7 +87,7 @@
     },
     {
       "upstreamSource": "packages/coding-agent/src/modes/interactive/components/footer.ts",
-      "upstreamCommit": "914cf1472e715297caa30db4b9535d534a9eb718",
+      "upstreamCommit": "d981de1229ef899957bbe968bc8dcda02a21f477",
       "upstreamLines": [60, 245],
       "localFile": "src/integrations/pi/components/shell-components.ts",
       "behavior": "vanilla two-row cwd/context/model/thinking footer over AddOne-owned view state",
@@ -101,7 +101,7 @@
     },
     {
       "upstreamSource": "packages/coding-agent/src/modes/interactive/components/mermaid.ts",
-      "upstreamCommit": "914cf1472e715297caa30db4b9535d534a9eb718",
+      "upstreamCommit": "d981de1229ef899957bbe968bc8dcda02a21f477",
       "upstreamLines": [1, 103],
       "localFile": "src/integrations/pi/components/upstream/components/mermaid.ts",
       "behavior": "live off, finalized, and streaming Mermaid markdown transformation",
@@ -112,7 +112,7 @@
     },
     {
       "upstreamSource": "packages/coding-agent/src/core/http-dispatcher.ts",
-      "upstreamCommit": "914cf1472e715297caa30db4b9535d534a9eb718",
+      "upstreamCommit": "d981de1229ef899957bbe968bc8dcda02a21f477",
       "upstreamLines": [1, 112],
       "localFile": "src/integrations/pi/engine/http-dispatcher.ts",
       "behavior": "profile-scoped HTTP idle timeout dispatcher configuration including disabled semantics",
@@ -123,7 +123,7 @@
     },
     {
       "upstreamSource": "packages/coding-agent/src/modes/interactive/components/settings-selector.ts and packages/tui/src/components/settings-list.ts",
-      "upstreamCommit": "914cf1472e715297caa30db4b9535d534a9eb718",
+      "upstreamCommit": "d981de1229ef899957bbe968bc8dcda02a21f477",
       "upstreamLines": [[1, 620], [1, 251]],
       "localFile": "src/features/owned-ui/settings-app.ts",
       "componentFiles": ["src/ui/components/list-view.ts", "src/ui/components/dialog-panel.ts", "src/ui/components/value-menu.ts"],
@@ -140,7 +140,7 @@
     },
     {
       "upstreamSource": "packages/coding-agent/src/cli/startup-ui.ts, packages/coding-agent/src/cli/project-trust.ts, and packages/coding-agent/src/core/project-trust.ts",
-      "upstreamCommit": "914cf1472e715297caa30db4b9535d534a9eb718",
+      "upstreamCommit": "d981de1229ef899957bbe968bc8dcda02a21f477",
       "upstreamLines": [[1, 190], [1, 52], [1, 61]],
       "localFile": "src/features/owned-ui/project-trust-prompt.ts",
       "behavior": "pre-resource startup selector focus, navigation, accept, reject, cancel, clearing, fail-closed diagnostics, and terminal restoration",
@@ -155,7 +155,7 @@
     },
     {
       "upstreamSource": "packages/coding-agent/src/modes/interactive/interactive-mode.ts",
-      "upstreamCommit": "914cf1472e715297caa30db4b9535d534a9eb718",
+      "upstreamCommit": "d981de1229ef899957bbe968bc8dcda02a21f477",
       "upstreamLines": [[115, 131], [3138, 3150]],
       "localFile": "src/app/session-shell/session-shell.ts",
       "transcriptFile": "src/app/session-shell/session-shell-root.ts",

@@ -470,6 +470,38 @@
       ]
     },
     {
+      "name": "tree",
+      "success": [
+        "replacement.selector-dialog-editor",
+        "document.status"
+      ],
+      "cancel": [
+        "replacement.selector-dialog-editor"
+      ],
+      "failure": [
+        "document.error-warning"
+      ],
+      "sourceAnchors": [
+        "this.showTreeSelector()"
+      ]
+    },
+    {
+      "name": "thinking",
+      "success": [
+        "replacement.selector-dialog-editor",
+        "document.status"
+      ],
+      "cancel": [
+        "replacement.selector-dialog-editor"
+      ],
+      "failure": [
+        "document.error-warning"
+      ],
+      "sourceAnchors": [
+        "this.showThinkingSelector()"
+      ]
+    },
+    {
       "name": "scoped-models",
       "success": [
         "replacement.selector-dialog-editor"
@@ -623,22 +655,6 @@
       ],
       "sourceAnchors": [
         "this.handleCloneCommand()"
-      ]
-    },
-    {
-      "name": "tree",
-      "success": [
-        "replacement.selector-dialog-editor",
-        "document.status"
-      ],
-      "cancel": [
-        "replacement.selector-dialog-editor"
-      ],
-      "failure": [
-        "document.error-warning"
-      ],
-      "sourceAnchors": [
-        "this.showTreeSelector()"
       ]
     },
     {
