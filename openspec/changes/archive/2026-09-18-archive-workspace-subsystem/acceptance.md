@@ -22,9 +22,9 @@ The manual merge accepts these scenarios:
     "A control store written by an earlier release migrates to version 7 with its launch instances intact and the retired tables gone.",
     "The architecture allowlist lists no workspace module and the owner, validation, and integration registries no longer name the archived subsystem."
   ],
-  "archiveDigest": "d4b12da416eacccda7446b749dbec7276bef70ab09ecb9c0b60c7c3e6aec4e15",
+  "archiveDigest": "c43130856e5e002f3854ca5ba84e09ba4b3e77a9e06a19f9ecd47117eeb3094c",
   "specDigest": "ea2501f26b856291071b62ae93195b56ce9d5400e0c63afdb9ad3f25c1b28777",
-  "tasksDigest": "fab0acab51f42a9cd016d9a5a4079a1d14e9ab876725a41b844d04306735f6c9",
+  "tasksDigest": "bf6ecb66f79292526c4bda6322b118d8c1a51fba2f1e14dfc3385cca1db7d9d3",
   "evidenceDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
   "knownGaps": []
 }
