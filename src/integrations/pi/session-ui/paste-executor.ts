@@ -4,6 +4,7 @@ import { ImageAttachmentError } from "../../../contracts/owned-ui/image-attachme
 import { MAX_SOURCE_IMAGE_BYTES } from "./image-source.js";
 import { PASTE_CHUNK_UNITS, PASTE_REQUESTS, PASTE_STOP_MS, PASTE_TEXT_BYTES, pasteFragments, type PasteHelperInput, type PasteHelperOutput, type PreparedPaste, type PasteEvent } from "./paste-protocol.js";
 import type { ClipboardPath } from "./paste-text-preparation.js";
+import { HelperPool } from "./helper-pool.js";
 
 export interface PasteExecutorJob { readonly result: Promise<PreparedPaste>; readonly stopped: Promise<void>; cancel(): void }
 export type PastePhase = (phase: PasteEvent["phase"], bytes?: number) => void;
@@ -20,14 +21,8 @@ function permitConversion(): void {
   child.send({ kind: "convert" } satisfies PasteHelperInput, () => {});
 }
 
-/** Streams bounded fragments through a killable child; native/codec/filesystem work never runs on the UI thread. */
-export function startPasteExecutor(content: PiShellClipboardContent | undefined, signal: AbortSignal, phase: PastePhase = () => {}, helper?: URL): PasteExecutorJob {
-  const tooLarge = content?.kind === "text" && content.text.length > PASTE_TEXT_BYTES;
-  if (signal.aborted || live.size >= PASTE_REQUESTS || tooLarge) {
-    const result = Promise.reject(new ImageAttachmentError(signal.aborted ? "image-canceled" : tooLarge ? "paste-size" : "paste-busy"));
-    void result.catch(() => {});
-    return { result, stopped: Promise.resolve(), cancel() {} };
-  }
+/** Forks one paste helper: no inherited descriptors, JSON IPC only, and its own process group on POSIX. */
+export function forkPasteHelper(helper?: URL): ChildProcess {
   const source = new URL(import.meta.url).pathname.endsWith(".ts");
   const entry = helper ?? new URL(source ? "./paste-helper.ts" : "./paste-helper.js", import.meta.url);
   const options: ForkOptions & Pick<SpawnOptions, "windowsHide"> = {
@@ -35,14 +30,35 @@ export function startPasteExecutor(content: PiShellClipboardContent | undefined,
     stdio: ["ignore", "ignore", "ignore", "ipc"], serialization: "json", windowsHide: true,
     detached: process.platform !== "win32",
   };
-  const child = fork(entry, [], options);
-  const forceStop = () => {
-    // Concurrency: POSIX command fallbacks share this isolated process group; kill descendants too.
-    if (process.platform !== "win32" && child.pid !== undefined) {
-      try { process.kill(-child.pid, "SIGKILL"); } catch { child.kill("SIGKILL"); }
-    } else child.kill("SIGKILL");
-    child.unref(); child.channel?.unref();
-  };
+  return fork(entry, [], options);
+}
+
+/** Kills a paste helper and everything it spawned, then lets the parent exit without waiting for it. */
+export function stopPasteHelper(child: ChildProcess): void {
+  // Concurrency: POSIX command fallbacks share this isolated process group; kill descendants too.
+  if (process.platform !== "win32" && child.pid !== undefined) {
+    try { process.kill(-child.pid, "SIGKILL"); } catch { child.kill("SIGKILL"); }
+  } else child.kill("SIGKILL");
+  child.unref(); child.channel?.unref();
+}
+
+/** A spare-of-one pool of paste helpers; `startPasteExecutor` takes its child and warms the next one after each paste. */
+export function createPasteHelperPool(helper?: URL, idleMs?: number): HelperPool {
+  return new HelperPool({ fork: () => forkPasteHelper(helper), stop: stopPasteHelper, ...(idleMs === undefined ? {} : { idleMs }) });
+}
+
+/** Streams bounded fragments through a killable child; native/codec/filesystem work never runs on the UI thread. */
+export function startPasteExecutor(content: PiShellClipboardContent | undefined, signal: AbortSignal, phase: PastePhase = () => {}, helper?: URL, pool?: HelperPool): PasteExecutorJob {
+  const tooLarge = content?.kind === "text" && content.text.length > PASTE_TEXT_BYTES;
+  if (signal.aborted || live.size >= PASTE_REQUESTS || tooLarge) {
+    const result = Promise.reject(new ImageAttachmentError(signal.aborted ? "image-canceled" : tooLarge ? "paste-size" : "paste-busy"));
+    void result.catch(() => {});
+    return { result, stopped: Promise.resolve(), cancel() {} };
+  }
+  // Performance: a warm spare skips fork and module load on the paste's own critical path.
+  const spare = pool?.take();
+  const child = spare?.child ?? forkPasteHelper(helper);
+  const forceStop = () => stopPasteHelper(child);
   live.add(child);
   let input: Generator<PasteHelperInput> | undefined = sourceMessages(content);
   let canceled = false, done = false;
@@ -70,15 +86,18 @@ export function startPasteExecutor(content: PiShellClipboardContent | undefined,
     stopTimer.unref();
   };
   const fail = (code: ImageAttachmentError["code"] = "paste-unavailable") => { failure = new ImageAttachmentError(code); cancel(); };
+  const advance = () => {
+    const next = input?.next();
+    if (!next || next.done) { fail(); return; }
+    send(next.value);
+  };
   signal.addEventListener("abort", cancel, { once: true });
   child.on("message", value => {
     if (canceled) return;
     const message = value as PasteHelperOutput;
     try {
     if (message?.kind === "ready") {
-      const next = input?.next();
-      if (!next || next.done) { fail(); return; }
-      send(next.value);
+      advance();
     } else if (message?.kind === "phase") {
       if (!["acquired-text", "acquired-image", "classifying", "path-fallback", "prepared"].includes(message.phase) || phases.has(message.phase)) { fail(); return; }
       phases.add(message.phase);
@@ -139,8 +158,12 @@ export function startPasteExecutor(content: PiShellClipboardContent | undefined,
     } else reject(failure ?? new ImageAttachmentError(canceled ? "image-canceled" : "paste-unavailable"));
     payload = ""; paths = []; stopped();
     try { phase("cleanup"); } catch { /* Invariant: cleanup observation cannot retain an exited executor. */ }
+    // Performance: the next paste finds a spare that was forked while nothing waited on it.
+    pool?.replenish();
   };
   child.once("exit", cleanup); child.once("close", cleanup);
+  // Protocol: a spare already announced itself while pooled, so its first request is sent now rather than on "ready".
+  if (spare?.ready) advance();
   void result.catch(() => {});
   return { result, stopped: exit, cancel };
 }

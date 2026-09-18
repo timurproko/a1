@@ -1146,6 +1146,8 @@ When the ordinary bare-A1 prompt owns input and a supported clipboard contains r
 
 A received `Ctrl+V` SHALL be consumed only after the ordinary prompt has synchronously admitted its paste reservation. Cold keybinding activation, helper startup, an inconclusive first native read, and a safe platform fallback SHALL remain inside that one bounded transaction. Safe recovery SHALL use the original request identity and deadlines and SHALL NOT create another reservation, duplicate acquisition after content is known, or insert a late result after cancellation. If readable content still cannot be acquired, the request SHALL settle through the existing bounded failure policy rather than silently becoming dependent on a later mouse paste.
 
+Helper startup SHALL normally be off the gesture's critical path: after the shell's first frame, A1 SHALL keep one spare paste helper and one spare copy helper forked and idle, take the spare for the next gesture, and fork the replacement only after that gesture's helper has exited. A gesture that finds no spare SHALL fork cold inside its own transaction as before. Spares SHALL keep the isolation and termination guarantees of a working helper, SHALL NOT keep a session's process alive, SHALL be stopped after a bounded idle period and when the shell is disposed, and a spare that exits on its own SHALL be replaced rather than reused.
+
 Terminal-owned nonempty bracketed paste SHALL remain a distinct exactly-once route and SHALL NOT trigger a native clipboard read. Modal and replacement surfaces SHALL retain paste ownership, and the pinned comparison profile SHALL remain unchanged.
 
 #### Scenario: Paste external text on the first shortcut
@@ -1182,6 +1184,11 @@ Terminal-owned nonempty bracketed paste SHALL remain a distinct exactly-once rou
 - **WHEN** a modal, replacement input, or pinned comparison profile owns input
 - **THEN** the ordinary bare-A1 prompt SHALL NOT intercept its paste shortcut
 - **AND** the owning surface's established paste behavior SHALL remain unchanged
+
+#### Scenario: A spare helper is ready before the first paste and after each paste
+- **WHEN** a bare-A1 session has shown its first frame and the reader pastes, then pastes again after the first has settled
+- **THEN** each paste SHALL take the spare helper forked before it rather than forking on its own critical path, and the replacement SHALL be forked only after the previous helper exited
+- **AND** disposing the shell SHALL stop the idle spares, and an idle spare SHALL be stopped after the bounded idle period without a gesture
 
 ### Requirement: Bare A1 quit plays a bounded outro and reveals a clean parent terminal
 When an interactive bare-A1 session quits through `/quit`, the second `Ctrl+C` of the clear/exit chord, `Ctrl+D`, or an extension shutdown request while `quitAnimation` is `true`, A1 SHALL capture the last frame presented on its fullscreen surface, play the selected quit effect over that frame on the alternate screen, and only then leave the alternate screen exactly once. Playback SHALL be bounded by the configured duration, clamped to 300–2000 ms, and SHALL paint each tick inside one synchronized-output block. The parent terminal SHALL receive no A1 frame rows, no conversation transcript, and no alternate-screen residue after restoration; only the existing dim resume hint MAY follow. When `quitAnimation` is `false`, A1 SHALL neither capture a frame nor play an effect and SHALL leave the alternate screen immediately. A playback failure, a non-TTY terminal, the pinned regular mode, or an all-blank capture SHALL likewise skip the outro without changing restoration, exit output, or process completion. The pinned `a1 pi` comparison profile SHALL remain unchanged.

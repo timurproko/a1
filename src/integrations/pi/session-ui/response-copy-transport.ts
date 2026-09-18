@@ -1,5 +1,6 @@
-import { fork, type ForkOptions, type SpawnOptions } from "node:child_process";
+import { fork, type ChildProcess, type ForkOptions, type SpawnOptions } from "node:child_process";
 import { fstatSync } from "node:fs";
+import { HelperPool } from "./helper-pool.js";
 import type { SelectionCopySnapshot } from "../../../ui/components/selection-copy.js";
 import { COPY_CHUNK_UNITS, COPY_CLEANUP_MS, MAX_COPY_BYTES, MAX_COPY_CONTROL_BYTES, type CopyHelperInput, type CopyHelperOutput, type CopyResult } from "./response-copy-protocol.js";
 
@@ -14,6 +15,12 @@ export interface ResponseCopyJob {
 }
 export type CopyPhaseObserver = (phase: "extracted" | "encoded" | "submitting", bytes: number, transport: "native" | "terminal" | "injected") => void;
 export type ResponseCopyExecutor = (snapshot: SelectionCopySnapshot, phase: CopyPhaseObserver) => ResponseCopyJob;
+/** The production executor also owns a spare helper; the owner warms it at start and disposes it at shutdown. */
+export interface OwnedResponseCopyExecutor extends ResponseCopyExecutor {
+  warm(): void;
+  dispose(): void;
+  readonly warmed: boolean;
+}
 export interface ResponseCopyTerminal {
   readonly maxBytes?: number;
   /** A supported non-blocking submission boundary, not clipboard acknowledgment. */
@@ -42,8 +49,11 @@ export function createResponseCopyExecutor(options: {
   readonly writeText?: (text: string, signal: AbortSignal) => Promise<void>;
   /** Package/fault-test seam: the production helper is always an emitted sibling. */
   readonly helper?: URL;
-} = {}): ResponseCopyExecutor {
-  return (snapshot, phase) => {
+  /** Idle bound for the spare helper; production keeps the default. */
+  readonly spareIdleMs?: number;
+} = {}): OwnedResponseCopyExecutor {
+  const pool = new HelperPool({ fork: () => forkCopyHelper(options.helper), stop: stopCopyHelper, ...(options.spareIdleMs === undefined ? {} : { idleMs: options.spareIdleMs }) });
+  const execute: ResponseCopyExecutor = (snapshot, phase) => {
     const controller = new AbortController();
     let active: ReturnType<typeof startHelper> | undefined;
     const run = async (): Promise<CopyResult> => {
@@ -53,7 +63,7 @@ export function createResponseCopyExecutor(options: {
         if (mode === "terminal" && options.terminal === undefined) {
           return { kind: "result", result: { outcome: "failed", failure: "unsafe" } } as const;
         }
-        active = startHelper(snapshot, mode, options.terminal?.maxBytes ?? MAX_COPY_CONTROL_BYTES, phase, options.helper);
+        active = startHelper(snapshot, mode, options.terminal?.maxBytes ?? MAX_COPY_CONTROL_BYTES, phase, options.helper, pool);
         if (controller.signal.aborted) active.cancel();
         return active.result;
       };
@@ -82,6 +92,29 @@ export function createResponseCopyExecutor(options: {
     const result = run().catch((): CopyResult => ({ outcome: controller.signal.aborted ? "canceled" : "failed", failure: "transport" }));
     return { result, stopped: result.then(() => {}), cancel: () => { controller.abort(); active?.cancel(); } };
   };
+  // Rationale: `Object.assign` would copy the getter's value once; the accessor must read the pool each time.
+  return Object.defineProperties(execute, {
+    warm: { value: () => pool.warm() },
+    dispose: { value: () => pool.dispose() },
+    warmed: { get: () => pool.warmed },
+  }) as OwnedResponseCopyExecutor;
+}
+
+/** Forks one copy helper: bounded IPC only, no clipboard payload in argv or temp files, no inherited terminal descriptors. */
+function forkCopyHelper(helper?: URL): ChildProcess {
+  const source = new URL(import.meta.url).pathname.endsWith(".ts");
+  const entry = helper ?? new URL(source ? "./response-copy-helper.ts" : "./response-copy-helper.js", import.meta.url);
+  const forkOptions: ForkOptions & Pick<SpawnOptions, "windowsHide"> = {
+    execArgv: entry.pathname.endsWith(".ts") ? ["--import", "tsx"] : [],
+    stdio: ["ignore", "ignore", "ignore", "ipc"], windowsHide: true,
+    serialization: "json",
+  };
+  return fork(entry, [], forkOptions);
+}
+
+function stopCopyHelper(child: ChildProcess): void {
+  child.kill("SIGKILL");
+  child.unref(); child.channel?.unref();
 }
 
 function* sourceMessages(snapshot: SelectionCopySnapshot, mode: HelperMode, controlLimit: number): Generator<CopyHelperInput> {
@@ -96,19 +129,13 @@ function* sourceMessages(snapshot: SelectionCopySnapshot, mode: HelperMode, cont
   yield { kind: "finish" };
 }
 
-function startHelper(snapshot: SelectionCopySnapshot, mode: HelperMode, controlLimit: number, phase: CopyPhaseObserver, helper?: URL): {
+function startHelper(snapshot: SelectionCopySnapshot, mode: HelperMode, controlLimit: number, phase: CopyPhaseObserver, helper: URL | undefined, pool: HelperPool): {
   result: Promise<HelperResult>;
   cancel(): void;
 } {
-  const source = new URL(import.meta.url).pathname.endsWith(".ts");
-  const entry = helper ?? new URL(source ? "./response-copy-helper.ts" : "./response-copy-helper.js", import.meta.url);
-  // Security: bounded IPC only, no clipboard payload in argv/temp files, and no inherited terminal descriptors.
-  const forkOptions: ForkOptions & Pick<SpawnOptions, "windowsHide"> = {
-    execArgv: entry.pathname.endsWith(".ts") ? ["--import", "tsx"] : [],
-    stdio: ["ignore", "ignore", "ignore", "ipc"], windowsHide: true,
-    serialization: "json",
-  };
-  const child = fork(entry, [], forkOptions);
+  // Performance: a warm spare skips fork and module load on the copy's own critical path.
+  const spare = pool.take();
+  const child = spare?.child ?? forkCopyHelper(helper);
   let iterator: Generator<CopyHelperInput> | undefined = sourceMessages(snapshot, mode, controlLimit);
   let outcome: Extract<CopyHelperOutput, { kind: "result" }> | undefined;
   let stopping = false;
@@ -140,13 +167,16 @@ function startHelper(snapshot: SelectionCopySnapshot, mode: HelperMode, controlL
       } else resolve(value);
       prepared = [];
     };
+    const advance = () => {
+      const next = iterator?.next();
+      if (next === undefined || next.done) { cancel(); return; }
+      child.send(next.value, error => { if (error) cancel(); });
+    };
     child.on("message", value => {
       const message = value as CopyHelperOutput;
       if (stopping) return;
       if (message?.kind === "ready") {
-        const next = iterator?.next();
-        if (next === undefined || next.done) { cancel(); return; }
-        child.send(next.value, error => { if (error) cancel(); });
+        advance();
       } else if (message?.kind === "data") {
         if (mode !== "prepare" || expectedBytes === undefined || typeof message.text !== "string" || message.text.length > COPY_CHUNK_UNITS) { cancel(); return; }
         preparedBytes += Buffer.byteLength(message.text);
@@ -173,6 +203,8 @@ function startHelper(snapshot: SelectionCopySnapshot, mode: HelperMode, controlL
       if (cleanup !== undefined) clearTimeout(cleanup);
       child.removeAllListeners("message");
       settle();
+      // Performance: the next copy finds a spare that was forked while nothing waited on it.
+      pool.replenish();
     });
     // Platform: spawn failure has no exit event, but has a close event and no live executor to fence.
     child.once("close", () => {
@@ -180,6 +212,8 @@ function startHelper(snapshot: SelectionCopySnapshot, mode: HelperMode, controlL
       if (cleanup !== undefined) clearTimeout(cleanup);
       settle();
     });
+    // Protocol: a spare already announced itself while pooled, so its first request is sent now rather than on "ready".
+    if (spare?.ready) advance();
   });
   return { result, cancel };
 }

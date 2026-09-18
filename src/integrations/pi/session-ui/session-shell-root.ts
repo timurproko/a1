@@ -131,6 +131,7 @@ import type {
   PiTuiTerminalPort,
 } from "../tui-runtime/contracts.js";
 import { PromptChipStore, type PreparedPrompt } from "./prompt-chips.js";
+import type { PastePreparationClientOptions } from "./paste-preparation-client.js";
 import { EditorHyperlinkBudget } from "./editor-hyperlink-budget.js";
 import { SessionViewportController, type SessionViewportInputResult } from "./session-viewport-controller.js";
 import type { ResponseCopyExecutor } from "./response-copy-transport.js";
@@ -234,6 +235,8 @@ export interface OwnedUiShellDiagnosticOptions {
   };
   /** Bounded, payload-free clipboard acquisition/preparation observations. */
   readonly paste?: (event: PasteEvent) => void;
+  /** Test seams for isolated paste preparation: an in-process starter, or the forked helper's entry. */
+  readonly pastePreparation?: Omit<PastePreparationClientOptions, "onEvent" | "spareIdleMs">;
 }
 
 /** What composes an owned session shell, grouped by the collaborator that provides each part. */
@@ -350,6 +353,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       readonly readClipboardContent?: (signal?: AbortSignal) => Promise<PiShellClipboardContent | null>;
       readonly captureClipboardPaste?: () => PasteSource;
       readonly pasteDiagnostics?: (event: PasteEvent) => void;
+      readonly pastePreparation?: Omit<PastePreparationClientOptions, "onEvent">;
     },
     startup: PiShellHeaderOptions = {},
     agentDir?: string,
@@ -363,7 +367,8 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.#view = view;
     this.#customViewport = sessionLayout === "custom-viewport";
     this.#promptChips = new PromptChipStore({ isolated: this.#customViewport,
-      ...(handlers.pasteDiagnostics === undefined ? {} : { onEvent: handlers.pasteDiagnostics }) });
+      ...(handlers.pasteDiagnostics === undefined ? {} : { onEvent: handlers.pasteDiagnostics }),
+      ...(handlers.pastePreparation === undefined ? {} : { preparation: handlers.pastePreparation }) });
     this.#submittedPromptComposer = this.#customViewport
       ? {
           layout: submittedPromptLayout,
@@ -592,6 +597,9 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.editor.cancelPendingPastes?.();
     this.editor.setText(this.#promptChips.resetPastes(this.editor.getText()));
   }
+
+  /** Forks the spare paste helper so the first paste of the session takes a live child. */
+  warmPastePreparation(): void { this.#promptChips.warm(); }
 
   disposePendingPastes(): Promise<void> {
     this.resetPendingPastes();
