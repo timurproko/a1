@@ -19,7 +19,7 @@ function assertNoUiComponentImport(source: string): void {
 describe("progress-status presentation boundary", () => {
   it("keeps punctuation at the shared bare-A1 spinner boundary", async () => {
     const [engine, shell, root, synchronized, dispatch, runtimeSelection] = await Promise.all([
-      readFile("src/integrations/pi/engine/adapter.ts", "utf8"),
+      readFile("src/integrations/pi/engine/session-events.ts", "utf8"),
       readFile("src/integrations/pi/components/shell-footer-status.ts", "utf8"),
       readFile("src/integrations/pi/session-ui/session-shell-root.ts", "utf8"),
       readFile("src/integrations/pi/components/upstream/components/status-indicator.ts", "utf8"),
@@ -31,7 +31,7 @@ describe("progress-status presentation boundary", () => {
     expect(() => assertNoUiComponentImport(shell)).not.toThrow();
     expect(shell.match(/\bformatProgressStatus\(/gu)).toHaveLength(1);
     expect(root).toContain("createPiShellStatus(view, progressStatusText, handlers)");
-    expect(synchronized).toContain("Source-synchronized from Pi 0.84.2");
+    expect(synchronized).toContain("Provenance: @earendil-works/pi-coding-agent 0.84.2");
     expect(synchronized).not.toContain("progressStatusText");
     expect(dispatch).not.toContain("progressStatusText");
     expect(runtimeSelection).not.toContain("progressStatusText");
@@ -39,7 +39,7 @@ describe("progress-status presentation boundary", () => {
 
   it("rejects either a producer marker or a forbidden adapter import", async () => {
     const [engine, shell] = await Promise.all([
-      readFile("src/integrations/pi/engine/adapter.ts", "utf8"),
+      readFile("src/integrations/pi/engine/session-events.ts", "utf8"),
       readFile("src/integrations/pi/components/shell-footer-status.ts", "utf8"),
     ]);
     expect(() => assertSemanticWorkStateProducers(engine.replace('"Compacting"', '"Compacting…"')))

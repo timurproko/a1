@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-09-11T13:10:23.418Z",
+  "recordedAt": "2026-09-18T13:58:39.852Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "914cf1472e715297caa30db4b9535d534a9eb718",
@@ -38,8 +38,8 @@
     "sourceModules": 105,
     "assets": 4,
     "classifications": {
-      "public-api-reuse": 52,
-      "owned-presentation": 30,
+      "public-api-reuse": 55,
+      "owned-presentation": 27,
       "host-adaptation": 27
     },
     "requiredBehaviorIds": 29,
@@ -447,7 +447,7 @@
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Mechanical source port with Node import prefixes, public package-root agent-directory resolution, and an opt-in bare-A1 input profile including Ctrl+L level cycling and unbound model selection.",
-      "localSha256": "aa78baea4967718cdba7802cd53efb86a86eb132ff71ad669d2630fb12ecd6e0",
+      "localSha256": "e94f6b401c84d116b7d742e2375e0a7bb308d9037edb4a83de885d053d462e4e",
       "approvedDeviations": [
         {
           "id": "keybindings-public-config-boundary",
@@ -1178,7 +1178,7 @@
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Mechanical source port with ECMAScript private fields; imports remain on the public Pi TUI package root.",
-      "localSha256": "8aa307b95b250be9e23f02d4ce9f2d66d63677510c0866c265a3dbde2d50db72",
+      "localSha256": "f16828a6edad6c529d6150ca6e90c847a005296594fb1803330776e96ae6711a",
       "approvedDeviations": [
         {
           "id": "countdown-owned-private-fields",
@@ -1222,6 +1222,7 @@
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "A1-owned class name and synchronized A1 keybinding contract replace the nominal private upstream keybinding constructor dependency; bare A1 injects the shared Settings/agent input frame, transient contextual-suggestion branch, and explicit body geometry for selection and above-prompt autocomplete. Bare A1 also clears a sole top-level slash-command search on Escape.",
+      "localSha256": "73f8260a822577f90d19e3cca32d9ad7474c3ff8d67dbb20560b89ebdc7688e1",
       "approvedDeviations": [
         {
           "id": "owned-shared-input-frame",
@@ -1263,8 +1264,7 @@
         "test/integrations/pi/components/pinned-editor-input-parity.test.ts",
         "test/integrations/pi/components/shell-components.test.ts",
         "test/integrations/pi/session-ui/session-shell.test.ts"
-      ],
-      "localSha256": "fe8788afd8569d333ce6ccc3a91e44c53fa668927cb87f447cfa24f0803b8f4c"
+      ]
     },
     {
       "id": "pi-coding-agent:src/modes/interactive/components/custom-entry",
@@ -1355,7 +1355,7 @@
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Mechanical pinned source port with private imports remapped to public package-root types/APIs and A1-owned theme boundaries; behavior remains acceptance-tested.",
-      "localSha256": "3dcb7780ec05d451c1ff40c1d057af85b0781c461b7b5037dc41182129bd5db5",
+      "localSha256": "149f6a61c37a93aaf69fb97b1dfc5b9d6148f50a3ce16da9df69c6639593923c",
       "approvedDeviations": [],
       "behaviorCategories": [
         "startup-composition",
@@ -1463,7 +1463,7 @@
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Mechanical pinned source port with private imports remapped to public package-root types/APIs and A1-owned theme boundaries. The unchanged image is loaded lazily from its attributed, verified owned resource, preserving pinned image/fallback rows without runtime dependency-directory reads or package mutation. Command-outcome parity exercises the restored presentation.",
-      "localSha256": "e03a79af47ed376366d5349f9d4b8178d96c2a7768de56999375f5438aa447ad",
+      "localSha256": "f7539ee19fa83a963848165fa0aa1b82436f369ac8b9e624b6c25a31be0ea2f3",
       "approvedDeviations": [],
       "behaviorCategories": [
         "startup-composition",
@@ -1505,6 +1505,7 @@
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Mechanical port: remap pi-tui to the root public singleton, use owned keybindings/theme and external-editor seams, preserve editor layout, hints, focus, submission, cancellation, and external-editor lifecycle.",
+      "localSha256": "12b70eb6235bb37f4a9078a8fcfe462fc77299ab4e0657627cea8f1b3adeda03",
       "approvedDeviations": [],
       "behaviorCategories": [
         "editor",
@@ -1527,8 +1528,7 @@
         "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
         "test/integrations/pi/components/pinned-editor-input-parity.test.ts",
         "test/integrations/pi/components/extension-ui-bridge.test.ts"
-      ],
-      "localSha256": "ad55e088da032116c1d3f325a88406b16dafb88e3d01e67ff8dde2cf867f2dff"
+      ]
     },
     {
       "id": "pi-coding-agent:src/modes/interactive/components/extension-input",
@@ -1666,6 +1666,7 @@
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Consumes neutral owned-UI view data instead of a fabricated concrete AgentSession; an explicit bare-A1 profile colors the thinking-level name while preserving the remaining footer layout and formatting.",
+      "localSha256": "ba9228d3b01eeb87f560c21b871924a461c02d9c238a15b66a326c6e3d334117",
       "approvedDeviations": [
         {
           "id": "owned-status-level-color",
@@ -1692,8 +1693,7 @@
       "tests": [
         "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
         "test/integrations/pi/session-ui/session-shell.test.ts"
-      ],
-      "localSha256": "88126ec83f2ea59c3076ec47964cb4701cb006ce92b71c68a78d598c9fe1b521"
+      ]
     },
     {
       "id": "pi-coding-agent:src/modes/interactive/components/index",
@@ -1840,7 +1840,7 @@
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Mechanical pinned source port with private imports remapped to public package-root types/APIs and A1-owned theme boundaries; behavior remains acceptance-tested.",
-      "localSha256": "7fbcc74bd241b920e67778cca97e78b7cd57e6e59d31dba926c64bdb894cedfc",
+      "localSha256": "2f1e4d2d3aa155dc4e125dc5a4c7833c36c1758ef40aa0dcc5326ac03d83c744",
       "approvedDeviations": [],
       "behaviorCategories": [
         "startup-composition",
@@ -1959,6 +1959,7 @@
       "implementationStatus": "ported",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Source-synchronized scoped-model selector port: preserve session-only toggles, search, bulk/provider/reorder actions, dirty state, Ctrl+S persistence, refresh status, cancellation, and focus while remapping theme and public helper imports; local key labels preserve pinned platform formatting before layout without changing binding identities.",
+      "localSha256": "8dee61ba93011becd93764748015a0180e244ca479fd5fc444d4670ef8d7d3b8",
       "approvedDeviations": [],
       "behaviorCategories": [
         "selectors",
@@ -1982,8 +1983,7 @@
       "tests": [
         "test/integrations/pi/components/shell-components.test.ts",
         "test/integrations/pi/session-ui/session-shell.test.ts"
-      ],
-      "localSha256": "3734ef175d29a5276bfd366f7064a665bd47c9f5d1d4c76d6e4ed7df6d34e3fc"
+      ]
     },
     {
       "id": "pi-coding-agent:src/modes/interactive/components/session-selector-search",
@@ -1999,7 +1999,7 @@
       "implementationStatus": "ported",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Source-synchronized session search port with only the public SessionInfo type import remapped.",
-      "localSha256": "72cfec4059b12d66a1180cde9532c4e8c49990648acd14b06acd98a846c32386",
+      "localSha256": "42176f13a59b2945db19246107d562030d9935b836e0bc45c44563595642e49c",
       "approvedDeviations": [],
       "behaviorCategories": [
         "selectors",
@@ -2038,6 +2038,7 @@
       "implementationStatus": "ported",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Source-synchronized session selector port: preserve threaded/current/all scope, search, sort, named/path filters, rename, delete confirmation, active-session protection, loading progress, cancellation, focus, and disposal while remapping public helpers, owned keybindings/theme, and canonical path handling.",
+      "localSha256": "9f0c725e36e9a19e1a8a3e4f720752abd7c4984d4a35ec6390b3964895175f1f",
       "approvedDeviations": [],
       "behaviorCategories": [
         "selectors",
@@ -2061,8 +2062,7 @@
       "tests": [
         "test/integrations/pi/components/session-selector.test.ts",
         "test/integrations/pi/session-ui/session-shell.test.ts"
-      ],
-      "localSha256": "6b5796df4c4810c34ee765d21e4541ccd7921900de424805f58bac9d67ab8589"
+      ]
     },
     {
       "id": "pi-coding-agent:src/modes/interactive/components/settings-selector",
@@ -2154,7 +2154,8 @@
       "localDestination": "src/integrations/pi/components/upstream/components/skill-invocation-message.ts",
       "implementationStatus": "owned-port-present",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Mechanical port uses AddOne's public pi-tui instance, owned theme boundary, and root-instance keybinding registry because the public coding-agent component closes over a second nested pi-tui singleton and cannot observe AddOne's keybindings.",
+      "modifications": "Mechanical port uses A1's public pi-tui instance, owned theme boundary, and root-instance keybinding registry because the public coding-agent component closes over a second nested pi-tui singleton and cannot observe A1's keybindings.",
+      "localSha256": "8c9d994db4ad93b01f8282e74003de967fe532723693b7a30cc12ae3dc843560",
       "approvedDeviations": [],
       "behaviorCategories": [
         "stateful-components",
@@ -2176,8 +2177,7 @@
       "tests": [
         "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
         "test/integrations/pi/session-ui/session-shell.test.ts"
-      ],
-      "localSha256": "9dd1ec1acd8203c0dfd31d7f7b57e9ddb625f3ee045394e2cabe58f97339f53f"
+      ]
     },
     {
       "id": "pi-coding-agent:src/modes/interactive/components/status-indicator",
@@ -2193,7 +2193,7 @@
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Mechanical source port with public package-root keybinding, Loader, and owned theme/countdown imports plus ECMAScript private fields.",
-      "localSha256": "980b2e6e7d73d90d51b41ca65a4036ad9a60bbe4caf53735fc16ed6561b37674",
+      "localSha256": "c5694737e2015574552ee96fef547c0ed0dc05a8cd5b56f50ca43a64e2ffdd52",
       "approvedDeviations": [
         {
           "id": "status-indicator-public-boundaries",
@@ -2314,7 +2314,7 @@
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Retain pinned shell and actual public tool-definition renderers. Replace private index-keyed image conversion with current-source ownership, serial conversion, visible fallback, and disposal; guard reentrant invalidation. Remap private types, definition factories, theme, and generic text helpers to public or locally attributed equivalents. See docs/architecture/tool-image-presentation.md.",
-      "localSha256": "a87312582e21a4c1697c4a9446a8b830e5d9b890e0d4b9fd1d2006ffa95dff89",
+      "localSha256": "2e8aa7057317b09c179db2a1965111cb3a78f2c872e83ccfd1046c82b97bac3c",
       "approvedDeviations": [
         {
           "id": "current-tool-image-conversion-ownership",
@@ -2363,6 +2363,7 @@
       "implementationStatus": "ported",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Source-synchronized tree selector port: preserve filtering, folding, labels, copying, tree navigation, key hints, focus, and viewport behavior while remapping public types/components plus owned keybindings/theme helpers required to avoid the pinned package nested pi-tui singleton.",
+      "localSha256": "3667219fd7fef4f63a6ffae0d9da72b1437a7264544e9dfc69ad5d104d1a6553",
       "approvedDeviations": [],
       "behaviorCategories": [
         "selectors",
@@ -2385,8 +2386,7 @@
       ],
       "tests": [
         "test/integrations/pi/session-ui/session-shell.test.ts"
-      ],
-      "localSha256": "329e255c45b3fda782a4b550100c0d3cc8ff6ca5e1116fbd76c041ab5e7e6ef7"
+      ]
     },
     {
       "id": "pi-coding-agent:src/modes/interactive/components/trust-selector",
@@ -2402,6 +2402,7 @@
       "implementationStatus": "ported",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Mechanical source-synchronized trust selector port with injected public ProjectTrustStore-derived options and remapped owned theme imports.",
+      "localSha256": "b25aefbda24894dbc484e9ed7d967dd264936893a5ec6cd6d96e8c4d879d3f20",
       "approvedDeviations": [],
       "behaviorCategories": [
         "selectors",
@@ -2424,8 +2425,7 @@
       ],
       "tests": [
         "test/integrations/pi/session-ui/session-shell.test.ts"
-      ],
-      "localSha256": "1e3611eb812ef21b097e6ffeb88e4198dec4443b06542417b6479ca1a0a111d3"
+      ]
     },
     {
       "id": "pi-coding-agent:src/modes/interactive/components/user-message-selector",
@@ -2555,7 +2555,7 @@
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Mechanical port: retain temporary prompt file, asynchronous inherited-stdio editor process, completion readback, and best-effort cleanup behind the owned extension-editor component.",
-      "localSha256": "6190d23c96128c0375b9ace2b5c3ad442262e8397248a5ca2cda96ce7931adb8",
+      "localSha256": "98f8c6589fd643b239fb815f1d444539a3f26b9f3b32d334c27e465a6f45afcd",
       "approvedDeviations": [],
       "behaviorCategories": [
         "editor",
@@ -2707,7 +2707,7 @@
       "implementationStatus": "ported",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Mechanical source-synchronized port preserving pinned model search terms for stateful scoped-model filtering.",
-      "localSha256": "f7203516c23299adf159149d9852e8d67d167cbbf7a573522cfc79c1f82eba37",
+      "localSha256": "8b15517b44585d3796a2c67592187eb6325838bcf0d2a104cc0d0e08b5e5c18c",
       "approvedDeviations": [],
       "behaviorCategories": [
         "selectors",
@@ -2827,7 +2827,7 @@
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Source-synchronized controller port: renamed owner class, injected dependency-free settings/runtime ports, remapped private theme helpers to the public-backed A1 theme adapter, and added explicit disposal.",
-      "localSha256": "aaef8325f9f9c5b05023c01237cc6d0a14457699d0bd5f6882aa0bd183af8dc8",
+      "localSha256": "8e347daff610639390a8c074d87f746c7f69a5f31bb3df56b36616fc1b480da1",
       "approvedDeviations": [
         {
           "id": "theme-controller-owned-boundaries",
@@ -2921,7 +2921,7 @@
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Source-synchronized theme port: retain pinned theme schema, variable/color resolution, built-in and custom loading, terminal detection, and layout defaults while constructing the public package-root Theme class.",
-      "localSha256": "fe3e79eddfec98cc6900b308cc66331549634737d95e1ee0af978464c1540b25",
+      "localSha256": "7536366cee37197dd0306af46eec425aa1ff7413146f48becef41890cf66982b",
       "approvedDeviations": [
         {
           "id": "theme-public-api-boundary",
@@ -3189,7 +3189,7 @@
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Owned editor core or minimal editor-local helper subset; public imports, strict types, typed persistent-history hooks, and semantic border state with the user-approved numeric-only history label. Public terminal runtime/exports remain shared and unchanged. See docs/architecture/history-editor-provenance.md.",
-      "localSha256": "ab2a306baf729ea70db68261b52d302d6bd2c7f86184456d7b96aaee08c8b2fe",
+      "localSha256": "4265b20b24688b65675bdcd9589d1d917710b5c875d364404974b14ce64646cb",
       "approvedDeviations": [
         {
           "id": "compact-history-counter-label",
@@ -3865,7 +3865,7 @@
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Owned editor core or minimal editor-local helper subset; public imports, strict types, typed persistent-history hooks, and semantic border state. Public terminal runtime/exports remain shared and unchanged. See docs/architecture/history-editor-provenance.md.",
-      "localSha256": "cf62ab637b1ed96332ac73b472ac1d733320733fc739e3ae59aaf1ad43fed8ef",
+      "localSha256": "ee583203ae46eb4b6e1b4b9c077776f21512a3a423bba05071e54bee47ad6250",
       "approvedDeviations": [
         {
           "id": "persistent-history-owned-editor-boundary",
@@ -3908,7 +3908,7 @@
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Owned editor core or minimal editor-local helper subset; public imports, strict types, typed persistent-history hooks, and semantic border state. Public terminal runtime/exports remain shared and unchanged. See docs/architecture/history-editor-provenance.md.",
-      "localSha256": "72d7f71c0193145da96ad30a41245d69ee5cb1d6c82c749f8d01c79c93e9570c",
+      "localSha256": "df865e78aef7171697fe86a120754fe159aaface9b292d6395aa2228d05a85de",
       "approvedDeviations": [
         {
           "id": "persistent-history-owned-editor-boundary",
@@ -4354,7 +4354,7 @@
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Owned editor core or minimal editor-local helper subset; public imports, strict types, typed persistent-history hooks, and semantic border state. Public terminal runtime/exports remain shared and unchanged. See docs/architecture/history-editor-provenance.md.",
-      "localSha256": "cc03fa0d52497a52aa9d88ba449715fbe2f4f4e3e030f884b98778f3402a2f32",
+      "localSha256": "553b56495b6a1b977fb44c5d9f3596d68c76f5f9ed11895a5f4f81c6d66d58e8",
       "approvedDeviations": [
         {
           "id": "persistent-history-owned-editor-boundary",
@@ -4400,7 +4400,7 @@
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Owned editor core or minimal editor-local helper subset; public imports, strict types, typed persistent-history hooks, and semantic border state. Public terminal runtime/exports remain shared and unchanged. See docs/architecture/history-editor-provenance.md.",
-      "localSha256": "9486efee042839195ea4d1ef405664ee421b6fcb3840c22c2d3fd0e31c4098ab",
+      "localSha256": "a6da5c6d6641044baeeb80b5df000a75167336b08e9474712f6bed9ce52350aa",
       "approvedDeviations": [
         {
           "id": "persistent-history-owned-editor-boundary",
@@ -4443,7 +4443,7 @@
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Owned editor core or minimal editor-local helper subset; public imports, strict types, typed persistent-history hooks, and semantic border state. Public terminal runtime/exports remain shared and unchanged. See docs/architecture/history-editor-provenance.md.",
-      "localSha256": "9e03b667d8a153c7fcbbf8ac5d251feb171daa3b8de003152a403814aeec0163",
+      "localSha256": "fedfb19e860c8f1ca5325fad44fd0786327e97989c98bd5a186ae9766cdf1305",
       "approvedDeviations": [
         {
           "id": "persistent-history-owned-editor-boundary",

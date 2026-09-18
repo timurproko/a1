@@ -1,6 +1,10 @@
-// Mechanically adapted from Pi commit 914cf14
-// packages/coding-agent/src/modes/interactive/components/trust-selector.ts (MIT).
-// Local modifications: inject trust options and remap theme/import boundaries.
+/**
+ * Provenance: @earendil-works/pi-coding-agent 0.84.2 (MIT), commit 914cf1472e715297caa30db4b9535d534a9eb718,
+ * packages/coding-agent/src/modes/interactive/components/trust-selector.ts.
+ * Modifications: Mechanical source-synchronized trust selector port with injected public
+ * ProjectTrustStore-derived options and remapped owned theme imports.
+ * Deviations: none.
+ */
 import { DynamicBorder, keyHint, rawKeyHint } from "@earendil-works/pi-coding-agent";
 import { Container, getKeybindings, Spacer, Text } from "@earendil-works/pi-tui";
 import { piTheme } from "../theme/theme.js";

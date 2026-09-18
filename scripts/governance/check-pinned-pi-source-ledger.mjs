@@ -3,6 +3,7 @@ import { access, readFile, readdir } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { readPiCompatibilityAuthority } from "./pi-compatibility-authority.mjs";
+import { carriesProvenanceHeader, renderProvenanceHeader } from "../pi/pinned-pi-source-header.mjs";
 
 const repository = fileURLToPath(new URL("../..", import.meta.url));
 const identity = JSON.parse(await readFile(join(repository, "src", "product-identity.json"), "utf8"));
@@ -115,7 +116,7 @@ async function validateLedger(skipUpstreamProvenance = false) {
     fail("ledger summary is stale");
   }
 
-  await validatePortDestinations(ledger.records);
+  await validatePortDestinations(ledger.records, ledger.upstream);
   await rejectDeepPiImports(sourceRoot);
   return { records: ledger.records.length, behaviors: coveredBehaviors.size };
 }
@@ -187,7 +188,7 @@ async function validateTestLinks(records) {
   }
 }
 
-async function validatePortDestinations(records) {
+async function validatePortDestinations(records, upstream) {
   const ownedRecords = records.filter(record => record.classification === "owned-presentation");
   const mapped = new Map(ownedRecords.map(record => [resolve(repository, record.localDestination), record]));
   for (const path of await filesUnderIfPresent(portRoot)) {
@@ -196,8 +197,13 @@ async function validatePortDestinations(records) {
   for (const [path, record] of mapped) {
     if (!await pathExists(path)) fail(`mapped owned source destination is missing: ${record.id}`);
     requiredString(record.localSha256, `${record.id}.localSha256`);
-    const localHash = createHash("sha256").update(await readFile(path)).digest("hex");
+    const content = await readFile(path);
+    const localHash = createHash("sha256").update(content).digest("hex");
     if (record.localSha256 !== localHash) fail(`mapped owned source destination hash is stale: ${record.id}`);
+    // Invariant: the copy states its own provenance; a reviewer resolving an upstream merge reads it there, not in the ledger.
+    if (carriesProvenanceHeader(record.localDestination) && !content.toString("utf8").startsWith(renderProvenanceHeader(record, upstream))) {
+      fail(`owned source copy lacks the canonical provenance header: ${record.id}`);
+    }
   }
   for (const record of records.filter(value => value.classification !== "owned-presentation")) {
     if (!await pathExists(resolve(repository, record.localDestination))) fail(`adapter destination is missing: ${record.id}`);

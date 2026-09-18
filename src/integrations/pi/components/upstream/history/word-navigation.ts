@@ -1,7 +1,10 @@
 /**
- * Adapted from @earendil-works/pi-tui 0.84.2, packages/tui/src/word-navigation.ts (MIT).
- * Source commit: 914cf1472e715297caa30db4b9535d534a9eb718.
- * Modifications: public imports and owned editor-local typed seams; see docs/architecture/history-editor-provenance.md.
+ * Provenance: @earendil-works/pi-tui 0.84.2 (MIT), commit 914cf1472e715297caa30db4b9535d534a9eb718,
+ * packages/tui/src/word-navigation.ts.
+ * Modifications: Owned editor core or minimal editor-local helper subset; public imports, strict
+ * types, typed persistent-history hooks, and semantic border state. Public terminal runtime/exports
+ * remain shared and unchanged. See docs/architecture/history-editor-provenance.md.
+ * Deviations: persistent-history-owned-editor-boundary.
  */
 import { getWordSegmenter, isWhitespaceChar, PUNCTUATION_REGEX } from "./text-helpers.js";
 

@@ -1,7 +1,11 @@
-// Adapted from Pi 0.84.1; upstream 0.84.2 re-synchronization is tracked by task 7.4.
-// Upstream: packages/coding-agent/src/modes/interactive/theme/theme-controller.ts
-// License: MIT. Modifications: public APIs and A1-owned runtime/settings ports.
-
+/**
+ * Provenance: @earendil-works/pi-coding-agent 0.84.2 (MIT), commit 914cf1472e715297caa30db4b9535d534a9eb718,
+ * packages/coding-agent/src/modes/interactive/theme/theme-controller.ts.
+ * Modifications: Source-synchronized controller port: renamed owner class, injected dependency-free
+ * settings/runtime ports, remapped private theme helpers to the public-backed A1 theme adapter, and
+ * added explicit disposal.
+ * Deviations: theme-controller-owned-boundaries, theme-controller-explicit-disposal.
+ */
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import {
   applyPiTheme,
