@@ -685,18 +685,29 @@ const HOLD_SCRIPT = "$ErrorActionPreference='Stop'; $s=[System.IO.File]::Open($e
 // Invariant: prove Win32 ERROR_SHARING_VIOLATION, not a Node readFile rejection that differs on hosted Windows.
 const PROBE_SCRIPT = "$ErrorActionPreference='Stop'; try { $p=[System.IO.File]::Open($env:CLEANUP_LOCK_FIXTURE,'Open','Read','ReadWrite'); $p.Dispose(); throw 'fixture-lock-not-held' } catch { $e=$_.Exception; while($e.InnerException) { $e=$e.InnerException }; if(($e.HResult -band 65535) -ne 32) { throw }; [Console]::WriteLine('SHARING_VIOLATION') }";
 const powershell = (script, env) => spawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], { env: { ...process.env, ...env }, stdio: ["ignore", "pipe", "pipe"] });
+// Platform: a hosted Windows runner pays the interpreter's cold start (assembly load, JIT, first-run scanning) on
+// the first powershell.exe launch, which exceeded the fixture bound once no earlier step had started it. Start one
+// throwaway interpreter with the file so that cost overlaps the earlier tests instead of the timed hold.
+const powershellWarmup = process.platform === "win32"
+  ? new Promise(resolve => {
+    const child = spawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", "exit 0"], { stdio: "ignore", windowsHide: true });
+    child.once("exit", resolve); child.once("error", resolve); child.unref();
+  })
+  : Promise.resolve();
 
 /** Windows-only exclusive handle on one file, released only by an explicit sentinel written outside the target. */
 function exclusiveHandle(f, lockedPath) {
   const releasePath = join(f.temporary, `release-${randomUUID()}`);
   let child, ended, diagnostic = "";
   const assertNativeLock = async () => {
+    await powershellWarmup;
     const result = await promisify(execFile)("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", PROBE_SCRIPT], {
       env: { ...process.env, CLEANUP_LOCK_FIXTURE: lockedPath }, timeout: 10000, maxBuffer: 65536, encoding: "utf8",
     });
     assert.equal(result.stdout.trim(), "SHARING_VIOLATION");
   };
   const hold = async () => {
+    await powershellWarmup;
     child = powershell(HOLD_SCRIPT, { CLEANUP_LOCK_FIXTURE: lockedPath, CLEANUP_LOCK_RELEASE: releasePath });
     ended = once(child, "close").then(([code, signal]) => ({ code, signal }), error => ({ error: error.message }));
     child.stderr.on("data", data => { diagnostic += data.toString(); });
