@@ -379,10 +379,8 @@ describe("OwnedUiSessionShell lifecycle, quit, and restoration", () => {
       onExitRequested: () => {},
     };
     const shell = new OwnedUiSessionShell({
-      backend: adapter,
-      cwd: "D:/work",
-      terminal,
-      routeHost: { claims: (route: string) => route === "pointer", open: () => surface },
+      engine: { backend: adapter, cwd: "D:/work", routeHost: { claims: (route: string) => route === "pointer", open: () => surface } },
+      presentation: { terminal },
     });
     shell.start();
     shell.runtime.renderNow();

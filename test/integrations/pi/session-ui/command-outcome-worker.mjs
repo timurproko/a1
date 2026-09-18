@@ -223,7 +223,7 @@ for (const theme of ["dark", "light"]) {
           } else throw new Error(`Unmapped pinned outcome command: ${entry.command}`);
         } else {
           adapter = await engine.createPiEngineAdapter({ cwd, agentDir, createRuntime: async () => state.runtime, workflowHost: state.host });
-          shell = new owned.OwnedUiSessionShell({ backend: adapter, cwd, terminal: new terminalModule.TestPresentationTerminal(), startup: { quiet: true } });
+          shell = new owned.OwnedUiSessionShell({ engine: { backend: adapter, cwd }, presentation: { terminal: new terminalModule.TestPresentationTerminal(), startup: { quiet: true } } });
           shell.root.editor.setText("preserved draft");
           state.onCancel = () => shell.root.handleInput("\u001b");
           state.onMissingCwd = () => setImmediate(() => shell.root.handleInput(entry.condition === "missing-cwd-declined" ? "\u001b" : "\r"));

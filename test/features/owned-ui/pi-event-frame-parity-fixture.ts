@@ -88,7 +88,7 @@ async function captureEventFrames(options: EventFrameCaptureOptions, clock: Even
   let ownedShell: OwnedUiSessionShell | undefined;
   try {
     const physical = new CapturingTerminal(64, 18, options.failTerminalStop);
-    const shell = new OwnedUiSessionShell({ backend: adapter, cwd: "D:/parity", terminal: physical });
+    const shell = new OwnedUiSessionShell({ engine: { backend: adapter, cwd: "D:/parity" }, presentation: { terminal: physical } });
     ownedShell = shell;
     const states: EventStateParityEntry[] = [];
     const frames: TerminalFrameParityEntry[] = [];

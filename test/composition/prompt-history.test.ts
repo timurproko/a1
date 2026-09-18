@@ -10,7 +10,7 @@ import { resolveProductPaths } from "../../src/foundation/lifecycle/index.js";
 import { composeOwnedUi } from "../../src/composition/owned-ui.js";
 import { PromptHistoryController } from "../../src/integrations/pi/session-ui/prompt-history-controller.js";
 
-type ShellOptions = { promptHistory?: { store: PromptHistoryService } };
+type ShellOptions = { history?: { store: PromptHistoryService } };
 const observed = vi.hoisted(() => ({ shells: [] as ShellOptions[], enabled: true, loadEditor: vi.fn() }));
 
 // Rationale: test composition/storage without starting a terminal, provider, or Pi runtime.
@@ -30,7 +30,7 @@ vi.mock("../../src/ui/settings/session.js", () => ({
 vi.mock("../../src/integrations/pi/session-ui/session-shell.js", () => ({
   OwnedUiSessionShell: class {
     constructor(readonly options: ShellOptions) { observed.shells.push(options); }
-    async dispose() { await this.options.promptHistory?.store.close(); }
+    async dispose() { await this.options.history?.store.close(); }
   },
 }));
 
@@ -49,7 +49,7 @@ beforeEach(() => {
   vi.stubEnv("XDG_DATA_HOME", join(root, "legacy-data"));
 });
 afterEach(async () => {
-  await Promise.all(observed.shells.map(shell => shell.promptHistory?.store.close()));
+  await Promise.all(observed.shells.map(shell => shell.history?.store.close()));
   vi.restoreAllMocks();
   vi.unstubAllEnvs();
   rmSync(root, { recursive: true, force: true });
@@ -96,7 +96,7 @@ describe("owned history storage composition", () => {
     const assertOldUntouched = seedOldStore();
     const productPaths = resolveProductPaths();
     const first = await compose();
-    const store = observed.shells.at(-1)!.promptHistory!.store;
+    const store = observed.shells.at(-1)!.history!.store;
     expect(store.options).toMatchObject({ dataDir: join(root, ".a1", "data"), profileRoot, limit: 100 });
     expect((await snapshot(store)).entries).toEqual([]);
     expect(await store.record({ id: "new", text: "synthetic new prompt", timestamp: 2, kind: "prompt" })).toBe("committed");
@@ -109,7 +109,7 @@ describe("owned history storage composition", () => {
     assertOldUntouched();
     await first.application.dispose();
     await compose();
-    expect((await snapshot(observed.shells.at(-1)!.promptHistory!.store)).entries).toEqual([{ text: "synthetic new prompt", submissionId: "new" }]);
+    expect((await snapshot(observed.shells.at(-1)!.history!.store)).entries).toEqual([{ text: "synthetic new prompt", submissionId: "new" }]);
     expect(resolveProductPaths()).toEqual(productPaths);
     assertOldUntouched();
   }, 15_000);
@@ -117,7 +117,7 @@ describe("owned history storage composition", () => {
   it("accesses only an explicit data override and leaves the default home store absent", async () => {
     vi.stubEnv("A1_DATA_DIR", join(root, "override"));
     await compose();
-    const store = observed.shells.at(-1)!.promptHistory!.store;
+    const store = observed.shells.at(-1)!.history!.store;
     expect(store.options.dataDir).toBe(join(root, "override"));
     expect(await store.record({ id: "override", text: "synthetic override prompt", timestamp: 1, kind: "prompt" })).toBe("committed");
     expect(existsSync(resolvePromptHistoryPath(store.options.dataDir, profileRoot).path)).toBe(true);
@@ -129,7 +129,7 @@ describe("owned history storage composition", () => {
     mkdirSync(join(root, ".a1"));
     writeFileSync(join(root, ".a1", "data"), "not a directory");
     const composition = await compose();
-    const store = observed.shells.at(-1)!.promptHistory!.store;
+    const store = observed.shells.at(-1)!.history!.store;
     const failure = vi.fn();
     store.onFailure(failure);
     const replace = vi.fn();
@@ -154,7 +154,7 @@ describe("owned history storage composition", () => {
     if (mode === "disabled") observed.enabled = false;
     await compose(mode === "settings-free" ? {} : { profileId: "a1", ...(mode === "comparison" ? { ownedSurfaces: "off" as const } : {}) });
     expect(resolveRoot).not.toHaveBeenCalled();
-    expect(observed.shells.at(-1)!.promptHistory).toBeUndefined();
+    expect(observed.shells.at(-1)!.history).toBeUndefined();
     expect(observed.loadEditor).not.toHaveBeenCalled();
     expect(existsSync(join(root, ".a1"))).toBe(false);
     assertOldUntouched();

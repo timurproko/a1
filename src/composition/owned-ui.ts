@@ -113,25 +113,29 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
   let shell: OwnedUiSessionShell;
   try {
     shell = new OwnedUiSessionShell({
-    backend: adapter,
-    cwd: adapter.cwd,
-    ...(options.terminal === undefined ? {} : { terminal: createPiTerminalBridge(options.terminal) }),
-    ...(routeHost === null ? {} : { routeHost }),
-    ...(ownedSurfaces ? { sessionLayout: "custom-viewport" as const } : {}),
-    ...(clipboardDiagnostics === null ? {} : {
-      responseCopy: { onEvent: event => clipboardDiagnostics.copy(event) },
-      pasteDiagnostics: event => clipboardDiagnostics.paste(event),
-      inputPresentation: { onEvent: event => clipboardDiagnostics.runtime(event) },
-    }),
-    ...(viewportSettings === null ? {} : { viewportSettings }),
-    ...(settings === null || !ownedSurfaces ? {} : {
-      quitOutro: { snapshot: () => quitOutroSettingsSnapshot(settings), interactive: process.stdout.isTTY === true },
-    }),
-    ...(promptSuggestions === null ? {} : { promptSuggestions }),
-    ...(promptHistory === null ? {} : { promptHistory: {
-      ...promptHistory,
-      editor: await import("../integrations/pi/components/history-editor-loader.js").then(module => module.loadHistoryEditor()),
-    } }),
+      engine: {
+        backend: adapter,
+        cwd: adapter.cwd,
+        ...(routeHost === null ? {} : { routeHost }),
+        ...(ownedSurfaces ? { sessionLayout: "custom-viewport" as const } : {}),
+      },
+      presentation: {
+        ...(options.terminal === undefined ? {} : { terminal: createPiTerminalBridge(options.terminal) }),
+        ...(clipboardDiagnostics === null ? {} : { input: { onEvent: event => clipboardDiagnostics.runtime(event) } }),
+        ...(viewportSettings === null ? {} : { viewportSettings }),
+        ...(settings === null || !ownedSurfaces ? {} : {
+          quitOutro: { snapshot: () => quitOutroSettingsSnapshot(settings), interactive: process.stdout.isTTY === true },
+        }),
+      },
+      ...(clipboardDiagnostics === null ? {} : { diagnostics: {
+        responseCopy: { onEvent: event => clipboardDiagnostics.copy(event) },
+        paste: event => clipboardDiagnostics.paste(event),
+      } }),
+      ...(promptSuggestions === null ? {} : { suggestions: promptSuggestions }),
+      ...(promptHistory === null ? {} : { history: {
+        ...promptHistory,
+        editor: await import("../integrations/pi/components/history-editor-loader.js").then(module => module.loadHistoryEditor()),
+      } }),
     });
   } catch (error) {
     clipboardDiagnostics?.dispose(); suggestionDiagnostics?.dispose();

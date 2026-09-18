@@ -30,11 +30,8 @@ const adapter = await createPiEngineAdapter({
 });
 const terminal = new TestPresentationTerminal();
 const shell = new OwnedUiSessionShell({
-  backend: adapter,
-  cwd: home,
-  terminal,
-  sessionLayout: "custom-viewport",
-  startup: { quiet: true },
+  engine: { backend: adapter, cwd: home, sessionLayout: "custom-viewport" },
+  presentation: { terminal, startup: { quiet: true } },
 });
 const application = {
   get disposed() { return adapter.disposed; },

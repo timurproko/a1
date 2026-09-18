@@ -36,7 +36,7 @@ describe("suggestion diagnostic launch composition", () => {
       const destination = join(directory, "snapshot.json");
       vi.stubEnv(PRODUCT_IDENTITY.environment.suggestionDiagnostics, route === "environment" ? destination : undefined);
       const composed = await compose({ profileId: "a1", ...(route === "explicit" ? { suggestionDiagnosticsPath: destination } : {}) });
-      const capture = observed.options?.promptSuggestions?.diagnostics as SuggestionDiagnosticCapture;
+      const capture = observed.options?.suggestions?.diagnostics as SuggestionDiagnosticCapture;
       expect(capture).toBeInstanceOf(SuggestionDiagnosticCapture);
       capture.record({ event: "skipped", reason: "disabled", session: 1, request: 0, run: 1, response: 2, provider: "test", model: "test", reasoning: "ordinary", elapsedMs: 0 });
       await capture.flush();
@@ -49,8 +49,8 @@ describe("suggestion diagnostic launch composition", () => {
   it.each(["unset", "blank", "comparison", "settings-free"])("withholds diagnostic capture in %s mode", async mode => {
     vi.stubEnv(PRODUCT_IDENTITY.environment.suggestionDiagnostics, mode === "unset" ? undefined : mode === "blank" ? " " : "unused-snapshot.json");
     const composed = await compose({ ...(mode === "settings-free" ? {} : { profileId: "a1" }), ...(mode === "comparison" ? { ownedSurfaces: "off" as const } : {}) });
-    expect(observed.options?.promptSuggestions?.diagnostics).toBeUndefined();
-    if (mode === "comparison" || mode === "settings-free") expect(observed.options?.promptSuggestions).toBeUndefined();
+    expect(observed.options?.suggestions?.diagnostics).toBeUndefined();
+    if (mode === "comparison" || mode === "settings-free") expect(observed.options?.suggestions).toBeUndefined();
     await composed.application.dispose();
   });
 });

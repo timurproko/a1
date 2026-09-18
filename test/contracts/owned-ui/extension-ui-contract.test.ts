@@ -86,14 +86,16 @@ describe("owned extension UI contracts", () => {
   });
 
   it("keeps owned contracts dependency-free and confines the validated public UI type to the engine adapter", async () => {
-    const [contract, adapter] = await Promise.all([
+    const [contract, adapter, binding] = await Promise.all([
       readFile("src/contracts/owned-ui/extension-ui.ts", "utf8"),
       readFile("src/integrations/pi/engine/adapter.ts", "utf8"),
+      readFile("src/integrations/pi/engine/extension-ui-binding.ts", "utf8"),
     ]);
     expect(contract).not.toMatch(/@earendil-works|pi-coding-agent|pi-tui/);
-    expect(adapter.match(/ExtensionUIContext/g)).toHaveLength(3);
-    expect(adapter).toContain("assertOwnedUiExtensionUiPort(value)");
-    expect(adapter).not.toMatch(/createExtensionUIContext|getUIContext|InteractiveMode/);
+    expect(adapter).not.toMatch(/ExtensionUIContext/);
+    expect(binding.match(/ExtensionUIContext/g)).toHaveLength(3);
+    expect(binding).toContain("assertOwnedUiExtensionUiPort(value)");
+    expect(`${adapter}${binding}`).not.toMatch(/createExtensionUIContext|getUIContext|InteractiveMode/);
   });
 
   it("rejects malformed theme ports without inspecting Pi private context", () => {
