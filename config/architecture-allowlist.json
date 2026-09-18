@@ -6,7 +6,5 @@
     "src/integrations/pi/session-ui/paste-text-worker.ts"
   ],
   "importCycles": [],
-  "unreachableModules": [
-    "src/integrations/pi/tui-runtime/conformance.ts"
-  ]
+  "unreachableModules": []
 }
