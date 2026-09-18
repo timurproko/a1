@@ -35,7 +35,7 @@ describe("PiTranscriptProjection", () => {
     const streaming = assistant("a");
     const startId = target.upsertMessage(streaming, "live")!.id;
     expect(target.upsertMessage(streaming, "finalized")!.id).toBe(startId);
-    // A different message object with the same role and timestamp is a new occurrence, not an overwrite.
+    // Invariant: a different message object with the same role and timestamp is a new occurrence, not an overwrite.
     const laterId = target.upsertMessage(assistant("b"), "live")!.id;
     expect(laterId).not.toBe(startId);
     expect(target.blocks).toHaveLength(2);
