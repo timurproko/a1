@@ -1,14 +1,134 @@
-export * from "./components.js";
+export { adaptPiAssistantMessage, adaptPiToolExecution, adaptPiUserMessage } from "./components.js";
 export { loadHistoryEditor, type HistoryEditorConstructor } from "./history-editor-loader.js";
-export * from "./conformance.js";
-export * from "./shell-components.js";
-export * from "./theme.js";
-export * from "./upstream/theme/theme-controller.js";
-export { applyConfiguredPiTheme, getAvailablePiThemes, onPiThemeChange } from "./upstream/theme/theme.js";
-export * from "./upstream/components/countdown-timer.js";
-export * from "./upstream/components/extension-editor.js";
-export * from "./upstream/components/session-selector.js";
-export * from "./upstream/components/session-selector-search.js";
-export * from "./upstream/components/status-indicator.js";
-export * from "./upstream/components/tree-selector.js";
-export * from "./upstream/adjacent/core/keybindings.js";
+export { PiComponentConformanceError, runPiComponentConformance } from "./conformance.js";
+export type { PiComponentConformanceReport, PiComponentConformanceResult } from "./conformance.js";
+export {
+  PINNED_PI_BUILTIN_SLASH_COMMANDS,
+  componentFromPort,
+  componentPort,
+  createPiExtensionUiBridge,
+  createPiQueuedInputStatus,
+  createPiShellArmin,
+  createPiShellAuthProviderSelector,
+  createPiShellChangelog,
+  createPiShellCollapsedChangelog,
+  createPiShellDaxnuts,
+  createPiShellDialog,
+  createPiShellEarendilAnnouncement,
+  createPiShellEditor,
+  createPiShellExtensionSelector,
+  createPiShellFooter,
+  createPiShellHeader,
+  createPiShellHotkeys,
+  createPiShellLoadedResources,
+  createPiShellLoginDialog,
+  createPiShellModelSelector,
+  createPiShellOperationLoader,
+  createPiShellReloadBox,
+  createPiShellScopedModelsSelector,
+  createPiShellSelector,
+  createPiShellSessionInfo,
+  createPiShellSessionSelector,
+  createPiShellSettingsSelector,
+  createPiShellShowImagesSelector,
+  createPiShellStatus,
+  createPiShellThemeSelector,
+  createPiShellThinkingSelector,
+  createPiShellTranscriptComponent,
+  createPiShellTreeSelector,
+  createPiShellTrustSelector,
+  createPiShellUserMessageSelector,
+  createTuiFacade,
+  ensureTheme,
+  formatSessionTokens,
+  isAutocompleteProvider,
+  isPiPromptStyleCompaction,
+  isRecord,
+  paintPiSubmittedPromptTimestamp,
+  piShellTruncateToWidth,
+  piShellVisibleWidth,
+  renderPiShellCommandMessage,
+  renderPiShellPackageUpdateNotice,
+  renderPiShellStartupDiagnostic,
+  renderPiShellStatusText,
+  renderPiShellTranscriptBlock,
+  validatedAssistantMessage,
+} from "./shell-components.js";
+export type {
+  PiExtensionUiBridge,
+  PiExtensionUiBridgeHost,
+  PiShellAuthProviderOption,
+  PiShellAutocompleteCommand,
+  PiShellClipboardContent,
+  PiShellCommandMessagePresentation,
+  PiShellComponentPort,
+  PiShellEditorBodyGeometry,
+  PiShellEditorOptions,
+  PiShellEditorPointerEvent,
+  PiShellEditorPort,
+  PiShellEditorTextRange,
+  PiShellExtensionRendererResolver,
+  PiShellHeaderOptions,
+  PiShellHeaderPort,
+  PiShellImageAssetResolver,
+  PiShellLoadedResourcesPort,
+  PiShellLoginDialogPort,
+  PiShellModelSelectorOptions,
+  PiShellOperationLoaderPort,
+  PiShellPasteReservation,
+  PiShellQueuedInputPort,
+  PiShellResourceEntry,
+  PiShellResourceSection,
+  PiShellScopedModelDescriptor,
+  PiShellScopedModelsSelectorOptions,
+  PiShellScopedModelsSelectorPort,
+  PiShellSelectorOption,
+  PiShellSelectorOptions,
+  PiShellSessionInfoPresentation,
+  PiShellSettingsSelectorOptions,
+  PiShellStartupNotice,
+  PiShellStatusPlacement,
+  PiShellStatusPort,
+  PiShellSubmittedPromptComposer,
+  PiShellTranscriptComponentPort,
+  PiShellViewComponentPort,
+} from "./shell-components.js";
+export {
+  PINNED_PI_LAYOUT,
+  applyConfiguredPiTheme,
+  applyPiTheme,
+  applyPiThemeInstance,
+  currentPiThemeName,
+  detectPiTerminalBackgroundFromEnv,
+  detectPiTerminalBackgroundTheme,
+  detectPiTerminalThemeForAuto,
+  ensurePiTheme,
+  getAvailablePiThemes,
+  loadPiTheme,
+  onPiThemeChange,
+  parsePiAutoThemeSetting,
+  piTheme,
+  resolvePiThemeSetting,
+  stopPiThemeWatcher,
+} from "./theme.js";
+export type { PiColorMode, PiTerminalTheme, PiTerminalThemeDetection, PiTerminalThemeDetector, PiThemeBackground, PiThemeResult } from "./theme.js";
+export { OwnedPiThemeController } from "./upstream/theme/theme-controller.js";
+export type { PiThemeRuntimePort, PiThemeSettingsPort } from "./upstream/theme/theme-controller.js";
+export { CountdownTimer } from "./upstream/components/countdown-timer.js";
+export { ExtensionEditorComponent } from "./upstream/components/extension-editor.js";
+export { SessionSelectorComponent } from "./upstream/components/session-selector.js";
+export { filterAndSortSessions, hasSessionName, matchSession, parseSearchQuery } from "./upstream/components/session-selector-search.js";
+export type { MatchResult, NameFilter, ParsedSearchQuery, SortMode } from "./upstream/components/session-selector-search.js";
+export {
+  BranchSummaryStatusIndicator,
+  CompactionStatusIndicator,
+  IdleStatus,
+  RetryStatusIndicator,
+  StatusIndicator,
+  WorkingStatusIndicator,
+} from "./upstream/components/status-indicator.js";
+export type { CompactionStatusReason, StatusIndicatorKind } from "./upstream/components/status-indicator.js";
+export { TreeSelectorComponent } from "./upstream/components/tree-selector.js";
+export type { FilterMode } from "./upstream/components/tree-selector.js";
+export { KEYBINDINGS, KeybindingsManager, migrateKeybindingsConfig } from "./upstream/adjacent/core/keybindings.js";
+export type { AppKeybinding, AppKeybindings, KeyId, Keybinding, KeybindingsConfig } from "./upstream/adjacent/core/keybindings.js";

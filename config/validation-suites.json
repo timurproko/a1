@@ -89,7 +89,7 @@
         "test/integrations/pi/engine/conformance.test.ts",
         "test/integrations/pi/engine/runtime-integration.test.ts",
         "test/integrations/pi/engine/session-integration.test.ts",
-        "test/integrations/pi/session-ui/image-worker-package.test.ts",
+        "test/app/session-shell/image-worker-package.test.ts",
         "test/features/prompt-history/worker-package.test.ts",
         "test/integrations/pi/tui-runtime/rendering-budgets.test.ts",
         "test/integrations/pi/tui-runtime/rendering-smoke.test.ts",
@@ -121,15 +121,15 @@
         "test/foundation/release/release-gc.test.ts",
         "test/foundation/release/update-live-cohort.test.ts",
         "test/features/prompt-history/store.test.ts",
-        "test/integrations/pi/session-ui/command-message-parity.test.ts",
-        "test/integrations/pi/session-ui/command-outcome-parity.test.ts",
-        "test/integrations/pi/session-ui/session-shell.test.ts",
-        "test/integrations/pi/session-ui/session-shell-paste.test.ts",
-        "test/integrations/pi/session-ui/paste-executor.test.ts",
-        "test/integrations/pi/session-ui/clipboard-executor-lifecycle.test.ts",
-        "test/integrations/pi/session-ui/clipboard-packaged.test.ts",
+        "test/app/session-shell/command-message-parity.test.ts",
+        "test/app/session-shell/command-outcome-parity.test.ts",
+        "test/app/session-shell/session-shell.test.ts",
+        "test/app/session-shell/session-shell-paste.test.ts",
+        "test/app/session-shell/paste-executor.test.ts",
+        "test/app/session-shell/clipboard-executor-lifecycle.test.ts",
+        "test/app/session-shell/clipboard-packaged.test.ts",
         "test/integrations/pi/components/editor-text-paste.test.ts",
-        "test/integrations/pi/session-ui/prompt-history-controller.test.ts",
+        "test/app/session-shell/prompt-history-controller.test.ts",
         "test/foundation/release/update-activation.test.ts"
       ]
     },
@@ -234,7 +234,7 @@
       "tests": [
         "test/cli/update-cli.test.ts",
         "test/features/launch/development-launch.test.ts",
-        "test/integrations/pi/session-ui/image-worker-package.test.ts",
+        "test/app/session-shell/image-worker-package.test.ts",
         "test/features/prompt-history/worker-package.test.ts"
       ]
     },
@@ -334,8 +334,8 @@
       "kind": "vitest-files",
       "requiresBuild": true,
       "tests": [
-        "test/integrations/pi/session-ui/image-preparation.test.ts",
-        "test/integrations/pi/session-ui/image-worker-package.test.ts"
+        "test/app/session-shell/image-preparation.test.ts",
+        "test/app/session-shell/image-worker-package.test.ts"
       ]
     },
     "history-compatibility": {

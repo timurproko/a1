@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  inspectLayerBoundaries,
   inspectPiFeatureBoundaryImports,
   inspectProjectOwnerLayout,
   inspectProjectStructureImports,
@@ -11,7 +12,7 @@ import {
 describe("project structure ownership policy", () => {
   it("declares every production and test owner with one public entry", () => {
     expect(Object.keys(PROJECT_OWNERS)).toEqual([
-      "product-identity", "cli", "composition", "launch", "owned-ui", "prompt-suggestions", "prompt-history", "terminal-cleanup", "launch-context", "startup", "lifecycle", "process-containment", "launch-guardian", "protocol", "release", "storage", "owned-ui-contracts", "ui-components", "ui-apps", "owned-ui-settings", "agent-engine-contracts", "presentation-contracts", "pi-engine-adapter", "pi-component-adapter", "pi-tui-runtime-adapter", "pi-session-ui-integration", "supervision",
+      "product-identity", "cli", "composition", "session-shell", "launch", "owned-ui", "prompt-suggestions", "prompt-history", "terminal-cleanup", "launch-context", "startup", "lifecycle", "process-containment", "launch-guardian", "protocol", "release", "storage", "owned-ui-contracts", "ui-components", "ui-apps", "owned-ui-settings", "agent-engine-contracts", "presentation-contracts", "pi-engine-adapter", "pi-component-adapter", "pi-tui-runtime-adapter", "supervision",
     ]);
     for (const owner of Object.values(PROJECT_OWNERS)) {
       if (owner.id === "product-identity") {
@@ -84,9 +85,49 @@ describe("project structure ownership policy", () => {
       "src/cli/dispatch.ts": "import { profile } from '../features/launch/index.js'; export { profile };",
       "src/foundation/lifecycle/index.ts": "export type Id = string;",
       "src/foundation/protocol/messages.ts": "import type { Id } from '../lifecycle/index.js'; export type Message = Id;",
-      "src/foundation/protocol/index.ts": "export * from './messages.js';",
+      "src/foundation/protocol/index.ts": "export type { Message } from './messages.js';",
       "src/foundation/supervision/server.ts": "import type { Message } from '../protocol/index.js'; export type Server = Message;",
     })).toEqual([]);
+  });
+
+  it("rejects a public entry that re-exports a whole module instead of listing names", () => {
+    expect(inspectProjectStructureImports({
+      "src/foundation/protocol/index.ts": "export * from './messages.js';\nexport { encodeFrame } from './framing.js';",
+    })).toEqual([
+      "src/foundation/protocol/index.ts: public entry must list its named exports rather than re-export a whole module",
+    ]);
+  });
+
+  it("lets only composition and eager startup modules reach past a public entry", () => {
+    const files = {
+      "src/composition/owned-ui.ts": "import { PromptInput } from '../ui/components/prompt-input.js';",
+      "src/app/session-shell/session-shell.ts": "import { PromptInput } from '../../ui/components/prompt-input.js';",
+      "src/app/session-shell/quit-outro.ts": "import { ImageAttachmentError } from '../../contracts/owned-ui/image-attachments.js';",
+    };
+    expect(inspectProjectStructureImports(files, new Set(["src/app/session-shell/session-shell.ts", "src/app/session-shell/quit-outro.ts"]))).toEqual([
+      "src/app/session-shell/quit-outro.ts: cross-owner import '../../contracts/owned-ui/image-attachments.js' must use src/contracts/owned-ui/index.ts",
+    ]);
+    expect(inspectProjectStructureImports(files)).toEqual([
+      "src/app/session-shell/session-shell.ts: cross-owner import '../../ui/components/prompt-input.js' must use src/ui/components/index.ts",
+      "src/app/session-shell/quit-outro.ts: cross-owner import '../../contracts/owned-ui/image-attachments.js' must use src/contracts/owned-ui/index.ts",
+    ]);
+  });
+
+  it("holds the three layer boundaries regardless of the owner DAG", () => {
+    expect(inspectLayerBoundaries({
+      "src/contracts/owned-ui/index.ts": "export type { PasteEvent } from './paste.js';",
+      "src/ui/components/frame.ts": "import type { UiTheme } from '../../contracts/presentation/index.js'; import { spans } from './spans.js';",
+      "src/integrations/pi/engine/adapter.ts": "import { AgentSession } from '@earendil-works/pi-coding-agent';",
+    })).toEqual([]);
+    expect(inspectLayerBoundaries({
+      "src/contracts/owned-ui/paste.ts": "import { readFile } from 'node:fs/promises';",
+      "src/ui/components/frame.ts": "import { piTheme } from '../../integrations/pi/components/index.js';",
+      "src/app/session-shell/session-shell.ts": "import { TUI } from '@earendil-works/pi-tui';",
+    })).toEqual([
+      "src/contracts/owned-ui/paste.ts: contracts import nothing ('node:fs/promises')",
+      "src/ui/components/frame.ts: ui/components import only contracts ('../../integrations/pi/components/index.js')",
+      "src/app/session-shell/session-shell.ts: only the Pi adapters import '@earendil-works/pi-tui'",
+    ]);
   });
 
   it("rejects cross-owner private deep imports", () => {
@@ -120,8 +161,8 @@ describe("project structure ownership policy", () => {
     ],
     [
       "concrete Pi integration",
-      "import { OwnedUiSessionShell } from '../../integrations/pi/session-ui/index.js';",
-      "feature may not import concrete Pi adapter '../../integrations/pi/session-ui/index.js'",
+      "import { OwnedUiSessionShell } from '../../app/session-shell/index.js';",
+      "feature may not import concrete Pi adapter '../../app/session-shell/index.js'",
     ],
     [
       "Pi-named contract",

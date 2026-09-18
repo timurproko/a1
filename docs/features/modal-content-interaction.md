@@ -23,8 +23,8 @@ The existing [modal transition inventory](../../config/baselines/modal-surface-i
 
 Focused files:
 
-- `test/integrations/pi/session-ui/session-viewport-controller.test.ts`: modal/no-modal selection/copy and render-cadence comparison, wheel/auto-scroll speed comparison, settings, boundary crossings, and gesture cancellation.
-- `test/integrations/pi/session-ui/session-shell.test.ts`: real workflows, extension-host families, ordered mixed/chunked input, nested settings, resize, streaming, copy notification exclusion, and modal-over-selection terminal paint.
+- `test/app/session-shell/session-viewport-controller.test.ts`: modal/no-modal selection/copy and render-cadence comparison, wheel/auto-scroll speed comparison, settings, boundary crossings, and gesture cancellation.
+- `test/app/session-shell/session-shell.test.ts`: real workflows, extension-host families, ordered mixed/chunked input, nested settings, resize, streaming, copy notification exclusion, and modal-over-selection terminal paint.
 - `test/integrations/pi/tui-runtime/overlay-geometry.test.ts`: independent terminal-cell geometry and runtime search coverage.
 - `test/integrations/pi/tui-runtime/mouse-report-input.test.ts`: ordered report delivery, partial reports, and opaque pasted text.
 

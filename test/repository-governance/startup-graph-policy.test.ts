@@ -54,7 +54,7 @@ describe("startup reachability policy", () => {
     expect(report.totals.files).toBeGreaterThan(100);
     expect(report.modules.every(module => ["initial-render", "first-prompt-correctness"].includes(module.classification))).toBe(true);
     expect(report.modules.find(module => module.path === "src/integrations/pi/engine/adapter.ts")?.classification).toBe("first-prompt-correctness");
-    expect(report.modules.find(module => module.path === "src/integrations/pi/session-ui/session-shell.ts")?.classification).toBe("initial-render");
+    expect(report.modules.find(module => module.path === "src/app/session-shell/session-shell.ts")?.classification).toBe("initial-render");
     expect(report.modules.find(module => module.path === "src/integrations/pi/startup-public.ts")?.chain).toEqual([
       "src/composition/owned-ui.ts",
       "src/integrations/pi/engine/adapter.ts",

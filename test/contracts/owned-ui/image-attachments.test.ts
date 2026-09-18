@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { assertOwnedUiCommand, assertPromptImages, MAX_IMAGE_DATA_BYTES, ImageAttachmentError } from "../../../src/contracts/owned-ui/index.js";
-import { PromptChipStore } from "../../../src/integrations/pi/session-ui/prompt-chips.js";
+import { PromptChipStore } from "../../../src/app/session-shell/prompt-chips.js";
 
 const image = (data = "aGk=") => ({ type: "image" as const, data, mimeType: "image/png" });
 

@@ -60,10 +60,10 @@ describe("bounded PR-core ownership", () => {
     expect(graph.files).toBeGreaterThan(authority.tests.length);
     const fixture = "test/fixtures/prompt-suggestion-conversations.ts";
     expect(graph.reachingTests(fixture)).toEqual([
+      "test/app/session-shell/session-shell-selection.test.ts",
+      "test/app/session-shell/session-shell-suggestions.test.ts",
       "test/integrations/pi/engine/adapter.test.ts",
       "test/integrations/pi/engine/prompt-suggestion-provider.integration.test.ts",
-      "test/integrations/pi/session-ui/session-shell-selection.test.ts",
-      "test/integrations/pi/session-ui/session-shell-suggestions.test.ts",
     ]);
     const direct = select([fixture]);
     expect(direct.mode).toBe("impact");

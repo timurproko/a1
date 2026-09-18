@@ -1,9 +1,14 @@
 import { dirname, posix } from "node:path";
+import { PROHIBITED_STARTUP_ENTRIES } from "./startup-graph-policy.mjs";
 
 export const PROJECT_OWNERS = Object.freeze({
   "product-identity": Object.freeze({ id: "product-identity", layer: "foundation", sourceRoot: "src", testRoot: "test/product-identity", publicEntry: "src/product-identity.ts", mayImport: Object.freeze([]) }),
   cli: owner("cli", "entry", "src/cli", "test/cli", ["launch", "release", "agent-engine-contracts"]),
-  composition: owner("composition", "entry", "src/composition", "test/composition", ["agent-engine-contracts", "presentation-contracts", "owned-ui-contracts", "owned-ui-settings", "lifecycle", "pi-engine-adapter", "pi-component-adapter", "pi-tui-runtime-adapter", "pi-session-ui-integration", "ui-apps", "ui-components", "owned-ui", "prompt-history", "prompt-suggestions", "launch"]),
+  composition: owner("composition", "entry", "src/composition", "test/composition", ["agent-engine-contracts", "presentation-contracts", "owned-ui-contracts", "owned-ui-settings", "lifecycle", "pi-engine-adapter", "pi-component-adapter", "pi-tui-runtime-adapter", "session-shell", "ui-apps", "ui-components", "owned-ui", "prompt-history", "prompt-suggestions", "launch"]),
+  "session-shell": owner("session-shell", "app", "src/app/session-shell", "test/app/session-shell", [
+    "owned-ui-contracts", "agent-engine-contracts", "presentation-contracts", "ui-components", "ui-apps", "owned-ui-settings",
+    "pi-engine-adapter", "pi-component-adapter", "pi-tui-runtime-adapter", "terminal-cleanup", "owned-ui", "prompt-history", "prompt-suggestions", "launch",
+  ]),
   launch: owner("launch", "feature", "src/features/launch", "test/features/launch", ["lifecycle"]),
   "owned-ui": owner("owned-ui", "feature", "src/features/owned-ui", "test/features/owned-ui", [
     "owned-ui-contracts", "owned-ui-settings", "ui-components", "ui-apps", "agent-engine-contracts", "presentation-contracts", "startup", "terminal-cleanup",
@@ -28,7 +33,6 @@ export const PROJECT_OWNERS = Object.freeze({
   "pi-engine-adapter": owner("pi-engine-adapter", "foundation", "src/integrations/pi/engine", "test/integrations/pi/engine", ["owned-ui-contracts", "agent-engine-contracts", "startup"]),
   "pi-component-adapter": owner("pi-component-adapter", "foundation", "src/integrations/pi/components", "test/integrations/pi/components", ["owned-ui-contracts", "presentation-contracts"]),
   "pi-tui-runtime-adapter": owner("pi-tui-runtime-adapter", "foundation", "src/integrations/pi/tui-runtime", "test/integrations/pi/tui-runtime", ["presentation-contracts", "terminal-cleanup"]),
-  "pi-session-ui-integration": owner("pi-session-ui-integration", "foundation", "src/integrations/pi/session-ui", "test/integrations/pi/session-ui", ["owned-ui-contracts", "ui-components", "ui-apps", "pi-engine-adapter", "pi-component-adapter", "pi-tui-runtime-adapter", "terminal-cleanup"]),
   supervision: owner("supervision", "foundation", "src/foundation/supervision", "test/foundation/supervision", ["lifecycle", "protocol", "release", "storage", "launch-context"]),
 });
 
@@ -54,12 +58,22 @@ export function inspectProjectOwnerLayout(paths) {
   return errors;
 }
 
-export function inspectProjectStructureImports(files, directLeafConsumers = new Set()) {
+/**
+ * Only the composition root may reach past a provider's public entry. The one other case is a module on the eager
+ * startup path importing a leaf of a provider whose public entry is a prohibited startup entry: loading that barrel
+ * would pull the provider's whole graph into startup, so the leaf import is the lean choice, not a shortcut.
+ */
+const DEEP_IMPORT_OWNER = "composition";
+
+export function inspectProjectStructureImports(files, startupModules = new Set()) {
   const errors = [];
   for (const [rawPath, source] of Object.entries(files)) {
     const path = normalize(rawPath);
     const consumer = projectOwnerForPath(path);
     if (!consumer) continue;
+    if (path === consumer.publicEntry && /^export \* from /m.test(source)) {
+      errors.push(`${path}: public entry must list its named exports rather than re-export a whole module`);
+    }
     for (const record of importRecords(source)) {
       const specifier = record.specifier;
       if (!specifier.startsWith(".")) continue;
@@ -76,7 +90,8 @@ export function inspectProjectStructureImports(files, directLeafConsumers = new 
         errors.push(`${path}: ${consumer.id} may not import ${provider.id} (${specifier})`);
         continue;
       }
-      if (!sharedPiStartupBoundary && targetPath !== provider.publicEntry && !directLeafConsumers.has(path)) {
+      const startupLeaf = startupModules.has(path) && PROHIBITED_STARTUP_ENTRIES.has(provider.publicEntry);
+      if (!sharedPiStartupBoundary && targetPath !== provider.publicEntry && consumer.id !== DEEP_IMPORT_OWNER && !startupLeaf) {
         errors.push(`${path}: cross-owner import '${specifier}' must use ${provider.publicEntry}`);
       }
     }
@@ -93,7 +108,7 @@ export function inspectPiFeatureBoundaryImports(files) {
       const imported = record.clause ?? "";
       if (/^@earendil-works\/pi-/.test(record.specifier)) {
         errors.push(`${path}: feature may not import Pi package '${record.specifier}'; inject a vendor-neutral A1 port`);
-      } else if (/integrations\/pi\/(?:engine|components|tui-runtime|session-ui)\//.test(record.specifier)) {
+      } else if (/(?:integrations\/pi\/(?:engine|components|tui-runtime)|app\/session-shell)\//.test(record.specifier)) {
         errors.push(`${path}: feature may not import concrete Pi adapter '${record.specifier}'; inject a vendor-neutral A1 port`);
       } else if (/\b(?:create|render)Pi[A-Z][A-Za-z0-9_$]*\b/.test(imported)) {
         const factory = imported.match(/\b(?:create|render)Pi[A-Z][A-Za-z0-9_$]*\b/)?.[0];
@@ -101,6 +116,34 @@ export function inspectPiFeatureBoundaryImports(files) {
       } else if (/\bPi[A-Z][A-Za-z0-9_$]*(?:Contract|Port|Adapter|Runtime|Session|Component|Factory)\b/.test(imported)) {
         const contract = imported.match(/\bPi[A-Z][A-Za-z0-9_$]*(?:Contract|Port|Adapter|Runtime|Session|Component|Factory)\b/)?.[0];
         errors.push(`${path}: feature may not import Pi-named contract '${contract}'; use a vendor-neutral A1-owned contract`);
+      }
+    }
+  }
+  return errors;
+}
+
+/**
+ * The three layer boundaries that hold regardless of the owner DAG: contracts import nothing, vendor-neutral UI
+ * components import only contracts, and only the Pi adapters (and the shipped `bin/` entries, checked elsewhere)
+ * import the pinned Pi packages.
+ */
+export function inspectLayerBoundaries(files) {
+  const errors = [];
+  for (const [rawPath, source] of Object.entries(files)) {
+    const path = normalize(rawPath);
+    if (!path.startsWith("src/")) continue;
+    const consumer = projectOwnerForPath(path);
+    for (const record of importRecords(source)) {
+      const specifier = record.specifier;
+      const relativeTarget = specifier.startsWith(".") ? resolveTypeScriptImport(path, specifier) : null;
+      const provider = relativeTarget === null ? null : projectOwnerForPath(relativeTarget);
+      const withinOwner = consumer !== null && provider !== null && provider.id === consumer.id;
+      if (path.startsWith("src/contracts/") && !withinOwner) {
+        errors.push(`${path}: contracts import nothing ('${specifier}')`);
+      } else if (path.startsWith("src/ui/components/") && !withinOwner && !(relativeTarget !== null && /^src\/contracts\/[a-z-]+\/index\.ts$/.test(relativeTarget))) {
+        errors.push(`${path}: ui/components import only contracts ('${specifier}')`);
+      } else if (/^@earendil-works\//.test(specifier) && !path.startsWith("src/integrations/pi/")) {
+        errors.push(`${path}: only the Pi adapters import '${specifier}'`);
       }
     }
   }

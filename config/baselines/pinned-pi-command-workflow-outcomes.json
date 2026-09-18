@@ -254,11 +254,11 @@
     "pinnedVersion": "0.84.2",
     "source": "packages/coding-agent/src/modes/interactive/interactive-mode.ts",
     "sourceMap": "modes/interactive/interactive-mode.js.map",
-    "caseSource": "test/integrations/pi/session-ui/command-outcome-cases.ts",
-    "producer": "test/integrations/pi/session-ui/command-outcome-worker.mjs",
-    "test": "test/integrations/pi/session-ui/command-outcome-parity.test.ts",
-    "controllers": ["src/integrations/pi/engine/adapter.ts", "src/integrations/pi/session-ui/session-shell.ts"],
-    "presenters": ["src/integrations/pi/session-ui/session-shell-root.ts", "src/integrations/pi/components/shell-presenters-info.ts", "src/integrations/pi/components/shell-selectors-dialogs.ts"],
+    "caseSource": "test/app/session-shell/command-outcome-cases.ts",
+    "producer": "test/app/session-shell/command-outcome-worker.mjs",
+    "test": "test/app/session-shell/command-outcome-parity.test.ts",
+    "controllers": ["src/integrations/pi/engine/adapter.ts", "src/app/session-shell/session-shell.ts"],
+    "presenters": ["src/app/session-shell/session-shell-root.ts", "src/integrations/pi/components/shell-presenters-info.ts", "src/integrations/pi/components/shell-selectors-dialogs.ts"],
     "matrix": { "themes": ["dark", "light"], "colorModes": ["truecolor", "256color"], "outputPadding": [0, 1], "widths": [80, 28] },
     "assertions": ["literal styled rows", "separately tracked multiline rows", "selector messages and input ownership", "pre-completion refresh presentation", "failed and successful command lifecycle", "temporary share-file cleanup", "no export or gist after failed preflight", "failure and producer-deadline rejection"],
     "routes": {
@@ -305,8 +305,8 @@
       }
     ],
     "geometryEvidence": {
-      "caseSource": "test/integrations/pi/session-ui/command-message-fixture.ts",
-      "test": "test/integrations/pi/session-ui/command-message-parity.test.ts",
+      "caseSource": "test/app/session-shell/command-message-fixture.ts",
+      "test": "test/app/session-shell/command-message-parity.test.ts",
       "methods": ["showStatus", "showError", "showWarning", "handleClearCommand", "handleNameCommand", "handleDebugCommand"],
       "assertions": ["normal/narrow/resize-back", "intervening content/error/warning", "consecutive-status replacement", "modal close and draft preservation", "negative punctuation/style/whitespace/row mutations"]
     },
@@ -325,7 +325,7 @@
       "test/integrations/pi/engine/command-resources.test.ts",
       "test/foundation/release/package-surface.test.ts",
       "test/integrations/pi/engine/workflows.test.ts",
-      "test/integrations/pi/session-ui/session-shell.test.ts",
+      "test/app/session-shell/session-shell.test.ts",
       "test/repository-governance/pinned-pi-behavior-inventory.test.ts"
     ],
     "manualAcceptance": "Separate OpenSpec acceptance required; these automated captures do not claim physical acceptance"

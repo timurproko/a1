@@ -1,6 +1,6 @@
 import { readFile, readdir } from "node:fs/promises";
 import { extname, relative, resolve, sep } from "node:path";
-import { inspectPiFeatureBoundaryImports, inspectProjectOwnerLayout, inspectProjectStructureImports, projectOwnerForPath, testOwnerForPath } from "./project-structure-policy.mjs";
+import { inspectLayerBoundaries, inspectPiFeatureBoundaryImports, inspectProjectOwnerLayout, inspectProjectStructureImports, projectOwnerForPath, testOwnerForPath } from "./project-structure-policy.mjs";
 import { inspectPiProductionBoundary } from "./pi-api-boundary-policy.mjs";
 import { inspectBaselinePaths } from "./baseline-paths-policy.mjs";
 import { inspectModuleGraph } from "./module-graph-policy.mjs";
@@ -84,7 +84,7 @@ for (const file of await walk(sourceRoot)) {
     errors.push(`${path}: UI may render virtual terminal state but may not relay opaque child bytes`);
   }
 
-    if (/^(?:src\/features\/owned-ui|src\/foundation\/owned-ui-contracts|src\/integrations\/pi\/(?:engine|components|tui-runtime|session-ui))\//.test(path)) {
+    if (/^(?:src\/features\/owned-ui|src\/foundation\/owned-ui-contracts|src\/app\/session-shell|src\/integrations\/pi\/(?:engine|components|tui-runtime))\//.test(path)) {
     const ownedUiForbidden = [
       { pattern: /\b(?:InteractiveMode|TuiAltScreen|TuiMainScreen|ProcessTerminal)\b.*prototype|prototype\s*\.(?:render|start|stop|handle[A-Za-z]+)\s*=/, label: "stock Pi interactive prototype mutation" },
       { pattern: /\b(?:previousLines|previousWidth|previousHeight|cursorRow|hardwareCursorRow|maxLinesRendered|previousViewportTop)\b/, label: "private Pi renderer-state inspection" },
@@ -201,8 +201,9 @@ try {
   // the real repository must always provide the startup roots and reviewed baseline.
   if (rootArgument < 0) errors.push(`startup graph baseline or root is missing: ${error instanceof Error ? error.message : String(error)}`);
 }
-const startupLeafConsumers = new Set(startupReachability.modules.map(module => module.path));
-errors.push(...inspectProjectStructureImports(sourceFiles, startupLeafConsumers));
+const startupModules = new Set(startupReachability.modules.map(module => module.path));
+errors.push(...inspectProjectStructureImports(sourceFiles, startupModules));
+errors.push(...inspectLayerBoundaries(sourceFiles));
 errors.push(...inspectPiFeatureBoundaryImports(sourceFiles));
 errors.push(...inspectPiProductionBoundary(sourceFiles));
 if (rootArgument < 0) {

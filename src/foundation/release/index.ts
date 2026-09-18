@@ -1,16 +1,147 @@
-export * from "./bootstrap.js";
-export * from "./cohort-selection.js";
-export * from "./cohort-state.js";
-export * from "./dependency-layer.js";
-export * from "./endpoints.js";
-export * from "./process-cleanup.js";
-export * from "./release.js";
-export * from "./release-gc.js";
-export * from "./release-store.js";
-export * from "./restart-certification.js";
-export * from "./stable-release.js";
-export * from "./update.js";
-export * from "./update-launch.js";
-export * from "./update-recovery.js";
-export * from "./update-transaction.js";
-export * from "./warmup.js";
+export {
+  certifyMaterializedRelease,
+  ensureSupervisor,
+  recordParentCertifiedRelease,
+  releaseEnvironment,
+  releaseVerifiedIdleOwner,
+  runBootstrap,
+  startSupervisor,
+  waitForProcessExit,
+  waitForVerifiedEndpoint,
+} from "./bootstrap.js";
+export type { BootstrapOptions, SupervisorStartupAttempt } from "./bootstrap.js";
+export { selectCohortLaunch } from "./cohort-selection.js";
+export type { CohortLaunchDecision, OwnershipProbe } from "./cohort-selection.js";
+export { CohortStateStore, RELEASE_COHORT_SCHEMA, emptyState, planProtectedReleases } from "./cohort-state.js";
+export type {
+  ActiveReleaseTransactionReference,
+  CohortState,
+  EndpointOwnership,
+  ExternalReleaseHold,
+  ExternalReleaseHoldAuthority,
+  OrphanReleaseDisposition,
+  ProtectedReleaseInputs,
+  ProtectedReleasePlan,
+  ReleaseApproval,
+  ReleaseCleanupDiagnostic,
+  ReleaseCleanupDisposition,
+  ReleaseCleanupStage,
+  ReleaseCleanupState,
+  ReleaseCleanupWorkerRun,
+  ReleaseCleanupWorkerStatus,
+  ReleaseCleanupWorkerSummary,
+  ReleaseRecord,
+  ReleaseReferences,
+  ReleaseRetentionReconciliation,
+  SupervisorEndpointMetadata,
+} from "./cohort-state.js";
+export {
+  DEPENDENCY_LAYER_MANIFEST,
+  DEPENDENCY_LAYER_SCHEMA,
+  RUNTIME_PAYLOAD_INVENTORY,
+  dependencyLayerCertificationPath,
+  dependencyReference,
+  generateDependencyRuntimePayload,
+  legacyDependencyLayerCertificationPath,
+  materializeDependencyLayer,
+  readCertifiedDependencyLayer,
+  selectDependencyRuntimePayload,
+  selectPublishedDependencyRuntimePayload,
+  verifyDependencyLayer,
+} from "./dependency-layer.js";
+export type {
+  DependencyLayerIdentity,
+  DependencyLayerOperationEvent,
+  DependencyLayerReference,
+  GeneratedRuntimePayload,
+  MaterializeDependencyLayerOptions,
+  MaterializedDependencyLayer,
+  PublishedRuntimeFileClassification,
+  PublishedRuntimePayload,
+  ReadCertifiedDependencyLayerOptions,
+  RuntimePayloadExclusion,
+  RuntimePayloadInventory,
+  SelectedRuntimePayload,
+} from "./dependency-layer.js";
+export { listRecordedEndpoints, liveReleaseIds, probeOwnership, readEndpointMetadata, removeEndpointArtifacts, sweepDeadEndpoints } from "./endpoints.js";
+export type { RecordedEndpoint } from "./endpoints.js";
+export { cleanupProvenIdleOwner, cleanupVerifiedOwner, processIsAlive } from "./process-cleanup.js";
+export type { CleanupDiagnostics } from "./process-cleanup.js";
+export {
+  PRODUCT_PACKAGE_NAME,
+  createReleaseIdentity,
+  deriveReleaseIdentity,
+  digestManifestFiles,
+  discoverReleasePayload,
+  packageRootFromModule,
+  releaseFileIdentity,
+  resolveWithin,
+} from "./release.js";
+export type { DiscoverReleasePayloadOptions, DiscoveredReleasePayload, ReleaseFileIdentity, ReleaseIdentity } from "./release.js";
+export { collectRelease, prepareReleaseCleanup, runBoundedReleaseCleanup, runReleaseCleanupWorker, scheduleReleaseCleanup } from "./release-gc.js";
+export type { ReleaseCleanupLimits, ReleaseCleanupOperations, ReleaseCleanupOptions, ReleaseCleanupResult, ReleaseCleanupWorkerOptions } from "./release-gc.js";
+export {
+  RELEASE_MANIFEST_FILENAME,
+  assertImmutableExecutionRoot,
+  consumeMaterializationProof,
+  materializeRelease,
+  readCertifiedReleaseManifest,
+  readMaterializedRelease,
+  resolveReleaseEntryPoint,
+  verifyMaterializedRelease,
+} from "./release-store.js";
+export type {
+  CertifiedReleaseRecord,
+  MaterializeReleaseOptions,
+  MaterializedRelease,
+  ReadCertifiedReleaseManifestOptions,
+  ReleaseContentOperation,
+  ReleaseContentOperationEvent,
+  VerifyMaterializedReleaseOptions,
+} from "./release-store.js";
+export { createRestartSeal, readRestartCertifiedRelease, releaseCertificationDocument, restartSealDigest } from "./restart-certification.js";
+export type { RestartSeal, RestartValidationEvent } from "./restart-certification.js";
+export { STABLE_RELEASE_SCHEMA, createStableReleaseEvidence, verifyStableRegistry } from "./stable-release.js";
+export type { StableRegistryState, StableRegistryVerificationOptions, StableReleaseEvidence, StableReleaseEvidenceInput } from "./stable-release.js";
+export {
+  PRODUCT_PACKAGE,
+  assertUpdatePerformanceBudget,
+  createNpmProcessRunner,
+  createUpdateLifecycleCoordinator,
+  planUpdateOwnership,
+  renderUpdateProgressBar,
+  runSelfUpdate,
+} from "./update.js";
+export type {
+  ProcessRequest,
+  ProcessResult,
+  SelfUpdateOptions,
+  UpdateActivationPhase,
+  UpdateChannel,
+  UpdateFileSystem,
+  UpdateLifecycleCoordinator,
+  UpdateMaterializationProgress,
+  UpdateMeasuredPhase,
+  UpdateOutput,
+  UpdateOwnershipAction,
+  UpdatePackageReplacementInput,
+  UpdatePerformanceEvidence,
+  UpdatePhaseTimingEvent,
+  UpdateProcessRunner,
+  UpdateTransactionJournal,
+} from "./update.js";
+export { selectSupervisorLaunchReleaseId, selectUpdateLaunchRelease } from "./update-launch.js";
+export {
+  UPDATE_RECOVERY_SCHEMA,
+  cleanupUpdateRecoveryCapsules,
+  inspectUpdateLauncherSet,
+  prepareUpdateRecoveryCapsule,
+  readUpdateRecoveryCapsule,
+  removeUpdateRecoveryCapsule,
+  runProtectedPackageReplacement,
+  updateLauncherPaths,
+} from "./update-recovery.js";
+export type { ProtectedPackageReplacementOptions, ProtectedPackageReplacementResult, UpdateRecoveryCapsule, UpdateRecoveryResult } from "./update-recovery.js";
+export { UPDATE_JOURNAL_SCHEMA, UpdateTransactionStore } from "./update-transaction.js";
+export type { UpdateRecoveryState, UpdateTransaction, UpdateTransactionPhase } from "./update-transaction.js";
+export { warmMaterializedRelease } from "./warmup.js";

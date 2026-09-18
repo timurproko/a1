@@ -1,4 +1,4 @@
-import type { OwnedUiSessionShellRoot } from "../../../src/integrations/pi/session-ui/session-shell-root.js";
+import type { OwnedUiSessionShellRoot } from "../../../src/app/session-shell/session-shell-root.js";
 import { parseMouseInput, type PaneMouseEvent } from "../../../src/ui/components/index.js";
 
 export type BottomHoverState = ReturnType<OwnedUiSessionShellRoot["viewportPresentationEvidence"]>;

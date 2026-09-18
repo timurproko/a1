@@ -4,9 +4,9 @@ import { join } from "node:path";
 import * as pi from "@earendil-works/pi-coding-agent";
 import { runOwnedUi, terminateOwnedUiProcess } from "../../src/features/owned-ui/index.js";
 import { createPiEngineAdapter } from "../../src/integrations/pi/engine/index.js";
-import { OwnedUiSessionShell } from "../../src/integrations/pi/session-ui/index.js";
+import { OwnedUiSessionShell } from "../../src/app/session-shell/index.js";
 import { TestPresentationTerminal } from "../features/owned-ui/neutral-port-doubles.js";
-import { createCommandOutcomeState } from "../integrations/pi/session-ui/command-outcome-state.mjs";
+import { createCommandOutcomeState } from "../app/session-shell/command-outcome-state.mjs";
 
 const [route, home] = process.argv.slice(2);
 if ((route !== "slash" && route !== "chord") || !home) throw new Error("Invalid graceful-quit fixture arguments");

@@ -73,7 +73,7 @@ describe("integration owner registry", () => {
     const tests = owners.flatMap(owner => owner.tests.map(test => ({ owner: owner.id, test })));
     expect(tests.filter((entry, index) => tests.findIndex(candidate => candidate.test === entry.test) !== index)).toEqual([]);
     expect(owners.find(owner => owner.id === "unix-containment")!.entries).toEqual(expect.arrayContaining([
-      "test/integrations/pi/session-ui/image-preparation.test.ts",
+      "test/app/session-shell/image-preparation.test.ts",
       "test/features/prompt-history/store.test.ts",
       "test/foundation/release/session-resume.integration.test.ts",
     ]));

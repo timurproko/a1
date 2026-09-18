@@ -81,7 +81,7 @@
   },
   "transientOwnershipFinding": {
     "historical": true,
-    "source": "src/integrations/pi/session-ui/session-shell-root.ts",
+    "source": "src/app/session-shell/session-shell-root.ts",
     "behavior": "queued and working rows moved from dockRows to document.rows when fit changed to overflow",
     "consequence": "detached transcript scrolling could scroll transient chrome away and changed ownership at the boundary"
   }

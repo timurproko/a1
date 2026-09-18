@@ -1,3 +1,5 @@
-export * from "./contracts.js";
-export * from "./host.js";
-export * from "./registry.js";
+export { assertAppRegistration } from "./contracts.js";
+export type { AppHostServices, AppRegistration, AppSize, UiApp, UiRouteHost, UiRouteSurface } from "./contracts.js";
+export { UiAppHost } from "./host.js";
+export type { AppHostOptions, AppHostSurface } from "./host.js";
+export { UiAppRegistry } from "./registry.js";

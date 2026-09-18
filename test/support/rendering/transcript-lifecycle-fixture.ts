@@ -1,6 +1,6 @@
 import type { AgentSessionRuntime } from "@earendil-works/pi-coding-agent";
 import { createPiEngineAdapter } from "../../../src/integrations/pi/engine/index.js";
-import { OwnedUiSessionShell } from "../../../src/integrations/pi/session-ui/index.js";
+import { OwnedUiSessionShell } from "../../../src/app/session-shell/index.js";
 import { RecordingRenderingTerminal } from "./recording-rendering-terminal.js";
 
 /** Source: pinned 0.84.2 agent-loop emits message_end BEFORE executeToolCalls. */

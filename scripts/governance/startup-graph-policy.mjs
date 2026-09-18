@@ -35,7 +35,7 @@ export const PROHIBITED_STARTUP_ENTRIES = new Set([
   "src/foundation/terminal-cleanup/index.ts",
   "src/integrations/pi/components/index.ts",
   "src/integrations/pi/engine/index.ts",
-  "src/integrations/pi/session-ui/index.ts",
+  "src/app/session-shell/index.ts",
   "src/integrations/pi/tui-runtime/index.ts",
   "src/ui/apps/index.ts",
   "src/ui/components/index.ts",

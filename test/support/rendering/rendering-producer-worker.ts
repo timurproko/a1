@@ -6,7 +6,7 @@ import { PinnedContentRoot } from "./pinned-content-root.js";
 import { CONTENT_RENDERING_WORKLOADS } from "./content-workloads.js";
 import { applyPiTheme } from "../../../src/integrations/pi/components/index.js";
 import { createPiEngineAdapter } from "../../../src/integrations/pi/engine/index.js";
-import { OwnedUiSessionShell } from "../../../src/integrations/pi/session-ui/index.js";
+import { OwnedUiSessionShell } from "../../../src/app/session-shell/index.js";
 import { RecordingRenderingTerminal } from "./recording-rendering-terminal.js";
 import type { TranscriptViewportFrameDescriptor } from "../../../src/ui/components/index.js";
 import type {

@@ -98,6 +98,15 @@ describe("development validation impact", () => {
     expect(await classifyRenderingImpact(repository, head, unrelatedHead, unrelatedChanges)).toMatchObject({ tier: "none" });
   });
 
+  it("classifies a directory move from every renamed path while recording a bounded list", async () => {
+    const changes = Array.from({ length: 300 }, (_, index) => ({ status: "R", score: 100, oldPath: `src/integrations/pi/session-ui/module-${index}.ts`, path: `src/app/session-shell/module-${index}.ts` }));
+    const moved = await classifyRenderingImpact("", "a".repeat(40), "b".repeat(40), changes);
+    expect(moved.tier).toBe("smoke");
+    expect(moved.changedPaths.length).toBeLessThanOrEqual(256);
+    const withCritical = await classifyRenderingImpact("", "a".repeat(40), "b".repeat(40), [...changes, { status: "M", path: "src/ui/components/transcript-viewport.ts" }]);
+    expect(withCritical).toMatchObject({ tier: "full", reasons: ["full-critical:src/ui/components/transcript-viewport.ts"] });
+  });
+
   it("uses both identities for deleted rendering paths and full coverage for invalidators", async () => {
     const { repository, base } = await fixtureRepository();
     await git(repository, "rm", "src/leaf.ts");

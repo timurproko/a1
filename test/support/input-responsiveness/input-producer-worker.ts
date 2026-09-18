@@ -3,7 +3,7 @@ import { getSelectListTheme, initTheme } from "@earendil-works/pi-coding-agent";
 import { SelectList, TuiMainScreen, type Component } from "@earendil-works/pi-tui";
 import { applyPiTheme, createPiShellSelector, type PiShellComponentPort } from "../../../src/integrations/pi/components/index.js";
 import { createPiEngineAdapter } from "../../../src/integrations/pi/engine/index.js";
-import { OwnedUiSessionShell } from "../../../src/integrations/pi/session-ui/index.js";
+import { OwnedUiSessionShell } from "../../../src/app/session-shell/index.js";
 import type { PiTuiInputDiagnosticsEvent } from "../../../src/integrations/pi/tui-runtime/index.js";
 import { createPinnedEditorHarness } from "../../integrations/pi/components/pinned-editor-upstream-fixture.js";
 import type {
