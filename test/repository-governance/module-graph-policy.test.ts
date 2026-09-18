@@ -46,7 +46,9 @@ describe("module graph policy", () => {
     expect(graph.get("src/a.ts")).toEqual({
       staticEdges: ["src/b.ts", "src/c.ts", "src/d.ts", "src/e.ts", "src/w.ts"],
       runtimeEdges: ["src/c.ts", "src/d.ts", "src/e.ts", "src/w.ts"],
+      typeOnly: false,
     });
+    expect(graph.get("src/b.ts")?.typeOnly).toBe(true);
   });
 
   it("finds every cycle including type-only back edges", async () => {
@@ -64,15 +66,17 @@ describe("module graph policy", () => {
     ]);
   });
 
-  it("treats a type-only importer as no importer and exempts owner barrels", async () => {
+  it("reaches a type-only module through type imports, exempts owner barrels, and still strands runtime modules", async () => {
     const root = await repository({
-      "src/main.ts": "import type { T } from './types-only.js';\nimport { live } from './live.js';",
-      "src/types-only.ts": "export type T = 1;",
+      "src/main.ts": "import type { T } from './types-only.js';\nimport type { R } from './runtime.js';\nimport { live } from './live.js';",
+      "src/types-only.ts": "export interface T { readonly a: 1 }\nexport type { U } from './other-types.js';",
+      "src/other-types.ts": "export type U = 2;",
+      "src/runtime.ts": "export type R = 1;\nexport const r = 1;",
       "src/live.ts": "export const live = 1;",
       "src/owner/index.ts": "export * from './leaf.js';",
       "src/owner/leaf.ts": "export const leaf = 1;",
     });
-    expect(findUnreachableModules(await collectModuleGraph(root), ["src/main.ts"])).toEqual(["src/owner/leaf.ts", "src/types-only.ts"]);
+    expect(findUnreachableModules(await collectModuleGraph(root), ["src/main.ts"])).toEqual(["src/owner/leaf.ts", "src/runtime.ts"]);
   });
 
   it("collects roots from bin dist references and package.json", async () => {

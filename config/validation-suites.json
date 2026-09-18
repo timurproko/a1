@@ -72,7 +72,6 @@
       "tests": [
         "test/cli/capabilities.test.ts",
         "test/cli/dispatch.test.ts",
-        "test/composition/composition.test.ts",
         "test/features/launch/runtime-selection.test.ts",
         "test/features/launch/terminal-colour-fidelity.test.ts",
         "test/foundation/launch-context/context.test.ts",

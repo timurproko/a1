@@ -9,6 +9,7 @@ const DYNAMIC_IMPORT = /\bimport\s*\(\s*(["'])(\.\.?\/[^"']+)\1\s*\)/g;
 const WORKER_URL = /new URL\(([^)]*)import\.meta\.url\s*\)/g;
 const URL_LITERAL = /(["'])(\.\.?\/[^"']+\.(?:js|ts))\1/g;
 const DIST_REFERENCE = /(["'])(?:\.\.?\/)?dist\/([^"']+)\.js\1/g;
+const RUNTIME_EXPORT = /(?:^|\n)\s*export\s+(?:default\b|(?:async\s+)?function\b|(?:const|let|var|class|enum)\b|(?!type\s*\{)\{|(?!type\s+\*)\*)/;
 
 /**
  * Reads every source module under `src/` once (or takes already-read sources keyed by posix path) and records two edge sets per module: every
@@ -43,7 +44,9 @@ export async function collectModuleGraph(root, sources = null) {
         if (target !== null) { staticEdges.add(target); runtimeEdges.add(target); }
       }
     }
-    modules.set(path, { staticEdges: [...staticEdges].sort(), runtimeEdges: [...runtimeEdges].sort() });
+    // Rationale: a module that exports only types is consumed by the compiler and never loaded, so its
+    // reachability is a question about type importers, not runtime ones.
+    modules.set(path, { staticEdges: [...staticEdges].sort(), runtimeEdges: [...runtimeEdges].sort(), typeOnly: !RUNTIME_EXPORT.test(source) });
   }
   return modules;
 }
@@ -92,7 +95,10 @@ export function findImportCycles(graph) {
   return cycles.sort((left, right) => left[0].localeCompare(right[0]));
 }
 
-/** Runtime-edge reachability from the roots; owner barrels are exempt because ownership policy requires them. */
+/**
+ * Runtime-edge reachability from the roots; owner barrels are exempt because ownership policy requires
+ * them, and a type-only module counts as reached when any reached module imports it, even as a type.
+ */
 export function findUnreachableModules(graph, roots) {
   const reached = new Set();
   const queue = roots.filter(path => graph.has(path));
@@ -101,6 +107,12 @@ export function findUnreachableModules(graph, roots) {
     if (reached.has(path)) continue;
     reached.add(path);
     queue.push(...graph.get(path).runtimeEdges);
+  }
+  const typeQueue = [...reached];
+  while (typeQueue.length > 0) {
+    for (const target of graph.get(typeQueue.pop()).staticEdges) {
+      if (graph.get(target)?.typeOnly && !reached.has(target)) { reached.add(target); typeQueue.push(target); }
+    }
   }
   return [...graph.keys()].filter(path => !reached.has(path) && !path.endsWith("/index.ts")).sort();
 }

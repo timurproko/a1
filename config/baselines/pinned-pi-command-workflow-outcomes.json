@@ -325,7 +325,6 @@
       "test/integrations/pi/engine/command-resources.test.ts",
       "test/foundation/release/package-surface.test.ts",
       "test/integrations/pi/engine/workflows.test.ts",
-      "test/integrations/pi/engine/workflow-controllers.test.ts",
       "test/integrations/pi/session-ui/session-shell.test.ts",
       "test/repository-governance/pinned-pi-behavior-inventory.test.ts"
     ],

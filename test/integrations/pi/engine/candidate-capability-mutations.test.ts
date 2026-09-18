@@ -4,7 +4,7 @@ import {
   REQUIRED_PI_CAPABILITY_OPERATIONS,
   validatePiCapabilityResults,
   type PiCapabilityConformanceResult,
-} from "../../../../src/integrations/pi/engine/index.js";
+} from "../../../../src/integrations/pi/engine/conformance.js";
 
 function accepted(): PiCapabilityConformanceResult[] {
   return Object.entries(REQUIRED_PI_CAPABILITY_OPERATIONS).map(([capability, operations]) => ({ capability, operations, passed: true }));
