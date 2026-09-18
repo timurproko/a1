@@ -1,3 +1,4 @@
+import { VERSION } from "@earendil-works/pi-coding-agent";
 import { Text, stripTerminalSequences, visibleWidth } from "@earendil-works/pi-tui";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -435,8 +436,8 @@ describe("Pi shell public component adapters", () => {
       onCancel: cancelled,
     });
     const rows = stripTerminalSequences(settings.render(88).join("\n"));
-    expect(rows).toContain("Auto-compact            true");
-    expect(rows).toContain("Auto-resize images      true");
+    expect(rows).toMatch(/Auto-compact\s+true/);
+    expect(rows).toMatch(/Auto-resize images\s+true/);
     settings.handleInput?.("\x1b[B");
     expect(stripTerminalSequences(settings.render(88).join("\n"))).toContain("(2/29)");
     settings.handleInput?.("\x1b");
@@ -657,6 +658,6 @@ describe("Pi shell public component adapters", () => {
     expect(createPiShellDialog(dialog).render(50).join("\n")).toContain("Choose");
     expect(createPiShellStatus(view(), canonicalProgressStatus).render(80)).toEqual([]);
     expect(createPiShellFooter(view(), "D:/work").render(80).join("\n")).toContain("gpt-5 • medium");
-    expect(createPiShellHeader().render(80).join("\n")).toContain("v0.84.2");
+    expect(createPiShellHeader().render(80).join("\n")).toContain(`v${VERSION}`);
   });
 });

@@ -61,6 +61,7 @@ class WorkflowSession {
   setScopedModels(models: readonly unknown[]): void { this.calls.push(`scoped:${models.length}`); }
   async cycleModel(): Promise<unknown> { return this.cycleResult; }
   cycleThinkingLevel(): string { this.thinkingLevel = "high"; return "high"; }
+  getAvailableThinkingLevels(): string[] { return ["off", "low", "medium", "high"]; }
   async executeBash(command: string, _chunk: unknown, options: { excludeFromContext: boolean }): Promise<unknown> {
     this.calls.push(`bash:${command}:${options.excludeFromContext}`);
     return { output: "bash output", exitCode: 0, cancelled: false, truncated: false };
@@ -111,11 +112,15 @@ class WorkflowRuntime {
     ["EditorPaddingX", 0], ["AutocompleteMaxVisible", 8], ["Theme", "dark"],
     ["Warnings", { anthropicExtraUsage: true }],
   ]);
+  readonly modelThinkingLevels = new Map<string, string>();
   readonly settingsManager = new Proxy<Record<string, unknown>>({}, {
     get: (_target, property) => {
       const name = String(property);
       if (name === "flush") return async () => {};
       if (name === "drainErrors") return () => [];
+      if (name === "getAllModelThinkingLevels") return () => Object.fromEntries(this.modelThinkingLevels);
+      if (name === "setModelThinkingLevel") return (provider: string, modelId: string, level: string) => { this.modelThinkingLevels.set(`${provider}/${modelId}`, level); };
+      if (name === "removeModelThinkingLevel") return (provider: string, modelId: string) => { this.modelThinkingLevels.delete(`${provider}/${modelId}`); };
       if (name.startsWith("get")) return () => this.settingsValues.get(name.slice(3));
       if (name.startsWith("set")) return (value: unknown) => { this.settingsValues.set(name.slice(3), value); };
       return undefined;
@@ -238,7 +243,7 @@ const argumentsByCommand: Partial<Record<typeof PINNED_PI_WORKFLOW_COMMAND_NAMES
 };
 
 const selectionByCommand: Partial<Record<typeof PINNED_PI_WORKFLOW_COMMAND_NAMES[number], string>> = {
-  settings: "onAutoCompactChange", "scoped-models": "openai/gpt-5", fork: "entry-1", tree: "entry-1",
+  settings: "onAutoCompactChange", "scoped-models": "openai/gpt-5", fork: "entry-1", tree: "entry-1", thinking: "high",
   trust: "trust", logout: "openai",
 };
 
@@ -404,7 +409,7 @@ describe("pinned Pi command and input workflows", () => {
     await expect(port!.writeSetting("steeringMode", "one-at-a-time")).resolves.toMatchObject({ status: "applied", effectiveValue: "one-at-a-time" });
     await expect(port!.writeSetting("followUpMode", "one-at-a-time")).resolves.toMatchObject({ status: "applied", effectiveValue: "one-at-a-time" });
     await expect(port!.writeSetting("transport", "websocket")).resolves.toMatchObject({ status: "applied", effectiveValue: "websocket" });
-    await expect(port!.writeSetting("thinkingLevel", "high")).resolves.toMatchObject({ status: "applied", effectiveValue: "high" });
+    await expect(port!.writeSetting("modelThinkingLevels", { "openai/gpt-5": "high" })).resolves.toMatchObject({ status: "applied", effectiveValue: { "openai/gpt-5": "high" } });
     await expect(port!.writeSetting("httpIdleTimeoutMs", 0)).resolves.toMatchObject({ status: "applied", effectiveValue: 0 });
     await expect(port!.writeSetting("showCacheMissNotices", true)).resolves.toMatchObject({ status: "applied", effectiveValue: true });
     await expect(port!.writeSetting("warnings", { anthropicExtraUsage: false })).resolves.toMatchObject({ status: "applied" });

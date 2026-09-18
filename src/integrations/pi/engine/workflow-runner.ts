@@ -218,6 +218,20 @@ export class PiWorkflowRunner {
         if (!selection) return workflowResult(request.command, "failed", "Settings requires the owned settings controller");
         return await this.#ports.applyPinnedSetting(selection);
       }
+      case "thinking": {
+        const level = (selection ?? argument).trim();
+        if (!level) return workflowResult(request.command, "requires-selection", "Select a thinking level", undefined, "silent");
+        const available = (session.getAvailableThinkingLevels?.() ?? []).map(String);
+        if (!available.includes(level)) {
+          return workflowResult(request.command, "failed", available.length === 0 ? "Thinking levels are unavailable" : `Unknown thinking level: ${level} (available: ${available.join(", ")})`);
+        }
+        const thinking = readThinkingLevel(level);
+        session.setThinkingLevel(thinking);
+        if (request.persist === true) runtime.services.settingsManager.setDefaultThinkingLevel(thinking);
+        this.#ports.setThinkingLevel(readThinkingLevel(session.thinkingLevel));
+        this.#ports.emitView();
+        return workflowResult(request.command, "completed", request.persist === true ? `Default thinking level: ${level}` : `Thinking level: ${level}`);
+      }
       case "model": {
         const reference = selection ?? argument;
         if (!reference) return workflowResult(request.command, "failed", "Model requires the owned model controller");

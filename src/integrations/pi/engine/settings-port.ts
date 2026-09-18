@@ -195,6 +195,7 @@ export class PiEngineSettings {
       httpIdleTimeoutMs: setting(settings?.getHttpIdleTimeoutMs, 300_000),
       thinkingLevel: readThinkingLevel(session.thinkingLevel),
       availableThinkingLevels: Array.isArray(levels) ? levels.map(readThinkingLevel) : ["off", "minimal", "low", "medium", "high", "xhigh"],
+      defaultThinkingLevel: readThinkingLevel(settings?.getDefaultThinkingLevel?.() ?? "medium"),
       modelThinkingLevels: { ...(settings?.getAllModelThinkingLevels?.() ?? {}) },
       defaultModel: defaultProvider && defaultModelId ? `${defaultProvider}/${defaultModelId}` : "not set",
       ...(session.model === undefined ? {} : { currentModel: session.model }),

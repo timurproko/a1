@@ -3,6 +3,8 @@ import type { SessionInfo } from "../startup-public.js";
 export const PINNED_PI_WORKFLOW_COMMAND_NAMES = [
   "settings",
   "model",
+  "tree",
+  "thinking",
   "scoped-models",
   "export",
   "import",
@@ -14,7 +16,6 @@ export const PINNED_PI_WORKFLOW_COMMAND_NAMES = [
   "hotkeys",
   "fork",
   "clone",
-  "tree",
   "trust",
   "login",
   "logout",
@@ -84,6 +85,8 @@ export interface PiPinnedSettingsSnapshot {
   readonly httpIdleTimeoutMs: number;
   readonly thinkingLevel: "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
   readonly availableThinkingLevels: readonly ("off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max")[];
+  /** The stored global default the selector offers to restore; the session's level may differ. */
+  readonly defaultThinkingLevel: "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
   /** Per-model thinking overrides keyed `provider/modelId`. */
   readonly modelThinkingLevels: Readonly<Record<string, string>>;
   /** `provider/modelId` of the persisted default model, or the engine's "not set" wording. */

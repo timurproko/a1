@@ -38,10 +38,10 @@ describe("the theme at the engine boundary", () => {
     expect(theme?.resolvedWhenRead).toBe(true);
   });
 
-  it("resolves the thinking levels the session reports", async () => {
+  it("resolves the per-model thinking rows from the models the engine offers", async () => {
     const descriptors = await integration("dark").listSettings();
-    const thinking = descriptors.find(descriptor => descriptor.key === "thinkingLevel");
-    expect(thinking?.choices).toEqual(["low", "high"]);
+    const thinking = descriptors.find(descriptor => descriptor.key === "modelThinkingLevels");
+    expect(thinking?.flags).toEqual([{ key: "openai/gpt-5", label: "gpt-5 [openai]", description: "global default", fallback: "default", choices: ["default", "off", "low", "high"] }]);
     expect(thinking?.resolvedWhenRead).toBe(true);
   });
 

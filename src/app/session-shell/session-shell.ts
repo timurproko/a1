@@ -60,6 +60,7 @@ import {
   createPiShellSelector,
   createPiShellSessionSelector,
   createPiShellSettingsSelector,
+  createPiShellThinkingSelector,
   type PiShellSettingsSelectorOptions,
   createPiShellTreeSelector,
   createPiShellTrustSelector,
@@ -915,6 +916,28 @@ export class OwnedUiSessionShell {
     return handle;
   }
 
+  showThinkingSelector(): void {
+    const snapshot = this.backend.pinnedSettingsSnapshot();
+    const close = () => {
+      this.root.setInputSurface(null);
+      this.runtime.requestRender();
+    };
+    const select = (level: string, persist: boolean) => {
+      close();
+      void this.runWorkflow({ command: "thinking", argument: "", selection: level, ...(persist ? { persist: true } : {}) });
+    };
+    const component = createPiShellThinkingSelector(
+      snapshot.thinkingLevel,
+      snapshot.availableThinkingLevels,
+      level => select(level, false),
+      close,
+      level => select(level, true),
+      snapshot.defaultThinkingLevel,
+    );
+    this.root.setInputSurface(component);
+    this.runtime.requestRender();
+  }
+
   showModelSelector(initialSearchInput?: string): void {
     const context = this.backend.pinnedModelSelectorContext();
     const close = () => {
@@ -1230,6 +1253,10 @@ export class OwnedUiSessionShell {
     }
     if (request.command === "fork" && request.selection === undefined && request.confirmed === undefined) {
       this.showForkSelector();
+      return { outcome: "completed", diagnostic: null };
+    }
+    if (request.command === "thinking" && request.selection === undefined && request.argument.trim().length === 0) {
+      this.showThinkingSelector();
       return { outcome: "completed", diagnostic: null };
     }
     if (request.command === "trust" && request.selection === undefined && request.confirmed === undefined) {

@@ -416,9 +416,11 @@ export function createPiShellThinkingSelector(
   availableLevels: readonly ("off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max")[],
   onSelect: (level: string) => void,
   onCancel: () => void,
+  onSelectAsDefault?: (level: string) => void,
+  defaultLevel?: "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max",
 ): PiShellComponentPort {
   ensureTheme();
-  const selector = new ThinkingSelectorComponent(currentLevel, [...availableLevels], onSelect, onCancel);
+  const selector = new ThinkingSelectorComponent(currentLevel, [...availableLevels], onSelect, onCancel, onSelectAsDefault, defaultLevel);
   const list = selector.getSelectList();
   return componentPort(selector, data => list.handleInput(data));
 }
