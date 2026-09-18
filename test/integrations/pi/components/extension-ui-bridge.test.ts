@@ -23,7 +23,7 @@ function fixture() {
       return {
         hide() { hidden = true; inputSurface = null; component.dispose?.(); },
         setHidden(value) { hidden = value; }, isHidden: () => hidden,
-        focus() {}, unfocus() {}, isFocused: () => !hidden,
+        focus() {}, unfocus() {}, isFocused: () => !hidden, getBounds: () => undefined,
       };
     },
     listenInput(handler) { inputListeners.add(handler); return () => inputListeners.delete(handler); },

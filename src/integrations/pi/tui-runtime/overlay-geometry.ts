@@ -87,6 +87,7 @@ export class GeometryObservedAltScreen extends TuiAltScreen {
         else handle.unfocus({ target: target.target === null ? null : this.#overlayComponents.get(target.target) ?? target.target });
       },
       isFocused: () => handle.isFocused(),
+      getBounds: () => handle.getBounds(),
     };
   }
 

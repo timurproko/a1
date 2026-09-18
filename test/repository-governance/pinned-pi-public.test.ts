@@ -1,6 +1,7 @@
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
+import { readPinnedPiIdentity } from "../../scripts/governance/pinned-pi-identity.mjs";
 import {
   configurePinnedPiPublicPackageEntry,
   pinnedPiModuleUrl,
@@ -15,9 +16,9 @@ afterEach(() => {
 });
 
 describe("generated startup artifact public Pi context", () => {
-  it("preserves package metadata, module URLs, extension aliases, and the shared TUI package", () => {
+  it("preserves package metadata, module URLs, extension aliases, and the shared TUI package", async () => {
     const configured = configurePinnedPiPublicPackageEntry(publicEntry);
-    expect(configured.version).toBe("0.84.2");
+    expect(configured.version).toBe((await readPinnedPiIdentity(".")).version);
     expect(pinnedPiModuleUrl("config.js")).toMatch(/pi-coding-agent\/dist\/config\.js$/);
     expect(resolvePinnedPiImport("@earendil-works/pi-coding-agent")).toMatch(/pi-coding-agent\/dist\/index\.js$/);
     expect(resolvePinnedPiImport("@earendil-works/pi-agent-core")).toMatch(/pi-agent-core\/dist\/index\.js$/);

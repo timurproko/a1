@@ -91,12 +91,13 @@ describe("owned shared input and status presentation", () => {
       owned.input.setThinkingLevel(level);
       pinned.input.setThinkingLevel(level);
       expect(cellStyle(owned.input.render(40)[0]!, "─")).toEqual(cellStyle(promptRule(40), "─"));
-      if (level !== "off") expect(pinned.input.render(40)[0]).toContain(piTheme().getThinkingBorderColor(level)("─"));
+      // Rationale: pinned 0.85.1 colors the whole rule in one span rather than one dash at a time.
+      if (level !== "off") expect(pinned.input.render(40)[0]).toContain(piTheme().getThinkingBorderColor(level)("─".repeat(40)));
     }
     owned.input.setText("!pwd");
     pinned.input.setText("!pwd");
     expect(cellStyle(owned.input.render(40)[0]!, "─")).toEqual(cellStyle(promptRule(40), "─"));
-    expect(pinned.input.render(40)[0]).toContain(piTheme().getBashModeBorderColor()("─"));
+    expect(pinned.input.render(40)[0]).toContain(piTheme().getBashModeBorderColor()("─".repeat(40)));
     expect(stripTerminalSequences(pinned.input.render(40).join("\n"))).not.toContain("❯");
     owned.input.setText("normal");
     expect(cellStyle(owned.input.render(40)[0]!, "─")).toEqual(cellStyle(promptRule(40), "─"));

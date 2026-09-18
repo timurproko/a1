@@ -116,6 +116,10 @@ class OverlayHandleBridge implements PiTuiOverlayHandle {
     return this.#disposed || this.handle.isHidden();
   }
 
+  getBounds(): PiTuiOverlayHandle["getBounds"] extends () => infer R ? R : never {
+    return this.#disposed ? undefined : this.handle.getBounds();
+  }
+
   focus(): void {
     if (!this.#disposed) this.handle.focus();
   }
@@ -589,7 +593,8 @@ export class PiTuiRuntimeAdapter {
         ...(node.primary === undefined ? {} : { primary: node.primary }),
         ...(node.overscroll === undefined ? {} : { overscroll: node.overscroll }),
         ...(node.scrollbar === undefined ? {} : { scrollbar: node.scrollbar }),
-        ...(node.scrollbarStyle === undefined ? {} : { scrollbarStyle: node.scrollbarStyle }),
+        ...(node.scrollbarTrackStyle === undefined ? {} : { scrollbarTrackStyle: node.scrollbarTrackStyle }),
+        ...(node.scrollbarThumbStyle === undefined ? {} : { scrollbarThumbStyle: node.scrollbarThumbStyle }),
         ...(node.scrollbarHideDelayMs === undefined ? {} : { scrollbarHideDelayMs: node.scrollbarHideDelayMs }),
       };
       const scrollView = new ScrollView(this.#buildLayout(node.child), options);

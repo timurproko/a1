@@ -52,9 +52,9 @@ export class PiWorkflowContexts {
 
   pinnedModelSelectorContext(): {
     readonly currentModel: unknown;
-    readonly settingsManager: unknown;
     readonly modelRuntime: unknown;
     readonly scopedModels: readonly unknown[];
+    readonly defaultModel?: { readonly provider: string; readonly id: string };
   } {
     const session = this.#requireSession();
     const runtime = this.#ports.runtime();
@@ -70,12 +70,11 @@ export class PiWorkflowContexts {
           refresh: async () => undefined,
         };
     const settingsManager = runtime.services.settingsManager;
-    const selectorSettings = typeof settingsManager?.setDefaultModelAndProvider === "function"
-      ? settingsManager
-      : { setDefaultModelAndProvider() {} };
+    const defaultProvider = settingsManager?.getDefaultProvider?.();
+    const defaultModelId = settingsManager?.getDefaultModel?.();
     return {
       currentModel: this.#ports.activeModel() === null ? undefined : session.model,
-      settingsManager: selectorSettings,
+      ...(defaultProvider && defaultModelId ? { defaultModel: { provider: defaultProvider, id: defaultModelId } } : {}),
       modelRuntime: selectorRuntime,
       scopedModels: Array.isArray(scoped) ? scoped : [],
     };

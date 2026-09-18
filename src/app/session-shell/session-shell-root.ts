@@ -101,6 +101,7 @@ import {
 } from "../../integrations/pi/components/shell-presenters-transcript.js";
 import { onPiThemeChange, PINNED_PI_LAYOUT, piTheme } from "../../integrations/pi/components/upstream/theme/theme.js";
 import {
+  piShellHyperlink,
   piShellTruncateToWidth,
   piShellVisibleWidth,
   type PiShellClipboardContent,
@@ -930,7 +931,8 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
             primary: true,
             overscroll: "chain",
             scrollbar: "auto",
-            scrollbarStyle: text => piTheme().bg("scrollbarThumb", text),
+            scrollbarTrackStyle: text => piTheme().fg("scrollbarTrack", text),
+            scrollbarThumbStyle: text => piTheme().fg("scrollbarThumb", text),
             child: { type: "component", component: document },
           },
         },
@@ -1187,8 +1189,9 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       this.#appendAnchoredWorkflowComponent(width => ["", ...announcement.render(width)], () => announcement.dispose?.());
       return;
     }
+    // Rationale: pinned 0.85.1 links both share URLs; the workflow result carries the plain URLs.
     const message = result.command === "share" && result.detail
-      ? `${result.message}\nGist: ${result.detail}`
+      ? `${linkShareUrl(result.message)}\nGist: ${piShellHyperlink(result.detail)}`
       : result.message;
     this.appendWorkflowStatus(message);
   }
@@ -1721,4 +1724,10 @@ function transientRowsSignature(
   statusRows: readonly string[],
 ): string {
   return `${steeringRows.length}\u0000${steeringRows.join("\u0000")}\u0001${statusRows.length}\u0000${statusRows.join("\u0000")}`;
+}
+
+/** "Share URL: <url>" with the URL made clickable; other share wordings pass through unchanged. */
+function linkShareUrl(message: string): string {
+  const match = /^Share URL: (\S+)$/.exec(message);
+  return match === null ? message : `Share URL: ${piShellHyperlink(match[1]!)}`;
 }

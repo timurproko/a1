@@ -36,11 +36,11 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
     try {
       terminal.resize(80, 54);
       await shell.submit("/settings");
-      terminal.input("thinking");
+      terminal.input("per model");
       terminal.input("\r");
       await nextImmediate();
       shell.runtime.renderNow();
-      expect(shell.root.render(80).join("\n")).toContain("Thinking Level");
+      expect(shell.root.render(80).join("\n")).toContain("Per-Model Thinking Level");
       terminal.input("\u001b[<64;2;3M".repeat(4));
       shell.runtime.renderNow();
       const top = shell.root.viewportPresentationEvidence().scrollTop;

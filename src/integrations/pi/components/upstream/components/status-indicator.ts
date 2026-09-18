@@ -1,11 +1,11 @@
 /**
- * Provenance: @earendil-works/pi-coding-agent 0.84.2 (MIT), commit 914cf1472e715297caa30db4b9535d534a9eb718,
+ * Provenance: @earendil-works/pi-coding-agent 0.85.1 (MIT), commit d981de1229ef899957bbe968bc8dcda02a21f477,
  * packages/coding-agent/src/modes/interactive/components/status-indicator.ts.
  * Modifications: Mechanical source port with public package-root keybinding, Loader, and owned
  * theme/countdown imports plus ECMAScript private fields.
  * Deviations: status-indicator-public-boundaries.
  */
-import { type Component, Loader, type LoaderIndicatorOptions, type TUI } from "@earendil-works/pi-tui";
+import { type Component, Loader, type LoaderIndicatorOptions, type TUI, truncateToWidth } from "@earendil-works/pi-tui";
 import { keyText } from "@earendil-works/pi-coding-agent";
 import { piTheme } from "../theme/theme.js";
 import { CountdownTimer } from "./countdown-timer.js";
@@ -33,8 +33,17 @@ export class StatusIndicator extends Loader {
 }
 
 export class WorkingStatusIndicator extends StatusIndicator {
-  constructor(ui: TUI, message: string, indicator?: LoaderIndicatorOptions) {
-    super("working", ui, spinner => piTheme().fg("accent", spinner), text => piTheme().fg("muted", text), message, indicator);
+  constructor(ui: TUI, message: string, indicator?: LoaderIndicatorOptions, colorFn?: (text: string) => string) {
+    super("working", ui, colorFn ?? (spinner => piTheme().fg("accent", spinner)), colorFn ?? (text => piTheme().fg("muted", text)), message, indicator);
+  }
+
+  renderInBorder(width: number): string {
+    const line = super.render(width + 2)[1] ?? "";
+    return truncateToWidth(line.startsWith(" ") ? line.slice(1).trimEnd() : line.trimEnd(), width, "");
+  }
+
+  renderSpinnerInBorder(width: number): string {
+    return truncateToWidth(this.getRenderedIndicator(), width, "");
   }
 }
 

@@ -1,4 +1,10 @@
-import { AssistantMessageComponent, ToolExecutionComponent, UserMessageComponent, getMarkdownTheme } from "@earendil-works/pi-coding-agent";
+import { AssistantMessageComponent, ToolExecutionComponent, UserMessageComponent, createBashToolDefinition, createEditToolDefinition, createFindToolDefinition, createGrepToolDefinition, createLsToolDefinition, createReadToolDefinition, createWriteToolDefinition, getMarkdownTheme } from "@earendil-works/pi-coding-agent";
+
+// Rationale: since 0.85.1 the pinned component takes its renderers from the caller; the built-in definitions carry them.
+const BUILT_IN_TOOLS = { read: createReadToolDefinition, bash: createBashToolDefinition, edit: createEditToolDefinition, write: createWriteToolDefinition, grep: createGrepToolDefinition, find: createFindToolDefinition, ls: createLsToolDefinition } as const;
+function builtInDefinition(name: string, cwd: string) {
+  return Object.hasOwn(BUILT_IN_TOOLS, name) ? BUILT_IN_TOOLS[name as keyof typeof BUILT_IN_TOOLS](cwd) : undefined;
+}
 import { Container, Text, type Component, type TUI } from "@earendil-works/pi-tui";
 
 interface Entry { readonly id: string; kind: string; status: string; text: string }
@@ -71,7 +77,7 @@ export class PinnedContentRoot implements Component {
   #tool(id: string, name: string, args: unknown) {
     const current = this.#tools.get(id);
     if (current !== undefined) return current;
-    const component = new ToolExecutionComponent(name, id, args ?? {}, { showImages: true, imageWidthCells: 80 }, undefined, this.tui, this.cwd);
+    const component = new ToolExecutionComponent(name, id, args ?? {}, { showImages: true, imageWidthCells: 80 }, builtInDefinition(name, this.cwd), this.tui, this.cwd);
     const entry: Entry = { id: `tool-${id}`, kind: "tool-call", status: "live", text: "" };
     const tool = { component, entry };
     this.#tools.set(id, tool);

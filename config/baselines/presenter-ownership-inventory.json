@@ -3,8 +3,8 @@
   "change": "build-owned-pi-ui-foundation",
   "task": "7.23",
   "pinned": {
-    "version": "0.84.2",
-    "commit": "914cf1472e715297caa30db4b9535d534a9eb718",
+    "version": "0.85.1",
+    "commit": "d981de1229ef899957bbe968bc8dcda02a21f477",
     "source": "packages/coding-agent/src/modes/interactive/interactive-mode.ts",
     "packageArtifact": "node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/interactive-mode.js"
   },
@@ -386,8 +386,8 @@
       "sourceAnchors": [
         "this.editorContainer.addChild(this.editor)",
         "this.footerContainer.addChild(this.footer)",
-        "component: this.editorContainer, shrink: 1, minSize: 3",
-        "component: this.footerContainer, shrink: 1, minSize: 1"
+        "editor: this.editorContainer,",
+        "footer: this.footerContainer,"
       ],
       "destination": "src/app/session-shell/session-shell.ts",
       "implementationStatus": "known-divergence"
@@ -429,9 +429,9 @@
       "scrollFollow": "fixed editor replacement",
       "lifetime": "share/reload/auth operation until success, failure, or abort",
       "sourceAnchors": [
-        "new BorderedLoader(this.ui, theme, \"Creating gist...\")",
-        "this.editorContainer.addChild(loader)",
-        "loader.onAbort"
+        "await shareSession({",
+        "editorContainer: this.editorContainer,",
+        "showStatus: (message) => this.showStatus(message),"
       ],
       "destination": "src/app/session-shell/session-shell.ts",
       "implementationStatus": "known-divergence"
@@ -467,6 +467,38 @@
       ],
       "sourceAnchors": [
         "await this.handleModelCommand(searchTerm)"
+      ]
+    },
+    {
+      "name": "tree",
+      "success": [
+        "replacement.selector-dialog-editor",
+        "document.status"
+      ],
+      "cancel": [
+        "replacement.selector-dialog-editor"
+      ],
+      "failure": [
+        "document.error-warning"
+      ],
+      "sourceAnchors": [
+        "this.showTreeSelector()"
+      ]
+    },
+    {
+      "name": "thinking",
+      "success": [
+        "replacement.selector-dialog-editor",
+        "document.status"
+      ],
+      "cancel": [
+        "replacement.selector-dialog-editor"
+      ],
+      "failure": [
+        "document.error-warning"
+      ],
+      "sourceAnchors": [
+        "this.showThinkingSelector()"
       ]
     },
     {
@@ -623,22 +655,6 @@
       ],
       "sourceAnchors": [
         "this.handleCloneCommand()"
-      ]
-    },
-    {
-      "name": "tree",
-      "success": [
-        "replacement.selector-dialog-editor",
-        "document.status"
-      ],
-      "cancel": [
-        "replacement.selector-dialog-editor"
-      ],
-      "failure": [
-        "document.error-warning"
-      ],
-      "sourceAnchors": [
-        "this.showTreeSelector()"
       ]
     },
     {
