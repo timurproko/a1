@@ -22,7 +22,7 @@ The manual merge accepts these scenarios:
     "The manifest declares no `imports` alias and no `postinstall`; `npm ci --ignore-scripts` installs a launchable tree without any repair step.",
     "Exact-package preparation records install and identity phases only, and every governance check passes on the rewritten imports."
   ],
-  "archiveDigest": "e588c34f5ebc7ac16e260572d3c37f0aaac39689b1c149d6f9366e132b1279da",
+  "archiveDigest": "ed325e7e85aacca79403047f820e77a512fc1b168d077eefa27d595263372d05",
   "specDigest": "ed5858e2e100f11d556a551dcad370afba23de336040fa13cc815aabcd7798a5",
   "tasksDigest": "66bb90275a727801fca7e6dfc18516034d63bb3f014fe8747e281ff3af226089",
   "evidenceDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
