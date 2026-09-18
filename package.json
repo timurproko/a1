@@ -22,7 +22,7 @@
     "clean": "node scripts/clean.mjs",
     "build": "npm run clean && tsc -p tsconfig.build.json && node scripts/pi/build-startup-public.mjs && node scripts/development/build-process-guardian.mjs && node scripts/release/generate-runtime-payload-inventory.mjs",
     "build:process-guardian": "node scripts/development/build-process-guardian.mjs",
-    "typecheck": "tsgo -p tsconfig.json --noEmit",
+    "typecheck": "tsgo -p tsconfig.json --noEmit && tsgo -p tsconfig.bin.json",
     "check:architecture": "node scripts/governance/check-architecture.mjs && node scripts/governance/check-product-identity-boundaries.mjs && node scripts/governance/check-package-identity.mjs && node scripts/governance/check-pinned-pi-source-ledger.mjs && node scripts/governance/check-terminal-host-provenance.mjs",
     "check:names": "node scripts/governance/product-identifier-policy.mjs --check",
     "check:names:changed": "node scripts/governance/product-identifier-policy.mjs --check --selection .artifacts/validation/impact.json",
@@ -57,7 +57,8 @@
     "prepack": "node scripts/release/prepack-gate.mjs",
     "prepublishOnly": "npm run test:release",
     "prepare": "npm run build",
-    "update:pi-settings-metadata": "node scripts/pi/update-pi-settings-metadata.mjs"
+    "update:pi-settings-metadata": "node scripts/pi/update-pi-settings-metadata.mjs",
+    "typecheck:bin": "tsgo -p tsconfig.bin.json"
   },
   "dependencies": {
     "@earendil-works/pi-coding-agent": "0.84.2",

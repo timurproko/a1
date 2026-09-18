@@ -19,11 +19,11 @@ const FULL_EXACT = new Set([
   "scripts/release/validation-impact.mjs",
   "scripts/release/select-validation-impact.mjs",
   "tsconfig.json",
+  "tsconfig.bin.json",
   "tsconfig.build.json",
   "vitest.config.ts",
 ]);
 const FULL_PREFIXES = Object.freeze([
-  "bin/pi-tui.",
   "test/support/rendering/",
   "test/support/input-responsiveness/",
   "test/fixtures/rendering/",
