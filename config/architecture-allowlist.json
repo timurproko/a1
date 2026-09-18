@@ -1,0 +1,62 @@
+{
+  "schema": "a1-architecture-allowlist-v1",
+  "entryModules": [
+    "src/integrations/pi/engine/public-main-entry.ts",
+    "src/integrations/pi/session-ui/paste-text-worker.ts"
+  ],
+  "importCycles": [
+    [
+      "src/foundation/release/bootstrap.ts",
+      "src/foundation/release/dependency-certification-retention.ts",
+      "src/foundation/release/endpoints.ts",
+      "src/foundation/release/release-gc.ts",
+      "src/foundation/release/restart-certification.ts",
+      "src/foundation/release/update-launch.ts",
+      "src/foundation/release/update-recovery.ts",
+      "src/foundation/release/update-transaction.ts",
+      "src/foundation/release/update.ts",
+      "src/foundation/release/warmup.ts"
+    ],
+    [
+      "src/foundation/release/dependency-layer.ts",
+      "src/foundation/release/release.ts"
+    ],
+    [
+      "src/integrations/pi/session-ui/paste-text-preparation.ts",
+      "src/integrations/pi/session-ui/path-chip-presentation.ts"
+    ]
+  ],
+  "unreachableModules": [
+    "src/cli/version.ts",
+    "src/composition/agent-engine-bridge.ts",
+    "src/composition/process.ts",
+    "src/features/owned-ui/customization.ts",
+    "src/features/owned-ui/diagnostics.ts",
+    "src/features/workspace/capabilities.ts",
+    "src/features/workspace/presentation.ts",
+    "src/features/workspace/reconciliation.ts",
+    "src/features/workspace/reducer.ts",
+    "src/features/workspace/router.ts",
+    "src/features/workspace/store.ts",
+    "src/foundation/native-host-protocol/codec.ts",
+    "src/foundation/native-host-protocol/evidence.ts",
+    "src/foundation/native-host-protocol/messages.ts",
+    "src/foundation/native-host-protocol/proof-gate.ts",
+    "src/foundation/structured-agent-runtime/backpressure.ts",
+    "src/foundation/structured-agent-runtime/commands.ts",
+    "src/foundation/structured-agent-runtime/handshake.ts",
+    "src/foundation/structured-agent-runtime/reconnection.ts",
+    "src/foundation/structured-agent-runtime/state.ts",
+    "src/integrations/pi/components/prompt-input-port.ts",
+    "src/integrations/pi/components/upstream/components/custom-entry.ts",
+    "src/integrations/pi/components/upstream/components/first-time-setup.ts",
+    "src/integrations/pi/components/upstream/components/markdown-transform.ts",
+    "src/integrations/pi/engine/conformance.ts",
+    "src/integrations/pi/engine/model-auth-integration.ts",
+    "src/integrations/pi/engine/resource-extension-integration.ts",
+    "src/integrations/pi/engine/workflow-controllers.ts",
+    "src/integrations/pi/session-ui/route-host.ts",
+    "src/integrations/pi/tui-runtime/conformance.ts",
+    "src/ui/components/prompt-row.ts"
+  ]
+}
