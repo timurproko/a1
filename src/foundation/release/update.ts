@@ -5,14 +5,13 @@ import { isAbsolute, relative, resolve, sep } from "node:path";
 import crossSpawn from "cross-spawn";
 import { valid as validSemver } from "semver";
 import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../../product-identity.js";
+import type { UpdateChannel } from "./types.js";
 import {
   certifyMaterializedRelease,
-  probeOwnership,
-  readEndpointMetadata,
-  removeEndpointArtifacts,
   ensureSupervisor,
   waitForProcessExit,
 } from "./bootstrap.js";
+import { probeOwnership, readEndpointMetadata, removeEndpointArtifacts } from "./endpoints.js";
 import { resolveCohortEndpoint, resolveProductPaths, type CohortEndpointPaths, type ProductPaths } from "../lifecycle/index.js";
 import { encodeFrame, LineFrameDecoder } from "../protocol/index.js";
 import { CohortStateStore, type SupervisorEndpointMetadata } from "./cohort-state.js";
@@ -24,7 +23,7 @@ import { UpdateTransactionStore, type UpdateRecoveryState, type UpdateTransactio
 import { removeUpdateRecoveryCapsule, runProtectedPackageReplacement, type ProtectedPackageReplacementResult } from "./update-recovery.js";
 
 export const PRODUCT_PACKAGE = PRODUCT_TEXT.packageName;
-export type UpdateChannel = "stable" | "next";
+export type { UpdateChannel } from "./types.js";
 const UPDATE_DIST_TAGS: Readonly<Record<UpdateChannel, "latest" | "next">> = { stable: "latest", next: "next" };
 export interface ProcessRequest { captureStdout: boolean }
 export interface ProcessResult { code: number | null; stdout: string }

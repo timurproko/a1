@@ -107,7 +107,9 @@ export function validateStartupReachabilityBaseline(report, baseline) {
 
 export function runtimeRelativeImports(source) {
   const imports = [];
-  const statements = source.matchAll(/(?:^|\n)\s*(import|export)\s+([\s\S]*?)\s+from\s+(["'])(\.\.?\/[^"']+)\3\s*;?/g);
+  // Rationale: the clause must not cross a statement terminator, or a bare-specifier import on the
+  // previous line would swallow a following relative `import type` and count it as a runtime edge.
+  const statements = source.matchAll(/(?:^|\n)\s*(import|export)\s+([^;]*?)\s+from\s+(["'])(\.\.?\/[^"']+)\3\s*;?/g);
   for (const match of statements) {
     const clause = match[2].trim();
     if (match[1] === "import" && clause.startsWith("type ")) continue;

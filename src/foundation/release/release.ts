@@ -3,7 +3,7 @@ import { lstat, readFile, readdir, realpath } from "node:fs/promises";
 import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../../product-identity.js";
 import { mapWithConcurrency } from "./concurrency.js";
-import type { DependencyLayerReference } from "./dependency-layer.js";
+import type { DependencyLayerReference } from "./types.js";
 
 const RELEASE_FILE_IO_CONCURRENCY = 32;
 

@@ -4,7 +4,7 @@ import { dirname, resolve } from "node:path";
 import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../../product-identity.js";
 
 export const UPDATE_JOURNAL_SCHEMA = PRODUCT_IDENTITY.protocol.updateJournalSchema;
-import type { UpdateChannel } from "./update.js";
+import type { UpdateChannel } from "./types.js";
 
 export type UpdateTransactionPhase =
   | "shutdown-intent"

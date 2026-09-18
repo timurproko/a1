@@ -32,6 +32,10 @@ describe("startup reachability policy", () => {
     expect(runtimeRelativeImports(`import {\n  value,\n  type Shape,\n} from "./runtime.js";\nimport type { Contract } from "./types.js";\n`)).toEqual(["./runtime.js"]);
   });
 
+  it("does not let a bare-specifier import swallow the relative type import that follows it", () => {
+    expect(runtimeRelativeImports(`import path from "node:path";\nimport type { Contract } from "./types.js";\nimport { value } from "./runtime.js";\nexport type { Other } from "./other.js";\nexport * from "./barrel.js";\n`)).toEqual(["./runtime.js", "./barrel.js"]);
+  });
+
   it("rejects an optional eager import even when timing evidence could still pass", async () => {
     const root = await mkdtemp(join(tmpdir(), "a1-startup-optional-"));
     roots.push(root);
