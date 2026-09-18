@@ -4,7 +4,7 @@ import { STARTUP_ROOTS, runtimeRelativeImports } from "./startup-graph-policy.mj
 
 const SOURCE_FILE = /\.(?:ts|mts|cts)$/;
 const DECLARATION_FILE = /\.d\.(?:ts|mts|cts)$/;
-const STATIC_IMPORT = /(?:^|\n)\s*(?:import|export)\s+(?:[\s\S]*?\s+from\s+)?(["'])(\.\.?\/[^"']+)\1\s*;?/g;
+const STATIC_IMPORT = /(?:^|\n)\s*(?:import|export)\s+(?:[^;]*?\s+from\s+)?(["'])(\.\.?\/[^"']+)\1\s*;?/g;
 const DYNAMIC_IMPORT = /\bimport\s*\(\s*(["'])(\.\.?\/[^"']+)\1\s*\)/g;
 const WORKER_URL = /new URL\(([^)]*)import\.meta\.url\s*\)/g;
 const URL_LITERAL = /(["'])(\.\.?\/[^"']+\.(?:js|ts))\1/g;
