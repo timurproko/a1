@@ -46,8 +46,8 @@ for (const file of await walk(sourceRoot)) {
   const imports = [...source.matchAll(/(?:from\s+|import\s*\()(["'])([^"']+)\1/g)].map(match => match[2]);
 
   for (const specifier of imports) {
-    // Invariant: `#pi-tui` is A1's own alias for pinned Pi's terminal package, so it is a Pi
-    // import wherever it appears and belongs to the same adapter boundary.
+    // Invariant: pi-tui is imported under its package name everywhere; the bin/ resolver hook
+    // decides which copy loads, so the specifier belongs to the same adapter boundary as Pi.
     const isPi = !specifier.startsWith(".") && /(?:^|[#/])(?:pi-agent|pi-ai|pi-coding-agent|pi-tui|@mariozechner\/pi-|@oh-my-pi\/pi-)/.test(specifier);
     const piAdapterPath = path === "src/integrations/pi/startup-public.ts"
       || /^src\/(?:integrations\/pi\/(?:engine|components|tui-runtime)|drivers\/pi|profiles\/pi)\//.test(path);

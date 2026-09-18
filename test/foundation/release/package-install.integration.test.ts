@@ -204,10 +204,6 @@ describe("clean installation of the exact candidate", () => {
   it("materializes the published minimal inventory into one reusable dependency layer", async () => {
     const { materializeRelease } = await import("../../../src/foundation/release/index.js");
     const packageRoot = resolve(prefix, ...(process.platform === "win32" ? [] : ["lib"]), "node_modules", "@timurproko", "a1");
-    await phases.run("proxy-synchronization", async () => {
-      const repaired = await runAsync(process.execPath, [resolve(packageRoot, "bin", "sync-pi-tui-proxy.js")], root);
-      expect(repaired.status, repaired.stderr).toBe(0);
-    });
     const operations: Array<{ operation: string; path: string; bytes: number }> = [];
     const dataDir = resolve(root, "layered-data");
     const release = await phases.run("layer-materialization", () => materializeRelease(packageRoot, dataDir, { onOperation: event => operations.push(event) }));
@@ -225,10 +221,17 @@ describe("clean installation of the exact candidate", () => {
     expect(layerManifest.inventory.excludedFiles).toBeGreaterThan(0);
     expect(layerManifest.inventory.excludedBytes).toBeGreaterThan(0);
 
-    const identity = await import(pathToFileURL(resolve(packageRoot, "bin", "module-identity.js")).href) as {
-      inspectPiTuiModuleIdentity(root: string): { kind: string };
-    };
-    expect(identity.inspectPiTuiModuleIdentity(release.releaseRoot)).toMatchObject({ kind: "unified" });
+    // Invariant: identity is decided by the resolver hook the release's own entries install, so the
+    // proof runs in a fresh process that installs it for the release root, as launch does.
+    const identityProbe = [
+      `const { installPinnedPiTuiResolver } = await import(${JSON.stringify(pathToFileURL(resolve(release.releaseRoot, "bin", "module-resolver.js")).href)});`,
+      `installPinnedPiTuiResolver(${JSON.stringify(release.releaseRoot)});`,
+      `const { inspectPiTuiModuleIdentity } = await import(${JSON.stringify(pathToFileURL(resolve(release.releaseRoot, "bin", "module-identity.js")).href)});`,
+      `process.stdout.write(JSON.stringify(inspectPiTuiModuleIdentity(${JSON.stringify(release.releaseRoot)})));`,
+    ].join("\n");
+    const identity = await runAsync(process.execPath, ["--input-type=module", "--eval", identityProbe], root);
+    expect(identity.status, identity.stderr).toBe(0);
+    expect(JSON.parse(identity.stdout)).toMatchObject({ kind: "unified" });
   }, 600_000);
 
   it("drains a production-shaped historical backlog through the exact packaged private worker", async () => {

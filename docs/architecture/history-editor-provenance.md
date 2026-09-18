@@ -18,7 +18,7 @@ The owning directory is `src/integrations/pi/components/upstream/history/`.
 | `text-helpers.ts` | selected declarations in `utils.ts` | Shared local segmenters, CJK break classification, punctuation/whitespace predicates only |
 | `printable-key.ts` | selected declarations in `keys.ts` | Pure modifyOtherKeys printable helper and modifier constants; delegates Kitty decoding to the public export |
 
-All reusable terminal APIs come from `#pi-tui`: keybinding state, `matchesKey`,
+All reusable terminal APIs come from `@earendil-works/pi-tui` (one copy per process, chosen by the `bin/module-resolver.js` hook): keybinding state, `matchesKey`,
 `decodeKittyPrintable`, `CURSOR_MARKER`, width/slicing, `SelectList`, and public
 component/autocomplete types. No terminal runtime, parser stack, terminal
 renderer, package loader, or dependency copy is introduced. The terminal-package

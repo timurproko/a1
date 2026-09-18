@@ -1,6 +1,6 @@
 import type { AgentSessionRuntime } from "@earendil-works/pi-coding-agent";
 import { getSelectListTheme, initTheme } from "@earendil-works/pi-coding-agent";
-import { SelectList, TuiMainScreen, type Component } from "#pi-tui";
+import { SelectList, TuiMainScreen, type Component } from "@earendil-works/pi-tui";
 import { applyPiTheme, createPiShellSelector, type PiShellComponentPort } from "../../../src/integrations/pi/components/index.js";
 import { createPiEngineAdapter } from "../../../src/integrations/pi/engine/index.js";
 import { OwnedUiSessionShell } from "../../../src/integrations/pi/session-ui/index.js";

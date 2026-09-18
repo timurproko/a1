@@ -63,10 +63,7 @@ export class PredecessorFixture {
     await this.run({ executable: process.platform === "win32" ? "npm.cmd" : "npm", cwd: root,
       phase: version === undefined ? "install-candidate" : "install-predecessor", ...identity,
       arguments: ["install", "--global", "--prefix", prefix, specifier, "--ignore-scripts", "--no-audit", "--no-fund"] });
-    const packageRoot = resolve(prefix, ...(process.platform === "win32" ? [] : ["lib"]), "node_modules", "@timurproko", "a1");
-    await this.run({ executable: process.execPath, cwd: packageRoot, arguments: [resolve(packageRoot, "bin", "sync-pi-tui-proxy.js")],
-      phase: version === undefined ? "synchronize-candidate" : "synchronize-predecessor", ...identity });
-    return packageRoot;
+    return resolve(prefix, ...(process.platform === "win32" ? [] : ["lib"]), "node_modules", "@timurproko", "a1");
   }
 
   /** Preserves npm's object/array response forms and publication-time predecessor ordering. */

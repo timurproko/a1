@@ -1,7 +1,7 @@
 import { mock } from "node:test";
 import type { AgentSessionRuntime } from "@earendil-works/pi-coding-agent";
 import { initTheme } from "@earendil-works/pi-coding-agent";
-import { TuiAltScreen, TuiMainScreen } from "#pi-tui";
+import { TuiAltScreen, TuiMainScreen } from "@earendil-works/pi-tui";
 import { PinnedContentRoot } from "./pinned-content-root.js";
 import { CONTENT_RENDERING_WORKLOADS } from "./content-workloads.js";
 import { applyPiTheme } from "../../../src/integrations/pi/components/index.js";

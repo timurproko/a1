@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promis
 import { tmpdir } from "node:os";
 import { dirname, join, parse, resolve } from "node:path";
 import { ProjectTrustStore, SettingsManager, VERSION, type AgentSessionRuntime } from "@earendil-works/pi-coding-agent";
-import { stripTerminalSequences } from "#pi-tui";
+import { stripTerminalSequences } from "@earendil-works/pi-tui";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createPiEngineAdapter } from "../../../../src/integrations/pi/engine/adapter.js";
 import { TrustSelectorComponent } from "../../../../src/integrations/pi/components/upstream/components/trust-selector.js";

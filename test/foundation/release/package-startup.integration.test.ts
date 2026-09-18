@@ -63,12 +63,6 @@ describe("fresh first-attempt startup of the exact candidate", () => {
     const { PRODUCT_IDENTITY } = await import("../../../src/product-identity.js");
     await phases.run("defender-prerequisite", () => expectWindowsDefenderProtection());
     const packageRoot = resolve(prefix, "node_modules", "@timurproko", "a1");
-    // Invariant: the old combined file repaired this proxy in an earlier identity/layer
-    // scenario. The split startup owner does the declared repair itself without launching.
-    await phases.run("startup-proxy-synchronization", async () => {
-      const repaired = await runFixtureCommand(process.execPath, [resolve(packageRoot, "bin", "sync-pi-tui-proxy.js")], root);
-      expect(repaired.status, repaired.stderr).toBe(0);
-    });
     const startupModuleGraph = await loadStartupModuleGraph(packageRoot);
     const dataDir = resolve(root, "startup-data");
     const runtimeDir = resolve(root, "startup-runtime");

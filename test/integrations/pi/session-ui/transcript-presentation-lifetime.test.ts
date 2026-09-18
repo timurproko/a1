@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { Text } from "#pi-tui";
+import { Text } from "@earendil-works/pi-tui";
 import { stripAnsi } from "../../../../src/ui/components/text.js";
 import { selectionCopyRowText } from "../../../../src/ui/components/selection-copy.js";
 import { readVisibleHyperlinks } from "../../../../src/ui/components/visible-hyperlinks.js";

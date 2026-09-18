@@ -11,7 +11,7 @@ export function isExactPrintableHelper(source, upstream) {
   const retained = ast.statements.filter(statement => NAMES.includes(statement.name?.text)
     || ts.isVariableStatement(statement) && statement.declarationList.declarations.some(value => NAMES.includes(value.name.getText(ast))));
   if (retained.length !== NAMES.length) return false;
-  const expected = 'import { decodeKittyPrintable } from "#pi-tui";\n'
+  const expected = 'import { decodeKittyPrintable } from "@earendil-works/pi-tui";\n'
     + retained.map(statement => statement.getFullText(ast).trim()).join("\n\n") + "\n";
   return source.replace(/^\/\*\*[\s\S]*?\*\/\s*/, "").replaceAll("\r\n", "\n") === expected.replaceAll("\r\n", "\n");
 }

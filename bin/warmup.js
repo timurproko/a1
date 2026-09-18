@@ -1,5 +1,8 @@
 #!/usr/bin/env node
 
+// Invariant: one terminal module identity per process, decided before any A1 or Pi module loads.
+const [{ installPinnedPiTuiResolver }, { fileURLToPath: toPath }] = await Promise.all([import("./module-resolver.js"), import("node:url")]);
+installPinnedPiTuiResolver(toPath(new URL("..", import.meta.url)));
 const startup = await import("../dist/foundation/startup/startup-runtime.js");
 startup.assertImmutableWarmupEnvironment(process.env);
 startup.enableEnvironmentCompileCache(process.env);

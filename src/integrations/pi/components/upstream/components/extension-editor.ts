@@ -9,7 +9,7 @@ import {
   Spacer,
   Text,
   type TUI,
-} from "#pi-tui";
+} from "@earendil-works/pi-tui";
 import { DynamicBorder, getSelectListTheme } from "@earendil-works/pi-coding-agent";
 import type { KeybindingsManager } from "../adjacent/core/keybindings.js";
 import { editInExternalEditor } from "../external-editor.js";

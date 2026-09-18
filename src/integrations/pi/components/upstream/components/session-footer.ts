@@ -5,7 +5,7 @@
  * bare A1 colors the effective level-name span while the comparison profile retains pinned styling.
  */
 import { isAbsolute, relative, resolve, sep } from "node:path";
-import { truncateToWidth, visibleWidth, type Component } from "#pi-tui";
+import { truncateToWidth, visibleWidth, type Component } from "@earendil-works/pi-tui";
 import type { OwnedUiSessionViewModel } from "../../../../../contracts/owned-ui/index.js";
 import { piTheme } from "../../theme.js";
 

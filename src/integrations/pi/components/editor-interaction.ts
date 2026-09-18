@@ -1,4 +1,4 @@
-import type { Editor } from "#pi-tui";
+import type { Editor } from "@earendil-works/pi-tui";
 
 export interface EditorInteractionState {
   lines: string[];
