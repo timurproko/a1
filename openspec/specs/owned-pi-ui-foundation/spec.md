@@ -900,7 +900,7 @@ The stale-update policy SHALL reject obsolete revisions and updates following ac
 - **AND** later obsolete execution updates SHALL NOT revive it
 
 ### Requirement: Run completion preserves the active transcript continuously
-Every displayable semantic user, assistant, thinking, and tool surface in the active transcript SHALL remain available in its established order through message completion, run completion, settlement, and presentation coalescing. A completion event carrying only the messages generated in that run SHALL NOT be interpreted as a replacement for the complete session history, even temporarily. Reconciliation SHALL use the pinned session-authoritative scope appropriate to the operation and SHALL preserve unchanged surface identities.
+Every displayable semantic user, assistant, thinking, and tool surface in the active transcript SHALL remain available in its established order through message completion, run completion, settlement, and presentation coalescing. A completion event carrying only the messages generated in that run SHALL NOT be interpreted as a replacement for the complete session history, even temporarily. Reconciliation SHALL use the pinned session-authoritative scope appropriate to the operation and SHALL preserve unchanged surface identities. That reconciliation, together with block identity, revision numbering, tool lifecycle settlement, and image asset retention, SHALL be one transcript projection owned by the engine adapter and testable without the adapter: it SHALL receive the session-authoritative messages and the retry attempt it needs as inputs and SHALL report each stored block change through a port, while the adapter alone decides when pending delivery snapshots are sealed and when a change is delivered.
 
 This requirement SHALL preserve existing visibility, expansion, branch, compaction, navigation, and explicit session-replacement policies. It SHALL NOT require retaining every superseded partial snapshot or rendering off-screen or deliberately hidden content. Actual authoritative removal or session replacement SHALL remain distinguishable from ordinary run completion.
 
@@ -923,6 +923,11 @@ This requirement SHALL preserve existing visibility, expansion, branch, compacti
 - **WHEN** explicit session or branch replacement, or the existing compaction policy, supplies a legitimately different authoritative transcript
 - **THEN** the shell SHALL reconcile that scope according to its existing contract
 - **AND** obsolete generation events SHALL NOT repopulate removed content or mutate the replacement session
+
+#### Scenario: Project a transcript without an engine
+- **WHEN** the projection is driven directly with session messages, tool execution events, and declaration failures
+- **THEN** it SHALL produce the same block identities, revisions, and settlement outcomes the shell observes through the adapter
+- **AND** a block that repeats itself SHALL neither change revision nor be reported
 
 ### Requirement: Tool presentation receives complete supported rendering data
 The owned component boundary SHALL preserve the supported result content, structured renderer details, invocation arguments, error/partial state, and attachment references required by the pinned built-in and registered extension renderers. A text-only reconstruction or a truncated diagnostic summary SHALL NOT substitute for rendering data. Supported partial-result metadata SHALL remain available without serializing a complete accumulated result for each chunk.
