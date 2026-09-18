@@ -34,7 +34,7 @@ describe("Pi session shell provenance", () => {
     expect(evidence.orchestrationPorts[0]).toMatchObject({
       copiedFiles: [],
       copiedLines: false,
-      localFile: "src/integrations/pi/session-ui/session-shell.ts",
+      localFile: "src/app/session-shell/session-shell.ts",
       upstreamCommit: "914cf1472e715297caa30db4b9535d534a9eb718",
       upstreamLines: [528, 994],
     });
@@ -49,7 +49,7 @@ describe("Pi session shell provenance", () => {
     expect(evidence.orchestrationPorts.map(port => port.localFile)).toEqual(expect.arrayContaining([
       "src/features/owned-ui/settings-app.ts",
       "src/features/owned-ui/project-trust-prompt.ts",
-      "src/integrations/pi/session-ui/session-shell.ts",
+      "src/app/session-shell/session-shell.ts",
     ]));
     expect(evidence.rejected).toContain("private field inspection");
   });

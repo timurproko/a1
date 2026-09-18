@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PRODUCT_IDENTITY } from "../../src/product-identity.js";
 import { composeOwnedUi } from "../../src/composition/owned-ui.js";
-import type { ClipboardDiagnosticCapture } from "../../src/integrations/pi/session-ui/clipboard-diagnostics.js";
-import type { OwnedUiSessionShellOptions } from "../../src/integrations/pi/session-ui/index.js";
+import type { ClipboardDiagnosticCapture } from "../../src/app/session-shell/clipboard-diagnostics.js";
+import type { OwnedUiSessionShellOptions } from "../../src/app/session-shell/index.js";
 
 const observed = vi.hoisted(() => ({ options: undefined as OwnedUiSessionShellOptions | undefined,
   captures: [] as ClipboardDiagnosticCapture[], writes: [] as { file: string; data: string }[], failure: "" }));
@@ -15,13 +15,13 @@ vi.mock("../../src/ui/settings/store.js", () => ({ OwnedUiSettingsStore: class {
 vi.mock("../../src/ui/settings/session.js", () => ({
   OwnedUiSettingsSession: class { value(key: string) { return key === "promptHistoryEnabled" ? false : undefined; } },
 }));
-vi.mock("../../src/integrations/pi/session-ui/clipboard-diagnostics.js", async importOriginal => {
-  const { ClipboardDiagnosticCapture: Capture } = await importOriginal<typeof import("../../src/integrations/pi/session-ui/clipboard-diagnostics.js")>();
+vi.mock("../../src/app/session-shell/clipboard-diagnostics.js", async importOriginal => {
+  const { ClipboardDiagnosticCapture: Capture } = await importOriginal<typeof import("../../src/app/session-shell/clipboard-diagnostics.js")>();
   return { ClipboardDiagnosticCapture: class extends Capture {
     constructor(file: string) { super(file, async (destination, data) => { observed.writes.push({ file: destination, data }); }); observed.captures.push(this); }
   } };
 });
-vi.mock("../../src/integrations/pi/session-ui/session-shell.js", () => ({
+vi.mock("../../src/app/session-shell/session-shell.js", () => ({
   OwnedUiSessionShell: class {
     constructor(options: OwnedUiSessionShellOptions) {
       observed.options = options;

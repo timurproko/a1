@@ -105,8 +105,8 @@ describe("complete regression automation", () => {
     const exclusions = remainder.arguments.filter((_argument, index, args) => args[index - 1] === "--exclude");
     const deferred = [
       "test/foundation/release/package-install.integration.test.ts",
-      "test/integrations/pi/session-ui/image-preparation.test.ts",
-      "test/integrations/pi/session-ui/image-worker-package.test.ts",
+      "test/app/session-shell/image-preparation.test.ts",
+      "test/app/session-shell/image-worker-package.test.ts",
       ...(await readdir("test/features/prompt-history")).filter(name => name.endsWith(".test.ts")).map(name => `test/features/prompt-history/${name}`),
     ];
     expect(deferred).toContain("test/features/prompt-history/store.test.ts");

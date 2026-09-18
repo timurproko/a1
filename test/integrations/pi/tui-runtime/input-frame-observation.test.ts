@@ -1,7 +1,7 @@
 import type { AgentSessionRuntime } from "@earendil-works/pi-coding-agent";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createPiEngineAdapter } from "../../../../src/integrations/pi/engine/index.js";
-import { OwnedUiSessionShell } from "../../../../src/integrations/pi/session-ui/index.js";
+import { OwnedUiSessionShell } from "../../../../src/app/session-shell/index.js";
 import { applyPiTheme, createPiShellSelector } from "../../../../src/integrations/pi/components/index.js";
 import type { PiTuiInputDiagnosticsEvent } from "../../../../src/integrations/pi/tui-runtime/index.js";
 import { RecordingTerminal, Runtime } from "../../../support/input-responsiveness/input-runtime-fixture.js";

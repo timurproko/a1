@@ -1,6 +1,6 @@
 export interface ProjectOwner {
   readonly id: string;
-  readonly layer: "entry" | "feature" | "foundation";
+  readonly layer: "entry" | "app" | "feature" | "foundation";
   readonly sourceRoot: string;
   readonly testRoot: string;
   readonly publicEntry: string;
@@ -12,8 +12,9 @@ export const TEST_OWNERS: Readonly<Record<string, string>>;
 export function inspectProjectOwnerLayout(paths: readonly string[]): string[];
 export function inspectProjectStructureImports(
   files: Readonly<Record<string, string>>,
-  directLeafConsumers?: ReadonlySet<string>,
+  startupModules?: ReadonlySet<string>,
 ): string[];
+export function inspectLayerBoundaries(files: Readonly<Record<string, string>>): string[];
 export function inspectPiFeatureBoundaryImports(files: Readonly<Record<string, string>>): string[];
 export function projectOwnerForPath(path: string): ProjectOwner | null;
 export function testOwnerForPath(path: string): string | null;

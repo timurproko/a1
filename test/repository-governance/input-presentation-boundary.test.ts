@@ -12,8 +12,8 @@ describe("keyboard input presentation ownership", () => {
   });
 
   it("enables coordination and viewport reuse only on the declared custom viewport", async () => {
-    const shell = await readFile(new URL("../../src/integrations/pi/session-ui/session-shell.ts", import.meta.url), "utf8");
-    const root = await readFile(new URL("../../src/integrations/pi/session-ui/session-shell-root.ts", import.meta.url), "utf8");
+    const shell = await readFile(new URL("../../src/app/session-shell/session-shell.ts", import.meta.url), "utf8");
+    const root = await readFile(new URL("../../src/app/session-shell/session-shell-root.ts", import.meta.url), "utf8");
     const optionsStart = shell.indexOf("const runtimeOptions");
     const optionsEnd = shell.indexOf("runtime = new PiTuiRuntimeAdapter", optionsStart);
     const runtimeOptions = shell.slice(optionsStart, optionsEnd);
@@ -28,7 +28,7 @@ describe("keyboard input presentation ownership", () => {
     const sources = await Promise.all([
       "../../src/integrations/pi/tui-runtime/input-presentation-coordinator.ts",
       "../../src/integrations/pi/tui-runtime/adapter.ts",
-      "../../src/integrations/pi/session-ui/session-shell-root.ts",
+      "../../src/app/session-shell/session-shell-root.ts",
     ].map(path => readFile(new URL(path, import.meta.url), "utf8")));
     const combined = sources.join("\n");
     expect(combined).not.toMatch(/node_modules\/(?!\.\.)|Object\.defineProperty\([^,]+\.prototype|\.prototype\s*=/u);

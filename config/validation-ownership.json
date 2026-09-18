@@ -142,13 +142,14 @@
     {
       "id": "pi",
       "paths": [
+        "src/app/session-shell/",
         "src/integrations/pi/",
         "scripts/pi/"
       ],
       "testPaths": [
         "test/integrations/pi/components/",
         "test/integrations/pi/engine/",
-        "test/integrations/pi/session-ui/"
+        "test/app/session-shell/"
       ],
       "integrationOwners": [
         "pi-release-resume",

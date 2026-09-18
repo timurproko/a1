@@ -8,7 +8,7 @@ import { PromptHistoryStore } from "../../src/features/prompt-history/store.js";
 import * as launch from "../../src/features/launch/index.js";
 import { resolveProductPaths } from "../../src/foundation/lifecycle/index.js";
 import { composeOwnedUi } from "../../src/composition/owned-ui.js";
-import { PromptHistoryController } from "../../src/integrations/pi/session-ui/prompt-history-controller.js";
+import { PromptHistoryController } from "../../src/app/session-shell/prompt-history-controller.js";
 
 type ShellOptions = { history?: { store: PromptHistoryService } };
 const observed = vi.hoisted(() => ({ shells: [] as ShellOptions[], enabled: true, loadEditor: vi.fn() }));
@@ -27,7 +27,7 @@ vi.mock("../../src/ui/settings/session.js", () => ({
     value(key: string) { return key === "promptHistoryEnabled" ? observed.enabled : key === "promptHistoryMaxItems" ? 100 : undefined; }
   },
 }));
-vi.mock("../../src/integrations/pi/session-ui/session-shell.js", () => ({
+vi.mock("../../src/app/session-shell/session-shell.js", () => ({
   OwnedUiSessionShell: class {
     constructor(readonly options: ShellOptions) { observed.shells.push(options); }
     async dispose() { await this.options.history?.store.close(); }
