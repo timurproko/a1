@@ -2,6 +2,7 @@ import { readFile, readdir } from "node:fs/promises";
 import { extname, relative, resolve, sep } from "node:path";
 import { inspectPiFeatureBoundaryImports, inspectProjectOwnerLayout, inspectProjectStructureImports, projectOwnerForPath, testOwnerForPath } from "./project-structure-policy.mjs";
 import { inspectPiProductionBoundary } from "./pi-api-boundary-policy.mjs";
+import { inspectBaselinePaths } from "./baseline-paths-policy.mjs";
 import { PRINTABLE_HELPER_PATH, isExactPrintableHelper, readPinnedKeySource } from "./history-editor-source-policy.mjs";
 import { inspectStartupReachability, validateStartupReachabilityBaseline } from "./startup-graph-policy.mjs";
 
@@ -209,15 +210,6 @@ for (const nativeRoot of nativeRoots) {
   }
 }
 
-let piBoundaryBaseline = null;
-try {
-  piBoundaryBaseline = JSON.parse(await readFile(resolve(root, "config", "baselines", "pi-api-boundary.json"), "utf8"));
-} catch (error) {
-  if (rootArgument < 0) errors.push(`Pi API boundary baseline is missing or invalid: ${error instanceof Error ? error.message : String(error)}`);
-}
-const approvedPiFeatureImports = Array.isArray(piBoundaryBaseline?.featureToAdapterDependencies)
-  ? piBoundaryBaseline.featureToAdapterDependencies
-  : [];
 let startupReachability = { modules: [], errors: [] };
 let startupBaseline = null;
 try {
@@ -229,9 +221,10 @@ try {
   if (rootArgument < 0) errors.push(`startup graph baseline or root is missing: ${error instanceof Error ? error.message : String(error)}`);
 }
 const startupLeafConsumers = new Set(startupReachability.modules.map(module => module.path));
-errors.push(...inspectProjectStructureImports(sourceFiles, approvedPiFeatureImports, startupLeafConsumers));
-errors.push(...inspectPiFeatureBoundaryImports(sourceFiles, approvedPiFeatureImports));
-errors.push(...inspectPiProductionBoundary(sourceFiles, piBoundaryBaseline));
+errors.push(...inspectProjectStructureImports(sourceFiles, startupLeafConsumers));
+errors.push(...inspectPiFeatureBoundaryImports(sourceFiles));
+errors.push(...inspectPiProductionBoundary(sourceFiles));
+if (rootArgument < 0) errors.push(...await inspectBaselinePaths(root));
 await inspectRepositoryStructure();
 await inspectReleasePolicy();
 await inspectTerminalParityBoundary();
