@@ -5,6 +5,7 @@ import {
   CustomMessageComponent,
   ToolExecutionComponent,
   UserMessageComponent,
+  createReadToolDefinition,
   getMarkdownTheme,
   initTheme,
 } from "@earendil-works/pi-coding-agent";
@@ -23,7 +24,8 @@ export function capturePinnedTranscriptFrames(width: number, resizedWidth: numbe
   assistant.updateContent(assistantMessage("Hello 🌍", "pending"), true);
   const thinking = new AssistantMessageComponent(undefined, false, getMarkdownTheme(), undefined, 1);
   thinking.updateContent(thinkingMessage("Plan 日本語", "pending"), true);
-  const tool = new ToolExecutionComponent("read", "tool-1", { path: "初.txt" }, undefined, undefined, ui, "D:/work");
+  // Rationale: since 0.85.1 the pinned component takes its renderers from the caller; the built-in read definition carries them.
+  const tool = new ToolExecutionComponent("read", "tool-1", { path: "初.txt" }, undefined, createReadToolDefinition("D:/work"), ui, "D:/work");
   tool.markExecutionStarted();
   const bash = new BashExecutionComponent("printf 'λ'", ui, false);
   bash.appendOutput("λ\n");

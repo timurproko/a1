@@ -145,7 +145,7 @@ export class PiEngineSettings {
     return this.#settingsIntegration;
   }
 
-  /** The models a per-model override may name, with the levels each supports, as the engine computes them. */
+  // Rationale: the rows are the models the running engine offers, each with the levels the engine says it supports.
   #modelChoices(): readonly PiSettingsModelChoice[] {
     const runtime = this.#ports.runtime();
     const models = runtime?.services.modelRuntime.getAvailableSnapshot?.() ?? [];

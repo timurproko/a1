@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-09-18T17:46:57.668Z",
+  "recordedAt": "2026-09-18T18:47:34.380Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "d981de1229ef899957bbe968bc8dcda02a21f477",
@@ -2371,7 +2371,7 @@
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Retain pinned shell and actual public tool-definition renderers. Replace private index-keyed image conversion with current-source ownership, serial conversion, visible fallback, and disposal; guard reentrant invalidation. Remap private types, definition factories, theme, and generic text helpers to public or locally attributed equivalents. See docs/architecture/tool-image-presentation.md.",
-      "localSha256": "01bd374fe40c4921fe70bd22dbaf0ecd0f3c1c1b58677f86653076dab9d1de21",
+      "localSha256": "4a30a8fb9e5b76ee884d39f7df6053676c0c06c2cbdc05ab4a7e9a5e7d34f9d2",
       "approvedDeviations": [
         {
           "id": "current-tool-image-conversion-ownership",
