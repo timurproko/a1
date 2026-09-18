@@ -88,7 +88,7 @@ node scripts/governance/local-worktree-cleanup.mjs preview --repo D:/Git/a1
 node scripts/governance/local-worktree-cleanup.mjs status --repo D:/Git/a1
 ```
 
-`--repo` is the **primary** worktree, not a task worktree. Preview reads live evidence but changes no worktrees, refs, ownership state, or retry checkpoints. Status is local-only. Existing folders are reported `unmanaged` and are never adopted by their name, missing upstream, or ancestry. Neither command enables cleanup.
+`--repo` is the **primary** worktree, not a task worktree. Preview reads live evidence but changes no worktrees, refs, ownership state, or retry checkpoints. Status is local-only. Existing folders are reported `unmanaged` and are never adopted by their name, missing upstream, or ancestry; preview reports a folder that an execution pass would remove as an empty leftover with `empty-directory` (see below) but deletes nothing. Neither command enables cleanup.
 
 Remote reads use `GH_TOKEN`/`GITHUB_TOKEN`, otherwise existing `gh auth token --hostname github.com` authentication. Do not put tokens in command arguments, source files, reports, or PR comments. Missing/expired private-repository authentication blocks evidence checks.
 
@@ -173,13 +173,15 @@ State, journals, stop controls, and execution reports live in `<git-common-dir>/
 - `pending`: archive/ref prerequisites have not finished, or the handed-off PR is still open.
 - `awaiting-discard`: the handed-off PR closed without merge; only the explicit `discard` command may act.
 - `blocked`: ownership, content, path, provenance, authentication, or identity needs attention.
-- `unmanaged`: no local registration; no automatic adoption.
+- `unmanaged`: no local registration; no automatic adoption. Reason `empty-directory-recent` marks an all-empty folder still inside its ten-minute grace, and in preview `empty-directory` marks one an execution pass would remove.
 - `removed`: worktree and eligible local-ref operations were verified.
 - `already-absent`: a completed journal's path/ref are still absent.
 - `retired`: evidence was unverifiable but nothing remained to delete and the PR is merged; the journal is complete with `retired-nothing-left`.
 - `forgotten`: the maintainer explicitly closed an all-absent entry with `forget`.
 - `partial`: a destructive step began but all cleanup could not be verified; the same command resumes it.
 - `deferred`: a bounded pass or concurrent mutation owner prevented evaluation.
+
+Empty leftovers under `.worktrees/` are the one unregistered shape a pass removes. Git's own `worktree remove` deletes the checkout's files and then its administrative directory even when the final directory removal failed because a shell, editor, or indexer still held the folder open, so an empty top-level folder with no Git row, branch, or registration can outlive its worktree. Every execution pass (`sweep`, `complete`, `discard`, `once`, `watch`) scans the root and removes such a folder only when it is a real directory rather than a link, Git lists no worktree row for its path, its whole subtree holds nothing but directories (no file, link, special entry, or `.git` at any depth), and its modification time is at least ten minutes old so an in-progress `git worktree add` or removal is never raced. Removal is bottom-up with the non-recursive directory primitive only, which cannot delete a file that appeared after verification; it is reported `removed (empty-directory)` with step `empty-directory-removed` and named in the sweep lines. A folder still held open reports `blocked (empty-directory-locked)` and is retried on the next pass; anything containing content stays `unmanaged` and is never touched.
 
 Non-force Git removal is the only operation that deletes tracked content from an intact worktree. Local topic-ref deletion then compares the tip read immediately before, which must be the journaled head or an accepted ancestor of the merged head, and refuses refs checked out elsewhere. `develop`, primary/current directories, changed heads, and active sessions are protected. Normal removal retires its own Git worktree registration; unrelated stale/missing registrations are never globally pruned.
 
