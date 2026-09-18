@@ -14,7 +14,7 @@ Pinned Pi exports no `./package.json` subpath, so its directory is found by walk
 
 ## What the identity check becomes
 
-`inspectPiTuiModuleIdentity` no longer follows a proxy file; it asks Node from A1's root and from pinned Pi's root and compares real paths. With the hook active the two agree for any layout; without it they agree only when npm hoisted a single copy, which the fixture test shows. `releaseCopyIsLaunchable` only needs pinned Pi inside the release to resolve its terminal package, since the release's own entries install the hook when launched.
+`inspectPiTuiModuleIdentity` no longer follows a proxy file; it asks Node from A1's root and from pinned Pi's root and compares canonical real paths. For the process's own package it asks the ESM resolver (`import.meta.resolve` from `bin/module-identity.js`), because on Node 22 CommonJS `require.resolve` does not consult synchronous hooks while ESM imports do, and the launch warning must describe what actually loads. The hook itself compares canonical real paths rather than URL prefixes so a temp directory reached by an 8.3 short name or a different drive-letter case is still recognized as the installation. With the hook active the two agree for any layout; without it they agree only when npm hoisted a single copy, which the fixture test shows. `releaseCopyIsLaunchable` only needs pinned Pi inside the release to resolve its terminal package, since the release's own entries install the hook when launched.
 
 ## Governance and packaging
 

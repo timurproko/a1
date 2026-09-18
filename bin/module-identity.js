@@ -14,11 +14,24 @@
 import { createRequire } from "node:module";
 import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { pinnedPiTuiPackageRoot } from "./module-resolver.js";
 
-/** What A1's own modules resolve `@earendil-works/pi-tui` to, as a real path. */
+const OWN_PACKAGE_ROOT = canonical(fileURLToPath(new URL("..", import.meta.url)));
+
+/**
+ * What A1's own modules resolve `@earendil-works/pi-tui` to, as a real path.
+ *
+ * Compatibility: the resolver hook governs ESM loading, and on Node 22 CommonJS resolution does
+ * not consult synchronous hooks at all, so the process's own package is measured through the ESM
+ * resolver from this file, which sits in that package. Any other root is measured by plain
+ * resolution, which is what its own entries would see before installing the hook. A test
+ * transformer that offers no `import.meta.resolve` falls back to plain resolution too.
+ */
 function resolveOwnPiTui(packageRoot) {
+  if (canonical(packageRoot) === OWN_PACKAGE_ROOT && typeof import.meta.resolve === "function") {
+    return canonical(fileURLToPath(import.meta.resolve("@earendil-works/pi-tui")));
+  }
   const requireFromRoot = createRequire(pathToFileURL(join(packageRoot, "package.json")).href);
   return canonical(requireFromRoot.resolve("@earendil-works/pi-tui"));
 }
