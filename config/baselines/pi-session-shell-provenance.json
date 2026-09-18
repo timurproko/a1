@@ -45,7 +45,7 @@
         "test/integrations/pi/session-ui/session-shell.test.ts",
         "test/features/owned-ui/pi-startup-composition-parity.test.ts",
         "test/features/owned-ui/pi-upstream-startup-fixture.ts",
-        "test/features/owned-ui/pi-a1-startup-fixture.ts",
+        "test/features/owned-ui/pi-startup-fixture.ts",
         "test/features/owned-ui/run.test.ts",
         "test/integrations/pi/components/shell-components.test.ts"
       ]

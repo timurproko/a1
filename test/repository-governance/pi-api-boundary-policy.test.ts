@@ -1,12 +1,10 @@
 import { spawnSync } from "node:child_process";
-import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { inspectPiProductionBoundary } from "../../scripts/governance/pi-api-boundary-policy.mjs";
 
 const repository = resolve(".");
 const policy = resolve("scripts/governance/pi-api-boundary-policy.mjs");
-const baselinePath = resolve("config/baselines/pi-api-boundary.json");
 
 describe("Pi production boundary freeze", () => {
   it.each([
@@ -46,14 +44,6 @@ describe("Pi production boundary freeze", () => {
     expect(errors.some(error => error.includes(`${path}:`) && error.includes(diagnostic)), errors.join("\n")).toBe(true);
   });
 
-  it("allows only exact findings frozen in the accepted baseline", async () => {
-    const baseline = JSON.parse(await readFile(baselinePath, "utf8")) as Record<string, any>;
-    const accepted = baseline.packageLayoutReads[2];
-    const errors = inspectPiProductionBoundary({ [accepted.path]: accepted.expression }, baseline);
-    expect(errors).toContain(`${accepted.path}:1: production reads a dependency package directory; use a documented public API or an owned resource`);
-    expect(errors).toContain(`${accepted.path}:1: production constructs a private dependency path; internal dist/build layout is not a public API`);
-  });
-
   it.each([
     ["package directory binding", "const packageRoot = getPackageDir();", "dependency package directory"],
     ["node_modules traversal", "const file = 'node_modules/@earendil-works/pi-coding-agent/dist/private.js';", "traverses node_modules"],
@@ -72,6 +62,6 @@ describe("Pi production boundary freeze", () => {
     const result = spawnSync(process.execPath, [policy], { cwd: repository, encoding: "utf8" });
 
     expect(result.status, result.stderr).toBe(0);
-    expect(result.stdout).toMatch(/Pi production boundary OK: 0 unapproved findings/);
+    expect(result.stdout).toMatch(/Pi production boundary OK: 0 findings in \d+ files/);
   });
 });
