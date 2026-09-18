@@ -265,27 +265,6 @@
       "cadence": "exhaustive"
     },
     {
-      "id": "structured-runtime",
-      "scopes": [
-        "structured-runtime-integration"
-      ],
-      "targets": [
-        {
-          "platform": "win32",
-          "architecture": "x64",
-          "node": 24
-        }
-      ],
-      "entries": [
-        "test/foundation/structured-agent-runtime/runtime.integration.test.ts"
-      ],
-      "tests": [
-        "test/foundation/structured-agent-runtime/runtime.integration.test.ts"
-      ],
-      "support": [],
-      "cadence": "pull-request"
-    },
-    {
       "id": "update-predecessor",
       "scopes": [
         "update-predecessor"

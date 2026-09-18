@@ -15,12 +15,10 @@ src/
     owned-ui/                      owned screens, settings application, diagnostics, and runtime lifecycle
     prompt-history/                profile-isolated prompt retention and bounded SQLite worker lifecycle
     prompt-suggestions/            opt-in bounded metadata capture and local diagnostic snapshots
-    workspace/                     multi-agent presentation, reducer state, routing, and persistence orchestration
   contracts/
     agent-engine/                  dependency-free agent engine, session, package, and capability ports
     owned-ui/                      dependency-free owned-session and extension UI contracts
     presentation/                  dependency-free component, terminal, and runtime ports
-    workspace/                     dependency-free workspace, topology, host, and recovery contracts
   integrations/
     pi/
       components/                  pinned Pi component and theme adaptation
@@ -30,12 +28,10 @@ src/
   foundation/
     launch-guardian/               authenticated launch-instance coordination
     lifecycle/                     dependency-free launch, process identity, and path contracts
-    native-host-protocol/          bounded terminal-host identity, topology, lifecycle, and proof protocol
     process-containment/           verified native containment and process inspection
     protocol/                      authenticated control framing and client contracts
     release/                       immutable releases, update, rollback, cohorts, and cleanup
     storage/                       control-store persistence
-    structured-agent-runtime/      structured handshake, event, command, backpressure, and recovery semantics
     supervision/                   endpoint, launch-instance, and release-cohort ownership
   ui/
     apps/                          application registry and host lifecycle

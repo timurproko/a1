@@ -364,21 +364,6 @@
   ],
   "externalMembers": [
     {
-      "name": "a1Commit",
-      "path": "src/foundation/native-host-protocol/evidence.ts",
-      "reason": "Existing native spike evidence source field"
-    },
-    {
-      "name": "a1Commit",
-      "path": "test/foundation/native-host-protocol/evidence.test.ts",
-      "reason": "Serialized native spike evidence fixture"
-    },
-    {
-      "name": "a1Commit",
-      "path": "test/foundation/native-host-protocol/proof-gate.test.ts",
-      "reason": "Serialized native spike proof fixture"
-    },
-    {
       "name": "a1ParityBaselineCommit",
       "path": "test/repository-governance/pi-parity-evidence.test.ts",
       "reason": "Existing parity evidence field"

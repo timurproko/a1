@@ -38,10 +38,10 @@ describe("Development validation job resolution", () => {
       expect(result).toMatchObject({
         schema: "a1-validation-job-selection-v3",
         active: true,
-        owners: ["launch-integration", "structured-runtime"],
+        owners: ["launch-integration"],
         deferredOwners: ["update-performance", "update-predecessor"],
       });
-      expect(result.scopes).toEqual(["launch-integration", "structured-runtime-integration"]);
+      expect(result.scopes).toEqual(["launch-integration"]);
       expect(result.scopes).not.toContain("update-predecessor");
       expect(result.scopes).not.toContain("update-performance");
       expect(JSON.parse(await readFile(path, "utf8"))).toEqual(impact);

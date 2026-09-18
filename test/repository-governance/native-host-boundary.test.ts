@@ -6,12 +6,8 @@ const FORBIDDEN_NODE_PROTOCOL_PAYLOADS = /ptyBytes|terminalBytes|terminalOutput|
 const FORBIDDEN_EXPLICIT_MODE_COMPOSED = /native-host-protocol|structured-agent-runtime|features\/workspace|features\/owned-ui|NativeHost|composedTerminal|createFixedTwoByTwo/i;
 
 describe("native host and launch executable boundaries", () => {
-  it("keeps hot-path payload fields out of every Node-facing protocol and workspace source", async () => {
-    const files = [
-      ...await sourceFiles("src/foundation/native-host-protocol"),
-      ...await sourceFiles("src/foundation/protocol"),
-      ...await sourceFiles("src/features/workspace"),
-    ];
+  it("keeps hot-path payload fields out of every Node-facing protocol source", async () => {
+    const files = await sourceFiles("src/foundation/protocol");
     expect(files.length).toBeGreaterThan(0);
     for (const [path, source] of files) {
       expect(FORBIDDEN_NODE_PROTOCOL_PAYLOADS.test(source), path).toBe(false);
@@ -57,12 +53,6 @@ describe("native host and launch executable boundaries", () => {
     expect(runner).not.toContain("encoding:");
   });
 
-  it("bounds the Node-to-native proof frame", async () => {
-    const codec = await readFile("src/foundation/native-host-protocol/codec.ts", "utf8");
-    const messages = await readFile("src/foundation/native-host-protocol/messages.ts", "utf8");
-    expect(messages).toContain("MAX_NATIVE_HOST_MESSAGE_BYTES = 1024 * 1024");
-    expect(codec).toContain("frame-too-large");
-  });
 });
 
 async function sourceFiles(root: string): Promise<readonly [string, string][]> {
