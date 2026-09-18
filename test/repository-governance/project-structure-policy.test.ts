@@ -156,17 +156,12 @@ describe("project structure ownership policy", () => {
     ]);
   });
 
-  it("grandfathers only an exact accepted baseline import statement", () => {
+  it("rejects a feature adapter import with no grandfathered exception", () => {
     const path = "src/features/owned-ui/run.ts";
     const source = "import { createPiEngineAdapter } from '../../integrations/pi/engine/index.js';";
-    const approved = [{ path, specifier: "../../integrations/pi/engine/index.js", statement: source }];
 
-    expect(inspectProjectStructureImports({ [path]: source }, approved)).toEqual([]);
-    expect(inspectPiFeatureBoundaryImports({ [path]: source }, approved)).toEqual([]);
-    expect(inspectPiFeatureBoundaryImports({
-      [path]: `${source}\nimport { createPiShellEditor } from '../../integrations/pi/components/index.js';`,
-    }, approved)).toEqual([
-      `${path}: feature may not import concrete Pi adapter '../../integrations/pi/components/index.js'; inject a vendor-neutral A1 port`,
+    expect(inspectPiFeatureBoundaryImports({ [path]: source })).toEqual([
+      `${path}: feature may not import concrete Pi adapter '../../integrations/pi/engine/index.js'; inject a vendor-neutral A1 port`,
     ]);
   });
 });

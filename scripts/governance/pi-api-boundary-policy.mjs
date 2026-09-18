@@ -2,11 +2,8 @@ import { readFile, readdir } from "node:fs/promises";
 import { extname, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
-export function inspectPiProductionBoundary(files, baseline = null) {
-  const approvals = approvedFindings(baseline);
-  const findings = collectPiProductionBoundaryFindings(files);
-  return findings
-    .filter(finding => !approvals.has(findingKey(finding)))
+export function inspectPiProductionBoundary(files) {
+  return collectPiProductionBoundaryFindings(files)
     .map(finding => `${finding.path}:${finding.line}: ${diagnostic(finding)}`);
 }
 
@@ -60,24 +57,6 @@ export function collectPiProductionBoundaryFindings(files) {
   return findings.sort((left, right) => left.path.localeCompare(right.path) || left.line - right.line || left.category.localeCompare(right.category));
 }
 
-function approvedFindings(baseline) {
-  const approved = new Set();
-  for (const record of baseline?.reflectedConcreteConstructors ?? []) {
-    approved.add(findingKey({ category: "reflected-concrete-constructor", path: record.path, expression: record.expression }));
-  }
-  for (const record of baseline?.structuralConcreteSessionSubstitutes ?? []) {
-    approved.add(findingKey({ category: "structural-concrete-session-substitute", path: record.path, expression: record.expression }));
-  }
-  for (const record of baseline?.exactOracleResolution?.sources ?? []) {
-    approved.add(findingKey({ category: "ambient-pi-oracle", path: record.path, expression: record.expression }));
-  }
-  return approved;
-}
-
-function findingKey(finding) {
-  return `${finding.category}\0${normalize(finding.path)}\0${finding.expression.trim()}`;
-}
-
 function diagnostic(finding) {
   switch (finding.category) {
     case "dependency-package-directory-read":
@@ -114,7 +93,7 @@ async function sourceFiles(root) {
 
 function isClassifiedProvenancePath(path) {
   return path.startsWith("test/")
-    || /^scripts\/(?:pi\/(?:update-pinned-pi-source|update-pinned-pi-source-ledger|update-pi-component-parity|update-pi-event-frame-parity)|governance\/pi-api-boundary-baseline)\./.test(path);
+    || /^scripts\/(?:pi\/(?:update-pinned-pi-source|update-pinned-pi-source-ledger|update-pi-component-parity|update-pi-event-frame-parity))\./.test(path);
 }
 
 function normalize(path) {
@@ -125,15 +104,12 @@ const isMain = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(imp
 if (isMain) {
   const rootIndex = process.argv.indexOf("--root");
   const root = resolve(rootIndex >= 0 ? process.argv[rootIndex + 1] : new URL("../..", import.meta.url).pathname.replace(/^\/(.:)/, "$1"));
-  const baselinePath = resolve(root, "config", "baselines", "pi-api-boundary.json");
-  const baseline = JSON.parse(await readFile(baselinePath, "utf8"));
   const files = await sourceFiles(root);
-  const findings = collectPiProductionBoundaryFindings(files);
-  const errors = inspectPiProductionBoundary(files, baseline);
+  const errors = inspectPiProductionBoundary(files);
   if (errors.length > 0) {
     process.stderr.write(`Pi production boundary failed (${errors.length}):\n${errors.map(error => `- ${error}`).join("\n")}\n`);
     process.exitCode = 1;
   } else {
-    process.stdout.write(`Pi production boundary OK: 0 unapproved findings (${findings.length} approved transitional findings)\n`);
+    process.stdout.write(`Pi production boundary OK: 0 findings in ${Object.keys(files).length} files\n`);
   }
 }

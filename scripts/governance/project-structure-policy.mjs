@@ -60,8 +60,7 @@ export function inspectProjectOwnerLayout(paths) {
   return errors;
 }
 
-export function inspectProjectStructureImports(files, approvedImports = [], directLeafConsumers = new Set()) {
-  const approved = new Set(approvedImports.map(record => approvalKey(record.path, record.specifier, record.statement)));
+export function inspectProjectStructureImports(files, directLeafConsumers = new Set()) {
   const errors = [];
   for (const [rawPath, source] of Object.entries(files)) {
     const path = normalize(rawPath);
@@ -70,7 +69,6 @@ export function inspectProjectStructureImports(files, approvedImports = [], dire
     for (const record of importRecords(source)) {
       const specifier = record.specifier;
       if (!specifier.startsWith(".")) continue;
-      if (approved.has(approvalKey(path, specifier, normalizeStatement(record.statement)))) continue;
       const targetPath = resolveTypeScriptImport(path, specifier);
       const provider = projectOwnerForPath(targetPath);
       if (!provider) {
@@ -92,15 +90,12 @@ export function inspectProjectStructureImports(files, approvedImports = [], dire
   return errors;
 }
 
-export function inspectPiFeatureBoundaryImports(files, approvedImports = []) {
-  const approved = new Set(approvedImports.map(record => approvalKey(record.path, record.specifier, record.statement)));
+export function inspectPiFeatureBoundaryImports(files) {
   const errors = [];
   for (const [rawPath, source] of Object.entries(files)) {
     const path = normalize(rawPath);
     if (!path.startsWith("src/features/")) continue;
     for (const record of importRecords(source)) {
-      const statement = normalizeStatement(record.statement);
-      if (approved.has(approvalKey(path, record.specifier, statement))) continue;
       const imported = record.clause ?? "";
       if (/^@earendil-works\/pi-/.test(record.specifier)) {
         errors.push(`${path}: feature may not import Pi package '${record.specifier}'; inject a vendor-neutral A1 port`);
@@ -145,14 +140,6 @@ function importRecords(source) {
     records.push({ clause: null, specifier: match[2], statement: match[0] });
   }
   return records;
-}
-
-function approvalKey(path, specifier, statement) {
-  return `${normalize(path)}\0${specifier}\0${normalizeStatement(statement)}`;
-}
-
-function normalizeStatement(statement) {
-  return statement.replace(/\s+/g, " ").trim();
 }
 
 function resolveTypeScriptImport(importer, specifier) {

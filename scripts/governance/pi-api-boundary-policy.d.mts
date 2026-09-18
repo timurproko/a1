@@ -17,7 +17,4 @@ export function collectPiProductionBoundaryFindings(
   files: Readonly<Record<string, string>>,
 ): PiProductionBoundaryFinding[];
 
-export function inspectPiProductionBoundary(
-  files: Readonly<Record<string, string>>,
-  baseline?: Record<string, any> | null,
-): string[];
+export function inspectPiProductionBoundary(files: Readonly<Record<string, string>>): string[];
