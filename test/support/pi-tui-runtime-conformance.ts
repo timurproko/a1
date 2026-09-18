@@ -1,5 +1,4 @@
-import type { PiTuiComponentPort, PiTuiTerminalPort } from "./contracts.js";
-import { PiTuiRuntimeAdapter, PiTuiRuntimeError } from "./adapter.js";
+import { PiTuiRuntimeAdapter, PiTuiRuntimeError, type PiTuiComponentPort, type PiTuiTerminalPort } from "../../src/integrations/pi/tui-runtime/index.js";
 
 export interface PiTuiRuntimeConformanceOptions {
   readonly packageVersion: string;
