@@ -94,7 +94,8 @@ function syncBehaviors(inventory, sources, commit, lockPackages, section) {
     const [start, end] = item.provenance.lines;
     const current = item.provenance.anchors.map(anchor => resolveAnchorLines(lines, anchor));
     if (current.every(found => found.some(line => line >= start && line <= end))) continue;
-    const region = symbolRegion(lines, item.provenance.symbol) ?? [1, lines.length];
+    const anchored = current.map(found => nearest(found, [start, end]));
+    const region = symbolRegion(lines, item.provenance.symbol) ?? [Math.min(...anchored), Math.max(...anchored)];
     const chosen = current.map(found => nearest(found, region));
     const next = [Math.min(region[0], ...chosen), Math.max(region[1], ...chosen)];
     item.provenance = { ...item.provenance, lines: next };

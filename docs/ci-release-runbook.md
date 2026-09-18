@@ -51,6 +51,7 @@ effect of stable publication, not a trigger.
 | Nightly at `03:17 UTC` | One full documentation review plus the complete non-physical suite on Windows, Linux, and macOS, every night |
 | `npm run release -- ...` | Complete exact-byte stable gates, then npm `latest`, tag, GitHub Release, and `master` |
 | `.github/workflows/full-regression.yml` | Additional on-demand complete regression without publication authority |
+| `.github/workflows/pi-upstream-sync.yml` | Nightly at `03:23 UTC`: when npm publishes a newer Pi than the pin, proposes the upgrade as a draft pull request with the vendored copies merged, the ledger, headers, inventories, and parity evidence regenerated, and every gate result and review item in the body; never merges |
 
 ## Impact-aware development validation
 
