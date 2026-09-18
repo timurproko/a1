@@ -285,6 +285,15 @@ export interface OwnedUiExtensionOverlayHandle {
   focus(): void;
   unfocus(options?: { readonly target: OwnedUiExtensionComponent | null }): void;
   isFocused(): boolean;
+  /** The most recently rendered terminal-relative rectangle of a visible overlay. */
+  getBounds(): OwnedUiExtensionOverlayBounds | undefined;
+}
+
+export interface OwnedUiExtensionOverlayBounds {
+  readonly row: number;
+  readonly col: number;
+  readonly width: number;
+  readonly height: number;
 }
 
 export interface OwnedUiExtensionCustomOptions {

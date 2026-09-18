@@ -422,7 +422,7 @@ describe("Pi shell public component adapters", () => {
       config: {
         autoCompact: true, showImages: true, imageWidthCells: 80, autoResizeImages: true,
         blockImages: false, enableSkillCommands: true, steeringMode: "one-at-a-time", followUpMode: "one-at-a-time",
-        transport: "sse", httpIdleTimeoutMs: 300_000, thinkingLevel: "medium",
+        transport: "sse", httpIdleTimeoutMs: 300_000, thinkingLevel: "medium", modelThinkingLevels: {}, defaultModel: "not set", availableDefaultModels: [], fullscreenCopyOnSelect: false,
         availableThinkingLevels: ["off", "minimal", "low", "medium", "high", "xhigh"], currentTheme: "dark",
         terminalTheme: "dark", availableThemes: ["dark", "light"], hideThinkingBlock: false,
         mermaidRenderingMode: "off", showCacheMissNotices: false, collapseChangelog: true,

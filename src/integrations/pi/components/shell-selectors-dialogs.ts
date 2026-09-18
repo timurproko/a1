@@ -86,7 +86,8 @@ export interface PiShellSettingsSelectorOptions {
 
 export function createPiShellSettingsSelector(options: PiShellSettingsSelectorOptions): PiShellComponentPort {
   ensureTheme();
-  const change = (name: keyof SettingsCallbacks) => (value?: unknown) => options.onChange(name, value);
+  // Protocol: one-argument callbacks pass the value; the per-model callbacks carry (provider, modelId[, level]) as a tuple.
+  const change = (name: keyof SettingsCallbacks) => (...values: readonly unknown[]) => options.onChange(name, values.length > 1 ? values : values[0]);
   const callbacks: SettingsCallbacks = {
     onAutoCompactChange: change("onAutoCompactChange"),
     onShowImagesChange: change("onShowImagesChange"),
@@ -98,7 +99,8 @@ export function createPiShellSettingsSelector(options: PiShellSettingsSelectorOp
     onFollowUpModeChange: change("onFollowUpModeChange"),
     onTransportChange: change("onTransportChange"),
     onHttpIdleTimeoutMsChange: change("onHttpIdleTimeoutMsChange"),
-    onThinkingLevelChange: change("onThinkingLevelChange"),
+    onModelThinkingLevelChange: change("onModelThinkingLevelChange"),
+    onModelThinkingLevelRemove: change("onModelThinkingLevelRemove"),
     onThemeChange: change("onThemeChange"),
     onThemePreview: change("onThemePreview"),
     onHideThinkingBlockChange: change("onHideThinkingBlockChange"),
@@ -119,6 +121,7 @@ export function createPiShellSettingsSelector(options: PiShellSettingsSelectorOp
     onTuiModeChange: change("onTuiModeChange"),
     onFullscreenExitOutputChange: change("onFullscreenExitOutputChange"),
     onFullscreenScrollbarChange: change("onFullscreenScrollbarChange"),
+    onFullscreenCopyOnSelectChange: change("onFullscreenCopyOnSelectChange"),
     onWarningsChange: change("onWarningsChange"),
     onCancel: options.onCancel,
   };
@@ -131,12 +134,15 @@ type PiModelSelectorArguments = ConstructorParameters<typeof ModelSelectorCompon
 
 export interface PiShellModelSelectorOptions {
   readonly currentModel: unknown;
-  readonly settingsManager: unknown;
   readonly modelRuntime: unknown;
   readonly scopedModels: readonly unknown[];
+  /** The persisted default model, when one is set. */
+  readonly defaultModel?: { readonly provider: string; readonly id: string };
   readonly initialSearchInput?: string;
   readonly runtime: Pick<PiShellEditorOptions, "getColumns" | "getRows" | "requestRender">;
-  readonly onSelect: PiModelSelectorArguments[5];
+  readonly onSelect: PiModelSelectorArguments[4];
+  /** The pinned selector's "select as default" action: the model is chosen and persisted. */
+  readonly onSelectAsDefault: PiModelSelectorArguments[4];
   readonly onCancel: () => void;
 }
 
@@ -145,12 +151,13 @@ export function createPiShellModelSelector(options: PiShellModelSelectorOptions)
   const selector = new ModelSelectorComponent(
     createTuiFacade(options.runtime),
     options.currentModel as PiModelSelectorArguments[1],
-    options.settingsManager as PiModelSelectorArguments[2],
-    options.modelRuntime as PiModelSelectorArguments[3],
-    options.scopedModels as PiModelSelectorArguments[4],
+    options.modelRuntime as PiModelSelectorArguments[2],
+    options.scopedModels as PiModelSelectorArguments[3],
     options.onSelect,
     options.onCancel,
     options.initialSearchInput,
+    options.onSelectAsDefault,
+    options.defaultModel,
   );
   return componentPort(selector);
 }

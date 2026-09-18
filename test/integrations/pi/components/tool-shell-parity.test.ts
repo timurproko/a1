@@ -6,7 +6,7 @@ import { createTuiFacade, ensureTheme } from "../../../../src/integrations/pi/co
 
 const caps = getCapabilities();
 afterEach(() => setCapabilities(caps));
-function pair(name: string, args: unknown, definition?: ConstructorParameters<typeof PinnedTool>[4]) {
+function pair(name: string, args: unknown, definition?: ConstructorParameters<typeof OwnedTool>[4]) {
   ensureTheme();
   setCapabilities({ ...caps, images: null, hyperlinks: true });
   const ui = createTuiFacade({ getColumns: () => 80, getRows: () => 30, requestRender() {} });
@@ -49,7 +49,7 @@ describe("source-derived tool shell with independent actual pinned renderers", (
       renderResult: (result: unknown, _options: unknown, _theme: unknown, context: { state: unknown; lastComponent?: Text }) => {
         received.push(result); return context.lastComponent ?? new Text("RESULT", 0, 0);
       },
-    } as unknown as ConstructorParameters<typeof PinnedTool>[4];
+    } as unknown as ConstructorParameters<typeof OwnedTool>[4];
     const { owned, pinned } = pair("extension", { keep: true }, definition);
     const result = { content: [{ type: "text" as const, text: "result" }, { type: "image" as const, mimeType: "image/jpeg", data: "AQID" }], details: { retained: true }, isError: false };
     for (const tool of [owned, pinned]) { tool.setArgsComplete(); tool.markExecutionStarted(); tool.updateResult(result, true); }

@@ -63,7 +63,7 @@ export class ToolExecutionComponent extends Container {
 		toolCallId: string,
 		args: any,
 		options: ToolExecutionOptions = {},
-		toolDefinition: ToolRenderers | ToolDefinition<any, any, any> | undefined,
+		toolDefinition: ToolDefinition<any, any, any> | undefined,
 		ui: TUI,
 		cwd: string,
 	) {

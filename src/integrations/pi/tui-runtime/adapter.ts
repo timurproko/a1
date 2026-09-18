@@ -116,6 +116,10 @@ class OverlayHandleBridge implements PiTuiOverlayHandle {
     return this.#disposed || this.handle.isHidden();
   }
 
+  getBounds(): PiTuiOverlayHandle["getBounds"] extends () => infer R ? R : never {
+    return this.#disposed ? undefined : this.handle.getBounds();
+  }
+
   focus(): void {
     if (!this.#disposed) this.handle.focus();
   }

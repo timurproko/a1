@@ -42,7 +42,8 @@ export const PINNED_PI_SETTINGS_CALLBACKS = [
   "onFollowUpModeChange",
   "onTransportChange",
   "onHttpIdleTimeoutMsChange",
-  "onThinkingLevelChange",
+  "onModelThinkingLevelChange",
+  "onModelThinkingLevelRemove",
   "onThemeChange",
   "onThemePreview",
   "onHideThinkingBlockChange",
@@ -63,6 +64,7 @@ export const PINNED_PI_SETTINGS_CALLBACKS = [
   "onTuiModeChange",
   "onFullscreenExitOutputChange",
   "onFullscreenScrollbarChange",
+  "onFullscreenCopyOnSelectChange",
   "onWarningsChange",
   "onCancel",
 ] as const;
@@ -82,6 +84,12 @@ export interface PiPinnedSettingsSnapshot {
   readonly httpIdleTimeoutMs: number;
   readonly thinkingLevel: "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
   readonly availableThinkingLevels: readonly ("off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max")[];
+  /** Per-model thinking overrides keyed `provider/modelId`. */
+  readonly modelThinkingLevels: Readonly<Record<string, string>>;
+  /** `provider/modelId` of the persisted default model, or the engine's "not set" wording. */
+  readonly defaultModel: string;
+  readonly currentModel?: unknown;
+  readonly availableDefaultModels: readonly unknown[];
   readonly currentTheme: string;
   readonly terminalTheme: "dark" | "light";
   readonly availableThemes: readonly string[];
@@ -103,6 +111,7 @@ export interface PiPinnedSettingsSnapshot {
   readonly tuiMode: "regular" | "fullscreen";
   readonly fullscreenExitOutput: "transcript" | "resume-hint";
   readonly fullscreenScrollbar: "hidden" | "auto" | "always";
+  readonly fullscreenCopyOnSelect: boolean;
   readonly warnings: { readonly anthropicExtraUsage?: boolean };
 }
 
@@ -127,6 +136,8 @@ export interface PiWorkflowRequest {
   readonly command: PiWorkflowRoute;
   readonly argument: string;
   readonly selection?: string;
+  /** For the model route: also persist the selection as the default model. */
+  readonly persist?: boolean;
   readonly confirmed?: boolean;
   /** Recovery cwd selected after an import/resume source cwd is unavailable. */
   readonly cwdOverride?: string;

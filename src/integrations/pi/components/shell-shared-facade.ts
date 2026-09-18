@@ -271,7 +271,7 @@ export function createTuiFacade(options: Pick<PiShellEditorOptions, "getColumns"
     getClearOnShrink: () => true,
     setClearOnShrink() {},
     setFocus() {},
-    showOverlay: () => ({ hide() {}, setHidden() {}, isHidden: () => false, focus() {}, unfocus() {}, isFocused: () => false }),
+    showOverlay: () => ({ hide() {}, setHidden() {}, isHidden: () => false, focus() {}, unfocus() {}, isFocused: () => false, getBounds: () => undefined }),
     hideOverlay() {},
     hasOverlay: () => false,
     start() {},

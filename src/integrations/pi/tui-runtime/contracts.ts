@@ -89,6 +89,8 @@ export interface PiTuiOverlayHandle {
   focus(): void;
   unfocus(options?: PiTuiOverlayUnfocusOptions): void;
   isFocused(): boolean;
+  /** The most recently rendered terminal-relative rectangle of a visible overlay. */
+  getBounds(): { readonly row: number; readonly col: number; readonly width: number; readonly height: number } | undefined;
 }
 
 export interface PiTuiInputListenerResult {

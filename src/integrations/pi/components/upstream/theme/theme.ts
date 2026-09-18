@@ -30,7 +30,6 @@ export const PINNED_PI_LAYOUT = Object.freeze({
 export type PiTerminalTheme = "dark" | "light";
 export type PiThemeBackground =
   | "selectedBg"
-  | "scrollbarThumb"
   | "userMessageBg"
   | "customMessageBg"
   | "toolPendingBg"
@@ -64,7 +63,7 @@ export interface PiTerminalThemeDetector {
 }
 
 const FOREGROUND_COLORS: readonly ThemeColor[] = [
-  "accent", "border", "borderAccent", "borderMuted", "success", "error", "warning", "muted", "dim", "text",
+  "accent", "border", "borderAccent", "borderMuted", "success", "error", "warning", "muted", "dim", "text", "scrollbarTrack", "scrollbarThumb",
   "thinkingText", "userMessageText", "customMessageText", "customMessageLabel", "toolTitle", "toolOutput",
   "mdHeading", "mdLink", "mdLinkUrl", "mdCode", "mdCodeBlock", "mdCodeBlockBorder", "mdQuote", "mdQuoteBorder",
   "mdHr", "mdListBullet", "toolDiffAdded", "toolDiffRemoved", "toolDiffContext", "syntaxComment", "syntaxKeyword",
@@ -72,7 +71,7 @@ const FOREGROUND_COLORS: readonly ThemeColor[] = [
   "thinkingOff", "thinkingMinimal", "thinkingLow", "thinkingMedium", "thinkingHigh", "thinkingXhigh", "thinkingMax", "bashMode",
 ];
 const BACKGROUND_COLORS: readonly PiThemeBackground[] = [
-  "selectedBg", "scrollbarThumb", "userMessageBg", "customMessageBg", "toolPendingBg", "toolSuccessBg", "toolErrorBg",
+  "selectedBg", "userMessageBg", "customMessageBg", "toolPendingBg", "toolSuccessBg", "toolErrorBg",
 ];
 let activeTheme: Theme | undefined;
 let activeThemeName: string | undefined;
@@ -157,9 +156,11 @@ export function loadPiTheme(name: string, mode?: PiColorMode): Theme {
   const vars = themeJson.vars ?? {};
   const colors = { ...themeJson.colors };
   const thinkingMax = colors.thinkingMax ?? colors.thinkingXhigh;
-  const scrollbarThumb = colors.scrollbarThumb ?? colors.selectedBg;
+  const scrollbarThumb = colors.scrollbarThumb ?? colors.text;
+  const scrollbarTrack = colors.scrollbarTrack ?? colors.muted;
   if (thinkingMax !== undefined) colors.thinkingMax = thinkingMax;
   if (scrollbarThumb !== undefined) colors.scrollbarThumb = scrollbarThumb;
+  if (scrollbarTrack !== undefined) colors.scrollbarTrack = scrollbarTrack;
   const resolved = Object.fromEntries(Object.entries(colors).map(([key, value]) => [key, resolveVariable(value, vars)]));
   const foreground = Object.fromEntries(FOREGROUND_COLORS.map(key => [key, requiredColor(resolved, key, path)])) as Record<ThemeColor, ColorValue>;
   const backgrounds = Object.fromEntries(BACKGROUND_COLORS.map(key => [key, requiredColor(resolved, key, path)])) as Record<PiThemeBackground, ColorValue>;
@@ -288,10 +289,10 @@ function validateThemeJson(label: string, value: unknown): PiThemeJson {
   }
   if (value.name.includes("/")) throw new Error(`Invalid theme name "${value.name}"`);
   for (const key of FOREGROUND_COLORS) {
-    if (key !== "thinkingMax" && value.colors[key] === undefined) throw new Error(`Invalid theme "${label}": missing required color ${key}`);
+    if (key !== "thinkingMax" && key !== "scrollbarThumb" && key !== "scrollbarTrack" && value.colors[key] === undefined) throw new Error(`Invalid theme "${label}": missing required color ${key}`);
   }
   for (const key of BACKGROUND_COLORS) {
-    if (key !== "scrollbarThumb" && value.colors[key] === undefined) throw new Error(`Invalid theme "${label}": missing required color ${key}`);
+    if (value.colors[key] === undefined) throw new Error(`Invalid theme "${label}": missing required color ${key}`);
   }
   const colors: Record<string, ColorValue> = {};
   for (const [key, color] of Object.entries(value.colors)) {

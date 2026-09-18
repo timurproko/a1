@@ -155,13 +155,13 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          565,
-          915
+          205,
+          1015
         ],
         "symbol": "constructor, mountInteractiveTui, switchTuiMode, init",
         "anchors": [
           "this.documentContainer.addChild(this.headerContainer)",
-          "this.fullscreenLayoutRoot = new TuiLayouts.VStack",
+          "this.fullscreenLayoutRoot = viewport.root",
           "this.ui.setFocus(this.editor)"
         ]
       },
@@ -169,8 +169,7 @@
         "id": "UPSTREAM-STARTUP-TREE",
         "producer": "pinned-upstream-composition-capture",
         "assertion": "Capture regular and fullscreen child order, focus, dock sizing, and remount identity independently from AddOne."
-      },
-      "status": "orphaned"
+      }
     },
     {
       "id": "startup.header-notices",
@@ -523,14 +522,14 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          5819,
-          6049
+          6037,
+          6190
         ],
         "symbol": "session utility command handlers",
         "anchors": [
           "exportToJsonl",
           "importFromJsonl",
-          "Creating gist",
+          "await shareSession({",
           "getSessionStats"
         ]
       },
@@ -538,8 +537,7 @@
         "id": "UPSTREAM-SESSION-UTILITY-COMMANDS",
         "producer": "pinned-upstream-controller-fixture",
         "assertion": "Exercise arguments, quoted paths, confirmations, external-tool absence, cancellation, clipboard, normalization, stats, and all failures."
-      },
-      "status": "orphaned"
+      }
     },
     {
       "id": "models.select-cycle-scope",

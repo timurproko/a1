@@ -86,7 +86,12 @@ export interface AgentSettingFlag {
   readonly label: string;
   readonly description: string;
   /** Value to show when the stored object says nothing about this flag. */
-  readonly fallback: boolean;
+  readonly fallback: boolean | string;
+  /**
+   * The values a keyed part may take, when it is a choice rather than a toggle. The first
+   * choice equal to `fallback` means "unset": writing it removes the key from the record.
+   */
+  readonly choices?: readonly string[];
 }
 
 export interface AgentResourceDescriptor {

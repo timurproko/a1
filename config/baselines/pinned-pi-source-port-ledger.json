@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-09-18T17:06:26.167Z",
+  "recordedAt": "2026-09-18T17:46:57.668Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "d981de1229ef899957bbe968bc8dcda02a21f477",
@@ -38,8 +38,8 @@
     "sourceModules": 112,
     "assets": 4,
     "classifications": {
-      "public-api-reuse": 57,
-      "owned-presentation": 32,
+      "public-api-reuse": 62,
+      "owned-presentation": 27,
       "host-adaptation": 27
     },
     "requiredBehaviorIds": 29,
@@ -447,7 +447,7 @@
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Mechanical source port with Node import prefixes, public package-root agent-directory resolution, and an opt-in bare-A1 input profile including Ctrl+L level cycling and unbound model selection.",
-      "localSha256": "2452831f7ce1c98339d706732dc148b4661cb8e67d4c687e4f9d10565f852fbc",
+      "localSha256": "a8d796408e42dcd940276559d97f3f79c5f94f3a1a49144ee657f3204a289161",
       "approvedDeviations": [
         {
           "id": "keybindings-public-config-boundary",
@@ -888,7 +888,7 @@
       "implementationStatus": "owned-port-present",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Unchanged image bytes are losslessly encoded in an attributed owned JSON resource by scripts/pi/update-command-resources.mjs. Source bytes and digest are verified against this pinned asset authority; runtime reads only the owned resource, never the dependency directory.",
-      "localSha256": "f92f8484710c40578f5975694e5e21d146e6713df3ceb086ab4f06cbb19fdfd2",
+      "localSha256": "ef3db0f781a221c0bf5ad724f20e2900b9a3b55b4025ea05aefbc4e25e85b498",
       "approvedDeviations": [],
       "behaviorCategories": [
         "stateful-components"
@@ -912,11 +912,11 @@
       "sourceMap": "modes/interactive/chat-viewport.js.map",
       "lines": 47,
       "sha256": "6fcc9c65116ce4b15ab257ce5d6e561fa57916014b57dfb30ce5e9e3a7d72b8d",
-      "classification": "owned-presentation",
-      "localDestination": "src/integrations/pi/components/upstream/chat-viewport.ts",
-      "implementationStatus": "not-ported",
+      "classification": "public-api-reuse",
+      "localDestination": "src/integrations/pi/components/index.ts",
+      "implementationStatus": "available-through-pinned-package",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Mechanical port planned: remap imports, inject A1 engine/runtime ownership, preserve control flow and state, and record every deviation.",
+      "modifications": "None; A1 renders its own transcript viewport, and the pinned comparison profile reaches this unit through the package root.",
       "approvedDeviations": [],
       "behaviorCategories": [
         "stateful-components"
@@ -928,7 +928,7 @@
         "7.5"
       ],
       "tests": [
-        "test/integrations/pi/components/pinned-component-lifecycle-parity.test.ts"
+        "test/integrations/pi/tui-runtime/pinned-wheel-parity.test.ts"
       ]
     },
     {
@@ -1250,7 +1250,7 @@
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "A1-owned class name and synchronized A1 keybinding contract replace the nominal private upstream keybinding constructor dependency; bare A1 injects the shared Settings/agent input frame, transient contextual-suggestion branch, and explicit body geometry for selection and above-prompt autocomplete. Bare A1 also clears a sole top-level slash-command search on Escape.",
-      "localSha256": "62860e6ce071171ce719429c55e32fe7cf345dc0d36ec3a0faf797a149b1035d",
+      "localSha256": "0713104fc3550bb89c62809024774f19ded207a87db9f6c7440936cbee87680b",
       "approvedDeviations": [
         {
           "id": "owned-shared-input-frame",
@@ -1987,7 +1987,7 @@
       "implementationStatus": "ported",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Source-synchronized scoped-model selector port: preserve session-only toggles, search, bulk/provider/reorder actions, dirty state, Ctrl+S persistence, refresh status, cancellation, and focus while remapping theme and public helper imports; local key labels preserve pinned platform formatting before layout without changing binding identities.",
-      "localSha256": "ef4b222133f1a081392f33c18a470d4fdbc1535a3c55f420907d69ff5fdf792f",
+      "localSha256": "2b7213086a4af27340261e1a3af3dabcd9f1c9db9d04b589975c656b6e1c3973",
       "approvedDeviations": [],
       "behaviorCategories": [
         "selectors",
@@ -2140,11 +2140,11 @@
       "sourceMap": "modes/interactive/components/settings-submenu.js.map",
       "lines": 259,
       "sha256": "3fcce39ae104343e20a564fb06db52e7553759b0636a4252de5ae6adb03ad5ac",
-      "classification": "owned-presentation",
-      "localDestination": "src/integrations/pi/components/upstream/components/settings-submenu.ts",
-      "implementationStatus": "not-ported",
+      "classification": "public-api-reuse",
+      "localDestination": "src/integrations/pi/components/index.ts",
+      "implementationStatus": "available-through-pinned-package",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Mechanical port planned: remap imports, inject A1 engine/runtime ownership, preserve control flow and state, and record every deviation.",
+      "modifications": "None; reached through the pinned SettingsSelectorComponent, whose per-model thinking and warning submenus it implements. The owned settings screen renders the same declaration through its own dialog.",
       "approvedDeviations": [],
       "behaviorCategories": [
         "stateful-components"
@@ -2156,8 +2156,8 @@
         "7.5"
       ],
       "tests": [
-        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
-        "test/integrations/pi/components/pinned-component-lifecycle-parity.test.ts"
+        "test/features/owned-ui/pinned-settings-presentation-parity.test.ts",
+        "test/integrations/pi/components/shell-components.test.ts"
       ]
     },
     {
@@ -2250,7 +2250,7 @@
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Mechanical source port with public package-root keybinding, Loader, and owned theme/countdown imports plus ECMAScript private fields.",
-      "localSha256": "37383d389b128fc522d085efebd8cd7372c039b4c3755d5fcb7160c08b657e4f",
+      "localSha256": "d6565b2b8edf2aeb44668043bc8d4fe68b3c3448f5f7b0729c789cdefb906044",
       "approvedDeviations": [
         {
           "id": "status-indicator-public-boundaries",
@@ -2371,7 +2371,7 @@
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Retain pinned shell and actual public tool-definition renderers. Replace private index-keyed image conversion with current-source ownership, serial conversion, visible fallback, and disposal; guard reentrant invalidation. Remap private types, definition factories, theme, and generic text helpers to public or locally attributed equivalents. See docs/architecture/tool-image-presentation.md.",
-      "localSha256": "88f4e5d7d4281db2034cf98ee11fbd8973da4d3861eee950a60336ada206dd00",
+      "localSha256": "01bd374fe40c4921fe70bd22dbaf0ecd0f3c1c1b58677f86653076dab9d1de21",
       "approvedDeviations": [
         {
           "id": "current-tool-image-conversion-ownership",
@@ -2459,7 +2459,7 @@
       "implementationStatus": "ported",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Mechanical source-synchronized trust selector port with injected public ProjectTrustStore-derived options and remapped owned theme imports.",
-      "localSha256": "715115d39f3140f5813ca37da078366fdef7294e1aea54509eb5bb8cdf435b7a",
+      "localSha256": "5333de14a52622386f883f7adb861b160a6af00eaa660c93632ed6e4da1a574f",
       "approvedDeviations": [],
       "behaviorCategories": [
         "selectors",
@@ -2612,7 +2612,7 @@
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Mechanical port: retain temporary prompt file, asynchronous inherited-stdio editor process, completion readback, and best-effort cleanup behind the owned extension-editor component.",
-      "localSha256": "c1dfeafb0f6a6587dab4f19579248f38c664a1fe803e818a0a303f84477ea015",
+      "localSha256": "7f63be00c2119d1f6dbdd1a6d87f75c94e0fad32fc413a19bcd30a735ab05329",
       "approvedDeviations": [],
       "behaviorCategories": [
         "editor",
@@ -2799,11 +2799,11 @@
       "sourceMap": "modes/interactive/session-share.js.map",
       "lines": 207,
       "sha256": "f5add6fccb39e747507a421d9166113a1a864b8063bfb1e948319dfb6ede6852",
-      "classification": "owned-presentation",
-      "localDestination": "src/integrations/pi/components/upstream/session-share.ts",
-      "implementationStatus": "not-ported",
+      "classification": "public-api-reuse",
+      "localDestination": "src/integrations/pi/components/index.ts",
+      "implementationStatus": "available-through-pinned-package",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Mechanical port planned: remap imports, inject A1 engine/runtime ownership, preserve control flow and state, and record every deviation.",
+      "modifications": "None; the share workflow is driven through the pinned session commands rather than a copied implementation.",
       "approvedDeviations": [],
       "behaviorCategories": [
         "stateful-components"
@@ -2815,7 +2815,7 @@
         "7.5"
       ],
       "tests": [
-        "test/integrations/pi/components/pinned-component-lifecycle-parity.test.ts"
+        "test/integrations/pi/engine/workflows.test.ts"
       ]
     },
     {
@@ -2912,7 +2912,7 @@
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Source-synchronized controller port: renamed owner class, injected dependency-free settings/runtime ports, remapped private theme helpers to the public-backed A1 theme adapter, and added explicit disposal.",
-      "localSha256": "3e209dd99a45ad45910226b8a9553212a6f9290f5ac964d1dedd980dea736127",
+      "localSha256": "004347dd2417baadfd4999d1166f850f54192c95950f9b5739b4d9cf543ba43f",
       "approvedDeviations": [
         {
           "id": "theme-controller-owned-boundaries",
@@ -2961,11 +2961,11 @@
       "sourceMap": "modes/interactive/theme/theme-json.js.map",
       "lines": 147,
       "sha256": "144a2c1e6b9a92c5f31ecc8cd37d979e473309716439aca57c7e6a542ad20f73",
-      "classification": "owned-presentation",
-      "localDestination": "src/integrations/pi/components/upstream/theme/theme-json.ts",
-      "implementationStatus": "not-ported",
+      "classification": "public-api-reuse",
+      "localDestination": "src/integrations/pi/components/index.ts",
+      "implementationStatus": "available-through-pinned-package",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Mechanical port planned: remap imports, inject A1 engine/runtime ownership, preserve control flow and state, and record every deviation.",
+      "modifications": "None; the owned theme unit validates theme JSON itself, and the pinned package installs this validator for its own themes.",
       "approvedDeviations": [],
       "behaviorCategories": [
         "startup-composition",
@@ -2986,10 +2986,7 @@
         "7.21"
       ],
       "tests": [
-        "test/integrations/pi/components/pinned-theme-parity.test.ts",
-        "test/integrations/pi/components/pinned-theme-composition-parity.test.ts",
-        "test/integrations/pi/components/pinned-component-lifecycle-parity.test.ts",
-        "test/integrations/pi/tui-runtime/pinned-lifecycle-parity.test.ts"
+        "test/integrations/pi/components/pinned-theme-parity.test.ts"
       ]
     },
     {
@@ -3046,7 +3043,7 @@
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Source-synchronized theme port: retain pinned theme schema, variable/color resolution, built-in and custom loading, terminal detection, and layout defaults while constructing the public package-root Theme class.",
-      "localSha256": "4596877b82f792b11f9cce0a48fd29da13b28e3e8ec3312fae6f2baf16260696",
+      "localSha256": "41d7a6bf4933d5d4852a0730e330f77f7b65f2d49589239507d93b3870cbe025",
       "approvedDeviations": [
         {
           "id": "theme-public-api-boundary",
@@ -3095,11 +3092,11 @@
       "sourceMap": "modes/interactive/tui-renderer.js.map",
       "lines": 80,
       "sha256": "22c26e2f291e3efd51a5a9639fd9e4824511969e715cede8437f1f4f97e3d546",
-      "classification": "owned-presentation",
-      "localDestination": "src/integrations/pi/components/upstream/tui-renderer.ts",
-      "implementationStatus": "not-ported",
+      "classification": "public-api-reuse",
+      "localDestination": "src/integrations/pi/components/index.ts",
+      "implementationStatus": "available-through-pinned-package",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Mechanical port planned: remap imports, inject A1 engine/runtime ownership, preserve control flow and state, and record every deviation.",
+      "modifications": "None; A1 owns its presentation runtime over the public TUI package and does not use this renderer selection.",
       "approvedDeviations": [],
       "behaviorCategories": [
         "keybindings",
@@ -3117,8 +3114,7 @@
         "7.21"
       ],
       "tests": [
-        "test/features/owned-ui/pinned-input-parity.test.ts",
-        "test/integrations/pi/tui-runtime/pinned-lifecycle-parity.test.ts"
+        "test/integrations/pi/tui-runtime/conformance.test.ts"
       ]
     },
     {
@@ -3349,7 +3345,7 @@
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Owned editor core or minimal editor-local helper subset; public imports, strict types, typed persistent-history hooks, and semantic border state with the user-approved numeric-only history label. Public terminal runtime/exports remain shared and unchanged. See docs/architecture/history-editor-provenance.md.",
-      "localSha256": "19f10549ca0e7fff73eb8ff8886388e5bd848d8e465610813105b7871e129400",
+      "localSha256": "1a73dcfc49884e8278a4eb2a788b12698a7df9be731132c53e9452afdee8a45f",
       "approvedDeviations": [
         {
           "id": "compact-history-counter-label",
@@ -3604,9 +3600,7 @@
         "7.21"
       ],
       "tests": [
-        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
-        "test/features/owned-ui/pinned-input-parity.test.ts",
-        "test/integrations/pi/tui-runtime/pinned-lifecycle-parity.test.ts"
+        "test/integrations/pi/components/tool-shell-parity.test.ts"
       ]
     },
     {
@@ -4310,8 +4304,7 @@
         "7.21"
       ],
       "tests": [
-        "test/features/owned-ui/pinned-input-parity.test.ts",
-        "test/integrations/pi/tui-runtime/pinned-lifecycle-parity.test.ts"
+        "test/repository-governance/pinned-pi-public.test.ts"
       ]
     },
     {
@@ -4631,7 +4624,7 @@
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Owned editor core or minimal editor-local helper subset; public imports, strict types, typed persistent-history hooks, and semantic border state. Public terminal runtime/exports remain shared and unchanged. See docs/architecture/history-editor-provenance.md.",
-      "localSha256": "8d1112b0454c8929b8f5e50d158c00f62398d1929d52091e676b187acef45b3a",
+      "localSha256": "0922724f6b26478a0a9b8bee52f9419a16a86dce0e7d0c259e83596fb58734d0",
       "approvedDeviations": [
         {
           "id": "persistent-history-owned-editor-boundary",

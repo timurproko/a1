@@ -60,6 +60,7 @@ import {
   createPiShellSelector,
   createPiShellSessionSelector,
   createPiShellSettingsSelector,
+  type PiShellSettingsSelectorOptions,
   createPiShellTreeSelector,
   createPiShellTrustSelector,
   createPiShellUserMessageSelector,
@@ -932,6 +933,10 @@ export class OwnedUiSessionShell {
         close();
         void this.runWorkflow({ command: "model", argument: "", selection: modelReference(model) });
       },
+      onSelectAsDefault: model => {
+        close();
+        void this.runWorkflow({ command: "model", argument: "", selection: modelReference(model), persist: true });
+      },
       onCancel: close,
     });
     this.root.setInputSurface(component);
@@ -1136,12 +1141,16 @@ export class OwnedUiSessionShell {
       this.root.setInputSurface(null);
       this.runtime.requestRender();
     };
+    const { currentModel, ...settingsSnapshot } = snapshot;
     const component = createPiShellSettingsSelector({
       config: {
-        ...snapshot,
+        ...settingsSnapshot,
         availableThinkingLevels: [...snapshot.availableThinkingLevels],
         availableThemes: [...snapshot.availableThemes],
         warnings: { ...snapshot.warnings },
+        modelThinkingLevels: { ...snapshot.modelThinkingLevels } as PiShellSettingsSelectorOptions["config"]["modelThinkingLevels"],
+        ...(currentModel === undefined ? {} : { currentModel: currentModel as NonNullable<PiShellSettingsSelectorOptions["config"]["currentModel"]> }),
+        availableDefaultModels: snapshot.availableDefaultModels as PiShellSettingsSelectorOptions["config"]["availableDefaultModels"],
       },
       onChange: (callback, value) => {
         if (callback === "onCancel") {

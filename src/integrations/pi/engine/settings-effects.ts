@@ -8,11 +8,11 @@ import type {
 export type PiSettingKey =
   | "autoCompact" | "showImages" | "imageWidthCells" | "autoResizeImages" | "blockImages"
   | "enableSkillCommands" | "steeringMode" | "followUpMode" | "transport" | "httpIdleTimeoutMs"
-  | "thinkingLevel" | "theme" | "hideThinkingBlock" | "mermaidRenderingMode" | "showCacheMissNotices"
+  | "modelThinkingLevels" | "theme" | "hideThinkingBlock" | "mermaidRenderingMode" | "showCacheMissNotices"
   | "collapseChangelog" | "enableInstallTelemetry" | "quietStartup" | "defaultProjectTrust"
   | "doubleEscapeAction" | "treeFilterMode" | "showHardwareCursor" | "editorPaddingX" | "outputPad"
   | "autocompleteMaxVisible" | "clearOnShrink" | "showTerminalProgress" | "tuiMode"
-  | "fullscreenExitOutput" | "fullscreenScrollbar" | "warnings";
+  | "fullscreenExitOutput" | "fullscreenScrollbar" | "fullscreenCopyOnSelect" | "warnings";
 
 export type PiSettingVisualClass =
   | "none"
@@ -67,7 +67,7 @@ export const PI_SETTING_EFFECTS: Readonly<Record<PiSettingKey, PiSettingEffectDe
   followUpMode: effect("live", "agent", "queue-transcript", "pinned follow-up queue and submitted prompt rows", "pinned-status-indicator-parity"),
   transport: effect("live", "agent", "status-error", "pinned provider request status and failure rows", "settings-effects-provider-parity"),
   httpIdleTimeoutMs: effect("live", "agent", "retry-error", "pinned timeout, retry, and terminal failure rows", "pinned-transcript-lifecycle-parity"),
-  thinkingLevel: effect("live", "agent", "footer-transcript", "pinned footer indicator, thinking rows, and clamp notice", "pinned-status-indicator-parity"),
+  modelThinkingLevels: effect("live", "agent", "footer-transcript", "pinned per-model thinking override, footer indicator, and thinking rows", "pinned-status-indicator-parity"),
   theme: hiddenEffect("live", "shell", "pinned theme selector and complete themed shell", "pinned-theme-parity"),
   hideThinkingBlock: effect("live", "shell", "transcript", "pinned thinking block presence and spacing", "pinned-transcript-lifecycle-parity"),
   mermaidRenderingMode: effect("live", "shell", "markdown", "pinned Mermaid Markdown transformation", "pinned-assistant-content-parity"),
@@ -87,6 +87,7 @@ export const PI_SETTING_EFFECTS: Readonly<Record<PiSettingKey, PiSettingEffectDe
   tuiMode: hiddenEffect("next-session", "shell", "pinned regular/fullscreen selector and terminal lifecycle", "pi-terminal-operation-parity"),
   fullscreenExitOutput: hiddenEffect("current-exit", "shutdown", "pinned styled transcript and compact dim resume hint", "pinned-fullscreen-exit-parity"),
   fullscreenScrollbar: hiddenEffect("live", "shell", "pinned fullscreen scrollbar reservation", "pi-terminal-operation-parity"),
+  fullscreenCopyOnSelect: hiddenEffect("live", "shell", "pinned fullscreen copy-on-select toggle", "pi-terminal-operation-parity"),
   warnings: effect("live", "agent", "transcript-notice", "pinned warning rows by warning part", "pinned-transcript-lifecycle-parity"),
 });
 

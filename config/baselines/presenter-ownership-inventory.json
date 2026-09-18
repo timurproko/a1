@@ -386,12 +386,11 @@
       "sourceAnchors": [
         "this.editorContainer.addChild(this.editor)",
         "this.footerContainer.addChild(this.footer)",
-        "component: this.editorContainer, shrink: 1, minSize: 3",
-        "component: this.footerContainer, shrink: 1, minSize: 1"
+        "editor: this.editorContainer,",
+        "footer: this.footerContainer,"
       ],
       "destination": "src/app/session-shell/session-shell.ts",
-      "implementationStatus": "known-divergence",
-      "status": "orphaned"
+      "implementationStatus": "known-divergence"
     },
     {
       "id": "replacement.selector-dialog-editor",
@@ -430,13 +429,12 @@
       "scrollFollow": "fixed editor replacement",
       "lifetime": "share/reload/auth operation until success, failure, or abort",
       "sourceAnchors": [
-        "new BorderedLoader(this.ui, theme, \"Creating gist...\")",
-        "this.editorContainer.addChild(loader)",
-        "loader.onAbort"
+        "await shareSession({",
+        "editorContainer: this.editorContainer,",
+        "showStatus: (message) => this.showStatus(message),"
       ],
       "destination": "src/app/session-shell/session-shell.ts",
-      "implementationStatus": "known-divergence",
-      "status": "orphaned"
+      "implementationStatus": "known-divergence"
     }
   ],
   "commands": [

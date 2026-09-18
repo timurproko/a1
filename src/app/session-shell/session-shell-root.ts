@@ -930,7 +930,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
             primary: true,
             overscroll: "chain",
             scrollbar: "auto",
-            scrollbarStyle: text => piTheme().bg("scrollbarThumb", text),
+            scrollbarStyle: text => piTheme().fg("scrollbarThumb", text),
             child: { type: "component", component: document },
           },
         },

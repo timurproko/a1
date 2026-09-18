@@ -273,7 +273,7 @@ export class PiWorkflowRunner {
           };
         }
         try {
-          await session.setModel(model);
+          await session.setModel(model, { persist: request.persist === true });
         } catch (error) {
           if (!current()) return workflowResult(request.command, "cancelled", "Model selection cancelled", undefined, "silent");
           const failure: PiWorkflowMessage = { kind: "error", message: error instanceof Error ? error.message : String(error) };
@@ -284,7 +284,7 @@ export class PiWorkflowRunner {
         const modelId = stringProperty(model, "id") ?? reference;
         this.#ports.setActiveModel({ providerId, modelId, displayName: stringProperty(model, "name") ?? modelId });
         this.#ports.emitView();
-        const resultMessage: PiWorkflowMessage = { kind: "status", message: `Model: ${modelId}` };
+        const resultMessage: PiWorkflowMessage = { kind: "status", message: request.persist === true ? `Default model: ${providerId}/${modelId}` : `Model: ${modelId}` };
         return messages.length === 0
           ? workflowResult(request.command, "completed", resultMessage.message)
           : workflowResult(request.command, "completed", resultMessage.message, undefined, "status", [...messages, resultMessage]);
