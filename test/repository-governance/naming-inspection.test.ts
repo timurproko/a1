@@ -50,8 +50,8 @@ describe("internal naming syntax policy", () => {
   });
 
   it("retains only exact serialized member exceptions", () => {
-    const source = 'interface Evidence { "a1Commit": string; }';
-    expect(inspectTypeScript("src/foundation/native-host-protocol/evidence.ts", source).internal).toEqual([]);
+    const source = 'interface Evidence { "a1ParityBaselineCommit": string; }';
+    expect(inspectTypeScript("test/repository-governance/pi-parity-evidence.test.ts", source).internal).toEqual([]);
     expect(inspectTypeScript("src/unrelated.ts", source).internal).not.toEqual([]);
   });
 

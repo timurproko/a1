@@ -74,17 +74,6 @@ describe("terminal-core architecture policy", () => {
   });
 
   it.each([
-    ["import pty from 'node-pty';", "terminal PTY ownership"],
-    ["const terminalBytes = Buffer.alloc(0);", "terminal text or screen interpretation"],
-    ["render(framebuffer);", "terminal text or screen interpretation"],
-  ])("rejects structured-runtime terminal inference: %s", async (source, diagnostic) => {
-    const root = await fixture({ "src/foundation/structured-agent-runtime/forbidden.ts": source });
-    const result = runPolicy(root);
-    expect(result.status).toBe(1);
-    expect(result.stderr).toContain(diagnostic);
-  });
-
-  it.each([
     ["src/features/owned-ui/root.ts", "import { createAgentSessionRuntime } from '@earendil-works/pi-coding-agent'; export { createAgentSessionRuntime };", "outside the owned Pi adapter boundary"],
     ["src/features/owned-ui/root.ts", "InteractiveMode.prototype.render = patched;", "stock Pi interactive prototype mutation"],
     ["src/integrations/pi/engine/private-state.ts", "const previousLines = readPrivateState();", "private Pi renderer-state inspection"],
@@ -120,18 +109,6 @@ describe("terminal-core architecture policy", () => {
     const result = runPolicy(root);
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("outside the runtime or component adapter boundary");
-  });
-
-  it.each([
-    ["const ptyBytes = Buffer.alloc(0);", "terminal byte, input, or rendered-cell transport"],
-    ["send(renderedCells);", "terminal byte, input, or rendered-cell transport"],
-    ["import { spawn } from 'node:child_process';", "native host process ownership"],
-    ["import pty from 'node-pty';", "terminal byte, input, or rendered-cell transport"],
-  ])("rejects native-host hot-path transport: %s", async (source, diagnostic) => {
-    const root = await fixture({ "src/foundation/native-host-protocol/forbidden.ts": source });
-    const result = runPolicy(root);
-    expect(result.status).toBe(1);
-    expect(result.stderr).toContain(diagnostic);
   });
 
   it("rejects composed and owned-UI infrastructure from explicit launch profiles", async () => {

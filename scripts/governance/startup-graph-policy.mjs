@@ -16,7 +16,6 @@ export const STARTUP_ROOTS = Object.freeze([
 
 const FIRST_PROMPT_PREFIXES = Object.freeze([
   "src/contracts/agent-engine/",
-  "src/contracts/workspace/",
   "src/features/launch/",
   "src/features/prompt-history/",
   "src/features/prompt-suggestions/",

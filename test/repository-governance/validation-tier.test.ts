@@ -33,7 +33,6 @@ describe("validation tier planning", () => {
       "pi-engine-conformance",
       "release-update",
       "update-performance",
-      "structured-runtime-integration",
       "package-smoke",
       "package-contracts",
       "package-startup",
@@ -100,12 +99,12 @@ describe("validation tier planning", () => {
 
   it("plans the bounded PR core and dynamic affected tests without redefining fast", async () => {
     const selected = await createTierPlan(["typecheck", "architecture", "pr-core-tests", "pr-selected-tests"], process.cwd(), {
-      additionalTests: ["test/cli/capabilities.test.ts", "test/features/workspace/capabilities.test.ts"],
+      additionalTests: ["test/cli/capabilities.test.ts", "test/features/prompt-history/store.test.ts"],
     });
     expect(selected.selected).toEqual(["typecheck", "architecture", "pr-core-tests", "pr-selected-tests"]);
     expect(selected.vitest?.invocations).toEqual([
       expect.objectContaining({ id: "vitest-explicit-pr-core-tests", scopes: ["pr-core-tests"], arguments: expect.arrayContaining(["test/cli/capabilities.test.ts"]) }),
-      expect.objectContaining({ id: "vitest-explicit-pr-selected-tests", scopes: ["pr-selected-tests"], arguments: expect.arrayContaining(["test/features/workspace/capabilities.test.ts"]) }),
+      expect.objectContaining({ id: "vitest-explicit-pr-selected-tests", scopes: ["pr-selected-tests"], arguments: expect.arrayContaining(["test/features/prompt-history/store.test.ts"]) }),
     ]);
     expect(selected.vitest?.invocations.flatMap(invocation => invocation.arguments).filter(value => value === "test/cli/capabilities.test.ts")).toHaveLength(1);
     const resource = await createTierPlan(["pr-selected-resource"], process.cwd(), {
@@ -160,7 +159,7 @@ describe("validation tier planning", () => {
     const smoke = await createTierPlan(["fast", "rendering-smoke"]);
     expect(smoke.vitest?.invocations[0]).toEqual(expect.objectContaining({ id: "vitest-fast" }));
     expect(smoke.vitest?.invocations.filter(invocation => invocation.evidence?.executionClass === "resource-sensitive")).toHaveLength(1);
-    expect(smoke.vitest?.invocations.find(invocation => invocation.id === "vitest-fast-resource-sensitive")?.evidence?.testFiles).toHaveLength(21);
+    expect(smoke.vitest?.invocations.find(invocation => invocation.id === "vitest-fast-resource-sensitive")?.evidence?.testFiles).toHaveLength(19);
     expect(smoke.vitest?.invocations.at(-1)).toEqual(expect.objectContaining({
       id: "vitest-isolated-suites",
       arguments: expect.arrayContaining([
@@ -207,7 +206,7 @@ describe("validation tier planning", () => {
   });
 
   it("records separate scope durations while sharing prerequisite preparation", async () => {
-    const plan = await createTierPlan(["launch-integration", "structured-runtime-integration"]);
+    const plan = await createTierPlan(["launch-integration", "pi-engine-conformance"]);
     expect(plan.commands.filter(command => command.id === "candidate-build")).toHaveLength(1);
     const result = await runTierPlan({ ...plan, commands: [] }, {
       stdio: "pipe",
@@ -215,7 +214,7 @@ describe("validation tier planning", () => {
     });
     expect(result.outcomes).toEqual([
       expect.objectContaining({ scopes: ["launch-integration"], durationMs: 11 }),
-      expect.objectContaining({ scopes: ["structured-runtime-integration"], durationMs: 7 }),
+      expect.objectContaining({ scopes: ["pi-engine-conformance"], durationMs: 7 }),
     ]);
   });
 

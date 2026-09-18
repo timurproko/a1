@@ -38,7 +38,7 @@ describe("integration owner registry", () => {
     const owners = await loadIntegrationOwners();
     expect(owners.map(owner => owner.id)).toEqual([
       "pi-release-resume", "package-contracts", "startup", "image-compatibility", "history-compatibility", "unix-containment",
-      "launch-integration", "update-performance", "structured-runtime", "update-predecessor",
+      "launch-integration", "update-performance", "update-predecessor",
     ]);
     const targets = Object.fromEntries(owners.map(owner => [owner.id, owner.targets.map(target => `${target.platform}-${target.architecture}-node${target.node}`)]));
     expect(targets).toEqual({
@@ -50,7 +50,6 @@ describe("integration owner registry", () => {
       "unix-containment": ["linux-x64-node24", "darwin-arm64-node24"],
       "launch-integration": ["win32-x64-node24"],
       "update-performance": ["win32-x64-node24"],
-      "structured-runtime": ["win32-x64-node24"],
       "update-predecessor": ["win32-x64-node24"],
     });
     expect(owners.filter(owner => owner.cadence === "exhaustive").map(owner => owner.id)).toEqual(["update-performance", "update-predecessor"]);

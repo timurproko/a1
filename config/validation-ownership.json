@@ -39,7 +39,10 @@
   ],
   "shared": [
     {
-      "paths": ["test/support/", "test/fixtures/"],
+      "paths": [
+        "test/support/",
+        "test/fixtures/"
+      ],
       "owners": [
         "ui-rendering",
         "launch-startup",
@@ -52,12 +55,25 @@
       ]
     },
     {
-      "paths": ["src/contracts/"],
-      "owners": ["ui-rendering", "launch-startup", "pi", "shared-product"]
+      "paths": [
+        "src/contracts/"
+      ],
+      "owners": [
+        "ui-rendering",
+        "launch-startup",
+        "pi",
+        "shared-product"
+      ]
     },
     {
-      "paths": ["bin/"],
-      "owners": ["launch-startup", "release-package-update", "pi"]
+      "paths": [
+        "bin/"
+      ],
+      "owners": [
+        "launch-startup",
+        "release-package-update",
+        "pi"
+      ]
     }
   ],
   "owners": [
@@ -67,14 +83,12 @@
         "src/ui/",
         "src/features/owned-ui/",
         "src/features/prompt-suggestions/",
-        "src/features/workspace/",
         "src/integrations/pi/tui-runtime/"
       ],
       "testPaths": [
         "test/ui/",
         "test/features/owned-ui/",
         "test/features/prompt-suggestions/",
-        "test/features/workspace/",
         "test/integrations/pi/tui-runtime/"
       ],
       "integrationOwners": []
@@ -101,12 +115,21 @@
         "test/foundation/supervision/",
         "test/foundation/terminal-cleanup/"
       ],
-      "integrationOwners": ["launch-integration", "startup"]
+      "integrationOwners": [
+        "launch-integration",
+        "startup"
+      ]
     },
     {
       "id": "release-package-update",
-      "paths": ["src/foundation/release/", "scripts/release/", "config/"],
-      "testPaths": ["test/foundation/release/"],
+      "paths": [
+        "src/foundation/release/",
+        "scripts/release/",
+        "config/"
+      ],
+      "testPaths": [
+        "test/foundation/release/"
+      ],
       "integrationOwners": [
         "pi-release-resume",
         "package-contracts",
@@ -117,39 +140,62 @@
     },
     {
       "id": "pi",
-      "paths": ["src/integrations/pi/", "scripts/pi/"],
+      "paths": [
+        "src/integrations/pi/",
+        "scripts/pi/"
+      ],
       "testPaths": [
         "test/integrations/pi/components/",
         "test/integrations/pi/engine/",
         "test/integrations/pi/session-ui/"
       ],
-      "integrationOwners": ["pi-release-resume", "image-compatibility", "history-compatibility"]
+      "integrationOwners": [
+        "pi-release-resume",
+        "image-compatibility",
+        "history-compatibility"
+      ]
     },
     {
       "id": "native-containment",
       "paths": [
         "native/",
-        "src/foundation/native-host-protocol/",
         "src/foundation/process-containment/",
         "src/foundation/protocol/"
       ],
       "testPaths": [
-        "test/foundation/native-host-protocol/",
         "test/foundation/process-containment/",
         "test/foundation/protocol/"
       ],
-      "integrationOwners": ["unix-containment"]
+      "integrationOwners": [
+        "unix-containment"
+      ]
     },
     {
       "id": "image-history",
-      "paths": ["src/features/prompt-history/"],
-      "testPaths": ["test/features/prompt-history/"],
-      "integrationOwners": ["image-compatibility", "history-compatibility"]
+      "paths": [
+        "src/features/prompt-history/"
+      ],
+      "testPaths": [
+        "test/features/prompt-history/"
+      ],
+      "integrationOwners": [
+        "image-compatibility",
+        "history-compatibility"
+      ]
     },
     {
       "id": "governance",
-      "paths": ["scripts/governance/", "test/repository-governance/", "config/github-", "config/internal-", "config/product-"],
-      "testPaths": ["test/repository-governance/", "test/product-identity/"],
+      "paths": [
+        "scripts/governance/",
+        "test/repository-governance/",
+        "config/github-",
+        "config/internal-",
+        "config/product-"
+      ],
+      "testPaths": [
+        "test/repository-governance/",
+        "test/product-identity/"
+      ],
       "integrationOwners": []
     },
     {
@@ -157,17 +203,15 @@
       "paths": [
         "src/cli/",
         "src/composition/",
-        "src/foundation/storage/",
-        "src/foundation/structured-agent-runtime/"
+        "src/foundation/storage/"
       ],
       "testPaths": [
         "test/cli/",
         "test/composition/",
         "test/contracts/",
-        "test/foundation/storage/",
-        "test/foundation/structured-agent-runtime/"
+        "test/foundation/storage/"
       ],
-      "integrationOwners": ["structured-runtime"]
+      "integrationOwners": []
     }
   ]
 }
