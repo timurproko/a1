@@ -11,11 +11,11 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Exact Pi version to propose (default: newest published)
+        description: "Exact Pi version to propose (default: newest published)"
         required: false
         type: string
       commit:
-        description: Upstream commit for that version (default: resolved from the registry or release tag)
+        description: "Upstream commit for that version (default: resolved from the registry or release tag)"
         required: false
         type: string
 
