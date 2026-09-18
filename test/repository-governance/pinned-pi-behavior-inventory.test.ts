@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { readPinnedPiIdentity } from "../../scripts/governance/pinned-pi-identity.mjs";
 
 interface SourceRecord {
   readonly id: string;
@@ -85,14 +86,11 @@ describe("complete pinned Pi interactive behavior inventory", () => {
   it("binds every required category and acceptance case to exact pinned upstream source", async () => {
     const inventory = await loadInventory();
     expect(inventory.schema).toBe("a1-pinned-pi-interactive-baseline-v1");
-    expect(inventory.upstream).toMatchObject({
-      commit: "914cf1472e715297caa30db4b9535d534a9eb718",
-      license: "MIT",
-    });
-    expect(inventory.upstream.packages.map(value => `${value.name}@${value.version}`)).toEqual([
-      "@earendil-works/pi-coding-agent@0.84.2",
-      "@earendil-works/pi-tui@0.84.2",
-    ]);
+    const pinned = await readPinnedPiIdentity(".");
+    expect(inventory.upstream).toMatchObject({ commit: pinned.commit, license: "MIT" });
+    expect(inventory.upstream.packages.map(value => `${value.name}@${value.version}`)).toEqual(
+      pinned.packages.map(value => `${value.name}@${value.version}`),
+    );
     expect(inventory.upstream.packages.every(value => value.integrity.startsWith("sha512-"))).toBe(true);
 
     const sources = new Map<string, string>();

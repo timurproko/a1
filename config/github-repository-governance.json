@@ -193,6 +193,18 @@
       "artifactRetentionDays": []
     },
     {
+      "name": "Pi upstream sync",
+      "path": ".github/workflows/pi-upstream-sync.yml",
+      "state": "active",
+      "triggers": ["schedule", "workflow_dispatch"],
+      "permissions": ["contents: write", "pull-requests: write"],
+      "trustedSource": "default-branch",
+      "authority": ["pi-upgrade-proposal"],
+      "concurrency": "pi-upstream-sync",
+      "environments": [],
+      "artifactRetentionDays": [30]
+    },
+    {
       "name": "Release",
       "path": ".github/workflows/release.yml",
       "state": "active",

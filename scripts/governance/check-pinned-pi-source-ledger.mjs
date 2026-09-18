@@ -3,6 +3,7 @@ import { access, readFile, readdir } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { readPiCompatibilityAuthority } from "./pi-compatibility-authority.mjs";
+import { readPinnedPiIdentity } from "./pinned-pi-identity.mjs";
 import { carriesProvenanceHeader, renderProvenanceHeader } from "../pi/pinned-pi-source-header.mjs";
 
 const repository = fileURLToPath(new URL("../..", import.meta.url));
@@ -15,7 +16,6 @@ const ledgerPath = resolve(process.env.SOURCE_LEDGER_PATH ?? join(
 ));
 const sourceRoot = resolve(process.env.SOURCE_LEDGER_SCAN_ROOT ?? join(repository, "src"));
 const portRoot = resolve(process.env.SOURCE_LEDGER_PORT_ROOT ?? join(repository, "src", "integrations", "pi", "components", "upstream"));
-const expectedCommit = "914cf1472e715297caa30db4b9535d534a9eb718";
 const allowedClassifications = new Set(["public-api-reuse", "owned-presentation", "host-adaptation"]);
 const completedStatusesByClassification = new Map([
   ["public-api-reuse", new Set(["available-through-pinned-package"])],
@@ -77,7 +77,8 @@ async function validateLedger(skipUpstreamProvenance = false) {
   if (ledger.schema !== identity.evidence.piSourceLedgerSchema) fail("unsupported ledger schema");
   if (ledger.change !== "build-owned-pi-ui-foundation" || ledger.task !== "7.2") fail("ledger change/task identity is stale");
   if (ledger.upstream?.repository !== "https://github.com/earendil-works/pi.git") fail("upstream repository identity is stale");
-  if (ledger.upstream?.commit !== expectedCommit) fail("upstream commit identity is stale");
+  const pinned = await readPinnedPiIdentity(repository);
+  if (ledger.upstream?.commit !== pinned.commit) fail("upstream commit identity is stale");
   if (ledger.upstream?.license !== "MIT") fail("upstream license must be MIT");
   if (!Array.isArray(ledger.records)) fail("ledger records collection is missing");
 

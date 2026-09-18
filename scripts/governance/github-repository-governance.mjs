@@ -87,6 +87,7 @@ export function inspectWorkflowSource(path, source) {
   if (source.includes("ref=refs/tags/")) authority.push("release-tag");
   if (source.includes("gh release create")) authority.push("github-release");
   if (source.includes("git/refs/heads/master")) authority.push("master-fast-forward");
+  if (source.includes("propose-pi-upgrade.mjs") && source.includes("--draft")) authority.push("pi-upgrade-proposal");
 
   const name = /^name:\s*(.+)$/m.exec(source)?.[1]?.trim() ?? "";
   return { name, path, state: "active", triggers: triggers.sort(), permissions, trustedSource, authority: authority.sort(), concurrency, environments, artifactRetentionDays: retention };
