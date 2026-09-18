@@ -1,4 +1,12 @@
-/** Source-synchronized from Pi 0.84.2 packages/coding-agent/src/core/keybindings.ts. */
+/**
+ * Provenance: @earendil-works/pi-coding-agent 0.84.2 (MIT), commit 914cf1472e715297caa30db4b9535d534a9eb718,
+ * packages/coding-agent/src/core/keybindings.ts.
+ * Modifications: Mechanical source port with Node import prefixes, public package-root agent-directory
+ * resolution, and an opt-in bare-A1 input profile including Ctrl+L level cycling and unbound model
+ * selection.
+ * Deviations: keybindings-public-config-boundary, owned-level-cycle-shortcut,
+ * owned-input-keybinding-aliases.
+ */
 import {
 	type Keybinding,
 	type KeybindingDefinitions,

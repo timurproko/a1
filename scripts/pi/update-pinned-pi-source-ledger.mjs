@@ -1,7 +1,18 @@
+/**
+ * Regenerates the pinned Pi source ledger from the installed packages' source maps. Upstream
+ * identity (hashes, line counts, source-map paths) always comes from the packages; the reviewed
+ * fields of an existing record (classification, destination, status, modifications, deviations,
+ * tests, tasks) are preserved from the ledger, so a reclassified or deleted port never has to be
+ * hard-coded here. Owned copies get their provenance header rewritten from the record before
+ * their hash is recorded. `--check` reports drift without writing.
+ */
 import { createHash } from "node:crypto";
 import { readFile, readdir, writeFile } from "node:fs/promises";
-import { dirname, join, relative } from "node:path";
+import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
+import { carriesProvenanceHeader, renderProvenanceHeader, splitProvenanceHeader } from "./pinned-pi-source-header.mjs";
+
+const checkOnly = process.argv.includes("--check");
 
 const repository = fileURLToPath(new URL("../..", import.meta.url));
 const identity = JSON.parse(await readFile(join(repository, "src", "product-identity.json"), "utf8"));
@@ -102,6 +113,24 @@ for (const behavior of baseline.behaviorInventory) {
   behaviorByCategory.set(behavior.category, values);
 }
 
+const packageRecords = await Promise.all(packages.map(async pkg => {
+  const locked = lockfile.packages[pkg.lockKey];
+  const manifest = JSON.parse(await readFile(join(pkg.packageRoot, "package.json"), "utf8"));
+  if (!locked || typeof locked.version !== "string" || typeof locked.integrity !== "string") {
+    throw new Error(`missing pinned package identity: ${pkg.name}`);
+  }
+  if (manifest.name !== pkg.name || manifest.version !== locked.version || manifest.license !== "MIT") {
+    throw new Error(`installed package identity or license differs from lockfile: ${pkg.name}`);
+  }
+  return { name: pkg.name, version: locked.version, integrity: locked.integrity };
+}));
+const upstream = {
+  repository: "https://github.com/earendil-works/pi.git",
+  commit: "914cf1472e715297caa30db4b9535d534a9eb718",
+  license: "MIT",
+  packages: packageRecords,
+};
+
 const records = [];
 const codingAgent = packages[0];
 const tui = packages[1];
@@ -124,17 +153,12 @@ for (const asset of [
 }
 
 records.sort((left, right) => left.package.localeCompare(right.package) || left.upstreamPath.localeCompare(right.upstreamPath));
-const packageRecords = await Promise.all(packages.map(async pkg => {
-  const locked = lockfile.packages[pkg.lockKey];
-  const manifest = JSON.parse(await readFile(join(pkg.packageRoot, "package.json"), "utf8"));
-  if (!locked || typeof locked.version !== "string" || typeof locked.integrity !== "string") {
-    throw new Error(`missing pinned package identity: ${pkg.name}`);
-  }
-  if (manifest.name !== pkg.name || manifest.version !== locked.version || manifest.license !== "MIT") {
-    throw new Error(`installed package identity or license differs from lockfile: ${pkg.name}`);
-  }
-  return { name: pkg.name, version: locked.version, integrity: locked.integrity };
-}));
+const drift = [];
+for (const [index, record] of records.entries()) {
+  if (record.classification !== "owned-presentation") continue;
+  const { approvedDeviations, behaviorCategories, behaviorIds, acceptanceTasks, tests, ...identity } = record;
+  records[index] = { ...identity, localSha256: await recordOwnedCopy(record), approvedDeviations, behaviorCategories, behaviorIds, acceptanceTasks, tests };
+}
 
 const classifications = Object.fromEntries(["public-api-reuse", "owned-presentation", "host-adaptation"].map(classification => [
   classification,
@@ -159,12 +183,7 @@ const ledger = {
   change: "build-owned-pi-ui-foundation",
   task: "7.2",
   recordedAt: new Date().toISOString(),
-  upstream: {
-    repository: "https://github.com/earendil-works/pi.git",
-    commit: "914cf1472e715297caa30db4b9535d534a9eb718",
-    license: "MIT",
-    packages: packageRecords,
-  },
+  upstream,
   scope: {
     included: [
       "Every TypeScript source represented by a JavaScript source map under @earendil-works/pi-coding-agent/dist/modes/interactive.",
@@ -190,8 +209,37 @@ const ledger = {
   records,
 };
 
-await writeFile(outputPath, `${JSON.stringify(ledger, null, 2)}\n`);
-console.log(`Wrote ${relative(repository, outputPath)} (${records.length} records)`);
+if (checkOnly) {
+  const previousComparable = JSON.stringify({ ...previousLedger, recordedAt: undefined });
+  const nextComparable = JSON.stringify({ ...ledger, recordedAt: undefined });
+  if (previousComparable !== nextComparable) drift.push("ledger content differs from the regenerated ledger");
+  if (drift.length > 0) {
+    for (const line of drift) console.error(`ledger drift: ${line}`);
+    process.exitCode = 1;
+  } else {
+    console.log(`Pinned Pi source ledger is current (${records.length} records)`);
+  }
+} else {
+  await writeFile(outputPath, `${JSON.stringify(ledger, null, 2)}\n`);
+  console.log(`Wrote ${relative(repository, outputPath)} (${records.length} records)`);
+}
+
+/** Rewrite the owned copy's provenance header from its record and return the copy's hash. */
+async function recordOwnedCopy(record) {
+  const destination = join(repository, record.localDestination);
+  if (!await fileExists(destination)) throw new Error(`owned source destination is missing: ${record.id} (${record.localDestination})`);
+  if (carriesProvenanceHeader(record.localDestination)) {
+    const source = await readFile(destination, "utf8");
+    const { body } = splitProvenanceHeader(source);
+    const next = `${renderProvenanceHeader(record, upstream)}${body}`;
+    if (next !== source) {
+      if (checkOnly) drift.push(`provenance header is stale: ${record.localDestination}`);
+      else await writeFile(destination, next);
+    }
+    if (!checkOnly) return createHash("sha256").update(next).digest("hex");
+  }
+  return createHash("sha256").update(await readFile(destination)).digest("hex");
+}
 
 async function sourceMapsUnder(root) {
   const values = [];
@@ -216,93 +264,6 @@ async function sourceMapRecord(pkg, sourceMapPath, scope) {
   const upstreamPath = `${pkg.sourceRoot}/${sourceRelative}`;
   const disposition = classify(pkg.name, upstreamPath);
   const categories = behaviorCategories(upstreamPath);
-  const portedThemeUnit = upstreamPath === "packages/coding-agent/src/modes/interactive/theme/theme.ts"
-    ? {
-        localDestination: "src/integrations/pi/components/upstream/theme/theme.ts",
-        modifications: "Source-synchronized theme port: retain pinned theme schema, variable/color resolution, built-in and custom loading, terminal detection, and layout defaults while constructing the public package-root Theme class.",
-        approvedDeviations: [
-          {
-            id: "theme-public-api-boundary",
-            reason: "Use public package-root Theme, initTheme, configuration-directory, TUI capability, markdown, selector, and syntax helpers instead of private module imports.",
-            upstreamBehavior: "Pinned dark/light/custom color resolution, 256/truecolor selection, fallback, automatic terminal detection, and component styling remain acceptance-tested.",
-            acceptanceTest: "test/integrations/pi/components/pinned-theme-parity.test.ts",
-          },
-          {
-            id: "theme-owned-watcher-boundary",
-            reason: "Mirror custom-theme reload with an A1-owned file watcher because the public API exposes no theme-change callback and private watcher imports are forbidden.",
-            upstreamBehavior: "Debounced valid changes replace the active custom theme and notify rendering; invalid or temporarily missing files retain the last valid theme.",
-            acceptanceTest: "test/integrations/pi/components/pinned-theme-parity.test.ts",
-          },
-        ],
-      }
-    : upstreamPath === "packages/coding-agent/src/modes/interactive/theme/theme-controller.ts"
-      ? {
-          localDestination: "src/integrations/pi/components/upstream/theme/theme-controller.ts",
-          modifications: "Source-synchronized controller port: renamed owner class, injected dependency-free settings/runtime ports, remapped private theme helpers to the public-backed A1 theme adapter, and added explicit disposal.",
-          approvedDeviations: [
-            {
-              id: "theme-controller-owned-boundaries",
-              reason: "Replace private SettingsManager/theme-module coupling with public theme APIs and A1-owned runtime/settings ports.",
-              upstreamBehavior: "Theme initialization, auto detection, preview, switching, render invalidation, and terminal color-scheme synchronization remain ordered as pinned.",
-              acceptanceTest: "test/integrations/pi/components/pinned-theme-parity.test.ts",
-            },
-            {
-              id: "theme-controller-explicit-disposal",
-              reason: "A1 lifecycle ownership requires explicit listener disposal instead of relying on stock InteractiveMode teardown.",
-              upstreamBehavior: "The terminal color-scheme listener and automatic notifications are released when the owned shell stops.",
-              acceptanceTest: "test/integrations/pi/components/pinned-theme-parity.test.ts",
-            },
-          ],
-        }
-      : upstreamPath === "packages/coding-agent/src/modes/interactive/components/countdown-timer.ts"
-        ? {
-            localDestination: "src/integrations/pi/components/upstream/components/countdown-timer.ts",
-            modifications: "Mechanical source port with ECMAScript private fields; imports remain on the public Pi TUI package root.",
-            approvedDeviations: [{
-              id: "countdown-owned-private-fields",
-              reason: "Use language-level private fields in the A1-owned class without changing timer ordering or lifecycle.",
-              upstreamBehavior: "Initial tick, one-second decrements, render requests, expiration callback, and disposal order match pinned Pi.",
-              acceptanceTest: "test/integrations/pi/components/pinned-status-indicator-parity.test.ts",
-            }],
-          }
-        : upstreamPath === "packages/coding-agent/src/modes/interactive/components/status-indicator.ts"
-          ? {
-              localDestination: "src/integrations/pi/components/upstream/components/status-indicator.ts",
-              modifications: "Mechanical source port with public package-root keybinding, Loader, and owned theme/countdown imports plus ECMAScript private fields.",
-              approvedDeviations: [{
-                id: "status-indicator-public-boundaries",
-                reason: "Remap private theme, countdown, extension option, and keybinding imports to A1-owned or public package-root equivalents.",
-                upstreamBehavior: "Working, retry, compaction, branch-summary, idle, countdown, style, and disposal behavior match pinned Pi.",
-                acceptanceTest: "test/integrations/pi/components/pinned-status-indicator-parity.test.ts",
-              }],
-            }
-          : upstreamPath === "packages/coding-agent/src/core/keybindings.ts"
-            ? {
-                localDestination: "src/integrations/pi/components/upstream/adjacent/core/keybindings.ts",
-                modifications: "Mechanical source port with Node import prefixes, public package-root agent-directory resolution, and an opt-in bare-A1 input alias profile.",
-                approvedDeviations: [{
-                  id: "keybindings-public-config-boundary",
-                  reason: "Resolve the agent configuration directory through the documented package-root API instead of a private config import.",
-                  upstreamBehavior: "Complete pinned defaults, migrations, user overrides, conflict detection, matching, and effective-config behavior remain unchanged.",
-                  acceptanceTest: "test/integrations/pi/components/pinned-editor-input-parity.test.ts",
-                }, {
-                  id: "owned-input-keybinding-aliases",
-                  reason: "Bare A1 opts into ergonomic vanilla editing aliases plus declarative prompt-selection, cut, paste, redo, and extension actions while the comparison profile retains pinned defaults.",
-                  upstreamBehavior: "The pinned comparison profile continues to use the exact upstream keybinding definitions and effective configuration.",
-                  acceptanceTest: "test/integrations/pi/session-ui/session-shell.test.ts",
-                }],
-              }
-            : undefined;
-  const reconciledUnit = reconciledSourceUnit(upstreamPath);
-  const resolvedUnit = reconciledUnit ?? portedThemeUnit;
-  const localDestination = resolvedUnit?.localDestination ?? disposition.localDestination;
-  const classification = resolvedUnit?.classification ?? (portedThemeUnit === undefined ? disposition.classification : "owned-presentation");
-  const implementationStatus = resolvedUnit?.implementationStatus ?? (portedThemeUnit === undefined ? disposition.implementationStatus : "source-synchronized-port");
-  const modifications = resolvedUnit?.modifications ?? portedThemeUnit?.modifications ?? disposition.modifications;
-  const localSha256 = classification === "owned-presentation"
-    ? createHash("sha256").update(await readFile(join(repository, localDestination))).digest("hex")
-    : undefined;
-  const approvedDeviations = resolvedUnit?.approvedDeviations ?? portedThemeUnit?.approvedDeviations ?? [];
   const id = `${packageSlug(pkg.name)}:${sourceRelative.replace(/\.ts$/, "")}`;
   const record = {
     id,
@@ -313,34 +274,31 @@ async function sourceMapRecord(pkg, sourceMapPath, scope) {
     sourceMap: relative(pkg.distRoot, sourceMapPath).replaceAll("\\", "/"),
     lines: content.split("\n").length,
     sha256: createHash("sha256").update(content).digest("hex"),
-    classification,
-    localDestination,
-    implementationStatus,
+    classification: disposition.classification,
+    localDestination: disposition.localDestination,
+    implementationStatus: disposition.implementationStatus,
     attribution: "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-    modifications,
-    ...(localSha256 === undefined ? {} : { localSha256 }),
-    approvedDeviations,
+    modifications: disposition.modifications,
+    approvedDeviations: [],
     behaviorCategories: categories,
     behaviorIds: categories.flatMap(category => behaviorByCategory.get(category) ?? []),
     acceptanceTasks: acceptanceTasks(upstreamPath, categories),
     tests: testTargets(upstreamPath, categories),
   };
-  const previous = previousRecords.get(id);
-  if (previous !== undefined) {
-    const preservedFields = resolvedUnit === undefined
-      ? ["classification", "localDestination", "implementationStatus", "modifications", "approvedDeviations", "acceptanceTasks", "tests"]
-      : ["acceptanceTasks", "tests"];
-    for (const field of preservedFields) {
-      if (previous[field] !== undefined) record[field] = previous[field];
-    }
-    if (previous.localSha256 !== undefined && await fileExists(join(repository, record.localDestination))) {
-      record.localSha256 = createHash("sha256").update(await readFile(join(repository, record.localDestination))).digest("hex");
-    }
-  }
+  preserveReviewedFields(record, previousRecords.get(id));
   if (record.classification === "host-adaptation" && record.implementationStatus === "adapter-present-conformance-pending") {
     record.implementationStatus = "adapter-present-conformance-passed";
   }
   return record;
+}
+
+// Invariant: the ledger is the reviewed authority for what a unit is and where it lives; this
+// script only refreshes what the packages assert about upstream content.
+function preserveReviewedFields(record, previous) {
+  if (previous === undefined) return;
+  for (const field of ["classification", "localDestination", "implementationStatus", "modifications", "approvedDeviations", "acceptanceTasks", "tests"]) {
+    if (previous[field] !== undefined) record[field] = previous[field];
+  }
 }
 
 async function fileExists(path) {
@@ -389,18 +347,7 @@ async function assetRecord(pkg, distRelative) {
     acceptanceTasks: acceptanceTasks(upstreamPath, categories),
     tests: testTargets(upstreamPath, categories),
   };
-  const previous = previousRecords.get(id);
-  if (previous !== undefined) {
-    const preservedFields = upstreamPath.endsWith("/assets/clankolas.png")
-      ? ["acceptanceTasks", "tests"]
-      : ["classification", "localDestination", "implementationStatus", "modifications", "approvedDeviations", "acceptanceTasks", "tests"];
-    for (const field of preservedFields) {
-      if (previous[field] !== undefined) record[field] = previous[field];
-    }
-    if (previous.localSha256 !== undefined && await fileExists(join(repository, record.localDestination))) {
-      record.localSha256 = createHash("sha256").update(await readFile(join(repository, record.localDestination))).digest("hex");
-    }
-  }
+  preserveReviewedFields(record, previousRecords.get(id));
   return record;
 }
 
@@ -409,94 +356,6 @@ function normalizeSourcePath(source) {
   const index = normalized.lastIndexOf("src/");
   if (index < 0) throw new Error(`source map path has no src root: ${source}`);
   return normalized.slice(index);
-}
-
-function reconciledSourceUnit(upstreamPath) {
-  const historyPorts = new Map([
-    ["packages/tui/src/components/editor.ts", "editor-core"],
-    ["packages/tui/src/kill-ring.ts", "kill-ring"],
-    ["packages/tui/src/undo-stack.ts", "undo-stack"],
-    ["packages/tui/src/word-navigation.ts", "word-navigation"],
-    ["packages/tui/src/utils.ts", "text-helpers"],
-    ["packages/tui/src/keys.ts", "printable-key"],
-  ]);
-  const historyName = historyPorts.get(upstreamPath);
-  if (historyName) return {
-    classification: "owned-presentation",
-    localDestination: `src/integrations/pi/components/upstream/history/${historyName}.ts`,
-    implementationStatus: "source-synchronized-port",
-    modifications: "Owned editor core or minimal editor-local helper subset; public imports, strict types, typed persistent-history hooks, and semantic border state. Public terminal runtime/exports remain shared and unchanged. See docs/architecture/history-editor-provenance.md.",
-    approvedDeviations: [{
-      id: "persistent-history-owned-editor-boundary",
-      reason: "The accepted persistent-prompt-history change owns the editor state machine rather than mutating private Pi fields; only enabled bare-A1 default-editor history is customized.",
-      upstreamBehavior: "Pinned mode preserves input, undo, paste, autocomplete, and rendering semantics; persistent mode adds atomic snapshots, v2 directional caret placement and numbering, and independent draft paste backing.",
-      acceptanceTest: "test/integrations/pi/components/history-editor-core.test.ts",
-    }],
-  };
-  const ownedPorts = new Map([
-    ["packages/coding-agent/src/modes/interactive/components/custom-entry.ts", "custom-entry"],
-    ["packages/coding-agent/src/modes/interactive/components/daxnuts.ts", "daxnuts"],
-    ["packages/coding-agent/src/modes/interactive/components/earendil-announcement.ts", "earendil-announcement"],
-    ["packages/coding-agent/src/modes/interactive/components/first-time-setup.ts", "first-time-setup"],
-    ["packages/coding-agent/src/modes/interactive/components/markdown-transform.ts", "markdown-transform"],
-    ["packages/coding-agent/src/modes/interactive/components/mermaid.ts", "mermaid"],
-  ]);
-  const ownedName = ownedPorts.get(upstreamPath);
-  if (ownedName) {
-    return {
-      classification: "owned-presentation",
-      localDestination: `src/integrations/pi/components/upstream/components/${ownedName}.ts`,
-      implementationStatus: "source-synchronized-port",
-      modifications: "Mechanical pinned source port with private imports remapped to public package-root types/APIs and A1-owned theme boundaries; behavior remains acceptance-tested.",
-      approvedDeviations: [],
-    };
-  }
-  if (upstreamPath === "packages/coding-agent/src/cli/startup-ui.ts") {
-    return {
-      classification: "host-adaptation",
-      localDestination: "src/integrations/pi/components/shell-components.ts",
-      implementationStatus: "adapter-present-conformance-passed",
-      modifications: "Split startup UI authority across the A1 shell/component adapter while preserving pinned first-time setup, startup notices, resources, and preflight behavior without constructing the stock CLI root.",
-      approvedDeviations: [],
-    };
-  }
-  if (upstreamPath === "packages/coding-agent/src/core/slash-commands.ts") {
-    return {
-      classification: "host-adaptation",
-      localDestination: "src/integrations/pi/engine/workflows.ts",
-      implementationStatus: "adapter-present-conformance-passed",
-      modifications: "Expose the pinned command manifest and dispatch categories through typed A1 workflow contracts; source-derived governance rejects omitted advertised or hidden routes.",
-      approvedDeviations: [],
-    };
-  }
-  if (upstreamPath === "packages/coding-agent/src/modes/interactive/components/config-selector.ts") {
-    return {
-      classification: "host-adaptation",
-      localDestination: "src/integrations/pi/components/index.ts",
-      implementationStatus: "pinned-cli-only-inventory-mapped",
-      modifications: "The pinned unit is reachable from the separate CLI config route, not InteractiveMode or the owned session shell; retain it in source inventory while configuration remains outside this owned-UI launch contract.",
-      approvedDeviations: [],
-    };
-  }
-  if (upstreamPath === "packages/coding-agent/src/modes/interactive/interactive-mode.ts") {
-    return {
-      classification: "host-adaptation",
-      localDestination: "src/integrations/pi/components/index.ts",
-      implementationStatus: "adapter-present-conformance-passed",
-      modifications: "Decompose stock InteractiveMode authority across typed engine, component, TUI, and owned-shell adapters; construction, private inspection, and mutation of the stock root remain forbidden.",
-      approvedDeviations: [],
-    };
-  }
-  if (upstreamPath === "packages/coding-agent/src/modes/interactive/model-catalog-refresh.ts") {
-    return {
-      classification: "host-adaptation",
-      localDestination: "src/integrations/pi/engine/adapter.ts",
-      implementationStatus: "adapter-present-conformance-passed",
-      modifications: "Expose model-runtime refresh, timeout, cached-state, and failure outcomes through the typed engine adapter and stateful scoped-model controller.",
-      approvedDeviations: [],
-    };
-  }
-  return undefined;
 }
 
 function classify(packageName, upstreamPath) {

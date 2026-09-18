@@ -1,8 +1,12 @@
 /**
- * Adapted from @earendil-works/pi-coding-agent 0.84.2
- * packages/coding-agent/src/modes/interactive/components/custom-editor.ts (MIT).
- * Modifications: A1-owned class name, synchronized keybinding contract, and a semantic
- * injected bare-A1 input-frame/contextual-suggestion presentation with explicit body geometry.
+ * Provenance: @earendil-works/pi-coding-agent 0.84.2 (MIT), commit 914cf1472e715297caa30db4b9535d534a9eb718,
+ * packages/coding-agent/src/modes/interactive/components/custom-editor.ts.
+ * Modifications: A1-owned class name and synchronized A1 keybinding contract replace the nominal
+ * private upstream keybinding constructor dependency; bare A1 injects the shared Settings/agent input
+ * frame, transient contextual-suggestion branch, and explicit body geometry for selection and
+ * above-prompt autocomplete. Bare A1 also clears a sole top-level slash-command search on Escape.
+ * Deviations: owned-shared-input-frame, above-prompt-autocomplete-placement,
+ * clear-command-search-on-escape.
  */
 import {
   CURSOR_MARKER,

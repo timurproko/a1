@@ -1,3 +1,11 @@
+/**
+ * Provenance: @earendil-works/pi-coding-agent 0.84.2 (MIT), commit 914cf1472e715297caa30db4b9535d534a9eb718,
+ * packages/coding-agent/src/modes/interactive/theme/theme.ts.
+ * Modifications: Source-synchronized theme port: retain pinned theme schema, variable/color
+ * resolution, built-in and custom loading, terminal detection, and layout defaults while constructing
+ * the public package-root Theme class.
+ * Deviations: theme-public-api-boundary, theme-owned-watcher-boundary.
+ */
 import { existsSync, readFileSync, readdirSync, watch, type FSWatcher } from "node:fs";
 import { join } from "node:path";
 import {

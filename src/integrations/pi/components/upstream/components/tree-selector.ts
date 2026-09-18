@@ -1,7 +1,10 @@
 /**
- * Source-synchronized from Pi 0.84.2
- * packages/coding-agent/src/modes/interactive/components/tree-selector.ts
- * Mechanical changes: public component/type imports and owned keybindings/theme helpers.
+ * Provenance: @earendil-works/pi-coding-agent 0.84.2 (MIT), commit 914cf1472e715297caa30db4b9535d534a9eb718,
+ * packages/coding-agent/src/modes/interactive/components/tree-selector.ts.
+ * Modifications: Source-synchronized tree selector port: preserve filtering, folding, labels, copying,
+ * tree navigation, key hints, focus, and viewport behavior while remapping public types/components
+ * plus owned keybindings/theme helpers required to avoid the pinned package nested pi-tui singleton.
+ * Deviations: none.
  */
 import {
 	type Component,

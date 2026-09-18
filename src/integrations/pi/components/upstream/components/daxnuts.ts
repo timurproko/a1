@@ -1,6 +1,10 @@
-// Mechanically adapted from Pi commit 914cf14
-// packages/coding-agent/src/modes/interactive/components/daxnuts.ts (MIT).
-// Local modifications: remap private imports to public package-root or owned theme boundaries.
+/**
+ * Provenance: @earendil-works/pi-coding-agent 0.84.2 (MIT), commit 914cf1472e715297caa30db4b9535d534a9eb718,
+ * packages/coding-agent/src/modes/interactive/components/daxnuts.ts.
+ * Modifications: Mechanical pinned source port with private imports remapped to public package-root
+ * types/APIs and A1-owned theme boundaries; behavior remains acceptance-tested.
+ * Deviations: none.
+ */
 /**
  * POWERED BY DAXNUTS - Easter egg for OpenCode + Kimi K2.5
  *
