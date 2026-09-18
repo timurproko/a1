@@ -154,7 +154,7 @@ describe("owned history storage composition", () => {
     if (mode === "disabled") observed.enabled = false;
     await compose(mode === "settings-free" ? {} : { profileId: "a1", ...(mode === "comparison" ? { ownedSurfaces: "off" as const } : {}) });
     expect(resolveRoot).not.toHaveBeenCalled();
-    expect(observed.shells.at(-1)!.promptHistory).toBeUndefined();
+    expect(observed.shells.at(-1)!.history).toBeUndefined();
     expect(observed.loadEditor).not.toHaveBeenCalled();
     expect(existsSync(join(root, ".a1"))).toBe(false);
     assertOldUntouched();

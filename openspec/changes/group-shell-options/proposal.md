@@ -20,4 +20,4 @@ None.
 
 ## Impact
 
-No behavior changes: the session-shell, composition, TUI runtime, and owned-UI feature suites pass unchanged (1,087 cases). The startup graph baseline moves by the added group declarations (1,401,442 bytes on the base this change was measured against; re-pinned on the merged base). This ends the phase-3 freeze: session-shell feature PRs may resume after it merges.
+No behavior changes: the session-shell, composition, TUI runtime, and owned-UI feature suites pass unchanged (1,087 cases). The startup graph baseline moves by the added group declarations (152 files, 1,427,745 bytes). This ends the phase-3 freeze: session-shell feature PRs may resume after it merges.
