@@ -8,10 +8,12 @@ import { extractValidationCandidate, loadValidationCandidate } from "./package-c
 let candidate: Awaited<ReturnType<typeof loadValidationCandidate>>;
 let extracted: Awaited<ReturnType<typeof extractValidationCandidate>>;
 
+// Performance: extracting the ~1,900-file candidate on a GitHub Windows runner has taken between 3 s
+// and over 10 s; the bound matches the per-test timeout CI already grants rather than the 10 s hook default.
 beforeAll(async () => {
   candidate = await loadValidationCandidate();
   extracted = await extractValidationCandidate(candidate.bytes);
-});
+}, 30_000);
 
 afterAll(async () => {
   if (extracted?.root) await rm(extracted.root, { recursive: true, force: true });
