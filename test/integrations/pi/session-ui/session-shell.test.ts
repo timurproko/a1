@@ -240,6 +240,7 @@ async function fixture(
   responseCopy?: OwnedUiSessionShellOptions["responseCopy"],
   pasteDiagnostics?: OwnedUiSessionShellOptions["pasteDiagnostics"],
   quitOutro?: OwnedUiSessionShellOptions["quitOutro"],
+  reloadPresentation?: OwnedUiSessionShellOptions["reloadPresentation"],
 ) {
   const engine = new Runtime(messages);
   configureEngine?.(engine);
@@ -266,6 +267,8 @@ async function fixture(
     ...(inputPresentation === undefined ? {} : { inputPresentation }),
     ...(pasteDiagnostics === undefined ? {} : { pasteDiagnostics }),
     ...(quitOutro === undefined ? {} : { quitOutro }),
+    // Rationale: the production hold is real wall-clock time; tests opt into it with injected seams.
+    reloadPresentation: reloadPresentation ?? { minVisibleMs: 0 },
     ...(promptSuggestions === undefined ? {} : { promptSuggestions }),
     ...(promptHistory === undefined ? {} : { promptHistory: { ...promptHistory, editor: await loadHistoryEditor() } }),
   });
@@ -5658,6 +5661,53 @@ describe("OwnedUiSessionShell", () => {
     await reload;
     expect(stripTerminalSequences(shell.root.render(100).join("\n"))).not.toContain("Reloading keybindings");
     expect(execute).toHaveBeenCalledTimes(2);
+    await shell.dispose();
+  });
+
+  it("holds the reload box for the minimum visible window when reload finishes instantly", async () => {
+    let clock = 1_000;
+    const sleeps: number[] = [];
+    let releaseSleep: (() => void) | undefined;
+    const { adapter, shell } = await fixture([], [], false, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, {
+      minVisibleMs: 400,
+      now: () => clock,
+      sleep: ms => {
+        sleeps.push(ms);
+        return new Promise<void>(resolve => { releaseSleep = resolve; });
+      },
+    });
+    vi.spyOn(adapter, "executeWorkflow").mockImplementation(async request => {
+      clock += 50;
+      return { command: request.command, outcome: "completed", message: "Reloaded keybindings, extensions, skills, prompts, themes, and context files" };
+    });
+
+    const reload = shell.runWorkflow({ command: "reload", argument: "" });
+    await vi.waitFor(() => expect(sleeps).toEqual([350]));
+    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Reloading keybindings, extensions, skills, prompts, themes, and context files...");
+    releaseSleep?.();
+    await reload;
+    const frame = stripTerminalSequences(shell.root.render(100).join("\n"));
+    expect(frame).not.toContain("Reloading keybindings");
+    expect(frame).toContain("Reloaded keybindings, extensions, skills, prompts, themes, and context files");
+    await shell.dispose();
+  });
+
+  it("skips the reload hold once the box already stayed visible long enough", async () => {
+    let clock = 1_000;
+    const sleeps: number[] = [];
+    const { adapter, shell } = await fixture([], [], false, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, {
+      minVisibleMs: 400,
+      now: () => clock,
+      sleep: async ms => { sleeps.push(ms); },
+    });
+    vi.spyOn(adapter, "executeWorkflow").mockImplementation(async request => {
+      clock += 400;
+      return { command: request.command, outcome: "completed", message: "Reloaded keybindings, extensions, skills, prompts, themes, and context files" };
+    });
+
+    await shell.runWorkflow({ command: "reload", argument: "" });
+    expect(sleeps).toEqual([]);
+    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).not.toContain("Reloading keybindings");
     await shell.dispose();
   });
 

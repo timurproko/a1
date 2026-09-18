@@ -197,6 +197,15 @@ export interface OwnedUiSessionShellOptions {
     readonly intervalMs?: number;
     readonly scheduler?: StreamPresentationScheduler;
   };
+  /**
+   * Minimum time the reload box stays visible so a fast reload still reads as one.
+   * Production uses the default hold; tests inject `now`/`sleep` for determinism.
+   */
+  readonly reloadPresentation?: {
+    readonly minVisibleMs?: number;
+    readonly now?: () => number;
+    readonly sleep?: (ms: number) => Promise<void>;
+  };
   /** Optional deterministic seam for keyboard scheduling and phase evidence. */
   readonly promptSuggestions?: {
     readonly diagnostics?: SuggestionDiagnosticObserver;
