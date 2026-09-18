@@ -1,8 +1,8 @@
 {
   "schema": "a1-startup-graph-baseline-v1",
   "ownedReachability": {
-    "maximumFiles": 143,
-    "maximumSourceBytes": 1401442,
+    "maximumFiles": 152,
+    "maximumSourceBytes": 1426508,
     "optionalModules": [
       "src/features/owned-ui/settings-app.ts",
       "src/integrations/pi/components/history-editor-loader.ts",
