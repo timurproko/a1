@@ -1,0 +1,11 @@
+## 1. Extraction
+
+- [x] 1.1 Add `src/integrations/pi/engine/workflow-support.ts` with the pure workflow helpers, the pinned default-model table, and the default workflow host moved out of `adapter.ts`; move `stringProperty`, `dynamicObject`, `requireCapability`, `readModel`, and `readThinkingLevel` to `message-values.ts`; move the selector context types to `workflows.ts`.
+- [x] 1.2 Add `src/integrations/pi/engine/workflow-contexts.ts` (`PiWorkflowContexts` with `cwd`, `session`, `runtime`, `disposed`, `activeModel`, and `emitView` ports) holding the model, project-trust, session, scoped-model, login, logout, login-method, ambient-authentication, fork, and tree contexts moved verbatim.
+- [x] 1.3 Add `src/integrations/pi/engine/workflow-runner.ts` (`PiWorkflowRunner` with the session, runtime, generation, interaction, admission, running, model, thinking-level, view, reconciliation, extension, setting, snapshot, and disposal ports) holding `executeWorkflow`, `#runWorkflow`, `#performWorkflow`, `#completeProviderAuthentication`, `#scheduleAuthenticatedProviderRefresh`, `cycleModelWorkflow`, the clipboard writer, bash workflows, and `reloadBlockedResult` moved verbatim; expose `pendingCount` and `cancelPending(except)`.
+- [x] 1.4 In `adapter.ts`, construct both collaborators with closures over adapter state, replace the public workflow methods with one-line delegates, route the autocomplete option lists, `dispose`, the overload cancellation, and the admission budget through them, and drop the now-unused imports.
+
+## 2. Proof
+
+- [x] 2.1 Add `test/integrations/pi/engine/workflow-runner.test.ts` (8 cases) for admission refusal, pending tracking and cancellation except `/quit`, per-command failure wording and clipboard acknowledgment, session workflows, model cycling, login completion with default-model selection, provider option shaping, and selector state.
+- [x] 2.2 Re-pin `config/startup-graph-baseline.json` to 143 files and 1,400,205 bytes; run `npm run typecheck`, `check:architecture`, `check:code-documentation`, the changed-documentation check, and the engine, session-shell, owned-UI, and composition suites; record outcomes: all checks OK, 1,342 passed plus 8 new, `adapter.ts` 3,137 to 1,907 lines.

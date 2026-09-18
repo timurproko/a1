@@ -1,28 +1,19 @@
 import { execFile } from "node:child_process";
-import { existsSync, realpathSync } from "node:fs";
+import { existsSync } from "node:fs";
 import type { PiSessionForkPrompt, PiSessionSelection } from "./session-selection.js";
-import { mkdir, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { PRODUCT_IDENTITY } from "../../../product-identity.js";
 import { configureOwnedHttpDispatcher } from "./http-dispatcher.js";
-import { readPinnedCommandChangelog } from "./changelog.js";
 import { PiTranscriptProjection } from "./transcript-projection.js";
-import { finiteNumber, isRecord, stringValue, textFromContent } from "./message-values.js";
+import { finiteNumber, isRecord, readModel, readThinkingLevel, stringProperty, stringValue, textFromContent } from "./message-values.js";
 import {
-  copyToClipboard,
-  CredentialSynchronizationError,
   DefaultPackageManager,
   getAgentDir,
-  ProjectTrustStore,
-  SessionManager,
   VERSION,
   type AgentSession,
   type AgentSessionRuntime,
   type AgentSessionServices,
   type ExtensionUIContext,
-  type SessionInfo,
 } from "../startup-public.js";
 import {
   OWNED_UI_EXTENSION_CONTRACT_VERSION,
@@ -64,12 +55,16 @@ import {
   type PiBashWorkflowResult,
   type PiPinnedSettingsCallback,
   type PiPinnedSettingsSnapshot,
-  type PiSessionInfoPresentation,
+  type PiProjectTrustContext,
+  type PiProjectTrustUpdate,
+  type PiScopedModelsContext,
+  type PiScopedModelsRefreshResult,
+  type PiSessionResumeMetadata,
+  type PiSessionSelectorContext,
+  type PiTreeSelectorContext,
   type PiWorkflowAutocompleteCommand,
   type PiWorkflowHost,
   type PiWorkflowInteractionHost,
-  type PiWorkflowLoginNotification,
-  type PiWorkflowMessage,
   type PiWorkflowOption,
   type PiWorkflowRequest,
   type PiWorkflowResult,
@@ -83,6 +78,9 @@ import type { PiProjectTrustPreflightPrompt } from "./project-trust-preflight.js
 import type { AgentJsonValue, AgentSettingOwner } from "../../../contracts/agent-engine/index.js";
 
 import { PiEventDelivery, type PiEmittedEvent } from "./event-delivery.js";
+import { PiWorkflowContexts } from "./workflow-contexts.js";
+import { PiWorkflowRunner } from "./workflow-runner.js";
+import { defaultWorkflowHost, workflowResult } from "./workflow-support.js";
 
 /** Explicit flush failure when required delivery was interrupted rather than completed. */
 export class EngineDeliveryError extends Error {
@@ -90,51 +88,6 @@ export class EngineDeliveryError extends Error {
 }
 const execFileAsync = promisify(execFile);
 
-const AUTH_REFRESH_TIMEOUT_MS = 15_000;
-
-// Provenance: Pi 0.84.2 core/model-resolver.ts defaultModelPerProvider.
-const PINNED_DEFAULT_MODEL_BY_PROVIDER: Readonly<Record<string, string>> = Object.freeze({
-  "amazon-bedrock": "us.anthropic.claude-opus-4-6-v1",
-  "ant-ling": "Ring-2.6-1T",
-  anthropic: "claude-opus-4-8",
-  openai: "gpt-5.5",
-  "azure-openai-responses": "gpt-5.4",
-  "openai-codex": "gpt-5.5",
-  radius: "auto",
-  nvidia: "nvidia/nemotron-3-super-120b-a12b",
-  deepseek: "deepseek-v4-pro",
-  google: "gemini-3.1-pro-preview",
-  "google-vertex": "gemini-3.1-pro-preview",
-  "github-copilot": "gpt-5.4",
-  openrouter: "moonshotai/kimi-k2.6",
-  "vercel-ai-gateway": "zai/glm-5.1",
-  xai: "grok-4.5",
-  groq: "openai/gpt-oss-120b",
-  cerebras: "zai-glm-4.7",
-  zai: "glm-5.1",
-  "zai-coding-cn": "glm-5.1",
-  mistral: "devstral-medium-latest",
-  minimax: "MiniMax-M2.7",
-  "minimax-cn": "MiniMax-M2.7",
-  moonshotai: "kimi-k2.6",
-  "moonshotai-cn": "kimi-k2.6",
-  huggingface: "moonshotai/Kimi-K2.6",
-  fireworks: "accounts/fireworks/models/kimi-k2p6",
-  together: "moonshotai/Kimi-K2.6",
-  baseten: "zai-org/GLM-5.2",
-  opencode: "kimi-k2.6",
-  "opencode-go": "kimi-k2.6",
-  "kimi-coding": "kimi-for-coding",
-  "cloudflare-workers-ai": "@cf/moonshotai/kimi-k2.6",
-  "cloudflare-ai-gateway": "workers-ai/@cf/moonshotai/kimi-k2.6",
-  "qwen-token-plan": "qwen3.7-max",
-  "qwen-token-plan-cn": "qwen3.7-max",
-  "qwen-token-plan-individual": "qwen3.8-max",
-  xiaomi: "mimo-v2.5-pro",
-  "xiaomi-token-plan-cn": "mimo-v2.5-pro",
-  "xiaomi-token-plan-ams": "mimo-v2.5-pro",
-  "xiaomi-token-plan-sgp": "mimo-v2.5-pro",
-});
 
 export interface PiEngineRuntimeFactoryInput {
   readonly cwd: string;
@@ -144,60 +97,6 @@ export interface PiEngineRuntimeFactoryInput {
   readonly sessionSelection?: PiSessionSelection;
   readonly sessionForkPrompt?: PiSessionForkPrompt;
   readonly projectTrustPrompt?: PiProjectTrustPreflightPrompt;
-}
-
-export interface PiScopedModelDescriptor {
-  readonly provider: string;
-  readonly id: string;
-  readonly name: string;
-}
-
-export interface PiScopedModelsContext {
-  readonly models: readonly PiScopedModelDescriptor[];
-  readonly enabledModelIds: readonly string[] | null;
-}
-
-export interface PiProjectTrustUpdate {
-  readonly path: string;
-  readonly decision: boolean | null;
-}
-
-export interface PiProjectTrustContext {
-  readonly cwd: string;
-  readonly savedDecision: { readonly path: string; readonly decision: boolean } | null;
-  readonly projectTrusted: boolean;
-  readonly trustOptions: readonly {
-    readonly label: string;
-    readonly trusted: boolean;
-    readonly updates: readonly PiProjectTrustUpdate[];
-    readonly savedPath?: string;
-  }[];
-}
-
-export interface PiTreeSelectorContext {
-  readonly tree: readonly unknown[];
-  readonly currentLeafId: string | null;
-  readonly filterMode: "default" | "no-tools" | "user-only" | "labeled-only" | "all";
-  readonly skipSummaryPrompt: boolean;
-  readonly appendLabelChange: (entryId: string, label: string | undefined) => void;
-}
-
-export interface PiSessionResumeMetadata {
-  readonly sessionId: string;
-  readonly sessionDir: string;
-  readonly usesDefaultSessionDir: boolean;
-}
-
-export interface PiSessionSelectorContext {
-  readonly currentSessionFilePath: string | undefined;
-  readonly loadCurrentSessions: (onProgress?: (loaded: number, total: number) => void) => Promise<SessionInfo[]>;
-  readonly loadAllSessions: (onProgress?: (loaded: number, total: number) => void) => Promise<SessionInfo[]>;
-  readonly renameSession: (sessionFilePath: string, nextName: string | undefined) => Promise<void>;
-}
-
-export interface PiScopedModelsRefreshResult extends PiScopedModelsContext {
-  readonly status: string;
-  readonly statusKind: "success" | "warning";
 }
 
 type PiSessionApi = AgentSession;
@@ -290,8 +189,9 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
   readonly #sessionSelection: PiSessionSelection | undefined;
   readonly #sessionForkPrompt: PiSessionForkPrompt | undefined;
   readonly #workflowHost: PiWorkflowHost;
-  #clipboardWriter: ((text: string) => Promise<boolean>) | undefined;
   #workflowInteraction: PiWorkflowInteractionHost;
+  readonly #contexts: PiWorkflowContexts;
+  readonly #workflows: PiWorkflowRunner;
   #runtime: PiRuntimeApi | undefined;
   #session: PiSessionApi | undefined;
   #unsubscribe: (() => void) | undefined;
@@ -338,7 +238,6 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
   #admissionStopped = false;
   #runningCommands = 0;
   readonly #pendingCommands = new Map<string, { type: OwnedUiCommand["type"]; cancel(): void }>();
-  readonly #pendingWorkflows = new Set<{ command: PiWorkflowRequest["command"]; cancel(): void }>();
   #agentRunActive = false;
   #agentRunSequence = 0;
   #assistantResponseSequence = 0;
@@ -373,6 +272,35 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
     this.#settingsProductMode = options.settingsProductMode ?? "bare";
     this.#projectTrustPrompt = options.projectTrustPrompt;
     this.#workflowInteraction = { prompt: async () => null, notify() {} };
+    this.#contexts = new PiWorkflowContexts({ agentDir: this.#agentDir }, {
+      cwd: () => this.#cwd,
+      session: () => this.#session,
+      runtime: () => this.#runtime,
+      disposed: () => this.#disposed,
+      activeModel: () => this.#activeModel,
+      emitView: () => { this.#emitView(); },
+    });
+    this.#workflows = new PiWorkflowRunner({ agentDir: this.#agentDir, host: this.#workflowHost, contexts: this.#contexts }, {
+      session: () => this.#session,
+      runtime: () => this.#runtime,
+      disposed: () => this.#disposed,
+      sessionGeneration: () => this.#sessionGeneration,
+      interaction: () => this.#workflowInteraction,
+      admissionStopped: () => this.#delivery.overloaded || this.#admissionStopped || this.#disposed,
+      pendingCommandCount: () => this.#pendingCommands.size,
+      beginRunning: () => { this.#runningCommands++; },
+      endRunning: () => { this.#runningCommands--; },
+      activeModel: () => this.#activeModel,
+      setActiveModel: model => { this.#activeModel = model; },
+      thinkingLevel: () => this.#thinkingLevel,
+      setThinkingLevel: level => { this.#thinkingLevel = level; },
+      emitView: () => { this.#emitView(); },
+      reconcileActiveModelAvailability: () => { this.#reconcileActiveModelAvailability(); },
+      bindExtensionUiToSession: () => this.#bindExtensionUiToSession(),
+      applyPinnedSetting: selection => this.#applyPinnedSetting(selection),
+      snapshot: () => this.snapshot(),
+      dispose: () => this.dispose(),
+    });
   }
 
   setWorkflowInteractionHost(interaction: PiWorkflowInteractionHost): void {
@@ -602,7 +530,7 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
 
   /** Developer-only pressure evidence; never mirrored into visible diagnostic/status arrays. */
   deliveryDiagnostics() {
-    return { ...this.#delivery.diagnostics(), pendingCommands: this.#pendingCommands.size + this.#pendingWorkflows.size };
+    return { ...this.#delivery.diagnostics(), pendingCommands: this.#pendingCommands.size + this.#workflows.pendingCount };
   }
 
   async flushEvents(): Promise<void> {
@@ -790,14 +718,14 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
         name: "model",
         description: "Select model (opens selector UI)",
         argumentHint: "<provider/model>",
-        argumentOptions: this.#modelOptions(),
+        argumentOptions: this.#contexts.modelOptions(),
         source: "builtin",
       },
       {
         name: "login",
         description: "Configure provider authentication",
         argumentHint: "<provider>",
-        argumentOptions: this.#loginOptions().map(option => ({ ...option, id: option.id.split(":").at(-1) ?? option.id })),
+        argumentOptions: this.#contexts.loginOptions().map(option => ({ ...option, id: option.id.split(":").at(-1) ?? option.id })),
         source: "builtin",
       },
     ];
@@ -843,25 +771,89 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
   }
 
   async cycleModelWorkflow(direction: "forward" | "backward"): Promise<PiWorkflowResult> {
-    try {
-      const session = this.#requireWorkflowSession();
-      const result = await requireCapability(session.cycleModel, "cycleModel").call(session, direction);
-      if (!isRecord(result) || !isRecord(result.model)) {
-        const scoped = Array.isArray(session.scopedModels) && session.scopedModels.length > 0;
-        return workflowResult("model", "completed", scoped ? "Only one model in scope" : "Only one model available", undefined, "status");
-      }
-      const model = readModel(result.model);
-      if (model) this.#activeModel = model;
-      if (result.thinkingLevel !== undefined) this.#thinkingLevel = readThinkingLevel(result.thinkingLevel);
-      this.#emitView();
-      const modelName = stringProperty(result.model, "name") ?? stringProperty(result.model, "id") ?? "model";
-      const reasoning = result.model.reasoning === true;
-      const thinking = this.#thinkingLevel;
-      const suffix = reasoning && thinking !== "off" ? ` (thinking: ${thinking})` : "";
-      return workflowResult("model", "completed", `Switched to ${modelName}${suffix}`, undefined, "status");
-    } catch (error) {
-      return workflowResult("model", "failed", error instanceof Error ? error.message : String(error));
-    }
+    return this.#workflows.cycleModelWorkflow(direction);
+  }
+
+  pinnedModelSelectorContext(): ReturnType<PiWorkflowContexts["pinnedModelSelectorContext"]> {
+    return this.#contexts.pinnedModelSelectorContext();
+  }
+
+  pinnedProjectTrustContext(): PiProjectTrustContext {
+    return this.#contexts.pinnedProjectTrustContext();
+  }
+
+  persistProjectTrust(updates: readonly PiProjectTrustUpdate[]): void {
+    this.#contexts.persistProjectTrust(updates);
+  }
+
+  pinnedSessionSelectorContext(): PiSessionSelectorContext {
+    return this.#contexts.pinnedSessionSelectorContext();
+  }
+
+  pinnedScopedModelsContext(): PiScopedModelsContext {
+    return this.#contexts.pinnedScopedModelsContext();
+  }
+
+  updateScopedModels(enabledModelIds: readonly string[] | null): void {
+    this.#contexts.updateScopedModels(enabledModelIds);
+  }
+
+  persistScopedModels(enabledModelIds: readonly string[] | null): void {
+    this.#contexts.persistScopedModels(enabledModelIds);
+  }
+
+  refreshScopedModels(signal: AbortSignal): Promise<PiScopedModelsRefreshResult> {
+    return this.#contexts.refreshScopedModels(signal);
+  }
+
+  pinnedLoginOptions(authType?: "oauth" | "api_key"): readonly PiAuthenticationProviderOption[] {
+    return this.#contexts.loginOptions(authType);
+  }
+
+  pinnedLoginMethodOptions(providerReference: string): { readonly title: string; readonly options: readonly PiWorkflowOption[] } {
+    return this.#contexts.pinnedLoginMethodOptions(providerReference);
+  }
+
+  pinnedAmbientAuthentication(selection: string): ReturnType<PiWorkflowContexts["pinnedAmbientAuthentication"]> {
+    return this.#contexts.pinnedAmbientAuthentication(selection);
+  }
+
+  pinnedLogoutOptions(): Promise<readonly PiAuthenticationProviderOption[]> {
+    return this.#contexts.logoutOptions();
+  }
+
+  pinnedForkOptions(): readonly PiWorkflowOption[] {
+    return this.#contexts.pinnedForkOptions();
+  }
+
+  pinnedTreeSelectorContext(): PiTreeSelectorContext {
+    return this.#contexts.pinnedTreeSelectorContext();
+  }
+
+  /** Bind the owned UI's clipboard lifecycle without changing the comparison host. True means acknowledged delivery. */
+  bindClipboardWriter(writer: (text: string) => Promise<boolean>): () => void {
+    return this.#workflows.bindClipboardWriter(writer);
+  }
+
+  /** Workflow and tree copying share the active owner's write fence and delivery acknowledgment. */
+  copyWorkflowText(text: string): Promise<boolean> {
+    return this.#workflows.copyWorkflowText(text);
+  }
+
+  abortBashWorkflow(): void {
+    this.#workflows.abortBashWorkflow();
+  }
+
+  executeBashWorkflow(command: string, excludeFromContext: boolean): Promise<PiBashWorkflowResult> {
+    return this.#workflows.executeBashWorkflow(command, excludeFromContext);
+  }
+
+  reloadBlockedResult(): PiWorkflowResult | null {
+    return this.#workflows.reloadBlockedResult();
+  }
+
+  executeWorkflow(request: PiWorkflowRequest): Promise<PiWorkflowResult> {
+    return this.#workflows.executeWorkflow(request);
   }
 
   /**
@@ -969,227 +961,6 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
     return settings.bindOwner(owner, handlers);
   }
 
-  pinnedModelSelectorContext(): {
-    readonly currentModel: unknown;
-    readonly settingsManager: unknown;
-    readonly modelRuntime: unknown;
-    readonly scopedModels: readonly unknown[];
-  } {
-    const session = this.#requireWorkflowSession();
-    const runtime = this.#runtime;
-    if (!runtime) throw new Error("engine runtime is unavailable");
-    const scoped = session.scopedModels;
-    const modelRuntime = runtime.services.modelRuntime;
-    const selectorRuntime = typeof modelRuntime.getAvailableSnapshot === "function"
-      ? modelRuntime
-      : {
-          getAvailableSnapshot: () => session.model === undefined ? [] : [session.model],
-          getModel: (providerId: string, modelId: string) => modelRuntime.getModel(providerId, modelId),
-          getError: () => undefined,
-          refresh: async () => undefined,
-        };
-    const settingsManager = runtime.services.settingsManager;
-    const selectorSettings = typeof settingsManager?.setDefaultModelAndProvider === "function"
-      ? settingsManager
-      : { setDefaultModelAndProvider() {} };
-    return {
-      currentModel: this.#activeModel === null ? undefined : session.model,
-      settingsManager: selectorSettings,
-      modelRuntime: selectorRuntime,
-      scopedModels: Array.isArray(scoped) ? scoped : [],
-    };
-  }
-
-  pinnedProjectTrustContext(): PiProjectTrustContext {
-    const runtime = this.#runtime;
-    if (!runtime) throw new Error("engine runtime is unavailable");
-    const cwd = resolve(this.#cwd);
-    let trustPath = cwd;
-    try { trustPath = realpathSync(cwd); } catch {
-      // Compatibility: pinned Pi retains the resolved path when real-path lookup fails.
-    }
-    // Security: trust the target's parent, not the parent containing a directory alias.
-    const parent = dirname(trustPath);
-    const trustStore = new ProjectTrustStore(this.#agentDir);
-    const trustOptions: PiProjectTrustContext["trustOptions"] = [
-      { label: "Trust", trusted: true, updates: [{ path: trustPath, decision: true }], savedPath: trustPath },
-      ...(parent === trustPath ? [] : [{
-        label: `Trust parent folder (${parent})`,
-        trusted: true,
-        updates: [{ path: parent, decision: true }, { path: trustPath, decision: null }],
-        savedPath: parent,
-      }]),
-      { label: "Do not trust", trusted: false, updates: [{ path: trustPath, decision: false }], savedPath: trustPath },
-    ];
-    return {
-      cwd,
-      savedDecision: trustStore.getEntry(cwd),
-      projectTrusted: runtime.services.settingsManager?.isProjectTrusted?.() === true,
-      trustOptions,
-    };
-  }
-
-  persistProjectTrust(updates: readonly PiProjectTrustUpdate[]): void {
-    new ProjectTrustStore(this.#agentDir).setMany([...updates]);
-  }
-
-  pinnedSessionSelectorContext(): PiSessionSelectorContext {
-    const session = this.#requireWorkflowSession();
-    const manager = session.sessionManager;
-    const cwd = manager?.getCwd?.();
-    const sessionDir = manager?.getSessionDir?.();
-    const currentSessionFilePath = manager?.getSessionFile?.();
-    const usesDefaultSessionDir = manager?.usesDefaultSessionDir?.() === true;
-    const resolvedCwd = typeof cwd === "string" ? cwd : this.#cwd;
-    const resolvedSessionDir = typeof sessionDir === "string" ? sessionDir : undefined;
-    return {
-      currentSessionFilePath: typeof currentSessionFilePath === "string" ? currentSessionFilePath : undefined,
-      loadCurrentSessions: onProgress => SessionManager.list(resolvedCwd, resolvedSessionDir, onProgress),
-      loadAllSessions: onProgress => usesDefaultSessionDir
-        ? SessionManager.listAll(onProgress)
-        : resolvedSessionDir === undefined ? SessionManager.listAll(onProgress) : SessionManager.listAll(resolvedSessionDir, onProgress),
-      renameSession: async (sessionFilePath, nextName) => {
-        const next = (nextName ?? "").trim();
-        if (!next) return;
-        SessionManager.open(sessionFilePath).appendSessionInfo(next);
-      },
-    };
-  }
-
-  pinnedScopedModelsContext(): PiScopedModelsContext {
-    const session = this.#requireWorkflowSession();
-    const runtime = this.#runtime;
-    if (!runtime) throw new Error("engine runtime is unavailable");
-    const models = scopedModelRecords(runtime.services.modelRuntime);
-    const scoped = session.scopedModels;
-    if (Array.isArray(scoped) && scoped.length > 0) {
-      return {
-        models: models.map(item => item.descriptor),
-        enabledModelIds: scoped.map(scopedModelReference).filter((id): id is string => id !== undefined),
-      };
-    }
-    const patterns = runtime.services.settingsManager?.getEnabledModels?.();
-    return {
-      models: models.map(item => item.descriptor),
-      enabledModelIds: Array.isArray(patterns)
-        ? resolveConfiguredModelIds(patterns.filter((value): value is string => typeof value === "string"), models)
-        : null,
-    };
-  }
-
-  updateScopedModels(enabledModelIds: readonly string[] | null): void {
-    const session = this.#requireWorkflowSession();
-    const runtime = this.#runtime;
-    if (!runtime) throw new Error("engine runtime is unavailable");
-    const models = scopedModelRecords(runtime.services.modelRuntime);
-    const availableIds = new Set(models.map(item => `${item.descriptor.provider}/${item.descriptor.id}`));
-    const selected = enabledModelIds?.filter(id => availableIds.has(id)) ?? [];
-    const allAvailableEnabled = enabledModelIds !== null && availableIds.size > 0 && selected.length === availableIds.size;
-    const scoped = enabledModelIds !== null && selected.length > 0 && !allAvailableEnabled
-      ? selected.flatMap(id => {
-          const item = models.find(candidate => `${candidate.descriptor.provider}/${candidate.descriptor.id}` === id);
-          return item === undefined ? [] : [{ model: item.model }];
-        })
-      : [];
-    requireCapability(session.setScopedModels, "setScopedModels").call(session, scoped);
-    this.#emitView();
-  }
-
-  persistScopedModels(enabledModelIds: readonly string[] | null): void {
-    const runtime = this.#runtime;
-    if (!runtime) throw new Error("engine runtime is unavailable");
-    const availableCount = scopedModelRecords(runtime.services.modelRuntime).length;
-    const patterns = enabledModelIds === null || enabledModelIds.length === availableCount
-      ? undefined
-      : [...enabledModelIds];
-    requireCapability(runtime.services.settingsManager?.setEnabledModels, "setEnabledModels").call(runtime.services.settingsManager, patterns === undefined ? undefined : [...patterns]);
-  }
-
-  async refreshScopedModels(signal: AbortSignal): Promise<PiScopedModelsRefreshResult> {
-    const runtime = this.#runtime;
-    if (!runtime) throw new Error("engine runtime is unavailable");
-    const result = await runtime.services.modelRuntime.refresh?.({ signal });
-    const context = this.pinnedScopedModelsContext();
-    if (isRecord(result) && result.aborted === true) {
-      return { ...context, status: "Model refresh timed out; showing cached models.", statusKind: "warning" };
-    }
-    const errors = isRecord(result) ? result.errors : undefined;
-    if (errors instanceof Map && errors.size > 0) {
-      return {
-        ...context,
-        status: `Could not refresh ${[...errors.keys()].join(", ")}; showing cached models.`,
-        statusKind: "warning",
-      };
-    }
-    return { ...context, status: "Model catalogs refreshed.", statusKind: "success" };
-  }
-
-  pinnedLoginOptions(authType?: "oauth" | "api_key"): readonly PiAuthenticationProviderOption[] {
-    return this.#loginOptions(authType);
-  }
-
-  pinnedLoginMethodOptions(providerReference: string): { readonly title: string; readonly options: readonly PiWorkflowOption[] } {
-    const runtime = this.#runtime;
-    if (!runtime) throw new Error("engine runtime is unavailable");
-    const modelRuntime = runtime.services.modelRuntime;
-    const normalized = providerReference.trim().toLowerCase();
-    const providers = modelRuntime.getProviders?.();
-    const matches = Array.isArray(providers) ? providers.filter(isRecord).filter(candidate =>
-      stringProperty(candidate, "id")?.toLowerCase() === normalized
-        || stringProperty(candidate, "name")?.toLowerCase() === normalized) : [];
-    const providerId = matches.length === 1 ? stringProperty(matches[0], "id") ?? providerReference : providerReference;
-    const provider = modelRuntime.getProvider?.(providerId);
-    const providerName = stringProperty(provider, "name") ?? providerId;
-    const oauth = dynamicObject(dynamicObject(provider, "auth"), "oauth");
-    const loginLabel = stringProperty(oauth, "loginLabel") ?? "Sign in with an account";
-    const options = this.#loginOptions().filter(option => option.id.endsWith(`:${providerId}`)).map(option => ({
-      id: option.id,
-      label: option.id.startsWith("api_key:") ? "Sign in with an API key" : loginLabel,
-      ...(option.description === undefined ? {} : { description: option.description }),
-    }));
-    return { title: `Select authentication method for ${providerName}:`, options };
-  }
-
-  pinnedAmbientAuthentication(selection: string): { readonly providerId: string; readonly providerName: string; readonly title: string; readonly message: string } | null {
-    if (!selection.startsWith("api_key:")) return null;
-    const providerId = selection.slice("api_key:".length);
-    const provider = this.#runtime?.services.modelRuntime.getProvider?.(providerId);
-    const method = dynamicObject(dynamicObject(provider, "auth"), "apiKey");
-    if (!method || typeof method.login === "function") return null;
-    const providerName = stringProperty(provider, "name") ?? providerId;
-    return { providerId, providerName, title: `${providerName} setup`, message: `${stringProperty(method, "name") ?? "Authentication"} is configured outside pi.` };
-  }
-
-  pinnedLogoutOptions(): Promise<readonly PiAuthenticationProviderOption[]> {
-    return this.#logoutOptions();
-  }
-
-  pinnedForkOptions(): readonly PiWorkflowOption[] {
-    const session = this.#requireWorkflowSession();
-    const messages = requireCapability(session.getUserMessagesForForking, "getUserMessagesForForking").call(session);
-    return workflowOptions(messages, "entryId", "text");
-  }
-
-  pinnedTreeSelectorContext(): PiTreeSelectorContext {
-    const manager = this.#requireWorkflowSession().sessionManager;
-    const settings = this.#runtime?.services.settingsManager;
-    const tree = manager?.getTree?.();
-    const leaf = manager?.getLeafId?.();
-    const configuredFilter = settings?.getTreeFilterMode?.();
-    const filterMode = configuredFilter === "no-tools" || configuredFilter === "user-only" || configuredFilter === "labeled-only" || configuredFilter === "all"
-      ? configuredFilter
-      : "default";
-    return {
-      tree: Array.isArray(tree) ? tree : [],
-      currentLeafId: typeof leaf === "string" ? leaf : null,
-      filterMode,
-      skipSummaryPrompt: settings?.getBranchSummarySkipPrompt?.() === true,
-      appendLabelChange: (entryId, label) => {
-        requireCapability(manager?.appendLabelChange, "appendLabelChange").call(manager, entryId, label);
-      },
-    };
-  }
-
   pinnedSettingsSnapshot(): PiPinnedSettingsSnapshot {
     const session = this.#requireWorkflowSession();
     const settings = this.#runtime?.services.settingsManager;
@@ -1254,20 +1025,6 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
     return this.#requireWorkflowSession().extensionRunner?.getToolDefinition?.(toolName);
   }
 
-  /** Bind the owned UI's clipboard lifecycle without changing the comparison host. True means acknowledged delivery. */
-  bindClipboardWriter(writer: (text: string) => Promise<boolean>): () => void {
-    const previous = this.#clipboardWriter;
-    this.#clipboardWriter = writer;
-    return () => { if (this.#clipboardWriter === writer) this.#clipboardWriter = previous; };
-  }
-
-  /** Workflow and tree copying share the active owner's write fence and delivery acknowledgment. */
-  async copyWorkflowText(text: string): Promise<boolean> {
-    if (this.#clipboardWriter !== undefined) return this.#clipboardWriter(text);
-    await this.#workflowHost.copyText(text);
-    return true;
-  }
-
   clearQueuedWorkflows(): readonly string[] {
     const session = this.#requireWorkflowSession();
     const result = session.clearQueue?.();
@@ -1276,67 +1033,11 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
     return [...readStringArray(result.steering), ...readStringArray(result.followUp)];
   }
 
-  abortBashWorkflow(): void {
-    this.#requireWorkflowSession().abortBash?.();
-  }
-
-  async executeBashWorkflow(command: string, excludeFromContext: boolean): Promise<PiBashWorkflowResult> {
-    const session = this.#requireWorkflowSession();
-    const result = await requireCapability(session.executeBash, "executeBash").call(session, command, undefined, { excludeFromContext });
-    if (!isRecord(result)) throw new Error("Pi bash workflow returned a malformed result");
-    return {
-      command,
-      output: typeof result.output === "string" ? result.output : "",
-      exitCode: typeof result.exitCode === "number" ? result.exitCode : undefined,
-      cancelled: result.cancelled === true,
-      truncated: result.truncated === true,
-      excludeFromContext,
-    };
-  }
-
   async applyPinnedSettingValue(callback: PiPinnedSettingsCallback, value: unknown): Promise<PiWorkflowResult> {
     try {
       return await this.#applyPinnedSetting(callback, value, true);
     } catch (error) {
       return workflowResult("settings", "failed", error instanceof Error ? error.message : String(error));
-    }
-  }
-
-  reloadBlockedResult(): PiWorkflowResult | null {
-    const session = this.#requireWorkflowSession();
-    if (session.isStreaming) return workflowResult("reload", "failed", "Wait for the current response to finish before reloading.", undefined, "warning");
-    if (session.isCompacting) return workflowResult("reload", "failed", "Wait for compaction to finish before reloading.", undefined, "warning");
-    return null;
-  }
-
-  async executeWorkflow(request: PiWorkflowRequest): Promise<PiWorkflowResult> {
-    const cancelled = workflowResult(request.command, "cancelled", "", undefined, "silent");
-    if (this.#delivery.overloaded || this.#admissionStopped || this.#disposed
-      || this.#pendingCommands.size + this.#pendingWorkflows.size >= 32) return cancelled;
-    let cancel!: () => void;
-    const cancellation = new Promise<PiWorkflowResult>(resolve => { cancel = () => resolve(cancelled); });
-    const pending = { command: request.command, cancel };
-    this.#pendingWorkflows.add(pending); this.#runningCommands++;
-    const operation = this.#runWorkflow(request).finally(() => { this.#runningCommands--; });
-    try { return await Promise.race([operation, cancellation]); }
-    finally { this.#pendingWorkflows.delete(pending); }
-  }
-
-  async #runWorkflow(request: PiWorkflowRequest): Promise<PiWorkflowResult> {
-    try {
-      return await this.#performWorkflow(request);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      const contextualMessage = request.command === "export"
-        ? `Failed to export session: ${errorMessage(error, "Unknown error")}`
-        : request.command === "import"
-          ? `Failed to import session: ${message}`
-          : request.command === "new"
-            ? `Failed to create session: ${message}`
-            : request.command === "resume"
-              ? `Failed to resume session: ${message}`
-              : request.command === "reload" ? `Reload failed: ${message}` : message;
-      return workflowResult(request.command, "failed", contextualMessage);
     }
   }
 
@@ -1392,7 +1093,7 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
       return this.#finishCommand(command, "rejected", "engine adapter is not running");
     }
     // Invariant: the bounded out-of-band cancellation path has one slot per admitted command.
-    if (this.#delivery.overloaded || this.#admissionStopped || this.#pendingCommands.size + this.#pendingWorkflows.size >= 32) return { outcome: "rejected", diagnostic: null };
+    if (this.#delivery.overloaded || this.#admissionStopped || this.#pendingCommands.size + this.#workflows.pendingCount >= 32) return { outcome: "rejected", diagnostic: null };
     const existing = this.#completedCommands.get(command.correlationId);
     if (existing) return existing;
     if (this.#activeCommandIds.includes(command.correlationId)) {
@@ -1436,7 +1137,7 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
     this.#disposed = true;
     for (const pending of this.#pendingCommands.values()) if (pending.type !== "shutdown") pending.cancel();
     // Compatibility: /quit owns normal disposal and must report its actual completion, not cancel itself.
-    for (const pending of this.#pendingWorkflows) if (pending.command !== "quit") pending.cancel();
+    this.#workflows.cancelPending("quit");
     this.#projection.assets.clear();
     this.#extensionBound = false;
     this.#extensionUi = undefined;
@@ -1454,584 +1155,9 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
     try { await this.flushEvents(); } catch (error) { if (!(error instanceof EngineDeliveryError)) throw error; }
   }
 
-  async #performWorkflow(request: PiWorkflowRequest): Promise<PiWorkflowResult> {
-    const session = this.#requireWorkflowSession();
-    const runtime = this.#runtime;
-    if (!runtime) throw new Error("engine runtime is unavailable");
-    const argument = request.argument.trim();
-    const selected = request.selection?.trim();
-    const selection = selected && selected.length > 0 ? selected : undefined;
-
-    switch (request.command) {
-      case "settings": {
-        if (!selection) return workflowResult(request.command, "failed", "Settings requires the owned settings controller");
-        return await this.#applyPinnedSetting(selection);
-      }
-      case "model": {
-        const reference = selection ?? argument;
-        if (!reference) return workflowResult(request.command, "failed", "Model requires the owned model controller");
-        const scopedModels = Array.isArray(session.scopedModels)
-          ? session.scopedModels.map(item => item.model)
-          : [];
-        let availableModels = scopedModels.length > 0
-          ? scopedModels
-          : [...(runtime.services.modelRuntime.getAvailableSnapshot?.() ?? [])];
-        let model = findExactWorkflowModel(reference, availableModels);
-        const messages: PiWorkflowMessage[] = [];
-        const generation = this.#sessionGeneration;
-        const current = () => !this.#disposed && generation === this.#sessionGeneration;
-        const publish = (message: PiWorkflowMessage) => {
-          if (!current()) return;
-          if (this.#workflowInteraction.publish) this.#workflowInteraction.publish(message);
-          else messages.push(message);
-        };
-        if (model === undefined && scopedModels.length === 0) {
-          publish({ kind: "status", message: "Refreshing model catalogs…" });
-          const controller = new AbortController();
-          let timedOut = false;
-          const timeout = setTimeout(() => {
-            timedOut = true;
-            controller.abort();
-          }, AUTH_REFRESH_TIMEOUT_MS);
-          try {
-            const refreshed = await runtime.services.modelRuntime.refresh?.({ signal: controller.signal });
-            if (isRecord(refreshed) && refreshed.aborted === true && timedOut) {
-              publish({ kind: "warning", message: "Model refresh timed out; searching cached models." });
-            } else if (isRecord(refreshed) && refreshed.errors instanceof Map && refreshed.errors.size > 0) {
-              publish({ kind: "warning", message: `Could not refresh ${[...refreshed.errors.keys()].join(", ")}; searching cached models.` });
-            }
-          } catch (error) {
-            publish({
-              kind: "warning",
-              message: timedOut
-                ? "Model refresh timed out; searching cached models."
-                : `Could not refresh model catalogs: ${error instanceof Error ? error.message : String(error)}`,
-            });
-          } finally {
-            clearTimeout(timeout);
-          }
-          availableModels = [...(runtime.services.modelRuntime.getAvailableSnapshot?.() ?? [])];
-          model = findExactWorkflowModel(reference, availableModels);
-        }
-        if (!current()) return workflowResult(request.command, "cancelled", "Model selection cancelled", undefined, "silent");
-        if (model === undefined) {
-          return {
-            ...workflowResult(request.command, "requires-selection", "Select a model", reference, "silent"),
-            ...(messages.length === 0 ? {} : { messages: Object.freeze(messages) }),
-          };
-        }
-        try {
-          await session.setModel(model);
-        } catch (error) {
-          if (!current()) return workflowResult(request.command, "cancelled", "Model selection cancelled", undefined, "silent");
-          const failure: PiWorkflowMessage = { kind: "error", message: error instanceof Error ? error.message : String(error) };
-          return workflowResult(request.command, "failed", failure.message, undefined, "error", messages.length === 0 ? undefined : [...messages, failure]);
-        }
-        if (!current()) return workflowResult(request.command, "cancelled", "Model selection cancelled", undefined, "silent");
-        const providerId = stringProperty(model, "provider") ?? "unknown";
-        const modelId = stringProperty(model, "id") ?? reference;
-        this.#activeModel = { providerId, modelId, displayName: stringProperty(model, "name") ?? modelId };
-        this.#emitView();
-        const resultMessage: PiWorkflowMessage = { kind: "status", message: `Model: ${modelId}` };
-        return messages.length === 0
-          ? workflowResult(request.command, "completed", resultMessage.message)
-          : workflowResult(request.command, "completed", resultMessage.message, undefined, "status", [...messages, resultMessage]);
-      }
-      case "scoped-models": {
-        if (!selection) return workflowResult(request.command, "failed", "Scoped models requires the owned scoped-model controller");
-        const [providerId, modelId] = selection.split("/", 2);
-        const model = providerId && modelId ? runtime.services.modelRuntime.getModel(providerId, modelId) : undefined;
-        if (!model) return workflowResult(request.command, "failed", `Model is unavailable: ${selection}`);
-        requireCapability(session.setScopedModels, "setScopedModels").call(session, [{ model }]);
-        return workflowResult(request.command, "completed", `Enabled scoped model ${selection}`);
-      }
-      case "export": {
-        const path = pathArgument(argument);
-        const file = path?.toLowerCase().endsWith(".jsonl")
-          ? requireCapability(session.exportToJsonl, "exportToJsonl").call(session, path)
-          : await requireCapability(session.exportToHtml, "exportToHtml").call(session, path);
-        return workflowResult(request.command, "completed", `Session exported to: ${String(file)}`);
-      }
-      case "import": {
-        const path = pathArgument(argument);
-        if (!path) return workflowResult(request.command, "failed", "Usage: /import <path.jsonl>");
-        if (request.confirmed === undefined) {
-          return workflowConfirmation(request.command, `Replace current session with ${path}?`);
-        }
-        if (!request.confirmed) return workflowResult(request.command, "cancelled", "Import cancelled", undefined, "status");
-        try {
-          const result = await requireCapability(runtime.importFromJsonl, "importFromJsonl").call(runtime, path, request.cwdOverride);
-          if (isRecord(result) && result.cancelled === true) return workflowResult(request.command, "cancelled", "Import cancelled", undefined, "status");
-          return workflowResult(request.command, "completed", `Session imported from: ${path}`);
-        } catch (error) {
-          const issue = isRecord(error) && isRecord(error.issue) ? error.issue : undefined;
-          const fallbackCwd = issue === undefined ? undefined : stringProperty(issue, "fallbackCwd");
-          if (fallbackCwd !== undefined && request.cwdOverride === undefined) {
-            const sessionCwd = stringProperty(issue, "sessionCwd") ?? "the session working directory";
-            return workflowConfirmation(
-              request.command,
-              `cwd from session file does not exist\n${sessionCwd}\n\ncontinue in current cwd\n${fallbackCwd}`,
-              fallbackCwd,
-            );
-          }
-          throw error;
-        }
-      }
-      case "share": {
-        const signal = request.signal;
-        if (signal?.aborted) return workflowResult(request.command, "cancelled", "Share cancelled", undefined, "status");
-        try {
-          await this.#workflowHost.runCommand("gh", ["auth", "status"], signal === undefined ? undefined : { signal });
-        } catch (error) {
-          if (signal?.aborted || isAbortError(error)) return workflowResult(request.command, "cancelled", "Share cancelled", undefined, "status");
-          const message = commandMissing(error)
-            ? "GitHub CLI (gh) is not installed. Install it from https://cli.github.com/"
-            : "GitHub CLI is not logged in. Run 'gh auth login' first.";
-          return workflowResult(request.command, "failed", message);
-        }
-        const temporary = join(tmpdir(), `${PRODUCT_IDENTITY.filesystem.temporaryPrefix}pi-session-${process.pid}.html`);
-        try {
-          try {
-            await requireCapability(session.exportToHtml, "exportToHtml").call(session, temporary);
-          } catch (error) {
-            return workflowResult(request.command, "failed", `Failed to export session: ${errorMessage(error, "Unknown error")}`);
-          }
-          if (signal?.aborted) return workflowResult(request.command, "cancelled", "Share cancelled", undefined, "status");
-          let gist: { readonly stdout: string; readonly stderr: string };
-          try {
-            gist = await this.#workflowHost.runCommand("gh", ["gist", "create", "--public=false", temporary], signal === undefined ? undefined : { signal });
-          } catch (error) {
-            if (signal?.aborted || isAbortError(error)) return workflowResult(request.command, "cancelled", "Share cancelled", undefined, "status");
-            return workflowResult(request.command, "failed", `Failed to create gist: ${shareCommandFailureDetail(error)}`);
-          }
-          if (signal?.aborted) return workflowResult(request.command, "cancelled", "Share cancelled", undefined, "status");
-          const gistUrl = gist.stdout.trim();
-          const gistId = gistUrl.split("/").at(-1);
-          if (!gistId) return workflowResult(request.command, "failed", "Failed to parse gist ID from gh output");
-          return workflowResult(request.command, "completed", `Share URL: ${shareViewerUrl(gistId)}`, gistUrl);
-        } finally {
-          await rm(temporary, { force: true });
-        }
-      }
-      case "copy": {
-        const text = requireCapability(session.getLastAssistantText, "getLastAssistantText").call(session);
-        if (typeof text !== "string" || text.length === 0) return workflowResult(request.command, "failed", "No agent messages to copy yet.");
-        const acknowledged = await this.copyWorkflowText(text);
-        return workflowResult(request.command, "completed", acknowledged ? "Copied last agent message to clipboard" : "Submitted last agent message to clipboard");
-      }
-      case "name": {
-        const manager = session.sessionManager;
-        if (!argument) {
-          const current = manager?.getSessionName();
-          return typeof current === "string"
-            ? workflowResult(request.command, "completed", `Session name: ${current}`)
-            : workflowResult(request.command, "failed", "Usage: /name <name>", undefined, "warning");
-        }
-        requireCapability(session.setSessionName, "setSessionName").call(session, argument);
-        const normalized = manager?.getSessionName();
-        const actual = typeof normalized === "string" ? normalized : argument;
-        return workflowResult(
-          request.command,
-          "completed",
-          `Session name set: ${actual}`,
-          actual === argument ? undefined : `Session name was normalized from ${JSON.stringify(argument)} to ${JSON.stringify(actual)}`,
-        );
-      }
-      case "session": {
-        const manager = session.sessionManager;
-        const stats = requireCapability(session.getSessionStats, "getSessionStats").call(session);
-        const entries = manager?.getEntries();
-        return {
-          ...workflowResult(request.command, "completed", "Session Info"),
-          presentation: pinnedSessionInfoPresentation(
-            stats,
-            manager?.getSessionName(),
-            Array.isArray(entries) ? entries : [],
-            runtime.services.modelRuntime,
-          ),
-        };
-      }
-      case "changelog": {
-        const changelog = await this.#workflowHost.readChangelog();
-        return workflowResult(request.command, "completed", "What's New", changelog);
-      }
-      case "hotkeys":
-        return workflowResult(request.command, "completed", "Keyboard Shortcuts", pinnedHotkeySummary());
-      case "fork": {
-        if (!selection) return workflowResult(request.command, "failed", "Fork requires the owned user-message controller");
-        const result = await requireCapability(runtime.fork, "fork").call(runtime, selection, { position: "before" });
-        if (isRecord(result) && result.cancelled === true) return workflowResult(request.command, "cancelled", "Fork cancelled", undefined, "silent");
-        return workflowResult(request.command, "completed", "Forked to new session");
-      }
-      case "clone": {
-        const manager = session.sessionManager;
-        const leaf = manager?.getLeafId?.();
-        if (typeof leaf !== "string") return workflowResult(request.command, "completed", "Nothing to clone yet", undefined, "status");
-        const result = await requireCapability(runtime.fork, "fork").call(runtime, leaf, { position: "at" });
-        if (isRecord(result) && result.cancelled === true) return workflowResult(request.command, "cancelled", "Clone cancelled", undefined, "silent");
-        return workflowResult(request.command, "completed", "Cloned to new session");
-      }
-      case "tree": {
-        if (!selection) return workflowResult(request.command, "failed", "Tree navigation requires the owned tree controller");
-        const navigateTree = requireCapability(session.navigateTree, "navigateTree");
-        const result = request.treeSummary === undefined
-          ? await navigateTree.call(session, selection)
-          : await navigateTree.call(session, selection, {
-              summarize: request.treeSummary.summarize,
-              ...(request.treeSummary.customInstructions === undefined ? {} : { customInstructions: request.treeSummary.customInstructions }),
-            });
-        if (isRecord(result) && result.aborted === true) return workflowResult(request.command, "cancelled", "Branch summarization cancelled", undefined, "status");
-        if (isRecord(result) && result.cancelled === true) return workflowResult(request.command, "cancelled", "Navigation cancelled", undefined, "status");
-        return workflowResult(request.command, "completed", "Navigated to selected point");
-      }
-      case "trust": {
-        if (!selection) return workflowResult(request.command, "failed", "Trust requires the owned trust controller");
-        requireCapability(runtime.services.settingsManager?.setProjectTrusted, "setProjectTrusted").call(runtime.services.settingsManager, selection === "trust");
-        return workflowResult(request.command, "completed", selection === "trust" ? "Project trusted" : "Project trust removed");
-      }
-      case "login": {
-        if (!selection && !argument) return workflowResult(request.command, "failed", "Login requires the owned authentication controller");
-        const modelRuntime = runtime.services.modelRuntime;
-        let loginSelection = selection ?? argument;
-        if (!selection && argument && !argument.includes(":")) {
-          const normalized = argument.toLowerCase();
-          const providers = modelRuntime.getProviders?.();
-          const providerMatches = Array.isArray(providers) ? providers.filter(isRecord).filter(candidate =>
-            stringProperty(candidate, "id")?.toLowerCase() === normalized
-              || stringProperty(candidate, "name")?.toLowerCase() === normalized) : [];
-          const providerReference = providerMatches.length === 1 ? stringProperty(providerMatches[0], "id") ?? argument : argument;
-          const matching = this.#loginOptions().filter(option => option.id.endsWith(`:${providerReference}`));
-          if (matching.length > 1) {
-            const provider = modelRuntime.getProvider?.(providerReference);
-            const providerName = stringProperty(provider, "name") ?? providerReference;
-            return workflowResult(request.command, "failed", `Authentication method for ${providerName} requires the owned authentication controller`);
-          }
-          if (matching[0]) loginSelection = matching[0].id;
-        }
-        const [authTypeValue = "oauth", providerId = loginSelection] = loginSelection.includes(":")
-          ? loginSelection.split(":", 2)
-          : ["oauth", loginSelection];
-        const authType = authTypeValue === "api_key" ? "api_key" as const : "oauth" as const;
-        const provider = modelRuntime.getProvider?.(providerId);
-        const providerName = stringProperty(provider, "name") ?? providerId;
-        const previousModel = session.model;
-        this.#workflowInteraction.startLogin?.({ providerId, providerName, authType });
-        try {
-          await requireCapability(modelRuntime.login, "login").call(modelRuntime, providerId, authType, {
-            signal: AbortSignal.timeout(120_000),
-            prompt: async (prompt: unknown) => {
-              const promptType = stringProperty(prompt, "type");
-              const options = isRecord(prompt) && Array.isArray(prompt.options)
-                ? prompt.options.filter(isRecord).flatMap(option => {
-                    const id = stringProperty(option, "id");
-                    const label = stringProperty(option, "label");
-                    return id && label ? [{ id, label }] : [];
-                  })
-                : [];
-              const response = await this.#workflowInteraction.prompt({
-                type: promptType === "select"
-                  ? "select"
-                  : promptType === "manual_code"
-                    ? "manual-code"
-                    : authType === "api_key"
-                      ? "secret"
-                      : "text",
-                message: stringProperty(prompt, "message") ?? `Authenticate ${providerName}`,
-                ...(stringProperty(prompt, "placeholder") === undefined ? {} : { placeholder: stringProperty(prompt, "placeholder")! }),
-                ...(options.length === 0 ? {} : { options }),
-              });
-              if (response === null) throw new Error("Login cancelled");
-              return response;
-            },
-            notify: (event: unknown) => {
-              const notification = workflowLoginNotification(event);
-              if (notification) this.#workflowInteraction.notify(notification);
-            },
-          });
-        } catch (error) {
-          if (error instanceof Error && error.message === "Login cancelled") {
-            return workflowResult(request.command, "cancelled", "Login cancelled", undefined, "silent");
-          }
-          const detail = error instanceof Error ? error.message : String(error);
-          const actionLabel = authType === "api_key" ? `Saved API key for ${providerName}` : `Logged in to ${providerName}`;
-          const message = error instanceof CredentialSynchronizationError
-            ? `${actionLabel}, but local model state could not be synchronized: ${detail}`
-            : authType === "api_key"
-              ? `Failed to save API key for ${providerName}: ${detail}`
-              : `Failed to login to ${providerName}: ${detail}`;
-          return workflowResult(request.command, "failed", message);
-        } finally {
-          this.#workflowInteraction.finishLogin?.();
-        }
-        return await this.#completeProviderAuthentication(providerId, providerName, authType, previousModel);
-      }
-      case "logout": {
-        if (!selection) return workflowResult(request.command, "failed", "Logout requires the owned authentication controller");
-        const [credentialType = "oauth", providerId = selection] = selection.includes(":") ? selection.split(":", 2) : ["oauth", selection];
-        const modelRuntime = runtime.services.modelRuntime;
-        const provider = modelRuntime.getProvider?.(providerId);
-        const providerName = stringProperty(provider, "name") ?? providerId;
-        try {
-          await requireCapability(modelRuntime.logout, "logout").call(modelRuntime, providerId, { signal: AbortSignal.timeout(15_000) });
-        } catch (error) {
-          const detail = error instanceof Error ? error.message : String(error);
-          const message = error instanceof CredentialSynchronizationError
-            ? `Credentials removed for ${providerName}, but local model state could not be synchronized: ${detail}`
-            : `Logout failed: ${detail}`;
-          return workflowResult(request.command, "failed", message);
-        }
-        this.#reconcileActiveModelAvailability();
-        this.#emitView();
-        return workflowResult(
-          request.command,
-          "completed",
-          credentialType === "api_key"
-            ? `Removed stored API key for ${providerName}. Environment variables and models.json config are unchanged.`
-            : `Logged out of ${providerName}`,
-        );
-      }
-      case "new": {
-        const result = await runtime.newSession();
-        if (isRecord(result) && result.cancelled === true) return workflowResult(request.command, "cancelled", "New session cancelled", undefined, "silent");
-        return workflowResult(request.command, "completed", "✓ New session started", undefined, "accent");
-      }
-      case "compact": {
-        try {
-          await session.compact(argument || undefined);
-          return workflowResult(request.command, "completed", "Compaction requested", undefined, "silent");
-        } catch (error) {
-          return workflowResult(
-            request.command,
-            "failed",
-            error instanceof Error ? error.message : String(error),
-            undefined,
-            "silent",
-          );
-        }
-      }
-      case "resume": {
-        if (!selection && !argument) return workflowResult(request.command, "failed", "Resume requires the owned session controller");
-        const sessionPath = selection ?? argument;
-        try {
-          const result = await runtime.switchSession(sessionPath);
-          if (isRecord(result) && result.cancelled === true) return workflowResult(request.command, "cancelled", "Resume cancelled", undefined, "silent");
-          return workflowResult(request.command, "completed", "Resumed session");
-        } catch (error) {
-          const issue = isRecord(error) && isRecord(error.issue) ? error.issue : undefined;
-          const fallbackCwd = issue === undefined ? undefined : stringProperty(issue, "fallbackCwd");
-          if (fallbackCwd === undefined) throw error;
-          if (request.confirmed === undefined) {
-            const sessionCwd = stringProperty(issue, "sessionCwd") ?? "the session working directory";
-            return workflowConfirmation(request.command, `cwd from session file does not exist\n${sessionCwd}\n\ncontinue in current cwd\n${fallbackCwd}`);
-          }
-          if (!request.confirmed) return workflowResult(request.command, "cancelled", "Resume cancelled", undefined, "status");
-          const result = await runtime.switchSession(sessionPath, { cwdOverride: fallbackCwd });
-          if (isRecord(result) && result.cancelled === true) return workflowResult(request.command, "cancelled", "Resume cancelled", undefined, "silent");
-          return workflowResult(request.command, "completed", "Resumed session in current cwd");
-        }
-      }
-      case "reload": {
-        const blocked = this.reloadBlockedResult();
-        if (blocked) return blocked;
-        await requireCapability(session.reload, "reload").call(session);
-        await this.#bindExtensionUiToSession();
-        const message = "Reloaded keybindings, extensions, skills, prompts, themes, and context files";
-        const modelError = runtime.services.modelRuntime.getError?.();
-        return workflowResult(request.command, "completed", message, undefined, "status", modelError ? [
-          { kind: "error", message: `models.json error: ${modelError}` },
-          { kind: "status", message },
-        ] : undefined);
-      }
-      case "quit": {
-        await this.dispose();
-        return workflowResult(request.command, "completed", "Shutdown complete");
-      }
-      case "debug": {
-        const debugPath = join(this.#agentDir, "pi-debug.log");
-        await mkdir(dirname(debugPath), { recursive: true });
-        await writeFile(debugPath, `${JSON.stringify(this.snapshot(), null, 2)}\n`, "utf8");
-        return workflowResult(request.command, "completed", "✓ Debug log written", debugPath);
-      }
-      case "arminsayshi":
-        return workflowResult(request.command, "completed", "Armin says hi");
-      case "dementedelves":
-        return workflowResult(request.command, "completed", "Demented elves announcement");
-    }
-  }
-
-  async #completeProviderAuthentication(
-    providerId: string,
-    providerName: string,
-    authType: "oauth" | "api_key",
-    previousModel: unknown,
-  ): Promise<PiWorkflowResult> {
-    const session = this.#requireWorkflowSession();
-    const modelRuntime = this.#runtime?.services.modelRuntime;
-    if (!modelRuntime) throw new Error("engine runtime is unavailable");
-    const actionLabel = authType === "oauth" ? `Logged in to ${providerName}` : `Saved API key for ${providerName}`;
-    let selectedModelId: string | undefined;
-    let selectionError: string | undefined;
-    if (isUnknownModel(previousModel)) {
-      const available = modelRuntime.getAvailableSnapshot?.() ?? [];
-      const providerModels = available.filter(model => stringProperty(model, "provider") === providerId);
-      const defaultModelId = PINNED_DEFAULT_MODEL_BY_PROVIDER[providerId];
-      if (defaultModelId === undefined) {
-        selectionError = `${actionLabel}, but no default model is configured for provider "${providerId}". Use /model to select a model.`;
-      } else if (providerModels.length === 0) {
-        selectionError = `${actionLabel}, but no models are available for that provider. Use /model to select a model.`;
-      } else {
-        const selectedModel = providerModels.find(model => stringProperty(model, "id") === defaultModelId);
-        if (selectedModel === undefined) {
-          selectionError = `${actionLabel}, but its default model "${defaultModelId}" is not available. Use /model to select a model.`;
-        } else {
-          try {
-            await session.setModel(selectedModel);
-            selectedModelId = stringProperty(selectedModel, "id") ?? defaultModelId;
-            this.#activeModel = {
-              providerId,
-              modelId: selectedModelId,
-              displayName: stringProperty(selectedModel, "name") ?? selectedModelId,
-            };
-          } catch (error) {
-            selectionError = `${actionLabel}, but selecting its default model failed: ${error instanceof Error ? error.message : String(error)}. Use /model to select a model.`;
-          }
-        }
-      }
-    }
-    this.#reconcileActiveModelAvailability();
-    this.#emitView();
-    const status = `${actionLabel}.${selectedModelId ? ` Selected ${selectedModelId}.` : ""} Credentials saved to ${join(this.#agentDir, "auth.json")}`;
-    const messages: PiWorkflowMessage[] = [
-      { kind: "status", message: status },
-      ...(selectionError === undefined ? [] : [{ kind: "error" as const, message: selectionError }]),
-    ];
-    this.#scheduleAuthenticatedProviderRefresh(providerId, actionLabel);
-    return workflowResult("login", "completed", status, undefined, "status", messages);
-  }
-
-  #scheduleAuthenticatedProviderRefresh(providerId: string, actionLabel: string): void {
-    const runtime = this.#runtime;
-    const refresh = runtime?.services.modelRuntime.refresh;
-    if (!runtime || typeof refresh !== "function") return;
-    const generation = this.#sessionGeneration;
-    const publish = this.#workflowInteraction.publish;
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), AUTH_REFRESH_TIMEOUT_MS);
-    // Compatibility: post-authentication refresh starts on the next turn so its notices follow the saved-credential status.
-    void new Promise<void>(resolve => setTimeout(resolve, 0))
-      .then(() => refresh.call(runtime.services.modelRuntime, { providers: [providerId], signal: controller.signal }))
-      .then(result => {
-        if (this.#disposed || this.#sessionGeneration !== generation) return;
-        if (isRecord(result) && result.aborted === true) {
-          publish?.({ kind: "warning", message: `${actionLabel}, but its model catalog refresh timed out; using cached models.` });
-        } else if (isRecord(result) && result.errors instanceof Map && result.errors.size > 0) {
-          publish?.({ kind: "warning", message: `${actionLabel}, but its model catalog could not be refreshed; using cached models.` });
-        }
-        this.#reconcileActiveModelAvailability();
-        this.#emitView();
-      })
-      .catch(error => {
-        if (this.#disposed || this.#sessionGeneration !== generation) return;
-        publish?.({
-          kind: "warning",
-          message: controller.signal.aborted
-            ? `${actionLabel}, but its model catalog refresh timed out; using cached models.`
-            : `${actionLabel}, but its model catalog could not be refreshed: ${error instanceof Error ? error.message : String(error)}`,
-        });
-      })
-      .finally(() => clearTimeout(timeout));
-  }
-
   #requireWorkflowSession(): PiSessionApi {
     if (this.#disposed || !this.#runtime || !this.#session) throw new Error("engine adapter is not running");
     return this.#session;
-  }
-
-  #modelOptions(): readonly PiWorkflowOption[] {
-    const runtime = this.#runtime;
-    if (!runtime) return [];
-    const models = runtime.services.modelRuntime.getAvailableSnapshot?.();
-    if (!Array.isArray(models)) {
-      const active = this.#activeModel;
-      return active ? [{ id: `${active.providerId}/${active.modelId}`, label: active.displayName, description: `${active.providerId}/${active.modelId}` }] : [];
-    }
-    return models.filter(isRecord).flatMap(model => {
-      const provider = stringProperty(model, "provider");
-      const id = stringProperty(model, "id");
-      if (!provider || !id) return [];
-      return [{ id: `${provider}/${id}`, label: stringProperty(model, "name") ?? id, description: `${provider}/${id}` }];
-    });
-  }
-
-  #loginOptions(authType?: "oauth" | "api_key"): readonly PiAuthenticationProviderOption[] {
-    const runtime = this.#runtime;
-    const modelRuntime = runtime?.services.modelRuntime;
-    if (!modelRuntime) return [];
-    const providers = modelRuntime.getProviders?.();
-    if (!Array.isArray(providers)) return [];
-    return providers.filter(isRecord).flatMap(provider => {
-      const id = stringProperty(provider, "id");
-      if (!id) return [];
-      const name = stringProperty(provider, "name") ?? id;
-      const auth = isRecord(provider.auth) ? provider.auth : {};
-      const authStatus = modelRuntime.getProviderAuthStatus?.(id);
-      const source = authStatus?.label ?? authStatus?.source;
-      const status = authStatus?.configured === true
-        ? {
-            type: modelRuntime.isUsingOAuth?.(id) === true ? "oauth" as const : "api_key" as const,
-            ...(source === undefined ? {} : { source }),
-          }
-        : undefined;
-      return [
-        ...(authType !== "api_key" && auth.oauth ? [{
-          id: `oauth:${id}`,
-          providerId: id,
-          label: name,
-          description: "Account / OAuth",
-          authType: "oauth" as const,
-          ...(status === undefined ? {} : { status }),
-        }] : []),
-        ...(authType !== "oauth" && auth.apiKey ? [{
-          id: `api_key:${id}`,
-          providerId: id,
-          label: name,
-          description: "API key",
-          authType: "api_key" as const,
-          ...(status === undefined ? {} : { status }),
-        }] : []),
-      ];
-    }).sort((left, right) => left.label.localeCompare(right.label));
-  }
-
-  async #logoutOptions(): Promise<readonly PiAuthenticationProviderOption[]> {
-    const runtime = this.#runtime;
-    if (!runtime) return [];
-    const modelRuntime = runtime.services.modelRuntime;
-    const credentials = await requireCapability(modelRuntime.listCredentials, "listCredentials").call(modelRuntime, { signal: AbortSignal.timeout(15_000) });
-    if (!Array.isArray(credentials)) return [];
-    return credentials.filter(isRecord).flatMap(credential => {
-      const providerId = stringProperty(credential, "providerId");
-      if (!providerId) return [];
-      const credentialType = stringProperty(credential, "type") === "api_key" ? "api_key" : "oauth";
-      const provider = modelRuntime.getProvider?.(providerId);
-      return [{
-        id: `${credentialType}:${providerId}`,
-        providerId,
-        label: stringProperty(provider, "name") ?? providerId,
-        description: credentialType,
-        authType: credentialType,
-        status: { type: credentialType, source: "stored credential" },
-      }];
-    });
-  }
-
-  async #sessionOptions(): Promise<readonly PiWorkflowOption[]> {
-    const session = this.#requireWorkflowSession();
-    const manager = session.sessionManager;
-    const cwd = manager?.getCwd?.();
-    const sessionDir = manager?.getSessionDir?.();
-    if (typeof cwd !== "string") return [];
-    return sessionInfoOptions(await SessionManager.list(cwd, typeof sessionDir === "string" ? sessionDir : undefined));
   }
 
   async #applyPinnedSetting(selection: string, selectedValue?: unknown, hasSelectedValue = false): Promise<PiWorkflowResult> {
@@ -2558,7 +1684,7 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
   // Concurrency: cancellation runs synchronously so the overload reservation already guards reentrant outcomes.
   #cancelForOverload(): Promise<void> {
     for (const pending of this.#pendingCommands.values()) pending.cancel();
-    for (const pending of this.#pendingWorkflows) pending.cancel();
+    this.#workflows.cancelPending();
     const session = this.#session;
     return Promise.resolve().then(() => session?.abort()).then(() => undefined);
   }
@@ -2645,263 +1771,8 @@ async function checkDefaultPiPackageUpdates(
   return updates.map(update => update.displayName);
 }
 
-function pinnedSessionInfoPresentation(
-  value: unknown,
-  sessionName: string | undefined,
-  entries: readonly unknown[],
-  modelRuntime: PiServicesApi["modelRuntime"],
-): PiSessionInfoPresentation {
-  const stats = isRecord(value) ? value : {};
-  const tokens = dynamicObject(stats, "tokens");
-  return {
-    kind: "session-info",
-    ...(sessionName === undefined ? {} : { sessionName }),
-    stats: {
-      ...(stringProperty(stats, "sessionFile") === undefined ? {} : { sessionFile: stringProperty(stats, "sessionFile")! }),
-      sessionId: stringProperty(stats, "sessionId") ?? "unknown",
-      userMessages: finiteNumber(stats.userMessages),
-      assistantMessages: finiteNumber(stats.assistantMessages),
-      toolCalls: finiteNumber(stats.toolCalls),
-      toolResults: finiteNumber(stats.toolResults),
-      totalMessages: finiteNumber(stats.totalMessages),
-      tokens: {
-        input: finiteNumber(tokens.input),
-        output: finiteNumber(tokens.output),
-        cacheRead: finiteNumber(tokens.cacheRead),
-        cacheWrite: finiteNumber(tokens.cacheWrite),
-        total: finiteNumber(tokens.total),
-      },
-      cost: finiteNumber(stats.cost),
-    },
-    cacheWaste: pinnedCacheWaste(entries, modelRuntime),
-    usageBreakdown: pinnedUsageCostBreakdown(entries),
-  };
-}
-
-function pinnedUsageCostBreakdown(entries: readonly unknown[]): PiSessionInfoPresentation["usageBreakdown"] {
-  const totals = new Map<string, { cost: number; tokens: number }>();
-  for (const entry of entries) {
-    if (!isRecord(entry)) continue;
-    let key: string | undefined;
-    let usage: Record<string, unknown> | undefined;
-    const message = dynamicObject(entry, "message");
-    if (entry.type === "message" && message.role === "assistant") {
-      const provider = stringProperty(message, "provider");
-      const model = stringProperty(message, "responseModel") ?? stringProperty(message, "model");
-      if (provider && model) key = `${provider}/${model}`;
-      usage = dynamicObject(message, "usage");
-    } else if (entry.type === "message" && message.role === "toolResult" && isRecord(message.usage)) {
-      key = "Tools/summaries";
-      usage = message.usage;
-    } else if ((entry.type === "branch_summary" || entry.type === "compaction") && isRecord(entry.usage)) {
-      key = "Tools/summaries";
-      usage = entry.usage;
-    }
-    if (!key || !usage) continue;
-    const cost = finiteNumber(dynamicObject(usage, "cost").total);
-    const tokens = finiteNumber(usage.input) + finiteNumber(usage.output)
-      + finiteNumber(usage.cacheRead) + finiteNumber(usage.cacheWrite);
-    const current = totals.get(key) ?? { cost: 0, tokens: 0 };
-    current.cost += cost;
-    current.tokens += tokens;
-    totals.set(key, current);
-  }
-  return [...totals].map(([key, total]) => ({ key, ...total }))
-    .filter(entry => entry.cost > 0 || entry.tokens > 0)
-    .sort((a, b) => b.cost - a.cost);
-}
-
-function pinnedCacheWaste(
-  entries: readonly unknown[],
-  modelRuntime: PiServicesApi["modelRuntime"],
-): PiSessionInfoPresentation["cacheWaste"] {
-  let previous: { promptTokens: number; modelKey: string; timestamp: number; reportedCache: boolean } | undefined;
-  const totals = { missedTokens: 0, missedCost: 0, missCount: 0 };
-  for (const entry of entries) {
-    if (!isRecord(entry)) continue;
-    if (entry.type === "compaction" || entry.type === "branch_summary") {
-      previous = undefined;
-      continue;
-    }
-    const message = dynamicObject(entry, "message");
-    if (entry.type !== "message" || message.role !== "assistant") continue;
-    const usage = dynamicObject(message, "usage");
-    const input = finiteNumber(usage.input);
-    const cacheRead = finiteNumber(usage.cacheRead);
-    const cacheWrite = finiteNumber(usage.cacheWrite);
-    const promptTokens = input + cacheRead + cacheWrite;
-    if (previous && promptTokens > 0 && (cacheRead + cacheWrite > 0 || previous.reportedCache)) {
-      const missedTokens = Math.min(previous.promptTokens, promptTokens) - cacheRead;
-      if (missedTokens > 1024) {
-        const cost = dynamicObject(usage, "cost");
-        const paidTokens = input + cacheWrite;
-        const paidRate = paidTokens > 0 ? (finiteNumber(cost.input) + finiteNumber(cost.cacheWrite)) / paidTokens : 0;
-        const provider = stringProperty(message, "provider") ?? "";
-        const modelId = stringProperty(message, "model") ?? "";
-        const model = modelRuntime.getModel(provider, modelId);
-        const modelCost = dynamicObject(dynamicObject(model, "cost"));
-        const readRate = cacheRead > 0
-          ? finiteNumber(cost.cacheRead) / cacheRead
-          : finiteNumber(modelCost.cacheRead) / 1_000_000;
-        totals.missedTokens += missedTokens;
-        totals.missedCost += missedTokens * Math.max(0, paidRate - readRate);
-        totals.missCount += 1;
-      }
-    }
-    if (promptTokens > 0) {
-      const provider = stringProperty(message, "provider") ?? "";
-      const model = stringProperty(message, "model") ?? "";
-      previous = {
-        promptTokens,
-        modelKey: `${provider}/${model}`,
-        timestamp: finiteNumber(message.timestamp),
-        reportedCache: (previous?.reportedCache ?? false) || cacheRead + cacheWrite > 0,
-      };
-    }
-  }
-  return totals;
-}
-
-function defaultWorkflowHost(): PiWorkflowHost {
-  return {
-    copyText: copyToClipboard,
-    async runCommand(command, arguments_, options) {
-      const result = await execFileAsync(command, [...arguments_], { encoding: "utf8", signal: options?.signal });
-      return { stdout: result.stdout, stderr: result.stderr };
-    },
-    readChangelog: readPinnedCommandChangelog,
-  };
-}
-
-function workflowLoginNotification(event: unknown): PiWorkflowLoginNotification | undefined {
-  if (!isRecord(event)) return undefined;
-  if (event.type === "auth_url") {
-    const url = stringProperty(event, "url");
-    if (!url) return undefined;
-    const instructions = stringProperty(event, "instructions");
-    return { type: "auth_url", url, ...(instructions === undefined ? {} : { instructions }) };
-  }
-  if (event.type === "device_code") {
-    const verificationUri = stringProperty(event, "verificationUri");
-    const userCode = stringProperty(event, "userCode");
-    return verificationUri && userCode ? { type: "device_code", verificationUri, userCode } : undefined;
-  }
-  const message = stringProperty(event, "message");
-  if (!message) return undefined;
-  if (event.type === "info") {
-    const links = Array.isArray(event.links) ? event.links.filter(isRecord).flatMap(link => {
-      const url = stringProperty(link, "url");
-      if (!url) return [];
-      const label = stringProperty(link, "label");
-      return [{ ...(label === undefined ? {} : { label }), url }];
-    }) : [];
-    return { type: "info", message, ...(links.length === 0 ? {} : { links }) };
-  }
-  return { type: event.type === "waiting" ? "waiting" : "progress", message };
-}
-
-function workflowResult(
-  command: PiWorkflowRequest["command"],
-  outcome: PiWorkflowResult["outcome"],
-  message: string,
-  detail?: string,
-  messageKind?: PiWorkflowResult["messageKind"],
-  messages?: readonly PiWorkflowMessage[],
-): PiWorkflowResult {
-  return {
-    command,
-    outcome,
-    message,
-    ...(detail === undefined ? {} : { detail }),
-    ...(messageKind === undefined ? {} : { messageKind }),
-    ...(messages === undefined ? {} : { messages: Object.freeze([...messages]) }),
-  };
-}
-
-function workflowConfirmation(command: PiWorkflowRequest["command"], message: string, detail?: string): PiWorkflowResult {
-  return {
-    command,
-    outcome: "requires-confirmation",
-    message,
-    ...(detail === undefined ? {} : { detail }),
-    selectorTitle: "Confirm",
-    options: [
-      { id: "yes", label: "Yes" },
-      { id: "no", label: "No" },
-    ],
-  };
-}
-
-function errorMessage(error: unknown, fallback: string): string {
-  return error instanceof Error ? error.message : fallback;
-}
-
-function shareCommandFailureDetail(error: unknown): string {
-  // Compatibility: Pi reports a failed child's stderr, not execFile's command wrapper.
-  if (isRecord(error) && (typeof error.code === "number" || typeof error.signal === "string") && typeof error.stderr === "string") {
-    return error.stderr.trim() || "Unknown error";
-  }
-  return errorMessage(error, "Unknown error");
-}
-
-function commandMissing(error: unknown): boolean {
-  return isRecord(error) && error.code === "ENOENT";
-}
-
-function isAbortError(error: unknown): boolean {
-  return isRecord(error) && (error.name === "AbortError" || error.code === "ABORT_ERR");
-}
-
-function shareViewerUrl(gistId: string): string {
-  const baseUrl = process.env.PI_SHARE_VIEWER_URL || "https://pi.dev/session/";
-  return `${baseUrl}#${gistId}`;
-}
-
-function workflowOptions(value: unknown, idKey: string, labelKey: string): readonly PiWorkflowOption[] {
-  if (!Array.isArray(value)) return [];
-  return value.filter(isRecord).flatMap(item => {
-    const id = stringProperty(item, idKey);
-    if (!id) return [];
-    return [{ id, label: stringProperty(item, labelKey) ?? id }];
-  });
-}
-
-function sessionInfoOptions(value: readonly unknown[]): readonly PiWorkflowOption[] {
-  return value.filter(isRecord).flatMap(info => {
-    const path = stringProperty(info, "path");
-    if (!path) return [];
-    const modified = info.modified instanceof Date ? info.modified.toISOString() : stringProperty(info, "modified") ?? "unknown time";
-    const messageCount = typeof info.messageCount === "number" ? info.messageCount : 0;
-    return [{
-      id: path,
-      label: stringProperty(info, "name") ?? stringProperty(info, "firstMessage") ?? stringProperty(info, "id") ?? path,
-      description: `${messageCount} messages · ${modified}`,
-    }];
-  });
-}
-
 function assertPiExtensionUiContext(value: unknown): asserts value is ExtensionUIContext {
   assertOwnedUiExtensionUiPort(value);
-}
-
-function dynamicObject(value: unknown, key?: string): Record<string, unknown> {
-  const candidate = key === undefined ? value : isRecord(value) ? value[key] : undefined;
-  return isRecord(candidate) ? candidate : {};
-}
-
-function requireCapability<T>(capability: T | undefined, name: string): T {
-  if (typeof capability !== "function") throw new Error(`Pi workflow capability is unavailable: ${name}`);
-  return capability;
-}
-
-function pathArgument(value: string): string | undefined {
-  if (!value) return undefined;
-  const quote = value[0];
-  if (quote === '"' || quote === "'") {
-    const closing = value.indexOf(quote, 1);
-    return closing < 0 ? undefined : value.slice(1, closing);
-  }
-  return value.split(/\s/, 1)[0] || undefined;
 }
 
 function settingKeyForCallback(callback: PiPinnedSettingsCallback): string | null {
@@ -2941,86 +1812,10 @@ function settingLabel(callback: PiPinnedSettingsCallback): string {
     .replace(/^./, character => character.toUpperCase());
 }
 
-function pinnedHotkeySummary(): string {
-  return [
-    "Enter: send message · Alt+Enter: queue follow-up",
-    "Escape: cancel/abort · Ctrl+C: clear/exit · Ctrl+D: exit when empty",
-    "Shift+Tab: cycle thinking · Ctrl+P/Shift+Ctrl+P: cycle models · Ctrl+L: select model",
-    "Ctrl+O: expand tools · Ctrl+T: toggle thinking · Ctrl+X: copy message",
-    "Alt+Up: restore queued messages · /: commands · !/!!: bash",
-  ].join("\n");
-}
-
-function scopedModelRecords(modelRuntime: PiServicesApi["modelRuntime"]): readonly {
-  readonly descriptor: PiScopedModelDescriptor;
-  readonly model: ReturnType<PiServicesApi["modelRuntime"]["getAvailableSnapshot"]>[number];
-}[] {
-  return modelRuntime.getAvailableSnapshot().map(model => ({
-    descriptor: { provider: model.provider, id: model.id, name: model.name ?? model.id },
-    model,
-  }));
-}
-
-function scopedModelReference(value: unknown): string | undefined {
-  if (!isRecord(value) || !isRecord(value.model)) return undefined;
-  const provider = stringValue(value.model.provider);
-  const id = stringValue(value.model.id);
-  return provider && id ? `${provider}/${id}` : undefined;
-}
-
-function resolveConfiguredModelIds(
-  patterns: readonly string[],
-  models: readonly { readonly descriptor: PiScopedModelDescriptor }[],
-): readonly string[] {
-  const references = models.map(item => `${item.descriptor.provider}/${item.descriptor.id}`);
-  const resolved: string[] = [];
-  for (const pattern of patterns) {
-    const thinkingSuffix = /:(?:off|minimal|low|medium|high|xhigh)$/.exec(pattern);
-    const modelPattern = thinkingSuffix === null ? pattern : pattern.slice(0, -thinkingSuffix[0].length);
-    const matcher = wildcardMatcher(modelPattern);
-    const matches = references.filter((reference, index) => matcher.test(reference) || matcher.test(models[index]?.descriptor.id ?? ""));
-    if (matches.length === 0) {
-      resolved.push(pattern);
-    } else {
-      for (const match of matches) if (!resolved.includes(match)) resolved.push(match);
-    }
-  }
-  return resolved;
-}
-
-function wildcardMatcher(pattern: string): RegExp {
-  let source = "";
-  for (const character of pattern) {
-    if (character === "*") source += ".*";
-    else if (character === "?") source += ".";
-    else source += character.replace(/[\\^$.*+?()[\]{}|]/g, "\\$&");
-  }
-  return new RegExp(`^${source}$`, "i");
-}
-
-function readModel(value: unknown): OwnedUiModelInfo | null {
-  if (!isRecord(value)) return null;
-  const providerId = stringValue(value.provider) ?? stringValue(value.providerId);
-  const modelId = stringValue(value.id) ?? stringValue(value.modelId);
-  if (!providerId || !modelId) return null;
-  return {
-    providerId,
-    modelId,
-    displayName: stringValue(value.name) ?? modelId,
-  };
-}
-
 function readSuggestionReasoning(value: unknown): OwnedUiPromptSuggestionReasoning {
   return value === "minimal" || value === "low" || value === "medium" || value === "high" || value === "xhigh" || value === "max"
     ? value
     : "off";
-}
-
-function readThinkingLevel(value: unknown): OwnedUiThinkingLevel {
-  return value === "off" || value === "minimal" || value === "low" || value === "medium"
-    || value === "high" || value === "xhigh"
-    ? value
-    : "medium";
 }
 
 function readStringArray(value: unknown): readonly string[] {
@@ -3069,31 +1864,6 @@ function collectionResult(value: unknown, key: string): { values: readonly unkno
 
 function unknownArray(value: unknown): readonly unknown[] {
   return Array.isArray(value) ? value : [];
-}
-
-function stringProperty(value: unknown, key: string): string | undefined {
-  if (!isRecord(value)) return undefined;
-  const item = value[key];
-  return typeof item === "string" && item.length > 0 ? item : undefined;
-}
-
-function isUnknownModel(value: unknown): boolean {
-  return isRecord(value)
-    && value.provider === "unknown"
-    && value.id === "unknown"
-    && value.api === "unknown";
-}
-
-function findExactWorkflowModel<T>(reference: string, models: readonly T[]): T | undefined {
-  const normalized = reference.trim().toLowerCase();
-  const canonical = models.filter(model => {
-    const provider = stringProperty(model, "provider");
-    const id = stringProperty(model, "id");
-    return provider !== undefined && id !== undefined && `${provider}/${id}`.toLowerCase() === normalized;
-  });
-  if (canonical.length === 1) return canonical[0];
-  const bare = models.filter(model => stringProperty(model, "id")?.toLowerCase() === normalized);
-  return bare.length === 1 ? bare[0] : undefined;
 }
 
 /**

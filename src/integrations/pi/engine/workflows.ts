@@ -1,3 +1,5 @@
+import type { SessionInfo } from "../startup-public.js";
+
 export const PINNED_PI_WORKFLOW_COMMAND_NAMES = [
   "settings",
   "model",
@@ -236,4 +238,58 @@ export interface PiBashWorkflowResult {
   readonly cancelled: boolean;
   readonly truncated: boolean;
   readonly excludeFromContext: boolean;
+}
+
+export interface PiScopedModelDescriptor {
+  readonly provider: string;
+  readonly id: string;
+  readonly name: string;
+}
+
+export interface PiScopedModelsContext {
+  readonly models: readonly PiScopedModelDescriptor[];
+  readonly enabledModelIds: readonly string[] | null;
+}
+
+export interface PiProjectTrustUpdate {
+  readonly path: string;
+  readonly decision: boolean | null;
+}
+
+export interface PiProjectTrustContext {
+  readonly cwd: string;
+  readonly savedDecision: { readonly path: string; readonly decision: boolean } | null;
+  readonly projectTrusted: boolean;
+  readonly trustOptions: readonly {
+    readonly label: string;
+    readonly trusted: boolean;
+    readonly updates: readonly PiProjectTrustUpdate[];
+    readonly savedPath?: string;
+  }[];
+}
+
+export interface PiTreeSelectorContext {
+  readonly tree: readonly unknown[];
+  readonly currentLeafId: string | null;
+  readonly filterMode: "default" | "no-tools" | "user-only" | "labeled-only" | "all";
+  readonly skipSummaryPrompt: boolean;
+  readonly appendLabelChange: (entryId: string, label: string | undefined) => void;
+}
+
+export interface PiSessionResumeMetadata {
+  readonly sessionId: string;
+  readonly sessionDir: string;
+  readonly usesDefaultSessionDir: boolean;
+}
+
+export interface PiSessionSelectorContext {
+  readonly currentSessionFilePath: string | undefined;
+  readonly loadCurrentSessions: (onProgress?: (loaded: number, total: number) => void) => Promise<SessionInfo[]>;
+  readonly loadAllSessions: (onProgress?: (loaded: number, total: number) => void) => Promise<SessionInfo[]>;
+  readonly renameSession: (sessionFilePath: string, nextName: string | undefined) => Promise<void>;
+}
+
+export interface PiScopedModelsRefreshResult extends PiScopedModelsContext {
+  readonly status: string;
+  readonly statusKind: "success" | "warning";
 }
