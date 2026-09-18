@@ -1,5 +1,5 @@
 /** Pure readers over Pi's untyped session messages and the blocks projected from them. */
-import type { OwnedUiTranscriptBlock } from "../../../contracts/owned-ui/index.js";
+import type { OwnedUiModelInfo, OwnedUiThinkingLevel, OwnedUiTranscriptBlock } from "../../../contracts/owned-ui/index.js";
 
 export function stringValue(value: unknown): string | undefined {
   return typeof value === "string" && value.length > 0 ? value : undefined;
@@ -125,4 +125,39 @@ export function finiteNumber(value: unknown): number {
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+export function dynamicObject(value: unknown, key?: string): Record<string, unknown> {
+  const candidate = key === undefined ? value : isRecord(value) ? value[key] : undefined;
+  return isRecord(candidate) ? candidate : {};
+}
+
+export function requireCapability<T>(capability: T | undefined, name: string): T {
+  if (typeof capability !== "function") throw new Error(`Pi workflow capability is unavailable: ${name}`);
+  return capability;
+}
+
+export function readModel(value: unknown): OwnedUiModelInfo | null {
+  if (!isRecord(value)) return null;
+  const providerId = stringValue(value.provider) ?? stringValue(value.providerId);
+  const modelId = stringValue(value.id) ?? stringValue(value.modelId);
+  if (!providerId || !modelId) return null;
+  return {
+    providerId,
+    modelId,
+    displayName: stringValue(value.name) ?? modelId,
+  };
+}
+
+export function readThinkingLevel(value: unknown): OwnedUiThinkingLevel {
+  return value === "off" || value === "minimal" || value === "low" || value === "medium"
+    || value === "high" || value === "xhigh"
+    ? value
+    : "medium";
+}
+
+export function stringProperty(value: unknown, key: string): string | undefined {
+  if (!isRecord(value)) return undefined;
+  const item = value[key];
+  return typeof item === "string" && item.length > 0 ? item : undefined;
 }
