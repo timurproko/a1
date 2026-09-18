@@ -13,6 +13,8 @@ import { fileURLToPath } from "node:url";
 import { carriesProvenanceHeader, renderProvenanceHeader, splitProvenanceHeader } from "./pinned-pi-source-header.mjs";
 
 const checkOnly = process.argv.includes("--check");
+const commitIndex = process.argv.indexOf("--commit");
+const commitArgument = commitIndex === -1 ? undefined : process.argv[commitIndex + 1];
 
 const repository = fileURLToPath(new URL("../..", import.meta.url));
 const identity = JSON.parse(await readFile(join(repository, "src", "product-identity.json"), "utf8"));
@@ -126,7 +128,8 @@ const packageRecords = await Promise.all(packages.map(async pkg => {
 }));
 const upstream = {
   repository: "https://github.com/earendil-works/pi.git",
-  commit: "914cf1472e715297caa30db4b9535d534a9eb718",
+  // Invariant: the commit is reviewed input, not derived; a new version is recorded with `--commit` from its release tag.
+  commit: commitArgument ?? previousLedger.upstream?.commit ?? "914cf1472e715297caa30db4b9535d534a9eb718",
   license: "MIT",
   packages: packageRecords,
 };
@@ -157,7 +160,8 @@ const drift = [];
 for (const [index, record] of records.entries()) {
   if (record.classification !== "owned-presentation") continue;
   const { approvedDeviations, behaviorCategories, behaviorIds, acceptanceTasks, tests, ...identity } = record;
-  records[index] = { ...identity, localSha256: await recordOwnedCopy(record), approvedDeviations, behaviorCategories, behaviorIds, acceptanceTasks, tests };
+  const localSha256 = await recordOwnedCopy(record);
+  records[index] = { ...identity, ...(localSha256 === undefined ? {} : { localSha256 }), approvedDeviations, behaviorCategories, behaviorIds, acceptanceTasks, tests };
 }
 
 const classifications = Object.fromEntries(["public-api-reuse", "owned-presentation", "host-adaptation"].map(classification => [
@@ -227,7 +231,11 @@ if (checkOnly) {
 /** Rewrite the owned copy's provenance header from its record and return the copy's hash. */
 async function recordOwnedCopy(record) {
   const destination = join(repository, record.localDestination);
-  if (!await fileExists(destination)) throw new Error(`owned source destination is missing: ${record.id} (${record.localDestination})`);
+  if (!await fileExists(destination)) {
+    // Invariant: a reviewed record whose copy vanished is an error; a unit new to the package has no copy yet and the ledger check reports it.
+    if (previousRecords.has(record.id)) throw new Error(`owned source destination is missing: ${record.id} (${record.localDestination})`);
+    return undefined;
+  }
   if (carriesProvenanceHeader(record.localDestination)) {
     const source = await readFile(destination, "utf8");
     const { body } = splitProvenanceHeader(source);

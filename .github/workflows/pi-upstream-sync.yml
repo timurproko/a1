@@ -1,0 +1,105 @@
+name: Pi upstream sync
+
+# Proposes a Pi upgrade as a draft pull request when the registry publishes a newer version than the
+# pin: the proposal script bumps, evaluates, merges the vendored copies, regenerates derived state,
+# runs the gates, and writes the body; this workflow only commits, pushes, and opens or refreshes the
+# draft. A human resolves the review items and merges; nothing here auto-merges.
+
+on:
+  schedule:
+    - cron: '23 3 * * *'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Exact Pi version to propose (default: newest published)"
+        required: false
+        type: string
+      commit:
+        description: "Upstream commit for that version (default: resolved from the registry or release tag)"
+        required: false
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: pi-upstream-sync
+  cancel-in-progress: false
+
+jobs:
+  propose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Mint the App identity that opens and refreshes the proposal
+        id: app
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.OPENSPEC_ARCHIVE_APP_ID }}
+          private-key: ${{ secrets.OPENSPEC_ARCHIVE_APP_PRIVATE_KEY }}
+
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+          token: ${{ steps.app.outputs.token }}
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install pinned tooling without hooks
+        run: npm ci --ignore-scripts
+
+      - name: Propose the upgrade
+        id: propose
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          REQUESTED_VERSION: ${{ inputs.version }}
+          REQUESTED_COMMIT: ${{ inputs.commit }}
+        run: |
+          set -euo pipefail
+          args=(--output .artifacts/pi-upgrade)
+          if [ -n "$REQUESTED_VERSION" ]; then args+=(--version "$REQUESTED_VERSION"); fi
+          if [ -n "$REQUESTED_COMMIT" ]; then args+=(--commit "$REQUESTED_COMMIT"); fi
+          node scripts/pi/propose-pi-upgrade.mjs "${args[@]}"
+
+      - name: Keep the proposal report
+        if: always() && steps.propose.outputs.changed == 'true'
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: pi-upgrade-${{ steps.propose.outputs.version }}
+          path: .artifacts/pi-upgrade
+          retention-days: 30
+
+      - name: Commit and push the proposal branch
+        if: steps.propose.outputs.changed == 'true'
+        env:
+          BRANCH: ${{ steps.propose.outputs.branch }}
+          VERSION: ${{ steps.propose.outputs.version }}
+        run: |
+          set -euo pipefail
+          git config user.name 'openspec-ci[bot]'
+          git config user.email '329165293+openspec-ci[bot]@users.noreply.github.com'
+          git checkout -B "$BRANCH"
+          git add -A -- . ':!.artifacts'
+          git commit -m "chore(pi): propose the upgrade to Pi $VERSION" -m "Proposed by the nightly upstream sync; review items are listed in the pull request."
+          git push --force-with-lease origin "$BRANCH"
+
+      - name: Open or refresh the draft pull request
+        if: steps.propose.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          BRANCH: ${{ steps.propose.outputs.branch }}
+          VERSION: ${{ steps.propose.outputs.version }}
+        run: |
+          set -euo pipefail
+          title="chore(pi): upgrade pinned Pi to $VERSION"
+          existing=$(gh pr list --head "$BRANCH" --base develop --state open --json number --jq '.[0].number // empty')
+          if [ -n "$existing" ]; then
+            gh pr edit "$existing" --title "$title" --body-file .artifacts/pi-upgrade/body.md
+          else
+            gh pr create --draft --base develop --head "$BRANCH" --title "$title" --body-file .artifacts/pi-upgrade/body.md
+          fi

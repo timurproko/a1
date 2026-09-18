@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
+import { readPinnedPiIdentity } from "../../scripts/governance/pinned-pi-identity.mjs";
 
 describe("Pi parity machine-readable evidence", () => {
   it("classifies the failed candidate fixtures as regression evidence", async () => {
@@ -29,12 +30,12 @@ describe("Pi parity machine-readable evidence", () => {
     expect(evidence.invalidation.replacementInventory).toBe(
       "config/baselines/pinned-pi-interactive-baseline.json",
     );
-    expect(evidence.source).toMatchObject({ commit: "914cf1472e715297caa30db4b9535d534a9eb718", license: "MIT" });
+    const pinned = await readPinnedPiIdentity(".");
+    expect(evidence.source).toMatchObject({ commit: pinned.commit, license: "MIT" });
     expect(evidence["a1ParityBaselineCommit"]).toMatch(/^[0-9a-f]{40}$/);
-    expect(evidence.packages.map(value => `${value.name}@${value.version}`)).toEqual([
-      "@earendil-works/pi-coding-agent@0.84.2",
-      "@earendil-works/pi-tui@0.84.2",
-    ]);
+    expect(evidence.packages.map(value => `${value.name}@${value.version}`)).toEqual(
+      pinned.packages.map(value => `${value.name}@${value.version}`),
+    );
     for (const value of evidence.packages) expect(value.integrity).toMatch(/^sha512-/);
     for (const fixture of evidence.fixtures) {
       const bytes = await readFile(fixture.path);

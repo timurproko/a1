@@ -1,7 +1,9 @@
 import { access, readFile } from "node:fs/promises";
+import { readPinnedPiIdentity } from "../../scripts/governance/pinned-pi-identity.mjs";
 import { describe, expect, it } from "vitest";
 
 const inventoryPath = "config/baselines/presenter-ownership-inventory.json";
+const pinned = await readPinnedPiIdentity(".");
 const slashCommandsPath = "node_modules/@earendil-works/pi-coding-agent/dist/core/slash-commands.js";
 const REQUIRED_PRESENTER_IDS = [
   "document.header-resources",
@@ -63,7 +65,7 @@ async function loadInventory(): Promise<Inventory> {
 
 function validateInventory(inventory: Inventory, upstream: string, advertisedNames: string[]): void {
   if (inventory.schema !== "a1-pinned-pi-presenter-ownership-inventory-v1") throw new Error("invalid schema");
-  if (inventory.pinned.version !== "0.84.2" || inventory.pinned.commit !== "914cf1472e715297caa30db4b9535d534a9eb718") {
+  if (inventory.pinned.version !== pinned.version || inventory.pinned.commit !== pinned.commit) {
     throw new Error("stale pinned identity");
   }
   if (inventory.policy.screenshotsAreAuthority || !inventory.policy.sourceAndIndependentProducerAreAuthority) {
