@@ -7,7 +7,7 @@ The multi-agent workspace subsystem, `src/features/workspace`, `src/contracts/wo
 - Preserve the current tree as branch `archive/multi-agent-workspace` (commit `0a70298f`) and delete the four source directories and their four test directories from `develop`.
 - Add control-store schema version 7: a new database gets only `launch_instances` and `product_identity`; an existing database runs the historical chain and then drops `workspaces`, `driver_profiles`, `terminal_agents`, `process_generations`, `foreground_terminal_leases`, `workspace_agents`, `native_host_topology`, `terminal_sessions`, and `recovery_references`, none of which has a production writer. `storage` stops importing `workspace-contracts`.
 - Remove the four owners from the project-structure policy, the `structured-runtime` integration owner and its scope from the validation registries and matrix, the retired-directory rules from `check-architecture.mjs`, the workspace prefixes from the startup and impact policies, and the sixteen entries from the architecture allowlist.
-- Update the architecture documents and the on-hold proposal to point at the archive branch; regenerate the legacy identity inventory.
+- Update the architecture documents to point at the archive branch and regenerate the legacy identity inventory; the on-hold proposal receives its archive note in a separate OpenSpec-only pull request.
 
 ## Capabilities
 

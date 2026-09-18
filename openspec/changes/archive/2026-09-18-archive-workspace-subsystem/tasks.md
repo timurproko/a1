@@ -1,6 +1,6 @@
 ## 1. Archive and delete
 
-- [x] 1.1 Create and push `archive/multi-agent-workspace` from `0a70298f`; record it in the on-hold proposal.
+- [x] 1.1 Create and push `archive/multi-agent-workspace` from `0a70298f`; the on-hold proposal gains its archive note in a separate OpenSpec-only pull request because a delivery may not edit another change.
 - [x] 1.2 Delete `src/features/workspace`, `src/contracts/workspace`, `src/foundation/structured-agent-runtime`, `src/foundation/native-host-protocol` and their `test/` counterparts.
 
 ## 2. Control store

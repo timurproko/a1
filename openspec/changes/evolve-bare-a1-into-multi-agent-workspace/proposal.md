@@ -1,8 +1,6 @@
 ## Why
 
 > **Status: ON HOLD by user direction — scheduled after the A1 custom-experience milestones.** Do not implement, continue, publish, or resume any remaining multi-agent or composed-terminal scope until the user explicitly authorizes this change to resume. Its unchecked scope is intentionally deferred future work, not stale or blocked work. Completion of parity or customization work does not lift this hold.
->
-> **Source archived 2026-09-18.** The workspace feature, workspace contracts, structured-agent runtime, native-host protocol modules, their tests, and the control-store tables they owned were removed from `develop` by the `archive-workspace-subsystem` change; their last state is the `archive/multi-agent-workspace` branch (commit `0a70298f`). When this plan resumes, analyze the then-current codebase and implement afresh rather than restoring that copy.
 
 Bare `a1` is reserved as the A1 agent product surface, but the current baseline exposes only one A1-owned Pi experience. A1 ultimately needs a deliberate multi-agent workspace that can manage structured agents safely while treating arbitrary interactive CLI tabs as a separate composed-terminal capability with explicit ownership and certification.
 
