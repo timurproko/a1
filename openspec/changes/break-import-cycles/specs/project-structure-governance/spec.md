@@ -25,8 +25,8 @@ The architecture gate SHALL build the relative-import graph of every module unde
 - **THEN** the scanner SHALL record no runtime edge for the type import
 - **AND** the eager startup graph SHALL not count the type-only target
 
-#### Scenario: A listed stranded module is fixed
-- **WHEN** a change deletes or reconnects a listed module without removing its allowlist entry
+#### Scenario: A listed cycle or stranded module is fixed
+- **WHEN** a change deletes or reconnects a listed module without removing its allowlist entry, or an allowlist still names a cycle that no longer exists
 - **THEN** the architecture gate SHALL fail reporting the stale entry
 
 #### Scenario: A declared process entry gains an importer
