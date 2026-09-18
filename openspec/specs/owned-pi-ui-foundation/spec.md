@@ -1033,6 +1033,8 @@ Except for the named missing-GitHub-CLI diagnostic below, every existing support
 
 For fatal `/new`, `/resume`, and `/import` outcomes, A1 SHALL preserve Pi-compatible visible error semantics but SHALL retain its recoverable workflow/session contract: the route returns a failed result and the owning A1 session remains active rather than stopping the terminal or propagating Pi's process exit. This lifecycle difference SHALL be recorded as an explicit contextual exception and SHALL NOT be presented as process-behavior parity.
 
+The slash-command workflows that produce these messages, their admission and cancellation, provider authentication, and the selector contexts the owned dialogs read SHALL be adapter-owned workflow components testable without the engine: a runner and a contexts reader that reach the current session, runtime, model state, view publication, and the interaction host only through explicit ports, while the adapter alone decides which session is current and when work is refused.
+
 #### Scenario: Login saves an API key
 - **WHEN** a supported provider login successfully stores an API key
 - **THEN** the success label SHALL be `Saved API key for <provider>` rather than `Logged in to <provider>`
@@ -1098,6 +1100,11 @@ For fatal `/new`, `/resume`, and `/import` outcomes, A1 SHALL preserve Pi-compat
 - **WHEN** `/copy`, `/export`, `/name`, `/session`, `/hotkeys`, `/changelog`, `/model`, `/scoped-models`, `/tree`, `/trust`, `/resume`, `/reload`, `/new`, `/compact`, or `/quit` reaches an already-matching state
 - **THEN** A1 SHALL preserve the pinned message or structured presentation rather than replace it with a generic success/failure sentence
 - **AND** operation-specific silent completion or cancellation SHALL remain silent where pinned Pi is silent
+
+#### Scenario: Run a workflow without an engine
+- **WHEN** the workflow runner is driven directly with a fake session, runtime, and interaction host
+- **THEN** it SHALL refuse work while admission is stopped or the shared budget is spent, track and cancel admitted workflows except `/quit`, and produce the same per-command wording, clipboard acknowledgment, model cycling, and login completion the shell observes through the adapter
+- **AND** the contexts reader SHALL shape the same provider, model, fork, tree, scoped-model, and session selector state from the same session and settings
 
 ### Requirement: Command messages preserve terminal geometry and lifetime
 Command-result status, warning, error, named-session text, structured information, and new-session notices SHALL preserve pinned semantic styling, wrapping, output padding, blank rows, chronological placement, consecutive-status coalescing, and rendered-component lifetime at equivalent terminal dimensions and settings. Rendered-component lifetime governs message placement and replacement, not host-process termination or terminal shutdown. Multiline output SHALL occupy separately tracked rendered rows. The existing declared A1 viewport and settings replacements SHALL remain intact; parity SHALL compare message components and behavior within those declarations and the uncustomized pinned route independently.
