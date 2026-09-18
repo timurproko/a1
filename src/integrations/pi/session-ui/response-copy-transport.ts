@@ -115,16 +115,19 @@ function startHelper(snapshot: SelectionCopySnapshot, mode: HelperMode, controlL
   let prepared: string[] = [], preparedBytes = 0, expectedBytes: number | undefined;
   const observedPhases = new Set<string>();
   let cleanup: ReturnType<typeof setTimeout> | undefined;
-  const cancel = () => {
+  const stop = (discard: boolean) => {
     if (stopping) return;
     stopping = true;
-    prepared = [];
+    if (discard) prepared = [];
     iterator = undefined;
     child.kill("SIGKILL");
     // Concurrency: a kernel-stuck child is quarantined by the coordinator, not allowed to pin UI shutdown.
     cleanup = setTimeout(() => { child.unref(); child.channel?.unref(); }, COPY_CLEANUP_MS);
     cleanup.unref();
   };
+  const cancel = () => stop(true);
+  // Invariant: reaping keeps a complete result's prepared text; discarding it would write "" to the clipboard.
+  const reap = () => stop(false);
   const result = new Promise<HelperResult>(resolve => {
     let settled = false;
     const settle = () => {
@@ -159,8 +162,8 @@ function startHelper(snapshot: SelectionCopySnapshot, mode: HelperMode, controlL
       } else if (message?.kind === "result" && ["delivered", "submitted-unverified", "failed"].includes(message.result?.outcome)) {
         outcome = message;
         iterator = undefined;
-        // Concurrency: a result is not an exit fence. Bound a malformed helper that sends a result but never exits.
-        cleanup = setTimeout(cancel, COPY_CLEANUP_MS);
+        // Concurrency: a result is not an exit fence; bound a helper that sends a result but never exits.
+        cleanup = setTimeout(reap, COPY_CLEANUP_MS);
         cleanup.unref();
       } else cancel();
     });
