@@ -53,6 +53,31 @@ describe("response-copy transport isolation", () => {
     expect(writeText).toHaveBeenCalledWith(text, expect.any(AbortSignal));
   });
 
+  it("reaps a helper that lingers after a complete prepared result and still delivers the exact text", async () => {
+    const text = "prepared before the helper lingered";
+    const writeText = vi.fn(async () => {});
+    const job = createResponseCopyExecutor({ writeText, helper: new URL("./response-copy-lingering-helper.mjs", import.meta.url) })(
+      { ...source(text), literal: true }, () => {});
+    await expect(job.result).resolves.toEqual({ outcome: "delivered" });
+    await job.stopped;
+    expect(writeText).toHaveBeenCalledOnce();
+    expect(writeText).toHaveBeenCalledWith(text, expect.any(AbortSignal));
+  }, 10_000);
+
+  it("discards a lingering helper's prepared text when the owner cancels before delivery", async () => {
+    const writeText = vi.fn(async () => {});
+    let extracted!: () => void;
+    const ready = new Promise<void>(resolve => { extracted = resolve; });
+    const job = createResponseCopyExecutor({ writeText, helper: new URL("./response-copy-lingering-helper.mjs", import.meta.url) })(
+      { ...source("prepared then canceled"), literal: true }, phase => { if (phase === "extracted") extracted(); });
+    await ready;
+    await new Promise(resolve => setTimeout(resolve, 50));
+    job.cancel();
+    await expect(job.result).resolves.toEqual({ outcome: "canceled" });
+    await job.stopped;
+    expect(writeText).not.toHaveBeenCalled();
+  }, 10_000);
+
   it("retains the side-effect fence of a non-settling injected writer after cancellation", async () => {
     let release!: () => void, submitted!: () => void;
     const ready = new Promise<void>(resolve => { submitted = resolve; });
