@@ -4,7 +4,7 @@ The module-graph gate (#473) recorded 31 modules that no entry point reaches. Tw
 
 ## What Changes
 
-- Delete the twelve modules and their dedicated tests, drop their barrel exports, and remove the three vendored components' records from the pinned Pi source ledger.
+- Delete the twelve modules and their dedicated tests, drop their barrel exports, and reclassify the three vendored components' ledger records as public-API reuse (the pinned package still ships them).
 - Declare `engine/conformance.ts` a process entry (it is loaded from `dist/` by `scripts/pi/run-pi-engine-conformance.mjs` and the candidate evaluator).
 - Teach the reachability gate that a module exporting only types is reached through type imports: a module with no runtime exports is judged by static edges, so `prompt-input-port.ts` leaves the allowlist without a source change.
 - Shrink `config/architecture-allowlist.json` accordingly; what remains is the workspace subsystem (archived by the next change) and `tui-runtime/conformance.ts`, a pinned-runtime contract check that only its test runs and that stays listed until the Pi upgrade work decides where it lives.
@@ -21,4 +21,4 @@ None.
 
 ## Impact
 
-Removes 12 source files and 6 test files, edits 4 barrels, 1 shared test, the source ledger and its count assertion, the allowlist, and `module-graph-policy.mjs` with one new fixture case. No behavior the shell exposes changes; the deleted modules had no runtime importer.
+Removes 12 source files and 6 test files, edits 4 barrels, 1 shared test, three source-ledger records, the validation ownership registries, the allowlist, and `module-graph-policy.mjs` with one new fixture case. No behavior the shell exposes changes; the deleted modules had no runtime importer.
