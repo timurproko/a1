@@ -1029,7 +1029,7 @@
       "TrustSelectorComponent",
       "OAuthSelectorComponent",
       "LoginDialogComponent",
-      "BorderedLoader"
+      "ThinkingSelectorComponent"
     ]
   },
   "demonstrationShellSmoke": {

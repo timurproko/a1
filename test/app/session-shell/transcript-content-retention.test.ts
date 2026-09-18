@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { pathToFileURL } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { getCapabilities, setCapabilities, Text } from "@earendil-works/pi-tui";
-import { ToolExecutionComponent } from "@earendil-works/pi-coding-agent";
+import { createEditToolDefinition, ToolExecutionComponent } from "@earendil-works/pi-coding-agent";
 import { createTuiFacade } from "../../../src/integrations/pi/components/shell-shared-facade.js";
 import { stripAnsi } from "../../../src/ui/components/text.js";
 import { readVisibleHyperlinks } from "../../../src/ui/components/visible-hyperlinks.js";
@@ -297,7 +297,8 @@ describe("transcript content retention across renderer boundaries", () => {
       details: { diff: "-1 old\n+1 AUTHORITATIVE_FINAL_DIFF", firstChangedLine: 1 }, isError: false };
     const { emit, shell } = await fixture();
     const requested = vi.fn();
-    const reference = new ToolExecutionComponent("edit", "edit", args, { showImages: true, imageWidthCells: 80 }, undefined,
+    // Rationale: since 0.85.1 the pinned component takes its renderers from the caller; the built-in edit definition carries them.
+    const reference = new ToolExecutionComponent("edit", "edit", args, { showImages: true, imageWidthCells: 80 }, createEditToolDefinition(process.cwd()),
       createTuiFacade({ getColumns: () => 80, getRows: () => 30, requestRender: requested }), process.cwd());
     reference.setArgsComplete();
     requested.mockClear();
@@ -328,7 +329,7 @@ describe("transcript content retention across renderer boundaries", () => {
         { type: "tool_execution_end", toolCallId: "edit-preview", toolName: "edit", args, result, isError: false });
       expect(textRows(component.render(100))).toContain("AUTHORITATIVE_FINAL_DIFF");
       expect(textRows(component.render(100))).not.toContain("PREVIEW_NOT_FINAL");
-      const reference = new ToolExecutionComponent("edit", "edit-preview", args, {}, undefined,
+      const reference = new ToolExecutionComponent("edit", "edit-preview", args, {}, createEditToolDefinition(process.cwd()),
         createTuiFacade({ getColumns: () => 80, getRows: () => 30, requestRender() {} }), process.cwd());
       reference.setArgsComplete(); reference.markExecutionStarted(); reference.updateResult(result);
       for (const width of [40, 80, 192]) expect(component.render(width)).toEqual(reference.render(width));

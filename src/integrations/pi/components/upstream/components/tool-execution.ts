@@ -18,6 +18,16 @@ import { ToolImagePresentation } from "../../tool-image-presentation.js";
 
 type ToolRenderContext = Parameters<NonNullable<ToolDefinition["renderCall"]>>[2];
 type ToolPresentationResult = Parameters<NonNullable<ToolDefinition["renderResult"]>>[0] & { isError: boolean };
+/** The caller-side merge 0.85.1 performs before handing a definition to the component: built-in renderers fill the gaps. */
+export function mergeBuiltInRenderers(definition: ToolDefinition<any, any, any> | undefined, builtIn: ToolDefinition<any, any, any> | undefined): ToolDefinition<any, any, any> | undefined {
+	if (definition === undefined) return builtIn;
+	if (builtIn === undefined) return definition;
+	const merged: ToolDefinition<any, any, any> = { ...definition };
+	if (definition.renderCall === undefined && builtIn.renderCall !== undefined) merged.renderCall = builtIn.renderCall;
+	if (definition.renderResult === undefined && builtIn.renderResult !== undefined) merged.renderResult = builtIn.renderResult;
+	return merged;
+}
+
 const definitions = { read: createReadToolDefinition, bash: createBashToolDefinition, edit: createEditToolDefinition,
   write: createWriteToolDefinition, grep: createGrepToolDefinition, find: createFindToolDefinition, ls: createLsToolDefinition };
 
@@ -71,9 +81,11 @@ export class ToolExecutionComponent extends Container {
 		this.toolName = toolName;
 		this.toolCallId = toolCallId;
 		this.args = args;
-		this.toolDefinition = toolDefinition;
 		this.builtInToolDefinition = Object.hasOwn(definitions, toolName)
       ? definitions[toolName as keyof typeof definitions](cwd) : undefined;
+		// Rationale: 0.85.1 moved the built-in renderer fallback to the caller; A1 keeps it here so every caller of
+		// the owned component gets the built-in edit/read/bash renderers without reaching into the tool registry.
+		this.toolDefinition = mergeBuiltInRenderers(toolDefinition, this.builtInToolDefinition);
 		this.showImages = options.showImages ?? true;
 		this.imageWidthCells = options.imageWidthCells ?? 60;
 		this.ui = ui;
