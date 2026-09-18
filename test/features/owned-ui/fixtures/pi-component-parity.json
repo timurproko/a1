@@ -5,10 +5,10 @@
     "evidenceAuthority": false,
     "colorMode": "truecolor",
     "repository": "https://github.com/earendil-works/pi.git",
-    "sourceCommit": "914cf1472e715297caa30db4b9535d534a9eb718",
+    "sourceCommit": "d981de1229ef899957bbe968bc8dcda02a21f477",
     "packages": {
-      "@earendil-works/pi-coding-agent": "0.84.2",
-      "@earendil-works/pi-tui": "0.84.2"
+      "@earendil-works/pi-coding-agent": "0.85.1",
+      "@earendil-works/pi-tui": "0.85.1"
     }
   },
   "tolerance": {
@@ -91,7 +91,7 @@
         "\u001b[48;2;45;40;56m                                                                        \u001b[49m",
         "\u001b[48;2;45;40;56m \u001b[38;2;149;117;205m\u001b[1m[compaction]\u001b[22m\u001b[39m                                                           \u001b[49m",
         "\u001b[48;2;45;40;56m                                                                        \u001b[49m",
-        "\u001b[48;2;45;40;56m \u001b[38;2;212;212;212mCompacted from 2,048 tokens (\u001b[39m\u001b[38;2;102;102;102m\u001b[39m\u001b[38;2;212;212;212m to expand)\u001b[39m                               \u001b[49m",
+        "\u001b[48;2;45;40;56m \u001b[38;2;212;212;212mCompacted from 2,048 tokens (\u001b[39m\u001b[38;2;102;102;102mctrl+o\u001b[39m\u001b[38;2;212;212;212m to expand)\u001b[39m                         \u001b[49m",
         "\u001b[48;2;45;40;56m                                                                        \u001b[49m",
         " \u001b[38;2;204;102;102mError: Synthetic parity error\u001b[39m                                          ",
         " \u001b[38;2;102;102;102mSystem notice\u001b[39m                                                          ",
@@ -164,7 +164,8 @@
         "\u001b[48;2;45;40;56m                                            \u001b[49m",
         "\u001b[48;2;45;40;56m \u001b[38;2;149;117;205m\u001b[1m[compaction]\u001b[22m\u001b[39m                               \u001b[49m",
         "\u001b[48;2;45;40;56m                                            \u001b[49m",
-        "\u001b[48;2;45;40;56m \u001b[38;2;212;212;212mCompacted from 2,048 tokens (\u001b[39m\u001b[38;2;102;102;102m\u001b[39m\u001b[38;2;212;212;212m to expand)\u001b[39m   \u001b[49m",
+        "\u001b[48;2;45;40;56m \u001b[38;2;212;212;212mCompacted from 2,048 tokens (\u001b[39m\u001b[38;2;102;102;102mctrl+o\u001b[39m\u001b[38;2;212;212;212m to     \u001b[49m",
+        "\u001b[48;2;45;40;56m \u001b[38;2;212;212;212mexpand)\u001b[39m                                    \u001b[49m",
         "\u001b[48;2;45;40;56m                                            \u001b[49m",
         " \u001b[38;2;204;102;102mError: Synthetic parity error\u001b[39m              ",
         " \u001b[38;2;102;102;102mSystem notice\u001b[39m                              ",

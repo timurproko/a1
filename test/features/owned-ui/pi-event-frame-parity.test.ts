@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { describe, expect, it, vi } from "vitest";
+import { readPinnedPiIdentity } from "../../../scripts/governance/pinned-pi-identity.mjs";
 import { getCapabilities } from "@earendil-works/pi-tui";
 import { piTheme } from "../../../src/integrations/pi/components/index.js";
 import { eventFrameDifference } from "./pi-event-frame-diagnostics.js";
@@ -43,11 +44,9 @@ describe("pinned Pi scripted event and terminal-frame parity", () => {
     expect(fixture.generatedFrom.producer).toBe("a1-diagnostic");
     expect(fixture.generatedFrom.evidenceAuthority).toBe(false);
     expect(fixture.generatedFrom.colorMode).toBe(EVENT_FRAME_PARITY_COLOR_MODE);
-    expect(fixture.generatedFrom.sourceCommit).toBe("914cf1472e715297caa30db4b9535d534a9eb718");
-    expect(fixture.generatedFrom.packages).toEqual({
-      "@earendil-works/pi-coding-agent": "0.84.2",
-      "@earendil-works/pi-tui": "0.84.2",
-    });
+    const pinned = await readPinnedPiIdentity(".");
+    expect(fixture.generatedFrom.sourceCommit).toBe(pinned.commit);
+    expect(fixture.generatedFrom.packages).toEqual(Object.fromEntries(pinned.packages.map(entry => [entry.name, entry.version])));
     expect(fixture.eventStages).toEqual(["initial", ...SCRIPTED_PI_EVENTS.map(entry => entry.stage), "resized"]);
     expect(result.states).toEqual(fixture.states);
   });
