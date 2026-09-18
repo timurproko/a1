@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { lstat, realpath, readdir, readFile, rm } from "node:fs/promises";
+import { lstat, realpath, readdir, readFile, rm, rmdir } from "node:fs/promises";
 import { resolve, relative, isAbsolute, join } from "node:path";
 import { fail, safeRef } from "./local-cleanup-state.mjs";
 
@@ -39,6 +39,36 @@ async function removeTree(path, code, reported, { deadline = Infinity, now = Dat
     }
   }
   if (await exists(path)) fail(code, { paths: [reported] });
+}
+const ORDINARY_CONTENT_ENTRY_LIMIT = 20_000;
+const GENERATED_CONTENT_ENTRY_LIMIT = 100_000;
+/**
+ * True only when the path is a non-link directory whose whole subtree holds nothing but non-link directories, so removing it
+ * loses no file, link, special entry, or Git metadata. The walk shares the ordinary entry allowance and deadline.
+ */
+export async function emptyDirectoryTree(path, { entryLimit = ORDINARY_CONTENT_ENTRY_LIMIT, deadline = Infinity, now = Date.now } = {}) {
+  const root = await lstat(path);
+  if (root.isSymbolicLink() || !root.isDirectory()) return false;
+  let visited = 0;
+  async function walk(directory) {
+    if (now() >= deadline) fail("content-inspection-budget");
+    for (const item of await readdir(directory, { withFileTypes: true })) {
+      if (++visited > entryLimit) fail("content-inspection-budget");
+      if (item.name === ".git" || item.isSymbolicLink() || !item.isDirectory()) return false;
+      if (!await walk(join(directory, item.name))) return false;
+    }
+    return true;
+  }
+  return walk(path);
+}
+/** Bottom-up removal with the non-recursive primitive only, so a directory that gained content since verification is retained. */
+export async function removeEmptyTree(path, code, reported) {
+  for (const item of await readdir(path, { withFileTypes: true })) {
+    if (item.isSymbolicLink() || !item.isDirectory()) fail(code, { paths: [reported] });
+    await removeEmptyTree(join(path, item.name), code, reported);
+  }
+  try { await rmdir(path); }
+  catch (error) { if (error.code === "ENOENT") return; fail(code, { paths: [reported] }); }
 }
 export function parseWorktrees(text) {
   const rows = []; let row = {};
@@ -91,8 +121,6 @@ export async function captureWorktree(identity, path, git = gitRunner()) {
     || (await git(absolute, ["rev-parse", "--symbolic-full-name", "HEAD"])).trim() !== (ref ?? "HEAD")) fail("worktree-head-mismatch");
   return { path: absolute, filesystem: fingerprint(await lstat(absolute)), head: row.HEAD, ref };
 }
-const ORDINARY_CONTENT_ENTRY_LIMIT = 20_000;
-const GENERATED_CONTENT_ENTRY_LIMIT = 100_000;
 
 /** Status rows outside the disposable roots; ignored rows count only when the caller asks for them. */
 export async function statusBlockers(git, path, disposable, { ignored = true } = {}) {

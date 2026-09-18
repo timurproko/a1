@@ -2,10 +2,12 @@ import { readdir, lstat, unlink } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import { atomicJson, fail } from "./local-cleanup-state.mjs";
-import { discoverRepository, exists, inspectResidue, inspectWorktree, nothingLeft, parseWorktrees, purgeDisposable, removeLocalRef, removeWorktree, repairResidue, retireRegistration, gitRunner } from "./local-cleanup-git.mjs";
+import { discoverRepository, emptyDirectoryTree, exists, inside, inspectResidue, inspectWorktree, nothingLeft, parseWorktrees, purgeDisposable, removeEmptyTree, removeLocalRef, removeWorktree, repairResidue, retireRegistration, canonical, gitRunner } from "./local-cleanup-git.mjs";
 import { acceptedHead, mergedIntoDevelop, verifyCleanupEvidence } from "./local-cleanup-evidence.mjs";
 import { pruneMergedBranches } from "./local-cleanup-branches.mjs";
 
+/** A folder Git left behind is removable only once it has sat untouched long enough that no worktree add or removal is mid-flight. */
+const EMPTY_DIRECTORY_GRACE_MS = 10 * 60 * 1000;
 const reason = error => error.cleanupCode ?? error.archiveCode ?? "local-operation-failed";
 const deferred = code => ["pass-deadline", "remote-budget", "remote-backoff", "content-inspection-budget", "mutation-busy"].includes(code);
 async function absent(identity, entry, git) {
@@ -160,9 +162,27 @@ export async function reconcileLocalCleanup({ identity, store, reader, preview =
     if (includeUnmanaged && await exists(identity.root)) {
       const registered = new Set(state.entries.map(entry => entry.path));
       const names = await readdir(identity.root, { withFileTypes: true });
+      const listed = new Set(parseWorktrees(await git(identity.primary, ["worktree", "list", "--porcelain", "-z"])).map(row => resolve(row.worktree).replaceAll("\\", "/")));
+      const current = await canonical(cwd);
+      // Rationale: an all-empty tree has no content to protect, so it is the one unregistered shape a pass may remove.
+      async function reclaimEmptyDirectory(row, item) {
+        if (listed.has(row.path) || item.isSymbolicLink() || !item.isDirectory()) return;
+        if (!await emptyDirectoryTree(row.path, { deadline, now })) return;
+        if (current === row.path || inside(row.path, current)) fail("current-worktree");
+        if (now() - (await lstat(row.path)).mtimeMs < EMPTY_DIRECTORY_GRACE_MS) { row.reason = "empty-directory-recent"; return; }
+        row.reason = "empty-directory";
+        if (preview) return;
+        await enabled();
+        await removeEmptyTree(row.path, "empty-directory-locked", row.path);
+        Object.assign(row, { disposition: "removed", steps: ["empty-directory-removed"] });
+      }
       for (const name of names.slice(0, 100)) {
         const path = join(identity.root, name.name).replaceAll("\\", "/");
-        if (!registered.has(path)) report.results.push({ path, disposition: "unmanaged", reason: "not-registered" });
+        if (registered.has(path)) continue;
+        const row = { path, disposition: "unmanaged", reason: "not-registered" };
+        report.results.push(row);
+        try { await reclaimEmptyDirectory(row, name); }
+        catch (error) { row.reason = reason(error); if (Array.isArray(error.paths)) row.paths = error.paths; row.disposition = deferred(row.reason) ? "deferred" : "blocked"; }
       }
       if (names.length > 100) report.unmanagedCoverage = "truncated";
     }
