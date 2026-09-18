@@ -1,5 +1,5 @@
 /**
- * Provenance: @earendil-works/pi-coding-agent 0.84.2 (MIT), commit 914cf1472e715297caa30db4b9535d534a9eb718,
+ * Provenance: @earendil-works/pi-coding-agent 0.85.1 (MIT), commit d981de1229ef899957bbe968bc8dcda02a21f477,
  * packages/coding-agent/src/modes/interactive/components/trust-selector.ts.
  * Modifications: Mechanical source-synchronized trust selector port with injected public
  * ProjectTrustStore-derived options and remapped owned theme imports.
@@ -85,7 +85,8 @@ export class TrustSelectorComponent extends Container {
       const current = option.savedPath !== undefined && savedDecision?.decision === option.trusted && savedDecision.path === option.savedPath;
       const prefix = selected ? piTheme().fg("accent", "→ ") : "  ";
       const label = selected ? piTheme().fg("accent", option.label) : piTheme().fg("text", option.label);
-      this.listContainer.addChild(new Text(`${prefix}${label}${current ? piTheme().fg("success", " ✓") : ""}`, 1, 0));
+      const currentMarker = current ? piTheme().fg("accent", "✓ ") : "  ";
+      this.listContainer.addChild(new Text(`${prefix}${currentMarker}${label}`, 1, 0));
     }
   }
 }

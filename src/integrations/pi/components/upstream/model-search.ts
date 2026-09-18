@@ -1,5 +1,5 @@
 /**
- * Provenance: @earendil-works/pi-coding-agent 0.84.2 (MIT), commit 914cf1472e715297caa30db4b9535d534a9eb718,
+ * Provenance: @earendil-works/pi-coding-agent 0.85.1 (MIT), commit d981de1229ef899957bbe968bc8dcda02a21f477,
  * packages/coding-agent/src/modes/interactive/model-search.ts.
  * Modifications: Mechanical source-synchronized port preserving pinned model search terms for stateful
  * scoped-model filtering.

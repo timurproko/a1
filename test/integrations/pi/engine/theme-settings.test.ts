@@ -12,10 +12,10 @@ function bindTheme(target: PiSettingsIntegration): PiSettingsIntegration {
 function integration(theme: string): PiSettingsIntegration {
   const target = bindTheme(new PiSettingsIntegration(SettingsManager.inMemory({ theme }), {
     themes: () => THEMES,
-    thinkingLevels: () => ["low", "high"],
+    models: () => [{ key: "openai/gpt-5", label: "gpt-5 [openai]", description: "global default", levels: ["off", "low", "high"] }],
     productMode: "comparison",
   }));
-  target.bindOwner("agent", { thinkingLevel: { apply() {} } });
+  target.bindOwner("agent", { modelThinkingLevels: { apply() {} } });
   return target;
 }
 
@@ -38,10 +38,10 @@ describe("the theme at the engine boundary", () => {
     expect(theme?.resolvedWhenRead).toBe(true);
   });
 
-  it("resolves the thinking levels the session reports", async () => {
+  it("resolves the per-model thinking rows from the models the engine offers", async () => {
     const descriptors = await integration("dark").listSettings();
-    const thinking = descriptors.find(descriptor => descriptor.key === "thinkingLevel");
-    expect(thinking?.choices).toEqual(["low", "high"]);
+    const thinking = descriptors.find(descriptor => descriptor.key === "modelThinkingLevels");
+    expect(thinking?.flags).toEqual([{ key: "openai/gpt-5", label: "gpt-5 [openai]", description: "global default", fallback: "default", choices: ["default", "off", "low", "high"] }]);
     expect(thinking?.resolvedWhenRead).toBe(true);
   });
 
@@ -60,7 +60,7 @@ describe("the theme at the engine boundary", () => {
 
   it("stores following the terminal as the theme named for each appearance", async () => {
     const settings = SettingsManager.inMemory({ theme: "ocean" });
-    const target = bindTheme(new PiSettingsIntegration(settings, { themes: () => THEMES, thinkingLevels: () => ["low"], productMode: "comparison" }));
+    const target = bindTheme(new PiSettingsIntegration(settings, { themes: () => THEMES, productMode: "comparison" }));
 
     await target.writeSetting("theme", AUTOMATIC_THEME);
 
@@ -70,7 +70,7 @@ describe("the theme at the engine boundary", () => {
 
   it("keeps the theme in use for both appearances when neither is installed", async () => {
     const settings = SettingsManager.inMemory({ theme: "ocean" });
-    const target = bindTheme(new PiSettingsIntegration(settings, { themes: () => ["ocean"], thinkingLevels: () => ["low"], productMode: "comparison" }));
+    const target = bindTheme(new PiSettingsIntegration(settings, { themes: () => ["ocean"], productMode: "comparison" }));
 
     await target.writeSetting("theme", AUTOMATIC_THEME);
 

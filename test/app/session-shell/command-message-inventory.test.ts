@@ -2,6 +2,7 @@ import { readFile, access } from "node:fs/promises";
 import { join } from "node:path";
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
+import { readPinnedPiIdentity } from "../../../scripts/governance/pinned-pi-identity.mjs";
 import { COMMAND_OUTCOME_CASES } from "./command-outcome-cases.js";
 
 interface Inventory {
@@ -34,7 +35,7 @@ describe("cumulative pinned command message inventory", () => {
     const baseline = await inventory();
     const evidence = baseline.commandMessageParity;
     expect(evidence.change).toBe("align-pi-command-messages");
-    expect(baseline.upstream.commit).toBe("914cf1472e715297caa30db4b9535d534a9eb718");
+    expect(baseline.upstream.commit).toBe((await readPinnedPiIdentity(".")).commit);
     const packageRoot = "node_modules/@earendil-works/pi-coding-agent";
     const manifest = JSON.parse(await readFile(join(packageRoot, "package.json"), "utf8"));
     expect(manifest.version).toBe(evidence.pinnedVersion);

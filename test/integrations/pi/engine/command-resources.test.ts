@@ -5,6 +5,7 @@ import { join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { getPackageDir } from "@earendil-works/pi-coding-agent";
 import { describe, expect, it } from "vitest";
+import { readPinnedPiIdentity } from "../../../../scripts/governance/pinned-pi-identity.mjs";
 
 const resources = [
   "src/integrations/pi/components/upstream/assets/earendil-image.json",
@@ -16,9 +17,10 @@ describe("owned command resource provenance", () => {
   it.each(resources)("preserves the exact pinned data and attribution in %s", async path => {
     const resource = JSON.parse(await readFile(path, "utf8"));
     const manifest = JSON.parse(await readFile(join(getPackageDir(), "package.json"), "utf8"));
+    const identity = await readPinnedPiIdentity(".");
     expect(resource).toMatchObject({
       sourcePackage: manifest.name, sourceVersion: manifest.version, license: "MIT",
-      upstreamRepository: "https://github.com/earendil-works/pi.git", upstreamCommit: "914cf1472e715297caa30db4b9535d534a9eb718",
+      upstreamRepository: "https://github.com/earendil-works/pi.git", upstreamCommit: identity.commit,
     });
     expect(["utf8", "base64"]).toContain(resource.encoding);
     expect(resource.sourcePath).toBe(path.includes("earendil-image") ? "dist/modes/interactive/assets/clankolas.png" : "CHANGELOG.md");

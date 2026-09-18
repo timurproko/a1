@@ -1,10 +1,16 @@
 import { writeFile } from "node:fs/promises";
+import { resolve } from "node:path";
+// @ts-expect-error — plain shipped JS module without type declarations.
+import { installPinnedPiTuiResolver } from "../../bin/module-resolver.js";
+import { readPinnedPiIdentity } from "../governance/pinned-pi-identity.mjs";
 import identity from "../../src/product-identity.json" with { type: "json" };
-import {
-  buildEventFrameParityResult,
-  EVENT_FRAME_PARITY_COLOR_MODE,
-  SCRIPTED_PI_EVENTS,
-} from "../../test/features/owned-ui/pi-event-frame-parity-fixture.js";
+
+// Invariant: the resolver hook must be live before any Pi module links, exactly as the bin entries and the
+// Vitest setup do, so the pinned components and A1's renderer share one pi-tui identity. The fixture module
+// is therefore imported after the hook.
+installPinnedPiTuiResolver(resolve("."));
+const { buildEventFrameParityResult, EVENT_FRAME_PARITY_COLOR_MODE, SCRIPTED_PI_EVENTS } = await import("../../test/features/owned-ui/pi-event-frame-parity-fixture.js");
+const pinned = await readPinnedPiIdentity(".");
 
 const result = await buildEventFrameParityResult();
 const output = {
@@ -14,11 +20,8 @@ const output = {
     evidenceAuthority: false,
     colorMode: EVENT_FRAME_PARITY_COLOR_MODE,
     repository: "https://github.com/earendil-works/pi.git",
-    sourceCommit: "914cf1472e715297caa30db4b9535d534a9eb718",
-    packages: {
-      "@earendil-works/pi-coding-agent": "0.84.2",
-      "@earendil-works/pi-tui": "0.84.2"
-    }
+    sourceCommit: pinned.commit,
+    packages: Object.fromEntries(pinned.packages.map(entry => [entry.name, entry.version])),
   },
   tolerance: {
     ignored: ["synchronized-output envelope", "render timing", "file hyperlink availability and absolute targets", "declared product and path substitutions"],

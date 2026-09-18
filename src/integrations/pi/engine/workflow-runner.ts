@@ -218,6 +218,24 @@ export class PiWorkflowRunner {
         if (!selection) return workflowResult(request.command, "failed", "Settings requires the owned settings controller");
         return await this.#ports.applyPinnedSetting(selection);
       }
+      case "thinking": {
+        const requested = (selection ?? argument).trim();
+        if (!requested) return workflowResult(request.command, "requires-selection", "Select a thinking level", undefined, "silent");
+        const available = (session.getAvailableThinkingLevels?.() ?? []).map(String);
+        // Compatibility: pinned Pi matches the argument case-insensitively and words the failure with the available levels.
+        const level = available.find(candidate => candidate.toLowerCase() === requested.toLowerCase());
+        if (level === undefined) {
+          return workflowResult(request.command, "failed", `Unknown thinking level "${requested}". Available levels: ${available.join(", ")}.`);
+        }
+        try {
+          session.setThinkingLevel(readThinkingLevel(level), { persist: request.persist === true });
+        } catch (error) {
+          return workflowResult(request.command, "failed", error instanceof Error ? error.message : String(error));
+        }
+        this.#ports.setThinkingLevel(readThinkingLevel(session.thinkingLevel));
+        this.#ports.emitView();
+        return workflowResult(request.command, "completed", request.persist === true ? `Default thinking level: ${level}` : `Thinking level: ${level}`);
+      }
       case "model": {
         const reference = selection ?? argument;
         if (!reference) return workflowResult(request.command, "failed", "Model requires the owned model controller");
@@ -273,7 +291,7 @@ export class PiWorkflowRunner {
           };
         }
         try {
-          await session.setModel(model);
+          await session.setModel(model, { persist: request.persist === true });
         } catch (error) {
           if (!current()) return workflowResult(request.command, "cancelled", "Model selection cancelled", undefined, "silent");
           const failure: PiWorkflowMessage = { kind: "error", message: error instanceof Error ? error.message : String(error) };
@@ -284,7 +302,7 @@ export class PiWorkflowRunner {
         const modelId = stringProperty(model, "id") ?? reference;
         this.#ports.setActiveModel({ providerId, modelId, displayName: stringProperty(model, "name") ?? modelId });
         this.#ports.emitView();
-        const resultMessage: PiWorkflowMessage = { kind: "status", message: `Model: ${modelId}` };
+        const resultMessage: PiWorkflowMessage = { kind: "status", message: request.persist === true ? `Default model: ${providerId}/${modelId}` : `Model: ${modelId}` };
         return messages.length === 0
           ? workflowResult(request.command, "completed", resultMessage.message)
           : workflowResult(request.command, "completed", resultMessage.message, undefined, "status", [...messages, resultMessage]);

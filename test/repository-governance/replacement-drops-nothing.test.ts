@@ -38,7 +38,7 @@ describe(`the ${SETTINGS_ROUTE} screen, which supersedes the pinned selector`, (
   it("reaches every setting the engine reports", async () => {
     const engine = new PiSettingsIntegration(SettingsManager.inMemory({}), {
       themes: () => ["dark", "light"],
-      thinkingLevels: () => ["low", "high"],
+      models: () => [{ key: "openai/gpt-5", label: "gpt-5 [openai]", description: "global default", levels: ["off", "low", "high"] }],
     });
     const reported = (await engine.listSettings()).map(descriptor => descriptor.key);
 
@@ -56,7 +56,7 @@ describe(`the ${SETTINGS_ROUTE} screen, which supersedes the pinned selector`, (
   it("shows each of them on screen, not merely in its model", async () => {
     const engine = new PiSettingsIntegration(SettingsManager.inMemory({}), {
       themes: () => ["dark", "light"],
-      thinkingLevels: () => ["low", "high"],
+      models: () => [{ key: "openai/gpt-5", label: "gpt-5 [openai]", description: "global default", levels: ["off", "low", "high"] }],
     });
     const store = new OwnedUiSettingsStore({ configDir: root, profileId: "parity", declarations: [], migrations: [] });
     const session = new OwnedUiSettingsSession({ store, agent: engine });

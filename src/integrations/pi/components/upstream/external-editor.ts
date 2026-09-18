@@ -1,5 +1,5 @@
 /**
- * Provenance: @earendil-works/pi-coding-agent 0.84.2 (MIT), commit 914cf1472e715297caa30db4b9535d534a9eb718,
+ * Provenance: @earendil-works/pi-coding-agent 0.85.1 (MIT), commit d981de1229ef899957bbe968bc8dcda02a21f477,
  * packages/coding-agent/src/modes/interactive/external-editor.ts.
  * Modifications: Mechanical port: retain temporary prompt file, asynchronous inherited-stdio editor
  * process, completion readback, and best-effort cleanup behind the owned extension-editor component.
@@ -29,7 +29,9 @@ export async function editInExternalEditor(options: { readonly command: string; 
       child.on("close", code => resolve(code));
     });
     if (exitCode !== 0) return { status: "failed" };
-    return { status: "complete", content: readFileSync(filePath, "utf-8").replace(/\n$/, "") };
+    // Rationale: upstream strips the BOM through a private util the package does not export; the check lives here.
+    const edited = readFileSync(filePath, "utf-8");
+    return { status: "complete", content: (edited.startsWith("﻿") ? edited.slice(1) : edited).replace(/\n$/, "") };
   } finally {
     try {
       rmSync(directory, { recursive: true, force: true });

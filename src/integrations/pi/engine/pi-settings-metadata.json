@@ -26,10 +26,11 @@
     "doubleEscapeAction",
     "treeFilterMode",
     "warnings",
-    "thinkingLevel",
+    "modelThinkingLevels",
     "tuiMode",
     "fullscreenExitOutput",
     "fullscreenScrollbar",
+    "fullscreenCopyOnSelect",
     "theme"
   ],
   "order": [
@@ -59,10 +60,11 @@
     "doubleEscapeAction",
     "treeFilterMode",
     "warnings",
-    "thinkingLevel",
+    "modelThinkingLevels",
     "tuiMode",
     "fullscreenExitOutput",
     "fullscreenScrollbar",
+    "fullscreenCopyOnSelect",
     "theme"
   ],
   "settings": {
@@ -192,7 +194,7 @@
     },
     "followUpMode": {
       "label": "Follow-up mode",
-      "description": "",
+      "description": "'one-at-a-time': deliver one, wait for response. 'all': deliver all at once.",
       "opensDialog": false,
       "values": [
         "one-at-a-time",
@@ -236,7 +238,7 @@
     },
     "showCacheMissNotices": {
       "label": "Cache miss notices",
-      "description": "Show transcript notices for significant prompt-cache misses",
+      "description": "Show transcript notices for cache costs and provider recovery diagnostics",
       "opensDialog": false,
       "values": [
         "true",
@@ -308,9 +310,9 @@
       "opensDialog": true,
       "literalValue": "configure"
     },
-    "thinkingLevel": {
-      "label": "Thinking level",
-      "description": "Reasoning depth for thinking-capable models",
+    "modelThinkingLevels": {
+      "label": "Default thinking level per model",
+      "description": "Override the default thinking level for specific models.",
       "opensDialog": true
     },
     "tuiMode": {
@@ -339,6 +341,15 @@
         "auto",
         "always",
         "hidden"
+      ]
+    },
+    "fullscreenCopyOnSelect": {
+      "label": "Fullscreen copy on select",
+      "description": "Automatically copy selected text in fullscreen mode; disable to copy selections with Ctrl+X",
+      "opensDialog": false,
+      "values": [
+        "true",
+        "false"
       ]
     },
     "theme": {

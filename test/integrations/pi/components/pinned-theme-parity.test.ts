@@ -25,14 +25,14 @@ import {
 } from "../../../support/pi-terminal-capabilities.js";
 
 const FOREGROUNDS = [
-  "accent", "border", "borderAccent", "borderMuted", "success", "error", "warning", "muted", "dim", "text",
+  "accent", "border", "borderAccent", "borderMuted", "success", "error", "warning", "muted", "dim", "text", "scrollbarTrack", "scrollbarThumb",
   "thinkingText", "userMessageText", "customMessageText", "customMessageLabel", "toolTitle", "toolOutput",
   "mdHeading", "mdLink", "mdLinkUrl", "mdCode", "mdCodeBlock", "mdCodeBlockBorder", "mdQuote", "mdQuoteBorder",
   "mdHr", "mdListBullet", "toolDiffAdded", "toolDiffRemoved", "toolDiffContext", "syntaxComment", "syntaxKeyword",
   "syntaxFunction", "syntaxVariable", "syntaxString", "syntaxNumber", "syntaxType", "syntaxOperator", "syntaxPunctuation",
   "thinkingOff", "thinkingMinimal", "thinkingLow", "thinkingMedium", "thinkingHigh", "thinkingXhigh", "thinkingMax", "bashMode",
 ] as const;
-const BACKGROUNDS = ["selectedBg", "scrollbarThumb", "userMessageBg", "customMessageBg", "toolPendingBg", "toolSuccessBg", "toolErrorBg"] as const;
+const BACKGROUNDS = ["selectedBg", "userMessageBg", "customMessageBg", "toolPendingBg", "toolSuccessBg", "toolErrorBg"] as const;
 
 function block(kind: "user" | "assistant", text: string): OwnedUiTranscriptBlock {
   return { id: `${kind}-theme`, kind, status: "finalized", revision: 1, title: null, text, payload: {} };

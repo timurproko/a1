@@ -40,12 +40,12 @@ function text(selector: ScopedModelsSelectorComponent) { return selector.render(
 
 for (const platform of ["darwin", "win32", "linux"] as const) {
   describe(`scoped-model key hints on ${platform}`, () => {
-    const alt = platform === "darwin" ? "option" : "alt";
+    const alt = platform === "darwin" ? "Option" : "Alt";
 
     it("formats default reorder hints without changing their logical keys or model text", () => {
       withSelector(platform, {}, (selector, _callbacks, keys) => {
-        expect(text(selector)).toContain(`${alt}+up/${alt}+down reorder`);
-        expect(text(selector)).toContain("Session-only. ctrl+s to save to settings.");
+        expect(text(selector)).toContain(`${alt}+Up/${alt}+Down reorder`);
+        expect(text(selector)).toContain("Session-only. Ctrl+S to save to settings.");
         expect(text(selector)).toContain("First alt+literal");
         expect(keys.getKeys("app.models.reorderUp")).toEqual(["alt+up"]);
         expect(keys.getKeys("app.models.reorderDown")).toEqual(["alt+down"]);
@@ -61,13 +61,15 @@ for (const platform of ["darwin", "win32", "linux"] as const) {
       };
       withSelector(platform, bindings, (selector, callbacks, keys) => {
         const before = keys.getEffectiveConfig();
-        expect(text(selector)).toContain(`Session-only. ${alt}+s/ctrl+s to save to settings.`);
-        expect(text(selector)).toContain(`${alt}+t toggle · ${alt}+a/ctrl+a all · ctrl+${alt}+x clear · ${alt}+p provider · ${alt}+up/ctrl+up/${alt}+down reorder · ${alt}+s/ctrl+s save · all enabled`);
+        expect(text(selector)).toContain(`Session-only. ${alt}+S/Ctrl+S to save to settings.`);
+        expect(text(selector)).toContain(`${alt}+T toggle · ${alt}+A/Ctrl+A all · Ctrl+${alt}+X clear · ${alt}+P provider · ${alt}+Up/Ctrl+Up/${alt}+Down reorder · ${alt}+S/Ctrl+S save · all enabled`);
         selector.handleInput("\u001bt");
-        expect(callbacks.onChange).toHaveBeenLastCalledWith([ids[0]]);
+        // Rationale: since 0.85.1 the first toggle from "all enabled" disables that one model rather than keeping only it.
+        const allButFirst = ids.filter(id => id !== ids[0]);
+        expect(callbacks.onChange).toHaveBeenLastCalledWith(allButFirst);
         expect(callbacks.onPersist).not.toHaveBeenCalled();
         selector.handleInput("\u001bs");
-        expect(callbacks.onPersist).toHaveBeenLastCalledWith([ids[0]]);
+        expect(callbacks.onPersist).toHaveBeenLastCalledWith(allButFirst);
         expect(keys.getEffectiveConfig()).toEqual(before);
       });
     });
@@ -76,8 +78,8 @@ for (const platform of ["darwin", "win32", "linux"] as const) {
       withSelector(platform, { "app.models.save": [], "app.models.reorderUp": [], "app.models.reorderDown": "shift+ctrl+down" }, (selector, callbacks, keys) => {
         const rendered = text(selector);
         expect(rendered).toContain("Session-only.  to save to settings.");
-        expect(rendered).toContain("/shift+ctrl+down reorder ·  save · all enabled");
-        expect(rendered).not.toContain("ctrl+s");
+        expect(rendered).toContain("/Shift+Ctrl+Down reorder ·  save · all enabled");
+        expect(rendered).not.toContain("Ctrl+S");
         expect(keys.getKeys("app.models.save")).toEqual([]);
         selector.handleInput("\u0013");
         expect(callbacks.onPersist).not.toHaveBeenCalled();
@@ -90,7 +92,7 @@ for (const platform of ["darwin", "win32", "linux"] as const) {
         expect(callbacks.onChange).toHaveBeenLastCalledWith([ids[1], ids[0]]);
         expect(callbacks.onPersist).not.toHaveBeenCalled();
         expect(text(selector)).toContain("(unsaved)");
-        expect(text(selector)).toContain(`${alt}+up/${alt}+j reorder`);
+        expect(text(selector)).toContain(`${alt}+Up/${alt}+J reorder`);
         selector.handleInput("\u001bs");
         expect(callbacks.onPersist).toHaveBeenLastCalledWith([ids[1], ids[0]]);
         expect(text(selector)).not.toContain("(unsaved)");
@@ -98,7 +100,7 @@ for (const platform of ["darwin", "win32", "linux"] as const) {
           selector.updateModels(models);
           selector.setRefreshStatus(`Catalog ${kind}`, kind);
           expect(text(selector)).toContain(`Catalog ${kind}`);
-          expect(text(selector)).toContain(`${alt}+s save`);
+          expect(text(selector)).toContain(`${alt}+S save`);
         }
         selector.handleInput("\r");
         expect(callbacks.onChange).toHaveBeenLastCalledWith([ids[1]]);

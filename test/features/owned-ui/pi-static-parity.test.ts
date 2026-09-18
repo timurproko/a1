@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
+import { readPinnedPiIdentity } from "../../../scripts/governance/pinned-pi-identity.mjs";
 import {
   buildStaticParityCases,
   normalizeParityRow,
@@ -40,11 +41,9 @@ describe("pinned Pi static component parity", () => {
     expect(fixture.generatedFrom.producer).toBe("a1-diagnostic");
     expect(fixture.generatedFrom.evidenceAuthority).toBe(false);
     expect(fixture.generatedFrom.colorMode).toBe(STATIC_PARITY_COLOR_MODE);
-    expect(fixture.generatedFrom.sourceCommit).toBe("914cf1472e715297caa30db4b9535d534a9eb718");
-    expect(fixture.generatedFrom.packages).toEqual({
-      "@earendil-works/pi-coding-agent": "0.84.2",
-      "@earendil-works/pi-tui": "0.84.2",
-    });
+    const pinned = await readPinnedPiIdentity(".");
+    expect(fixture.generatedFrom.sourceCommit).toBe(pinned.commit);
+    expect(fixture.generatedFrom.packages).toEqual(Object.fromEntries(pinned.packages.map(entry => [entry.name, entry.version])));
     expect(fixture.tolerance).toEqual({
       ignored: ["file hyperlink availability and absolute targets", "declared product and path substitutions"],
       preserved: ["semantic ANSI", "reset boundaries", "visible text", "row order", "row count", "wrapping", "width truncation"],

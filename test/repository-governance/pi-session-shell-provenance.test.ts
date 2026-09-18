@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
+import { readPinnedPiIdentity } from "../../scripts/governance/pinned-pi-identity.mjs";
 
 describe("Pi session shell provenance", () => {
   it("records the exact MIT upstream and every orchestration port", async () => {
@@ -17,10 +18,8 @@ describe("Pi session shell provenance", () => {
     expect(evidence.schema).toBe("a1-pi-session-shell-provenance-v1");
     expect(evidence.upstream.commit).toMatch(/^[0-9a-f]{40}$/);
     expect(evidence.upstream.license).toBe("MIT");
-    expect(evidence.upstream.packages).toEqual([
-      { name: "@earendil-works/pi-coding-agent", version: "0.84.2" },
-      { name: "@earendil-works/pi-tui", version: "0.84.2" },
-    ]);
+    const pinned = await readPinnedPiIdentity(".");
+    expect(evidence.upstream.packages).toEqual(pinned.packages.map(value => ({ name: value.name, version: value.version })));
     expect(evidence.publicExports).toContain("FooterComponent");
     expect(evidence.publicExports).toContain("CombinedAutocompleteProvider");
     expect(new Set(evidence.publicExports).size).toBe(evidence.publicExports.length);
@@ -35,13 +34,13 @@ describe("Pi session shell provenance", () => {
       copiedFiles: [],
       copiedLines: false,
       localFile: "src/app/session-shell/session-shell.ts",
-      upstreamCommit: "914cf1472e715297caa30db4b9535d534a9eb718",
+      upstreamCommit: pinned.commit,
       upstreamLines: [528, 994],
     });
     expect(evidence.orchestrationPorts[0]?.coverage).toContain("test/features/owned-ui/pi-startup-composition-parity.test.ts");
     expect(evidence.orchestrationPorts[2]).toMatchObject({
       localFile: "src/integrations/pi/engine/adapter.ts",
-      upstreamCommit: "914cf1472e715297caa30db4b9535d534a9eb718",
+      upstreamCommit: pinned.commit,
       copiedFiles: [],
       copiedLines: false,
     });

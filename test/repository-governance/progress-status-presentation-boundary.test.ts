@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
+import { readPinnedPiIdentity } from "../../scripts/governance/pinned-pi-identity.mjs";
 
 const WORK_STATE_ENTRY = /#enterWorkState\("(?:working|retry|compaction)",\s*"([^"]+)"\)/gu;
 
@@ -31,7 +32,7 @@ describe("progress-status presentation boundary", () => {
     expect(() => assertNoUiComponentImport(shell)).not.toThrow();
     expect(shell.match(/\bformatProgressStatus\(/gu)).toHaveLength(1);
     expect(root).toContain("createPiShellStatus(view, progressStatusText, handlers)");
-    expect(synchronized).toContain("Provenance: @earendil-works/pi-coding-agent 0.84.2");
+    expect(synchronized).toContain(`Provenance: @earendil-works/pi-coding-agent ${(await readPinnedPiIdentity(".")).version}`);
     expect(synchronized).not.toContain("progressStatusText");
     expect(dispatch).not.toContain("progressStatusText");
     expect(runtimeSelection).not.toContain("progressStatusText");

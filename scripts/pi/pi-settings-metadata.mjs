@@ -35,10 +35,11 @@ const ID_TO_KEY = Object.freeze({
   "double-escape-action": "doubleEscapeAction",
   "tree-filter-mode": "treeFilterMode",
   warnings: "warnings",
-  thinking: "thinkingLevel",
+  "model-thinking": "modelThinkingLevels",
   "tui-mode": "tuiMode",
   "fullscreen-exit-output": "fullscreenExitOutput",
   "fullscreen-scrollbar": "fullscreenScrollbar",
+  "fullscreen-copy-on-select": "fullscreenCopyOnSelect",
   theme: "theme",
 });
 
@@ -70,9 +71,21 @@ function mapKeys(source, name) {
   return [...body.matchAll(/^\s*(\w+):/gm)].map(match => match[1]);
 }
 
+/**
+ * The item's own description, which the engine writes as a plain string or as a template whose
+ * interpolations name keybinding hints. A sentence that needs a hint is dropped rather than shown
+ * with a hole in it; the nested steps of a stepped submenu describe themselves later in the chunk.
+ */
+function itemDescription(body) {
+  const match = /description:\s*(?:"([^"]*)"|`([^`]*)`)/.exec(body);
+  if (!match) return "";
+  if (match[1] !== undefined) return match[1];
+  return (match[2] ?? "").split(/(?<=\.)\s+/).filter(sentence => !sentence.includes("${")).join(" ").trim();
+}
+
 function describedItems(source) {
   return itemChunks(source).map(chunk => {
-    const description = /description:\s*"([^"]*)"/.exec(chunk.body)?.[1] ?? "";
+    const description = itemDescription(chunk.body);
     // Invariant: an entry either offers a value list or opens its own dialog. That is the
     // engine's own distinction rather than a guess from the value's type.
     const opensDialog = /\bsubmenu:/.test(chunk.body);

@@ -20,15 +20,27 @@ import {
 /** Values only the running engine knows. */
 export interface PiSettingsProviders {
   readonly themes?: () => readonly string[];
-  readonly thinkingLevels?: () => readonly string[];
+  /** Models a per-model thinking override may name, with the levels each one supports. */
+  readonly models?: () => readonly PiSettingsModelChoice[];
   readonly productMode?: "bare" | "comparison";
 }
+
+export interface PiSettingsModelChoice {
+  /** `provider/modelId`, the key the engine stores the override under. */
+  readonly key: string;
+  readonly label: string;
+  readonly description: string;
+  readonly levels: readonly string[];
+}
+
+/** The choice that clears a per-model override; the engine then applies its global default. */
+export const MODEL_THINKING_DEFAULT = "default";
 
 export const AUTOMATIC_THEME = "automatic";
 const LIGHT_APPEARANCE_THEME = "light";
 const DARK_APPEARANCE_THEME = "dark";
 const THEME_KEY: PiSettingKey = "theme";
-const THINKING_KEY: PiSettingKey = "thinkingLevel";
+const MODEL_THINKING_KEY: PiSettingKey = "modelThinkingLevels";
 
 interface AutomaticTheme {
   readonly light: string;
@@ -154,10 +166,13 @@ export class PiSettingsIntegration implements AgentSettingsPort {
       if (themes.length === 0) return descriptor;
       return { ...descriptor, valueType: "enum", resolvedWhenRead: true, choices: [AUTOMATIC_THEME, ...themes] };
     }
-    if (descriptor.key === THINKING_KEY) {
-      const levels = this.#providers.thinkingLevels?.() ?? [];
-      if (levels.length === 0) return descriptor;
-      return { ...descriptor, resolvedWhenRead: true, choices: [...levels] };
+    if (descriptor.key === MODEL_THINKING_KEY) {
+      const models = this.#providers.models?.() ?? [];
+      if (models.length === 0) return descriptor;
+      // Rationale: the rows are the models the running engine offers, each with the levels it supports.
+      return { ...descriptor, resolvedWhenRead: true, flags: models.map(model => ({
+        key: model.key, label: model.label, description: model.description, fallback: MODEL_THINKING_DEFAULT, choices: [MODEL_THINKING_DEFAULT, ...model.levels],
+      })) };
     }
     return descriptor;
   }
@@ -198,7 +213,7 @@ function operations(settings: SettingsManager, providers: PiSettingsProviders): 
     choice("followUpMode", offered("followUpMode"), () => settings.getFollowUpMode(), value => settings.setFollowUpMode(value as "all" | "one-at-a-time")),
     choice("transport", offered("transport"), () => settings.getTransport(), value => settings.setTransport(value as ReturnType<SettingsManager["getTransport"]>)),
     numberSetting("httpIdleTimeoutMs", () => settings.getHttpIdleTimeoutMs(), value => settings.setHttpIdleTimeoutMs(value), 0),
-    choice("thinkingLevel", ["off", "minimal", "low", "medium", "high", "xhigh"], () => settings.getDefaultThinkingLevel() ?? "medium", value => settings.setDefaultThinkingLevel(value as NonNullable<ReturnType<SettingsManager["getDefaultThinkingLevel"]>>)),
+    modelThinkingLevels(settings),
     themeSetting(settings, themes),
     bool("hideThinkingBlock", () => settings.getHideThinkingBlock(), value => settings.setHideThinkingBlock(value)),
     choice("mermaidRenderingMode", offered("mermaidRenderingMode"), () => settings.getMermaidRenderingMode(), value => settings.setMermaidRenderingMode(value as ReturnType<SettingsManager["getMermaidRenderingMode"]>)),
@@ -218,8 +233,39 @@ function operations(settings: SettingsManager, providers: PiSettingsProviders): 
     choice("tuiMode", offered("tuiMode"), () => settings.getTuiMode(), value => settings.setTuiMode(value as ReturnType<SettingsManager["getTuiMode"]>)),
     choice("fullscreenExitOutput", offered("fullscreenExitOutput"), () => settings.getFullscreenExitOutput(), value => settings.setFullscreenExitOutput(value as ReturnType<SettingsManager["getFullscreenExitOutput"]>)),
     choice("fullscreenScrollbar", offered("fullscreenScrollbar"), () => settings.getFullscreenScrollbar(), value => settings.setFullscreenScrollbar(value as ReturnType<SettingsManager["getFullscreenScrollbar"]>)),
+    bool("fullscreenCopyOnSelect", () => settings.getFullscreenCopyOnSelect(), value => settings.setFullscreenCopyOnSelect(value)),
     jsonObject("warnings", () => settings.getWarnings(), value => settings.setWarnings(value as ReturnType<SettingsManager["getWarnings"]>)),
   ];
+}
+
+const THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
+type PiThinkingLevel = typeof THINKING_LEVELS[number];
+
+/**
+ * Per-model thinking overrides as one record keyed `provider/modelId`. Writing a record removes the
+ * overrides it no longer names and sets the ones it does, so the stored set equals the written set.
+ */
+function modelThinkingLevels(settings: SettingsManager): Operation {
+  // Compatibility: an in-memory manager with no overrides reports nothing rather than an empty record.
+  const read = (): Record<string, string> => ({ ...(settings.getAllModelThinkingLevels() ?? {}) });
+  return operation("modelThinkingLevels", "json", read, value => {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) invalid("modelThinkingLevels");
+    for (const [key, level] of Object.entries(value as Record<string, unknown>)) {
+      if (!key.includes("/") || typeof level !== "string" || !(THINKING_LEVELS as readonly string[]).includes(level)) invalid("modelThinkingLevels");
+    }
+  }, value => {
+    const next = value as Record<string, PiThinkingLevel>;
+    for (const key of Object.keys(settings.getAllModelThinkingLevels() ?? {})) {
+      if (!(key in next)) settings.removeModelThinkingLevel(...splitModelKey(key));
+    }
+    for (const [key, level] of Object.entries(next)) settings.setModelThinkingLevel(...splitModelKey(key), level);
+  });
+}
+
+/** The engine keys overrides as `provider/modelId`; the model id may itself contain slashes. */
+export function splitModelKey(key: string): [provider: string, modelId: string] {
+  const at = key.indexOf("/");
+  return [key.slice(0, at), key.slice(at + 1)];
 }
 
 function bool(key: PiSettingKey, read: () => boolean, write: (value: boolean) => void): Operation {
