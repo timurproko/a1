@@ -7,7 +7,7 @@ Defines enforceable repository ownership, dependency, testing, documentation, an
 ## Requirements
 
 ### Requirement: Every production module has one current owner
-Each production source file SHALL belong to one named foundation area or feature and SHALL implement a current contract exercised by production entry points or an explicitly retained public boundary. Code SHALL NOT remain solely for historical reference, speculative reuse, superseded architecture, or a deferred change. A subsystem whose OpenSpec change is on hold SHALL be removed from the active tree and preserved on a named archive branch recorded in that change, and the owner registry, validation registries, control-store schema, and documentation SHALL stop describing it as present.
+Each production source file SHALL belong to one named foundation area or feature and SHALL implement a current contract exercised by production entry points or an explicitly retained public boundary. Code SHALL NOT remain solely for historical reference, speculative reuse, superseded architecture, or a deferred change. A subsystem whose OpenSpec change is on hold SHALL be removed from the active tree and preserved on a named archive branch recorded in that change, and the owner registry, validation registries, control-store schema, and documentation SHALL stop describing it as present. A probe or fixture that only tests consume SHALL live under `test/support/` rather than in the production tree, and the architecture gate's unreachable-module allowlist SHALL be empty.
 
 #### Scenario: Audit finds an unreachable module
 - **WHEN** a production module has no current entry-point reachability, public consumer, or active contract
@@ -21,6 +21,10 @@ Each production source file SHALL belong to one named foundation area or feature
 - **WHEN** an OpenSpec change is placed on hold with its implementation already in the tree
 - **THEN** the implementation, its tests, its owner and validation registry entries, and its persisted schema SHALL be removed from `develop`
 - **AND** the change SHALL record the archive branch and commit so resumption starts from the current codebase with that copy available for reference
+
+#### Scenario: A production module exists only for a test
+- **WHEN** a module under `src/` is reached by no production entry point and its only consumer is a test
+- **THEN** it SHALL move under `test/support/` and import the code it exercises through the owner's public entry, and the unreachable-module allowlist SHALL NOT retain an entry for it
 
 ### Requirement: Features are cohesive and expose one public entry
 Each product feature SHALL own its implementation, tests, settings contract, and feature documentation under a recognizable feature name. Cross-feature production imports SHALL use the provider's public entry or an explicit foundation contract; consumers SHALL NOT deep-import another feature's private internals.
