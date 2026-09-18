@@ -22,8 +22,8 @@
  */
 import { createRequire, registerHooks } from "node:module";
 import { existsSync, realpathSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { pathToFileURL } from "node:url";
+import { dirname, isAbsolute, join, relative } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const PACKAGE = "@earendil-works/pi-tui";
 const SEGMENT = `/node_modules/${PACKAGE}/`;
@@ -45,7 +45,7 @@ export function pinnedPiTuiLayout(packageRoot) {
   const requireFromPi = createRequire(pathToFileURL(join(piRoot, "package.json")).href);
   return {
     installationRoot: dirname(dirname(dirname(piRoot))),
-    pinnedRoot: packageRootOf(realpathSync(requireFromPi.resolve(PACKAGE))),
+    pinnedRoot: packageRootOf(canonical(requireFromPi.resolve(PACKAGE))),
   };
 }
 
@@ -55,7 +55,7 @@ function pinnedPiRoot(packageRoot) {
   let directory = packageRoot;
   while (true) {
     const candidate = join(directory, "node_modules", "@earendil-works", "pi-coding-agent");
-    if (existsSync(join(candidate, "package.json"))) return realpathSync(candidate);
+    if (existsSync(join(candidate, "package.json"))) return canonical(candidate);
     const parent = dirname(directory);
     if (parent === directory) throw new Error("pinned Pi is not installed beneath this package root");
     directory = parent;
@@ -69,37 +69,42 @@ function pinnedPiRoot(packageRoot) {
 export function installPinnedPiTuiResolver(packageRoot) {
   if (installed !== null) return installed;
   const layout = pinnedPiTuiLayout(packageRoot);
-  const pinnedRootUrl = pathToFileURL(layout.pinnedRoot).href.replace(/\/$/, "");
-  const scopeUrl = `${pathToFileURL(layout.installationRoot).href.replace(/\/$/, "")}/`;
   registerHooks({
     resolve(specifier, context, nextResolve) {
       const result = nextResolve(specifier, context);
-      const rewritten = redirectToPinned(result.url, pinnedRootUrl, scopeUrl);
+      const rewritten = redirectToPinned(result.url, layout);
       return rewritten === result.url ? result : { ...result, url: rewritten };
     },
   });
-  installed = pinnedRootUrl;
+  installed = pathToFileURL(layout.pinnedRoot).href.replace(/\/$/, "");
   return installed;
 }
 
 /**
- * Rewrite a resolved pi-tui module URL beneath the installation scope to the pinned copy; any
- * other URL is returned unchanged.
+ * Rewrite a resolved pi-tui module URL beneath the installation root to the pinned copy; any
+ * other URL is returned unchanged. Paths are compared as canonical real paths, never as URL
+ * strings: a temp directory reached by its short 8.3 name or a different drive-letter case is
+ * still the same installation.
  */
-export function redirectToPinned(url, pinnedRootUrl, scopeUrl) {
-  if (!url.startsWith("file:") || !url.startsWith(scopeUrl)) return url;
+export function redirectToPinned(url, layout) {
+  if (!url.startsWith("file:")) return url;
   const index = url.lastIndexOf(SEGMENT);
   if (index < 0) return url;
-  const packageUrl = url.slice(0, index + SEGMENT.length - 1);
-  if (samePackage(packageUrl, pinnedRootUrl)) return url;
-  return `${pinnedRootUrl}${url.slice(index + SEGMENT.length - 1)}`;
+  const packagePath = canonical(fileURLToPath(url.slice(0, index + SEGMENT.length - 1)));
+  if (packagePath === layout.pinnedRoot || !isWithin(layout.installationRoot, packagePath)) return url;
+  return `${pathToFileURL(layout.pinnedRoot).href.replace(/\/$/, "")}${url.slice(index + SEGMENT.length - 1)}`;
 }
 
-function samePackage(left, right) {
+function isWithin(root, path) {
+  const relativePath = relative(root, path);
+  return relativePath !== "" && !relativePath.startsWith("..") && !isAbsolute(relativePath);
+}
+
+function canonical(path) {
   try {
-    return realpathSync(new URL(left)) === realpathSync(new URL(right));
+    return realpathSync.native(path);
   } catch {
-    return left === right;
+    return path;
   }
 }
 

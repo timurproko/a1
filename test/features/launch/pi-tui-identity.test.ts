@@ -1,6 +1,7 @@
 import { mkdtempSync, mkdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 // Rationale: the resolver and its check live in bin/ (shipped, outside the Pi API boundary):
 // they inspect dependency resolution, which src/ code must never touch.
@@ -69,19 +70,30 @@ describe("pinned pi-tui layout", () => {
 });
 
 describe("pi-tui URL redirection", () => {
-  const scope = "file:///install/";
-  const pinned = "file:///install/node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-tui";
-
-  it("rewrites the hoisted copy and any subpath to the pinned copy", () => {
-    expect(redirectToPinned("file:///install/node_modules/@earendil-works/pi-tui/dist/index.js", pinned, scope)).toBe(`${pinned}/dist/index.js`);
-    expect(redirectToPinned("file:///install/node_modules/@earendil-works/pi-tui/dist/keys.js", pinned, scope)).toBe(`${pinned}/dist/keys.js`);
+  it("rewrites the hoisted copy and any subpath to the pinned copy, including through a short-name alias of the root", () => {
+    const packageRoot = packageRootWith({ root: "0.84.2", nested: "0.84.2" });
+    const layout = pinnedPiTuiLayout(packageRoot) as { installationRoot: string; pinnedRoot: string };
+    const pinnedUrl = pathToFileURL(layout.pinnedRoot).href.replace(/\/$/, "");
+    const hoisted = join(packageRoot, "node_modules", "@earendil-works", "pi-tui");
+    expect(redirectToPinned(pathToFileURL(join(hoisted, "dist", "index.js")).href, layout)).toBe(`${pinnedUrl}/dist/index.js`);
+    expect(redirectToPinned(pathToFileURL(join(hoisted, "dist", "keys.js")).href, layout)).toBe(`${pinnedUrl}/dist/keys.js`);
+    // Platform: the same file reached by a differently spelled path (case, or an 8.3 short name on
+    // Windows) is still inside the installation and still redirected.
+    const respelled = pathToFileURL(join(hoisted, "dist", "index.js")).href.replace(/^file:\/\/\/([A-Za-z]):/, (_match, drive: string) => `file:///${drive === drive.toLowerCase() ? drive.toUpperCase() : drive.toLowerCase()}:`);
+    expect(redirectToPinned(respelled, layout)).toBe(`${pinnedUrl}/dist/index.js`);
   });
 
   it("leaves the pinned copy, other packages, other installations, and non-file URLs alone", () => {
-    expect(redirectToPinned(`${pinned}/dist/index.js`, pinned, scope)).toBe(`${pinned}/dist/index.js`);
-    expect(redirectToPinned("file:///install/node_modules/@earendil-works/pi-coding-agent/dist/index.js", pinned, scope)).toBe("file:///install/node_modules/@earendil-works/pi-coding-agent/dist/index.js");
-    expect(redirectToPinned("file:///elsewhere/node_modules/@earendil-works/pi-tui/dist/index.js", pinned, scope)).toBe("file:///elsewhere/node_modules/@earendil-works/pi-tui/dist/index.js");
-    expect(redirectToPinned("node:fs", pinned, scope)).toBe("node:fs");
+    const packageRoot = packageRootWith({ root: "0.84.2", nested: "0.84.2" });
+    const other = packageRootWith({ root: "0.84.2" });
+    const layout = pinnedPiTuiLayout(packageRoot) as { installationRoot: string; pinnedRoot: string };
+    const pinnedEntry = pathToFileURL(join(layout.pinnedRoot, "dist", "index.js")).href;
+    const piEntry = pathToFileURL(join(packageRoot, "node_modules", "@earendil-works", "pi-coding-agent", "dist", "index.js")).href;
+    const foreign = pathToFileURL(join(other, "node_modules", "@earendil-works", "pi-tui", "dist", "index.js")).href;
+    expect(redirectToPinned(pinnedEntry, layout)).toBe(pinnedEntry);
+    expect(redirectToPinned(piEntry, layout)).toBe(piEntry);
+    expect(redirectToPinned(foreign, layout)).toBe(foreign);
+    expect(redirectToPinned("node:fs", layout)).toBe("node:fs");
   });
 });
 
