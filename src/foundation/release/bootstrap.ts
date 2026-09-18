@@ -4,12 +4,12 @@ import { chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { connect } from "node:net";
 import { platform } from "node:os";
 import { resolve } from "node:path";
-import { selectCohortLaunch, type OwnershipProbe } from "./cohort-selection.js";
+import { selectCohortLaunch } from "./cohort-selection.js";
 import { CohortStateStore, type CohortState, type SupervisorEndpointMetadata } from "./cohort-state.js";
 import { assertLaunchProfileId, createSupervisorStartupAttempt, readSupervisorStartupResult, resolveCohortEndpoint, resolveProductPaths, sessionSelectionArguments, type SessionSelection, type LaunchProfileId, type SupervisorStartupAttemptIdentity } from "../lifecycle/index.js";
 import { encodeFrame, LineFrameDecoder } from "../protocol/index.js";
 import { cleanupProvenIdleOwner, processIsAlive } from "./process-cleanup.js";
-import { sweepDeadEndpoints } from "./endpoints.js";
+import { probeOwnership, readEndpointMetadata, removeEndpointArtifacts, sweepDeadEndpoints } from "./endpoints.js";
 import { UpdateTransactionStore } from "./update-transaction.js";
 import { selectUpdateLaunchRelease } from "./update-launch.js";
 import { consumeMaterializationProof, materializeRelease, readCertifiedReleaseManifest, readMaterializedRelease, resolveReleaseEntryPoint, verifyMaterializedRelease, type MaterializedRelease, type VerifyMaterializedReleaseOptions } from "./release-store.js";
@@ -395,75 +395,6 @@ export async function waitForVerifiedEndpoint(
   throw new Error(PRODUCT_TEXT.diagnostic(`supervisor did not publish verified endpoint metadata within ${timeoutMs}ms`));
 }
 
-export async function readEndpointMetadata(path: string): Promise<SupervisorEndpointMetadata | null> {
-  try {
-    const value = JSON.parse(await readFile(path, "utf8")) as Record<string, unknown>;
-    const ownership = value.ownership as Record<string, unknown> | undefined;
-    const liveInstanceIds = Array.isArray(ownership?.liveInstanceIds)
-      ? ownership.liveInstanceIds
-      : Array.isArray(ownership?.liveGenerationIds) ? ownership.liveGenerationIds : null;
-    const nonResumableInstanceIds = Array.isArray(ownership?.nonResumableInstanceIds)
-      ? ownership.nonResumableInstanceIds
-      : Array.isArray(ownership?.nonResumableGenerationIds) ? ownership.nonResumableGenerationIds : null;
-    const uncertainInstanceIds = Array.isArray(ownership?.uncertainInstanceIds) ? ownership.uncertainInstanceIds : [];
-    if (!value || value.schema !== PRODUCT_IDENTITY.protocol.supervisorSchema || typeof value.supervisorId !== "string" || typeof value.endpoint !== "string" || !Number.isSafeInteger(value.pid)
-      || typeof value.pidStartIdentity !== "string" || typeof value.bootNonce !== "string" || typeof value.releaseId !== "string"
-      || typeof value.releaseRoot !== "string" || typeof value.contentDigest !== "string" || !ownership
-      || !isStringArray(liveInstanceIds) || !isStringArray(nonResumableInstanceIds) || !isStringArray(uncertainInstanceIds)) {
-      return null;
-    }
-    return {
-      ...value,
-      ownership: {
-        ...ownership,
-        liveInstanceIds,
-        nonResumableInstanceIds,
-        uncertainInstanceIds,
-      },
-    } as unknown as SupervisorEndpointMetadata;
-  } catch {
-    return null;
-  }
-}
-
-export async function probeOwnership(metadata: SupervisorEndpointMetadata): Promise<OwnershipProbe> {
-  if (!processIsAlive(metadata.pid)) return "dead";
-  const identity = await requestIdentity(metadata.endpoint, 500);
-  if (!identity) return "unresponsive";
-  return identity.supervisorId === metadata.supervisorId
-    && identity.bootNonce === metadata.bootNonce
-    && identity.pidStartIdentity === metadata.pidStartIdentity
-    && identity.releaseId === metadata.releaseId
-    ? "live-verified"
-    : "identity-mismatch";
-}
-
-async function requestIdentity(endpoint: string, timeoutMs: number): Promise<{ supervisorId: string; bootNonce: string; pidStartIdentity: string; releaseId: string } | null> {
-  return await new Promise(resolvePromise => {
-    const socket = connect(endpoint);
-    const decoder = new LineFrameDecoder();
-    let settled = false;
-    const finish = (value: { supervisorId: string; bootNonce: string; pidStartIdentity: string; releaseId: string } | null) => {
-      if (settled) return;
-      settled = true;
-      socket.destroy();
-      resolvePromise(value);
-    };
-    socket.once("error", () => finish(null));
-    socket.once("connect", () => socket.write(encodeFrame({ type: "identity-probe" })));
-    socket.on("data", chunk => {
-      try {
-        const message = decoder.push(chunk)[0] as Record<string, unknown> | undefined;
-        if (message?.type === "identity" && typeof message.supervisorId === "string" && typeof message.bootNonce === "string"
-          && typeof message.pidStartIdentity === "string" && typeof message.releaseId === "string") {
-          finish({ supervisorId: message.supervisorId, bootNonce: message.bootNonce, pidStartIdentity: message.pidStartIdentity, releaseId: message.releaseId });
-        }
-      } catch { finish(null); }
-    });
-    setTimeout(() => finish(null), timeoutMs).unref();
-  });
-}
-
 async function activatePendingAfterBlockerExit(
   candidate: MaterializedRelease,
   stateStore: CohortStateStore,
@@ -530,10 +461,6 @@ async function requestIdleOwnershipRelease(metadata: SupervisorEndpointMetadata,
   });
 }
 
-function isStringArray(value: unknown): value is string[] {
-  return Array.isArray(value) && value.every(item => typeof item === "string" && item.length > 0);
-}
-
 export async function waitForProcessExit(pid: number, timeoutMs: number): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
@@ -543,7 +470,3 @@ export async function waitForProcessExit(pid: number, timeoutMs: number): Promis
   throw new Error(PRODUCT_TEXT.diagnostic(`supervisor ${pid} did not release process ownership within ${timeoutMs}ms`));
 }
 
-export async function removeEndpointArtifacts(metadataPath: string, endpoint: string): Promise<void> {
-  await rm(metadataPath, { force: true });
-  if (platform() !== "win32") await rm(endpoint, { force: true });
-}

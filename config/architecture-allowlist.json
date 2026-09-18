@@ -5,28 +5,7 @@
     "src/integrations/pi/engine/public-main-entry.ts",
     "src/integrations/pi/session-ui/paste-text-worker.ts"
   ],
-  "importCycles": [
-    [
-      "src/foundation/release/bootstrap.ts",
-      "src/foundation/release/dependency-certification-retention.ts",
-      "src/foundation/release/endpoints.ts",
-      "src/foundation/release/release-gc.ts",
-      "src/foundation/release/restart-certification.ts",
-      "src/foundation/release/update-launch.ts",
-      "src/foundation/release/update-recovery.ts",
-      "src/foundation/release/update-transaction.ts",
-      "src/foundation/release/update.ts",
-      "src/foundation/release/warmup.ts"
-    ],
-    [
-      "src/foundation/release/dependency-layer.ts",
-      "src/foundation/release/release.ts"
-    ],
-    [
-      "src/integrations/pi/session-ui/paste-text-preparation.ts",
-      "src/integrations/pi/session-ui/path-chip-presentation.ts"
-    ]
-  ],
+  "importCycles": [],
   "unreachableModules": [
     "src/integrations/pi/tui-runtime/conformance.ts"
   ]

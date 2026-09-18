@@ -6,6 +6,8 @@ import { assertImmutableFileMode } from "./immutable-platform.js";
 import { readDependencyCertification, writeDependencyCertification as writeLayerCertification, type ReadDependencyCertificationOptions } from "./dependency-certification.js";
 export { dependencyLayerCertificationPath, legacyDependencyLayerCertificationPath } from "./dependency-certification.js";
 import { digestManifestFiles, releaseFileIdentity, resolveWithin, type ReleaseFileIdentity } from "./release.js";
+import type { DependencyLayerReference } from "./types.js";
+export type { DependencyLayerReference } from "./types.js";
 import { PRODUCT_IDENTITY } from "../../product-identity.js";
 
 const LAYER_IO_CONCURRENCY = 32;
@@ -34,12 +36,6 @@ export interface DependencyLayerIdentity {
   readonly contentDigest: string;
   readonly files: readonly ReleaseFileIdentity[];
   readonly inventory: RuntimePayloadInventory;
-}
-
-export interface DependencyLayerReference {
-  readonly layerId: string;
-  readonly contentDigest: string;
-  readonly binding: "node_modules";
 }
 
 export interface MaterializedDependencyLayer extends DependencyLayerIdentity {
