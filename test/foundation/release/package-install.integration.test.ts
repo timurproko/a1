@@ -204,10 +204,6 @@ describe("clean installation of the exact candidate", () => {
   it("materializes the published minimal inventory into one reusable dependency layer", async () => {
     const { materializeRelease } = await import("../../../src/foundation/release/index.js");
     const packageRoot = resolve(prefix, ...(process.platform === "win32" ? [] : ["lib"]), "node_modules", "@timurproko", "a1");
-    await phases.run("proxy-synchronization", async () => {
-      const repaired = await runAsync(process.execPath, [resolve(packageRoot, "bin", "sync-pi-tui-proxy.js")], root);
-      expect(repaired.status, repaired.stderr).toBe(0);
-    });
     const operations: Array<{ operation: string; path: string; bytes: number }> = [];
     const dataDir = resolve(root, "layered-data");
     const release = await phases.run("layer-materialization", () => materializeRelease(packageRoot, dataDir, { onOperation: event => operations.push(event) }));

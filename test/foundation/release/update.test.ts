@@ -121,11 +121,6 @@ function createHarness(options: {
 }
 
 const success = (stdout = ""): ProcessResult => ({ code: 0, stdout });
-const syncProxyInvocation = (packageRoot: string): Invocation => ({
-  command: process.execPath,
-  arguments: [resolve(packageRoot, "bin", "sync-pi-tui-proxy.js")],
-  request: { captureStdout: true },
-});
 const installArguments = (version: string) => [
   "install",
   "--global",
@@ -169,7 +164,6 @@ describe("A1 self-update orchestration", () => {
       { command: "npm", arguments: ["view", `${PRODUCT_PACKAGE}@latest`, "version"], request: { captureStdout: true } },
       { command: "npm", arguments: ["root", "--global"], request: { captureStdout: true } },
       { command: "npm", arguments: installArguments(latest), request: { captureStdout: true } },
-      syncProxyInvocation(harness.packageRoot),
     ]);
     expect(harness.stdout.join("")).toContain(`a1 updated successfully to ${latest}`);
   });
@@ -190,7 +184,6 @@ describe("A1 self-update orchestration", () => {
       { command: "npm", arguments: ["view", `${PRODUCT_PACKAGE}@latest`, "version"], request: { captureStdout: true } },
       { command: "npm", arguments: ["root", "--global"], request: { captureStdout: true } },
       { command: "npm", arguments: installArguments("1.3.0"), request: { captureStdout: true } },
-      syncProxyInvocation(harness.packageRoot),
     ]);
     expect(harness.stdout.join("")).toBe("a1 update: 1.2.3 → 1.3.0\na1 updated successfully to 1.3.0\n");
     expect(harness.stderr).toEqual([]);
@@ -212,7 +205,6 @@ describe("A1 self-update orchestration", () => {
       { command: "npm", arguments: ["view", `${PRODUCT_PACKAGE}@next`, "version"], request: { captureStdout: true } },
       { command: "npm", arguments: ["root", "--global"], request: { captureStdout: true } },
       { command: "npm", arguments: installArguments("1.3.0-dev.1"), request: { captureStdout: true } },
-      syncProxyInvocation(harness.packageRoot),
     ]);
     expect(harness.stdout.join("")).toBe("a1 update: 1.3.0-dev.0 → 1.3.0-dev.1\na1 updated successfully to 1.3.0-dev.1\n");
   });
@@ -592,7 +584,6 @@ describe("A1 self-update orchestration", () => {
     expect(harness.invocations).toEqual([
       { command: "npm", arguments: ["view", `${PRODUCT_PACKAGE}@latest`, "version"], request: { captureStdout: true } },
       { command: "npm", arguments: ["root", "--global"], request: { captureStdout: true } },
-      syncProxyInvocation(harness.packageRoot),
     ]);
     expect(harness.lifecycleCalls).toEqual([
       "shutdown:1.3.0",

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { getCapabilities, setCapabilities, Text } from "#pi-tui";
+import { getCapabilities, setCapabilities, Text } from "@earendil-works/pi-tui";
 import { transcriptLifecycleFixture, TranscriptFixtureSession } from "../../../support/rendering/transcript-lifecycle-fixture.js";
 
 const active: Awaited<ReturnType<typeof transcriptLifecycleFixture>>[] = [];

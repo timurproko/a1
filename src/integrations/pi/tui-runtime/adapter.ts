@@ -12,7 +12,7 @@ import {
   type TUI,
   type TuiAltScreenOptions,
   visibleWidth,
-} from "#pi-tui";
+} from "@earendil-works/pi-tui";
 import { MouseReportInput } from "./mouse-report-input.js";
 import { GeometryObservedAltScreen, OverlayGeometryTracker } from "./overlay-geometry.js";
 import { boundedCleanup, EMERGENCY_TERMINAL_RESET } from "../../../foundation/terminal-cleanup/terminal-reset.js";

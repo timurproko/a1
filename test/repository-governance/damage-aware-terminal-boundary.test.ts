@@ -16,7 +16,7 @@ describe("damage-aware terminal public boundary", () => {
     expect(source).toContain("parsePinnedFullscreenWrite");
     expect(source).toContain("grammar-mismatch");
     const imports = source.match(/^import[^;]+;/gmu)?.join("\n") ?? "";
-    expect(imports).not.toMatch(/@earendil-works|#pi-tui|node_modules/u);
+    expect(imports).not.toMatch(/@earendil-works|node_modules/u);
     expect(source).not.toMatch(/prototype|private-field|AssistantMessage|stripAnsi|visibleWidth/u);
     expect(source).not.toMatch(/from\s+["'][^"']+\/(?:dist|src)\//u);
   });

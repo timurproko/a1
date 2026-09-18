@@ -511,7 +511,6 @@ function preparationEvidence(receipt) {
     policy: receipt.install.policy,
     prefix: receipt.install.prefix,
     installedIdentity: receipt.install.installedIdentity,
-    proxySynchronizations: receipt.preparation.proxySynchronizations,
     phases: receipt.preparation.phases,
     consumers: receipt.consumers,
     cleanup: null,

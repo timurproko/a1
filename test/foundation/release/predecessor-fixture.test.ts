@@ -15,17 +15,18 @@ describe("published predecessor fixture", () => {
     const execute = vi.fn(async (command: PredecessorCommand) => result(command));
     const fixture = new PredecessorFixture({ execute, report() {} });
     const packageRoot = await fixture.phase(5000, () => fixture.install("candidate with spaces.tgz"));
-    const [install, sync] = execute.mock.calls.map(call => call[0]);
+    const [install] = execute.mock.calls.map(call => call[0]);
+    expect(execute.mock.calls).toHaveLength(1);
     expect(install!.phase).toBe("install-candidate");
     expect(install!.arguments).toEqual(["install", "--global", "--prefix", resolve(fixture.retainedRoots[0]!, "prefix"), "candidate with spaces.tgz", "--ignore-scripts", "--no-audit", "--no-fund"]);
-    expect(sync!).toMatchObject({ executable: process.execPath, cwd: packageRoot, phase: "synchronize-candidate", arguments: [resolve(packageRoot, "bin", "sync-pi-tui-proxy.js")] });
-    expect(install!.signal).toBe(sync!.signal);
+    expect(packageRoot).toBe(resolve(fixture.retainedRoots[0]!, "prefix", ...(process.platform === "win32" ? [] : ["lib"]), "node_modules", "@timurproko", "a1"));
     const roots = fixture.retainedRoots;
     await fixture.close(); await fixture.close();
     expect(await Promise.all(roots.map(exists))).toEqual([false]);
   });
 
-  it.each(["install-predecessor", "synchronize-predecessor"])("stops dependent phases after failed %s", async failedPhase => {
+  it("stops dependent phases after a failed install-predecessor", async () => {
+    const failedPhase = "install-predecessor";
     const execute = vi.fn(async (command: PredecessorCommand) => {
       if (command.phase === failedPhase) throw new PredecessorCommandError({ ...result(command).evidence, exitCode: 9, error: "EXIT" });
       return result(command);
@@ -35,7 +36,7 @@ describe("published predecessor fixture", () => {
     await expect(fixture.phase(5000, async () => { await fixture.install("@timurproko/a1@0.1.8-dev.390", "0.1.8-dev.390"); nextPhase(); }))
       .rejects.toMatchObject({ evidence: { phase: failedPhase, exitCode: 9 } });
     expect(nextPhase).not.toHaveBeenCalled();
-    expect(execute.mock.calls.map(call => call[0].phase)).toEqual(failedPhase === "install-predecessor" ? [failedPhase] : ["install-predecessor", failedPhase]);
+    expect(execute.mock.calls.map(call => call[0].phase)).toEqual([failedPhase]);
     await fixture.close();
   });
 

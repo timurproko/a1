@@ -12,7 +12,7 @@ import {
   type EditorOptions,
   type EditorTheme,
   type TUI,
-} from "#pi-tui";
+} from "@earendil-works/pi-tui";
 import type { AppKeybinding, KeybindingsManager } from "../adjacent/core/keybindings.js";
 import type { EditorSurface } from "../../editor-interaction.js";
 import type { PiShellPromptInputPresentation } from "../../prompt-input-port.js";

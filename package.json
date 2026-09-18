@@ -8,9 +8,6 @@
   "bin": {
     "a1": "bin/cli.js"
   },
-  "imports": {
-    "#pi-tui": "./bin/pi-tui.js"
-  },
   "files": [
     "bin",
     "dist",
@@ -22,7 +19,6 @@
     "node": ">=22.19.0 <25"
   },
   "scripts": {
-    "postinstall": "node bin/sync-pi-tui-proxy.js",
     "clean": "node scripts/clean.mjs",
     "build": "npm run clean && tsc -p tsconfig.build.json && node scripts/pi/build-startup-public.mjs && node scripts/development/build-process-guardian.mjs && node scripts/release/generate-runtime-payload-inventory.mjs",
     "build:process-guardian": "node scripts/development/build-process-guardian.mjs",

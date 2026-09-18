@@ -20,7 +20,7 @@ describe("generated public Pi startup artifact evidence", () => {
         } } },
       },
       entry: "dist/integrations/pi/startup-public.js",
-      external: ["#pi-tui"],
+      external: ["@earendil-works/pi-tui"],
       rewrittenConsumers: ["dist/z.js", "dist/a.js"],
       licenses: [
         { name: "zeta", version: "2.0.0", license: "Apache-2.0" },

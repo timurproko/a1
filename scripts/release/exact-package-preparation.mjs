@@ -44,10 +44,6 @@ export async function prepareExactPackageInstallation(options = {}) {
     const installed = await execute(npm, installArguments(prefix, candidatePath), root, environment);
     if (installed.status !== 0) throw new Error(`exact-package clean install failed: ${installed.stderr || `exit ${installed.status}`}`);
     const installMs = Math.max(0, now() - installStartedAt);
-    const proxyStartedAt = now();
-    const synchronized = await execute(process.execPath, [resolve(packageRoot, "bin", "sync-pi-tui-proxy.js")], root, environment);
-    if (synchronized.status !== 0) throw new Error(`exact-package proxy synchronization failed: ${synchronized.stderr || `exit ${synchronized.status}`}`);
-    const proxySynchronizationMs = Math.max(0, now() - proxyStartedAt);
 
     const identityStartedAt = now();
     const installedIdentity = await installedPackageIdentity(packageRoot);
@@ -67,9 +63,9 @@ export async function prepareExactPackageInstallation(options = {}) {
         packageRoot,
         installedIdentity,
       },
-      // Performance: the phases attribute the Windows cost to npm reification, proxy repair, or
-      // the identity walk so a latency change can be judged on evidence rather than a guess.
-      preparation: { count: 1, durationMs, proxySynchronizations: 1, phases: { installMs, proxySynchronizationMs, installedIdentityMs } },
+      // Performance: the phases attribute the Windows cost to npm reification or the identity
+      // walk so a latency change can be judged on evidence rather than a guess.
+      preparation: { count: 1, durationMs, phases: { installMs, installedIdentityMs } },
       consumers,
     };
     const receipt = { ...payload, receiptId: digest(payload) };
@@ -176,10 +172,10 @@ function assertReceipt(receipt) {
   const { receiptId, ...payload } = receipt;
   if (receiptId !== digest(payload)) throw new Error("exact-package preparation receipt identity is invalid");
   validateConsumers(receipt.consumers);
-  if (receipt.preparation?.count !== 1 || receipt.preparation?.proxySynchronizations !== 1
+  if (receipt.preparation?.count !== 1
     || !Number.isSafeInteger(receipt.preparation?.durationMs) || receipt.preparation.durationMs < 0) throw new Error("exact-package preparation count is invalid");
   const phases = receipt.preparation.phases;
-  if (!phases || ["installMs", "proxySynchronizationMs", "installedIdentityMs"].some(key => !Number.isSafeInteger(phases[key]) || phases[key] < 0)) {
+  if (!phases || ["installMs", "installedIdentityMs"].some(key => !Number.isSafeInteger(phases[key]) || phases[key] < 0)) {
     throw new Error("exact-package preparation phase timing is invalid");
   }
   if (!receipt.candidate || !/^[0-9a-f]{64}$/u.test(receipt.candidate.sha256 ?? "") || !Number.isSafeInteger(receipt.candidate.size)

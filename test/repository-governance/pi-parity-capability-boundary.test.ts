@@ -12,8 +12,8 @@ const DETERMINISTIC_PRODUCERS = [
 describe("Pi parity capability boundary", () => {
   it("uses only the canonical public Pi-TUI capability identity", async () => {
     const helper = await readFile("test/support/pi-terminal-capabilities.ts", "utf8");
-    expect(helper).toMatch(/from "#pi-tui"/u);
-    expect(helper).not.toMatch(/@earendil-works|node_modules|terminal-image/u);
+    expect(helper).toMatch(/from "@earendil-works\/pi-tui"/u);
+    expect(helper).not.toMatch(/@earendil-works\/pi-(?!tui)|node_modules|terminal-image/u);
   });
 
   it("keeps capability overrides out of production", async () => {

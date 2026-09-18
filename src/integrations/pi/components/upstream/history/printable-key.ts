@@ -3,7 +3,7 @@
  * Source commit: 914cf1472e715297caa30db4b9535d534a9eb718.
  * Modifications: public imports and owned editor-local typed seams; see docs/architecture/history-editor-provenance.md.
  */
-import { decodeKittyPrintable } from "#pi-tui";
+import { decodeKittyPrintable } from "@earendil-works/pi-tui";
 const MODIFIERS = {
 	shift: 1,
 	alt: 2,

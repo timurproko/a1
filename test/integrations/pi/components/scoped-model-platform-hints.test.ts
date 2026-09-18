@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { getKeybindings, setKeybindings, stripTerminalSequences } from "#pi-tui";
+import { getKeybindings, setKeybindings, stripTerminalSequences } from "@earendil-works/pi-tui";
 import { applyPiTheme, applyPiThemeInstance, piTheme } from "../../../../src/integrations/pi/components/index.js";
 import { KeybindingsManager, type KeybindingsConfig } from "../../../../src/integrations/pi/components/upstream/adjacent/core/keybindings.js";
 import { ScopedModelsSelectorComponent } from "../../../../src/integrations/pi/components/upstream/components/scoped-models-selector.js";

@@ -1,102 +1,33 @@
 /**
- * One pi-tui module identity per process.
+ * One pi-tui module identity per process: the check that the resolver hook worked.
  *
- * npm materializes @earendil-works/pi-tui twice under A1's package root: once
- * as A1's direct dependency at the node_modules root, and once nested inside
- * @earendil-works/pi-coding-agent, whose published npm-shrinkwrap.json makes
- * npm build its dependency tree exactly as shrinkwrapped instead of sharing a
- * hoisted copy. Both are the same version; npm just cannot tell them apart.
+ * bin/module-resolver.js decides identity at the loader by rewriting every pi-tui module
+ * URL to the copy pinned Pi resolves. What remains here is the assertion, made by asking
+ * Node itself: with the hook installed, resolving `@earendil-works/pi-tui` from A1's own
+ * package root must answer with the same real path pinned Pi answers with. When it does not,
+ * launch says so loudly and once, instead of leaving a user to discover it as missing
+ * extension UI.
  *
- * Two copies means two of every TUI class. Pinned Pi hands extensions the
- * nested copy — its extension loader aliases the specifier to whatever it
- * resolves from its own directory — so an extension's `instanceof` check and
- * its prototype patches land on classes A1's renderer never uses. Extension
- * chrome silently disappears and routed input dead-ends, with no error.
- *
- * A1 therefore does not import the specifier at all. Its package declares the
- * subpath import `#pi-tui`, resolving to bin/pi-tui.js — a proxy that
- * re-exports pinned Pi's nested copy. The hop through the proxy is load-bearing:
- * Node rejects package-imports targets containing a `node_modules` path segment
- * (Invalid Package Target) and silently falls through to any fallback, which is
- * exactly how an earlier alias that named the nested path directly reintroduced
- * the split while appearing to declare the opposite. A plain import specifier
- * inside a module carries no such restriction.
- *
- * What remains here is the check that it worked. The alias is resolved by
- * asking Node itself — never by reimplementing resolution, which is how the
- * earlier check reported "unified" for a target Node had rejected — and the
- * proxy hop is followed to the module it re-exports. When that disagrees with
- * what pinned Pi resolves, launch says so, loudly and once, instead of leaving
- * a user to discover it as missing extension UI.
- *
- * This lives in bin/ (shipped, plain JS) because it inspects dependency
- * resolution, which the Pi API boundary policy rightly forbids ordinary
- * production code from touching.
+ * This lives in bin/ (shipped, plain JS) because it inspects dependency resolution, which
+ * the Pi API boundary policy rightly forbids ordinary production code from touching.
  */
 import { createRequire } from "node:module";
 import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { pinnedPiTuiPackageRoot } from "./module-resolver.js";
 
-/**
- * What A1's own modules resolve `#pi-tui` to, as a real path.
- *
- * Node answers for the alias itself (require.resolve honors package imports for
- * the package the parent belongs to). When the answer is A1's proxy file, the
- * module it re-exports is what A1 actually renders with, so the proxy's one
- * static `export * from` specifier is followed to its target.
- */
+/** What A1's own modules resolve `@earendil-works/pi-tui` to, as a real path. */
 function resolveOwnPiTui(packageRoot) {
   const requireFromRoot = createRequire(pathToFileURL(join(packageRoot, "package.json")).href);
-  let resolved;
-  try {
-    resolved = requireFromRoot.resolve("#pi-tui");
-  } catch (error) {
-    throw new Error(`#pi-tui does not resolve: ${message(error)}`);
-  }
-  return canonical(followProxyReExport(resolved));
+  return canonical(requireFromRoot.resolve("@earendil-works/pi-tui"));
 }
 
-/**
- * Follow A1's proxy hop: one relative `export * from "..."` per file, at most
- * one hop. A resolution that is not the proxy (or any file without such a
- * re-export) is returned as-is.
- */
-function followProxyReExport(resolvedPath) {
-  let source;
-  try {
-    source = readFileSync(resolvedPath, "utf8");
-  } catch {
-    return resolvedPath;
-  }
-  const reExport = source.match(/^export \* from "(\.\.?\/[^"]+)";?$/m);
-  if (!reExport) return resolvedPath;
-  const target = join(dirname(resolvedPath), reExport[1]);
-  if (!existsSync(target)) {
-    throw new Error(`#pi-tui proxy ${resolvedPath} re-exports a missing file: ${target}`);
-  }
-  return target;
-}
-
-/**
- * What pinned Pi resolves the same specifier to, as a real path — asked from
- * inside Pi's own directory, which is where Pi asks it.
- *
- * Pi's directory is located by walking node_modules outward, the way Node
- * itself would, rather than by resolving Pi's entry: its `exports` map offers
- * no CommonJS condition, so an ordinary require cannot name it. From there a
- * require resolves pi-tui, which publishes no `exports` map at all.
- */
+/** What pinned Pi resolves `@earendil-works/pi-tui` to, as a real path. */
 export function resolvePinnedPiTui(packageRoot) {
-  const pinnedRoot = resolvePinnedPiRoot(packageRoot);
-  return canonical(createRequire(pathToFileURL(join(pinnedRoot, "package.json")).href).resolve("@earendil-works/pi-tui"));
+  return canonical(join(pinnedPiTuiPackageRoot(packageRoot), "dist", "index.js"));
 }
 
-/**
- * Bind Pi's documented package-asset override to the exact public package root.
- * The generated startup facade otherwise inherits its own A1 `import.meta.url`,
- * which would make Pi read A1's package metadata and themes.
- */
 export function configurePinnedPiPublicPackage(packageRoot, environment = process.env) {
   const pinnedRoot = resolvePinnedPiRoot(packageRoot);
   const manifest = JSON.parse(readFileSync(join(pinnedRoot, "package.json"), "utf8"));
@@ -127,8 +58,8 @@ function canonical(path) {
 }
 
 /**
- * Report whether A1 and pinned Pi resolve pi-tui to the same file.
- * Returns a discriminated outcome; never throws.
+ * Compare what A1 and pinned Pi resolve. With the resolver hook installed in this process the
+ * two agree whatever layout npm built; without it they agree only when npm hoisted one copy.
  */
 export function inspectPiTuiModuleIdentity(packageRoot) {
   let own;
@@ -150,34 +81,20 @@ function message(error) {
   return error instanceof Error ? error.message : String(error);
 }
 
-/**
- * Launch-entry self-heal: when A1 and pinned Pi disagree on the terminal
- * module, rewrite the proxy to the copy Pi resolves before anything copies
- * this tree. npm 12 blocks install scripts unless allowScripts covers the
- * package, so the postinstall that normally rewrites the proxy may never
- * have run and the installed tree may still carry the published placeholder
- * path. Named neutrally so the launch entries that call it stay free of
- * terminal implementation identifiers, as the bootstrap boundary requires.
- */
-export async function healModuleIdentityAtLaunch(packageRoot, warn) {
-  if (inspectPiTuiModuleIdentity(packageRoot).kind === "unified") return;
-  const { syncPiTuiProxy } = await import("./sync-pi-tui-proxy.js");
-  const outcome = syncPiTuiProxy(packageRoot);
-  if (outcome.kind === "unresolved") {
-    warn(`a1: could not point the terminal module proxy at pinned Pi's copy (${outcome.message}); extension UI may not render.\n`);
+/** A release copy is launchable when pinned Pi inside it resolves its terminal package. */
+export function releaseCopyIsLaunchable(releaseRoot) {
+  try {
+    resolvePinnedPiTui(releaseRoot);
+    return true;
+  } catch {
+    return false;
   }
 }
 
-/** Whether a materialized release copy resolves one terminal module for both A1 and Pi. */
-export function releaseCopyIsLaunchable(releaseRoot) {
-  return inspectPiTuiModuleIdentity(releaseRoot).kind === "unified";
-}
-
-/** Launch-entry wrapper: warn on stderr when the two sides disagree. */
 export function assertSinglePiTuiModuleAtLaunch(packageRoot, warn) {
   const outcome = inspectPiTuiModuleIdentity(packageRoot);
   if (outcome.kind === "split") {
-    warn(`a1: pi-tui resolves to two different copies (${outcome.own} for a1, ${outcome.pinned} for Pi); extension UI may not render. The #pi-tui alias in a1's package.json no longer names Pi's copy.\n`);
+    warn(`a1: pi-tui resolves to two different copies (${outcome.own} for a1, ${outcome.pinned} for Pi); extension UI may not render. The pinned pi-tui resolver hook is not active in this process.\n`);
   } else if (outcome.kind === "unresolved") {
     warn(`a1: could not resolve pi-tui from ${outcome.side === "a1" ? "a1" : "pinned Pi"} (${outcome.message}); extension UI may not render.\n`);
   }

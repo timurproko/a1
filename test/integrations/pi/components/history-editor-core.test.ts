@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { Editor, KeybindingsManager, setKeybindings, TUI_KEYBINDINGS, stripTerminalSequences, visibleWidth, type AutocompleteProvider } from "#pi-tui";
+import { Editor, KeybindingsManager, setKeybindings, TUI_KEYBINDINGS, stripTerminalSequences, visibleWidth, type AutocompleteProvider } from "@earendil-works/pi-tui";
 import { HistoryEditorCore } from "../../../../src/integrations/pi/components/upstream/history/editor-core.js";
 import { createTuiFacade } from "../../../../src/integrations/pi/components/shell-shared-facade.js";
 

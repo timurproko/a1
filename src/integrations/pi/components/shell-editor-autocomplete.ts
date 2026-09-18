@@ -5,7 +5,7 @@ import {
   setKeybindings,
   visibleWidth,
   type AutocompleteProvider,
-} from "#pi-tui";
+} from "@earendil-works/pi-tui";
 import { PROMPT_HISTORY_EDITOR_REPLACEMENT, type OwnedUiThinkingLevel } from "../../../contracts/owned-ui/index.js";
 import { KeybindingsManager } from "./upstream/adjacent/core/keybindings.js";
 import { OwnedEditor, type ShellEditorInstance } from "./upstream/components/owned-editor.js";

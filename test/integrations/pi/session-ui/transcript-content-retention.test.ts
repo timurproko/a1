@@ -3,7 +3,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { pathToFileURL } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { getCapabilities, setCapabilities, Text } from "#pi-tui";
+import { getCapabilities, setCapabilities, Text } from "@earendil-works/pi-tui";
 import { ToolExecutionComponent } from "@earendil-works/pi-coding-agent";
 import { createTuiFacade } from "../../../../src/integrations/pi/components/shell-shared-facade.js";
 import { stripAnsi } from "../../../../src/ui/components/text.js";

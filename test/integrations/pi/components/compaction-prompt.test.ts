@@ -1,7 +1,7 @@
 import HeadlessXterm from "@xterm/headless";
 import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
-import { stripTerminalSequences, visibleWidth } from "#pi-tui";
+import { stripTerminalSequences, visibleWidth } from "@earendil-works/pi-tui";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { OwnedUiTranscriptBlock } from "../../../../src/contracts/owned-ui/index.js";
 import { createPiShellTranscriptComponent } from "../../../../src/integrations/pi/components/index.js";

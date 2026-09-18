@@ -3,7 +3,7 @@ import { promptInputPresentation } from "../../../support/prompt-input-presentat
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { describe, expect, it } from "vitest";
-import { stripTerminalSequences } from "#pi-tui";
+import { stripTerminalSequences } from "@earendil-works/pi-tui";
 import { createPiShellEditor, loadHistoryEditor, piTheme, type PiShellEditorOptions } from "../../../../src/integrations/pi/components/index.js";
 
 import { promptRuleText } from "../../../../src/ui/components/index.js";

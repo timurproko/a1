@@ -21,8 +21,7 @@ export interface ExactPackagePreparationReceipt {
   preparation: {
     count: 1;
     durationMs: number;
-    proxySynchronizations: 1;
-    phases: { installMs: number; proxySynchronizationMs: number; installedIdentityMs: number };
+    phases: { installMs: number; installedIdentityMs: number };
   };
   consumers: Array<"package-contracts" | "package-startup">;
   receiptId: string;

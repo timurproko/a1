@@ -1,5 +1,5 @@
 import { DynamicBorder, getMarkdownTheme } from "../startup-public.js";
-import { Container, Markdown, Spacer, Text, type KeybindingsConfig } from "#pi-tui";
+import { Container, Markdown, Spacer, Text, type KeybindingsConfig } from "@earendil-works/pi-tui";
 import { KeybindingsManager } from "./upstream/adjacent/core/keybindings.js";
 import { PINNED_PI_LAYOUT, piTheme } from "./theme.js";
 import { componentPort, ensureTheme, formatSessionTokens, type PiShellComponentPort, type PiShellExtensionRendererResolver } from "./shell-shared-facade.js";

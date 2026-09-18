@@ -1,4 +1,4 @@
-import { Editor } from "#pi-tui";
+import { Editor } from "@earendil-works/pi-tui";
 import { afterEach, describe, expect, it } from "vitest";
 import { createTuiFacade } from "../../../../src/integrations/pi/components/shell-shared-facade.js";
 import { PromptChipStore } from "../../../../src/integrations/pi/session-ui/prompt-chips.js";

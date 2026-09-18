@@ -3,7 +3,7 @@ import {
   CURSOR_MARKER,
   decodeKittyPrintable,
   visibleWidth,
-} from "#pi-tui";
+} from "@earendil-works/pi-tui";
 import type { SelectionEditor as Editor } from "./editor-interaction.js";
 import type { KeybindingsManager } from "./upstream/adjacent/core/keybindings.js";
 import { promptPathWordRanges } from "./path-word-ranges.js";

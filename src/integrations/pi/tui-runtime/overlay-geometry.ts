@@ -1,4 +1,4 @@
-import { TuiAltScreen, isFocusable, type Component, type OverlayHandle, type OverlayOptions } from "#pi-tui";
+import { TuiAltScreen, isFocusable, type Component, type OverlayHandle, type OverlayOptions } from "@earendil-works/pi-tui";
 import type { PresentationComponentPort, PresentationPointerSurface } from "../../../contracts/presentation/index.js";
 import type { PiTuiOverlayOptions } from "./contracts.js";
 

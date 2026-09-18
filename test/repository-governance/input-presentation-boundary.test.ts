@@ -5,7 +5,7 @@ describe("keyboard input presentation ownership", () => {
   it("keeps coordination on A1-owned ports without private Pi or component imports", async () => {
     const source = await readFile(new URL("../../src/integrations/pi/tui-runtime/input-presentation-coordinator.ts", import.meta.url), "utf8");
     const imports = source.match(/^import[^;]+;/gmu)?.join("\n") ?? "";
-    expect(imports).not.toMatch(/@earendil-works|#pi-tui|node_modules|ui\/components/u);
+    expect(imports).not.toMatch(/@earendil-works|node_modules|ui\/components/u);
     expect(source).not.toMatch(/prototype|private-field|requestImmediateRender|\.dist\//u);
     expect(source).toContain("original order");
     expect(source).toContain("Finite fail-closed grammar");

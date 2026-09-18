@@ -3,7 +3,7 @@
 // Local modifications: remap private imports to public package-root/owned theme boundaries; load the verified owned copy of the image lazily.
 import { readFileSync } from "node:fs";
 import type EarendilResource from "../assets/earendil-image.json";
-import { Container, Image, Spacer, Text } from "#pi-tui";
+import { Container, Image, Spacer, Text } from "@earendil-works/pi-tui";
 import { DynamicBorder } from "@earendil-works/pi-coding-agent";
 import { piTheme } from "../theme/theme.js";
 

@@ -17,9 +17,9 @@ const roots: string[] = [];
 afterEach(async () => { await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))); });
 
 describe("lane-scoped exact-package preparation", () => {
-  it("installs and synchronizes once while binding candidate, lane, policy, paths, and consumers", async () => {
+  it("installs once while binding candidate, lane, policy, paths, and consumers", async () => {
     const fixture = await prepareFixture();
-    expect(fixture.calls).toHaveLength(2);
+    expect(fixture.calls).toHaveLength(1);
     expect(fixture.calls[0]!.arguments).toEqual(installArguments(fixture.preparation.prefix, fixture.candidate));
     expect(fixture.preparation.receipt).toMatchObject({
       authority: "validation-runner",
@@ -28,14 +28,13 @@ describe("lane-scoped exact-package preparation", () => {
       install: { policy: EXACT_PACKAGE_INSTALL_POLICY, root: fixture.preparation.root, prefix: fixture.preparation.prefix },
       preparation: {
         count: 1,
-        proxySynchronizations: 1,
-        phases: { installMs: expect.any(Number), proxySynchronizationMs: expect.any(Number), installedIdentityMs: expect.any(Number) },
+        phases: { installMs: expect.any(Number), installedIdentityMs: expect.any(Number) },
       },
       consumers: ["package-startup", "package-contracts"],
       receiptId: expect.stringMatching(/^[0-9a-f]{64}$/),
     });
     const phases = fixture.preparation.receipt.preparation.phases;
-    expect(phases.installMs + phases.proxySynchronizationMs + phases.installedIdentityMs).toBeLessThanOrEqual(fixture.preparation.receipt.preparation.durationMs);
+    expect(phases.installMs + phases.installedIdentityMs).toBeLessThanOrEqual(fixture.preparation.receipt.preparation.durationMs);
     const environment = { ...fixture.environment, [EXACT_PACKAGE_PREPARATION_ENV.consumer]: "package-startup" };
     await expect(verifyExactPackagePreparation({ environment })).resolves.toMatchObject({ prefix: fixture.preparation.prefix });
   });
@@ -122,7 +121,6 @@ async function prepareFixture() {
         await mkdir(resolve(packageRoot, "bin"), { recursive: true });
         await mkdir(resolve(packageRoot, "dist"), { recursive: true });
         await writeFile(resolve(packageRoot, "package.json"), JSON.stringify({ name: "@fixture/app", version: "1.2.3" }));
-        await writeFile(resolve(packageRoot, "bin", "sync-pi-tui-proxy.js"), "// fixture");
         await writeFile(resolve(packageRoot, "dist", "identity.js"), "export const identity = true;");
       }
       return { status: 0, stdout: "", stderr: "" };

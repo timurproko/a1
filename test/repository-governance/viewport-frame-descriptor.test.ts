@@ -16,13 +16,13 @@ describe("viewport frame descriptor architecture", () => {
     expect(descriptor).toContain("safeVerticalShift");
     expect(descriptor).toContain("selectionRevision");
     expect(descriptor).toContain("selectionDamagedRows");
-    expect(descriptor).not.toMatch(/stripAnsi|visibleWidth|ANSI|OSC|SGR|instanceof|\.constructor|component|@earendil|#pi-tui/u);
+    expect(descriptor).not.toMatch(/stripAnsi|visibleWidth|ANSI|OSC|SGR|instanceof|\.constructor|component|@earendil/u);
   });
 
   it("keeps the neutral viewport free of Pi runtime and component imports", async () => {
     const source = await readFile(SOURCE, "utf8");
     const imports = source.split("\n").filter(line => line.startsWith("import ")).join("\n");
-    expect(imports).not.toMatch(/integrations\/pi|@earendil|#pi-tui|coding-agent/u);
+    expect(imports).not.toMatch(/integrations\/pi|@earendil|coding-agent/u);
     expect(source).toContain('from "./scrollbar.js"');
     expect(source).toContain('from "./text-selection.js"');
   });

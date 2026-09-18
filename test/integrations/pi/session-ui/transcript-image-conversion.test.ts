@@ -1,6 +1,6 @@
 import { PhotonImage } from "@silvia-odwyer/photon-node";
 import { ToolExecutionComponent } from "@earendil-works/pi-coding-agent";
-import { getCapabilities, setCapabilities } from "#pi-tui";
+import { getCapabilities, setCapabilities } from "@earendil-works/pi-tui";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createTuiFacade } from "../../../../src/integrations/pi/components/shell-shared-facade.js";
 import { stripAnsi } from "../../../../src/ui/components/text.js";

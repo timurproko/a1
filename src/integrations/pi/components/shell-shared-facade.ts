@@ -7,7 +7,7 @@ import {
   type Focusable,
   type KeybindingsConfig,
   type TUI,
-} from "#pi-tui";
+} from "@earendil-works/pi-tui";
 import type {
   OwnedUiImageAttachment,
   OwnedUiSessionViewModel,
