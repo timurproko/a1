@@ -6,4 +6,4 @@
 ## 2. Proof
 
 - [x] 2.1 Add `test/integrations/pi/engine/event-delivery.test.ts` (8 cases) for ordered delivery, one delivery per event-loop turn, live block coalescing, generation invalidation, overload with reserved outcomes, failed cancellation, listener failure, and subscription cut-off.
-- [x] 2.2 Re-pin `config/startup-graph-baseline.json` to 140 files and 1,388,891 bytes; run `npm run typecheck`, `check:architecture`, `check:code-documentation`, the changed-documentation check, and the engine, session-shell, owned-UI, and composition suites; record outcomes: all checks OK, 1,342 passed plus 8 new, `adapter.ts` 3,257 to 3,137 lines.
+- [x] 2.2 Re-pin `config/startup-graph-baseline.json` to 140 files and 1,388,892 bytes; run `npm run typecheck`, `check:architecture`, `check:code-documentation`, the changed-documentation check, and the engine, session-shell, owned-UI, and composition suites; record outcomes: all checks OK, 1,342 passed plus 8 new, `adapter.ts` 3,257 to 3,137 lines.

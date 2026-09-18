@@ -20,4 +20,4 @@ None.
 
 ## Impact
 
-`adapter.ts` goes from 3,257 to 3,137 lines. No behavior changes: the engine, session-shell, owned-UI, and composition suites pass unchanged, and the moved code differs only in how it names its collaborators. The startup graph baseline moves to the exact new totals (140 files, 1,388,891 bytes) for the new module's header and ports.
+`adapter.ts` goes from 3,257 to 3,137 lines. No behavior changes: the engine, session-shell, owned-UI, and composition suites pass unchanged, and the moved code differs only in how it names its collaborators. The startup graph baseline moves to the exact new totals (140 files, 1,388,892 bytes) for the new module's header and ports.
