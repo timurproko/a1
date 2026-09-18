@@ -21,7 +21,7 @@ export const DEVELOPMENT_VALIDATION_MATRIX = Object.freeze([
 /** Map an integration owner to the modular job that executes it on a platform. */
 export function validationJobGroup(owner, platform) {
   if (owner === "pi-release-resume") return "pi";
-  if (["launch-integration", "update-performance", "structured-runtime", "update-predecessor"].includes(owner)) return "promoted";
+  if (["launch-integration", "update-performance", "update-predecessor"].includes(owner)) return "promoted";
   if (owner === "package-contracts") return "package";
   if (owner === "startup") return "startup";
   if (["image-compatibility", "history-compatibility"].includes(owner)) return platform === "win32" ? "compatibility" : "containment";

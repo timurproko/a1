@@ -1,6 +1,6 @@
 {
   "schema": "a1-legacy-identity-allowlist-v1",
-  "generatedAt": "2026-09-16T14:28:44.252Z",
+  "generatedAt": "2026-09-18T07:49:42.725Z",
   "inventorySchema": "a1-legacy-identity-inventory-v1",
   "occurrences": [
     {
@@ -322,21 +322,15 @@
       "reason": "explicit legacy rejection fixture"
     },
     {
-      "id": "test/foundation/storage/storage.test.ts:206:77",
+      "id": "test/foundation/storage/storage.test.ts:129:77",
       "value": "addone",
-      "fingerprint": "bf60d7ed774244d7465f211c1b5519bdbdae7476ccb99fbf6289fc79457843f0",
+      "fingerprint": "b58d4af7886e0dac17cf4db9606efd9c4f42dd8bc30719d8ff6709833776dad4",
       "reason": "explicit legacy rejection fixture"
     },
     {
-      "id": "test/foundation/storage/storage.test.ts:209:58",
+      "id": "test/foundation/storage/storage.test.ts:132:58",
       "value": "addone",
-      "fingerprint": "f7fe2b34564aef9c9ac57bc67eb8f7af3a2c0444b7f783237b4059b878310ab6",
-      "reason": "explicit legacy rejection fixture"
-    },
-    {
-      "id": "test/foundation/structured-agent-runtime/handshake.test.ts:104:64",
-      "value": "addone",
-      "fingerprint": "f39e2f4109821d83cd94814a217af1a9e5d43f22a39a1569ba149d375f15d778",
+      "fingerprint": "103076018bf91a196d7374e29405579a6b4e1d66439967a50d204feabc385bd2",
       "reason": "explicit legacy rejection fixture"
     },
     {

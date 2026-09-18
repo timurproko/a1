@@ -37,24 +37,29 @@ describe("concurrent launch guardians", () => {
     await harness.server.close();
   });
 
-  it("launches pi normally after migrating a stale exclusive lease", async () => {
+  it("launches pi normally after migrating a version-4 database with a stale exclusive lease", async () => {
     const root = await mkdtemp(resolve(tmpdir(), "a1-stale-pi-launch-"));
     roots.push(root);
     const databasePath = resolve(root, "control.sqlite3");
     const initial = new ControlStore(databasePath);
-    initial.database.prepare(`INSERT INTO foreground_terminal_leases
-      (id, owner_id, profile_json, state, generation_id, process_identity_json, acquired_at, heartbeat_at, released_at, outcome_json, owner_boot_nonce)
-      VALUES ('stale-lease', 'dead-broker', '{}', 'active', 'old-generation', '{"pid":27708,"startIdentity":"old"}', ?, ?, NULL, NULL, 'old-boot')`)
-      .run(new Date(0).toISOString(), new Date(0).toISOString());
     initial.close();
+    // Rationale: rebuild the version-4 shape by hand; the lease table no longer exists in a current database.
     const legacy = new DatabaseSync(databasePath);
-    legacy.exec(`DROP TABLE launch_instances; CREATE UNIQUE INDEX idx_one_live_foreground_lease ON foreground_terminal_leases((1)) WHERE state IN ('requested', 'active'); PRAGMA user_version = 4;`);
+    legacy.exec(`
+      DROP TABLE launch_instances;
+      CREATE TABLE foreground_terminal_leases (id TEXT PRIMARY KEY, owner_id TEXT NOT NULL, profile_json TEXT NOT NULL, state TEXT NOT NULL, generation_id TEXT, process_identity_json TEXT, acquired_at TEXT NOT NULL, heartbeat_at TEXT, released_at TEXT, outcome_json TEXT, owner_boot_nonce TEXT NOT NULL);
+      CREATE UNIQUE INDEX idx_one_live_foreground_lease ON foreground_terminal_leases((1)) WHERE state IN ('requested', 'active');
+      INSERT INTO foreground_terminal_leases (id, owner_id, profile_json, state, generation_id, process_identity_json, acquired_at, heartbeat_at, released_at, outcome_json, owner_boot_nonce)
+        VALUES ('stale-lease', 'dead-broker', '{}', 'active', 'old-generation', '{"pid":27708,"startIdentity":"old"}', '${new Date(0).toISOString()}', '${new Date(0).toISOString()}', NULL, NULL, 'old-boot');
+      PRAGMA user_version = 4;
+    `);
     legacy.close();
 
     const harness = await createHarness(root, databasePath);
     const pi = launch(harness, "pi", 9201);
     await vi.waitFor(() => expect(harness.store.loadActiveLaunchInstances()).toHaveLength(1));
-    expect(harness.store.database.prepare("SELECT state FROM foreground_terminal_leases WHERE id = 'stale-lease'").get()).toEqual({ state: "interrupted" });
+    expect(harness.store.database.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'foreground_terminal_leases'").get()).toBeUndefined();
+    expect(harness.store.database.prepare("PRAGMA user_version").get()).toMatchObject({ user_version: 7 });
     pi.finish({ kind: "exited", exitCode: 0 });
     await expect(pi.result).resolves.toBe(0);
     await harness.server.close();

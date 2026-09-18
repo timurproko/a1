@@ -28,21 +28,6 @@
     ]
   ],
   "unreachableModules": [
-    "src/features/workspace/capabilities.ts",
-    "src/features/workspace/presentation.ts",
-    "src/features/workspace/reconciliation.ts",
-    "src/features/workspace/reducer.ts",
-    "src/features/workspace/router.ts",
-    "src/features/workspace/store.ts",
-    "src/foundation/native-host-protocol/codec.ts",
-    "src/foundation/native-host-protocol/evidence.ts",
-    "src/foundation/native-host-protocol/messages.ts",
-    "src/foundation/native-host-protocol/proof-gate.ts",
-    "src/foundation/structured-agent-runtime/backpressure.ts",
-    "src/foundation/structured-agent-runtime/commands.ts",
-    "src/foundation/structured-agent-runtime/handshake.ts",
-    "src/foundation/structured-agent-runtime/reconnection.ts",
-    "src/foundation/structured-agent-runtime/state.ts",
     "src/integrations/pi/tui-runtime/conformance.ts"
   ]
 }

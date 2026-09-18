@@ -1,6 +1,5 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
-import { WORKSPACE_CONTRACT_VERSION, type StructuredCapabilityContract } from "../../src/contracts/workspace/index.js";
 
 describe("multi-agent resource and data classification policy", () => {
   it("defines mandatory bounded resources, outcomes, and data classes", async () => {
@@ -40,23 +39,8 @@ describe("multi-agent resource and data classification policy", () => {
     expect(policy).not.toContain("unbounded");
   });
 
-  it("keeps default structured contract limits explicit and positive", () => {
-    const flow: StructuredCapabilityContract["flow"] = {
-      maxEventBytes: 64 * 1024,
-      maxSnapshotBytes: 1024 * 1024,
-      maxAttachmentBytes: 2 * 1024 * 1024,
-      maxQueuedEvents: 256,
-      maxConcurrentCommands: 4,
-      maxReconnectEvents: 1024,
-    };
-    expect(Object.values(flow)).toEqual([64 * 1024, 1024 * 1024, 2 * 1024 * 1024, 256, 4, 1024]);
-    expect(WORKSPACE_CONTRACT_VERSION).toBe(1);
-  });
-
-  it("prohibits accidental terminal or credential persistence through current contracts", async () => {
-    const contracts = await readFile("src/contracts/workspace/model.ts", "utf8");
+  it("prohibits accidental terminal or credential persistence through the control store", async () => {
     const storage = await readFile("src/foundation/storage/control-store.ts", "utf8");
-    expect(contracts).not.toMatch(/terminalBytes|ptyBytes|renderedCells|cellGrid|screenBuffer|accessToken|apiKey|password/i);
     expect(storage).not.toMatch(/terminalBytes|ptyBytes|renderedCells|cellGrid|screenBuffer|accessToken|apiKey|password/i);
   });
 });

@@ -43,7 +43,6 @@ const RENDERING_SURFACE_PREFIXES = Object.freeze([
   "src/ui/",
   "src/features/owned-ui/",
   "src/features/prompt-suggestions/",
-  "src/features/workspace/",
   "test/integrations/pi/tui-runtime/",
   "test/ui/",
   "test/features/owned-ui/",

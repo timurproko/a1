@@ -24,9 +24,6 @@ The owned Pi-backed surface is not an arbitrary-CLI terminal multiplexer. A feat
 - `lifecycle`: dependency-free launch-instance, process identity, state transition, outcome, and control-command contracts.
 - `process-containment`: artifact verification, OS-verifiable process inspection, containment adapters, and bounded graceful/forced cleanup; it owns no terminal content.
 - `launch-guardian`: one profile-neutral instance coordinator above runtime selection.
-- `workspace-contracts`: dependency-free multi-agent identity, capability, command/event/snapshot, terminal window/tab/pane/session topology, terminal-host, and recovery contracts.
-- `structured-agent-runtime`: planned typed event/command/snapshot runtime. It must not infer semantics from terminal text, own pseudoterminals, or reconstruct screens.
-- `native-host-protocol`: bounded typed local boundary for terminal-host identity, topology revisions, lifecycle, and recovery. Terminal bytes, per-event child input, and rendered cells are forbidden across it.
 - `protocol`: additive control handshake, bounded line framing, authenticated launch-instance commands, typed stop intent, snapshots, and command results.
 - `launch`: resolves the effective profile home and the history-specific data root. Composition uses its public path resolver to select `~/.a1/data` for history unless `A1_DATA_DIR` is explicit; global control/release/runtime/cache paths stay unchanged.
 - `prompt-history`: narrowly typed user-input retention in separate profile-owned databases under `~/.a1/data/history` (or `<A1_DATA_DIR>/history`), with bounded worker queues and no supervisor/control-store payloads. It receives a resolved root rather than importing launch-feature internals; it never probes, imports, or deletes the former platform-default history. The editor's owned history state machine remains inside the Pi component boundary; the session UI only coordinates snapshots and classified submissions.
@@ -46,6 +43,8 @@ The JavaScript product path has no PTY or terminal-emulator dependency. Reintrod
 `scripts/governance/check-architecture.mjs` enforces the structural parts of these boundaries. Cross-cutting rationale belongs here; implementation history belongs in Git and archived OpenSpec changes.
 
 ## Planned multi-agent boundaries
+
+The multi-agent workspace feature, its dependency-free contracts, the structured-agent runtime, and the Node side of the terminal-host protocol were removed from `develop` while the multi-agent plan is on hold; their last state is preserved on the `archive/multi-agent-workspace` branch. A future implementation starts from the current codebase rather than from that copy. The boundary rules below remain the design intent for that work.
 
 The workspace feature may depend on workspace contracts and the structured/terminal-host foundations. Those foundations may depend only on dependency-free workspace contracts, never on product features, launch profiles, or each other unless an approved capability adds the dependency. Launch profiles do not import, initialize, launch, or connect to composed terminal-host infrastructure.
 
