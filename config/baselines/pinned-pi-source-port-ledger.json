@@ -1275,12 +1275,11 @@
       "sourceMap": "modes/interactive/components/custom-entry.js.map",
       "lines": 63,
       "sha256": "8796bd95c4b496aad74674bbfb0e286768731532ad5ab8f51e6471cfbfd9404e",
-      "classification": "owned-presentation",
-      "localDestination": "src/integrations/pi/components/upstream/components/custom-entry.ts",
-      "implementationStatus": "source-synchronized-port",
+      "classification": "public-api-reuse",
+      "localDestination": "src/integrations/pi/components/index.ts",
+      "implementationStatus": "available-through-pinned-package",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Mechanical pinned source port with private imports remapped to public package-root types/APIs and A1-owned theme boundaries; behavior remains acceptance-tested.",
-      "localSha256": "674f91d749c2f4abd309d5df0cd01ab2301772e7c71b468de3753405ce4d4ed3",
+      "modifications": "Not rendered by bare A1; the pinned public coding-agent package still ships the component if a later change needs it.",
       "approvedDeviations": [],
       "behaviorCategories": [
         "stateful-components",
@@ -1302,8 +1301,7 @@
       ],
       "tests": [
         "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
-        "test/integrations/pi/session-ui/session-shell.test.ts",
-        "test/integrations/pi/components/pinned-reconciled-source-ports.test.ts"
+        "test/integrations/pi/session-ui/session-shell.test.ts"
       ]
     },
     {
@@ -1623,12 +1621,11 @@
       "sourceMap": "modes/interactive/components/first-time-setup.js.map",
       "lines": 146,
       "sha256": "1a8f74713297b0ac2bc010a0d3ce7e1909b40d74dc07a40632c20a262964914c",
-      "classification": "owned-presentation",
-      "localDestination": "src/integrations/pi/components/upstream/components/first-time-setup.ts",
-      "implementationStatus": "source-synchronized-port",
+      "classification": "public-api-reuse",
+      "localDestination": "src/integrations/pi/components/index.ts",
+      "implementationStatus": "available-through-pinned-package",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Mechanical pinned source port with private imports remapped to public package-root types/APIs and A1-owned theme boundaries; behavior remains acceptance-tested.",
-      "localSha256": "2c80b931244ef41cec68095aa63aa5dbc6fe7e93369154dfc02214cd7505f9c2",
+      "modifications": "Not rendered by bare A1; the pinned public coding-agent package still ships the component if a later change needs it.",
       "approvedDeviations": [],
       "behaviorCategories": [
         "startup-composition",
@@ -1652,8 +1649,7 @@
         "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
         "test/features/owned-ui/pi-startup-composition-parity.test.ts",
         "test/integrations/pi/engine/workflows.test.ts",
-        "test/integrations/pi/session-ui/session-shell.test.ts",
-        "test/integrations/pi/components/pinned-reconciled-source-ports.test.ts"
+        "test/integrations/pi/session-ui/session-shell.test.ts"
       ]
     },
     {
@@ -1800,12 +1796,11 @@
       "sourceMap": "modes/interactive/components/markdown-transform.js.map",
       "lines": 30,
       "sha256": "657edd0453dab59d362e0d18c330486b86a47fe7a33b8c32204db8ce23a142a9",
-      "classification": "owned-presentation",
-      "localDestination": "src/integrations/pi/components/upstream/components/markdown-transform.ts",
-      "implementationStatus": "source-synchronized-port",
+      "classification": "public-api-reuse",
+      "localDestination": "src/integrations/pi/components/index.ts",
+      "implementationStatus": "available-through-pinned-package",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Mechanical pinned source port with private imports remapped to public package-root types/APIs and A1-owned theme boundaries; behavior remains acceptance-tested.",
-      "localSha256": "d2deb720a9420764a54d704ba4ad194a746c9edc5a5ec86699dc517e8068336f",
+      "modifications": "Not rendered by bare A1; the pinned public coding-agent package still ships the component if a later change needs it.",
       "approvedDeviations": [],
       "behaviorCategories": [
         "startup-composition",
@@ -1828,8 +1823,7 @@
       "tests": [
         "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
         "test/features/owned-ui/pi-startup-composition-parity.test.ts",
-        "test/integrations/pi/tui-runtime/adapter.test.ts",
-        "test/integrations/pi/components/pinned-reconciled-source-ports.test.ts"
+        "test/integrations/pi/tui-runtime/adapter.test.ts"
       ]
     },
     {
