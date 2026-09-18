@@ -121,6 +121,7 @@ describe("validation suite ownership", () => {
       "test/integrations/pi/session-ui/command-message-parity.test.ts",
       "test/integrations/pi/session-ui/command-outcome-parity.test.ts",
       "test/integrations/pi/session-ui/session-shell.test.ts",
+      "test/integrations/pi/session-ui/session-shell-paste.test.ts",
       "test/integrations/pi/session-ui/paste-executor.test.ts",
       "test/integrations/pi/session-ui/clipboard-executor-lifecycle.test.ts",
       "test/integrations/pi/session-ui/clipboard-packaged.test.ts",
