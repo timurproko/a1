@@ -62,7 +62,8 @@ describe("bounded PR-core ownership", () => {
     expect(graph.reachingTests(fixture)).toEqual([
       "test/integrations/pi/engine/adapter.test.ts",
       "test/integrations/pi/engine/prompt-suggestion-provider.integration.test.ts",
-      "test/integrations/pi/session-ui/session-shell.test.ts",
+      "test/integrations/pi/session-ui/session-shell-selection.test.ts",
+      "test/integrations/pi/session-ui/session-shell-suggestions.test.ts",
     ]);
     const direct = select([fixture]);
     expect(direct.mode).toBe("impact");
