@@ -21,7 +21,7 @@ describe("progress-status presentation boundary", () => {
     const [engine, shell, root, synchronized, dispatch, runtimeSelection] = await Promise.all([
       readFile("src/integrations/pi/engine/session-events.ts", "utf8"),
       readFile("src/integrations/pi/components/shell-footer-status.ts", "utf8"),
-      readFile("src/integrations/pi/session-ui/session-shell-root.ts", "utf8"),
+      readFile("src/app/session-shell/session-shell-root.ts", "utf8"),
       readFile("src/integrations/pi/components/upstream/components/status-indicator.ts", "utf8"),
       readFile("src/cli/dispatch.ts", "utf8"),
       readFile("src/features/launch/runtime-selection.ts", "utf8"),

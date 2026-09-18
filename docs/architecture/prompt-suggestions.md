@@ -54,7 +54,7 @@ To disable capture, omit/unset `A1_SUGGESTION_DIAGNOSTICS` before the next launc
 The focused tests cover the synthetic archive offer and required-testing/unresolved-choice counterexamples, unchanged primary thinking, typed outcomes, timeout/cancellation races, editor acceptance, and local privacy/bounds:
 
 ```sh
-npx vitest run test/integrations/pi/session-ui/prompt-suggestion-controller.test.ts test/integrations/pi/engine/adapter.test.ts test/features/prompt-suggestions/diagnostics.test.ts test/contracts/owned-ui/contracts.test.ts test/integrations/pi/session-ui/session-shell.test.ts
+npx vitest run test/app/session-shell/prompt-suggestion-controller.test.ts test/integrations/pi/engine/adapter.test.ts test/features/prompt-suggestions/diagnostics.test.ts test/contracts/owned-ui/contracts.test.ts test/app/session-shell/session-shell.test.ts
 ```
 
 A separate opt-in probe uses the profile's saved model/authentication with a scratch cwd, in-memory sessions/settings, disabled extensions/skills/prompts, and no tools. It performs five original-policy predictions, five revised-policy predictions, and one required-testing counterexample. This makes **11 provider requests** and can consume quota. Run only with explicit authorization:

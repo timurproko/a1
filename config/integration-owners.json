@@ -115,12 +115,12 @@
         }
       ],
       "entries": [
-        "test/integrations/pi/session-ui/image-preparation.test.ts",
-        "test/integrations/pi/session-ui/image-worker-package.test.ts"
+        "test/app/session-shell/image-preparation.test.ts",
+        "test/app/session-shell/image-worker-package.test.ts"
       ],
       "tests": [
-        "test/integrations/pi/session-ui/image-preparation.test.ts",
-        "test/integrations/pi/session-ui/image-worker-package.test.ts"
+        "test/app/session-shell/image-preparation.test.ts",
+        "test/app/session-shell/image-worker-package.test.ts"
       ],
       "support": [],
       "cadence": "pull-request"
@@ -190,8 +190,8 @@
         "test/foundation/process-containment/unix-process-group.integration.test.ts",
         "test/foundation/process-containment/windows-job.integration.test.ts",
         "test/foundation/process-containment/windows-process-inspector.test.ts",
-        "test/integrations/pi/session-ui/image-preparation.test.ts",
-        "test/integrations/pi/session-ui/image-worker-package.test.ts",
+        "test/app/session-shell/image-preparation.test.ts",
+        "test/app/session-shell/image-worker-package.test.ts",
         "test/features/prompt-history/concurrency.integration.test.ts",
         "test/features/prompt-history/image-sidecar.test.ts",
         "test/features/prompt-history/service.test.ts",

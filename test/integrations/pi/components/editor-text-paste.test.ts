@@ -6,8 +6,8 @@ import { StdinBuffer, stripTerminalSequences, visibleWidth } from "@earendil-wor
 import { describe, expect, it, vi } from "vitest";
 import { createPiShellEditor, loadHistoryEditor, type PiShellClipboardContent, type PiShellEditorPort } from "../../../../src/integrations/pi/components/index.js";
 import { MAX_CLIPBOARD_TEXT_BYTES } from "../../../../src/contracts/owned-ui/index.js";
-import { prepareTextPaste } from "../../../../src/integrations/pi/session-ui/text-paste.js";
-import { PromptChipStore } from "../../../../src/integrations/pi/session-ui/prompt-chips.js";
+import { prepareTextPaste } from "../../../../src/app/session-shell/text-paste.js";
+import { PromptChipStore } from "../../../../src/app/session-shell/prompt-chips.js";
 
 const payload = Array.from({ length: 136 }, (_, i) => `line ${i} 日本語`).join("\n");
 const framed = (text: string) => `\x1b[200~${text}\x1b[201~`;

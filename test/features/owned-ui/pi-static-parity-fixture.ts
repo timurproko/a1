@@ -1,6 +1,6 @@
 import type { OwnedUiSessionViewModel, OwnedUiTranscriptBlock } from "../../../src/contracts/owned-ui/index.js";
 import { applyPiTheme, createPiShellDialog, createPiShellSelector } from "../../../src/integrations/pi/components/index.js";
-import { OwnedUiSessionShellRoot } from "../../../src/integrations/pi/session-ui/index.js";
+import { OwnedUiSessionShellRoot } from "../../../src/app/session-shell/index.js";
 import { withPiParityColorMode } from "../../support/pi-terminal-capabilities.js";
 
 /** Declared color grammar retained by the static diagnostic fixture. */

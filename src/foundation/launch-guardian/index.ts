@@ -1,1 +1,2 @@
-export * from "./main.js";
+export { runLaunchGuardian } from "./main.js";
+export type { LaunchGuardianOptions } from "./main.js";

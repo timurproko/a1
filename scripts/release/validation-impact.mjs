@@ -32,13 +32,13 @@ const FULL_PREFIXES = Object.freeze([
 ]);
 const FULL_PRODUCTION = Object.freeze([
   /^src\/integrations\/pi\/tui-runtime\//u,
-  /^src\/integrations\/pi\/session-ui\/(?:session-viewport-controller|stream-presentation-coalescer)\.ts$/u,
+  /^src\/app\/session-shell\/(?:session-viewport-controller|stream-presentation-coalescer)\.ts$/u,
   /^src\/ui\/components\/(?:text-selection|transcript-viewport)\.ts$/u,
 ]);
 const RENDERING_SOURCE_EXTENSIONS = new Set([".ts", ".tsx", ".mts", ".cts", ".js", ".mjs", ".cjs", ".json"]);
 const RENDERING_SURFACE_PREFIXES = Object.freeze([
   "src/integrations/pi/components/",
-  "src/integrations/pi/session-ui/",
+  "src/app/session-shell/",
   "src/integrations/pi/tui-runtime/",
   "src/ui/",
   "src/features/owned-ui/",
@@ -171,12 +171,14 @@ export function assertValidationImpact(value) {
 
 export async function classifyRenderingImpact(_repository, _base, _head, changes) {
   const changedPaths = [...new Set(changes.flatMap(change => [change.path, ...(change.oldPath ? [change.oldPath] : [])]))].sort();
+  // Invariant: the tier is decided from every changed path; only the recorded list is bounded, so a directory move that renames hundreds of files still classifies.
+  const recorded = changedPaths.slice(0, MAX_REASONS);
   const exactFull = changedPaths.filter(isFullRenderingPath);
   if (exactFull.length > 0) return {
     tier: "full",
     reasons: exactFull.slice(0, MAX_REASONS).map(path => `full-critical:${path}`),
     fallbacks: [],
-    changedPaths,
+    changedPaths: recorded,
   };
   const owned = changedPaths.filter(path => RENDERING_SURFACE_PREFIXES.some(prefix => path.startsWith(prefix)));
   const unsupported = owned.filter(path => !RENDERING_SOURCE_EXTENSIONS.has(extname(path)));
@@ -184,13 +186,13 @@ export async function classifyRenderingImpact(_repository, _base, _head, changes
     tier: "full",
     reasons: unsupported.slice(0, MAX_REASONS).map(path => `unsupported-rendering-input:${path}`),
     fallbacks: ["unsupported-rendering-input"],
-    changedPaths,
+    changedPaths: recorded,
   };
   return {
     tier: owned.length > 0 ? "smoke" : "none",
     reasons: owned.slice(0, MAX_REASONS).map(path => `coarse-owner:${path}`),
     fallbacks: [],
-    changedPaths,
+    changedPaths: recorded,
   };
 }
 

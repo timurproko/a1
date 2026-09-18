@@ -10,6 +10,8 @@ src/
   product-identity.json
   cli/                             public command parsing, capabilities, packages, and version reporting
   composition/                     process-level wiring of neutral contracts to concrete adapters
+  app/
+    session-shell/                 the owned session shell: composes features, UI components, and the Pi adapters into the interactive session
   features/
     launch/                        launch profiles, profile paths, and runtime selection
     owned-ui/                      owned screens, settings application, diagnostics, and runtime lifecycle
@@ -23,7 +25,6 @@ src/
     pi/
       components/                  pinned Pi component and theme adaptation
       engine/                      pinned Pi engine, settings, resource, package, and workflow integration
-      session-ui/                  Pi-backed session shell and A1 viewport integration
       tui-runtime/                 neutral presentation runtime over pinned Pi TUI
   foundation/
     launch-guardian/               authenticated launch-instance coordination
@@ -39,7 +40,9 @@ src/
     settings/                      owned settings declarations, resolution, migration, and persistence
 ```
 
-Each directory owner exposes `index.ts`. Imports within one owner may use private files. Imports crossing owners must use the provider's public entry and follow the dependency DAG declared by `PROJECT_OWNERS`. `product-identity` is the sole current exception to the directory-entry convention because its public entry is `src/product-identity.ts`.
+Each directory owner exposes `index.ts`, which lists its named exports; `export *` is rejected there so a public contract is readable in one place. Imports within one owner may use private files. Imports crossing owners must use the provider's public entry and follow the dependency DAG declared by `PROJECT_OWNERS`. Two exceptions exist: `src/composition` is the dependency-injection root and may reach past any public entry, and a module on the eager startup path may import a leaf of a provider whose public entry is a prohibited startup entry (`PROHIBITED_STARTUP_ENTRIES` in `startup-graph-policy.mjs`), because loading that barrel would pull the provider's whole graph into startup. `product-identity` is the sole exception to the directory-entry convention because its public entry is `src/product-identity.ts`.
+
+Three layer boundaries hold regardless of the DAG: `src/contracts/*` import nothing outside their own contract; `src/ui/components` imports only contracts; only `src/integrations/pi/*` and the shipped `bin/` entries import the pinned Pi packages. The session shell under `src/app` is the application layer: it may import the contracts, the UI foundations, the three Pi adapters, and the feature owners, and only composition imports it.
 
 `src/cli` contains command policy but delegates runtime work. `src/composition` is the concrete dependency-injection boundary: it may know both neutral contracts and Pi implementations, while product features receive vendor-neutral ports. Foundation modules never import product features. Pi package knowledge remains inside the Pi adapter owners.
 
@@ -67,6 +70,7 @@ test/
   composition/
   features/<name>/
   contracts/<name>/
+  app/session-shell/
   foundation/<name>/
   integrations/pi/<name>/
   product-identity/

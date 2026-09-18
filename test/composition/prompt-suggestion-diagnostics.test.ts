@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { PRODUCT_IDENTITY } from "../../src/product-identity.js";
 import { composeOwnedUi } from "../../src/composition/owned-ui.js";
 import { SuggestionDiagnosticCapture } from "../../src/features/prompt-suggestions/index.js";
-import type { OwnedUiSessionShellOptions } from "../../src/integrations/pi/session-ui/index.js";
+import type { OwnedUiSessionShellOptions } from "../../src/app/session-shell/index.js";
 
 const observed = vi.hoisted(() => ({ options: undefined as OwnedUiSessionShellOptions | undefined }));
 // Rationale: isolate launch composition from provider discovery and terminal ownership.
@@ -17,7 +17,7 @@ vi.mock("../../src/ui/settings/store.js", () => ({ OwnedUiSettingsStore: class {
 vi.mock("../../src/ui/settings/session.js", () => ({
   OwnedUiSettingsSession: class { value(key: string) { return key === "promptHistoryEnabled" ? false : undefined; } },
 }));
-vi.mock("../../src/integrations/pi/session-ui/session-shell.js", () => ({
+vi.mock("../../src/app/session-shell/session-shell.js", () => ({
   OwnedUiSessionShell: class {
     constructor(options: OwnedUiSessionShellOptions) { observed.options = options; }
     async dispose() {}
