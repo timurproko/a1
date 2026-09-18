@@ -108,26 +108,6 @@ for (const file of await walk(sourceRoot)) {
     errors.push(`${path}: retired terminal module remains in production sources`);
   }
 
-  if (path.startsWith("src/foundation/structured-agent-runtime/")) {
-    const structuredForbidden = [
-      { pattern: /(?:\u001b|\u009b|\x1[bB]|\x9[bB]|ansi(?:Escapes?|Regex)|terminalOutput|terminalBytes|framebuffer|renderedCells?|shadowParser)/i, label: "terminal text or screen interpretation" },
-      { pattern: /(?:node-pty|conpty|portable-pty|pty\.|PtyProcess|child terminal)/i, label: "terminal PTY ownership" },
-    ];
-    for (const { pattern, label } of structuredForbidden) {
-      if (pattern.test(source)) errors.push(`${path}: structured runtime contains forbidden ${label}`);
-    }
-  }
-
-  if (path.startsWith("src/foundation/native-host-protocol/")) {
-    const nativeProtocolForbidden = [
-      { pattern: /(?:node-pty|conpty|portable-pty|PtyProcess|pty\.|terminalBytes|terminalOutput|ptyBytes|inputBytes|renderedCells?|framebuffer|cellGrid|screenBuffer|ansiStream)/i, label: "terminal byte, input, or rendered-cell transport" },
-      { pattern: /(?:node:child_process|child_process|execFile|spawn\s*\()/i, label: "native host process ownership" },
-    ];
-    for (const { pattern, label } of nativeProtocolForbidden) {
-      if (pattern.test(source)) errors.push(`${path}: native-host protocol contains forbidden ${label}`);
-    }
-  }
-
   if (path.startsWith("src/features/launch/")) {
     const explicitModeForbidden = [
       { pattern: /(?:native-host-protocol|structured-agent-runtime|features\/workspace|features\/owned-ui|nativeTerminalHost|composedTerminal)/i, label: "composed infrastructure dependency" },

@@ -42,7 +42,6 @@ const timing = {
     jobs: [
       { job: "promoted", runnerMs: 100_000, scopeDurations: [
         { id: "vitest-launch", scope: "launch-integration", durationMs: 3_000 },
-        { id: "vitest-runtime", scope: "structured-runtime-integration", durationMs: 1_000 },
         { id: "vitest-update-performance", scope: "update-performance", durationMs: 20_955 },
       ] },
       { job: "startup", runnerMs: 398_000, scopeDurations: [{ id: "vitest-startup", scope: "package-startup", durationMs: 274_000 }] },

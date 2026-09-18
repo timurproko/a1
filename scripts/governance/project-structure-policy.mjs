@@ -5,9 +5,6 @@ export const PROJECT_OWNERS = Object.freeze({
   cli: owner("cli", "entry", "src/cli", "test/cli", ["launch", "release", "agent-engine-contracts"]),
   composition: owner("composition", "entry", "src/composition", "test/composition", ["agent-engine-contracts", "presentation-contracts", "owned-ui-contracts", "owned-ui-settings", "lifecycle", "pi-engine-adapter", "pi-component-adapter", "pi-tui-runtime-adapter", "pi-session-ui-integration", "ui-apps", "ui-components", "owned-ui", "prompt-history", "prompt-suggestions", "launch"]),
   launch: owner("launch", "feature", "src/features/launch", "test/features/launch", ["lifecycle"]),
-  workspace: owner("workspace", "feature", "src/features/workspace", "test/features/workspace", [
-    "storage", "workspace-contracts", "structured-agent-runtime", "native-host-protocol", "agent-engine-contracts", "presentation-contracts",
-  ]),
   "owned-ui": owner("owned-ui", "feature", "src/features/owned-ui", "test/features/owned-ui", [
     "owned-ui-contracts", "owned-ui-settings", "ui-components", "ui-apps", "agent-engine-contracts", "presentation-contracts", "startup", "terminal-cleanup",
   ]),
@@ -21,9 +18,7 @@ export const PROJECT_OWNERS = Object.freeze({
   "launch-guardian": owner("launch-guardian", "foundation", "src/foundation/launch-guardian", "test/foundation/launch-guardian", ["lifecycle", "process-containment", "protocol", "supervision", "startup", "launch-context"]),
   protocol: owner("protocol", "foundation", "src/foundation/protocol", "test/foundation/protocol", ["lifecycle"]),
   release: owner("release", "foundation", "src/foundation/release", "test/foundation/release", ["lifecycle", "protocol", "startup", "terminal-cleanup", "launch-context"]),
-  storage: owner("storage", "foundation", "src/foundation/storage", "test/foundation/storage", ["lifecycle", "workspace-contracts"]),
-  "structured-agent-runtime": owner("structured-agent-runtime", "foundation", "src/foundation/structured-agent-runtime", "test/foundation/structured-agent-runtime", ["workspace-contracts"]),
-  "native-host-protocol": owner("native-host-protocol", "foundation", "src/foundation/native-host-protocol", "test/foundation/native-host-protocol", ["workspace-contracts"]),
+  storage: owner("storage", "foundation", "src/foundation/storage", "test/foundation/storage", ["lifecycle"]),
   "owned-ui-contracts": owner("owned-ui-contracts", "foundation", "src/contracts/owned-ui", "test/contracts/owned-ui", []),
   "ui-components": owner("ui-components", "foundation", "src/ui/components", "test/ui/components", []),
   "ui-apps": owner("ui-apps", "foundation", "src/ui/apps", "test/ui/apps", ["ui-components"]),
@@ -35,7 +30,6 @@ export const PROJECT_OWNERS = Object.freeze({
   "pi-tui-runtime-adapter": owner("pi-tui-runtime-adapter", "foundation", "src/integrations/pi/tui-runtime", "test/integrations/pi/tui-runtime", ["presentation-contracts", "terminal-cleanup"]),
   "pi-session-ui-integration": owner("pi-session-ui-integration", "foundation", "src/integrations/pi/session-ui", "test/integrations/pi/session-ui", ["owned-ui-contracts", "ui-components", "ui-apps", "pi-engine-adapter", "pi-component-adapter", "pi-tui-runtime-adapter", "terminal-cleanup"]),
   supervision: owner("supervision", "foundation", "src/foundation/supervision", "test/foundation/supervision", ["lifecycle", "protocol", "release", "storage", "launch-context"]),
-  "workspace-contracts": owner("workspace-contracts", "foundation", "src/contracts/workspace", "test/contracts/workspace", []),
 });
 
 export const TEST_OWNERS = Object.freeze({

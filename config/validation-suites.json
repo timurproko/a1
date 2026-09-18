@@ -47,7 +47,6 @@
         "pi-engine-conformance",
         "release-update",
         "update-performance",
-        "structured-runtime-integration",
         "package-smoke",
         "package-install",
         "image-compatibility",
@@ -105,7 +104,6 @@
         "test/foundation/release/package-startup.integration.test.ts",
         "test/foundation/release/update-performance.integration.test.ts",
         "test/foundation/release/update-transition.integration.test.ts",
-        "test/foundation/structured-agent-runtime/runtime.integration.test.ts",
         "test/foundation/release/update-predecessor.integration.test.ts"
       ]
     },
@@ -122,8 +120,6 @@
         "test/foundation/release/cohort-state.test.ts",
         "test/foundation/release/release-gc.test.ts",
         "test/foundation/release/update-live-cohort.test.ts",
-        "test/features/workspace/reconciliation.test.ts",
-        "test/features/workspace/workspace.test.ts",
         "test/features/prompt-history/store.test.ts",
         "test/integrations/pi/session-ui/command-message-parity.test.ts",
         "test/integrations/pi/session-ui/command-outcome-parity.test.ts",
@@ -278,12 +274,6 @@
       "kind": "vitest-files",
       "tests": [
         "test/foundation/release/update-performance.integration.test.ts"
-      ]
-    },
-    "structured-runtime-integration": {
-      "kind": "vitest-files",
-      "tests": [
-        "test/foundation/structured-agent-runtime/runtime.integration.test.ts"
       ]
     },
     "package-smoke": {

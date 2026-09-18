@@ -43,21 +43,21 @@
     "explicit-obsolete-package-fixtures"
   ],
   "summary": {
-    "total": 75,
-    "files": 24,
+    "total": 74,
+    "files": 23,
     "byLocationKind": {
-      "content": 75,
+      "content": 74,
       "path": 0
     },
     "byClass": {
-      "runtime-symbols": 50,
+      "runtime-symbols": 49,
       "diagnostics": 3,
       "environment-keys": 14,
       "paths": 50,
       "schemas": 13,
       "artifacts": 16,
       "native-names": 3,
-      "tests": 50,
+      "tests": 49,
       "current-docs-specs": 25,
       "historical-records": 12,
       "explicit-obsolete-package-fixtures": 5
@@ -931,10 +931,10 @@
       ]
     },
     {
-      "id": "test/foundation/storage/storage.test.ts:206:77",
+      "id": "test/foundation/storage/storage.test.ts:129:77",
       "path": "test/foundation/storage/storage.test.ts",
       "locationKind": "content",
-      "line": 206,
+      "line": 129,
       "column": 77,
       "value": "addone",
       "context": "legacy.prepare(\"INSERT INTO product_identity (schema) VALUES (?)\").run(\"addone-control-store-v1\");",
@@ -947,10 +947,10 @@
       ]
     },
     {
-      "id": "test/foundation/storage/storage.test.ts:209:58",
+      "id": "test/foundation/storage/storage.test.ts:132:58",
       "path": "test/foundation/storage/storage.test.ts",
       "locationKind": "content",
-      "line": 209,
+      "line": 132,
       "column": 58,
       "value": "addone",
       "context": "expect(() => new ControlStore(path)).toThrow(/schema addone-control-store-v1 is unsupported/);",
@@ -960,21 +960,6 @@
         "runtime-symbols",
         "paths",
         "schemas",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/structured-agent-runtime/handshake.test.ts:104:64",
-      "path": "test/foundation/structured-agent-runtime/handshake.test.ts",
-      "locationKind": "content",
-      "line": 104,
-      "column": 64,
-      "value": "addone",
-      "context": "expect(negotiateStructuredAdapter({ ...hello(), envelope: \"addone-structured-adapter\" })).toMatchObject({ accepted: false, code: \"unsupported-version\" });",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
         "tests"
       ]
     },
@@ -1281,5 +1266,5 @@
       ]
     }
   ],
-  "generatedAt": "2026-09-16T14:28:44.177Z"
+  "generatedAt": "2026-09-18T07:49:42.618Z"
 }

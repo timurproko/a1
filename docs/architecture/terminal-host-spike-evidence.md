@@ -34,6 +34,6 @@ Paint diagnostics require requested, presented, coalesced, and missed frame coun
 - `overall: accepted` requires technical acceptance and a physical verdict accepted through `manual` or `isolated-worker` evidence.
 - Active-workstation automation makes the evidence invalid.
 - Evidence must not contain terminal output, child input streams, rendered cells, cell grids, framebuffers, screen buffers, or raw terminal payloads.
-- The evidence validator is `assertNativeSpikeEvidence` in `src/foundation/native-host-protocol/evidence.ts`.
+- The evidence validator was `assertNativeSpikeEvidence` in `src/foundation/native-host-protocol/evidence.ts`, preserved on the `archive/multi-agent-workspace` branch while the multi-agent plan is on hold.
 
 A failed or incomplete proof stops composed-terminal integration and must not be waived to merge.
