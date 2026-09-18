@@ -1481,7 +1481,7 @@ For equivalent cwd inputs, filesystem alias topology, saved trust data, and curr
 - **THEN** the parity gate SHALL fail rather than accepting the mutated result
 
 ### Requirement: Bounded engine delivery supersedes only equivalent replaceable state
-The owned UI SHALL bound pending event count and retained queue payload without evicting arbitrary older notifications. Intermediate complete state updates SHALL be superseded only by a newer equivalent update for the same entity, session generation, and semantic ordering segment. Updates for different transcript blocks SHALL NOT displace one another without an explicit authoritative reconciliation that preserves all final content. Coalescing SHALL NOT remove or reorder command outcomes, lifecycle/run transitions, assistant-message completion semantics, tool finalization, or other side-effect-bearing events. A newer generation SHALL NOT receive an obsolete generation's state.
+The owned UI SHALL bound pending event count and retained queue payload without evicting arbitrary older notifications. Intermediate complete state updates SHALL be superseded only by a newer equivalent update for the same entity, session generation, and semantic ordering segment. Updates for different transcript blocks SHALL NOT displace one another without an explicit authoritative reconciliation that preserves all final content. Coalescing SHALL NOT remove or reorder command outcomes, lifecycle/run transitions, assistant-message completion semantics, tool finalization, or other side-effect-bearing events. A newer generation SHALL NOT receive an obsolete generation's state. Sequence stamping, listener registration, the bounded queue, the per-turn drain, generation invalidation, and the overload transition SHALL be one delivery component owned by the engine adapter and testable without the adapter: it SHALL obtain the session id, generation, lazily materialized blocks, asset retention, pending-command membership, cancellation, reconciliation, and listener-failure reporting through explicit ports, while the adapter alone decides what each event means and how a saturated session is rebuilt.
 
 #### Scenario: One block emits a large streaming burst
 - **WHEN** many accumulated updates for the same live block arrive before delivery
@@ -1502,6 +1502,11 @@ The owned UI SHALL bound pending event count and retained queue payload without 
 - **WHEN** a session generation is replaced while old state remains queued
 - **THEN** old events SHALL NOT mutate the new transcript, editor, suggestions, status, or pending commands
 - **AND** accepted old operations SHALL be settled or invalidated through their defined lifecycle rather than silently forgotten
+
+#### Scenario: Deliver events without an engine
+- **WHEN** the delivery component is driven directly with emitted events, a replaced generation, a saturating burst, and a throwing listener
+- **THEN** it SHALL stamp and deliver events in order one per event-loop turn, coalesce a live block to its newest revision, invalidate the replaced generation's state, reserve pending command outcomes through one overload and hand them to the reconciliation port in arrival order, and report the listener failure through its port
+- **AND** the adapter SHALL observe the same ordering, coalescing, invalidation, and recovery through its public delivery surface
 
 ### Requirement: Event saturation has bounded explicit recovery rather than silent semantic loss
 If capacity is exhausted by nonreplaceable work, the adapter SHALL use a defined bounded overload transition rather than discarding control events, growing without limit, or claiming successful delivery. Accepted pending operations SHALL receive their ordered result or an explicit typed failure/cancellation disposition. Any recovery SHALL reconcile the authoritative session state and prevent stale events from being replayed into the recovered generation. Supported ordinary streaming bursts SHALL NOT require this exceptional path. Technical overflow telemetry SHALL remain outside the normal UI.
