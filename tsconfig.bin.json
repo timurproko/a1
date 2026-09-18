@@ -1,0 +1,5 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "allowJs": true, "checkJs": true, "noEmit": true, "declaration": false, "declarationMap": false, "sourceMap": false, "rootDir": ".", "types": ["node"] },
+  "include": ["bin/*.js"]
+}

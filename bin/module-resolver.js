@@ -28,9 +28,14 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const PACKAGE = "@earendil-works/pi-tui";
 const SEGMENT = `/node_modules/${PACKAGE}/`;
 
+/** @type {string | null} */
 let installed = null;
 
-/** The package root pinned Pi resolves `@earendil-works/pi-tui` to, as a real path. */
+/**
+ * The package root pinned Pi resolves `@earendil-works/pi-tui` to, as a real path.
+ * @param {string} packageRoot
+ * @returns {string}
+ */
 export function pinnedPiTuiPackageRoot(packageRoot) {
   return pinnedPiTuiLayout(packageRoot).pinnedRoot;
 }
@@ -39,6 +44,8 @@ export function pinnedPiTuiPackageRoot(packageRoot) {
  * Where pinned Pi lives and which pi-tui copy it resolves. The installation root is the directory
  * whose node_modules holds pinned Pi; the hook rewrites only modules beneath it, so fixture trees
  * and other release copies inspected from this process keep their own resolution.
+ * @param {string} packageRoot
+ * @returns {{ installationRoot: string; pinnedRoot: string }}
  */
 export function pinnedPiTuiLayout(packageRoot) {
   const piRoot = pinnedPiRoot(packageRoot);
@@ -51,6 +58,7 @@ export function pinnedPiTuiLayout(packageRoot) {
 
 // Rationale: pinned Pi exports no `./package.json` subpath, so its directory is found by walking
 // up from the package root the way Node itself would, never by reimplementing export resolution.
+/** @param {string} packageRoot */
 function pinnedPiRoot(packageRoot) {
   let directory = packageRoot;
   while (true) {
@@ -65,6 +73,8 @@ function pinnedPiRoot(packageRoot) {
 /**
  * Install the resolve hook once per process. Returns the pinned package root URL. Idempotent:
  * every bin/ entry calls it and only the first call registers.
+ * @param {string} packageRoot
+ * @returns {string}
  */
 export function installPinnedPiTuiResolver(packageRoot) {
   if (installed !== null) return installed;
@@ -85,6 +95,9 @@ export function installPinnedPiTuiResolver(packageRoot) {
  * other URL is returned unchanged. Paths are compared as canonical real paths, never as URL
  * strings: a temp directory reached by its short 8.3 name or a different drive-letter case is
  * still the same installation.
+ * @param {string} url
+ * @param {{ installationRoot: string; pinnedRoot: string }} layout
+ * @returns {string}
  */
 export function redirectToPinned(url, layout) {
   if (!url.startsWith("file:")) return url;
@@ -95,11 +108,16 @@ export function redirectToPinned(url, layout) {
   return `${pathToFileURL(layout.pinnedRoot).href.replace(/\/$/, "")}${url.slice(index + SEGMENT.length - 1)}`;
 }
 
+/**
+ * @param {string} root
+ * @param {string} path
+ */
 function isWithin(root, path) {
   const relativePath = relative(root, path);
   return relativePath !== "" && !relativePath.startsWith("..") && !isAbsolute(relativePath);
 }
 
+/** @param {string} path */
 function canonical(path) {
   try {
     return realpathSync.native(path);
@@ -108,6 +126,7 @@ function canonical(path) {
   }
 }
 
+/** @param {string} modulePath */
 function packageRootOf(modulePath) {
   let directory = dirname(modulePath);
   while (!directory.endsWith(join("node_modules", "@earendil-works", "pi-tui"))) {

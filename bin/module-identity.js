@@ -17,6 +17,11 @@ import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { pinnedPiTuiPackageRoot } from "./module-resolver.js";
 
+/**
+ * @typedef {{ kind: "unified"; path: string } | { kind: "split"; own: string; pinned: string } | { kind: "unresolved"; side: "a1" | "pi"; message: string }} ModuleIdentityOutcome
+ */
+
+
 const OWN_PACKAGE_ROOT = canonical(fileURLToPath(new URL("..", import.meta.url)));
 
 /**
@@ -27,6 +32,7 @@ const OWN_PACKAGE_ROOT = canonical(fileURLToPath(new URL("..", import.meta.url))
  * resolver from this file, which sits in that package. Any other root is measured by plain
  * resolution, which is what its own entries would see before installing the hook. A test
  * transformer that offers no `import.meta.resolve` falls back to plain resolution too.
+ * @param {string} packageRoot
  */
 function resolveOwnPiTui(packageRoot) {
   if (canonical(packageRoot) === OWN_PACKAGE_ROOT && typeof import.meta.resolve === "function") {
@@ -36,11 +42,18 @@ function resolveOwnPiTui(packageRoot) {
   return canonical(requireFromRoot.resolve("@earendil-works/pi-tui"));
 }
 
-/** What pinned Pi resolves `@earendil-works/pi-tui` to, as a real path. */
+/**
+ * What pinned Pi resolves `@earendil-works/pi-tui` to, as a real path.
+ * @param {string} packageRoot
+ */
 export function resolvePinnedPiTui(packageRoot) {
   return canonical(join(pinnedPiTuiPackageRoot(packageRoot), "dist", "index.js"));
 }
 
+/**
+ * @param {string} packageRoot
+ * @param {NodeJS.ProcessEnv} [environment]
+ */
 export function configurePinnedPiPublicPackage(packageRoot, environment = process.env) {
   const pinnedRoot = resolvePinnedPiRoot(packageRoot);
   const manifest = JSON.parse(readFileSync(join(pinnedRoot, "package.json"), "utf8"));
@@ -51,6 +64,7 @@ export function configurePinnedPiPublicPackage(packageRoot, environment = proces
   return { root: pinnedRoot, version: manifest.version };
 }
 
+/** @param {string} packageRoot */
 function resolvePinnedPiRoot(packageRoot) {
   let directory = packageRoot;
   while (true) {
@@ -62,6 +76,7 @@ function resolvePinnedPiRoot(packageRoot) {
   }
 }
 
+/** @param {string} path */
 function canonical(path) {
   try {
     return realpathSync.native(path);
@@ -73,6 +88,8 @@ function canonical(path) {
 /**
  * Compare what A1 and pinned Pi resolve. With the resolver hook installed in this process the
  * two agree whatever layout npm built; without it they agree only when npm hoisted one copy.
+ * @param {string} packageRoot
+ * @returns {ModuleIdentityOutcome}
  */
 export function inspectPiTuiModuleIdentity(packageRoot) {
   let own;
@@ -90,11 +107,15 @@ export function inspectPiTuiModuleIdentity(packageRoot) {
   return own === pinned ? { kind: "unified", path: own } : { kind: "split", own, pinned };
 }
 
+/** @param {unknown} error */
 function message(error) {
   return error instanceof Error ? error.message : String(error);
 }
 
-/** A release copy is launchable when pinned Pi inside it resolves its terminal package. */
+/**
+ * A release copy is launchable when pinned Pi inside it resolves its terminal package.
+ * @param {string} releaseRoot
+ */
 export function releaseCopyIsLaunchable(releaseRoot) {
   try {
     resolvePinnedPiTui(releaseRoot);
@@ -104,6 +125,10 @@ export function releaseCopyIsLaunchable(releaseRoot) {
   }
 }
 
+/**
+ * @param {string} packageRoot
+ * @param {(message: string) => void} warn
+ */
 export function assertSinglePiTuiModuleAtLaunch(packageRoot, warn) {
   const outcome = inspectPiTuiModuleIdentity(packageRoot);
   if (outcome.kind === "split") {
