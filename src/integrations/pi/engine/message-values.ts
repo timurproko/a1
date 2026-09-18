@@ -161,3 +161,7 @@ export function stringProperty(value: unknown, key: string): string | undefined 
   const item = value[key];
   return typeof item === "string" && item.length > 0 ? item : undefined;
 }
+
+export function readStringArray(value: unknown): readonly string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
