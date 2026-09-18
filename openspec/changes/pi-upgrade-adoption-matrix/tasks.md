@@ -2,6 +2,7 @@
 
 - [ ] 1.1 In `.github/workflows/pi-upstream-sync.yml`, read the remote proposal branch before pushing: recreate and force-push only when every commit above `develop` is the bot's; otherwise post the fresh report as a pull-request comment and leave the branch. Add the `refresh` dispatch input that checks out the existing proposal branch and runs the derived steps and gates on its head.
 - [ ] 1.2 In `pi-upgrade-report.mjs` and `propose-pi-upgrade.mjs`, wrap the generated report in `<!-- pi-upgrade-report -->` markers, refresh only between them when the body already has them, and write the OpenSpec scaffold only when the change directory is absent.
+- [ ] 1.3 Add `config/pi-upgrade-skips.json` (skipped versions with reason and date, optional `freezeUntil`): the driver proposes the newest published version that is newer than the pin and not skipped, and exits without a proposal while frozen; the governance suite validates the file.
 
 ## 2. Public API surface
 
