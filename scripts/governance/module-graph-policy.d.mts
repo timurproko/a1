@@ -1,6 +1,8 @@
 export interface ModuleGraphNode {
   readonly staticEdges: readonly string[];
   readonly runtimeEdges: readonly string[];
+  /** True when the module has no runtime export, so only the compiler ever consumes it. */
+  readonly typeOnly: boolean;
 }
 
 export interface ArchitectureAllowlist {

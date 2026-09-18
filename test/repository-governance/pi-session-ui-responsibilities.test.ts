@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
 const rootPath = "src/integrations/pi/session-ui/session-shell-root.ts";
@@ -29,14 +29,15 @@ describe("Pi session UI responsibility boundaries", () => {
     expect(root).toContain("this.#viewportController.compose({");
   });
 
-  it("declares app routes in the neutral app owner and only re-exports them from Pi", async () => {
-    const [appContracts, compatibility] = await Promise.all([
-      readFile("src/ui/apps/contracts.ts", "utf8"),
-      readFile("src/integrations/pi/session-ui/route-host.ts", "utf8"),
-    ]);
+  it("declares app routes in the neutral app owner and nowhere in the Pi shell", async () => {
+    const appContracts = await readFile("src/ui/apps/contracts.ts", "utf8");
     expect(appContracts).toContain("export interface UiRouteHost");
     expect(appContracts).toContain("export interface UiRouteSurface");
-    expect(compatibility).toContain("export type { UiRouteHost, UiRouteSurface }");
-    expect(compatibility).not.toContain("export interface UiRouteHost");
+    const shellFiles = (await readdir("src/integrations/pi/session-ui")).filter(name => name.endsWith(".ts"));
+    for (const name of shellFiles) {
+      const source = await readFile(`src/integrations/pi/session-ui/${name}`, "utf8");
+      expect(source, name).not.toMatch(/export (?:interface|type) UiRoute(?:Host|Surface)\b/);
+      expect(source, name).not.toMatch(/export type \{[^}]*UiRoute(?:Host|Surface)/);
+    }
   });
 });

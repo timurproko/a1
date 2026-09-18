@@ -103,7 +103,7 @@ describe("validation suite ownership", () => {
     });
     expect(suites.tiers["pr-core"]).toEqual({ kind: "composition", includes: ["typecheck", "architecture", "pr-core-tests"] });
     expect(suites.tiers["fast"]).toEqual({ kind: "composition", includes: ["fast-remainder", "fast-resource-sensitive"] });
-    expect(suites.scopes["pr-core-tests"]!.tests).toHaveLength(7);
+    expect(suites.scopes["pr-core-tests"]!.tests).toHaveLength(6);
     expect(suites.scopes["pr-selected-tests"]!.kind).toBe("dynamic-vitest");
     expect(suites.scopes["pr-selected-resource"]!.kind).toBe("dynamic-vitest-resource-sensitive");
     expect(suites.scopes["fast-resource-sensitive"]!.requiresBuild).toBe(true);
