@@ -3,7 +3,7 @@
  * Source commit: 914cf1472e715297caa30db4b9535d534a9eb718.
  * Modifications: public imports and owned editor-local typed seams; see docs/architecture/history-editor-provenance.md.
  */
-import { getKeybindings, matchesKey, CURSOR_MARKER, sliceByColumn, truncateToWidth, visibleWidth, SelectList, type AutocompleteProvider, type AutocompleteSuggestions, type Component, type Focusable, type TUI, type SelectListLayoutOptions, type SelectListTheme } from "#pi-tui";
+import { getKeybindings, matchesKey, CURSOR_MARKER, sliceByColumn, truncateToWidth, visibleWidth, SelectList, type AutocompleteProvider, type AutocompleteSuggestions, type Component, type Focusable, type TUI, type SelectListLayoutOptions, type SelectListTheme } from "@earendil-works/pi-tui";
 import { decodePrintableKey } from "./printable-key.js";
 import { KillRing } from "./kill-ring.js";
 import { UndoStack } from "./undo-stack.js";

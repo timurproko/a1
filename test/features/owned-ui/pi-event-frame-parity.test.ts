@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { describe, expect, it, vi } from "vitest";
-import { getCapabilities } from "#pi-tui";
+import { getCapabilities } from "@earendil-works/pi-tui";
 import { piTheme } from "../../../src/integrations/pi/components/index.js";
 import { eventFrameDifference } from "./pi-event-frame-diagnostics.js";
 import { EventFrameClock } from "./event-frame-clock.js";

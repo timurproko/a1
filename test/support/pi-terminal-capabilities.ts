@@ -2,7 +2,7 @@ import {
   getCapabilities,
   setCapabilities,
   type TerminalCapabilities,
-} from "#pi-tui";
+} from "@earendil-works/pi-tui";
 
 /** Color depths declared by parity workloads instead of inferred from their host process. */
 export type PiParityColorMode = "truecolor" | "256color";

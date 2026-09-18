@@ -87,9 +87,11 @@ childProcess.spawn = (command, args, options) => {
 syncBuiltinESMExports();
 globalThis.fetch = async () => { throw new Error("Network forbidden in command outcome fixture"); };
 
+const { installPinnedPiTuiResolver } = await import(pathToFileURL(join(repository, "bin/module-resolver.js")).href);
+installPinnedPiTuiResolver(repository);
 const api = await import("@earendil-works/pi-coding-agent");
 const cwdErrors = await import(pathToFileURL(join(repository, "node_modules/@earendil-works/pi-coding-agent/dist/core/session-cwd.js")).href);
-const tui = await import(pathToFileURL(join(repository, "bin/pi-tui.js")).href);
+const tui = await import("@earendil-works/pi-tui");
 tui.setCapabilities({ ...tui.getCapabilities(), trueColor: mode === "truecolor", hyperlinks: false });
 const themeModule = await import(pathToFileURL(join(repository, "node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/theme/theme.js")).href);
 const owned = producer === "owned" ? await import(pathToFileURL(join(repository, "src/integrations/pi/session-ui/session-shell.ts")).href) : undefined;

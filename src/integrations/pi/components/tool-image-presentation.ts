@@ -1,5 +1,5 @@
 import { convertToPng } from "../startup-public.js";
-import { getCapabilities, Image, Text, type Component } from "#pi-tui";
+import { getCapabilities, Image, Text, type Component } from "@earendil-works/pi-tui";
 import { piTheme } from "./theme.js";
 
 interface ImageSource { readonly data: string; readonly mimeType: string }

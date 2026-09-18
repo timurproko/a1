@@ -1,5 +1,5 @@
 import { AssistantMessageComponent, ToolExecutionComponent, UserMessageComponent, getMarkdownTheme } from "@earendil-works/pi-coding-agent";
-import { Container, Text, type Component, type TUI } from "#pi-tui";
+import { Container, Text, type Component, type TUI } from "@earendil-works/pi-tui";
 
 interface Entry { readonly id: string; kind: string; status: string; text: string }
 

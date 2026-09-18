@@ -1,4 +1,4 @@
-import { getCapabilities, setCapabilities, type TerminalCapabilities } from "#pi-tui";
+import { getCapabilities, setCapabilities, type TerminalCapabilities } from "@earendil-works/pi-tui";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   parityModeUsesTrueColor,

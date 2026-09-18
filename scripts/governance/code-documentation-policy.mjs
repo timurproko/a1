@@ -35,8 +35,6 @@ export const IMPLEMENTATION_INTENTS = Object.freeze([
 const SCRIPT_EXTENSIONS = new Set([".ts", ".tsx", ".mts", ".cts", ".js", ".mjs", ".cjs"]);
 const NATIVE_EXTENSIONS = new Set([".rs", ".zig", ".c", ".h"]);
 const GENERATED_PATHS = new Set([
-  "bin/pi-tui.d.ts",
-  "bin/pi-tui.js",
   "src/integrations/pi/components/resources/builtin-themes.ts",
 ]);
 const SYNCHRONIZED_PREFIXES = ["src/integrations/pi/components/upstream/"];

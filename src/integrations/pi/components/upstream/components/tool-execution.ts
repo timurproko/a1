@@ -8,7 +8,7 @@
  * Generic text fallback below follows core/tools/render-utils.ts and utils/shell.ts.
  */
 import { stripVTControlCharacters } from "node:util";
-import { Box, type Component, Container, getCapabilities, getImageDimensions, imageFallback, Spacer, Text, type TUI } from "#pi-tui";
+import { Box, type Component, Container, getCapabilities, getImageDimensions, imageFallback, Spacer, Text, type TUI } from "@earendil-works/pi-tui";
 import { createReadToolDefinition, createBashToolDefinition, createEditToolDefinition, createWriteToolDefinition,
   createGrepToolDefinition, createFindToolDefinition, createLsToolDefinition, keyHint, type ToolDefinition,
 } from "@earendil-works/pi-coding-agent";

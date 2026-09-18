@@ -62,7 +62,6 @@ async function preparedFixture() {
         const packageRoot = resolve(prefix, ...(process.platform === "win32" ? [] : ["lib"]), "node_modules", "@fixture", "app");
         await mkdir(resolve(packageRoot, "bin"), { recursive: true });
         await writeFile(resolve(packageRoot, "package.json"), JSON.stringify({ name: "@fixture/app", version: "1.2.3" }));
-        await writeFile(resolve(packageRoot, "bin", "sync-pi-tui-proxy.js"), "// fixture");
       }
       return { status: 0, stdout: "", stderr: "" };
     },

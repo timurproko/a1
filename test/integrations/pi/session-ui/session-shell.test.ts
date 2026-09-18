@@ -21,7 +21,7 @@ import {
   getCapabilities as getPinnedPiTuiCapabilities,
   getOsc8LinkAtColumn as getPinnedPiTuiLinkAtColumn,
   setCapabilities as setPinnedPiTuiCapabilities,
-} from "#pi-tui";
+} from "@earendil-works/pi-tui";
 import { describe, expect, it, onTestFailed, onTestFinished, vi } from "vitest";
 import { NativeRegressionTrace } from "../../../support/native-regression-trace.js";
 

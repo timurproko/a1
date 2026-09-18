@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { Text } from "#pi-tui";
+import { Text } from "@earendil-works/pi-tui";
 import { assertOwnedUiTranscriptBlock } from "../../../../src/contracts/owned-ui/index.js";
 import { assistantCall, transcriptLifecycleFixture } from "../../../support/rendering/transcript-lifecycle-fixture.js";
 

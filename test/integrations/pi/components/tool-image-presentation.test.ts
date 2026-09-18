@@ -1,4 +1,4 @@
-import { getCapabilities, setCapabilities } from "#pi-tui";
+import { getCapabilities, setCapabilities } from "@earendil-works/pi-tui";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ToolImagePresentation } from "../../../../src/integrations/pi/components/tool-image-presentation.js";
 

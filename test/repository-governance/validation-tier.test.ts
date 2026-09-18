@@ -526,7 +526,7 @@ function fakePreparation(consumers: string[]) {
       candidate: { sha256: "b".repeat(64), name: "@fixture/app", version: "1.0.0" },
       lane: { platform: process.platform, architecture: process.arch, nodeVersion: process.version, runId: "local", runAttempt: "1" },
       install: { policy: "npm-global-ignore-scripts-prefer-offline-v1", prefix: "fixture-prefix", installedIdentity: { sha256: "c".repeat(64) } },
-      preparation: { count: 1, durationMs: 5, proxySynchronizations: 1 },
+      preparation: { count: 1, durationMs: 5 },
       consumers,
     },
   };

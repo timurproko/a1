@@ -13,7 +13,9 @@ const agentDir = logicalAgentDir;
 process.env.PI_CODING_AGENT_DIR = agentDir;
 process.chdir(home);
 const cases = JSON.parse(encodedCases);
-const { Container, Text, setCapabilities, getCapabilities } = await import(pathToFileURL(join(repository, "bin/pi-tui.js")).href);
+const { installPinnedPiTuiResolver } = await import(pathToFileURL(join(repository, "bin/module-resolver.js")).href);
+installPinnedPiTuiResolver(repository);
+const { Container, Text, setCapabilities, getCapabilities } = await import("@earendil-works/pi-tui");
 const { commandMessageView } = await import("./command-message-fixture.ts");
 
 // Provenance: the pinned producer invokes unchanged published command methods on a synthetic

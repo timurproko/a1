@@ -10,7 +10,7 @@ const entry = "dist/integrations/pi/startup-public.js";
 const temporary = "dist/integrations/pi/startup-public.generated.js";
 const reportPath = "dist/integrations/pi/startup-public.manifest.json";
 const descriptorPath = "dist/foundation/startup/startup-descriptor.js";
-const external = ["#pi-tui", "@mariozechner/clipboard", "@silvia-odwyer/photon-node", "cross-spawn"];
+const external = ["@earendil-works/pi-tui", "@mariozechner/clipboard", "@silvia-odwyer/photon-node", "cross-spawn"];
 const rewrittenConsumers = await rewriteGeneratedPublicImports();
 
 const result = await build({
@@ -27,7 +27,6 @@ const result = await build({
   keepNames: true,
   metafile: true,
   legalComments: "eof",
-  alias: { "@earendil-works/pi-tui": "#pi-tui" },
   external,
   plugins: [preservePinnedPiModuleContext(), inlineLazyPiModules()],
   banner: { js: [

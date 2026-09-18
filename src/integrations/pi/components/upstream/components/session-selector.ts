@@ -17,7 +17,7 @@ import {
 	Text,
 	truncateToWidth,
 	visibleWidth,
-} from "#pi-tui";
+} from "@earendil-works/pi-tui";
 import { KeybindingsManager } from "../adjacent/core/keybindings.js";
 import { DynamicBorder, type SessionInfo } from "@earendil-works/pi-coding-agent";
 import { piTheme } from "../theme/theme.js";

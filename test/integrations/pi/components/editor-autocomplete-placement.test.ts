@@ -2,7 +2,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { promptInputPresentation } from "../../../support/prompt-input-presentation.js";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { CURSOR_MARKER, stripTerminalSequences, visibleWidth, type AutocompleteProvider } from "#pi-tui";
+import { CURSOR_MARKER, stripTerminalSequences, visibleWidth, type AutocompleteProvider } from "@earendil-works/pi-tui";
 import { describe, expect, it } from "vitest";
 import { createPiShellEditor, loadHistoryEditor, type PiShellEditorOptions } from "../../../../src/integrations/pi/components/index.js";
 import { applyPiTheme, currentPiThemeName, piTheme } from "../../../../src/integrations/pi/components/theme.js";

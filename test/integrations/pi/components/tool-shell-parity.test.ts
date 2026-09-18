@@ -1,6 +1,6 @@
 import { ToolExecutionComponent as PinnedTool } from "@earendil-works/pi-coding-agent";
 import { afterEach, describe, expect, it } from "vitest";
-import { getCapabilities, setCapabilities, Text } from "#pi-tui";
+import { getCapabilities, setCapabilities, Text } from "@earendil-works/pi-tui";
 import { ToolExecutionComponent as OwnedTool } from "../../../../src/integrations/pi/components/upstream/components/tool-execution.js";
 import { createTuiFacade, ensureTheme } from "../../../../src/integrations/pi/components/shell-shared-facade.js";
 
