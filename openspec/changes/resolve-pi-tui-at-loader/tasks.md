@@ -12,6 +12,6 @@
 ## 3. Proof and baselines
 
 - [x] 3.1 Rewrite `test/features/launch/pi-tui-identity.test.ts` around `pinnedPiTuiLayout`, `redirectToPinned`, and the unhooked identity check on fixture trees; rewrite `pi-tui-identity-installed.test.ts` to prove the package name, the hoisted path, and pinned Pi's path yield one class object and that the manifest declares no alias or install script.
-- [x] 3.2 Rehash the 19 source-ledger records whose copied file changed; re-pin `config/startup-graph-baseline.json` (2,649,569 source bytes; 8,352,714 artifact bytes).
+- [x] 3.2 Rehash the 19 source-ledger records whose copied file changed; re-pin `config/startup-graph-baseline.json` (1,382,016 source bytes on the corrected startup graph; 8,352,714 artifact bytes).
 - [x] 3.3 Verify in dist mode (`npm run build`, `node bin/cli.js --version`, a probe importing the package name, the hoisted path, pinned Pi's path, and the startup public bundle: one class object, no launch warning) and in source mode (`node --import tsx`: one class object).
 - [x] 3.4 Run `npm run typecheck`, `check:architecture`, `check:code-documentation`, and the governance, features, release, startup, components, engine, cli, ui, and composition suites; record outcomes: all checks OK, 2536 passed; remaining failures were build-artifact-bound package integration tests, the local 5 s spawn timeouts, and the update-activation performance test, none touching changed code.
