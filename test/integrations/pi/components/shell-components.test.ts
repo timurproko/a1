@@ -439,7 +439,7 @@ describe("Pi shell public component adapters", () => {
     expect(rows).toMatch(/Auto-compact\s+true/);
     expect(rows).toMatch(/Auto-resize images\s+true/);
     settings.handleInput?.("\x1b[B");
-    expect(stripTerminalSequences(settings.render(88).join("\n"))).toContain("(2/29)");
+    expect(stripTerminalSequences(settings.render(88).join("\n"))).toContain("(2/30)");
     settings.handleInput?.("\x1b");
     expect(cancelled).toHaveBeenCalledOnce();
 

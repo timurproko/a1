@@ -101,7 +101,7 @@ describe("canonical project trust context", () => {
     expect(rendered.join("\n")).toContain(`Saved decision: ${decision} (${kind === "parent" || kind === "ancestor" ? "inherited from " : ""}${savedPath})`);
     const selected = kind === "denied" ? "Do not trust" : kind === "parent" ? `Trust parent folder (${savedPath})` : "Trust";
     // Rationale: 0.85.1 marks the saved option with a leading checkmark before its label.
-    expect(rendered.some(row => row.trim() === `→ ${kind === "ancestor" ? "" : "✓ "}${selected}`)).toBe(true);
+    expect(rendered.some(row => row.trim() === `→ ${kind === "ancestor" ? "  " : "✓ "}${selected}`)).toBe(true);
     expect(rendered.some(row => row.trim() === resolve(f.alias))).toBe(true);
   });
 

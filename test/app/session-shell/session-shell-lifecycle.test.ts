@@ -1,3 +1,4 @@
+import { VERSION } from "@earendil-works/pi-coding-agent";
 import { stripAnsi } from "../../../src/ui/components/index.js";
 import { type AgentSessionRuntime } from "@earendil-works/pi-coding-agent";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
@@ -421,7 +422,7 @@ describe("OwnedUiSessionShell lifecycle, quit, and restoration", () => {
     const rows = shell.root.render(60).join("\n");
     expect(rows).toContain("Streaming answer");
     expect(rows).toContain("gpt-5 • medium");
-    expect(rows).toContain("v0.84.2");
+    expect(rows).toContain(`v${VERSION}`);
     expect(rows).toContain("commands");
     await new Promise(resolve => setTimeout(resolve, 0));
     expect(engine.session.calls).toContain("bindExtensions");
