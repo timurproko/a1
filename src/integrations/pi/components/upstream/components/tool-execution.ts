@@ -8,9 +8,8 @@
  * docs/architecture/tool-image-presentation.md.
  * Deviations: current-tool-image-conversion-ownership.
  */
-<<<<<<< a1
 import { stripVTControlCharacters } from "node:util";
-import { Box, type Component, Container, getCapabilities, getImageDimensions, imageFallback, Spacer, Text, type TUI } from "@earendil-works/pi-tui";
+import { Box, type Component, Container, getCapabilities, getImageDimensions, imageFallback, MouseRegion, Spacer, Text, type TUI, type TuiMouseEvent } from "@earendil-works/pi-tui";
 import { createReadToolDefinition, createBashToolDefinition, createEditToolDefinition, createWriteToolDefinition,
   createGrepToolDefinition, createFindToolDefinition, createLsToolDefinition, keyHint, type ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
@@ -21,54 +20,6 @@ type ToolRenderContext = Parameters<NonNullable<ToolDefinition["renderCall"]>>[2
 type ToolPresentationResult = Parameters<NonNullable<ToolDefinition["renderResult"]>>[0] & { isError: boolean };
 const definitions = { read: createReadToolDefinition, bash: createBashToolDefinition, edit: createEditToolDefinition,
   write: createWriteToolDefinition, grep: createGrepToolDefinition, find: createFindToolDefinition, ls: createLsToolDefinition };
-||||||| pi 0.84.2
-import { Box, type Component, Container, getCapabilities, Image, Spacer, Text, type TUI } from "@earendil-works/pi-tui";
-import type { ToolDefinition, ToolRenderContext } from "../../../core/extensions/types.ts";
-import { createAllToolDefinitions, type ToolName } from "../../../core/tools/index.ts";
-import { getTextOutput as getRenderedTextOutput } from "../../../core/tools/render-utils.ts";
-import { convertToPng } from "../../../utils/image-convert.ts";
-import { theme } from "../theme/theme.ts";
-import { keyHint } from "./keybinding-hints.ts";
-=======
-import type { AgentToolResult } from "@earendil-works/pi-agent-core";
-import {
-	Box,
-	type Component,
-	Container,
-	getCapabilities,
-	Image,
-	MouseRegion,
-	Spacer,
-	Text,
-	type TUI,
-	type TuiMouseEvent,
-} from "@earendil-works/pi-tui";
-import type { ToolDefinition, ToolRenderContext, ToolRenderResultOptions } from "../../../core/extensions/types.ts";
-import type { Theme } from "../theme/theme.ts";
-
-/**
- * What this component needs from a tool: how to draw it. It neither executes tools nor reads their
- * parameter schemas, so a definition and a bare renderer pair are equally acceptable.
- *
- * The renderer parameters are `any` on purpose: a `ToolDefinition` types them from its schema, and
- * narrowing them here would make those definitions unassignable.
- */
-export interface ToolRenderers {
-	renderShell?: "default" | "self";
-	renderCall?: (args: any, theme: Theme, context: ToolRenderContext<any, any>) => Component;
-	renderResult?: (
-		result: AgentToolResult<any>,
-		options: ToolRenderResultOptions,
-		theme: Theme,
-		context: ToolRenderContext<any, any>,
-	) => Component;
-}
-
-import { getTextOutput as getRenderedTextOutput } from "../../../core/tools/render-utils.ts";
-import { convertToPng } from "../../../utils/image-convert.ts";
-import { theme } from "../theme/theme.ts";
-import { keyHint } from "./keybinding-hints.ts";
->>>>>>> pi 0.85.1
 
 const FALLBACK_PREVIEW_LINES = 10;
 
@@ -82,17 +33,9 @@ export class ToolExecutionComponent extends Container {
 	private contentText: Text;
 	private contentTextRegion: MouseRegion;
 	private selfRenderContainer: Container;
-<<<<<<< a1
+	private selfRenderHeight = 0;
 	private callRendererComponent: Component | undefined;
 	private resultRendererComponent: Component | undefined;
-||||||| pi 0.84.2
-	private callRendererComponent?: Component;
-	private resultRendererComponent?: Component;
-=======
-	private selfRenderHeight = 0;
-	private callRendererComponent?: Component;
-	private resultRendererComponent?: Component;
->>>>>>> pi 0.85.1
 	private rendererState: any = {};
 	private imageComponents: Component[] = [];
 	private readonly images: ToolImagePresentation;
@@ -106,15 +49,8 @@ export class ToolExecutionComponent extends Container {
 	private showImages: boolean;
 	private imageWidthCells: number;
 	private isPartial = true;
-<<<<<<< a1
 	private toolDefinition: ToolDefinition<any, any> | undefined;
 	private builtInToolDefinition: ToolDefinition<any, any> | undefined;
-||||||| pi 0.84.2
-	private toolDefinition?: ToolDefinition<any, any>;
-	private builtInToolDefinition?: ToolDefinition<any, any>;
-=======
-	private toolDefinition?: ToolRenderers;
->>>>>>> pi 0.85.1
 	private ui: TUI;
 	private cwd: string;
 	private executionStarted = false;
@@ -136,13 +72,8 @@ export class ToolExecutionComponent extends Container {
 		this.toolCallId = toolCallId;
 		this.args = args;
 		this.toolDefinition = toolDefinition;
-<<<<<<< a1
 		this.builtInToolDefinition = Object.hasOwn(definitions, toolName)
       ? definitions[toolName as keyof typeof definitions](cwd) : undefined;
-||||||| pi 0.84.2
-		this.builtInToolDefinition = createAllToolDefinitions(cwd)[toolName as ToolName];
-=======
->>>>>>> pi 0.85.1
 		this.showImages = options.showImages ?? true;
 		this.imageWidthCells = options.imageWidthCells ?? 60;
 		this.ui = ui;
@@ -158,17 +89,9 @@ export class ToolExecutionComponent extends Container {
 		// Always create all shell variants. contentBox is used for default renderer-based composition.
 		// selfRenderContainer is used when the tool renders its own framing.
 		// contentText is reserved for generic fallback rendering when no tool definition exists.
-<<<<<<< a1
 		this.contentBox = new Box(1, 1, (text: string) => piTheme().bg("toolPendingBg", text));
 		this.contentText = new Text("", 1, 1, (text: string) => piTheme().bg("toolPendingBg", text));
-||||||| pi 0.84.2
-		this.contentBox = new Box(1, 1, (text: string) => theme.bg("toolPendingBg", text));
-		this.contentText = new Text("", 1, 1, (text: string) => theme.bg("toolPendingBg", text));
-=======
-		this.contentBox = new Box(1, 1, (text: string) => theme.bg("toolPendingBg", text));
-		this.contentText = new Text("", 1, 1, (text: string) => theme.bg("toolPendingBg", text));
 		this.contentTextRegion = this.createResultRegion(this.contentText);
->>>>>>> pi 0.85.1
 		this.selfRenderContainer = new Container();
 
 		if (this.hasRendererDefinition()) {

@@ -5,24 +5,10 @@
  * theme/countdown imports plus ECMAScript private fields.
  * Deviations: status-indicator-public-boundaries.
  */
-<<<<<<< a1
-import { type Component, Loader, type LoaderIndicatorOptions, type TUI } from "@earendil-works/pi-tui";
+import { type Component, Loader, type LoaderIndicatorOptions, type TUI, truncateToWidth } from "@earendil-works/pi-tui";
 import { keyText } from "@earendil-works/pi-coding-agent";
 import { piTheme } from "../theme/theme.js";
 import { CountdownTimer } from "./countdown-timer.js";
-||||||| pi 0.84.2
-import { type Component, Loader, type TUI } from "@earendil-works/pi-tui";
-import type { WorkingIndicatorOptions } from "../../../core/extensions/index.ts";
-import { theme } from "../theme/theme.ts";
-import { CountdownTimer } from "./countdown-timer.ts";
-import { keyText } from "./keybinding-hints.ts";
-=======
-import { type Component, Loader, type TUI, truncateToWidth } from "@earendil-works/pi-tui";
-import type { WorkingIndicatorOptions } from "../../../core/extensions/index.ts";
-import { theme } from "../theme/theme.ts";
-import { CountdownTimer } from "./countdown-timer.ts";
-import { keyText } from "./keybinding-hints.ts";
->>>>>>> pi 0.85.1
 
 export type StatusIndicatorKind = "working" | "retry" | "compaction" | "branchSummary";
 
@@ -47,42 +33,18 @@ export class StatusIndicator extends Loader {
 }
 
 export class WorkingStatusIndicator extends StatusIndicator {
-<<<<<<< a1
-  constructor(ui: TUI, message: string, indicator?: LoaderIndicatorOptions) {
-    super("working", ui, spinner => piTheme().fg("accent", spinner), text => piTheme().fg("muted", text), message, indicator);
+  constructor(ui: TUI, message: string, indicator?: LoaderIndicatorOptions, colorFn?: (text: string) => string) {
+    super("working", ui, colorFn ?? (spinner => piTheme().fg("accent", spinner)), colorFn ?? (text => piTheme().fg("muted", text)), message, indicator);
   }
-||||||| pi 0.84.2
-	constructor(ui: TUI, message: string, indicator?: WorkingIndicatorOptions) {
-		super(
-			"working",
-			ui,
-			(spinner) => theme.fg("accent", spinner),
-			(text) => theme.fg("muted", text),
-			message,
-			indicator,
-		);
-	}
-=======
-	constructor(ui: TUI, message: string, indicator?: WorkingIndicatorOptions, colorFn?: (text: string) => string) {
-		super(
-			"working",
-			ui,
-			colorFn ?? ((text) => theme.fg("accent", text)),
-			colorFn ?? ((text) => theme.fg("muted", text)),
-			message,
-			indicator,
-		);
-	}
 
-	renderInBorder(width: number): string {
-		const line = super.render(width + 2)[1] ?? "";
-		return truncateToWidth(line.startsWith(" ") ? line.slice(1).trimEnd() : line.trimEnd(), width, "");
-	}
+  renderInBorder(width: number): string {
+    const line = super.render(width + 2)[1] ?? "";
+    return truncateToWidth(line.startsWith(" ") ? line.slice(1).trimEnd() : line.trimEnd(), width, "");
+  }
 
-	renderSpinnerInBorder(width: number): string {
-		return truncateToWidth(this.getRenderedIndicator(), width, "");
-	}
->>>>>>> pi 0.85.1
+  renderSpinnerInBorder(width: number): string {
+    return truncateToWidth(this.getRenderedIndicator(), width, "");
+  }
 }
 
 export class RetryStatusIndicator extends StatusIndicator {

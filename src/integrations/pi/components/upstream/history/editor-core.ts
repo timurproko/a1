@@ -7,56 +7,13 @@
  * docs/architecture/history-editor-provenance.md.
  * Deviations: compact-history-counter-label, persistent-history-owned-editor-boundary.
  */
-<<<<<<< a1
-import { getKeybindings, matchesKey, CURSOR_MARKER, sliceByColumn, truncateToWidth, visibleWidth, SelectList, type AutocompleteProvider, type AutocompleteSuggestions, type Component, type Focusable, type TUI, type SelectListLayoutOptions, type SelectListTheme } from "@earendil-works/pi-tui";
+import { getKeybindings, matchesKey, CURSOR_MARKER, sliceByColumn, truncateToWidth, visibleWidth, SelectList, type AutocompleteProvider, type AutocompleteSuggestions, type Component, type Focusable, type TUI, type TuiMouseEvent, type TuiMouseEventResult, type SelectListLayoutOptions, type SelectListTheme } from "@earendil-works/pi-tui";
 import { decodePrintableKey } from "./printable-key.js";
 import { KillRing } from "./kill-ring.js";
 import { UndoStack } from "./undo-stack.js";
 import { cjkBreakRegex, getGraphemeSegmenter, getWordSegmenter, isWhitespaceChar } from "./text-helpers.js";
 import { findWordBackward, findWordForward } from "./word-navigation.js";
 import type { EditorInteractionPort, EditorRecallPort } from "../../editor-interaction.js";
-||||||| pi 0.84.2
-import type { AutocompleteProvider, AutocompleteSuggestions } from "../autocomplete.ts";
-import { getKeybindings } from "../keybindings.ts";
-import { decodePrintableKey, matchesKey } from "../keys.ts";
-import { KillRing } from "../kill-ring.ts";
-import { type Component, CURSOR_MARKER, type Focusable, type TUI } from "../tui.ts";
-import { UndoStack } from "../undo-stack.ts";
-import {
-	cjkBreakRegex,
-	getGraphemeSegmenter,
-	getWordSegmenter,
-	isWhitespaceChar,
-	sliceByColumn,
-	visibleWidth,
-} from "../utils.ts";
-import { findWordBackward, findWordForward } from "../word-navigation.ts";
-import { SelectList, type SelectListLayoutOptions, type SelectListTheme } from "./select-list.ts";
-=======
-import type { AutocompleteProvider, AutocompleteSuggestions } from "../autocomplete.ts";
-import { getKeybindings } from "../keybindings.ts";
-import { decodePrintableKey, matchesKey } from "../keys.ts";
-import { KillRing } from "../kill-ring.ts";
-import {
-	type Component,
-	CURSOR_MARKER,
-	type Focusable,
-	type TUI,
-	type TuiMouseEvent,
-	type TuiMouseEventResult,
-} from "../tui.ts";
-import { UndoStack } from "../undo-stack.ts";
-import {
-	cjkBreakRegex,
-	getGraphemeSegmenter,
-	getWordSegmenter,
-	isWhitespaceChar,
-	sliceByColumn,
-	visibleWidth,
-} from "../utils.ts";
-import { findWordBackward, findWordForward } from "../word-navigation.ts";
-import { SelectList, type SelectListLayoutOptions, type SelectListTheme } from "./select-list.ts";
->>>>>>> pi 0.85.1
 
 const graphemeSegmenter = getGraphemeSegmenter();
 const wordSegmenter = getWordSegmenter();
@@ -623,6 +580,13 @@ export class HistoryEditorCore implements Component, Focusable {
 	}
 
 	protected renderTopBorder(width: number, hiddenLineCount: number): string {
+		if (this.persistentHistory && this.historyIndex >= 0) {
+			const overflow = hiddenLineCount > 0 ? ` · ↑ ${hiddenLineCount} more` : "";
+			const label = `─── ${this.history.length - this.historyIndex}/${this.history.length}${overflow} `;
+			const shown = truncateToWidth(label, width);
+			const remaining = Math.max(0, width - visibleWidth(shown));
+			return this.borderColor(shown.slice(0, 4)) + this.styleHistoryLabel(shown.slice(4)) + this.borderColor("─".repeat(remaining));
+		}
 		const border = hiddenLineCount > 0 ? createScrollBorder("↑", hiddenLineCount, width) : "─".repeat(width);
 		return this.borderColor(border);
 	}
@@ -675,31 +639,7 @@ export class HistoryEditorCore implements Component, Focusable {
 		const rightPadding = leftPadding;
 
 		// Render top border (with scroll indicator if scrolled down)
-<<<<<<< a1
-		if (this.persistentHistory && this.historyIndex >= 0) {
-			const overflow = this.scrollOffset > 0 ? ` · ↑ ${this.scrollOffset} more` : "";
-			const label = `─── ${this.history.length - this.historyIndex}/${this.history.length}${overflow} `;
-			const shown = truncateToWidth(label, width);
-			const remaining = Math.max(0, width - visibleWidth(shown));
-			result.push(this.borderColor(shown.slice(0, 4))
-				+ this.styleHistoryLabel(shown.slice(4))
-				+ this.borderColor("─".repeat(remaining)));
-		} else if (this.scrollOffset > 0) {
-			const border = createScrollBorder("↑", this.scrollOffset, width);
-			result.push(this.borderColor(border));
-		} else {
-			result.push(horizontal.repeat(width));
-		}
-||||||| pi 0.84.2
-		if (this.scrollOffset > 0) {
-			const border = createScrollBorder("↑", this.scrollOffset, width);
-			result.push(this.borderColor(border));
-		} else {
-			result.push(horizontal.repeat(width));
-		}
-=======
 		result.push(this.renderTopBorder(width, this.scrollOffset));
->>>>>>> pi 0.85.1
 
 		// Render each visible layout line
 		// Emit hardware cursor marker when focused so TUI can position the

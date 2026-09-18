@@ -23,14 +23,17 @@ import {
 	Spacer,
 	Text,
 } from "@earendil-works/pi-tui";
-<<<<<<< a1
 import { DynamicBorder } from "@earendil-works/pi-coding-agent";
 import { getModelSearchText } from "../model-search.js";
 import { piTheme } from "../theme/theme.js";
 
-function keyText(keybinding: Parameters<ReturnType<typeof getKeybindings>["getKeys"]>[0]): string {
+// Rationale: upstream's capitalized hint formatter is private to the package; the same mapping lives here.
+function keyDisplayText(keybinding: Parameters<ReturnType<typeof getKeybindings>["getKeys"]>[0]): string {
 	return getKeybindings().getKeys(keybinding)
-		.map((key) => key.split("+").map((part) => process.platform === "darwin" && part.toLowerCase() === "alt" ? "option" : part).join("+"))
+		.map((key) => key.split("+").map((part) => {
+			const display = process.platform === "darwin" && part.toLowerCase() === "alt" ? "option" : part;
+			return display.charAt(0).toUpperCase() + display.slice(1);
+		}).join("+"))
 		.join("/");
 }
 
@@ -41,17 +44,6 @@ const theme = new Proxy({} as ReturnType<typeof piTheme>, {
 		return typeof value === "function" ? value.bind(active) : value;
 	},
 });
-||||||| pi 0.84.2
-import { getModelSearchText } from "../model-search.ts";
-import { theme } from "../theme/theme.ts";
-import { DynamicBorder } from "./dynamic-border.ts";
-import { keyText } from "./keybinding-hints.ts";
-=======
-import { getModelSearchText } from "../model-search.ts";
-import { theme } from "../theme/theme.ts";
-import { DynamicBorder } from "./dynamic-border.ts";
-import { keyDisplayText } from "./keybinding-hints.ts";
->>>>>>> pi 0.85.1
 
 // EnabledIds: null = all enabled (no filter), string[] = explicit ordered list
 type EnabledIds = string[] | null;

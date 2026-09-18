@@ -31,7 +31,6 @@ export class TrustSelectorComponent extends Container {
   private readonly trustOptions: readonly TrustOption[];
   readonly handleInput: (data: string) => void;
 
-<<<<<<< a1
   constructor(options: {
     readonly cwd: string;
     readonly savedDecision: TrustDecision | null;
@@ -76,25 +75,6 @@ export class TrustSelectorComponent extends Container {
       this.updateList(options.savedDecision);
     };
   }
-||||||| pi 0.84.2
-			const isSelected = i === this.selectedIndex;
-			const isCurrent = this.isSavedOption(option);
-			const checkmark = isCurrent ? theme.fg("success", " ✓") : "";
-			const prefix = isSelected ? theme.fg("accent", "→ ") : "  ";
-			const label = isSelected ? theme.fg("accent", option.label) : theme.fg("text", option.label);
-			this.listContainer.addChild(new Text(`${prefix}${label}${checkmark}`, 1, 0));
-		}
-	}
-=======
-			const isSelected = i === this.selectedIndex;
-			const isCurrent = this.isSavedOption(option);
-			const currentMarker = isCurrent ? theme.fg("accent", "✓ ") : "  ";
-			const prefix = isSelected ? theme.fg("accent", "→ ") : "  ";
-			const label = isSelected ? theme.fg("accent", option.label) : theme.fg("text", option.label);
-			this.listContainer.addChild(new Text(`${prefix}${currentMarker}${label}`, 1, 0));
-		}
-	}
->>>>>>> pi 0.85.1
 
   private updateList(savedDecision: TrustDecision | null): void {
     this.listContainer.clear();
@@ -105,7 +85,8 @@ export class TrustSelectorComponent extends Container {
       const current = option.savedPath !== undefined && savedDecision?.decision === option.trusted && savedDecision.path === option.savedPath;
       const prefix = selected ? piTheme().fg("accent", "→ ") : "  ";
       const label = selected ? piTheme().fg("accent", option.label) : piTheme().fg("text", option.label);
-      this.listContainer.addChild(new Text(`${prefix}${label}${current ? piTheme().fg("success", " ✓") : ""}`, 1, 0));
+      const currentMarker = current ? piTheme().fg("accent", "✓ ") : "  ";
+      this.listContainer.addChild(new Text(`${prefix}${currentMarker}${label}`, 1, 0));
     }
   }
 }

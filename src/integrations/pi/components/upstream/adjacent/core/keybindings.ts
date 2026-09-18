@@ -15,20 +15,9 @@ import {
 	TUI_KEYBINDINGS,
 	KeybindingsManager as TuiKeybindingsManager,
 } from "@earendil-works/pi-tui";
-<<<<<<< a1
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
-||||||| pi 0.84.2
-import { existsSync, readFileSync } from "fs";
-import { join } from "path";
-import { getAgentDir } from "../config.ts";
-=======
-import { existsSync, readFileSync } from "fs";
-import { join } from "path";
-import { getAgentDir } from "../config.ts";
-import { stripBom } from "../utils/text.ts";
->>>>>>> pi 0.85.1
 
 export interface AppKeybindings {
 	"app.interrupt": true;
@@ -410,6 +399,11 @@ function orderKeybindingsConfig(config: Record<string, unknown>): Record<string,
 	}
 
 	return ordered;
+}
+
+// Rationale: upstream strips the BOM through a private util the package does not export; the one-line helper lives here.
+function stripBom(content: string): string {
+	return content.startsWith("\uFEFF") ? content.slice(1) : content;
 }
 
 function loadRawConfig(path: string): Record<string, unknown> | undefined {
