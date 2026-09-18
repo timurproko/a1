@@ -35,7 +35,7 @@ afterEach(async () => {
 describe("module graph policy", () => {
   it("separates static edges from runtime edges", async () => {
     const root = await repository({
-      "src/a.ts": "import type { B } from './b.js';\nimport { c } from './c.js';\nexport * from './d.js';\nconst worker = new URL(source ? './w.ts' : './w.js', import.meta.url);\nconst lazy = () => import('./e.js');",
+      "src/a.ts": "import path from 'node:path';\nimport type { B } from './b.js';\nimport { c } from './c.js';\nexport * from './d.js';\nconst worker = new URL(source ? './w.ts' : './w.js', import.meta.url);\nconst lazy = () => import('./e.js');",
       "src/b.ts": "export type B = 1;",
       "src/c.ts": "export const c = 1;",
       "src/d.ts": "export const d = 1;",

@@ -4,11 +4,8 @@ import { fileURLToPath } from "node:url";
 import { prepareTextPaste } from "./text-paste.js";
 import { preparePathPresentation } from "./path-chip-presentation.js";
 
-export interface ClipboardPath { readonly fullPath: string; readonly kind: "folder" | "file" }
-export type PreparedPasteText =
-  | { readonly kind: "text"; readonly text: string; readonly label?: string }
-  | { readonly kind: "url"; readonly url: string; readonly label: string }
-  | { readonly kind: "paths"; readonly paths: readonly ClipboardPath[] };
+import type { ClipboardPath, PreparedPasteText } from "./paste-types.js";
+export type { ClipboardPath, PreparedPasteText } from "./paste-types.js";
 const URL_PATTERN = /^https?:\/\/[^\s\u0000-\u001f\u007f]+$/iu;
 
 /** Small non-path text has a fixed CPU bound and cannot enter filesystem probing. */

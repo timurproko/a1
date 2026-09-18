@@ -1,5 +1,5 @@
 import path from "node:path";
-import type { ClipboardPath, PreparedPasteText } from "./paste-text-preparation.js";
+import type { ClipboardPath, PreparedPasteText } from "./paste-types.js";
 
 export const PATH_CHIP_PRESENTATION_UNITS = 4096;
 // Invariant: a collision suffix containing any safe-integer index fits this per-occurrence reserve.
