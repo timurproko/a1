@@ -1,48 +1,48 @@
 {
   "schema": "a1-legacy-identity-allowlist-v1",
-  "generatedAt": "2026-09-18T14:07:59.062Z",
+  "generatedAt": "2026-09-18T14:36:03.616Z",
   "inventorySchema": "a1-legacy-identity-inventory-v1",
   "occurrences": [
     {
-      "id": "docs/architecture/toolchain.md:94:37",
+      "id": "docs/architecture/toolchain.md:96:37",
       "value": "ADDONE",
-      "fingerprint": "d4af2e70fae0331bd1a79e0fcb4eeaa29d792340a575f8b39d52e8c3a6d7da67",
+      "fingerprint": "dd4ac6f29182af85a30bb223da83172d5f59a6874fc9000f2184c221c1f61c51",
       "reason": "documented hard-cut or deprecation assertion"
     },
     {
-      "id": "docs/architecture/toolchain.md:94:59",
+      "id": "docs/architecture/toolchain.md:96:59",
       "value": "AddOne",
-      "fingerprint": "a5499aa06298827b8d632093a1f1880d182d09926c7cbe60015f3ed4c92221f9",
+      "fingerprint": "72e292080849983e5d3c432bb4d5d5e6595cac2310710a056979f7c24d9559d5",
       "reason": "documented hard-cut or deprecation assertion"
     },
     {
-      "id": "docs/architecture/toolchain.md:94:68",
+      "id": "docs/architecture/toolchain.md:96:68",
       "value": "addone",
-      "fingerprint": "aa619064ca3ce70ad844cb55488f65f460d781e2c9fb1e0dbc0100184c298962",
+      "fingerprint": "92f276741f66be37205110f497ebd0c7d9ce1633899f69167ce1c99c27796c99",
       "reason": "documented hard-cut or deprecation assertion"
     },
     {
-      "id": "docs/architecture/toolchain.md:94:255",
+      "id": "docs/architecture/toolchain.md:96:255",
       "value": "AddOne",
-      "fingerprint": "7217eaf88038cfa5b0552f714e09ea2b547b942a1d1929ae52b92e3d83ed5fb7",
+      "fingerprint": "2449c206b90d0a858d19d63763581ecfa6617d98cf7746d1c4967e5fd2204b8f",
       "reason": "documented hard-cut or deprecation assertion"
     },
     {
-      "id": "docs/architecture/toolchain.md:94:284",
+      "id": "docs/architecture/toolchain.md:96:284",
       "value": "AddOne",
-      "fingerprint": "2d218939b5c32a55e5a41fadd5588f09112e9a7adac704750c35c9862d6fb1c0",
+      "fingerprint": "a9780c36a26f58c3fc85292a09b847377286429fc4da3c735d489713a856b4f7",
       "reason": "documented hard-cut or deprecation assertion"
     },
     {
-      "id": "docs/architecture/toolchain.md:94:319",
+      "id": "docs/architecture/toolchain.md:96:319",
       "value": "addone",
-      "fingerprint": "9214b50270742366ab4db77cce81240d0ff63641bfeb55a779a0c84dfba92427",
+      "fingerprint": "d9ff1ffa02808c22e391c4e969d45010861edc90fc402ff90b336eb4cafc8100",
       "reason": "documented hard-cut or deprecation assertion"
     },
     {
-      "id": "docs/architecture/toolchain.md:98:39",
+      "id": "docs/architecture/toolchain.md:100:39",
       "value": "addone",
-      "fingerprint": "68985d603ba3b382a1299c8333cc077faa9a73985964eb389edd0789de23d1c3",
+      "fingerprint": "8fa10ea7d10406543f49dc869d565e14a1a570b507a1d6cd2ea616b7f97d643e",
       "reason": "explicit obsolete-package rejection or deprecation fixture"
     },
     {
