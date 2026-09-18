@@ -22,4 +22,4 @@ None.
 
 ## Impact
 
-No runtime behavior changes: the headers are comments and the owned copies are otherwise byte-identical. The ledger check now also fails when a copy's header drifts from its record. The startup graph baseline moves to 1,431,380 bytes for the longer headers of the eagerly loaded copies.
+No runtime behavior changes: the headers are comments and the owned copies are otherwise byte-identical. The ledger check now also fails when a copy's header drifts from its record. The startup graph baseline moves to 1,432,617 bytes for the longer headers of the eagerly loaded copies.

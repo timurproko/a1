@@ -8,4 +8,4 @@
 ## 2. Proof
 
 - [x] 2.1 Add `test/repository-governance/pinned-pi-source-header.test.ts` (3 cases); point the status-indicator provenance assertion in `progress-status-presentation-boundary.test.ts` at the canonical header.
-- [x] 2.2 Re-pin `config/startup-graph-baseline.json` to 1,431,380 bytes; run `npm run typecheck`, `check:architecture`, `check:code-documentation`, the changed-documentation check, the updater's `--check`, and the repository-governance and Pi component suites; record outcomes: all checks OK, ledger current, 1,298 governance and component cases pass.
+- [x] 2.2 Re-pin `config/startup-graph-baseline.json` to 1,432,617 bytes; run `npm run typecheck`, `check:architecture`, `check:code-documentation`, the changed-documentation check, the updater's `--check`, and the repository-governance and Pi component suites; record outcomes: all checks OK, ledger current, 1,298 governance and component cases pass.
