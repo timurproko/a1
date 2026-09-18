@@ -155,6 +155,7 @@ export class OwnedUiSessionShell {
   readonly #unbindClipboardWriter: () => void;
   readonly #damageTerminal: DamageAwareTerminalAdapter | null;
   readonly #quitOutro: OwnedUiSessionShellOptions["quitOutro"];
+  readonly #reloadPresentation: OwnedUiSessionShellOptions["reloadPresentation"];
   readonly #streamPresentation: StreamPresentationCoalescer;
   readonly #removeViewportPreInput: () => void;
   readonly #unsubscribeSettings: () => void;
@@ -341,6 +342,7 @@ export class OwnedUiSessionShell {
     this.runtime = runtime;
     this.#damageTerminal = damageTerminal ?? null;
     this.#quitOutro = options.quitOutro;
+    this.#reloadPresentation = options.reloadPresentation;
     const presentationInterval = options.streamPresentation?.intervalMs ?? STREAM_PRESENTATION_INTERVAL_MS;
     streamPresentation = options.streamPresentation?.scheduler === undefined
       ? new StreamPresentationCoalescer(() => this.runtime.requestRender(), presentationInterval)
@@ -1241,6 +1243,8 @@ export class OwnedUiSessionShell {
         }, "Creating gist...")
       : undefined;
     const operationSurface = shareSurface ?? (request.command === "reload" ? createPiShellReloadBox() : undefined);
+    const now = this.#reloadPresentation?.now ?? Date.now;
+    const shownAt = now();
     if (operationSurface) {
       this.root.setInputSurface(operationSurface);
       this.runtime.requestRender();
@@ -1250,6 +1254,9 @@ export class OwnedUiSessionShell {
       result = await this.backend.executeWorkflow(shareSurface === undefined ? request : { ...request, signal: shareSurface.signal });
     } finally {
       if (operationSurface) {
+        // Rationale: a near-instant reload would flash the box for a frame or skip it entirely; holding it
+        // briefly keeps the reload legible regardless of how fast the resources actually load.
+        if (request.command === "reload") await this.#holdReloadSurface(now() - shownAt);
         this.root.setInputSurface(null);
         this.runtime.requestRender();
       }
@@ -1291,6 +1298,14 @@ export class OwnedUiSessionShell {
     if (request.command === "model" && result.outcome === "completed") this.#showDaxnutsForActiveModel();
     this.runtime.requestRender();
     return workflowAdapterResult(result);
+  }
+
+  async #holdReloadSurface(visibleMs: number): Promise<void> {
+    const minVisibleMs = this.#reloadPresentation?.minVisibleMs ?? RELOAD_SURFACE_MIN_VISIBLE_MS;
+    const remaining = minVisibleMs - visibleMs;
+    if (remaining <= 0 || this.#disposed) return;
+    const sleep = this.#reloadPresentation?.sleep ?? ((ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms)));
+    await sleep(remaining);
   }
 
   showTrustSelector(): void {
@@ -1922,6 +1937,7 @@ function workflowAdapterResult(result: PiWorkflowResult): AdapterCommandResult {
 
 const INTERRUPT = "\u0003";
 const INTERRUPT_CHORD_MS = 1_500;
+const RELOAD_SURFACE_MIN_VISIBLE_MS = 400;
 
 interface QuitOutroCapture {
   readonly rows: readonly string[];
