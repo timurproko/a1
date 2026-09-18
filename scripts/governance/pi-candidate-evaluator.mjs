@@ -1,11 +1,9 @@
+import crossSpawn from "cross-spawn";
 import { createHash } from "node:crypto";
-import { execFile } from "node:child_process";
 import { cp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { promisify } from "node:util";
 
-const execute = promisify(execFile);
 const exactVersion = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
 
 export async function evaluatePiCandidate(request, options = {}) {
@@ -63,9 +61,22 @@ function defaultOperations(repository) {
   };
 }
 
-async function command(executable, arguments_, cwd, signal) {
-  return execute(executable, arguments_, { cwd, signal, timeout: 120_000, maxBuffer: 1024 * 1024 });
+function command(executable, arguments_, cwd, signal) {
+  // Platform: npm is a .cmd shim on Windows that execFile cannot start (spawn EINVAL); cross-spawn resolves the shim without a shell.
+  return new Promise((resolvePromise, rejectPromise) => {
+    const child = crossSpawn(executable, arguments_, { cwd, signal, timeout: 120_000, stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", chunk => { stdout = capped(stdout + chunk); });
+    child.stderr.on("data", chunk => { stderr = capped(stderr + chunk); });
+    child.on("error", rejectPromise);
+    child.on("close", (code, signalName) => {
+      if (code === 0) resolvePromise({ stdout, stderr });
+      else rejectPromise(new Error(`${executable} ${arguments_[0] ?? ""} exited with ${signalName ?? code}: ${stderr.trim() || stdout.trim()}`));
+    });
+  });
 }
+function capped(text) { return text.length > 1024 * 1024 ? text.slice(-1024 * 1024) : text; }
 function report(packages, passed, stages, migrations) { return { schema: "pi-candidate-migration-report-v1", packages, passed, stages, migrations }; }
 function bounded(value) { const text = String(value).replace(/[\r\n\t]+/g, " ").trim(); return text.length > 500 ? `${text.slice(0, 497)}...` : text; }
 function digest(value) { return createHash("sha256").update(value).digest("hex"); }
