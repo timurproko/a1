@@ -1,4 +1,5 @@
 import {
+  hyperlink,
   setKeybindings,
   visibleWidth,
   truncateToWidth,
@@ -29,6 +30,8 @@ import {
 /** Terminal-cell width authority used by Pi-rendered component rows. */
 export const piShellVisibleWidth = visibleWidth;
 export const piShellTruncateToWidth = (text: string, width: number): string => truncateToWidth(text, width, "");
+/** A clickable URL in pinned Pi's grammar: an OSC 8 link where the terminal supports one, the plain URL otherwise. */
+export const piShellHyperlink = (url: string, text: string = url): string => hyperlink(url, text);
 
 export interface PiShellComponentPort extends PresentationComponentPort {}
 

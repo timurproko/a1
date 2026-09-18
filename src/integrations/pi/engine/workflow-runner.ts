@@ -219,15 +219,19 @@ export class PiWorkflowRunner {
         return await this.#ports.applyPinnedSetting(selection);
       }
       case "thinking": {
-        const level = (selection ?? argument).trim();
-        if (!level) return workflowResult(request.command, "requires-selection", "Select a thinking level", undefined, "silent");
+        const requested = (selection ?? argument).trim();
+        if (!requested) return workflowResult(request.command, "requires-selection", "Select a thinking level", undefined, "silent");
         const available = (session.getAvailableThinkingLevels?.() ?? []).map(String);
-        if (!available.includes(level)) {
-          return workflowResult(request.command, "failed", available.length === 0 ? "Thinking levels are unavailable" : `Unknown thinking level: ${level} (available: ${available.join(", ")})`);
+        // Compatibility: pinned Pi matches the argument case-insensitively and words the failure with the available levels.
+        const level = available.find(candidate => candidate.toLowerCase() === requested.toLowerCase());
+        if (level === undefined) {
+          return workflowResult(request.command, "failed", `Unknown thinking level "${requested}". Available levels: ${available.join(", ")}.`);
         }
-        const thinking = readThinkingLevel(level);
-        session.setThinkingLevel(thinking);
-        if (request.persist === true) runtime.services.settingsManager.setDefaultThinkingLevel(thinking);
+        try {
+          session.setThinkingLevel(readThinkingLevel(level), { persist: request.persist === true });
+        } catch (error) {
+          return workflowResult(request.command, "failed", error instanceof Error ? error.message : String(error));
+        }
         this.#ports.setThinkingLevel(readThinkingLevel(session.thinkingLevel));
         this.#ports.emitView();
         return workflowResult(request.command, "completed", request.persist === true ? `Default thinking level: ${level}` : `Thinking level: ${level}`);

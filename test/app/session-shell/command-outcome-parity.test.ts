@@ -85,9 +85,10 @@ describe("independent command outcome parity", () => {
     expect(scopedIndex).toBeGreaterThanOrEqual(0);
     const scoped = actual[scopedIndex]!;
     const reference = expected[scopedIndex]!;
-    const label = process.platform === "darwin" ? "option" : "alt";
-    const wrongLabel = process.platform === "darwin" ? "alt" : "option";
-    expect(reference.surfaceRows.join("\n")).toContain(`${label}+up/${label}+down`);
+    // Rationale: 0.85.1 capitalizes every key part in the selector's hints.
+    const label = process.platform === "darwin" ? "Option" : "Alt";
+    const wrongLabel = process.platform === "darwin" ? "Alt" : "Option";
+    expect(reference.surfaceRows.join("\n")).toContain(`${label}+Up/${label}+Down`);
     const mutations = [
       scoped.surfaceRows.map(row => row.replaceAll(`${label}+`, `${wrongLabel}+`)),
       scoped.surfaceRows.map((row, index) => index === 0 ? `${row}\u001b[0m` : row),

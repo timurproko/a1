@@ -45,6 +45,7 @@ export {
   isPiPromptStyleCompaction,
   isRecord,
   paintPiSubmittedPromptTimestamp,
+  piShellHyperlink,
   piShellTruncateToWidth,
   piShellVisibleWidth,
   renderPiShellCommandMessage,

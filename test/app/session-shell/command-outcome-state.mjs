@@ -1,4 +1,4 @@
-import { join, dirname } from "node:path";
+import { join, dirname, sep } from "node:path";
 import { writeFile } from "node:fs/promises";
 
 // Security: all authoritative command state is synthetic and all external effects are injected.
@@ -19,6 +19,8 @@ export function createCommandOutcomeState(home, entry, api) {
   const manager = {
     getCwd: () => home, getSessionDir: () => join(home, "sessions"), getSessionFile: () => undefined,
     getSessionName: () => nameState.value, getLeafId: () => condition === "empty" ? null : "entry-1",
+    // Rationale: 0.85.1's share exports the branch through the session manager before contacting GitHub.
+    getSessionId: () => "command-outcomes", getBranch: () => [],
     getEntries: () => [], getTree: () => condition === "empty" ? [] : [{ entry: { id: "entry-0", type: "message", parentId: null, timestamp: "2026-01-01T00:00:00.000Z", message: { role: "user", content: condition === "copy-empty" ? "" : "synthetic first prompt", timestamp: 0 } }, children: [{ entry: { id: "entry-1", type: "message", parentId: "entry-0", timestamp: "2026-01-01T00:00:01.000Z", message: { role: "user", content: "synthetic second prompt", timestamp: 1 } }, children: [] }] }], usesDefaultSessionDir: () => true,
     appendLabelChange() {},
   };
@@ -75,6 +77,8 @@ export function createCommandOutcomeState(home, entry, api) {
     getAvailableThinkingLevels: () => ["off", "minimal", "low", "medium", "high", "xhigh"],
     setAutoCompactionEnabled() {}, setThinkingLevel() {}, setSteeringMode() {}, setFollowUpMode() {},
     agent: { transport: "sse", state: { systemPrompt: "synthetic", messages: [], tools: [] } },
+    // Rationale: 0.85.1's share reads the system prompt and tool list from the session state when exporting.
+    state: { systemPrompt: "synthetic", tools: [] },
     sessionManager: manager, modelRuntime,
     subscribe: () => () => {}, dispose() {}, prompt: async () => { throw new Error("Provider execution forbidden"); },
     setModel: async model => { calls.push("set-model"); if (condition === "selection-failure") throw failure(); session.model = model; },
@@ -88,7 +92,8 @@ export function createCommandOutcomeState(home, entry, api) {
       calls.push("export");
       if (["failure", "non-error", "export-failure"].includes(condition)) throw failure();
       if (entry.command === "share") {
-        if (dirname(path) !== join(home, "tmp")) throw new Error("Export outside fixture directory");
+        // Rationale: 0.85.1 exports into its own temporary share directory beneath the temp root.
+        if (dirname(path) !== join(home, "tmp") && !dirname(path).startsWith(join(home, "tmp") + sep)) throw new Error("Export outside fixture directory");
         await writeFile(path, "<html>synthetic export fixture</html>");
         exportedFiles.push(path);
       }

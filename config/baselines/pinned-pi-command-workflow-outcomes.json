@@ -635,6 +635,18 @@
           "success",
           "cancelled"
         ]
+      },
+      "thinking": {
+        "methods": [
+          "handleThinkingCommand",
+          "selectThinkingLevel",
+          "showThinkingSelector"
+        ],
+        "conditions": [
+          "success",
+          "unknown",
+          "open"
+        ]
       }
     },
     "interactiveExceptions": [
