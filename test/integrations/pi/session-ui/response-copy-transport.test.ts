@@ -36,6 +36,23 @@ describe("response-copy transport isolation", () => {
     } finally { clearInterval(timer); job.cancel(); }
   }, 10_000);
 
+  it("takes the warm spare for a copy, replenishes it afterwards, and stops it on dispose", async () => {
+    const writeText = vi.fn(async () => {});
+    const execute = createResponseCopyExecutor({ writeText });
+    expect(execute.warmed).toBe(false);
+    execute.warm();
+    expect(execute.warmed).toBe(true);
+    await new Promise(resolve => setTimeout(resolve, 1_500));
+    const started = performance.now();
+    const job = execute({ ...source("spare copy"), literal: true }, () => {});
+    await expect(job.result).resolves.toEqual({ outcome: "delivered" });
+    expect(performance.now() - started).toBeLessThan(500);
+    expect(writeText).toHaveBeenCalledWith("spare copy", expect.any(AbortSignal));
+    await vi.waitFor(() => expect(execute.warmed).toBe(true));
+    execute.dispose();
+    expect(execute.warmed).toBe(false);
+  }, 15_000);
+
   it("preserves literal prompt whitespace and controls through isolated preparation without duplicate terminal delivery", async () => {
     const text = "  exact\t é 👩‍💻\n\u001b[31m literal control  \n";
     const writeText = vi.fn(async () => {}), submit = vi.fn(async () => {});

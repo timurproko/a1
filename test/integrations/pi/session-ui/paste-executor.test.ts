@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { startPasteExecutor } from "../../../../src/integrations/pi/session-ui/paste-executor.js";
+import { createPasteHelperPool, startPasteExecutor } from "../../../../src/integrations/pi/session-ui/paste-executor.js";
 import { canPreparePasteInline, preparePasteText } from "../../../../src/integrations/pi/session-ui/paste-text-preparation.js";
 import { PASTE_TEXT_BYTES, pasteFragments } from "../../../../src/integrations/pi/session-ui/paste-protocol.js";
 import { screenshotPng } from "../../../fixtures/image-sources.js";
@@ -67,6 +67,22 @@ describe("isolated paste executor", () => {
       } finally { slow.cancel(); await slow.stopped; }
     } finally { await rm(directory, { recursive: true, force: true }); }
   }, 10_000);
+  it.each([true, false])("takes the warm spare (announced: %s), prepares through it, and replenishes it after the paste", async announced => {
+    const pool = createPasteHelperPool();
+    try {
+      pool.warm();
+      expect(pool.warmed).toBe(true);
+      if (announced) await new Promise(resolve => setTimeout(resolve, 1_500));
+      const started = performance.now();
+      const job = startPasteExecutor({ kind: "text", text: "spare hello" }, new AbortController().signal, () => {}, undefined, pool);
+      try {
+        await expect(job.result).resolves.toEqual(preparePasteText("spare hello"));
+        if (announced) expect(performance.now() - started).toBeLessThan(500);
+        await job.stopped;
+        expect(pool.warmed).toBe(true);
+      } finally { job.cancel(); await job.stopped; }
+    } finally { pool.dispose(); }
+  }, 15_000);
   it("prepares 16 MiB text as a compact chip description while parent timers advance", async () => {
     const text = "x".repeat(PASTE_TEXT_BYTES);
     let ticks = 0;
