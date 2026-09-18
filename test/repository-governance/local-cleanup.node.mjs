@@ -470,6 +470,82 @@ test("pending archive, active ownership, and unmanaged directories stay untouche
   assert.equal(report.results[0].reason, "owned-worktree"); assert.ok(report.results.some(row => row.disposition === "unmanaged"));
 });
 
+const aged = async path => { const old = new Date(Date.now() - 3600000); await utimes(path, old, old); };
+async function emptyLeftover(f, name, nested = []) {
+  const path = join(f.identity.root, name);
+  await mkdir(join(path, ...nested), { recursive: true });
+  for (let depth = nested.length; depth >= 0; depth--) await aged(join(path, ...nested.slice(0, depth)));
+  return path.replaceAll("\\", "/");
+}
+
+test("an aged empty unregistered directory tree is removed and named in the sweep lines", async t => {
+  const f = await fixture(t, false, false); await f.store.enable();
+  const flat = await emptyLeftover(f, "stale"), nested = await emptyLeftover(f, "stale-nested", ["node_modules", ".bin"]);
+  const report = await f.pass({ preview: false });
+  for (const path of [flat, nested]) {
+    const row = report.results.find(item => item.path === path);
+    assert.deepEqual([row.disposition, row.reason, row.steps], ["removed", "empty-directory", ["empty-directory-removed"]], JSON.stringify(report));
+    assert.equal(await exists(path), false);
+  }
+  const listed = report.results.find(item => item.path === f.snapshot.path);
+  assert.deepEqual([listed.disposition, listed.reason], ["unmanaged", "not-registered"]);
+  const lines = sweepLines(report);
+  assert.ok(lines.includes("directory stale: removed (empty-directory) [empty-directory-removed]"), JSON.stringify(lines));
+  assert.ok(!lines.some(line => line.includes("example")), JSON.stringify(lines));
+  assert.equal(await exists(f.path), true);
+});
+
+test("unregistered directories with content, a Git row, or a young mtime stay unmanaged", async t => {
+  const f = await fixture(t, false, false); await f.store.enable();
+  const withFile = await emptyLeftover(f, "with-file", ["deep"]); await writeFile(join(withFile, "deep", "keep.txt"), "keep\n"); await aged(join(withFile, "deep")); await aged(withFile);
+  const withGit = await emptyLeftover(f, "with-git", ["nested", ".git"]);
+  const withLink = await emptyLeftover(f, "with-link"); await symlink(f.primary, join(withLink, "escape"), process.platform === "win32" ? "junction" : "dir"); await aged(withLink);
+  const young = join(f.identity.root, "young").replaceAll("\\", "/"); await mkdir(young);
+  const listed = join(f.identity.root, "listed").replaceAll("\\", "/");
+  await git(f.primary, "worktree", "add", "--detach", listed);
+  for (const name of await readdir(listed)) await rm(join(listed, name), { recursive: true, force: true });
+  await aged(listed);
+  const report = await f.pass({ preview: false });
+  const expected = { [withFile]: "not-registered", [withGit]: "not-registered", [withLink]: "not-registered", [young]: "empty-directory-recent", [listed]: "not-registered" };
+  for (const [path, reason] of Object.entries(expected)) {
+    const row = report.results.find(item => item.path === path);
+    assert.deepEqual([row.disposition, row.reason], ["unmanaged", reason], JSON.stringify(report));
+    assert.equal(await exists(path), true);
+  }
+  assert.equal(await readFile(join(withFile, "deep", "keep.txt"), "utf8"), "keep\n");
+  assert.equal(await exists(join(withLink, "escape")), true);
+  assert.equal(await exists(join(withGit, "nested", ".git")), true);
+  assert.ok(!sweepLines(report).some(line => /with-|young|listed/.test(line)), JSON.stringify(sweepLines(report)));
+});
+
+test("preview classifies an empty directory without deleting it", async t => {
+  const f = await fixture(t, false, false);
+  const path = await emptyLeftover(f, "stale", ["a", "b"]);
+  const report = await f.pass({ preview: true });
+  const row = report.results.find(item => item.path === path);
+  assert.deepEqual([row.disposition, row.reason, row.steps], ["unmanaged", "empty-directory", undefined], JSON.stringify(report));
+  assert.equal(await exists(join(path, "a", "b")), true);
+  const cancelled = await f.pass({ preview: false, cancelled: () => true });
+  assert.equal(await exists(join(path, "a", "b")), true, JSON.stringify(cancelled));
+});
+
+test("an empty directory held open reports a locked block and is removed once released", { skip: process.platform !== "win32" }, async t => {
+  const f = await fixture(t, false, false); await f.store.enable();
+  const path = await emptyLeftover(f, "held", ["inner"]);
+  const holder = spawn(process.execPath, ["-e", "process.stdin.resume()"], { cwd: join(path, "inner"), stdio: ["pipe", "ignore", "ignore"], windowsHide: true });
+  t.after(async () => { if (holder.exitCode === null) { holder.stdin.end(); holder.kill(); await once(holder, "exit"); } });
+  await once(holder, "spawn");
+  const locked = await f.pass({ preview: false });
+  const row = locked.results.find(item => item.path === path);
+  assert.deepEqual([row.disposition, row.reason, row.paths], ["blocked", "empty-directory-locked", [path]], JSON.stringify(locked));
+  assert.ok(sweepLines(locked).includes("directory held: blocked (empty-directory-locked)"), JSON.stringify(sweepLines(locked)));
+  assert.equal(await exists(join(path, "inner")), true);
+  holder.stdin.end(); await once(holder, "exit");
+  const released = await f.pass({ preview: false });
+  assert.equal(released.results.find(item => item.path === path).disposition, "removed", JSON.stringify(released));
+  assert.equal(await exists(path), false);
+});
+
 for (const kind of ["unstaged", "staged", "untracked", "ignored"]) test(`preserves ${kind} content`, async t => {
   const f = await fixture(t); await f.store.enable();
   const filename = kind === "ignored" ? "secret.txt" : kind === "untracked" ? "new.txt" : "tracked.txt";
