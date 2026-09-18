@@ -37,9 +37,13 @@ async function capture(observe: boolean, order: "stream-first" | "input-first") 
   const schedule = new Schedule();
   const phases: PiTuiInputDiagnosticsEvent[] = [];
   let recorder: InputFrameRecorder | undefined;
-  const shell = new OwnedUiSessionShell({ backend: adapter, cwd: process.cwd(), terminal, sessionLayout: "custom-viewport",
-    inputPresentation: { scheduler: schedule, now: schedule.now, onEvent: event => { phases.push(event); recorder?.trace(event); } },
-    streamPresentation: { scheduler: schedule },
+  const shell = new OwnedUiSessionShell({
+    engine: { backend: adapter, cwd: process.cwd(), sessionLayout: "custom-viewport" },
+    presentation: {
+      terminal,
+      input: { scheduler: schedule, now: schedule.now, onEvent: event => { phases.push(event); recorder?.trace(event); } },
+      stream: { scheduler: schedule },
+    },
   });
   try {
     shell.start(); shell.runtime.renderNow();

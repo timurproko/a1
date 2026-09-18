@@ -120,9 +120,18 @@ import {
   shellResourceEntries,
   type OwnedUiBackendPort,
   type OwnedUiSessionShellOptions,
+  type OwnedUiShellPresentationOptions,
   type OwnedUiTerminalPort,
 } from "./session-shell-root.js";
-export { OwnedUiSessionShellRoot, type OwnedUiSessionShellOptions } from "./session-shell-root.js";
+export {
+  OwnedUiSessionShellRoot,
+  type OwnedUiSessionShellOptions,
+  type OwnedUiShellDiagnosticOptions,
+  type OwnedUiShellEngineOptions,
+  type OwnedUiShellHistoryOptions,
+  type OwnedUiShellPresentationOptions,
+  type OwnedUiShellSuggestionOptions,
+} from "./session-shell-root.js";
 
 /** Coordinates backend, owned presentation, and Pi TUI lifecycles for one interactive session. */
 export class OwnedUiSessionShell {
@@ -154,8 +163,8 @@ export class OwnedUiSessionShell {
   readonly #responseCopy: ResponseCopyCoordinator | null;
   readonly #unbindClipboardWriter: () => void;
   readonly #damageTerminal: DamageAwareTerminalAdapter | null;
-  readonly #quitOutro: OwnedUiSessionShellOptions["quitOutro"];
-  readonly #reloadPresentation: OwnedUiSessionShellOptions["reloadPresentation"];
+  readonly #quitOutro: OwnedUiShellPresentationOptions["quitOutro"];
+  readonly #reloadPresentation: OwnedUiShellPresentationOptions["reload"];
   readonly #streamPresentation: StreamPresentationCoalescer;
   readonly #removeViewportPreInput: () => void;
   readonly #unsubscribeSettings: () => void;
@@ -175,13 +184,17 @@ export class OwnedUiSessionShell {
   #suggestionModelKey: string;
 
   constructor(options: OwnedUiSessionShellOptions) {
-    this.backend = options.backend;
+    const { backend, cwd, routeHost, sessionLayout } = options.engine;
+    const { terminal, startup, viewportSettings, quitOutro, reload: reloadPresentation, stream: streamPresentationOptions, input: inputPresentation } = options.presentation ?? {};
+    const { clipboard, responseCopy, paste: pasteDiagnostics } = options.diagnostics ?? {};
+    const promptHistory = options.history;
+    this.backend = backend;
     this.#sessionGeneration = this.backend.sessionGeneration;
     this.#sessionBindingGeneration = this.backend.sessionBindingGeneration;
     this.#suggestionModelKey = modelKey(this.backend.view());
-    this.#cwd = options.cwd;
-    this.#routeHost = options.routeHost ?? null;
-    this.#customViewport = options.sessionLayout === "custom-viewport";
+    this.#cwd = cwd;
+    this.#routeHost = routeHost ?? null;
+    this.#customViewport = sessionLayout === "custom-viewport";
     this.#stopped = new Promise(resolve => {
       this.#resolveStopped = resolve;
     });
@@ -190,21 +203,21 @@ export class OwnedUiSessionShell {
     let streamPresentation: StreamPresentationCoalescer | undefined;
     let pendingClipboardWrite: Promise<void> = Promise.resolve();
     let promptSuggestionController: ContextualPromptSuggestionController | null = null;
-    const terminalCopy = options.terminal !== undefined || hasAsyncClipboardOutput();
+    const terminalCopy = terminal !== undefined || hasAsyncClipboardOutput();
     this.#responseCopy = this.#customViewport ? new ResponseCopyCoordinator({
-      execute: options.responseCopy?.execute ?? createResponseCopyExecutor({
-        ...(options.terminal === undefined && options.clipboard === undefined ? {} : { destination: "terminal" }),
-        ...(options.clipboard?.writeText === undefined ? {} : { writeText: (text, signal) => options.clipboard!.writeText!(text, signal) }),
+      execute: responseCopy?.execute ?? createResponseCopyExecutor({
+        ...(terminal === undefined && clipboard === undefined ? {} : { destination: "terminal" }),
+        ...(clipboard?.writeText === undefined ? {} : { writeText: (text, signal) => clipboard!.writeText!(text, signal) }),
         ...(terminalCopy ? { terminal: { submit: async (control, signal) => {
           if (signal.aborted || this.#disposed || !runtime?.active) throw new Error("Copy canceled");
           // Performance: never grow the real terminal's pending buffer with another clipboard payload.
-          if (options.terminal === undefined && process.stdout.writableLength + control.length > MAX_COPY_CONTROL_BYTES) {
+          if (terminal === undefined && process.stdout.writableLength + control.length > MAX_COPY_CONTROL_BYTES) {
             throw new Error("Clipboard terminal is busy");
           }
           runtime.writeControl(control);
         } } } : {}),
       }),
-      ...(options.responseCopy?.onEvent === undefined ? {} : { onEvent: options.responseCopy.onEvent }),
+      ...(responseCopy?.onEvent === undefined ? {} : { onEvent: responseCopy.onEvent }),
       onFailure: result => {
         if (this.#disposed || !runtime?.active) return;
         this.root.appendWorkflowStatus(result.outcome === "timed-out" ? "Copy timed out; the clipboard did not respond."
@@ -215,9 +228,9 @@ export class OwnedUiSessionShell {
     }) : null;
     const readClipboard = async (signal: AbortSignal): Promise<PiShellClipboardContent | null> => {
       if (signal.aborted) throw new ImageAttachmentError("image-canceled");
-      if (options.clipboard === undefined) return runImageWorker({ kind: "clipboard" }, signal);
+      if (clipboard === undefined) return runImageWorker({ kind: "clipboard" }, signal);
       try {
-        const image = await options.clipboard.readImage?.(signal);
+        const image = await clipboard.readImage?.(signal);
         if (image !== null && image !== undefined) {
           const canonical = await runImageWorker<ClipboardImageData | null>({ kind: "canonicalize", source: image }, signal);
           if (canonical !== null) return { kind: "image", ...canonical };
@@ -226,12 +239,12 @@ export class OwnedUiSessionShell {
         if (error instanceof ImageAttachmentError) throw error;
         // Compatibility: an unavailable image reader can still provide text.
       }
-      const text = await options.clipboard.readText(signal);
+      const text = await clipboard.readText(signal);
       return text === null ? null : { kind: "text", text };
     };
-    this.root = new OwnedUiSessionShellRoot(this.backend.view(), options.cwd, {
-      getColumns: () => runtime?.viewport().columns ?? options.terminal?.columns ?? 80,
-      getRows: () => runtime?.viewport().rows ?? options.terminal?.rows ?? 24,
+    this.root = new OwnedUiSessionShellRoot(this.backend.view(), cwd, {
+      getColumns: () => runtime?.viewport().columns ?? terminal?.columns ?? 80,
+      getRows: () => runtime?.viewport().rows ?? terminal?.rows ?? 24,
       requestRender: force => runtime?.requestRender(force),
       requestHyperlinkCleanup: rows => damageTerminal?.requestHyperlinkCleanup(rows),
       onViewportFrame: frame => damageTerminal?.arm(frame.descriptor, {
@@ -239,9 +252,9 @@ export class OwnedUiSessionShell {
         selectionActive: this.root.hasActiveSelection(),
         replacementSurfaceActive: !this.root.usesDefaultInputSurface(),
       }),
-      enableDockInputReuse: options.inputPresentation?.viewportReuse !== false,
-      persistentHistory: this.#customViewport && options.promptHistory !== undefined,
-      ...(options.promptHistory === undefined ? {} : { historyEditor: options.promptHistory.editor }),
+      enableDockInputReuse: inputPresentation?.viewportReuse !== false,
+      persistentHistory: this.#customViewport && promptHistory !== undefined,
+      ...(promptHistory === undefined ? {} : { historyEditor: promptHistory.editor }),
       onSubmit: text => { void this.submit(text).catch(() => this.#reportSubmissionError()); },
       onPasteRejected: error => this.#reportSubmissionError(error),
       onInterrupt: () => { void this.interrupt(); },
@@ -268,8 +281,8 @@ export class OwnedUiSessionShell {
         const write = () => {
           if (this.#disposed) return Promise.resolve();
           runtime?.writeControl(`\u001b]52;c;${Buffer.from(text, "utf8").toString("base64")}\u0007`);
-          return options.clipboard === undefined ? writeSystemClipboardText(text)
-            : options.clipboard.writeText?.(text) ?? Promise.resolve();
+          return clipboard === undefined ? writeSystemClipboardText(text)
+            : clipboard.writeText?.(text) ?? Promise.resolve();
         };
         // Compatibility: comparison profiles retain their existing clipboard path.
         pendingClipboardWrite = write().catch(() => {});
@@ -280,21 +293,21 @@ export class OwnedUiSessionShell {
       },
       captureClipboardPaste: () => {
         const before = this.#responseCopy?.capturePasteBarrier() ?? (async () => true);
-        if (options.clipboard !== undefined) return { kind: "provided", read: readClipboard, before };
+        if (clipboard !== undefined) return { kind: "provided", read: readClipboard, before };
         if (responseCopyDestination(process.env) === "terminal") return {
           kind: "provided", before, read: async () => { throw new ImageAttachmentError("paste-unavailable"); },
         };
         return { kind: "native", before };
       },
-      ...(options.pasteDiagnostics === undefined ? {} : { pasteDiagnostics: options.pasteDiagnostics }),
+      ...(pasteDiagnostics === undefined ? {} : { pasteDiagnostics: pasteDiagnostics }),
     }, {
-      ...options.startup,
-      resources: options.startup?.resources ?? shellResourceEntries(this.backend),
+      ...startup,
+      resources: startup?.resources ?? shellResourceEntries(this.backend),
     }, this.backend.agentDir, {
       getMessageRenderer: customType => this.backend.pinnedMessageRenderer(customType),
       getToolDefinition: toolName => this.backend.pinnedToolDefinition(toolName),
       getShortcuts: bindings => this.backend.pinnedShortcutDescriptions(bindings),
-    }, options.sessionLayout, {
+    }, sessionLayout, {
       resolve: assetId => this.backend.resolveTranscriptImage(assetId),
     });
     // Invariant: bare A1 owns a bounded viewport and therefore always runs on the alternate
@@ -316,43 +329,43 @@ export class OwnedUiSessionShell {
           });
           return damageTerminal;
         },
-        ...(options.inputPresentation?.coordination === false ? {} : {
+        ...(inputPresentation?.coordination === false ? {} : {
           inputCoordination: {
             classify: (data: string, focusedOverlay) => classifyPiTuiInput(
               data,
               focusedOverlay ?? this.root.inputCoordinationSurface(),
             ),
             onReceipt: () => streamPresentation?.noteImmediatePresentation(),
-            ...(options.inputPresentation?.scheduler === undefined
+            ...(inputPresentation?.scheduler === undefined
               ? {}
-              : { scheduler: options.inputPresentation.scheduler }),
+              : { scheduler: inputPresentation.scheduler }),
           },
         }),
       } : { layoutRoot: this.root.layoutRoot() }),
-      ...(options.inputPresentation?.onEvent === undefined ? {} : {
+      ...(inputPresentation?.onEvent === undefined ? {} : {
         inputDiagnostics: {
-          onEvent: options.inputPresentation.onEvent,
-          ...(options.inputPresentation.now === undefined ? {} : { now: options.inputPresentation.now }),
+          onEvent: inputPresentation.onEvent,
+          ...(inputPresentation.now === undefined ? {} : { now: inputPresentation.now }),
         },
       }),
-      ...(options.terminal === undefined ? {} : { terminal: options.terminal }),
+      ...(terminal === undefined ? {} : { terminal: terminal }),
       hardwareCursor: this.backend.view().terminal.hardwareCursor,
     };
     runtime = new PiTuiRuntimeAdapter(runtimeOptions);
     this.runtime = runtime;
     this.#damageTerminal = damageTerminal ?? null;
-    this.#quitOutro = options.quitOutro;
-    this.#reloadPresentation = options.reloadPresentation;
-    const presentationInterval = options.streamPresentation?.intervalMs ?? STREAM_PRESENTATION_INTERVAL_MS;
-    streamPresentation = options.streamPresentation?.scheduler === undefined
+    this.#quitOutro = quitOutro;
+    this.#reloadPresentation = reloadPresentation;
+    const presentationInterval = streamPresentationOptions?.intervalMs ?? STREAM_PRESENTATION_INTERVAL_MS;
+    streamPresentation = streamPresentationOptions?.scheduler === undefined
       ? new StreamPresentationCoalescer(() => this.runtime.requestRender(), presentationInterval)
       : new StreamPresentationCoalescer(
           () => this.runtime.requestRender(),
           presentationInterval,
-          options.streamPresentation.scheduler,
+          streamPresentationOptions.scheduler,
         );
     this.#streamPresentation = streamPresentation;
-    const promptSuggestionOptions = this.#customViewport ? options.promptSuggestions : undefined;
+    const promptSuggestionOptions = this.#customViewport ? options.suggestions : undefined;
     promptSuggestionController = promptSuggestionOptions === undefined ? null : new ContextualPromptSuggestionController({
       generator: promptSuggestionOptions.generator,
       enabled: promptSuggestionOptions.enabled(),
@@ -400,7 +413,7 @@ export class OwnedUiSessionShell {
     });
     this.#removeViewportPreInput = this.#customViewport
       ? this.runtime.addPreInputListener(data => {
-          if (options.inputPresentation?.coordination === false) this.#streamPresentation.noteImmediatePresentation();
+          if (inputPresentation?.coordination === false) this.#streamPresentation.noteImmediatePresentation();
           // Compatibility: Pi's fullscreen renderer also intercepts plain Home/End.
           // Deliver them to the focused owned input before that outer scroll handler;
           // overlays retain Pi's normal dispatch, and comparison profiles never enter here.
@@ -427,7 +440,7 @@ export class OwnedUiSessionShell {
         })
       : () => {};
     const applyViewportSettings = () => {
-      const snapshot = options.viewportSettings?.snapshot();
+      const snapshot = viewportSettings?.snapshot();
       this.root.setViewportConfig(snapshot ?? {
         scrollbarAppearance: "auto",
         scrollbarStyle: "thin",
@@ -435,8 +448,8 @@ export class OwnedUiSessionShell {
       });
     };
     applyViewportSettings();
-    this.#unsubscribeSettings = this.#customViewport && options.viewportSettings
-      ? options.viewportSettings.onChange(settings => this.root.setViewportConfig(settings))
+    this.#unsubscribeSettings = this.#customViewport && viewportSettings
+      ? viewportSettings.onChange(settings => this.root.setViewportConfig(settings))
       : () => {};
     this.root.setEditorPaddingX(initialPiSettings.editorPaddingX);
     this.root.setAutocompleteMaxVisible(initialPiSettings.autocompleteMaxVisible);
@@ -478,13 +491,13 @@ export class OwnedUiSessionShell {
         this.root.setImagePresentation(this.#showImages, this.#imageWidthCells);
       } },
     });
-    if (this.#customViewport && options.promptHistory !== undefined) {
-      this.#promptHistoryImageSidecar = options.promptHistory.imageSidecar;
+    if (this.#customViewport && promptHistory !== undefined) {
+      this.#promptHistoryImageSidecar = promptHistory.imageSidecar;
       const sidecar = this.#promptHistoryImageSidecar;
       this.#promptHistory = new PromptHistoryController({
         editor: this.root.editor,
-        store: options.promptHistory.store,
-        limit: options.promptHistory.limit,
+        store: promptHistory.store,
+        limit: promptHistory.limit,
         fallback: this.view().transcript.flatMap(block => block.kind === "user" ? [block.text] : []),
         active: () => this.root.usesDefaultInputSurface(),
         render: () => this.runtime.requestRender(),
