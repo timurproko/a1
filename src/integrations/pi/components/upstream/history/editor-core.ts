@@ -1,7 +1,11 @@
 /**
- * Adapted from @earendil-works/pi-tui 0.84.2, packages/tui/src/components/editor.ts (MIT).
- * Source commit: 914cf1472e715297caa30db4b9535d534a9eb718.
- * Modifications: public imports and owned editor-local typed seams; see docs/architecture/history-editor-provenance.md.
+ * Provenance: @earendil-works/pi-tui 0.84.2 (MIT), commit 914cf1472e715297caa30db4b9535d534a9eb718,
+ * packages/tui/src/components/editor.ts.
+ * Modifications: Owned editor core or minimal editor-local helper subset; public imports, strict
+ * types, typed persistent-history hooks, and semantic border state with the user-approved numeric-only
+ * history label. Public terminal runtime/exports remain shared and unchanged. See
+ * docs/architecture/history-editor-provenance.md.
+ * Deviations: compact-history-counter-label, persistent-history-owned-editor-boundary.
  */
 import { getKeybindings, matchesKey, CURSOR_MARKER, sliceByColumn, truncateToWidth, visibleWidth, SelectList, type AutocompleteProvider, type AutocompleteSuggestions, type Component, type Focusable, type TUI, type SelectListLayoutOptions, type SelectListTheme } from "@earendil-works/pi-tui";
 import { decodePrintableKey } from "./printable-key.js";

@@ -31,7 +31,7 @@ describe("progress-status presentation boundary", () => {
     expect(() => assertNoUiComponentImport(shell)).not.toThrow();
     expect(shell.match(/\bformatProgressStatus\(/gu)).toHaveLength(1);
     expect(root).toContain("createPiShellStatus(view, progressStatusText, handlers)");
-    expect(synchronized).toContain("Source-synchronized from Pi 0.84.2");
+    expect(synchronized).toContain("Provenance: @earendil-works/pi-coding-agent 0.84.2");
     expect(synchronized).not.toContain("progressStatusText");
     expect(dispatch).not.toContain("progressStatusText");
     expect(runtimeSelection).not.toContain("progressStatusText");

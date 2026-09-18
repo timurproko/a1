@@ -1,7 +1,11 @@
 /**
- * Source-synchronized from Pi 0.84.2
- * packages/coding-agent/src/modes/interactive/components/session-selector.ts
- * Mechanical changes: public component/type imports, owned keybindings/theme, and local canonical path helper.
+ * Provenance: @earendil-works/pi-coding-agent 0.84.2 (MIT), commit 914cf1472e715297caa30db4b9535d534a9eb718,
+ * packages/coding-agent/src/modes/interactive/components/session-selector.ts.
+ * Modifications: Source-synchronized session selector port: preserve threaded/current/all scope,
+ * search, sort, named/path filters, rename, delete confirmation, active-session protection, loading
+ * progress, cancellation, focus, and disposal while remapping public helpers, owned keybindings/theme,
+ * and canonical path handling.
+ * Deviations: none.
  */
 import { spawnSync } from "node:child_process";
 import { existsSync, realpathSync } from "node:fs";

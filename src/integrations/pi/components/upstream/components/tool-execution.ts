@@ -1,11 +1,12 @@
 /**
- * Source-derived from Pi 0.84.2, MIT, repository https://github.com/earendil-works/pi,
- * commit 914cf1472e715297caa30db4b9535d534a9eb718:
+ * Provenance: @earendil-works/pi-coding-agent 0.84.2 (MIT), commit 914cf1472e715297caa30db4b9535d534a9eb718,
  * packages/coding-agent/src/modes/interactive/components/tool-execution.ts.
- * The private image cache cannot be corrected through the public component API without
- * rebuilding renderer state. Retain its shell/lifecycle and actual public tool definitions;
- * replace only image ownership/conversion, guard invalidation, and remap private imports.
- * Generic text fallback below follows core/tools/render-utils.ts and utils/shell.ts.
+ * Modifications: Retain pinned shell and actual public tool-definition renderers. Replace private
+ * index-keyed image conversion with current-source ownership, serial conversion, visible fallback, and
+ * disposal; guard reentrant invalidation. Remap private types, definition factories, theme, and
+ * generic text helpers to public or locally attributed equivalents. See
+ * docs/architecture/tool-image-presentation.md.
+ * Deviations: current-tool-image-conversion-ownership.
  */
 import { stripVTControlCharacters } from "node:util";
 import { Box, type Component, Container, getCapabilities, getImageDimensions, imageFallback, Spacer, Text, type TUI } from "@earendil-works/pi-tui";

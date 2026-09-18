@@ -1,6 +1,9 @@
 /**
- * Source-synchronized from Pi 0.84.2
- * packages/coding-agent/src/modes/interactive/components/status-indicator.ts
+ * Provenance: @earendil-works/pi-coding-agent 0.84.2 (MIT), commit 914cf1472e715297caa30db4b9535d534a9eb718,
+ * packages/coding-agent/src/modes/interactive/components/status-indicator.ts.
+ * Modifications: Mechanical source port with public package-root keybinding, Loader, and owned
+ * theme/countdown imports plus ECMAScript private fields.
+ * Deviations: status-indicator-public-boundaries.
  */
 import { type Component, Loader, type LoaderIndicatorOptions, type TUI } from "@earendil-works/pi-tui";
 import { keyText } from "@earendil-works/pi-coding-agent";

@@ -1,7 +1,10 @@
 /**
- * Adapted from @earendil-works/pi-coding-agent 0.84.2
- * packages/coding-agent/src/modes/interactive/components/extension-editor.ts (MIT).
- * Modifications: root public pi-tui singleton, owned keybindings/theme seam, owned external-editor import.
+ * Provenance: @earendil-works/pi-coding-agent 0.84.2 (MIT), commit 914cf1472e715297caa30db4b9535d534a9eb718,
+ * packages/coding-agent/src/modes/interactive/components/extension-editor.ts.
+ * Modifications: Mechanical port: remap pi-tui to the root public singleton, use owned
+ * keybindings/theme and external-editor seams, preserve editor layout, hints, focus, submission,
+ * cancellation, and external-editor lifecycle.
+ * Deviations: none.
  */
 import {
   Container,

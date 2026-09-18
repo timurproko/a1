@@ -1,8 +1,10 @@
 /**
- * Source-synchronized from Pi 0.84.2
- * packages/coding-agent/src/modes/interactive/components/skill-invocation-message.ts
- *
- * Modified only to use A1's public pi-tui instance and owned theme boundary.
+ * Provenance: @earendil-works/pi-coding-agent 0.84.2 (MIT), commit 914cf1472e715297caa30db4b9535d534a9eb718,
+ * packages/coding-agent/src/modes/interactive/components/skill-invocation-message.ts.
+ * Modifications: Mechanical port uses A1's public pi-tui instance, owned theme boundary, and
+ * root-instance keybinding registry because the public coding-agent component closes over a second
+ * nested pi-tui singleton and cannot observe A1's keybindings.
+ * Deviations: none.
  */
 import { Box, getKeybindings, Markdown, Text, type MarkdownTheme } from "@earendil-works/pi-tui";
 import { piTheme } from "../theme/theme.js";

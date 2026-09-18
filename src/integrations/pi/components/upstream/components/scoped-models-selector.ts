@@ -1,7 +1,11 @@
 /**
- * Source-synchronized from Pi 0.84.2
- * packages/coding-agent/src/modes/interactive/components/scoped-models-selector.ts
- * Mechanical changes: public DynamicBorder import, local platform-aware key labels, and owned theme adapter.
+ * Provenance: @earendil-works/pi-coding-agent 0.84.2 (MIT), commit 914cf1472e715297caa30db4b9535d534a9eb718,
+ * packages/coding-agent/src/modes/interactive/components/scoped-models-selector.ts.
+ * Modifications: Source-synchronized scoped-model selector port: preserve session-only toggles,
+ * search, bulk/provider/reorder actions, dirty state, Ctrl+S persistence, refresh status,
+ * cancellation, and focus while remapping theme and public helper imports; local key labels preserve
+ * pinned platform formatting before layout without changing binding identities.
+ * Deviations: none.
  */
 interface ScopedModel {
 	readonly provider: string;

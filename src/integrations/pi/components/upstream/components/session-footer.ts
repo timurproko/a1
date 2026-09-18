@@ -1,8 +1,10 @@
 /**
- * Adapted from @earendil-works/pi-coding-agent 0.84.2
- * packages/coding-agent/src/modes/interactive/components/footer.ts (MIT).
- * Modifications: consumes neutral owned-UI view data rather than a concrete AgentSession;
- * bare A1 colors the effective level-name span while the comparison profile retains pinned styling.
+ * Provenance: @earendil-works/pi-coding-agent 0.84.2 (MIT), commit 914cf1472e715297caa30db4b9535d534a9eb718,
+ * packages/coding-agent/src/modes/interactive/components/footer.ts.
+ * Modifications: Consumes neutral owned-UI view data instead of a fabricated concrete AgentSession; an
+ * explicit bare-A1 profile colors the thinking-level name while preserving the remaining footer layout
+ * and formatting.
+ * Deviations: owned-status-level-color.
  */
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import { truncateToWidth, visibleWidth, type Component } from "@earendil-works/pi-tui";

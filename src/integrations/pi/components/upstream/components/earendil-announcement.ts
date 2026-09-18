@@ -1,6 +1,12 @@
-// Mechanically adapted from Pi commit 914cf14
-// packages/coding-agent/src/modes/interactive/components/earendil-announcement.ts (MIT).
-// Local modifications: remap private imports to public package-root/owned theme boundaries; load the verified owned copy of the image lazily.
+/**
+ * Provenance: @earendil-works/pi-coding-agent 0.84.2 (MIT), commit 914cf1472e715297caa30db4b9535d534a9eb718,
+ * packages/coding-agent/src/modes/interactive/components/earendil-announcement.ts.
+ * Modifications: Mechanical pinned source port with private imports remapped to public package-root
+ * types/APIs and A1-owned theme boundaries. The unchanged image is loaded lazily from its attributed,
+ * verified owned resource, preserving pinned image/fallback rows without runtime dependency-directory
+ * reads or package mutation. Command-outcome parity exercises the restored presentation.
+ * Deviations: none.
+ */
 import { readFileSync } from "node:fs";
 import type EarendilResource from "../assets/earendil-image.json";
 import { Container, Image, Spacer, Text } from "@earendil-works/pi-tui";

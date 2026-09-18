@@ -1,6 +1,9 @@
 /**
- * Source-synchronized from Pi 0.84.2
- * packages/coding-agent/src/modes/interactive/components/countdown-timer.ts
+ * Provenance: @earendil-works/pi-coding-agent 0.84.2 (MIT), commit 914cf1472e715297caa30db4b9535d534a9eb718,
+ * packages/coding-agent/src/modes/interactive/components/countdown-timer.ts.
+ * Modifications: Mechanical source port with ECMAScript private fields; imports remain on the public
+ * Pi TUI package root.
+ * Deviations: countdown-owned-private-fields.
  */
 import type { TUI } from "@earendil-works/pi-tui";
 
