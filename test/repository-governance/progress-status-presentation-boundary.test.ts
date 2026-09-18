@@ -19,7 +19,7 @@ function assertNoUiComponentImport(source: string): void {
 describe("progress-status presentation boundary", () => {
   it("keeps punctuation at the shared bare-A1 spinner boundary", async () => {
     const [engine, shell, root, synchronized, dispatch, runtimeSelection] = await Promise.all([
-      readFile("src/integrations/pi/engine/adapter.ts", "utf8"),
+      readFile("src/integrations/pi/engine/session-events.ts", "utf8"),
       readFile("src/integrations/pi/components/shell-footer-status.ts", "utf8"),
       readFile("src/integrations/pi/session-ui/session-shell-root.ts", "utf8"),
       readFile("src/integrations/pi/components/upstream/components/status-indicator.ts", "utf8"),
@@ -39,7 +39,7 @@ describe("progress-status presentation boundary", () => {
 
   it("rejects either a producer marker or a forbidden adapter import", async () => {
     const [engine, shell] = await Promise.all([
-      readFile("src/integrations/pi/engine/adapter.ts", "utf8"),
+      readFile("src/integrations/pi/engine/session-events.ts", "utf8"),
       readFile("src/integrations/pi/components/shell-footer-status.ts", "utf8"),
     ]);
     expect(() => assertSemanticWorkStateProducers(engine.replace('"Compacting"', '"Compacting…"')))

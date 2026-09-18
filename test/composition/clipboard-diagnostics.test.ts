@@ -49,9 +49,9 @@ describe("clipboard diagnostic launch composition", () => {
     vi.stubEnv(PRODUCT_IDENTITY.environment.clipboardDiagnostics, "environment.json");
     const composed = await compose({ profileId: "a1", ...(route === "explicit" ? { clipboardDiagnosticsPath: "explicit.json" } : {}) });
     const options = observed.options!;
-    options.responseCopy!.onEvent!({ request: 1, phase: "capture", atMs: 0, elapsedMs: 0, pending: 1, sourceUnits: 10 });
-    options.pasteDiagnostics!({ request: 2, phase: "admitted", atMs: 1, pending: 1, transport: "native" });
-    options.inputPresentation!.onEvent!({ phase: "write-end", revision: 3, atMs: 2, pendingDepth: 0, pendingPresentationDepth: 0, appliedRevision: 3 });
+    options.diagnostics!.responseCopy!.onEvent!({ request: 1, phase: "capture", atMs: 0, elapsedMs: 0, pending: 1, sourceUnits: 10 });
+    options.diagnostics!.paste!({ request: 2, phase: "admitted", atMs: 1, pending: 1, transport: "native" });
+    options.presentation!.input!.onEvent!({ phase: "write-end", revision: 3, atMs: 2, pendingDepth: 0, pendingPresentationDepth: 0, appliedRevision: 3 });
     await vi.advanceTimersByTimeAsync(100);
     await observed.captures[0]!.flush();
     const { file, data } = observed.writes.at(-1)!;
@@ -69,9 +69,8 @@ describe("clipboard diagnostic launch composition", () => {
     vi.stubEnv(PRODUCT_IDENTITY.environment.clipboardDiagnostics, mode === "unset" ? undefined : mode === "blank" ? " " : "unused.json");
     const composed = await compose({ ...(mode === "settings-free" ? {} : { profileId: "a1" }), ...(mode === "comparison" ? { ownedSurfaces: "off" as const } : {}) });
     expect(observed.captures).toHaveLength(0);
-    expect(observed.options?.responseCopy).toBeUndefined();
-    expect(observed.options?.pasteDiagnostics).toBeUndefined();
-    expect(observed.options?.inputPresentation).toBeUndefined();
+    expect(observed.options?.diagnostics).toBeUndefined();
+    expect(observed.options?.presentation?.input).toBeUndefined();
     await composed.application.dispose();
   });
 

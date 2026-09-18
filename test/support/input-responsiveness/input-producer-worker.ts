@@ -30,14 +30,18 @@ async function runOwned(request: InputProducerRequest): Promise<InputProducerRes
   const phases: PiTuiInputDiagnosticsEvent[] = [];
   let frameRecorder: InputFrameRecorder | undefined;
   const shell = new OwnedUiSessionShell({
-    backend: adapter,
-    cwd: request.state.cwd,
-    terminal,
-    ...(request.producer === "bare-a1" ? { sessionLayout: "custom-viewport" as const } : {}),
-    inputPresentation: {
-      onEvent: event => { phases.push(event); frameRecorder?.trace(event); },
-      now: () => performance.now(),
-      ...(request.variant === "baseline" ? { coordination: false, viewportReuse: false } : {}),
+    engine: {
+      backend: adapter,
+      cwd: request.state.cwd,
+      ...(request.producer === "bare-a1" ? { sessionLayout: "custom-viewport" as const } : {}),
+    },
+    presentation: {
+      terminal,
+      input: {
+        onEvent: event => { phases.push(event); frameRecorder?.trace(event); },
+        now: () => performance.now(),
+        ...(request.variant === "baseline" ? { coordination: false, viewportReuse: false } : {}),
+      },
     },
   });
   const actions = runtime.session.calls;
