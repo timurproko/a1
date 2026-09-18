@@ -1,5 +1,5 @@
 /**
- * Provenance: @earendil-works/pi-coding-agent 0.84.2 (MIT), commit 914cf1472e715297caa30db4b9535d534a9eb718,
+ * Provenance: @earendil-works/pi-coding-agent 0.85.1 (MIT), commit d981de1229ef899957bbe968bc8dcda02a21f477,
  * packages/coding-agent/src/modes/interactive/components/trust-selector.ts.
  * Modifications: Mechanical source-synchronized trust selector port with injected public
  * ProjectTrustStore-derived options and remapped owned theme imports.
@@ -31,6 +31,7 @@ export class TrustSelectorComponent extends Container {
   private readonly trustOptions: readonly TrustOption[];
   readonly handleInput: (data: string) => void;
 
+<<<<<<< a1
   constructor(options: {
     readonly cwd: string;
     readonly savedDecision: TrustDecision | null;
@@ -75,6 +76,25 @@ export class TrustSelectorComponent extends Container {
       this.updateList(options.savedDecision);
     };
   }
+||||||| pi 0.84.2
+			const isSelected = i === this.selectedIndex;
+			const isCurrent = this.isSavedOption(option);
+			const checkmark = isCurrent ? theme.fg("success", " ✓") : "";
+			const prefix = isSelected ? theme.fg("accent", "→ ") : "  ";
+			const label = isSelected ? theme.fg("accent", option.label) : theme.fg("text", option.label);
+			this.listContainer.addChild(new Text(`${prefix}${label}${checkmark}`, 1, 0));
+		}
+	}
+=======
+			const isSelected = i === this.selectedIndex;
+			const isCurrent = this.isSavedOption(option);
+			const currentMarker = isCurrent ? theme.fg("accent", "✓ ") : "  ";
+			const prefix = isSelected ? theme.fg("accent", "→ ") : "  ";
+			const label = isSelected ? theme.fg("accent", option.label) : theme.fg("text", option.label);
+			this.listContainer.addChild(new Text(`${prefix}${currentMarker}${label}`, 1, 0));
+		}
+	}
+>>>>>>> pi 0.85.1
 
   private updateList(savedDecision: TrustDecision | null): void {
     this.listContainer.clear();

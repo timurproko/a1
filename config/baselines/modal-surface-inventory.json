@@ -3,8 +3,8 @@
   "change": "build-owned-pi-ui-foundation",
   "task": "7.26",
   "pinned": {
-    "version": "0.84.2",
-    "commit": "914cf1472e715297caa30db4b9535d534a9eb718"
+    "version": "0.85.1",
+    "commit": "d981de1229ef899957bbe968bc8dcda02a21f477"
   },
   "policy": {
     "scope": "Every root, nested, replacement, and overlay node plus every source-reachable transition from InteractiveMode, nested components, and public extension UI is mandatory.",
@@ -1385,7 +1385,7 @@
       "viewport": "editor replacement",
       "scrolling": "none",
       "destination": "src/app/session-shell/session-shell.ts",
-      "status": "corrected-pending-exhaustive-parity",
+      "status": "orphaned",
       "controller": "BorderedLoader share controller",
       "acceptance": "modal-node:operation.share-loader",
       "parents": [
@@ -1727,7 +1727,8 @@
         "terminal:settings-cancel-restored",
         "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
         "authority:pinned-controller-transition"
-      ]
+      ],
+      "status": "orphaned"
     },
     {
       "id": "settings.theme.open",
@@ -2952,7 +2953,8 @@
         "terminal:extension-custom-replacement",
         "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
         "authority:pinned-controller-transition"
-      ]
+      ],
+      "status": "orphaned"
     },
     {
       "id": "share-loader.close",
