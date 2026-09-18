@@ -3,6 +3,7 @@ import { extname, relative, resolve, sep } from "node:path";
 import { inspectPiFeatureBoundaryImports, inspectProjectOwnerLayout, inspectProjectStructureImports, projectOwnerForPath, testOwnerForPath } from "./project-structure-policy.mjs";
 import { inspectPiProductionBoundary } from "./pi-api-boundary-policy.mjs";
 import { inspectBaselinePaths } from "./baseline-paths-policy.mjs";
+import { inspectModuleGraph } from "./module-graph-policy.mjs";
 import { PRINTABLE_HELPER_PATH, isExactPrintableHelper, readPinnedKeySource } from "./history-editor-source-policy.mjs";
 import { inspectStartupReachability, validateStartupReachabilityBaseline } from "./startup-graph-policy.mjs";
 
@@ -224,7 +225,16 @@ const startupLeafConsumers = new Set(startupReachability.modules.map(module => m
 errors.push(...inspectProjectStructureImports(sourceFiles, startupLeafConsumers));
 errors.push(...inspectPiFeatureBoundaryImports(sourceFiles));
 errors.push(...inspectPiProductionBoundary(sourceFiles));
-if (rootArgument < 0) errors.push(...await inspectBaselinePaths(root));
+if (rootArgument < 0) {
+  errors.push(...await inspectBaselinePaths(root));
+  let architectureAllowlist = null;
+  try {
+    architectureAllowlist = JSON.parse(await readFile(resolve(root, "config", "architecture-allowlist.json"), "utf8"));
+  } catch (error) {
+    errors.push(`architecture allowlist is missing or invalid: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  if (architectureAllowlist !== null) errors.push(...await inspectModuleGraph(root, architectureAllowlist, sourceFiles));
+}
 await inspectRepositoryStructure();
 await inspectReleasePolicy();
 await inspectTerminalParityBoundary();
