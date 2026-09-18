@@ -1,6 +1,6 @@
 ## 1. Deliver a lingering helper's prepared text
 
-- [x] 1.1 In `src/integrations/pi/session-ui/response-copy-transport.ts`, split helper termination into `cancel`, which discards the prepared text, and `reap`, which the post-result cleanup timer uses so a helper that lingers after a complete result is terminated without emptying its delivered text; pin `config/startup-graph-baseline.json` to the new exact eager source total (2,647,783 bytes, +196).
+- [x] 1.1 In `src/integrations/pi/session-ui/response-copy-transport.ts`, split helper termination into `cancel`, which discards the prepared text, and `reap`, which the post-result cleanup timer uses so a helper that lingers after a complete result is terminated without emptying its delivered text; pin `config/startup-graph-baseline.json` to the new exact eager source total (196 bytes above the base).
 - [x] 1.2 Add `test/integrations/pi/session-ui/response-copy-lingering-helper.mjs`, a fixture that reports a complete prepared result and never exits, and transport tests proving the exact text is delivered once and that an owner cancellation before delivery still settles as canceled without a writer call; record outcomes: with the fix reverted the delivery test fails with the writer receiving `""`, with the fix `response-copy-transport.test.ts` 25 passed.
 
 ## 2. Warm the Windows handle fixture's interpreter
