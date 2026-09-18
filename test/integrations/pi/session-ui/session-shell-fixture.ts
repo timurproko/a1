@@ -27,7 +27,13 @@ vi.mock("node:worker_threads", async importOriginal => {
 });
 import { createPiEngineAdapter } from "../../../../src/integrations/pi/engine/index.js";
 import { loadHistoryEditor } from "../../../../src/integrations/pi/components/index.js";
-import { OwnedUiSessionShell, type OwnedUiSessionShellOptions } from "../../../../src/integrations/pi/session-ui/index.js";
+import {
+  OwnedUiSessionShell,
+  type OwnedUiShellDiagnosticOptions,
+  type OwnedUiShellHistoryOptions,
+  type OwnedUiShellPresentationOptions,
+  type OwnedUiShellSuggestionOptions,
+} from "../../../../src/integrations/pi/session-ui/index.js";
 import { TestPresentationTerminal } from "../../../features/owned-ui/neutral-port-doubles.js";
 import type { OwnedUiViewportSettingsPort } from "../../../../src/contracts/owned-ui/index.js";
 
@@ -199,15 +205,15 @@ export async function fixture(
     readImage?(): Promise<{ readonly data: string; readonly mimeType: string } | null>;
     writeText?(text: string): Promise<void>;
   },
-  streamPresentation?: OwnedUiSessionShellOptions["streamPresentation"],
-  inputPresentation?: OwnedUiSessionShellOptions["inputPresentation"],
-  promptSuggestions?: OwnedUiSessionShellOptions["promptSuggestions"],
-  promptHistory?: Omit<NonNullable<OwnedUiSessionShellOptions["promptHistory"]>, "editor">,
+  streamPresentation?: OwnedUiShellPresentationOptions["stream"],
+  inputPresentation?: OwnedUiShellPresentationOptions["input"],
+  promptSuggestions?: OwnedUiShellSuggestionOptions,
+  promptHistory?: Omit<OwnedUiShellHistoryOptions, "editor">,
   configureEngine?: (engine: Runtime) => void,
-  responseCopy?: OwnedUiSessionShellOptions["responseCopy"],
-  pasteDiagnostics?: OwnedUiSessionShellOptions["pasteDiagnostics"],
-  quitOutro?: OwnedUiSessionShellOptions["quitOutro"],
-  reloadPresentation?: OwnedUiSessionShellOptions["reloadPresentation"],
+  responseCopy?: OwnedUiShellDiagnosticOptions["responseCopy"],
+  pasteDiagnostics?: OwnedUiShellDiagnosticOptions["paste"],
+  quitOutro?: OwnedUiShellPresentationOptions["quitOutro"],
+  reloadPresentation?: OwnedUiShellPresentationOptions["reload"],
 ) {
   const engine = new Runtime(messages);
   configureEngine?.(engine);
@@ -215,10 +221,24 @@ export async function fixture(
   const adapter = await createPiEngineAdapter({ cwd: "D:/work", sessionId: "owned-shell", createRuntime: async () => engine as unknown as AgentSessionRuntime });
   const terminal = new TestPresentationTerminal();
   const shell = new OwnedUiSessionShell({
-    backend: adapter,
-    cwd: "D:/work",
-    terminal,
-    responseCopy: responseCopy ?? { execute: (snapshot, phase) => {
+    engine: {
+      backend: adapter,
+      cwd: "D:/work",
+      ...(customViewport ? { sessionLayout: "custom-viewport" as const } : {}),
+    },
+    presentation: {
+      terminal,
+      ...(viewportSettings === undefined ? {} : { viewportSettings }),
+      ...(streamPresentation === undefined ? {} : { stream: streamPresentation }),
+      ...(inputPresentation === undefined ? {} : { input: inputPresentation }),
+      ...(quitOutro === undefined ? {} : { quitOutro }),
+      // Rationale: the production hold is real wall-clock time; tests opt into it with injected seams.
+      reload: reloadPresentation ?? { minVisibleMs: 0 },
+    },
+    diagnostics: {
+      ...(clipboard === undefined ? {} : { clipboard }),
+      ...(pasteDiagnostics === undefined ? {} : { paste: pasteDiagnostics }),
+      responseCopy: responseCopy ?? { execute: (snapshot, phase) => {
       const text = snapshot.rows.map((row, index) => selectionCopyRowText(snapshot, row, index)).join("\n");
       phase("extracted", Buffer.byteLength(text), "injected");
       phase("encoded", Buffer.byteLength(text), "injected");
@@ -227,17 +247,9 @@ export async function fixture(
       const result = (clipboard?.writeText?.(text) ?? Promise.resolve()).then(() => ({ outcome: "submitted-unverified" as const }));
       return { result, stopped: result.then(() => {}), cancel() {} };
     } },
-    ...(customViewport ? { sessionLayout: "custom-viewport" as const } : {}),
-    ...(viewportSettings === undefined ? {} : { viewportSettings }),
-    ...(clipboard === undefined ? {} : { clipboard }),
-    ...(streamPresentation === undefined ? {} : { streamPresentation }),
-    ...(inputPresentation === undefined ? {} : { inputPresentation }),
-    ...(pasteDiagnostics === undefined ? {} : { pasteDiagnostics }),
-    ...(quitOutro === undefined ? {} : { quitOutro }),
-    // Rationale: the production hold is real wall-clock time; tests opt into it with injected seams.
-    reloadPresentation: reloadPresentation ?? { minVisibleMs: 0 },
-    ...(promptSuggestions === undefined ? {} : { promptSuggestions }),
-    ...(promptHistory === undefined ? {} : { promptHistory: { ...promptHistory, editor: await loadHistoryEditor() } }),
+    },
+    ...(promptSuggestions === undefined ? {} : { suggestions: promptSuggestions }),
+    ...(promptHistory === undefined ? {} : { history: { ...promptHistory, editor: await loadHistoryEditor() } }),
   });
   shell.start();
   shell.runtime.renderNow();

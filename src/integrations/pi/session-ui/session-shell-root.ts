@@ -149,20 +149,10 @@ export interface OwnedUiClipboardPort {
   writeText?(text: string, signal?: AbortSignal): Promise<void>;
 }
 
-export interface OwnedUiSessionShellOptions {
-  readonly promptHistory?: {
-    readonly store: import("../../../contracts/owned-ui/index.js").PromptHistoryPort;
-    readonly limit: number;
-    readonly editor: import("../components/index.js").HistoryEditorConstructor;
-    /** Optional per-profile filesystem sidecar for image chip payloads. When present, submit
-     * writes each referenced attachment and recall reads them back to rehydrate live chips.
-     * When absent, image chips silently strip on recall, matching the missing-sidecar path. */
-    readonly imageSidecar?: import("../../../contracts/owned-ui/index.js").PromptHistoryImageSidecarPort;
-  };
+/** The engine session the shell presents and the composition's decisions about it. */
+export interface OwnedUiShellEngineOptions {
   readonly backend: OwnedUiBackendPort;
   readonly cwd: string;
-  readonly terminal?: OwnedUiTerminalPort;
-  readonly startup?: OwnedUiStartupOptions;
   /**
    * Declared A1-owned routes. A route this host claims resolves to its app;
    * every other route continues to the pinned workflow table unchanged.
@@ -170,8 +160,28 @@ export interface OwnedUiSessionShellOptions {
   readonly routeHost?: UiRouteHost;
   /** Bare A1 selects the owned bounded viewport; comparison profiles stay pinned. */
   readonly sessionLayout?: "pinned" | "custom-viewport";
+}
+
+/** Terminal, startup, viewport, and presentation-cadence seams; production leaves most at their defaults. */
+export interface OwnedUiShellPresentationOptions {
+  readonly terminal?: OwnedUiTerminalPort;
+  readonly startup?: OwnedUiStartupOptions;
   /** Live profile-local settings, supplied only to the bare-A1 composition. */
   readonly viewportSettings?: OwnedUiViewportSettingsPort;
+  /** Deterministic scheduling seam for presentation-cadence tests. */
+  readonly stream?: {
+    readonly intervalMs?: number;
+    readonly scheduler?: StreamPresentationScheduler;
+  };
+  /**
+   * Minimum time the reload box stays visible so a fast reload still reads as one.
+   * Production uses the default hold; tests inject `now`/`sleep` for determinism.
+   */
+  readonly reload?: {
+    readonly minVisibleMs?: number;
+    readonly now?: () => number;
+    readonly sleep?: (ms: number) => Promise<void>;
+  };
   /**
    * Quit outro settings and seams, supplied only to the bare-A1 composition.
    * `interactive` states whether the terminal can show the animation; production
@@ -183,37 +193,7 @@ export interface OwnedUiSessionShellOptions {
     readonly sleep?: (ms: number) => Promise<void>;
     readonly seed?: number;
   };
-  /** Optional platform seam; production uses A1's system clipboard adapter. */
-  readonly clipboard?: OwnedUiClipboardPort;
-  /** Owned response-copy transport and payload-free diagnostic seams. Comparison profiles ignore them. */
-  readonly responseCopy?: {
-    readonly execute?: ResponseCopyExecutor;
-    readonly onEvent?: (event: ResponseCopyEvent) => void;
-  };
-  /** Bounded, payload-free clipboard acquisition/preparation observations. */
-  readonly pasteDiagnostics?: (event: PasteEvent) => void;
-  /** Deterministic scheduling seam for presentation-cadence tests. */
-  readonly streamPresentation?: {
-    readonly intervalMs?: number;
-    readonly scheduler?: StreamPresentationScheduler;
-  };
-  /**
-   * Minimum time the reload box stays visible so a fast reload still reads as one.
-   * Production uses the default hold; tests inject `now`/`sleep` for determinism.
-   */
-  readonly reloadPresentation?: {
-    readonly minVisibleMs?: number;
-    readonly now?: () => number;
-    readonly sleep?: (ms: number) => Promise<void>;
-  };
-  /** Optional deterministic seam for keyboard scheduling and phase evidence. */
-  readonly promptSuggestions?: {
-    readonly diagnostics?: SuggestionDiagnosticObserver;
-    readonly generator: OwnedUiPromptSuggestionGeneratorPort;
-    readonly enabled: () => boolean;
-    readonly onChange: (listener: (enabled: boolean) => void) => () => void;
-  };
-  readonly inputPresentation?: {
+  readonly input?: {
     readonly scheduler?: PiTuiInputCoordinationScheduler;
     readonly onEvent?: (event: PiTuiInputDiagnosticsEvent) => void;
     readonly now?: () => number;
@@ -222,6 +202,47 @@ export interface OwnedUiSessionShellOptions {
     /** Evidence-only baseline seam; production leaves dock reuse enabled. */
     readonly viewportReuse?: boolean;
   };
+}
+
+/** Persistent prompt history: its store, its bound, the editor that recalls it, and the image sidecar. */
+export interface OwnedUiShellHistoryOptions {
+  readonly store: import("../../../contracts/owned-ui/index.js").PromptHistoryPort;
+  readonly limit: number;
+  readonly editor: import("../components/index.js").HistoryEditorConstructor;
+  /** Optional per-profile filesystem sidecar for image chip payloads. When present, submit
+   * writes each referenced attachment and recall reads them back to rehydrate live chips.
+   * When absent, image chips silently strip on recall, matching the missing-sidecar path. */
+  readonly imageSidecar?: import("../../../contracts/owned-ui/index.js").PromptHistoryImageSidecarPort;
+}
+
+/** Contextual prompt suggestions: the generator, the enablement setting, and an optional evidence seam. */
+export interface OwnedUiShellSuggestionOptions {
+  readonly diagnostics?: SuggestionDiagnosticObserver;
+  readonly generator: OwnedUiPromptSuggestionGeneratorPort;
+  readonly enabled: () => boolean;
+  readonly onChange: (listener: (enabled: boolean) => void) => () => void;
+}
+
+/** Clipboard seams and payload-free diagnostics; comparison profiles ignore the diagnostics. */
+export interface OwnedUiShellDiagnosticOptions {
+  /** Optional platform seam; production uses A1's system clipboard adapter. */
+  readonly clipboard?: OwnedUiClipboardPort;
+  /** Owned response-copy transport and payload-free diagnostic seams. */
+  readonly responseCopy?: {
+    readonly execute?: ResponseCopyExecutor;
+    readonly onEvent?: (event: ResponseCopyEvent) => void;
+  };
+  /** Bounded, payload-free clipboard acquisition/preparation observations. */
+  readonly paste?: (event: PasteEvent) => void;
+}
+
+/** What composes an owned session shell, grouped by the collaborator that provides each part. */
+export interface OwnedUiSessionShellOptions {
+  readonly engine: OwnedUiShellEngineOptions;
+  readonly presentation?: OwnedUiShellPresentationOptions;
+  readonly history?: OwnedUiShellHistoryOptions;
+  readonly suggestions?: OwnedUiShellSuggestionOptions;
+  readonly diagnostics?: OwnedUiShellDiagnosticOptions;
 }
 
 /** Composes backend session state into the owned transcript, viewport, editor, and dock presentation. */

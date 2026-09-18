@@ -30,10 +30,12 @@ async function runOwned(
   });
   const terminal = new RecordingTerminal(producerRequest.state.columns, producerRequest.state.rows, producerRequest.presentation === "scheduled");
   const shell = new OwnedUiSessionShell({
-    backend: adapter,
-    cwd: producerRequest.state.cwd,
-    terminal,
-    ...(producerRequest.producer === "bare-a1" ? { sessionLayout: "custom-viewport" as const } : {}),
+    engine: {
+      backend: adapter,
+      cwd: producerRequest.state.cwd,
+      ...(producerRequest.producer === "bare-a1" ? { sessionLayout: "custom-viewport" as const } : {}),
+    },
+    presentation: { terminal },
   });
   terminal.observeDamageDecisions(() => shell.damagePresentationDecision());
   const checkpoints: RenderingProducerCheckpoint[] = [];

@@ -658,7 +658,7 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
       expect(adapter.view().diagnostics.some(diagnostic => diagnostic.code === "package-updates")).toBe(true);
     });
     const terminal = new TestPresentationTerminal();
-    const shell = new OwnedUiSessionShell({ backend: adapter, cwd: "D:/work", terminal });
+    const shell = new OwnedUiSessionShell({ engine: { backend: adapter, cwd: "D:/work" }, presentation: { terminal } });
     shell.start();
     shell.runtime.renderNow();
 
