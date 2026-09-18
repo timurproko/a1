@@ -8,8 +8,8 @@ import { promisify } from "node:util";
 import { PRODUCT_IDENTITY } from "../../../product-identity.js";
 import { configureOwnedHttpDispatcher } from "./http-dispatcher.js";
 import { readPinnedCommandChangelog } from "./changelog.js";
-import { toolRenderingInput } from "./tool-rendering.js";
-import { TranscriptImageAssets } from "./transcript-image-assets.js";
+import { PiTranscriptProjection } from "./transcript-projection.js";
+import { finiteNumber, isRecord, stringValue, textFromContent } from "./message-values.js";
 import {
   copyToClipboard,
   CredentialSynchronizationError,
@@ -30,7 +30,6 @@ import {
   OWNED_UI_EXTENSION_UI_CALLBACKS,
   OWNED_UI_EXTENSION_UI_PROPERTIES,
   CONTEXTUAL_PROMPT_SUGGESTION_INSTRUCTION,
-  acceptsTranscriptUpdate,
   transcriptToolState,
   assertOwnedUiCommand,
   assertOwnedUiExtensionUiPort,
@@ -47,7 +46,6 @@ import {
   type OwnedUiPromptSuggestionReasoning,
   type OwnedUiPromptSuggestionRequest,
   type OwnedUiPromptSuggestionResult,
-  type OwnedUiTranscriptImageReference,
   type OwnedUiEvent,
   type OwnedUiExtensionUiPort,
   type OwnedUiModelInfo,
@@ -331,17 +329,13 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
   #thinkingLevel: OwnedUiThinkingLevel = "medium";
   #activeCommandIds: string[] = [];
   readonly #completedCommands = new Map<string, AdapterCommandResult>();
-  #transcript: OwnedUiTranscriptBlock[] = [];
-  readonly #transcriptIndex = new Map<string, number>();
-  #transcriptSnapshot: readonly OwnedUiTranscriptBlock[] | undefined;
-  readonly #messageBlockIds = new WeakMap<object, string>();
-  readonly #messageFallbackIds = new Map<string, string[]>();
-  readonly #toolBlockIds = new Map<string, string>();
-  readonly #transcriptImageAssets = new TranscriptImageAssets();
+  readonly #projection = new PiTranscriptProjection({
+    retryAttempt: () => this.#session?.retryAttempt ?? 0,
+    blockChanged: block => this.#emitEvent({ type: "transcript-block", block }),
+  });
   #usageCache: OwnedUiUsageView | undefined;
-  #nextBlockSequence = 0;
   #diagnostics: OwnedUiDiagnostics[] = [];
-  readonly #eventQueue = new PendingEngineDelivery(event => this.#transcriptImageAssets.retainEvent(event));
+  readonly #eventQueue = new PendingEngineDelivery(event => this.#projection.assets.retainEvent(event));
   #eventQueueProcessing: Promise<void> | undefined;
   #overload: Promise<boolean> | undefined;
   #overloads = 0;
@@ -412,7 +406,7 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
   }
 
   resolveTranscriptImage(assetId: string): OwnedUiImageAttachment | null {
-    return this.#transcriptImageAssets.resolve(assetId);
+    return this.#projection.assets.resolve(assetId);
   }
 
   currentSessionFile(): string | null {
@@ -1363,7 +1357,7 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
       sessionId: this.#sessionId,
       revision: this.#viewRevision,
       lifecycle: this.#lifecycle,
-      transcript: this.#transcriptSnapshot ??= Object.freeze([...this.#transcript]),
+      transcript: this.#projection.snapshot(),
       editor: { ...this.#editor, queuedSubmissions: [...this.#editor.queuedSubmissions] },
       status: {
         ...this.#status,
@@ -1454,7 +1448,7 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
     for (const pending of this.#pendingCommands.values()) if (pending.type !== "shutdown") pending.cancel();
     // Compatibility: /quit owns normal disposal and must report its actual completion, not cancel itself.
     for (const pending of this.#pendingWorkflows) if (pending.command !== "quit") pending.cancel();
-    this.#transcriptImageAssets.clear();
+    this.#projection.assets.clear();
     this.#extensionBound = false;
     this.#extensionUi = undefined;
     this.#extensionShutdown = undefined;
@@ -2204,10 +2198,10 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
     this.#activeModel = readModel(session.model);
     this.#reconcileActiveModelAvailability();
     this.#thinkingLevel = readThinkingLevel(session.thinkingLevel);
-    this.#transcriptImageAssets.clear();
+    this.#projection.assets.clear();
     // Invariant: a new binding cannot inherit arguments/results from a reused invocation id.
     this.#setTranscript([]);
-    this.#rebuildTranscript(session.messages, "finalized");
+    this.#setTranscript(this.#projection.rebuild(session.messages, "finalized"));
     const generation = this.#sessionGeneration;
     this.#unsubscribe = session.subscribe(event => {
       if (generation === this.#sessionGeneration && !this.#disposed) this.#handlePiEvent(event);
@@ -2260,22 +2254,10 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
     }
   }
 
-  // Performance: replacing the transcript rebuilds its index so block lookup stays constant-time.
   #setTranscript(blocks: OwnedUiTranscriptBlock[]): void {
     // Invariant: lazy delivery snapshots must freeze before their authoritative source can be removed.
     if (!this.#eventQueue.seal()) { this.#beginOverload(); return; }
-    for (const block of blocks) this.#transcriptImageAssets.retain(block);
-    for (const block of this.#transcript) this.#transcriptImageAssets.release(block);
-    this.#transcript = blocks;
-    this.#transcriptIndex.clear();
-    for (const [index, block] of blocks.entries()) this.#transcriptIndex.set(block.id, index);
-    this.#transcriptImageAssets.discardUnowned();
-    this.#transcriptSnapshot = undefined;
-  }
-
-  #transcriptBlock(id: string): OwnedUiTranscriptBlock | undefined {
-    const index = this.#transcriptIndex.get(id);
-    return index === undefined ? undefined : this.#transcript[index];
+    this.#projection.replace(blocks);
   }
 
   // Invariant: the named work state is the only state a matching end may clear.
@@ -2329,7 +2311,7 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
 
   #handlePiEvent(event: unknown): void {
     try { this.#applyPiEvent(event); }
-    finally { this.#transcriptImageAssets.discardUnowned(); }
+    finally { this.#projection.assets.discardUnowned(); }
   }
 
   #applyPiEvent(event: unknown): void {
@@ -2345,7 +2327,7 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
         this.#enterWorkState("working", "Working");
         return;
       case "message_start":
-        this.#upsertMessageBlock(event.message, "live");
+        this.#projection.upsertMessage(event.message, "live");
         return;
       case "message_update": {
         const delta = isRecord(event.assistantMessageEvent) && typeof event.assistantMessageEvent.delta === "string"
@@ -2353,17 +2335,17 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
           : undefined;
         // Invariant: the delta is folded in before the block is stored, so a chunk is one update to
         // one block rather than a store without the delta followed by a store with it.
-        const blocks = this.#messageBlocks(event.message, "live", this.#transcript.length);
+        const blocks = this.#projection.messageBlocks(event.message, "live", this.#projection.blocks.length);
         for (const [index, block] of blocks.entries()) {
-          this.#upsertTranscriptBlock(index === 0 && delta !== undefined && !block.text.endsWith(delta)
+          this.#projection.upsert(index === 0 && delta !== undefined && !block.text.endsWith(delta)
             ? { ...block, text: `${block.text}${delta}` }
             : block);
         }
         return;
       }
       case "message_end":
-        this.#upsertMessageBlock(event.message, "finalized");
-        this.#settleFailedDeclarations(event.message);
+        this.#projection.upsertMessage(event.message, "finalized");
+        this.#projection.settleFailedDeclarations(event.message);
         // Compatibility: preserve the same semantic boundary v2 counted. Transcript block
         // finalization is intentionally not a substitute: rebuilds, retries,
         // thinking parts, and tool rows can all finalize independently.
@@ -2383,7 +2365,7 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
             runSequence: this.#agentRunSequence,
             responseSequence: this.#assistantResponseSequence,
             model: this.#activeModel,
-            assistantMessageCount: this.#transcript.filter(block => block.kind === "assistant").length,
+            assistantMessageCount: this.#projection.blocks.filter(block => block.kind === "assistant").length,
             successful,
             stopReason,
             toolContinuation,
@@ -2391,18 +2373,18 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
         }
         return;
       case "turn_end":
-        this.#upsertMessageBlock(event.message, "finalized");
+        this.#projection.upsertMessage(event.message, "finalized");
         if (Array.isArray(event.toolResults)) {
-          for (const result of event.toolResults) this.#upsertMessageBlock(result, "finalized");
+          for (const result of event.toolResults) this.#projection.upsertMessage(result, "finalized");
         }
         return;
       case "tool_execution_start":
       case "tool_execution_end": {
-        this.#upsertToolExecutionBlock(event);
+        this.#projection.upsertToolExecution(event);
         return;
       }
       case "tool_execution_update":
-        this.#upsertToolExecutionBlock(event);
+        this.#projection.upsertToolExecution(event);
         return;
       case "agent_settled":
       case "agent_end": {
@@ -2411,10 +2393,10 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
         const finalMessages = event.type === "agent_settled"
           ? this.#session?.messages ?? []
           : Array.isArray(event.messages) ? event.messages : [];
-        if (event.type === "agent_end") this.#mergeRunTranscript(finalMessages);
-        else if (finalMessages.length > 0) this.#rebuildTranscript(finalMessages, "finalized");
+        if (event.type === "agent_end") this.#projection.mergeRun(finalMessages, this.#session?.messages ?? []);
+        else if (finalMessages.length > 0) this.#setTranscript(this.#projection.rebuild(finalMessages, "finalized"));
         // Invariant: missing final messages must not erase accumulated content or invent tool outcomes.
-        if (finalMessages.length === 0) this.#setTranscript(this.#transcript.map(block =>
+        if (finalMessages.length === 0) this.#setTranscript(this.#projection.blocks.map(block =>
           block.status === "live" && transcriptToolState(block) === undefined
             ? { ...block, status: "finalized", revision: block.revision + 1 } : block));
         // Compatibility: ending a turn leaves the working state, as the recorded pinned baseline does, but
@@ -2534,361 +2516,6 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
     };
   }
 
-  // Invariant: run-local completion may restate messages, but never owns transcript membership.
-  #mergeRunTranscript(messages: readonly unknown[]): void {
-    const positions = new Map<unknown, { index: number; occurrence: number }>();
-    const sessionOccurrences = new Map<string, number>();
-    for (const [index, message] of (this.#session?.messages ?? []).entries()) {
-      const key = messageFallbackKey(message, index);
-      const occurrence = sessionOccurrences.get(key) ?? 0;
-      sessionOccurrences.set(key, occurrence + 1);
-      positions.set(message, { index, occurrence });
-    }
-    const runOccurrences = new Map<string, number>();
-    for (const [index, message] of messages.entries()) {
-      const key = messageFallbackKey(message, index);
-      const occurrence = runOccurrences.get(key) ?? 0;
-      runOccurrences.set(key, occurrence + 1);
-      const position = positions.get(message) ?? { index, occurrence };
-      for (const block of this.#messageBlocks(message, "finalized", position.index, position.occurrence)) {
-        this.#upsertTranscriptBlock(block);
-      }
-      this.#settleFailedDeclarations(message);
-    }
-  }
-
-  // Invariant: full replacement is reserved for session-authoritative scope (bind/settlement).
-  #rebuildTranscript(messages: readonly unknown[], status: OwnedUiTranscriptBlock["status"]): void {
-    const blocks: OwnedUiTranscriptBlock[] = [];
-    const blockIndexes = new Map<string, number>();
-    const occurrences = new Map<string, number>();
-    for (const [index, message] of messages.entries()) {
-      const key = messageFallbackKey(message, index);
-      const occurrence = occurrences.get(key) ?? 0;
-      occurrences.set(key, occurrence + 1);
-      for (const block of this.#messageBlocks(message, status, index, occurrence,
-        id => blocks[blockIndexes.get(id) ?? -1] ?? this.#transcriptBlock(id))) {
-        const existingIndex = blockIndexes.get(block.id);
-        if (existingIndex === undefined) {
-          blockIndexes.set(block.id, blocks.length);
-          blocks.push(block);
-          continue;
-        }
-        const existing = blocks[existingIndex];
-        if (existing !== undefined) {
-          blocks[existingIndex] = {
-            ...block,
-            payload: {
-              ...(isRecord(existing.payload) ? existing.payload : {}),
-              ...(isRecord(block.payload) ? block.payload : {}),
-            },
-          };
-        }
-      }
-    }
-    // Performance: an authoritative rebuild restates most of what is already there. Reusing the block
-    // that already says it keeps its revision, and with it the rows the shell rendered for
-    // it — otherwise every turn that ends re-renders the whole session.
-    this.#setTranscript(blocks.map(block => {
-      const existing = this.#transcriptBlock(block.id);
-      const next = existing === undefined ? block : retainCompletedArguments(existing, block);
-      return existing !== undefined && sameBlockContent(existing, next) ? existing : next;
-    }));
-  }
-
-  #upsertMessageBlock(
-    message: unknown,
-    status: OwnedUiTranscriptBlock["status"],
-  ): OwnedUiTranscriptBlock | undefined {
-    const blocks = this.#messageBlocks(message, status, this.#transcript.length);
-    const first = blocks[0];
-    for (const block of blocks) this.#upsertTranscriptBlock(block);
-    return first;
-  }
-
-  #messageBlocks(
-    message: unknown,
-    status: OwnedUiTranscriptBlock["status"],
-    fallbackIndex: number,
-    occurrence?: number,
-    currentBlock: (id: string) => OwnedUiTranscriptBlock | undefined = id => this.#transcriptBlock(id),
-  ): OwnedUiTranscriptBlock[] {
-    if (!isRecord(message) || typeof message.role !== "string") return [];
-    const baseId = this.#messageBlockId(message, fallbackIndex, status, occurrence);
-    if (message.role === "user") {
-      return [{
-        id: baseId,
-        kind: "user",
-        status,
-        revision: this.#nextBlockRevision(baseId),
-        title: "User",
-        text: textFromContent(message.content),
-        imageReferences: this.#imageReferences(message.content, "user"),
-        payload: {
-          role: "user",
-          imageCount: contentImageCount(message.content),
-          timestamp: typeof message.timestamp === "number" && Number.isFinite(message.timestamp) ? message.timestamp : null,
-        },
-      }];
-    }
-    if (message.role === "bashExecution") {
-      return [{
-        id: baseId,
-        kind: "bash",
-        status,
-        revision: this.#nextBlockRevision(baseId),
-        title: stringValue(message.command) ?? "Bash",
-        text: stringValue(message.output) ?? "",
-        payload: {
-          role: "bashExecution",
-          command: stringValue(message.command) ?? "",
-          exitCode: typeof message.exitCode === "number" ? message.exitCode : null,
-          cancelled: message.cancelled === true,
-          truncated: message.truncated === true,
-          fullOutputPath: stringValue(message.fullOutputPath) ?? null,
-          excludeFromContext: message.excludeFromContext === true,
-        },
-      }];
-    }
-    if (message.role === "custom") {
-      if (message.display === false) return [];
-      return [{
-        id: baseId,
-        kind: "custom",
-        status,
-        revision: this.#nextBlockRevision(baseId),
-        title: stringValue(message.customType) ?? "Custom",
-        text: textFromContent(message.content),
-        payload: {
-          role: "custom",
-          customType: stringValue(message.customType) ?? "custom",
-          display: true,
-          details: message.details,
-          timestamp: typeof message.timestamp === "number" ? message.timestamp : 0,
-        },
-      }];
-    }
-    if (message.role === "compactionSummary" || message.role === "branchSummary") {
-      return [{
-        id: baseId,
-        kind: "compaction",
-        status,
-        revision: this.#nextBlockRevision(baseId),
-        title: message.role === "branchSummary" ? "Branch summary" : "Compaction summary",
-        text: stringValue(message.summary) ?? "",
-        payload: {
-          role: message.role,
-          tokensBefore: typeof message.tokensBefore === "number" ? message.tokensBefore : 0,
-          fromId: stringValue(message.fromId) ?? null,
-          timestamp: typeof message.timestamp === "number" ? message.timestamp : 0,
-        },
-      }];
-    }
-    if (message.role === "toolResult") {
-      const toolCallId = stringValue(message.toolCallId);
-      const blockId = toolCallId === undefined
-        ? baseId
-        : this.#toolBlockIds.get(toolCallId) ?? `tool-${toolCallId}`;
-      if (toolCallId !== undefined) this.#toolBlockIds.set(toolCallId, blockId);
-      const existing = currentBlock(blockId);
-      const existingPayload = isRecord(existing?.payload) ? existing.payload : undefined;
-      const payload = {
-        role: "toolResult", toolCallId: toolCallId ?? null,
-        toolName: stringValue(message.toolName) ?? stringValue(existingPayload?.toolName) ?? "unknown",
-        argsComplete: true, partialResult: status === "live", isError: message.isError === true,
-      };
-      const rendering = toolRenderingInput({ args: undefined, previousArgs: existing?.toolRendering,
-        result: message, payload, image: part => this.#imageReferences([part], "tool-result")[0] });
-      return [{
-        id: blockId,
-        kind: "tool-result",
-        status,
-        toolState: { argsComplete: true, execution: status === "live" ? "running" : message.isError === true ? "failed" : "succeeded" },
-        revision: this.#nextBlockRevision(blockId),
-        title: stringValue(message.toolName) ?? existing?.title ?? "Tool result",
-        ...rendering,
-        payload,
-      }];
-    }
-    if (message.role !== "assistant" || !Array.isArray(message.content)) return [];
-
-    const blocks: OwnedUiTranscriptBlock[] = [{
-      id: baseId,
-      kind: "assistant",
-      status,
-      revision: this.#nextBlockRevision(baseId),
-      title: "Assistant",
-      text: textFromContent(message.content),
-      payload: {
-        role: "assistant",
-        content: assistantContent(message.content),
-        provider: stringValue(message.provider) ?? null,
-        model: stringValue(message.model) ?? null,
-        api: stringValue(message.api) ?? null,
-        usage: sanitizeJson(message.usage),
-        stopReason: stringValue(message.stopReason) ?? null,
-        errorMessage: stringValue(message.errorMessage) ?? null,
-        timestamp: typeof message.timestamp === "number" ? message.timestamp : 0,
-      },
-    }];
-    for (const item of message.content) {
-      if (!isRecord(item) || item.type !== "toolCall") continue;
-      const toolCallId = stringValue(item.id) ?? `${baseId}:${blocks.length}`;
-      const blockId = this.#toolBlockIds.get(toolCallId) ?? `tool-${toolCallId}`;
-      this.#toolBlockIds.set(toolCallId, blockId);
-      const failure = status === "finalized" ? this.#declarationFailure(message) : undefined;
-      const payload = { toolCallId, toolName: stringValue(item.name) ?? "unknown",
-        argsComplete: failure === undefined && status === "finalized",
-        ...(failure === undefined ? {} : { isError: true }) };
-      const rendering = toolRenderingInput({ args: item.arguments, payload,
-        ...(failure === undefined ? {} : { result: { content: [{ type: "text", text: failure.text }] } }),
-        image: () => undefined });
-      blocks.push({
-        id: blockId,
-        kind: failure === undefined ? "tool-call" : "tool-result",
-        status: failure === undefined ? "live" : "finalized",
-        toolState: {
-          argsComplete: failure === undefined && status === "finalized",
-          execution: failure?.execution ?? "pending",
-        },
-        revision: this.#nextBlockRevision(blockId),
-        title: stringValue(item.name) ?? "Tool",
-        ...rendering,
-        text: failure?.text ?? jsonSummary(item.arguments).summary,
-        payload,
-      });
-    }
-    return blocks;
-  }
-
-  #declarationFailure(message: Record<string, unknown>): { execution: "failed" | "aborted"; text: string } | undefined {
-    // Provenance: pinned interactive-mode message_end and history reconstruction settle pending tools.
-    if (message.role !== "assistant") return undefined;
-    if (message.stopReason === "aborted") {
-      const attempts = this.#session?.retryAttempt ?? 0;
-      return { execution: "aborted", text: attempts > 0
-        ? `Aborted after ${attempts} retry attempt${attempts > 1 ? "s" : ""}` : "Operation aborted" };
-    }
-    return message.stopReason === "error"
-      ? { execution: "failed", text: stringValue(message.errorMessage) || "Error" } : undefined;
-  }
-
-  #settleFailedDeclarations(message: unknown): void {
-    if (!isRecord(message)) return;
-    const failure = this.#declarationFailure(message);
-    if (failure === undefined) return;
-    for (const block of this.#transcript) {
-      const state = transcriptToolState(block);
-      if (state === undefined || state.execution !== "pending" && state.execution !== "running") continue;
-      const payload = { ...(isRecord(block.payload) ? block.payload : {}), partialResult: false, isError: true };
-      this.#upsertTranscriptBlock({
-        ...block, kind: "tool-result", status: "finalized", revision: block.revision + 1,
-        ...toolRenderingInput({ args: undefined, previousArgs: block.toolRendering, payload,
-          result: { content: [{ type: "text", text: failure.text }] }, image: () => undefined }),
-        toolState: { ...state, execution: failure.execution }, payload,
-      });
-    }
-  }
-
-  #imageReferences(content: unknown, source: OwnedUiTranscriptImageReference["source"]): readonly OwnedUiTranscriptImageReference[] {
-    if (!Array.isArray(content)) return [];
-    const references: OwnedUiTranscriptImageReference[] = [];
-    for (const item of content) {
-      if (references.length >= 16) break;
-      const reference = this.#transcriptImageAssets.reference(item, source);
-      if (reference !== undefined) references.push(reference);
-    }
-    return references;
-  }
-
-  #upsertToolExecutionBlock(event: Record<string, unknown>): void {
-    const toolCallId = stringValue(event.toolCallId);
-    if (!toolCallId) return;
-    const blockId = this.#toolBlockIds.get(toolCallId) ?? `tool-${toolCallId}`;
-    this.#toolBlockIds.set(toolCallId, blockId);
-    const ended = event.type === "tool_execution_end";
-    const existing = this.#transcriptBlock(blockId);
-    const state = existing === undefined ? undefined : transcriptToolState(existing);
-    // Invariant: duplicate starts cannot blank accumulated output; late events cannot reopen a settled invocation.
-    if (state !== undefined && (state.execution !== "pending" && state.execution !== "running"
-      || event.type === "tool_execution_start" && state.execution === "running")) return;
-    const source = ended ? event.result : event.partialResult;
-    const payload = { toolCallId, toolName: stringValue(event.toolName) ?? "unknown",
-      partialResult: event.type === "tool_execution_update", argsComplete: true, isError: event.isError === true };
-    const rendering = toolRenderingInput({ args: event.args, previousArgs: existing?.toolRendering, result: source,
-      payload, image: part => this.#imageReferences([part], "tool-result")[0] });
-    this.#upsertTranscriptBlock({
-      id: blockId,
-      kind: ended ? "tool-result" : "tool-call",
-      status: ended ? "finalized" : "live",
-      toolState: { argsComplete: true, execution: ended ? event.isError === true ? "failed" : "succeeded" : "running" },
-      revision: this.#nextBlockRevision(blockId),
-      title: stringValue(event.toolName) ?? "Tool",
-      ...rendering,
-      payload,
-    });
-  }
-
-  #upsertTranscriptBlock(block: OwnedUiTranscriptBlock): void {
-    const index = this.#transcriptIndex.get(block.id);
-    if (index !== undefined) {
-      const existing = this.#transcript[index];
-      // Invariant: argument completion is not execution finality; stale phases still stay rejected.
-      if (existing !== undefined && !acceptsTranscriptUpdate(existing, block)) return;
-      if (existing !== undefined) block = retainCompletedArguments(existing, block);
-      // Performance: nothing is emitted for a block that repeats itself, and keeping the
-      // revision keeps the rows it already rendered.
-      if (existing !== undefined && sameBlockContent(existing, block)) return;
-      this.#transcriptImageAssets.retain(block);
-      if (existing !== undefined) this.#transcriptImageAssets.release(existing);
-      this.#transcript[index] = block;
-    } else {
-      this.#transcriptImageAssets.retain(block);
-      this.#transcriptIndex.set(block.id, this.#transcript.length);
-      this.#transcript.push(block);
-    }
-    this.#transcriptSnapshot = undefined;
-    this.#emitEvent({ type: "transcript-block", block });
-  }
-
-  #messageBlockId(
-    message: Record<string, unknown>,
-    fallbackIndex: number,
-    status: OwnedUiTranscriptBlock["status"],
-    occurrence?: number,
-  ): string {
-    const existing = this.#messageBlockIds.get(message);
-    if (existing) return existing;
-    const fallback = messageFallbackKey(message, fallbackIndex);
-    const cached = this.#messageFallbackIds.get(fallback) ?? [];
-    let id: string | undefined;
-    if (occurrence !== undefined) {
-      id = cached[occurrence];
-      if (id === undefined) {
-        id = `${fallback}-${occurrence}`;
-        cached[occurrence] = id;
-      }
-    } else {
-      id = [...cached].reverse().find(candidate =>
-        this.#transcriptBlock(candidate)?.status === "live");
-      if (id === undefined && status === "finalized") id = cached.at(-1);
-      if (id === undefined) {
-        id = `${fallback}-${cached.length}`;
-        cached.push(id);
-      }
-    }
-    this.#messageFallbackIds.set(fallback, cached);
-    this.#messageBlockIds.set(message, id);
-    return id;
-  }
-
-  #nextBlockRevision(id: string): number {
-    const existing = this.#transcriptBlock(id);
-    if (existing) return existing.revision + 1;
-    this.#nextBlockSequence += 1;
-    return this.#nextBlockSequence;
-  }
-
   #recordCommand(
     command: OwnedUiCommand,
     outcome: OwnedUiCommandOutcome,
@@ -2973,7 +2600,7 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
 
   // Performance: capture only identity, not the complete block/event retained by an earlier revision.
   #blockReconciliation(id: string, sequence: number): () => OwnedUiEvent {
-    return () => ({ type: "transcript-block", sessionId: this.#sessionId, sequence, block: this.#transcriptBlock(id)! });
+    return () => ({ type: "transcript-block", sessionId: this.#sessionId, sequence, block: this.#projection.block(id)! });
   }
 
   #beginOverload(): void {
@@ -3017,9 +2644,9 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
     this.#editor = { ...this.#editor, submitEnabled: canResume && !this.#disposed };
     this.#viewRevision += 1;
     // Invariant: overload publishes one authoritative view; settle tool phases before finalizing other live blocks.
-    this.#settleFailedDeclarations({ role: "assistant", stopReason: cancelled ? "aborted" : "error",
+    this.#projection.settleFailedDeclarations({ role: "assistant", stopReason: cancelled ? "aborted" : "error",
       errorMessage: "Tool result unavailable after UI delivery overload" });
-    this.#setTranscript(this.#transcript.map(block => block.status === "live" ? { ...block, status: "finalized", revision: block.revision + 1 } : block));
+    this.#setTranscript(this.#projection.blocks.map(block => block.status === "live" ? { ...block, status: "finalized", revision: block.revision + 1 } : block));
     for (const [correlationId, result] of this.#reservedOutcomes) {
       this.#deliver(this.#event({ type: "command-outcome", correlationId, ...result }));
       await new Promise<void>(resolve => setImmediate(resolve));
@@ -3520,18 +3147,6 @@ function readStringArray(value: unknown): readonly string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
 }
 
-function stringValue(value: unknown): string | undefined {
-  return typeof value === "string" && value.length > 0 ? value : undefined;
-}
-
-function messageFallbackKey(message: unknown, fallbackIndex: number): string {
-  if (!isRecord(message)) return `message-unknown-${fallbackIndex}`;
-  const timestamp = typeof message.timestamp === "number" && Number.isSafeInteger(message.timestamp)
-    ? message.timestamp
-    : `index-${fallbackIndex}`;
-  return `message-${stringValue(message.role) ?? "unknown"}-${timestamp}`;
-}
-
 function extensionResourceDiagnostic(index: number, sourcePath: string | null, diagnostic: string): OwnedPiExtensionResourceSummary {
   return {
     kind: "extension",
@@ -3631,112 +3246,6 @@ function compactResourceLabel(path: string): string {
   return segments.at(-1) ?? path;
 }
 
-/** A later error may restate a declaration, but cannot make completed arguments incomplete. */
-function retainCompletedArguments(current: OwnedUiTranscriptBlock, next: OwnedUiTranscriptBlock): OwnedUiTranscriptBlock {
-  if (current.toolState?.argsComplete !== true || next.toolState === undefined || next.toolState.argsComplete) return next;
-  return { ...next, toolState: { ...next.toolState, argsComplete: true },
-    ...(next.toolRendering === undefined || current.toolRendering === undefined ? {} : {
-      toolRendering: { ...next.toolRendering, arguments: current.toolRendering.arguments },
-    }),
-    payload: { ...(isRecord(next.payload) ? next.payload : {}), argsComplete: true } };
-}
-
-/**
- * Whether two blocks say the same thing. A block that says what it already said is not a
- * new revision: the shell renders a block once per revision, so bumping one it did not
- * need re-renders it for nothing.
- */
-function sameBlockContent(left: OwnedUiTranscriptBlock, right: OwnedUiTranscriptBlock): boolean {
-  return left.kind === right.kind
-    && left.status === right.status
-    && left.title === right.title
-    && left.text === right.text
-    && sameValue(left.toolState, right.toolState)
-    && sameValue(left.toolRendering, right.toolRendering)
-    && sameValue(left.payload, right.payload)
-    && sameValue(left.imageReferences ?? [], right.imageReferences ?? []);
-}
-
-function sameValue(left: unknown, right: unknown): boolean {
-  if (left === right) return true;
-  if (typeof left !== typeof right || left === null || right === null) return false;
-  if (Array.isArray(left) || Array.isArray(right)) {
-    if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) return false;
-    return left.every((value, index) => sameValue(value, right[index]));
-  }
-  if (typeof left !== "object") return false;
-  const leftKeys = Object.keys(left as Record<string, unknown>);
-  const rightRecord = right as Record<string, unknown>;
-  if (leftKeys.length !== Object.keys(rightRecord).length) return false;
-  return leftKeys.every(key =>
-    Object.hasOwn(rightRecord, key) && sameValue((left as Record<string, unknown>)[key], rightRecord[key]));
-}
-
-function textFromContent(content: unknown): string {
-  if (typeof content === "string") return content;
-  if (!Array.isArray(content)) return "";
-  return content
-    .map(item => isRecord(item) && item.type === "text" ? stringValue(item.text) ?? "" : "")
-    .filter(text => text.length > 0)
-    .join("\n");
-}
-
-function assistantContent(content: readonly unknown[]): readonly Record<string, unknown>[] {
-  const result: Record<string, unknown>[] = [];
-  for (const item of content) {
-    if (!isRecord(item)) continue;
-    if (item.type === "text") result.push({ type: "text", text: stringValue(item.text) ?? "" });
-    else if (item.type === "thinking") {
-      result.push({
-        type: "thinking",
-        thinking: stringValue(item.thinking) ?? "",
-        ...(item.redacted === true ? { redacted: true } : {}),
-      });
-    } else if (item.type === "toolCall") {
-      result.push({
-        type: "toolCall",
-        id: stringValue(item.id) ?? "",
-        name: stringValue(item.name) ?? "unknown",
-        arguments: sanitizeJson(item.arguments),
-      });
-    }
-  }
-  return result;
-}
-
-function contentImageCount(content: unknown): number {
-  return Array.isArray(content)
-    ? content.filter(item => isRecord(item) && item.type === "image").length
-    : 0;
-}
-
-function jsonSummary(value: unknown): { readonly summary: string; readonly json: unknown } {
-  const json = sanitizeJson(value);
-  let summary = "";
-  try {
-    summary = JSON.stringify(json);
-  } catch {
-    summary = String(value);
-  }
-  if (summary.length > 512) summary = `${summary.slice(0, 509)}...`;
-  return { summary, json };
-}
-
-function sanitizeJson(value: unknown, depth = 0): unknown {
-  if (typeof value === "bigint") return value.toString();
-  if (value === null || ["string", "number", "boolean"].includes(typeof value)) return value;
-  if (depth >= 8) return "[truncated]";
-  if (Array.isArray(value)) return value.slice(0, 100).map(item => sanitizeJson(item, depth + 1));
-  if (isRecord(value)) {
-    const output: Record<string, unknown> = {};
-    for (const [key, item] of Object.entries(value).slice(0, 100)) {
-      output[key] = sanitizeJson(item, depth + 1);
-    }
-    return output;
-  }
-  return String(value);
-}
-
 async function readGitBranch(cwd: string): Promise<string | null> {
   try {
     const { stdout } = await execFileAsync("git", ["branch", "--show-current"], { cwd, windowsHide: true });
@@ -3745,12 +3254,4 @@ async function readGitBranch(cwd: string): Promise<string | null> {
   } catch {
     return null;
   }
-}
-
-function finiteNumber(value: unknown): number {
-  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : 0;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
 }
