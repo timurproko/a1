@@ -35,7 +35,69 @@ import {
   type OwnedUiShellSuggestionOptions,
 } from "../../../../src/integrations/pi/session-ui/index.js";
 import { TestPresentationTerminal } from "../../../features/owned-ui/neutral-port-doubles.js";
-import type { OwnedUiViewportSettingsPort } from "../../../../src/contracts/owned-ui/index.js";
+import { ImageAttachmentError, type OwnedUiViewportSettingsPort } from "../../../../src/contracts/owned-ui/index.js";
+import { startPasteExecutor } from "../../../../src/integrations/pi/session-ui/paste-executor.js";
+import type { PasteExecutorStarter } from "../../../../src/integrations/pi/session-ui/paste-preparation-client.js";
+import { PASTE_TEXT_BYTES, type PreparedPaste } from "../../../../src/integrations/pi/session-ui/paste-protocol.js";
+import { preparePasteText } from "../../../../src/integrations/pi/session-ui/paste-text-preparation.js";
+
+/** Text above this size keeps the forked helper, whose worker thread and probe deadline the in-process path cannot reproduce. */
+const IN_PROCESS_PASTE_BYTES = 256 * 1024;
+
+/**
+ * Prepares ordinary text pastes in process with the forked helper's phases, limits, and classification, so the
+ * shell suites measure admission and insertion rather than child startup. Images, native reads, and large
+ * payloads still fork the real helper.
+ */
+export const inProcessPasteExecutor: PasteExecutorStarter = (content, signal, phase = () => {}, helper, pool) => {
+  if (content?.kind !== "text" || content.text.length > IN_PROCESS_PASTE_BYTES) return startPasteExecutor(content, signal, phase, helper, pool);
+  let canceled = false, finished = false;
+  let resolve!: (value: PreparedPaste) => void, reject!: (error: ImageAttachmentError) => void, stopped!: () => void;
+  const result = new Promise<PreparedPaste>((ok, fail) => { resolve = ok; reject = fail; });
+  const exit = new Promise<void>(done => { stopped = done; });
+  void result.catch(() => {});
+  const finish = () => {
+    if (finished) return;
+    finished = true;
+    signal.removeEventListener("abort", cancel);
+    stopped();
+    try { phase("cleanup"); } catch { /* Invariant: cleanup observation cannot retain an exited executor. */ }
+  };
+  const cancel = () => {
+    if (canceled) return;
+    canceled = true;
+    reject(signal.reason instanceof ImageAttachmentError ? signal.reason : new ImageAttachmentError("image-canceled"));
+    setImmediate(finish);
+  };
+  if (signal.aborted || content.text.length > PASTE_TEXT_BYTES) {
+    if (signal.aborted) cancel();
+    else { canceled = true; reject(new ImageAttachmentError("paste-size")); setImmediate(finish); }
+    return { result, stopped: exit, cancel };
+  }
+  signal.addEventListener("abort", cancel, { once: true });
+  setImmediate(() => {
+    if (canceled) return;
+    const size = Buffer.byteLength(content.text);
+    try {
+      phase("acquired-text", size);
+      if (canceled) return;
+      if (content.text === "") { phase("prepared", 0); resolve(null); setImmediate(finish); return; }
+      phase("classifying", size);
+      if (canceled) return;
+      const prepared = preparePasteText(content.text, false, true);
+      const bytes = prepared.kind === "paths" ? prepared.paths.reduce((sum, path) => sum + Buffer.byteLength(path.fullPath), 0)
+        : Buffer.byteLength(prepared.kind === "url" ? prepared.url : prepared.text);
+      phase("prepared", bytes);
+      if (canceled) return;
+      resolve(prepared);
+    } catch (error) {
+      canceled = true;
+      reject(error instanceof ImageAttachmentError ? error : new ImageAttachmentError("paste-unavailable"));
+    }
+    setImmediate(finish);
+  });
+  return { result, stopped: exit, cancel };
+};
 
 export class Session {
   readonly sessionId = "pi-session";
@@ -210,10 +272,11 @@ export async function fixture(
   promptSuggestions?: OwnedUiShellSuggestionOptions,
   promptHistory?: Omit<OwnedUiShellHistoryOptions, "editor">,
   configureEngine?: (engine: Runtime) => void,
-  responseCopy?: OwnedUiShellDiagnosticOptions["responseCopy"],
+  responseCopy?: OwnedUiShellDiagnosticOptions["responseCopy"] | "forked",
   pasteDiagnostics?: OwnedUiShellDiagnosticOptions["paste"],
   quitOutro?: OwnedUiShellPresentationOptions["quitOutro"],
   reloadPresentation?: OwnedUiShellPresentationOptions["reload"],
+  pastePreparation: OwnedUiShellDiagnosticOptions["pastePreparation"] | "forked" = { execute: inProcessPasteExecutor },
 ) {
   const engine = new Runtime(messages);
   configureEngine?.(engine);
@@ -238,7 +301,8 @@ export async function fixture(
     diagnostics: {
       ...(clipboard === undefined ? {} : { clipboard }),
       ...(pasteDiagnostics === undefined ? {} : { paste: pasteDiagnostics }),
-      responseCopy: responseCopy ?? { execute: (snapshot, phase) => {
+      ...(pastePreparation === "forked" ? {} : { pastePreparation }),
+      responseCopy: responseCopy === "forked" ? {} : responseCopy ?? { execute: (snapshot, phase) => {
       const text = snapshot.rows.map((row, index) => selectionCopyRowText(snapshot, row, index)).join("\n");
       phase("extracted", Buffer.byteLength(text), "injected");
       phase("encoded", Buffer.byteLength(text), "injected");

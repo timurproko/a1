@@ -6,7 +6,10 @@ import { PromptChipStore } from "../../../../src/integrations/pi/session-ui/prom
 import { startPasteExecutor } from "../../../../src/integrations/pi/session-ui/paste-executor.js";
 import type { PreparedPaste } from "../../../../src/integrations/pi/session-ui/paste-protocol.js";
 
-vi.mock("../../../../src/integrations/pi/session-ui/paste-executor.js", () => ({ startPasteExecutor: vi.fn() }));
+vi.mock("../../../../src/integrations/pi/session-ui/paste-executor.js", () => ({
+  startPasteExecutor: vi.fn(),
+  createPasteHelperPool: () => ({ warm() {}, replenish() {}, take() { return undefined; }, dispose() {}, warmed: false }),
+}));
 afterEach(() => { vi.clearAllMocks(); });
 const file = (name: string): ClipboardPath => ({ kind: "file", fullPath: `/generated/${name}` });
 const nextImmediate = () => new Promise<void>(resolve => setImmediate(resolve));

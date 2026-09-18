@@ -6,7 +6,10 @@ import { PASTE_READ_MS, PASTE_TOTAL_MS, PASTE_STOP_MS, type PasteEvent } from ".
 import type { PiShellClipboardContent } from "../../../../src/integrations/pi/components/index.js";
 
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(done => { resolve = done; }); return { promise, resolve }; }
-vi.mock("../../../../src/integrations/pi/session-ui/paste-executor.js", () => ({ startPasteExecutor: vi.fn() }));
+vi.mock("../../../../src/integrations/pi/session-ui/paste-executor.js", () => ({
+  startPasteExecutor: vi.fn(),
+  createPasteHelperPool: () => ({ warm() {}, replenish() {}, take() { return undefined; }, dispose() {}, warmed: false }),
+}));
 afterEach(() => { vi.useRealTimers(); vi.clearAllMocks(); });
 
 /** Deterministic lifetime gates, separate from real blocked-helper tests in paste-executor.test.ts. */
@@ -14,7 +17,7 @@ describe("paste admission and insertion lifetime", () => {
   it("starts independent empty reads off the input stack and holds admission through insertion acknowledgment", async () => {
     vi.useFakeTimers();
     const events: PasteEvent[] = [], read = vi.fn(async () => null), adopt = vi.fn(() => "empty");
-    const client = new PastePreparationClient(event => events.push(event));
+    const client = new PastePreparationClient({ onEvent: event => events.push(event) });
     const job = client.start({ kind: "provided", read }, adopt, () => {});
     expect(read).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(0);
@@ -35,7 +38,7 @@ describe("paste admission and insertion lifetime", () => {
       phase?.("acquired-text", 20); phase?.("classifying"); phase?.("prepared", 20); phase?.("cleanup");
       return { result: Promise.resolve({ kind: "text", text: "generated" }), stopped: Promise.resolve(), cancel() {} };
     });
-    const client = new PastePreparationClient(event => { events.push(event); capture.paste(event); });
+    const client = new PastePreparationClient({ onEvent: event => { events.push(event); capture.paste(event); } });
     try {
       const job = client.start({ kind: "text", text: "generated" }, () => "inserted", () => {});
       await vi.advanceTimersByTimeAsync(0);
@@ -103,7 +106,7 @@ describe("paste admission and insertion lifetime", () => {
   it("rejects a ninth request without superseding eight accepted reads and keeps unconfirmed reads within capacity", async () => {
     vi.useFakeTimers();
     const events: PasteEvent[] = [], pending = deferred<null>();
-    const client = new PastePreparationClient(event => events.push(event));
+    const client = new PastePreparationClient({ onEvent: event => events.push(event) });
     const jobs = Array.from({ length: 8 }, () => client.start({ kind: "provided", read: () => pending.promise }, () => "", () => {}));
     await vi.advanceTimersByTimeAsync(0);
     const extra = client.start({ kind: "provided", read: async () => null }, () => "", () => {});
