@@ -9,19 +9,46 @@ import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const SCHEMA = "a1-update-recovery-v1";
+
+/**
+ * @typedef {object} Capsule
+ * @property {string} transactionId
+ * @property {string} packageName
+ * @property {string} targetVersion
+ * @property {string} packageRoot
+ * @property {string} globalRoot
+ * @property {string} launcherRoot
+ * @property {string[]} launchers
+ * @property {string} priorReleaseId
+ * @property {string} priorReleaseRoot
+ * @property {string} priorContentDigest
+ * @property {string} releaseManifestName
+ * @property {string} recoveryEntry
+ * @property {string} recoveryEntryDigest
+ * @property {string} nodeExecutable
+ * @property {string} npmCli
+ * @property {string[]} npmArguments
+ * @property {string} resultPath
+ * @property {string} cancellationPath
+ * @property {string} ownerPath
+ */
+
 const [, , mode, manifestPath, separator, ...forwarded] = process.argv;
 
 if ((mode !== "--worker" && mode !== "--launch") || !manifestPath || (mode === "--launch" && separator !== "--")) {
   throw new Error("invalid A1 update recovery invocation");
 }
 
-const capsule = await readCapsule(manifestPath);
+/** @type {string} */
+const capsuleManifestPath = manifestPath;
+const capsule = await readCapsule(capsuleManifestPath);
 if (mode === "--worker") {
   await runWorker(capsule);
 } else {
   process.exitCode = await runRecoveredCommand(capsule, forwarded);
 }
 
+/** @param {Capsule} value */
 async function runWorker(value) {
   await rm(value.resultPath, { force: true });
   await writeJson(value.ownerPath, {
@@ -46,12 +73,15 @@ async function runWorker(value) {
     windowsHide: true,
     stdio: ["ignore", "pipe", "pipe"],
   });
+  /** @type {Buffer[]} */
   const stdout = [];
+  /** @type {Buffer[]} */
   const stderr = [];
   child.stdout?.on("data", chunk => stdout.push(Buffer.from(chunk)));
   child.stderr?.on("data", chunk => stderr.push(Buffer.from(chunk)));
   let cancelled = false;
   let forced = false;
+  /** @type {ReturnType<typeof setTimeout> | null} */
   let forceTimer = null;
   const cancellationPoll = setInterval(async () => {
     if (cancelled || !await exists(value.cancellationPath)) return;
@@ -104,20 +134,25 @@ async function runWorker(value) {
   if (launcherDisposition === "unavailable") process.exitCode = 1;
 }
 
+/**
+ * @param {Capsule} value
+ * @param {string[]} arguments_
+ * @returns {Promise<number>}
+ */
 async function runRecoveredCommand(value, arguments_) {
   let entry = await installedTargetEntry(value);
   if (entry === null && arguments_[0] === "update") {
     await rm(value.cancellationPath, { force: true });
     await rm(value.resultPath, { force: true });
     await rm(value.ownerPath, { force: true });
-    const worker = spawn(process.execPath, [fileURLToPath(import.meta.url), "--worker", manifestPath], {
+    const worker = spawn(process.execPath, [fileURLToPath(import.meta.url), "--worker", capsuleManifestPath], {
       detached: true,
       windowsHide: true,
       stdio: "ignore",
     });
     worker.unref();
     const deadline = Date.now() + 15 * 60 * 1000;
-    const requestCancellation = signal => { void writeJson(value.cancellationPath, { schema: SCHEMA, transactionId: value.transactionId, signal, requestedAt: new Date().toISOString() }); };
+    const requestCancellation = (/** @type {string} */ signal) => { void writeJson(value.cancellationPath, { schema: SCHEMA, transactionId: value.transactionId, signal, requestedAt: new Date().toISOString() }); };
     const onSigint = () => requestCancellation("SIGINT");
     const onSigterm = () => requestCancellation("SIGTERM");
     process.on("SIGINT", onSigint);
@@ -138,6 +173,10 @@ async function runRecoveredCommand(value, arguments_) {
   });
 }
 
+/**
+ * @param {string} path
+ * @returns {Promise<Capsule>}
+ */
 async function readCapsule(path) {
   const value = JSON.parse(await readFile(path, "utf8"));
   if (value.launchContract !== "neutral-launch-v1") throw new Error("Unsupported private recovery contract; stop existing processes and install directly with npm. Preserve settings, sessions, and history.");
@@ -167,10 +206,10 @@ async function readCapsule(path) {
   const expectedLaunchers = process.platform === "win32"
     ? [resolve(launcherRoot, "a1"), resolve(launcherRoot, "a1.cmd"), resolve(launcherRoot, "a1.ps1")]
     : [resolve(launcherRoot, "a1")];
-  if (JSON.stringify(value.launchers.map(path => resolve(path))) !== JSON.stringify(expectedLaunchers)) throw new Error("A1 update recovery launcher set is invalid");
+  if (JSON.stringify(value.launchers.map((/** @type {string} */ path) => resolve(path))) !== JSON.stringify(expectedLaunchers)) throw new Error("A1 update recovery launcher set is invalid");
   for (const launcher of value.launchers) assertDirectChild(launcherRoot, resolve(launcher));
   const expectedSidecars = [resolve(lexicalCapsuleRoot, "cancel.json"), resolve(lexicalCapsuleRoot, "result.json"), resolve(lexicalCapsuleRoot, "owner.json")];
-  if (![value.cancellationPath, value.resultPath, value.ownerPath].every((candidate, index) => samePath(candidate, expectedSidecars[index]))) {
+  if (![value.cancellationPath, value.resultPath, value.ownerPath].every((candidate, index) => samePath(candidate, expectedSidecars[index] ?? ""))) {
     throw new Error("A1 update recovery sidecar paths are invalid");
   }
   const dataDir = dirname(dirname(capsuleRoot));
@@ -188,6 +227,7 @@ async function readCapsule(path) {
   return value;
 }
 
+/** @param {Capsule} value */
 async function installedTargetEntry(value) {
   try {
     const manifest = JSON.parse(await readFile(resolve(value.packageRoot, "package.json"), "utf8"));
@@ -197,6 +237,7 @@ async function installedTargetEntry(value) {
   } catch { return null; }
 }
 
+/** @param {Capsule} value */
 async function installedTargetIsCallable(value) {
   if (await installedTargetEntry(value) === null) return false;
   const token = `node_modules/${value.packageName}/bin/cli.js`;
@@ -212,18 +253,20 @@ async function installedTargetIsCallable(value) {
   return true;
 }
 
+/** @param {Capsule} value */
 async function writeRecoveryLaunchers(value) {
   const node = value.nodeExecutable ?? process.execPath;
   const entry = value.recoveryEntry;
-  const manifest = manifestPath;
+  const manifest = capsuleManifestPath;
   const shell = `#!/bin/sh\nexec ${shellQuote(node)} ${shellQuote(entry)} --launch ${shellQuote(manifest)} -- "$@"\n`;
   const command = `@ECHO off\r\n"${node}" "${entry}" --launch "${manifest}" -- %*\r\n`;
   const powershell = `& '${psQuote(node)}' '${psQuote(entry)}' --launch '${psQuote(manifest)}' -- $args\nexit $LASTEXITCODE\n`;
   const content = process.platform === "win32" ? [shell, command, powershell] : [shell];
   await mkdir(value.launcherRoot, { recursive: true });
-  for (let index = 0; index < value.launchers.length; index += 1) await atomicWrite(value.launchers[index], content[index], 0o755);
+  for (let index = 0; index < value.launchers.length; index += 1) await atomicWrite(value.launchers[index] ?? "", content[index] ?? "", 0o755);
 }
 
+/** @param {Capsule} value */
 async function recoveryLaunchersAreCallable(value) {
   for (const path of value.launchers) {
     try {
@@ -236,6 +279,11 @@ async function recoveryLaunchersAreCallable(value) {
   return true;
 }
 
+/**
+ * @param {string} path
+ * @param {string} content
+ * @param {number} mode
+ */
 async function atomicWrite(path, content, mode) {
   const temporary = `${path}.${process.pid}.${randomUUID()}.tmp`;
   await writeFile(temporary, content, { mode });
@@ -244,6 +292,10 @@ async function atomicWrite(path, content, mode) {
   await rename(temporary, path);
 }
 
+/**
+ * @param {string} path
+ * @param {unknown} value
+ */
 async function writeJson(path, value) {
   await mkdir(dirname(path), { recursive: true, mode: 0o700 });
   const temporary = `${path}.${process.pid}.${randomUUID()}.tmp`;
@@ -254,21 +306,38 @@ async function writeJson(path, value) {
   await rename(temporary, path);
 }
 
+/**
+ * @param {string} left
+ * @param {string} right
+ */
 function samePath(left, right) {
   return process.platform === "win32" ? resolve(left).toLowerCase() === resolve(right).toLowerCase() : resolve(left) === resolve(right);
 }
+/**
+ * @param {string} parent
+ * @param {string} child
+ */
 function containedBy(parent, child) {
   const fromParent = relative(parent, child);
   return fromParent.length > 0 && fromParent !== ".." && !fromParent.startsWith(`..${sep}`) && !isAbsolute(fromParent);
 }
+/**
+ * @param {string} parent
+ * @param {string} child
+ */
 function assertDirectChild(parent, child) {
   const expectedParent = resolve(parent);
   const actualParent = dirname(resolve(child));
   const matches = process.platform === "win32" ? actualParent.toLowerCase() === expectedParent.toLowerCase() : actualParent === expectedParent;
   if (!matches) throw new Error(`A1 update recovery path escapes its managed root: ${child}`);
 }
+/** @param {string} value */
 function shellQuote(value) { return `'${String(value).replaceAll("'", `'"'"'`)}'`; }
+/** @param {string} value */
 function psQuote(value) { return String(value).replaceAll("'", "''"); }
+/** @param {string} value */
 function bounded(value) { return value.length <= 64 * 1024 ? value : value.slice(-64 * 1024); }
+/** @param {string} path */
 async function exists(path) { return await lstat(path).then(() => true).catch(() => false); }
+/** @param {number} ms */
 async function sleep(ms) { await new Promise(resolvePromise => setTimeout(resolvePromise, ms)); }

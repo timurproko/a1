@@ -2,7 +2,10 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, posix, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-/** Bind the generated facade to the package reached through Pi's public entry. */
+/**
+ * Bind the generated facade to the package reached through Pi's public entry.
+ * @param {string | URL} entryUrl
+ */
 export function configurePinnedPiPublicPackageEntry(entryUrl) {
   const root = dirname(dirname(fileURLToPath(entryUrl)));
   const manifest = JSON.parse(readFileSync(resolve(root, "package.json"), "utf8"));
@@ -13,7 +16,10 @@ export function configurePinnedPiPublicPackageEntry(entryUrl) {
   return { root, version: manifest.version };
 }
 
-/** Preserve one bundled Pi module's original public-package URL semantics. */
+/**
+ * Preserve one bundled Pi module's original public-package URL semantics.
+ * @param {string} relativeModule
+ */
 export function pinnedPiModuleUrl(relativeModule) {
   if (typeof relativeModule !== "string" || relativeModule.includes("\\") || relativeModule.startsWith("/")
     || posix.normalize(relativeModule).startsWith("../") || !relativeModule.endsWith(".js")) {
@@ -22,7 +28,10 @@ export function pinnedPiModuleUrl(relativeModule) {
   return pathToFileURL(resolve(pinnedRoot(), "dist", relativeModule)).href;
 }
 
-/** Resolve documented Pi dependency exports from the pinned public package tree. */
+/**
+ * Resolve documented Pi dependency exports from the pinned public package tree.
+ * @param {string} specifier
+ */
 export function resolvePinnedPiImport(specifier) {
   if (typeof specifier !== "string" || specifier.includes("\\") || specifier.includes("\0")) {
     throw new Error("pinned Pi import specifier is invalid");
@@ -31,7 +40,7 @@ export function resolvePinnedPiImport(specifier) {
   if (specifier === "@earendil-works/pi-coding-agent") return pathToFileURL(resolve(root, "dist", "index.js")).href;
   const match = /^(@[^/]+\/[^/]+|[^/]+)(\/.*)?$/.exec(specifier);
   if (match === null) throw new Error(`pinned Pi import is invalid: ${specifier}`);
-  const packageName = match[1];
+  const packageName = match[1] ?? "";
   const subpath = match[2]?.slice(1) ?? "";
   const packageRoot = resolve(root, "node_modules", ...packageName.split("/"));
   const manifestPath = resolve(packageRoot, "package.json");
@@ -51,11 +60,16 @@ function pinnedRoot() {
   return resolve(root);
 }
 
+/**
+ * @param {unknown} exports
+ * @param {string} subpath
+ * @returns {string | undefined}
+ */
 function exportedTarget(exports, subpath) {
   const key = subpath.length === 0 ? "." : `./${subpath}`;
   if (typeof exports === "string") return subpath.length === 0 ? exports : undefined;
   if (!exports || typeof exports !== "object") return undefined;
-  const exact = exports[key];
+  const exact = /** @type {Record<string, unknown>} */ (exports)[key];
   if (exact !== undefined) return importCondition(exact);
   for (const [pattern, value] of Object.entries(exports)) {
     const star = pattern.indexOf("*");
@@ -67,8 +81,13 @@ function exportedTarget(exports, subpath) {
   return undefined;
 }
 
+/**
+ * @param {unknown} value
+ * @returns {string | undefined}
+ */
 function importCondition(value) {
   if (typeof value === "string") return value;
   if (!value || typeof value !== "object") return undefined;
-  return importCondition(value.import ?? value.default);
+  const conditions = /** @type {{ import?: unknown; default?: unknown }} */ (value);
+  return importCondition(conditions.import ?? conditions.default);
 }
