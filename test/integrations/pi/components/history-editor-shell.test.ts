@@ -28,7 +28,9 @@ describe("history editor component boundary", () => {
         expect(stripTerminalSequences(rows[0]!).indexOf("1/1")).toBe(4);
         expect(rows[0]).toContain(bar("─── "));
         expect(rows[0]).not.toContain(bar("1/1 "));
-        expect(rows[rows.length - 1]).toContain(bar("─"));
+        // Rationale: pinned 0.85.1 colors a rule as spans rather than one dash at a time; the owned frame closes the rule with its own span.
+        expect(rows[rows.length - 1]).toContain(bar("──"));
+        expect(stripTerminalSequences(rows[rows.length - 1]!)).toBe("─".repeat(80));
       }
       editor.handleInput?.("\x1b[B");
       expect(stripTerminalSequences(editor.render(80)[0]!)).toBe("─".repeat(80));
