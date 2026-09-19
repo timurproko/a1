@@ -6,6 +6,7 @@ The Full regression run of 2026-09-19 failed on `develop` at `30546e1` (https://
 
 - Re-pin the documented deprecated-dependency exceptions to the current pinned Pi (0.85.1) after re-evaluating that the same two transitive packages, versions, paths, and reasons apply, and tie the exceptions to the pinned identity in the governance tests so a Pi upgrade cannot leave them stale.
 - Measure pi-tui module identity in the installed-tree test the way the product resolves it (a real Node process with the loader hook and `import.meta.resolve`), so the test holds on Node 22, where CommonJS resolution ignores synchronous hooks, without weakening the invariant on Node 24.
+- Await a paste helper's IPC channel closure in the executor lifecycle test instead of sampling it right after exit, since Linux closes the channel asynchronously.
 - Make every Full regression lane pack with the pinned `packageManager` npm, and make the candidate packaging script refuse an npm whose pack runs `prepare` despite `--ignore-scripts` (npm 10), so the Node 22 lane no longer rebuilds the workspace mid-pack and fails its build receipt.
 
 ## Capabilities
