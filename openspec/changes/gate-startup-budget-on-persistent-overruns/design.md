@@ -29,3 +29,8 @@ Three of 43 samples overran (7%), by 12, 32, and 215 ms, each on a run whose oth
 - A regression that lands on one night is a warning that night, a candidate on the third; the byte baseline fails the introducing pull request the same day for graph growth, so the delay covers only non-graph causes (native start, filesystem, supervisor). Accepted; a single-night failure never distinguished those from noise either.
 - Persistence needs three nightlies of artifacts (30-day retention covers it) and a stable workflow name; renaming a workflow resets the window to `insufficient`.
 - The triage now runs on green nights too: one short Linux job per nightly, reads only.
+
+## Evidence
+
+- Local dry run of `propose-regression-fix.mjs --run 35429594510 --dry-run` on this head: the failure summary is unchanged (`dependency-policy,orchestration`), the two previous completed `develop` runs were downloaded into `history/`, and the verdict was `startup: no measurements` because those runs predate the evidence upload; unit tests cover persistent, single, insufficient, and combined verdicts.
+

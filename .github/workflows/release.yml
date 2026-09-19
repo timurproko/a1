@@ -459,7 +459,9 @@ jobs:
           A1_CONFIG_DIR: ${{ runner.temp }}/a1-release-config
           A1_DATA_DIR: ${{ runner.temp }}/a1-release-data
           A1_RUNTIME_DIR: ${{ runner.temp }}/a1-release-runtime
-          STARTUP_BUDGET_ENFORCEMENT: ${{ needs.plan.outputs.mode == 'develop' && 'record' || 'fail' }}
+          # Rationale: stable publication enforces the first attempt; every scheduled or preview
+          # channel records, and the nightly triage judges a persistent overrun across three runs.
+          STARTUP_BUDGET_ENFORCEMENT: ${{ needs.plan.outputs.mode == 'stable' && 'fail' || 'record' }}
           STARTUP_PERFORMANCE_RESULT: .artifacts/validation/startup-${{ matrix.platform }}.json
         run: >-
           node scripts/release/run-validation-tier.mjs

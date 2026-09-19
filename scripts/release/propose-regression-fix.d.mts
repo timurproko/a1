@@ -21,6 +21,7 @@ export interface ProposalResult {
   readonly pr?: number | null;
   readonly change?: string;
   readonly summary?: TriageSummary;
+  readonly startup?: { readonly window: number; readonly summary: string; readonly persistent: readonly string[]; readonly entries: readonly { readonly key: string; readonly verdict: string; readonly samples: readonly { readonly runId: number | string; readonly elapsedMs: number; readonly budgetMs: number }[] }[] };
   readonly lastGreen?: TriageLastGreen | null;
   readonly commits?: readonly TriageCommit[];
   readonly existing?: { readonly number: number; readonly branch: string; readonly url: string } | null;

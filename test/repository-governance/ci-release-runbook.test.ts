@@ -58,17 +58,23 @@ describe("CI and release operations runbook", () => {
     expect(runbook).toContain("A push of the stable version does not publish");
   });
 
-  it("records startup budgets on development previews and enforces them elsewhere", async () => {
+  it("records startup budgets on every scheduled and preview channel and enforces them on stable publication only", async () => {
     const [release, regression, development] = await Promise.all([
       readFile(".github/workflows/release.yml", "utf8"),
       readFile(".github/workflows/full-regression.yml", "utf8"),
       readFile(".github/workflows/ci.yml", "utf8"),
     ]);
-    expect(release).toContain("STARTUP_BUDGET_ENFORCEMENT: ${{ needs.plan.outputs.mode == 'develop' && 'record' || 'fail' }}");
+    expect(release).toContain("STARTUP_BUDGET_ENFORCEMENT: ${{ needs.plan.outputs.mode == 'stable' && 'fail' || 'record' }}");
     expect(release).toContain("STARTUP_PERFORMANCE_RESULT: .artifacts/validation/startup-${{ matrix.platform }}.json");
     expect(release).toContain("Summarize first-attempt startup measurements");
-    expect(regression).toContain("STARTUP_BUDGET_ENFORCEMENT: fail");
+    expect(regression).toContain("STARTUP_BUDGET_ENFORCEMENT: record");
+    expect(regression).toContain("STARTUP_PERFORMANCE_RESULT: .artifacts/validation/startup-${{ matrix.os }}-node${{ matrix.node }}.json");
+    expect(regression).toContain(".artifacts/validation/startup-*.json");
+    expect(regression).toContain("Summarize first-attempt startup measurements");
+    expect(regression).not.toContain("STARTUP_BUDGET_ENFORCEMENT: fail");
     expect(development).toContain("STARTUP_BUDGET_ENFORCEMENT: record");
+    const triage = await readFile(".github/workflows/nightly-regression-triage.yml", "utf8");
+    expect(triage).toContain("github.event.workflow_run.conclusion != 'cancelled'");
   });
 
   it("enables Defender after installation and before accepted Windows exact-package startup gates", async () => {

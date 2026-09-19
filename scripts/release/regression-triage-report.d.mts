@@ -57,7 +57,9 @@ export interface TriageEvidence {
 
 export function changeId(date: string): string;
 export function branchName(date: string): string;
-export function triageDecision(run: { readonly id: number | string; readonly workflowName: string; readonly conclusion: string; readonly event: string; readonly headBranch: string }): { readonly triage: false; readonly reason: string } | { readonly triage: true; readonly workflow: TriageWorkflow };
+export function triageDecision(run: { readonly id: number | string; readonly workflowName: string; readonly conclusion: string; readonly event: string; readonly headBranch: string }): { readonly triage: false; readonly reason: string } | { readonly triage: true; readonly failed: boolean; readonly workflow: TriageWorkflow };
+export const STARTUP_BUDGET_FAILURE: { readonly id: string; readonly scope: string; readonly test: string };
+export function startupBudgetFailure(trend: { readonly window: number; readonly persistent: readonly { readonly lane: string }[] }, tableLines: readonly string[]): TriageFailure | null;
 export function isTierResult(value: unknown): boolean;
 export function commandTests(command: string): string[];
 export function summarizeLanes(lanes: readonly TriageLane[]): TriageSummary;

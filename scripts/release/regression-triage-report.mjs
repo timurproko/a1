@@ -40,12 +40,24 @@ export function branchName(date) {
 export function triageDecision(run) {
   const workflow = TRIAGE_WORKFLOWS[run.workflowName];
   if (!workflow) return { triage: false, reason: `workflow ${JSON.stringify(run.workflowName)} is not triaged` };
-  if (run.conclusion !== "failure") return { triage: false, reason: `run ${run.id} concluded ${run.conclusion}, not failure` };
+  // Rationale: a green run is still judged for a persistent startup-budget overrun; only a run that never
+  // finished its measurements is ignored.
+  if (!["failure", "success"].includes(run.conclusion)) return { triage: false, reason: `run ${run.id} concluded ${run.conclusion}, not failure or success` };
   if (workflow.scheduledOnly && run.event !== "schedule") return { triage: false, reason: `${run.workflowName} triages scheduled runs only; this run was ${run.event}` };
   // Rationale: a Full regression dispatched on a fix candidate's branch proves that candidate; opening
   // another candidate from its failures would fork the same work into a second pull request.
   if (run.headBranch !== TRIAGED_BRANCH) return { triage: false, reason: `run ${run.id} ran on ${JSON.stringify(run.headBranch)}, not ${TRIAGED_BRANCH}; its evidence belongs to that branch's own pull request` };
-  return { triage: true, workflow: { name: run.workflowName, ...workflow } };
+  return { triage: true, failed: run.conclusion === "failure", workflow: { name: run.workflowName, ...workflow } };
+}
+
+/** The scope and test the startup gate owns; a persistent overrun is proposed as this owner's failure. */
+export const STARTUP_BUDGET_FAILURE = Object.freeze({ id: "startup-budget", scope: "package-startup", test: "test/foundation/release/package-startup.integration.test.ts" });
+
+/** Turn a persistent trend into the failure shape the body and key already understand, with the trend table as its excerpt. */
+export function startupBudgetFailure(trend, tableLines) {
+  if (!trend.persistent.length) return null;
+  const lanes = [...new Set(trend.persistent.map(entry => entry.lane))].map(lane => ({ id: lane, exitCode: 1, durationMs: 0, excerpt: tableLines }));
+  return { id: STARTUP_BUDGET_FAILURE.id, command: `persistent startup-budget overrun across ${trend.window} consecutive develop runs`, scopes: [STARTUP_BUDGET_FAILURE.scope], tests: [STARTUP_BUDGET_FAILURE.test], lanes, preparation: null };
 }
 
 /** True when the JSON is a tier result written by `run-validation-tier.mjs --result`. */

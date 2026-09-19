@@ -4,8 +4,9 @@ name: Nightly regression triage
 # pull request: the proposal script reads the failed run's lane artifacts and logs, lists the failed
 # commands, their tests, a bounded log excerpt, and the develop commits since the last green run,
 # scaffolds the OpenSpec change, and opens `fix/nightly-regression-<date>` or refreshes the open
-# candidate with the same failed scope set. Only runs on develop count; a run dispatched on a fix
-# candidate's branch is that candidate's proof and opens nothing. It re-runs nothing, never writes develop, never marks
+# candidate with the same failed scope set. Every completed develop run, green or not, is also judged for a
+# persistent startup-budget overrun across the three most recent runs. Only runs on develop count; a run
+# dispatched on a fix candidate's branch is that candidate's proof and opens nothing. It re-runs nothing, never writes develop, never marks
 # the pull request ready, and never merges; the nightly failure stays visible exactly as before.
 
 on:
@@ -34,8 +35,9 @@ concurrency:
 
 jobs:
   propose:
-    # Rationale: a run on a fix candidate's branch proves that candidate; only develop's failures open or refresh one.
-    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.head_branch == github.event.repository.default_branch)
+    # Rationale: a run on a fix candidate's branch proves that candidate; only develop's runs open or refresh one,
+    # and a green run is still evaluated for a persistent startup-budget overrun.
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion != 'cancelled' && github.event.workflow_run.head_branch == github.event.repository.default_branch)
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -85,6 +87,7 @@ jobs:
                 console.log(`${report.message}${report.pr ? ` (pull request #${report.pr})` : ""}`);
                 for (const failure of report.summary?.failures ?? []) console.log(`- \`${failure.id}\` on ${failure.lanes.map(lane => lane.id).join(", ")}`);
                 for (const item of report.summary?.orchestration ?? []) console.log(`- ${item.lane}: orchestration failure in \`${item.job}\``);
+                if (report.startup) console.log(`- ${report.startup.summary}`);
               '
             else
               echo "The proposal script produced no report."
