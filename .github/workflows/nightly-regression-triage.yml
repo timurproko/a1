@@ -1,0 +1,101 @@
+name: Nightly regression triage
+
+# Turns a failed Full regression run, or a failed scheduled Release validation, into a draft fix
+# pull request: the proposal script reads the failed run's lane artifacts and logs, lists the failed
+# commands, their tests, a bounded log excerpt, and the develop commits since the last green run,
+# scaffolds the OpenSpec change, and opens `fix/nightly-regression-<date>` or refreshes the open
+# candidate with the same failed scope set. It re-runs nothing, never writes develop, never marks
+# the pull request ready, and never merges; the nightly failure stays visible exactly as before.
+
+on:
+  workflow_run:
+    workflows: ["Full regression", "Release"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "Failed workflow run to triage"
+        required: true
+        type: string
+      dry_run:
+        description: "Write the report and body without pushing or opening a pull request"
+        type: boolean
+        default: true
+
+permissions:
+  actions: read
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: nightly-regression-triage
+  cancel-in-progress: false
+
+jobs:
+  propose:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'failure'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Mint the App identity that pushes the candidate and opens the pull request
+        id: app
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.OPENSPEC_ARCHIVE_APP_ID }}
+          private-key: ${{ secrets.OPENSPEC_ARCHIVE_APP_PRIVATE_KEY }}
+
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+          token: ${{ steps.app.outputs.token }}
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 24
+
+      - name: Propose the fix
+        id: propose
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          GH_READ_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.event_name == 'workflow_dispatch' && inputs.run_id || github.event.workflow_run.id }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run == true && '1' || '' }}
+        run: |
+          set -euo pipefail
+          git config user.name 'openspec-ci[bot]'
+          git config user.email '329165293+openspec-ci[bot]@users.noreply.github.com'
+          args=(--run "$RUN_ID" --output .artifacts/regression-triage)
+          if [ -n "$DRY_RUN" ]; then args+=(--dry-run); fi
+          node scripts/release/propose-regression-fix.mjs "${args[@]}"
+
+      - name: Summarize the proposal
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## Nightly regression triage"
+            echo
+            if [ -f .artifacts/regression-triage/report.json ]; then
+              node --input-type=module -e '
+                import { readFile } from "node:fs/promises";
+                const report = JSON.parse(await readFile(".artifacts/regression-triage/report.json", "utf8"));
+                console.log(`${report.message}${report.pr ? ` (pull request #${report.pr})` : ""}`);
+                for (const failure of report.summary?.failures ?? []) console.log(`- \`${failure.id}\` on ${failure.lanes.map(lane => lane.id).join(", ")}`);
+                for (const item of report.summary?.orchestration ?? []) console.log(`- ${item.lane}: orchestration failure in \`${item.job}\``);
+              '
+            else
+              echo "The proposal script produced no report."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Keep the triage report
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: regression-triage-${{ github.run_id }}
+          path: |
+            .artifacts/regression-triage/report.json
+            .artifacts/regression-triage/body.md
+          if-no-files-found: ignore
+          retention-days: 30
