@@ -55,12 +55,15 @@ describe("nightly regression triage report", () => {
     expect(changeId("2026-09-19-412")).toBe("fix-nightly-regression-2026-09-19-412");
   });
 
-  it("triages failed Full regression runs and scheduled Release runs only", () => {
-    expect(triageDecision({ id: 1, workflowName: "Full regression", conclusion: "failure", event: "workflow_dispatch" })).toMatchObject({ triage: true, workflow: { file: "full-regression.yml" } });
-    expect(triageDecision({ id: 1, workflowName: "Release", conclusion: "failure", event: "schedule" })).toMatchObject({ triage: true, workflow: { file: "release.yml", scheduledOnly: true } });
-    expect(triageDecision({ id: 1, workflowName: "Release", conclusion: "failure", event: "workflow_dispatch" })).toMatchObject({ triage: false, reason: expect.stringContaining("scheduled runs only") });
-    expect(triageDecision({ id: 1, workflowName: "Full regression", conclusion: "cancelled", event: "schedule" })).toMatchObject({ triage: false, reason: "run 1 concluded cancelled, not failure" });
-    expect(triageDecision({ id: 1, workflowName: "Development validation", conclusion: "failure", event: "pull_request" })).toMatchObject({ triage: false });
+  it("triages failed Full regression runs and scheduled Release runs on develop only", () => {
+    const develop = { headBranch: "develop" };
+    expect(triageDecision({ id: 1, workflowName: "Full regression", conclusion: "failure", event: "workflow_dispatch", ...develop })).toMatchObject({ triage: true, workflow: { file: "full-regression.yml" } });
+    expect(triageDecision({ id: 1, workflowName: "Release", conclusion: "failure", event: "schedule", ...develop })).toMatchObject({ triage: true, workflow: { file: "release.yml", scheduledOnly: true } });
+    expect(triageDecision({ id: 1, workflowName: "Release", conclusion: "failure", event: "workflow_dispatch", ...develop })).toMatchObject({ triage: false, reason: expect.stringContaining("scheduled runs only") });
+    expect(triageDecision({ id: 1, workflowName: "Full regression", conclusion: "cancelled", event: "schedule", ...develop })).toMatchObject({ triage: false, reason: "run 1 concluded cancelled, not failure" });
+    expect(triageDecision({ id: 1, workflowName: "Development validation", conclusion: "failure", event: "pull_request", ...develop })).toMatchObject({ triage: false });
+    expect(triageDecision({ id: 1, workflowName: "Full regression", conclusion: "failure", event: "workflow_dispatch", headBranch: "fix/nightly-regression-2026-09-19" }))
+      .toMatchObject({ triage: false, reason: 'run 1 ran on "fix/nightly-regression-2026-09-19", not develop; its evidence belongs to that branch\'s own pull request' });
   });
 
   it("merges failed commands across lanes, keeps skipped and passed commands out, and reports lanes without a result as orchestration failures", () => {

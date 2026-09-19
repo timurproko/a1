@@ -13,6 +13,8 @@ export const TRIAGE_WORKFLOWS = Object.freeze({
 });
 
 export const BRANCH_PREFIX = "fix/nightly-regression-";
+/** The only branch whose failed runs open or refresh a candidate; a run on any other branch is that branch's own evidence. */
+export const TRIAGED_BRANCH = "develop";
 export const TRIAGE_KEY_LABEL = "Triage key:";
 /** Bounds of one failure's log excerpt in the body; the run link carries the rest. */
 export const EXCERPT_LINE_LIMIT = 40;
@@ -40,6 +42,9 @@ export function triageDecision(run) {
   if (!workflow) return { triage: false, reason: `workflow ${JSON.stringify(run.workflowName)} is not triaged` };
   if (run.conclusion !== "failure") return { triage: false, reason: `run ${run.id} concluded ${run.conclusion}, not failure` };
   if (workflow.scheduledOnly && run.event !== "schedule") return { triage: false, reason: `${run.workflowName} triages scheduled runs only; this run was ${run.event}` };
+  // Rationale: a Full regression dispatched on a fix candidate's branch proves that candidate; opening
+  // another candidate from its failures would fork the same work into a second pull request.
+  if (run.headBranch !== TRIAGED_BRANCH) return { triage: false, reason: `run ${run.id} ran on ${JSON.stringify(run.headBranch)}, not ${TRIAGED_BRANCH}; its evidence belongs to that branch's own pull request` };
   return { triage: true, workflow: { name: run.workflowName, ...workflow } };
 }
 

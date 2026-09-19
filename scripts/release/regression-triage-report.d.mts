@@ -1,5 +1,6 @@
 export const TRIAGE_WORKFLOWS: Readonly<Record<string, { readonly file: string; readonly scheduledOnly: boolean }>>;
 export const BRANCH_PREFIX: string;
+export const TRIAGED_BRANCH: string;
 export const TRIAGE_KEY_LABEL: string;
 export const EXCERPT_LINE_LIMIT: number;
 export const EXCERPT_BYTE_LIMIT: number;
@@ -14,6 +15,7 @@ export interface TriageRun {
   readonly createdAt: string;
   readonly workflowName?: string;
   readonly conclusion?: string;
+  readonly headBranch?: string;
 }
 
 export interface TriageWorkflow { readonly name: string; readonly file: string; readonly scheduledOnly: boolean }
@@ -55,7 +57,7 @@ export interface TriageEvidence {
 
 export function changeId(date: string): string;
 export function branchName(date: string): string;
-export function triageDecision(run: { readonly id: number | string; readonly workflowName: string; readonly conclusion: string; readonly event: string }): { readonly triage: false; readonly reason: string } | { readonly triage: true; readonly workflow: TriageWorkflow };
+export function triageDecision(run: { readonly id: number | string; readonly workflowName: string; readonly conclusion: string; readonly event: string; readonly headBranch: string }): { readonly triage: false; readonly reason: string } | { readonly triage: true; readonly workflow: TriageWorkflow };
 export function isTierResult(value: unknown): boolean;
 export function commandTests(command: string): string[];
 export function summarizeLanes(lanes: readonly TriageLane[]): TriageSummary;
