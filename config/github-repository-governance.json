@@ -169,6 +169,18 @@
       "artifactRetentionDays": []
     },
     {
+      "name": "Nightly regression triage",
+      "path": ".github/workflows/nightly-regression-triage.yml",
+      "state": "active",
+      "triggers": ["workflow_dispatch", "workflow_run"],
+      "permissions": ["actions: read", "contents: write", "pull-requests: write"],
+      "trustedSource": "default-branch",
+      "authority": ["nightly-regression-triage"],
+      "concurrency": "nightly-regression-triage",
+      "environments": [],
+      "artifactRetentionDays": [30]
+    },
+    {
       "name": "OpenSpec archive",
       "path": ".github/workflows/openspec-archive.yml",
       "state": "active",
