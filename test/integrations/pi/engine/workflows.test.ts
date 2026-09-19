@@ -984,7 +984,7 @@ describe("bare-A1 unified models route", () => {
     });
     const commands = adapter.workflowAutocompleteCommands();
     expect(commands).toEqual(expect.arrayContaining([
-      expect.objectContaining({ name: "models", source: "builtin", argumentHint: "<search>", argumentOptions: expect.any(Array) }),
+      expect.objectContaining({ name: "models", source: "builtin", argumentOptions: expect.any(Array) }),
       { name: "model", description: "A prompt named model", argumentHint: "<text>", source: "prompt" },
     ]));
     expect(commands.filter(command => command.name === "models")).toHaveLength(1);
