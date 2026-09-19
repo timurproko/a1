@@ -13,7 +13,7 @@ on screen, and let the user move between entries, jump between sections, filter,
 close. The screen SHALL be built from the shared component layer rather than drawing a list, a menu,
 a dialog, a control, an input row, or a status line of its own. A change SHALL be routed by the entry's backend, and a change that could not be stored or
 written SHALL be reported rather than displayed as saved. An entry the model reports as not editable
-SHALL state why rather than accepting input. While the settings module is still loading, the screen SHALL render blank rows rather than a loading placeholder; only a failed module load SHALL print its failure message.
+SHALL state why rather than accepting input.
 
 #### Scenario: Open the settings screen
 - **WHEN** the user invokes `/settings` in bare A1
@@ -50,15 +50,6 @@ SHALL state why rather than accepting input. While the settings module is still 
 #### Scenario: Close the screen
 - **WHEN** the user closes the screen
 - **THEN** the previous surface SHALL be restored unchanged
-
-#### Scenario: Open before the settings module has loaded
-- **WHEN** the screen is painted before its module has finished loading
-- **THEN** every row SHALL be blank and no `Loading settings…` text SHALL appear
-- **AND** the next paint after loading SHALL show the sections and entries
-
-#### Scenario: Settings module fails to load
-- **WHEN** the settings module cannot be loaded
-- **THEN** the screen SHALL print the load failure on its first row
 
 ### Requirement: A1 settings have a declared shape, defaults, and validation
 Every A1 setting SHALL have a declared identifier, type, allowed values, and default. A1 SHALL
