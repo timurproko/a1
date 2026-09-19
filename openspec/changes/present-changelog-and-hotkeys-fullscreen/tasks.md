@@ -1,6 +1,6 @@
 ## 1. Build the reference screen app
 
-- [x] 1.1 Add `ReferenceScreenApp` in `src/features/owned-ui/reference-screen-app.ts` (title row, blank row, cached width-keyed provider rows, loading notice, ANSI-aware truncation, `ShortcutRegistry` hint line with the interrupt notice, `Esc` close, no interrupt consumption); verify app tests cover a fitting document, a pending provider becoming ready, truncation of an over-wide styled row, re-rendering only on width change, and the frame contract at small rectangles.
+- [x] 1.1 Add `ReferenceScreenApp` in `src/features/owned-ui/reference-screen-app.ts` (border rules above and below the document as in v2, the title as the first document row, cached width-keyed provider rows, loading notice, ANSI-aware truncation, `ShortcutRegistry` hint line with the interrupt notice, `Esc` close, no interrupt consumption); verify app tests cover a fitting document, a pending provider becoming ready, truncation of an over-wide styled row, re-rendering only on width change, and the frame contract at small rectangles.
 - [x] 1.2 Add rail and scrolling through the shared scrollbar components honoring `scrollbarAppearance`, `scrollbarStyle`, and `scrollbarSpeed` (row, page, `Home`/`End`, wheel distance, hover, thumb drag, track paging, linger, hidden appearance returning the columns); verify tests cover clamping at both ends, every speed, hover/drag/track mapping, the linger window with an injected clock, and resize clamping.
 
 ## 2. Extend the route seam and host

@@ -24,10 +24,10 @@ import {
 } from "../../ui/components/index.js";
 
 const SCOPE = "reference-screen";
-/** Rows above the document: the title and the blank row under it. */
-const HEADER_ROWS = 2;
-/** Rows below the document: the hint line. */
-const FOOTER_ROWS = 1;
+/** Rows above the document: the top rule. */
+const HEADER_ROWS = 1;
+/** Rows below the document: the bottom rule and the hint line. */
+const FOOTER_ROWS = 2;
 // Compatibility: the transcript rail stays lit this long after a scroll, and repaints just after.
 const SCROLL_LINGER_MS = 900;
 const SCROLL_LINGER_REPAINT_MS = 925;
@@ -77,10 +77,11 @@ export interface ReferenceScreenOptions {
 }
 
 /**
- * Presents one read-only document full screen: a title, the scrolled rows with the
- * shared scrollbar rail, and the hint line. Rows come from a provider per content
- * width and are cached until the width changes; the screen closes on Escape and
- * leaves the interrupt chord to its host.
+ * Presents one read-only document full screen between two accent rules: the bold
+ * title leads the scrolled rows, the shared scrollbar rail runs beside them, and
+ * the hint line closes the frame. Rows come from a provider per content width and
+ * are cached until the width changes; the screen closes on Escape and leaves the
+ * interrupt chord to its host.
  */
 export class ReferenceScreenApp implements UiApp {
   readonly id: string;
@@ -134,7 +135,7 @@ export class ReferenceScreenApp implements UiApp {
     const contentWidth = reservesRail ? Math.max(0, rect.width - RAIL_COLUMNS) : rect.width;
     const bodyHeight = Math.max(0, rect.height - HEADER_ROWS - FOOTER_ROWS);
     this.#bodyHeight = bodyHeight;
-    const rows = this.#rows(contentWidth);
+    const rows = this.#rows(contentWidth, theme);
     const maxScroll = Math.max(0, rows.length - bodyHeight);
     this.#scroll = Math.min(Math.max(0, this.#scroll), maxScroll);
     const now = Date.now();
@@ -164,12 +165,9 @@ export class ReferenceScreenApp implements UiApp {
     }
     const withRail = withScrollbarRail(body, geometry, contentWidth, theme, { presentation });
     const hint = this.#interruptArmed ? "press ctrl+c again to exit a1" : REFERENCE_SCREEN_SHORTCUTS.hint(SCOPE);
-    const frame = [
-      truncateToWidth(theme.bold(theme.fg("accent", this.#title)), rect.width),
-      "",
-      ...withRail,
-      renderStatusLine({ hint }, rect.width, theme),
-    ];
+    // Compatibility: the v2 reference screen frames its document between two border-coloured rules.
+    const rule = theme.fg("border", "─".repeat(rect.width));
+    const frame = [rule, ...withRail, rule, renderStatusLine({ hint }, rect.width, theme)];
     // Invariant: a rectangle too small for the chrome still gets exactly its rows, top first.
     return frame.slice(0, rect.height).concat(Array(Math.max(0, rect.height - frame.length)).fill(""));
   }
@@ -241,14 +239,16 @@ export class ReferenceScreenApp implements UiApp {
     return { owned: true, changed: true };
   }
 
-  #rows(width: number): readonly string[] {
-    if (this.#failure !== null) return [this.#failure];
+  // Invariant: the title is the first document row, as in v2, so it scrolls with the document.
+  #rows(width: number, theme: UiTheme): readonly string[] {
+    const title = theme.bold(theme.fg("accent", this.#title));
+    if (this.#failure !== null) return [title, "", this.#failure];
     const cached = this.#cached;
-    if (cached !== null && cached.width === width) return cached.rows;
+    if (cached !== null && cached.width === width) return [title, ...cached.rows];
     const rows = this.#document.rows(width);
-    if (rows === null) return [LOADING_NOTICE];
+    if (rows === null) return [title, "", LOADING_NOTICE];
     this.#cached = { width, rows };
-    return rows;
+    return [title, ...rows];
   }
 
   #scrollBy(distance: number): void {

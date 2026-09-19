@@ -1,13 +1,13 @@
 ## ADDED Requirements
 
 ### Requirement: A reference screen presents a read-only document full screen
-A1 SHALL provide one reusable A1-owned reference screen app that presents a titled, read-only document. Its frame SHALL be a bold accent title row, one blank row, the visible document rows, and one bottom status line rendered from the screen's declared shortcuts, showing the interrupt notice while the interrupt chord is armed exactly as the settings screen does. The document rows SHALL be supplied by a provider for a content width; the screen SHALL call the provider again only when the content width changes and SHALL truncate a row wider than the content width ANSI-aware rather than wrap it. While the provider has no document yet, the screen SHALL show a loading notice and SHALL render again when the document becomes available.
+A1 SHALL provide one reusable A1-owned reference screen app that presents a titled, read-only document. Its frame SHALL be one border-coloured rule across the width, the visible document rows led by a bold accent title row that scrolls with the document, a second rule, and one bottom status line rendered from the screen's declared shortcuts, showing the interrupt notice while the interrupt chord is armed exactly as the settings screen does. The document rows SHALL be supplied by a provider for a content width; the screen SHALL call the provider again only when the content width changes and SHALL truncate a row wider than the content width ANSI-aware rather than wrap it. While the provider has no document yet, the screen SHALL show a loading notice and SHALL render again when the document becomes available.
 
 The screen SHALL draw the shared scrollbar rail beside the document, honoring the `scrollbarAppearance`, `scrollbarStyle`, and `scrollbarSpeed` settings with the same geometry, presentation, hover, drag, and linger behavior as the settings screen; a hidden appearance SHALL give the rail columns back to the document. `↑` and `↓` SHALL scroll one row, `PageUp` and `PageDown` one body height, `Home` and `End` to the first and last row, the wheel by the configured wheel distance, a thumb drag SHALL follow the pointer, and a track press SHALL page toward the pointer. Scrolling SHALL clamp to the document extent. `Esc` SHALL close the screen through the host. The screen SHALL NOT consume the interrupt byte, so the host's interrupt policy applies.
 
 #### Scenario: Open a document that fits
 - **WHEN** a reference screen opens with a document shorter than its body
-- **THEN** the title, blank row, every document row, blank padding, and the hint line SHALL be shown, no scroll input SHALL move the document, and the rail SHALL follow the configured appearance for content that fits
+- **THEN** the top rule, the title, every document row, blank padding, the bottom rule, and the hint line SHALL be shown, no scroll input SHALL move the document, and the rail SHALL follow the configured appearance for content that fits
 
 #### Scenario: Scroll a long document
 - **WHEN** a document is longer than the body and the reader presses `↓`, `PageDown`, `End`, `Home`, or scrolls the wheel

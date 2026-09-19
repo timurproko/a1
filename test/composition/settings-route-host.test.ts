@@ -134,11 +134,13 @@ describe("owned reference routes", () => {
     const complete = host.open("changelog")!;
     expect(complete.id).toBe("changelog");
     expect(complete.render(60, 8).map(PLAIN)[0]).toBe("Loading What's New…");
-    let lines = await settled(complete, current => current[0]?.includes("What's New") === true && !current[0].startsWith("Loading"));
+    let lines = await settled(complete, current => current[1]?.includes("What's New") === true);
     expect(changelog).toHaveBeenCalledWith(undefined);
-    expect(lines[0]).toBe("What's New");
-    expect(lines[1]).toBe("");
+    // Compatibility: the v2 frame: a rule, the title leading the document, a rule, the hint.
+    expect(lines[0]).toBe("─".repeat(60));
+    expect(lines[1]?.startsWith("What's New")).toBe(true);
     expect(lines[2]?.startsWith("changelog complete at 58")).toBe(true);
+    expect(lines[6]).toBe("─".repeat(60));
     expect(lines.at(-1)).toContain("Esc to close");
     complete.close();
     expect(complete.isClosed()).toBe(true);
@@ -152,7 +154,7 @@ describe("owned reference routes", () => {
     const keys = host.open("hotkeys")!;
     expect(keys.id).toBe("hotkeys");
     lines = await settled(keys, current => current[2]?.startsWith("hotkeys") === true);
-    expect(lines[0]).toBe("Keyboard Shortcuts");
+    expect(lines[1]?.startsWith("Keyboard Shortcuts")).toBe(true);
     expect(lines[2]?.startsWith("hotkeys first at 58")).toBe(true);
     keys.close();
     shortcut = "second";
@@ -174,13 +176,13 @@ describe("owned reference routes", () => {
     // Invariant: input before the module loads is retained and replayed to the screen.
     expect(surface.handleInput(DOWN)).toBe(true);
     let lines = await settled(surface, current => current[2]?.startsWith("row") === true);
-    expect(lines[2]?.startsWith("row 02")).toBe(true);
+    expect(lines[1]?.startsWith("row 01")).toBe(true);
     expect(renders).toBeGreaterThan(0);
 
     expect(surface.handleMouse({ kind: "wheel-down", button: 0, row: 4, column: 10 })).toBe(true);
     expect(surface.render(60, 8).map(PLAIN)[2]?.startsWith("row 05")).toBe(true);
     expect(surface.handleInput(`${ESC}[F`)).toBe(true);
-    expect(surface.render(60, 8).map(PLAIN)[2]?.startsWith("row 26")).toBe(true);
+    expect(surface.render(60, 8).map(PLAIN)[1]?.startsWith("row 26")).toBe(true);
     expect(surface.isClosed()).toBe(false);
 
     expect(surface.handleInput(ESC)).toBe(true);
