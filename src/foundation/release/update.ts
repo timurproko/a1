@@ -18,7 +18,15 @@ import { CohortStateStore, type SupervisorEndpointMetadata } from "./cohort-stat
 import { cleanupVerifiedOwner, processIsAlive } from "./process-cleanup.js";
 import { materializeRelease, readMaterializedRelease } from "./release-store.js";
 import { scheduleReleaseCleanup } from "./release-gc.js";
-import { warmMaterializedRelease } from "./warmup.js";
+import {
+  UPDATE_ACTIVATION_CONTRACT,
+  activateInstalledRelease,
+  delegateActivation,
+  readActivationContracts,
+  type UpdateActivationCallbacks,
+  type UpdateActivationPhase,
+  type UpdateMaterializationProgress,
+} from "./update-activation.js";
 import { UpdateTransactionStore, type UpdateRecoveryState, type UpdateTransaction, type UpdateTransactionPhase } from "./update-transaction.js";
 import { removeUpdateRecoveryCapsule, runProtectedPackageReplacement, type ProtectedPackageReplacementResult } from "./update-recovery.js";
 
@@ -79,17 +87,7 @@ export interface SelfUpdateOptions {
   onPhaseTiming?: (event: UpdatePhaseTimingEvent) => void;
   now?: () => number;
 }
-export type UpdateActivationPhase = Extract<UpdateTransactionPhase, "materialized" | "certified" | "active-reference-committed">;
-
-/**
- * Copying the release is the longest step with nothing to say for itself, so it
- * reports the files it has written against the files it must write. A caller that
- * shows progress can then move with the work instead of guessing at it.
- */
-export interface UpdateMaterializationProgress {
-  readonly completed: number;
-  readonly total: number;
-}
+export type { UpdateActivationPhase, UpdateMaterializationProgress } from "./update-activation.js";
 
 export interface UpdateLifecycleCoordinator {
   targetIsActive(targetVersion: string): Promise<boolean>;
@@ -251,32 +249,18 @@ export function createUpdateLifecycleCoordinator(
       }
     },
     async activateInstalled(packageRoot, targetVersion, phase, onMaterializing, onWarmup) {
-      let total = 0;
-      let completed = 0;
-      const candidate = await materializeRelease(packageRoot, paths.dataDir, {
-        onProgress: event => {
-          total = event.fileCount;
-          onMaterializing?.({ completed, total });
-        },
-        onOperation: event => {
-          if (event.operation !== "candidate-write" && event.operation !== "layer-write") return;
-          completed += 1;
-          onMaterializing?.({ completed, total });
-        },
-      });
-      if (candidate.packageVersion !== targetVersion) throw new Error(`installed ${PRODUCT_TEXT.displayName} version ${candidate.packageVersion} does not match target ${targetVersion}`);
-      await stateStore.recordCandidate(candidate);
-      await phase("materialized");
-      const diagnostics = await certifyMaterializedRelease(candidate, paths.dataDir);
-      await stateStore.approve(candidate.releaseId, diagnostics);
-      await phase("certified");
-      onWarmup?.("started");
-      await warmMaterializedRelease(candidate, environment);
-      onWarmup?.("completed");
-      await ensureSupervisor(candidate, environment);
-      // Invariant: warmup and authenticated readiness precede changing the active reference.
-      await stateStore.activate(candidate.releaseId);
-      await phase("active-reference-committed");
+      const request = { packageRoot, dataDir: paths.dataDir, targetVersion, environment };
+      const callbacks: UpdateActivationCallbacks = {
+        phase,
+        ...(onMaterializing ? { onMaterializing } : {}),
+        ...(onWarmup ? { onWarmup } : {}),
+      };
+      // Compatibility: the tree npm just installed is newer than this updater, so its layout is
+      // its own to know. A tree that serves the contract activates itself with its own code;
+      // a tree from before the contract is activated here, with the layout it had then.
+      const contracts = await readActivationContracts(packageRoot, fileSystem.readFile);
+      if (contracts.includes(UPDATE_ACTIVATION_CONTRACT)) await delegateActivation(request, callbacks);
+      else await activateInstalledRelease(request, callbacks);
     },
   };
 }

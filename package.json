@@ -4,6 +4,7 @@
   "description": "Standalone terminal workspace for supervised native and managed agents",
   "type": "module",
   "privateLaunchContract": "neutral-launch-v1",
+  "updateActivationContracts": ["activate-v1"],
   "packageManager": "npm@11.13.0",
   "bin": {
     "a1": "bin/cli.js"

@@ -22,7 +22,7 @@ const declaredAssets = [...selected.paths.filter(path => /\.(?:json|node|wasm|cs
   || /(?:^|\/)LICENSE(?:\.|$)/i.test(path)), startupManifest].sort();
 const output = {
   schema: PRODUCT_IDENTITY.evidence.runtimePayloadSchema,
-  entryPoints: ["bin/cli.js", "bin/guardian.js", "bin/supervisor.js", "bin/ui.js", "bin/update-recovery.js", "bin/warmup.js", startupDescriptor, startupEntry],
+  entryPoints: ["bin/activate.js", "bin/cli.js", "bin/guardian.js", "bin/supervisor.js", "bin/ui.js", "bin/update-recovery.js", "bin/warmup.js", startupDescriptor, startupEntry],
   declaredAssets,
   paths: selected.paths,
   classifications: selected.classifications,

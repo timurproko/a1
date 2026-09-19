@@ -30,6 +30,7 @@ describe("exact packed npm command surface", () => {
     const paths = candidate.entries.map(entry => entry.path.slice("package/".length));
     expect(paths).toEqual(expect.arrayContaining([
       "package.json",
+      "bin/activate.js",
       "bin/cli.js",
       "bin/release-cleanup.js",
       "bin/guardian.js",
