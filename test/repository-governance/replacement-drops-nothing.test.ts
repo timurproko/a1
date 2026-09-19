@@ -3,8 +3,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { SettingsManager } from "@earendil-works/pi-coding-agent";
-import { PiSettingsIntegration } from "../../src/integrations/pi/engine/index.js";
-import { OwnedUiSettingsSession, OwnedUiSettingsStore } from "../../src/ui/settings/index.js";
+import { PiSettingsBridge } from "../../src/integrations/pi/engine/index.js";
+import { OwnedSettingsManager } from "../../src/ui/settings/index.js";
 import { SETTINGS_ROUTE, SettingsApp } from "../../src/features/owned-ui/index.js";
 import type { AppHostServices } from "../../src/ui/apps/index.js";
 
@@ -36,14 +36,13 @@ afterEach(() => {
 
 describe(`the ${SETTINGS_ROUTE} screen, which supersedes the pinned selector`, () => {
   it("reaches every setting the engine reports", async () => {
-    const engine = new PiSettingsIntegration(SettingsManager.inMemory({}), {
+    const engine = new PiSettingsBridge(SettingsManager.inMemory({}), {
       themes: () => ["dark", "light"],
       models: () => [{ key: "openai/gpt-5", label: "gpt-5 [openai]", description: "global default", levels: ["off", "low", "high"] }],
     });
     const reported = (await engine.listSettings()).map(descriptor => descriptor.key);
 
-    const store = new OwnedUiSettingsStore({ configDir: root, profileId: "parity", declarations: [], migrations: [] });
-    const session = new OwnedUiSettingsSession({ store, agent: engine });
+    const session = new OwnedSettingsManager({ configDir: root, profileId: "parity", declarations: [], migrations: [], agent: engine });
     await session.load();
 
     const reachable = new Set(
@@ -54,12 +53,11 @@ describe(`the ${SETTINGS_ROUTE} screen, which supersedes the pinned selector`, (
   });
 
   it("shows each of them on screen, not merely in its model", async () => {
-    const engine = new PiSettingsIntegration(SettingsManager.inMemory({}), {
+    const engine = new PiSettingsBridge(SettingsManager.inMemory({}), {
       themes: () => ["dark", "light"],
       models: () => [{ key: "openai/gpt-5", label: "gpt-5 [openai]", description: "global default", levels: ["off", "low", "high"] }],
     });
-    const store = new OwnedUiSettingsStore({ configDir: root, profileId: "parity", declarations: [], migrations: [] });
-    const session = new OwnedUiSettingsSession({ store, agent: engine });
+    const session = new OwnedSettingsManager({ configDir: root, profileId: "parity", declarations: [], migrations: [], agent: engine });
     await session.load();
 
     const screen = new SettingsApp(session)

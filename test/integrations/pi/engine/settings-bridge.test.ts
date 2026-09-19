@@ -4,21 +4,21 @@ import type { AgentSettingOwner } from "../../../../src/contracts/agent-engine/i
 import {
   EXPOSED_SETTING_KEYS,
   PI_SETTING_EFFECTS,
-  PiSettingsIntegration,
+  PiSettingsBridge,
   type PiSettingKey,
   type PiSettingOwnerHandlers,
 } from "../../../../src/integrations/pi/engine/index.js";
 
 const OWNERS: readonly AgentSettingOwner[] = ["agent", "shell", "terminal", "startup", "shutdown", "installation"];
 
-function integration(settings = SettingsManager.inMemory({ compaction: { enabled: true } })): PiSettingsIntegration {
-  const target = new PiSettingsIntegration(settings, { productMode: "comparison" });
+function integration(settings = SettingsManager.inMemory({ compaction: { enabled: true } })): PiSettingsBridge {
+  const target = new PiSettingsBridge(settings, { productMode: "comparison" });
   bindEffects(target, () => true);
   return target;
 }
 
 function bindEffects(
-  target: PiSettingsIntegration,
+  target: PiSettingsBridge,
   include: (key: PiSettingKey, owner: AgentSettingOwner) => boolean,
 ): void {
   for (const owner of OWNERS) {
@@ -56,7 +56,7 @@ describe("Pi settings integration", () => {
   });
 
   it("omits every unavailable bare-A1 option while retaining supported fallbacks", async () => {
-    const port = new PiSettingsIntegration(SettingsManager.inMemory({ compaction: { enabled: true } }));
+    const port = new PiSettingsBridge(SettingsManager.inMemory({ compaction: { enabled: true } }));
     bindEffects(port, (key, owner) => owner !== "installation" && PI_SETTING_EFFECTS[key].hiddenInBare !== true);
 
     const descriptors = await port.listSettings();
@@ -74,7 +74,7 @@ describe("Pi settings integration", () => {
   });
 
   it("omits unbound effects instead of returning disabled explanatory descriptors", async () => {
-    const port = new PiSettingsIntegration(SettingsManager.inMemory({ compaction: { enabled: true } }));
+    const port = new PiSettingsBridge(SettingsManager.inMemory({ compaction: { enabled: true } }));
     expect(await port.listSettings()).toEqual([]);
     await expect(port.writeSetting("autoCompact", false)).resolves.toMatchObject({
       status: "unavailable", storedValue: true, effectiveValue: true,

@@ -61,7 +61,7 @@ import {
 import type {
   OwnedUiSettingValue,
   OwnedUiSettingsEntry,
-  OwnedUiSettingsSession,
+  OwnedSettingsManager,
 } from "../../ui/settings/index.js";
 import { SETTINGS_APP_ID, SETTINGS_ROUTE } from "./settings-route.js";
 export { SETTINGS_APP_ID, SETTINGS_ROUTE } from "./settings-route.js";
@@ -160,7 +160,7 @@ interface ValueMenu {
  */
 export class SettingsApp implements UiApp {
   readonly id = SETTINGS_APP_ID;
-  readonly #session: OwnedUiSettingsSession;
+  readonly #session: OwnedSettingsManager;
   #selectedKey: string | undefined;
   #scroll = 0;
   // Invariant: keyboard navigation requests visibility once; pointer scrolling then stays free.
@@ -191,7 +191,7 @@ export class SettingsApp implements UiApp {
   #activityTimer: ReturnType<typeof setTimeout> | undefined;
   #renderedScroll: number | undefined;
 
-  constructor(session: OwnedUiSettingsSession) {
+  constructor(session: OwnedSettingsManager) {
     this.#session = session;
   }
 

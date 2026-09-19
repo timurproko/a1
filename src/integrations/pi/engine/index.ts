@@ -22,9 +22,19 @@ export { PiSessionSelectionError, openSelectedPiSession, resolveSessionArgumentP
 export type { PiSessionForkPrompt, PiSessionSelection } from "./session-selection.js";
 export { PiSessionCommandIntegration, convertPiSessionEvent, subscribeToPiSessionEvents } from "./session-integration.js";
 export type { PiDocumentedSessionCommands, PiOrderedEventIntegration, PiSessionCommand, PiSessionCommandResult } from "./session-integration.js";
-export { AUTOMATIC_THEME, EXPOSED_SETTING_KEYS, PiSettingsIntegration, parseAutomaticTheme, settingsInventoryDrift } from "./settings-integration.js";
-export type { PiSettingsProviders } from "./settings-integration.js";
-export { PI_SETTING_EFFECTS, PiSettingsCoordinator, settingsEffectInventoryDrift, settingsVisualInventoryViolations } from "./settings-effects.js";
+export {
+  AUTOMATIC_THEME,
+  EXPOSED_SETTING_KEYS,
+  PI_SETTING_EFFECTS,
+  PiSettingsBridge,
+  PiSettingsCoordinator,
+  parseAutomaticTheme,
+  settingsEffectInventoryDrift,
+  settingsInventoryDrift,
+  settingsVisualInventoryViolations,
+} from "./settings-bridge.js";
+export { assertPiSettingsMetadata, loadPiSettingsMetadata, PI_SETTINGS_METADATA_FILE } from "./settings-metadata.js";
+export type { PiSettingBounds, PiSettingPresentation, PiSettingsMetadata } from "./settings-metadata.js";
 export type {
   PiSettingEffectDefinition,
   PiSettingEffectHandler,
@@ -34,7 +44,9 @@ export type {
   PiSettingVisualClass,
   PiSettingVisualEvidence,
   PiSettingsCoordinatorOptions,
-} from "./settings-effects.js";
+  PiSettingsModelChoice,
+  PiSettingsProviders,
+} from "./settings-bridge.js";
 export { resolvePiProjectTrustPreflight } from "./project-trust-preflight.js";
 export type {
   PiProjectTrustPreflightPrompt,

@@ -1,9 +1,9 @@
 import { configureOwnedHttpDispatcher } from "./http-dispatcher.js";
 import { isRecord, readThinkingLevel, stringProperty } from "./message-values.js";
 import { collectionResult } from "./resource-catalog.js";
-import { MODEL_THINKING_DEFAULT, PiSettingsIntegration, type PiSettingsModelChoice } from "./settings-integration.js";
+import { MODEL_THINKING_DEFAULT, PiSettingsBridge, type PiSettingsModelChoice } from "./settings-bridge.js";
 import { workflowResult } from "./workflow-support.js";
-import type { PiSettingOwnerHandlers } from "./settings-effects.js";
+import type { PiSettingOwnerHandlers } from "./settings-bridge.js";
 import type { AgentSession, AgentSessionRuntime } from "../startup-public.js";
 import type { OwnedUiThinkingLevel } from "../../../contracts/owned-ui/index.js";
 import type { AgentJsonValue, AgentSettingOwner } from "../../../contracts/agent-engine/index.js";
@@ -34,7 +34,7 @@ export class PiEngineSettings {
   readonly #availableThemes: (() => readonly string[]) | null;
   readonly #settingsProductMode: "bare" | "comparison";
   readonly #ports: PiEngineSettingsPorts;
-  #settingsIntegration: PiSettingsIntegration | undefined;
+  #settingsIntegration: PiSettingsBridge | undefined;
   #settingsIntegrationManager: unknown;
 
   constructor(options: PiEngineSettingsOptions, ports: PiEngineSettingsPorts) {
@@ -57,13 +57,13 @@ export class PiEngineSettings {
   }
 
   /** Settings port for the live runtime, or null before the runtime is available. */
-  settingsPort(): PiSettingsIntegration | null {
+  settingsPort(): PiSettingsBridge | null {
     const settings = this.#ports.runtime()?.services.settingsManager;
     if (!settings || typeof settings.getCompactionEnabled !== "function") return null;
     if (this.#settingsIntegration === undefined || this.#settingsIntegrationManager !== settings) {
       this.#settingsIntegrationManager = settings;
       configureOwnedHttpDispatcher(settings.getHttpIdleTimeoutMs());
-      this.#settingsIntegration = new PiSettingsIntegration(settings, {
+      this.#settingsIntegration = new PiSettingsBridge(settings, {
         ...(this.#availableThemes === null ? {} : { themes: this.#availableThemes }),
         models: () => this.#modelChoices(),
         productMode: this.#settingsProductMode,

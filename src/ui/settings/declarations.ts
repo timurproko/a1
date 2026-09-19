@@ -29,71 +29,75 @@ export const QUIT_EFFECT_DURATIONS_MS: readonly number[] = Object.freeze(
   Array.from({ length: 18 }, (_, index) => 300 + index * 100),
 );
 
-export const OWNED_UI_SETTING_DECLARATIONS: readonly OwnedUiSettingDeclaration[] = Object.freeze([
-  Object.freeze({
+/**
+ * Every A1 setting, keyed by its id. The table is the one declaration: ids, defaults, and allowed
+ * values are read from it, and `OwnedSettingValueOf` derives each getter's type from it.
+ */
+export const OWNED_SETTING_DECLARATIONS = Object.freeze({
+  quitAnimation: Object.freeze({
     id: "quitAnimation",
     label: "Exit animation",
     section: GENERIC_SECTION,
     description: "Play the quit effect when the session quits. Off returns to the terminal immediately.",
     application: "live",
     defaultValue: true,
-    allowedValues: Object.freeze([true, false]),
+    allowedValues: Object.freeze([true, false] as const),
   }),
-  Object.freeze({
+  scrollbarAppearance: Object.freeze({
     id: "scrollbarAppearance",
     label: "Scrollbar mode",
     section: SCROLL_SECTION,
     description: "When the session transcript scrollbar is visible.",
     application: "live",
     defaultValue: "auto",
-    allowedValues: Object.freeze(["auto", "always", "hidden"]),
+    allowedValues: Object.freeze(["auto", "always", "hidden"] as const),
   }),
-  Object.freeze({
+  scrollbarStyle: Object.freeze({
     id: "scrollbarStyle",
     label: "Scrollbar style",
     section: SCROLL_SECTION,
     description: "Visual weight of the session transcript scrollbar.",
     application: "live",
     defaultValue: "thin",
-    allowedValues: Object.freeze(["thin", "thick"]),
+    allowedValues: Object.freeze(["thin", "thick"] as const),
   }),
-  Object.freeze({
+  scrollbarSpeed: Object.freeze({
     id: "scrollbarSpeed",
     label: "Speed",
     section: SCROLL_SECTION,
     description: "Distance moved by each session transcript wheel event.",
     application: "live",
     defaultValue: "normal",
-    allowedValues: Object.freeze(["normal", "fast", "high"]),
+    allowedValues: Object.freeze(["normal", "fast", "high"] as const),
   }),
-  Object.freeze({
+  promptHistoryEnabled: Object.freeze({
     id: "promptHistoryEnabled",
     label: "Persistent history",
     section: Object.freeze({ id: "history", title: "History" }),
     description: "Retain reusable prompts across sessions. Applies on next start; disabling does not erase saved history or stop existing instances.",
     application: "restart",
     defaultValue: true,
-    allowedValues: Object.freeze([true, false]),
+    allowedValues: Object.freeze([true, false] as const),
   }),
-  Object.freeze({
+  promptHistoryMaxItems: Object.freeze({
     id: "promptHistoryMaxItems",
     label: "History limit",
     section: Object.freeze({ id: "history", title: "History" }),
     description: "Maximum recent unique prompts after next start. Byte limits also apply; increasing the limit cannot restore pruned entries.",
     application: "restart",
     defaultValue: 100,
-    allowedValues: Object.freeze([10, 20, 30, 40, 50, 60, 70, 80, 90, 100]),
+    allowedValues: Object.freeze([10, 20, 30, 40, 50, 60, 70, 80, 90, 100] as const),
   }),
-  Object.freeze({
+  quitEffect: Object.freeze({
     id: "quitEffect",
     label: "Effect",
     section: QUIT_SECTION,
     description: "Animation played over the last screen when the session quits.",
     application: "live",
     defaultValue: "fall",
-    allowedValues: Object.freeze(["fall", "dissolve", "starburst", "waves"]),
+    allowedValues: Object.freeze(["fall", "dissolve", "starburst", "waves"] as const),
   }),
-  Object.freeze({
+  quitEffectDurationMs: Object.freeze({
     id: "quitEffectDurationMs",
     label: "Duration",
     section: QUIT_SECTION,
@@ -102,16 +106,28 @@ export const OWNED_UI_SETTING_DECLARATIONS: readonly OwnedUiSettingDeclaration[]
     defaultValue: 800,
     allowedValues: QUIT_EFFECT_DURATIONS_MS,
   }),
-  Object.freeze({
+  promptSuggestions: Object.freeze({
     id: "promptSuggestions",
     label: "Prompt suggestions",
     section: Object.freeze({ id: "agent", title: "Agent" }),
     description: "Predict likely next prompts with one additional background request using the selected model.",
     application: "live",
     defaultValue: true,
-    allowedValues: Object.freeze([true, false]),
+    allowedValues: Object.freeze([true, false] as const),
   }),
-] satisfies readonly OwnedUiSettingDeclaration[]);
+} as const satisfies Readonly<Record<string, OwnedUiSettingDeclaration>>);
+
+export type OwnedSettingId = keyof typeof OWNED_SETTING_DECLARATIONS;
+
+/** The value type a setting's declaration allows: a literal union for a choice, `number` for a stepped range. */
+export type OwnedSettingValueOf<Id extends OwnedSettingId> = (typeof OWNED_SETTING_DECLARATIONS)[Id]["allowedValues"][number];
+
+/** The declarations in declaration order, for resolution, persistence, and the settings screen. */
+export const OWNED_UI_SETTING_DECLARATIONS: readonly OwnedUiSettingDeclaration[] = Object.freeze(Object.values(OWNED_SETTING_DECLARATIONS));
+
+export function isOwnedSettingId(id: string): id is OwnedSettingId {
+  return Object.hasOwn(OWNED_SETTING_DECLARATIONS, id);
+}
 
 export function assertOwnedUiSettingDeclarations(declarations: readonly OwnedUiSettingDeclaration[]): void {
   const seen = new Set<string>();

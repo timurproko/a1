@@ -20,7 +20,7 @@
   },
   "scripts": {
     "clean": "node scripts/clean.mjs",
-    "build": "npm run clean && tsc -p tsconfig.build.json && node scripts/pi/build-startup-public.mjs && node scripts/development/build-process-guardian.mjs && node scripts/release/generate-runtime-payload-inventory.mjs",
+    "build": "npm run clean && tsc -p tsconfig.build.json && node scripts/pi/build-pi-settings-metadata.mjs && node scripts/pi/build-startup-public.mjs && node scripts/development/build-process-guardian.mjs && node scripts/release/generate-runtime-payload-inventory.mjs",
     "build:process-guardian": "node scripts/development/build-process-guardian.mjs",
     "typecheck": "tsgo -p tsconfig.json --noEmit && tsgo -p tsconfig.bin.json",
     "check:architecture": "node scripts/governance/check-architecture.mjs && node scripts/governance/check-product-identity-boundaries.mjs && node scripts/governance/check-package-identity.mjs && node scripts/governance/check-pinned-pi-source-ledger.mjs && node scripts/governance/check-terminal-host-provenance.mjs",
@@ -48,7 +48,7 @@
     "report:pi-engine-conformance": "npm run build --silent && node scripts/pi/run-pi-engine-conformance.mjs",
     "report:rendering-stability": "tsx scripts/pi/report-rendering-stability.ts",
     "report:input-responsiveness": "tsx scripts/pi/report-input-responsiveness.ts",
-    "sync:pi-ui": "npm run update:pi-component-parity && npm run update:pi-event-frame-parity && npm run update:pi-settings-metadata",
+    "sync:pi-ui": "npm run update:pi-component-parity && npm run update:pi-event-frame-parity",
     "update:pi-component-parity": "tsx scripts/pi/update-pi-component-parity.ts",
     "update:pi-event-frame-parity": "tsx scripts/pi/update-pi-event-frame-parity.ts",
     "proof:terminal-host": "node scripts/development/run-terminal-host.mjs",
@@ -57,8 +57,7 @@
     "prepack": "node scripts/release/prepack-gate.mjs",
     "prepublishOnly": "npm run test:release",
     "prepare": "npm run build",
-    "update:pi-settings-metadata": "node scripts/pi/update-pi-settings-metadata.mjs",
-    "typecheck:bin": "tsgo -p tsconfig.bin.json"
+        "typecheck:bin": "tsgo -p tsconfig.bin.json"
   },
   "dependencies": {
     "@earendil-works/pi-coding-agent": "0.85.1",

@@ -4,13 +4,17 @@ import type { AgentSettingOwner } from "../../src/contracts/agent-engine/index.j
 import {
   EXPOSED_SETTING_KEYS,
   PI_SETTING_EFFECTS,
-  PiSettingsIntegration,
+  PiSettingsBridge,
   settingsEffectInventoryDrift,
   settingsInventoryDrift,
   settingsVisualInventoryViolations,
   type PiSettingOwnerHandlers,
 } from "../../src/integrations/pi/engine/index.js";
-import piSettingsMetadata from "../../src/integrations/pi/engine/pi-settings-metadata.json" with { type: "json" };
+import { extractPiSettingsMetadata } from "../../scripts/pi/pi-settings-metadata.mjs";
+
+// Provenance: the inventory is read from the pinned engine directly, not from the generated file,
+// so the generated file cannot be the thing that agrees with itself.
+const piSettingsMetadata = extractPiSettingsMetadata();
 
 /**
  * The engine's own inventory of what it presents, against the settings A1 maps to
@@ -18,7 +22,7 @@ import piSettingsMetadata from "../../src/integrations/pi/engine/pi-settings-met
  * named failure rather than as a row that quietly stops appearing.
  */
 async function mappedKeys(): Promise<readonly string[]> {
-  const integration = new PiSettingsIntegration(SettingsManager.inMemory({}), { productMode: "comparison" });
+  const integration = new PiSettingsBridge(SettingsManager.inMemory({}), { productMode: "comparison" });
   const owners: readonly AgentSettingOwner[] = ["agent", "shell", "terminal", "startup", "shutdown", "installation"];
   for (const owner of owners) {
     integration.bindOwner(owner, Object.fromEntries(
@@ -83,7 +87,7 @@ describe("Pi settings inventory governance", () => {
   });
 
   it("offers what the engine offers, in the engine's order", async () => {
-    const integration = new PiSettingsIntegration(SettingsManager.inMemory({}), { productMode: "comparison" });
+    const integration = new PiSettingsBridge(SettingsManager.inMemory({}), { productMode: "comparison" });
     const owners: readonly AgentSettingOwner[] = ["agent", "shell", "terminal", "startup", "shutdown", "installation"];
     for (const owner of owners) {
       integration.bindOwner(owner, Object.fromEntries(

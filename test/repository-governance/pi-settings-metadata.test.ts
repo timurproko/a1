@@ -1,14 +1,29 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { extractPiSettingsMetadata } from "../../scripts/pi/pi-settings-metadata.mjs";
-import { METADATA_PATH, renderMetadata } from "../../scripts/pi/update-pi-settings-metadata.mjs";
+import { METADATA_FILE, renderMetadata } from "../../scripts/pi/build-pi-settings-metadata.mjs";
+import { assertPiSettingsMetadata, loadPiSettingsMetadata } from "../../src/integrations/pi/engine/index.js";
 
 describe("Pi settings presentation metadata", () => {
-  it("matches what the pinned engine currently declares", () => {
-    // Compatibility: regenerating must be a no-op. When a Pi upgrade rewords, reorders, or adds
-    // a setting, this fails until `npm run update:pi-settings-metadata` is rerun,
-    // so what A1 shows cannot silently drift from what the engine shows.
-    expect(readFileSync(METADATA_PATH, "utf8")).toBe(renderMetadata());
+  it("is generated from the pinned engine rather than committed", () => {
+    // Invariant: the source tree carries no metadata of its own; the test setup and the build
+    // write it from the engine, so a Pi upgrade cannot leave stale wording or order behind.
+    const tracked = readFileSync(".gitignore", "utf8").split(/\r?\n/u);
+    expect(tracked).toContain(`/src/${METADATA_FILE}`);
+    expect(loadPiSettingsMetadata()).toEqual(assertPiSettingsMetadata(JSON.parse(renderMetadata())));
+  });
+
+  it("ships the same metadata in the built tree when one exists", () => {
+    const built = `dist/${METADATA_FILE}`;
+    if (!existsSync(built)) return;
+    expect(readFileSync(built, "utf8")).toBe(renderMetadata());
+  });
+
+  it("rejects metadata that lost a table", () => {
+    const metadata = extractPiSettingsMetadata();
+    expect(() => assertPiSettingsMetadata({ ...metadata, dialogs: [] })).toThrow(/tables are invalid/u);
+    expect(() => assertPiSettingsMetadata({ ...metadata, presented: "theme" })).toThrow(/lists are invalid/u);
+    expect(() => assertPiSettingsMetadata({ ...metadata, settings: { theme: { label: "Theme" } } })).toThrow(/presentation is invalid: theme/u);
   });
 
   it("covers the engine's presented order rather than a sorted guess", () => {

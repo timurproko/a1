@@ -32,7 +32,7 @@ describe("prompt history ownership", () => {
     expect(source).not.toContain("ControlStore");
     expect(source).not.toMatch(/console\.(?:log|error)|process\.(?:stdout|stderr)\.write/);
     const composition = await readFile("src/composition/owned-ui.ts", "utf8");
-    expect(composition).toContain('settings.value("promptHistoryEnabled") === false');
+    expect(composition).toContain('!settings.value("promptHistoryEnabled")');
     expect(composition).toContain("profileRoot: adapter.agentDir");
     expect(composition).toContain("dataDir: resolvePromptHistoryDataDir()");
     expect(composition).not.toContain("dataDir: resolveProductPaths().dataDir");

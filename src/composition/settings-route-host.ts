@@ -1,6 +1,6 @@
 import { SETTINGS_APP_ID, SETTINGS_ROUTE } from "../features/owned-ui/settings-route.js";
 import { piTheme } from "../integrations/pi/components/upstream/theme/theme.js";
-import type { OwnedUiSettingsSession } from "../ui/settings/session.js";
+import type { OwnedSettingsManager } from "../ui/settings/manager.js";
 import type { UiRouteHost, UiRouteSurface } from "../ui/apps/contracts.js";
 import { faint } from "../ui/components/text.js";
 import type { UiTheme, UiThemeToken } from "../ui/components/theme.js";
@@ -9,14 +9,14 @@ import type { UiTheme, UiThemeToken } from "../ui/components/theme.js";
  * Declares the A1-owned settings route without evaluating its presentation graph
  * during startup. Opening the route retains input while the optional module loads.
  */
-export function createOwnedRouteHost(settings: OwnedUiSettingsSession): UiRouteHost {
+export function createOwnedRouteHost(settings: OwnedSettingsManager): UiRouteHost {
   return {
     claims: route => route === SETTINGS_ROUTE,
     open: route => route === SETTINGS_ROUTE ? deferredSettingsSurface(settings) : null,
   };
 }
 
-function deferredSettingsSurface(settings: OwnedUiSettingsSession): UiRouteSurface {
+function deferredSettingsSurface(settings: OwnedSettingsManager): UiRouteSurface {
   let delegate: UiRouteSurface | null = null;
   let closed = false;
   let failure: string | null = null;
@@ -52,7 +52,7 @@ function deferredSettingsSurface(settings: OwnedUiSettingsSession): UiRouteSurfa
   };
 }
 
-async function loadSettingsSurface(settings: OwnedUiSettingsSession): Promise<UiRouteSurface> {
+async function loadSettingsSurface(settings: OwnedSettingsManager): Promise<UiRouteSurface> {
   const [{ SettingsApp }, { UiAppHost }, { UiAppRegistry }] = await Promise.all([
     import("../features/owned-ui/settings-app.js"),
     import("../ui/apps/host.js"),
