@@ -72,10 +72,11 @@ const previousRuns = JSON.stringify([
   { databaseId: 8980, number: 409, headSha: green, url: "https://github.com/timurproko/a1/actions/runs/8980", createdAt: "2026-09-16T02:47:00Z" },
 ]);
 
-function startupEvidence(elapsed: Record<string, number>) {
+const shell = "a1";
+function startupEvidence(...samples: Array<[string, string, number]>) {
   return JSON.stringify({
     schema: "a1-startup-performance-evidence-v1", enforcement: "record", budgetViolations: [],
-    measurements: Object.entries(elapsed).map(([key, elapsedMs]) => ({ profileId: key.split("/")[0], launchKind: key.split("/")[1], elapsedMs, budgetMs: key.endsWith("no-live-supervisor") ? 2500 : 2000 })),
+    measurements: samples.map(([profileId, launchKind, elapsedMs]) => ({ profileId, launchKind, elapsedMs, budgetMs: launchKind === "no-live-supervisor" ? 2500 : 2000 })),
   });
 }
 
@@ -197,10 +198,10 @@ describe("nightly regression fix proposal", () => {
     const gh = recorder(ghAnswers({ view: runView({ conclusion: "success", jobs: [] }) }));
     const git = recorder(gitAnswers());
     const files = memoryFiles({
-      [startupArtifact(9001, "windows-2025-node22")]: startupEvidence({ "a1/no-live-supervisor": 2715, "a1/post-update": 1700 }),
-      [startupArtifact(8995, "windows-2025-node22")]: startupEvidence({ "a1/no-live-supervisor": 2532, "a1/post-update": 1650 }),
-      [startupArtifact(8990, "windows-2025-node22")]: startupEvidence({ "a1/no-live-supervisor": 2601, "a1/post-update": 2012 }),
-      [startupArtifact(9001, "windows-2025-node24")]: startupEvidence({ "a1/no-live-supervisor": 1400 }),
+      [startupArtifact(9001, "windows-2025-node22")]: startupEvidence([shell, "no-live-supervisor", 2715], [shell, "post-update", 1700]),
+      [startupArtifact(8995, "windows-2025-node22")]: startupEvidence([shell, "no-live-supervisor", 2532], [shell, "post-update", 1650]),
+      [startupArtifact(8990, "windows-2025-node22")]: startupEvidence([shell, "no-live-supervisor", 2601], [shell, "post-update", 2012]),
+      [startupArtifact(9001, "windows-2025-node24")]: startupEvidence([shell, "no-live-supervisor", 1400]),
     });
     const result = await proposeRegressionFix({ runId: 9001, repository, output, gh: gh.executor, git: git.executor, files, today });
     expect(result).toMatchObject({ changed: true, mode: "new", key: "full-regression.yml:package-startup", pr: 777 });
@@ -216,9 +217,9 @@ describe("nightly regression fix proposal", () => {
     const gh = recorder(ghAnswers({ view: runView({ conclusion: "success", jobs: [] }) }));
     const git = recorder(gitAnswers());
     const files = memoryFiles({
-      [startupArtifact(9001, "windows-2025-node22")]: startupEvidence({ "a1/no-live-supervisor": 2715 }),
-      [startupArtifact(8995, "windows-2025-node22")]: startupEvidence({ "a1/no-live-supervisor": 1900 }),
-      [startupArtifact(8990, "windows-2025-node22")]: startupEvidence({ "a1/no-live-supervisor": 2601 }),
+      [startupArtifact(9001, "windows-2025-node22")]: startupEvidence([shell, "no-live-supervisor", 2715]),
+      [startupArtifact(8995, "windows-2025-node22")]: startupEvidence([shell, "no-live-supervisor", 1900]),
+      [startupArtifact(8990, "windows-2025-node22")]: startupEvidence([shell, "no-live-supervisor", 2601]),
     });
     const result = await proposeRegressionFix({ runId: 9001, repository, output, gh: gh.executor, git: git.executor, files, today });
     expect(result).toMatchObject({ changed: false, message: "run 9001 succeeded; startup: single overrun on windows-2025-node22/a1/no-live-supervisor, not persistent" });
@@ -231,11 +232,11 @@ describe("nightly regression fix proposal", () => {
     const git = recorder(gitAnswers());
     const files = memoryFiles({
       [artifact]: tierResult(true),
-      [startupArtifact(9001, "windows-2025-node24")]: startupEvidence({ "pi/warm": 2100 }),
-      [startupArtifact(8995, "windows-2025-node24")]: startupEvidence({ "pi/warm": 2050 }),
-      [startupArtifact(8990, "windows-2025-node24")]: startupEvidence({ "pi/warm": 2200 }),
-      [startupArtifact(9001, "windows-2025-node22")]: startupEvidence({ "pi/warm": 2100 }),
-      [startupArtifact(8990, "windows-2025-node22")]: startupEvidence({ "pi/warm": 2200 }),
+      [startupArtifact(9001, "windows-2025-node24")]: startupEvidence(["pi", "warm", 2100]),
+      [startupArtifact(8995, "windows-2025-node24")]: startupEvidence(["pi", "warm", 2050]),
+      [startupArtifact(8990, "windows-2025-node24")]: startupEvidence(["pi", "warm", 2200]),
+      [startupArtifact(9001, "windows-2025-node22")]: startupEvidence(["pi", "warm", 2100]),
+      [startupArtifact(8990, "windows-2025-node22")]: startupEvidence(["pi", "warm", 2200]),
     });
     const result = await proposeRegressionFix({ runId: 9001, repository, output, gh: gh.executor, git: git.executor, files, today });
     expect(result).toMatchObject({ changed: true, key: "full-regression.yml:package-startup" });
