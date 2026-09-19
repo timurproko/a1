@@ -3917,6 +3917,17 @@
       "finding": "Prior evidence recorded top-level surfaces without proving nested node/edge content and restoration.",
       "implementation": "corrected",
       "acceptance": "pending exhaustive node/edge parity under task 7.28"
+    },
+    {
+      "id": "bare-unified-models-dialog",
+      "nodes": [
+        "models.select",
+        "models.scope",
+        "models.scope.refreshing"
+      ],
+      "finding": "Bare A1 replaces /model and /scoped-models with the owned /models dialog (src/integrations/pi/components/models-dialog.ts); these pinned nodes stay reachable only in the a1 pi comparison profile.",
+      "implementation": "owned-replacement",
+      "acceptance": "test/app/session-shell/session-shell-models.test.ts and test/integrations/pi/components/models-dialog.test.ts"
     }
   ],
   "components": [

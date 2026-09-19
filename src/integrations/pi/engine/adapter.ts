@@ -24,6 +24,8 @@ import {
 import type {
   PiAuthenticationProviderOption,
   PiBashWorkflowResult,
+  PiModelsContext,
+  PiModelsRefreshResult,
   PiPinnedSettingsCallback,
   PiPinnedSettingsSnapshot,
   PiProjectTrustContext,
@@ -269,7 +271,7 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
       emitView: () => { this.#emitView(); },
       diagnostic: (severity, code, message, recoverable) => { this.#addDiagnostic(severity, code, message, recoverable); },
     });
-    this.#resources = new PiResourceCatalog({ contexts: this.#contexts }, {
+    this.#resources = new PiResourceCatalog({ contexts: this.#contexts, productMode: options.settingsProductMode ?? "bare" }, {
       session: () => this.#engine.session,
       runtime: () => this.#engine.runtime,
     });
@@ -425,6 +427,22 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
 
   refreshScopedModels(signal: AbortSignal): Promise<PiScopedModelsRefreshResult> {
     return this.#contexts.refreshScopedModels(signal);
+  }
+
+  modelsContext(): PiModelsContext {
+    return this.#contexts.modelsContext();
+  }
+
+  setSessionModelScope(scopeIds: readonly string[]): void {
+    this.#contexts.setSessionModelScope(scopeIds);
+  }
+
+  persistModelScope(scopeIds: readonly string[]): void {
+    this.#contexts.persistModelScope(scopeIds);
+  }
+
+  refreshModels(signal: AbortSignal): Promise<PiModelsRefreshResult> {
+    return this.#contexts.refreshModels(signal);
   }
 
   pinnedLoginOptions(authType?: "oauth" | "api_key"): readonly PiAuthenticationProviderOption[] {

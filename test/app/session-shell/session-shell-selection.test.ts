@@ -630,7 +630,8 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
   it.each([false, true])("shows the effective boundary shortcuts in hotkeys (custom=%s)", async custom => {
     const { terminal, shell } = await fixture([], [], custom);
     try {
-      terminal.resize(160, 100);
+      // Rationale: the bare profile appends a Models dialog section, so the viewport must hold the whole table.
+      terminal.resize(160, 120);
       shell.root.appendWorkflowResult({ command: "hotkeys", outcome: "completed", message: "" });
       const text = stripTerminalSequences(shell.root.render(160).join("\n"));
       expect(text.includes("Start of content")).toBe(custom);

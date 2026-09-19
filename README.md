@@ -53,9 +53,22 @@ shown on the level name in the status bar, not on the input bars.
 
 In bare A1, **Ctrl+L cycles the thinking level**. **Shift+Tab is unassigned** and
 performs no agent-input action, including while a suggestion is visible. Model
-selection has **no default shortcut**; use `/model`. Explicit keybinding overrides
+selection has **no default shortcut**; use `/models`. Explicit keybinding overrides
 remain configurable, and `/hotkeys` shows the resolved bindings. The `a1 pi`
 comparison profile keeps its original presentation and shortcuts.
+
+## Models
+
+Bare A1 has one model command, `/models`, which replaces the pinned `/model` and
+`/scoped-models` pair (those remain in the `a1 pi` comparison profile). The dialog
+lists every authenticated model with `all` and `scoped` filters (Tab), a search box,
+a scope marker before each model id, and the active checkmark after `[provider]`.
+Enter switches to the highlighted model and persists it as the default; Space adds or
+removes it from the Ctrl+P cycling scope for this session only; Ctrl+S saves that scope
+to settings. While the scope or its order differs from the last save, the title reads
+`Models (unsaved)`; Escape closes without saving and keeps the session-only scope.
+`/models <text>` seeds the search instead of switching. The bulk, provider, and reorder
+scope actions keep their existing bindings and appear under `/hotkeys`.
 
 ## Prompt suggestions
 

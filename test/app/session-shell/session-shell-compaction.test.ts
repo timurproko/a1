@@ -358,7 +358,7 @@ describe("prompt-style compaction in the real engine and shell", () => {
       const frame = shell.root.render(80);
       expect(stripTerminalSequences(frame[0]!)).toContain("Compacted from 281,483 tokens");
       expect(frame[0]).toContain("\u001b[2m");
-      await shell.submit("/model");
+      await shell.submit("/models");
       shell.runtime.renderNow();
       const top = shell.root.viewportPresentationEvidence().scrollTop;
       terminal.input("\u001b[1;2A");
