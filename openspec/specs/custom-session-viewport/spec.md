@@ -1191,11 +1191,11 @@ Terminal-owned nonempty bracketed paste SHALL remain a distinct exactly-once rou
 - **AND** disposing the shell SHALL stop the idle spares, and an idle spare SHALL be stopped after the bounded idle period without a gesture
 
 ### Requirement: Bare A1 quit plays a bounded outro and reveals a clean parent terminal
-When an interactive bare-A1 session quits through `/quit`, the second `Ctrl+C` of the clear/exit chord, `Ctrl+D`, or an extension shutdown request while `quitAnimation` is `true`, A1 SHALL capture the last frame presented on its fullscreen surface, play the `fall` effect over that frame on the alternate screen for 800 ms, and only then leave the alternate screen exactly once. The effect and duration SHALL be fixed by the shell rather than read from settings. Playback SHALL be bounded by the player's 300–2000 ms clamp and SHALL paint each tick inside one synchronized-output block. The parent terminal SHALL receive no A1 frame rows, no conversation transcript, and no alternate-screen residue after restoration; only the existing dim resume hint MAY follow. When `quitAnimation` is `false`, A1 SHALL neither capture a frame nor play an effect and SHALL leave the alternate screen immediately. A playback failure, a non-TTY terminal, the pinned regular mode, or an all-blank capture SHALL likewise skip the outro without changing restoration, exit output, or process completion. The pinned `a1 pi` comparison profile SHALL remain unchanged.
+When an interactive bare-A1 session quits through `/quit`, the second `Ctrl+C` of the clear/exit chord, `Ctrl+D`, or an extension shutdown request while `quitAnimation` is `true`, A1 SHALL capture the last frame presented on its fullscreen surface, play the selected quit effect over that frame on the alternate screen, and only then leave the alternate screen exactly once. Playback SHALL be bounded by the configured duration, clamped to 300–2000 ms, and SHALL paint each tick inside one synchronized-output block. The parent terminal SHALL receive no A1 frame rows, no conversation transcript, and no alternate-screen residue after restoration; only the existing dim resume hint MAY follow. When `quitAnimation` is `false`, A1 SHALL neither capture a frame nor play an effect and SHALL leave the alternate screen immediately. A playback failure, a non-TTY terminal, the pinned regular mode, or an all-blank capture SHALL likewise skip the outro without changing restoration, exit output, or process completion. The pinned `a1 pi` comparison profile SHALL remain unchanged.
 
 #### Scenario: Quit with the slash command
 - **WHEN** the user submits `/quit` from a bare-A1 session showing a conversation
-- **THEN** the presented frame SHALL animate with the `fall` effect on the alternate screen for 800 ms
+- **THEN** the presented frame SHALL animate with the configured effect on the alternate screen for the configured duration
 - **AND** the alternate screen SHALL be left exactly once after playback completes
 - **AND** the parent terminal SHALL contain only its prior scrollback and the dim resume hint
 
@@ -1208,6 +1208,7 @@ When an interactive bare-A1 session quits through `/quit`, the second `Ctrl+C` o
 - **THEN** A1 SHALL leave the alternate screen without capturing a frame or writing any outro paint
 - **AND** no frame the renderer still has queued SHALL reach the terminal between the quit request and the leave
 - **AND** restoration, the resume hint, and successful process completion SHALL be unchanged
+- **AND** the stored `quitEffect` and `quitEffectDurationMs` SHALL be ignored for that quit
 
 #### Scenario: Effect is off or playback cannot run
 - **WHEN** `quitAnimation` is `false`, stdout is not a TTY, the runtime is not fullscreen, the captured frame has no visible cells, or the player fails
@@ -1215,7 +1216,7 @@ When an interactive bare-A1 session quits through `/quit`, the second `Ctrl+C` o
 - **AND** restoration, the resume hint, and successful process completion SHALL be unchanged
 
 #### Scenario: Playback stays bounded
-- **WHEN** the player is asked for a duration below 300 ms or above 2000 ms, or the terminal writes slowly
+- **WHEN** the configured duration is below 300 ms or above 2000 ms, or the terminal writes slowly
 - **THEN** playback SHALL clamp to the 300–2000 ms range and SHALL NOT delay the alternate-screen leave beyond that clamp and one bounded guard
 - **AND** no outro paint SHALL be written after the alternate-screen leave
 
