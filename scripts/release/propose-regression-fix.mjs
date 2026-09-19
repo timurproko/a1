@@ -24,10 +24,12 @@ import {
   parseTriageKey,
   renderTriageBody,
   renderTriageChange,
+  startupBudgetFailure,
   summarizeLanes,
   triageDecision,
   triageKey,
 } from "./regression-triage-report.mjs";
+import { evaluateStartupTrend, isStartupEvidence, renderStartupTrend, TREND_WINDOW } from "./startup-budget-trend.mjs";
 
 const REPORT_SCHEMA = "a1-regression-triage-proposal-v1";
 const COMMIT_SEPARATOR = "\u001f";
@@ -50,17 +52,33 @@ export async function proposeRegressionFix({ runId, repository, output, gh, git,
     // Rationale: a run that failed before any lane uploaded has no artifacts; that is itself evidence, not a triage failure.
     if (!/no artifacts|no valid artifacts/i.test(String(error?.stderr ?? error?.message ?? ""))) throw error;
   });
-  const excerpts = extractLogExcerpts((await gh(["run", "view", String(run.id), "--log-failed"]).catch(() => ({ stdout: "" }))).stdout);
-  const lanes = await collectLanes(artifactRoot, view.jobs ?? [], excerpts, files);
+  const excerpts = decision.failed ? extractLogExcerpts((await gh(["run", "view", String(run.id), "--log-failed"]).catch(() => ({ stdout: "" }))).stdout) : new Map();
+  const lanes = decision.failed ? await collectLanes(artifactRoot, view.jobs ?? [], excerpts, files) : [];
   const summary = summarizeLanes(lanes);
+
+  // Rationale: the startup budget is judged across the three most recent develop runs of this workflow,
+  // never from one sample, so the two previous runs' evidence is read next to this run's.
+  const history = [{ runId: run.id, number: run.number, headSha: run.headSha, url: run.url, lanes: await collectStartupLanes(artifactRoot, files) }];
+  for (const previous of await previousRuns(gh, workflow, run, TREND_WINDOW - 1)) {
+    const directory = join(output, "history", String(previous.databaseId));
+    await files.mkdir(directory);
+    await gh(["run", "download", String(previous.databaseId), "--dir", directory]).catch(() => {});
+    history.push({ runId: previous.databaseId, number: previous.number, headSha: previous.headSha, url: previous.url, lanes: await collectStartupLanes(directory, files) });
+  }
+  const trend = evaluateStartupTrend(history);
+  const startup = startupBudgetFailure(trend, renderStartupTrend(trend));
+  if (startup) summary.failures.push(startup);
   const key = triageKey(workflow.file, summary);
+  if (!summary.failures.length && !summary.orchestration.length) {
+    return finish({ changed: false, run, workflow: workflow.name, startup: trendReport(trend), message: `run ${run.id} ${decision.failed ? "failed without owner evidence" : "succeeded"}; ${trend.summary}` }, output, files);
+  }
 
   const lastGreen = await findLastGreen(gh, workflow);
   const commits = lastGreen ? await commitsSince(git, lastGreen.headSha, run.headSha) : [];
   const evidence = { workflow, run, summary, lastGreen, commits };
 
   const existing = await findOpenCandidate(gh, key);
-  const report = { schema: REPORT_SCHEMA, workflow: workflow.name, run, key, summary, lastGreen, commits, existing: existing ? { number: existing.number, branch: existing.headRefName, url: existing.url } : null };
+  const report = { schema: REPORT_SCHEMA, workflow: workflow.name, run, key, summary, startup: trendReport(trend), lastGreen, commits, existing: existing ? { number: existing.number, branch: existing.headRefName, url: existing.url } : null };
 
   if (existing) {
     const body = appendRunToBody(existing.body, evidence);
@@ -112,14 +130,40 @@ async function collectLanes(artifactRoot, jobs, excerpts, files) {
   return lanes;
 }
 
+/** Every startup evidence file beneath the downloaded artifacts, keyed by the lane its artifact names. */
+async function collectStartupLanes(artifactRoot, files) {
+  const lanes = [];
+  for (const artifact of await files.list(artifactRoot).catch(() => [])) {
+    const evidence = await findJson(join(artifactRoot, artifact), files, isStartupEvidence);
+    if (evidence !== null) lanes.push({ lane: laneId(artifact), evidence });
+  }
+  return lanes;
+}
+
+/** The most recent completed runs of the same workflow on the triaged branch that started before this one. */
+async function previousRuns(gh, workflow, run, count) {
+  const args = ["run", "list", "--workflow", workflow.file, "--branch", "develop", "--status", "completed", "--limit", String(count + 3), "--json", "databaseId,number,headSha,url,createdAt"];
+  if (workflow.scheduledOnly) args.push("--event", "schedule");
+  const list = JSON.parse((await gh(args).catch(() => ({ stdout: "[]" }))).stdout || "[]");
+  return list.filter(candidate => candidate.databaseId !== run.id && candidate.createdAt < run.createdAt).slice(0, count);
+}
+
+function trendReport(trend) {
+  return { window: trend.window, summary: trend.summary, persistent: trend.persistent.map(entry => entry.key), entries: trend.entries.map(entry => ({ key: entry.key, verdict: entry.verdict, samples: entry.samples.map(sample => ({ runId: sample.runId, elapsedMs: sample.elapsedMs, budgetMs: sample.budgetMs })) })) };
+}
+
 async function findTierResult(directory, files) {
+  return findJson(directory, files, isTierResult);
+}
+
+async function findJson(directory, files, accept) {
   for (const entry of await files.list(directory).catch(() => [])) {
     const path = join(directory, entry);
     if (entry.endsWith(".json")) {
       const parsed = await files.read(path).then(text => JSON.parse(text)).catch(() => null);
-      if (isTierResult(parsed)) return parsed;
+      if (accept(parsed)) return parsed;
     } else {
-      const nested = await findTierResult(path, files);
+      const nested = await findJson(path, files, accept);
       if (nested !== null) return nested;
     }
   }
