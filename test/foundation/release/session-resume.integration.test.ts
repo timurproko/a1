@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { stripVTControlCharacters } from "node:util";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { readPinnedPiIdentity } from "../../../scripts/governance/pinned-pi-identity.mjs";
 import { resolveCohortEndpoint, resolveProductPaths } from "../../../src/foundation/lifecycle/index.js";
 import {
   CohortStateStore,
@@ -30,7 +31,7 @@ const closedChildren = new WeakSet<ChildProcess>();
 beforeAll(async () => {
   const candidate = await phases.run("load-candidate", () => loadValidationCandidate());
   phases.bindCandidate(candidate.bytes);
-  expect(candidate.manifest.dependencies?.["@earendil-works/pi-coding-agent"]).toBe("0.84.2");
+  expect(candidate.manifest.dependencies?.["@earendil-works/pi-coding-agent"]).toBe((await readPinnedPiIdentity(".")).version);
   extracted = await phases.run("extract-candidate", () => extractValidationCandidate(candidate.bytes));
   cwd = resolve(extracted.root, "work space");
   const home = resolve(extracted.root, "home");

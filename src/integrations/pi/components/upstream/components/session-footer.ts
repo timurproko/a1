@@ -1,5 +1,5 @@
 /**
- * Provenance: @earendil-works/pi-coding-agent 0.84.2 (MIT), commit 914cf1472e715297caa30db4b9535d534a9eb718,
+ * Provenance: @earendil-works/pi-coding-agent 0.85.1 (MIT), commit d981de1229ef899957bbe968bc8dcda02a21f477,
  * packages/coding-agent/src/modes/interactive/components/footer.ts.
  * Modifications: Consumes neutral owned-UI view data instead of a fabricated concrete AgentSession; an
  * explicit bare-A1 profile colors the thinking-level name while preserving the remaining footer layout
@@ -12,11 +12,14 @@ import type { OwnedUiSessionViewModel } from "../../../../../contracts/owned-ui/
 import { piTheme } from "../../theme.js";
 
 export class SessionFooter implements Component {
+  private readonly getView: () => OwnedUiSessionViewModel;
+  private readonly cwd: string;
+  private readonly profile: "pi" | "a1";
   constructor(
-    private readonly getView: () => OwnedUiSessionViewModel,
-    private readonly cwd: string,
-    private readonly profile: "pi" | "a1" = "pi",
-  ) {}
+    getView: () => OwnedUiSessionViewModel,
+    cwd: string,
+    profile: "pi" | "a1" = "pi",
+  ) { this.getView = getView; this.cwd = cwd; this.profile = profile; }
   invalidate(): void {}
   dispose(): void {}
 

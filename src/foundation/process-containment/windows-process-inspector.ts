@@ -14,11 +14,17 @@ export interface InspectorCommandRunner {
 
 /** Verifies Windows process identity through the bounded process-guardian inspection command. */
 export class WindowsNativeProcessInspector implements NativeProcessInspector {
+  readonly helperPath: string;
+  private readonly runner: InspectorCommandRunner;
+  private readonly identityPrefix: string;
   constructor(
-    readonly helperPath: string,
-    private readonly runner: InspectorCommandRunner = defaultRunner,
-    private readonly identityPrefix = "windows-filetime:",
+    helperPath: string,
+    runner: InspectorCommandRunner = defaultRunner,
+    identityPrefix = "windows-filetime:",
   ) {
+    this.helperPath = helperPath;
+    this.runner = runner;
+    this.identityPrefix = identityPrefix;
     if (!helperPath || helperPath.includes("\0")) throw new TypeError("process guardian helper path is invalid");
   }
 

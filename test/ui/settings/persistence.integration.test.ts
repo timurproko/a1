@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
-  OwnedUiSettingsStore,
+  OwnedSettingsManager,
   settingValue,
   type OwnedUiSettingDeclaration,
 } from "../../../src/ui/settings/index.js";
@@ -21,8 +21,13 @@ const DECLARATIONS: readonly OwnedUiSettingDeclaration[] = [
 
 let root: string;
 
-function store(profileId = "a1"): OwnedUiSettingsStore {
-  return new OwnedUiSettingsStore({ configDir: root, profileId, declarations: DECLARATIONS, migrations: [] });
+function store(profileId = "a1"): OwnedSettingsManager {
+  return new OwnedSettingsManager({ configDir: root, profileId, declarations: DECLARATIONS, migrations: [] });
+}
+
+async function write(target: OwnedSettingsManager, id: string, value: string | number | boolean): Promise<{ stored: boolean; failure: string | null }> {
+  const outcome = await target.change("a1", id, value);
+  return { stored: outcome.status === "applied" || outcome.status === "deferred", failure: outcome.failure };
 }
 
 function digestTree(directory: string): readonly string[] {
@@ -46,7 +51,7 @@ afterEach(() => {
   rmSync(root, { recursive: true, force: true });
 });
 
-describe("owned UI settings store", () => {
+describe("owned settings persistence", () => {
   it("rejects a profile id that is not a bounded slug", () => {
     for (const profileId of ["", "A1", "../escape", "with space", "a".repeat(65)]) {
       expect(() => store(profileId)).toThrow(/bounded slug/);
@@ -59,41 +64,41 @@ describe("owned UI settings store", () => {
     expect(resolution.notices).toHaveLength(0);
   });
 
-  it("stores a value that survives a fresh read", () => {
+  it("stores a value that survives a fresh read", async () => {
     const first = store();
-    expect(first.write(first.read(), "density", "compact")).toEqual({ stored: true, failure: null });
+    expect(await write(first, "density", "compact")).toEqual({ stored: true, failure: null });
     expect(settingValue(store().read(), "density")).toBe("compact");
   });
 
-  it("keeps profiles isolated", () => {
+  it("keeps profiles isolated", async () => {
     const agent = store("a1");
     const comparison = store("pi");
-    expect(agent.write(agent.read(), "density", "compact").stored).toBe(true);
+    expect((await write(agent, "density", "compact")).stored).toBe(true);
     expect(settingValue(comparison.read(), "density")).toBe("comfortable");
     expect(agent.file).not.toBe(comparison.file);
   });
 
-  it("writes only under the configured root and leaves Pi profile trees untouched", () => {
+  it("writes only under the configured root and leaves Pi profile trees untouched", async () => {
     const piProfile = path.join(root, "pi-profile-fixture");
     mkdirSync(piProfile, { recursive: true });
     writeFileSync(path.join(piProfile, "auth.json"), '{"token":"fixture"}\n', "utf8");
     const before = digestTree(piProfile);
 
     const target = store();
-    expect(target.write(target.read(), "density", "compact").stored).toBe(true);
+    expect((await write(target, "density", "compact")).stored).toBe(true);
 
     expect(digestTree(piProfile)).toEqual(before);
     expect(target.file.startsWith(path.resolve(root))).toBe(true);
     expect(path.relative(root, target.file)).toBe(path.join("settings", "a1.json"));
   });
 
-  it("preserves an unknown key across a write", () => {
+  it("preserves an unknown key across a write", async () => {
     const file = path.join(root, "settings", "a1.json");
     mkdirSync(path.dirname(file), { recursive: true });
     writeFileSync(file, '{"version":1,"values":{"futureSetting":"keep me"}}\n', "utf8");
 
     const target = store();
-    expect(target.write(target.read(), "density", "compact").stored).toBe(true);
+    expect((await write(target, "density", "compact")).stored).toBe(true);
 
     const written = JSON.parse(readFileSync(file, "utf8")) as { values: Record<string, unknown> };
     expect(written.values["futureSetting"]).toBe("keep me");
@@ -122,46 +127,46 @@ describe("owned UI settings store", () => {
     expect(resolution.notices[0]?.detail).toContain("settings limit");
   });
 
-  it("reports a failed store rather than claiming the change was saved", () => {
+  it("reports a failed store rather than claiming the change was saved", async () => {
     const target = store();
     const settingsDir = path.join(root, "settings");
     mkdirSync(settingsDir, { recursive: true });
     // Platform: a directory at the target path cannot be replaced by rename.
     mkdirSync(path.join(settingsDir, "a1.json"), { recursive: true });
 
-    const outcome = target.write(target.read(), "density", "compact");
+    const outcome = await write(target, "density", "compact");
     expect(outcome.stored).toBe(false);
     expect(outcome.failure).toContain("could not be written");
+    expect(target.valueOf("density")).toBe("comfortable");
   });
 
-  it("rejects an unknown setting and a disallowed value without writing", () => {
+  it("rejects an unknown setting and a disallowed value without writing", async () => {
     const target = store();
-    const resolution = target.read();
-    expect(target.write(resolution, "absentSetting", "compact")).toEqual({
+    expect(await write(target, "absentSetting", "compact")).toEqual({
       stored: false,
-      failure: "unknown owned UI setting: absentSetting",
+      failure: "unknown a1 setting: absentSetting",
     });
-    expect(target.write(resolution, "density", "enormous").failure).toContain("is not allowed for density");
+    expect((await write(target, "density", "enormous")).failure).toContain("is not allowed for density");
     expect(() => statSync(target.file)).toThrow();
   });
 
-  it("leaves no temporary file behind after a successful write", () => {
+  it("leaves no temporary file behind after a successful write", async () => {
     const target = store();
-    expect(target.write(target.read(), "density", "compact").stored).toBe(true);
+    expect((await write(target, "density", "compact")).stored).toBe(true);
     expect(readdirSync(path.join(root, "settings"))).toEqual(["a1.json"]);
   });
 
-  it("keeps the previous document authoritative when a stray temporary file exists", () => {
+  it("keeps the previous document authoritative when a stray temporary file exists", async () => {
     const target = store();
-    expect(target.write(target.read(), "density", "compact").stored).toBe(true);
+    expect((await write(target, "density", "compact")).stored).toBe(true);
     writeFileSync(`${target.file}.999999.tmp`, "{ truncated", "utf8");
     expect(settingValue(store().read(), "density")).toBe("compact");
   });
 
-  it("writes the settings file with owner-only permissions on Unix", () => {
+  it("writes the settings file with owner-only permissions on Unix", async () => {
     if (process.platform === "win32") return;
     const target = store();
-    expect(target.write(target.read(), "density", "compact").stored).toBe(true);
+    expect((await write(target, "density", "compact")).stored).toBe(true);
     expect(statSync(target.file).mode & 0o777).toBe(0o600);
     chmodSync(target.file, 0o600);
   });

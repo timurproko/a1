@@ -16,7 +16,11 @@ export class ClipboardDiagnosticCapture {
   #writing: Promise<void> | undefined;
   #disposed = false;
   readonly #heartbeat: ReturnType<typeof setInterval>;
-  constructor(private readonly destination: string, private readonly write = (file: string, data: string) => writeFile(file, data, { encoding: "utf8", mode: 0o600 })) {
+  private readonly destination: string;
+  private readonly write: (file: string, data: string) => Promise<void>;
+  constructor(destination: string, write = (file: string, data: string) => writeFile(file, data, { encoding: "utf8", mode: 0o600 })) {
+    this.destination = destination;
+    this.write = write;
     this.#heartbeat = setInterval(() => this.#record("heartbeat", { phase: "heartbeat", atMs: performance.now() }), 100);
     this.#heartbeat.unref();
   }

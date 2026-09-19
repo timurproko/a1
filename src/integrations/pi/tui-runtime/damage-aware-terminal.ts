@@ -1,6 +1,6 @@
 import type { PiTuiTerminalPort } from "./contracts.js";
 
-export const PINNED_PI_TUI_DAMAGE_GRAMMAR = "@earendil-works/pi-tui@0.84.2:tui-alt-screen-one-write-v1";
+export const PINNED_PI_TUI_DAMAGE_GRAMMAR = "@earendil-works/pi-tui@0.85.1:tui-alt-screen-one-write-v1";
 
 export interface PiTuiDamageFrameDescriptor {
   readonly frameId: number;
@@ -111,10 +111,12 @@ export class DamageAwareTerminalAdapter implements PiTuiTerminalPort {
     paintedRows: [],
   };
 
+  readonly inner: PiTuiTerminalPort;
+  readonly options: DamageAwareTerminalOptions;
   constructor(
-    readonly inner: PiTuiTerminalPort,
-    readonly options: DamageAwareTerminalOptions,
-  ) {}
+    inner: PiTuiTerminalPort,
+    options: DamageAwareTerminalOptions,
+  ) { this.inner = inner; this.options = options; }
 
   get columns(): number { return this.inner.columns; }
   get rows(): number { return this.inner.rows; }

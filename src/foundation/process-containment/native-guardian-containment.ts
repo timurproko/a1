@@ -17,11 +17,17 @@ export class NativeGuardianContainment implements ProcessContainment {
   #rootIdentity: NativeProcessIdentity | null = null;
   #outcome: Promise<LaunchInstanceOutcome> | null = null;
 
+  readonly instanceId: string;
+  readonly helperPath: string;
+  readonly statusPath: string;
   constructor(
-    readonly instanceId: string,
-    readonly helperPath: string,
-    readonly statusPath: string,
+    instanceId: string,
+    helperPath: string,
+    statusPath: string,
   ) {
+    this.instanceId = instanceId;
+    this.helperPath = helperPath;
+    this.statusPath = statusPath;
     this.#identity = { provider: "native-guardian-pending", token: instanceId };
   }
 

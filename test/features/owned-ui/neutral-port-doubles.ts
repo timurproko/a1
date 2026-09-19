@@ -31,7 +31,8 @@ export class TestAgentSession implements AgentSessionPort {
   readonly capabilities = TEST_AGENT_CAPABILITIES;
   readonly commands: AgentCommand[] = [];
   readonly #listeners = new Set<(event: AgentEvent) => void>();
-  constructor(readonly sessionId = "test-session") {}
+  readonly sessionId: string;
+  constructor(sessionId = "test-session") { this.sessionId = sessionId; }
   async execute(command: AgentCommand): Promise<AgentCommandOutcome> { this.commands.push(command); return "completed"; }
   subscribe(listener: (event: AgentEvent) => void): () => void { this.#listeners.add(listener); return () => this.#listeners.delete(listener); }
   emit(event: AgentEvent): void { for (const listener of this.#listeners) listener(event); }
@@ -86,7 +87,8 @@ export class TestOwnedUiApplication implements OwnedUiApplicationPort {
 
 export class TestPresentationRuntime implements PresentationRuntimePort {
   state: PresentationRuntimeState = "idle";
-  constructor(readonly terminal: TestPresentationTerminal = new TestPresentationTerminal()) {}
+  readonly terminal: TestPresentationTerminal;
+  constructor(terminal: TestPresentationTerminal = new TestPresentationTerminal()) { this.terminal = terminal; }
   start(): void { this.terminal.start(); this.state = "running"; }
   render(): void {}
   showOverlay(_component: PresentationComponentPort, _options: PresentationOverlayOptions): PresentationOverlayHandle {

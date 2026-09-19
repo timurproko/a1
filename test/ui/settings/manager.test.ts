@@ -2,11 +2,7 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { OwnedUiSettingsSession } from "../../../src/ui/settings/index.js";
-import {
-  OwnedUiSettingsStore,
-  type OwnedUiSettingDeclaration,
-} from "../../../src/ui/settings/index.js";
+import { OwnedSettingsManager, type OwnedUiSettingDeclaration } from "../../../src/ui/settings/index.js";
 import type { AgentJsonValue, AgentSettingDescriptor, AgentSettingsPort } from "../../../src/contracts/agent-engine/index.js";
 
 const DECLARATIONS: readonly OwnedUiSettingDeclaration[] = [
@@ -80,9 +76,8 @@ function settingDescriptor(key: string, valueType: AgentSettingDescriptor["value
 
 let root: string;
 
-function session(agent: AgentSettingsPort | null): OwnedUiSettingsSession {
-  const store = new OwnedUiSettingsStore({ configDir: root, profileId: "a1", declarations: DECLARATIONS, migrations: [] });
-  return new OwnedUiSettingsSession({ store, agent });
+function session(agent: AgentSettingsPort | null): OwnedSettingsManager {
+  return new OwnedSettingsManager({ configDir: root, profileId: "a1", declarations: DECLARATIONS, migrations: [], agent });
 }
 
 beforeEach(() => {
@@ -93,17 +88,17 @@ afterEach(() => {
   rmSync(root, { recursive: true, force: true });
 });
 
-describe("owned UI settings session", () => {
+describe("owned settings manager", () => {
   it.each(["available", "absent", "failed", "read-only"] as const)(
     "preserves suggestion opt-out and routes Agent-group toggles to A1 with %s engine settings",
     async state => {
       const port = syntheticPort({ write: state !== "read-only", failListSettings: state === "failed" });
-      const store = new OwnedUiSettingsStore({ configDir: root, profileId: "a1" });
-      expect(store.write(store.read(), "promptSuggestions", false).stored).toBe(true);
-      const before = readFileSync(store.file, "utf8");
-      const target = new OwnedUiSettingsSession({ store, agent: state === "absent" ? null : port });
+      const seed = new OwnedSettingsManager({ configDir: root, profileId: "a1" });
+      expect((await seed.change("a1", "promptSuggestions", false)).status).toBe("applied");
+      const before = readFileSync(seed.file, "utf8");
+      const target = new OwnedSettingsManager({ configDir: root, profileId: "a1", agent: state === "absent" ? null : port });
       await target.load();
-      expect(readFileSync(store.file, "utf8")).toBe(before);
+      expect(readFileSync(seed.file, "utf8")).toBe(before);
       expect(target.resolution).toMatchObject({ version: 6, migrated: false, notices: [] });
       const group = target.sections().find(section => section.id === "agent");
       const entry = group?.entries.find(candidate => candidate.id === "promptSuggestions");
@@ -121,8 +116,8 @@ describe("owned UI settings session", () => {
       expect(liveValues).toEqual([true, false]);
       expect(port.writes).toEqual([]);
       expect(port.flushed()).toBe(0);
-      expect(JSON.parse(readFileSync(store.file, "utf8"))).toEqual({ version: 6, values: { promptSuggestions: false } });
-      const restarted = new OwnedUiSettingsSession({ store, agent: state === "absent" ? null : port });
+      expect(JSON.parse(readFileSync(seed.file, "utf8"))).toEqual({ version: 6, values: { promptSuggestions: false } });
+      const restarted = new OwnedSettingsManager({ configDir: root, profileId: "a1", agent: state === "absent" ? null : port });
       await restarted.load();
       expect(restarted.sections().find(section => section.id === "agent")?.entries.at(-1)).toMatchObject({
         id: "promptSuggestions", backend: "a1", value: false, effectiveValue: false,
@@ -134,8 +129,7 @@ describe("owned UI settings session", () => {
   );
 
   it("preserves multiple pending history settings through reload and unrelated live saves", async () => {
-    const store = new OwnedUiSettingsStore({ configDir: root, profileId: "a1" });
-    const session = new OwnedUiSettingsSession({ store });
+    const session = new OwnedSettingsManager({ configDir: root, profileId: "a1" });
     await session.change("a1", "promptHistoryEnabled", false);
     await session.change("a1", "promptHistoryMaxItems", 20);
     await session.change("a1", "promptSuggestions", false);
@@ -145,16 +139,30 @@ describe("owned UI settings session", () => {
     const entries = session.sections().flatMap(section => section.entries);
     expect(entries.find(entry => entry.id === "promptHistoryEnabled")).toMatchObject({ storedValue: false, effectiveValue: true, application: "next-start" });
     expect(entries.find(entry => entry.id === "promptHistoryMaxItems")).toMatchObject({ storedValue: 20, effectiveValue: 100 });
-    const restarted = new OwnedUiSettingsSession({ store });
+    const restarted = new OwnedSettingsManager({ configDir: root, profileId: "a1" });
     expect(restarted.value("promptHistoryEnabled")).toBe(false);
     expect(restarted.value("promptHistoryMaxItems")).toBe(20);
     expect(restarted.value("promptSuggestions")).toBe(false);
   });
 
+  it("types each declared getter by its declaration and falls back to the declared default", async () => {
+    const target = new OwnedSettingsManager({ configDir: root, profileId: "a1" });
+    const speed: "normal" | "fast" | "high" = target.value("scrollbarSpeed");
+    const limit: number = target.value("promptHistoryMaxItems");
+    const animate: boolean = target.value("quitAnimation");
+    expect([speed, limit, animate]).toEqual(["normal", 100, true]);
+    await target.change("a1", "scrollbarSpeed", "fast");
+    expect(target.value("scrollbarSpeed")).toBe("fast");
+    // Invariant: an injected declaration set that omits a setting still answers with the table default.
+    const partial = session(null);
+    expect(partial.valueOf("quitEffect")).toBeNull();
+    expect(partial.value("quitEffect")).toBe("fall");
+  });
+
   it("exposes resolved A1 values and engine-backed sections after load", async () => {
     const target = session(syntheticPort());
     await target.load();
-    expect(target.value("density")).toBe("comfortable");
+    expect(target.valueOf("density")).toBe("comfortable");
     const sections = target.sections();
     expect(sections.map(section => section.id)).toEqual(["a1", "agent"]);
     expect(sections[1]?.entries.map(entry => entry.id)).toEqual(["autoCompact", "thinkingLevel"]);
@@ -175,8 +183,7 @@ describe("owned UI settings session", () => {
         ];
       },
     };
-    const store = new OwnedUiSettingsStore({ configDir: root, profileId: "a1", declarations: DECLARATIONS, migrations: [] });
-    const target = new OwnedUiSettingsSession({ store, agent });
+    const target = new OwnedSettingsManager({ configDir: root, profileId: "a1", declarations: DECLARATIONS, migrations: [], agent });
     await target.load();
 
     const entries = target.sections().flatMap(section => section.entries);
@@ -201,7 +208,7 @@ describe("owned UI settings session", () => {
       status: "applied", applied: true, pendingRestart: false, application: "live",
       storedValue: "compact", effectiveValue: "compact", limitationReason: null, failure: null,
     });
-    expect(target.value("density")).toBe("compact");
+    expect(target.valueOf("density")).toBe("compact");
     expect(notified).toBe(1);
     expect(port.writes).toHaveLength(0);
     expect(port.flushed()).toBe(0);
@@ -215,12 +222,12 @@ describe("owned UI settings session", () => {
       status: "deferred", applied: false, pendingRestart: true, application: "next-start",
       storedValue: true, effectiveValue: false, limitationReason: null, failure: null,
     });
-    expect(target.value("confirmExit")).toBe(false);
+    expect(target.valueOf("confirmExit")).toBe(false);
     expect(target.pendingValue("confirmExit")).toBe(true);
 
     const next = session(syntheticPort());
     await next.load();
-    expect(next.value("confirmExit")).toBe(true);
+    expect(next.valueOf("confirmExit")).toBe(true);
   });
 
   it("routes an agent change through the port and never into the A1 document", async () => {
@@ -235,7 +242,7 @@ describe("owned UI settings session", () => {
     expect(port.writes).toEqual([{ key: "thinkingLevel", value: "high" }]);
     expect(port.flushed()).toBe(1);
     expect(target.resolution.preserved).toEqual({});
-    expect(target.value("thinkingLevel")).toBeNull();
+    expect(target.valueOf("thinkingLevel")).toBeNull();
   });
 
   it("does not flush when the engine does not advertise flush", async () => {
@@ -303,6 +310,6 @@ describe("owned UI settings session", () => {
     await target.load();
     expect((await target.change("a1", "absentSetting", "x")).failure).toMatch(/unknown a1 setting/);
     expect((await target.change("a1", "density", "enormous")).failure).toMatch(/is not allowed for density/);
-    expect(target.value("density")).toBe("comfortable");
+    expect(target.valueOf("density")).toBe("comfortable");
   });
 });

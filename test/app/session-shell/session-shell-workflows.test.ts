@@ -44,10 +44,11 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     terminal.input("\x1b");
 
     await shell.submit("/settings");
-    terminal.input("thinking");
+    // Rationale: 0.85.1 keeps thinking levels per model behind a stepped submenu; the global level is a /thinking command.
+    terminal.input("per model");
     terminal.input("\r");
-    expect(frame()).toContain("Thinking Level");
-    expect(frame()).toContain("Select reasoning depth for thinking-capable models");
+    expect(frame()).toContain("Per-Model Thinking Level");
+    expect(frame()).toContain("Select a model to configure");
     terminal.input("\x1b");
     terminal.input("\x1b");
 
@@ -80,7 +81,7 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     const { engine, terminal, shell } = await fixture();
     await shell.submit("/scoped-models");
     expect(shell.root.render(100).join("\n")).toContain("Model Configuration");
-    expect(shell.root.render(100).join("\n")).toContain("ctrl+s");
+    expect(shell.root.render(100).join("\n")).toContain("Ctrl+S");
 
     terminal.input("\r");
     const dirtyFrame = shell.root.render(100).join("\n");
@@ -94,7 +95,8 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     expect(savedFrame).toContain("Model Configuration");
     expect(savedFrame).toContain("Model selection saved to settings");
     expect(savedFrame).not.toContain("(unsaved)");
-    expect(engine.enabledModels).toEqual(["openai/gpt-5"]);
+    // Rationale: since 0.85.1 the first toggle from "all enabled" disables the selected model rather than keeping only it.
+    expect(engine.enabledModels).toEqual(["anthropic/claude"]);
 
     terminal.input("\x1b");
     const restoredFrame = shell.root.render(100).join("\n");

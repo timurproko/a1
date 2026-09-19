@@ -1,4 +1,4 @@
-import type { AgentJsonValue, AgentSettingApplicationBoundary, AgentSettingDescriptor } from "../../contracts/agent-engine/index.js";
+import type { AgentJsonValue, AgentSettingApplicationBoundary, AgentSettingDescriptor, AgentSettingFlag } from "../../contracts/agent-engine/index.js";
 import type { OwnedUiSettingValue } from "./declarations.js";
 import type { OwnedUiSettingsResolution } from "./resolution.js";
 
@@ -24,7 +24,7 @@ export interface OwnedUiSettingsEntry {
   readonly minimum: number | null;
   readonly maximum: number | null;
   /** Flags that surface offers, declared by the source rather than by the value. */
-  readonly flags: readonly { readonly key: string; readonly label: string; readonly description: string; readonly fallback: boolean }[];
+  readonly flags: readonly AgentSettingFlag[];
   readonly origin: "default" | "stored" | "engine";
   readonly application: AgentSettingApplicationBoundary;
 }

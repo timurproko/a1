@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  OWNED_SETTING_DECLARATIONS,
   OWNED_UI_SETTINGS_MIGRATIONS,
   OWNED_UI_SETTINGS_VERSION,
   OWNED_UI_SETTING_DECLARATIONS,
   assertOwnedUiSettingDeclarations,
   assertOwnedUiSettingsMigrations,
   findOwnedUiSettingDeclaration,
+  isOwnedSettingId,
   migrationsFrom,
   resolveOwnedUiSettings,
   type OwnedUiSettingDeclaration,
@@ -13,6 +15,15 @@ import {
 } from "../../../src/ui/settings/index.js";
 
 describe("owned UI setting declarations", () => {
+  it("is one table keyed by id, from which the ordered list and the id guard derive", () => {
+    // Invariant: the key and the declared id agree, so a typed getter and the stored key name the same setting.
+    for (const [key, declaration] of Object.entries(OWNED_SETTING_DECLARATIONS)) expect(declaration.id).toBe(key);
+    expect(OWNED_UI_SETTING_DECLARATIONS).toEqual(Object.values(OWNED_SETTING_DECLARATIONS));
+    expect(isOwnedSettingId("scrollbarSpeed")).toBe(true);
+    expect(isOwnedSettingId("density")).toBe(false);
+    expect(isOwnedSettingId("toString")).toBe(false);
+  });
+
   it("declares every setting with a default inside its own allowed values", () => {
     expect(() => assertOwnedUiSettingDeclarations(OWNED_UI_SETTING_DECLARATIONS)).not.toThrow();
     expect(OWNED_UI_SETTING_DECLARATIONS.length).toBeGreaterThan(0);

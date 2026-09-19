@@ -15,7 +15,9 @@ class TestComponent implements PiTuiComponentPort {
   renders = 0;
   disposed = false;
 
-  constructor(public lines: readonly string[], readonly reflectInputs = false) {}
+  lines: readonly string[];
+  readonly reflectInputs: boolean;
+  constructor(lines: readonly string[], reflectInputs = false) { this.lines = lines; this.reflectInputs = reflectInputs; }
 
   render(): readonly string[] {
     this.renders += 1;
@@ -528,7 +530,8 @@ describe("PiTuiRuntimeAdapter", () => {
     terminal.resize(24, 10);
     runtime.renderNow();
     expect(runtime.scrollState("nested").viewportHeight).toBe(3);
-    expect(terminal.writes.join("")).toContain("\x1b[100m");
+    // Rationale: pinned 0.85.1 draws the scrollbar track and thumb as foreground text (90 and 37) rather than a background.
+    expect(terminal.writes.join("")).toContain("\x1b[90m");
     await runtime.stop({ drainInput: false, preserveScreen: true });
     expect(primary.disposed).toBe(true);
     expect(nested.disposed).toBe(true);

@@ -18,7 +18,8 @@ export class InputFrameRecorder {
   #sequence = 0;
   #compositionStart = 0;
 
-  constructor(readonly observe: () => Observation) { this.#renderStart = observe().renders; }
+  readonly observe: () => Observation;
+  constructor(observe: () => Observation) { this.observe = observe; this.#renderStart = observe().renders; }
 
   trace(event: PiTuiInputDiagnosticsEvent): void {
     if (event.phase === "composition-start") {

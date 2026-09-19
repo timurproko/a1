@@ -136,12 +136,15 @@ async function runOwned(request: InputProducerRequest): Promise<InputProducerRes
 class PinnedRoot implements Component {
   streamText = "";
   readonly history: readonly string[];
+  readonly surface: Component;
+  readonly phases: PiTuiInputDiagnosticsEvent[];
+  readonly state: { revision: number; applied: number; pending: number };
   constructor(
-    readonly surface: Component,
-    readonly phases: PiTuiInputDiagnosticsEvent[],
-    readonly state: { revision: number; applied: number; pending: number },
+    surface: Component,
+    phases: PiTuiInputDiagnosticsEvent[],
+    state: { revision: number; applied: number; pending: number },
     historyRows: number,
-  ) { this.history = Array.from({ length: historyRows }, (_, index) => `historical-${index}`); }
+  ) { this.surface = surface; this.phases = phases; this.state = state; this.history = Array.from({ length: historyRows }, (_, index) => `historical-${index}`); }
   render(width: number): string[] {
     this.trace("composition-start");
     try { return [...this.history, ...(this.streamText ? [this.streamText] : []), ...this.surface.render(width)]; }

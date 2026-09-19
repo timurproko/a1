@@ -3,8 +3,8 @@
   "change": "build-owned-pi-ui-foundation",
   "task": "7.26",
   "pinned": {
-    "version": "0.84.2",
-    "commit": "914cf1472e715297caa30db4b9535d534a9eb718"
+    "version": "0.85.1",
+    "commit": "d981de1229ef899957bbe968bc8dcda02a21f477"
   },
   "policy": {
     "scope": "Every root, nested, replacement, and overlay node plus every source-reachable transition from InteractiveMode, nested components, and public extension UI is mandatory.",
@@ -60,7 +60,8 @@
     "tree": "node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/components/tree-selector.js",
     "extensionSelector": "node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/components/extension-selector.js",
     "extensionInput": "node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/components/extension-input.js",
-    "extensionEditor": "node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/components/extension-editor.js"
+    "extensionEditor": "node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/components/extension-editor.js",
+    "share": "node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/session-share.js"
   },
   "settingsInstances": [
     "anthropic-extra-usage",
@@ -83,10 +84,11 @@
     "double-escape-action",
     "tree-filter-mode",
     "warnings",
-    "thinking",
+    "model-thinking",
     "tui-mode",
     "fullscreen-exit-output",
     "fullscreen-scrollbar",
+    "fullscreen-copy-on-select",
     "theme",
     "show-images",
     "image-width-cells",
@@ -259,10 +261,10 @@
       "id": "settings.thinking",
       "source": "settings",
       "sourceAnchors": [
-        "Thinking Level",
+        "title: \"Per-Model Thinking Level\"",
         "THINKING_DESCRIPTIONS"
       ],
-      "heading": "Thinking Level",
+      "heading": "per-model thinking level steps",
       "body": "Select reasoning depth for thinking-capable models",
       "options": [
         "available model thinking levels with exact descriptions"
@@ -1369,9 +1371,9 @@
     },
     {
       "id": "operation.share-loader",
-      "source": "interactive",
+      "source": "share",
       "sourceAnchors": [
-        "new BorderedLoader(this.ui, theme, \"Creating gist...\")"
+        "new BorderedLoader(context.ui, theme, \"Creating gist...\")"
       ],
       "heading": "bordered operation loader",
       "body": "Creating gist...",
@@ -1385,7 +1387,6 @@
       "viewport": "editor replacement",
       "scrolling": "none",
       "destination": "src/app/session-shell/session-shell.ts",
-      "status": "corrected-pending-exhaustive-parity",
       "controller": "BorderedLoader share controller",
       "acceptance": "modal-node:operation.share-loader",
       "parents": [
@@ -1715,12 +1716,12 @@
       "to": "settings.thinking",
       "source": "settings",
       "sourceAnchors": [
-        "new SelectSubmenu(\"Thinking Level\""
+        "new SteppedSubmenu("
       ],
-      "trigger": "select Thinking level",
-      "stateMutation": "capture current thinking level",
-      "replacement": "nested SelectSubmenu",
-      "result": "thinking selector",
+      "trigger": "select Default thinking level per model",
+      "stateMutation": "capture current per-model overrides",
+      "replacement": "nested SteppedSubmenu",
+      "result": "model step then level step",
       "restoration": "select/cancel returns settings.root",
       "acceptance": "modal-edge:settings.thinking.open",
       "acceptanceEvidence": [
@@ -2938,9 +2939,9 @@
       "id": "open.share-loader",
       "from": "editor.root",
       "to": "operation.share-loader",
-      "source": "interactive",
+      "source": "share",
       "sourceAnchors": [
-        "Creating gist..."
+        "\"Creating gist...\""
       ],
       "trigger": "/share after successful temporary export",
       "stateMutation": "spawn gist operation and install abort handler",
@@ -3950,6 +3951,7 @@
     "session-selector-search.js",
     "session-selector.js",
     "settings-selector.js",
+    "settings-submenu.js",
     "show-images-selector.js",
     "skill-invocation-message.js",
     "status-indicator.js",

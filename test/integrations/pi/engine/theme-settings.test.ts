@@ -1,25 +1,25 @@
 import { describe, expect, it } from "vitest";
 import { SettingsManager } from "@earendil-works/pi-coding-agent";
-import { AUTOMATIC_THEME, PiSettingsIntegration, parseAutomaticTheme } from "../../../../src/integrations/pi/engine/index.js";
+import { AUTOMATIC_THEME, PiSettingsBridge, parseAutomaticTheme } from "../../../../src/integrations/pi/engine/index.js";
 
 const THEMES = ["dark", "light", "ocean"] as const;
 
-function bindTheme(target: PiSettingsIntegration): PiSettingsIntegration {
+function bindTheme(target: PiSettingsBridge): PiSettingsBridge {
   target.bindOwner("shell", { theme: { apply() {} } });
   return target;
 }
 
-function integration(theme: string): PiSettingsIntegration {
-  const target = bindTheme(new PiSettingsIntegration(SettingsManager.inMemory({ theme }), {
+function integration(theme: string): PiSettingsBridge {
+  const target = bindTheme(new PiSettingsBridge(SettingsManager.inMemory({ theme }), {
     themes: () => THEMES,
-    thinkingLevels: () => ["low", "high"],
+    models: () => [{ key: "openai/gpt-5", label: "gpt-5 [openai]", description: "global default", levels: ["off", "low", "high"] }],
     productMode: "comparison",
   }));
-  target.bindOwner("agent", { thinkingLevel: { apply() {} } });
+  target.bindOwner("agent", { modelThinkingLevels: { apply() {} } });
   return target;
 }
 
-async function keys(target: PiSettingsIntegration): Promise<readonly string[]> {
+async function keys(target: PiSettingsBridge): Promise<readonly string[]> {
   return (await target.listSettings()).map(descriptor => descriptor.key);
 }
 
@@ -38,10 +38,10 @@ describe("the theme at the engine boundary", () => {
     expect(theme?.resolvedWhenRead).toBe(true);
   });
 
-  it("resolves the thinking levels the session reports", async () => {
+  it("resolves the per-model thinking rows from the models the engine offers", async () => {
     const descriptors = await integration("dark").listSettings();
-    const thinking = descriptors.find(descriptor => descriptor.key === "thinkingLevel");
-    expect(thinking?.choices).toEqual(["low", "high"]);
+    const thinking = descriptors.find(descriptor => descriptor.key === "modelThinkingLevels");
+    expect(thinking?.flags).toEqual([{ key: "openai/gpt-5", label: "gpt-5 [openai]", description: "global default", fallback: "default", choices: ["default", "off", "low", "high"] }]);
     expect(thinking?.resolvedWhenRead).toBe(true);
   });
 
@@ -60,7 +60,7 @@ describe("the theme at the engine boundary", () => {
 
   it("stores following the terminal as the theme named for each appearance", async () => {
     const settings = SettingsManager.inMemory({ theme: "ocean" });
-    const target = bindTheme(new PiSettingsIntegration(settings, { themes: () => THEMES, thinkingLevels: () => ["low"], productMode: "comparison" }));
+    const target = bindTheme(new PiSettingsBridge(settings, { themes: () => THEMES, productMode: "comparison" }));
 
     await target.writeSetting("theme", AUTOMATIC_THEME);
 
@@ -70,7 +70,7 @@ describe("the theme at the engine boundary", () => {
 
   it("keeps the theme in use for both appearances when neither is installed", async () => {
     const settings = SettingsManager.inMemory({ theme: "ocean" });
-    const target = bindTheme(new PiSettingsIntegration(settings, { themes: () => ["ocean"], thinkingLevels: () => ["low"], productMode: "comparison" }));
+    const target = bindTheme(new PiSettingsBridge(settings, { themes: () => ["ocean"], productMode: "comparison" }));
 
     await target.writeSetting("theme", AUTOMATIC_THEME);
 
@@ -90,7 +90,7 @@ describe("the theme at the engine boundary", () => {
   });
 
   it("offers no automatic option when nothing lists the themes", async () => {
-    const bare = new PiSettingsIntegration(SettingsManager.inMemory({ theme: "dark" }));
+    const bare = new PiSettingsBridge(SettingsManager.inMemory({ theme: "dark" }));
     const theme = (await bare.listSettings()).find(descriptor => descriptor.key === "theme");
     expect(theme?.choices).toBeUndefined();
   });

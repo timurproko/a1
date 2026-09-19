@@ -11,7 +11,8 @@ export class OverlayGeometryTracker {
 
   readonly ports = new WeakMap<Component, PresentationComponentPort>();
 
-  constructor(readonly publish: (surfaces: readonly PresentationPointerSurface[] | null) => void) {}
+  readonly publish: (surfaces: readonly PresentationPointerSurface[] | null) => void;
+  constructor(publish: (surfaces: readonly PresentationPointerSurface[] | null) => void) { this.publish = publish; }
 
   invalidate(): void {
     if (this.#frame === null) return;
@@ -87,6 +88,7 @@ export class GeometryObservedAltScreen extends TuiAltScreen {
         else handle.unfocus({ target: target.target === null ? null : this.#overlayComponents.get(target.target) ?? target.target });
       },
       isFocused: () => handle.isFocused(),
+      getBounds: () => handle.getBounds(),
     };
   }
 

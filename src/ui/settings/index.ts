@@ -1,11 +1,13 @@
 export {
+  OWNED_SETTING_DECLARATIONS,
   OWNED_UI_SETTINGS_VERSION,
   OWNED_UI_SETTING_DECLARATIONS,
   QUIT_EFFECT_DURATIONS_MS,
   assertOwnedUiSettingDeclarations,
   findOwnedUiSettingDeclaration,
+  isOwnedSettingId,
 } from "./declarations.js";
-export type { OwnedUiSettingApplication, OwnedUiSettingDeclaration, OwnedUiSettingValue } from "./declarations.js";
+export type { OwnedSettingId, OwnedSettingValueOf, OwnedUiSettingApplication, OwnedUiSettingDeclaration, OwnedUiSettingValue } from "./declarations.js";
 export { OWNED_UI_SETTINGS_MIGRATIONS, assertOwnedUiSettingsMigrations, migrationsFrom } from "./migrations.js";
 export type { OwnedUiSettingsMigration } from "./migrations.js";
 export { documentFrom, parseOwnedUiSettingsDocument, resolveOwnedUiSettings, settingValue } from "./resolution.js";
@@ -26,7 +28,5 @@ export type {
   OwnedUiSettingsEntry,
   OwnedUiSettingsSection,
 } from "./sections.js";
-export { OwnedUiSettingsSession } from "./session.js";
-export type { OwnedUiSettingsChangeOutcome, OwnedUiSettingsListener, OwnedUiSettingsSessionOptions } from "./session.js";
-export { OwnedUiSettingsStore } from "./store.js";
-export type { OwnedUiSettingsStoreOptions, OwnedUiSettingsWriteOutcome } from "./store.js";
+export { OwnedSettingsManager } from "./manager.js";
+export type { OwnedSettingsManagerOptions, OwnedUiSettingsChangeOutcome, OwnedUiSettingsListener } from "./manager.js";

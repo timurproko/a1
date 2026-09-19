@@ -1,3 +1,4 @@
+import { VERSION } from "@earendil-works/pi-coding-agent";
 import { type AgentSessionRuntime } from "@earendil-works/pi-coding-agent";
 import { join } from "node:path";
 import { stripTerminalSequences } from "@earendil-works/pi-tui";
@@ -78,7 +79,7 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
       message: `ran ${request.command}`,
     }));
     const routedCommands = [...PINNED_PI_WORKFLOW_COMMAND_NAMES, ...PINNED_PI_HIDDEN_COMMAND_NAMES]
-      .filter(command => !["settings", "model", "scoped-models", "fork", "tree", "trust", "login", "logout", "resume"].includes(command));
+      .filter(command => !["settings", "model", "thinking", "scoped-models", "fork", "tree", "trust", "login", "logout", "resume"].includes(command));
     for (const command of routedCommands) {
       await shell.submit(`/${command}`);
     }
@@ -669,7 +670,7 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
       expect(frame).toContain(`Warning: No models match pattern "${pattern}"`);
     }
     const firstWarningRow = rows.findIndex(row => row.startsWith("Warning: No models match"));
-    const bannerRow = rows.findIndex(row => row.includes("v0.84.2"));
+    const bannerRow = rows.findIndex(row => row.includes(`v${VERSION}`));
     const updateTitleRow = rows.findIndex(row => row.includes("Package Updates Available"));
     expect(firstWarningRow).toBeGreaterThanOrEqual(0);
     expect(firstWarningRow).toBeLessThan(bannerRow);

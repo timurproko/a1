@@ -1,7 +1,7 @@
 /**
- * Attributed owned theme resources adapted from @earendil-works/pi-coding-agent 0.84.2 (MIT).
- * Upstream dark.json SHA-256: 113bc1fd556727b165804c18b5d377c14d421b3fdff3909a63736f421d0a3b00
- * Upstream light.json SHA-256: 893f0d7e8513dbd5e5112982fd6eb65ceb03ae18ed04854ac57803b9c8908fa0
+ * Attributed owned theme resources adapted from @earendil-works/pi-coding-agent 0.85.1 (MIT).
+ * Upstream dark.json SHA-256: 103a5aecb74a2dab5cc903c9741845ee6158658ce2ff6e5445948784116eaef8
+ * Upstream light.json SHA-256: 14c7172ba7e75eab6f509504de806af0f2d9ff817bfb45d9533bff15c7e6e657
  * Modifications: removed upstream schema/export metadata; runtime color data is unchanged.
  */
 export const BUILTIN_THEME_RESOURCES = Object.freeze({
@@ -38,7 +38,8 @@ export const BUILTIN_THEME_RESOURCES = Object.freeze({
       "text": "text",
       "thinkingText": "gray",
       "selectedBg": "selectedBg",
-      "scrollbarThumb": "selectedBg",
+      "scrollbarTrack": "darkGray",
+      "scrollbarThumb": "text",
       "searchMatchBg": "selectedBg",
       "searchMatchText": "text",
       "userMessageBg": "userMsgBg",
@@ -115,7 +116,8 @@ export const BUILTIN_THEME_RESOURCES = Object.freeze({
       "text": "text",
       "thinkingText": "mediumGray",
       "selectedBg": "selectedBg",
-      "scrollbarThumb": "selectedBg",
+      "scrollbarTrack": "lightGray",
+      "scrollbarThumb": "text",
       "searchMatchBg": "selectedBg",
       "searchMatchText": "text",
       "userMessageBg": "userMsgBg",

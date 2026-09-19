@@ -26,12 +26,18 @@ export class ResponseCopyCoordinator {
   #latestPending = false;
   #disposed = false;
   #quarantined = false;
-  constructor(private readonly options: {
+  private readonly options: {
     readonly execute: ResponseCopyExecutor;
     readonly onEvent?: (event: ResponseCopyEvent) => void;
     readonly onFailure?: (result: CopyResult) => void;
     readonly now?: () => number;
-  }) {}
+  };
+  constructor(options: {
+    readonly execute: ResponseCopyExecutor;
+    readonly onEvent?: (event: ResponseCopyEvent) => void;
+    readonly onFailure?: (result: CopyResult) => void;
+    readonly now?: () => number;
+  }) { this.options = options; }
 
   get busy(): boolean { return this.#active !== undefined || this.#pending !== undefined; }
   get latest(): Promise<CopyResult> { return this.#latest; }

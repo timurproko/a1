@@ -61,7 +61,7 @@ import {
 import type {
   OwnedUiSettingValue,
   OwnedUiSettingsEntry,
-  OwnedUiSettingsSession,
+  OwnedSettingsManager,
 } from "../../ui/settings/index.js";
 import { SETTINGS_APP_ID, SETTINGS_ROUTE } from "./settings-route.js";
 export { SETTINGS_APP_ID, SETTINGS_ROUTE } from "./settings-route.js";
@@ -131,12 +131,16 @@ const KEYS: Readonly<Record<string, string>> = {
 
 type Row = ListRow<OwnedUiSettingsEntry>;
 
-/** A structured setting being edited: its flags, the row in hand, and their values. */
+/**
+ * A structured setting being edited: its parts, the row in hand, and their values. A part is a
+ * toggle when the declaration offers no choices, and a choice cycle otherwise; a choice part at its
+ * fallback is unset and leaves the record.
+ */
 interface StructuredEdit {
   readonly entry: OwnedUiSettingsEntry;
   readonly flags: readonly string[];
   index: number;
-  readonly record: Record<string, boolean>;
+  readonly record: Record<string, boolean | string>;
 }
 
 interface ValueMenu {
@@ -156,7 +160,7 @@ interface ValueMenu {
  */
 export class SettingsApp implements UiApp {
   readonly id = SETTINGS_APP_ID;
-  readonly #session: OwnedUiSettingsSession;
+  readonly #session: OwnedSettingsManager;
   #selectedKey: string | undefined;
   #scroll = 0;
   // Invariant: keyboard navigation requests visibility once; pointer scrolling then stays free.
@@ -187,7 +191,7 @@ export class SettingsApp implements UiApp {
   #activityTimer: ReturnType<typeof setTimeout> | undefined;
   #renderedScroll: number | undefined;
 
-  constructor(session: OwnedUiSettingsSession) {
+  constructor(session: OwnedSettingsManager) {
     this.#session = session;
   }
 
@@ -522,10 +526,12 @@ export class SettingsApp implements UiApp {
     const stored = typeof entry.rawValue === "object" && entry.rawValue !== null && !Array.isArray(entry.rawValue)
       ? (entry.rawValue as Record<string, unknown>)
       : {};
-    const record: Record<string, boolean> = {};
+    const record: Record<string, boolean | string> = {};
     for (const flag of entry.flags) {
       const value = stored[flag.key];
-      record[flag.key] = typeof value === "boolean" ? value : flag.fallback;
+      record[flag.key] = flag.choices === undefined
+        ? (typeof value === "boolean" ? value : flag.fallback)
+        : (typeof value === "string" && flag.choices.includes(value) ? value : flag.fallback);
     }
     // Invariant: the dialog takes the screen: the row it was opened from stops being the
     // thing under the pointer, so it stops looking like it.
@@ -560,8 +566,18 @@ export class SettingsApp implements UiApp {
     const open = this.#structured;
     const flag = open?.flags[index];
     if (open === null || open === undefined || flag === undefined) return;
-    open.record[flag] = !(open.record[flag] ?? false);
-    const next = { ...open.record };
+    const declared = open.entry.flags.find(candidate => candidate.key === flag);
+    if (declared?.choices === undefined) open.record[flag] = !(open.record[flag] ?? false);
+    else {
+      // Rationale: Enter walks the offered choices in order and wraps, like the pinned value menu.
+      const at = declared.choices.indexOf(String(open.record[flag] ?? declared.fallback));
+      open.record[flag] = declared.choices[(at + 1) % declared.choices.length] ?? declared.fallback;
+    }
+    // Invariant: a choice part at its fallback is unset: it is not written, so the engine's default applies.
+    const next = Object.fromEntries(Object.entries(open.record).filter(([key, value]) => {
+      const part = open.entry.flags.find(candidate => candidate.key === key);
+      return part?.choices === undefined || value !== part.fallback;
+    }));
     void this.#session.changeStructured(open.entry.backend, open.entry.id, next).then(outcome => {
       this.#notice = outcome.failure === null ? null : `Could not save ${labelOf(open.entry)}: ${outcome.failure}`;
     });
@@ -827,8 +843,8 @@ export class SettingsApp implements UiApp {
       const declared = open.entry.flags.find(flag => flag.key === key);
       return {
         label: declared?.label ?? humanizeLabel(key),
-        // Protocol: the engine writes these as the booleans they are rather than as yes/no.
-        value: (open.record[key] ?? false) ? "true" : "false",
+        // Protocol: the engine writes toggles as the booleans they are rather than as yes/no; a choice shows its word.
+        value: declared?.choices === undefined ? ((open.record[key] ?? false) ? "true" : "false") : String(open.record[key] ?? declared.fallback),
         ...(declared?.description === undefined ? {} : { description: declared.description }),
       };
     });

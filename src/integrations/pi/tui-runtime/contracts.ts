@@ -89,6 +89,8 @@ export interface PiTuiOverlayHandle {
   focus(): void;
   unfocus(options?: PiTuiOverlayUnfocusOptions): void;
   isFocused(): boolean;
+  /** The most recently rendered terminal-relative rectangle of a visible overlay. */
+  getBounds(): { readonly row: number; readonly col: number; readonly width: number; readonly height: number } | undefined;
 }
 
 export interface PiTuiInputListenerResult {
@@ -127,7 +129,10 @@ export type PiTuiLayoutNode =
     readonly primary?: boolean;
     readonly overscroll?: "chain" | "contain";
     readonly scrollbar?: "hidden" | "auto" | "always";
-    readonly scrollbarStyle?: (text: string) => string;
+    /** Styles the scrollbar track; the pinned runtime draws it as foreground text. */
+    readonly scrollbarTrackStyle?: (text: string) => string;
+    /** Styles the scrollbar thumb; the pinned runtime draws it as foreground text. */
+    readonly scrollbarThumbStyle?: (text: string) => string;
     readonly scrollbarHideDelayMs?: number;
   };
 

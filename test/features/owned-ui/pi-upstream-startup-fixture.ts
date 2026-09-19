@@ -157,7 +157,7 @@ function createTui(width: number): TUI {
     render: value => children.flatMap(component => component.render(value)),
     invalidate: () => children.forEach(component => component.invalidate()),
     getShowHardwareCursor: () => false, setShowHardwareCursor() {}, getClearOnShrink: () => true,
-    setClearOnShrink() {}, setFocus() {}, showOverlay: () => ({ hide() {}, setHidden() {}, isHidden: () => false, focus() {}, unfocus() {}, isFocused: () => false }),
+    setClearOnShrink() {}, setFocus() {}, showOverlay: () => ({ hide() {}, setHidden() {}, isHidden: () => false, focus() {}, unfocus() {}, isFocused: () => false, getBounds: () => undefined }),
     hideOverlay() {}, hasOverlay: () => false, start() {}, stop() {}, renderNow() {}, requestRender() {},
     addInputListener: () => () => {}, removeInputListener() {}, onTerminalColorSchemeChange: () => () => {},
     setTerminalColorSchemeNotifications() {}, queryTerminalBackgroundColor: async () => undefined,

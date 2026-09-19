@@ -22,11 +22,17 @@ export class StreamPresentationCoalescer {
   #lastPresentationAt = Number.NEGATIVE_INFINITY;
   #disposed = false;
 
+  readonly present: () => void;
+  readonly intervalMs: number;
+  readonly scheduler: StreamPresentationScheduler;
   constructor(
-    readonly present: () => void,
-    readonly intervalMs = STREAM_PRESENTATION_INTERVAL_MS,
-    readonly scheduler: StreamPresentationScheduler = SYSTEM_SCHEDULER,
+    present: () => void,
+    intervalMs = STREAM_PRESENTATION_INTERVAL_MS,
+    scheduler: StreamPresentationScheduler = SYSTEM_SCHEDULER,
   ) {
+    this.present = present;
+    this.intervalMs = intervalMs;
+    this.scheduler = scheduler;
     if (!Number.isSafeInteger(intervalMs) || intervalMs < 1) throw new RangeError("stream presentation interval must be positive");
   }
 

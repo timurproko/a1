@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ProjectTrustStore, SettingsManager } from "@earendil-works/pi-coding-agent";
 import {
   createPiRuntimeServicesAfterTrust,
-  PiSettingsIntegration,
+  PiSettingsBridge,
   resolvePiProjectTrustPreflight,
 } from "../../../../src/integrations/pi/engine/index.js";
 
@@ -52,7 +52,7 @@ describe("project trust preflight", () => {
 
   it("applies a changed default to the next undecided startup", async () => {
     const settings = SettingsManager.create(cwd, agentDir, { projectTrusted: false });
-    const port = new PiSettingsIntegration(settings);
+    const port = new PiSettingsBridge(settings);
     port.bindOwner("startup", { defaultProjectTrust: { apply() {} } });
     await expect(port.writeSetting("defaultProjectTrust", "always")).resolves.toMatchObject({
       status: "deferred", application: "next-start", storedValue: "always", effectiveValue: "ask",

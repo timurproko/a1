@@ -7,8 +7,10 @@ export interface PaneRect {
 
 /** Identifies the pane whose bounded frame geometry or rendered rows violated the contract. */
 export class FrameContractError extends Error {
-  constructor(readonly pane: string, message: string) {
+  readonly pane: string;
+  constructor(pane: string, message: string) {
     super(`${pane}: ${message}`);
+    this.pane = pane;
     this.name = "FrameContractError";
   }
 }

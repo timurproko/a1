@@ -13,8 +13,7 @@ import type { PiProjectTrustPreflightPrompt } from "../integrations/pi/engine/pr
 import type { PiSessionForkPrompt } from "../integrations/pi/engine/session-selection.js";
 import { ClipboardDiagnosticCapture } from "../app/session-shell/clipboard-diagnostics.js";
 import { OwnedUiSessionShell } from "../app/session-shell/session-shell.js";
-import { OwnedUiSettingsSession } from "../ui/settings/session.js";
-import { OwnedUiSettingsStore } from "../ui/settings/store.js";
+import { OwnedSettingsManager } from "../ui/settings/manager.js";
 import { createPiTerminalBridge } from "../integrations/pi/tui-runtime/presentation-adapter.js";
 import type { OwnedUiApplicationPort, PresentationTerminalPort } from "../contracts/presentation/index.js";
 import type { OwnedUiQuitOutroSettings, OwnedUiViewportSettings, OwnedUiViewportSettingsPort } from "../contracts/owned-ui/index.js";
@@ -48,7 +47,7 @@ export interface OwnedUiCompositionOptions {
 export interface OwnedUiComposition {
   readonly application: OwnedUiApplicationPort;
   /** Present when a profile was supplied, so the caller can resolve settings before start. */
-  readonly settings: OwnedUiSettingsSession | null;
+  readonly settings: OwnedSettingsManager | null;
 }
 
 export async function composeOwnedUiApplication(options: OwnedUiCompositionOptions = {}): Promise<OwnedUiApplicationPort> {
@@ -71,8 +70,9 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
   const ownedSurfaces = options.ownedSurfaces !== "off";
   const settings = options.profileId === undefined
     ? null
-    : new OwnedUiSettingsSession({
-      store: new OwnedUiSettingsStore({ configDir: resolveProductPaths().configDir, profileId: options.profileId }),
+    : new OwnedSettingsManager({
+      configDir: resolveProductPaths().configDir,
+      profileId: options.profileId,
       agentProvider: () => adapter.settingsPort(),
     });
   // Compatibility: bare A1 intentionally ships one visual target while its UI is being completed:
@@ -91,11 +91,11 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
   const promptSuggestions = settings === null || !ownedSurfaces ? null : {
     ...(suggestionDiagnostics === null ? {} : { diagnostics: suggestionDiagnostics }),
     generator: adapter,
-    enabled: () => settings.value("promptSuggestions") !== false,
-    onChange: (listener: (enabled: boolean) => void) => settings.onChange(() => listener(settings.value("promptSuggestions") !== false)),
+    enabled: () => settings.value("promptSuggestions"),
+    onChange: (listener: (enabled: boolean) => void) => settings.onChange(() => listener(settings.value("promptSuggestions"))),
   };
   const historyLimit = settings?.value("promptHistoryMaxItems");
-  const historyProfileLocation = settings === null || !ownedSurfaces || settings.value("promptHistoryEnabled") === false
+  const historyProfileLocation = settings === null || !ownedSurfaces || !settings.value("promptHistoryEnabled")
     ? null
     : resolvePromptHistoryPath(resolvePromptHistoryDataDir(), adapter.agentDir);
   const promptHistory = historyProfileLocation === null ? null : {
@@ -153,23 +153,18 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
   return { application, settings };
 }
 
-function quitOutroSettingsSnapshot(settings: OwnedUiSettingsSession): OwnedUiQuitOutroSettings {
-  const effect = settings.value("quitEffect");
-  const durationMs = settings.value("quitEffectDurationMs");
+function quitOutroSettingsSnapshot(settings: OwnedSettingsManager): OwnedUiQuitOutroSettings {
   return {
-    enabled: settings.value("quitAnimation") !== false,
-    effect: effect === "dissolve" || effect === "starburst" || effect === "waves" ? effect : "fall",
-    durationMs: typeof durationMs === "number" ? durationMs : 800,
+    enabled: settings.value("quitAnimation"),
+    effect: settings.value("quitEffect"),
+    durationMs: settings.value("quitEffectDurationMs"),
   };
 }
 
-function viewportSettingsSnapshot(settings: OwnedUiSettingsSession): OwnedUiViewportSettings {
-  const appearance = settings.value("scrollbarAppearance");
-  const style = settings.value("scrollbarStyle");
-  const speed = settings.value("scrollbarSpeed");
+function viewportSettingsSnapshot(settings: OwnedSettingsManager): OwnedUiViewportSettings {
   return {
-    scrollbarAppearance: appearance === "always" || appearance === "hidden" ? appearance : "auto",
-    scrollbarStyle: style === "thick" ? "thick" : "thin",
-    scrollbarSpeed: speed === "high" ? "high" : speed === "fast" ? "fast" : "normal",
+    scrollbarAppearance: settings.value("scrollbarAppearance"),
+    scrollbarStyle: settings.value("scrollbarStyle"),
+    scrollbarSpeed: settings.value("scrollbarSpeed"),
   };
 }

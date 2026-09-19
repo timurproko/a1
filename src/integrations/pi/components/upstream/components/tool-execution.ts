@@ -1,5 +1,5 @@
 /**
- * Provenance: @earendil-works/pi-coding-agent 0.84.2 (MIT), commit 914cf1472e715297caa30db4b9535d534a9eb718,
+ * Provenance: @earendil-works/pi-coding-agent 0.85.1 (MIT), commit d981de1229ef899957bbe968bc8dcda02a21f477,
  * packages/coding-agent/src/modes/interactive/components/tool-execution.ts.
  * Modifications: Retain pinned shell and actual public tool-definition renderers. Replace private
  * index-keyed image conversion with current-source ownership, serial conversion, visible fallback, and
@@ -9,7 +9,7 @@
  * Deviations: current-tool-image-conversion-ownership.
  */
 import { stripVTControlCharacters } from "node:util";
-import { Box, type Component, Container, getCapabilities, getImageDimensions, imageFallback, Spacer, Text, type TUI } from "@earendil-works/pi-tui";
+import { Box, type Component, Container, getCapabilities, getImageDimensions, imageFallback, MouseRegion, Spacer, Text, type TUI, type TuiMouseEvent } from "@earendil-works/pi-tui";
 import { createReadToolDefinition, createBashToolDefinition, createEditToolDefinition, createWriteToolDefinition,
   createGrepToolDefinition, createFindToolDefinition, createLsToolDefinition, keyHint, type ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
@@ -18,6 +18,16 @@ import { ToolImagePresentation } from "../../tool-image-presentation.js";
 
 type ToolRenderContext = Parameters<NonNullable<ToolDefinition["renderCall"]>>[2];
 type ToolPresentationResult = Parameters<NonNullable<ToolDefinition["renderResult"]>>[0] & { isError: boolean };
+/** The caller-side merge 0.85.1 performs before handing a definition to the component: built-in renderers fill the gaps. */
+export function mergeBuiltInRenderers(definition: ToolDefinition<any, any, any> | undefined, builtIn: ToolDefinition<any, any, any> | undefined): ToolDefinition<any, any, any> | undefined {
+	if (definition === undefined) return builtIn;
+	if (builtIn === undefined) return definition;
+	const merged: ToolDefinition<any, any, any> = { ...definition };
+	if (definition.renderCall === undefined && builtIn.renderCall !== undefined) merged.renderCall = builtIn.renderCall;
+	if (definition.renderResult === undefined && builtIn.renderResult !== undefined) merged.renderResult = builtIn.renderResult;
+	return merged;
+}
+
 const definitions = { read: createReadToolDefinition, bash: createBashToolDefinition, edit: createEditToolDefinition,
   write: createWriteToolDefinition, grep: createGrepToolDefinition, find: createFindToolDefinition, ls: createLsToolDefinition };
 
@@ -31,7 +41,9 @@ export interface ToolExecutionOptions {
 export class ToolExecutionComponent extends Container {
 	private contentBox: Box;
 	private contentText: Text;
+	private contentTextRegion: MouseRegion;
 	private selfRenderContainer: Container;
+	private selfRenderHeight = 0;
 	private callRendererComponent: Component | undefined;
 	private resultRendererComponent: Component | undefined;
 	private rendererState: any = {};
@@ -61,7 +73,7 @@ export class ToolExecutionComponent extends Container {
 		toolCallId: string,
 		args: any,
 		options: ToolExecutionOptions = {},
-		toolDefinition: ToolDefinition<any, any> | undefined,
+		toolDefinition: ToolDefinition<any, any, any> | undefined,
 		ui: TUI,
 		cwd: string,
 	) {
@@ -69,9 +81,11 @@ export class ToolExecutionComponent extends Container {
 		this.toolName = toolName;
 		this.toolCallId = toolCallId;
 		this.args = args;
-		this.toolDefinition = toolDefinition;
 		this.builtInToolDefinition = Object.hasOwn(definitions, toolName)
       ? definitions[toolName as keyof typeof definitions](cwd) : undefined;
+		// Rationale: 0.85.1 moved the built-in renderer fallback to the caller; A1 keeps it here so every caller of
+		// the owned component gets the built-in edit/read/bash renderers without reaching into the tool registry.
+		this.toolDefinition = mergeBuiltInRenderers(toolDefinition, this.builtInToolDefinition);
 		this.showImages = options.showImages ?? true;
 		this.imageWidthCells = options.imageWidthCells ?? 60;
 		this.ui = ui;
@@ -89,49 +103,32 @@ export class ToolExecutionComponent extends Container {
 		// contentText is reserved for generic fallback rendering when no tool definition exists.
 		this.contentBox = new Box(1, 1, (text: string) => piTheme().bg("toolPendingBg", text));
 		this.contentText = new Text("", 1, 1, (text: string) => piTheme().bg("toolPendingBg", text));
+		this.contentTextRegion = this.createResultRegion(this.contentText);
 		this.selfRenderContainer = new Container();
 
 		if (this.hasRendererDefinition()) {
 			this.addChild(this.getRenderShell() === "self" ? this.selfRenderContainer : this.contentBox);
 		} else {
-			this.addChild(this.contentText);
+			this.addChild(this.contentTextRegion);
 		}
 
 		this.updateDisplay();
 	}
 
 	private getCallRenderer(): ToolDefinition<any, any>["renderCall"] | undefined {
-		if (!this.builtInToolDefinition) {
-			return this.toolDefinition?.renderCall;
-		}
-		if (!this.toolDefinition) {
-			return this.builtInToolDefinition.renderCall;
-		}
-		return this.toolDefinition.renderCall ?? this.builtInToolDefinition.renderCall;
+		return this.toolDefinition?.renderCall;
 	}
 
 	private getResultRenderer(): ToolDefinition<any, any>["renderResult"] | undefined {
-		if (!this.builtInToolDefinition) {
-			return this.toolDefinition?.renderResult;
-		}
-		if (!this.toolDefinition) {
-			return this.builtInToolDefinition.renderResult;
-		}
-		return this.toolDefinition.renderResult ?? this.builtInToolDefinition.renderResult;
+		return this.toolDefinition?.renderResult;
 	}
 
 	private hasRendererDefinition(): boolean {
-		return this.builtInToolDefinition !== undefined || this.toolDefinition !== undefined;
+		return this.toolDefinition !== undefined;
 	}
 
 	private getRenderShell(): "default" | "self" {
-		if (!this.builtInToolDefinition) {
-			return this.toolDefinition?.renderShell ?? "default";
-		}
-		if (!this.toolDefinition) {
-			return this.builtInToolDefinition.renderShell ?? "default";
-		}
-		return this.toolDefinition.renderShell ?? this.builtInToolDefinition.renderShell ?? "default";
+		return this.toolDefinition?.renderShell ?? "default";
 	}
 
 	private getRenderContext(lastComponent: Component | undefined): ToolRenderContext {
@@ -175,6 +172,14 @@ export class ToolExecutionComponent extends Container {
 			text += `${theme.fg("muted", `\n... (${remaining} more lines,`)} ${keyHint("app.tools.expand", "to expand")}${theme.fg("muted", ")")}`;
 		}
 		return new Text(text, 0, 0);
+	}
+
+	private createResultRegion(component: Component): MouseRegion {
+		return new MouseRegion(component, (event) => {
+			if (!this.result || event.type !== "click" || event.button !== "left") return undefined;
+			this.setExpanded(!this.expanded);
+			return { handled: true };
+		});
 	}
 
 	updateArgs(args: any): void {
@@ -243,6 +248,7 @@ export class ToolExecutionComponent extends Container {
 
 		if (this.hasRendererDefinition() && this.getRenderShell() === "self") {
 			const contentLines = this.selfRenderContainer.render(width);
+			this.selfRenderHeight = contentLines.length;
 			if (contentLines.length === 0 && this.imageComponents.length === 0) {
 				return [];
 			}
@@ -266,6 +272,16 @@ export class ToolExecutionComponent extends Container {
 		}
 
 		return super.render(width);
+	}
+
+	override handleMouse(event: TuiMouseEvent): ReturnType<Container["handleMouse"]> {
+		if (!this.hasRendererDefinition() || this.getRenderShell() !== "self") return super.handleMouse(event);
+		if (event.y <= 0 || event.y > this.selfRenderHeight) return undefined;
+		return this.selfRenderContainer.handleMouse({
+			...event,
+			y: event.y - 1,
+			height: this.selfRenderHeight,
+		});
 	}
 
 	private updateDisplay(): void {
@@ -293,17 +309,17 @@ export class ToolExecutionComponent extends Container {
 
 			const callRenderer = this.getCallRenderer();
 			if (!callRenderer) {
-				renderContainer.addChild(this.createCallFallback());
+				renderContainer.addChild(this.createResultRegion(this.createCallFallback()));
 				hasContent = true;
 			} else {
 				try {
 					const component = callRenderer(this.args, theme, this.getRenderContext(this.callRendererComponent));
 					this.callRendererComponent = component;
-					renderContainer.addChild(component);
+					renderContainer.addChild(this.createResultRegion(component));
 					hasContent = true;
 				} catch {
 					this.callRendererComponent = undefined;
-					renderContainer.addChild(this.createCallFallback());
+					renderContainer.addChild(this.createResultRegion(this.createCallFallback()));
 					hasContent = true;
 				}
 			}
@@ -313,7 +329,7 @@ export class ToolExecutionComponent extends Container {
 				if (!resultRenderer) {
 					const component = this.createResultFallback();
 					if (component) {
-						renderContainer.addChild(component);
+						renderContainer.addChild(this.createResultRegion(component));
 						hasContent = true;
 					}
 				} else {
@@ -325,13 +341,13 @@ export class ToolExecutionComponent extends Container {
 							this.getRenderContext(this.resultRendererComponent),
 						);
 						this.resultRendererComponent = component;
-						renderContainer.addChild(component);
+						renderContainer.addChild(this.createResultRegion(component));
 						hasContent = true;
 					} catch {
 						this.resultRendererComponent = undefined;
 						const component = this.createResultFallback();
 						if (component) {
-							renderContainer.addChild(component);
+							renderContainer.addChild(this.createResultRegion(component));
 							hasContent = true;
 						}
 					}

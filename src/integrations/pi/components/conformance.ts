@@ -35,8 +35,10 @@ export interface PiComponentConformanceReport {
 
 /** Identifies the Pi presentation-conformance stage that failed against the pinned component surface. */
 export class PiComponentConformanceError extends Error {
-  constructor(readonly stage: "theme" | "components", cause: unknown) {
+  readonly stage: "theme" | "components";
+  constructor(stage: "theme" | "components", cause: unknown) {
     super(`Pi component conformance failed during ${stage}: ${cause instanceof Error ? cause.message : String(cause)}`, { cause });
+    this.stage = stage;
     this.name = "PiComponentConformanceError";
   }
 }

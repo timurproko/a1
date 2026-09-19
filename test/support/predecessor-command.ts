@@ -30,8 +30,10 @@ export interface PredecessorCommandEvidence {
 
 /** Contains only bounded metadata; captured command output is never copied into an error. */
 export class PredecessorCommandError extends Error {
-  constructor(readonly evidence: PredecessorCommandEvidence) {
+  readonly evidence: PredecessorCommandEvidence;
+  constructor(evidence: PredecessorCommandEvidence) {
     super(`predecessor command failed: ${JSON.stringify(evidence)}`);
+    this.evidence = evidence;
     this.name = "PredecessorCommandError";
   }
 }

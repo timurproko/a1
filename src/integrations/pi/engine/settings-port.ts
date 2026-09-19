@@ -1,9 +1,9 @@
 import { configureOwnedHttpDispatcher } from "./http-dispatcher.js";
 import { isRecord, readThinkingLevel, stringProperty } from "./message-values.js";
 import { collectionResult } from "./resource-catalog.js";
-import { PiSettingsIntegration } from "./settings-integration.js";
+import { MODEL_THINKING_DEFAULT, PiSettingsBridge, type PiSettingsModelChoice } from "./settings-bridge.js";
 import { workflowResult } from "./workflow-support.js";
-import type { PiSettingOwnerHandlers } from "./settings-effects.js";
+import type { PiSettingOwnerHandlers } from "./settings-bridge.js";
 import type { AgentSession, AgentSessionRuntime } from "../startup-public.js";
 import type { OwnedUiThinkingLevel } from "../../../contracts/owned-ui/index.js";
 import type { AgentJsonValue, AgentSettingOwner } from "../../../contracts/agent-engine/index.js";
@@ -34,7 +34,7 @@ export class PiEngineSettings {
   readonly #availableThemes: (() => readonly string[]) | null;
   readonly #settingsProductMode: "bare" | "comparison";
   readonly #ports: PiEngineSettingsPorts;
-  #settingsIntegration: PiSettingsIntegration | undefined;
+  #settingsIntegration: PiSettingsBridge | undefined;
   #settingsIntegrationManager: unknown;
 
   constructor(options: PiEngineSettingsOptions, ports: PiEngineSettingsPorts) {
@@ -57,18 +57,15 @@ export class PiEngineSettings {
   }
 
   /** Settings port for the live runtime, or null before the runtime is available. */
-  settingsPort(): PiSettingsIntegration | null {
+  settingsPort(): PiSettingsBridge | null {
     const settings = this.#ports.runtime()?.services.settingsManager;
     if (!settings || typeof settings.getCompactionEnabled !== "function") return null;
     if (this.#settingsIntegration === undefined || this.#settingsIntegrationManager !== settings) {
       this.#settingsIntegrationManager = settings;
       configureOwnedHttpDispatcher(settings.getHttpIdleTimeoutMs());
-      this.#settingsIntegration = new PiSettingsIntegration(settings, {
+      this.#settingsIntegration = new PiSettingsBridge(settings, {
         ...(this.#availableThemes === null ? {} : { themes: this.#availableThemes }),
-        thinkingLevels: () => {
-          const levels = this.#ports.runtime()?.session?.getAvailableThinkingLevels?.();
-          return Array.isArray(levels) ? levels.map(level => String(level)) : [];
-        },
+        models: () => this.#modelChoices(),
         productMode: this.#settingsProductMode,
       });
       this.#settingsIntegration.bindOwner("shell", {
@@ -127,10 +124,17 @@ export class PiEngineSettings {
           configureOwnedHttpDispatcher(value);
           settings.setHttpIdleTimeoutMs(value);
         } },
-        thinkingLevel: { apply: value => {
-          if (!isThinkingLevel(value)) throw new TypeError("Thinking level is invalid");
-          this.#ports.requireSession().setThinkingLevel(value);
-          this.#ports.thinkingLevelChanged(readThinkingLevel(this.#ports.requireSession().thinkingLevel));
+        modelThinkingLevels: { apply: value => {
+          if (!isRecord(value)) throw new TypeError("Per-model thinking levels are invalid");
+          // Invariant: an override for the model in use takes effect now, as the pinned selector applies it;
+          // clearing it returns the session to the engine's global default.
+          const session = this.#ports.requireSession();
+          const model = session.model;
+          if (!model) return;
+          const level = value[`${model.provider}/${model.id}`] ?? settings.getDefaultThinkingLevel() ?? "medium";
+          if (!isThinkingLevel(level)) throw new TypeError("Thinking level is invalid");
+          session.setThinkingLevel(level);
+          this.#ports.thinkingLevelChanged(readThinkingLevel(session.thinkingLevel));
         } },
         warnings: { apply: value => {
           if (!isRecord(value) || Object.values(value).some(flag => typeof flag !== "boolean")) throw new TypeError("Warnings setting is invalid");
@@ -139,6 +143,22 @@ export class PiEngineSettings {
       });
     }
     return this.#settingsIntegration;
+  }
+
+  // Rationale: the rows are the models the running engine offers, each with the levels the engine says it supports.
+  #modelChoices(): readonly PiSettingsModelChoice[] {
+    const runtime = this.#ports.runtime();
+    const models = runtime?.services.modelRuntime.getAvailableSnapshot?.() ?? [];
+    const overrides = runtime?.services.settingsManager.getAllModelThinkingLevels?.() ?? {};
+    return models.map(model => {
+      const key = `${model.provider}/${model.id}`;
+      return {
+        key,
+        label: `${model.id} [${model.provider}]`,
+        description: overrides[key] === undefined ? "global default" : `override: ${overrides[key]}`,
+        levels: supportedThinkingLevels(model),
+      };
+    });
   }
 
   bindSettingsOwner(owner: AgentSettingOwner, handlers: PiSettingOwnerHandlers): () => void {
@@ -155,6 +175,8 @@ export class PiEngineSettings {
       return value === undefined ? fallback : value as T;
     };
     const levels = session.getAvailableThinkingLevels?.();
+    const defaultProvider = settings?.getDefaultProvider?.();
+    const defaultModelId = settings?.getDefaultModel?.();
     const themes = collectionResult(this.#ports.runtime()?.services.resourceLoader?.getThemes?.(), "themes").values
       .map(theme => stringProperty(theme, "name"))
       .filter((name): name is string => !!name);
@@ -173,6 +195,11 @@ export class PiEngineSettings {
       httpIdleTimeoutMs: setting(settings?.getHttpIdleTimeoutMs, 300_000),
       thinkingLevel: readThinkingLevel(session.thinkingLevel),
       availableThinkingLevels: Array.isArray(levels) ? levels.map(readThinkingLevel) : ["off", "minimal", "low", "medium", "high", "xhigh"],
+      defaultThinkingLevel: readThinkingLevel(settings?.getDefaultThinkingLevel?.() ?? "medium"),
+      modelThinkingLevels: { ...(settings?.getAllModelThinkingLevels?.() ?? {}) },
+      defaultModel: defaultProvider && defaultModelId ? `${defaultProvider}/${defaultModelId}` : "not set",
+      ...(session.model === undefined ? {} : { currentModel: session.model }),
+      availableDefaultModels: this.#ports.runtime()?.services.modelRuntime.getAvailableSnapshot?.() ?? [],
       currentTheme: setting(settings?.getThemeSetting, setting(settings?.getTheme, "dark")),
       terminalTheme: "dark",
       availableThemes: themes.length > 0 ? themes : ["dark", "light"],
@@ -194,6 +221,7 @@ export class PiEngineSettings {
       tuiMode: setting(settings?.getTuiMode, "regular"),
       fullscreenExitOutput: setting(settings?.getFullscreenExitOutput, "transcript"),
       fullscreenScrollbar: setting(settings?.getFullscreenScrollbar, "auto"),
+      fullscreenCopyOnSelect: setting(settings?.getFullscreenCopyOnSelect, false),
       warnings: setting(settings?.getWarnings, { anthropicExtraUsage: true }),
     };
   }
@@ -226,7 +254,9 @@ export class PiEngineSettings {
         onFollowUpModeChange: snapshot.followUpMode,
         onTransportChange: snapshot.transport,
         onHttpIdleTimeoutMsChange: snapshot.httpIdleTimeoutMs,
-        onThinkingLevelChange: snapshot.thinkingLevel,
+        onModelThinkingLevelChange: snapshot.modelThinkingLevels,
+        onModelThinkingLevelRemove: snapshot.modelThinkingLevels,
+        onFullscreenCopyOnSelectChange: snapshot.fullscreenCopyOnSelect,
         onThemeChange: snapshot.currentTheme,
         onHideThinkingBlockChange: snapshot.hideThinkingBlock,
         onMermaidRenderingModeChange: snapshot.mermaidRenderingMode,
@@ -255,6 +285,17 @@ export class PiEngineSettings {
     if (port === null) return workflowResult("settings", "failed", "Settings are unavailable");
     const key = settingKeyForCallback(callback);
     if (key === null) return workflowResult("settings", "failed", `${settingLabel(callback)} is unavailable in this runtime`);
+    // Protocol: the pinned selector reports one model's override as (provider, modelId, level) or (provider, modelId);
+    // the port stores the whole record, so the change is folded into the current one.
+    if ((callback === "onModelThinkingLevelChange" || callback === "onModelThinkingLevelRemove") && Array.isArray(selectedValue)) {
+      const [provider, modelId, level] = selectedValue as readonly unknown[];
+      if (typeof provider !== "string" || typeof modelId !== "string") return workflowResult("settings", "failed", "Per-model thinking override is invalid");
+      const overrides = { ...this.pinnedSettingsSnapshot().modelThinkingLevels };
+      const modelKey = `${provider}/${modelId}`;
+      if (callback === "onModelThinkingLevelRemove" || level === MODEL_THINKING_DEFAULT) delete overrides[modelKey];
+      else if (typeof level === "string") overrides[modelKey] = level;
+      selectedValue = overrides;
+    }
     const result = await port.writeSetting(key, agentJsonValue(selectedValue));
     if (result.status === "failed" || result.status === "unavailable") {
       return workflowResult("settings", "failed", result.failure ?? result.limitationReason ?? `${settingLabel(callback)} is unavailable`);
@@ -270,7 +311,8 @@ function settingKeyForCallback(callback: PiPinnedSettingsCallback): string | nul
     onAutoCompactChange: "autoCompact", onShowImagesChange: "showImages", onImageWidthCellsChange: "imageWidthCells",
     onAutoResizeImagesChange: "autoResizeImages", onBlockImagesChange: "blockImages", onEnableSkillCommandsChange: "enableSkillCommands",
     onSteeringModeChange: "steeringMode", onFollowUpModeChange: "followUpMode", onTransportChange: "transport",
-    onHttpIdleTimeoutMsChange: "httpIdleTimeoutMs", onThinkingLevelChange: "thinkingLevel", onThemeChange: "theme", onThemePreview: "theme",
+    onHttpIdleTimeoutMsChange: "httpIdleTimeoutMs", onModelThinkingLevelChange: "modelThinkingLevels", onModelThinkingLevelRemove: "modelThinkingLevels",
+    onThemeChange: "theme", onThemePreview: "theme", onFullscreenCopyOnSelectChange: "fullscreenCopyOnSelect",
     onHideThinkingBlockChange: "hideThinkingBlock", onMermaidRenderingModeChange: "mermaidRenderingMode",
     onShowCacheMissNoticesChange: "showCacheMissNotices", onCollapseChangelogChange: "collapseChangelog",
     onEnableInstallTelemetryChange: "enableInstallTelemetry", onQuietStartupChange: "quietStartup",
@@ -290,8 +332,19 @@ function agentJsonValue(value: unknown): AgentJsonValue {
   throw new TypeError("setting value must be JSON serializable");
 }
 
-function isThinkingLevel(value: unknown): value is "off" | "minimal" | "low" | "medium" | "high" | "xhigh" {
-  return typeof value === "string" && ["off", "minimal", "low", "medium", "high", "xhigh"].includes(value);
+function isThinkingLevel(value: unknown): value is "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" {
+  return typeof value === "string" && ["off", "minimal", "low", "medium", "high", "xhigh", "max"].includes(value);
+}
+
+/** The engine's own rule: no reasoning means "off" only; xhigh and max exist only where the model maps them. */
+function supportedThinkingLevels(model: { readonly reasoning?: boolean; readonly thinkingLevelMap?: Readonly<Record<string, unknown>> }): readonly string[] {
+  if (!model.reasoning) return ["off"];
+  return ["off", "minimal", "low", "medium", "high", "xhigh", "max"].filter(level => {
+    const mapped = model.thinkingLevelMap?.[level];
+    if (mapped === null) return false;
+    if (level === "xhigh" || level === "max") return mapped !== undefined;
+    return true;
+  });
 }
 
 function settingLabel(callback: PiPinnedSettingsCallback): string {

@@ -119,7 +119,7 @@ await step("inventories", async () => {
   for (const name of report.inventories.unmapped) report.reviewItems.push(`interactive component ${name}: not in the modal transition graph (unmapped)`);
   return `${report.inventories.reanchored.length} re-anchored, ${report.inventories.moved.length} moved, ${report.inventories.orphaned.length} orphaned, ${report.inventories.unmapped.length} unmapped`;
 });
-await step("parity", async () => { await run(npm, ["run", "sync:pi-ui"]); return "component, event-frame, and settings evidence regenerated"; });
+await step("parity", async () => { await run(npm, ["run", "sync:pi-ui"]); return "component and event-frame evidence regenerated"; });
 await step("typecheck", async () => { await run(npm, ["run", "typecheck"]); return "clean"; });
 await step("architecture", async () => { await run(npm, ["run", "check:architecture"]); return "clean"; });
 await step("engine-conformance", async () => { await run(process.execPath, ["scripts/pi/run-pi-engine-conformance.mjs"]); return "passed"; });

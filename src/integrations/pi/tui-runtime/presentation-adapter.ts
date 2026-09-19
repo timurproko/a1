@@ -15,7 +15,9 @@ export function createPiPresentationRuntime(root: PresentationComponentPort, ter
 
 class PresentationRuntimeAdapter implements PresentationRuntimePort {
   readonly #runtime: PiTuiRuntimeAdapter;
-  constructor(root: PresentationComponentPort, readonly terminal: PresentationTerminalPort) {
+  readonly terminal: PresentationTerminalPort;
+  constructor(root: PresentationComponentPort, terminal: PresentationTerminalPort) {
+    this.terminal = terminal;
     this.#runtime = new PiTuiRuntimeAdapter({ root, terminal: createPiTerminalBridge(terminal), mouse: false });
   }
   get state(): PresentationRuntimeState { return this.#runtime.state; }

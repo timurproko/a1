@@ -318,6 +318,7 @@ function publicOverlayHandle(handle: OwnedUiExtensionOverlayHandle): OverlayHand
       ? undefined
       : { target: options.target === null ? null : componentPort(options.target) }),
     isFocused: () => handle.isFocused(),
+    getBounds: () => handle.getBounds(),
   };
 }
 
