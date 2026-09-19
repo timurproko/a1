@@ -1,7 +1,7 @@
 import { isRecord, stringProperty } from "./message-values.js";
 import type { AgentSession, AgentSessionRuntime } from "../startup-public.js";
 import type { PiWorkflowContexts } from "./workflow-contexts.js";
-import { PINNED_PI_WORKFLOW_COMMAND_NAMES, type PiWorkflowAutocompleteCommand } from "./workflows.js";
+import { OWNED_MODELS_COMMAND_NAME, workflowCommandNames, type PiProductMode, type PiWorkflowAutocompleteCommand } from "./workflows.js";
 
 export interface OwnedPiResourceSummary {
   readonly kind: "skill" | "prompt-template" | "agent-context" | "system-prompt" | "theme";
@@ -43,9 +43,11 @@ export interface PiResourceCatalogPorts {
 export class PiResourceCatalog {
   readonly #ports: PiResourceCatalogPorts;
   readonly #contexts: PiWorkflowContexts;
+  readonly #productMode: PiProductMode;
 
-  constructor(options: { readonly contexts: PiWorkflowContexts }, ports: PiResourceCatalogPorts) {
+  constructor(options: { readonly contexts: PiWorkflowContexts; readonly productMode?: PiProductMode }, ports: PiResourceCatalogPorts) {
     this.#contexts = options.contexts;
+    this.#productMode = options.productMode ?? "bare";
     this.#ports = ports;
   }
 
@@ -194,13 +196,21 @@ export class PiResourceCatalog {
 
   workflowAutocompleteCommands(): readonly PiWorkflowAutocompleteCommand[] {
     const commands: PiWorkflowAutocompleteCommand[] = [
-      {
-        name: "model",
-        description: "Select model (opens selector UI)",
-        argumentHint: "<provider/model>",
-        argumentOptions: this.#contexts.modelOptions(),
-        source: "builtin",
-      },
+      this.#productMode === "bare"
+        ? {
+            name: OWNED_MODELS_COMMAND_NAME,
+            description: "Switch models and manage scoped model cycling",
+            argumentHint: "<search>",
+            argumentOptions: this.#contexts.modelOptions(),
+            source: "builtin",
+          }
+        : {
+            name: "model",
+            description: "Select model (opens selector UI)",
+            argumentHint: "<provider/model>",
+            argumentOptions: this.#contexts.modelOptions(),
+            source: "builtin",
+          },
       {
         name: "login",
         description: "Configure provider authentication",
@@ -209,7 +219,8 @@ export class PiResourceCatalog {
         source: "builtin",
       },
     ];
-    const usedNames = new Set<string>(PINNED_PI_WORKFLOW_COMMAND_NAMES);
+    // Invariant: only the active product mode's catalog reserves names; the other mode's replaced routes stay free for resources.
+    const usedNames = new Set<string>(workflowCommandNames(this.#productMode));
     const loader = this.#ports.runtime()?.services.resourceLoader;
     if (!loader) return commands;
     const prompts = collectionResult(loader.getPrompts(), "prompts");

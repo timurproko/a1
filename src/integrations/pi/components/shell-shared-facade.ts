@@ -97,6 +97,8 @@ export interface PiShellAutocompleteCommand {
   readonly description?: string;
   readonly argumentHint?: string;
   readonly argumentOptions?: readonly PiShellSelectorOption[];
+  /** Built-in entries decorate the active profile's catalog; everything else is a discovered resource. */
+  readonly source?: "builtin" | "prompt" | "skill" | "extension";
 }
 
 export interface PiShellViewComponentPort extends PiShellComponentPort {

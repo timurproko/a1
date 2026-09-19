@@ -21,7 +21,7 @@ import type { UiRouteHost } from "../../ui/apps/contracts.js";
 import { ContextualPromptSuggestionController } from "./prompt-suggestion-controller.js";
 import { MOUSE_TRACKING_OFF, MOUSE_TRACKING_ON, parseMouseInput } from "../../ui/components/mouse.js";
 import { readVisibleHyperlinks } from "../../ui/components/visible-hyperlinks.js";
-import { PINNED_PI_HIDDEN_COMMAND_NAMES, PINNED_PI_WORKFLOW_COMMAND_NAMES } from "../../integrations/pi/engine/workflows.js";
+import { PINNED_PI_HIDDEN_COMMAND_NAMES, workflowCommandNames } from "../../integrations/pi/engine/workflows.js";
 import type {
   AdapterCommandResult,
   OwnedPiExtensionResourceSummary,
@@ -62,6 +62,7 @@ import {
   createPiShellExtensionSelector,
   createPiShellLoginDialog,
   createPiShellModelSelector,
+  createPiShellModelsDialog,
   createPiShellOperationLoader,
   createPiShellReloadBox,
   createPiShellScopedModelsSelector,
@@ -75,6 +76,7 @@ import {
   createPiShellTrustSelector,
   createPiShellUserMessageSelector,
   type PiShellLoginDialogPort,
+  type PiShellModelsDialogPort,
   type PiShellScopedModelsSelectorPort,
 } from "../../integrations/pi/components/shell-selectors-dialogs.js";
 import {
@@ -280,7 +282,7 @@ export class OwnedUiSessionShell {
       onInterrupt: () => { void this.interrupt(); },
       onClear: () => { void this.clearOrExit(); },
       onExit: () => { void this.shutdown(); },
-      onModelSelect: () => this.showModelSelector(),
+      onModelSelect: () => this.#customViewport ? this.showModelsDialog() : this.showModelSelector(),
       onModelCycle: direction => { void this.cycleModel(direction); },
       onThinkingCycle: () => { void this.cycleThinkingLevel(); },
       onThinkingToggle: () => {
@@ -290,7 +292,7 @@ export class OwnedUiSessionShell {
       onMessageCopy: () => { void this.runWorkflow({ command: "copy", argument: "" }); },
       onFollowUp: () => { void this.queueFollowUp().catch(() => this.#reportSubmissionError()); },
       onDequeue: () => this.restoreQueuedInput(),
-      onEditorChange: () => { this.#editorRevision++; promptSuggestionController?.invalidate(); },
+      onEditorChange: () => { this.#editorRevision++; promptSuggestionController?.abortPending(); },
       onPromptSuggestionAccepted: () => promptSuggestionController?.accept(),
       onInputSurfaceChanged: () => {
         promptSuggestionController?.invalidate();
@@ -778,7 +780,7 @@ export class OwnedUiSessionShell {
   }
 
   async clearOrExit(now = Date.now()): Promise<AdapterCommandResult> {
-    this.#promptSuggestions?.invalidate();
+    this.#promptSuggestions?.abortPending();
     if (now - this.#lastClearTime < 500) return this.shutdown();
     this.root.editor.setText("");
     this.#lastClearTime = now;
@@ -1290,6 +1292,10 @@ export class OwnedUiSessionShell {
       this.showScopedModelsSelector();
       return { outcome: "completed", diagnostic: null };
     }
+    if (request.command === "models" && request.selection === undefined) {
+      this.showModelsDialog(request.argument.trim() || undefined);
+      return { outcome: "completed", diagnostic: null };
+    }
     if (request.command === "model" && request.selection === undefined && request.confirmed === undefined && request.argument.trim().length === 0) {
       this.showModelSelector();
       return { outcome: "completed", diagnostic: null };
@@ -1396,7 +1402,7 @@ export class OwnedUiSessionShell {
       this.#installAutocompleteCommands();
     }
     this.root.appendWorkflowResult(result);
-    if (request.command === "model" && result.outcome === "completed") this.#showDaxnutsForActiveModel();
+    if ((request.command === "model" || request.command === "models") && result.outcome === "completed") this.#showDaxnutsForActiveModel();
     this.runtime.requestRender();
     return workflowAdapterResult(result);
   }
@@ -1490,6 +1496,94 @@ export class OwnedUiSessionShell {
         component.updateModels(refreshed.models);
         this.backend.updateScopedModels(currentEnabledIds);
       }
+      component.setRefreshStatus(
+        timedOut ? "Model refresh timed out; showing cached models." : refreshed.status,
+        timedOut ? "warning" : refreshed.statusKind,
+      );
+      this.runtime.requestRender();
+    }).catch(error => {
+      if (disposed) return;
+      component.setRefreshStatus(
+        timedOut
+          ? "Model refresh timed out; showing cached models."
+          : `Could not refresh model catalogs: ${error instanceof Error ? error.message : String(error)}`,
+        "warning",
+      );
+      this.runtime.requestRender();
+    }).finally(() => clearTimeout(timeout));
+  }
+
+  // Invariant: bare A1 routes `models`; the comparison profile keeps the pinned `model`/`scoped-models` pair. Hidden routes are shared.
+  #isWorkflowRoute(value: string): value is PiWorkflowRoute {
+    return (workflowCommandNames(this.#customViewport ? "bare" : "comparison") as readonly string[]).includes(value)
+      || (PINNED_PI_HIDDEN_COMMAND_NAMES as readonly string[]).includes(value);
+  }
+
+  /** The bare-A1 unified Models dialog: switch on Enter, scope on Space, persist on Ctrl+S, all through the engine. */
+  showModelsDialog(initialQuery?: string): void {
+    const context = this.backend.modelsContext();
+    const available = new Set(context.models.map(model => `${model.provider}/${model.id}`));
+    const savedScopeIds = context.persistedScopeIds.filter(id => available.has(id));
+    // Invariant: an explicit session scope wins; otherwise the dialog starts from what is persisted, never from "all rows scoped".
+    const scopeIds = context.sessionScopeIds.length > 0 ? context.sessionScopeIds : savedScopeIds;
+    let disposed = false;
+    let timedOut = false;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, 15_000);
+    const close = () => {
+      disposed = true;
+      clearTimeout(timeout);
+      controller.abort();
+      this.root.setInputSurface(null);
+      this.runtime.requestRender();
+    };
+    const dialog = createPiShellModelsDialog({
+      models: context.models,
+      activeModelId: context.activeModelId,
+      scopeIds,
+      savedScopeIds,
+      ...(initialQuery === undefined ? {} : { initialQuery }),
+      refreshStatus: "Refreshing model catalogs…",
+      requestRender: () => this.runtime.requestRender(),
+      onSelect: modelId => {
+        void this.runWorkflow({ command: "models", argument: "", selection: modelId }).then(result => {
+          if (!disposed && result.outcome === "completed") close();
+        });
+      },
+      onScopeChange: ids => {
+        this.backend.setSessionModelScope(ids);
+        this.runtime.requestRender();
+      },
+      onSave: ids => {
+        try {
+          this.backend.persistModelScope(ids);
+        } catch (error) {
+          this.root.appendWorkflowResult({ command: "models", outcome: "failed", message: error instanceof Error ? error.message : String(error) });
+          this.runtime.requestRender();
+          throw error;
+        }
+        this.root.appendWorkflowStatus("Model selection saved to settings");
+        this.runtime.requestRender();
+      },
+      onCancel: close,
+    });
+    const component: PiShellModelsDialogPort = {
+      ...dialog,
+      dispose: () => {
+        disposed = true;
+        clearTimeout(timeout);
+        controller.abort();
+        dialog.dispose?.();
+      },
+    };
+    this.root.setInputSurface(component);
+    this.runtime.requestRender();
+    void this.backend.refreshModels(controller.signal).then(refreshed => {
+      if (disposed) return;
+      component.updateModels(refreshed.models);
       component.setRefreshStatus(
         timedOut ? "Model refresh timed out; showing cached models." : refreshed.status,
         timedOut ? "warning" : refreshed.statusKind,
@@ -1821,7 +1915,7 @@ export class OwnedUiSessionShell {
     const name = separator < 0 ? body : body.slice(0, separator);
     const argument = separator < 0 ? "" : body.slice(separator + 1).trimStart();
     if (this.#routeHost?.claims(name)) return this.#openOwnedRoute(name);
-    if (isWorkflowRoute(name)) return this.runWorkflow({ command: name, argument });
+    if (this.#isWorkflowRoute(name)) return this.runWorkflow({ command: name, argument });
     if (this.#skillsCollapsed()) {
       if (name === SKILLS_COMMAND_NAME) return this.#runSkillsCommand(text, argument);
       const rewritten = rewriteSkillsTunnelSubmission(text);
@@ -2105,7 +2199,4 @@ interface QuitOutroCapture {
   readonly settings: { readonly effect: OwnedUiQuitEffect; readonly durationMs: number };
 }
 
-function isWorkflowRoute(value: string): value is PiWorkflowRoute {
-  return (PINNED_PI_WORKFLOW_COMMAND_NAMES as readonly string[]).includes(value)
-    || (PINNED_PI_HIDDEN_COMMAND_NAMES as readonly string[]).includes(value);
-}
+

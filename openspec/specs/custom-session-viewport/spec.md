@@ -1232,7 +1232,7 @@ Bare A1 SHALL present informational workflow status messages, including model an
 A newer informational message SHALL replace the current notice in place. The notice SHALL be removed when a submitted prompt or shell command block is mounted, when a non-informational workflow presentation such as an error, warning, structured command output, or celebratory component is appended to the transcript, and when workflow presentation is reset for a new, resumed, forked, or replaced session. Assistant, thinking, tool, custom, and compaction blocks that start or update while the agent works SHALL NOT remove it, the agent finishing SHALL NOT remove it, and no timer SHALL remove it. The notice SHALL NOT enter transcript order, the selectable document, copied text, prompt navigation, persisted session content, or the pinned `a1 pi` route, whose transcript placement of status text SHALL remain unchanged.
 
 #### Scenario: Confirm a model switch in a fresh session
-- **WHEN** `/model` completes in a bare-A1 session with no transcript content
+- **WHEN** model selection from `/models` completes in a bare-A1 session with no transcript content
 - **THEN** the confirmation SHALL appear directly above the editor group with one blank row on each side
 - **AND** no transcript row SHALL be added for it
 - **AND** the top of the viewport SHALL remain empty

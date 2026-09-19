@@ -61,6 +61,12 @@ export const PINNED_PI_BUILTIN_SLASH_COMMANDS = [
   { name: "quit", description: "Quit" },
 ];
 
+/** Bare A1's built-in catalog: one `models` command replaces the pinned `model` and `scoped-models` entries. */
+export const OWNED_BUILTIN_SLASH_COMMANDS = PINNED_PI_BUILTIN_SLASH_COMMANDS.flatMap(command =>
+  command.name === "model"
+    ? [{ name: "models", description: "Switch models and manage scoped model cycling", argumentHint: "<search>" }]
+    : command.name === "scoped-models" ? [] : [command]);
+
 export function createPiShellEditor(options: PiShellEditorOptions): PiShellEditorPort {
   ensureTheme();
   const tui = createTuiFacade(options);
@@ -144,6 +150,7 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
     tui.requestRender();
   };
   let autocompleteProvider: AutocompleteProvider;
+  const builtInCatalog = options.keybindingProfile === "a1" ? OWNED_BUILTIN_SLASH_COMMANDS : PINNED_PI_BUILTIN_SLASH_COMMANDS;
   const setAutocompleteCommands = (installed: readonly PiShellAutocompleteCommand[]) => {
     // Invariant: collapse is a bare-A1 presentation; the comparison profile installs the pinned list.
     const collapsed = options.keybindingProfile === "a1" && options.skillsPresentation?.() === "collapse"
@@ -152,9 +159,10 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
     tunnelSkills = collapsed.skills;
     const commands = collapsed.commands;
     const additions = new Map(commands.map(command => [command.name, command]));
-    const builtInNames = new Set(PINNED_PI_BUILTIN_SLASH_COMMANDS.map(command => command.name));
-    const builtIns = PINNED_PI_BUILTIN_SLASH_COMMANDS.map(command => autocompleteCommand(command, additions.get(command.name)));
-    const resources = commands.filter(command => !builtInNames.has(command.name)).map(command => autocompleteCommand(command));
+    const builtInNames = new Set(builtInCatalog.map(command => command.name));
+    const builtIns = builtInCatalog.map(command => autocompleteCommand(command, additions.get(command.name)));
+    // Invariant: the engine's built-in additions only decorate this profile's catalog; they never surface as resources.
+    const resources = commands.filter(command => command.source !== "builtin" && !builtInNames.has(command.name)).map(command => autocompleteCommand(command));
     const combined = new CombinedAutocompleteProvider(
       [...builtIns, ...resources],
       options.cwd ?? process.cwd(),

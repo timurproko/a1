@@ -2669,6 +2669,7 @@
           "kind": "interface",
           "hash": "16dc395b19332671875a1d3d8241bf285e619038b50aa10c87d4d3a7f3f0820c",
           "consumers": [
+            "src/integrations/pi/components/models-dialog.ts",
             "src/integrations/pi/components/shell-extension-ui.ts",
             "src/integrations/pi/components/shell-footer-status.ts",
             "src/integrations/pi/components/shell-presenters-transcript.ts",
@@ -2803,6 +2804,7 @@
           "kind": "interface",
           "hash": "674d5b2f6c02d9614b69c3d0430155c57c8bcf97dd1b1602745ec40bc98fbb42",
           "consumers": [
+            "src/integrations/pi/components/models-dialog.ts",
             "src/integrations/pi/components/shell-shared-facade.ts",
             "src/integrations/pi/components/upstream/components/scoped-models-selector.ts",
             "src/integrations/pi/components/upstream/components/session-selector.ts",
@@ -2874,6 +2876,7 @@
           "kind": "function",
           "hash": "0f98403d2c6a96329ba879315081e07f1a0f87d4aefab71b870526095b82b23f",
           "consumers": [
+            "src/integrations/pi/components/models-dialog.ts",
             "src/integrations/pi/components/skills-dialog.ts",
             "src/integrations/pi/components/upstream/components/scoped-models-selector.ts",
             "src/integrations/pi/components/upstream/components/session-selector.ts",
@@ -2969,6 +2972,7 @@
           "kind": "class",
           "hash": "52019438b4fcc4eabf7c0d96a19377996b2a2632542798e24aa38f84d5a5fc48",
           "consumers": [
+            "src/integrations/pi/components/models-dialog.ts",
             "src/integrations/pi/components/skills-dialog.ts",
             "src/integrations/pi/components/upstream/components/scoped-models-selector.ts",
             "src/integrations/pi/components/upstream/components/session-selector.ts",
@@ -3012,6 +3016,7 @@
           "kind": "const",
           "hash": "847a96b66a8fb66c38b648e4d33dd711165320f56e5f5dc3a9c4fcb2cbcecf1c",
           "consumers": [
+            "src/integrations/pi/components/models-dialog.ts",
             "src/integrations/pi/components/upstream/components/scoped-models-selector.ts"
           ]
         },
@@ -3135,6 +3140,7 @@
           "kind": "function",
           "hash": "4b168ec2f0fff9b340885597d4676c628c97fc4162067473c32facc1b2107a16",
           "consumers": [
+            "src/integrations/pi/components/models-dialog.ts",
             "src/integrations/pi/components/shell-editor-autocomplete.ts",
             "src/integrations/pi/components/upstream/components/scoped-models-selector.ts",
             "src/integrations/pi/components/upstream/history/editor-core.ts"
@@ -3526,6 +3532,7 @@
           "kind": "function",
           "hash": "ac6c365fc166deafebb35bc7b2aba128865652bd20d137e341dc18c7f6338c8d",
           "consumers": [
+            "src/integrations/pi/components/models-dialog.ts",
             "src/integrations/pi/components/shell-shared-facade.ts",
             "src/integrations/pi/components/upstream/components/session-footer.ts",
             "src/integrations/pi/components/upstream/components/session-selector.ts",
