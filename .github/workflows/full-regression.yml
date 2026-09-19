@@ -65,6 +65,17 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: npm
 
+      # Compatibility: Node 22 ships npm 10, whose pack runs the prepare script even under
+      # --ignore-scripts and rebuilds the workspace, invalidating the build receipt. Every lane
+      # packs with the pinned package manager so the candidate is produced the same way.
+      - name: Use the pinned npm for packing
+        shell: bash
+        run: |
+          pinned=$(node -p "require('./package.json').packageManager.split('@')[1]")
+          current=$(npm --version)
+          if [ "$current" != "$pinned" ]; then npm install -g "npm@$pinned"; fi
+          npm --version
+
       - name: Install dependencies and build once
         run: npm ci
 

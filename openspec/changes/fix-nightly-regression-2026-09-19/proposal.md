@@ -4,8 +4,8 @@ The Full regression run of 2026-09-19 failed on `develop` at `30546e1` (https://
 
 ## What Changes
 
-- Reproduce the failure on the failed lane from the listed tests or commands and identify the introducing change among the suspect commits.
-- Fix the cause without weakening assertions, budgets, timeouts, or coverage, and add regression evidence where the failure exposed a gap.
+- Re-pin the documented deprecated-dependency exceptions to the current pinned Pi (0.85.1) after re-evaluating that the same two transitive packages, versions, paths, and reasons apply, and tie the exceptions to the pinned identity in the governance tests so a Pi upgrade cannot leave them stale.
+- Make every Full regression lane pack with the pinned `packageManager` npm, and make the candidate packaging script refuse an npm whose pack runs `prepare` despite `--ignore-scripts` (npm 10), so the Node 22 lane no longer rebuilds the workspace mid-pack and fails its build receipt.
 
 ## Capabilities
 
@@ -15,7 +15,7 @@ None.
 
 ### Modified Capabilities
 
-None identified yet. When the cause is known and the fix changes a requirement, add the delta under `specs/<capability>/spec.md` and remove `skip_specs: true` from `.openspec.yaml`; when the fix changes no requirement, leave both as scaffolded.
+- `isolated-regression-testing`: the no-deprecated-dependencies requirement states the documented pinned-Pi exception it already carried in code, and that a Pi upgrade re-evaluates it.
 
 ## Impact
 

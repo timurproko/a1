@@ -1,3 +1,17 @@
+// Compatibility: npm 10's directory fetcher runs the `prepare` script even under `--ignore-scripts`,
+// which rebuilds the workspace mid-pack and invalidates the build receipt; npm 11 honours the flag.
+export const MINIMUM_PACK_NPM_MAJOR = 11;
+
+/** Refuse to pack with an npm whose pack rebuilds the workspace; returns the accepted major. */
+export function assertPackingNpm(version) {
+  const major = Number(/^(\d+)\./.exec(String(version ?? "").trim())?.[1]);
+  if (!Number.isInteger(major)) throw new Error(`npm pack requires a readable npm version, received ${JSON.stringify(version)}`);
+  if (major < MINIMUM_PACK_NPM_MAJOR) {
+    throw new Error(`npm ${String(version).trim()} runs the prepare script during pack even with --ignore-scripts and rebuilds the workspace; pack with npm ${MINIMUM_PACK_NPM_MAJOR} or newer (the pinned packageManager)`);
+  }
+  return major;
+}
+
 /** Normalize the documented npm 11 array and npm 12 package-keyed JSON shapes. */
 export function normalizeNpmPackMetadata(parsed) {
   const candidates = Array.isArray(parsed) ? parsed : parsed?.filename ? [parsed]

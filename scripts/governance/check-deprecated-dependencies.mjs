@@ -5,23 +5,24 @@ import { fileURLToPath } from "node:url";
 const REGISTRY = "https://registry.npmjs.org";
 const identity = JSON.parse(await readFile(new URL("../../src/product-identity.json", import.meta.url), "utf8"));
 
-// Compatibility: Pi 0.84.x carries these deprecated transitive packages through its public SDK
-// dependency graph. They are accepted only on those exact versions and paths;
-// any A1 update must re-evaluate them instead of broadening the exception.
-const DOCUMENTED_DEPRECATED_EXCEPTIONS = [
+// Compatibility: the pinned Pi carries these deprecated transitive packages through its public SDK
+// dependency graph. They are accepted only on those exact versions and paths, and each exception
+// names the exact pinned Pi that was re-evaluated; a Pi upgrade must re-evaluate them instead of
+// broadening the exception (the governance test ties `upstream` to the pinned identity).
+export const DOCUMENTED_DEPRECATED_EXCEPTIONS = Object.freeze([
   {
     name: "node-domexception",
     version: "1.0.0",
-    upstream: "@earendil-works/pi-coding-agent@0.84.2",
+    upstream: "@earendil-works/pi-coding-agent@0.85.1",
     reasonIncludes: "native DOMException",
   },
   {
     name: "@aws-sdk/core",
     version: "3.974.11",
-    upstream: "@earendil-works/pi-coding-agent@0.84.2",
+    upstream: "@earendil-works/pi-coding-agent@0.85.1",
     reasonIncludes: "error deserialization",
   },
-];
+]);
 
 export async function inspectDependencies({ lockfilePath, queryRegistry = true, fetchImplementation = fetch }) {
   const lockfile = JSON.parse(await readFile(lockfilePath, "utf8"));

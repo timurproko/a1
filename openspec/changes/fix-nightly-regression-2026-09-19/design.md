@@ -4,7 +4,9 @@ Opened by the nightly regression triage from the failed run's evidence artifacts
 
 ## Decisions
 
-- To be written by the maintainer once the cause is known: what failed, why, and the smallest change that fixes it without reducing validation.
+- **`dependency-policy` on every Node 24 lane:** `check-deprecated-dependencies.mjs` accepts two deprecated transitive packages (`node-domexception@1.0.0`, `@aws-sdk/core@3.974.11`) only beneath an exact pinned Pi, and the exceptions still named `@earendil-works/pi-coding-agent@0.84.2` after #493 moved the pin to 0.85.1. The packages, versions, paths, and reasons are unchanged under 0.85.1 (verified offline against the lockfile and online against the registry), so the exceptions are re-pinned to 0.85.1, not broadened. The gate is nightly-only, which is why #493 went green; a new governance test now ties every exception's `upstream` to `readPinnedPiIdentity`, so the next Pi upgrade fails PR validation until the exceptions are re-evaluated.
+- **Orchestration failure on Windows Node 22:** `prepare-validation-package.mjs` verified the build receipt, ran `npm pack --ignore-scripts`, and the next step's receipt verification failed. Reproduced locally: npm 10 (shipped with Node 22) runs the directory's `prepare` script during pack regardless of `--ignore-scripts` (pacote's `DirFetcher#prepareDir` has no `ignoreScripts` check in npm 10; npm 11 has it), so `npm run build` re-ran mid-pack and rewrote `dist/native/win32-x64/manifest.json` with a new `builtAt`. Fix: the Full regression lanes install the pinned `packageManager` npm before `npm ci`, so every lane packs the same way, and `prepare-validation-package.mjs` refuses an npm older than 11 with the reason, so a lane that lost the pin fails at the pack step with a named cause instead of a receipt mismatch two steps later. The receipt itself is unchanged; a rebuild inside pack is a real difference, not noise to tolerate.
+- Introducing changes: #493 (Pi 0.85.1) for the policy failure; the Node 22 pack failure is environmental (npm 10 behaviour) and predates the window, surfacing whenever the receipt inputs include a timestamped artifact.
 
 ## Evidence
 
