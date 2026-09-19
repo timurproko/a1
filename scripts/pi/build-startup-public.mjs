@@ -6,6 +6,8 @@ import { createStartupDescriptor, serializeStartupDescriptor } from "./startup-d
 import { hasDynamicImport, isStartupLazyImportModule, pinnedDynamicImportPath, rewriteStartupLazyImports, validatePinnedDynamicImports } from "./startup-lazy-imports.mjs";
 
 const root = process.cwd();
+// Rationale: the summary is diagnostic noise for a routine build; the manifest on disk holds the same numbers.
+const verbose = process.env.A1_BUILD_VERBOSE === "1";
 const entry = "dist/integrations/pi/startup-public.js";
 const temporary = "dist/integrations/pi/startup-public.generated.js";
 const reportPath = "dist/integrations/pi/startup-public.manifest.json";
@@ -58,7 +60,7 @@ const baselineErrors = [
 if (baselineErrors.length > 0) throw new Error(baselineErrors.join("; "));
 const descriptor = createStartupDescriptor({ artifact: manifest.output });
 await writeFile(resolve(root, descriptorPath), serializeStartupDescriptor(descriptor));
-process.stderr.write(`[startup-public] ${manifest.output.sha256} ${manifest.output.bytes} bytes from ${manifest.totals.files} normalized inputs; descriptor ${descriptor.identity}\n`);
+if (verbose) process.stderr.write(`[startup-public] ${manifest.output.sha256} ${manifest.output.bytes} bytes from ${manifest.totals.files} normalized inputs; descriptor ${descriptor.identity}\n`);
 
 function preservePinnedPiModuleContext() {
   const marker = "/node_modules/@earendil-works/pi-coding-agent/dist/";
