@@ -16,7 +16,7 @@ The manual merge accepts these scenarios:
   "archive": "openspec/changes/archive/2026-09-19-automate-nightly-regression-triage/",
   "acceptanceManifest": "openspec/changes/archive/2026-09-19-automate-nightly-regression-triage/acceptance.md",
   "finalizedDate": "2026-09-19",
-  "specBaseSha": "30546e1d74f5f0f5edbf6a0b9cdb71f28f1436a1",
+  "specBaseSha": "69e3cfd25f003f238bb7d2e31754fa944ee82e23",
   "acceptanceScenarios": [
     "A failed scheduled Full regression run opens a draft `fix/nightly-regression-YYYY-MM-DD` pull request whose body lists the failed commands per lane, their tests, a bounded log excerpt, and the `develop` commits since the last green run.",
     "A later failure with the same failed scope set appends its run to the open candidate instead of opening another; a manually dispatched Release failure opens nothing.",
