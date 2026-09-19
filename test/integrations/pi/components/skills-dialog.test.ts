@@ -111,6 +111,14 @@ describe("the Skills dialog", () => {
     expect(onCancel).not.toHaveBeenCalled();
   });
 
+  it("truncates a long description to one line instead of wrapping", () => {
+    const long = "Update an OpenSpec change by revising its existing planning artifacts and keeping them coherent with one another. Never edits code.";
+    const { plain } = dialog([{ name: "openspec-update-change", description: long }]);
+    const rows = plain(60);
+    expect(rows[8]).toBe("  " + long.slice(0, 55) + "...");
+    expect(rows.slice(9)).toEqual(["", "  ↑↓ navigate  enter select  escape/ctrl+c cancel", "─".repeat(60)]);
+  });
+
   it("filters on name or description ignoring case and skill:, resets the selection, and reports no matches", () => {
     const { component, onSelect, plain, type } = dialog();
     component.handleInput?.(DOWN);
