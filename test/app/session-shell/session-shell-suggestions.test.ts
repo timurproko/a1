@@ -126,6 +126,75 @@ describe("OwnedUiSessionShell prompt suggestions", () => {
     await target.shell.dispose();
   });
 
+  it.each(["backspace", "clear-shortcut"])("hides a shown suggestion behind a draft and repaints it after %s empties the editor", async clearing => {
+    const messages = [
+      { role: "assistant", content: [{ type: "text", text: "First" }], stopReason: "stop" },
+      { role: "assistant", content: [{ type: "text", text: "Second" }], stopReason: "stop" },
+    ];
+    const generator: OwnedUiPromptSuggestionGeneratorPort = {
+      generate: vi.fn(async request => ({ identity: request.identity, outcome: "candidate" as const, text: "run the tests" })),
+    };
+    const target = await fixture(messages, [], true, undefined, undefined, undefined, undefined, {
+      generator, enabled: () => true, onChange: () => () => {},
+    });
+    try {
+      target.engine.session.emit({ type: "agent_start" });
+      target.engine.session.emit({ type: "message_end", message: messages.at(-1) });
+      target.engine.session.emit({ type: "agent_settled" });
+      await target.adapter.flushEvents();
+      await nextImmediate();
+      const rendered = () => stripTerminalSequences(target.shell.root.editor.render(50).join("\n"));
+      expect(rendered()).toContain("❯ run the tests");
+
+      target.shell.root.editor.handleInput?.("x");
+      expect(target.shell.root.editor.getText()).toBe("x");
+      expect(rendered()).not.toContain("run the tests");
+      target.shell.root.editor.handleInput?.("\t");
+      expect(target.shell.root.editor.getText()).toBe("x");
+
+      if (clearing === "backspace") target.shell.root.editor.handleInput?.("\u007f");
+      else await target.shell.clearOrExit(10_000);
+      expect(target.shell.root.editor.getText()).toBe("");
+      expect(rendered()).toContain("❯ run the tests");
+      expect(generator.generate).toHaveBeenCalledTimes(1);
+
+      target.shell.root.editor.handleInput?.("\t");
+      expect(target.shell.root.editor.getText()).toBe("run the tests");
+      expect(target.shell.root.editor.render(50).join("\n")).not.toContain("\u001b[2mrun the tests");
+    } finally { await target.shell.dispose(); }
+  });
+
+  it("submits only the typed draft and does not restore the suggestion afterwards", async () => {
+    const messages = [
+      { role: "assistant", content: [{ type: "text", text: "First" }], stopReason: "stop" },
+      { role: "assistant", content: [{ type: "text", text: "Second" }], stopReason: "stop" },
+    ];
+    const generator: OwnedUiPromptSuggestionGeneratorPort = {
+      generate: vi.fn(async request => ({ identity: request.identity, outcome: "candidate" as const, text: "run the tests" })),
+    };
+    const target = await fixture(messages, [], true, undefined, undefined, undefined, undefined, {
+      generator, enabled: () => true, onChange: () => () => {},
+    });
+    try {
+      target.engine.session.emit({ type: "agent_start" });
+      target.engine.session.emit({ type: "message_end", message: messages.at(-1) });
+      target.engine.session.emit({ type: "agent_settled" });
+      await target.adapter.flushEvents();
+      await nextImmediate();
+      const rendered = () => stripTerminalSequences(target.shell.root.editor.render(50).join("\n"));
+      expect(rendered()).toContain("❯ run the tests");
+
+      for (const key of "hi") target.shell.root.editor.handleInput?.(key);
+      target.shell.root.editor.handleInput?.("\r");
+      await nextImmediate();
+      expect(target.engine.session.calls.filter(call => call.startsWith("prompt:"))).toEqual(["prompt:hi"]);
+      expect(target.shell.root.editor.getText()).toBe("");
+      expect(rendered()).not.toContain("run the tests");
+      target.shell.root.editor.handleInput?.("\t");
+      expect(target.shell.root.editor.getText()).toBe("");
+    } finally { await target.shell.dispose(); }
+  });
+
   it("applies the prompt-suggestion setting live without generating retroactively", async () => {
     const messages = [
       { role: "assistant", content: [{ type: "text", text: "First" }], stopReason: "stop" },
