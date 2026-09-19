@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { join, resolve } from "node:path";
@@ -28,17 +29,44 @@ function nodeResolvedPinned(): string {
   return realpathSync(createRequire(pathToFileURL(join(pi, "package.json")).href).resolve("@earendil-works/pi-tui"));
 }
 
+// Compatibility: CommonJS resolution consults synchronous loader hooks from Node 23.5, so on
+// Node 22 an in-process `require.resolve` measures the unhooked layout, and the test transformer
+// offers no `import.meta.resolve`. The product resolves through the ESM loader from its bin/
+// entries, so the launch-equivalent measurement is a real Node process with the hook installed.
+const commonJsResolutionHooked = Number(process.versions.node.split(".")[0]) >= 24;
+
+function measuredAtLaunch(): { own: string; identity: { kind: string; path?: string } } {
+  const url = (name: string) => JSON.stringify(pathToFileURL(join(packageRoot, "bin", name)).href);
+  const script = [
+    `import { installPinnedPiTuiResolver } from ${url("module-resolver.js")};`,
+    `import { inspectPiTuiModuleIdentity } from ${url("module-identity.js")};`,
+    'import { realpathSync } from "node:fs";',
+    'import { fileURLToPath } from "node:url";',
+    `installPinnedPiTuiResolver(${JSON.stringify(packageRoot)});`,
+    `const own = realpathSync(fileURLToPath(import.meta.resolve("@earendil-works/pi-tui")));`,
+    `process.stdout.write(JSON.stringify({ own, identity: inspectPiTuiModuleIdentity(${JSON.stringify(packageRoot)}) }));`,
+  ].join("\n");
+  const result = spawnSync(process.execPath, ["--input-type=module", "-e", script], { cwd: packageRoot, encoding: "utf8", windowsHide: true, timeout: 30000 });
+  if (result.status !== 0) throw new Error(`launch-equivalent identity measurement failed: ${result.stderr}`);
+  return JSON.parse(result.stdout) as { own: string; identity: { kind: string; path?: string } };
+}
+
 describe("pi-tui module identity in the installed tree", () => {
   it("reports one unified module for this checkout", () => {
-    const outcome = inspectPiTuiModuleIdentity(packageRoot) as { kind: string; path?: string };
-    expect(outcome).toMatchObject({ kind: "unified", path: nodeResolvedPinned() });
+    expect(measuredAtLaunch().identity).toMatchObject({ kind: "unified", path: nodeResolvedPinned() });
+    if (commonJsResolutionHooked) {
+      const outcome = inspectPiTuiModuleIdentity(packageRoot) as { kind: string; path?: string };
+      expect(outcome).toMatchObject({ kind: "unified", path: nodeResolvedPinned() });
+    }
   });
 
   it("resolves the package specifier to the copy pinned Pi resolves", () => {
     // Invariant: with the hook installed, asking Node from A1's own root answers with pinned
     // Pi's copy, whatever layout npm materialized.
-    expect(nodeResolvedOwn()).toBe(nodeResolvedPinned());
-    expect(nodeResolvedOwn().startsWith(pinnedPiTuiPackageRoot(packageRoot))).toBe(true);
+    const own = measuredAtLaunch().own;
+    expect(own).toBe(nodeResolvedPinned());
+    expect(own.startsWith(pinnedPiTuiPackageRoot(packageRoot))).toBe(true);
+    if (commonJsResolutionHooked) expect(nodeResolvedOwn()).toBe(nodeResolvedPinned());
   });
 
   it("hands A1, pinned Pi, and the hoisted path the same TUI class objects", async () => {

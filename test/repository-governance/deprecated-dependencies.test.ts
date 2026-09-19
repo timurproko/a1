@@ -4,8 +4,11 @@ import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
+import { DOCUMENTED_DEPRECATED_EXCEPTIONS } from "../../scripts/governance/check-deprecated-dependencies.mjs";
+import { readPinnedPiIdentity } from "../../scripts/governance/pinned-pi-identity.mjs";
 
 const roots: string[] = [];
+const repository = resolve(fileURLToPath(new URL("../..", import.meta.url)));
 const script = resolve(fileURLToPath(new URL("../../scripts/governance/check-deprecated-dependencies.mjs", import.meta.url)));
 afterEach(async () => Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))));
 
@@ -31,11 +34,11 @@ describe("deprecated dependency release policy", () => {
     expect(result.stderr).toContain("fixture@1.0.0 -> parent@1.0.0 -> old-transitive@2.0.0");
   });
 
-  it("allows only the documented exact Pi 0.84.2 transitive exceptions", async () => {
+  it("allows only the documented exact pinned-Pi transitive exceptions", async () => {
     const result = await runPolicy({
-      "": { name: "fixture", version: "1.0.0", dependencies: { "@earendil-works/pi-coding-agent": "0.84.2" } },
-      "node_modules/@earendil-works/pi-coding-agent": { version: "0.84.2", dependencies: { "@earendil-works/pi-ai": "0.84.2" } },
-      "node_modules/@earendil-works/pi-ai": { version: "0.84.2", dependencies: { "@aws-sdk/client-bedrock-runtime": "3.1048.0", "google-auth-library": "10.6.2" } },
+      "": { name: "fixture", version: "1.0.0", dependencies: { "@earendil-works/pi-coding-agent": "0.85.1" } },
+      "node_modules/@earendil-works/pi-coding-agent": { version: "0.85.1", dependencies: { "@earendil-works/pi-ai": "0.85.1" } },
+      "node_modules/@earendil-works/pi-ai": { version: "0.85.1", dependencies: { "@aws-sdk/client-bedrock-runtime": "3.1048.0", "google-auth-library": "10.6.2" } },
       "node_modules/@aws-sdk/client-bedrock-runtime": { version: "3.1048.0", dependencies: { "@aws-sdk/core": "3.974.11" } },
       "node_modules/@aws-sdk/core": { version: "3.974.11", deprecated: "Deprecated due to an error deserialization bug in JSON 1.0 protocol services" },
       "node_modules/google-auth-library": { version: "10.6.2", dependencies: { gaxios: "7.1.4" } },
@@ -47,10 +50,16 @@ describe("deprecated dependency release policy", () => {
     expect(result.status).toBe(0);
   });
 
+  it("ties every documented exception to the exact pinned Pi so an upgrade re-evaluates it", async () => {
+    const pinned = await readPinnedPiIdentity(repository);
+    expect(DOCUMENTED_DEPRECATED_EXCEPTIONS.length).toBeGreaterThan(0);
+    for (const exception of DOCUMENTED_DEPRECATED_EXCEPTIONS) expect(exception.upstream).toBe(`@earendil-works/pi-coding-agent@${pinned.version}`);
+  });
+
   it("does not generalize documented exceptions to other versions", async () => {
     const result = await runPolicy({
-      "": { name: "fixture", version: "1.0.0", dependencies: { "@earendil-works/pi-coding-agent": "0.85.0" } },
-      "node_modules/@earendil-works/pi-coding-agent": { version: "0.85.0", dependencies: { "node-domexception": "1.0.0" } },
+      "": { name: "fixture", version: "1.0.0", dependencies: { "@earendil-works/pi-coding-agent": "0.86.0" } },
+      "node_modules/@earendil-works/pi-coding-agent": { version: "0.86.0", dependencies: { "node-domexception": "1.0.0" } },
       "node_modules/node-domexception": { version: "1.0.0", deprecated: "Use your platform's native DOMException instead" },
     });
     expect(result.status).toBe(1);
