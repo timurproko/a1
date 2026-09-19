@@ -30,7 +30,26 @@ export const PINNED_PI_HIDDEN_COMMAND_NAMES = ["debug", "arminsayshi", "demented
 
 export type PiWorkflowCommandName = typeof PINNED_PI_WORKFLOW_COMMAND_NAMES[number];
 export type PiHiddenWorkflowCommandName = typeof PINNED_PI_HIDDEN_COMMAND_NAMES[number];
-export type PiWorkflowRoute = PiWorkflowCommandName | PiHiddenWorkflowCommandName;
+
+/** The one bare-A1 model command; it replaces the pinned `model` and `scoped-models` routes there. */
+export const OWNED_MODELS_COMMAND_NAME = "models" as const;
+export type OwnedModelsCommandName = typeof OWNED_MODELS_COMMAND_NAME;
+export type OwnedWorkflowCommandName = Exclude<PiWorkflowCommandName, "model" | "scoped-models"> | OwnedModelsCommandName;
+
+/** Bare A1's advertised command catalog: the pinned catalog with `models` in place of `model` and `scoped-models`. */
+export const OWNED_WORKFLOW_COMMAND_NAMES: readonly OwnedWorkflowCommandName[] = Object.freeze(
+  PINNED_PI_WORKFLOW_COMMAND_NAMES.flatMap((name): OwnedWorkflowCommandName[] =>
+    name === "model" ? [OWNED_MODELS_COMMAND_NAME] : name === "scoped-models" ? [] : [name]),
+);
+
+export type PiProductMode = "bare" | "comparison";
+
+/** The advertised command catalog for a product mode; hidden routes are shared by both. */
+export function workflowCommandNames(productMode: PiProductMode): readonly (PiWorkflowCommandName | OwnedModelsCommandName)[] {
+  return productMode === "bare" ? OWNED_WORKFLOW_COMMAND_NAMES : PINNED_PI_WORKFLOW_COMMAND_NAMES;
+}
+
+export type PiWorkflowRoute = PiWorkflowCommandName | PiHiddenWorkflowCommandName | OwnedModelsCommandName;
 
 export const PINNED_PI_SETTINGS_CALLBACKS = [
   "onAutoCompactChange",
@@ -139,7 +158,7 @@ export interface PiWorkflowRequest {
   readonly command: PiWorkflowRoute;
   readonly argument: string;
   readonly selection?: string;
-  /** For the model route: also persist the selection as the default model. */
+  /** For the model route: also persist the selection as the default model. The bare `models` route always persists. */
   readonly persist?: boolean;
   readonly confirmed?: boolean;
   /** Recovery cwd selected after an import/resume source cwd is unavailable. */
@@ -304,6 +323,23 @@ export interface PiSessionSelectorContext {
 }
 
 export interface PiScopedModelsRefreshResult extends PiScopedModelsContext {
+  readonly status: string;
+  readonly statusKind: "success" | "warning";
+}
+
+/** What the bare-A1 Models dialog reads: the authenticated catalog and the explicit session and persisted scopes, kept apart. */
+export interface PiModelsContext {
+  readonly models: readonly PiScopedModelDescriptor[];
+  /** `provider/id` of the active model, or null before one is set. */
+  readonly activeModelId: string | null;
+  /** Ordered `provider/id` references the session cycles; empty is the all-model fallback, not an explicit full scope. */
+  readonly sessionScopeIds: readonly string[];
+  /** The persisted `enabledModels` patterns resolved against the catalog, in order; unmatched patterns stay verbatim. */
+  readonly persistedScopeIds: readonly string[];
+}
+
+export interface PiModelsRefreshResult {
+  readonly models: readonly PiScopedModelDescriptor[];
   readonly status: string;
   readonly statusKind: "success" | "warning";
 }

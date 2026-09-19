@@ -105,11 +105,6 @@ return class extends Base {
     return cursor.line === 0 && cursor.col === text.length;
   }
 
-  override setText(text: string): void {
-    if (text.length > 0) this.#promptSuggestion = null;
-    super.setText(text);
-  }
-
   override render(width: number): string[] {
     if (this.#inputPresentation === undefined) {
       const rows = super.render(width);

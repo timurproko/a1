@@ -364,10 +364,12 @@ Shortcut-help regression checks SHALL distinguish the configured binding identit
 - **WHEN** the effective model-selection binding is changed to `alt+m` after the startup header is created
 - **THEN** the regression check SHALL require the refreshed header to display `option+m` on macOS and `alt+m` on Windows and Linux
 - **AND** the logical binding SHALL remain `alt+m`
+- **AND** invoking it in bare A1 SHALL open the unified Models dialog
 
 #### Scenario: Model selection is unbound
 - **WHEN** the owned profile has no effective model-selection shortcut
-- **THEN** the regression check SHALL require the `/model` fallback rather than an invented keybinding
+- **THEN** the regression check SHALL require the `/models` fallback rather than an invented keybinding
+- **AND** pinned comparison coverage SHALL continue to require its unchanged `/model` fallback
 
 ### Requirement: Repeated event-frame diagnostics are deterministic and actionable
 Repeated scripted terminal-frame diagnostics SHALL capture identical structured state and normalized frame bytes for the same declared workload, independent of opposing ambient color capabilities and host scheduling variation. Workloads SHALL explicitly control their relevant capture inputs and boundaries and restore test-owned global state and scheduled work on success or failure. Normalization SHALL remain limited to the already declared portability envelopes; semantic ANSI, reset boundaries, row payloads, geometry, cursor addressing, clearing order, and event stages SHALL remain strict. A diagnostic fixture SHALL NOT replace independent pinned-versus-owned parity authority.

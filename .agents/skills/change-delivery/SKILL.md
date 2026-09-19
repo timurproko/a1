@@ -30,7 +30,7 @@ Standalone README/docs/OpenSpec updates inside the documentation allowlist may k
 
 ## Handoff
 
-Provide exact worktree, branch/commit, commands, expected behavior, known gaps. Interactive repository tests: build, then launch only with `./scripts/dev` or `./scripts/dev pi`. End a runnable handoff with two lines: `🧪 Manual test:` and one copy-pasteable forward-slash shell command in one Markdown inline-code span; omit it when nothing is runnable.
+Provide exact worktree, branch/commit, commands, expected behavior, known gaps. Interactive repository tests: build, then launch only with `./scripts/dev` or `./scripts/dev pi`. Every reply reporting a pushed head, ready PR, CI result, or merge ends with `🧪 Manual test:` plus one forward-slash inline-code shell command; omit only when nothing is runnable.
 
 ## Cleanup
 

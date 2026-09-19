@@ -124,7 +124,9 @@ When a contextual suggestion is visible, the configured `tui.input.tab` action S
 - **THEN** A1 SHALL submit only the edited editor text and SHALL not restore or separately submit the original suggestion
 
 ### Requirement: Suggestion lifecycle rejects stale work
-A1 SHALL associate each suggestion request and result with the session generation, run, candidate assistant-response sequence, and model that produced it. Starting or continuing a run after that candidate response, typing or pasting, accepting or submitting, clearing the editor, interrupting, changing model, replacing or clearing the session, disabling the feature, or disposing the shell SHALL abort pending generation and clear any unaccepted suggestion. A late result whose identity no longer matches current state SHALL be discarded.
+A1 SHALL associate each suggestion request and result with the session generation, run, candidate assistant-response sequence, and model that produced it. Starting or continuing a run after that candidate response, accepting or submitting, interrupting, changing model, replacing or clearing the session, replacing the input surface, disabling the feature, or disposing the shell SHALL abort pending generation and clear any unaccepted suggestion. A late result whose identity no longer matches current state SHALL be discarded.
+
+Typing, pasting, deleting, or clearing draft text SHALL abort pending generation but SHALL NOT discard a suggestion that has already been prepared or shown. While the editor contains text the suggestion SHALL NOT be painted, accepted, or submitted, and Tab and the submit action SHALL act on the draft as they do without a suggestion. When the editor becomes empty again and is otherwise eligible, the same suggestion SHALL reappear in that presentation cycle without a new request, a new diagnostic outcome, or an artificial delay. A prepared suggestion whose run settles while the editor still contains a draft SHALL be discarded as blocked by that draft.
 
 A newly generated current suggestion SHALL replace an older unaccepted suggestion. A suggestion SHALL not be persisted in the session transcript or restored after restart or resume.
 
@@ -132,6 +134,21 @@ A newly generated current suggestion SHALL replace an older unaccepted suggestio
 - **WHEN** the user changes the editor while a suggestion request is pending
 - **THEN** A1 SHALL abort or invalidate that request
 - **AND** its eventual result SHALL not replace the user's text or appear later
+
+#### Scenario: User types over a visible suggestion and deletes the draft
+- **WHEN** a suggestion is visible in the empty editor, the user types one or more characters, and then deletes them so the editor is empty again
+- **THEN** the suggestion SHALL not be painted while the draft exists
+- **AND** the same suggestion SHALL reappear as ghost text once the editor is empty
+- **AND** Tab SHALL then accept it and no additional suggestion request SHALL have been made
+
+#### Scenario: User clears the draft with the clear shortcut
+- **WHEN** a suggestion is visible, the user types a draft, and then presses the clear shortcut once so the editor is emptied without shutting down
+- **THEN** the suggestion SHALL reappear in the emptied editor
+
+#### Scenario: User submits after typing over a suggestion
+- **WHEN** a suggestion is visible and the user types a different prompt and submits it
+- **THEN** A1 SHALL submit only the typed text
+- **AND** the suggestion SHALL be cleared and SHALL not reappear when the editor is empty after submission
 
 #### Scenario: A new agent run starts
 - **WHEN** a suggestion is pending or visible and a new prompt, steering message, follow-up, retry, or compaction starts an agent run

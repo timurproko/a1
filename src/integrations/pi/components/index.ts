@@ -3,6 +3,7 @@ export { loadHistoryEditor, type HistoryEditorConstructor } from "./history-edit
 export { PiComponentConformanceError, runPiComponentConformance } from "./conformance.js";
 export type { PiComponentConformanceReport, PiComponentConformanceResult } from "./conformance.js";
 export {
+  OWNED_BUILTIN_SLASH_COMMANDS,
   PINNED_PI_BUILTIN_SLASH_COMMANDS,
   componentFromPort,
   componentPort,
@@ -23,6 +24,7 @@ export {
   createPiShellLoadedResources,
   createPiShellLoginDialog,
   createPiShellModelSelector,
+  createPiShellModelsDialog,
   createPiShellOperationLoader,
   createPiShellReloadBox,
   createPiShellScopedModelsSelector,
@@ -75,6 +77,8 @@ export type {
   PiShellLoadedResourcesPort,
   PiShellLoginDialogPort,
   PiShellModelSelectorOptions,
+  PiShellModelsDialogOptions,
+  PiShellModelsDialogPort,
   PiShellOperationLoaderPort,
   PiShellPasteReservation,
   PiShellQueuedInputPort,
@@ -115,6 +119,8 @@ export {
 export type { PiColorMode, PiTerminalTheme, PiTerminalThemeDetection, PiTerminalThemeDetector, PiThemeBackground, PiThemeResult } from "./theme.js";
 export { OwnedPiThemeController } from "./upstream/theme/theme-controller.js";
 export type { PiThemeRuntimePort, PiThemeSettingsPort } from "./upstream/theme/theme-controller.js";
+export { ModelsDialogComponent } from "./models-dialog.js";
+export type { ModelsDialogCallbacks, ModelsDialogConfig, ModelsDialogFilter, ModelsDialogModel } from "./models-dialog.js";
 export { CountdownTimer } from "./upstream/components/countdown-timer.js";
 export { ExtensionEditorComponent } from "./upstream/components/extension-editor.js";
 export { SessionSelectorComponent } from "./upstream/components/session-selector.js";

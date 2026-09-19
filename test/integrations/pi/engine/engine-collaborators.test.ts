@@ -87,6 +87,10 @@ describe("PiResourceCatalog", () => {
       "extension-0:true:", "extension-diagnostic-1:false:Extension discovery returned malformed extension metadata", "extension-diagnostic-2:false:syntax",
     ]);
     expect(catalog.workflowAutocompleteCommands().map(command => `${command.source}:${command.name}`)).toEqual([
+      "builtin:models", "builtin:login", "prompt:plan", "skill:skill:review", "extension:deploy",
+    ]);
+    const comparison = new PiResourceCatalog({ contexts, productMode: "comparison" }, { session: () => session(), runtime: () => current });
+    expect(comparison.workflowAutocompleteCommands().map(command => `${command.source}:${command.name}`)).toEqual([
       "builtin:model", "builtin:login", "prompt:plan", "skill:skill:review", "extension:deploy",
     ]);
     expect(new PiResourceCatalog({ contexts }, { session: () => undefined, runtime: () => undefined }).nonVisualResources()).toEqual([]);
