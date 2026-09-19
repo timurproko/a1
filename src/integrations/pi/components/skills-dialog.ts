@@ -1,7 +1,7 @@
 import { DynamicBorder, keyHint, rawKeyHint } from "../startup-public.js";
-import { Container, getKeybindings, Input, Spacer, Text, TruncatedText } from "@earendil-works/pi-tui";
+import { Container, getKeybindings, Input, Spacer, Text } from "@earendil-works/pi-tui";
 import { PINNED_PI_LAYOUT, piTheme } from "./theme.js";
-import { componentPort, ensureTheme, type PiShellComponentPort } from "./shell-shared-facade.js";
+import { componentPort, ensureTheme, piShellTruncateToWidth, piShellVisibleWidth, type PiShellComponentPort } from "./shell-shared-facade.js";
 import { SKILL_COMMAND_PREFIX, skillMatchesQuery, type PiShellSkillSummary } from "./skills-command.js";
 
 export interface PiShellSkillsSelectorOptions {
@@ -11,11 +11,22 @@ export interface PiShellSkillsSelectorOptions {
   readonly onCancel: () => void;
 }
 
+/** A single line clipped at the viewport width: no wrap, no ellipsis, padded to the full width. */
+class ClippedLine {
+  readonly #text: string;
+  constructor(text: string) { this.#text = text; }
+  invalidate(): void {}
+  render(width: number): string[] {
+    const line = piShellTruncateToWidth(this.#text.split("\n", 1)[0] ?? "", width);
+    return [line + " ".repeat(Math.max(0, width - piShellVisibleWidth(line)))];
+  }
+}
+
 /**
  * The A1-owned searchable Skills dialog. Its composition is the model selector's (border, spacer,
  * search input, spacer, list, spacer, hint footer, border) built from public pi-tui components; its
  * content follows the v2 skills extension: an accent bold title, `skill:<name>` rows, the selected
- * skill's description truncated to one line under the rows, the pinned scroll counter on overflow,
+ * skill's description cut to one line under the rows, the pinned scroll counter on overflow,
  * and the two empty states. Enter applies the selected skill with no arguments; the query is never appended.
  */
 class SkillsSelectorComponent extends Container {
@@ -107,8 +118,8 @@ class SkillsSelectorComponent extends Container {
     const description = this.#filtered[this.#selectedIndex]?.description ?? "";
     if (description.length > 0) {
       this.#listContainer.addChild(new Spacer(1));
-      // Invariant: the description never wraps; it is cut to the viewport width with an ellipsis.
-      this.#listContainer.addChild(new TruncatedText(theme.fg("muted", `  ${description}`), 0, 0));
+      // Invariant: the description never wraps; it is cut at the viewport width with no ellipsis.
+      this.#listContainer.addChild(new ClippedLine(theme.fg("muted", `  ${description}`)));
     }
   }
 }

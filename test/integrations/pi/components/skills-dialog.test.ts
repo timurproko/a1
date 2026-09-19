@@ -115,7 +115,7 @@ describe("the Skills dialog", () => {
     const long = "Update an OpenSpec change by revising its existing planning artifacts and keeping them coherent with one another. Never edits code.";
     const { plain } = dialog([{ name: "openspec-update-change", description: long }]);
     const rows = plain(60);
-    expect(rows[8]).toBe("  " + long.slice(0, 55) + "...");
+    expect(rows[8]).toBe("  " + long.slice(0, 58));
     expect(rows.slice(9)).toEqual(["", "  ↑↓ navigate  enter select  escape/ctrl+c cancel", "─".repeat(60)]);
   });
 
