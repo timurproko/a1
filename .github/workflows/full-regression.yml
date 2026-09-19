@@ -127,11 +127,42 @@ jobs:
           A1_CONFIG_DIR: ${{ runner.temp }}/a1-full-config
           A1_DATA_DIR: ${{ runner.temp }}/a1-full-data
           A1_RUNTIME_DIR: ${{ runner.temp }}/a1-full-runtime
-          STARTUP_BUDGET_ENFORCEMENT: fail
+          # Rationale: one hosted-runner sample is noise; the nightly regression triage judges a
+          # persistent overrun across three consecutive develop runs from the uploaded evidence.
+          STARTUP_BUDGET_ENFORCEMENT: record
+          STARTUP_PERFORMANCE_RESULT: .artifacts/validation/startup-${{ matrix.os }}-node${{ matrix.node }}.json
         run: >-
           node scripts/release/run-validation-tier.mjs
           --exact-package-handoff .artifacts/validation/exact-package-handoff.json
           --result .artifacts/validation/full-regression.json
+
+      - name: Summarize first-attempt startup measurements
+        if: always() && runner.os == 'Windows'
+        shell: bash
+        env:
+          STARTUP_PERFORMANCE_RESULT: .artifacts/validation/startup-${{ matrix.os }}-node${{ matrix.node }}.json
+          PLATFORM: ${{ matrix.os }}-node${{ matrix.node }}
+        run: |
+          if [ ! -f "$STARTUP_PERFORMANCE_RESULT" ]; then
+            echo "No first-attempt startup evidence was produced for $PLATFORM." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          node --input-type=module <<'NODE' >> "$GITHUB_STEP_SUMMARY"
+          import { readFile } from "node:fs/promises";
+          const evidence = JSON.parse(await readFile(process.env.STARTUP_PERFORMANCE_RESULT, "utf8"));
+          const violated = new Set(evidence.budgetViolations.map(violation => `${violation.profileId}/${violation.launchKind}`));
+          const overrun = evidence.enforcement === "record" ? "recorded overrun" : "failed";
+          console.log(`## First-attempt startup (${process.env.PLATFORM}, ${evidence.enforcement} mode)`);
+          console.log("");
+          console.log("The nightly regression triage judges a persistent overrun from this run and the two previous develop runs.");
+          console.log("");
+          console.log("| Profile | Launch kind | Elapsed | Budget | Status |");
+          console.log("| --- | --- | ---: | ---: | --- |");
+          for (const measurement of evidence.measurements) {
+            const status = violated.has(`${measurement.profileId}/${measurement.launchKind}`) ? overrun : "passed";
+            console.log(`| ${measurement.profileId} | ${measurement.launchKind} | ${Math.round(measurement.elapsedMs)}ms | ${measurement.budgetMs}ms | ${status} |`);
+          }
+          NODE
 
       - name: Report gate ownership and timing
         if: always()
@@ -159,6 +190,7 @@ jobs:
           name: full-regression-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.os }}-node${{ matrix.node }}
           path: |
             .artifacts/validation/full-regression.json
+            .artifacts/validation/startup-*.json
             .artifacts/validation/package/npm-pack-result.json
             .artifacts/validation/package/*.receipt.json
             .artifacts/validation/receipts/*.json

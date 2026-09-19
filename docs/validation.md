@@ -65,20 +65,22 @@ This split exists so Windows Defender real-time protection can be enabled betwee
 
 ## Startup budget enforcement
 
-The exact-package startup gate always measures both profiles and all three launch kinds on the first attempt and never retries a measurement. `STARTUP_BUDGET_ENFORCEMENT` decides only what a timing overrun does:
+The exact-package startup gate always measures both profiles and all three launch kinds on the first attempt and never retries a measurement. `STARTUP_BUDGET_ENFORCEMENT` decides only what a timing overrun does in the run that measured it:
 
 | Value | Where | Effect |
 | --- | --- | --- |
-| `record` | Development publication (`release.yml` with `mode == 'develop'`) and the pull-request `startup` group in `ci.yml` | Keeps the measurement, appends the violation to the evidence, emits a `::warning::` annotation, and lets the run succeed. |
-| `fail` | Nightly and stable publication, and Full regression | Throws the same message as before and blocks publication. |
+| `record` | Full regression, nightly and development publication (`release.yml` with `mode != 'stable'`), and the pull-request `startup` group in `ci.yml` | Keeps the measurement, appends the violation to the evidence, emits a `::warning::` annotation, renders the run-summary table, and lets the run succeed. |
+| `fail` | Stable publication | Throws the same message as before and blocks publication. |
 
 Any absent, empty, or unrecognized value means `fail`, so a local run and a misspelled channel both keep enforcing. A launch that records no input-ready frame fails in either mode, because that is a functional failure rather than a timing observation.
+
+One hosted Windows sample is noise: the same bytes measure 1.2 to 2.7 seconds against 2.0 and 2.5 second budgets, and about 7% of single samples overrun. A recording channel is therefore judged by the persistent-overrun verdict in `scripts/release/startup-budget-trend.mjs`: for each Windows lane, profile, and launch kind, the startup evidence of the current run and the two previous completed `develop` runs of the same workflow are compared with the budget, and the key is regressed only when all three overran. Fewer than three samples is insufficient evidence, never a regression. The nightly regression triage computes the verdict on every completed `develop` run, green or not, opens or refreshes a fix candidate keyed by `package-startup` with the three-run table as evidence when it is persistent, and otherwise records `startup: single overrun on <keys>, not persistent` or `startup: within budget` in its report and run summary.
 
 `STARTUP_PERFORMANCE_RESULT` names the `a1-startup-performance-evidence-v1` file. It carries `enforcement`, `budgetViolations`, and one measurement per profile and launch kind with its `elapsedMs` and `budgetMs`. Publication lanes upload it as `release-validation-<version>-<platform>` next to the tier outcome and render it as a table in the run summary.
 
 The budget numbers themselves live in one place, `src/foundation/startup/startup-budget.ts`, and are declared by the `a1-shell` capability. Do not restate them in a workflow.
 
-To make development publication enforce budgets again, set `STARTUP_BUDGET_ENFORCEMENT: fail` in the `release.yml` validation step; rollback must not remove the measurement, the evidence fields, or the nightly and Full regression enforcement.
+To make a channel enforce budgets on a single sample again, set `STARTUP_BUDGET_ENFORCEMENT: fail` in that workflow's validation step; rollback must not remove the measurement, the evidence fields, the evidence upload, or the trend verdict.
 
 ## Evidence inspection
 

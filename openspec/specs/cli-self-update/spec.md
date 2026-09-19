@@ -55,7 +55,7 @@ For a newly installed target, A1 SHALL derive release identity while writing the
 - **THEN** A1 SHALL verify its complete content before approval or activation
 
 ### Requirement: Update failures are actionable
-A1 SHALL stream relevant npm diagnostics and exit unsuccessfully when registry lookup, npm startup, permission acquisition, or global installation fails. It MUST NOT report a successful update unless npm completed the requested global installation successfully.
+A1 SHALL surface relevant npm diagnostics and exit unsuccessfully when registry lookup, npm startup, permission acquisition, or global installation fails. It MUST NOT report a successful update unless npm completed the requested global installation successfully. The diagnostics of a failed child SHALL be the bounded text that child itself wrote, printed once immediately before the line that names the failed action, so the reason precedes the verdict.
 
 #### Scenario: npm is unavailable
 - **WHEN** the platform npm executable cannot be started
@@ -64,6 +64,10 @@ A1 SHALL stream relevant npm diagnostics and exit unsuccessfully when registry l
 #### Scenario: Global installation is rejected
 - **WHEN** npm rejects installation because of permissions, network access, registry policy, or package validation
 - **THEN** A1 preserves npm diagnostics, reports that the update failed, and exits with an unsuccessful status
+
+#### Scenario: A failed step wrote nothing
+- **WHEN** a child of the update exits unsuccessfully without writing any text
+- **THEN** A1 reports the failed action and status without referring the user to diagnostics that do not exist
 
 ### Requirement: Sole public command exposes self-update
 A1 SHALL recognize `update` as a non-interactive subcommand through the sole public
@@ -158,6 +162,14 @@ the terminal only as the position of the update's single-line progress display.
 A1 SHALL NOT print file names, counts, or per-file lines during an update, and
 launch SHALL report nothing about activation at all.
 
+No child process the update starts SHALL share the terminal: the update SHALL
+capture what a child writes, keep a bounded tail of it, and show it only with
+the failure it explains. A child that exits successfully SHALL leave nothing on
+the terminal regardless of what it wrote. A helper entry that an older
+installed updater still runs from the newly installed tree SHALL exit
+successfully and silently, so that a step the newer tree no longer needs never
+appears as a failure.
+
 #### Scenario: An update is watched
 - **WHEN** an update copies thousands of files
 - **THEN** the terminal SHALL show one progress line and no per-file output
@@ -165,6 +177,14 @@ launch SHALL report nothing about activation at all.
 #### Scenario: A launch activates a release
 - **WHEN** bare A1 launches and activates a materialized release
 - **THEN** nothing about that activation SHALL be written to the terminal
+
+#### Scenario: A child succeeds with warnings
+- **WHEN** npm or another child of the update exits successfully after writing a notice or warning to its stderr
+- **THEN** the terminal SHALL show the progress bar and the success line only
+
+#### Scenario: An older updater runs a retired helper entry
+- **WHEN** an installed updater older than 0.1.8-dev.479 runs `bin/sync-pi-tui-proxy.js` of the tree it has just installed
+- **THEN** that entry SHALL exit with status 0 and write nothing, and the older updater SHALL print no diagnostic for it
 
 ### Requirement: Update does not end a working session
 The update subcommand SHALL complete while other A1 sessions are working, and SHALL NOT ask them
@@ -528,3 +548,25 @@ When update performs post-activation warmup, it SHALL load the same immutable st
 #### Scenario: Optional feature is excluded from eager startup
 - **WHEN** an optional feature is intentionally deferred beyond first input-ready render
 - **THEN** warmup SHALL NOT load or execute that feature merely to populate a broader cache
+
+### Requirement: The installed release activates itself
+An update is performed by the release that is already installed against a tree newer than it, so the updater SHALL NOT assume the layout of the tree it has just installed. The package manifest SHALL declare the activation contracts the tree serves in `updateActivationContracts`, and a tree serving `activate-v1` SHALL ship `bin/activate.js`. After the global installation succeeds, an updater that finds a contract it serves SHALL start that entry with the data directory and the target version and SHALL relay the entry's line-delimited progress events (`materializing`, `phase`, `warmup`, `completed`, `failed`) into its own transaction journal and progress display; the entry SHALL activate the tree it ships in with that tree's own release code. The updater SHALL resolve no path inside the installed tree other than `package.json` and the declared entry.
+
+A tree that declares no contract the updater serves SHALL be activated in-process with the layout that tree had, so an updater older than the contract and an installation of an older preview both remain supported. A delegated activation SHALL succeed only when the entry exits successfully after reporting `completed`; a `failed` event, an unsuccessful exit, an exit without a verdict, or an event the updater cannot interpret SHALL fail the update with the entry's own bounded reason under the existing rollback rules. The entry's stderr SHALL be captured and bounded, never shared with the terminal.
+
+#### Scenario: The installed tree serves the contract
+- **WHEN** the newly installed manifest lists `activate-v1` and the updater serves it
+- **THEN** the updater starts the tree's `bin/activate.js` and advances its journal phases and progress display from the events that entry reports
+- **AND** the updater runs none of the materialization, certification, warmup, or supervision steps itself
+
+#### Scenario: The installed tree predates the contract
+- **WHEN** the newly installed manifest declares no `updateActivationContracts`, or only contracts the updater does not serve
+- **THEN** the updater activates the tree in-process exactly as it did before the contract existed
+
+#### Scenario: The tree's own activation fails
+- **WHEN** the entry reports `failed`, exits unsuccessfully, or exits without reporting `completed`
+- **THEN** the update fails with the entry's own reason or its exit status and bounded stderr, and the prior release is restored under the existing rollback rules
+
+#### Scenario: The tree changes its own layout
+- **WHEN** a later release renames or removes an entry its activation uses
+- **THEN** every installed updater that serves the contract still activates it, because the layout is read only by the tree's own entry
