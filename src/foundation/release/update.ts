@@ -34,7 +34,7 @@ export const PRODUCT_PACKAGE = PRODUCT_TEXT.packageName;
 export type { UpdateChannel } from "./types.js";
 const UPDATE_DIST_TAGS: Readonly<Record<UpdateChannel, "latest" | "next">> = { stable: "latest", next: "next" };
 export interface ProcessRequest { captureStdout: boolean }
-export interface ProcessResult { code: number | null; stdout: string }
+export interface ProcessResult { code: number | null; stdout: string; stderr?: string }
 export type UpdateProcessRunner = (command: string, arguments_: readonly string[], request: ProcessRequest) => Promise<ProcessResult>;
 export interface UpdateFileSystem {
   readFile(path: string): Promise<string>;
@@ -132,15 +132,23 @@ const defaultOutput: UpdateOutput = {
   stderr(message) { process.stderr.write(message); },
 };
 
+/** Bound on the child diagnostics an update keeps: enough for npm's failure reason, never a log. */
+export const CHILD_DIAGNOSTIC_LIMIT = 8_000;
+
 export function createNpmProcessRunner(platform: NodeJS.Platform = process.platform): UpdateProcessRunner {
   return async (command, arguments_, request) => await new Promise((resolvePromise, rejectPromise) => {
-    const stdio: StdioOptions = request.captureStdout ? ["ignore", "pipe", "inherit"] : ["inherit", "inherit", "inherit"];
+    // Invariant: no child of the updater shares the terminal. The progress bar is the only
+    // live output; a child's own text is kept, bounded, and shown with a failure or not at all.
+    const stdio: StdioOptions = ["ignore", request.captureStdout ? "pipe" : "ignore", "pipe"];
     const child = platform === "win32" ? crossSpawn(command, [...arguments_], { stdio }) : spawn(command, [...arguments_], { stdio });
     const stdout: Buffer[] = [];
+    let stderr = "";
     child.stdout?.on("data", chunk => stdout.push(Buffer.from(chunk)));
+    child.stderr?.setEncoding("utf8");
+    child.stderr?.on("data", chunk => { stderr = `${stderr}${chunk}`.slice(-CHILD_DIAGNOSTIC_LIMIT); });
     let settled = false;
     child.once("error", error => { if (!settled) { settled = true; rejectPromise(error); } });
-    child.once("close", code => { if (!settled) { settled = true; resolvePromise({ code, stdout: Buffer.concat(stdout).toString("utf8") }); } });
+    child.once("close", code => { if (!settled) { settled = true; resolvePromise({ code, stdout: Buffer.concat(stdout).toString("utf8"), stderr }); } });
   });
 }
 
@@ -529,8 +537,9 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
             if (transactionStore.setRecovery) transaction = await transactionStore.setRecovery(recovery) ?? transaction;
           },
         }));
-        if (replacement.stdout.trim().length > 0 && replacement.outcome !== "installed") output.stderr(`${replacement.stdout.trimEnd()}\n`);
-        if (replacement.stderr.trim().length > 0) output.stderr(`${replacement.stderr.trimEnd()}\n`);
+        // Rationale: npm's own text explains a failed replacement and says nothing about a
+        // successful one, so it reaches the terminal only when the installation did not happen.
+        if (replacement.outcome !== "installed") reportChildDiagnostics(output, replacement);
         if (replacement.outcome === "installed") transaction = await transactionStore.advance("package-installed");
         if (replacement.cancelled) {
           progress.clear();
@@ -551,7 +560,7 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
         ));
         if (installation.result === null) throw new UpdateFailure(installation.exitCode, "npm process failed");
         if (installation.result.code !== 0) {
-          if (installation.result.stdout.trim().length > 0) output.stderr(`${installation.result.stdout.trimEnd()}\n`);
+          reportChildDiagnostics(output, installation.result);
           throw new UpdateFailure(unsuccessfulCode(installation.result.code), `npm exited with status ${formatExitCode(installation.result.code)}`);
         }
         transaction = await transactionStore.advance("package-installed");
@@ -654,10 +663,18 @@ async function runNpm(runner: UpdateProcessRunner, arguments_: readonly string[]
   try { result = await runner("npm", arguments_, { captureStdout }); }
   catch (error) { output.stderr(`${PRODUCT_TEXT.diagnostic(`could not execute npm to ${action}: ${errorMessage(error)}`)}\n`); return { result: null, exitCode: 1 }; }
   if (result.code !== 0 && reportNonzero) {
-    output.stderr(`${PRODUCT_TEXT.diagnostic(`could not ${action}; npm exited with status ${formatExitCode(result.code)}. Review npm's diagnostics above.`)}\n`);
+    const explained = reportChildDiagnostics(output, result);
+    output.stderr(`${PRODUCT_TEXT.diagnostic(`could not ${action}; npm exited with status ${formatExitCode(result.code)}.${explained ? " Review npm's diagnostics above." : ""}`)}\n`);
     return { result: null, exitCode: unsuccessfulCode(result.code) };
   }
   return { result, exitCode: 0 };
+}
+/** Prints what a failed child said, bounded, and reports whether there was anything to print. */
+function reportChildDiagnostics(output: UpdateOutput, result: { readonly stdout: string; readonly stderr?: string }): boolean {
+  const text = [result.stdout, result.stderr ?? ""].map(part => part.trim()).filter(part => part.length > 0).join("\n").slice(-CHILD_DIAGNOSTIC_LIMIT);
+  if (text.length === 0) return false;
+  output.stderr(`${text}\n`);
+  return true;
 }
 async function rollbackPriorCohort(dataDir: string, environment: NodeJS.ProcessEnv, priorReleaseId: string | null): Promise<string> {
   if (!priorReleaseId) return "no prior cohort was available for rollback";
