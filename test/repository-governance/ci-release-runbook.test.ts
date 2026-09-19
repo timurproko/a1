@@ -55,7 +55,8 @@ describe("CI and release operations runbook", () => {
     expect(runbook).toContain("03:17 UTC");
     expect(runbook).toContain("npm run release --");
     expect(runbook).toContain("explicitly dispatches");
-    expect(runbook).toContain("A push of the stable version does not publish");
+    expect(runbook).toContain("A push of the stable version does\nnot publish");
+    expect(runbook).toContain("the stable version is never committed to `develop`");
   });
 
   it("records startup budgets on every scheduled and preview channel and enforces them on stable publication only", async () => {

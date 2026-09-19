@@ -49,7 +49,7 @@ effect of stable publication, not a trigger.
 | Pull request into `develop` | Bounded PR-cadence validation; changed/new source documentation is checked once, rendering runs as `none`, `smoke`, or `full`, and exhaustive owners are reported as deferred |
 | `npm run develop` | Preview package gates on Windows, Linux, and macOS; an existing numbered preview is an early successful no-op |
 | Nightly at `03:17 UTC` | One full documentation review plus the complete non-physical suite on Windows, Linux, and macOS, every night |
-| `npm run release -- ...` | Complete exact-byte stable gates, then npm `latest`, tag, GitHub Release, and `master` |
+| `npm run release -- ...` | Stamps the requested stable version on the open `develop` source, runs the complete exact-byte stable gates, then npm `latest`, tag, GitHub Release, and `master`; one reopening PR follows |
 | `.github/workflows/full-regression.yml` | Additional on-demand complete regression without publication authority |
 | `.github/workflows/pi-upstream-sync.yml` | Nightly at `03:23 UTC`: when npm publishes a newer Pi than the pin that no closed proposal skipped, proposes the upgrade as a draft pull request with the vendored copies that follow upstream merged, the kept copies reported with their upstream delta, the ledger, headers, inventories, public API and feature baselines, startup graph, and parity evidence regenerated, and every gate verdict (passed, failed, or blocked by conflict markers) and review item in the body; never merges and never replaces a proposal a human has continued |
 | `.github/workflows/nightly-regression-triage.yml` | After every completed `Full regression` run on `develop` or scheduled `Release` validation: judges the startup budget across the three most recent runs and, after a failure or a persistent overrun, opens `fix/nightly-regression-<date>` as a draft pull request carrying the failed commands per lane, their tests, a bounded log excerpt, the `develop` commits since the last green run, and an OpenSpec fix scaffold, or refreshes the open candidate with the same failed scope set; re-runs nothing, never writes `develop`, never merges |
@@ -195,43 +195,50 @@ work.
 From the repository root on clean `develop` matching `origin/develop`:
 
 ```sh
-npm run release -- patch     # 0.1.8-dev -> 0.1.8; already-stable 0.1.8 -> 0.1.9
+npm run release -- patch     # 0.1.8-dev -> 0.1.8
 npm run release -- minor     # 0.1.8-dev -> 0.2.0
 npm run release -- major     # 0.1.8-dev -> 1.0.0
 npm run release -- 0.4.0     # exact stable target
 ```
 
 A target is required: `npm run release` alone is a mutation-free usage error.
-`patch` preserves prerelease-aware semantics, including `0.1.8-dev.123 -> 0.1.8`.
+`patch` promotes the open prerelease, `0.1.8-dev -> 0.1.8`. `develop` must declare
+exactly one open `x.y.z-dev` version; a stable or numbered version there is refused.
 The command reports its source, stable target, and prospective reopening before
-preparing anything.
+touching anything, and the stable version is never committed to `develop`.
 
-1. The stable-version edit is committed in an owned detached worktree beneath
-   `.worktrees/`. Only this package's manifest and root lockfile version change.
-2. Follow the printed PR URL, wait for required CI, perform local validation, and
-   **merge manually after acceptance**. The helper does not merge PRs or enable
-   auto-merge. It polls for actual merge with a bounded 30-minute wait.
-3. The helper verifies the merged version and source SHA against authoritative
-   develop, then explicitly dispatches stable publication for that exact source.
-   A changed source is an error, not permission to substitute a newer commit.
-4. Only after verified publication of `0.1.8` does it prepare a separate PR for
-   `0.1.9-dev`. Validate and manually merge that PR as well. Until then the helper
-   reports development reopening as incomplete.
+1. The helper checks that the registry and `v<version>` tag do not already hold the
+   target, re-reads authoritative `develop`, and explicitly dispatches stable
+   publication for that exact source with the stable version in the request. A changed source is
+   an error, not permission to substitute a newer commit.
+2. The workflow stamps the requested version on the checked-out source
+   (`npm version <x.y.z> --no-git-tag-version`) before packing, so the tarball
+   declares `0.1.8` while the tagged commit still declares `0.1.8-dev`. Everything
+   else about the package is byte-identical to that commit's tree; `git checkout
+   v0.1.8 && npm version 0.1.8 --no-git-tag-version && npm pack` reproduces it.
+3. Only after verified publication of `0.1.8` does the helper commit `0.1.9-dev`
+   in an owned detached worktree beneath `.worktrees/` (only this package's manifest
+   and root lockfile version change), open the one version PR, and wait for you to
+   **merge it manually** with a bounded 30-minute poll. The helper never merges
+   PRs or enables auto-merge. Until that merge the helper reports development
+   reopening as incomplete, and previews cannot be published from a `develop`
+   whose `-dev` version sorts below the stable release.
 
 Closed PRs, timeout, cancellation, and query failures retain identifiable phase
 work for inspection. Conflicting existing branches/PRs are not overwritten;
-matching pending PRs can be observed again without replacing them. Worktrees
+a matching pending reopening PR is observed rather than replaced. Worktrees
 retained by an earlier attempt are not removed by a later invocation. Cleanup
 only removes clean, owned, confirmed-merged phase worktrees and unchanged remote
 phase branches. The caller is never hard-reset: a final fast-forward is attempted
 only when its branch, original HEAD, and cleanliness remain unchanged. Otherwise
 preserve local work and synchronize manually with the reported remote state.
 
-Stable publication builds the process guardian on all supported platforms, packs
-once, runs the complete suite against those exact bytes on Windows, Linux, and
-macOS, publishes to npm `latest` with provenance from the `npm-publish`
-environment, and then writes `vx.y.z`, records the GitHub Release, and fast-forwards
-`master`. A push of the stable version does not publish it.
+Stable publication builds the process guardian on all supported platforms, stamps
+the version, packs once, runs the complete suite against those exact bytes on
+Windows, Linux, and macOS, publishes to npm `latest` with provenance from the
+`npm-publish` environment, and then writes `vx.y.z` on the source commit, records
+the GitHub Release, and fast-forwards `master`. A push of the stable version does
+not publish it, and no automation ever pushes one.
 
 Rules that do not bend:
 
@@ -257,7 +264,8 @@ Rules that do not bend:
 - **Nightly documentation review fails:** inspect the reported paths and rules, identify the introducing merge from the nightly interval, and repair the invariant before unrelated work proceeds.
 - **Development publication fails:** fix the cause and rerun `npm run develop`; an npm version that already exists is never overwritten.
 - **Registry verification times out:** a `has not propagated` failure after a successful `npm publish` means npm is still ingesting the upload; it warns that a provenance-signed package "may take a few minutes" and the publisher polls for ten minutes. Confirm the version and its shasum on `https://registry.npmjs.org/<name>/<version>`, then rerun the failed jobs: the final registry check finds the exact bytes, skips `npm publish`, and verification passes. A digest or tag mismatch is not a timeout and is never repaired by rerunning.
-- **Stable preparation stops before dispatch:** inspect the reported version PR/worktree. After preserving work, an exact matching pending PR can be observed again. If develop already declares the prepared stable version, use its exact target (for example `npm run release -- 0.1.8`) only after verifying that source's merged PR and confirming the registry/tag guards still permit it. Do not use `patch` from stable develop to retry the same version: that deliberately selects the next patch.
+- **Stable publication fails or is uncertain:** no reopening PR was prepared and `develop` still declares the open `-dev` version. Inspect the workflow run, npm, and the `v<version>` tag. When nothing was published, fix the cause and rerun the same target; the registry and tag guards refuse a version that already exists.
+- **Stable is published but reopening stopped:** the helper reports the reopening PR or retained worktree. Merge the pending `chore/release-<x.y.z>-dev` PR by hand once its CI passes, or repair the branch and open the PR yourself; never rerun the release for the published version.
 - **Stable publication fails or is uncertain:** inspect the workflow, registry version/digest, tag, and release before choosing recovery. No reopening PR is prepared. Never republish immutable bytes or move a release tag.
 - **Stable publication succeeded but reopening stops:** the stable version is already published. Inspect and finish the reported next-development PR manually; do not repeat stable publication. If no reopening PR was created, prepare the next-development version through a separately validated manual PR after inspecting remote state.
 

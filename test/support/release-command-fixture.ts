@@ -75,7 +75,6 @@ export async function releaseFixture(version = "0.1.8-dev", trace?: NativeRegres
   let wait: () => void | Promise<void> = () => { manualMerge(); };
   let onCreate: (pull: FakeReleasePull) => void = () => {};
   let onQuery: (pull: FakeReleasePull) => void = () => {};
-  let associations: unknown = [{ number: 100, merged_at: "2026-01-01T00:00:00Z", base: { ref: "develop" }, merge_commit_sha: initialHead }];
 
   function manualMerge(pull = pulls.find(candidate => candidate.state === "OPEN")) {
     if (!pull) throw new Error("fixture has no open PR");
@@ -100,7 +99,6 @@ export async function releaseFixture(version = "0.1.8-dev", trace?: NativeRegres
     },
     gh: args => {
       ghCalls.push([...args]);
-      if (args[0] === "api" && args[1] === `repos/{owner}/{repo}/commits/${initialHead}/pulls`) return JSON.stringify(associations);
       if (args[0] !== "pr") throw new Error(`unexpected GitHub operation: ${args.join(" ")}`);
       if (args[1] === "list") return JSON.stringify(pulls.filter(pull => pull.headRefName === args[args.indexOf("--head") + 1]));
       if (args[1] === "create") {
@@ -133,7 +131,12 @@ export async function releaseFixture(version = "0.1.8-dev", trace?: NativeRegres
     pulls, publications, phaseDirectories, manualMerge,
     setRegistry(fn: typeof registry) { registry = fn; }, setPublish(fn: typeof publish) { publish = fn; },
     setWait(fn: typeof wait) { wait = fn; }, setCreate(fn: typeof onCreate) { onCreate = fn; }, setQuery(fn: typeof onQuery) { onQuery = fn; },
-    setAssociations(value: unknown) { associations = value; },
+    addPull(branch: string, head: string): FakeReleasePull {
+      const pull: FakeReleasePull = { number: pulls.length + 1, url: `https://example.test/pull/${pulls.length + 1}`,
+        state: "OPEN", headRefName: branch, headRefOid: head, baseRefName: "develop", isCrossRepository: false, mergeCommit: null, autoMergeRequest: null };
+      pulls.push(pull);
+      return pull;
+    },
     async localVersion() { return (JSON.parse(await readFile(join(cwd, "package.json"), "utf8")) as { version: string }).version; },
     remoteVersion() { return (JSON.parse(git(["show", "refs/heads/develop:package.json"], remote)) as { version: string }).version; },
     dispose,

@@ -74,6 +74,25 @@ describe("publication failure reporting", () => {
     expect(calls.some(call => call.args[0] === "run" && call.args[1] === "watch" && call.args.includes("--exit-status"))).toBe(true);
   });
 
+  it.each([
+    ["develop", "0.1.8-dev.10", []],
+    ["stable", "0.1.8", ["-f", "version=0.1.8"]],
+  ] as const)("names the version to the workflow only for a %s publication", async (channel, version, extra) => {
+    const { run, calls } = fakeRunner(({ args }) => {
+      if (args[0] === "run" && args[1] === "list") return JSON.stringify([{ databaseId: 44, displayTitle: `${channel} publication fixture-request` }]);
+      if (args[0] === "run" && args[1] === "view") return "https://github.com/owner/app/actions/runs/44";
+      return "";
+    });
+    await expect(dispatchPublication(channel, "a".repeat(40), version, {
+      run, repository: "owner/app", requestId: "fixture-request", write: () => {}, sleep: async () => {},
+    })).resolves.toBe(44);
+    const dispatch = calls.find(call => call.args[0] === "workflow" && call.args[1] === "run")!;
+    expect(dispatch.args).toEqual([
+      "workflow", "run", "release.yml", "--ref", "develop",
+      "-f", `channel=${channel}`, "-f", `source_sha=${"a".repeat(40)}`, "-f", "request_id=fixture-request", ...extra,
+    ]);
+  });
+
   it("returns the run identifier unchanged when the watch succeeds", async () => {
     const output: string[] = [];
     const { run } = fakeRunner(({ args }) => {

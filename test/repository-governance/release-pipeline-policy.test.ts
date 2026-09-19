@@ -94,6 +94,23 @@ describe("deliberate publication pipeline", () => {
     expect(surface).toContain("records every packed native process guardian as executable");
   });
 
+  it("stamps the requested stable version on the open development source at pack time", async () => {
+    const source = await workflow();
+    expect(source).toContain("      version:\n        description: Stable version to stamp on the open development source (stable channel only)");
+    expect(source).toContain('if [ "$mode" = "stable" ]; then');
+    expect(source).toContain("stable publication requires an explicit final version");
+    expect(source).toContain("a development publication derives its own version; do not pass one");
+    expect(source).toContain("const base = /^(\\d+\\.\\d+\\.\\d+)-dev$/.exec(declared)?.[1];");
+    expect(source).toContain("version = process.env.REQUESTED_VERSION;");
+    expect(source).toContain("is below the open development version");
+    expect(source).not.toContain("stable publication requires a final version, not");
+    const stamp = source.slice(source.indexOf("- name: Stamp the published version on the open development source"), source.indexOf("- name: Record verified candidate build"));
+    expect(stamp).toContain("if: needs.plan.outputs.build == 'true'");
+    expect(stamp).toContain('npm version "$RELEASE_VERSION" --no-git-tag-version --allow-same-version');
+    const client = await readFile("scripts/release/publication-client.mjs", "utf8");
+    expect(client).toContain('...(channel === "stable" ? ["-f", `version=${version}`] : [])');
+  });
+
   it("keeps preview and stable registry effects separate", async () => {
     const source = await workflow();
     expect(source).toContain('channel = "next"');
@@ -122,16 +139,16 @@ describe("maintainer publication commands", () => {
     expect(script).not.toMatch(/npm publish|npm pack/);
   });
 
-  it("makes stable publication an explicit waited dispatch before reopening develop", async () => {
+  it("publishes stable from the open development source, then reopens develop through one version PR", async () => {
     const entry = await readFile("scripts/release/release.mjs", "utf8");
     const script = await readFile("scripts/release/release-workflow.mjs", "utf8");
     expect(entry).toContain("./release-workflow.mjs");
-    const landed = script.indexOf("source = await prepareVersion(");
     const dispatched = script.indexOf("await r.publish(source, plan.version)");
     const reopened = script.indexOf("const reopened = await prepareVersion(");
-    expect(landed).toBeGreaterThan(0);
-    expect(dispatched).toBeGreaterThan(landed);
+    expect(dispatched).toBeGreaterThan(0);
     expect(reopened).toBeGreaterThan(dispatched);
+    expect(script.match(/await prepareVersion\(/g)).toHaveLength(1);
+    expect(script).toContain("OPEN_DEVELOPMENT.test(plan.current)");
     expect(script).toContain('dispatchPublication("stable", source, version)');
     expect(script).not.toMatch(/npm publish|npm pack/);
     expect(script).not.toMatch(/git\(\["tag"/);

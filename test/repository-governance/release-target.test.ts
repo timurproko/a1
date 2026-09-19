@@ -33,7 +33,7 @@ describe("explicit prerelease-aware release targets", () => {
     const examples = [...text.matchAll(/^npm run release -- (\S+) +# (\S+) -> ([^\s;]+)/gmu)];
     expect(examples).toHaveLength(3);
     for (const match of examples) expect(resolveReleasePlan(match[2], [match[1]!]).version).toBe(match[3]);
-    expect(text).toContain("already-stable 0.1.8 -> 0.1.9");
+    expect(text).not.toContain("already-stable");
     expect(text).toContain("0.1.9-dev");
     expect(text).toMatch(/[Aa] target is required/);
     expect(text).toMatch(/merge (?:it )?manually/u);
