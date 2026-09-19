@@ -8,7 +8,7 @@ import {
   ScrollbarRails,
   assertNoShortcutConflicts,
   displayWidth,
-  renderStatusLine,
+  padToWidth,
   scrollForTrackPage,
   scrollbarGeometry,
   scrollbarPresentation,
@@ -36,13 +36,17 @@ const LOADING_NOTICE = "Loading…";
 type Action = "up" | "down" | "page-up" | "page-down" | "first" | "last" | "close";
 
 export const REFERENCE_SCREEN_SHORTCUTS = new ShortcutRegistry<Action>();
-REFERENCE_SCREEN_SHORTCUTS.declare({ key: "up", scope: SCOPE, description: "Scroll up", section: "Navigate", hint: { keys: "↑↓", does: "to scroll" } }, "up");
-REFERENCE_SCREEN_SHORTCUTS.declare({ key: "down", scope: SCOPE, description: "Scroll down", section: "Navigate", hint: { keys: "↑↓", does: "to scroll" } }, "down");
-REFERENCE_SCREEN_SHORTCUTS.declare({ key: "pageUp", scope: SCOPE, description: "Up a page", section: "Navigate", hint: { keys: "PgUp/PgDn", does: "to page" } }, "page-up");
-REFERENCE_SCREEN_SHORTCUTS.declare({ key: "pageDown", scope: SCOPE, description: "Down a page", section: "Navigate", hint: { keys: "PgUp/PgDn", does: "to page" } }, "page-down");
+// Compatibility: the footer reads as v2's `esc/ctrl+c close • ↑↓ scroll`, without ctrl+c, which is
+// the A1 interrupt chord here rather than a close key.
+REFERENCE_SCREEN_SHORTCUTS.declare({ key: "escape", scope: GLOBAL_SCOPE, description: "Close", section: "Screen", hint: { keys: "esc", does: "close" } }, "close");
+REFERENCE_SCREEN_SHORTCUTS.declare({ key: "up", scope: SCOPE, description: "Scroll up", section: "Navigate", hint: { keys: "↑↓", does: "scroll" } }, "up");
+REFERENCE_SCREEN_SHORTCUTS.declare({ key: "down", scope: SCOPE, description: "Scroll down", section: "Navigate", hint: { keys: "↑↓", does: "scroll" } }, "down");
+REFERENCE_SCREEN_SHORTCUTS.declare({ key: "pageUp", scope: SCOPE, description: "Up a page", section: "Navigate" }, "page-up");
+REFERENCE_SCREEN_SHORTCUTS.declare({ key: "pageDown", scope: SCOPE, description: "Down a page", section: "Navigate" }, "page-down");
 REFERENCE_SCREEN_SHORTCUTS.declare({ key: "home", scope: SCOPE, description: "First row", section: "Navigate" }, "first");
 REFERENCE_SCREEN_SHORTCUTS.declare({ key: "end", scope: SCOPE, description: "Last row", section: "Navigate" }, "last");
-REFERENCE_SCREEN_SHORTCUTS.declare({ key: "escape", scope: GLOBAL_SCOPE, description: "Close", section: "Screen", hint: { keys: "Esc", does: "to close" } }, "close");
+/** The separator v2's footer puts between its hints. */
+const HINT_SEPARATOR = " • ";
 assertNoShortcutConflicts(REFERENCE_SCREEN_SHORTCUTS.assemble());
 
 const KEYS: Readonly<Record<string, string>> = {
@@ -164,10 +168,11 @@ export class ReferenceScreenApp implements UiApp {
       body.push(displayWidth(row) > contentWidth ? truncateToWidth(row, contentWidth) : row);
     }
     const withRail = withScrollbarRail(body, geometry, contentWidth, theme, { presentation });
-    const hint = this.#interruptArmed ? "press ctrl+c again to exit a1" : REFERENCE_SCREEN_SHORTCUTS.hint(SCOPE);
+    const hint = this.#interruptArmed ? "press ctrl+c again to exit a1" : REFERENCE_SCREEN_SHORTCUTS.hint(SCOPE, HINT_SEPARATOR);
     // Compatibility: the v2 reference screen frames its document between two border-coloured rules.
     const rule = theme.fg("border", "─".repeat(rect.width));
-    const frame = [rule, ...withRail, rule, renderStatusLine({ hint }, rect.width, theme)];
+    // Compatibility: v2 sets its footer against the left edge, unlike the settings status line.
+    const frame = [rule, ...withRail, rule, padToWidth(theme.fg("dim", hint), rect.width)];
     // Invariant: a rectangle too small for the chrome still gets exactly its rows, top first.
     return frame.slice(0, rect.height).concat(Array(Math.max(0, rect.height - frame.length)).fill(""));
   }
@@ -241,7 +246,8 @@ export class ReferenceScreenApp implements UiApp {
 
   // Invariant: the title is the first document row, as in v2, so it scrolls with the document.
   #rows(width: number, theme: UiTheme): readonly string[] {
-    const title = theme.bold(theme.fg("accent", this.#title));
+    // Compatibility: one leading space, so the title lines up with the padded Markdown rows as in v2.
+    const title = ` ${theme.bold(theme.fg("accent", this.#title))}`;
     if (this.#failure !== null) return [title, "", this.#failure];
     const cached = this.#cached;
     if (cached !== null && cached.width === width) return [title, ...cached.rows];

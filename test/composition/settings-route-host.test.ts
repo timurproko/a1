@@ -138,10 +138,10 @@ describe("owned reference routes", () => {
     expect(changelog).toHaveBeenCalledWith(undefined);
     // Compatibility: the v2 frame: a rule, the title leading the document, a rule, the hint.
     expect(lines[0]).toBe("─".repeat(60));
-    expect(lines[1]?.startsWith("What's New")).toBe(true);
+    expect(lines[1]?.startsWith(" What's New")).toBe(true);
     expect(lines[2]?.startsWith("changelog complete at 58")).toBe(true);
     expect(lines[6]).toBe("─".repeat(60));
-    expect(lines.at(-1)).toContain("Esc to close");
+    expect(lines.at(-1)?.startsWith("esc close • ↑↓ scroll")).toBe(true);
     complete.close();
     expect(complete.isClosed()).toBe(true);
 
@@ -154,7 +154,7 @@ describe("owned reference routes", () => {
     const keys = host.open("hotkeys")!;
     expect(keys.id).toBe("hotkeys");
     lines = await settled(keys, current => current[2]?.startsWith("hotkeys") === true);
-    expect(lines[1]?.startsWith("Keyboard Shortcuts")).toBe(true);
+    expect(lines[1]?.startsWith(" Keyboard Shortcuts")).toBe(true);
     expect(lines[2]?.startsWith("hotkeys first at 58")).toBe(true);
     keys.close();
     shortcut = "second";

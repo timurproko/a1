@@ -62,7 +62,7 @@ function screen(target: ReferenceScreenApp, host: AppHostServices = HOST, rect =
 
 /** The document rows on screen, styling off, rail columns off: the title leads them. */
 function body(target: ReferenceScreenApp, host: AppHostServices = HOST): string[] {
-  return screen(target, host).slice(TOP, TOP + BODY).map(line => line.replace(/\u001b\[[0-9;]*m/g, "").slice(0, RECT.width - RAIL_COLUMNS).trimEnd());
+  return screen(target, host).slice(TOP, TOP + BODY).map(line => line.replace(/\u001b\[[0-9;]*m/g, "").slice(0, RECT.width - RAIL_COLUMNS).trim());
 }
 
 function railCells(target: ReferenceScreenApp): string[] {
@@ -85,15 +85,17 @@ describe("ReferenceScreenApp frame", () => {
     expect(lines).toHaveLength(RECT.height);
     // Compatibility: the v2 reference screen: rule, title as the first document row, rule, footer.
     expect(lines[0]).toBe(`<border>${RULE}</border>`);
-    expect(lines[1]?.startsWith("<b><accent>Reference</accent></b>")).toBe(true);
+    // Compatibility: one space before the title, as v2 lines it up with the padded Markdown rows.
+    expect(lines[1]?.startsWith(" <b><accent>Reference</accent></b>")).toBe(true);
     expect(lines[2]?.trim()).toBe("");
     expect(lines[3]?.startsWith("alpha")).toBe(true);
     expect(lines[4]?.startsWith("beta")).toBe(true);
     expect(lines.slice(5, RECT.height - 2).every(line => line.trim() === "")).toBe(true);
     expect(lines.at(-2)).toBe(`<border>${RULE}</border>`);
-    const hint = REFERENCE_SCREEN_SHORTCUTS.hint("reference-screen");
-    expect(hint).toBe("↑↓ to scroll · PgUp/PgDn to page · Esc to close");
-    expect(lines.at(-1)).toContain(`<dim>${hint}</dim>`);
+    const hint = REFERENCE_SCREEN_SHORTCUTS.hint("reference-screen", " • ");
+    expect(hint).toBe("esc close • ↑↓ scroll");
+    // Compatibility: the footer is set against the left edge and padded, as v2 draws it.
+    expect(lines.at(-1)?.startsWith(`<dim>${hint}</dim> `)).toBe(true);
     // Invariant: a fitting document does not move and reserves the rail columns under auto.
     target.onInput?.(DOWN, HOST);
     target.onInput?.(END, HOST);
@@ -292,7 +294,7 @@ describe("ReferenceScreenApp scrolling", () => {
     const tall = { width: RECT.width, height: 30 };
     const lines = screen(target, HOST, tall);
     expect(lines).toHaveLength(30);
-    expect(lines[TOP]?.startsWith("Reference")).toBe(true);
+    expect(lines[TOP]?.startsWith(" Reference")).toBe(true);
     expect(lines[TOP + 1]?.startsWith("row 01")).toBe(true);
     expect(lines[TOP + 20]?.startsWith("row 20")).toBe(true);
   });
@@ -315,7 +317,7 @@ describe("ReferenceScreenApp in the app host", () => {
     });
     host.open("reference");
     expect(frame![0]).toBe(RULE);
-    expect(frame![1]?.startsWith("Hosted")).toBe(true);
+    expect(frame![1]?.startsWith(" Hosted")).toBe(true);
     expect(frame![2]?.startsWith("hosted row")).toBe(true);
     expect(frame![RECT.height - 2]).toBe(RULE);
     expect(host.handleInput(INTERRUPT)).toEqual({ consumed: true, render: true });

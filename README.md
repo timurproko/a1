@@ -78,7 +78,9 @@ conversation: `What's New` shows the complete pinned changelog and
 `Keyboard Shortcuts` shows the bare-A1 keybinding tables, including extension
 shortcuts as bound when the screen opens. Scroll with ↑/↓, PageUp/PageDown,
 Home/End, the mouse wheel, or the scrollbar rail, which follows the
-`/settings` → Scroll appearance, style, and speed; press `Esc` to close. After
+`/settings` → Scroll appearance, style, and speed; press `Esc` to close. The
+screen is framed between two border-coloured rules with the hint below, as the
+v2 extension drew it. After
 an upgrade, the release notes newer than the last acknowledged version open the
 same `What's New` screen once at startup while the feed keeps only the
 `Run /changelog to view the full release notes.` hint. If another dialog is up
