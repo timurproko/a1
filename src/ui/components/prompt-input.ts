@@ -31,10 +31,12 @@ export interface PromptInputMetrics {
 
 /** Composes shared input chrome around controller-owned body rows without owning editing state. */
 export class PromptInput {
+  readonly theme: Pick<UiTheme, "fg">;
+  readonly metrics: PromptInputMetrics;
   constructor(
-    readonly theme: Pick<UiTheme, "fg"> = PLAIN_THEME,
-    readonly metrics: PromptInputMetrics = { measure: displayWidth, truncate: truncateToWidth },
-  ) {}
+    theme: Pick<UiTheme, "fg"> = PLAIN_THEME,
+    metrics: PromptInputMetrics = { measure: displayWidth, truncate: truncateToWidth },
+  ) { this.theme = theme; this.metrics = metrics; }
 
   styleRule(text: string): string { return promptRuleText(text); }
 

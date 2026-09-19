@@ -17,11 +17,15 @@ export interface SkillInvocationBlock {
 export class SkillInvocationMessageComponent extends Box {
   #expanded = false;
 
+  private readonly skillBlock: SkillInvocationBlock;
+  private readonly markdownTheme: MarkdownTheme;
   constructor(
-    private readonly skillBlock: SkillInvocationBlock,
-    private readonly markdownTheme: MarkdownTheme,
+    skillBlock: SkillInvocationBlock,
+    markdownTheme: MarkdownTheme,
   ) {
     super(1, 1, text => piTheme().bg("customMessageBg", text));
+    this.skillBlock = skillBlock;
+    this.markdownTheme = markdownTheme;
     this.#updateDisplay();
   }
 

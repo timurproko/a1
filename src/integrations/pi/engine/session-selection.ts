@@ -14,8 +14,10 @@ export type PiSessionForkPrompt = (request: { readonly sourceCwd: string }) => P
 
 /** Expected resume outcomes are concise CLI diagnostics, not engine crashes. */
 export class PiSessionSelectionError extends Error {
-  constructor(message: string, readonly exitCode = 1) {
+  readonly exitCode: number;
+  constructor(message: string, exitCode = 1) {
     super(message);
+    this.exitCode = exitCode;
     this.name = "PiSessionSelectionError";
   }
 }

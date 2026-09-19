@@ -82,22 +82,36 @@ export class SupervisorServer {
   #superseded = false;
   #supersededPoll: NodeJS.Timeout | null = null;
 
+  readonly store: ControlStore;
+  readonly release: MaterializedRelease;
+  readonly terminateProcess: (code: number) => void;
+  readonly reconciliationDeadlineMs: number;
+  readonly shutdownDeadlineMs: number;
+  readonly readActiveReleaseId: (() => Promise<string | null>) | null;
+  readonly supersededPollMs: number;
   constructor(
-    readonly store: ControlStore,
+    store: ControlStore,
     paths = resolveProductPaths(),
-    readonly release: MaterializedRelease,
+    release: MaterializedRelease,
     bootNonce: string = randomUUID(),
-    readonly terminateProcess: (code: number) => void = code => process.exit(code),
-    readonly reconciliationDeadlineMs = 3_000,
-    readonly shutdownDeadlineMs = 1_500,
+    terminateProcess: (code: number) => void = code => process.exit(code),
+    reconciliationDeadlineMs = 3_000,
+    shutdownDeadlineMs = 1_500,
     /**
      * Which release new sessions start on. A cohort that is no longer that release keeps
      * serving the instances it already has, takes no new ones, and exits when its last one
      * leaves. Absent, this supervisor never considers itself superseded.
      */
-    readonly readActiveReleaseId: (() => Promise<string | null>) | null = null,
-    readonly supersededPollMs = 1_000,
+    readActiveReleaseId: (() => Promise<string | null>) | null = null,
+    supersededPollMs = 1_000,
   ) {
+    this.store = store;
+    this.release = release;
+    this.terminateProcess = terminateProcess;
+    this.reconciliationDeadlineMs = reconciliationDeadlineMs;
+    this.shutdownDeadlineMs = shutdownDeadlineMs;
+    this.readActiveReleaseId = readActiveReleaseId;
+    this.supersededPollMs = supersededPollMs;
     this.bootNonce = bootNonce;
     this.paths = paths;
     for (const instance of store.loadActiveLaunchInstances()) this.#instances.set(instance.id, instance);

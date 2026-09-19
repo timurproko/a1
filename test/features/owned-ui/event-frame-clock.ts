@@ -100,13 +100,18 @@ export class EventFrameClock {
 /** Fixture handle for the Node timer operations used here; cancellation never touches native timers. */
 class OwnedTimer {
   #referenced = true;
+  readonly id: number;
+  readonly due: number;
+  readonly interval: boolean;
+  readonly callback: () => void;
+  readonly cancel: () => unknown;
   constructor(
-    readonly id: number,
-    readonly due: number,
-    readonly interval: boolean,
-    readonly callback: () => void,
-    readonly cancel: () => unknown,
-  ) {}
+    id: number,
+    due: number,
+    interval: boolean,
+    callback: () => void,
+    cancel: () => unknown,
+  ) { this.id = id; this.due = due; this.interval = interval; this.callback = callback; this.cancel = cancel; }
   ref(): this { this.#referenced = true; return this; }
   unref(): this { this.#referenced = false; return this; }
   hasRef(): boolean { return this.#referenced; }

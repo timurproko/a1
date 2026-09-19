@@ -9,7 +9,9 @@ export class RecordingTerminal implements PiTuiTerminalPort {
   onWrite: ((phase: "write-start" | "write-end") => void) | undefined;
   #input: ((data: string) => void) | undefined;
   #resize: (() => void) | undefined;
-  constructor(public columns: number, public rows: number) {}
+  columns: number;
+  rows: number;
+  constructor(columns: number, rows: number) { this.columns = columns; this.rows = rows; }
   start(input: (data: string) => void, resize: () => void): void { this.active = true; this.#input = input; this.#resize = resize; }
   stop(): void { this.active = false; this.#input = undefined; this.#resize = undefined; }
   async drainInput(): Promise<void> {}
@@ -40,7 +42,8 @@ class Session {
   readonly isCompacting = false;
   readonly calls: string[] = [];
   #listeners = new Set<(event: unknown) => void>();
-  constructor(readonly messages: readonly unknown[]) {}
+  readonly messages: readonly unknown[];
+  constructor(messages: readonly unknown[]) { this.messages = messages; }
   subscribe(listener: (event: unknown) => void): () => void { this.#listeners.add(listener); return () => this.#listeners.delete(listener); }
   emit(event: unknown): void { for (const listener of this.#listeners) listener(event); }
   async prompt(text: string): Promise<void> { this.calls.push(`submit:${text}`); }

@@ -32,8 +32,14 @@ export const REQUIRED_PI_CAPABILITY_OPERATIONS = Object.freeze({
 
 /** Identifies one required Pi capability operation that differs from the accepted integration contract. */
 export class PiCapabilityCompatibilityError extends Error {
-  constructor(readonly packageVersion: string, readonly capability: string, readonly operation: string, detail: string) {
+  readonly packageVersion: string;
+  readonly capability: string;
+  readonly operation: string;
+  constructor(packageVersion: string, capability: string, operation: string, detail: string) {
     super(`Pi ${packageVersion} capability ${capability} operation ${operation} is incompatible: ${detail}`);
+    this.packageVersion = packageVersion;
+    this.capability = capability;
+    this.operation = operation;
     this.name = "PiCapabilityCompatibilityError";
   }
 }
@@ -51,11 +57,13 @@ export interface PiUpgradeConformanceReport {
 
 /** Identifies the public Pi SDK stage that failed during upgrade conformance. */
 export class PiUpgradeConformanceError extends Error {
+  readonly stage: "exports" | "services" | "session";
   constructor(
-    readonly stage: "exports" | "services" | "session",
+    stage: "exports" | "services" | "session",
     cause: unknown,
   ) {
     super(`Pi upgrade conformance failed during ${stage}: ${cause instanceof Error ? cause.message : String(cause)}`, { cause });
+    this.stage = stage;
     this.name = "PiUpgradeConformanceError";
   }
 }

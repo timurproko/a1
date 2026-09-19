@@ -40,8 +40,10 @@ export type PiTuiRuntimeErrorStage = "construction" | "start" | "input-drain" | 
 
 /** Identifies the Pi TUI lifecycle stage that failed while preserving the original cause. */
 export class PiTuiRuntimeError extends Error {
-  constructor(readonly stage: PiTuiRuntimeErrorStage, cause: unknown) {
+  readonly stage: PiTuiRuntimeErrorStage;
+  constructor(stage: PiTuiRuntimeErrorStage, cause: unknown) {
     super(`Pi TUI runtime failed during ${stage}: ${cause instanceof Error ? cause.message : String(cause)}`, { cause });
+    this.stage = stage;
     this.name = "PiTuiRuntimeError";
   }
 }
@@ -49,10 +51,12 @@ export class PiTuiRuntimeError extends Error {
 class ComponentBridge implements Component, Focusable {
   #focused = false;
 
+  readonly port: PiTuiComponentPort;
+  readonly traceComposition: ((phase: "composition-start" | "composition-end") => void) | undefined;
   constructor(
-    readonly port: PiTuiComponentPort,
-    readonly traceComposition?: (phase: "composition-start" | "composition-end") => void,
-  ) {}
+    port: PiTuiComponentPort,
+    traceComposition?: (phase: "composition-start" | "composition-end") => void,
+  ) { this.port = port; this.traceComposition = traceComposition; }
 
   get focused(): boolean {
     return this.#focused;
@@ -95,11 +99,14 @@ class ComponentBridge implements Component, Focusable {
 class OverlayHandleBridge implements PiTuiOverlayHandle {
   #disposed = false;
 
+  private readonly handle: OverlayHandle;
+  private readonly bridgeFor: (component: PiTuiComponentPort | null) => ComponentBridge | null;
+  private readonly dispose: () => void;
   constructor(
-    private readonly handle: OverlayHandle,
-    private readonly bridgeFor: (component: PiTuiComponentPort | null) => ComponentBridge | null,
-    private readonly dispose: () => void,
-  ) {}
+    handle: OverlayHandle,
+    bridgeFor: (component: PiTuiComponentPort | null) => ComponentBridge | null,
+    dispose: () => void,
+  ) { this.handle = handle; this.bridgeFor = bridgeFor; this.dispose = dispose; }
 
   hide(): void {
     if (this.#disposed) return;

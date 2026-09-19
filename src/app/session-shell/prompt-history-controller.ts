@@ -16,7 +16,19 @@ export class PromptHistoryController {
   #closeFailed = false;
   #closePromise: Promise<boolean> | undefined;
 
-  constructor(readonly options: {
+  readonly options: {
+    editor: PiShellEditorPort;
+    store: PromptHistoryPort;
+    limit: number;
+    fallback: readonly string[];
+    active(): boolean;
+    render(): void;
+    /** Applied to every recall text before it enters the editor recall list. Callers use this
+     * to re-classify durable chip content back into atomic chips; the identity map returned by
+     * default keeps historical behavior for callers that opt out. */
+    rehydrate?: (text: string) => string;
+  };
+  constructor(options: {
     editor: PiShellEditorPort;
     store: PromptHistoryPort;
     limit: number;
@@ -28,6 +40,7 @@ export class PromptHistoryController {
      * default keeps historical behavior for callers that opt out. */
     rehydrate?: (text: string) => string;
   }) {
+    this.options = options;
     if (options.editor.recall === undefined) throw new Error("The selected editor does not expose typed history");
     this.#snapshot = { revision: 0, limit: options.limit, entries: [] };
     this.#rehydrateCache = new Map();

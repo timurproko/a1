@@ -111,10 +111,12 @@ export class DamageAwareTerminalAdapter implements PiTuiTerminalPort {
     paintedRows: [],
   };
 
+  readonly inner: PiTuiTerminalPort;
+  readonly options: DamageAwareTerminalOptions;
   constructor(
-    readonly inner: PiTuiTerminalPort,
-    readonly options: DamageAwareTerminalOptions,
-  ) {}
+    inner: PiTuiTerminalPort,
+    options: DamageAwareTerminalOptions,
+  ) { this.inner = inner; this.options = options; }
 
   get columns(): number { return this.inner.columns; }
   get rows(): number { return this.inner.rows; }

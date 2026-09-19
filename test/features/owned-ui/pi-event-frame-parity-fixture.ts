@@ -218,7 +218,10 @@ class CapturingTerminal implements PiTuiTerminalPort {
   #input: ((data: string) => void) | undefined;
   #resize: (() => void) | undefined;
 
-  constructor(public columns: number, public rows: number, readonly failStop = false) {}
+  columns: number;
+  rows: number;
+  readonly failStop: boolean;
+  constructor(columns: number, rows: number, failStop = false) { this.columns = columns; this.rows = rows; this.failStop = failStop; }
 
   start(onInput: (data: string) => void, onResize: () => void): void { this.#input = onInput; this.#resize = onResize; }
   stop(): void {

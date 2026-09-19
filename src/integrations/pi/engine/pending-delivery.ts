@@ -37,7 +37,8 @@ export class PendingEngineDelivery {
   #peakNodes = 0;
   #peakBytes = 0;
 
-  constructor(private readonly retain?: (event: OwnedUiEvent) => () => void) {}
+  private readonly retain: ((event: OwnedUiEvent) => () => void) | undefined;
+  constructor(retain?: (event: OwnedUiEvent) => () => void) { this.retain = retain; }
 
   get size(): number { return this.#size; }
   diagnostics() {

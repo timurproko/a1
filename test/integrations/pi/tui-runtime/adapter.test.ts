@@ -15,7 +15,9 @@ class TestComponent implements PiTuiComponentPort {
   renders = 0;
   disposed = false;
 
-  constructor(public lines: readonly string[], readonly reflectInputs = false) {}
+  lines: readonly string[];
+  readonly reflectInputs: boolean;
+  constructor(lines: readonly string[], reflectInputs = false) { this.lines = lines; this.reflectInputs = reflectInputs; }
 
   render(): readonly string[] {
     this.renders += 1;

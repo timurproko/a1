@@ -8,7 +8,8 @@ export class MouseReportInput {
   #pending = "";
   #paste = false;
 
-  constructor(readonly deliver: (data: string) => void) {}
+  readonly deliver: (data: string) => void;
+  constructor(deliver: (data: string) => void) { this.deliver = deliver; }
 
   accept(chunk: string): void {
     const data = this.#pending + chunk;

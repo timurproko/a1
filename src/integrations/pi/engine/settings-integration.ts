@@ -99,7 +99,9 @@ export class PiSettingsIntegration implements AgentSettingsPort {
   readonly #providers: PiSettingsProviders;
   readonly #coordinator: PiSettingsCoordinator;
 
-  constructor(private readonly settings: SettingsManager, providers: PiSettingsProviders = {}) {
+  private readonly settings: SettingsManager;
+  constructor(settings: SettingsManager, providers: PiSettingsProviders = {}) {
+    this.settings = settings;
     this.#providers = providers;
     const mapped = operations(settings, providers);
     this.#operations = new Map(mapped.map(operation => [operation.key, operation]));

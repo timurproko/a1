@@ -47,7 +47,9 @@ interface LaunchInstanceRow { id: string; owner_client_id: string; profile_id: L
 export class ControlStore {
   readonly database: DatabaseSync;
 
-  constructor(path: string, readonly bootNonce: string | null = null) {
+  readonly bootNonce: string | null;
+  constructor(path: string, bootNonce: string | null = null) {
+    this.bootNonce = bootNonce;
     mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
     this.database = new DatabaseSync(path);
     try {

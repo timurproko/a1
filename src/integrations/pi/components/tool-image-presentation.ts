@@ -23,10 +23,12 @@ export class ToolImagePresentation {
   #disposed = false;
   #active = false;
 
+  private readonly changed: () => void;
+  private readonly convert: typeof convertToPng;
   constructor(
-    private readonly changed: () => void,
-    private readonly convert: typeof convertToPng = convertToPng,
-  ) {}
+    changed: () => void,
+    convert: typeof convertToPng = convertToPng,
+  ) { this.changed = changed; this.convert = convert; }
 
   update(content: readonly { type: string; data?: string; mimeType?: string }[], show: boolean): void {
     if (this.#disposed) return;

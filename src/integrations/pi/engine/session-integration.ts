@@ -45,7 +45,8 @@ export class PiSessionCommandIntegration {
   // Rationale: Pi's queue restore returns text only, so the attachments of messages queued
   // during compaction are kept here until the queue is delivered or cleared.
   #queuedImages: Array<{ readonly text: string; readonly images: PiPromptImages }> = [];
-  constructor(private readonly session: PiDocumentedSessionCommands) {}
+  private readonly session: PiDocumentedSessionCommands;
+  constructor(session: PiDocumentedSessionCommands) { this.session = session; }
 
   async execute(command: PiSessionCommand): Promise<PiSessionCommandResult> {
     switch (command.type) {

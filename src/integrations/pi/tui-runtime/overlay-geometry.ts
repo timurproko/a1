@@ -11,7 +11,8 @@ export class OverlayGeometryTracker {
 
   readonly ports = new WeakMap<Component, PresentationComponentPort>();
 
-  constructor(readonly publish: (surfaces: readonly PresentationPointerSurface[] | null) => void) {}
+  readonly publish: (surfaces: readonly PresentationPointerSurface[] | null) => void;
+  constructor(publish: (surfaces: readonly PresentationPointerSurface[] | null) => void) { this.publish = publish; }
 
   invalidate(): void {
     if (this.#frame === null) return;

@@ -70,8 +70,10 @@ return class extends Base {
   readonly #clearCommandSearchOnEscape: boolean;
   #renderedBodyRowCount = 0;
 
-  constructor(tui: TUI, theme: EditorTheme, private readonly keybindings: KeybindingsManager, options: OwnedEditorOptions = {}) {
+  private readonly keybindings: KeybindingsManager;
+  constructor(tui: TUI, theme: EditorTheme, keybindings: KeybindingsManager, options: OwnedEditorOptions = {}) {
     super(tui, theme, options);
+    this.keybindings = keybindings;
     this.#inputPresentation = options.inputPresentation;
     this.#styleSuggestion = options.styleSuggestion ?? (text => text);
     this.#styleSuggestionCaret = options.styleSuggestionCaret ?? (text => `\u001b[7m${text}\u001b[27m`);
