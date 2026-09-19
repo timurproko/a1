@@ -4,4 +4,4 @@ export {
   type OwnedUiComposition,
   type OwnedUiCompositionOptions,
 } from "./owned-ui.js";
-export { createOwnedRouteHost } from "./settings-route-host.js";
+export { createOwnedRouteHost, type OwnedReferenceProviders, type OwnedReferenceRows } from "./settings-route-host.js";

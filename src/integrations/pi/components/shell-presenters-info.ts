@@ -89,8 +89,18 @@ export function createPiShellChangelog(markdown: string): PiShellComponentPort {
   ensureTheme();
   const container = new Container(); container.addChild(new Spacer(1)); container.addChild(new DynamicBorder());
   container.addChild(new Text(piTheme().bold(piTheme().fg("accent", "What's New")), 1, 0)); container.addChild(new Spacer(1));
-  container.addChild(new Markdown(markdown.trim() || "No changelog entries found.", 1, 1, getMarkdownTheme())); container.addChild(new DynamicBorder());
+  container.addChild(changelogMarkdown(markdown)); container.addChild(new DynamicBorder());
   return componentPort(container);
+}
+
+/** The changelog document rows the feed presenter shows, without its spacer, borders, and heading. */
+export function renderPiShellChangelogLines(markdown: string, width: number): readonly string[] {
+  ensureTheme();
+  return changelogMarkdown(markdown).render(width);
+}
+
+function changelogMarkdown(markdown: string): Markdown {
+  return new Markdown(markdown.trim() || "No changelog entries found.", 1, 1, getMarkdownTheme());
 }
 
 function shortcutDisplay(key: string): string {
@@ -101,12 +111,39 @@ function shortcutDisplay(key: string): string {
   }).join("+")).join("/");
 }
 
+/** What the hotkeys presenters render: the editor bindings and the extension shortcuts declared over them. */
+export interface PiShellHotkeysPresentation {
+  readonly bindings?: KeybindingsConfig;
+  readonly getShortcuts?: NonNullable<PiShellExtensionRendererResolver["getShortcuts"]>;
+  readonly profile?: "pi" | "a1";
+}
+
 export function createPiShellHotkeys(
   bindings?: KeybindingsConfig,
   getShortcuts: NonNullable<PiShellExtensionRendererResolver["getShortcuts"]> = () => [],
   profile: "pi" | "a1" = "pi",
 ): PiShellComponentPort {
   ensureTheme();
+  const markdown = hotkeysMarkdown(bindings, getShortcuts, profile);
+  const container = new Container(); container.addChild(new Spacer(1)); container.addChild(new DynamicBorder()); container.addChild(new Text(piTheme().bold(piTheme().fg("accent", "Keyboard Shortcuts")), 1, 0)); container.addChild(new Spacer(1)); container.addChild(hotkeysMarkdownComponent(markdown)); container.addChild(new DynamicBorder());
+  return componentPort(container);
+}
+
+/** The keyboard-shortcut document rows the feed presenter shows, without its spacer, borders, and heading. */
+export function renderPiShellHotkeysLines(presentation: PiShellHotkeysPresentation, width: number): readonly string[] {
+  ensureTheme();
+  return hotkeysMarkdownComponent(hotkeysMarkdown(presentation.bindings, presentation.getShortcuts ?? (() => []), presentation.profile ?? "pi")).render(width);
+}
+
+function hotkeysMarkdownComponent(markdown: string): Markdown {
+  return new Markdown(markdown, 1, 1, getMarkdownTheme());
+}
+
+function hotkeysMarkdown(
+  bindings: KeybindingsConfig | undefined,
+  getShortcuts: NonNullable<PiShellExtensionRendererResolver["getShortcuts"]>,
+  profile: "pi" | "a1",
+): string {
   const keys = profile === "a1" ? KeybindingsManager.fromOwnedBindings(bindings) : new KeybindingsManager(bindings);
   // Compatibility: the owned viewport consumes these physical chords before editor actions.
   const display = (action: Parameters<typeof keys.getKeys>[0]) => keys.getKeys(action)
@@ -124,6 +161,5 @@ export function createPiShellHotkeys(
     markdown += "\n\n**Extensions**\n| Key | Action |\n|-----|--------|\n";
     markdown += shortcuts.map(shortcut => `| \`${shortcutDisplay(shortcut.key)}\` | ${shortcut.description} |`).join("\n");
   }
-  const container = new Container(); container.addChild(new Spacer(1)); container.addChild(new DynamicBorder()); container.addChild(new Text(piTheme().bold(piTheme().fg("accent", "Keyboard Shortcuts")), 1, 0)); container.addChild(new Spacer(1)); container.addChild(new Markdown(markdown, 1, 1, getMarkdownTheme())); container.addChild(new DynamicBorder());
-  return componentPort(container);
+  return markdown;
 }

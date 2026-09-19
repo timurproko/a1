@@ -10,9 +10,9 @@
       "kind": "command",
       "feature": "/changelog",
       "since": "0.85.1",
-      "disposition": "owned",
-      "behavior": "commands.complete-manifest",
-      "test": "test/integrations/pi/engine/workflows.test.ts"
+      "disposition": "diverged",
+      "deviation": "bare-a1-reference-screens",
+      "test": "test/app/session-shell/session-shell-reference-screens.test.ts"
     },
     {
       "id": "command:clone",
@@ -64,9 +64,9 @@
       "kind": "command",
       "feature": "/hotkeys",
       "since": "0.85.1",
-      "disposition": "owned",
-      "behavior": "commands.complete-manifest",
-      "test": "test/integrations/pi/engine/workflows.test.ts"
+      "disposition": "diverged",
+      "deviation": "bare-a1-reference-screens",
+      "test": "test/app/session-shell/session-shell-reference-screens.test.ts"
     },
     {
       "id": "command:import",

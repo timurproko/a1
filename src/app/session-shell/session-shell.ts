@@ -16,7 +16,7 @@ import type {
   OwnedUiThinkingLevel,
   SuggestionDecision,
 } from "../../contracts/owned-ui/index.js";
-import type { UiRouteHost } from "../../ui/apps/contracts.js";
+import type { UiRouteHost, UiRouteInput } from "../../ui/apps/contracts.js";
 import type { QuitOutroEffect } from "./quit-outro-effects.js";
 import { ContextualPromptSuggestionController } from "./prompt-suggestion-controller.js";
 import { MOUSE_TRACKING_OFF, MOUSE_TRACKING_ON, parseMouseInput } from "../../ui/components/mouse.js";
@@ -84,7 +84,9 @@ import {
   createPiShellHotkeys,
   createPiShellSessionInfo,
   renderPiShellStatusText,
+  type PiShellHotkeysPresentation,
 } from "../../integrations/pi/components/shell-presenters-info.js";
+import { CHANGELOG_ROUTE } from "../../features/owned-ui/reference-routes.js";
 import {
   createPiShellTranscriptComponent,
   renderPiShellPackageUpdateNotice,
@@ -177,6 +179,8 @@ export class OwnedUiSessionShell {
   #shutdownPromise: Promise<AdapterCommandResult> | undefined;
   #disposePromise: Promise<void> | undefined;
   #pointerReporting = false;
+  // Invariant: the startup release notes open at most once per shell, whatever the view does later.
+  #startupChangelogHandled = false;
   readonly #customViewport: boolean;
   readonly #responseCopy: ResponseCopyCoordinator | null;
   // Rationale: only an executor this shell created owns a spare copy helper worth warming and disposing.
@@ -1787,13 +1791,28 @@ export class OwnedUiSessionShell {
     }
     this.root.update(view);
     this.#syncDialog(view.dialog);
+    this.#presentStartupChangelog(view);
     this.runtime.requestRender();
     for (const listener of this.#listeners) listener(view);
     return view;
   }
 
-  #openOwnedRoute(route: string): AdapterCommandResult {
-    const surface = this.#routeHost?.open(route) ?? null;
+  // Rationale: the engine has already stored the current version when the diagnostic arrives, so the
+  // entries newer than the last acknowledged one exist only in its message; the screen shows exactly those.
+  #presentStartupChangelog(view: OwnedUiSessionViewModel): void {
+    if (this.#startupChangelogHandled || !this.#customViewport || this.#routeHost === null) return;
+    const diagnostic = view.diagnostics.find(candidate => candidate.code === "changelog-expanded");
+    // Invariant: a view synchronized before the runtime starts is not the moment of arrival; start() replays it.
+    if (diagnostic === undefined || !this.runtime.active) return;
+    this.#startupChangelogHandled = true;
+    // Invariant: a dialog, selector, or owned screen already up keeps the screen; the hint stays in the feed.
+    if (this.#dialogHandle !== undefined || !this.root.usesDefaultInputSurface()) return;
+    if (!this.#routeHost.claims(CHANGELOG_ROUTE)) return;
+    this.#openOwnedRoute(CHANGELOG_ROUTE, { document: diagnostic.message });
+  }
+
+  #openOwnedRoute(route: string, input?: UiRouteInput): AdapterCommandResult {
+    const surface = this.#routeHost?.open(route, input) ?? null;
     if (surface === null) return { outcome: "failed", diagnostic: `route is unavailable: ${route}` };
     if (!this.runtime.active) return { outcome: "failed", diagnostic: "runtime is not active" };
 
@@ -1909,6 +1928,10 @@ export class OwnedUiSessionShell {
       inputCoordination: "owned",
     });
     this.#dialogId = dialog.id;
+  }
+
+  hotkeysPresentation(): PiShellHotkeysPresentation {
+    return this.root.hotkeysPresentation();
   }
 
   async #slashCommand(text: string): Promise<AdapterCommandResult> {
