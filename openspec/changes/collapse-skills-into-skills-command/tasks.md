@@ -23,4 +23,4 @@
 
 - [x] 5.1 Record the collapsed menu, `skills` command, dialog, and tunnel as declared bare-A1 replacements in the parity evidence and keep expand/comparison surfaces compared against pinned Pi; verify parity and modal-inventory checks classify the new surfaces as expected and the comparison profile unchanged.
 - [x] 5.2 Update user documentation and the settings reference for `Skills`, `/skills`, and `/skills:`; verify documentation governance checks pass.
-- [ ] 5.3 Obtain required CI results for the implementation candidate and hand off the built candidate with `./scripts/dev` for a manual check of collapse, expand, the dialog, `/sk` + `:`, `/skills:` filtering, and submission; verify the recorded manual result before requesting acceptance.
+- [x] 5.3 Obtain required CI results for the implementation candidate and hand off the built candidate with `./scripts/dev` for a manual check of collapse, expand, the dialog, `/sk` + `:`, `/skills:` filtering, and submission; verify the recorded manual result before requesting acceptance.
