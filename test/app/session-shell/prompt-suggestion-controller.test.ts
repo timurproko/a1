@@ -263,6 +263,52 @@ describe("suggestion lifecycle diagnostics", () => {
     controller.dispose();
   });
 
+  it("abortPending cancels only a generating request and discards its late result", async () => {
+    const pending = deferredGenerator();
+    const { controller, records, target } = observed(pending.generator);
+    controller.consider(IDENTITY, null);
+    controller.abortPending();
+    expect(pending.signal()?.aborted).toBe(true);
+    expect(controller.state).toEqual({ status: "idle" });
+    controller.settle(IDENTITY);
+    pending.resolve({ identity: IDENTITY, text: "archive it" });
+    await tick();
+    expect(records.map(record => record.event)).toEqual(["started", "cancelled", "late-result-discarded"]);
+    expect(target.text()).toBeNull();
+    expect(pending.generator.generate).toHaveBeenCalledTimes(1);
+    controller.dispose();
+  });
+
+  it("abortPending leaves an available suggestion presented and a prepared result to settle", async () => {
+    const shown = deferredGenerator();
+    const visible = observed(shown.generator);
+    const clear = vi.spyOn(visible.target.port, "clear");
+    visible.controller.consider(IDENTITY, null);
+    visible.controller.settle(IDENTITY);
+    shown.resolve({ identity: IDENTITY, text: "archive it" });
+    await tick();
+    expect(visible.target.text()).toBe("archive it");
+    visible.controller.abortPending();
+    expect(visible.controller.state).toEqual({ status: "available", identity: IDENTITY, text: "archive it" });
+    expect(visible.target.text()).toBe("archive it");
+    expect(clear).not.toHaveBeenCalled();
+    expect(visible.records.map(record => record.event)).toEqual(["started", "displayed"]);
+    visible.controller.dispose();
+
+    const early = deferredGenerator();
+    const prepared = observed(early.generator);
+    prepared.controller.consider(IDENTITY, null);
+    early.resolve({ identity: IDENTITY, text: "archive it" });
+    await tick();
+    expect(prepared.controller.state.status).toBe("prepared");
+    prepared.controller.abortPending();
+    expect(prepared.controller.state.status).toBe("prepared");
+    prepared.controller.settle(IDENTITY);
+    expect(prepared.target.text()).toBe("archive it");
+    expect(prepared.records.map(record => record.event)).toEqual(["started", "displayed"]);
+    prepared.controller.dispose();
+  });
+
   it("records blocked presentation rather than empty output", async () => {
     const records: SuggestionDiagnosticRecord[] = [];
     const target = surface();

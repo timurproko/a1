@@ -125,6 +125,17 @@ export class ContextualPromptSuggestionController {
   accept(): void { this.#invalidate(false); }
   invalidate(): void { this.#invalidate(true); }
 
+  /** Retires only a generating request; a prepared or available suggestion survives the draft edit. */
+  abortPending(): void {
+    if (this.#state.status !== "generating") return;
+    const request = this.#request;
+    this.#request = null;
+    this.#state = { status: "idle" };
+    if (request === null) return;
+    this.#finish(request, "cancelled");
+    request.abort.abort();
+  }
+
   dispose(): void {
     this.#disposed = true;
     this.invalidate();

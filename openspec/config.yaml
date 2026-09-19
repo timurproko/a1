@@ -26,7 +26,7 @@ context: |
   Manual handoff:
   - Provide the exact worktree, branch/commit, build/run commands, what to try, expected behavior, and known gaps. Repeat commands after a push that changes what the user runs.
   - For interactive repository-checkout A1/Pi tests, build first and invoke `./scripts/dev` or `./scripts/dev pi`. Never hand off a direct `node scripts/development/dev-launch.mjs` command or another direct Node launcher that can invalidate terminal color review.
-  - End runnable replies with exactly two lines: `🧪 Manual test:` and one copy-pasteable forward-slash shell command in one Markdown inline-code span. When nothing is runnable, say so briefly and omit the block.
+  - End runnable replies with exactly two lines: `🧪 Manual test:` and one copy-pasteable forward-slash shell command in one Markdown inline-code span. A reply is runnable whenever it reports a pushed implementation head, a PR marked ready, a repair push, CI results on such a head, or a merged change; reporting CI or cleanup does not replace the block. When nothing is runnable, say so briefly and omit the block.
 
   Completion:
   - For version 3, derive the post-merge state `Archived` only after its one PR is verified `MERGED`, current `develop` contains its archive and synchronized specs, the shared reader verifies authorized manual acceptance, and the remote topic ref is absent. Keep the merged PR body as the immutable accepted snapshot; do not edit it after merge. For legacy versions, retain worktrees until their applicable implementation, acceptance, and archive PRs integrate.
