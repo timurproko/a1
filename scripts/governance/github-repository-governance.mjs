@@ -1,11 +1,13 @@
 import { readFile } from "node:fs/promises";
 import { planRulesetChanges, validateRulesetDefinition } from "./github-rulesets.mjs";
 
-const ROOT_KEYS = ["schema", "repository", "repositorySettings", "actions", "securityCapabilities", "environments", "protectedRefs", "rulesets", "workflows"];
+const ROOT_KEYS = ["schema", "repository", "repositorySettings", "actions", "securityCapabilities", "environments", "protectedRefs", "rulesets", "labels", "workflows"];
 const REPOSITORY_SETTING_KEYS = ["visibility", "default_branch", "allow_auto_merge", "delete_branch_on_merge", "allow_merge_commit", "allow_squash_merge", "allow_rebase_merge", "allow_update_branch", "use_squash_pr_title_as_default", "squash_merge_commit_title", "squash_merge_commit_message", "merge_commit_title", "merge_commit_message", "web_commit_signoff_required"];
 const ACTION_KEYS = ["enabled", "allowed_actions", "sha_pinning_required", "selected_actions", "default_workflow_permissions", "can_approve_pull_request_reviews"];
 const SECURITY_KEYS = ["secret_scanning", "secret_scanning_push_protection", "secret_scanning_non_provider_patterns", "secret_scanning_validity_checks", "dependabot_alerts", "dependabot_security_updates"];
 const ENVIRONMENT_KEYS = ["name", "can_admins_bypass", "protection_rules", "deployment_branch_policy"];
+// Rationale: a label a workflow reads as a decision (a skipped Pi version) is policy, so it is declared here and compared live.
+const LABEL_KEYS = ["name", "color", "description"];
 const WORKFLOW_KEYS = ["name", "path", "state", "triggers", "permissions", "trustedSource", "authority", "concurrency", "environments", "artifactRetentionDays"];
 
 export function validateRepositoryGovernanceDefinition(definition) {
@@ -15,8 +17,13 @@ export function validateRepositoryGovernanceDefinition(definition) {
   requireExactKeys(definition.repositorySettings, REPOSITORY_SETTING_KEYS, "repositorySettings");
   requireExactKeys(definition.actions, ACTION_KEYS, "actions");
   requireExactKeys(definition.securityCapabilities, SECURITY_KEYS, "securityCapabilities");
-  for (const key of ["environments", "protectedRefs", "workflows"]) if (!Array.isArray(definition[key])) throw new Error(`${key} must be an array`);
+  for (const key of ["environments", "protectedRefs", "labels", "workflows"]) if (!Array.isArray(definition[key])) throw new Error(`${key} must be an array`);
   for (const environment of definition.environments) requireExactKeys(environment, ENVIRONMENT_KEYS, `environment ${environment?.name ?? "unknown"}`);
+  for (const label of definition.labels) {
+    requireExactKeys(label, LABEL_KEYS, `label ${label?.name ?? "unknown"}`);
+    if (typeof label.name !== "string" || label.name === "" || !/^[0-9a-f]{6}$/.test(label.color) || typeof label.description !== "string") throw new Error(`label ${label?.name ?? "unknown"} needs a name, a six-digit hex color, and a description`);
+  }
+  if (new Set(definition.labels.map(label => label.name)).size !== definition.labels.length) throw new Error("label names must be unique");
   const names = new Set();
   const paths = new Set();
   for (const workflow of definition.workflows) {
@@ -101,6 +108,9 @@ export function compareRepositoryGovernance(definition, live) {
   compareExact(definition.securityCapabilities, live.securityCapabilities, "securityCapabilities", differences);
   compareExact(sortNamed(definition.environments), sortNamed(live.environments), "environments", differences);
   compareExact([...definition.protectedRefs].sort(), [...(live.protectedRefs ?? [])].sort(), "protectedRefs", differences);
+  // Invariant: only declared labels are compared; labels the repository carries for other reasons are not policy.
+  const liveLabels = new Map((live.labels ?? []).map(label => [label.name, label]));
+  compareExact(sortNamed(definition.labels), sortNamed(definition.labels.map(label => liveLabels.get(label.name) ?? { name: label.name })), "labels", differences);
   compareExact(sortNamed(definition.workflows).map(canonicalWorkflow), sortNamed(live.workflows).map(canonicalWorkflow), "workflows", differences);
 
   const rulesetPlan = planRulesetChanges(definition, live.rulesets ?? []);

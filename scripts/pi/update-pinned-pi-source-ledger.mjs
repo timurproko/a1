@@ -2,8 +2,8 @@
  * Regenerates the pinned Pi source ledger from the installed packages' source maps. Upstream
  * identity (hashes, line counts, source-map paths) always comes from the packages; the reviewed
  * fields of an existing record (classification, destination, status, modifications, deviations,
- * tests, tasks) are preserved from the ledger, so a reclassified or deleted port never has to be
- * hard-coded here. Owned copies get their provenance header rewritten from the record before
+ * tests, tasks, upgrade strategy) are preserved from the ledger, so a reclassified or deleted port
+ * never has to be hard-coded here. Owned copies get their provenance header rewritten from the record before
  * their hash is recorded. `--check` reports drift without writing.
  */
 import { createHash } from "node:crypto";
@@ -303,10 +303,12 @@ async function sourceMapRecord(pkg, sourceMapPath, scope) {
 // Invariant: the ledger is the reviewed authority for what a unit is and where it lives; this
 // script only refreshes what the packages assert about upstream content.
 function preserveReviewedFields(record, previous) {
-  if (previous === undefined) return;
-  for (const field of ["classification", "localDestination", "implementationStatus", "modifications", "approvedDeviations", "acceptanceTasks", "tests"]) {
-    if (previous[field] !== undefined) record[field] = previous[field];
+  for (const field of ["classification", "localDestination", "implementationStatus", "modifications", "approvedDeviations", "acceptanceTasks", "tests", "upgradeStrategy"]) {
+    if (previous?.[field] !== undefined) record[field] = previous[field];
   }
+  // Invariant: every owned copy names how an upgrade treats it; a unit new to the ledger follows upstream until a reviewer says otherwise.
+  if (record.classification === "owned-presentation") record.upgradeStrategy ??= "three-way";
+  else delete record.upgradeStrategy;
 }
 
 async function fileExists(path) {

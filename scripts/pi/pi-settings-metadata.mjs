@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // Provenance: metadata is extracted from the pinned engine's settings presentation.
@@ -43,8 +44,14 @@ const ID_TO_KEY = Object.freeze({
   theme: "theme",
 });
 
-export function settingsSelectorSource() {
-  return readFileSync(fileURLToPath(new URL(`../../${SETTINGS_SELECTOR_PATH}`, import.meta.url)), "utf8");
+/** `packagesRoot` reads another installation's `node_modules`; the default is this repository's. */
+export function settingsSelectorSource(packagesRoot) {
+  return readFileSync(installedPath(SETTINGS_SELECTOR_PATH, packagesRoot), "utf8");
+}
+
+function installedPath(path, packagesRoot) {
+  if (packagesRoot === undefined) return fileURLToPath(new URL(`../../${path}`, import.meta.url));
+  return join(packagesRoot, path.slice("node_modules/".length));
 }
 
 const ITEM_START = /\bid:\s*"([a-z0-9-]+)",\s*\n?\s*label:\s*"([^"]+)"/g;
@@ -173,8 +180,8 @@ function dialogFlags(source, className) {
 /** The engine's own settings file, where it clamps what a number may be. */
 export const SETTINGS_MANAGER_PATH = "node_modules/@earendil-works/pi-coding-agent/dist/core/settings-manager.js";
 
-export function settingsManagerSource() {
-  return readFileSync(fileURLToPath(new URL(`../../${SETTINGS_MANAGER_PATH}`, import.meta.url)), "utf8");
+export function settingsManagerSource(packagesRoot) {
+  return readFileSync(installedPath(SETTINGS_MANAGER_PATH, packagesRoot), "utf8");
 }
 
 /**
@@ -193,8 +200,8 @@ export function numericBounds(source) {
   return bounds;
 }
 
-export function extractPiSettingsMetadata() {
-  const source = settingsSelectorSource();
+export function extractPiSettingsMetadata(packagesRoot) {
+  const source = settingsSelectorSource(packagesRoot);
   const byId = new Map(describedItems(source).map(item => [item.id, item]));
 
   const settings = {};
@@ -218,6 +225,6 @@ export function extractPiSettingsMetadata() {
     order: presented,
     settings,
     dialogs: { warnings: dialogFlags(source, "WarningSettingsSubmenu") },
-    bounds: numericBounds(settingsManagerSource()),
+    bounds: numericBounds(settingsManagerSource(packagesRoot)),
   };
 }
