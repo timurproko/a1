@@ -26,6 +26,15 @@ import {
   type PiShellAutocompleteCommand,
   type PiShellEditorOptions,
 } from "./shell-shared-facade.js";
+import {
+  SKILLS_COMMAND_NAME,
+  collapseSkillCommands,
+  createSkillsTunnelProvider,
+  type PiShellSkillSummary,
+} from "./skills-command.js";
+
+/** A selected tunnel row: the accent label, then at least two spaces, then the description. */
+const SELECTED_TUNNEL_ROW = /^(→ skills:\S+)(\s{2,}.*)$/u;
 
 export const PINNED_PI_BUILTIN_SLASH_COMMANDS = [
   { name: "settings", description: "Open settings menu" },
@@ -65,6 +74,7 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
   }
   const scrollInfo: { emitted: boolean; counter: string | undefined } = { emitted: false, counter: undefined };
   const selectListTheme = getSelectListTheme();
+  let tunnelSkills: readonly PiShellSkillSummary[] = [];
   const EditorClass = options.keybindingProfile === "a1" && options.persistentHistory === true ? options.historyEditor! : OwnedEditor;
   const editor: ShellEditorInstance = new EditorClass(tui, {
     borderColor: (value: string) => inputPresentation === undefined ? piTheme().fg("borderMuted", value) : inputPresentation.styleRule(value),
@@ -76,6 +86,12 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
         scrollInfo.counter = /^  \((\d+\/\d+)\)$/u.exec(text)?.[1];
         return selectListTheme.scrollInfo(text);
       },
+      selectedText: text => {
+        // Rationale: a selected tunnel row keeps its description muted like the unselected rows (v2 behavior);
+        // the pinned list styles the whole selected row, so the split happens in the owned theme.
+        const row = tunnelSkills.length === 0 ? null : SELECTED_TUNNEL_ROW.exec(text);
+        return row === null ? selectListTheme.selectedText(text) : selectListTheme.selectedText(row[1]!) + selectListTheme.description(row[2]!);
+      },
     },
   }, keybindings, {
     paddingX: PINNED_PI_LAYOUT.editorPaddingX,
@@ -86,6 +102,7 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
       terminalRows: options.getRows,
       getVisualLineCount: (width: number) => editorVisualLineCount(editor, width),
       clearCommandSearchOnEscape: true,
+      commandTunnels: () => tunnelSkills.length === 0 ? [] : [SKILLS_COMMAND_NAME],
     } : {}),
     ...(options.keybindingProfile === "a1" && options.promptPresentation !== undefined ? {
       ...(inputPresentation === undefined ? {} : { inputPresentation }),
@@ -127,15 +144,22 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
     tui.requestRender();
   };
   let autocompleteProvider: AutocompleteProvider;
-  const setAutocompleteCommands = (commands: readonly PiShellAutocompleteCommand[]) => {
+  const setAutocompleteCommands = (installed: readonly PiShellAutocompleteCommand[]) => {
+    // Invariant: collapse is a bare-A1 presentation; the comparison profile installs the pinned list.
+    const collapsed = options.keybindingProfile === "a1" && options.skillsPresentation?.() === "collapse"
+      ? collapseSkillCommands(installed)
+      : { commands: installed, skills: [] };
+    tunnelSkills = collapsed.skills;
+    const commands = collapsed.commands;
     const additions = new Map(commands.map(command => [command.name, command]));
     const builtInNames = new Set(PINNED_PI_BUILTIN_SLASH_COMMANDS.map(command => command.name));
     const builtIns = PINNED_PI_BUILTIN_SLASH_COMMANDS.map(command => autocompleteCommand(command, additions.get(command.name)));
     const resources = commands.filter(command => !builtInNames.has(command.name)).map(command => autocompleteCommand(command));
-    autocompleteProvider = new CombinedAutocompleteProvider(
+    const combined = new CombinedAutocompleteProvider(
       [...builtIns, ...resources],
       options.cwd ?? process.cwd(),
     );
+    autocompleteProvider = tunnelSkills.length === 0 ? combined : createSkillsTunnelProvider(combined, tunnelSkills);
     editor.setAutocompleteProvider(autocompleteProvider);
   };
   setAutocompleteCommands(options.autocompleteCommands ?? []);

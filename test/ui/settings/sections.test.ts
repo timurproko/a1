@@ -67,10 +67,10 @@ const AGENT: AgentSettingsSnapshot = {
 };
 
 describe("owned UI settings sections", () => {
-  it("places the owned suggestion control once after engine entries in a single Agent group", () => {
+  it("places the owned suggestion and skills controls once after engine entries in a single Agent group", () => {
     const resolved = resolveOwnedUiSettings({
       declarations: OWNED_UI_SETTING_DECLARATIONS, migrations: [],
-      document: { version: 6, values: { promptSuggestions: false } },
+      document: { version: 7, values: { promptSuggestions: false } },
     });
     const sections = buildOwnedUiSettingsSections({ resolution: resolved, agent: AGENT });
     expect(sections.map(section => [section.id, section.title])).toEqual([
@@ -86,9 +86,14 @@ describe("owned UI settings sections", () => {
     });
     expect(findOwnedUiSettingsEntry(sections, "quitEffect", "a1")?.choices).toEqual(["fall", "dissolve", "starburst", "waves"]);
     expect(sections.find(section => section.id === "agent")?.entries.map(entry => [entry.backend, entry.id])).toEqual([
-      ["agent", "autoCompact"], ["agent", "thinkingLevel"], ["agent", "providerProfile"], ["a1", "promptSuggestions"],
+      ["agent", "autoCompact"], ["agent", "thinkingLevel"], ["agent", "providerProfile"], ["a1", "promptSuggestions"], ["a1", "skillsPresentation"],
     ]);
     expect(sections.flatMap(section => section.entries).filter(entry => entry.id === "promptSuggestions")).toHaveLength(1);
+    expect(sections.flatMap(section => section.entries).filter(entry => entry.id === "skillsPresentation")).toHaveLength(1);
+    expect(findOwnedUiSettingsEntry(sections, "skillsPresentation", "a1")).toMatchObject({
+      label: "Skills", value: "collapse", origin: "default", backend: "a1", editable: true, application: "live", choices: ["collapse", "expand"],
+    });
+    expect(findOwnedUiSettingsEntry(sections, "skillsPresentation", "agent")).toBeNull();
     expect(findOwnedUiSettingsEntry(sections, "promptSuggestions", "a1")).toMatchObject({
       label: "Prompt suggestions", value: false, storedValue: false, effectiveValue: false,
       origin: "stored", backend: "a1", editable: true, application: "live", choices: [true, false],
@@ -113,8 +118,9 @@ describe("owned UI settings sections", () => {
     expect(sections.map(section => section.id)).toEqual(["generic", "scroll", "history", "quit", "agent"]);
     const group = sections.find(section => section.id === "agent");
     expect(group).toMatchObject({ title: "Agent", unavailableReason: null, readOnlyReason: null });
-    expect(group?.entries).toHaveLength(1);
+    expect(group?.entries).toHaveLength(2);
     expect(group?.entries[0]).toMatchObject({ id: "promptSuggestions", backend: "a1", value: true, editable: true, application: "live" });
+    expect(group?.entries[1]).toMatchObject({ id: "skillsPresentation", backend: "a1", value: "collapse", editable: true, application: "live" });
   });
 
   it("puts declared A1 settings in the A1 section with their origin", () => {

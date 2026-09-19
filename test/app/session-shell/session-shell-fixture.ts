@@ -32,6 +32,7 @@ import {
   type OwnedUiShellDiagnosticOptions,
   type OwnedUiShellHistoryOptions,
   type OwnedUiShellPresentationOptions,
+  type OwnedUiShellSkillsOptions,
   type OwnedUiShellSuggestionOptions,
 } from "../../../src/app/session-shell/index.js";
 import { TestPresentationTerminal } from "../../features/owned-ui/neutral-port-doubles.js";
@@ -279,6 +280,7 @@ export async function fixture(
   quitOutro?: OwnedUiShellPresentationOptions["quitOutro"],
   reloadPresentation?: OwnedUiShellPresentationOptions["reload"],
   pastePreparation: OwnedUiShellDiagnosticOptions["pastePreparation"] | "forked" = { execute: inProcessPasteExecutor },
+  skills?: OwnedUiShellSkillsOptions,
 ) {
   const engine = new Runtime(messages);
   configureEngine?.(engine);
@@ -316,6 +318,7 @@ export async function fixture(
     },
     ...(promptSuggestions === undefined ? {} : { suggestions: promptSuggestions }),
     ...(promptHistory === undefined ? {} : { history: { ...promptHistory, editor: await loadHistoryEditor() } }),
+    ...(skills === undefined ? {} : { skills }),
   });
   shell.start();
   shell.runtime.renderNow();

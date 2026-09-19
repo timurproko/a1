@@ -8,6 +8,7 @@ export type {
   OwnedUiShellEngineOptions,
   OwnedUiShellHistoryOptions,
   OwnedUiShellPresentationOptions,
+  OwnedUiShellSkillsOptions,
   OwnedUiShellSuggestionOptions,
   SessionResumeCommandMetadata,
 } from "./session-shell.js";

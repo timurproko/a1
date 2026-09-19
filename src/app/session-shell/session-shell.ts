@@ -39,6 +39,14 @@ import type {
 import { createPiExtensionUiBridge, type PiExtensionUiBridge } from "../../integrations/pi/components/shell-extension-ui.js";
 import { createPiShellEditor } from "../../integrations/pi/components/shell-editor-autocomplete.js";
 import {
+  SKILLS_COMMAND_NAME,
+  findSkillByArgument,
+  rewriteSkillsTunnelSubmission,
+  skillPrompt,
+  skillsFromCommands,
+  type PiShellSkillSummary,
+} from "../../integrations/pi/components/skills-command.js";
+import {
   createPiQueuedInputStatus,
   createPiShellFooter,
   createPiShellHeader,
@@ -60,6 +68,7 @@ import {
   createPiShellSelector,
   createPiShellSessionSelector,
   createPiShellSettingsSelector,
+  createPiShellSkillsSelector,
   createPiShellThinkingSelector,
   type PiShellSettingsSelectorOptions,
   createPiShellTreeSelector,
@@ -123,6 +132,7 @@ import {
   type OwnedUiBackendPort,
   type OwnedUiSessionShellOptions,
   type OwnedUiShellPresentationOptions,
+  type OwnedUiShellSkillsOptions,
   type OwnedUiTerminalPort,
 } from "./session-shell-root.js";
 export {
@@ -132,6 +142,7 @@ export {
   type OwnedUiShellEngineOptions,
   type OwnedUiShellHistoryOptions,
   type OwnedUiShellPresentationOptions,
+  type OwnedUiShellSkillsOptions,
   type OwnedUiShellSuggestionOptions,
 } from "./session-shell-root.js";
 
@@ -145,6 +156,9 @@ export class OwnedUiSessionShell {
   readonly #unsubscribe: () => void;
   readonly #unsubscribePromptSuggestions: () => void;
   readonly #promptSuggestions: ContextualPromptSuggestionController | null;
+  readonly #skills: OwnedUiShellSkillsOptions | null;
+  readonly #unsubscribeSkills: () => void;
+  #installedCommandSignature = "";
   #promptHistory: PromptHistoryController | null = null;
   #promptHistoryImageSidecar: import("../../contracts/owned-ui/index.js").PromptHistoryImageSidecarPort | undefined;
   readonly #extensionBridge: PiExtensionUiBridge;
@@ -207,6 +221,8 @@ export class OwnedUiSessionShell {
     let streamPresentation: StreamPresentationCoalescer | undefined;
     let pendingClipboardWrite: Promise<void> = Promise.resolve();
     let promptSuggestionController: ContextualPromptSuggestionController | null = null;
+    // Invariant: the collapsed skills presentation is a bare-A1 replacement; comparison profiles keep the pinned list.
+    this.#skills = this.#customViewport ? options.skills ?? null : null;
     const terminalCopy = terminal !== undefined || hasAsyncClipboardOutput();
     this.#responseCopy = this.#customViewport ? new ResponseCopyCoordinator({
       execute: responseCopy?.execute ?? (this.#copyExecutor = createResponseCopyExecutor({
@@ -305,6 +321,7 @@ export class OwnedUiSessionShell {
       },
       ...(pasteDiagnostics === undefined ? {} : { pasteDiagnostics: pasteDiagnostics }),
       ...(pastePreparation === undefined ? {} : { pastePreparation }),
+      skillsPresentation: () => this.#skills?.presentation() ?? "expand",
     }, {
       ...startup,
       resources: startup?.resources ?? shellResourceEntries(this.backend),
@@ -391,6 +408,14 @@ export class OwnedUiSessionShell {
     this.#unsubscribePromptSuggestions = promptSuggestionOptions === undefined
       ? () => {}
       : promptSuggestionOptions.onChange(enabled => this.#promptSuggestions?.setEnabled(enabled));
+    // Rationale: the same listener refreshes the menu for the A1 presentation choice and for the engine's
+    // skill-command registration, both of which the owned settings manager reports through one change.
+    this.#unsubscribeSkills = this.#skills === null ? () => {} : this.#skills.onChange(() => {
+      // Invariant: reinstalling drops extension provider wrappers, so an unrelated setting change leaves the list alone.
+      if (this.#disposed || this.#commandListSignature() === this.#installedCommandSignature) return;
+      this.#installAutocompleteCommands();
+      this.runtime.requestRender();
+    });
     const initialPiSettings = this.backend.pinnedSettingsSnapshot();
     this.runtime.setHardwareCursor(initialPiSettings.showHardwareCursor);
     this.runtime.setClearOnShrink(initialPiSettings.clearOnShrink);
@@ -545,7 +570,7 @@ export class OwnedUiSessionShell {
       },
       finishLogin: () => this.#finishWorkflowLogin(),
     });
-    this.root.editor.setAutocompleteCommands(this.backend.workflowAutocompleteCommands());
+    this.#installAutocompleteCommands();
     this.#unsubscribe = this.backend.onEvent(event => {
       // Performance: a streamed chunk names one block, and touching only that block is what keeps the
       // cost of a chunk the same in a long session as in a new one. Everything else
@@ -934,6 +959,24 @@ export class OwnedUiSessionShell {
       level => select(level, true),
       snapshot.defaultThinkingLevel,
     );
+    this.root.setInputSurface(component);
+    this.runtime.requestRender();
+  }
+
+  /** The Skills dialog: a replacement input like the model selector, applying the chosen skill through the prompt path. */
+  showSkillsSelector(skills: readonly PiShellSkillSummary[] = this.#skillSummaries()): void {
+    const close = () => {
+      this.root.setInputSurface(null);
+      this.runtime.requestRender();
+    };
+    const component = createPiShellSkillsSelector({
+      skills,
+      onSelect: name => {
+        close();
+        void this.#submitSkillPrompt(skillPrompt(name), skillPrompt(name)).catch(() => this.#reportSubmissionError());
+      },
+      onCancel: close,
+    });
     this.root.setInputSurface(component);
     this.runtime.requestRender();
   }
@@ -1350,7 +1393,7 @@ export class OwnedUiSessionShell {
     if (request.command === "reload" && result.outcome === "completed") {
       this.root.resetWorkflowPresentation();
       this.root.editor.reloadKeybindings();
-      this.root.editor.setAutocompleteCommands(this.backend.workflowAutocompleteCommands());
+      this.#installAutocompleteCommands();
     }
     this.root.appendWorkflowResult(result);
     if (request.command === "model" && result.outcome === "completed") this.#showDaxnutsForActiveModel();
@@ -1509,6 +1552,7 @@ export class OwnedUiSessionShell {
     attempt(() => this.#streamPresentation.dispose());
     attempt(() => this.#promptSuggestions?.dispose());
     attempt(() => this.#unsubscribePromptSuggestions());
+    attempt(() => this.#unsubscribeSkills());
     attempt(() => this.#unsubscribeSettings());
     let fullscreenExitText = "";
     attempt(() => {
@@ -1778,6 +1822,11 @@ export class OwnedUiSessionShell {
     const argument = separator < 0 ? "" : body.slice(separator + 1).trimStart();
     if (this.#routeHost?.claims(name)) return this.#openOwnedRoute(name);
     if (isWorkflowRoute(name)) return this.runWorkflow({ command: name, argument });
+    if (this.#skillsCollapsed()) {
+      if (name === SKILLS_COMMAND_NAME) return this.#runSkillsCommand(text, argument);
+      const rewritten = rewriteSkillsTunnelSubmission(text);
+      if (rewritten !== text) return this.#submitSkillPrompt(rewritten, text);
+    }
     // Compatibility: unknown slash input, prompt templates, skills, and extension commands remain Pi prompt input.
     this.#rememberInput(text, "slash");
     this.root.resumeViewportFollowing();
@@ -1786,6 +1835,57 @@ export class OwnedUiSessionShell {
       correlationId: this.#correlation("prompt-command"),
       sessionId: this.backend.sessionId,
       text,
+    });
+  }
+
+  #installAutocompleteCommands(): void {
+    this.root.editor.setAutocompleteCommands(this.backend.workflowAutocompleteCommands());
+    this.#installedCommandSignature = this.#commandListSignature();
+  }
+
+  #commandListSignature(): string {
+    return JSON.stringify([this.#skills?.presentation() ?? "expand", this.backend.disposed ? [] : this.backend.workflowAutocompleteCommands().map(command => command.name)]);
+  }
+
+  // Invariant: collapse applies only while the engine registers skill commands; otherwise there is nothing to collapse.
+  #skillsCollapsed(): boolean {
+    return this.#skills !== null && this.#skills.presentation() === "collapse"
+      && !this.backend.disposed && this.backend.pinnedSettingsSnapshot().enableSkillCommands;
+  }
+
+  #skillSummaries(): readonly PiShellSkillSummary[] {
+    return skillsFromCommands(this.backend.workflowAutocompleteCommands());
+  }
+
+  // Protocol: bare "/skills" opens the dialog, "/skills <name> [args]" applies directly, and an unknown name is a command outcome.
+  async #runSkillsCommand(text: string, argument: string): Promise<AdapterCommandResult> {
+    const skills = this.#skillSummaries();
+    const trimmed = argument.trim();
+    if (trimmed.length === 0) {
+      this.showSkillsSelector(skills);
+      return { outcome: "completed", diagnostic: null };
+    }
+    const separator = trimmed.search(/\s/u);
+    const token = separator < 0 ? trimmed : trimmed.slice(0, separator);
+    const skill = findSkillByArgument(skills, token);
+    if (skill === undefined) {
+      const message = "Unknown skill: " + token;
+      this.root.appendWorkflowMessage({ kind: "error", message });
+      this.runtime.requestRender();
+      return { outcome: "failed", diagnostic: message };
+    }
+    return this.#submitSkillPrompt(skillPrompt(skill.name, separator < 0 ? "" : trimmed.slice(separator + 1)), text);
+  }
+
+  // Rationale: the engine expands "/skill:<name> args" itself; history keeps the form the user typed so recall restores the invocation.
+  #submitSkillPrompt(prompt: string, typed: string): Promise<AdapterCommandResult> {
+    this.#rememberInput(typed, "slash");
+    this.root.resumeViewportFollowing();
+    return this.#execute({
+      type: this.view().lifecycle === "busy" ? "steer" : "prompt",
+      correlationId: this.#correlation("prompt-command"),
+      sessionId: this.backend.sessionId,
+      text: prompt,
     });
   }
 

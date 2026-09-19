@@ -71,6 +71,19 @@ preferred when consistent with your intent; genuinely unclear cases can remain
 empty. [Private diagnostic capture](docs/architecture/prompt-suggestions.md)
 explains how to distinguish skipped, empty, rejected, and timed-out suggestions.
 
+## Skills
+
+Bare A1's `/settings` → Agent → Skills chooses how discovered skills appear in the
+slash-command menu. `collapse` (the default) replaces the per-skill `/skill:<name>`
+entries with one `/skills` command: bare `/skills` opens a searchable Skills dialog,
+`/skills <name> [args]` applies a skill directly (an unknown name reports
+`Unknown skill: <name>`), and typing `/skills:` lists every skill inline so
+`/skills:<name> args` runs as `/skill:<name> args`. With the `skills` row selected in
+the menu, typing `:` completes to `/skills:`. `expand` lists every `/skill:<name>`
+command as before. Both take effect immediately; a typed `/skill:<name>` always
+works, and the engine's own Skill commands toggle still governs whether skills are
+offered at all. The `a1 pi` comparison profile is unchanged.
+
 ## Quitting
 
 `/quit`, `Ctrl+C` twice, and `Ctrl+D` on an empty prompt end a bare A1 session.

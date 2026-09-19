@@ -44,7 +44,17 @@ describe("owned UI setting declarations", () => {
       "quitEffect",
       "quitEffectDurationMs",
       "promptSuggestions",
+      "skillsPresentation",
     ]);
+    expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "skillsPresentation")).toMatchObject({
+      label: "Skills",
+      section: { id: "agent", title: "Agent" },
+      application: "live",
+      defaultValue: "collapse",
+      allowedValues: ["collapse", "expand"],
+    });
+    expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "skillsPresentation")?.description)
+      .toMatch(/collapse.*\/skills.*dialog.*\/skills:.*expand.*\/skill:<name>/is);
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "promptSuggestions")).toMatchObject({
       label: "Prompt suggestions",
       section: { id: "agent", title: "Agent" },
@@ -164,7 +174,7 @@ describe("owned UI settings migrations", () => {
   });
 
   it("migrates the former speed and appearance names", () => {
-    expect(OWNED_UI_SETTINGS_MIGRATIONS).toHaveLength(5);
+    expect(OWNED_UI_SETTINGS_MIGRATIONS).toHaveLength(6);
     expect(OWNED_UI_SETTINGS_MIGRATIONS[0]?.migrate({ scrollbarSpeed: "high", future: true }))
       .toEqual({ scrollbarSpeed: "fast", future: true });
     expect(OWNED_UI_SETTINGS_MIGRATIONS[1]?.migrate({ scrollbarAppearance: "hover", future: true }))
@@ -188,9 +198,29 @@ describe("owned UI settings migrations", () => {
       declarations: OWNED_UI_SETTING_DECLARATIONS, migrations: OWNED_UI_SETTINGS_MIGRATIONS,
       document: { version: 5, values: { quitEffect: "off" } },
     });
-    expect(resolved).toMatchObject({ version: 6, migrated: true, notices: [] });
+    expect(resolved).toMatchObject({ version: 7, migrated: true, notices: [] });
     expect(resolved.settings.find(setting => setting.declaration.id === "quitAnimation")).toMatchObject({ value: false, source: "stored" });
     expect(resolved.settings.find(setting => setting.declaration.id === "quitEffect")).toMatchObject({ value: "fall", source: "default" });
+  });
+
+  it("introduces the collapsed skills presentation without rewriting stored values", () => {
+    expect(OWNED_UI_SETTINGS_MIGRATIONS[5]).toMatchObject({ to: 7 });
+    expect(OWNED_UI_SETTINGS_MIGRATIONS[5]?.migrate({ promptSuggestions: false, future: true }))
+      .toEqual({ promptSuggestions: false, future: true });
+    const resolved = resolveOwnedUiSettings({
+      declarations: OWNED_UI_SETTING_DECLARATIONS, migrations: OWNED_UI_SETTINGS_MIGRATIONS,
+      document: { version: 6, values: { promptSuggestions: false, quitEffect: "waves" } },
+    });
+    expect(resolved).toMatchObject({ version: 7, migrated: true, notices: [] });
+    expect(resolved.settings.find(setting => setting.declaration.id === "skillsPresentation")).toMatchObject({ value: "collapse", source: "default" });
+    expect(resolved.settings.find(setting => setting.declaration.id === "promptSuggestions")).toMatchObject({ value: false, source: "stored" });
+    expect(resolved.settings.find(setting => setting.declaration.id === "quitEffect")).toMatchObject({ value: "waves", source: "stored" });
+    const invalid = resolveOwnedUiSettings({
+      declarations: OWNED_UI_SETTING_DECLARATIONS, migrations: OWNED_UI_SETTINGS_MIGRATIONS,
+      document: { version: 7, values: { skillsPresentation: "hidden" } },
+    });
+    expect(invalid.settings.find(setting => setting.declaration.id === "skillsPresentation")).toMatchObject({ value: "collapse", source: "default" });
+    expect(invalid.notices.length).toBeGreaterThan(0);
   });
 
   it("rejects a list with a gap or a wrong end version", () => {

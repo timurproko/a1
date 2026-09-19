@@ -14,6 +14,7 @@ The existing [modal transition inventory](../../config/baselines/modal-surface-i
 | --- | --- | --- |
 | `editor.root` | Ordinary editor and viewport | Existing viewport/controller and shell regression cases |
 | `settings.*`, `models.*`, `trust.project` | Shell replacement input, including nested component states | Real settings/thinking, Model Configuration and model selection; generic replacement geometry and gesture tests |
+| A1-owned Skills dialog (`/skills`, not a pinned node) | Shell replacement input, presented like `models.select` | `test/app/session-shell/session-shell-skills.test.ts` apply/cancel/resize cases; shared replacement tests |
 | `session.*`, `tree.*` | Shell replacement input and nested replacement/confirmation controllers | Real fork plus existing resume/tree/missing-directory lifecycle cases; shared replacement tests |
 | `auth.*` | Shell replacement input, including provider and nested prompts | Real login/logout plus existing OAuth/API-key/nested restoration cases; shared replacement tests |
 | `command.import-confirm`, `operation.*` | Shell replacement confirmation/loader | Existing confirmation/loader lifecycle cases; shared replacement tests |

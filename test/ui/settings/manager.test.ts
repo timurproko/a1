@@ -90,7 +90,7 @@ afterEach(() => {
 
 describe("owned settings manager", () => {
   it.each(["available", "absent", "failed", "read-only"] as const)(
-    "preserves suggestion opt-out and routes Agent-group toggles to A1 with %s engine settings",
+    "preserves suggestion opt-out and skills choice and routes Agent-group toggles to A1 with %s engine settings",
     async state => {
       const port = syntheticPort({ write: state !== "read-only", failListSettings: state === "failed" });
       const seed = new OwnedSettingsManager({ configDir: root, profileId: "a1" });
@@ -99,11 +99,14 @@ describe("owned settings manager", () => {
       const target = new OwnedSettingsManager({ configDir: root, profileId: "a1", agent: state === "absent" ? null : port });
       await target.load();
       expect(readFileSync(seed.file, "utf8")).toBe(before);
-      expect(target.resolution).toMatchObject({ version: 6, migrated: false, notices: [] });
+      expect(target.resolution).toMatchObject({ version: 7, migrated: false, notices: [] });
       const group = target.sections().find(section => section.id === "agent");
       const entry = group?.entries.find(candidate => candidate.id === "promptSuggestions");
       expect(group).toMatchObject({ unavailableReason: null, readOnlyReason: null });
       expect(entry).toMatchObject({ backend: "a1", value: false, effectiveValue: false, editable: true, application: "live" });
+      const skills = group?.entries.find(candidate => candidate.id === "skillsPresentation");
+      expect(skills).toMatchObject({ backend: "a1", value: "collapse", effectiveValue: "collapse", editable: true, application: "live", choices: ["collapse", "expand"] });
+      expect(group?.entries.slice(-2).map(candidate => candidate.id)).toEqual(["promptSuggestions", "skillsPresentation"]);
 
       const liveValues: unknown[] = [];
       const unsubscribe = target.onChange(session => liveValues.push(session.value("promptSuggestions")));
@@ -114,16 +117,27 @@ describe("owned settings manager", () => {
       }
       unsubscribe();
       expect(liveValues).toEqual([true, false]);
+      const skillValues: unknown[] = [];
+      const unsubscribeSkills = target.onChange(session => skillValues.push(session.value("skillsPresentation")));
+      expect(await target.change(skills!.backend, skills!.id, "expand")).toMatchObject({
+        status: "applied", applied: true, pendingRestart: false, application: "live", storedValue: "expand", effectiveValue: "expand",
+      });
+      unsubscribeSkills();
+      expect(skillValues).toEqual(["expand"]);
+      expect(target.value("skillsPresentation")).toBe("expand");
       expect(port.writes).toEqual([]);
       expect(port.flushed()).toBe(0);
-      expect(JSON.parse(readFileSync(seed.file, "utf8"))).toEqual({ version: 6, values: { promptSuggestions: false } });
+      expect(JSON.parse(readFileSync(seed.file, "utf8"))).toEqual({ version: 7, values: { promptSuggestions: false, skillsPresentation: "expand" } });
       const restarted = new OwnedSettingsManager({ configDir: root, profileId: "a1", agent: state === "absent" ? null : port });
       await restarted.load();
-      expect(restarted.sections().find(section => section.id === "agent")?.entries.at(-1)).toMatchObject({
-        id: "promptSuggestions", backend: "a1", value: false, effectiveValue: false,
-      });
+      expect(restarted.sections().find(section => section.id === "agent")?.entries.slice(-2)).toMatchObject([
+        { id: "promptSuggestions", backend: "a1", value: false, effectiveValue: false },
+        { id: "skillsPresentation", backend: "a1", value: "expand", effectiveValue: "expand" },
+      ]);
       expect((await restarted.change("agent", "promptSuggestions", true)).status).toBe("failed");
+      expect((await restarted.change("agent", "skillsPresentation", "collapse")).status).toBe("failed");
       expect(restarted.value("promptSuggestions")).toBe(false);
+      expect(restarted.value("skillsPresentation")).toBe("expand");
       expect(port.writes).toEqual([]);
     },
   );

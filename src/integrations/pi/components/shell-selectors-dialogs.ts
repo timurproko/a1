@@ -65,6 +65,8 @@ import {
   type PiShellSelectorOptions,
 } from "./shell-shared-facade.js";
 
+export { createPiShellSkillsSelector, type PiShellSkillsSelectorOptions } from "./skills-dialog.js";
+
 export function createPiShellSelector(options: PiShellSelectorOptions): PiShellComponentPort {
   ensureTheme();
   const items = options.options.map(toSelectItem);

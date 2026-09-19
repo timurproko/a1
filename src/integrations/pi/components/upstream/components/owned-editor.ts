@@ -4,9 +4,10 @@
  * Modifications: A1-owned class name and synchronized A1 keybinding contract replace the nominal
  * private upstream keybinding constructor dependency; bare A1 injects the shared Settings/agent input
  * frame, transient contextual-suggestion branch, and explicit body geometry for selection and
- * above-prompt autocomplete. Bare A1 also clears a sole top-level slash-command search on Escape.
+ * above-prompt autocomplete. Bare A1 also clears a sole top-level slash-command search on Escape. Bare
+ * A1 also completes a selected tunnel command with `:` and reopens the menu on its tunnel rows.
  * Deviations: owned-shared-input-frame, above-prompt-autocomplete-placement,
- * clear-command-search-on-escape.
+ * clear-command-search-on-escape, command-tunnel-colon-completion.
  */
 import {
   CURSOR_MARKER,
@@ -34,6 +35,11 @@ export interface OwnedEditorOptions extends EditorOptions {
   readonly getVisualLineCount?: (width: number) => number | undefined;
   /** Bare-A1 exception: Escape on a sole top-level slash-command search also clears the prompt. */
   readonly clearCommandSearchOnEscape?: boolean;
+  /**
+   * Bare-A1 exception: the slash commands that own a `:` tunnel. Typing `:` while one of them is
+   * the selected row of a sole top-level search completes to `/<command>:` and reopens the menu.
+   */
+  readonly commandTunnels?: () => readonly string[];
 }
 
 export interface ShellEditorInstance extends EditorSurface {
@@ -68,6 +74,7 @@ return class extends Base {
   readonly #terminalRows: () => number;
   readonly #getVisualLineCount: ((width: number) => number | undefined) | undefined;
   readonly #clearCommandSearchOnEscape: boolean;
+  readonly #commandTunnels: () => readonly string[];
   #renderedBodyRowCount = 0;
 
   private readonly keybindings: KeybindingsManager;
@@ -80,6 +87,7 @@ return class extends Base {
     this.#terminalRows = options.terminalRows ?? (() => 24);
     this.#getVisualLineCount = options.getVisualLineCount;
     this.#clearCommandSearchOnEscape = options.clearCommandSearchOnEscape === true;
+    this.#commandTunnels = options.commandTunnels ?? (() => []);
   }
 
   getRenderedBodyRowCount(): number { return this.#renderedBodyRowCount; }
@@ -128,6 +136,7 @@ return class extends Base {
 
   handleInput(data: string): void {
     if (this.onExtensionShortcut?.(data)) return;
+    if (data === ":" && this.#completeSelectedCommandTunnel()) return;
     if (this.#promptSuggestion !== null
       && !this.isShowingAutocomplete()
       && this.canPresentPromptSuggestion()
@@ -170,6 +179,20 @@ return class extends Base {
       if (action !== "app.interrupt" && action !== "app.exit" && this.keybindings.matches(data, action)) { handler(); return; }
     }
     super.handleInput(data);
+  }
+
+  /**
+   * Replace a sole top-level slash search whose selected row is a tunnel command with `/<command>:`
+   * and reopen the menu on the tunnel rows. The replacement goes through the public setText, which
+   * records the undo snapshot; every other colon stays ordinary text.
+   */
+  #completeSelectedCommandTunnel(): boolean {
+    if (!this.isTopLevelCommandSearch()) return false;
+    const selected = selectedAutocompleteValue(this);
+    if (selected === undefined || !this.#commandTunnels().includes(selected)) return false;
+    this.setText(`/${selected}:`);
+    triggerAutocomplete(this);
+    return true;
   }
 
   #renderSuggestion(width: number): string[] {
@@ -224,3 +247,21 @@ return class extends Base {
 }
 
 export class OwnedEditor extends createOwnedEditorClass(Editor) {}
+
+/** The value of the row the open autocomplete list highlights, read from either editor's list. */
+function selectedAutocompleteValue(editor: EditorSurface): string | undefined {
+  const list: unknown = Reflect.get(editor, "autocompleteList");
+  if (typeof list !== "object" || list === null) return undefined;
+  const getSelectedItem: unknown = Reflect.get(list, "getSelectedItem");
+  if (typeof getSelectedItem !== "function") return undefined;
+  const item: unknown = getSelectedItem.call(list);
+  if (typeof item !== "object" || item === null) return undefined;
+  const value: unknown = Reflect.get(item, "value");
+  return typeof value === "string" ? value : undefined;
+}
+
+/** Request the slash-command menu for the current text, as typing a command character would. */
+function triggerAutocomplete(editor: EditorSurface): void {
+  const trigger: unknown = Reflect.get(editor, "tryTriggerAutocomplete");
+  if (typeof trigger === "function") trigger.call(editor);
+}
