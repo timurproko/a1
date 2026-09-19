@@ -25,6 +25,35 @@ afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 
+describe("owned settings route opening", () => {
+  it("renders blank rows until the settings module has loaded", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "a1-settings-open-"));
+    roots.push(root);
+    const session = new OwnedSettingsManager({
+      configDir: root, profileId: "a1", declarations: DECLARATIONS, migrations: [],
+      agent: null,
+    });
+    await session.load();
+
+    const surface = createOwnedRouteHost(session).open("settings");
+    expect(surface).not.toBeNull();
+    // Invariant: the very first paint precedes the dynamic import, so it must carry no text.
+    const first = surface!.render(48, 12);
+    expect(first).toHaveLength(12);
+    expect(first.every(line => line === "")).toBe(true);
+    expect(surface!.render(48, 0)).toEqual([]);
+
+    let loaded = surface!.render(48, 12);
+    for (let attempt = 0; attempt < 200 && !loaded.some(line => line.replace(STYLE, "").includes("Mode")); attempt += 1) {
+      await new Promise(resolve => setTimeout(resolve, 10));
+      loaded = surface!.render(48, 12);
+    }
+    expect(loaded.some(line => line.replace(STYLE, "").includes("Mode"))).toBe(true);
+    expect(loaded.join("\n")).not.toContain("Loading settings");
+    surface!.close();
+  });
+});
+
 describe("owned settings route theme", () => {
   it("renders a dark floating panel and a lighter white-text active choice", async () => {
     applyPiTheme("dark", false, "truecolor");
