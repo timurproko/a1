@@ -2,9 +2,8 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { OwnedUiSettingsSession } from "../../../src/ui/settings/index.js";
+import { OwnedSettingsManager } from "../../../src/ui/settings/index.js";
 import {
-  OwnedUiSettingsStore,
   type OwnedUiSettingDeclaration,
 } from "../../../src/ui/settings/index.js";
 import type { AgentJsonValue, AgentSettingDescriptor, AgentSettingsPort } from "../../../src/contracts/agent-engine/index.js";
@@ -79,9 +78,8 @@ function settingDescriptor(key: string, valueType: AgentSettingDescriptor["value
 
 let root: string;
 
-function session(agent: AgentSettingsPort | null): OwnedUiSettingsSession {
-  const store = new OwnedUiSettingsStore({ configDir: root, profileId: "a1", declarations: DECLARATIONS, migrations: [] });
-  return new OwnedUiSettingsSession({ store, agent });
+function session(agent: AgentSettingsPort | null): OwnedSettingsManager {
+  return new OwnedSettingsManager({ configDir: root, profileId: "a1", declarations: DECLARATIONS, migrations: [], agent });
 }
 
 beforeEach(() => {

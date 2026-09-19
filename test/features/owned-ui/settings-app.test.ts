@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AgentJsonValue, AgentSettingDescriptor, AgentSettingsPort } from "../../../src/contracts/agent-engine/index.js";
-import { OWNED_UI_SETTING_DECLARATIONS, OwnedUiSettingsSession, OwnedUiSettingsStore, type OwnedUiSettingDeclaration } from "../../../src/ui/settings/index.js";
+import { OWNED_UI_SETTING_DECLARATIONS, OwnedSettingsManager, type OwnedUiSettingDeclaration } from "../../../src/ui/settings/index.js";
 import { SettingsApp } from "../../../src/features/owned-ui/index.js";
 import type { AppHostServices } from "../../../src/ui/apps/index.js";
 import type { UiTheme, UiThemeToken } from "../../../src/ui/components/index.js";
@@ -131,17 +131,12 @@ async function app(
   scrollbarSpeed?: "normal" | "fast" | "high",
   declarations: readonly OwnedUiSettingDeclaration[] = OWNED_UI_SETTING_DECLARATIONS,
   stored: Readonly<Record<string, string>> = {},
-): Promise<{ app: SettingsApp; session: OwnedUiSettingsSession; writes: { key: string; value: AgentJsonValue }[] }> {
+): Promise<{ app: SettingsApp; session: OwnedSettingsManager; writes: { key: string; value: AgentJsonValue }[] }> {
   const backing = port(failWrites);
-  const store = new OwnedUiSettingsStore({
-    configDir: root,
-    profileId: "profile",
-    declarations,
-    migrations: [],
-  });
-  if (scrollbarSpeed !== undefined) store.write(store.read(), "scrollbarSpeed", scrollbarSpeed);
-  for (const [id, value] of Object.entries(stored)) store.write(store.read(), id, value);
-  const session = new OwnedUiSettingsSession({ store, agent: backing.port });
+  const seed = new OwnedSettingsManager({ configDir: root, profileId: "profile", declarations, migrations: [] });
+  if (scrollbarSpeed !== undefined) await seed.change("a1", "scrollbarSpeed", scrollbarSpeed);
+  for (const [id, value] of Object.entries(stored)) await seed.change("a1", id, value);
+  const session = new OwnedSettingsManager({ configDir: root, profileId: "profile", declarations, migrations: [], agent: backing.port });
   await session.load();
   return { app: new SettingsApp(session), session, writes: backing.writes };
 }
@@ -275,7 +270,7 @@ describe("the settings screen", () => {
         return state === "empty" ? [] : await backing.port.listSettings();
       },
     };
-    const session = new OwnedUiSettingsSession({ store: new OwnedUiSettingsStore({ configDir: root, profileId: "profile" }), agent });
+    const session = new OwnedSettingsManager({ configDir: root, profileId: "profile", agent });
     await session.load();
     const target = new SettingsApp(session);
     const shown = screen(target);

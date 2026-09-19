@@ -5,8 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { createOwnedRouteHost } from "../../src/composition/index.js";
 import { applyPiTheme } from "../../src/integrations/pi/components/index.js";
 import {
-  OwnedUiSettingsSession,
-  OwnedUiSettingsStore,
+  OwnedSettingsManager,
   type OwnedUiSettingDeclaration,
 } from "../../src/ui/settings/index.js";
 
@@ -31,8 +30,8 @@ describe("owned settings route theme", () => {
     applyPiTheme("dark", false, "truecolor");
     const root = mkdtempSync(path.join(tmpdir(), "a1-settings-menu-theme-"));
     roots.push(root);
-    const session = new OwnedUiSettingsSession({
-      store: new OwnedUiSettingsStore({ configDir: root, profileId: "a1", declarations: DECLARATIONS, migrations: [] }),
+    const session = new OwnedSettingsManager({
+      configDir: root, profileId: "a1", declarations: DECLARATIONS, migrations: [],
       agent: null,
     });
     await session.load();

@@ -1,5 +1,5 @@
 import type { OwnedUiApplicationPort } from "../../contracts/presentation/index.js";
-import type { OwnedUiSettingsSession } from "../../ui/settings/index.js";
+import type { OwnedSettingsManager } from "../../ui/settings/index.js";
 import { markStartupPhase } from "../../foundation/startup/startup-runtime.js";
 import { boundedCleanup } from "../../foundation/terminal-cleanup/terminal-reset.js";
 
@@ -11,7 +11,7 @@ export interface OwnedUiRunOptions {
    * Resolved once before the application starts, so every surface reads the same
    * values for the life of the session. Omitted when the caller runs without settings.
    */
-  readonly settings?: OwnedUiSettingsSession;
+  readonly settings?: OwnedSettingsManager;
 }
 
 /**

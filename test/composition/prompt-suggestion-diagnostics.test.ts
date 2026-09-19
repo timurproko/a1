@@ -13,9 +13,8 @@ vi.mock("../../src/integrations/pi/components/upstream/theme/theme.js", () => ({
 vi.mock("../../src/integrations/pi/engine/adapter.js", () => ({ createPiEngineAdapter: vi.fn() }));
 vi.mock("../../src/integrations/pi/tui-runtime/presentation-adapter.js", () => ({ createPiTerminalBridge: vi.fn() }));
 vi.mock("../../src/composition/settings-route-host.js", () => ({ createOwnedRouteHost: () => null }));
-vi.mock("../../src/ui/settings/store.js", () => ({ OwnedUiSettingsStore: class {} }));
-vi.mock("../../src/ui/settings/session.js", () => ({
-  OwnedUiSettingsSession: class { value(key: string) { return key === "promptHistoryEnabled" ? false : undefined; } },
+vi.mock("../../src/ui/settings/manager.js", () => ({
+  OwnedSettingsManager: class { value(key: string) { return key === "promptHistoryEnabled" ? false : undefined; } },
 }));
 vi.mock("../../src/app/session-shell/session-shell.js", () => ({
   OwnedUiSessionShell: class {

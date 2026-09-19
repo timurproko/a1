@@ -57,7 +57,10 @@ resolve a complete settings value set at startup from declared defaults overlaid
 stored values. A1 SHALL reject an individual stored value that violates its declaration and fall
 back to that setting's default rather than to an undeclared or partially applied state. A1 settings
 SHALL be distinct from Pi settings and SHALL NOT be derived from, written into, or read out of Pi
-settings storage.
+settings storage. The declarations SHALL be one table keyed by setting id from which the ordered
+declaration list derives, and one settings manager SHALL own resolution, atomic persistence, the
+grouped sections, and routing of accepted changes; a declared setting SHALL be readable through a
+getter typed by its own declaration, answering the declared default when the resolved set omits it.
 
 #### Scenario: Resolve settings with no stored file
 - **WHEN** the owned UI starts and no A1 settings file exists for the active profile
@@ -78,6 +81,11 @@ settings storage.
 - **WHEN** the stored file contains a key that matches no declared setting
 - **THEN** A1 SHALL ignore that key, SHALL preserve it on the next write so a downgrade does not
   destroy a newer version's value, and SHALL NOT expose it as a setting
+
+#### Scenario: Read a declared setting through its typed getter
+- **WHEN** production code reads a declared A1 setting by id
+- **THEN** the value SHALL be typed by that setting's allowed values, SHALL be the value in effect for
+  the running session, and SHALL never be absent
 
 ### Requirement: A1 settings persist profile-local and survive restart
 A1 SHALL store settings under the active A1 configuration root, scoped to the active A1 profile.

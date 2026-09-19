@@ -40,8 +40,8 @@ import type {
   PiWorkflowRequest,
   PiWorkflowResult,
 } from "./workflows.js";
-import type { PiSettingsIntegration } from "./settings-integration.js";
-import type { PiSettingOwnerHandlers } from "./settings-effects.js";
+import type { PiSettingsBridge } from "./settings-bridge.js";
+import type { PiSettingOwnerHandlers } from "./settings-bridge.js";
 import type { PiProjectTrustPreflightPrompt } from "./project-trust-preflight.js";
 import type { PiSessionForkPrompt, PiSessionSelection } from "./session-selection.js";
 import type { AgentSettingOwner } from "../../../contracts/agent-engine/index.js";
@@ -486,7 +486,7 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
   }
 
   /** Settings port for the live runtime, or null before the runtime is available. */
-  settingsPort(): PiSettingsIntegration | null {
+  settingsPort(): PiSettingsBridge | null {
     return this.#settings.settingsPort();
   }
 

@@ -181,3 +181,5 @@ $RECYCLE.BIN/
 # End of https://www.toptal.com/developers/gitignore/api/windows,node
 # Pi agent workspace configuration
 /.pi/
+# Generated from the pinned engine by scripts/pi/build-pi-settings-metadata.mjs (build and test setup)
+/src/integrations/pi/engine/pi-settings-metadata.json

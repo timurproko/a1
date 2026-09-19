@@ -17,9 +17,11 @@ export interface PiSettingPresentation {
 }
 
 export interface PiSettingsMetadata {
+  readonly presented: readonly string[];
   readonly order: readonly string[];
   readonly settings: Readonly<Record<string, PiSettingPresentation>>;
   readonly dialogs: Readonly<Record<string, readonly PiSettingFlag[]>>;
+  readonly bounds: Readonly<Record<string, { readonly minimum: number; readonly maximum?: number }>>;
 }
 
 export declare function extractPiSettingsMetadata(): PiSettingsMetadata;
