@@ -107,7 +107,7 @@ class SkillsSelectorComponent extends Container {
     const description = this.#filtered[this.#selectedIndex]?.description ?? "";
     if (description.length > 0) {
       this.#listContainer.addChild(new Spacer(1));
-      // The description never wraps: it is cut to the viewport width with an ellipsis.
+      // Invariant: the description never wraps; it is cut to the viewport width with an ellipsis.
       this.#listContainer.addChild(new TruncatedText(theme.fg("muted", `  ${description}`), 0, 0));
     }
   }
