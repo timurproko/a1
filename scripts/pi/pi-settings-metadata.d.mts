@@ -1,5 +1,5 @@
 export declare const SETTINGS_SELECTOR_PATH: string;
-export declare function settingsSelectorSource(): string;
+export declare function settingsSelectorSource(packagesRoot?: string): string;
 
 export interface PiSettingFlag {
   readonly key: string;
@@ -24,4 +24,4 @@ export interface PiSettingsMetadata {
   readonly bounds: Readonly<Record<string, { readonly minimum: number; readonly maximum?: number }>>;
 }
 
-export declare function extractPiSettingsMetadata(): PiSettingsMetadata;
+export declare function extractPiSettingsMetadata(packagesRoot?: string): PiSettingsMetadata;

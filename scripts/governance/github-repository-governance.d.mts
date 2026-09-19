@@ -22,6 +22,7 @@ export interface RepositoryGovernanceDefinition {
   readonly environments: Array<Record<string, unknown> & { readonly name: string }>;
   readonly protectedRefs: string[];
   readonly rulesets: GithubRuleset[];
+  readonly labels: Array<{ readonly name: string; readonly color: string; readonly description: string }>;
   readonly workflows: WorkflowGovernance[];
 }
 
