@@ -71,7 +71,6 @@ export type {
   OwnedUiPromptSuggestionRequest,
   OwnedUiPromptSuggestionResult,
   OwnedUiPromptSuggestionState,
-  OwnedUiQuitEffect,
   OwnedUiQuitOutroSettings,
   OwnedUiQuitOutroSettingsPort,
   OwnedUiSessionId,

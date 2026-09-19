@@ -144,7 +144,7 @@ describe("OwnedUiSessionShell lifecycle, quit, and restoration", () => {
       { role: "assistant", content: [{ type: "text", text: "outro answer" }] },
     ], [], true, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, {
       interactive: true,
-      snapshot: () => ({ enabled: true, effect: "dissolve", durationMs: 300 }),
+      snapshot: () => ({ enabled: true }),
       now: () => clock,
       seed: 7,
       sleep: async ms => {
@@ -176,13 +176,13 @@ describe("OwnedUiSessionShell lifecycle, quit, and restoration", () => {
     const parent = bytes.slice(bytes.indexOf("\x1b[?1049l"));
     expect(parent).not.toContain("\x1b[2J");
     expect(stripAnsi(parent).trim()).toBe("");
-    expect(clock).toBeGreaterThanOrEqual(300);
-    expect(clock).toBeLessThan(300 + 500 + 100);
+    expect(clock).toBeGreaterThanOrEqual(800);
+    expect(clock).toBeLessThan(800 + 500 + 100);
   });
 
   it.each([
-    ["a switched-off exit animation", { interactive: true, snapshot: () => ({ enabled: false, effect: "fall" as const, durationMs: 800 }) }],
-    ["a non-interactive terminal", { interactive: false, snapshot: () => ({ enabled: true, effect: "fall" as const, durationMs: 800 }) }],
+    ["a switched-off quit animation", { interactive: true, snapshot: () => ({ enabled: false }) }],
+    ["a non-interactive terminal", { interactive: false, snapshot: () => ({ enabled: true }) }],
   ])("skips the quit outro for %s while restoring normally", async (_label, quitOutro) => {
     const { shell, terminal } = await fixture([
       { role: "assistant", content: [{ type: "text", text: "skip answer" }] },
@@ -198,11 +198,11 @@ describe("OwnedUiSessionShell lifecycle, quit, and restoration", () => {
   // Rationale: with the animation off nothing froze the presentation, so a render that landed
   // during the stop-time input drain flashed the prompt and footer before the leave.
 
-  it("drops a frame scheduled during disposal when the exit animation is off", async () => {
+  it("drops a frame scheduled during disposal when the quit animation is off", async () => {
     const { shell, terminal } = await fixture([
       { role: "assistant", content: [{ type: "text", text: "quiet answer" }] },
     ], [], true, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, {
-      interactive: true, snapshot: () => ({ enabled: false, effect: "fall", durationMs: 800 }),
+      interactive: true, snapshot: () => ({ enabled: false }),
     });
     // Rationale: a throttled frame is still queued when quit begins, and the stop-time
     // input drain gives its timer room to fire, exactly as a real terminal does.
@@ -223,12 +223,12 @@ describe("OwnedUiSessionShell lifecycle, quit, and restoration", () => {
     expect(terminal.active).toBe(false);
   });
 
-  it("plays the default effect when the exit animation is switched on", async () => {
+  it("plays the fixed fall effect for 800 ms when the quit animation is switched on", async () => {
     let clock = 0;
     const { shell, terminal } = await fixture([
       { role: "assistant", content: [{ type: "text", text: "default answer" }] },
     ], [], true, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, {
-      interactive: true, snapshot: () => ({ enabled: true, effect: "fall", durationMs: 800 }), now: () => clock, seed: 3,
+      interactive: true, snapshot: () => ({ enabled: true }), now: () => clock, seed: 3,
       sleep: async ms => { clock += ms; },
     });
     const before = terminal.writes.length;
@@ -247,7 +247,7 @@ describe("OwnedUiSessionShell lifecycle, quit, and restoration", () => {
     const { shell, terminal } = await fixture([
       { role: "assistant", content: [{ type: "text", text: "pinned answer" }] },
     ], [], false, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, {
-      interactive: true, snapshot: () => ({ enabled: true, effect: "fall", durationMs: 800 }),
+      interactive: true, snapshot: () => ({ enabled: true }),
     });
     expect(shell.runtime.mode).toBe("regular");
     const before = terminal.writes.length;
@@ -260,7 +260,7 @@ describe("OwnedUiSessionShell lifecycle, quit, and restoration", () => {
     const { shell, terminal } = await fixture([
       { role: "assistant", content: [{ type: "text", text: "failing answer" }] },
     ], [], true, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, {
-      interactive: true, snapshot: () => ({ enabled: true, effect: "waves", durationMs: 300 }), now: () => 0, sleep: async () => {},
+      interactive: true, snapshot: () => ({ enabled: true }), now: () => 0, sleep: async () => {},
     });
     const write = terminal.write.bind(terminal);
     vi.spyOn(terminal, "write").mockImplementation(data => {

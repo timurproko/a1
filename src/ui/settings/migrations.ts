@@ -56,6 +56,17 @@ export const OWNED_UI_SETTINGS_MIGRATIONS: readonly OwnedUiSettingsMigration[] =
       return migrated;
     },
   }),
+  Object.freeze({
+    to: 7,
+    description: "Drop the quit effect and duration; the outro always plays fall for 800 ms.",
+    migrate(values: Readonly<Record<string, unknown>>): Record<string, unknown> {
+      // Invariant: the manager keeps unknown keys, so the retired ids are removed here rather than lingering.
+      const migrated: Record<string, unknown> = { ...values };
+      delete migrated.quitEffect;
+      delete migrated.quitEffectDurationMs;
+      return migrated;
+    },
+  }),
 ]);
 
 export function assertOwnedUiSettingsMigrations(

@@ -156,8 +156,6 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
 function quitOutroSettingsSnapshot(settings: OwnedSettingsManager): OwnedUiQuitOutroSettings {
   return {
     enabled: settings.value("quitAnimation"),
-    effect: settings.value("quitEffect"),
-    durationMs: settings.value("quitEffectDurationMs"),
   };
 }
 
