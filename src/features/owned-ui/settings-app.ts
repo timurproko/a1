@@ -170,7 +170,6 @@ export class SettingsApp implements UiApp {
   #filter: LineInput | null = null;
   #menu: ValueMenu | null = null;
   #structured: StructuredEdit | null = null;
-  #loading = true;
   #interruptArmed = false;
   // Invariant: pending values remain visible until the source reflects them.
   readonly #pending = new Map<string, OwnedUiSettingValue>();
@@ -196,10 +195,7 @@ export class SettingsApp implements UiApp {
   }
 
   onActivate(host: AppHostServices): void {
-    void this.#session.load().then(() => {
-      this.#loading = false;
-      host.requestRender();
-    });
+    void this.#session.load().then(() => host.requestRender());
   }
 
   onClose(_host: AppHostServices): void {
@@ -262,8 +258,7 @@ export class SettingsApp implements UiApp {
     const body: string[] = [];
     this.#frameRows = [];
     if (rows.length === 0) {
-      const message = this.#loading ? "Loading settings…" : "No settings found.";
-      body.push(...renderEmptyState(message, "👀", bodyHeight, contentWidth, theme));
+      body.push(...renderEmptyState("No settings found.", "👀", bodyHeight, contentWidth, theme));
     } else {
       if (layout.topPadding > 0) body.push("");
       if (layout.stickyHeader !== undefined) body.push(this.#header(layout.stickyHeader, theme, contentWidth));

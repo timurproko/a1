@@ -1,6 +1,6 @@
 ## Context
 
-See `proposal.md` for motivation. At planning base `1d3f1bd6` the `/settings` route is served by `deferredSettingsSurface` in `src/composition/settings-route-host.ts`: it returns a surface at once, dynamically imports the settings application, host, and registry, and until that import resolves renders `Loading settings…` on the first row (or `Could not load settings: …` after a failure). The import takes long enough for one frame to be painted, so the message flashes. `SettingsApp` itself also renders `Loading settings…` through `renderEmptyState` when it has no rows while its session is still loading, although its owned sections are available synchronously, so that path is reached only when no declaration exists.
+See `proposal.md` for motivation. At planning base `1d3f1bd6` the `/settings` route is served by `deferredSettingsSurface` in `src/composition/settings-route-host.ts`: it returns a surface at once, dynamically imports the settings application, host, and registry, and until that import resolves renders `Loading settings…` on the first row (or `Could not load settings: …` after a failure). The import takes long enough for one frame to be painted, so the message flashes. `SettingsApp` itself also renders `Loading settings…` through `renderEmptyState` when it has no rows while its session is still loading; its owned sections are available synchronously and an absent engine still yields an `Agent` section with its unavailable reason, so no frame reaches that branch.
 
 ## Goals / Non-Goals
 
@@ -8,7 +8,7 @@ See `proposal.md` for motivation. At planning base `1d3f1bd6` the `/settings` ro
 
 - Open the settings screen with no intermediate text: the frame stays blank until the rows render.
 - Keep the load-failure message so a broken module is still reported.
-- Keep `No settings found.` for a loaded session without entries.
+- Keep `No settings found.` for a filter that matches nothing.
 
 **Non-Goals:**
 
@@ -23,13 +23,13 @@ See `proposal.md` for motivation. At planning base `1d3f1bd6` the `/settings` ro
 
 Keeping a placeholder with a delay before it appears is rejected: the load completes within a frame or two, so a timed placeholder would never be seen and would add state for nothing.
 
-### 2. The application's empty state is blank only while loading
+### 2. The application drops its unreachable loading state
 
-`SettingsApp.render` pushes empty rows instead of the `Loading settings…` empty state while `#loading` is true and there are no rows; once loaded, an empty row set still renders `No settings found.`.
+`SettingsApp` loses its `#loading` flag and the `Loading settings…` branch; an empty row set always renders `No settings found.`, which only a filter that matches nothing produces. Activation still loads the session and requests a repaint.
 
 ### 3. Verify both paths deterministically
 
-A route-host test renders the surface before the import settles and asserts every row is empty, then waits for the rows and asserts they render. A settings-application test with no declarations asserts a blank body before `load` resolves and `No settings found.` after.
+A route-host test renders the surface before the import settles and asserts every row is empty, then waits for the rows and asserts they render. The settings-application search test that matches nothing additionally pins `No settings found.` and the absence of any loading text.
 
 ## Risks / Trade-offs
 

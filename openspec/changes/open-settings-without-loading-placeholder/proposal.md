@@ -5,7 +5,7 @@ Opening `/settings` in bare A1 briefly shows a `Loading settings…` line before
 ## What Changes
 
 - Render the deferred settings surface as a blank frame while its module loads; only a load failure still prints its message.
-- Render the settings application's empty body as blank while its session is still loading; `No settings found.` remains for a session that loaded nothing.
+- Remove the settings application's own `Loading settings…` empty state, which no frame can reach because the owned sections are available before its session loads; `No settings found.` remains for a filter that matches nothing.
 
 ## Capabilities
 
@@ -19,5 +19,5 @@ None.
 
 ## Impact
 
-- Affected areas: the deferred settings surface in the owned-UI composition, the settings application's empty-state render, and their tests.
+- Affected areas: the deferred settings surface in the owned-UI composition, the settings application's empty-state render and loading flag, and their tests.
 - No dependency, settings-format, keybinding, Pi settings document, or `a1 pi` behavior changes are intended.

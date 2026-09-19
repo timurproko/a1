@@ -8,7 +8,7 @@ on screen, and let the user move between entries, jump between sections, filter,
 close. The screen SHALL be built from the shared component layer rather than drawing a list, a menu,
 a dialog, a control, an input row, or a status line of its own. A change SHALL be routed by the entry's backend, and a change that could not be stored or
 written SHALL be reported rather than displayed as saved. An entry the model reports as not editable
-SHALL state why rather than accepting input. While the settings module or its session is still loading, the screen SHALL render blank rows rather than a loading placeholder; only a failed module load SHALL print its failure message.
+SHALL state why rather than accepting input. While the settings module is still loading, the screen SHALL render blank rows rather than a loading placeholder; only a failed module load SHALL print its failure message.
 
 #### Scenario: Open the settings screen
 - **WHEN** the user invokes `/settings` in bare A1
@@ -47,7 +47,7 @@ SHALL state why rather than accepting input. While the settings module or its se
 - **THEN** the previous surface SHALL be restored unchanged
 
 #### Scenario: Open before the settings module has loaded
-- **WHEN** the screen is painted before its module or its session has finished loading
+- **WHEN** the screen is painted before its module has finished loading
 - **THEN** every row SHALL be blank and no `Loading settings…` text SHALL appear
 - **AND** the next paint after loading SHALL show the sections and entries
 

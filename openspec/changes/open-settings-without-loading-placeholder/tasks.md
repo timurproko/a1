@@ -1,7 +1,7 @@
 ## 1. Settings route
 
 - [ ] 1.1 Render the deferred settings surface as blank rows while its module loads, keeping the failure message and the input deferral; verify a route-host test sees only empty rows before the import settles and the settings rows afterwards.
-- [ ] 1.2 Render the settings application's empty body as blank while its session is loading and as `No settings found.` once loaded without entries; verify a settings-application test with no declarations covers both frames.
+- [ ] 1.2 Remove the settings application's `#loading` flag and `Loading settings…` branch so an empty row set always renders `No settings found.`; verify the search-matches-nothing test pins that notice and the absence of loading text.
 
 ## 2. Validation
 
