@@ -1,9 +1,13 @@
 name: Pi upstream sync
 
 # Proposes a Pi upgrade as a draft pull request when the registry publishes a newer version than the
-# pin: the proposal script bumps, evaluates, merges the vendored copies, regenerates derived state,
-# runs the gates, and writes the body; this workflow only commits, pushes, and opens or refreshes the
-# draft. A human resolves the review items and merges; nothing here auto-merges.
+# pin: the proposal script bumps, evaluates, merges the vendored copies that follow upstream,
+# regenerates derived state, runs the gates, and writes the body; this workflow only commits, pushes,
+# and opens or refreshes the draft. A proposal branch belongs to whoever committed last: when it
+# carries commits the sync did not author, the sync posts its fresh report as a comment, refreshes
+# only the marked report section of the body, and never pushes. A proposal closed with the
+# `pi-upgrade-skipped` label skips that version; `PI_UPGRADE_FREEZE_UNTIL` silences the schedule
+# until a date. A human resolves the review items and merges; nothing here auto-merges.
 
 on:
   schedule:
@@ -11,13 +15,18 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Exact Pi version to propose (default: newest published)"
+        description: "Exact Pi version to propose (default: newest published that is not skipped); ignores skips"
         required: false
         type: string
       commit:
         description: "Upstream commit for that version (default: resolved from the registry or release tag)"
         required: false
         type: string
+      refresh:
+        description: "Re-run the derived steps and gates on the existing proposal branch for `version` instead of proposing"
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -27,12 +36,35 @@ concurrency:
   group: pi-upstream-sync
   cancel-in-progress: false
 
+env:
+  BOT_NAME: openspec-ci[bot]
+  BOT_EMAIL: 329165293+openspec-ci[bot]@users.noreply.github.com
+  SKIP_LABEL: pi-upgrade-skipped
+
 jobs:
   propose:
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
+      - name: Honour a release freeze
+        id: freeze
+        env:
+          FREEZE_UNTIL: ${{ vars.PI_UPGRADE_FREEZE_UNTIL }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          frozen=false
+          if [ "$EVENT" = "schedule" ] && [ -n "$FREEZE_UNTIL" ]; then
+            until_epoch=$(date -u -d "$FREEZE_UNTIL" +%s)
+            if [ "$(date -u +%s)" -lt "$until_epoch" ]; then
+              frozen=true
+              echo "PI_UPGRADE_FREEZE_UNTIL=$FREEZE_UNTIL has not passed; the schedule proposes nothing."
+            fi
+          fi
+          echo "frozen=$frozen" >> "$GITHUB_OUTPUT"
+
       - name: Mint the App identity that opens and refreshes the proposal
+        if: steps.freeze.outputs.frozen != 'true'
         id: app
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
@@ -40,49 +72,100 @@ jobs:
           private-key: ${{ secrets.OPENSPEC_ARCHIVE_APP_PRIVATE_KEY }}
 
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        if: steps.freeze.outputs.frozen != 'true'
         with:
           ref: ${{ github.event.repository.default_branch }}
           fetch-depth: 0
           token: ${{ steps.app.outputs.token }}
 
+      - name: Check out the proposal branch for a refresh
+        if: steps.freeze.outputs.frozen != 'true' && inputs.refresh == true
+        env:
+          REQUESTED_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          if [ -z "$REQUESTED_VERSION" ]; then echo "refresh needs the version whose proposal branch to refresh" >&2; exit 1; fi
+          git fetch origin "chore/pi-$REQUESTED_VERSION"
+          git checkout -B "chore/pi-$REQUESTED_VERSION" "origin/chore/pi-$REQUESTED_VERSION"
+
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        if: steps.freeze.outputs.frozen != 'true'
         with:
           node-version: 24
           cache: npm
 
       - name: Install pinned tooling without hooks
+        if: steps.freeze.outputs.frozen != 'true'
         run: npm ci --ignore-scripts
 
-      - name: Propose the upgrade
+      - name: Collect the versions skipped by a closed proposal
+        if: steps.freeze.outputs.frozen != 'true' && inputs.refresh != true
+        id: skips
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+        run: |
+          set -euo pipefail
+          skipped=$(gh pr list --state closed --label "$SKIP_LABEL" --base develop --limit 200 --json headRefName,mergedAt \
+            --jq '[.[] | select(.mergedAt == null) | .headRefName | capture("^chore/pi-(?<version>[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?)$") | .version] | unique | join(" ")')
+          echo "skipped=$skipped" >> "$GITHUB_OUTPUT"
+          if [ -n "$skipped" ]; then echo "Skipped by a closed proposal with $SKIP_LABEL: $skipped"; fi
+
+      - name: Propose or refresh the upgrade
+        if: steps.freeze.outputs.frozen != 'true'
         id: propose
         env:
           GH_TOKEN: ${{ steps.app.outputs.token }}
           REQUESTED_VERSION: ${{ inputs.version }}
           REQUESTED_COMMIT: ${{ inputs.commit }}
+          REFRESH: ${{ inputs.refresh }}
+          SKIPPED: ${{ steps.skips.outputs.skipped }}
         run: |
           set -euo pipefail
-          args=(--output .artifacts/pi-upgrade)
-          if [ -n "$REQUESTED_VERSION" ]; then args+=(--version "$REQUESTED_VERSION"); fi
+          args=(--output .artifacts/pi-upgrade --base origin/develop)
+          if [ "$REFRESH" = "true" ]; then args+=(--refresh); fi
+          if [ -n "$REQUESTED_VERSION" ] && [ "$REFRESH" != "true" ]; then args+=(--version "$REQUESTED_VERSION"); fi
           if [ -n "$REQUESTED_COMMIT" ]; then args+=(--commit "$REQUESTED_COMMIT"); fi
+          for version in $SKIPPED; do args+=(--skip "$version"); done
           node scripts/pi/propose-pi-upgrade.mjs "${args[@]}"
 
       - name: Keep the proposal report
         if: always() && steps.propose.outputs.changed == 'true'
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
-          name: pi-upgrade-${{ steps.propose.outputs.version }}
+          name: pi-upgrade-${{ steps.propose.outputs.version }}-${{ github.run_id }}
           path: .artifacts/pi-upgrade
           retention-days: 30
 
-      - name: Commit and push the proposal branch
+      - name: Decide whether the proposal branch may be replaced
         if: steps.propose.outputs.changed == 'true'
+        id: ownership
+        env:
+          BRANCH: ${{ steps.propose.outputs.branch }}
+          REFRESH: ${{ inputs.refresh }}
+        run: |
+          set -euo pipefail
+          # Invariant: the branch is recreated only when every commit above develop is the sync's own; a refresh never pushes.
+          replace=true
+          if [ "$REFRESH" = "true" ]; then
+            replace=false
+          elif git fetch origin "$BRANCH" 2>/dev/null; then
+            foreign=$(git log --format='%ae' "origin/develop..origin/$BRANCH" | grep -v -F -x "$BOT_EMAIL" || true)
+            if [ -n "$foreign" ]; then
+              replace=false
+              echo "origin/$BRANCH carries commits by $(echo "$foreign" | sort -u | tr '\n' ' '); the sync leaves it alone."
+            fi
+          fi
+          echo "replace=$replace" >> "$GITHUB_OUTPUT"
+
+      - name: Commit and push the proposal branch
+        if: steps.propose.outputs.changed == 'true' && steps.ownership.outputs.replace == 'true'
         env:
           BRANCH: ${{ steps.propose.outputs.branch }}
           VERSION: ${{ steps.propose.outputs.version }}
         run: |
           set -euo pipefail
-          git config user.name 'openspec-ci[bot]'
-          git config user.email '329165293+openspec-ci[bot]@users.noreply.github.com'
+          git config user.name "$BOT_NAME"
+          git config user.email "$BOT_EMAIL"
           git checkout -B "$BRANCH"
           git add -A
           git commit -m "chore(pi): propose the upgrade to Pi $VERSION" -m "Proposed by the nightly upstream sync; review items are listed in the pull request."
@@ -94,12 +177,20 @@ jobs:
           GH_TOKEN: ${{ steps.app.outputs.token }}
           BRANCH: ${{ steps.propose.outputs.branch }}
           VERSION: ${{ steps.propose.outputs.version }}
+          REPLACED: ${{ steps.ownership.outputs.replace }}
         run: |
           set -euo pipefail
           title="chore(pi): upgrade pinned Pi to $VERSION"
           existing=$(gh pr list --head "$BRANCH" --base develop --state open --json number --jq '.[0].number // empty')
-          if [ -n "$existing" ]; then
-            gh pr edit "$existing" --title "$title" --body-file .artifacts/pi-upgrade/body.md
-          else
+          if [ -z "$existing" ]; then
+            if [ "$REPLACED" != "true" ]; then echo "No open proposal for $BRANCH and the branch was not replaced; nothing to open." >&2; exit 1; fi
             gh pr create --draft --base develop --head "$BRANCH" --title "$title" --body-file .artifacts/pi-upgrade/body.md
+            exit 0
+          fi
+          # Invariant: the description is rewritten only between the report markers; the reviewer's sections survive.
+          gh pr view "$existing" --json body --jq .body > .artifacts/pi-upgrade/existing-body.md
+          node scripts/pi/refresh-pi-upgrade-body.mjs --existing .artifacts/pi-upgrade/existing-body.md --report .artifacts/pi-upgrade/report.json --output .artifacts/pi-upgrade/refreshed-body.md --comment .artifacts/pi-upgrade/comment.md
+          gh pr edit "$existing" --body-file .artifacts/pi-upgrade/refreshed-body.md
+          if [ "$REPLACED" != "true" ]; then
+            gh pr comment "$existing" --body-file .artifacts/pi-upgrade/comment.md
           fi

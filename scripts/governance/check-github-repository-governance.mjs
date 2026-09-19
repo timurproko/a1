@@ -15,7 +15,7 @@ report.api = { repository, fetchedAt: new Date().toISOString() };
 
 if (process.argv.includes("--apply")) {
   if (valueAfter("--confirm") !== "apply-a1-github-governance") throw new Error("--apply requires --confirm apply-a1-github-governance");
-  const mutablePrefixes = ["repositorySettings", "actions", "environments", "rulesets"];
+  const mutablePrefixes = ["repositorySettings", "actions", "environments", "labels", "rulesets"];
   const unsupported = report.differences.filter(difference => !mutablePrefixes.some(prefix => difference.path === prefix || difference.path.startsWith(`${prefix}.`) || difference.path.startsWith(`${prefix}[`)));
   if (unsupported.length > 0) throw new Error(`reviewed drift requires code or an explicit policy decision: ${unsupported.map(value => value.path).join(", ")}`);
   const mutations = [];
@@ -43,6 +43,15 @@ if (process.argv.includes("--apply")) {
       deployment_branch_policy: environment.deployment_branch_policy,
     } });
     mutations.push("environments");
+  }
+  if (report.differences.some(value => value.path.startsWith("labels"))) {
+    const existing = new Set(live.labels.map(label => label.name));
+    for (const label of definition.labels) {
+      const body = { new_name: label.name, color: label.color, description: label.description };
+      if (existing.has(label.name)) await api(`labels/${encodeURIComponent(label.name)}`, { method: "PATCH", body });
+      else await api("labels", { method: "POST", body: { name: label.name, color: label.color, description: label.description } });
+    }
+    mutations.push("labels");
   }
   const rulesetPlan = planRulesetChanges(definition, live.rulesets);
   for (const change of rulesetPlan.changes) {
@@ -78,6 +87,7 @@ async function loadLive(api, reviewed) {
   const environments = await Promise.all((environmentList.environments ?? []).map(environment => api(`environments/${encodeURIComponent(environment.name)}`)));
   const summaries = await api("rulesets?includes_parents=false");
   const rulesets = await Promise.all(summaries.map(summary => api(`rulesets/${summary.id}`)));
+  const labels = (await api("labels?per_page=100")).map(label => select(label, ["name", "color", "description"]));
   const workflowList = await api("actions/workflows");
   const localWorkflows = await inspectLocalWorkflows(reviewed);
   const localByPath = new Map(localWorkflows.map(workflow => [workflow.path, workflow]));
@@ -113,6 +123,7 @@ async function loadLive(api, reviewed) {
     environments: environments.map(environment => select(environment, ["name", "can_admins_bypass", "protection_rules", "deployment_branch_policy"])),
     protectedRefs: rulesets.flatMap(ruleset => ruleset.conditions?.ref_name?.include ?? []),
     rulesets,
+    labels,
     workflows,
   };
 }

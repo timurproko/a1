@@ -119,6 +119,13 @@
       ]
     }
   ],
+  "labels": [
+    {
+      "name": "pi-upgrade-skipped",
+      "color": "6e7781",
+      "description": "Closing a Pi upgrade proposal with this label skips its version in the nightly upstream sync."
+    }
+  ],
   "workflows": [
     {
       "name": "Development validation",
@@ -167,6 +174,18 @@
       "concurrency": "merged-branch-cleanup-",
       "environments": [],
       "artifactRetentionDays": []
+    },
+    {
+      "name": "Nightly regression triage",
+      "path": ".github/workflows/nightly-regression-triage.yml",
+      "state": "active",
+      "triggers": ["workflow_dispatch", "workflow_run"],
+      "permissions": ["actions: read", "contents: write", "pull-requests: write"],
+      "trustedSource": "default-branch",
+      "authority": ["nightly-regression-triage"],
+      "concurrency": "nightly-regression-triage",
+      "environments": [],
+      "artifactRetentionDays": [30]
     },
     {
       "name": "OpenSpec archive",

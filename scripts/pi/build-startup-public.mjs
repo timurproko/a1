@@ -49,12 +49,13 @@ const { manifest, serialized } = createStartupPublicManifest({
   licenses: await collectLicenses(Object.keys(result.metafile.inputs)),
 });
 const baseline = JSON.parse(await readFile(resolve(root, "config", "startup-graph-baseline.json"), "utf8"));
+// Rationale: the manifest is written before the baseline verdict so a Pi upgrade can re-pin the totals from what was measured.
+await writeFile(resolve(root, reportPath), serialized);
 const baselineErrors = [
   ...validateStartupPublicBaseline(manifest, baseline),
   ...validatePinnedDynamicImports(await observePinnedDynamicImports(Object.keys(result.metafile.inputs)), baseline.pinnedDynamicImports),
 ];
 if (baselineErrors.length > 0) throw new Error(baselineErrors.join("; "));
-await writeFile(resolve(root, reportPath), serialized);
 const descriptor = createStartupDescriptor({ artifact: manifest.output });
 await writeFile(resolve(root, descriptorPath), serializeStartupDescriptor(descriptor));
 process.stderr.write(`[startup-public] ${manifest.output.sha256} ${manifest.output.bytes} bytes from ${manifest.totals.files} normalized inputs; descriptor ${descriptor.identity}\n`);

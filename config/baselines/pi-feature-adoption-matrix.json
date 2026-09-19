@@ -1,0 +1,2217 @@
+{
+  "schema": "a1-pi-feature-adoption-matrix-v1",
+  "pinned": {
+    "version": "0.85.1"
+  },
+  "changelogSince": "0.84.2",
+  "rows": [
+    {
+      "id": "command:changelog",
+      "kind": "command",
+      "feature": "/changelog",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "commands.complete-manifest",
+      "test": "test/integrations/pi/engine/workflows.test.ts"
+    },
+    {
+      "id": "command:clone",
+      "kind": "command",
+      "feature": "/clone",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "commands.complete-manifest",
+      "test": "test/integrations/pi/engine/workflows.test.ts"
+    },
+    {
+      "id": "command:compact",
+      "kind": "command",
+      "feature": "/compact",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "commands.complete-manifest",
+      "test": "test/integrations/pi/engine/workflows.test.ts"
+    },
+    {
+      "id": "command:copy",
+      "kind": "command",
+      "feature": "/copy",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "commands.complete-manifest",
+      "test": "test/integrations/pi/engine/workflows.test.ts"
+    },
+    {
+      "id": "command:export",
+      "kind": "command",
+      "feature": "/export",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "commands.complete-manifest",
+      "test": "test/integrations/pi/engine/workflows.test.ts"
+    },
+    {
+      "id": "command:fork",
+      "kind": "command",
+      "feature": "/fork",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "commands.complete-manifest",
+      "test": "test/integrations/pi/engine/workflows.test.ts"
+    },
+    {
+      "id": "command:hotkeys",
+      "kind": "command",
+      "feature": "/hotkeys",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "commands.complete-manifest",
+      "test": "test/integrations/pi/engine/workflows.test.ts"
+    },
+    {
+      "id": "command:import",
+      "kind": "command",
+      "feature": "/import",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "commands.complete-manifest",
+      "test": "test/integrations/pi/engine/workflows.test.ts"
+    },
+    {
+      "id": "command:login",
+      "kind": "command",
+      "feature": "/login",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "commands.complete-manifest",
+      "test": "test/integrations/pi/engine/workflows.test.ts"
+    },
+    {
+      "id": "command:logout",
+      "kind": "command",
+      "feature": "/logout",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "commands.complete-manifest",
+      "test": "test/integrations/pi/engine/workflows.test.ts"
+    },
+    {
+      "id": "command:model",
+      "kind": "command",
+      "feature": "/model",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "commands.complete-manifest",
+      "test": "test/integrations/pi/engine/workflows.test.ts"
+    },
+    {
+      "id": "command:name",
+      "kind": "command",
+      "feature": "/name",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "commands.complete-manifest",
+      "test": "test/integrations/pi/engine/workflows.test.ts"
+    },
+    {
+      "id": "command:new",
+      "kind": "command",
+      "feature": "/new",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "commands.complete-manifest",
+      "test": "test/integrations/pi/engine/workflows.test.ts"
+    },
+    {
+      "id": "command:quit",
+      "kind": "command",
+      "feature": "/quit",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "commands.complete-manifest",
+      "test": "test/integrations/pi/engine/workflows.test.ts"
+    },
+    {
+      "id": "command:reload",
+      "kind": "command",
+      "feature": "/reload",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "commands.complete-manifest",
+      "test": "test/integrations/pi/engine/workflows.test.ts"
+    },
+    {
+      "id": "command:resume",
+      "kind": "command",
+      "feature": "/resume",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "commands.complete-manifest",
+      "test": "test/integrations/pi/engine/workflows.test.ts"
+    },
+    {
+      "id": "command:scoped-models",
+      "kind": "command",
+      "feature": "/scoped-models",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "commands.complete-manifest",
+      "test": "test/integrations/pi/engine/workflows.test.ts"
+    },
+    {
+      "id": "command:session",
+      "kind": "command",
+      "feature": "/session",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "commands.complete-manifest",
+      "test": "test/integrations/pi/engine/workflows.test.ts"
+    },
+    {
+      "id": "command:settings",
+      "kind": "command",
+      "feature": "/settings",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "commands.complete-manifest",
+      "test": "test/integrations/pi/engine/workflows.test.ts"
+    },
+    {
+      "id": "command:share",
+      "kind": "command",
+      "feature": "/share",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "commands.complete-manifest",
+      "test": "test/integrations/pi/engine/workflows.test.ts"
+    },
+    {
+      "id": "command:thinking",
+      "kind": "command",
+      "feature": "/thinking",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "commands.complete-manifest",
+      "test": "test/integrations/pi/engine/workflows.test.ts"
+    },
+    {
+      "id": "command:tree",
+      "kind": "command",
+      "feature": "/tree",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "commands.complete-manifest",
+      "test": "test/integrations/pi/engine/workflows.test.ts"
+    },
+    {
+      "id": "command:trust",
+      "kind": "command",
+      "feature": "/trust",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "commands.complete-manifest",
+      "test": "test/integrations/pi/engine/workflows.test.ts"
+    },
+    {
+      "id": "hidden-command:arminsayshi",
+      "kind": "hidden-command",
+      "feature": "/arminsayshi",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "commands.complete-manifest",
+      "test": "test/integrations/pi/engine/workflows.test.ts"
+    },
+    {
+      "id": "hidden-command:debug",
+      "kind": "hidden-command",
+      "feature": "/debug",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "commands.complete-manifest",
+      "test": "test/integrations/pi/engine/workflows.test.ts"
+    },
+    {
+      "id": "hidden-command:dementedelves",
+      "kind": "hidden-command",
+      "feature": "/dementedelves",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "commands.complete-manifest",
+      "test": "test/integrations/pi/engine/workflows.test.ts"
+    },
+    {
+      "id": "tui-keybinding:tui.altScreen.bottom",
+      "kind": "tui-keybinding",
+      "feature": "tui.altScreen.bottom",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "tui-keybinding:tui.altScreen.halfPageDown",
+      "kind": "tui-keybinding",
+      "feature": "tui.altScreen.halfPageDown",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "tui-keybinding:tui.altScreen.halfPageUp",
+      "kind": "tui-keybinding",
+      "feature": "tui.altScreen.halfPageUp",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "tui-keybinding:tui.altScreen.lineDown",
+      "kind": "tui-keybinding",
+      "feature": "tui.altScreen.lineDown",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "tui-keybinding:tui.altScreen.lineUp",
+      "kind": "tui-keybinding",
+      "feature": "tui.altScreen.lineUp",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "tui-keybinding:tui.altScreen.nextPrompt",
+      "kind": "tui-keybinding",
+      "feature": "tui.altScreen.nextPrompt",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "tui-keybinding:tui.altScreen.pageDown",
+      "kind": "tui-keybinding",
+      "feature": "tui.altScreen.pageDown",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "tui-keybinding:tui.altScreen.pageUp",
+      "kind": "tui-keybinding",
+      "feature": "tui.altScreen.pageUp",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "tui-keybinding:tui.altScreen.previousPrompt",
+      "kind": "tui-keybinding",
+      "feature": "tui.altScreen.previousPrompt",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "tui-keybinding:tui.altScreen.search",
+      "kind": "tui-keybinding",
+      "feature": "tui.altScreen.search",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "tui-keybinding:tui.altScreen.searchClose",
+      "kind": "tui-keybinding",
+      "feature": "tui.altScreen.searchClose",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "tui-keybinding:tui.altScreen.searchNext",
+      "kind": "tui-keybinding",
+      "feature": "tui.altScreen.searchNext",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "tui-keybinding:tui.altScreen.searchPrevious",
+      "kind": "tui-keybinding",
+      "feature": "tui.altScreen.searchPrevious",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "tui-keybinding:tui.altScreen.top",
+      "kind": "tui-keybinding",
+      "feature": "tui.altScreen.top",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "tui-keybinding:tui.editor.cursorDown",
+      "kind": "tui-keybinding",
+      "feature": "tui.editor.cursorDown",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "tui-keybinding:tui.editor.cursorLeft",
+      "kind": "tui-keybinding",
+      "feature": "tui.editor.cursorLeft",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "tui-keybinding:tui.editor.cursorLineEnd",
+      "kind": "tui-keybinding",
+      "feature": "tui.editor.cursorLineEnd",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "tui-keybinding:tui.editor.cursorLineStart",
+      "kind": "tui-keybinding",
+      "feature": "tui.editor.cursorLineStart",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "tui-keybinding:tui.editor.cursorRight",
+      "kind": "tui-keybinding",
+      "feature": "tui.editor.cursorRight",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "tui-keybinding:tui.editor.cursorUp",
+      "kind": "tui-keybinding",
+      "feature": "tui.editor.cursorUp",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "tui-keybinding:tui.editor.cursorWordLeft",
+      "kind": "tui-keybinding",
+      "feature": "tui.editor.cursorWordLeft",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "tui-keybinding:tui.editor.cursorWordRight",
+      "kind": "tui-keybinding",
+      "feature": "tui.editor.cursorWordRight",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "tui-keybinding:tui.editor.deleteCharBackward",
+      "kind": "tui-keybinding",
+      "feature": "tui.editor.deleteCharBackward",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "tui-keybinding:tui.editor.deleteCharForward",
+      "kind": "tui-keybinding",
+      "feature": "tui.editor.deleteCharForward",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "tui-keybinding:tui.editor.deleteToLineEnd",
+      "kind": "tui-keybinding",
+      "feature": "tui.editor.deleteToLineEnd",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "tui-keybinding:tui.editor.deleteToLineStart",
+      "kind": "tui-keybinding",
+      "feature": "tui.editor.deleteToLineStart",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "tui-keybinding:tui.editor.deleteWordBackward",
+      "kind": "tui-keybinding",
+      "feature": "tui.editor.deleteWordBackward",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "tui-keybinding:tui.editor.deleteWordForward",
+      "kind": "tui-keybinding",
+      "feature": "tui.editor.deleteWordForward",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "tui-keybinding:tui.editor.historyNext",
+      "kind": "tui-keybinding",
+      "feature": "tui.editor.historyNext",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "tui-keybinding:tui.editor.historyPrevious",
+      "kind": "tui-keybinding",
+      "feature": "tui.editor.historyPrevious",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "tui-keybinding:tui.editor.jumpBackward",
+      "kind": "tui-keybinding",
+      "feature": "tui.editor.jumpBackward",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "tui-keybinding:tui.editor.jumpForward",
+      "kind": "tui-keybinding",
+      "feature": "tui.editor.jumpForward",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "tui-keybinding:tui.editor.pageDown",
+      "kind": "tui-keybinding",
+      "feature": "tui.editor.pageDown",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "tui-keybinding:tui.editor.pageUp",
+      "kind": "tui-keybinding",
+      "feature": "tui.editor.pageUp",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "tui-keybinding:tui.editor.undo",
+      "kind": "tui-keybinding",
+      "feature": "tui.editor.undo",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "tui-keybinding:tui.editor.yank",
+      "kind": "tui-keybinding",
+      "feature": "tui.editor.yank",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "tui-keybinding:tui.editor.yankPop",
+      "kind": "tui-keybinding",
+      "feature": "tui.editor.yankPop",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "tui-keybinding:tui.input.copy",
+      "kind": "tui-keybinding",
+      "feature": "tui.input.copy",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "tui-keybinding:tui.input.newLine",
+      "kind": "tui-keybinding",
+      "feature": "tui.input.newLine",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "tui-keybinding:tui.input.submit",
+      "kind": "tui-keybinding",
+      "feature": "tui.input.submit",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "tui-keybinding:tui.input.tab",
+      "kind": "tui-keybinding",
+      "feature": "tui.input.tab",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "tui-keybinding:tui.select.cancel",
+      "kind": "tui-keybinding",
+      "feature": "tui.select.cancel",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "tui-keybinding:tui.select.confirm",
+      "kind": "tui-keybinding",
+      "feature": "tui.select.confirm",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "tui-keybinding:tui.select.down",
+      "kind": "tui-keybinding",
+      "feature": "tui.select.down",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "tui-keybinding:tui.select.pageDown",
+      "kind": "tui-keybinding",
+      "feature": "tui.select.pageDown",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "tui-keybinding:tui.select.pageUp",
+      "kind": "tui-keybinding",
+      "feature": "tui.select.pageUp",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "tui-keybinding:tui.select.up",
+      "kind": "tui-keybinding",
+      "feature": "tui.select.up",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "app-keybinding:app.clear",
+      "kind": "app-keybinding",
+      "feature": "app.clear",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "app-keybinding:app.clipboard.pasteImage",
+      "kind": "app-keybinding",
+      "feature": "app.clipboard.pasteImage",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "app-keybinding:app.editor.external",
+      "kind": "app-keybinding",
+      "feature": "app.editor.external",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "app-keybinding:app.exit",
+      "kind": "app-keybinding",
+      "feature": "app.exit",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "app-keybinding:app.interrupt",
+      "kind": "app-keybinding",
+      "feature": "app.interrupt",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "app-keybinding:app.message.copy",
+      "kind": "app-keybinding",
+      "feature": "app.message.copy",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "app-keybinding:app.message.dequeue",
+      "kind": "app-keybinding",
+      "feature": "app.message.dequeue",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "app-keybinding:app.message.followUp",
+      "kind": "app-keybinding",
+      "feature": "app.message.followUp",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "app-keybinding:app.model.cycleBackward",
+      "kind": "app-keybinding",
+      "feature": "app.model.cycleBackward",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "app-keybinding:app.model.cycleForward",
+      "kind": "app-keybinding",
+      "feature": "app.model.cycleForward",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "app-keybinding:app.model.select",
+      "kind": "app-keybinding",
+      "feature": "app.model.select",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "app-keybinding:app.models.clearAll",
+      "kind": "app-keybinding",
+      "feature": "app.models.clearAll",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "app-keybinding:app.models.enableAll",
+      "kind": "app-keybinding",
+      "feature": "app.models.enableAll",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "app-keybinding:app.models.reorderDown",
+      "kind": "app-keybinding",
+      "feature": "app.models.reorderDown",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "app-keybinding:app.models.reorderUp",
+      "kind": "app-keybinding",
+      "feature": "app.models.reorderUp",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "app-keybinding:app.models.save",
+      "kind": "app-keybinding",
+      "feature": "app.models.save",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "app-keybinding:app.models.toggleProvider",
+      "kind": "app-keybinding",
+      "feature": "app.models.toggleProvider",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "app-keybinding:app.session.delete",
+      "kind": "app-keybinding",
+      "feature": "app.session.delete",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "app-keybinding:app.session.deleteNoninvasive",
+      "kind": "app-keybinding",
+      "feature": "app.session.deleteNoninvasive",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "app-keybinding:app.session.fork",
+      "kind": "app-keybinding",
+      "feature": "app.session.fork",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "app-keybinding:app.session.new",
+      "kind": "app-keybinding",
+      "feature": "app.session.new",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "app-keybinding:app.session.rename",
+      "kind": "app-keybinding",
+      "feature": "app.session.rename",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "app-keybinding:app.session.resume",
+      "kind": "app-keybinding",
+      "feature": "app.session.resume",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "app-keybinding:app.session.toggleNamedFilter",
+      "kind": "app-keybinding",
+      "feature": "app.session.toggleNamedFilter",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "app-keybinding:app.session.togglePath",
+      "kind": "app-keybinding",
+      "feature": "app.session.togglePath",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "app-keybinding:app.session.toggleSort",
+      "kind": "app-keybinding",
+      "feature": "app.session.toggleSort",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "app-keybinding:app.session.tree",
+      "kind": "app-keybinding",
+      "feature": "app.session.tree",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "app-keybinding:app.suspend",
+      "kind": "app-keybinding",
+      "feature": "app.suspend",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "app-keybinding:app.thinking.cycle",
+      "kind": "app-keybinding",
+      "feature": "app.thinking.cycle",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "app-keybinding:app.thinking.save",
+      "kind": "app-keybinding",
+      "feature": "app.thinking.save",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "app-keybinding:app.thinking.toggle",
+      "kind": "app-keybinding",
+      "feature": "app.thinking.toggle",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "app-keybinding:app.tools.expand",
+      "kind": "app-keybinding",
+      "feature": "app.tools.expand",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "app-keybinding:app.tree.editLabel",
+      "kind": "app-keybinding",
+      "feature": "app.tree.editLabel",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "app-keybinding:app.tree.filter.all",
+      "kind": "app-keybinding",
+      "feature": "app.tree.filter.all",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "app-keybinding:app.tree.filter.cycleBackward",
+      "kind": "app-keybinding",
+      "feature": "app.tree.filter.cycleBackward",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "app-keybinding:app.tree.filter.cycleForward",
+      "kind": "app-keybinding",
+      "feature": "app.tree.filter.cycleForward",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "app-keybinding:app.tree.filter.default",
+      "kind": "app-keybinding",
+      "feature": "app.tree.filter.default",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "app-keybinding:app.tree.filter.labeledOnly",
+      "kind": "app-keybinding",
+      "feature": "app.tree.filter.labeledOnly",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "app-keybinding:app.tree.filter.noTools",
+      "kind": "app-keybinding",
+      "feature": "app.tree.filter.noTools",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "app-keybinding:app.tree.filter.userOnly",
+      "kind": "app-keybinding",
+      "feature": "app.tree.filter.userOnly",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "app-keybinding:app.tree.foldOrUp",
+      "kind": "app-keybinding",
+      "feature": "app.tree.foldOrUp",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "app-keybinding:app.tree.toggleLabelTimestamp",
+      "kind": "app-keybinding",
+      "feature": "app.tree.toggleLabelTimestamp",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "app-keybinding:app.tree.unfoldOrDown",
+      "kind": "app-keybinding",
+      "feature": "app.tree.unfoldOrDown",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "app-keybinding:tui.altScreen.nextPrompt",
+      "kind": "app-keybinding",
+      "feature": "tui.altScreen.nextPrompt",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "app-keybinding:tui.altScreen.previousPrompt",
+      "kind": "app-keybinding",
+      "feature": "tui.altScreen.previousPrompt",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "app-keybinding:tui.altScreen.search",
+      "kind": "app-keybinding",
+      "feature": "tui.altScreen.search",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "app-keybinding:tui.editor.undo",
+      "kind": "app-keybinding",
+      "feature": "tui.editor.undo",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "event:agent_end",
+      "kind": "event",
+      "feature": "agent_end",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "events.complete-manifest",
+      "test": "test/features/owned-ui/pi-event-frame-parity.test.ts"
+    },
+    {
+      "id": "event:agent_settled",
+      "kind": "event",
+      "feature": "agent_settled",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "events.complete-manifest",
+      "test": "test/features/owned-ui/pi-event-frame-parity.test.ts"
+    },
+    {
+      "id": "event:agent_start",
+      "kind": "event",
+      "feature": "agent_start",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "events.complete-manifest",
+      "test": "test/features/owned-ui/pi-event-frame-parity.test.ts"
+    },
+    {
+      "id": "event:auto_retry_end",
+      "kind": "event",
+      "feature": "auto_retry_end",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "events.complete-manifest",
+      "test": "test/features/owned-ui/pi-event-frame-parity.test.ts"
+    },
+    {
+      "id": "event:auto_retry_start",
+      "kind": "event",
+      "feature": "auto_retry_start",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "events.complete-manifest",
+      "test": "test/features/owned-ui/pi-event-frame-parity.test.ts"
+    },
+    {
+      "id": "event:bash_execution_update",
+      "kind": "event",
+      "feature": "bash_execution_update",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "events.complete-manifest",
+      "test": "test/features/owned-ui/pi-event-frame-parity.test.ts"
+    },
+    {
+      "id": "event:compaction_end",
+      "kind": "event",
+      "feature": "compaction_end",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "events.complete-manifest",
+      "test": "test/features/owned-ui/pi-event-frame-parity.test.ts"
+    },
+    {
+      "id": "event:compaction_start",
+      "kind": "event",
+      "feature": "compaction_start",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "events.complete-manifest",
+      "test": "test/features/owned-ui/pi-event-frame-parity.test.ts"
+    },
+    {
+      "id": "event:entry_appended",
+      "kind": "event",
+      "feature": "entry_appended",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "events.complete-manifest",
+      "test": "test/features/owned-ui/pi-event-frame-parity.test.ts"
+    },
+    {
+      "id": "event:message_end",
+      "kind": "event",
+      "feature": "message_end",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "events.complete-manifest",
+      "test": "test/features/owned-ui/pi-event-frame-parity.test.ts"
+    },
+    {
+      "id": "event:message_start",
+      "kind": "event",
+      "feature": "message_start",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "events.complete-manifest",
+      "test": "test/features/owned-ui/pi-event-frame-parity.test.ts"
+    },
+    {
+      "id": "event:message_update",
+      "kind": "event",
+      "feature": "message_update",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "events.complete-manifest",
+      "test": "test/features/owned-ui/pi-event-frame-parity.test.ts"
+    },
+    {
+      "id": "event:queue_update",
+      "kind": "event",
+      "feature": "queue_update",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "events.complete-manifest",
+      "test": "test/features/owned-ui/pi-event-frame-parity.test.ts"
+    },
+    {
+      "id": "event:session_info_changed",
+      "kind": "event",
+      "feature": "session_info_changed",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "events.complete-manifest",
+      "test": "test/features/owned-ui/pi-event-frame-parity.test.ts"
+    },
+    {
+      "id": "event:summarization_retry_attempt_start",
+      "kind": "event",
+      "feature": "summarization_retry_attempt_start",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "events.complete-manifest",
+      "test": "test/features/owned-ui/pi-event-frame-parity.test.ts"
+    },
+    {
+      "id": "event:summarization_retry_finished",
+      "kind": "event",
+      "feature": "summarization_retry_finished",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "events.complete-manifest",
+      "test": "test/features/owned-ui/pi-event-frame-parity.test.ts"
+    },
+    {
+      "id": "event:summarization_retry_scheduled",
+      "kind": "event",
+      "feature": "summarization_retry_scheduled",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "events.complete-manifest",
+      "test": "test/features/owned-ui/pi-event-frame-parity.test.ts"
+    },
+    {
+      "id": "event:thinking_level_changed",
+      "kind": "event",
+      "feature": "thinking_level_changed",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "events.complete-manifest",
+      "test": "test/features/owned-ui/pi-event-frame-parity.test.ts"
+    },
+    {
+      "id": "event:tool_execution_end",
+      "kind": "event",
+      "feature": "tool_execution_end",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "events.complete-manifest",
+      "test": "test/features/owned-ui/pi-event-frame-parity.test.ts"
+    },
+    {
+      "id": "event:tool_execution_start",
+      "kind": "event",
+      "feature": "tool_execution_start",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "events.complete-manifest",
+      "test": "test/features/owned-ui/pi-event-frame-parity.test.ts"
+    },
+    {
+      "id": "event:tool_execution_update",
+      "kind": "event",
+      "feature": "tool_execution_update",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "events.complete-manifest",
+      "test": "test/features/owned-ui/pi-event-frame-parity.test.ts"
+    },
+    {
+      "id": "event:turn_start",
+      "kind": "event",
+      "feature": "turn_start",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "events.complete-manifest",
+      "test": "test/features/owned-ui/pi-event-frame-parity.test.ts"
+    },
+    {
+      "id": "settings-callback:onAutoCompactChange",
+      "kind": "settings-callback",
+      "feature": "onAutoCompactChange",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "settings-callback:onAutocompleteMaxVisibleChange",
+      "kind": "settings-callback",
+      "feature": "onAutocompleteMaxVisibleChange",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "settings-callback:onAutoResizeImagesChange",
+      "kind": "settings-callback",
+      "feature": "onAutoResizeImagesChange",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "settings-callback:onBlockImagesChange",
+      "kind": "settings-callback",
+      "feature": "onBlockImagesChange",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "settings-callback:onCancel",
+      "kind": "settings-callback",
+      "feature": "onCancel",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "settings-callback:onClearOnShrinkChange",
+      "kind": "settings-callback",
+      "feature": "onClearOnShrinkChange",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "settings-callback:onCollapseChangelogChange",
+      "kind": "settings-callback",
+      "feature": "onCollapseChangelogChange",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "settings-callback:onDefaultProjectTrustChange",
+      "kind": "settings-callback",
+      "feature": "onDefaultProjectTrustChange",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "settings-callback:onDoubleEscapeActionChange",
+      "kind": "settings-callback",
+      "feature": "onDoubleEscapeActionChange",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "settings-callback:onEditorPaddingXChange",
+      "kind": "settings-callback",
+      "feature": "onEditorPaddingXChange",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "settings-callback:onEnableInstallTelemetryChange",
+      "kind": "settings-callback",
+      "feature": "onEnableInstallTelemetryChange",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "settings-callback:onEnableSkillCommandsChange",
+      "kind": "settings-callback",
+      "feature": "onEnableSkillCommandsChange",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "settings-callback:onFollowUpModeChange",
+      "kind": "settings-callback",
+      "feature": "onFollowUpModeChange",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "settings-callback:onFullscreenCopyOnSelectChange",
+      "kind": "settings-callback",
+      "feature": "onFullscreenCopyOnSelectChange",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "settings-callback:onFullscreenExitOutputChange",
+      "kind": "settings-callback",
+      "feature": "onFullscreenExitOutputChange",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "settings-callback:onFullscreenScrollbarChange",
+      "kind": "settings-callback",
+      "feature": "onFullscreenScrollbarChange",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "settings-callback:onHideThinkingBlockChange",
+      "kind": "settings-callback",
+      "feature": "onHideThinkingBlockChange",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "settings-callback:onHttpIdleTimeoutMsChange",
+      "kind": "settings-callback",
+      "feature": "onHttpIdleTimeoutMsChange",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "settings-callback:onImageWidthCellsChange",
+      "kind": "settings-callback",
+      "feature": "onImageWidthCellsChange",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "settings-callback:onMermaidRenderingModeChange",
+      "kind": "settings-callback",
+      "feature": "onMermaidRenderingModeChange",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "settings-callback:onModelThinkingLevelChange",
+      "kind": "settings-callback",
+      "feature": "onModelThinkingLevelChange",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "settings-callback:onModelThinkingLevelRemove",
+      "kind": "settings-callback",
+      "feature": "onModelThinkingLevelRemove",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "settings-callback:onOutputPadChange",
+      "kind": "settings-callback",
+      "feature": "onOutputPadChange",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "settings-callback:onQuietStartupChange",
+      "kind": "settings-callback",
+      "feature": "onQuietStartupChange",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "settings-callback:onShowCacheMissNoticesChange",
+      "kind": "settings-callback",
+      "feature": "onShowCacheMissNoticesChange",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "settings-callback:onShowHardwareCursorChange",
+      "kind": "settings-callback",
+      "feature": "onShowHardwareCursorChange",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "settings-callback:onShowImagesChange",
+      "kind": "settings-callback",
+      "feature": "onShowImagesChange",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "settings-callback:onShowTerminalProgressChange",
+      "kind": "settings-callback",
+      "feature": "onShowTerminalProgressChange",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "settings-callback:onSteeringModeChange",
+      "kind": "settings-callback",
+      "feature": "onSteeringModeChange",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "settings-callback:onThemeChange",
+      "kind": "settings-callback",
+      "feature": "onThemeChange",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "settings-callback:onThemePreview",
+      "kind": "settings-callback",
+      "feature": "onThemePreview",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "settings-callback:onTransportChange",
+      "kind": "settings-callback",
+      "feature": "onTransportChange",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "settings-callback:onTreeFilterModeChange",
+      "kind": "settings-callback",
+      "feature": "onTreeFilterModeChange",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "settings-callback:onTuiModeChange",
+      "kind": "settings-callback",
+      "feature": "onTuiModeChange",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "settings-callback:onWarningsChange",
+      "kind": "settings-callback",
+      "feature": "onWarningsChange",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "setting:autoCompact",
+      "kind": "setting",
+      "feature": "autoCompact",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "setting:autocompleteMaxVisible",
+      "kind": "setting",
+      "feature": "autocompleteMaxVisible",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "setting:autoResizeImages",
+      "kind": "setting",
+      "feature": "autoResizeImages",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "setting:blockImages",
+      "kind": "setting",
+      "feature": "blockImages",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "setting:clearOnShrink",
+      "kind": "setting",
+      "feature": "clearOnShrink",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "setting:collapseChangelog",
+      "kind": "setting",
+      "feature": "collapseChangelog",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "setting:defaultProjectTrust",
+      "kind": "setting",
+      "feature": "defaultProjectTrust",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "setting:doubleEscapeAction",
+      "kind": "setting",
+      "feature": "doubleEscapeAction",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "setting:editorPaddingX",
+      "kind": "setting",
+      "feature": "editorPaddingX",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "setting:enableInstallTelemetry",
+      "kind": "setting",
+      "feature": "enableInstallTelemetry",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "setting:enableSkillCommands",
+      "kind": "setting",
+      "feature": "enableSkillCommands",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "setting:followUpMode",
+      "kind": "setting",
+      "feature": "followUpMode",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "setting:fullscreenCopyOnSelect",
+      "kind": "setting",
+      "feature": "fullscreenCopyOnSelect",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "setting:fullscreenExitOutput",
+      "kind": "setting",
+      "feature": "fullscreenExitOutput",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "setting:fullscreenScrollbar",
+      "kind": "setting",
+      "feature": "fullscreenScrollbar",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "setting:hideThinkingBlock",
+      "kind": "setting",
+      "feature": "hideThinkingBlock",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "setting:httpIdleTimeoutMs",
+      "kind": "setting",
+      "feature": "httpIdleTimeoutMs",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "setting:imageWidthCells",
+      "kind": "setting",
+      "feature": "imageWidthCells",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "setting:mermaidRenderingMode",
+      "kind": "setting",
+      "feature": "mermaidRenderingMode",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "setting:modelThinkingLevels",
+      "kind": "setting",
+      "feature": "modelThinkingLevels",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "setting:outputPad",
+      "kind": "setting",
+      "feature": "outputPad",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "setting:quietStartup",
+      "kind": "setting",
+      "feature": "quietStartup",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "setting:showCacheMissNotices",
+      "kind": "setting",
+      "feature": "showCacheMissNotices",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "setting:showHardwareCursor",
+      "kind": "setting",
+      "feature": "showHardwareCursor",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "setting:showImages",
+      "kind": "setting",
+      "feature": "showImages",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "setting:showTerminalProgress",
+      "kind": "setting",
+      "feature": "showTerminalProgress",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "setting:steeringMode",
+      "kind": "setting",
+      "feature": "steeringMode",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "setting:theme",
+      "kind": "setting",
+      "feature": "theme",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "setting:transport",
+      "kind": "setting",
+      "feature": "transport",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "setting:treeFilterMode",
+      "kind": "setting",
+      "feature": "treeFilterMode",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "setting:tuiMode",
+      "kind": "setting",
+      "feature": "tuiMode",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "setting:warnings",
+      "kind": "setting",
+      "feature": "warnings",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "component:AssistantMessageComponent",
+      "kind": "component",
+      "feature": "AssistantMessageComponent",
+      "since": "0.85.1",
+      "disposition": "pinned",
+      "note": "Reused from the pinned package as pi-coding-agent:src/modes/interactive/components/assistant-message."
+    },
+    {
+      "id": "component:BashExecutionComponent",
+      "kind": "component",
+      "feature": "BashExecutionComponent",
+      "since": "0.85.1",
+      "disposition": "pinned",
+      "note": "Reused from the pinned package as pi-coding-agent:src/modes/interactive/components/bash-execution."
+    },
+    {
+      "id": "component:BranchSummaryMessageComponent",
+      "kind": "component",
+      "feature": "BranchSummaryMessageComponent",
+      "since": "0.85.1",
+      "disposition": "pinned",
+      "note": "Reused from the pinned package as pi-coding-agent:src/modes/interactive/components/branch-summary-message."
+    },
+    {
+      "id": "component:BranchSummaryStatusIndicator",
+      "kind": "component",
+      "feature": "BranchSummaryStatusIndicator",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "components.persistent-lifecycle",
+      "test": "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts"
+    },
+    {
+      "id": "component:CompactionStatusIndicator",
+      "kind": "component",
+      "feature": "CompactionStatusIndicator",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "components.persistent-lifecycle",
+      "test": "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts"
+    },
+    {
+      "id": "component:CompactionSummaryMessageComponent",
+      "kind": "component",
+      "feature": "CompactionSummaryMessageComponent",
+      "since": "0.85.1",
+      "disposition": "pinned",
+      "note": "Reused from the pinned package as pi-coding-agent:src/modes/interactive/components/compaction-summary-message."
+    },
+    {
+      "id": "component:CustomEditor",
+      "kind": "component",
+      "feature": "CustomEditor",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "components.persistent-lifecycle",
+      "test": "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts"
+    },
+    {
+      "id": "component:CustomMessageComponent",
+      "kind": "component",
+      "feature": "CustomMessageComponent",
+      "since": "0.85.1",
+      "disposition": "pinned",
+      "note": "Reused from the pinned package as pi-coding-agent:src/modes/interactive/components/custom-message."
+    },
+    {
+      "id": "component:FooterComponent",
+      "kind": "component",
+      "feature": "FooterComponent",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "components.persistent-lifecycle",
+      "test": "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts"
+    },
+    {
+      "id": "component:LoginDialogComponent",
+      "kind": "component",
+      "feature": "LoginDialogComponent",
+      "since": "0.85.1",
+      "disposition": "pinned",
+      "note": "Reused from the pinned package as pi-coding-agent:src/modes/interactive/components/login-dialog."
+    },
+    {
+      "id": "component:ModelSelectorComponent",
+      "kind": "component",
+      "feature": "ModelSelectorComponent",
+      "since": "0.85.1",
+      "disposition": "pinned",
+      "note": "Reused from the pinned package as pi-coding-agent:src/modes/interactive/components/model-selector."
+    },
+    {
+      "id": "component:OAuthSelectorComponent",
+      "kind": "component",
+      "feature": "OAuthSelectorComponent",
+      "since": "0.85.1",
+      "disposition": "pinned",
+      "note": "Reused from the pinned package as pi-coding-agent:src/modes/interactive/components/oauth-selector."
+    },
+    {
+      "id": "component:RetryStatusIndicator",
+      "kind": "component",
+      "feature": "RetryStatusIndicator",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "components.persistent-lifecycle",
+      "test": "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts"
+    },
+    {
+      "id": "component:ScopedModelsSelectorComponent",
+      "kind": "component",
+      "feature": "ScopedModelsSelectorComponent",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "components.persistent-lifecycle",
+      "test": "test/integrations/pi/components/shell-components.test.ts"
+    },
+    {
+      "id": "component:SessionSelectorComponent",
+      "kind": "component",
+      "feature": "SessionSelectorComponent",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "components.persistent-lifecycle",
+      "test": "test/integrations/pi/components/session-selector.test.ts"
+    },
+    {
+      "id": "component:SettingsSelectorComponent",
+      "kind": "component",
+      "feature": "SettingsSelectorComponent",
+      "since": "0.85.1",
+      "disposition": "pinned",
+      "note": "Reused from the pinned package as pi-coding-agent:src/modes/interactive/components/settings-selector."
+    },
+    {
+      "id": "component:SkillInvocationMessageComponent",
+      "kind": "component",
+      "feature": "SkillInvocationMessageComponent",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "components.persistent-lifecycle",
+      "test": "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts"
+    },
+    {
+      "id": "component:ThinkingSelectorComponent",
+      "kind": "component",
+      "feature": "ThinkingSelectorComponent",
+      "since": "0.85.1",
+      "disposition": "pinned",
+      "note": "Reused from the pinned package as pi-coding-agent:src/modes/interactive/components/thinking-selector."
+    },
+    {
+      "id": "component:ToolExecutionComponent",
+      "kind": "component",
+      "feature": "ToolExecutionComponent",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "components.persistent-lifecycle",
+      "test": "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts"
+    },
+    {
+      "id": "component:TreeSelectorComponent",
+      "kind": "component",
+      "feature": "TreeSelectorComponent",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "components.persistent-lifecycle",
+      "test": "test/app/session-shell/session-shell.test.ts"
+    },
+    {
+      "id": "component:TrustSelectorComponent",
+      "kind": "component",
+      "feature": "TrustSelectorComponent",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "components.persistent-lifecycle",
+      "test": "test/app/session-shell/session-shell.test.ts"
+    },
+    {
+      "id": "component:UserMessageComponent",
+      "kind": "component",
+      "feature": "UserMessageComponent",
+      "since": "0.85.1",
+      "disposition": "pinned",
+      "note": "Reused from the pinned package as pi-coding-agent:src/modes/interactive/components/user-message."
+    },
+    {
+      "id": "component:UserMessageSelectorComponent",
+      "kind": "component",
+      "feature": "UserMessageSelectorComponent",
+      "since": "0.85.1",
+      "disposition": "pinned",
+      "note": "Reused from the pinned package as pi-coding-agent:src/modes/interactive/components/user-message-selector."
+    },
+    {
+      "id": "component:WorkingStatusIndicator",
+      "kind": "component",
+      "feature": "WorkingStatusIndicator",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "components.persistent-lifecycle",
+      "test": "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts"
+    },
+    {
+      "id": "changelog:0.84.3:model-and-thinking-controls",
+      "kind": "changelog",
+      "feature": "Model and thinking controls",
+      "version": "0.84.3",
+      "summary": "Select thinking levels with `/thinking`, search defaults, keep selections session-scoped, and persist them explicitly with Ctrl+S.",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "thinking.level-and-visibility",
+      "test": "test/integrations/pi/engine/workflows.test.ts"
+    },
+    {
+      "id": "changelog:0.84.3:powershell-tool",
+      "kind": "changelog",
+      "feature": "PowerShell tool",
+      "version": "0.84.3",
+      "summary": "Use optional native PowerShell command execution on Windows.",
+      "since": "0.85.1",
+      "disposition": "pinned",
+      "note": "Engine tool; reached through the pinned SDK without presentation work."
+    },
+    {
+      "id": "changelog:0.84.3:safer-managed-updates",
+      "kind": "changelog",
+      "feature": "Safer managed updates",
+      "version": "0.84.3",
+      "summary": "Stage, verify, and atomically activate updates for installer-managed installations.",
+      "since": "0.85.1",
+      "disposition": "declined",
+      "reason": "A1 is installed and updated through npm; Pi's installer-managed update staging has no A1 surface."
+    },
+    {
+      "id": "changelog:0.84.4:deepseek-v4-flash-vision-experimental",
+      "kind": "changelog",
+      "feature": "DeepSeek V4 Flash Vision (experimental)",
+      "version": "0.84.4",
+      "summary": "Use the vision-capable model through the built-in DeepSeek provider.",
+      "since": "0.85.1",
+      "disposition": "pinned",
+      "note": "Provider model; reached through the pinned engine's model registry."
+    },
+    {
+      "id": "changelog:0.84.4:extension-ui-prompt-events",
+      "kind": "changelog",
+      "feature": "Extension UI prompt events",
+      "version": "0.84.4",
+      "summary": "Integrations can distinguish active agent work from time spent waiting for `ctx.ui` prompts.",
+      "since": "0.85.1",
+      "disposition": "pinned",
+      "note": "Extension API event; delivered by the pinned extension runtime A1 hosts."
+    },
+    {
+      "id": "changelog:0.84.4:fullscreen-selection-copy-controls",
+      "kind": "changelog",
+      "feature": "Fullscreen selection copy controls",
+      "version": "0.84.4",
+      "summary": "Disable automatic selection copying in fullscreen mode and use Ctrl+X to copy the active selection.",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "changelog:0.84.4:rpc-queue-clearing",
+      "kind": "changelog",
+      "feature": "RPC queue clearing",
+      "version": "0.84.4",
+      "summary": "Retrieve and clear queued steering and follow-up messages with `clear_queue`.",
+      "since": "0.85.1",
+      "disposition": "declined",
+      "reason": "A1 hosts the interactive mode only; the RPC protocol is not exposed."
+    },
+    {
+      "id": "changelog:0.84.4:terminal-capability-overrides",
+      "kind": "changelog",
+      "feature": "Terminal capability overrides",
+      "version": "0.84.4",
+      "summary": "Override detected terminal hyperlink, image, and truecolor support.",
+      "since": "0.85.1",
+      "disposition": "pinned",
+      "note": "Environment overrides read by the pinned pi-tui terminal A1 runs on."
+    },
+    {
+      "id": "changelog:0.85.0:fullscreen-transcript-controls",
+      "kind": "changelog",
+      "feature": "Fullscreen transcript controls",
+      "version": "0.85.0",
+      "summary": "Jump to the latest message from a scrolled transcript and use the embedded working indicator.",
+      "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "keybindings.complete-manifest",
+      "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+    },
+    {
+      "id": "changelog:0.85.0:persistent-claude-thinking-effort",
+      "kind": "changelog",
+      "feature": "Persistent Claude thinking effort",
+      "version": "0.85.0",
+      "summary": "Supported Anthropic transports preserve per-turn effort and recover safely from signed-thinking mismatches.",
+      "since": "0.85.1",
+      "disposition": "pinned",
+      "note": "Transport behavior of the pinned engine; no presentation surface."
+    },
+    {
+      "id": "changelog:0.85.0:restorable-in-memory-sessions",
+      "kind": "changelog",
+      "feature": "Restorable in-memory sessions",
+      "version": "0.85.0",
+      "summary": "Resume externally stored session entries through the SDK.",
+      "since": "0.85.1",
+      "disposition": "pinned",
+      "note": "SDK session restore; reached through the pinned engine."
+    },
+    {
+      "id": "changelog:0.85.1:gpt-6-astra",
+      "kind": "changelog",
+      "feature": "GPT-6 Astra",
+      "version": "0.85.1",
+      "summary": "Available through OpenAI API keys and OpenAI Codex subscriptions.",
+      "since": "0.85.1",
+      "disposition": "pinned",
+      "note": "Provider model; reached through the pinned engine's model registry."
+    }
+  ]
+}
