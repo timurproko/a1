@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Collapsed skills are reached through one skills command
-Bare A1 SHALL declare the collapsed skill presentation as a replacement for the pinned per-skill command listing, governed by the A1 setting `skillsPresentation`. While the value is `collapse` and the engine registers skills as commands, the top-level slash-command menu SHALL omit every `skill:<name>` entry and SHALL offer one `skills` command described `Browse, search, and apply a skill`, matched by the same prefix rules as every other command, whose argument completions are the skill names. Invoking `/skills` with no arguments SHALL open the Skills dialog. Invoking `/skills <name> [args]`, where `<name>` matches a discovered skill with or without a `skill:` prefix, SHALL apply that skill with the remaining text as arguments without opening the dialog. Invoking `/skills <text>` with text that names no skill SHALL open the dialog with that text as its initial query.
+Bare A1 SHALL declare the collapsed skill presentation as a replacement for the pinned per-skill command listing, governed by the A1 setting `skillsPresentation`. While the value is `collapse` and the engine registers skills as commands, the top-level slash-command menu SHALL omit every `skill:<name>` entry and SHALL offer one `skills` command described `Browse, search, and apply a skill`, matched by the same prefix rules as every other command, whose argument completions are the skill names. Invoking `/skills` with no arguments SHALL open the Skills dialog. Invoking `/skills <name> [args]`, where `<name>` matches a discovered skill with or without a `skill:` prefix, SHALL apply that skill with the remaining text as arguments without opening the dialog. Invoking `/skills <name>` with a name that matches no skill SHALL report `Unknown skill: <name>` as a command outcome, as other commands report an unknown argument, and SHALL NOT open the dialog. Argument completion after `/skills ` SHALL list the skill names matching the typed prefix and SHALL show no menu when none matches, exactly as other commands' argument completion does.
 
 Applying a skill SHALL submit `/skill:<name>` plus any arguments through the ordinary prompt path, so the engine performs its pinned skill expansion, queue behavior, transcript rendering, and history recording. A1 SHALL NOT rebuild the skill block itself. A typed `/skill:<name>` SHALL still reach the engine while collapsed; only its menu entry is withheld.
 
@@ -21,9 +21,14 @@ While the value is `expand`, or the engine does not register skills as commands,
 - **THEN** `/skill:code-review fix the tests` SHALL be submitted through the ordinary prompt path without opening the dialog
 - **AND** the engine SHALL expand it exactly as a typed `/skill:code-review fix the tests`
 
-#### Scenario: Seed the dialog from arguments
-- **WHEN** the user submits `/skills review notes` while collapsed and no skill is named `review`
-- **THEN** the Skills dialog SHALL open with `review notes` as its query
+#### Scenario: Name an unknown skill
+- **WHEN** the user submits `/skills review` while collapsed and no skill is named `review`
+- **THEN** A1 SHALL report `Unknown skill: review` as a command outcome and SHALL NOT open the dialog or submit a prompt
+
+#### Scenario: Complete a skill name argument
+- **WHEN** the user types `/skills fr` while collapsed
+- **THEN** the argument menu SHALL list the skill names starting with `fr`
+- **AND** typing `/skills zz` with no such skill SHALL show no menu
 
 #### Scenario: Switch the setting live
 - **WHEN** the user changes `Skills` between `collapse` and `expand` during a session
@@ -39,9 +44,9 @@ While the value is `expand`, or the engine does not register skills as commands,
 - **AND** only bare A1's declared collapsed presentation SHALL be treated as an expected deviation
 
 ### Requirement: The Skills dialog browses, searches, and applies a skill
-The Skills dialog SHALL be an A1-owned modal built on public component boundaries, presented with owned input coordination like the model selector, and SHALL preserve the existing modal contract for exposed transcript content. It SHALL render, between top and bottom border rules, the accent bold title `Skills`, a search input, the matching skills as rows labeled `skill:<name>` in discovery-sorted name order with the selected row prefixed `→ ` in the accent role, the selected skill's one-line whitespace-collapsed description in the muted role below the rows, a dim `(selected/total)` counter only when rows exceed the visible window, and a dim shortcut line `type to search • ↑↓ navigate • enter select • esc back`. An empty filtered result SHALL render `No matching skills`; a session with no skills SHALL render `No skills yet`.
+The Skills dialog SHALL be an A1-owned modal built on public component boundaries and presented as a regular selector dialog like the model selector: the same overlay placement, owned input coordination, pinned border, spacer, search-input, list, and footer composition, and the same keybinding-hint footer wording the pinned selectors use (`↑↓ navigate`, confirm `select`, cancel `cancel`). It SHALL preserve the existing modal contract for exposed transcript content. Its content SHALL be the accent bold title `Skills` above the search input, the matching skills as rows labeled `skill:<name>` in discovery-sorted name order with the selected row prefixed `→ ` in the accent role, the selected skill's one-line whitespace-collapsed description in the muted role below the rows, and the pinned `(selected/total)` scroll counter only when rows exceed the visible window. An empty filtered result SHALL render `No matching skills`; a session with no skills SHALL render `No skills yet`.
 
-A row SHALL match a query when the query, ignoring case and an optional leading `skill:`, is a substring of the skill name or its description. Typing SHALL edit the query and reset the selection to the first row. Up and Down SHALL move the selection and wrap at either end. Enter SHALL apply the selected skill as the skills command defines, then close the dialog. Escape SHALL close the dialog and leave the editor text and history unchanged. The dialog SHALL NOT change the model, session, or settings.
+A row SHALL match a query when the query, ignoring case and an optional leading `skill:`, is a substring of the skill name or its description. Typing SHALL edit the query and reset the selection to the first row. Up and Down SHALL move the selection and wrap at either end. Enter SHALL apply the selected skill as the skills command defines, then close the dialog. Escape and the pinned cancel binding SHALL close the dialog and leave the editor text and history unchanged, exactly as cancelling the model selector does. The dialog SHALL open only from `/skills` with no arguments and SHALL never open with a seeded query. It SHALL NOT change the model, session, or settings.
 
 #### Scenario: Browse skills
 - **WHEN** the dialog opens with skills present
@@ -56,7 +61,7 @@ A row SHALL match a query when the query, ignoring case and an optional leading 
 #### Scenario: Apply from the dialog
 - **WHEN** the user presses Enter on a selected skill
 - **THEN** the dialog SHALL close and `/skill:<name>` SHALL be submitted through the ordinary prompt path
-- **AND** the seeded query text SHALL NOT be appended as arguments
+- **AND** the search query SHALL NOT be appended as arguments
 
 #### Scenario: Cancel the dialog
 - **WHEN** the user presses Escape
