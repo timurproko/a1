@@ -1,0 +1,28 @@
+## Context
+
+`runSelfUpdate` runs from the mutable global installation. Its modules are loaded before npm replaces that installation, so the code that activates the new tree is always the older version. `createUpdateLifecycleCoordinator.activateInstalled` copied the tree into the immutable store, certified it, warmed it through `bin/warmup.js` of the copy, started its supervisor through `bin/supervisor.js`, and moved the active reference; each of those paths is a promise the new tree must keep for every updater still installed anywhere.
+
+The launch side already negotiates a contract (`privateLaunchContract` in the manifest, `neutral-launch-v1`) rather than assuming one. Activation had no equivalent.
+
+## Decisions
+
+- **The tree activates itself.** `bin/activate.js` imports `dist/foundation/release/update-activation.js` of its own tree and runs `activateInstalledRelease` for the directory it ships in. The updater passes only what the tree cannot know: the data directory and the version it must turn out to be. The updater keeps what is its own: the transaction journal, the progress bar, phase timing, ownership recheck, maintenance, rollback.
+- **Declared, additive contracts.** `updateActivationContracts` is a list so a future tree can serve `activate-v2` and `activate-v1` at once; an updater picks the contract it knows. A tree with no field, a malformed field, or only unknown contracts is activated in-process, which is today's behavior, and the predecessor gate goes on proving that a candidate remains activatable by the published updaters that predate the contract. Both directions therefore work: old updater to new tree (in-process, the tree keeps `bin/warmup.js` and `bin/supervisor.js`), new updater to old tree (in-process, the layout of the past is known), new updater to new tree (delegated).
+- **Progress is a stream of frames.** The entry writes one JSON object per line through `encodeFrame`; the updater decodes with `LineFrameDecoder`, the same framing the supervisor protocol uses. Events are `materializing {completed,total}`, `phase {materialized|certified|active-reference-committed}`, `warmup {started|completed}`, `completed`, and `failed {message}`. Callbacks are relayed in order and awaited, so a phase is journaled before the next event is handled, and the phase surface (`UpdateActivationCallbacks`) is exactly the one `activateInstalled` already exposed, so `runSelfUpdate`, its tests, and the progress spans are untouched.
+- **A verdict, not an exit code.** Success requires exit 0 and a `completed` event; `failed` carries the entry's own message (the warmup diagnostics, the version mismatch) and wins over the exit status; a child that dies without a verdict fails with its status and a bounded stderr summary. An unparseable or unknown event fails the activation rather than being skipped: the updater does not guess what a newer tree meant.
+- **The entry's stderr is captured, never inherited**, bounded to 2,000 characters as warmup's is; the activation child's stdout is the protocol, so nothing the tree prints reaches the terminal except through the updater's own failure line.
+- **What the updater may know is tested.** `test/repository-governance/update-activation-contract.test.ts` asserts the manifest serves the contract, `update.ts` names no `bin/` path and no release entry point, `update-activation.ts` names only `bin/activate.js`, and the entry loads only its own module. The in-process fallback keeps its knowledge of old layouts in `update-activation.ts`, `warmup.ts`, and `bootstrap.ts`, where the predecessor gate and the packed-surface test guard it.
+- **Not a launch contract change.** `neutral-launch-v1` and its rules are untouched; the entry inherits the updater's environment and the tree's own code builds the launch context as it does for any activation.
+
+## Risks / Trade-offs
+
+- One more Node process per update, about 100 ms of startup against a 20 to 30 s activation. Measured locally: a delegated activation of this worktree into a fresh sandbox reached `materialized` at 20.6 s, `certified` at 22.5 s, warmup 22.6 to 24.9 s, `active-reference-committed` at 25.1 s, with every progress event relayed.
+- A tree that serves the contract but ships a broken entry fails its own activation; the failure is the entry's message, rollback restores the prior cohort, and the next `a1 update` resumes from `package-installed` as before.
+- Updaters installed before this change still activate in-process, so the entries they resolve stay in the package until the predecessor gate no longer installs a release that predates the contract; the gate, not a date, decides.
+
+## Evidence
+
+- `test/foundation/release/update-activation-contract.test.ts`: a tree that serves the contract and has no warmup or supervisor entry is activated through its own entry with every phase, copy progress, and warmup state relayed and none of the in-process steps called; a `failed` event, a non-zero exit with stderr, and a zero exit without `completed` each fail with the expected reason; a tree with no field, an unknown contract, or a malformed field is activated in-process; the entry body activates its own tree, writes the event sequence, reports a version mismatch as its last event, and refuses missing or unknown arguments.
+- `test/repository-governance/update-activation-contract.test.ts` pins what the updater may know.
+- `test/foundation/release/update-activation.test.ts` (existing) still proves the in-process path keeps the previous active reference until readiness.
+- Local proof run of `delegateActivation` against the built worktree, timings above.

@@ -130,6 +130,16 @@ export type {
   UpdateProcessRunner,
   UpdateTransactionJournal,
 } from "./update.js";
+export {
+  UPDATE_ACTIVATION_CONTRACT,
+  UPDATE_ACTIVATION_ENTRY,
+  UPDATE_ACTIVATION_MANIFEST_FIELD,
+  activateInstalledRelease,
+  delegateActivation,
+  readActivationContracts,
+  runActivationEntry,
+} from "./update-activation.js";
+export type { UpdateActivationCallbacks, UpdateActivationEvent, UpdateActivationRequest } from "./update-activation.js";
 export { selectSupervisorLaunchReleaseId, selectUpdateLaunchRelease } from "./update-launch.js";
 export {
   UPDATE_RECOVERY_SCHEMA,
