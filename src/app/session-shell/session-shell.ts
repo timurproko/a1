@@ -274,7 +274,7 @@ export class OwnedUiSessionShell {
       onMessageCopy: () => { void this.runWorkflow({ command: "copy", argument: "" }); },
       onFollowUp: () => { void this.queueFollowUp().catch(() => this.#reportSubmissionError()); },
       onDequeue: () => this.restoreQueuedInput(),
-      onEditorChange: () => { this.#editorRevision++; promptSuggestionController?.invalidate(); },
+      onEditorChange: () => { this.#editorRevision++; promptSuggestionController?.abortPending(); },
       onPromptSuggestionAccepted: () => promptSuggestionController?.accept(),
       onInputSurfaceChanged: () => {
         promptSuggestionController?.invalidate();
@@ -753,7 +753,7 @@ export class OwnedUiSessionShell {
   }
 
   async clearOrExit(now = Date.now()): Promise<AdapterCommandResult> {
-    this.#promptSuggestions?.invalidate();
+    this.#promptSuggestions?.abortPending();
     if (now - this.#lastClearTime < 500) return this.shutdown();
     this.root.editor.setText("");
     this.#lastClearTime = now;

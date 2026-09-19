@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-09-19T07:51:48.209Z",
+  "recordedAt": "2026-09-19T13:47:29.885Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "d981de1229ef899957bbe968bc8dcda02a21f477",
@@ -1254,7 +1254,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "A1-owned class name and synchronized A1 keybinding contract replace the nominal private upstream keybinding constructor dependency; bare A1 injects the shared Settings/agent input frame, transient contextual-suggestion branch, and explicit body geometry for selection and above-prompt autocomplete. Bare A1 also clears a sole top-level slash-command search on Escape.",
       "upgradeStrategy": "keep-owned",
-      "localSha256": "8b9fcfac466f7f144e79f555b1a4147911c3a7077a7b98a7fe08d965a0414500",
+      "localSha256": "42b599d07bf0301a20b1c2bb9e5cd4557f5a24cb05a6e468892ab6de217b5d3a",
       "approvedDeviations": [
         {
           "id": "owned-shared-input-frame",

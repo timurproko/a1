@@ -121,6 +121,27 @@ describe("Pi shell public component adapters", () => {
     expect(submit).toHaveBeenCalledWith("go ahead and merge it");
   });
 
+  it("keeps a contextual suggestion behind draft text and repaints it once the draft is cleared", () => {
+    const accepted = vi.fn();
+    const editor = createPiShellEditor({
+      getColumns: () => 80, getRows: () => 24, requestRender() {}, onSubmit() {},
+      onPromptSuggestionAccepted: accepted, keybindingProfile: "a1", promptPresentation: PROMPT_PRESENTATION,
+    });
+    editor.setFocused?.(true);
+    editor.setPromptSuggestion("go ahead and merge it");
+    editor.setText("draft");
+    expect(stripTerminalSequences(editor.render(40).join("\n"))).not.toContain("go ahead and merge it");
+    editor.handleInput?.("\t");
+    expect(editor.getText()).toBe("draft");
+    expect(accepted).not.toHaveBeenCalled();
+    editor.setText("");
+    expect(stripTerminalSequences(editor.render(40).join("\n"))).toContain("❯ go ahead and merge it");
+    editor.handleInput?.("\t");
+    expect(editor.getText()).toBe("go ahead and merge it");
+    expect(accepted).toHaveBeenCalledOnce();
+    expect(editor.render(40).join("\n")).not.toContain("\u001b[2mgo ahead and merge it");
+  });
+
   it("reports semantic suggestion presentation blockers without inspecting rendered text", async () => {
     const editor = createPiShellEditor({ getColumns: () => 80, getRows: () => 24, requestRender() {}, onSubmit() {}, keybindingProfile: "a1", promptPresentation: PROMPT_PRESENTATION });
     editor.setFocused?.(true);

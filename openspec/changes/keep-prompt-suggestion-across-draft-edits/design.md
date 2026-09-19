@@ -12,4 +12,4 @@ Typing during generation keeps its current meaning: the request is retired as `c
 
 ## Why the editor keeps the text
 
-Keeping the suggestion in the editor rather than re-presenting it from the controller means no render-time callback into the shell and no second `displayed` diagnostic for the same candidate. The `setText` override still exists for Tab acceptance, which nulls the suggestion explicitly before installing the accepted text, so the accepted text is never painted twice.
+Keeping the suggestion in the editor rather than re-presenting it from the controller means no render-time callback into the shell and no second `displayed` diagnostic for the same candidate. The editor's `setText` override is removed outright: Tab acceptance nulls the suggestion explicitly before installing the accepted text through the base editor, so the accepted text is never painted twice.
