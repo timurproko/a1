@@ -90,8 +90,9 @@ describe("complete regression automation", () => {
     expect(fullStep.if).toBeUndefined();
     expect(fullStep.env.VALIDATION_SELECTION_JSON).toBe('["full-release"]');
     expect(fullStep.env.VALIDATION_CANDIDATE_TARBALL).toBe("${{ github.workspace }}/.artifacts/validation/package/candidate.tgz");
-    expect(fullStep.env.STARTUP_BUDGET_ENFORCEMENT).toBe("fail");
-    expect(packageStep.env.STARTUP_BUDGET_ENFORCEMENT).toBe("${{ needs.plan.outputs.mode == 'develop' && 'record' || 'fail' }}");
+    expect(fullStep.env.STARTUP_BUDGET_ENFORCEMENT).toBe("record");
+    expect(fullStep.env.STARTUP_PERFORMANCE_RESULT).toBe(".artifacts/validation/startup-${{ matrix.os }}-node${{ matrix.node }}.json");
+    expect(packageStep.env.STARTUP_BUDGET_ENFORCEMENT).toBe("${{ needs.plan.outputs.mode == 'stable' && 'fail' || 'record' }}");
   });
 
   it("keeps every deferred startup, image, and history test in the actual full plan exactly once", async () => {
