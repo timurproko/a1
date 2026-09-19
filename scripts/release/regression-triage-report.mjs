@@ -6,7 +6,7 @@
  * filesystem or the network.
  */
 
-/** Workflows whose failed runs propose a fix, keyed by the name GitHub reports for the run. */
+// Invariant: only these workflows propose a fix, keyed by the name GitHub reports for the run.
 export const TRIAGE_WORKFLOWS = Object.freeze({
   "Full regression": Object.freeze({ file: "full-regression.yml", scheduledOnly: false }),
   Release: Object.freeze({ file: "release.yml", scheduledOnly: true }),
@@ -19,11 +19,11 @@ export const EXCERPT_LINE_LIMIT = 40;
 export const EXCERPT_BYTE_LIMIT = 2048;
 
 const RESULT_SCHEMA = "a1-validation-outcomes-v1";
-// Vitest's default reporter, Node's assertion output, npm, and the repository gates: the lines that
-// name what failed and why. A match also keeps the next few lines, where the detail usually is.
+// Rationale: Vitest's default reporter, Node's assertion output, npm, and the repository gates name
+// what failed and why in these lines. A match also keeps the next few lines, where the detail usually is.
 const EXCERPT_PATTERN = /(?:^|\s)(?:FAIL\s|×|✗|\w*Error\b|ERR!|##\[error\]|\bfailed\b|expected|received|Test Files\s|Tests\s+\d|Snapshots\s|Unhandled|timed out|exceeded|budget)/;
 const EXCERPT_CONTEXT_LINES = 4;
-// The tier summary JSON that follows a failure repeats the outcome record; it is evidence already.
+// Rationale: the tier summary JSON that follows a failure repeats the outcome record, which is evidence already.
 const JSON_LINE = /^\s*(?:[{}[\]],?|"[^"]+":.*)$/;
 
 export function changeId(date) {
