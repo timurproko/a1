@@ -97,11 +97,14 @@ export async function dispatchPublication(channel, source, version, options = {}
   const wait = options.sleep ?? sleep;
   execute("gh", ["auth", "status"], { stdio: "inherit" });
   const requestId = options.requestId ?? randomUUID();
+  // Rationale: a development preview derives its number in the workflow; only a stable
+  // publication names the version it stamps on the open development source.
   execute("gh", [
     "workflow", "run", "release.yml", "--ref", "develop",
     "-f", `channel=${channel}`,
     "-f", `source_sha=${source}`,
     "-f", `request_id=${requestId}`,
+    ...(channel === "stable" ? ["-f", `version=${version}`] : []),
   ], { stdio: "inherit" });
 
   const deadline = Date.now() + RUN_APPEAR_TIMEOUT_MS;

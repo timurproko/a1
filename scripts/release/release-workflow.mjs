@@ -7,6 +7,7 @@ import { parseReleaseArguments, resolveReleasePlan } from "./release-target.mjs"
 
 const VERSION_FILES = ["package-lock.json", "package.json"];
 const SHA = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
+const OPEN_DEVELOPMENT = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)-dev$/u;
 const PR_FIELDS = "number,url,state,headRefName,headRefOid,baseRefName,isCrossRepository,mergeCommit,autoMergeRequest";
 
 /** Supplies live boundaries by default; tests replace GitHub, registry, publication and clock. */
@@ -33,7 +34,11 @@ export function createReleaseRuntime(options = {}) {
   };
 }
 
-/** Runs explicit version preparation, manual merge gates, publication, then development reopening. */
+/**
+ * Publishes the stable version from the open development source, then reopens development
+ * through one manually merged version PR. The stable version is never committed to develop:
+ * publication stamps it on the runner, and the tag names the open development commit.
+ */
 export async function runRelease(args, runtime) {
   parseReleaseArguments(args);
   const r = runtime;
@@ -41,6 +46,9 @@ export async function runRelease(args, runtime) {
   const local = await readLocalVersions(root);
   const plan = resolveReleasePlan(local.manifest.version, args);
   assertVersions(local, plan.current);
+  if (!OPEN_DEVELOPMENT.test(plan.current)) {
+    throw new Error(`develop must declare an open development version such as 0.1.8-dev, not ${plan.current}; a stable version is stamped at publication and never committed`);
+  }
   if (!Number.isFinite(r.waitMs) || r.waitMs <= 0 || !Number.isFinite(r.pollMs) || r.pollMs <= 0) {
     throw new Error("release wait and poll intervals must be positive");
   }
@@ -56,18 +64,13 @@ export async function runRelease(args, runtime) {
   assertSameSnapshot(readVersionsAt(r, source), local, "caller manifest differs from authoritative develop");
   let published = false;
   let publicationAttempted = false;
-  let phase = "stable-version preparation";
+  let phase = "stable publication";
   try {
     await assertUnpublished(r, local.manifest.name, plan.version);
-    if (plan.current !== plan.version) {
-      source = await prepareVersion(r, source, local, plan.version, `chore(release): ${plan.version}`);
-    } else verifyPreparedSource(r, source);
-    phase = "stable publication";
-    assertAuthoritative(r, source, plan.version, local.manifest.name);
-    await assertUnpublished(r, local.manifest.name, plan.version);
-    assertAuthoritative(r, source, plan.version, local.manifest.name);
+    // Invariant: the registry guard is asynchronous, so the source is re-verified after it.
+    assertAuthoritative(r, source, plan.current, local.manifest.name);
     checkCanceled(r);
-    r.log(`dispatching stable publication for ${source}`);
+    r.log(`dispatching stable publication of ${plan.version} for ${source}`);
     publicationAttempted = true;
     await r.publish(source, plan.version);
     published = true;
@@ -75,9 +78,9 @@ export async function runRelease(args, runtime) {
     checkCanceled(r);
     phase = "development reopening";
     const openingBase = fetchDevelop(r);
-    const stable = readVersionsAt(r, openingBase);
-    assertVersions(stable, plan.version, local.manifest.name);
-    const reopened = await prepareVersion(r, openingBase, stable, plan.opening, `chore(release): open ${plan.opening}`);
+    const open = readVersionsAt(r, openingBase);
+    assertVersions(open, plan.current, local.manifest.name);
+    const reopened = await prepareVersion(r, openingBase, open, plan.opening, `chore(release): open ${plan.opening}`);
     assertAuthoritative(r, reopened, plan.opening, local.manifest.name);
     synchronizeCaller(r, originalHead, reopened);
     r.log(`${plan.version} is published and remote develop is open at ${plan.opening}; previews still require nightly or npm run develop`);
@@ -88,7 +91,7 @@ export async function runRelease(args, runtime) {
       ? `${plan.version} is published, but reopening ${plan.opening} is incomplete. Inspect the reopening PR; do not republish ${plan.version}.`
       : publicationAttempted
         ? `Publication of ${plan.version} failed or is uncertain. Inspect the workflow, npm and release records before retrying; no reopening was prepared.`
-        : `Publication of ${plan.version} was not dispatched. Inspect the version PR and registry/tag state; never republish an existing stable version. If retrying an unpublished version from stable develop use the exact intended version, not patch.`;
+        : `Publication of ${plan.version} was not dispatched. Inspect the registry and tag state; never republish an existing stable version.`;
     throw new Error(`${phase} stopped: ${detail}\n${outcome}`, { cause: error });
   }
 }
@@ -131,13 +134,6 @@ function withVersion(snapshot, version) {
   lock.version = version;
   lock.packages[""].version = version;
   return { manifest, lock };
-}
-function verifyPreparedSource(r, source) {
-  const pulls = JSON.parse(r.gh(["api", `repos/{owner}/{repo}/commits/${source}/pulls`]));
-  const matches = Array.isArray(pulls) ? pulls.filter(pull => pull?.merged_at && pull.base?.ref === "develop"
-    && pull.merge_commit_sha === source && Number.isSafeInteger(pull.number) && pull.number > 0) : [];
-  if (matches.length !== 1) throw new Error(`stable source ${source} has no unique verified merged develop PR`);
-  r.log(`verified previously prepared stable source ${source} from merged PR ${matches[0].number}`);
 }
 function assertAuthoritative(r, source, version, name) {
   if (fetchDevelop(r) !== source) throw new Error(`authoritative develop no longer matches selected source ${source}; refusing to substitute another commit`);
@@ -212,7 +208,7 @@ async function prepareVersion(r, base, snapshot, version, subject) {
       r.git(["push", "origin", `--force-with-lease=refs/heads/${branch}:`, `HEAD:refs/heads/${branch}`], directory);
       checkCanceled(r);
       const url = r.gh(["pr", "create", "--base", "develop", "--head", branch, "--title", subject,
-        "--body", `Release preparation for ${version}. Required CI and local maintainer acceptance must pass, then merge manually. This PR must not auto-merge.`]);
+        "--body", `Reopens development at ${version} after the stable publication. Required CI must pass, then merge manually. This PR must not auto-merge.`]);
       r.log(`version PR: ${url}`);
       const number = /\/(\d+)\s*$/u.exec(url)?.[1];
       if (!number) throw new Error(`cannot read version PR number from ${url}`);

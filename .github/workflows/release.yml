@@ -19,6 +19,10 @@ on:
         description: Caller correlation identifier
         required: true
         type: string
+      version:
+        description: Stable version to stamp on the open development source (stable channel only)
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -38,6 +42,7 @@ jobs:
     outputs:
       sha: ${{ steps.source.outputs.sha }}
       mode: ${{ steps.source.outputs.mode }}
+      requested_version: ${{ steps.source.outputs.requested_version }}
     steps:
       - name: Resolve current origin/develop
         id: source
@@ -47,9 +52,11 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           REQUESTED_CHANNEL: ${{ inputs.channel }}
           REQUESTED_SHA: ${{ inputs.source_sha }}
+          REQUESTED_VERSION: ${{ inputs.version }}
         run: |
           set -euo pipefail
           authoritative="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/develop" --jq .object.sha)"
+          requested_version=""
           if [ "$EVENT_NAME" = "schedule" ]; then
             mode=nightly
             source="$authoritative"
@@ -60,12 +67,22 @@ jobs:
               echo "::error::requested source $source is not current origin/develop $authoritative" >&2
               exit 1
             fi
+            if [ "$mode" = "stable" ]; then
+              requested_version="$REQUESTED_VERSION"
+              if [[ ! "$requested_version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+                echo "::error::stable publication requires an explicit final version, not '$requested_version'" >&2
+                exit 1
+              fi
+            elif [ -n "$REQUESTED_VERSION" ]; then
+              echo "::error::a development publication derives its own version; do not pass one" >&2
+              exit 1
+            fi
           fi
           if [[ ! "$source" =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error::source is not a full commit: $source" >&2
             exit 1
           fi
-          printf 'sha=%s\nmode=%s\n' "$source" "$mode" >> "$GITHUB_OUTPUT"
+          printf 'sha=%s\nmode=%s\nrequested_version=%s\n' "$source" "$mode" "$requested_version" >> "$GITHUB_OUTPUT"
 
   plan:
     name: Resolve numbered publication
@@ -108,6 +125,7 @@ jobs:
         env:
           SOURCE_SHA: ${{ needs.source.outputs.sha }}
           MODE: ${{ needs.source.outputs.mode }}
+          REQUESTED_VERSION: ${{ needs.source.outputs.requested_version }}
           PULLS_PATH: ${{ runner.temp }}/pulls.json
         run: |
           set -euo pipefail
@@ -115,18 +133,22 @@ jobs:
           import { readFile } from "node:fs/promises";
           const manifest = JSON.parse(await readFile("package.json", "utf8"));
           const declared = manifest.version;
-          const base = /^(\d+\.\d+\.\d+)(?:-dev(?:\.\d+)?)?$/.exec(declared)?.[1];
-          if (!base) throw new Error(`package version is not an open development or stable version: ${declared}`);
+          const base = /^(\d+\.\d+\.\d+)-dev$/.exec(declared)?.[1];
+          if (!base) throw new Error(`develop must declare one open development version such as 0.1.8-dev, not ${declared}`);
+          const core = value => value.split(".").map(Number);
+          const notBelow = (left, right) => { for (let i = 0; i < 3; i++) { if (left[i] !== right[i]) return left[i] > right[i]; } return true; };
 
           let version;
           let pullRequest = "";
           let channel;
           if (process.env.MODE === "stable") {
-            if (declared !== base) throw new Error(`stable publication requires a final version, not ${declared}`);
-            version = declared;
+            // Rationale: the stable version is stamped on the open development source at pack
+            // time rather than committed, so the request names it and it must not go backwards.
+            version = process.env.REQUESTED_VERSION;
+            if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error(`stable publication requires an explicit final version, not ${version}`);
+            if (!notBelow(core(version), core(base))) throw new Error(`stable version ${version} is below the open development version ${declared}`);
             channel = "latest";
           } else {
-            if (declared === base) throw new Error(`development automation refuses stable source ${declared}`);
             const pulls = JSON.parse(await readFile(process.env.PULLS_PATH, "utf8"));
             const matches = pulls.filter(pull => pull?.merged_at && pull?.base?.ref === "develop" && pull?.merge_commit_sha === process.env.SOURCE_SHA);
             if (matches.length !== 1 || !Number.isInteger(matches[0]?.number) || matches[0].number < 1) {
@@ -180,7 +202,7 @@ jobs:
           elif [ "$EXISTS" = "true" ]; then
             echo "Nightly will completely verify registry package $VERSION; publication is a no-op." >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "$MODE will build and verify $VERSION before publication." >> "$GITHUB_STEP_SUMMARY"
+            echo "$MODE will stamp, build, and verify $VERSION from the open development source before publication." >> "$GITHUB_STEP_SUMMARY"
           fi
 
   documentation:
@@ -284,8 +306,8 @@ jobs:
           path: dist/native
           merge-multiple: true
 
-      - name: Stamp the numbered preview
-        if: needs.plan.outputs.channel == 'next' && needs.plan.outputs.build == 'true'
+      - name: Stamp the published version on the open development source
+        if: needs.plan.outputs.build == 'true'
         shell: bash
         env:
           RELEASE_VERSION: ${{ needs.plan.outputs.version }}
