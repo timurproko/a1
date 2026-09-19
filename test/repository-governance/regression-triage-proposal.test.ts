@@ -54,7 +54,7 @@ function recorder(answers: (args: string[]) => string | { stdout: string } | Err
 
 function runView(overrides: Record<string, unknown> = {}) {
   return JSON.stringify({
-    databaseId: 9001, number: 412, attempt: 1, workflowName: "Full regression", conclusion: "failure", event: "schedule", headSha: head,
+    databaseId: 9001, number: 412, attempt: 1, workflowName: "Full regression", conclusion: "failure", event: "schedule", headBranch: "develop", headSha: head,
     url: "https://github.com/timurproko/a1/actions/runs/9001", createdAt: "2026-09-19T02:47:13Z",
     jobs: [
       { name: "Full documentation review", conclusion: "success" },
@@ -140,6 +140,7 @@ describe("nightly regression fix proposal", () => {
     for (const [view, reason] of [
       [runView({ conclusion: "cancelled" }), "run 9001 concluded cancelled, not failure"],
       [runView({ workflowName: "Release", event: "workflow_dispatch" }), "Release triages scheduled runs only; this run was workflow_dispatch"],
+      [runView({ headBranch: "fix/nightly-regression-2026-09-18" }), 'run 9001 ran on "fix/nightly-regression-2026-09-18", not develop; its evidence belongs to that branch\'s own pull request'],
     ] as const) {
       const gh = recorder(ghAnswers({ view }));
       const git = recorder(gitAnswers());

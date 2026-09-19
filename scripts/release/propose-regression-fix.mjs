@@ -38,8 +38,8 @@ const COMMIT_SEPARATOR = "\u001f";
  */
 export async function proposeRegressionFix({ runId, repository, output, gh, git, files, dryRun = false, today = new Date() }) {
   await files.mkdir(output);
-  const view = JSON.parse((await gh(["run", "view", String(runId), "--json", "databaseId,number,attempt,workflowName,conclusion,event,headSha,url,createdAt,jobs"])).stdout);
-  const run = { id: view.databaseId, number: view.number, attempt: view.attempt, workflowName: view.workflowName, conclusion: view.conclusion, event: view.event, headSha: view.headSha, url: view.url, createdAt: view.createdAt };
+  const view = JSON.parse((await gh(["run", "view", String(runId), "--json", "databaseId,number,attempt,workflowName,conclusion,event,headBranch,headSha,url,createdAt,jobs"])).stdout);
+  const run = { id: view.databaseId, number: view.number, attempt: view.attempt, workflowName: view.workflowName, conclusion: view.conclusion, event: view.event, headBranch: view.headBranch, headSha: view.headSha, url: view.url, createdAt: view.createdAt };
   const decision = triageDecision(run);
   if (!decision.triage) return finish({ changed: false, run, message: decision.reason }, output, files);
   const { workflow } = decision;
