@@ -17,7 +17,9 @@ import { OwnedSettingsManager } from "../ui/settings/manager.js";
 import { createPiTerminalBridge } from "../integrations/pi/tui-runtime/presentation-adapter.js";
 import type { OwnedUiApplicationPort, PresentationTerminalPort } from "../contracts/presentation/index.js";
 import type { OwnedUiQuitOutroSettings, OwnedUiViewportSettings, OwnedUiViewportSettingsPort } from "../contracts/owned-ui/index.js";
-import { createOwnedRouteHost } from "./settings-route-host.js";
+import { createOwnedRouteHost, type OwnedReferenceProviders } from "./settings-route-host.js";
+import { renderPiShellChangelogLines, renderPiShellHotkeysLines } from "../integrations/pi/components/shell-presenters-info.js";
+import { readPinnedCommandChangelog } from "../integrations/pi/engine/changelog.js";
 
 export interface OwnedUiCompositionOptions {
   readonly cwd?: string;
@@ -80,7 +82,19 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
   // comparison profile keeps Pi's configured theme behavior and settings surface.
   applyConfiguredPiTheme(ownedSurfaces ? "dark" : adapter.configuredTheme());
 
-  const routeHost = settings === null || !ownedSurfaces ? null : createOwnedRouteHost(settings);
+  // Rationale: the reference screens read the shell the composition is about to construct; a route
+  // cannot open before the shell exists, so the closure is settled by the time it runs.
+  const references: OwnedReferenceProviders = {
+    changelog: async input => {
+      const markdown = input?.document ?? await readPinnedCommandChangelog();
+      return width => renderPiShellChangelogLines(markdown, width);
+    },
+    hotkeys: async () => {
+      const presentation = shell.hotkeysPresentation();
+      return width => renderPiShellHotkeysLines(presentation, width);
+    },
+  };
+  const routeHost = settings === null || !ownedSurfaces ? null : createOwnedRouteHost(settings, references);
   const viewportSettings: OwnedUiViewportSettingsPort | null = settings === null || !ownedSurfaces ? null : {
     snapshot: () => viewportSettingsSnapshot(settings),
     onChange: listener => settings.onChange(() => listener(viewportSettingsSnapshot(settings))),

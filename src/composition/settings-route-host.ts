@@ -1,29 +1,63 @@
+import {
+  CHANGELOG_APP_ID,
+  CHANGELOG_ROUTE,
+  CHANGELOG_TITLE,
+  HOTKEYS_APP_ID,
+  HOTKEYS_ROUTE,
+  HOTKEYS_TITLE,
+} from "../features/owned-ui/reference-routes.js";
 import { SETTINGS_APP_ID, SETTINGS_ROUTE } from "../features/owned-ui/settings-route.js";
 import { piTheme } from "../integrations/pi/components/upstream/theme/theme.js";
 import type { OwnedSettingsManager } from "../ui/settings/manager.js";
-import type { UiRouteHost, UiRouteSurface } from "../ui/apps/contracts.js";
+import type { UiApp, UiRouteHost, UiRouteInput, UiRouteSurface } from "../ui/apps/contracts.js";
 import { faint } from "../ui/components/text.js";
 import type { UiTheme, UiThemeToken } from "../ui/components/theme.js";
 
+/** Styled document rows for one content width. */
+export type OwnedReferenceRows = (width: number) => readonly string[];
+
 /**
- * Declares the A1-owned settings route without evaluating its presentation graph
- * during startup. Opening the route retains input while the optional module loads.
+ * The documents the reference routes present, supplied by the composition so the
+ * route host never reads the changelog or the shell's keybindings itself.
  */
-export function createOwnedRouteHost(settings: OwnedSettingsManager): UiRouteHost {
+export interface OwnedReferenceProviders {
+  /** The complete pinned changelog, or the supplied document when the route input carries one. */
+  changelog(input?: UiRouteInput): Promise<OwnedReferenceRows>;
+  /** The shell's keyboard shortcuts as they stand when the screen opens. */
+  hotkeys(): Promise<OwnedReferenceRows>;
+}
+
+/**
+ * Declares the A1-owned settings route, and the changelog and hotkeys reference
+ * routes when their documents are supplied, without evaluating their presentation
+ * graphs during startup. Opening a route retains input while the optional module loads.
+ */
+export function createOwnedRouteHost(settings: OwnedSettingsManager, references?: OwnedReferenceProviders): UiRouteHost {
+  const routes = new Set([SETTINGS_ROUTE, ...(references === undefined ? [] : [CHANGELOG_ROUTE, HOTKEYS_ROUTE])]);
   return {
-    claims: route => route === SETTINGS_ROUTE,
-    open: route => route === SETTINGS_ROUTE ? deferredSettingsSurface(settings) : null,
+    claims: route => routes.has(route),
+    open: (route, input) => {
+      if (!routes.has(route)) return null;
+      if (route === SETTINGS_ROUTE) {
+        return deferredSurface(SETTINGS_APP_ID, "settings", () => loadSettingsSurface(settings));
+      }
+      const changelog = route === CHANGELOG_ROUTE;
+      const id = changelog ? CHANGELOG_APP_ID : HOTKEYS_APP_ID;
+      const title = changelog ? CHANGELOG_TITLE : HOTKEYS_TITLE;
+      const document = changelog ? references!.changelog(input) : references!.hotkeys();
+      return deferredSurface(id, title, () => loadReferenceSurface(settings, id, route, title, document));
+    },
   };
 }
 
-function deferredSettingsSurface(settings: OwnedSettingsManager): UiRouteSurface {
+function deferredSurface(id: string, label: string, load: () => Promise<UiRouteSurface>): UiRouteSurface {
   let delegate: UiRouteSurface | null = null;
   let closed = false;
   let failure: string | null = null;
   let onRender: () => void = () => undefined;
   let onExit: () => void = () => undefined;
   const pending: Array<(surface: UiRouteSurface) => void> = [];
-  void loadSettingsSurface(settings).then(surface => {
+  void load().then(surface => {
     if (closed) { surface.close(); return; }
     delegate = surface;
     surface.onRenderRequested(() => onRender());
@@ -31,7 +65,7 @@ function deferredSettingsSurface(settings: OwnedSettingsManager): UiRouteSurface
     for (const action of pending.splice(0)) action(surface);
     onRender();
   }).catch(error => {
-    failure = `Could not load settings: ${error instanceof Error ? error.message : String(error)}`;
+    failure = `Could not load ${label}: ${error instanceof Error ? error.message : String(error)}`;
     onRender();
   });
   const defer = (action: (surface: UiRouteSurface) => void): void => {
@@ -39,7 +73,7 @@ function deferredSettingsSurface(settings: OwnedSettingsManager): UiRouteSurface
     else if (!closed && pending.length < 32) pending.push(action);
   };
   return {
-    id: SETTINGS_APP_ID,
+    id,
     render: (width, height) => delegate?.render(width, height)
       ?? Array.from({ length: Math.max(0, height) }, (_, row) => row === 0 && failure !== null ? failure.slice(0, Math.max(0, width)) : ""),
     handleInput: data => { defer(surface => surface.handleInput(data)); return true; },
@@ -52,13 +86,39 @@ function deferredSettingsSurface(settings: OwnedSettingsManager): UiRouteSurface
 }
 
 async function loadSettingsSurface(settings: OwnedSettingsManager): Promise<UiRouteSurface> {
-  const [{ SettingsApp }, { UiAppHost }, { UiAppRegistry }] = await Promise.all([
-    import("../features/owned-ui/settings-app.js"),
+  const { SettingsApp } = await import("../features/owned-ui/settings-app.js");
+  return hostApp(SETTINGS_APP_ID, SETTINGS_ROUTE, () => new SettingsApp(settings));
+}
+
+async function loadReferenceSurface(
+  settings: OwnedSettingsManager,
+  id: string,
+  route: string,
+  title: string,
+  document: Promise<OwnedReferenceRows>,
+): Promise<UiRouteSurface> {
+  // Rationale: the app module and the document load together, so a document that fails
+  // to render is reported by the placeholder rather than by a screen that never fills.
+  const [{ ReferenceScreenApp }, rows] = await Promise.all([import("../features/owned-ui/reference-screen-app.js"), document]);
+  return hostApp(id, route, () => new ReferenceScreenApp({
+    id,
+    title,
+    document: { rows },
+    scrollSettings: () => ({
+      scrollbarAppearance: settings.value("scrollbarAppearance"),
+      scrollbarStyle: settings.value("scrollbarStyle"),
+      scrollbarSpeed: settings.value("scrollbarSpeed"),
+    }),
+  }));
+}
+
+async function hostApp(id: string, route: string, create: () => UiApp): Promise<UiRouteSurface> {
+  const [{ UiAppHost }, { UiAppRegistry }] = await Promise.all([
     import("../ui/apps/host.js"),
     import("../ui/apps/registry.js"),
   ]);
   const registry = new UiAppRegistry();
-  registry.register({ id: SETTINGS_APP_ID, route: SETTINGS_ROUTE, create: () => new SettingsApp(settings) });
+  registry.register({ id, route, create });
   let size = { width: 80, height: 24 };
   let frame: readonly string[] = [];
   let closed = false;
@@ -78,9 +138,9 @@ async function loadSettingsSurface(settings: OwnedSettingsManager): Promise<UiRo
       },
     },
   });
-  host.open(SETTINGS_APP_ID);
+  host.open(id);
   return {
-    id: SETTINGS_APP_ID,
+    id,
     render: (width, height) => {
       size = { width, height };
       host.render();

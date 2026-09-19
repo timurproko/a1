@@ -68,10 +68,19 @@ export interface UiRouteSurface {
   onExitRequested(listener: () => void): void;
 }
 
+/**
+ * What a shell may hand a route when it opens it. A route that does not use the
+ * input opens exactly as it does without one.
+ */
+export interface UiRouteInput {
+  /** A caller-supplied document for a route that presents documents. */
+  readonly document?: string;
+}
+
 /** Route lookup seam shared by owned apps and any presentation runtime hosting them. */
 export interface UiRouteHost {
   claims(route: string): boolean;
-  open(route: string): UiRouteSurface | null;
+  open(route: string, input?: UiRouteInput): UiRouteSurface | null;
 }
 
 const ID_PATTERN = /^[a-z][a-z0-9-]{0,63}$/;

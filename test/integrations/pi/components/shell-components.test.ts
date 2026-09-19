@@ -13,6 +13,7 @@ import {
   createPiShellFooter,
   createPiShellAuthProviderSelector,
   createPiShellHeader,
+  createPiShellChangelog,
   createPiShellHotkeys,
   createPiShellLoadedResources,
   createPiQueuedInputStatus,
@@ -22,6 +23,8 @@ import {
   createPiShellStatus,
   createPiShellTranscriptComponent,
   PINNED_PI_BUILTIN_SLASH_COMMANDS,
+  renderPiShellChangelogLines,
+  renderPiShellHotkeysLines,
   renderPiShellTranscriptBlock,
   WorkingStatusIndicator,
 } from "../../../../src/integrations/pi/components/index.js";
@@ -410,6 +413,33 @@ describe("Pi shell public component adapters", () => {
     expect(pinned).not.toContain("Start of content");
     expect(pinned.split("\n").find(line => line.includes("Start of line"))).toContain("Ctrl+Home");
     expect(pinned.split("\n").find(line => line.includes("End of line"))).toContain("Ctrl+End");
+  });
+
+  it.each([80, 120])("renders the reference screen rows as the in-feed documents minus their chrome at %i columns", width => {
+    // Rationale: the feed document is spacer, border, heading, spacer, Markdown rows, border; the
+    // screen shows exactly the Markdown rows.
+    const markdown = ["## 0.85.1", "", "- **Fixed selection rendering** in the [docs](docs/README.md)", `- Long entry ${"word ".repeat(40)}`].join("\n");
+    const feed = createPiShellChangelog(markdown).render(width);
+    expect(stripTerminalSequences(feed[2] ?? "")).toContain("What's New");
+    const changelog = renderPiShellChangelogLines(markdown, width);
+    expect(changelog.length).toBeGreaterThan(2);
+    expect(changelog).toEqual(feed.slice(4, feed.length - 1));
+    expect(stripTerminalSequences(changelog.join("\n"))).toContain("Fixed selection rendering");
+    expect(changelog.every(row => visibleWidth(row) <= width)).toBe(true);
+    expect(renderPiShellChangelogLines("   ", width).map(stripTerminalSequences).join("\n")).toContain("No changelog entries found.");
+
+    const shortcuts = () => [{ key: "ctrl+alt+p", description: "Probe extension" }];
+    const hotkeysFeed = createPiShellHotkeys(undefined, shortcuts, "a1").render(width);
+    expect(stripTerminalSequences(hotkeysFeed[2] ?? "")).toContain("Keyboard Shortcuts");
+    const hotkeys = renderPiShellHotkeysLines({ getShortcuts: shortcuts, profile: "a1" }, width);
+    expect(hotkeys).toEqual(hotkeysFeed.slice(4, hotkeysFeed.length - 1));
+    const plain = stripTerminalSequences(hotkeys.join("\n"));
+    expect(plain).toContain("Navigation");
+    expect(plain).toContain("Start of content");
+    expect(plain).toContain("Extensions");
+    expect(plain).toContain("Probe extension");
+    expect(plain).not.toContain("Keyboard Shortcuts");
+    expect(renderPiShellHotkeysLines({}, width)).toEqual(createPiShellHotkeys().render(width).slice(4, -1));
   });
 
   it("renders pinned compact and expanded startup resource sections with diagnostics", () => {

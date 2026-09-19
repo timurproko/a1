@@ -254,8 +254,11 @@
         "What's New",
         "Keyboard Shortcuts"
       ],
-      "destination": "src/app/session-shell/session-shell.ts",
-      "implementationStatus": "requires-revalidation"
+      "destination": "src/features/owned-ui/reference-screen-app.ts",
+      "comparisonDestination": "src/app/session-shell/session-shell-root.ts",
+      "bareA1Presentation": "full-screen reference screen opened through the owned route host (What's New, Keyboard Shortcuts); the pinned in-feed document is retained for the a1 pi comparison profile",
+      "deviation": "bare-a1-reference-screens",
+      "implementationStatus": "known-divergence"
     },
     {
       "id": "document.command-inline-results",

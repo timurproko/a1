@@ -31,7 +31,7 @@ Focused files:
 
 ## Manual review
 
-Build the exact candidate, then launch it through `./scripts/dev` from its worktree in Windows Terminal/Git Bash. Use `/hotkeys` to populate a long transcript, then open `/scoped-models`. Compare scrolling and drag/word/line selection with the dialog closed and open. Try the rail, copy, and jump-to-bottom; the model dialog must not navigate or close as a side effect of transcript gestures. Copy must not show Pi's `Copied` notification.
+Build the exact candidate, then launch it through `./scripts/dev` from its worktree in Windows Terminal/Git Bash. Populate a long transcript (for example with a few prompts, or `/hotkeys` under `a1 pi`; in bare A1 `/hotkeys` opens a full-screen reference screen and appends nothing), then open `/scoped-models`. Compare scrolling and drag/word/line selection with the dialog closed and open. Try the rail, copy, and jump-to-bottom; the model dialog must not navigate or close as a side effect of transcript gestures. Copy must not show Pi's `Copied` notification.
 
 Repeat with `/models`, settings and a nested settings dialog, and extension-provided docked and floating surfaces. Check that typing, modal buttons and wheel handling, save, and cancel still work. Resize during a drag, close/reopen the modal, and repeat while output streams. A full-cover screen must not allow click-through into hidden transcript cells. `auto` scrollbar visibility remains activity-dependent; `hidden` remains hidden.
 

@@ -89,6 +89,7 @@ import {
   createPiShellSessionInfo,
   renderPiShellCommandMessage,
   renderPiShellStatusText,
+  type PiShellHotkeysPresentation,
 } from "../../integrations/pi/components/shell-presenters-info.js";
 import {
   createPiShellTranscriptComponent,
@@ -1038,7 +1039,9 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       )));
     rows.push(...diagnostics
       .filter(diagnostic => diagnostic.code === "changelog-collapsed" || diagnostic.code === "changelog-expanded")
-      .flatMap(diagnostic => diagnostic.code === "changelog-collapsed"
+      // Rationale: the custom viewport shows the new entries on the What's New screen, so its feed
+      // carries only the hint for either diagnostic; the pinned layout keeps the full document.
+      .flatMap(diagnostic => diagnostic.code === "changelog-collapsed" || this.#customViewport
         ? createPiShellCollapsedChangelog().render(width)
         : createPiShellChangelog(diagnostic.message).render(width)));
     rows.push(...diagnostics
@@ -1162,7 +1165,8 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     }
     if (result.command === "hotkeys" && result.outcome === "completed") {
       this.#lastWorkflowStatusId = undefined;
-      const hotkeys = createPiShellHotkeys(this.editor.keybindingConfig(), bindings => this.#extensionRenderers.getShortcuts?.(bindings) ?? [], this.#customViewport ? "a1" : "pi");
+      const presentation = this.hotkeysPresentation();
+      const hotkeys = createPiShellHotkeys(presentation.bindings, presentation.getShortcuts, presentation.profile);
       this.#appendAnchoredWorkflowComponent(width => hotkeys.render(width), () => hotkeys.dispose?.());
       return;
     }
@@ -1256,6 +1260,14 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.#extensionWorkingVisible = visible;
     this.#status.setWorkingOverride(visible ? message : undefined);
     this.invalidate();
+  }
+
+  hotkeysPresentation(): PiShellHotkeysPresentation {
+    return {
+      bindings: this.editor.keybindingConfig(),
+      getShortcuts: bindings => this.#extensionRenderers.getShortcuts?.(bindings) ?? [],
+      profile: this.#customViewport ? "a1" : "pi",
+    };
   }
 
   resetWorkflowPresentation(): void {

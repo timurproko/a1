@@ -2673,7 +2673,14 @@
       "implementationStatus": "adapter-present-conformance-passed",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Decompose stock InteractiveMode authority across typed engine, component, TUI, and owned-shell adapters; construction, private inspection, and mutation of the stock root remain forbidden.",
-      "approvedDeviations": [],
+      "approvedDeviations": [
+        {
+          "id": "bare-a1-reference-screens",
+          "reason": "Accepted present-changelog-and-hotkeys-fullscreen shows /changelog, /hotkeys, and the startup What's New notes in bare A1 as one full-screen A1-owned reference screen instead of persistent in-feed documents.",
+          "upstreamBehavior": "The comparison profile keeps the pinned workflows and in-feed documents; the changelog source, version filtering, link rewriting, keybinding-derived tables, and acknowledged-version bookkeeping are unchanged.",
+          "acceptanceTest": "test/app/session-shell/session-shell-reference-screens.test.ts"
+        }
+      ],
       "behaviorCategories": [
         "startup-composition",
         "stateful-components",

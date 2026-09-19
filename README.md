@@ -70,6 +70,23 @@ to settings. While the scope or its order differs from the last save, the title 
 `/models <text>` seeds the search instead of switching. The bulk, provider, and reorder
 scope actions keep their existing bindings and appear under `/hotkeys`.
 
+## Reference screens
+
+In bare A1, `/changelog` and `/hotkeys` open a full-screen read-only reference
+screen over the session instead of appending a long document to the
+conversation: `What's New` shows the complete pinned changelog and
+`Keyboard Shortcuts` shows the bare-A1 keybinding tables, including extension
+shortcuts as bound when the screen opens. Scroll with ↑/↓, PageUp/PageDown,
+Home/End, the mouse wheel, or the scrollbar rail, which follows the
+`/settings` → Scroll appearance, style, and speed; press `Esc` to close. The
+screen is framed between two border-coloured rules with the hint below, as the
+v2 extension drew it. After
+an upgrade, the release notes newer than the last acknowledged version open the
+same `What's New` screen once at startup while the feed keeps only the
+`Run /changelog to view the full release notes.` hint. If another dialog is up
+at that moment, the screen is not opened for that launch. The `a1 pi`
+comparison profile keeps Pi's in-feed changelog and hotkeys documents.
+
 ## Prompt suggestions
 
 Bare A1's `/settings` → Agent → Prompt suggestions controls faint next-prompt
