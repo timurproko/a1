@@ -133,7 +133,8 @@ describe("owned reference routes", () => {
 
     const complete = host.open("changelog")!;
     expect(complete.id).toBe("changelog");
-    expect(complete.render(60, 8).map(PLAIN)[0]).toBe("Loading What's New…");
+    // Invariant: no loading notice: the screen is blank until the document is drawn.
+    expect(complete.render(60, 8).map(PLAIN).every(line => line.trim() === "")).toBe(true);
     let lines = await settled(complete, current => current[1]?.includes("What's New") === true);
     expect(changelog).toHaveBeenCalledWith(undefined);
     // Compatibility: the v2 frame: a rule, the title leading the document, a rule, the hint.
