@@ -10,4 +10,4 @@
 
 ## 3. Prove
 
-- [ ] 3.1 Dispatch `gh workflow run full-regression.yml --ref <this branch>` on the completed fix head, wait for it, and record the run number and head under Evidence in design.md; the failed owners pass on the failed lane.
+- [x] 3.1 Dispatch `gh workflow run full-regression.yml --ref <this branch>` on the completed fix head, wait for it, and record the run number and head under Evidence in design.md; the failed owners pass on the failed lane (runs #25 to #28: `dependency-policy` green on every lane, Windows Node 22 packs and runs the suite; the only remaining failures are Windows startup-budget overruns, which this change does not touch and which the startup-budget reliability change addresses).
