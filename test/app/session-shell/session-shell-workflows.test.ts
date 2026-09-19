@@ -343,7 +343,7 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
   it("cycles levels only in the owned agent input and keeps model selection command-accessible", async () => {
     const { terminal, shell } = await fixture([], [], true);
     const cycle = vi.spyOn(shell, "cycleThinkingLevel");
-    const select = vi.spyOn(shell, "showModelSelector");
+    const select = vi.spyOn(shell, "showModelsDialog");
     try {
       shell.root.editor.setText("draft");
       terminal.input("\u001b[Z");
@@ -353,7 +353,7 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
       terminal.input("\u000c");
       await vi.waitFor(() => expect(cycle).toHaveBeenCalledOnce());
       expect(select).not.toHaveBeenCalled();
-      await shell.submit("/model");
+      await shell.submit("/models");
       expect(select).toHaveBeenCalledOnce();
       const frame = stripTerminalSequences(shell.root.render(100).join("\n"));
       expect(frame).toContain("gpt-5");

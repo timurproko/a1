@@ -32,6 +32,7 @@ import type {
 
 type PiSessionApi = AgentSession;
 type PiRuntimeApi = AgentSessionRuntime;
+type PiWorkflowModel = ReturnType<PiRuntimeApi["services"]["modelRuntime"]["getAvailableSnapshot"]>[number];
 
 /** How many workflows and engine commands may be admitted together before new work is rejected. */
 const MAX_PENDING_WORK = 32;
@@ -205,6 +206,86 @@ export class PiWorkflowRunner {
     }
   }
 
+  async #selectModel(
+    request: PiWorkflowRequest,
+    reference: string,
+    options: {
+      readonly pool: readonly PiWorkflowModel[];
+      readonly refreshOnMiss: boolean;
+      readonly persist: boolean;
+      /** Whether an unmatched reference asks the owned selector to open or fails outright. */
+      readonly onMiss: "requires-selection" | "failed";
+    },
+  ): Promise<PiWorkflowResult> {
+    const session = this.#requireSession();
+    const runtime = this.#ports.runtime();
+    if (!runtime) throw new Error("engine runtime is unavailable");
+    let model = findExactWorkflowModel(reference, options.pool);
+    const messages: PiWorkflowMessage[] = [];
+    const generation = this.#ports.sessionGeneration();
+    const current = () => !this.#ports.disposed() && generation === this.#ports.sessionGeneration();
+    const publish = (message: PiWorkflowMessage) => {
+      if (!current()) return;
+      const interaction = this.#ports.interaction();
+      if (interaction.publish) interaction.publish(message);
+      else messages.push(message);
+    };
+    if (model === undefined && options.refreshOnMiss) {
+      publish({ kind: "status", message: "Refreshing model catalogs…" });
+      const controller = new AbortController();
+      let timedOut = false;
+      const timeout = setTimeout(() => {
+        timedOut = true;
+        controller.abort();
+      }, AUTH_REFRESH_TIMEOUT_MS);
+      try {
+        const refreshed = await runtime.services.modelRuntime.refresh?.({ signal: controller.signal });
+        if (isRecord(refreshed) && refreshed.aborted === true && timedOut) {
+          publish({ kind: "warning", message: "Model refresh timed out; searching cached models." });
+        } else if (isRecord(refreshed) && refreshed.errors instanceof Map && refreshed.errors.size > 0) {
+          publish({ kind: "warning", message: `Could not refresh ${[...refreshed.errors.keys()].join(", ")}; searching cached models.` });
+        }
+      } catch (error) {
+        publish({
+          kind: "warning",
+          message: timedOut
+            ? "Model refresh timed out; searching cached models."
+            : `Could not refresh model catalogs: ${error instanceof Error ? error.message : String(error)}`,
+        });
+      } finally {
+        clearTimeout(timeout);
+      }
+      model = findExactWorkflowModel(reference, [...(runtime.services.modelRuntime.getAvailableSnapshot?.() ?? [])]);
+    }
+    if (!current()) return workflowResult(request.command, "cancelled", "Model selection cancelled", undefined, "silent");
+    if (model === undefined) {
+      if (options.onMiss === "failed") {
+        const failure: PiWorkflowMessage = { kind: "error", message: `Model not found: ${reference}` };
+        return workflowResult(request.command, "failed", failure.message, undefined, "error", messages.length === 0 ? undefined : [...messages, failure]);
+      }
+      return {
+        ...workflowResult(request.command, "requires-selection", "Select a model", reference, "silent"),
+        ...(messages.length === 0 ? {} : { messages: Object.freeze(messages) }),
+      };
+    }
+    try {
+      await session.setModel(model, { persist: options.persist });
+    } catch (error) {
+      if (!current()) return workflowResult(request.command, "cancelled", "Model selection cancelled", undefined, "silent");
+      const failure: PiWorkflowMessage = { kind: "error", message: error instanceof Error ? error.message : String(error) };
+      return workflowResult(request.command, "failed", failure.message, undefined, "error", messages.length === 0 ? undefined : [...messages, failure]);
+    }
+    if (!current()) return workflowResult(request.command, "cancelled", "Model selection cancelled", undefined, "silent");
+    const providerId = stringProperty(model, "provider") ?? "unknown";
+    const modelId = stringProperty(model, "id") ?? reference;
+    this.#ports.setActiveModel({ providerId, modelId, displayName: stringProperty(model, "name") ?? modelId });
+    this.#ports.emitView();
+    const resultMessage: PiWorkflowMessage = { kind: "status", message: options.persist ? `Default model: ${providerId}/${modelId}` : `Model: ${modelId}` };
+    return messages.length === 0
+      ? workflowResult(request.command, "completed", resultMessage.message)
+      : workflowResult(request.command, "completed", resultMessage.message, undefined, "status", [...messages, resultMessage]);
+  }
+
   async #performWorkflow(request: PiWorkflowRequest): Promise<PiWorkflowResult> {
     const session = this.#requireSession();
     const runtime = this.#ports.runtime();
@@ -242,70 +323,23 @@ export class PiWorkflowRunner {
         const scopedModels = Array.isArray(session.scopedModels)
           ? session.scopedModels.map(item => item.model)
           : [];
-        let availableModels = scopedModels.length > 0
-          ? scopedModels
-          : [...(runtime.services.modelRuntime.getAvailableSnapshot?.() ?? [])];
-        let model = findExactWorkflowModel(reference, availableModels);
-        const messages: PiWorkflowMessage[] = [];
-        const generation = this.#ports.sessionGeneration();
-        const current = () => !this.#ports.disposed() && generation === this.#ports.sessionGeneration();
-        const publish = (message: PiWorkflowMessage) => {
-          if (!current()) return;
-          const interaction = this.#ports.interaction();
-          if (interaction.publish) interaction.publish(message);
-          else messages.push(message);
-        };
-        if (model === undefined && scopedModels.length === 0) {
-          publish({ kind: "status", message: "Refreshing model catalogs…" });
-          const controller = new AbortController();
-          let timedOut = false;
-          const timeout = setTimeout(() => {
-            timedOut = true;
-            controller.abort();
-          }, AUTH_REFRESH_TIMEOUT_MS);
-          try {
-            const refreshed = await runtime.services.modelRuntime.refresh?.({ signal: controller.signal });
-            if (isRecord(refreshed) && refreshed.aborted === true && timedOut) {
-              publish({ kind: "warning", message: "Model refresh timed out; searching cached models." });
-            } else if (isRecord(refreshed) && refreshed.errors instanceof Map && refreshed.errors.size > 0) {
-              publish({ kind: "warning", message: `Could not refresh ${[...refreshed.errors.keys()].join(", ")}; searching cached models.` });
-            }
-          } catch (error) {
-            publish({
-              kind: "warning",
-              message: timedOut
-                ? "Model refresh timed out; searching cached models."
-                : `Could not refresh model catalogs: ${error instanceof Error ? error.message : String(error)}`,
-            });
-          } finally {
-            clearTimeout(timeout);
-          }
-          availableModels = [...(runtime.services.modelRuntime.getAvailableSnapshot?.() ?? [])];
-          model = findExactWorkflowModel(reference, availableModels);
-        }
-        if (!current()) return workflowResult(request.command, "cancelled", "Model selection cancelled", undefined, "silent");
-        if (model === undefined) {
-          return {
-            ...workflowResult(request.command, "requires-selection", "Select a model", reference, "silent"),
-            ...(messages.length === 0 ? {} : { messages: Object.freeze(messages) }),
-          };
-        }
-        try {
-          await session.setModel(model, { persist: request.persist === true });
-        } catch (error) {
-          if (!current()) return workflowResult(request.command, "cancelled", "Model selection cancelled", undefined, "silent");
-          const failure: PiWorkflowMessage = { kind: "error", message: error instanceof Error ? error.message : String(error) };
-          return workflowResult(request.command, "failed", failure.message, undefined, "error", messages.length === 0 ? undefined : [...messages, failure]);
-        }
-        if (!current()) return workflowResult(request.command, "cancelled", "Model selection cancelled", undefined, "silent");
-        const providerId = stringProperty(model, "provider") ?? "unknown";
-        const modelId = stringProperty(model, "id") ?? reference;
-        this.#ports.setActiveModel({ providerId, modelId, displayName: stringProperty(model, "name") ?? modelId });
-        this.#ports.emitView();
-        const resultMessage: PiWorkflowMessage = { kind: "status", message: request.persist === true ? `Default model: ${providerId}/${modelId}` : `Model: ${modelId}` };
-        return messages.length === 0
-          ? workflowResult(request.command, "completed", resultMessage.message)
-          : workflowResult(request.command, "completed", resultMessage.message, undefined, "status", [...messages, resultMessage]);
+        // Compatibility: pinned Pi searches the session scope when one exists and refreshes catalogs only for an unscoped miss.
+        return this.#selectModel(request, reference, {
+          pool: scopedModels.length > 0 ? scopedModels : [...(runtime.services.modelRuntime.getAvailableSnapshot?.() ?? [])],
+          refreshOnMiss: scopedModels.length === 0,
+          persist: request.persist === true,
+          onMiss: "requires-selection",
+        });
+      }
+      case "models": {
+        // Invariant: the bare dialog seeds its query from the argument; only an explicit selection switches models.
+        if (!selection) return workflowResult(request.command, "requires-selection", "Select a model", argument || undefined, "silent");
+        return this.#selectModel(request, selection, {
+          pool: [...(runtime.services.modelRuntime.getAvailableSnapshot?.() ?? [])],
+          refreshOnMiss: true,
+          persist: true,
+          onMiss: "failed",
+        });
       }
       case "scoped-models": {
         if (!selection) return workflowResult(request.command, "failed", "Scoped models requires the owned scoped-model controller");

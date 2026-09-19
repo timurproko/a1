@@ -396,8 +396,7 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
   });
 
   it.each([
-    ["/scoped-models", "Model Configuration"],
-    ["/model", "Select model"],
+    ["/models", "Models"],
     ["/settings", "Auto-compact"],
     ["/fork", "Fork"],
     ["/login", "Login"],
