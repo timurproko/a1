@@ -1,8 +1,9 @@
 import { resolve } from "node:path";
 import { stripVTControlCharacters } from "node:util";
 import { describe, expect, it, vi } from "vitest";
-import { renderUpdateProgressBar } from "../../../src/foundation/release/update.js";
+import { CHILD_DIAGNOSTIC_LIMIT, renderUpdateProgressBar } from "../../../src/foundation/release/update.js";
 import {
+  createNpmProcessRunner,
   PRODUCT_PACKAGE,
   runSelfUpdate,
   UPDATE_JOURNAL_SCHEMA,
@@ -661,6 +662,77 @@ describe("A1 self-update orchestration", () => {
 
     expect(harness.stderr.join("")).toContain("query the npm release channel");
     expect(harness.stderr.join("")).toContain("status 23");
+    expect(harness.stderr.join("")).not.toContain("Review npm's diagnostics above");
+  });
+
+  it("shows what npm said only with the failure it explains", async () => {
+    const harness = createHarness({ responses: [{ code: 23, stdout: "", stderr: "npm ERR! code E404\nnpm ERR! 404 Not Found\n" }] });
+
+    await expect(runSelfUpdate(harness)).resolves.toBe(23);
+
+    const stderr = harness.stderr.join("");
+    expect(stderr.indexOf("npm ERR! 404 Not Found")).toBeLessThan(stderr.indexOf("status 23"));
+    expect(stderr).toContain("Review npm's diagnostics above");
+  });
+
+  it("keeps a successful child's stderr off the terminal", async () => {
+    const latest = "1.3.0";
+    const harness = createHarness({ responses: [
+      { code: 0, stdout: `${latest}\n`, stderr: "npm notice New major version of npm available!\n" },
+      { code: 0, stdout: `${resolve("fixtures", "global")}\n`, stderr: "npm warn config prefix\n" },
+      { code: 0, stdout: "", stderr: "npm warn deprecated something@1.0.0\n" },
+    ] });
+
+    await expect(runSelfUpdate(harness)).resolves.toBe(0);
+
+    expect(harness.stderr).toEqual([]);
+    expect(harness.stdout.join("")).toContain(`updated successfully to ${latest}`);
+  });
+
+  it("prints the failed installation's own text before the failure line", async () => {
+    const harness = createHarness();
+    harness.runner = async (command, arguments_, request) => {
+      harness.invocations.push({ command, arguments: arguments_, request });
+      if (arguments_[0] === "view") return success("1.3.0\n");
+      if (arguments_[0] === "root") return success(`${harness.globalRoot}\n`);
+      return { code: 77, stdout: "npm ERR! EACCES\n", stderr: "npm ERR! permission denied\n" };
+    };
+
+    await expect(runSelfUpdate(harness)).resolves.toBe(77);
+
+    const stderr = harness.stderr.join("");
+    expect(stderr).toContain("npm ERR! EACCES\nnpm ERR! permission denied\n");
+    expect(stderr.indexOf("permission denied")).toBeLessThan(stderr.indexOf("update failed"));
+  });
+
+  it("reports protected replacement text only when nothing was installed", async () => {
+    const result = (outcome: "installed" | "recovery-launcher") => ({
+      schema: "a1-update-recovery-v1" as const,
+      transactionId: "test-update",
+      outcome,
+      npmExitCode: outcome === "installed" ? 0 : 1,
+      cancelled: false,
+      launcherDisposition: outcome === "installed" ? "target" as const : "recovery" as const,
+      stdout: "npm progress line\n",
+      stderr: "npm warn something\n",
+      completedAt: new Date(0).toISOString(),
+      recovery: {
+        capsulePath: resolve("fixtures", "data", "update-recovery", "test", "capsule.json"),
+        status: outcome === "installed" ? "package-installed" as const : "recovery-launcher" as const,
+        guardianPid: 42,
+        guardianStartIdentity: "42:start",
+        cancellationRequested: false,
+        launcherDisposition: outcome === "installed" ? "target" as const : "recovery" as const,
+      },
+    });
+    const installed = createHarness({ responses: [success("1.3.0\n"), success(`${resolve("fixtures", "global")}\n`), success()] });
+    await expect(runSelfUpdate({ ...installed, packageReplacement: async () => result("installed") })).resolves.toBe(0);
+    expect(installed.stderr).toEqual([]);
+
+    const failed = createHarness({ responses: [success("1.3.0\n"), success(`${resolve("fixtures", "global")}\n`)] });
+    await expect(runSelfUpdate({ ...failed, packageReplacement: async () => result("recovery-launcher") })).resolves.toBe(1);
+    expect(failed.stderr.join("")).toContain("npm progress line\nnpm warn something\n");
+    expect(failed.stderr.join("")).toContain("update failed");
   });
 
   it("reports npm startup failures", async () => {
@@ -722,5 +794,34 @@ describe("A1 self-update orchestration", () => {
 
     expect(harness.stderr.join("")).toContain("start the global npm installation");
     expect(harness.stderr.join("")).toContain("permission denied");
+  });
+});
+
+describe("update child processes", () => {
+  const runner = createNpmProcessRunner();
+  const script = (source: string) => [process.execPath, ["-e", source], { captureStdout: true }] as const;
+
+  it("captures a child's stderr with its exit status instead of sharing the terminal", async () => {
+    await expect(runner(...script("console.log('out'); console.error('npm ERR! boom'); process.exit(3)")))
+      .resolves.toEqual({ code: 3, stdout: "out\n", stderr: "npm ERR! boom\n" });
+  });
+
+  it("keeps a successful child's stderr as a result, not as output", async () => {
+    await expect(runner(...script("console.error('npm notice'); process.exit(0)")))
+      .resolves.toEqual({ code: 0, stdout: "", stderr: "npm notice\n" });
+  });
+
+  it("lets an older updater run the retired proxy sync entry without a word", async () => {
+    // Compatibility: updaters before 0.1.8-dev.479 run this entry from the installed tree.
+    const entry = resolve(import.meta.dirname, "..", "..", "..", "bin", "sync-pi-tui-proxy.js");
+
+    await expect(runner(process.execPath, [entry], { captureStdout: true })).resolves.toEqual({ code: 0, stdout: "", stderr: "" });
+  });
+
+  it("bounds the diagnostics it keeps to the tail of what the child wrote", async () => {
+    const result = await runner(...script(`process.stderr.write('a'.repeat(${CHILD_DIAGNOSTIC_LIMIT}) + 'tail'); process.exit(1)`));
+
+    expect(result.stderr).toHaveLength(CHILD_DIAGNOSTIC_LIMIT);
+    expect(result.stderr?.endsWith("tail")).toBe(true);
   });
 });
