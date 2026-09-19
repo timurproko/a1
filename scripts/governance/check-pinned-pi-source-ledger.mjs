@@ -17,6 +17,8 @@ const ledgerPath = resolve(process.env.SOURCE_LEDGER_PATH ?? join(
 const sourceRoot = resolve(process.env.SOURCE_LEDGER_SCAN_ROOT ?? join(repository, "src"));
 const portRoot = resolve(process.env.SOURCE_LEDGER_PORT_ROOT ?? join(repository, "src", "integrations", "pi", "components", "upstream"));
 const allowedClassifications = new Set(["public-api-reuse", "owned-presentation", "host-adaptation"]);
+// Invariant: a copy that follows upstream is three-way merged on upgrade; one A1 keeps on purpose is never merged, only reported.
+const UPGRADE_STRATEGIES = new Set(["three-way", "keep-owned"]);
 const completedStatusesByClassification = new Map([
   ["public-api-reuse", new Set(["available-through-pinned-package"])],
   ["owned-presentation", new Set(["ported", "source-synchronized-port", "owned-port-present"])],
@@ -154,6 +156,10 @@ function validateRecord(record, index) {
   if (record.classification === "owned-presentation" && !record.localDestination.startsWith("src/integrations/pi/components/upstream/")) {
     fail(`${label}.owned source port has no mirrored local destination`);
   }
+  if (record.classification === "owned-presentation" && !UPGRADE_STRATEGIES.has(record.upgradeStrategy)) {
+    fail(`${label}.upgradeStrategy must be one of ${[...UPGRADE_STRATEGIES].join(", ")}`);
+  }
+  if (record.classification !== "owned-presentation" && record.upgradeStrategy !== undefined) fail(`${label}.upgradeStrategy applies to owned copies only`);
   if (!/MIT/.test(record.attribution) || !/repository/.test(record.attribution) || !/commit/.test(record.attribution)) {
     fail(`${label}.attribution is incomplete`);
   }

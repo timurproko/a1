@@ -25,8 +25,10 @@ export async function evaluatePiCandidate(request, options = {}) {
         stages.push({ stage, passed: true, detail: bounded(detail ?? "passed") });
       } catch (error) {
         const message = controller.signal.aborted ? `timed out after ${timeoutMs}ms` : bounded(error instanceof Error ? error.message : String(error));
-        stages.push({ stage, passed: false, detail: message });
-        return report(request.packages, false, stages, [{ stage, message }]);
+        // Rationale: the detail is bounded for a summary line; the complete tool output stays on the stage so a proposal can keep it whole.
+        const output = typeof error?.output === "string" ? error.output : undefined;
+        stages.push({ stage, passed: false, detail: message, ...(output === undefined ? {} : { output }) });
+        return report(request.packages, false, stages, [{ stage, message, ...(output === undefined ? {} : { output }) }]);
       }
     }
     return report(request.packages, true, stages, []);
@@ -72,7 +74,7 @@ function command(executable, arguments_, cwd, signal) {
     child.on("error", rejectPromise);
     child.on("close", (code, signalName) => {
       if (code === 0) resolvePromise({ stdout, stderr });
-      else rejectPromise(new Error(`${executable} ${arguments_[0] ?? ""} exited with ${signalName ?? code}: ${stderr.trim() || stdout.trim()}`));
+      else rejectPromise(Object.assign(new Error(`${executable} ${arguments_[0] ?? ""} exited with ${signalName ?? code}: ${stderr.trim() || stdout.trim()}`), { output: `${stdout}${stderr}` }));
     });
   });
 }

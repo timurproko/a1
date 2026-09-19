@@ -102,6 +102,38 @@ describe("pinned Pi source ledger governance", () => {
     expect(result.stderr).toContain("undocumented owned source file");
   });
 
+  it("requires every owned copy to name its upgrade strategy and no other record to carry one", async () => {
+    const ledger = await ledgerFixture();
+    const owned = ledger.records.filter((record: Record<string, unknown>) => record.classification === "owned-presentation");
+    expect(owned.length).toBeGreaterThan(0);
+    for (const record of owned) expect(["three-way", "keep-owned"], record.id).toContain(record.upgradeStrategy);
+    expect(owned.filter((record: Record<string, unknown>) => record.upgradeStrategy === "keep-owned").map((record: Record<string, unknown>) => record.localDestination).sort()).toEqual([
+      "src/integrations/pi/components/upstream/components/owned-editor.ts",
+      "src/integrations/pi/components/upstream/history/text-helpers.ts",
+      "src/integrations/pi/components/upstream/theme/theme-controller.ts",
+      "src/integrations/pi/components/upstream/theme/theme.ts",
+    ]);
+    for (const record of ledger.records) if (record.classification !== "owned-presentation") expect(record.upgradeStrategy, record.id).toBeUndefined();
+
+    const missing = await runFixture(fixture => {
+      delete fixture.records.find((record: Record<string, unknown>) => record.classification === "owned-presentation").upgradeStrategy;
+    });
+    expect(missing.status).toBe(1);
+    expect(missing.stderr).toContain("upgradeStrategy must be one of three-way, keep-owned");
+
+    const unknown = await runFixture(fixture => {
+      fixture.records.find((record: Record<string, unknown>) => record.classification === "owned-presentation").upgradeStrategy = "rebase";
+    });
+    expect(unknown.status).toBe(1);
+    expect(unknown.stderr).toContain("upgradeStrategy must be one of");
+
+    const misplaced = await runFixture(fixture => {
+      fixture.records.find((record: Record<string, unknown>) => record.classification === "public-api-reuse").upgradeStrategy = "three-way";
+    });
+    expect(misplaced.status).toBe(1);
+    expect(misplaced.stderr).toContain("upgradeStrategy applies to owned copies only");
+  });
+
   it("rejects undocumented deviations", async () => {
     const result = await runFixture(ledger => { ledger.records[0].approvedDeviations.push({ id: "shortcut" }); });
     expect(result.status).toBe(1);
