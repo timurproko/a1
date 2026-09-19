@@ -543,6 +543,8 @@ describe("the settings screen", () => {
     target.onInput?.(`${ESC}[1;2B`, HOST);
     expect(find(target, "❯")).toContain("zzzz");
     expect(screen(target).some(line => line.trimStart().startsWith("→"))).toBe(false);
+    expect(screen(target).join("\n")).toContain("No settings found.");
+    expect(screen(target).join("\n")).not.toContain("Loading settings");
   });
 
   it("leaves the dialog on escape", async () => {

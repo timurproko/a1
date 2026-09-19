@@ -41,8 +41,7 @@ function deferredSettingsSurface(settings: OwnedSettingsManager): UiRouteSurface
   return {
     id: SETTINGS_APP_ID,
     render: (width, height) => delegate?.render(width, height)
-      ?? [...(height > 0 ? [failure ?? "Loading settings…"] : []), ...Array(Math.max(0, height - 1)).fill("")]
-        .map(line => line.slice(0, Math.max(0, width))),
+      ?? Array.from({ length: Math.max(0, height) }, (_, row) => row === 0 && failure !== null ? failure.slice(0, Math.max(0, width)) : ""),
     handleInput: data => { defer(surface => surface.handleInput(data)); return true; },
     handleMouse: event => { defer(surface => surface.handleMouse(event)); return true; },
     isClosed: () => closed || delegate?.isClosed() === true,
