@@ -12,12 +12,12 @@ import type {
   OwnedUiDialog,
   OwnedUiImageAttachment,
   OwnedUiPromptSuggestionIdentity,
-  OwnedUiQuitEffect,
   OwnedUiSessionViewModel,
   OwnedUiThinkingLevel,
   SuggestionDecision,
 } from "../../contracts/owned-ui/index.js";
 import type { UiRouteHost } from "../../ui/apps/contracts.js";
+import type { QuitOutroEffect } from "./quit-outro-effects.js";
 import { ContextualPromptSuggestionController } from "./prompt-suggestion-controller.js";
 import { MOUSE_TRACKING_OFF, MOUSE_TRACKING_ON, parseMouseInput } from "../../ui/components/mouse.js";
 import { readVisibleHyperlinks } from "../../ui/components/visible-hyperlinks.js";
@@ -1688,10 +1688,12 @@ export class OwnedUiSessionShell {
     if (outro === undefined || !outro.interactive || !this.#customViewport || this.#damageTerminal === null) return null;
     if (!this.runtime.active || this.runtime.mode !== "fullscreen") return null;
     try {
-      const { enabled, effect, durationMs } = outro.snapshot();
-      if (!enabled) return null;
+      if (!outro.snapshot().enabled) return null;
       const viewport = this.runtime.viewport();
-      return { rows: this.#damageTerminal.presentedRows(), columns: viewport.columns, height: viewport.rows, settings: { effect, durationMs } };
+      return {
+        rows: this.#damageTerminal.presentedRows(), columns: viewport.columns, height: viewport.rows,
+        settings: { effect: QUIT_OUTRO_EFFECT, durationMs: QUIT_OUTRO_DURATION_MS },
+      };
     } catch {
       return null;
     }
@@ -2191,12 +2193,15 @@ function workflowAdapterResult(result: PiWorkflowResult): AdapterCommandResult {
 const INTERRUPT = "\u0003";
 const INTERRUPT_CHORD_MS = 1_500;
 const RELOAD_SURFACE_MIN_VISIBLE_MS = 400;
+// Rationale: the outro is not configurable; the switch only decides whether this plan plays.
+const QUIT_OUTRO_EFFECT: QuitOutroEffect = "fall";
+const QUIT_OUTRO_DURATION_MS = 800;
 
 interface QuitOutroCapture {
   readonly rows: readonly string[];
   readonly columns: number;
   readonly height: number;
-  readonly settings: { readonly effect: OwnedUiQuitEffect; readonly durationMs: number };
+  readonly settings: { readonly effect: QuitOutroEffect; readonly durationMs: number };
 }
 
 

@@ -99,7 +99,7 @@ describe("owned settings manager", () => {
       const target = new OwnedSettingsManager({ configDir: root, profileId: "a1", agent: state === "absent" ? null : port });
       await target.load();
       expect(readFileSync(seed.file, "utf8")).toBe(before);
-      expect(target.resolution).toMatchObject({ version: 7, migrated: false, notices: [] });
+      expect(target.resolution).toMatchObject({ version: 8, migrated: false, notices: [] });
       const group = target.sections().find(section => section.id === "agent");
       const entry = group?.entries.find(candidate => candidate.id === "promptSuggestions");
       expect(group).toMatchObject({ unavailableReason: null, readOnlyReason: null });
@@ -127,7 +127,7 @@ describe("owned settings manager", () => {
       expect(target.value("skillsPresentation")).toBe("expand");
       expect(port.writes).toEqual([]);
       expect(port.flushed()).toBe(0);
-      expect(JSON.parse(readFileSync(seed.file, "utf8"))).toEqual({ version: 7, values: { promptSuggestions: false, skillsPresentation: "expand" } });
+      expect(JSON.parse(readFileSync(seed.file, "utf8"))).toEqual({ version: 8, values: { promptSuggestions: false, skillsPresentation: "expand" } });
       const restarted = new OwnedSettingsManager({ configDir: root, profileId: "a1", agent: state === "absent" ? null : port });
       await restarted.load();
       expect(restarted.sections().find(section => section.id === "agent")?.entries.slice(-2)).toMatchObject([
@@ -169,8 +169,8 @@ describe("owned settings manager", () => {
     expect(target.value("scrollbarSpeed")).toBe("fast");
     // Invariant: an injected declaration set that omits a setting still answers with the table default.
     const partial = session(null);
-    expect(partial.valueOf("quitEffect")).toBeNull();
-    expect(partial.value("quitEffect")).toBe("fall");
+    expect(partial.valueOf("promptHistoryMaxItems")).toBeNull();
+    expect(partial.value("promptHistoryMaxItems")).toBe(100);
   });
 
   it("exposes resolved A1 values and engine-backed sections after load", async () => {

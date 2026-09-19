@@ -41,8 +41,6 @@ describe("owned UI setting declarations", () => {
       "scrollbarSpeed",
       "promptHistoryEnabled",
       "promptHistoryMaxItems",
-      "quitEffect",
-      "quitEffectDurationMs",
       "promptSuggestions",
       "skillsPresentation",
     ]);
@@ -96,27 +94,16 @@ describe("owned UI setting declarations", () => {
     });
   });
 
-  it("declares the leading Generic exit-animation toggle", () => {
+  it("declares the leading Generic quit-animation toggle as the only quit control", () => {
     expect(OWNED_UI_SETTING_DECLARATIONS[0]).toMatchObject({
-      id: "quitAnimation", label: "Exit animation", section: { id: "generic", title: "Generic" },
+      id: "quitAnimation", label: "Quit animation", section: { id: "generic", title: "Generic" },
       application: "live", defaultValue: true, allowedValues: [true, false],
     });
+    expect(OWNED_UI_SETTING_DECLARATIONS[0]?.description).toContain("fall effect");
     expect(OWNED_UI_SETTING_DECLARATIONS[0]?.description).toContain("Off returns to the terminal immediately");
-  });
-
-  it("declares live quit outro effect and duration controls with prototype defaults", () => {
-    expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "quitEffect")).toMatchObject({
-      label: "Effect", section: { id: "quit", title: "Quit" }, application: "live", defaultValue: "fall",
-      allowedValues: ["fall", "dissolve", "starburst", "waves"],
-    });
-    expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "quitEffectDurationMs")).toMatchObject({
-      label: "Duration", section: { id: "quit", title: "Quit" }, application: "live", defaultValue: 800,
-    });
-    const durations = findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "quitEffectDurationMs")?.allowedValues ?? [];
-    expect(durations).toHaveLength(18);
-    expect(durations[0]).toBe(300);
-    expect(durations.at(-1)).toBe(2000);
-    expect(durations.every((value, index) => value === 300 + index * 100)).toBe(true);
+    expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "quitEffect")).toBeNull();
+    expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "quitEffectDurationMs")).toBeNull();
+    expect(OWNED_UI_SETTING_DECLARATIONS.some(setting => setting.section?.id === "quit")).toBe(false);
   });
 
   it("rejects a default outside the allowed values", () => {
@@ -174,7 +161,7 @@ describe("owned UI settings migrations", () => {
   });
 
   it("migrates the former speed and appearance names", () => {
-    expect(OWNED_UI_SETTINGS_MIGRATIONS).toHaveLength(6);
+    expect(OWNED_UI_SETTINGS_MIGRATIONS).toHaveLength(7);
     expect(OWNED_UI_SETTINGS_MIGRATIONS[0]?.migrate({ scrollbarSpeed: "high", future: true }))
       .toEqual({ scrollbarSpeed: "fast", future: true });
     expect(OWNED_UI_SETTINGS_MIGRATIONS[1]?.migrate({ scrollbarAppearance: "hover", future: true }))
@@ -198,26 +185,40 @@ describe("owned UI settings migrations", () => {
       declarations: OWNED_UI_SETTING_DECLARATIONS, migrations: OWNED_UI_SETTINGS_MIGRATIONS,
       document: { version: 5, values: { quitEffect: "off" } },
     });
-    expect(resolved).toMatchObject({ version: 7, migrated: true, notices: [] });
+    expect(resolved).toMatchObject({ version: 8, migrated: true, notices: [] });
     expect(resolved.settings.find(setting => setting.declaration.id === "quitAnimation")).toMatchObject({ value: false, source: "stored" });
-    expect(resolved.settings.find(setting => setting.declaration.id === "quitEffect")).toMatchObject({ value: "fall", source: "default" });
+    expect(resolved.settings.some(setting => setting.declaration.id === "quitEffect")).toBe(false);
+  });
+
+  it("drops the retired quit effect and duration keys", () => {
+    expect(OWNED_UI_SETTINGS_MIGRATIONS[5]?.migrate({ quitEffect: "waves", quitEffectDurationMs: 500, quitAnimation: true, future: true }))
+      .toEqual({ quitAnimation: true, future: true });
+    expect(OWNED_UI_SETTINGS_MIGRATIONS[5]?.migrate({ quitAnimation: false, future: true }))
+      .toEqual({ quitAnimation: false, future: true });
+    const resolved = resolveOwnedUiSettings({
+      declarations: OWNED_UI_SETTING_DECLARATIONS, migrations: OWNED_UI_SETTINGS_MIGRATIONS,
+      document: { version: 6, values: { quitEffect: "dissolve", quitEffectDurationMs: 1200 } },
+    });
+    expect(resolved).toMatchObject({ version: 8, migrated: true, notices: [] });
+    expect(resolved.preserved).toEqual({});
+    expect(resolved.settings.find(setting => setting.declaration.id === "quitAnimation")).toMatchObject({ value: true, source: "default" });
   });
 
   it("introduces the collapsed skills presentation without rewriting stored values", () => {
-    expect(OWNED_UI_SETTINGS_MIGRATIONS[5]).toMatchObject({ to: 7 });
-    expect(OWNED_UI_SETTINGS_MIGRATIONS[5]?.migrate({ promptSuggestions: false, future: true }))
+    expect(OWNED_UI_SETTINGS_MIGRATIONS[6]).toMatchObject({ to: 8 });
+    expect(OWNED_UI_SETTINGS_MIGRATIONS[6]?.migrate({ promptSuggestions: false, future: true }))
       .toEqual({ promptSuggestions: false, future: true });
     const resolved = resolveOwnedUiSettings({
       declarations: OWNED_UI_SETTING_DECLARATIONS, migrations: OWNED_UI_SETTINGS_MIGRATIONS,
-      document: { version: 6, values: { promptSuggestions: false, quitEffect: "waves" } },
+      document: { version: 7, values: { promptSuggestions: false, quitAnimation: false } },
     });
-    expect(resolved).toMatchObject({ version: 7, migrated: true, notices: [] });
+    expect(resolved).toMatchObject({ version: 8, migrated: true, notices: [] });
     expect(resolved.settings.find(setting => setting.declaration.id === "skillsPresentation")).toMatchObject({ value: "collapse", source: "default" });
     expect(resolved.settings.find(setting => setting.declaration.id === "promptSuggestions")).toMatchObject({ value: false, source: "stored" });
-    expect(resolved.settings.find(setting => setting.declaration.id === "quitEffect")).toMatchObject({ value: "waves", source: "stored" });
+    expect(resolved.settings.find(setting => setting.declaration.id === "quitAnimation")).toMatchObject({ value: false, source: "stored" });
     const invalid = resolveOwnedUiSettings({
       declarations: OWNED_UI_SETTING_DECLARATIONS, migrations: OWNED_UI_SETTINGS_MIGRATIONS,
-      document: { version: 7, values: { skillsPresentation: "hidden" } },
+      document: { version: 8, values: { skillsPresentation: "hidden" } },
     });
     expect(invalid.settings.find(setting => setting.declaration.id === "skillsPresentation")).toMatchObject({ value: "collapse", source: "default" });
     expect(invalid.notices.length).toBeGreaterThan(0);

@@ -1,6 +1,6 @@
 ## 1. Declare the setting
 
-- [x] 1.1 Add `skillsPresentation` (`Skills`, Agent section, `collapse`/`expand`, default `collapse`, live) to `OWNED_SETTING_DECLARATIONS` after `promptSuggestions`, bump `OWNED_UI_SETTINGS_VERSION` to 7 with a no-op migration; verify declaration, migration, and manager tests cover the default, the version-6 upgrade, an invalid stored value, and the live change notification.
+- [x] 1.1 Add `skillsPresentation` (`Skills`, Agent section, `collapse`/`expand`, default `collapse`, live) to `OWNED_SETTING_DECLARATIONS` after `promptSuggestions`, bump `OWNED_UI_SETTINGS_VERSION` to 8 with a no-op migration; verify declaration, migration, and manager tests cover the default, the version-7 upgrade, an invalid stored value, and the live change notification.
 - [x] 1.2 Extend the Agent-section projection and settings-app coverage; verify section tests show engine entries, then `Prompt suggestions`, then `Skills` in one Agent section, with the control editable when engine settings are absent or read-only, and settings-app search finds it.
 
 ## 2. Collapse the command list

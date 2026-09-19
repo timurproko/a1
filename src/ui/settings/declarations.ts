@@ -1,4 +1,4 @@
-export const OWNED_UI_SETTINGS_VERSION = 7;
+export const OWNED_UI_SETTINGS_VERSION = 8;
 
 export type OwnedUiSettingValue = string | number | boolean;
 
@@ -22,13 +22,7 @@ const ID_PATTERN = /^[a-z][a-z0-9]*(?:[A-Z][a-z0-9]*)*$/;
 /** Declared first so the settings screen opens on it; sections follow first-declaration order. */
 const GENERIC_SECTION = Object.freeze({ id: "generic", title: "Generic" });
 const SCROLL_SECTION = Object.freeze({ id: "scroll", title: "Scroll" });
-const QUIT_SECTION = Object.freeze({ id: "quit", title: "Quit" });
 const AGENT_SECTION = Object.freeze({ id: "agent", title: "Agent" });
-
-/** Playback lengths the quit outro offers, in milliseconds. */
-export const QUIT_EFFECT_DURATIONS_MS: readonly number[] = Object.freeze(
-  Array.from({ length: 18 }, (_, index) => 300 + index * 100),
-);
 
 /**
  * Every A1 setting, keyed by its id. The table is the one declaration: ids, defaults, and allowed
@@ -37,9 +31,9 @@ export const QUIT_EFFECT_DURATIONS_MS: readonly number[] = Object.freeze(
 export const OWNED_SETTING_DECLARATIONS = Object.freeze({
   quitAnimation: Object.freeze({
     id: "quitAnimation",
-    label: "Exit animation",
+    label: "Quit animation",
     section: GENERIC_SECTION,
-    description: "Play the quit effect when the session quits. Off returns to the terminal immediately.",
+    description: "Play the fall effect over the last screen when the session quits. Off returns to the terminal immediately.",
     application: "live",
     defaultValue: true,
     allowedValues: Object.freeze([true, false] as const),
@@ -88,24 +82,6 @@ export const OWNED_SETTING_DECLARATIONS = Object.freeze({
     application: "restart",
     defaultValue: 100,
     allowedValues: Object.freeze([10, 20, 30, 40, 50, 60, 70, 80, 90, 100] as const),
-  }),
-  quitEffect: Object.freeze({
-    id: "quitEffect",
-    label: "Effect",
-    section: QUIT_SECTION,
-    description: "Animation played over the last screen when the session quits.",
-    application: "live",
-    defaultValue: "fall",
-    allowedValues: Object.freeze(["fall", "dissolve", "starburst", "waves"] as const),
-  }),
-  quitEffectDurationMs: Object.freeze({
-    id: "quitEffectDurationMs",
-    label: "Duration",
-    section: QUIT_SECTION,
-    description: "Milliseconds the quit animation plays before the terminal is restored.",
-    application: "live",
-    defaultValue: 800,
-    allowedValues: QUIT_EFFECT_DURATIONS_MS,
   }),
   promptSuggestions: Object.freeze({
     id: "promptSuggestions",

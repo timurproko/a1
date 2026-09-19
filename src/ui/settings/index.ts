@@ -2,7 +2,6 @@ export {
   OWNED_SETTING_DECLARATIONS,
   OWNED_UI_SETTINGS_VERSION,
   OWNED_UI_SETTING_DECLARATIONS,
-  QUIT_EFFECT_DURATIONS_MS,
   assertOwnedUiSettingDeclarations,
   findOwnedUiSettingDeclaration,
   isOwnedSettingId,

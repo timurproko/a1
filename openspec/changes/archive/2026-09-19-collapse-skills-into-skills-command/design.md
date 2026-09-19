@@ -27,7 +27,7 @@ See `proposal.md` for motivation. The planning base is `f8e8d4ef` on `develop`.
 
 ### 1. `skillsPresentation` is an owned Agent-section choice, not an engine setting
 
-Declare `skillsPresentation` in `OWNED_SETTING_DECLARATIONS` with label `Skills`, the existing `agent` section, allowed values `collapse` and `expand`, default `collapse`, and `live` application. Bump `OWNED_UI_SETTINGS_VERSION` to 7 with a no-op forward migration, matching how `promptSuggestions` and the quit settings were introduced. The section builder already appends owned Agent entries after engine descriptors in declaration order, so declaring it after `promptSuggestions` yields `Prompt suggestions` then `Skills` with no second Agent section.
+Declare `skillsPresentation` in `OWNED_SETTING_DECLARATIONS` with label `Skills`, the existing `agent` section, allowed values `collapse` and `expand`, default `collapse`, and `live` application. Bump `OWNED_UI_SETTINGS_VERSION` to 8 (after the quit-settings simplification took 7) with a no-op forward migration, matching how `promptSuggestions` was introduced. The section builder already appends owned Agent entries after engine descriptors in declaration order, so declaring it after `promptSuggestions` yields `Prompt suggestions` then `Skills` with no second Agent section.
 
 The engine's `Skill commands` toggle keeps its pinned meaning: when it is off, Pi offers no skill commands and A1 has nothing to collapse or expand, so no `skills` command, tunnel, or entries appear. Putting the choice under the engine's descriptor set was rejected because A1 must not write Pi settings storage and the value has no engine effect.
 
