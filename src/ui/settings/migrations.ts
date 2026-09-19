@@ -67,6 +67,13 @@ export const OWNED_UI_SETTINGS_MIGRATIONS: readonly OwnedUiSettingsMigration[] =
       return migrated;
     },
   }),
+  Object.freeze({
+    to: 8,
+    description: "Introduce the collapsed skills presentation with the collapse default.",
+    migrate(values: Readonly<Record<string, unknown>>): Record<string, unknown> {
+      return { ...values };
+    },
+  }),
 ]);
 
 export function assertOwnedUiSettingsMigrations(

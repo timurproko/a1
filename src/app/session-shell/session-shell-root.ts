@@ -240,12 +240,20 @@ export interface OwnedUiShellDiagnosticOptions {
   readonly pastePreparation?: Omit<PastePreparationClientOptions, "onEvent" | "spareIdleMs">;
 }
 
+/** The skills presentation choice: collapse the per-skill commands into one skills command or expand them. */
+export interface OwnedUiShellSkillsOptions {
+  readonly presentation: () => "collapse" | "expand";
+  readonly onChange: (listener: () => void) => () => void;
+}
+
 /** What composes an owned session shell, grouped by the collaborator that provides each part. */
 export interface OwnedUiSessionShellOptions {
   readonly engine: OwnedUiShellEngineOptions;
   readonly presentation?: OwnedUiShellPresentationOptions;
   readonly history?: OwnedUiShellHistoryOptions;
   readonly suggestions?: OwnedUiShellSuggestionOptions;
+  /** Supplied only to the bare-A1 composition; absent keeps the pinned per-skill command list. */
+  readonly skills?: OwnedUiShellSkillsOptions;
   readonly diagnostics?: OwnedUiShellDiagnosticOptions;
 }
 
@@ -355,6 +363,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       readonly captureClipboardPaste?: () => PasteSource;
       readonly pasteDiagnostics?: (event: PasteEvent) => void;
       readonly pastePreparation?: Omit<PastePreparationClientOptions, "onEvent">;
+      readonly skillsPresentation?: () => "collapse" | "expand";
     },
     startup: PiShellHeaderOptions = {},
     agentDir?: string,

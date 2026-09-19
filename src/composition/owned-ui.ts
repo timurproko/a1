@@ -94,6 +94,11 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     enabled: () => settings.value("promptSuggestions"),
     onChange: (listener: (enabled: boolean) => void) => settings.onChange(() => listener(settings.value("promptSuggestions"))),
   };
+  const skills = settings === null || !ownedSurfaces ? null : {
+    presentation: () => settings.value("skillsPresentation"),
+    // Rationale: one listener covers both the A1 presentation choice and the engine skill-command toggle.
+    onChange: (listener: () => void) => settings.onChange(() => listener()),
+  };
   const historyLimit = settings?.value("promptHistoryMaxItems");
   const historyProfileLocation = settings === null || !ownedSurfaces || !settings.value("promptHistoryEnabled")
     ? null
@@ -132,6 +137,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
         paste: event => clipboardDiagnostics.paste(event),
       } }),
       ...(promptSuggestions === null ? {} : { suggestions: promptSuggestions }),
+      ...(skills === null ? {} : { skills }),
       ...(promptHistory === null ? {} : { history: {
         ...promptHistory,
         editor: await import("../integrations/pi/components/history-editor-loader.js").then(module => module.loadHistoryEditor()),

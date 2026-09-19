@@ -748,6 +748,7 @@
             "src/integrations/pi/components/shell-presenters-info.ts",
             "src/integrations/pi/components/shell-presenters-transcript.ts",
             "src/integrations/pi/components/shell-selectors-dialogs.ts",
+            "src/integrations/pi/components/skills-dialog.ts",
             "src/integrations/pi/components/upstream/components/earendil-announcement.ts",
             "src/integrations/pi/components/upstream/components/extension-editor.ts",
             "src/integrations/pi/components/upstream/components/scoped-models-selector.ts",
@@ -1367,6 +1368,7 @@
           "kind": "function",
           "hash": "54753d4c8d65fe246145b8ca66f66474e81ae9fae28f5087eb8748b5625364af",
           "consumers": [
+            "src/integrations/pi/components/skills-dialog.ts",
             "src/integrations/pi/components/upstream/components/tool-execution.ts",
             "src/integrations/pi/components/upstream/components/trust-selector.ts",
             "src/integrations/pi/startup-public.ts"
@@ -1799,6 +1801,7 @@
           "hash": "c70a4a1fd9c02da81d28740a0fc5ef27576a6be9f6ca2ca98ea785a4d5e170b0",
           "consumers": [
             "src/integrations/pi/components/shell-footer-status.ts",
+            "src/integrations/pi/components/skills-dialog.ts",
             "src/integrations/pi/components/upstream/components/trust-selector.ts",
             "src/integrations/pi/startup-public.ts"
           ]
@@ -2601,7 +2604,9 @@
           "name": "AutocompleteItem",
           "kind": "interface",
           "hash": "872c4017840f4b4d77741a62ba5260a8e25cd8ab8348d369eb6b03012284ea76",
-          "consumers": []
+          "consumers": [
+            "src/integrations/pi/components/skills-command.ts"
+          ]
         },
         {
           "name": "AutocompleteProvider",
@@ -2610,6 +2615,7 @@
           "consumers": [
             "src/integrations/pi/components/shell-editor-autocomplete.ts",
             "src/integrations/pi/components/shell-shared-facade.ts",
+            "src/integrations/pi/components/skills-command.ts",
             "src/integrations/pi/components/upstream/history/editor-core.ts"
           ]
         },
@@ -2695,6 +2701,7 @@
             "src/integrations/pi/components/shell-presenters-info.ts",
             "src/integrations/pi/components/shell-presenters-transcript.ts",
             "src/integrations/pi/components/shell-selectors-dialogs.ts",
+            "src/integrations/pi/components/skills-dialog.ts",
             "src/integrations/pi/components/upstream/components/earendil-announcement.ts",
             "src/integrations/pi/components/upstream/components/extension-editor.ts",
             "src/integrations/pi/components/upstream/components/scoped-models-selector.ts",
@@ -2870,6 +2877,7 @@
           "hash": "0f98403d2c6a96329ba879315081e07f1a0f87d4aefab71b870526095b82b23f",
           "consumers": [
             "src/integrations/pi/components/models-dialog.ts",
+            "src/integrations/pi/components/skills-dialog.ts",
             "src/integrations/pi/components/upstream/components/scoped-models-selector.ts",
             "src/integrations/pi/components/upstream/components/session-selector.ts",
             "src/integrations/pi/components/upstream/components/skill-invocation-message.ts",
@@ -2965,6 +2973,7 @@
           "hash": "52019438b4fcc4eabf7c0d96a19377996b2a2632542798e24aa38f84d5a5fc48",
           "consumers": [
             "src/integrations/pi/components/models-dialog.ts",
+            "src/integrations/pi/components/skills-dialog.ts",
             "src/integrations/pi/components/upstream/components/scoped-models-selector.ts",
             "src/integrations/pi/components/upstream/components/session-selector.ts",
             "src/integrations/pi/components/upstream/components/tree-selector.ts"
@@ -3399,6 +3408,7 @@
             "src/integrations/pi/components/shell-presenters-info.ts",
             "src/integrations/pi/components/shell-presenters-transcript.ts",
             "src/integrations/pi/components/shell-selectors-dialogs.ts",
+            "src/integrations/pi/components/skills-dialog.ts",
             "src/integrations/pi/components/upstream/components/earendil-announcement.ts",
             "src/integrations/pi/components/upstream/components/extension-editor.ts",
             "src/integrations/pi/components/upstream/components/scoped-models-selector.ts",
@@ -3484,6 +3494,7 @@
             "src/integrations/pi/components/shell-presenters-info.ts",
             "src/integrations/pi/components/shell-presenters-transcript.ts",
             "src/integrations/pi/components/shell-selectors-dialogs.ts",
+            "src/integrations/pi/components/skills-dialog.ts",
             "src/integrations/pi/components/submitted-prompt-adapter.ts",
             "src/integrations/pi/components/tool-image-presentation.ts",
             "src/integrations/pi/components/upstream/components/earendil-announcement.ts",

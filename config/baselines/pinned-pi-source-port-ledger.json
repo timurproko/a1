@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-09-19T13:47:29.885Z",
+  "recordedAt": "2026-09-19T15:00:51.590Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "d981de1229ef899957bbe968bc8dcda02a21f477",
@@ -1252,9 +1252,9 @@
       "localDestination": "src/integrations/pi/components/upstream/components/owned-editor.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "A1-owned class name and synchronized A1 keybinding contract replace the nominal private upstream keybinding constructor dependency; bare A1 injects the shared Settings/agent input frame, transient contextual-suggestion branch, and explicit body geometry for selection and above-prompt autocomplete. Bare A1 also clears a sole top-level slash-command search on Escape.",
+      "modifications": "A1-owned class name and synchronized A1 keybinding contract replace the nominal private upstream keybinding constructor dependency; bare A1 injects the shared Settings/agent input frame, transient contextual-suggestion branch, and explicit body geometry for selection and above-prompt autocomplete. Bare A1 also clears a sole top-level slash-command search on Escape. Bare A1 also completes a selected tunnel command with `:` and reopens the menu on its tunnel rows.",
       "upgradeStrategy": "keep-owned",
-      "localSha256": "42b599d07bf0301a20b1c2bb9e5cd4557f5a24cb05a6e468892ab6de217b5d3a",
+      "localSha256": "1dc0d8ccb27943610e6bbb2131e8e77a453b970873bc9b90f53e078525254450",
       "approvedDeviations": [
         {
           "id": "owned-shared-input-frame",
@@ -1273,6 +1273,12 @@
           "reason": "The accepted clear-command-search-on-escape change returns bare A1 to the empty prompt when Escape dismisses a sole top-level slash-command search, restoring the earlier A1 v2 hotkey behavior.",
           "upstreamBehavior": "The pinned editor and the comparison profile only close the list on Escape and keep the typed text. Bare A1 clears the prompt through the public setText only when the single-line content is a slash followed by non-whitespace characters, further slashes included, with the cursor at its end and the menu open; argument, path/resource, extension-provider, spaced, multi-line, and no-menu Escape paths retain pinned behavior.",
           "acceptanceTest": "test/integrations/pi/components/editor-autocomplete-placement.test.ts"
+        },
+        {
+          "id": "command-tunnel-colon-completion",
+          "reason": "The accepted collapse-skills-into-skills-command change lets a typed `:` complete the selected `skills` row of a sole top-level slash search to `/skills:` and reopen the menu on the skills tunnel rows, following the v2 skills extension.",
+          "upstreamBehavior": "The pinned editor and the comparison profile insert every colon as ordinary text. Bare A1 replaces the search through the public setText (which records the undo snapshot) only when the menu is open on a sole top-level slash search whose highlighted row is a tunnel command supplied by the shell, then requests the menu again; every other colon, including one typed after other text, with no menu, or with another row highlighted, retains pinned behavior.",
+          "acceptanceTest": "test/integrations/pi/components/skills-command-tunnel.test.ts"
         }
       ],
       "behaviorCategories": [
@@ -1295,7 +1301,8 @@
         "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
         "test/integrations/pi/components/pinned-editor-input-parity.test.ts",
         "test/integrations/pi/components/shell-components.test.ts",
-        "test/app/session-shell/session-shell.test.ts"
+        "test/app/session-shell/session-shell.test.ts",
+        "test/integrations/pi/components/skills-command-tunnel.test.ts"
       ]
     },
     {

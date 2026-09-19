@@ -1,4 +1,4 @@
-export const OWNED_UI_SETTINGS_VERSION = 7;
+export const OWNED_UI_SETTINGS_VERSION = 8;
 
 export type OwnedUiSettingValue = string | number | boolean;
 
@@ -22,6 +22,7 @@ const ID_PATTERN = /^[a-z][a-z0-9]*(?:[A-Z][a-z0-9]*)*$/;
 /** Declared first so the settings screen opens on it; sections follow first-declaration order. */
 const GENERIC_SECTION = Object.freeze({ id: "generic", title: "Generic" });
 const SCROLL_SECTION = Object.freeze({ id: "scroll", title: "Scroll" });
+const AGENT_SECTION = Object.freeze({ id: "agent", title: "Agent" });
 
 /**
  * Every A1 setting, keyed by its id. The table is the one declaration: ids, defaults, and allowed
@@ -85,11 +86,20 @@ export const OWNED_SETTING_DECLARATIONS = Object.freeze({
   promptSuggestions: Object.freeze({
     id: "promptSuggestions",
     label: "Prompt suggestions",
-    section: Object.freeze({ id: "agent", title: "Agent" }),
+    section: AGENT_SECTION,
     description: "Predict likely next prompts with one additional background request using the selected model.",
     application: "live",
     defaultValue: true,
     allowedValues: Object.freeze([true, false] as const),
+  }),
+  skillsPresentation: Object.freeze({
+    id: "skillsPresentation",
+    label: "Skills",
+    section: AGENT_SECTION,
+    description: "Collapse offers one /skills command with a searchable dialog and the /skills: shortcut; expand lists every /skill:<name> command directly.",
+    application: "live",
+    defaultValue: "collapse",
+    allowedValues: Object.freeze(["collapse", "expand"] as const),
   }),
 } as const satisfies Readonly<Record<string, OwnedUiSettingDeclaration>>);
 

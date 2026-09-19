@@ -231,7 +231,9 @@ describe("the settings screen", () => {
     target.onInput?.(ENTER, HOST);
     await session.load();
     expect(session.value("promptSuggestions")).toBe(false);
-    expect(find(target, "Prompt suggestions").trimStart()).toMatch(/^→.*no$/);
+    // Rationale: the second owned Agent row overflows the 24-row frame by one, so the rail follows each row.
+    expect(find(target, "Prompt suggestions").trimStart()).toMatch(/^→.*no\s*│?$/);
+    expect(find(target, "Skills").trimStart()).toMatch(/^\s*Skills\s+collapse\s*│?$/);
     expect(writes).toEqual([]);
 
     for (const query of ["Agent", "Prompt suggestions"]) {
@@ -255,8 +257,23 @@ describe("the settings screen", () => {
     expect(session.value("promptSuggestions")).toBe(true);
     expect(writes).toEqual([]);
     target.onInput?.(ESC, HOST);
-    expect(find(target, "Prompt suggestions").trimStart()).toMatch(/^→.*yes$/);
+    expect(find(target, "Prompt suggestions").trimStart()).toMatch(/^→.*yes\s*│?$/);
     expect(screen(target).filter(line => line.includes("Prompt suggestions"))).toHaveLength(1);
+
+    // Invariant: the Skills row is the same kind of owned Agent control: search finds it, Enter cycles it, nothing reaches the engine.
+    target.onInput?.("/", HOST);
+    for (const letter of "Skills") target.onInput?.(letter, HOST);
+    expect(screen(target).filter(line => line.trim() === "Agent")).toHaveLength(1);
+    expect(find(target, "Skills").trimStart()).toMatch(/^→.*collapse/);
+    target.onInput?.(ESC, HOST);
+    selectRow(target, "Skills");
+    expect(find(target, "Skills").trimStart()).toMatch(/^→.*collapse/);
+    target.onInput?.(ENTER, HOST);
+    await session.load();
+    expect(session.value("skillsPresentation")).toBe("expand");
+    expect(find(target, "Skills").trimStart()).toMatch(/^→.*expand/);
+    expect(screen(target).filter(line => line.includes("Skills"))).toHaveLength(1);
+    expect(writes).toEqual([]);
   });
 
   it.each(["absent", "failed", "read-only", "empty"] as const)("renders an editable Agent suggestion row with %s engine settings", async state => {
@@ -449,9 +466,9 @@ describe("the settings screen", () => {
     const lines = target.render({ width: 80, height: 8 }, HOST).map(line => line.replace(STYLE, "").trimEnd());
     const searchRow = lines.findIndex(line => line.includes("search settings"));
     expect(searchRow, JSON.stringify(lines)).toBeGreaterThanOrEqual(0);
-    expect(lines.find(line => line.includes("Prompt suggestions"))?.trimStart()).toMatch(/^→/);
+    expect(lines.find(line => line.includes("Skills"))?.trimStart()).toMatch(/^→/);
     // Invariant: the ruled search footer leaves its final result on the last body row.
-    expect(lines[searchRow - 2]).toContain("Prompt suggestions");
+    expect(lines[searchRow - 2]).toContain("Skills");
   });
 
   it("jumps to the first and last setting on Ctrl+Home and Ctrl+End in either encoding", async () => {

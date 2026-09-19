@@ -226,6 +226,12 @@ export interface PiShellEditorOptions {
   readonly cwd?: string;
   readonly agentDir?: string;
   readonly autocompleteCommands?: readonly PiShellAutocompleteCommand[];
+  /**
+   * Bare A1's skills presentation, read at every command-list installation. `collapse` replaces the
+   * `skill:<name>` entries with one `skills` command and its tunnel; absent or `expand` keeps the
+   * pinned per-skill entries. Comparison profiles ignore it.
+   */
+  readonly skillsPresentation?: () => "collapse" | "expand";
   readonly promptPresentation?: {
     readonly input: PiShellPromptInputPresentation;
     readonly styleSuggestion: (text: string) => string;
