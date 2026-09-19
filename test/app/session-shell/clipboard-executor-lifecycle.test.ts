@@ -1,4 +1,5 @@
 import { fork, type ChildProcess } from "node:child_process";
+import { once } from "node:events";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createResponseCopyExecutor } from "../../../src/app/session-shell/response-copy-transport.js";
 import { startPasteExecutor } from "../../../src/app/session-shell/paste-executor.js";
@@ -17,10 +18,14 @@ function snapshot(text: string) {
     selection: { start: { line: 0, column: 0 }, end: { line: 0, column: Number.MAX_SAFE_INTEGER } } };
 }
 function children(): ChildProcess[] { return vi.mocked(fork).mock.results.map(result => result.value as ChildProcess); }
-function assertExited(child: ChildProcess): void {
+// Concurrency: a helper's IPC channel closes asynchronously after "exit" (observed on Linux), so the
+// released state is awaited, never sampled; the test deadline still bounds a channel that never closes.
+async function assertExited(child: ChildProcess): Promise<void> {
   expect(child.exitCode !== null || child.signalCode !== null).toBe(true);
+  if (child.connected) await once(child, "disconnect");
   expect(child.connected).toBe(false);
 }
+async function assertAllExited(): Promise<void> { for (const child of children()) await assertExited(child); }
 
 describe("real clipboard executor lifecycle", () => {
   it("releases every helper over repeated independent copy/paste cycles without inherited terminal handles", async () => {
@@ -35,7 +40,7 @@ describe("real clipboard executor lifecycle", () => {
         await paste.stopped;
       } finally { paste.cancel(); await paste.stopped; }
       expect(children()).toHaveLength((cycle + 1) * 2);
-      children().forEach(assertExited);
+      await assertAllExited();
     }
     for (const args of vi.mocked(fork).mock.calls) {
       expect(args[1]).toEqual([]);
@@ -55,13 +60,13 @@ describe("real clipboard executor lifecycle", () => {
       jobs.forEach(job => job.cancel()); extra?.cancel();
       await Promise.all([...jobs.map(job => job.stopped), extra?.stopped]);
     }
-    children().forEach(assertExited);
+    await assertAllExited();
     const recovered = Array.from({ length: 8 }, () => startPasteExecutor(undefined, new AbortController().signal, () => {}, pasteFixture));
     try {
       await Promise.all(recovered.map(async job => { await expect(job.result).resolves.toMatchObject({ kind: "text" }); await job.stopped; }));
     } finally { recovered.forEach(job => job.cancel()); await Promise.all(recovered.map(job => job.stopped)); }
     expect(children()).toHaveLength(16);
-    children().forEach(assertExited);
+    await assertAllExited();
   }, 20_000);
 
   it("releases all admission capacity after an acquisition assertion fails before child exit", async ({ signal }) => {
@@ -82,7 +87,7 @@ describe("real clipboard executor lifecycle", () => {
       failed.cancel(); admitted.forEach(job => job.cancel()); ninth?.cancel();
       await Promise.all([failed.stopped, ...admitted.map(job => job.stopped), ninth?.stopped]);
     }
-    children().forEach(assertExited);
+    await assertAllExited();
   }, 10_000);
 
   it("does not start conversion when acquisition observation cancels the request", async () => {
@@ -95,7 +100,7 @@ describe("real clipboard executor lifecycle", () => {
       await expect(job.result).rejects.toMatchObject({ code: "image-canceled" });
       await job.stopped;
       expect(send.mock.calls.some(args => (args[0] as { kind?: string }).kind === "convert")).toBe(false);
-      assertExited(child);
+      await assertExited(child);
     } finally { job.cancel(); await job.stopped; }
   }, 10_000);
 
@@ -120,7 +125,7 @@ describe("real clipboard executor lifecycle", () => {
     try {
       await Promise.all(jobs.map(async job => { await expect(job.result).resolves.toMatchObject({ kind: "image", width: 32, height: 32 }); await job.stopped; }));
       expect(conversions).toBe(8); expect(peak).toBe(1); expect(active).toBe(0);
-      children().forEach(assertExited);
+      await assertAllExited();
     } finally { jobs.forEach(job => job.cancel()); await Promise.all(jobs.map(job => job.stopped)); vi.mocked(fork).mockImplementation(actualFork.fork); }
   }, 30_000);
 });

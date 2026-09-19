@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { repairNativeExecutableModes } from "./repair-native-executable-modes.mjs";
-import { normalizeNpmPackMetadata, parseNpmPackOutput } from "./npm-pack-metadata.mjs";
+import { assertPackingNpm, normalizeNpmPackMetadata, parseNpmPackOutput } from "./npm-pack-metadata.mjs";
 import { createValidationPhaseRecorder } from "./validation-phase.mjs";
 import { recordPackageReceipt, verifyBuildReceipt } from "./validation-receipt.mjs";
 
@@ -15,6 +15,11 @@ const outputDirectory = resolve(".artifacts", "validation", "package");
 await rm(outputDirectory, { recursive: true, force: true });
 await mkdir(outputDirectory, { recursive: true });
 const npm = process.platform === "win32" ? "npm.cmd" : "npm";
+phases.runSync("npm-version", () => {
+  const result = crossSpawn.sync(npm, ["--version"], { cwd: process.cwd(), encoding: "utf8", env: process.env, windowsHide: true });
+  if (result.status !== 0) throw new Error(result.stderr || `npm --version failed with ${result.status}`);
+  return assertPackingNpm(result.stdout);
+});
 const metadata = phases.runSync("npm-pack", () => {
   const result = crossSpawn.sync(npm, ["pack", "--ignore-scripts", "--json", "--pack-destination", outputDirectory], {
     cwd: process.cwd(), encoding: "utf8", env: process.env, windowsHide: true,
