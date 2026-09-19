@@ -200,7 +200,6 @@ export class PiResourceCatalog {
         ? {
             name: OWNED_MODELS_COMMAND_NAME,
             description: "Switch models and manage scoped model cycling",
-            argumentHint: "<search>",
             argumentOptions: this.#contexts.modelOptions(),
             source: "builtin",
           }

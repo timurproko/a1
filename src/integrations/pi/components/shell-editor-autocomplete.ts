@@ -55,7 +55,7 @@ export const PINNED_PI_BUILTIN_SLASH_COMMANDS = [
 /** Bare A1's built-in catalog: one `models` command replaces the pinned `model` and `scoped-models` entries. */
 export const OWNED_BUILTIN_SLASH_COMMANDS = PINNED_PI_BUILTIN_SLASH_COMMANDS.flatMap(command =>
   command.name === "model"
-    ? [{ name: "models", description: "Switch models and manage scoped model cycling", argumentHint: "<search>" }]
+    ? [{ name: "models", description: "Switch models and manage scoped model cycling" }]
     : command.name === "scoped-models" ? [] : [command]);
 
 export function createPiShellEditor(options: PiShellEditorOptions): PiShellEditorPort {
