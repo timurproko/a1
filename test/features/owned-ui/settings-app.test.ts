@@ -172,7 +172,7 @@ describe("the settings screen", () => {
     const { app: target } = await app();
     const lines = screen(target);
     expect(lines.findIndex(line => line.trim() === "Generic")).toBeLessThan(lines.findIndex(line => line.trim() === "Scroll"));
-    expect(lines.some(line => line.includes("Exit animation") && line.includes("yes"))).toBe(true);
+    expect(lines.some(line => line.includes("Quit animation") && line.includes("yes"))).toBe(true);
     expect(lines.some(line => line.trim() === "Scroll")).toBe(true);
     expect(lines.some(line => line.includes("Scrollbar mode") && line.includes("auto"))).toBe(true);
     expect(lines.some(line => line.includes("Fullscreen scrollbar"))).toBe(false);
@@ -180,9 +180,9 @@ describe("the settings screen", () => {
     expect(lines.join("\n")).not.toContain("fixture reason must stay hidden");
     expect(lines.some(line => line.includes("Scrollbar style") && line.includes("thin"))).toBe(true);
     expect(lines.some(line => line.includes("Speed") && line.includes("normal"))).toBe(true);
-    expect(lines.some(line => line.trim() === "Quit")).toBe(true);
-    expect(lines.some(line => line.includes("Effect") && line.includes("fall"))).toBe(true);
-    expect(lines.some(line => line.includes("Duration") && line.includes("800"))).toBe(true);
+    expect(lines.some(line => line.trim() === "Quit")).toBe(false);
+    expect(lines.some(line => /\bEffect\b/.test(line))).toBe(false);
+    expect(lines.some(line => /\bDuration\b/.test(line))).toBe(false);
     expect(lines.some(line => line.includes("Fullscreen exit output"))).toBe(false);
     expect(lines.some(line => line.trim() === "A1")).toBe(false);
     expect(lines.filter(line => line.trim() === "Agent")).toHaveLength(1);
@@ -202,7 +202,7 @@ describe("the settings screen", () => {
     const selectedRow = lines.findIndex(line => line.includes("<accent>→ </accent>"));
     expect(selectedRow).toBeGreaterThanOrEqual(0);
     const selected = lines[selectedRow]!;
-    expect(selected).toContain("<accent>Exit animation");
+    expect(selected).toContain("<accent>Quit animation");
     expect(selected).toContain("<muted>yes</muted>");
     expect(selected).not.toContain("<accent>yes");
     const unselected = lines.find(line => line.includes("Scrollbar style"))!;
@@ -212,7 +212,7 @@ describe("the settings screen", () => {
     const valueColumn = screen(target)[selectedRow]!.indexOf("yes") + 1;
     target.onMouse?.({ kind: "motion", button: 0, row: selectedRow + 1, column: valueColumn }, NAMING_HOST);
     const pointed = named()[selectedRow]!;
-    expect(pointed).toContain("<accent>Exit animation");
+    expect(pointed).toContain("<accent>Quit animation");
     expect(pointed).toMatch(/\s+yes$/);
     expect(pointed).not.toContain("<muted>yes");
     expect(pointed).not.toContain("<accent>yes");
@@ -221,11 +221,10 @@ describe("the settings screen", () => {
   it("keeps the moved control stable through section jumps, search, refresh, keyboard, and pointer changes", async () => {
     const { app: target, session, writes } = await app();
     screen(target);
-    expect(find(target, "Exit animation").trimStart()).toMatch(/^→/);
+    expect(find(target, "Quit animation").trimStart()).toMatch(/^→/);
     target.onInput?.(`${ESC}[1;2B`, HOST);
     target.onInput?.(`${ESC}[1;2B`, HOST);
-    target.onInput?.(`${ESC}[1;2B`, HOST);
-    expect(find(target, "Effect").trimStart()).toMatch(/^→/);
+    expect(find(target, "Persistent history").trimStart()).toMatch(/^→/);
     target.onInput?.(`${ESC}[1;2B`, HOST);
     expect(find(target, "Warnings").trimStart()).toMatch(/^→/);
     selectRow(target, "Prompt suggestions");
@@ -439,7 +438,7 @@ describe("the settings screen", () => {
     const lines = target.render({ width: 80, height: 13 }, HOST).map(line => line.replace(STYLE, "").trimEnd());
     expect(lines[0]).toBe("");
     expect(lines[1]).toContain("Generic");
-    expect(lines[2]?.trimStart()).toMatch(/^→\s+Exit animation/);
+    expect(lines[2]?.trimStart()).toMatch(/^→\s+Quit animation/);
   });
 
   it("moves the last result onto the final body row when Ctrl+End is used during search", async () => {
