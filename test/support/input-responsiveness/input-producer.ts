@@ -66,14 +66,22 @@ export interface InputProducerBatchResult {
 }
 
 export class InputProducerError extends Error {
+  readonly kind: "spawn" | "timeout" | "exit" | "output" | "protocol";
+  readonly phase: "startup" | "completion" | "spawn" | "output" | "protocol";
+  readonly elapsedMs: number;
+  readonly stderr: string;
   constructor(
     message: string,
-    readonly kind: "spawn" | "timeout" | "exit" | "output" | "protocol",
-    readonly phase: "startup" | "completion" | "spawn" | "output" | "protocol",
-    readonly elapsedMs: number,
-    readonly stderr: string,
+    kind: "spawn" | "timeout" | "exit" | "output" | "protocol",
+    phase: "startup" | "completion" | "spawn" | "output" | "protocol",
+    elapsedMs: number,
+    stderr: string,
   ) {
     super(message);
+    this.kind = kind;
+    this.phase = phase;
+    this.elapsedMs = elapsedMs;
+    this.stderr = stderr;
     this.name = "InputProducerError";
   }
 }

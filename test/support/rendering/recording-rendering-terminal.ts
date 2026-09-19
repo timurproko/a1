@@ -12,7 +12,9 @@ export class RecordingRenderingTerminal implements PiTuiTerminalPort {
   #readDecision: (() => RenderingDamageDecision | null) | undefined;
   #observedDecision: RenderingDamageDecision | null = null;
 
-  constructor(public columns: number, public rows: number) {}
+  columns: number;
+  rows: number;
+  constructor(columns: number, rows: number) { this.columns = columns; this.rows = rows; }
 
   /** Ignore an already-existing decision, including when direct terminal writes bypass the adapter. */
   observeDamageDecisions(read: () => RenderingDamageDecision | null): void {

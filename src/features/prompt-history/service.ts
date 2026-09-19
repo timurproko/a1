@@ -47,7 +47,9 @@ export class PromptHistoryService implements PromptHistoryPort {
   #closePromise: Promise<void> | undefined;
   #resolveClose: (() => void) | undefined;
 
-  constructor(readonly options: { dataDir: string; profileRoot: string; limit: number; createWorker?: () => Worker; clock?: HistoryClock; random?: () => number }) {
+  readonly options: { dataDir: string; profileRoot: string; limit: number; createWorker?: () => Worker; clock?: HistoryClock; random?: () => number };
+  constructor(options: { dataDir: string; profileRoot: string; limit: number; createWorker?: () => Worker; clock?: HistoryClock; random?: () => number }) {
+    this.options = options;
     this.#clock = options.clock ?? clock;
   }
 

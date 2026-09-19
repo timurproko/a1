@@ -29,8 +29,10 @@ const MESSAGES = {
 
 /** Trusted, payload-free diagnostics for user-correctable attachment failures. */
 export class ImageAttachmentError extends TypeError {
-  constructor(readonly code: keyof typeof MESSAGES) {
+  readonly code: keyof typeof MESSAGES;
+  constructor(code: keyof typeof MESSAGES) {
     super(MESSAGES[code]);
+    this.code = code;
     this.name = "ImageAttachmentError";
   }
 }

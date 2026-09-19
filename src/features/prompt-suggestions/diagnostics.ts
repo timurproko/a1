@@ -19,7 +19,9 @@ export class SuggestionDiagnosticCapture implements SuggestionDiagnosticObserver
   #disposed = false;
   readonly #write: ((snapshot: string) => Promise<void>) | undefined;
 
-  constructor(readonly options: SuggestionDiagnosticCaptureOptions = {}) {
+  readonly options: SuggestionDiagnosticCaptureOptions;
+  constructor(options: SuggestionDiagnosticCaptureOptions = {}) {
+    this.options = options;
     this.#write = options.writeSnapshot ?? (options.destination === undefined ? undefined
       : snapshot => writeFile(options.destination!, snapshot, { encoding: "utf8", mode: 0o600 }));
   }

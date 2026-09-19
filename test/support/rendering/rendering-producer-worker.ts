@@ -161,7 +161,8 @@ async function runPinned(
 class RecordingTerminal extends RecordingRenderingTerminal {
   #atMs = 0;
 
-  constructor(columns: number, rows: number, private readonly scheduled = false) { super(columns, rows); }
+  private readonly scheduled: boolean;
+  constructor(columns: number, rows: number, scheduled = false) { super(columns, rows); this.scheduled = scheduled; }
 
   async advanceTo(atMs: number, cause: string): Promise<void> {
     const elapsed = Math.max(0, atMs - this.#atMs);

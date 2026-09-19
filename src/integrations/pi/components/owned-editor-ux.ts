@@ -39,10 +39,12 @@ export interface OwnedEditorPointerEvent {
 }
 
 export class OwnedEditorUxInterception {
+  readonly interceptors: readonly OwnedEditorUxInterceptor[];
+  readonly fallback: { handleInput(data: string): void; render(width: number): string[] };
   constructor(
-    readonly interceptors: readonly OwnedEditorUxInterceptor[],
-    readonly fallback: { handleInput(data: string): void; render(width: number): string[] },
-  ) {}
+    interceptors: readonly OwnedEditorUxInterceptor[],
+    fallback: { handleInput(data: string): void; render(width: number): string[] },
+  ) { this.interceptors = interceptors; this.fallback = fallback; }
 
   handleInput(data: string): void {
     const invoke = (index: number, input: string): void => {
@@ -192,11 +194,17 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
     hiddenRanges: readonly (readonly PiShellEditorTextRange[])[];
   } | undefined;
 
+  readonly editor: Editor;
+  readonly keybindings: KeybindingsManager;
+  readonly options: PromptSelectionUxOptions;
   constructor(
-    readonly editor: Editor,
-    readonly keybindings: KeybindingsManager,
-    readonly options: PromptSelectionUxOptions,
+    editor: Editor,
+    keybindings: KeybindingsManager,
+    options: PromptSelectionUxOptions,
   ) {
+    this.editor = editor;
+    this.keybindings = keybindings;
+    this.options = options;
     installAtomicSegmentation(editor, options.atomicRanges, () => this.#wordDirection);
   }
 
