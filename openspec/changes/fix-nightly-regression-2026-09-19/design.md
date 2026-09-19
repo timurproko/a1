@@ -59,3 +59,12 @@ Opened by the nightly regression triage from the failed run's evidence artifacts
       ```
 
   - Last successful Full regression run: [#3](https://github.com/timurproko/a1/actions/runs/32616699736) on `6c97783`; 0 `develop` commits since:
+
+## Proof runs on this branch
+
+- [Full regression #25](https://github.com/timurproko/a1/actions/runs/35433536822) on `b779478`: dependency-policy passed on every lane and Windows Node 22 packed; Windows Node 22 failed `pi-tui-identity-installed` (fixed in `e12ed66`); Windows Node 24 failed the startup budget (`pi post-update` 2012 ms > 2000 ms).
+- [Full regression #26](https://github.com/timurproko/a1/actions/runs/35435187565) on `e12ed66`: Windows Node 22, Windows Node 24, and macOS passed; Ubuntu failed `clipboard-executor-lifecycle` (fixed in `19f1c42`).
+- [Full regression #27](https://github.com/timurproko/a1/actions/runs/35436785254) on `19f1c42`: Ubuntu, macOS, and Windows Node 24 passed; Windows Node 22 failed the startup budget (`a1 no-live-supervisor` 2532 ms > 2500 ms).
+- [Full regression #28](https://github.com/timurproko/a1/actions/runs/35438546283) on `19f1c42`: Ubuntu, macOS, and Windows Node 24 passed; Windows Node 22 failed the startup budget (`pi no-live-supervisor` 2715 ms > 2500 ms; `ui-entry` 1184 ms).
+- Every fix in this change is green on its lane; the remaining failures are the Windows startup-budget overruns on hosted runners, which this change does not touch and does not weaken. Three of eight Windows lane runs overran the budget across these four dispatches.
+
