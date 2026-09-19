@@ -6,6 +6,8 @@ import { resolveConfiguredModelIds, scopedModelRecords, scopedModelReference, wo
 import type { OwnedUiModelInfo } from "../../../contracts/owned-ui/index.js";
 import type {
   PiAuthenticationProviderOption,
+  PiModelsContext,
+  PiModelsRefreshResult,
   PiProjectTrustContext,
   PiProjectTrustUpdate,
   PiScopedModelsContext,
@@ -186,22 +188,68 @@ export class PiWorkflowContexts {
   }
 
   async refreshScopedModels(signal: AbortSignal): Promise<PiScopedModelsRefreshResult> {
+    const outcome = await this.#refreshCatalogs(signal);
+    return { ...this.pinnedScopedModelsContext(), ...outcome };
+  }
+
+  /** The bare-A1 Models dialog's read: catalog, active model, and the session and persisted scopes kept separate. */
+  modelsContext(): PiModelsContext {
+    const session = this.#requireSession();
+    const runtime = this.#ports.runtime();
+    if (!runtime) throw new Error("engine runtime is unavailable");
+    const models = scopedModelRecords(runtime.services.modelRuntime);
+    const scoped = session.scopedModels;
+    const active = this.#ports.activeModel();
+    const patterns = runtime.services.settingsManager?.getEnabledModels?.();
+    return {
+      models: models.map(item => item.descriptor),
+      activeModelId: active === null ? null : `${active.providerId}/${active.modelId}`,
+      sessionScopeIds: Array.isArray(scoped) ? scoped.map(scopedModelReference).filter((id): id is string => id !== undefined) : [],
+      persistedScopeIds: Array.isArray(patterns)
+        ? resolveConfiguredModelIds(patterns.filter((value): value is string => typeof value === "string"), models)
+        : [],
+    };
+  }
+
+  /** Replace the session's cycling scope with exactly these available models, in order; empty restores the all-model fallback. */
+  setSessionModelScope(scopeIds: readonly string[]): void {
+    const session = this.#requireSession();
+    const runtime = this.#ports.runtime();
+    if (!runtime) throw new Error("engine runtime is unavailable");
+    const models = scopedModelRecords(runtime.services.modelRuntime);
+    const scoped = scopeIds.flatMap(id => {
+      const item = models.find(candidate => `${candidate.descriptor.provider}/${candidate.descriptor.id}` === id);
+      return item === undefined ? [] : [{ model: item.model }];
+    });
+    requireCapability(session.setScopedModels, "setScopedModels").call(session, scoped);
+    this.#ports.emitView();
+  }
+
+  /** Persist the explicit scope as `enabledModels`; an empty scope removes the setting so cycling falls back to every model. */
+  persistModelScope(scopeIds: readonly string[]): void {
+    const runtime = this.#ports.runtime();
+    if (!runtime) throw new Error("engine runtime is unavailable");
+    requireCapability(runtime.services.settingsManager?.setEnabledModels, "setEnabledModels")
+      .call(runtime.services.settingsManager, scopeIds.length === 0 ? undefined : [...scopeIds]);
+  }
+
+  async refreshModels(signal: AbortSignal): Promise<PiModelsRefreshResult> {
+    const outcome = await this.#refreshCatalogs(signal);
+    return { models: this.modelsContext().models, ...outcome };
+  }
+
+  async #refreshCatalogs(signal: AbortSignal): Promise<{ readonly status: string; readonly statusKind: "success" | "warning" }> {
     const runtime = this.#ports.runtime();
     if (!runtime) throw new Error("engine runtime is unavailable");
     const result = await runtime.services.modelRuntime.refresh?.({ signal });
-    const context = this.pinnedScopedModelsContext();
     if (isRecord(result) && result.aborted === true) {
-      return { ...context, status: "Model refresh timed out; showing cached models.", statusKind: "warning" };
+      return { status: "Model refresh timed out; showing cached models.", statusKind: "warning" };
     }
     const errors = isRecord(result) ? result.errors : undefined;
     if (errors instanceof Map && errors.size > 0) {
-      return {
-        ...context,
-        status: `Could not refresh ${[...errors.keys()].join(", ")}; showing cached models.`,
-        statusKind: "warning",
-      };
+      return { status: `Could not refresh ${[...errors.keys()].join(", ")}; showing cached models.`, statusKind: "warning" };
     }
-    return { ...context, status: "Model catalogs refreshed.", statusKind: "success" };
+    return { status: "Model catalogs refreshed.", statusKind: "success" };
   }
 
   pinnedLoginMethodOptions(providerReference: string): { readonly title: string; readonly options: readonly PiWorkflowOption[] } {

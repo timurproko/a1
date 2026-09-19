@@ -138,6 +138,10 @@ describe("pinned Pi modal transition graph", () => {
     expect(inventory.edges.find(edge => edge.id === "login.provider.back")).toMatchObject({ to: "auth.login-type" });
     expect(inventory.edges.find(edge => edge.id === "tree.custom.cancel")).toMatchObject({ to: "tree.summary-choice" });
     expect(inventory.edges.find(edge => edge.id === "resume.rename.close-all")).toMatchObject({ to: "session.resume.all" });
+    const unified = inventory.knownManualDivergences.find(finding => finding.id === "bare-unified-models-dialog");
+    expect(unified?.nodes).toEqual(["models.select", "models.scope", "models.scope.refreshing"]);
+    expect(unified?.finding).toContain("src/integrations/pi/components/models-dialog.ts");
+    await access("src/integrations/pi/components/models-dialog.ts");
   });
 
   it("rejects omitted nodes/edges, missing presentation, generic controllers, stale parents, and missing acceptance", async () => {

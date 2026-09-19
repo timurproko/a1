@@ -195,11 +195,14 @@ describe("owned level and model keybindings", () => {
     const header = createPiShellHeader({ expanded: true, getKeybindings: () => keys.getEffectiveConfig() });
     let lines = header.render(100).map(stripTerminalSequences);
     expect(lines.find(line => line.includes("to cycle thinking level"))).toContain("ctrl+l");
-    expect(lines.find(line => line.includes("to select model"))).toContain("/model");
+    expect(lines.find(line => line.includes("to select model"))).toContain("/models");
     expect(lines.join("\n")).not.toContain("shift+tab");
     const hotkeys = stripTerminalSequences(createPiShellHotkeys(undefined, undefined, "a1").render(120).join("\n"));
     expect(hotkeys).toContain("Ctrl+L");
-    expect(hotkeys).toContain("Unbound (/model)");
+    expect(hotkeys).toContain("Unbound (/models)");
+    expect(hotkeys).toContain("Models dialog");
+    expect(hotkeys).toContain("Reorder the cycling scope");
+    expect(stripTerminalSequences(createPiShellHotkeys(undefined, undefined, "pi").render(120).join("\n"))).not.toContain("Models dialog");
     expect(hotkeys).not.toContain("Shift+Tab");
     keys = KeybindingsManager.fromOwnedBindings({ "app.thinking.cycle": "ctrl+r", "app.model.select": "alt+m" });
     lines = header.render(100).map(stripTerminalSequences);

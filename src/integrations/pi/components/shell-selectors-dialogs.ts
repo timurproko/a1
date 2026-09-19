@@ -44,6 +44,11 @@ import {
   ScopedModelsSelectorComponent,
 } from "./upstream/components/scoped-models-selector.js";
 import {
+  ModelsDialogComponent,
+  type ModelsDialogCallbacks,
+  type ModelsDialogConfig,
+} from "./models-dialog.js";
+import {
   TrustSelectorComponent,
   type TrustDecision,
   type TrustOption,
@@ -213,6 +218,26 @@ export function createPiShellScopedModelsSelector(options: PiShellScopedModelsSe
         : enabledModelIds === null ? null : [...enabledModelIds]);
     },
     setRefreshStatus: (message, kind) => selector.setRefreshStatus(message, kind),
+  };
+}
+
+export interface PiShellModelsDialogOptions extends ModelsDialogConfig, ModelsDialogCallbacks {}
+
+export interface PiShellModelsDialogPort extends PiShellComponentPort {
+  updateModels(models: readonly PiShellScopedModelDescriptor[]): void;
+  setRefreshStatus(message: string, kind: "muted" | "success" | "warning"): void;
+  readonly dirty: () => boolean;
+}
+
+/** The bare-A1 unified Models dialog behind the owned component boundary; the pinned selectors above stay for `a1 pi`. */
+export function createPiShellModelsDialog(options: PiShellModelsDialogOptions): PiShellModelsDialogPort {
+  ensureTheme();
+  const dialog = new ModelsDialogComponent(options, options);
+  return {
+    ...componentPort(dialog),
+    updateModels: models => dialog.updateModels(models),
+    setRefreshStatus: (message, kind) => dialog.setRefreshStatus(message, kind),
+    dirty: () => dialog.dirty,
   };
 }
 
