@@ -111,7 +111,9 @@ export class Session {
   readonly promptOptions: unknown[] = [];
   readonly agent: { state: { systemPrompt: string; messages: unknown[]; tools: unknown[] } };
   scopedModels: readonly unknown[] = [];
-  constructor(readonly messages: readonly unknown[] = []) {
+  readonly messages: readonly unknown[];
+  constructor(messages: readonly unknown[] = []) {
+    this.messages = messages;
     this.agent = { state: { systemPrompt: "You are a coding agent.", messages: [...messages], tools: [] } };
   }
   extensionBindings: unknown;

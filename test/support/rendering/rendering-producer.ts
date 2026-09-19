@@ -90,12 +90,16 @@ export interface RenderingProducerDiagnostics {
 }
 
 export class RenderingProducerError extends Error {
+  readonly kind: "spawn" | "timeout" | "exit" | "output" | "protocol";
+  readonly diagnostics: RenderingProducerDiagnostics | undefined;
   constructor(
     message: string,
-    readonly kind: "spawn" | "timeout" | "exit" | "output" | "protocol",
-    readonly diagnostics?: RenderingProducerDiagnostics,
+    kind: "spawn" | "timeout" | "exit" | "output" | "protocol",
+    diagnostics?: RenderingProducerDiagnostics,
   ) {
     super(message);
+    this.kind = kind;
+    this.diagnostics = diagnostics;
     this.name = "RenderingProducerError";
   }
 }

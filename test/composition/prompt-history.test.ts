@@ -29,7 +29,8 @@ vi.mock("../../src/ui/settings/session.js", () => ({
 }));
 vi.mock("../../src/app/session-shell/session-shell.js", () => ({
   OwnedUiSessionShell: class {
-    constructor(readonly options: ShellOptions) { observed.shells.push(options); }
+    readonly options: ShellOptions;
+    constructor(options: ShellOptions) { this.options = options; observed.shells.push(options); }
     async dispose() { await this.options.history?.store.close(); }
   },
 }));

@@ -12,11 +12,14 @@ import type { OwnedUiSessionViewModel } from "../../../../../contracts/owned-ui/
 import { piTheme } from "../../theme.js";
 
 export class SessionFooter implements Component {
+  private readonly getView: () => OwnedUiSessionViewModel;
+  private readonly cwd: string;
+  private readonly profile: "pi" | "a1";
   constructor(
-    private readonly getView: () => OwnedUiSessionViewModel,
-    private readonly cwd: string,
-    private readonly profile: "pi" | "a1" = "pi",
-  ) {}
+    getView: () => OwnedUiSessionViewModel,
+    cwd: string,
+    profile: "pi" | "a1" = "pi",
+  ) { this.getView = getView; this.cwd = cwd; this.profile = profile; }
   invalidate(): void {}
   dispose(): void {}
 

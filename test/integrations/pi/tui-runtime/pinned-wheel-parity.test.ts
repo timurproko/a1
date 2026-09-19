@@ -26,7 +26,9 @@ class WheelTerminal implements PiTuiTerminalPort {
 }
 
 class WheelComponent implements Component {
-  constructor(readonly prefix: string, readonly count: number) {}
+  readonly prefix: string;
+  readonly count: number;
+  constructor(prefix: string, count: number) { this.prefix = prefix; this.count = count; }
   render(): string[] { return Array.from({ length: this.count }, (_, index) => `${this.prefix}-${index}`); }
   invalidate(): void {}
 }

@@ -697,7 +697,8 @@ function phaseBefore(current: UpdateTransactionPhase, target: UpdateTransactionP
 }
 
 class UpdateFailure extends Error {
-  constructor(readonly exitCode: number, message: string) { super(message); }
+  readonly exitCode: number;
+  constructor(exitCode: number, message: string) { super(message); this.exitCode = exitCode; }
 }
 
 async function canonicalImmutableRoot(dataDir: string, releaseRoot: string): Promise<boolean> {

@@ -6,7 +6,9 @@ import { assertPromptHistorySubmission, PROMPT_HISTORY_MAX_ENTRY_BYTES, PROMPT_H
 import { collectImageChipIdentifiers, PromptImageSidecar } from "./image-sidecar.js";
 
 export class HistoryStorageError extends Error {
-  constructor(readonly code: PromptHistoryFailure, readonly certainty: "uncommitted" | "unknown" = "uncommitted") { super(`Prompt history ${code}`); }
+  readonly code: PromptHistoryFailure;
+  readonly certainty: "uncommitted" | "unknown";
+  constructor(code: PromptHistoryFailure, certainty: "uncommitted" | "unknown" = "uncommitted") { super(`Prompt history ${code}`); this.code = code; this.certainty = certainty; }
 }
 
 const MAX_STORAGE_BYTES = 64 * 1024 * 1024;
@@ -14,7 +16,11 @@ const MAX_STORAGE_BYTES = 64 * 1024 * 1024;
 export class PromptHistoryStore {
   readonly #database: DatabaseSync;
   readonly #sidecar: PromptImageSidecar | undefined;
-  constructor(readonly path: string, readonly profileId: string, limit: number, imagesDir?: string) {
+  readonly path: string;
+  readonly profileId: string;
+  constructor(path: string, profileId: string, limit: number, imagesDir?: string) {
+    this.path = path;
+    this.profileId = profileId;
     if (!Number.isInteger(limit) || limit < 10 || limit > 100 || limit % 10 !== 0) throw new HistoryStorageError("schema");
     this.#sidecar = imagesDir === undefined ? undefined : new PromptImageSidecar(imagesDir);
     mkdirSync(dirname(path), { recursive: true, mode: 0o700 });

@@ -7,7 +7,8 @@ class TtyInput extends Readable {
   isRaw = false;
   readonly rawTransitions: boolean[] = [];
   #sent = false;
-  constructor(private readonly keys: string) { super(); }
+  private readonly keys: string;
+  constructor(keys: string) { super(); this.keys = keys; }
   setRawMode(enabled: boolean): this {
     this.isRaw = enabled;
     this.rawTransitions.push(enabled);

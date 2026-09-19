@@ -26,7 +26,8 @@ export class TranscriptFixtureSession {
     getRegisteredCommands: () => [],
   };
   readonly listeners = new Set<(event: Record<string, unknown>) => void>();
-  constructor(public messages: unknown[] = []) {}
+  messages: unknown[];
+  constructor(messages: unknown[] = []) { this.messages = messages; }
   subscribe(listener: (event: Record<string, unknown>) => void): () => void {
     this.listeners.add(listener); return () => this.listeners.delete(listener);
   }

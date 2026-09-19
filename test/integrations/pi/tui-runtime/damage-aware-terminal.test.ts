@@ -20,7 +20,9 @@ const initialRows = ["A", "B", "C", "D", "E", "F", "editor", "footer"];
 class RecordingTerminal implements PiTuiTerminalPort {
   readonly writes: string[] = [];
   readonly kittyProtocolActive = false;
-  constructor(public columns = 40, public rows = 8) {}
+  columns: number;
+  rows: number;
+  constructor(columns = 40, rows = 8) { this.columns = columns; this.rows = rows; }
   onResize: (() => void) | undefined;
   onWrite: (() => void) | undefined;
   start(_input?: (data: string) => void, onResize?: () => void): void { this.onResize = onResize; }

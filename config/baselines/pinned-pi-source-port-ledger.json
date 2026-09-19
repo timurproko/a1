@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-09-18T18:47:34.380Z",
+  "recordedAt": "2026-09-19T05:54:24.129Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "d981de1229ef899957bbe968bc8dcda02a21f477",
@@ -1250,7 +1250,7 @@
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "A1-owned class name and synchronized A1 keybinding contract replace the nominal private upstream keybinding constructor dependency; bare A1 injects the shared Settings/agent input frame, transient contextual-suggestion branch, and explicit body geometry for selection and above-prompt autocomplete. Bare A1 also clears a sole top-level slash-command search on Escape.",
-      "localSha256": "0713104fc3550bb89c62809024774f19ded207a87db9f6c7440936cbee87680b",
+      "localSha256": "8b9fcfac466f7f144e79f555b1a4147911c3a7077a7b98a7fe08d965a0414500",
       "approvedDeviations": [
         {
           "id": "owned-shared-input-frame",
@@ -1694,7 +1694,7 @@
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Consumes neutral owned-UI view data instead of a fabricated concrete AgentSession; an explicit bare-A1 profile colors the thinking-level name while preserving the remaining footer layout and formatting.",
-      "localSha256": "ade8aab20b3c651082e7743b5946dbaa3ec67eb07b22db265b39cebed0785115",
+      "localSha256": "ea423d8765d99276e031c60a105f09f27ed9f0042d0865c4e3087901b77e605e",
       "approvedDeviations": [
         {
           "id": "owned-status-level-color",
@@ -2212,7 +2212,7 @@
       "implementationStatus": "owned-port-present",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Mechanical port uses A1's public pi-tui instance, owned theme boundary, and root-instance keybinding registry because the public coding-agent component closes over a second nested pi-tui singleton and cannot observe A1's keybindings.",
-      "localSha256": "14ba0225bf6f921ec27a260a6b835791c9a3562b3e76078d82311e8a0389ea6e",
+      "localSha256": "540a2526d3f1732e6dc0a67e5b00435b584c41176899383f0f4976a04345c604",
       "approvedDeviations": [],
       "behaviorCategories": [
         "stateful-components",

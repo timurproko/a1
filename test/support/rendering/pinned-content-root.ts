@@ -20,7 +20,9 @@ export class PinnedContentRoot implements Component {
   #working = false;
   #sequence = 0;
 
-  constructor(private readonly tui: TUI, private readonly cwd: string) { this.#rebuildDock(); }
+  private readonly tui: TUI;
+  private readonly cwd: string;
+  constructor(tui: TUI, cwd: string) { this.tui = tui; this.cwd = cwd; this.#rebuildDock(); }
   render(width: number): string[] { return [...this.#document.render(width), ...this.#dock.render(width)]; }
   invalidate(): void { this.#document.invalidate(); this.#dock.invalidate(); }
   handleInput(): void {}

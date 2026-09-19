@@ -10,7 +10,9 @@ export class NativeRegressionTrace {
   readonly #active = new Map<number, { operation: string; atMs: number }>();
   #sequence = 0;
   #dropped = 0;
-  constructor(readonly owner: "shell-paste" | "release-command", readonly now = () => performance.now()) { this.#start = now(); }
+  readonly owner: "shell-paste" | "release-command";
+  readonly now: () => number;
+  constructor(owner: "shell-paste" | "release-command", now = () => performance.now()) { this.owner = owner; this.now = now; this.#start = now(); }
 
   event(operation: string, fields: { request?: number; pending?: number } = {}): void {
     const entry: Entry = { operation: this.#label(operation), atMs: this.#elapsed(), durationMs: 0, failed: false };

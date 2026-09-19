@@ -7,7 +7,8 @@ class FakeSession {
   readonly listeners = new Set<(event: unknown) => void>();
   readonly messages: unknown[] = [];
   readonly sessionManager = { getSessionFile: () => this.file };
-  constructor(readonly file: string | undefined = undefined) {}
+  readonly file: string | undefined;
+  constructor(file: string | undefined = undefined) { this.file = file; }
   subscribe(listener: (event: unknown) => void): () => void { this.listeners.add(listener); return () => this.listeners.delete(listener); }
   emit(event: unknown): void { for (const listener of this.listeners) listener(event); }
 }

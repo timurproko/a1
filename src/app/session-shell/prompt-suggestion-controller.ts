@@ -52,7 +52,9 @@ export class ContextualPromptSuggestionController {
   readonly #timeoutMs: number;
   readonly #now: () => number;
 
-  constructor(readonly options: ContextualPromptSuggestionControllerOptions) {
+  readonly options: ContextualPromptSuggestionControllerOptions;
+  constructor(options: ContextualPromptSuggestionControllerOptions) {
+    this.options = options;
     this.#enabled = options.enabled;
     this.#timeoutMs = options.timeoutMs ?? 15_000;
     this.#now = options.now ?? Date.now;

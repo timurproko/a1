@@ -87,7 +87,8 @@ class ConformanceComponent implements PiTuiComponentPort {
   readonly widths: number[] = [];
   disposed = false;
 
-  constructor(public lines: readonly string[]) {}
+  lines: readonly string[];
+  constructor(lines: readonly string[]) { this.lines = lines; }
 
   render(width: number): readonly string[] {
     this.widths.push(width);
