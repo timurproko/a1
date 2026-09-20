@@ -34,6 +34,8 @@ It contains no PTY, terminal emulator, browser/desktop GUI, custom renderer, inp
 
 ## Native launch containment
 
+`npm run doctor` reports this contract against the current machine—Node range, npm major, git, the GitHub CLI, Rust/Cargo, and whether `node_modules` matches the lockfile—and names the install command for anything missing. `npm run build` runs the same check as its first step, so an unmet prerequisite fails by name rather than inside a module resolver or Cargo. Unmet tool prerequisites block; a Node or npm version outside the declared contract is reported as an advisory without failing the build.
+
 Source builds require Rust/Cargo 1.85 or newer. `npm run build` compiles the standalone `native/process-guardian` crate for the host platform, places it under `dist/native/<platform>-<architecture>/`, and writes an integrity manifest. Preview and stable candidate workflows build platform artifacts on isolated Windows, Linux, and macOS runners and assemble them before packing. macOS remains explicitly unsupported until its exact containment adapter is certified; the package must fail before runtime startup rather than use PID-only cleanup.
 
 The process guardian inherits terminal handles but transports no terminal bytes. See [`process-guardian-provenance.md`](process-guardian-provenance.md).
