@@ -1,5 +1,5 @@
 /**
- * Provenance: @earendil-works/pi-coding-agent 0.85.1 (MIT), commit d981de1229ef899957bbe968bc8dcda02a21f477,
+ * Provenance: @earendil-works/pi-coding-agent 0.86.0 (MIT), commit ecac0a9c4edad3dac5d9f8b40e0c7db7a56471fc,
  * packages/coding-agent/src/modes/interactive/components/tool-execution.ts.
  * Modifications: Retain pinned shell and actual public tool-definition renderers. Replace private
  * index-keyed image conversion with current-source ownership, serial conversion, visible fallback, and
@@ -65,7 +65,26 @@ export class ToolExecutionComponent extends Container {
 	private cwd: string;
 	private executionStarted = false;
 	private argsComplete = false;
+<<<<<<< a1
 	private result: ToolPresentationResult | undefined;
+||||||| pi 0.85.1
+	private result?: {
+		content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>;
+		isError: boolean;
+		details?: any;
+	};
+	private convertedImages: Map<number, { data: string; mimeType: string }> = new Map();
+=======
+	private result?: {
+		content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>;
+		isError: boolean;
+		details?: any;
+	};
+	private convertedImages: Map<
+		number,
+		{ sourceData: string; sourceMimeType: string; data: string; mimeType: string }
+	> = new Map();
+>>>>>>> pi 0.86.0
 	private hideComponent = false;
 
 	constructor(
@@ -208,6 +227,7 @@ export class ToolExecutionComponent extends Container {
 		this.updateDisplay();
 	}
 
+<<<<<<< a1
   /** End mount ownership without letting an obsolete conversion or extension callback repaint. */
   dispose(): void {
     this.disposed = true;
@@ -220,6 +240,60 @@ export class ToolExecutionComponent extends Container {
     this.imageSpacers = [];
     this.clear();
   }
+||||||| pi 0.85.1
+	private maybeConvertImagesForKitty(): void {
+		const caps = getCapabilities();
+		if (caps.images !== "kitty") return;
+		if (!this.result) return;
+
+		const imageBlocks = this.result.content.filter((c) => c.type === "image");
+		for (let i = 0; i < imageBlocks.length; i++) {
+			const img = imageBlocks[i];
+			if (!img.data || !img.mimeType) continue;
+			if (img.mimeType === "image/png") continue;
+			if (this.convertedImages.has(i)) continue;
+
+			const index = i;
+			convertToPng(img.data, img.mimeType).then((converted) => {
+				if (converted) {
+					this.convertedImages.set(index, converted);
+					this.updateDisplay();
+					this.ui.requestRender();
+				}
+			});
+		}
+	}
+=======
+	private maybeConvertImagesForKitty(): void {
+		const caps = getCapabilities();
+		if (caps.images !== "kitty") return;
+		if (!this.result) return;
+
+		const imageBlocks = this.result.content.filter((c) => c.type === "image");
+		for (let i = 0; i < imageBlocks.length; i++) {
+			const img = imageBlocks[i];
+			if (!img.data || !img.mimeType) continue;
+			const sourceData = img.data;
+			const sourceMimeType = img.mimeType;
+			if (sourceMimeType === "image/png") continue;
+			const cached = this.convertedImages.get(i);
+			if (cached?.sourceData === sourceData && cached.sourceMimeType === sourceMimeType) continue;
+
+			const index = i;
+			convertToPng(sourceData, sourceMimeType).then((converted) => {
+				const currentImage = this.result?.content.filter((content) => content.type === "image")[index];
+				if (!converted || currentImage?.data !== sourceData || currentImage.mimeType !== sourceMimeType) return;
+				this.convertedImages.set(index, {
+					sourceData,
+					sourceMimeType,
+					...converted,
+				});
+				this.updateDisplay();
+				this.ui.requestRender();
+			});
+		}
+	}
+>>>>>>> pi 0.86.0
 
 	setExpanded(expanded: boolean): void {
 		this.expanded = expanded;
@@ -368,6 +442,7 @@ export class ToolExecutionComponent extends Container {
 		}
 		this.imageSpacers = [];
 
+<<<<<<< a1
     this.images.update(this.result?.content ?? [], this.showImages);
     for (const imageComponent of this.images.components(this.imageWidthCells)) {
       const spacer = new Spacer(1);
@@ -376,6 +451,61 @@ export class ToolExecutionComponent extends Container {
       this.imageComponents.push(imageComponent);
       this.addChild(imageComponent);
     }
+||||||| pi 0.85.1
+		if (this.result) {
+			const imageBlocks = this.result.content.filter((c) => c.type === "image");
+			const caps = getCapabilities();
+			for (let i = 0; i < imageBlocks.length; i++) {
+				const img = imageBlocks[i];
+				if (caps.images && this.showImages && img.data && img.mimeType) {
+					const converted = this.convertedImages.get(i);
+					const imageData = converted?.data ?? img.data;
+					const imageMimeType = converted?.mimeType ?? img.mimeType;
+					if (caps.images === "kitty" && imageMimeType !== "image/png") continue;
+
+					const spacer = new Spacer(1);
+					this.addChild(spacer);
+					this.imageSpacers.push(spacer);
+					const imageComponent = new Image(
+						imageData,
+						imageMimeType,
+						{ fallbackColor: (s: string) => theme.fg("toolOutput", s) },
+						{ maxWidthCells: this.imageWidthCells },
+					);
+					this.imageComponents.push(imageComponent);
+					this.addChild(imageComponent);
+				}
+			}
+		}
+=======
+		if (this.result) {
+			const imageBlocks = this.result.content.filter((c) => c.type === "image");
+			const caps = getCapabilities();
+			for (let i = 0; i < imageBlocks.length; i++) {
+				const img = imageBlocks[i];
+				if (caps.images && this.showImages && img.data && img.mimeType) {
+					const cached = this.convertedImages.get(i);
+					const converted =
+						cached?.sourceData === img.data && cached.sourceMimeType === img.mimeType ? cached : undefined;
+					const imageData = converted?.data ?? img.data;
+					const imageMimeType = converted?.mimeType ?? img.mimeType;
+					if (caps.images === "kitty" && imageMimeType !== "image/png") continue;
+
+					const spacer = new Spacer(1);
+					this.addChild(spacer);
+					this.imageSpacers.push(spacer);
+					const imageComponent = new Image(
+						imageData,
+						imageMimeType,
+						{ fallbackColor: (s: string) => theme.fg("toolOutput", s) },
+						{ maxWidthCells: this.imageWidthCells },
+					);
+					this.imageComponents.push(imageComponent);
+					this.addChild(imageComponent);
+				}
+			}
+		}
+>>>>>>> pi 0.86.0
 
 		if (this.hasRendererDefinition() && !hasContent && this.imageComponents.length === 0) {
 			this.hideComponent = true;

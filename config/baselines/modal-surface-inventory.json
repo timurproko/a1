@@ -3,8 +3,8 @@
   "change": "build-owned-pi-ui-foundation",
   "task": "7.26",
   "pinned": {
-    "version": "0.85.1",
-    "commit": "d981de1229ef899957bbe968bc8dcda02a21f477"
+    "version": "0.86.0",
+    "commit": "ecac0a9c4edad3dac5d9f8b40e0c7db7a56471fc"
   },
   "policy": {
     "scope": "Every root, nested, replacement, and overlay node plus every source-reachable transition from InteractiveMode, nested components, and public extension UI is mandatory.",
@@ -742,7 +742,7 @@
       "viewport": "maximum ten session rows",
       "scrolling": "session list scrolling",
       "destination": "src/integrations/pi/components/upstream/components/session-selector.ts",
-      "status": "implemented-pending-exhaustive-parity",
+      "status": "orphaned",
       "controller": "SessionSelectorComponent",
       "acceptance": "modal-node:session.resume.all",
       "parents": [
@@ -2291,7 +2291,8 @@
         "terminal:session-selector-cancel-restored",
         "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
         "authority:pinned-controller-transition"
-      ]
+      ],
+      "status": "orphaned"
     },
     {
       "id": "resume.scope.current",
@@ -2311,7 +2312,8 @@
         "terminal:session-selector-cancel-restored",
         "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
         "authority:pinned-controller-transition"
-      ]
+      ],
+      "status": "orphaned"
     },
     {
       "id": "resume.rename.open",
