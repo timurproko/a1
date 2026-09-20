@@ -91,33 +91,6 @@ Create every task worktree at `{working-dir}/.worktrees/<task-id>`, where
 `D:/Git/a1`, use `D:/Git/a1/.worktrees/<task-id>`—never a sibling such as
 `D:/Git/a1-<task-id>`. The primary worktree remains on `develop` for integration only.
 
-## Pull request integration
-
-Pull requests whose complete diff is only under `openspec/**`, under `docs/**`,
-exactly the root `README.md`, or a combination of those paths are automatically
-squash-merged after `Development validation required` succeeds. The automation
-reads the complete GitHub changed-file list, including both sides of renames, and
-runs only for trusted branches in this repository.
-
-Any other path makes the pull request code/operational. That includes source, tests,
-scripts, workflows, configuration, generated baselines, arbitrary root Markdown,
-and a mixed documentation-plus-code change. Those pull requests remain open after
-CI for local maintainer validation and explicit manual merge; automation disables
-auto-merge if it was armed. Documentation remains exempt from product builds and
-tests, but docs-sensitive generated governance and strict OpenSpec consistency are
-checked before integration.
-
-After any same-repository pull request into `develop` merges, trusted automation
-reconciles its remote topic branch. Human merges use the close-event workflow;
-documentation merges authored by `GITHUB_TOKEN` use a synchronous fallback because
-GitHub suppresses recursive workflow events. Both delete only an unprotected live
-ref that still equals the pull request's exact merged head SHA. Fork, advanced,
-reserved, protected, malformed, and unmerged refs are preserved and reported.
-
-Specification approval and implementation remain separate pull requests. An
-implementation starts from updated `origin/develop` only after its specification
-has merged and implementation was explicitly requested.
-
 ## Release
 
 Two channels, both published by CI from the exact bytes it validated — never from
