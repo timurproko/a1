@@ -69,7 +69,15 @@ project), never `~/.pi/agent`. Configure MCP with `/mcp setup` inside bare `a1`.
 
 ## Develop
 
+A source build needs Node.js `>=22.19.0 <25`, npm 11, git, and Rust/Cargo 1.85 or
+newer—the build compiles the `native/process-guardian` crate. Publishing a release
+or a pull request additionally needs an authenticated [GitHub CLI](https://cli.github.com).
+`npm run doctor` reports every prerequisite with the exact command that installs
+whatever is missing, and `npm run build` runs the same check first so a fresh clone
+fails by name instead of inside a resolver or Cargo.
+
 ```sh
+npm run doctor          # report Node, npm, git, Rust, and dependency readiness
 npm ci                  # install exact locked dependencies
 npm run build           # compile TypeScript and the process guardian into dist
 npm start               # build and launch a development `a1`

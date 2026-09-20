@@ -9,6 +9,7 @@ describe("build script stdout discipline", () => {
     const manifest = JSON.parse(await readFile("package.json", "utf8"));
     const chain = [...String(manifest.scripts.build).matchAll(/node (scripts\/[^\s&]+\.mjs)/gu)].map(match => match[1] ?? "");
     expect(chain).toEqual([
+      "scripts/development/check-environment.mjs",
       "scripts/pi/build-pi-settings-metadata.mjs",
       "scripts/pi/build-startup-public.mjs",
       "scripts/development/build-process-guardian.mjs",
