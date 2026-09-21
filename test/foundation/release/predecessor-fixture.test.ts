@@ -1,4 +1,5 @@
 import { access, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { PredecessorFixture } from "../../support/predecessor-fixture.js";
@@ -121,6 +122,65 @@ describe("published predecessor fixture", () => {
     expect(report.mock.calls.at(-1)![0].error).toBe("PHASE_FAILED");
     expect(JSON.stringify(report.mock.calls)).not.toContain("private-upstream-detail");
     await fixture.close();
+  });
+
+  it("releases a finished root by its nested package path so teardown is not left holding it", async () => {
+    const report = vi.fn();
+    const execute = vi.fn(async (command: PredecessorCommand) => result(command));
+    const fixture = new PredecessorFixture({ execute, report });
+    const owned = await fixture.phase(5000, async () => {
+      const packageRoot = await fixture.install("candidate.tgz");
+      const [root] = fixture.retainedRoots;
+      expect(packageRoot.startsWith(root!)).toBe(true);
+      await fixture.discard(packageRoot);
+      return root!;
+    });
+    expect(fixture.retainedRoots).toEqual([]);
+    expect(await exists(owned)).toBe(false);
+    expect(report.mock.calls.map(call => call[0]).filter(evidence => evidence.phase === "discard")).toEqual([
+      expect.objectContaining({ exitCode: 0, roots: 1, error: null }),
+    ]);
+    await fixture.close();
+    expect(report.mock.calls.at(-1)![0]).toMatchObject({ phase: "cleanup", roots: 0, exitCode: 0 });
+  });
+
+  it("refuses to remove a path it does not own or one whose command is still active", async () => {
+    const started = Promise.withResolvers<void>();
+    const release = Promise.withResolvers<void>();
+    const remove = vi.fn(async () => {});
+    const fixture = new PredecessorFixture({ remove, report() {}, execute: async command => {
+      started.resolve(); await release.promise; return result(command);
+    } });
+    const pending = fixture.phase(5000, async () => {
+      await fixture.install("fixture.tgz");
+      await expect(fixture.discard(resolve(tmpdir(), "predecessor-unowned-control"))).rejects.toThrow("outside a fixture-owned root");
+    });
+    await started.promise;
+    await expect(fixture.discard(fixture.retainedRoots[0]!)).rejects.toThrow("owned command(s) are active");
+    expect(remove).not.toHaveBeenCalled();
+    release.resolve();
+    await pending;
+    expect(remove).not.toHaveBeenCalled();
+    await fixture.close();
+    expect(remove).toHaveBeenCalledTimes(1);
+  });
+
+  it("retains a root whose release failed and reports the failure without removing it", async () => {
+    const report = vi.fn();
+    const fixture = new PredecessorFixture({ report, remove: async () => { throw new Error("fixture remove failed"); } });
+    const root = await fixture.phase(5000, async () => {
+      const created = await fixture.temporaryRoot("predecessor-discard-control-");
+      await expect(fixture.discard(created)).rejects.toThrow("fixture remove failed");
+      return created;
+    });
+    try {
+      expect(fixture.retainedRoots).toEqual([root]);
+      expect(report.mock.calls.map(call => call[0]).filter(evidence => evidence.phase === "discard")).toEqual([
+        expect.objectContaining({ error: "DISCARD_FAILED", exitCode: null }),
+      ]);
+      await expect(fixture.close()).rejects.toThrow("failed to remove fixture roots");
+      await expect(fixture.discard(root)).rejects.toThrow("outside active phase");
+    } finally { await rm(root, { recursive: true, force: true }); }
   });
 
   it("propagates the enclosing cancellation signal without granting a new child deadline", async () => {

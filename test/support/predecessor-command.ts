@@ -26,6 +26,8 @@ export interface PredecessorCommandEvidence {
   readonly signal: string | null;
   readonly error: string | null;
   readonly cleanupError: string | null;
+  /** Set only by fixture-owned root removal, which reports how many roots a cleanup step had to remove. */
+  readonly roots?: number;
 }
 
 /** Contains only bounded metadata; captured command output is never copied into an error. */

@@ -36,7 +36,7 @@ describe("update from every recent published release", () => {
       // Rationale: releases older than the immutable release store cannot drive this
       // handoff at all; they are skipped by absence of the entry, never by version
       // guesswork, and the run still has to exercise a real predecessor.
-      if (!existsSync(entry)) continue;
+      if (!existsSync(entry)) { await fixture.discard(priorRoot); continue; }
       exercised += 1;
       const release = await import(pathToFileURL(entry).href) as {
         materializeRelease: (packageRoot: string, dataDir: string) => Promise<{ releaseId: string }>;
@@ -58,7 +58,13 @@ describe("update from every recent published release", () => {
         fixture.measure("warm", version, () => release.warmMaterializedRelease(materialized, environment, 120_000)),
         `published ${version} cannot activate the candidate`,
       ).resolves.toBeUndefined();
+      // Performance: each predecessor leaves a global installation and a materialized release store behind,
+      // and the warmed child has closed by now, so both are released under this phase's own budget.
+      // Holding all of them until the teardown hook instead made removal outgrow that hook's limit.
+      await fixture.discard(sandbox);
+      await fixture.discard(priorRoot);
     }
     expect(exercised, "no published release carried a usable release store to update from").toBeGreaterThan(0);
+    await fixture.discard(candidateRoot);
   }, signal), 1_800_000);
 });
