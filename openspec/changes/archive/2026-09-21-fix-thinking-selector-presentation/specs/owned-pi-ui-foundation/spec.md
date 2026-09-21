@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: The bare-A1 thinking selector uses the established selector treatment
-The bare-A1 thinking selector SHALL render `Thinking Level` in bold semantic accent color, matching the heading treatment used by the Models configuration surface. Its resolved cycle hint SHALL render in semantic muted grey on the immediately following row. Repeated available-level values SHALL collapse to one row. Each level SHALL render its description inline in semantic muted grey regardless of cursor selection, with every description aligned to the same column one separator after the widest rendered level-name and marker region. The active session level SHALL have exactly one semantic success-green checkmark immediately after its level name. While the selector is open, the footer SHALL omit its thinking-level suffix so the active level is not duplicated below the selector, then restore that suffix when the selector closes. The presentation change SHALL preserve the selector's borders, search input, default marker, navigation, selection, default persistence, cancellation, focus, and restoration behavior.
+The bare-A1 thinking selector SHALL render `Thinking Level` in bold semantic accent color, matching the heading treatment used by the Models configuration surface. Its resolved cycle hint SHALL render in semantic muted grey on the immediately following row. Repeated available-level values SHALL collapse to one row. The configured default SHALL render as `<level> (default)` in the primary label rather than adding a default suffix to its description. Each level SHALL render its description inline in semantic muted grey regardless of cursor selection, with every description aligned to the same column one separator after the widest rendered level-label and marker region. The active session level SHALL have exactly one semantic success-green checkmark immediately after its rendered label. While the selector is open, the footer SHALL omit its thinking-level suffix so the active level is not duplicated below the selector, then restore that suffix when the selector closes. The presentation change SHALL preserve the selector's borders, search input, default marker, navigation, selection, default persistence, cancellation, focus, and restoration behavior.
 
 #### Scenario: Render the thinking selector heading
 - **WHEN** the user opens the bare-A1 thinking selector
@@ -12,8 +12,9 @@ The bare-A1 thinking selector SHALL render `Thinking Level` in bold semantic acc
 #### Scenario: Render level rows
 - **WHEN** the selector displays selected and unselected level rows
 - **THEN** repeated available-level values SHALL render exactly once
+- **AND** the configured default SHALL render as `<level> (default)` before its description
 - **AND** each description SHALL use semantic muted grey and begin in the same aligned column
-- **AND** only the active session level SHALL place one semantic success-green checkmark immediately after its name
+- **AND** only the active session level SHALL place one semantic success-green checkmark immediately after its rendered label
 - **AND** the footer SHALL omit its thinking-level suffix until the selector closes
 - **AND** closing the selector SHALL restore the footer's current thinking-level suffix
 

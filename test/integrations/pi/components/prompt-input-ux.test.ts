@@ -174,7 +174,7 @@ describe("owned level and model keybindings", () => {
     expect(cellStyle(hint, "C")).toEqual(cellStyle(piTheme().fg("muted", "C"), "C"));
     const selectedRow = rows.find(row => stripTerminalSequences(row).includes("Moderate reasoning"))!;
     const unselectedRow = rows.find(row => stripTerminalSequences(row).includes("Light reasoning"))!;
-    expect(stripTerminalSequences(selectedRow)).toContain("→ medium ✓ Moderate reasoning (~8k tokens) · default");
+    expect(stripTerminalSequences(selectedRow)).toContain("→ medium (default) ✓ Moderate reasoning (~8k tokens)");
     const descriptionColumns = ["No reasoning", "Very brief reasoning", "Light reasoning", "Moderate reasoning", "Deep reasoning"]
       .map(description => rows.map(stripTerminalSequences).find(row => row.includes(description))!.indexOf(description));
     expect(new Set(descriptionColumns).size).toBe(1);

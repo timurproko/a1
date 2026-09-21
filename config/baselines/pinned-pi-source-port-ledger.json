@@ -2381,9 +2381,9 @@
       "localDestination": "src/integrations/pi/components/upstream/components/thinking-selector.ts",
       "implementationStatus": "ported",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Preserve the searchable thinking-level selector, current/default semantics, selection, save, cancellation, and focus while accepting the active bare-A1 cycle-key label from the shell, styling the title with the established bold semantic accent treatment, placing its muted hint directly below it, deduplicating levels, and rendering aligned muted descriptions after an adjacent success-colored active marker. The comparison profile retains the public pinned component.",
+      "modifications": "Preserve the searchable thinking-level selector, current/default semantics, selection, save, cancellation, and focus while accepting the active bare-A1 cycle-key label from the shell, styling the title with the established bold semantic accent treatment, placing its muted hint directly below it, deduplicating levels, marking the default beside its level name, and rendering aligned muted descriptions after an adjacent success-colored active marker. The comparison profile retains the public pinned component.",
       "upgradeStrategy": "three-way",
-      "localSha256": "60744094c9c748ec31a54ba289f6787ba9db997e21fc8444d7428549e827a882",
+      "localSha256": "e135d0e40f253d49d69d5b06f644a65d30f22178efe1889b7a164e43ad77977a",
       "approvedDeviations": [
         {
           "id": "owned-level-cycle-shortcut",
@@ -2393,7 +2393,7 @@
         },
         {
           "id": "owned-thinking-selector-heading",
-          "reason": "The accepted bare-A1 presentation uses the same bold semantic accent heading and compact row treatment as its Models configuration surface, including an adjacent muted hint, unique level rows, aligned muted descriptions, and one adjacent success-colored active marker.",
+          "reason": "The accepted bare-A1 presentation uses the same bold semantic accent heading and compact row treatment as its Models configuration surface, including an adjacent muted hint, unique level rows, a `(default)` primary-label marker, aligned muted descriptions, and one adjacent success-colored active marker.",
           "upstreamBehavior": "Selector geometry, search, navigation, selection, persistence, cancellation, and focus remain source-equivalent; duplicate footer level presentation is suppressed only while the selector is open.",
           "acceptanceTest": "test/app/session-shell/session-shell-workflows.test.ts"
         }
