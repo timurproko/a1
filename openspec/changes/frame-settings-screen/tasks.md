@@ -14,3 +14,9 @@
 - [x] 3.1 Add focused settings regressions for ordinary, overflowing, searched, menu, structured-dialog, narrow-width, and short-height states, verifying exact row count, ANSI-aware width, stable fixed chrome, and no invisible pointer targets.
 - [x] 3.2 Verify the Pi-backed dark theme resolves the frame to blue rules, the title to cyan, and section headings to the same yellow heading color as `What's New`, while the `a1 pi` comparison path remains unchanged.
 - [x] 3.3 Run strict OpenSpec validation, typechecking, and focused settings/component tests; attempt the supported local build, record any host-toolchain-only limitation, and prepare the candidate for required exact-head CI and visual handoff.
+
+## 4. Refine alignment and search composition
+
+- [x] 4.1 Inset settings section rows and setting-row markers to the title's left edge, carry that offset into pointer/menu geometry, and left-align settings footer guidance at the same edge.
+- [x] 4.2 Replace the ordinary bottom divider with a single unruled search row while search is active, preserving list height and fixed row placement.
+- [x] 4.3 Add focused alignment/search regressions, run strict OpenSpec validation, typechecking, startup architecture checks, and focused tests; record the Windows checkout's CRLF-sensitive ledger limit and prepare renewed exact-head CI and visual handoff.

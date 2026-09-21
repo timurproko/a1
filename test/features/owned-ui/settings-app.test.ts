@@ -188,9 +188,11 @@ describe("the settings screen", () => {
     expect(lines).toHaveLength(24);
     expect(lines[0]).toBe(`<border>${rule}</border>`);
     expect(lines[1]).toBe(" <b><accent>Settings</accent></b>");
+    expect(lines.find(line => line.includes("Generic"))?.startsWith(" ")).toBe(true);
     expect(lines.find(line => line.includes("Generic"))).toContain("<mdHeading><b>Generic</b></mdHeading>");
+    expect(lines.find(line => line.includes("Quit animation"))?.startsWith(" <accent>→ ")).toBe(true);
     expect(lines.at(-2)).toBe(`<border>${rule}</border>`);
-    expect(lines.at(-1)).toContain("<dim>");
+    expect(lines.at(-1)?.startsWith(" <dim>")).toBe(true);
 
     target.onMouse?.({ kind: "wheel-down", button: 0, row: 3, column: 40 }, BOLD_NAMING_HOST);
     const scrolled = target.render({ width: 80, height: 24 }, BOLD_NAMING_HOST);
@@ -465,7 +467,7 @@ describe("the settings screen", () => {
     expect(after.some(line => line.trimStart().startsWith("→"))).toBe(true);
   });
 
-  it("allows the mouse wheel to reveal the final row after search reduces the list height", async () => {
+  it("allows the mouse wheel to reveal the final row while search preserves the list height", async () => {
     const { app: target } = await app();
     target.onInput?.("/", HOST);
     const render = () => target.render({ width: 80, height: 13 }, HOST).map(line => line.replace(STYLE, "").trimEnd());
@@ -483,7 +485,7 @@ describe("the settings screen", () => {
     }
     const searchRow = lines.findIndex(line => line.includes("search settings"));
     expect(searchRow).toBeGreaterThanOrEqual(2);
-    expect(lines[searchRow - 3]).toContain("Skills");
+    expect(lines.some(line => line.includes("Skills"))).toBe(true);
     expect([...visited].sort()).toEqual(["History limit", "Output padding", "Persistent history", "Prompt suggestions", "Skills", "Thinking level"]);
   });
 
@@ -512,8 +514,8 @@ describe("the settings screen", () => {
     const searchRow = lines.findIndex(line => line.includes("search settings"));
     expect(searchRow, JSON.stringify(lines)).toBeGreaterThanOrEqual(0);
     expect(lines.find(line => line.includes("Skills"))?.trimStart()).toMatch(/^→/);
-    // Invariant: the ruled search footer leaves its final result on the last body row.
-    expect(lines[searchRow - 3]).toContain("Skills");
+    // Invariant: search replaces the divider and leaves its final result on the last body row.
+    expect(lines[searchRow - 1]).toContain("Skills");
   });
 
   it("jumps to the first and last setting on Ctrl+Home and Ctrl+End in either encoding", async () => {
@@ -682,24 +684,28 @@ describe("the value dropdown behind the screen", () => {
 });
 
 describe("the input row and status line behind the screen", () => {
-  it("opens the shared ruled search input only when slash invokes it", async () => {
+  it("replaces the bottom divider with one search row without moving the list", async () => {
     const { app: target } = await app();
     expect(target.onInput?.("t", HOST)).toMatchObject({ consumed: false });
-    expect(screen(target).join("\n")).not.toContain("search settings");
+    const ordinary = screen(target);
+    expect(ordinary.join("\n")).not.toContain("search settings");
 
     target.onInput?.("/", HOST);
     const painted = target.render({ width: 80, height: 24 }, HOST);
-    const searchRow = painted.findIndex(line => line.replace(STYLE, "").includes("search settings"));
+    const visible = painted.map(line => line.replace(STYLE, "").trimEnd());
+    const searchRow = visible.findIndex(line => line.includes("search settings"));
     expect(painted[searchRow]).toContain(String.fromCharCode(27) + "[7m");
-    expect(painted[searchRow]?.replace(STYLE, "")).toContain("❯ search settings");
-    expect(painted[searchRow - 1]?.replace(STYLE, "")).toMatch(/^─+$/u);
-    expect(painted[searchRow + 1]?.replace(STYLE, "")).toMatch(/^─+$/u);
+    expect(visible[searchRow]?.startsWith(" ❯ search settings")).toBe(true);
+    expect(searchRow).toBe(ordinary.length - 2);
+    expect(visible.slice(2, searchRow)).toEqual(ordinary.slice(2, -2));
+    expect(visible.filter(line => /^─+$/u.test(line))).toHaveLength(1);
   });
 
   it("derives the complete standing status from active shortcut declarations", async () => {
     const { app: target } = await app();
     const wide = target.render({ width: 200, height: 24 }, HOST).map(line => line.replace(STYLE, ""));
     const hint = wide.find(line => line.includes("/ to search")) ?? "";
+    expect(hint.startsWith(" ")).toBe(true);
     expect(hint).toContain("↑↓ to navigate");
     expect(hint).toContain("Shift+↑↓ to jump");
     expect(hint).toContain("Enter/Space to change");
@@ -820,8 +826,8 @@ describe("the input row and status line behind the screen", () => {
     const modeRow = (candidate: SettingsApp) => candidate.render({ width: 23, height: 12 }, HOST)
       .map(line => line.replace(STYLE, "").trimEnd())
       .find(line => line.includes("Scrollbar mode")) ?? "";
-    expect(modeRow(target)).toBe("→ Scrollbar mode     hi");
-    expect(modeRow(reserved)).toBe("→ Scrollbar mode");
+    expect(modeRow(target)).toBe(" → Scrollbar mode     h");
+    expect(modeRow(reserved)).toBe(" → Scrollbar mode");
   });
 
   it("follows a mode changed on the screen before the store reflects it", async () => {

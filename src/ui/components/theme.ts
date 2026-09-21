@@ -1,8 +1,3 @@
-/**
- * Colour as a port, so a screen can be rendered and asserted without a terminal
- * or a theme, and so the component layer never imports a Pi adapter.
- */
-
 export type UiThemeToken = "accent" | "mdHeading" | "text" | "muted" | "dim" | "border" | "error";
 
 export interface UiTheme {

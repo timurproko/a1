@@ -24,7 +24,7 @@ import {
   renderInputRow,
   renderListRow,
   renderNote,
-  renderStatusLine,
+  statusText,
   dialogRowAt,
   menuRowAt,
   regionAt,
@@ -67,10 +67,9 @@ import type {
 import { SETTINGS_APP_ID, SETTINGS_ROUTE } from "./settings-route.js";
 export { SETTINGS_APP_ID, SETTINGS_ROUTE } from "./settings-route.js";
 const SCOPE = SETTINGS_APP_ID;
-/** Fixed rows before the scrollable list: border, then title. */
 const SETTINGS_HEADER_ROWS = 2;
-/** Fixed border row between list content and whichever footer is active. */
 const SETTINGS_FOOTER_DIVIDER_ROWS = 1;
+const SETTINGS_CONTENT_INSET = 1;
 /** The panel a setting with parts opens: its own keys, its own hint. */
 const DIALOG_SCOPE = `${SETTINGS_APP_ID}-parts`;
 const SCROLLBAR_TOP_INSET = 1;
@@ -215,10 +214,11 @@ export class SettingsApp implements UiApp {
     const rows = this.#rows();
     const selected = indexOfKey(rows, this.#selectedKey);
     const footer = this.#footerLines(rect.width, theme);
-    const bodyHeight = Math.max(0, rect.height - SETTINGS_HEADER_ROWS - SETTINGS_FOOTER_DIVIDER_ROWS - footer.length);
+    const dividerRows = this.#filter === null ? SETTINGS_FOOTER_DIVIDER_ROWS : 0;
+    const bodyHeight = Math.max(0, rect.height - SETTINGS_HEADER_ROWS - dividerRows - footer.length);
     this.#bodyTopForFrame = SETTINGS_HEADER_ROWS;
     this.#bodyHeightForFrame = bodyHeight;
-    this.#panelTopForFrame = SETTINGS_HEADER_ROWS + bodyHeight + SETTINGS_FOOTER_DIVIDER_ROWS;
+    this.#panelTopForFrame = SETTINGS_HEADER_ROWS + bodyHeight + dividerRows;
     this.#panelTop = this.#panelTopForFrame;
     if (this.#selectionNeedsReveal) {
       this.#scroll = scrollForSelection(rows, bodyHeight, this.#scroll, selected, this.#reveal);
@@ -276,7 +276,7 @@ export class SettingsApp implements UiApp {
           this.#frameRows.push({
             key: view.key,
             screenRow: this.#bodyTopForFrame + body.length,
-            valueColumn,
+            valueColumn: valueColumn + Math.min(SETTINGS_CONTENT_INSET, contentWidth),
             valueWidth: displayWidth(view.value),
             stepper: view.stepper !== undefined,
           });
@@ -293,7 +293,7 @@ export class SettingsApp implements UiApp {
     const rule = theme.fg("border", "─".repeat(Math.max(0, rect.width)));
     const title = truncateToWidth(` ${theme.bold(theme.fg("accent", "Settings"))}`, rect.width);
     const frame = this.#withMenu(
-      [rule, title, ...withRail, rule, ...footer],
+      [rule, title, ...withRail, ...(dividerRows === 0 ? [] : [rule]), ...footer],
       selected,
       layout,
       valueColumn,
@@ -785,6 +785,7 @@ export class SettingsApp implements UiApp {
         });
       }
     }
+    if (this.#filter !== null && rows.length > 0) rows.push({ kind: "spacer" });
     return rows;
   }
 
@@ -794,18 +795,20 @@ export class SettingsApp implements UiApp {
   }
 
   #header(title: string, theme: UiTheme, width: number): string {
-    return renderGroupHeader(humanizeTitle(title), width, theme);
+    if (width < SETTINGS_CONTENT_INSET) return "";
+    return ` ${renderGroupHeader(humanizeTitle(title), width - SETTINGS_CONTENT_INSET, theme)}`;
   }
 
   #renderRow(row: Row | undefined, selected: boolean, width: number, valueColumn: number, theme: UiTheme): string {
-    if (row === undefined || row.kind === "spacer") return "";
+    if (row === undefined || row.kind === "spacer" || width < SETTINGS_CONTENT_INSET) return "";
     if (row.kind === "group") return this.#header(row.title, theme, width);
-    if (row.kind === "note") return renderNote(row.text, width, theme);
+    const innerWidth = width - SETTINGS_CONTENT_INSET;
+    if (row.kind === "note") return ` ${renderNote(row.text, innerWidth, theme)}`;
 
     const entry = row.value;
     const key = `${entry.backend}:${entry.id}`;
     const hovered = this.#hoverKey === key;
-    return renderListRow(this.#viewRow(entry), { selected, hovered, region: this.#hoverRegion }, valueColumn, width, theme);
+    return ` ${renderListRow(this.#viewRow(entry), { selected, hovered, region: this.#hoverRegion }, valueColumn, innerWidth, theme)}`;
   }
 
   #viewRow(entry: OwnedUiSettingsEntry): ListViewRow {
@@ -875,10 +878,13 @@ export class SettingsApp implements UiApp {
     if (open !== null) return this.#dialogLines(open, width, theme);
 
     const hint = this.#interruptArmed ? "press ctrl+c again to exit a1" : SETTINGS_SHORTCUTS.hint(SCOPE);
-    const status = renderStatusLine({ hint, report: this.#notice }, width, theme);
+    const report = statusText({ hint, report: this.#notice });
+    const status = truncateToWidth(`${width > 0 ? " " : ""}${theme.fg("dim", report)}`, width);
     const input = this.#filter;
     if (input === null) return [status];
-    return [...renderInputRow(input, width, { placeholder: SEARCH_PLACEHOLDER, theme }).lines, status];
+    const inputWidth = Math.max(0, width - SETTINGS_CONTENT_INSET);
+    const lines = renderInputRow(input, inputWidth, { placeholder: SEARCH_PLACEHOLDER, ruled: false, theme }).lines;
+    return [width > 0 ? ` ${lines[0] ?? ""}` : "", status];
   }
 }
 

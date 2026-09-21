@@ -4,10 +4,11 @@ The owned settings screen lacks the framed visual hierarchy used by the `What's 
 
 ## What Changes
 
-- Frame the settings screen with full-width blue theme-border rules above the content and above the footer guidance.
+- Frame the settings screen with a full-width blue theme-border rule above the content and an ordinary full-width divider above footer guidance.
 - Add a fixed, bold cyan `Settings` title below the top rule, matching the heading treatment of `What's New`.
-- Render settings section headings in the theme's yellow heading role while preserving row colors, selection, values, menus, dialogs, search, notices, and scrollbar behavior.
-- Account for the new frame rows in scrolling, sticky-section, pointer, rail, narrow-terminal, and exact-height layout geometry.
+- Render settings section headings in the theme's yellow heading role and align headings, list content, and footer guidance to the title's one-column left inset.
+- Let the single-row search prompt replace the ordinary bottom divider so invoking search does not move the list content.
+- Account for the frame rows in scrolling, sticky-section, pointer, rail, menu, narrow-terminal, and exact-height layout geometry.
 - Add focused semantic-style and terminal-cell regression coverage for ordinary, searched, scrolled, dialog, and constrained settings frames.
 
 ## Capabilities
@@ -18,7 +19,7 @@ None.
 
 ### Modified Capabilities
 
-- `owned-ui-settings`: Define the settings screen's framed title, border rules, yellow section headings, and unchanged interaction/layout behavior within the reduced content rectangle.
+- `owned-ui-settings`: Define the settings screen's framed title, conditional footer divider, aligned yellow section headings/content/guidance, and unchanged interaction behavior within the reduced content rectangle.
 
 ## Impact
 
