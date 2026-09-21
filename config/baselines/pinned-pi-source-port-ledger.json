@@ -2377,12 +2377,27 @@
       "sourceMap": "modes/interactive/components/thinking-selector.js.map",
       "lines": 155,
       "sha256": "a8e562022d04ef4266191ba35a0417fced547666be6e6e97329aa3918b512e18",
-      "classification": "public-api-reuse",
-      "localDestination": "src/integrations/pi/components/index.ts",
-      "implementationStatus": "available-through-pinned-package",
+      "classification": "owned-presentation",
+      "localDestination": "src/integrations/pi/components/upstream/components/thinking-selector.ts",
+      "implementationStatus": "ported",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "None planned; import the exact component or helper from the pinned public coding-agent package root.",
-      "approvedDeviations": [],
+      "modifications": "Preserve the searchable thinking-level selector, current/default semantics, selection, save, cancellation, and focus while accepting the active bare-A1 cycle-key label from the shell, styling the title with the established bold semantic accent treatment, and rendering muted inline descriptions with one trailing success-colored active marker and no duplicate detail row. The comparison profile retains the public pinned component.",
+      "upgradeStrategy": "three-way",
+      "localSha256": "45a6f472467e92d3a4a6257c2c81ce3fadf93cd2a40af837834ad70a54d62aad",
+      "approvedDeviations": [
+        {
+          "id": "owned-level-cycle-shortcut",
+          "reason": "Bare A1 presents its accepted Ctrl+L level-cycle binding instead of the pinned Shift+Tab default inside the selector.",
+          "upstreamBehavior": "The comparison profile retains the pinned selector and its resolved binding; bare A1 preserves user override resolution.",
+          "acceptanceTest": "test/integrations/pi/components/prompt-input-ux.test.ts"
+        },
+        {
+          "id": "owned-thinking-selector-heading",
+          "reason": "The accepted bare-A1 presentation uses the same bold semantic accent heading and compact row treatment as its Models configuration surface, including muted inline descriptions and one trailing success-colored active marker.",
+          "upstreamBehavior": "Selector geometry, search, navigation, selection, persistence, cancellation, and focus remain source-equivalent; redundant selected-level detail is omitted.",
+          "acceptanceTest": "test/app/session-shell/session-shell-workflows.test.ts"
+        }
+      ],
       "behaviorCategories": [
         "selectors",
         "settings",

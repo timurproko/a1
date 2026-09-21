@@ -9,7 +9,8 @@ The component's heading and hint are internal children, so correcting them by re
 **Goals:**
 
 - Give the bare-A1 thinking selector an owned presentation whose hint is sourced from the same resolved binding data as dispatch.
-- Match the established bold accent heading treatment without changing selector geometry or behavior.
+- Match the established bold accent heading treatment and the Models dialog's compact row grammar.
+- Keep descriptions muted on every row, place the active marker once at the row's trailing edge, and omit duplicate selected-level detail below the list.
 - Preserve explicit keybinding overrides and keep comparison-profile construction independent.
 
 **Non-Goals:**
@@ -22,7 +23,7 @@ The component's heading and hint are internal children, so correcting them by re
 
 ### 1. Add an owned bare-A1 thinking selector at the component façade
 
-Port the minimum coherent thinking-selector component from the pinned public implementation into the existing owned component area, retaining provenance and its search, list, focus, save, select, and cancel behavior. Change only the title styling and the source of the cycle-key label. The shell will choose this owned component for its bare-A1 layout and retain the public Pi component for the comparison layout.
+Port the minimum coherent thinking-selector component from the pinned public implementation into the existing owned component area, retaining provenance and its search, list, focus, save, select, and cancel behavior. Change the title styling, source of the cycle-key label, and row presentation: descriptions remain inline and muted, while the active level receives one trailing success marker without duplicate detail. The shell will choose this owned component for its bare-A1 layout and retain the public Pi component for the comparison layout.
 
 Wrapping the public component with an additional heading was rejected because it would duplicate the original plain heading. Mutating its private child array or replacing rendered ANSI text was rejected because either approach couples A1 to private layout and cannot provide a stable component contract.
 
@@ -32,17 +33,18 @@ At selector creation, obtain the effective `app.thinking.cycle` value from the a
 
 Hardcoding `Ctrl+L` was rejected because it would make customized help diverge from dispatch. Temporarily replacing the global keybinding manager was rejected because modal construction must not alter unrelated active surfaces.
 
-### 3. Use the theme's semantic accent and bold operations
+### 3. Use semantic theme roles for the heading and level rows
 
-Render `Thinking Level` through the semantic accent color and bold style, matching `Model Configuration` rather than embedding a terminal color escape. Tests will inspect both plain text and semantic ANSI style so a visually plain regression cannot pass on text alone.
+Render `Thinking Level` through the semantic accent color and bold style, matching `Model Configuration` rather than embedding a terminal color escape. Render only the highlighted level title and arrow in accent, every inline description in muted grey, and the active level's single trailing checkmark in semantic success green. Do not add a second selected-level detail row beneath the list. Tests will inspect plain order, occurrence count, and semantic ANSI styles so visually similar regressions cannot pass on text alone.
 
-A literal cyan escape was rejected because themes own the concrete color and accessibility behavior.
+A literal cyan or green escape was rejected because themes own concrete colors and accessibility behavior. Reusing the stock selected-row styling unchanged was rejected because it wraps the description in accent color and keeps the current marker before the title.
 
 ## Risks / Trade-offs
 
 - **[Risk] A source-adapted selector can drift from future Pi behavior.** → Keep the port minimal, record provenance, and retain interaction tests for every copied behavior while comparison mode continues using the public component.
 - **[Risk] Shortcut formatting can diverge from startup or hotkey help.** → Reuse the resolved keybinding configuration and shared formatting grammar; cover defaults and explicit overrides in one focused test matrix.
 - **[Risk] Profile selection can leak the owned component into comparison mode.** → Select the component through the existing bare-versus-comparison layout decision and assert both routes independently.
+- **[Risk] Nested row styling can regress when selection moves or filtering rebuilds the list.** → Assert selected and unselected description cells independently, plus marker order and one-occurrence rendering after filtering.
 
 ## Migration Plan
 

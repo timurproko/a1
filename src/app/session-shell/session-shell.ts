@@ -70,7 +70,6 @@ import {
   createPiShellSessionSelector,
   createPiShellSettingsSelector,
   createPiShellSkillsSelector,
-  createPiShellThinkingSelector,
   type PiShellSettingsSelectorOptions,
   createPiShellTreeSelector,
   createPiShellTrustSelector,
@@ -947,7 +946,7 @@ export class OwnedUiSessionShell {
     return handle;
   }
 
-  showThinkingSelector(): void {
+  async showThinkingSelector(): Promise<void> {
     const snapshot = this.backend.pinnedSettingsSnapshot();
     const close = () => {
       this.root.setInputSurface(null);
@@ -957,6 +956,7 @@ export class OwnedUiSessionShell {
       close();
       void this.runWorkflow({ command: "thinking", argument: "", selection: level, ...(persist ? { persist: true } : {}) });
     };
+    const { createPiShellThinkingSelector } = await import("../../integrations/pi/components/thinking-selector-dialog.js");
     const component = createPiShellThinkingSelector(
       snapshot.thinkingLevel,
       snapshot.availableThinkingLevels,
@@ -964,6 +964,10 @@ export class OwnedUiSessionShell {
       close,
       level => select(level, true),
       snapshot.defaultThinkingLevel,
+      this.#customViewport ? {
+        profile: "bare",
+        cycleBinding: this.root.editor.keybindingConfig()["app.thinking.cycle"] ?? [],
+      } : undefined,
     );
     this.root.setInputSurface(component);
     this.runtime.requestRender();
@@ -1309,7 +1313,7 @@ export class OwnedUiSessionShell {
       return { outcome: "completed", diagnostic: null };
     }
     if (request.command === "thinking" && request.selection === undefined && request.argument.trim().length === 0) {
-      this.showThinkingSelector();
+      await this.showThinkingSelector();
       return { outcome: "completed", diagnostic: null };
     }
     if (request.command === "trust" && request.selection === undefined && request.confirmed === undefined) {
