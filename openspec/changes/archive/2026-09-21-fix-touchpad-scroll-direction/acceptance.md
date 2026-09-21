@@ -15,7 +15,7 @@ The manual merge accepts these scenarios:
   "archive": "openspec/changes/archive/2026-09-21-fix-touchpad-scroll-direction/",
   "acceptanceManifest": "openspec/changes/archive/2026-09-21-fix-touchpad-scroll-direction/acceptance.md",
   "finalizedDate": "2026-09-21",
-  "specBaseSha": "2226c9d00fb394988592149e312118104089a837",
+  "specBaseSha": "5f5a349247b532142ae54070ff1fb9d4f6d9a5cc",
   "acceptanceScenarios": [
     "Vertical touchpad gestures scroll the transcript only in their reported direction when horizontal wheel reports are interleaved.",
     "Horizontal wheel reports neither move the transcript nor leak into focused input."
