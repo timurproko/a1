@@ -155,9 +155,9 @@ export function createPiShellStatus(
   };
 }
 
-export function createPiShellFooter(view: OwnedUiSessionViewModel, cwd: string, profile: "pi" | "a1" = "pi"): PiShellViewComponentPort {
+export function createPiShellFooter(view: OwnedUiSessionViewModel, cwd: string, profile: "pi" | "a1" = "pi", showLevel: () => boolean = () => true): PiShellViewComponentPort {
   ensureTheme();
-  const footer = new SessionFooter(() => view, cwd, profile);
+  const footer = new SessionFooter(() => view, cwd, profile, showLevel);
   return {
     render: width => footer.render(width),
     invalidate: () => footer.invalidate(),

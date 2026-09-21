@@ -258,6 +258,33 @@ describe("session viewport interaction controller", () => {
     } finally { target.clearPointerState(); normal.target.clearPointerState(); vi.useRealTimers(); }
   });
 
+  it("ignores horizontal touchpad reports without reversing vertical transcript scrolling", () => {
+    const { target, compose, renders } = hoverFixture();
+    try {
+      target.setConfig({ scrollbarAppearance: "auto", scrollbarStyle: "thin", scrollbarSpeed: "normal" });
+      const end = compose().scrollTop;
+
+      expect(target.handlePreInput("a\u001b[<66;2;2M\u001b[<64;2;2M\u001b[<67;2;2Mb", true, 1000))
+        .toEqual({ data: "ab", consumed: true });
+      const detached = compose();
+      expect(detached.scrollTop).toBe(end - 3);
+      expect(detached.followingEnd).toBe(false);
+
+      renders.length = 0;
+      expect(target.handlePreInput("c\u001b[<66;20;7M\u001b[<67;20;7Md", true, 1001))
+        .toEqual({ data: "cd", consumed: true });
+      expect(compose().scrollTop).toBe(end - 3);
+      expect(target.frame!.followingEnd).toBe(false);
+      expect(renders).toEqual([]);
+
+      expect(target.handlePreInput("\u001b[<66;2;2M\u001b[<65;2;2M\u001b[<67;2;2M", true, 1002).consumed)
+        .toBe(true);
+      const followed = compose();
+      expect(followed.scrollTop).toBe(end);
+      expect(followed.followingEnd).toBe(true);
+    } finally { target.clearPointerState(); }
+  });
+
   it.each(["auto", "always", "hidden"] as const)("keeps %s scrollbar policy and navigation controls behind a modal", appearance => {
     const { target, compose } = hoverFixture();
     try {
