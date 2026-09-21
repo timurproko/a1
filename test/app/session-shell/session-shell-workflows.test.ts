@@ -30,7 +30,7 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     const plain = rows.map(stripTerminalSequences).join("\n");
     expect(plain).toContain("Ctrl+L cycles thinking levels in-session");
     expect(plain).not.toContain("Shift+Tab");
-    expect(plain).toContain("medium (default) ✓ Moderate reasoning (~8k tokens)");
+    expect(plain).toContain("medium ✓ Moderate reasoning (~8k tokens)");
     expect(plain.match(/Moderate reasoning/g)).toHaveLength(1);
     expect(plain.match(/\bmedium\b/g)).toHaveLength(1);
     const heading = rows.find(row => stripTerminalSequences(row).includes("Thinking Level"))!;

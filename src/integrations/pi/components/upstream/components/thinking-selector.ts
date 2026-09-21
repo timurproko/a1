@@ -4,9 +4,8 @@
  * Modifications: Preserve the searchable thinking-level selector, current/default semantics,
  * selection, save, cancellation, and focus while accepting the active bare-A1 cycle-key label from the
  * shell, styling the title with the established bold semantic accent treatment, placing its muted hint
- * directly below it, deduplicating levels, marking the default beside its level name, and rendering
- * aligned muted descriptions after an adjacent success-colored active marker. The comparison profile
- * retains the public pinned component.
+ * directly below it, deduplicating levels, and rendering aligned muted descriptions after an adjacent
+ * success-colored active marker. The comparison profile retains the public pinned component.
  * Deviations: owned-level-cycle-shortcut, owned-thinking-selector-heading.
  */
 import {
@@ -79,8 +78,9 @@ export class OwnedThinkingSelectorComponent extends Container implements Focusab
 
 		this.allItems = [...new Set(availableLevels)].map((level) => ({
 			value: level,
-			label: level === defaultThinkingLevel ? `${level} (default)` : level,
-			description: LEVEL_DESCRIPTIONS[level],
+			label: level,
+			description:
+				level === defaultThinkingLevel ? `${LEVEL_DESCRIPTIONS[level]} · default` : LEVEL_DESCRIPTIONS[level],
 		}));
 
 		this.addChild(new DynamicBorder());

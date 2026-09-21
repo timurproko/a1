@@ -2,9 +2,8 @@
 
 - [x] 1.1 Add a provenance-recorded bare-A1 thinking selector behind the component façade, preserving the pinned selector's search, focus, list, select, save-default, and cancel behavior; verify focused component interaction tests pass.
 - [x] 1.2 Render `Thinking Level` with bold semantic accent styling, keep descriptions inline and muted on selected and unselected rows, and place one success-green active checkmark without a duplicate detail row; verify row order, occurrence count, and semantic ANSI roles.
-- [x] 1.3 Align descriptions one separator after the widest rendered primary label, place the active checkmark directly after its rendered label, and suppress the footer's duplicate level only while the selector is open; verify columns, marker order, non-duplication, and footer restoration.
+- [x] 1.3 Align descriptions one separator after the widest rendered primary label, place the active checkmark directly after its level name, and suppress the footer's duplicate level only while the selector is open; verify columns, marker order, non-duplication, and footer restoration.
 - [x] 1.4 Collapse duplicate available levels to one row and render the resolved cycle hint in muted grey immediately below the title; verify row uniqueness, adjacency, and semantic styling.
-- [x] 1.5 Show the configured default as `<level> (default)` in the primary label rather than as a description suffix; verify exact placement and retained alignment.
 
 ## 2. Resolved shortcut integration
 

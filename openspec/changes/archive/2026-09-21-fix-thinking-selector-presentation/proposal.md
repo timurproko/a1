@@ -6,7 +6,7 @@ Bare A1 cycles thinking levels with `Ctrl+L`, but the `/thinking` selector still
 
 - Make the bare-A1 thinking selector derive its cycle hint from the active A1 keybinding profile, showing `Ctrl+L` with default bindings instead of `Shift+Tab`.
 - Render the `Thinking Level` selector heading with the same bold accent styling used by `Model Configuration` and other owned selector headings.
-- Place the muted-grey cycle hint directly below the title, deduplicate level rows, show the configured default as `<level> (default)`, align every muted-grey description after the widest rendered level label, place the active level's green checkmark directly after that label, and suppress the duplicate footer level while the selector is open.
+- Place the muted-grey cycle hint directly below the title, deduplicate level rows, align every muted-grey description after the widest rendered level label, place the active level's green checkmark directly after its name, and suppress the duplicate footer level while the selector is open.
 - Preserve filtering, navigation, level selection, default persistence, cancellation, and explicit keybinding overrides.
 - Keep `a1 pi` isolated on its comparison-profile component and resolved bindings; this correction does not hardcode one label across profiles.
 
@@ -19,7 +19,7 @@ None.
 ### Modified Capabilities
 
 - `ui-shortcuts`: Require the bare-A1 thinking selector to display its live resolved cycle binding, including `Ctrl+L` by default and explicit user overrides.
-- `owned-pi-ui-foundation`: Define the thinking selector's bold accent heading, adjacent `(default)` level marker, aligned muted descriptions, active marker, non-duplicated footer state, and retained interaction behavior.
+- `owned-pi-ui-foundation`: Define the thinking selector's bold accent heading, aligned muted descriptions, adjacent active marker, non-duplicated footer state, and retained interaction behavior.
 
 ## Impact
 
