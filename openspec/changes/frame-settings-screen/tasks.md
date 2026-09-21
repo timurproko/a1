@@ -24,5 +24,11 @@
 ## 5. Restore shared search chrome and scroll the title
 
 - [x] 5.1 Restore the shared search input's top rule, prompt row, and bottom rule while using its top rule instead of the settings-owned divider.
-- [x] 5.2 Let the top rule and `Settings` title scroll out with list movement while only the active section heading pins, and derive list, rail, pointer, menu, and footer geometry from the current title visibility.
+- [x] 5.2 Let the `Settings` title scroll out with list movement while only the active section heading pins, and derive list, rail, pointer, menu, and footer geometry from the current title visibility.
 - [x] 5.3 Add focused regressions for ruled search composition, title scrolling, section pinning, changing rail origin, wheel ownership over opening chrome, and constrained frames; then rerun local validation and prepare renewed exact-head CI.
+
+## 6. Fix the top rule and start scrolling at the top
+
+- [x] 6.1 Reserve the blue top rule independently so it remains visible while the title scrolls away and the active section pins immediately below it.
+- [x] 6.2 Remove the scrollbar's extra top inset so its track starts at the top of the current scrolling region before and after the title disappears.
+- [x] 6.3 Verify fixed-rule/title-scroll composition, section pinning, rail geometry, pointer behavior, ruled search, constrained frames, and local validation before renewed exact-head CI and visual handoff.

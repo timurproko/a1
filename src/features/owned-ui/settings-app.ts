@@ -67,12 +67,13 @@ import type {
 import { SETTINGS_APP_ID, SETTINGS_ROUTE } from "./settings-route.js";
 export { SETTINGS_APP_ID, SETTINGS_ROUTE } from "./settings-route.js";
 const SCOPE = SETTINGS_APP_ID;
-const SETTINGS_HEADER_ROWS = 2;
+const SETTINGS_TOP_RULE_ROWS = 1;
+const SETTINGS_TITLE_ROWS = 1;
 const SETTINGS_FOOTER_DIVIDER_ROWS = 1;
 const SETTINGS_CONTENT_INSET = 1;
 /** The panel a setting with parts opens: its own keys, its own hint. */
 const DIALOG_SCOPE = `${SETTINGS_APP_ID}-parts`;
-const SCROLLBAR_TOP_INSET = 1;
+const SCROLLBAR_TOP_INSET = 0;
 /** Identity of the settings list rail in the shared rail state. */
 const RAIL_KEY = "settings";
 // Compatibility: the transcript rail stays lit this long after a scroll, and repaints just after.
@@ -178,7 +179,7 @@ export class SettingsApp implements UiApp {
   // Invariant: pending values remain visible until the source reflects them.
   readonly #pending = new Map<string, OwnedUiSettingValue>();
   #dialogValueColumn = 0;
-  #bodyTopForFrame = SETTINGS_HEADER_ROWS;
+  #bodyTopForFrame = SETTINGS_TOP_RULE_ROWS + SETTINGS_TITLE_ROWS;
   #bodyHeightForFrame = 0;
   #panelTop = 0;
   #panelTopForFrame = 0;
@@ -215,28 +216,29 @@ export class SettingsApp implements UiApp {
     const selected = indexOfKey(rows, this.#selectedKey);
     const footer = this.#footerLines(rect.width, theme);
     const dividerRows = this.#filter === null ? SETTINGS_FOOTER_DIVIDER_ROWS : 0;
-    const contentHeight = Math.max(0, rect.height - dividerRows - footer.length);
-    let headerRows = this.#scroll <= 0 ? Math.min(SETTINGS_HEADER_ROWS, contentHeight) : 0;
-    let bodyHeight = contentHeight - headerRows;
+    const topRows = Math.min(SETTINGS_TOP_RULE_ROWS, rect.height);
+    const contentHeight = Math.max(0, rect.height - topRows - dividerRows - footer.length);
+    let titleRows = this.#scroll <= 0 ? Math.min(SETTINGS_TITLE_ROWS, contentHeight) : 0;
+    let bodyHeight = contentHeight - titleRows;
     if (this.#selectionNeedsReveal && bodyHeight > 0) {
       this.#scroll = scrollForSelection(rows, bodyHeight, this.#scroll, selected, this.#reveal);
       this.#selectionNeedsReveal = false;
       this.#reveal = undefined;
     }
-    if (this.#scroll > 0 && headerRows > 0) {
-      headerRows = 0;
+    if (this.#scroll > 0 && titleRows > 0) {
+      titleRows = 0;
       bodyHeight = contentHeight;
     }
 
     let layout = layoutList(rows, bodyHeight, this.#scroll);
-    if (layout.scroll === 0 && headerRows === 0) {
-      headerRows = Math.min(SETTINGS_HEADER_ROWS, contentHeight);
-      bodyHeight = contentHeight - headerRows;
+    if (layout.scroll === 0 && titleRows === 0) {
+      titleRows = Math.min(SETTINGS_TITLE_ROWS, contentHeight);
+      bodyHeight = contentHeight - titleRows;
       layout = layoutList(rows, bodyHeight, 0);
     }
-    this.#bodyTopForFrame = headerRows;
+    this.#bodyTopForFrame = topRows + titleRows;
     this.#bodyHeightForFrame = bodyHeight;
-    this.#panelTopForFrame = contentHeight + dividerRows;
+    this.#panelTopForFrame = topRows + contentHeight + dividerRows;
     this.#panelTop = this.#panelTopForFrame;
     this.#scroll = layout.scroll;
     const now = Date.now();
@@ -303,7 +305,7 @@ export class SettingsApp implements UiApp {
     });
     const rule = theme.fg("border", "─".repeat(Math.max(0, rect.width)));
     const title = truncateToWidth(` ${theme.bold(theme.fg("accent", "Settings"))}`, rect.width);
-    const header = headerRows === 0 ? [] : [rule, title].slice(0, headerRows);
+    const header = [rule, ...(titleRows === 0 ? [] : [title])];
     const frame = this.#withMenu(
       [...header, ...withRail, ...(dividerRows === 0 ? [] : [rule]), ...footer],
       selected,

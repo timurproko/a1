@@ -119,7 +119,7 @@ const RAIL_RECT = { width: 80, height: 12 };
 const RAIL_COLUMN = RAIL_RECT.width;
 const SETTINGS_BODY_TOP = 2;
 const RAIL_CONTENT_HEIGHT = RAIL_RECT.height - 2;
-const INITIAL_RAIL_SCREEN_ROW = SETTINGS_BODY_TOP + 1;
+const INITIAL_RAIL_SCREEN_ROW = SETTINGS_BODY_TOP;
 const RAIL_LAST_EVENT_ROW = RAIL_CONTENT_HEIGHT;
 
 /** Converts a zero-based screen row to the terminal's one-based row. */
@@ -212,7 +212,8 @@ describe("the settings screen", () => {
     target.onMouse?.({ kind: "wheel-down", button: 0, row: 1, column: 40 }, HOST);
     const scrolled = target.render(rect, HOST).map(line => line.replace(STYLE, "").trimEnd());
     expect(scrolled.join("\n")).not.toContain("Settings");
-    expect(scrolled[0]).toBe(" Wheel Test");
+    expect(scrolled[0]).toBe(initial[0]);
+    expect(scrolled[1]).toContain(" Wheel Test");
 
     target.onMouse?.({ kind: "wheel-up", button: 0, row: 1, column: 40 }, HOST);
     const restored = target.render(rect, HOST).map(line => line.replace(STYLE, "").trimEnd());
@@ -520,7 +521,7 @@ describe("the settings screen", () => {
     const lines = target.render({ width: 80, height: 13 }, HOST).map(line => line.replace(STYLE, "").trimEnd());
     expect(lines[0]).toBe("─".repeat(80));
     expect(lines[1]).toBe(" Settings");
-    expect(lines[2]).toBe("");
+    expect(lines[2]?.replace(/[│┃]$/u, "").trimEnd()).toBe("");
     expect(lines[3]).toContain("Generic");
     expect(lines[4]?.trimStart()).toMatch(/^→\s+Quit animation/);
   });
