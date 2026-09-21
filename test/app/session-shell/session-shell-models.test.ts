@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { stripTerminalSequences } from "@earendil-works/pi-tui";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AgentSessionRuntime } from "@earendil-works/pi-coding-agent";
@@ -9,7 +9,7 @@ import { OwnedUiSessionShell } from "../../../src/app/session-shell/index.js";
 import { TestPresentationTerminal } from "../../features/owned-ui/neutral-port-doubles.js";
 import { createPiEngineAdapter } from "../../../src/integrations/pi/engine/index.js";
 import { createPiShellEditor, OWNED_BUILTIN_SLASH_COMMANDS, PINNED_PI_BUILTIN_SLASH_COMMANDS } from "../../../src/integrations/pi/components/index.js";
-import { OWNED_WORKFLOW_COMMAND_NAMES, PINNED_PI_WORKFLOW_COMMAND_NAMES, workflowCommandNames } from "../../../src/integrations/pi/engine/index.js";
+import { OWNED_WORKFLOW_COMMAND_NAMES, PINNED_PI_DECLINED_COMMAND_NAMES, PINNED_PI_WORKFLOW_COMMAND_NAMES, workflowCommandNames } from "../../../src/integrations/pi/engine/index.js";
 
 const SPACE = " ";
 const ENTER = "\r";
@@ -40,6 +40,15 @@ describe("bare-A1 unified Models dialog", () => {
     expect(ownedBuiltIns).not.toContain("scoped-models");
     expect(ownedBuiltIns.every(name => (OWNED_WORKFLOW_COMMAND_NAMES as readonly string[]).includes(name))).toBe(true);
     expect(ownedBuiltIns).toHaveLength(PINNED_PI_BUILTIN_SLASH_COMMANDS.length - 1);
+    // Invariant: the editor catalog is the engine's advertised manifest in the engine's order, minus the
+    // commands A1 declines. Comparing the owned list against A1's own pinned list cannot see a command
+    // missing from both, which is how thinking stayed unlisted while its route worked.
+    const commandMap = JSON.parse(await readFile("node_modules/@earendil-works/pi-coding-agent/dist/core/slash-commands.js.map", "utf8")) as { sourcesContent: string[] };
+    const manifest = commandMap.sourcesContent[0]!.slice(commandMap.sourcesContent[0]!.indexOf("BUILTIN_SLASH_COMMANDS"));
+    const advertised = [...manifest.slice(0, manifest.indexOf("];")).matchAll(/name:\s*"([^"]+)"/g)].map(match => match[1]!);
+    const declined: readonly string[] = PINNED_PI_DECLINED_COMMAND_NAMES;
+    expect(PINNED_PI_BUILTIN_SLASH_COMMANDS.map(command => command.name))
+      .toEqual(advertised.filter(name => !declined.includes(name)));
 
     const editor = createPiShellEditor({
       getColumns: () => 80, getRows: () => 24, requestRender() {}, onSubmit() {}, cwd: "D:/work", keybindingProfile: "a1",

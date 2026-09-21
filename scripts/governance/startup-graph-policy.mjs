@@ -53,7 +53,10 @@ export async function inspectStartupReachability(root, options = {}) {
     if (firstChain.has(current.path)) continue;
     firstChain.set(current.path, current.chain);
     const source = await readFile(resolve(root, current.path), "utf8");
-    files.set(current.path, Buffer.byteLength(source));
+    // Platform: a checkout that stores CRLF measures one extra byte per line, about 23 KB across this
+    // graph, so a budget pinned on one platform is either unreachable or slack on the other. The
+    // newline a working copy happens to use is not startup cost, so it is normalized away first.
+    files.set(current.path, Buffer.byteLength(source.replaceAll("\r\n", "\n")));
     for (const specifier of runtimeRelativeImports(source)) {
       const target = await resolveSource(root, current.path, specifier);
       if (target === null) continue;
