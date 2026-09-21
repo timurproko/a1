@@ -16,6 +16,11 @@ Stable publication of `0.1.8` was dispatched on `2226c9d0` and failed on both Wi
 - **Expose the comparison profile in stable builds.** Rejected: it contradicts `a1-shell/spec.md` and the stated intent that the Pi comparison launch is an instrument, not product, and it would ship a development surface to released users.
 - **Drop `package-startup` from the stable validation scope.** Rejected: it removes first-attempt startup validation from the only channel whose spec requires failing on an overrun.
 
+## Fix evidence
+
+- Full regression [35663793824](https://github.com/timurproko/a1/actions/runs/35663793824) on fix head `4c5bb8bb`: success on all four lanes. The prerelease path is unchanged — windows-2025 node 22 recorded all six measurements within budget (`a1` 1172/1370/1152 ms, `pi` 1035/1252/1036 ms against 2000/2500/2000 ms).
+- The stable branch of the gate cannot run before merge: every pre-merge workflow packs a prerelease candidate, so `developmentComparison` is true and the six-measurement path is the one exercised. The stable behaviour is carried as an acceptance scenario and proven by the stable publication that this change unblocks.
+
 ## Evidence
 
 - Stable [35657941674](https://github.com/timurproko/a1/actions/runs/35657941674) on `2226c9d0`, win32-node24 and win32-node22: `launch-observation-pi-post-update` failed after 125 ms; the three `a1` measurements passed.
