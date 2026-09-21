@@ -3,8 +3,8 @@
   "change": "build-owned-pi-ui-foundation",
   "task": "7.26",
   "pinned": {
-    "version": "0.86.0",
-    "commit": "ecac0a9c4edad3dac5d9f8b40e0c7db7a56471fc"
+    "version": "0.86.1",
+    "commit": "13cbf77df2396303013a41646bcfa77b4271ae56"
   },
   "policy": {
     "scope": "Every root, nested, replacement, and overlay node plus every source-reachable transition from InteractiveMode, nested components, and public extension UI is mandatory.",

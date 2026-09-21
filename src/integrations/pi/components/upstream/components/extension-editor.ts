@@ -1,5 +1,5 @@
 /**
- * Provenance: @earendil-works/pi-coding-agent 0.86.0 (MIT), commit ecac0a9c4edad3dac5d9f8b40e0c7db7a56471fc,
+ * Provenance: @earendil-works/pi-coding-agent 0.86.1 (MIT), commit 13cbf77df2396303013a41646bcfa77b4271ae56,
  * packages/coding-agent/src/modes/interactive/components/extension-editor.ts.
  * Modifications: Mechanical port: remap pi-tui to the root public singleton, use owned
  * keybindings/theme and external-editor seams, preserve editor layout, hints, focus, submission,
@@ -48,7 +48,7 @@ export class ExtensionEditorComponent extends Container {
     prefill: string | undefined,
     onSubmit: (value: string) => void,
     onCancel: () => void,
-    options?: { readonly paddingX?: number; readonly autocompleteMaxVisible?: number },
+    options?: { readonly paddingX?: number; readonly autocompleteMaxVisible?: number; readonly description?: string },
     externalEditorCommand?: string,
   ) {
     super();
@@ -59,14 +59,19 @@ export class ExtensionEditorComponent extends Container {
       || process.env.VISUAL
       || process.env.EDITOR
       || (process.platform === "win32" ? "notepad" : "nano");
+    const { description, ...editorOptions } = options ?? {};
     this.addChild(new DynamicBorder());
     this.addChild(new Spacer(1));
     this.addChild(new Text(piTheme().fg("accent", title), 1, 0));
+    if (description) {
+      this.addChild(new Spacer(1));
+      this.addChild(new Text(piTheme().fg("text", description), 1, 0));
+    }
     this.addChild(new Spacer(1));
     this.#editor = new Editor(tui, {
       borderColor: text => piTheme().fg("borderMuted", text),
       selectList: getSelectListTheme(),
-    }, options);
+    }, editorOptions);
     if (prefill) this.#editor.setText(prefill);
     this.#editor.onSubmit = onSubmit;
     this.addChild(this.#editor);

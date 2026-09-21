@@ -1,7 +1,7 @@
 {
   "schema": "a1-pi-feature-adoption-matrix-v1",
   "pinned": {
-    "version": "0.86.0"
+    "version": "0.86.1"
   },
   "changelogSince": "0.84.2",
   "rows": [
@@ -2289,6 +2289,16 @@
       "since": "0.86.0",
       "disposition": "pinned",
       "note": "Session entry and extension-hook behavior of the pinned engine A1 hosts; no presentation surface."
+    },
+    {
+      "id": "changelog:0.86.1:meta-muse-provider",
+      "kind": "changelog",
+      "feature": "Meta Muse provider",
+      "version": "0.86.1",
+      "summary": "Sign in with Meta using `/login meta` or use `META_API_KEY` to access Muse Spark models.",
+      "since": "0.86.1",
+      "disposition": "pinned",
+      "note": "Provider sign-in and catalog; reached through the pinned engine, with the provider default model mirrored in the owned resolver map."
     }
   ]
 }

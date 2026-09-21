@@ -1,5 +1,5 @@
 /**
- * Provenance: @earendil-works/pi-coding-agent 0.86.0 (MIT), commit ecac0a9c4edad3dac5d9f8b40e0c7db7a56471fc,
+ * Provenance: @earendil-works/pi-coding-agent 0.86.1 (MIT), commit 13cbf77df2396303013a41646bcfa77b4271ae56,
  * packages/coding-agent/src/modes/interactive/components/session-selector-search.ts.
  * Modifications: Source-synchronized session search port with only the public SessionInfo type import
  * remapped.
