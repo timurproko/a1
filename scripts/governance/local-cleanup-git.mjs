@@ -185,14 +185,14 @@ export async function inspectWorktree(identity, entry, {
   return { clean: true, head: actual.head };
 }
 
-/** Remove only the entry's declared disposable roots, after inspection has bounded them, so Git deletes tracked content alone. */
+/** Remove only the entry's declared disposable roots or files, after inspection has bounded them, so Git deletes tracked content alone. */
 export async function purgeDisposable(entry, timing = {}) {
   for (const root of entry.disposable) {
     const target = join(entry.path, root);
     let stat;
     try { stat = await lstat(target); } catch (error) { if (error.code === "ENOENT") continue; throw error; }
     if (stat.isSymbolicLink()) fail("content-link");
-    if (!stat.isDirectory()) fail("content-special-file");
+    if (!stat.isDirectory() && !stat.isFile()) fail("content-special-file");
     await removeTree(target, "disposable-path-locked", root, timing);
   }
 }
