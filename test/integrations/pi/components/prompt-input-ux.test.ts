@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { OwnedUiSessionViewModel, OwnedUiThinkingLevel } from "../../../../src/contracts/owned-ui/index.js";
 import { LineInput, PromptInput, promptRule, renderInputRow } from "../../../../src/ui/components/index.js";
 import { applyPiTheme, createPiShellEditor, createPiShellFooter, createPiShellHeader, createPiShellHotkeys, piTheme, PINNED_PI_BUILTIN_SLASH_COMMANDS } from "../../../../src/integrations/pi/components/index.js";
+import { createPiShellThinkingSelector } from "../../../../src/integrations/pi/components/thinking-selector-dialog.js";
 import { KeybindingsManager } from "../../../../src/integrations/pi/components/upstream/adjacent/core/keybindings.js";
 import { cellStyle } from "../../../support/ansi-cell-style.js";
 import { promptInputPresentation } from "../../../support/prompt-input-presentation.js";
@@ -137,10 +138,73 @@ describe("owned shared input and status presentation", () => {
     expect(stripTerminalSequences(pinned.render(100)[1]!)).not.toContain(" • off");
     pinned.update({ ...state, thinkingLevel: "high" });
     expect(cellStyle(pinned.render(100)[1]!, "h")).toEqual(cellStyle(piTheme().fg("dim", "h"), "h"));
+    const levelHidden = createPiShellFooter(state, "/WORK", "a1", () => false);
+    expect(stripTerminalSequences(levelHidden.render(100)[1]!)).toContain("(PROVIDER) MODEL");
+    expect(stripTerminalSequences(levelHidden.render(100)[1]!)).not.toContain(" • medium");
   });
 });
 
 describe("owned level and model keybindings", () => {
+  it("renders the bare thinking selector with the resolved cycle key and bold accent heading", async () => {
+    const { input } = await editor();
+    const selected = vi.fn();
+    const saved = vi.fn();
+    const canceled = vi.fn();
+    const cycleBinding = input.keybindingConfig()["app.thinking.cycle"] ?? [];
+    const selector = createPiShellThinkingSelector(
+      "medium",
+      ["off", "minimal", "low", "medium", "high", "medium"],
+      selected,
+      canceled,
+      saved,
+      "medium",
+      { profile: "bare", cycleBinding },
+    );
+    selector.setFocused?.(true);
+    const rows = selector.render(100);
+    const plain = rows.map(stripTerminalSequences).join("\n");
+    expect(plain).toContain("Ctrl+L cycles thinking levels in-session");
+    expect(plain).not.toContain("Shift+Tab");
+    const headingIndex = rows.findIndex(row => stripTerminalSequences(row).includes("Thinking Level"));
+    const hintIndex = rows.findIndex(row => stripTerminalSequences(row).includes("Ctrl+L cycles thinking levels in-session"));
+    const heading = rows[headingIndex]!;
+    const hint = rows[hintIndex]!;
+    expect(hintIndex).toBe(headingIndex + 1);
+    expect(cellStyle(heading, "T")).toEqual(cellStyle(piTheme().fg("accent", piTheme().bold("T")), "T"));
+    expect(cellStyle(hint, "C")).toEqual(cellStyle(piTheme().fg("muted", "C"), "C"));
+    const selectedRow = rows.find(row => stripTerminalSequences(row).includes("Moderate reasoning"))!;
+    const unselectedRow = rows.find(row => stripTerminalSequences(row).includes("Light reasoning"))!;
+    expect(stripTerminalSequences(selectedRow)).toContain("→ medium ✓ Moderate reasoning (~8k tokens) · default");
+    const descriptionColumns = ["No reasoning", "Very brief reasoning", "Light reasoning", "Moderate reasoning", "Deep reasoning"]
+      .map(description => rows.map(stripTerminalSequences).find(row => row.includes(description))!.indexOf(description));
+    expect(new Set(descriptionColumns).size).toBe(1);
+    expect(cellStyle(selectedRow, "m")).toEqual(cellStyle(piTheme().fg("accent", "m"), "m"));
+    expect(cellStyle(selectedRow, "M")).toEqual(cellStyle(piTheme().fg("muted", "M"), "M"));
+    expect(cellStyle(unselectedRow, "L")).toEqual(cellStyle(piTheme().fg("muted", "L"), "L"));
+    expect(cellStyle(selectedRow, "✓")).toEqual(cellStyle(piTheme().fg("success", "✓"), "✓"));
+    expect(rows.filter(row => stripTerminalSequences(row).includes("Moderate reasoning"))).toHaveLength(1);
+
+    selector.handleInput?.("low");
+    selector.handleInput?.("\r");
+    expect(selected).toHaveBeenCalledWith("low");
+
+    const custom = createPiShellThinkingSelector(
+      "high",
+      ["low", "high"],
+      selected,
+      canceled,
+      saved,
+      "low",
+      { profile: "bare", cycleBinding: "alt+r" },
+    );
+    expect(custom.render(100).map(stripTerminalSequences).join("\n"))
+      .toContain(`${process.platform === "darwin" ? "Option" : "Alt"}+R cycles thinking levels in-session`);
+    custom.handleInput?.("\x13");
+    expect(saved).toHaveBeenCalledWith("high");
+    custom.handleInput?.("\x1b");
+    expect(canceled).toHaveBeenCalledOnce();
+  });
+
   it.each(["\u000c", "\u001b[108;5u", "\u001b[27;5;108~"])("cycles once without opening model selection for %j", async key => {
     const { input, cycle, select } = await editor();
     input.setText("draft");

@@ -36,7 +36,6 @@ export {
   createPiShellSkillsSelector,
   createPiShellStatus,
   createPiShellThemeSelector,
-  createPiShellThinkingSelector,
   createPiShellTranscriptComponent,
   createPiShellTreeSelector,
   createPiShellTrustSelector,
