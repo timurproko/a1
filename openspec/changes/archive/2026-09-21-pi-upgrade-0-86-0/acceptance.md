@@ -22,9 +22,9 @@ The manual merge accepts these scenarios:
     "With at least one skill installed, type /skill: in the editor and confirm the per-skill rows appear, and that no bug command is offered anywhere in the menu.",
     "Run /tree and /resume and confirm both selectors still open and behave normally now that they load on demand."
   ],
-  "archiveDigest": "d115432cfecf525fbd8008dddaa53215e1364e69365050a62c7f2f924bb92ad0",
+  "archiveDigest": "14c4714f4d952dfcd921fb5ca59da2943f441562f8a0228897ea6efe3ead7b9b",
   "specDigest": "872ab80404af993716823e0625c4feb6449bc83d9bc08a8e1816f18eee5125cc",
-  "tasksDigest": "3429d1b5989d3ff4833e224ec15655bcf3f58ab9c62d74dd25dd490dfb8db193",
+  "tasksDigest": "bc2caec5da77c3daa5cad33dd94a1aadfcc8899f80e39f155eec3c5d30c1a2e7",
   "evidenceDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
   "knownGaps": []
 }
