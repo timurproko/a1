@@ -11,4 +11,5 @@
 
 ## 3. Prove
 
-- [ ] 3.1 Dispatch `gh workflow run full-regression.yml --ref <this branch>` on the completed fix head, wait for it, and record the run number and head under Evidence in design.md; the failed owners pass on the failed lane.
+- [x] 3.1 Dispatch `gh workflow run full-regression.yml --ref <this branch>` on the completed fix head, wait for it, and record the run number and head under Evidence in design.md; the failed owners pass on the failed lane.
+  - Run 35651563189 on head `4f6023a7`: success on all four lanes, with `update-predecessor` passing on the failed lane windows-2025 node 22. Recorded under "Fix evidence" in design.md.

@@ -12,6 +12,24 @@ Opened by the nightly regression triage from the failed run's evidence artifacts
 - **Diagnosability gap.** Teardown reported nothing, so a cleanup that outgrew its budget was indistinguishable from a hung child. `discard` and `close()` now report `discard` and `cleanup` evidence with elapsed time and the number of roots the step had to remove, and focused PR-cadence contracts in `predecessor-fixture.test.ts` cover the release path, the ownership refusal, the active-command refusal, and the retained-root failure.
 - **Coverage is unchanged.** Predecessor selection, count, ordering, supported-entry checks, exact candidate bytes, assertions, and fail-closed semantics are untouched; no removal is retried and no assertion is relaxed.
 
+## Fix evidence
+
+- Full regression [35651563189](https://github.com/timurproko/a1/actions/runs/35651563189) (workflow_dispatch) on fix head `4f6023a7` at 2026-09-21T20:31:06Z: **success** on all four lanes, including the failed lane windows-2025 node 22 (20:31:38 → 20:58:59, 27.4 min of its 40-minute limit, against 32.6 min for the last passing run of the failed head).
+- The teardown hook that failed now has nothing to remove. `windows-2025, node 22` reported seven in-phase releases and an empty cleanup:
+
+  ```text
+  discard  1228ms roots=1     (0.1.8-dev.528 sandbox)
+  discard  7285ms roots=1     (0.1.8-dev.528 installation)
+  discard  4563ms roots=1     (0.1.8-dev.521 sandbox)
+  discard  7553ms roots=1     (0.1.8-dev.521 installation)
+  discard  1242ms roots=1     (0.1.8-dev.518 sandbox)
+  discard  5237ms roots=1     (0.1.8-dev.518 installation)
+  discard  5863ms roots=1     (candidate installation)
+  cleanup     0ms roots=0
+  ```
+
+- Removal cost ~33 s in total, all of it inside the test's own 1,800,000 ms phase budget, and `afterAll` closed with `roots=0`. Predecessor selection, count, ordering, and every time limit are unchanged; the three predecessors exercised were `0.1.8-dev.528`, `0.1.8-dev.521`, and `0.1.8-dev.518`.
+
 ## Evidence
 
 - Run [Release #144](https://github.com/timurproko/a1/actions/runs/35581107041) (attempt 1, schedule) on `95216f1` at 2026-09-21T09:03:00Z:
