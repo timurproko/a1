@@ -501,8 +501,9 @@ describe("the settings screen", () => {
       for (const label of ["Persistent history", "History limit", "Thinking level", "Output padding", "Prompt suggestions", "Skills"]) {
         if (lines.some(line => line.includes(label))) visited.add(label);
       }
-      // Rationale: wheel over the whole list pane, including otherwise blank space beside rows.
-      target.onMouse?.({ kind: "wheel-down", button: 0, row: 3, column: 70 }, HOST);
+      // Rationale: the search input still belongs to its results for wheel navigation.
+      const promptRow = lines.findIndex(line => line.includes("search settings"));
+      target.onMouse?.({ kind: "wheel-down", button: 0, row: promptRow + 1, column: 70 }, HOST);
       const next = render();
       if (next.join("\n") === lines.join("\n")) break;
       lines = next;

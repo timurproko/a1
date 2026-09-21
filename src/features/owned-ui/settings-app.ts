@@ -70,6 +70,7 @@ const SCOPE = SETTINGS_APP_ID;
 const SETTINGS_TOP_RULE_ROWS = 1;
 const SETTINGS_TITLE_ROWS = 1;
 const SETTINGS_FOOTER_DIVIDER_ROWS = 1;
+const SETTINGS_SEARCH_INPUT_ROWS = 3;
 const SETTINGS_CONTENT_INSET = 1;
 /** The panel a setting with parts opens: its own keys, its own hint. */
 const DIALOG_SCOPE = `${SETTINGS_APP_ID}-parts`;
@@ -441,10 +442,12 @@ export class SettingsApp implements UiApp {
       // Invariant: the whole list pane owns wheel scrolling, including blank space beside
       // short labels. It must not depend on finding an item under the pointer.
       const screenRow = event.row - 1;
-      if (screenRow < 0 || screenRow >= this.#bodyTopForFrame + this.#bodyHeightForFrame) {
-        return { consumed: false };
-      }
+      const wheelBottom = this.#filter === null
+        ? this.#bodyTopForFrame + this.#bodyHeightForFrame
+        : this.#panelTopForFrame + SETTINGS_SEARCH_INPUT_ROWS;
+      if (screenRow < 0 || screenRow >= wheelBottom) return { consumed: false };
       const distance = scrollbarWheelRows(this.#scrollbarSpeed());
+      if (this.#filter !== null) this.#scrollBeforeFilter = null;
       this.#scroll = Math.max(0, this.#scroll + (event.kind === "wheel-down" ? distance : -distance));
       return { consumed: true };
     }
