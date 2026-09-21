@@ -452,6 +452,10 @@ export class PiWorkflowRunner {
             manager?.getSessionName(),
             Array.isArray(entries) ? entries : [],
             runtime.services.modelRuntime,
+            {
+              mode: runtime.services.settingsManager?.getCacheWarmingMode?.(),
+              status: (session as { cacheWarmingStatus?: unknown }).cacheWarmingStatus,
+            },
           ),
         };
       }

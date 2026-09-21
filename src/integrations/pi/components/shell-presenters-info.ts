@@ -14,6 +14,26 @@ export interface PiShellSessionInfoPresentation {
   };
   readonly cacheWaste: { readonly missedTokens: number; readonly missedCost: number; readonly missCount: number };
   readonly usageBreakdown: readonly { readonly key: string; readonly cost: number; readonly tokens: number }[];
+  readonly cacheWarming: PiShellCacheWarmingPresentation;
+}
+
+export interface PiShellCacheWarmingPresentation {
+  readonly mode: string;
+  readonly status?: {
+    readonly state: "inactive" | "scheduled" | "refreshing";
+    readonly reason?: string;
+    readonly nextWarmAt?: number;
+    readonly extensionOverride?: boolean;
+    readonly decision?: {
+      readonly phase: "streaming" | "idle";
+      readonly action: string;
+      readonly warmCost: number;
+      readonly missCost: number;
+      readonly continuationProbability: number;
+      readonly expectedSavings: number;
+      readonly economicsAvailable: boolean;
+    };
+  };
 }
 
 export function renderPiShellStatusText(message: string, width: number, outputPad: 0 | 1 = PINNED_PI_LAYOUT.outputPad): readonly string[] {
@@ -48,9 +68,52 @@ export function renderPiShellCommandMessage(
   ];
 }
 
+const CACHE_WARMING_MINIMUM_EXPECTED_SAVINGS = 0.05;
+
+function formatWarmingDollars(value: number): string {
+  return value < 0 ? `-${Math.abs(value).toFixed(3)}` : `${value.toFixed(3)}`;
+}
+
+function formatWarmingEconomics(decision: NonNullable<NonNullable<PiShellCacheWarmingPresentation["status"]>["decision"]>): string {
+  if (!decision.economicsAvailable) return "cache economics unavailable";
+  const probability = Math.round(decision.continuationProbability * 100);
+  const probabilityText = decision.phase === "streaming"
+    ? `${probability}% continuation probability while agent is running`
+    : `${probability}% continuation probability`;
+  const comparison = decision.action === "warm" ? ">=" : "<";
+  return `${probabilityText}, expected savings ${formatWarmingDollars(decision.expectedSavings)} ${comparison} ${CACHE_WARMING_MINIMUM_EXPECTED_SAVINGS.toFixed(3)}`;
+}
+
+function formatWarmingDecisionTime(nextWarmAt: number | undefined, now: number): string {
+  if (nextWarmAt === undefined || nextWarmAt <= now) return "Decision now";
+  let remainingSeconds = Math.ceil((nextWarmAt - now) / 1000);
+  const hours = Math.floor(remainingSeconds / 3600);
+  remainingSeconds %= 3600;
+  const minutes = Math.floor(remainingSeconds / 60);
+  const seconds = remainingSeconds % 60;
+  const parts: string[] = [];
+  if (hours > 0) parts.push(`${hours}h`);
+  if (minutes > 0) parts.push(`${minutes}m`);
+  if (seconds > 0 || parts.length === 0) parts.push(`${seconds}s`);
+  return `Decision in ${parts.join(" ")}`;
+}
+
+/** The one-line warming status the pinned session report shows; a decision is attached once warming acted. */
+function formatCacheWarmingStatus(status: NonNullable<PiShellCacheWarmingPresentation["status"]>, now = Date.now()): string {
+  const decision = status.decision;
+  if (!decision || (status.state === "inactive" && !decision.economicsAvailable && !status.extensionOverride)) {
+    return `Inactive (${status.reason ?? "unknown reason"})`;
+  }
+  const details = status.extensionOverride
+    ? `extension override, ${formatWarmingEconomics(decision)}`
+    : `${formatWarmingEconomics(decision)} -> ${decision.action}`;
+  if (status.state === "inactive") return `Stopped (${details})`;
+  if (status.state === "refreshing") return `Warming cache (${details})`;
+  return `${formatWarmingDecisionTime(status.nextWarmAt, now)} (${details})`;
+}
 export function createPiShellSessionInfo(presentation: PiShellSessionInfoPresentation): PiShellComponentPort {
   ensureTheme();
-  const { stats, sessionName, cacheWaste, usageBreakdown } = presentation;
+  const { stats, sessionName, cacheWaste, usageBreakdown, cacheWarming } = presentation;
   let info = `${piTheme().bold("Session Info")}\n\n`;
   if (sessionName) info += `${piTheme().fg("dim", "Name:")} ${sessionName}\n`;
   info += `${piTheme().fg("dim", "File:")} ${stats.sessionFile ?? "In-memory"}\n${piTheme().fg("dim", "ID:")} ${stats.sessionId}\n\n`;
@@ -66,6 +129,14 @@ export function createPiShellSessionInfo(presentation: PiShellSessionInfoPresent
     info += `  ${piTheme().fg("dim", "Uncached:")} ${(input + cacheWrite).toLocaleString()}${written}\n`;
   }
   info += `${piTheme().fg("dim", "Output:")} ${stats.tokens.output.toLocaleString()}\n${piTheme().fg("dim", "Total:")} ${stats.tokens.total.toLocaleString()}\n`;
+  const warmingStatus = cacheWarming.status;
+  info += `\n${piTheme().bold("Cache Warming")}\n${piTheme().fg("dim", "Mode:")} ${cacheWarming.mode}\n`;
+  info += `${piTheme().fg("dim", "Status:")} ${warmingStatus ? formatCacheWarmingStatus(warmingStatus) : "Inactive (cache warming unavailable)"}\n`;
+  const warmingDecision = warmingStatus?.decision;
+  if (warmingDecision?.economicsAvailable) {
+    info += `${piTheme().fg("dim", "Cache miss penalty:")} $${warmingDecision.missCost.toFixed(3)}\n`;
+    info += `${piTheme().fg("dim", "Refresh cost:")} $${warmingDecision.warmCost.toFixed(3)}\n`;
+  }
   if (stats.cost > 0 || cacheWaste.missedTokens > 0) {
     info += `\n${piTheme().bold("Cost")}\n${piTheme().fg("dim", "Total:")} $${stats.cost.toFixed(3)}`;
     if (usageBreakdown.length > 1) for (const entry of usageBreakdown) info += `\n  ${piTheme().fg("dim", `${entry.key}:`)} $${entry.cost.toFixed(3)} ${piTheme().fg("dim", `(${formatSessionTokens(entry.tokens)} tokens)`)}`;
@@ -155,7 +226,7 @@ function hotkeysMarkdown(
       ? action === "app.model.select" ? "Unbound (`/models`)" : "Unbound"
       : `\`${label}\``;
   }).join(" / ")} | ${description} |`;
-  let markdown = ["**Navigation**", "| Key | Action |", "|-----|--------|", row(["tui.editor.cursorUp", "tui.editor.cursorDown", "tui.editor.cursorLeft", "tui.editor.cursorRight"], "Move cursor / browse history"), row(["tui.editor.cursorWordLeft", "tui.editor.cursorWordRight"], "Move by word"), row(["tui.editor.cursorLineStart"], profile === "a1" ? "Start of prompt line" : "Start of line"), row(["tui.editor.cursorLineEnd"], profile === "a1" ? "End of prompt line" : "End of line"), ...(profile === "a1" ? ["| `Ctrl+Home` | Start of content |", "| `Ctrl+End` | End of content / follow output |"] : []), row(["tui.editor.jumpForward"], "Jump forward to character"), row(["tui.editor.jumpBackward"], "Jump backward to character"), row(["tui.editor.pageUp", "tui.editor.pageDown"], "Scroll by page"), "", "**Editing**", "| Key | Action |", "|-----|--------|", row(["tui.input.submit"], "Send message"), row(["tui.input.newLine"], `New line${process.platform === "win32" ? " (Ctrl+Enter on Windows Terminal)" : ""}`), row(["tui.editor.deleteWordBackward"], "Delete word backwards"), row(["tui.editor.deleteWordForward"], "Delete word forwards"), row(["tui.editor.deleteToLineStart"], "Delete to start of line"), row(["tui.editor.deleteToLineEnd"], "Delete to end of line"), row(["tui.editor.yank"], "Paste the most-recently-deleted text"), row(["tui.editor.yankPop"], "Cycle through the deleted text after pasting"), row(["tui.editor.undo"], "Undo"), "", "**Other**", "| Key | Action |", "|-----|--------|", row(["tui.input.tab"], "Path completion / accept autocomplete"), row(["app.interrupt"], "Cancel autocomplete / abort streaming"), row(["app.clear"], "Clear editor (first) / exit (second)"), row(["app.exit"], "Exit (when editor is empty)"), row(["app.suspend"], "Suspend to background"), row(["app.thinking.cycle"], "Cycle thinking level"), row(["app.model.cycleForward", "app.model.cycleBackward"], "Cycle models"), row(["app.model.select"], profile === "a1" ? "Open the Models dialog" : "Open model selector"), row(["app.tools.expand"], "Toggle tool output expansion"), row(["app.thinking.toggle"], "Toggle thinking block visibility"), row(["app.editor.external"], "Edit message in external editor"), row(["app.message.copy"], "Copy last assistant message"), row(["app.message.followUp"], "Queue follow-up message"), row(["app.message.dequeue"], "Restore queued messages"), row(["app.clipboard.pasteImage"], "Paste image or text from clipboard"), "| `/` | Slash commands |", "| `!` | Run bash command |", "| `!!` | Run bash command (excluded from context) |", ...(profile === "a1" ? ["", "**Models dialog**", "| Key | Action |", "|-----|--------|", "| `Space` | Toggle the selected model in the cycling scope |", "| `Tab` | Switch the all/scoped filter |", row(["app.models.save"], "Save the scope to settings"), row(["app.models.enableAll"], "Scope every listed model"), row(["app.models.clearAll"], "Clear the listed models from the scope"), row(["app.models.toggleProvider"], "Toggle the selected model's provider"), row(["app.models.reorderUp", "app.models.reorderDown"], "Reorder the cycling scope")] : [])].join("\n");
+  let markdown = ["**Navigation**", "| Key | Action |", "|-----|--------|", row(["tui.editor.cursorUp", "tui.editor.cursorDown", "tui.editor.cursorLeft", "tui.editor.cursorRight"], "Move cursor / browse history"), row(["tui.editor.cursorWordLeft", "tui.editor.cursorWordRight"], "Move by word"), row(["tui.editor.cursorLineStart"], profile === "a1" ? "Start of prompt line" : "Start of line"), row(["tui.editor.cursorLineEnd"], profile === "a1" ? "End of prompt line" : "End of line"), ...(profile === "a1" ? ["| `Ctrl+Home` | Start of content |", "| `Ctrl+End` | End of content / follow output |"] : []), row(["tui.editor.jumpForward"], "Jump forward to character"), row(["tui.editor.jumpBackward"], "Jump backward to character"), row(["tui.editor.pageUp", "tui.editor.pageDown"], "Scroll by page"), "", "**Editing**", "| Key | Action |", "|-----|--------|", row(["tui.input.submit"], "Send message"), row(["tui.input.newLine"], `New line${process.platform === "win32" ? " (Ctrl+Enter on Windows Terminal)" : ""}`), row(["tui.editor.deleteWordBackward"], "Delete word backwards"), row(["tui.editor.deleteWordForward"], "Delete word forwards"), row(["tui.editor.deleteToLineStart"], "Delete to start of line"), row(["tui.editor.deleteToLineEnd"], "Delete to end of line"), row(["tui.editor.yank"], "Paste the most-recently-deleted text"), row(["tui.editor.yankPop"], "Cycle through the deleted text after pasting"), row(["tui.editor.undo"], "Undo"), "", "**Other**", "| Key | Action |", "|-----|--------|", row(["tui.input.tab"], "Path completion / accept autocomplete"), row(["app.interrupt"], "Cancel autocomplete / abort streaming"), row(["app.clear"], "Clear editor (first) / exit (second)"), row(["app.exit"], "Exit (when editor is empty)"), row(["app.suspend"], "Suspend to background"), row(["app.thinking.cycle"], "Cycle thinking level"), row(["app.model.cycleForward", "app.model.cycleBackward"], "Cycle models"), row(["app.model.select"], profile === "a1" ? "Open the Models dialog" : "Open model selector"), row(["app.tools.expand"], "Toggle tool output expansion"), row(["app.thinking.toggle"], "Toggle thinking block visibility"), row(["app.editor.external"], "Edit message in external editor"), row(["app.message.copy"], "Copy selection or last assistant message"), row(["app.message.followUp"], "Queue follow-up message"), row(["app.message.dequeue"], "Restore queued messages"), row(["app.clipboard.pasteImage"], "Paste image or text from clipboard"), "| `/` | Slash commands |", "| `!` | Run bash command |", "| `!!` | Run bash command (excluded from context) |", ...(profile === "a1" ? ["", "**Models dialog**", "| Key | Action |", "|-----|--------|", "| `Space` | Toggle the selected model in the cycling scope |", "| `Tab` | Switch the all/scoped filter |", row(["app.models.save"], "Save the scope to settings"), row(["app.models.enableAll"], "Scope every listed model"), row(["app.models.clearAll"], "Clear the listed models from the scope"), row(["app.models.toggleProvider"], "Toggle the selected model's provider"), row(["app.models.reorderUp", "app.models.reorderDown"], "Reorder the cycling scope")] : [])].join("\n");
   const shortcuts = getShortcuts(bindings ?? keys.getEffectiveConfig());
   if (shortcuts.length > 0) {
     markdown += "\n\n**Extensions**\n| Key | Action |\n|-----|--------|\n";

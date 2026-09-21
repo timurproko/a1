@@ -70,6 +70,7 @@ export function pinnedSessionInfoPresentation(
   sessionName: string | undefined,
   entries: readonly unknown[],
   modelRuntime: PiServicesApi["modelRuntime"],
+  cacheWarming: { readonly mode: unknown; readonly status: unknown },
 ): PiSessionInfoPresentation {
   const stats = isRecord(value) ? value : {};
   const tokens = dynamicObject(stats, "tokens");
@@ -95,9 +96,39 @@ export function pinnedSessionInfoPresentation(
     },
     cacheWaste: pinnedCacheWaste(entries, modelRuntime),
     usageBreakdown: pinnedUsageCostBreakdown(entries),
+    cacheWarming: pinnedCacheWarming(cacheWarming.mode, cacheWarming.status),
   };
 }
 
+/** The engine reports warming as a mode plus, once it has acted, the decision that produced the state. */
+export function pinnedCacheWarming(mode: unknown, status: unknown): PiSessionInfoPresentation["cacheWarming"] {
+  const resolved = stringValue(mode) ?? "off";
+  if (!isRecord(status)) return { mode: resolved };
+  const state = stringProperty(status, "state");
+  if (state !== "inactive" && state !== "scheduled" && state !== "refreshing") return { mode: resolved };
+  const reason = stringProperty(status, "reason");
+  const nextWarmAt = status.nextWarmAt;
+  const decision = isRecord(status.decision) ? status.decision : undefined;
+  const phase = decision === undefined ? undefined : stringProperty(decision, "phase");
+  return {
+    mode: resolved,
+    status: {
+      state,
+      ...(reason === undefined ? {} : { reason }),
+      ...(typeof nextWarmAt === "number" && Number.isFinite(nextWarmAt) ? { nextWarmAt } : {}),
+      ...(status.extensionOverride === true ? { extensionOverride: true } : {}),
+      ...(decision === undefined ? {} : { decision: {
+        phase: phase === "streaming" ? "streaming" as const : "idle" as const,
+        action: stringProperty(decision, "action") ?? "stop",
+        warmCost: finiteNumber(decision.warmCost),
+        missCost: finiteNumber(decision.missCost),
+        continuationProbability: finiteNumber(decision.continuationProbability),
+        expectedSavings: finiteNumber(decision.expectedSavings),
+        economicsAvailable: decision.economicsAvailable === true,
+      } }),
+    },
+  };
+}
 export function pinnedUsageCostBreakdown(entries: readonly unknown[]): PiSessionInfoPresentation["usageBreakdown"] {
   const totals = new Map<string, { cost: number; tokens: number }>();
   for (const entry of entries) {

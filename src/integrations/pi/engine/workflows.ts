@@ -205,6 +205,27 @@ export interface PiSessionInfoPresentation {
   };
   readonly cacheWaste: { readonly missedTokens: number; readonly missedCost: number; readonly missCount: number };
   readonly usageBreakdown: readonly { readonly key: string; readonly cost: number; readonly tokens: number }[];
+  readonly cacheWarming: PiCacheWarmingPresentation;
+}
+
+/** The engine's prompt-cache warming mode and, once warming has acted, the decision behind it. */
+export interface PiCacheWarmingPresentation {
+  readonly mode: string;
+  readonly status?: {
+    readonly state: "inactive" | "scheduled" | "refreshing";
+    readonly reason?: string;
+    readonly nextWarmAt?: number;
+    readonly extensionOverride?: boolean;
+    readonly decision?: {
+      readonly phase: "streaming" | "idle";
+      readonly action: string;
+      readonly warmCost: number;
+      readonly missCost: number;
+      readonly continuationProbability: number;
+      readonly expectedSavings: number;
+      readonly economicsAvailable: boolean;
+    };
+  };
 }
 
 export type PiWorkflowPresentation = PiSessionInfoPresentation;
