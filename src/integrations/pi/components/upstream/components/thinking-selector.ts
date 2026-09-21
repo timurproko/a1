@@ -3,9 +3,9 @@
  * packages/coding-agent/src/modes/interactive/components/thinking-selector.ts.
  * Modifications: Preserve the searchable thinking-level selector, current/default semantics,
  * selection, save, cancellation, and focus while accepting the active bare-A1 cycle-key label from the
- * shell, styling the title with the established bold semantic accent treatment, and rendering muted
- * inline descriptions with one trailing success-colored active marker and no duplicate detail row. The
- * comparison profile retains the public pinned component.
+ * shell, styling the title with the established bold semantic accent treatment, placing its muted hint
+ * directly below it, deduplicating levels, and rendering aligned muted descriptions after an adjacent
+ * success-colored active marker. The comparison profile retains the public pinned component.
  * Deviations: owned-level-cycle-shortcut, owned-thinking-selector-heading.
  */
 import {
@@ -76,7 +76,7 @@ export class OwnedThinkingSelectorComponent extends Container implements Focusab
 		this.onSelectAsDefault = onSelectAsDefault;
 		this.currentLevel = currentLevel;
 
-		this.allItems = availableLevels.map((level) => ({
+		this.allItems = [...new Set(availableLevels)].map((level) => ({
 			value: level,
 			label: level,
 			description:
@@ -86,8 +86,7 @@ export class OwnedThinkingSelectorComponent extends Container implements Focusab
 		this.addChild(new DynamicBorder());
 		this.addChild(new Spacer(1));
 		this.addChild(new Text(piTheme().fg("accent", piTheme().bold("Thinking Level")), 0, 0));
-		this.addChild(new Spacer(1));
-		this.addChild(new Text(`${cycleKeyDisplay} cycles thinking levels in-session`, 0, 0));
+		this.addChild(new Text(piTheme().fg("muted", `${cycleKeyDisplay} cycles thinking levels in-session`), 0, 0));
 		this.addChild(new Spacer(1));
 
 		this.searchInput = new Input();
@@ -122,10 +121,17 @@ export class OwnedThinkingSelectorComponent extends Container implements Focusab
 	}
 
 	private buildSelectList(items: SelectItem[], preselect?: ThinkingSelectorLevel): SelectList {
+		const primaryWidth = this.allItems.reduce((widest, item) => {
+			const level = item.label ?? item.value;
+			return Math.max(widest, level.length + (item.value === this.currentLevel ? 2 : 0));
+		}, 0);
 		const themedItems = items.map((item) => {
-			const description = item.description ? ` ${piTheme().fg("muted", item.description)}` : "";
-			const currentMarker = item.value === this.currentLevel ? ` ${piTheme().fg("success", "✓")}` : "";
-			return { value: item.value, label: `${item.label ?? item.value}${description}${currentMarker}` };
+			const level = item.label ?? item.value;
+			const current = item.value === this.currentLevel;
+			const currentMarker = current ? ` ${piTheme().fg("success", "✓")}` : "";
+			const separator = " ".repeat(Math.max(1, primaryWidth - level.length - (current ? 2 : 0) + 1));
+			const description = item.description ? piTheme().fg("muted", item.description) : "";
+			return { value: item.value, label: `${level}${currentMarker}${separator}${description}` };
 		});
 		const list = new SelectList(themedItems, Math.max(1, themedItems.length), getSelectListTheme(), THINKING_SELECT_LIST_LAYOUT);
 		const currentIndex = themedItems.findIndex((item) => item.value === preselect);

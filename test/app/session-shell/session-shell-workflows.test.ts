@@ -30,8 +30,9 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     const plain = rows.map(stripTerminalSequences).join("\n");
     expect(plain).toContain("Ctrl+L cycles thinking levels in-session");
     expect(plain).not.toContain("Shift+Tab");
-    expect(plain).toContain("medium Moderate reasoning (~8k tokens)");
+    expect(plain).toContain("medium ✓ Moderate reasoning (~8k tokens)");
     expect(plain.match(/Moderate reasoning/g)).toHaveLength(1);
+    expect(plain.match(/\bmedium\b/g)).toHaveLength(1);
     const heading = rows.find(row => stripTerminalSequences(row).includes("Thinking Level"))!;
     expect(cellStyle(heading, "T")).toEqual(cellStyle(piTheme().fg("accent", piTheme().bold("T")), "T"));
     const selectedRow = rows.find(row => stripTerminalSequences(row).includes("Moderate reasoning"))!;
@@ -39,6 +40,7 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     expect(cellStyle(selectedRow, "✓")).toEqual(cellStyle(piTheme().fg("success", "✓"), "✓"));
     bare.terminal.input("\x1b");
     expect(bare.shell.root.usesDefaultInputSurface()).toBe(true);
+    expect(bare.shell.root.render(100).map(stripTerminalSequences).join("\n").match(/\bmedium\b/g)).toHaveLength(1);
     await bare.shell.dispose();
 
     const comparison = await fixture();

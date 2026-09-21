@@ -3,7 +3,7 @@
  * packages/coding-agent/src/modes/interactive/components/footer.ts.
  * Modifications: Consumes neutral owned-UI view data instead of a fabricated concrete AgentSession; an
  * explicit bare-A1 profile colors the thinking-level name while preserving the remaining footer layout
- * and formatting.
+ * and formatting, and replacement surfaces may suppress a thinking level they already present.
  * Deviations: owned-status-level-color.
  */
 import { isAbsolute, relative, resolve, sep } from "node:path";
@@ -15,11 +15,10 @@ export class SessionFooter implements Component {
   private readonly getView: () => OwnedUiSessionViewModel;
   private readonly cwd: string;
   private readonly profile: "pi" | "a1";
-  constructor(
-    getView: () => OwnedUiSessionViewModel,
-    cwd: string,
-    profile: "pi" | "a1" = "pi",
-  ) { this.getView = getView; this.cwd = cwd; this.profile = profile; }
+  private readonly showLevel: () => boolean;
+  constructor(getView: () => OwnedUiSessionViewModel, cwd: string, profile: "pi" | "a1" = "pi", showLevel: () => boolean = () => true) {
+    this.getView = getView; this.cwd = cwd; this.profile = profile; this.showLevel = showLevel;
+  }
   invalidate(): void {}
   dispose(): void {}
 
@@ -63,9 +62,9 @@ export class SessionFooter implements Component {
 
     const modelName = view.activeModel?.modelId ?? "no-model";
     const rightWithoutProvider = this.profile === "a1"
-      ? view.activeModel === null ? theme.fg("dim", modelName)
+      ? view.activeModel === null || !this.showLevel() ? theme.fg("dim", modelName)
         : theme.fg("dim", `${modelName} • `) + theme.getThinkingBorderColor(view.thinkingLevel)(view.thinkingLevel)
-      : view.activeModel === null || view.thinkingLevel === "off" ? modelName : `${modelName} • ${view.thinkingLevel}`;
+      : view.activeModel === null || view.thinkingLevel === "off" || !this.showLevel() ? modelName : `${modelName} • ${view.thinkingLevel}`;
     let right = rightWithoutProvider;
     if ((view.status.footer?.availableProviderCount ?? 1) > 1 && view.activeModel) {
       const provider = `(${view.activeModel.providerId}) `;

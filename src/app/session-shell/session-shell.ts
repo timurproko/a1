@@ -949,6 +949,7 @@ export class OwnedUiSessionShell {
   async showThinkingSelector(): Promise<void> {
     const snapshot = this.backend.pinnedSettingsSnapshot();
     const close = () => {
+      this.root.setFooterLevelVisible(true);
       this.root.setInputSurface(null);
       this.runtime.requestRender();
     };
@@ -969,6 +970,7 @@ export class OwnedUiSessionShell {
         cycleBinding: this.root.editor.keybindingConfig()["app.thinking.cycle"] ?? [],
       } : undefined,
     );
+    this.root.setFooterLevelVisible(false);
     this.root.setInputSurface(component);
     this.runtime.requestRender();
   }

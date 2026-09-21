@@ -1736,14 +1736,14 @@
       "localDestination": "src/integrations/pi/components/upstream/components/session-footer.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Consumes neutral owned-UI view data instead of a fabricated concrete AgentSession; an explicit bare-A1 profile colors the thinking-level name while preserving the remaining footer layout and formatting.",
+      "modifications": "Consumes neutral owned-UI view data instead of a fabricated concrete AgentSession; an explicit bare-A1 profile colors the thinking-level name while preserving the remaining footer layout and formatting, and replacement surfaces may suppress a thinking level they already present.",
       "upgradeStrategy": "three-way",
-      "localSha256": "18af7832eb7d25e57f7e49a8b9061c679d8b4fdddbf61de4d7c3c241a8c1c19a",
+      "localSha256": "f66fc1d22dbb5358a65c0162a80ab59fe70d39e804b13910a912813f71723e5f",
       "approvedDeviations": [
         {
           "id": "owned-status-level-color",
-          "reason": "Accepted unify-prompt-input-ux moves the existing thinking-level border color to the bare-A1 footer level-name span, including a visible off label for a selected model.",
-          "upstreamBehavior": "The comparison footer is unchanged. Owned provider omission, width fitting, usage, and extension rows preserve existing behavior; a missing model has no fabricated level.",
+          "reason": "Accepted unify-prompt-input-ux moves the existing thinking-level border color to the bare-A1 footer level-name span, including a visible off label for a selected model; a thinking selector suppresses that duplicate span until close.",
+          "upstreamBehavior": "The comparison footer presentation is unchanged outside the same temporary selector suppression. Owned provider omission, width fitting, usage, and extension rows preserve existing behavior; a missing model has no fabricated level.",
           "acceptanceTest": "test/integrations/pi/components/prompt-input-ux.test.ts"
         }
       ],
@@ -2381,9 +2381,9 @@
       "localDestination": "src/integrations/pi/components/upstream/components/thinking-selector.ts",
       "implementationStatus": "ported",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Preserve the searchable thinking-level selector, current/default semantics, selection, save, cancellation, and focus while accepting the active bare-A1 cycle-key label from the shell, styling the title with the established bold semantic accent treatment, and rendering muted inline descriptions with one trailing success-colored active marker and no duplicate detail row. The comparison profile retains the public pinned component.",
+      "modifications": "Preserve the searchable thinking-level selector, current/default semantics, selection, save, cancellation, and focus while accepting the active bare-A1 cycle-key label from the shell, styling the title with the established bold semantic accent treatment, placing its muted hint directly below it, deduplicating levels, and rendering aligned muted descriptions after an adjacent success-colored active marker. The comparison profile retains the public pinned component.",
       "upgradeStrategy": "three-way",
-      "localSha256": "45a6f472467e92d3a4a6257c2c81ce3fadf93cd2a40af837834ad70a54d62aad",
+      "localSha256": "60744094c9c748ec31a54ba289f6787ba9db997e21fc8444d7428549e827a882",
       "approvedDeviations": [
         {
           "id": "owned-level-cycle-shortcut",
@@ -2393,8 +2393,8 @@
         },
         {
           "id": "owned-thinking-selector-heading",
-          "reason": "The accepted bare-A1 presentation uses the same bold semantic accent heading and compact row treatment as its Models configuration surface, including muted inline descriptions and one trailing success-colored active marker.",
-          "upstreamBehavior": "Selector geometry, search, navigation, selection, persistence, cancellation, and focus remain source-equivalent; redundant selected-level detail is omitted.",
+          "reason": "The accepted bare-A1 presentation uses the same bold semantic accent heading and compact row treatment as its Models configuration surface, including an adjacent muted hint, unique level rows, aligned muted descriptions, and one adjacent success-colored active marker.",
+          "upstreamBehavior": "Selector geometry, search, navigation, selection, persistence, cancellation, and focus remain source-equivalent; duplicate footer level presentation is suppressed only while the selector is open.",
           "acceptanceTest": "test/app/session-shell/session-shell-workflows.test.ts"
         }
       ],
