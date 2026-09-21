@@ -19,10 +19,12 @@ const portRoot = resolve(process.env.SOURCE_LEDGER_PORT_ROOT ?? join(repository,
 const allowedClassifications = new Set(["public-api-reuse", "owned-presentation", "host-adaptation"]);
 // Invariant: a copy that follows upstream is three-way merged on upgrade; one A1 keeps on purpose is never merged, only reported.
 const UPGRADE_STRATEGIES = new Set(["three-way", "keep-owned"]);
+// Invariant: a unit A1 deliberately does not adopt is still a resolved state; `modifications` carries the
+// reason, so a reviewer reads why the feature is absent instead of finding an unexplained gap in the ledger.
 const completedStatusesByClassification = new Map([
   ["public-api-reuse", new Set(["available-through-pinned-package"])],
   ["owned-presentation", new Set(["ported", "source-synchronized-port", "owned-port-present"])],
-  ["host-adaptation", new Set(["adapter-present-conformance-passed", "pinned-cli-only-inventory-mapped"])],
+  ["host-adaptation", new Set(["adapter-present-conformance-passed", "pinned-cli-only-inventory-mapped", "declined-not-adopted"])],
 ]);
 const adjacentCodingAgentMaps = [
   "cli/startup-ui.js.map",

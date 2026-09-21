@@ -3,9 +3,15 @@
   "packages": [
     {
       "name": "@earendil-works/pi-coding-agent",
-      "version": "0.85.1",
+      "version": "0.86.0",
       "entry": "dist/index.d.ts",
       "exports": [
+        {
+          "name": "AfterProviderResponseEvent",
+          "kind": "interface",
+          "hash": "2a97c4546ecda448c1e8866be7175304c23f04c6563c72289f8790f49eb62aee",
+          "consumers": []
+        },
         {
           "name": "AgentEndEvent",
           "kind": "interface",
@@ -15,7 +21,7 @@
         {
           "name": "AgentSession",
           "kind": "class",
-          "hash": "ac0fdf08bfa1370bf58d460555f22f6ecbe24a8b569ba5a57a4a1e778e0a5c19",
+          "hash": "b232c193e29ca5cd4a06f913824cec6aad63ca2f01a70a32480c6f3887eac407",
           "consumers": [
             "src/integrations/pi/engine/adapter.ts",
             "src/integrations/pi/engine/compaction-progress.ts",
@@ -35,7 +41,7 @@
         {
           "name": "AgentSessionConfig",
           "kind": "interface",
-          "hash": "d6657951e28cc1a0084951ca7d9d74f0624fecd380bfde8359d3268c828524a9",
+          "hash": "dd0e254ca8caf088a1efbfa2ea60e5123d2b57e5ba5e0d5376a4715935f59d70",
           "consumers": []
         },
         {
@@ -99,7 +105,7 @@
         {
           "name": "AgentToolResult",
           "kind": "interface",
-          "hash": "86ee271bb9f67c42dbeee6171ad4f14c33dcc40188c17ce5e07863372d5777a5",
+          "hash": "87b0de80511e95cdbcefb078da1eb055bef58081d4c76f0bf19cb6b89e3839fa",
           "consumers": []
         },
         {
@@ -200,7 +206,7 @@
         {
           "name": "BeforeAgentStartEvent",
           "kind": "interface",
-          "hash": "ad5c4a62c3ff04693bea01e38bdf0a88588753c71a3171358dbf76ac06912f5d",
+          "hash": "8a703c16963d64d35648cde11fee24cbe39f409dff010c2d448d87ad6e338b51",
           "consumers": []
         },
         {
@@ -275,7 +281,37 @@
         {
           "name": "BuildSystemPromptOptions",
           "kind": "interface",
-          "hash": "a8cbf3d6c5f4f878412751de04d0b7da343689f0b0ee6cec630179165eb73def",
+          "hash": "89456f766780703c481efe1d2be2bf13522189778468342ee552623fc78354ab",
+          "consumers": []
+        },
+        {
+          "name": "CacheWarmingDecision",
+          "kind": "interface",
+          "hash": "08e8b9a83b48e49358bb9066cf8bdf506372f9fbaef28632fa3604ee04980200",
+          "consumers": []
+        },
+        {
+          "name": "CacheWarmingDecisionEvent",
+          "kind": "interface",
+          "hash": "9006be6f8e7bb5f8b7161ab13152ea29eb665c620af0b270c1548291f2cfc02f",
+          "consumers": []
+        },
+        {
+          "name": "CacheWarmingDecisionEventResult",
+          "kind": "interface",
+          "hash": "02033be4b5d0af42c574360cb0c94e03f77821cd5a9a41e94457282a7e01b9b0",
+          "consumers": []
+        },
+        {
+          "name": "CacheWarmingMode",
+          "kind": "type",
+          "hash": "857d17d5d460c265efc352d7ce6e9b30f31c3d5b3cc5908a450751ab66885a19",
+          "consumers": []
+        },
+        {
+          "name": "CacheWarmingStatus",
+          "kind": "interface",
+          "hash": "5c18ee872f2e3c44022f9b87ef5bf85aaea4bad9f13c80fc7e30d2b689fab0c0",
           "consumers": []
         },
         {
@@ -305,7 +341,13 @@
         {
           "name": "CompactionEntry",
           "kind": "interface",
-          "hash": "e1eac8fc905e2207f5ac18e872677630d348290351b4709b1c9e3c0fae742315",
+          "hash": "690504f6fb9b0612f75fb9578f6500928b9d8084481b19cdbecb62ff3b98813c",
+          "consumers": []
+        },
+        {
+          "name": "CompactionModelOverride",
+          "kind": "interface",
+          "hash": "7d43984879de12bbff5e46611b663febafb2cc0736f63d5093e25bef85168ebe",
           "consumers": []
         },
         {
@@ -317,7 +359,7 @@
         {
           "name": "CompactionSettings",
           "kind": "interface",
-          "hash": "805c7575ea44c692f7b550757213783525f703890fca2f5bc119b5e5a13ff847",
+          "hash": "34c3ed262f3b623a48f417cc5e7c1a5540800234c74ad52654376a1b585dfb9d",
           "consumers": []
         },
         {
@@ -345,6 +387,12 @@
           "name": "ContextEvent",
           "kind": "interface",
           "hash": "136c1122c09793869499ae8bdbc3f05a5bd4e06c3482548cd941896a49c90fa5",
+          "consumers": []
+        },
+        {
+          "name": "ContextEventResult",
+          "kind": "interface",
+          "hash": "178a1b883800ec796883cf7532f051d6e707fecc97b908b5d6861bc8b62fcfc6",
           "consumers": []
         },
         {
@@ -640,7 +688,7 @@
         {
           "name": "CustomEditor",
           "kind": "class",
-          "hash": "b3707fdd65bd092a689d41055faccb95f857db404dc46fb988962772980a5369",
+          "hash": "2ba0f410e1f6a0b905a6946c12cd17058fca73df14dc2e555386b5506f9a6c89",
           "consumers": []
         },
         {
@@ -851,7 +899,7 @@
         {
           "name": "ExtensionAPI",
           "kind": "interface",
-          "hash": "e1f246951acea3a6503fa4a85cc4a6426fbf0ec5c76518d8ce4e4b2b56f8a230",
+          "hash": "0c7fde9df919d4ef61d8d0e335887885f328c6484258015d20ecc4bb45207af5",
           "consumers": [
             "src/integrations/pi/engine/windows-filesystem-hygiene.ts"
           ]
@@ -895,7 +943,7 @@
         {
           "name": "ExtensionEvent",
           "kind": "type",
-          "hash": "dbe1448c05c4d08fdc19f313f25461d83c4437029c5bbdc51d12e72e5f8bbea6",
+          "hash": "e66c31187eb46cd8e532393a136ac7d46be1664f013a1ca870cc1a1a76728297",
           "consumers": []
         },
         {
@@ -928,7 +976,7 @@
         {
           "name": "ExtensionRunner",
           "kind": "class",
-          "hash": "a6dbd2d6b55213e0e65e1b6721af2483d9927498e484b73220371b3feecb7e4e",
+          "hash": "5e1271946216519835584c8da703e1ea46990284e3f2b1f7ca4efb463cfc95b2",
           "consumers": []
         },
         {
@@ -1279,13 +1327,13 @@
         {
           "name": "InteractiveMode",
           "kind": "class",
-          "hash": "d220853c03e134f94b50453db4c993d3a2798fa6600001e5fe39f1be8c2ea763",
+          "hash": "679f3b1cd5be26840c653a973e4b706feeb78f36d0c83d1e0f7575193cc303ed",
           "consumers": []
         },
         {
           "name": "InteractiveModeOptions",
           "kind": "interface",
-          "hash": "95f1670471ddbc88cb8c523f5fcce3e91c7da07fa8c962ed8bf7d0f4b897d846",
+          "hash": "ecf30704039a29d0ddcd35012145ed418efd940b3fab459925846373e602759e",
           "consumers": []
         },
         {
@@ -1494,6 +1542,12 @@
           "consumers": []
         },
         {
+          "name": "MessageEndEventResult",
+          "kind": "interface",
+          "hash": "9c5c0fdf0049ee3c97794c5ca35aefc660cfea66a9f0d154f101b6a1c8f4470e",
+          "consumers": []
+        },
+        {
           "name": "MessageRenderer",
           "kind": "type",
           "hash": "a76a0c355d288639394c2f123d37745817788b11e235c6fcf41d2a5a3d63aeef",
@@ -1544,7 +1598,7 @@
         {
           "name": "ModelRegistry",
           "kind": "class",
-          "hash": "da064858af434ece719eeaa9db06129abd54dd582e281fb3ed3e3098747ff933",
+          "hash": "6358302348dfa548c33209f67ccc3634e3141fee48cc0ea911e6ca2272ab684f",
           "consumers": []
         },
         {
@@ -1570,6 +1624,12 @@
           "consumers": []
         },
         {
+          "name": "ModelSelectEvent",
+          "kind": "interface",
+          "hash": "135630265369eb55ea2b428d2f46daaeec72a56087182ad3032f6a6a1bf60ecc",
+          "consumers": []
+        },
+        {
           "name": "ModelSelectorComponent",
           "kind": "class",
           "hash": "482937afb06fe57f6af67ac7d0a929936a74979feca1af732e4f777bf99a19a6",
@@ -1580,9 +1640,21 @@
           ]
         },
         {
+          "name": "ModelSelectSource",
+          "kind": "type",
+          "hash": "fc3c3eb032db1a448c54ab5cde46fc825149ea22f907380c2b079e34a4f4e2c0",
+          "consumers": []
+        },
+        {
           "name": "NewSessionOptions",
           "kind": "interface",
           "hash": "58da9da692c65c7e747461528f214b09b37ab3cee4a1eae2f27ea20f660c6b78",
+          "consumers": []
+        },
+        {
+          "name": "NormalizedBuildSystemPromptOptions",
+          "kind": "type",
+          "hash": "dc338b28224841fa06ca1f9c1dce7a894582463d41b1aeed16db9740411613c9",
           "consumers": []
         },
         {
@@ -1786,13 +1858,13 @@
         {
           "name": "ProviderConfig",
           "kind": "interface",
-          "hash": "33e37d3e291d4476f14e3490ba993a1ab5cda316add8f7d79214954a2a728c2e",
+          "hash": "fb8c837a92335abc06b41673751e099d6a6aa4174b2b74950ae25dfd272f9f50",
           "consumers": []
         },
         {
           "name": "ProviderModelConfig",
           "kind": "interface",
-          "hash": "70e0e8273036ffe38c0e55540c76ae92a3965b50d715151dadb01f2e0503bbb5",
+          "hash": "6a74ecd6614f13f4507bbfc9ae29cd3b10bcb4ceebc5c87f294d33666ec4d3a1",
           "consumers": []
         },
         {
@@ -1948,9 +2020,21 @@
           "consumers": []
         },
         {
+          "name": "ResourcesDiscoverEvent",
+          "kind": "interface",
+          "hash": "966319e57675545fe2d32cc25dbfbf536d0aff6e5441491173c8d3a05b14d935",
+          "consumers": []
+        },
+        {
+          "name": "ResourcesDiscoverResult",
+          "kind": "interface",
+          "hash": "fa36e78f7389ddcf86aa1d80b5e10a886631f8d684ab6845edea37546b83e6f0",
+          "consumers": []
+        },
+        {
           "name": "RetrySettings",
           "kind": "interface",
-          "hash": "9eb5f81ef9d51fa5e9b78a9b8766278aa5c9eaf2a4b03f58ace0ea6caf61c1f2",
+          "hash": "b16cd1ec56bec546419522c81d9e0dc1813dd7e916c2afa94c51755679e70456",
           "consumers": []
         },
         {
@@ -2034,9 +2118,21 @@
           "consumers": []
         },
         {
+          "name": "SessionBeforeCompactResult",
+          "kind": "interface",
+          "hash": "a0ead0376060ce458a3518d7e5b3924ff0a634f8ad5cec9a9b320b97e756d9d3",
+          "consumers": []
+        },
+        {
           "name": "SessionBeforeForkEvent",
           "kind": "interface",
           "hash": "c44bd4ee18a841fca4c83d20ea4f0cca0f96a6207014bbbd9fba91f431445cbb",
+          "consumers": []
+        },
+        {
+          "name": "SessionBeforeForkResult",
+          "kind": "interface",
+          "hash": "07d25b144d6e09d32c3a87178a5682c64e7a7f40a699ec7cf06cff9bb4c3dc30",
           "consumers": []
         },
         {
@@ -2046,15 +2142,33 @@
           "consumers": []
         },
         {
+          "name": "SessionBeforeSwitchResult",
+          "kind": "interface",
+          "hash": "17357e9acefb26b590fe12a901e2b599ab9966634f5b739f538d7057befb0dd3",
+          "consumers": []
+        },
+        {
           "name": "SessionBeforeTreeEvent",
           "kind": "interface",
           "hash": "657a2288ce0a5c70565841a70dc0aea8e09b16f5ee44a3ae70f663291c6e7743",
           "consumers": []
         },
         {
+          "name": "SessionBeforeTreeResult",
+          "kind": "interface",
+          "hash": "c60ca57fa63d00585f8008e43995a08b296714a4262026fab6af33bfe62de4a2",
+          "consumers": []
+        },
+        {
           "name": "SessionCompactEvent",
           "kind": "interface",
           "hash": "e8731315def2dd24a076b1c841e66c8cf6cea0f1b4c9da478ba13814319cab4e",
+          "consumers": []
+        },
+        {
+          "name": "SessionCompactFailedEvent",
+          "kind": "interface",
+          "hash": "38167228b21199fd04a80c1e5d170f2373061f85418dfc4ef490778e4f897e9e",
           "consumers": []
         },
         {
@@ -2066,7 +2180,7 @@
         {
           "name": "SessionEntry",
           "kind": "type",
-          "hash": "a7bb3eb65444cbaf8e71a8b5c920f1d5fe006558aaa0ff25d9ab6a3fe585be48",
+          "hash": "79d4cd79a1f8073102eea08a7b183838448627e7dd5d4d2b6343212c60ad8345",
           "consumers": []
         },
         {
@@ -2114,7 +2228,7 @@
         {
           "name": "SessionManager",
           "kind": "class",
-          "hash": "e0bb1c623d7066214d4675e56aca4931ba0115e5c79f32ba2deb27ae918b3189",
+          "hash": "d97033181bd658303000fb0b57713783e5e729def8b83c6743cfdff411b4f1ee",
           "consumers": [
             "src/integrations/pi/engine/conformance.ts",
             "src/integrations/pi/engine/runtime-integration.ts",
@@ -2132,7 +2246,7 @@
         {
           "name": "SessionSelectorComponent",
           "kind": "class",
-          "hash": "b94c8a84cf77e74a091cc287215a8f56141e66b487c5505a2aec6b9a22e1b0a1",
+          "hash": "432f889d8a975c64d4d36ea8c8ab345c74040633011a6af1baf414bc66de1661",
           "consumers": []
         },
         {
@@ -2171,7 +2285,7 @@
         {
           "name": "SettingsCallbacks",
           "kind": "interface",
-          "hash": "e38e7d7891148d03fc65e182dd48bd12c17f5e261febecaaa0360a06eeddeff3",
+          "hash": "160fabff08c55da17aa1c9288d0b728b9b6f96b3a069fd590c5b62b13c83ce91",
           "consumers": [
             "src/integrations/pi/components/shell-selectors-dialogs.ts"
           ]
@@ -2179,7 +2293,7 @@
         {
           "name": "SettingsConfig",
           "kind": "interface",
-          "hash": "386f1b9f1cae66898061b54421a94ff58afc3edd6bb808f1112a0d90a1fd72e3",
+          "hash": "5a241da070914b9682a4fca3d6bc04a0f1d5cf54345861c1b214cd885dff4870",
           "consumers": [
             "src/integrations/pi/components/shell-selectors-dialogs.ts"
           ]
@@ -2187,7 +2301,7 @@
         {
           "name": "SettingsManager",
           "kind": "class",
-          "hash": "6f39908e27526b9917edc3a8cf84d54031171c6e27e60e49757144962dfac5e2",
+          "hash": "b2b03f6c1e5695ea2409297a7ccbefef698a5716e9e283c9d7332607d66b3420",
           "consumers": [
             "src/integrations/pi/engine/package-integration.ts",
             "src/integrations/pi/engine/project-trust-preflight.ts",
@@ -2311,6 +2425,12 @@
           "consumers": []
         },
         {
+          "name": "ThinkingLevelSelectEvent",
+          "kind": "interface",
+          "hash": "5f9f238cb5b063dd326e48ff9c5842847419c78e32a4367dedba5febc2820712",
+          "consumers": []
+        },
+        {
           "name": "ThinkingSelectorComponent",
           "kind": "class",
           "hash": "3ddede1ee2ec9090e36c87de575f83d2b260ae52e1cf1679514c8ee0ebe7b4e0",
@@ -2396,6 +2516,12 @@
           "name": "ToolResultEvent",
           "kind": "type",
           "hash": "0341dc0426112004778d43da7055ab7104ffca1e31f59860cf62637296cfc6ea",
+          "consumers": []
+        },
+        {
+          "name": "ToolResultEventResult",
+          "kind": "interface",
+          "hash": "86465fc28562a3d5d4c0fc17a8c6dbd967fd742608eec8cf49bd3bd07bacd5b3",
           "consumers": []
         },
         {
@@ -2490,8 +2616,8 @@
         },
         {
           "name": "UserBashEventResult",
-          "kind": "interface",
-          "hash": "85f25a6e6f67d6d769821d426794fb88c5e05be969755a38f781c717281b7dab",
+          "kind": "type",
+          "hash": "86d7cdfb0d71577c80f2cb193a393efc817496d080be3c1a034fd3714a8c591c",
           "consumers": []
         },
         {
@@ -2591,7 +2717,7 @@
     },
     {
       "name": "@earendil-works/pi-tui",
-      "version": "0.85.1",
+      "version": "0.86.0",
       "entry": "dist/index.d.ts",
       "exports": [
         {
@@ -2706,6 +2832,7 @@
             "src/integrations/pi/components/upstream/components/extension-editor.ts",
             "src/integrations/pi/components/upstream/components/scoped-models-selector.ts",
             "src/integrations/pi/components/upstream/components/session-selector.ts",
+            "src/integrations/pi/components/upstream/components/skill-invocation-message.ts",
             "src/integrations/pi/components/upstream/components/tool-execution.ts",
             "src/integrations/pi/components/upstream/components/tree-selector.ts",
             "src/integrations/pi/components/upstream/components/trust-selector.ts"
@@ -2884,6 +3011,12 @@
             "src/integrations/pi/components/upstream/components/trust-selector.ts",
             "src/integrations/pi/components/upstream/history/editor-core.ts"
           ]
+        },
+        {
+          "name": "getNativeClipboard",
+          "kind": "function",
+          "hash": "17189d6fa1e6978c73d565a7510380bb7d30517b8aeebee5d821d088c1bce4d6",
+          "consumers": []
         },
         {
           "name": "getOsc8LinkAtColumn",
@@ -3151,6 +3284,7 @@
           "kind": "class",
           "hash": "c206e8171623f1ddd209144d8bb9296282a1bb13d3449025072f43e5092e56ed",
           "consumers": [
+            "src/integrations/pi/components/upstream/components/skill-invocation-message.ts",
             "src/integrations/pi/components/upstream/components/tool-execution.ts"
           ]
         },
@@ -3158,6 +3292,12 @@
           "name": "MouseRegionHandler",
           "kind": "type",
           "hash": "e7a9adf4073a40c48a16f7a1dd7c250e090838af727606f9a2f023575cd20209",
+          "consumers": []
+        },
+        {
+          "name": "NativeClipboard",
+          "kind": "interface",
+          "hash": "3ae9315c96cb2c24b76d9e588a8422a78fd2308f5aa15a325dfc65cabc779b4f",
           "consumers": []
         },
         {
@@ -3579,7 +3719,7 @@
         {
           "name": "TuiAltScreenOptions",
           "kind": "interface",
-          "hash": "554a5eb3e26de9f13651b9de0a96630a48ece2dbea1960aeea9d5bdb7f04e404",
+          "hash": "99e53226776b4af517bb06dfa6911fd58c578e6e27adad06d166ee8e6003eb57",
           "consumers": [
             "src/integrations/pi/tui-runtime/adapter.ts"
           ]

@@ -77,6 +77,21 @@ describe("A1-owned damage-aware terminal adapter", () => {
     expect(PINNED_PI_TUI_DAMAGE_GRAMMAR).toBe(`@earendil-works/pi-tui@${(await readPinnedPiIdentity(".")).version}:tui-alt-screen-one-write-v1`);
   });
 
+  it("forwards a batched-erase frame unchanged instead of reading its paints as one row's content", () => {
+    // Compatibility: the pinned engine emits every row erase ahead of the paints for WezTerm frames that
+    // place Kitty images. That shape is outside this grammar, so it falls through untransformed.
+    const { adapter, terminal } = initialized();
+    const rows = ["B", "C", "D", "E", "F", "G"];
+    const erases = rows.map((_content, index) => `\u001b[${index + 1};1H\u001b[2K`).join("");
+    const paints = rows.map((content, index) => `\u001b[${index + 1};1H${content}`).join("");
+    const batched = `\u001b[?2026h${erases}${paints}\u001b[7;1H\u001b[?25l\u001b[?2026l`;
+    adapter.arm(descriptor(2, 1, true), SAFE);
+    adapter.write(batched);
+
+    expect(terminal.writes.at(-1)).toBe(batched);
+    expect(adapter.lastDecision).toMatchObject({ frameId: 2, transformed: false });
+  });
+
   it("replaces a broad one-row follow rewrite with regional movement and exposed-row paint", async () => {
     const { adapter, terminal, initial } = initialized();
     const broad = fullscreenWrite(["B", "C", "D", "E", "F", "G"]);

@@ -45,7 +45,7 @@ function pinned() {
 }
 
 describe("transcript image conversion lifetime", () => {
-  it("locates stale conversion in the independent pinned component, outside owned delivery and caching", async () => {
+  it("converges with the independent pinned component, which now re-converts a replaced result", async () => {
     await fixture();
     const reference = pinned();
     reference.updateResult({ content: [image(255, "image/jpeg")], isError: false }, true);
@@ -53,9 +53,10 @@ describe("transcript image conversion lifetime", () => {
     const oldPixels = kittyData(reference.render(80));
     const replacement = image(0, "image/png");
     reference.updateResult({ content: [replacement], isError: false }, true);
-    // Provenance: baseline attribution only; the required owned behavior is asserted separately below.
-    expect(kittyData(reference.render(80))).toEqual(oldPixels);
-    expect(kittyData(reference.render(80))).not.toEqual([replacement.data]);
+    // Compatibility: the pinned engine re-converts a replaced tool result, so the stale payload this
+    // baseline used to record is gone upstream; owned delivery and caching are asserted separately below.
+    await vi.waitFor(() => expect(kittyData(reference.render(80))).toEqual([replacement.data]));
+    expect(kittyData(reference.render(80))).not.toEqual(oldPixels);
   });
 
   it("replaces a converted JPEG with current PNG bytes on the same invocation", async () => {

@@ -1,5 +1,5 @@
 /**
- * Provenance: @earendil-works/pi-coding-agent 0.85.1 (MIT), commit d981de1229ef899957bbe968bc8dcda02a21f477,
+ * Provenance: @earendil-works/pi-coding-agent 0.86.0 (MIT), commit ecac0a9c4edad3dac5d9f8b40e0c7db7a56471fc,
  * packages/coding-agent/src/modes/interactive/components/status-indicator.ts.
  * Modifications: Mechanical source port with public package-root keybinding, Loader, and owned
  * theme/countdown imports plus ECMAScript private fields.
@@ -27,6 +27,15 @@ export class StatusIndicator extends Loader {
     this.kind = kind;
   }
 
+  renderInBorder(width: number): string {
+    const line = super.render(width + 2)[1] ?? "";
+    return truncateToWidth(line.startsWith(" ") ? line.slice(1).trimEnd() : line.trimEnd(), width, "");
+  }
+
+  renderSpinnerInBorder(width: number): string {
+    return truncateToWidth(this.getRenderedIndicator(), width, "");
+  }
+
   dispose(): void {
     this.stop();
   }
@@ -35,15 +44,6 @@ export class StatusIndicator extends Loader {
 export class WorkingStatusIndicator extends StatusIndicator {
   constructor(ui: TUI, message: string, indicator?: LoaderIndicatorOptions, colorFn?: (text: string) => string) {
     super("working", ui, colorFn ?? (spinner => piTheme().fg("accent", spinner)), colorFn ?? (text => piTheme().fg("muted", text)), message, indicator);
-  }
-
-  renderInBorder(width: number): string {
-    const line = super.render(width + 2)[1] ?? "";
-    return truncateToWidth(line.startsWith(" ") ? line.slice(1).trimEnd() : line.trimEnd(), width, "");
-  }
-
-  renderSpinnerInBorder(width: number): string {
-    return truncateToWidth(this.getRenderedIndicator(), width, "");
   }
 }
 

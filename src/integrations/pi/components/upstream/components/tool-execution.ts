@@ -1,5 +1,5 @@
 /**
- * Provenance: @earendil-works/pi-coding-agent 0.85.1 (MIT), commit d981de1229ef899957bbe968bc8dcda02a21f477,
+ * Provenance: @earendil-works/pi-coding-agent 0.86.0 (MIT), commit ecac0a9c4edad3dac5d9f8b40e0c7db7a56471fc,
  * packages/coding-agent/src/modes/interactive/components/tool-execution.ts.
  * Modifications: Retain pinned shell and actual public tool-definition renderers. Replace private
  * index-keyed image conversion with current-source ownership, serial conversion, visible fallback, and

@@ -1,10 +1,18 @@
 {
   "schema": "a1-pi-feature-adoption-matrix-v1",
   "pinned": {
-    "version": "0.85.1"
+    "version": "0.86.0"
   },
   "changelogSince": "0.84.2",
   "rows": [
+    {
+      "id": "command:bug",
+      "kind": "command",
+      "feature": "/bug",
+      "since": "0.86.0",
+      "disposition": "declined",
+      "reason": "Pi bug-report collection, upload, crash-log, and session-export modules are absent from the pinned package public API, so the flow cannot be reproduced without deep imports the architecture forbids; A1 has no Earendil reporting channel."
+    },
     {
       "id": "command:changelog",
       "kind": "command",
@@ -1320,6 +1328,15 @@
       "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
     },
     {
+      "id": "settings-callback:onCacheWarmingModeChange",
+      "kind": "settings-callback",
+      "feature": "onCacheWarmingModeChange",
+      "since": "0.86.0",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
       "id": "settings-callback:onCancel",
       "kind": "settings-callback",
       "feature": "onCancel",
@@ -1630,6 +1647,15 @@
       "kind": "setting",
       "feature": "blockImages",
       "since": "0.85.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "setting:cacheWarmingMode",
+      "kind": "setting",
+      "feature": "cacheWarmingMode",
+      "since": "0.86.0",
       "disposition": "owned",
       "behavior": "settings.complete-surface",
       "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
@@ -2212,6 +2238,57 @@
       "since": "0.85.1",
       "disposition": "pinned",
       "note": "Provider model; reached through the pinned engine's model registry."
+    },
+    {
+      "id": "changelog:0.86.0:bug-reporting",
+      "kind": "changelog",
+      "feature": "Bug reporting",
+      "version": "0.86.0",
+      "summary": "Report problems with `/bug` using redacted diagnostics, optional transcripts, or exported ZIP archives.",
+      "since": "0.86.0",
+      "disposition": "declined",
+      "reason": "Pi bug-report collection, upload, crash-log, and session-export modules are absent from the pinned package public API, so the flow cannot be reproduced without deep imports the architecture forbids; A1 has no Earendil reporting channel."
+    },
+    {
+      "id": "changelog:0.86.0:offline-radius-model-catalog",
+      "kind": "changelog",
+      "feature": "Offline Radius model catalog",
+      "version": "0.86.0",
+      "summary": "Select Radius models immediately, with cached and live catalogs overlaid when available.",
+      "since": "0.86.0",
+      "disposition": "pinned",
+      "note": "Provider catalog; reached through the pinned engine's model registry."
+    },
+    {
+      "id": "changelog:0.86.0:per-model-compaction-budgets",
+      "kind": "changelog",
+      "feature": "Per-model compaction budgets",
+      "version": "0.86.0",
+      "summary": "Configure reserved and recent-token budgets by model.",
+      "since": "0.86.0",
+      "disposition": "pinned",
+      "note": "Compaction budgets read from the settings file by the pinned engine; the pinned settings selector offers no row for them."
+    },
+    {
+      "id": "changelog:0.86.0:prompt-cache-warming",
+      "kind": "changelog",
+      "feature": "Prompt cache warming",
+      "version": "0.86.0",
+      "summary": "Keep valuable prompt caches alive during long tool runs and optionally while idle using cost-aware refreshes.",
+      "since": "0.86.0",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "changelog:0.86.0:transcript-aware-prompt-and-tool-updates",
+      "kind": "changelog",
+      "feature": "Transcript-aware prompt and tool updates",
+      "version": "0.86.0",
+      "summary": "Preserve instruction and tool changes across resume and branch navigation while retaining cached prefixes.",
+      "since": "0.86.0",
+      "disposition": "pinned",
+      "note": "Session entry and extension-hook behavior of the pinned engine A1 hosts; no presentation surface."
     }
   ]
 }

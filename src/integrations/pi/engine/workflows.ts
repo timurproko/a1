@@ -28,6 +28,14 @@ export const PINNED_PI_WORKFLOW_COMMAND_NAMES = [
 
 export const PINNED_PI_HIDDEN_COMMAND_NAMES = ["debug", "arminsayshi", "dementedelves"] as const;
 
+/**
+ * Commands the pinned engine advertises that A1 deliberately does not present. `/bug` collects,
+ * uploads, and archives a report through modules the package keeps off its public surface, so A1
+ * cannot reproduce the route and does not offer a partial one. Naming them here keeps the manifest
+ * comparison exact: a command upstream adds still fails the gate until it is classified.
+ */
+export const PINNED_PI_DECLINED_COMMAND_NAMES = ["bug"] as const;
+
 export type PiWorkflowCommandName = typeof PINNED_PI_WORKFLOW_COMMAND_NAMES[number];
 export type PiHiddenWorkflowCommandName = typeof PINNED_PI_HIDDEN_COMMAND_NAMES[number];
 
@@ -62,6 +70,7 @@ export const PINNED_PI_SETTINGS_CALLBACKS = [
   "onFollowUpModeChange",
   "onTransportChange",
   "onHttpIdleTimeoutMsChange",
+  "onCacheWarmingModeChange",
   "onModelThinkingLevelChange",
   "onModelThinkingLevelRemove",
   "onThemeChange",
@@ -102,6 +111,7 @@ export interface PiPinnedSettingsSnapshot {
   readonly followUpMode: "all" | "one-at-a-time";
   readonly transport: "sse" | "websocket" | "websocket-cached" | "auto";
   readonly httpIdleTimeoutMs: number;
+  readonly cacheWarmingMode: "off" | "streaming" | "idle";
   readonly thinkingLevel: "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
   readonly availableThinkingLevels: readonly ("off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max")[];
   /** The stored global default the selector offers to restore; the session's level may differ. */
@@ -195,6 +205,27 @@ export interface PiSessionInfoPresentation {
   };
   readonly cacheWaste: { readonly missedTokens: number; readonly missedCost: number; readonly missCount: number };
   readonly usageBreakdown: readonly { readonly key: string; readonly cost: number; readonly tokens: number }[];
+  readonly cacheWarming: PiCacheWarmingPresentation;
+}
+
+/** The engine's prompt-cache warming mode and, once warming has acted, the decision behind it. */
+export interface PiCacheWarmingPresentation {
+  readonly mode: string;
+  readonly status?: {
+    readonly state: "inactive" | "scheduled" | "refreshing";
+    readonly reason?: string;
+    readonly nextWarmAt?: number;
+    readonly extensionOverride?: boolean;
+    readonly decision?: {
+      readonly phase: "streaming" | "idle";
+      readonly action: string;
+      readonly warmCost: number;
+      readonly missCost: number;
+      readonly continuationProbability: number;
+      readonly expectedSavings: number;
+      readonly economicsAvailable: boolean;
+    };
+  };
 }
 
 export type PiWorkflowPresentation = PiSessionInfoPresentation;
@@ -315,10 +346,20 @@ export interface PiSessionResumeMetadata {
   readonly usesDefaultSessionDir: boolean;
 }
 
+/**
+ * Progress a session listing reports. `partialSessions` carries what the pinned manager has
+ * loaded so far, so the selector can show results before the listing finishes.
+ */
+export type PiSessionListProgress = (
+  loaded: number,
+  total: number,
+  partialSessions?: readonly SessionInfo[],
+) => void;
+
 export interface PiSessionSelectorContext {
   readonly currentSessionFilePath: string | undefined;
-  readonly loadCurrentSessions: (onProgress?: (loaded: number, total: number) => void) => Promise<SessionInfo[]>;
-  readonly loadAllSessions: (onProgress?: (loaded: number, total: number) => void) => Promise<SessionInfo[]>;
+  readonly loadCurrentSessions: (onProgress?: PiSessionListProgress) => Promise<SessionInfo[]>;
+  readonly loadAllSessions: (onProgress?: PiSessionListProgress) => Promise<SessionInfo[]>;
   readonly renameSession: (sessionFilePath: string, nextName: string | undefined) => Promise<void>;
 }
 

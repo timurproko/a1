@@ -1,5 +1,5 @@
 /**
- * Provenance: @earendil-works/pi-tui 0.85.1 (MIT), commit d981de1229ef899957bbe968bc8dcda02a21f477,
+ * Provenance: @earendil-works/pi-tui 0.86.0 (MIT), commit ecac0a9c4edad3dac5d9f8b40e0c7db7a56471fc,
  * packages/tui/src/utils.ts.
  * Modifications: Owned editor core or minimal editor-local helper subset; public imports, strict
  * types, typed persistent-history hooks, and semantic border state. Public terminal runtime/exports
@@ -27,6 +27,15 @@ export function getWordSegmenter(): Intl.Segmenter {
 
 export const cjkBreakRegex =
 	/[\p{Script_Extensions=Han}\p{Script_Extensions=Hiragana}\p{Script_Extensions=Katakana}\p{Script_Extensions=Hangul}\p{Script_Extensions=Bopomofo}]/u;
+
+export const cjkPunctuationRegex = new RegExp(
+	`(?:(?=\\p{Punctuation})${cjkBreakRegex.source}|[，．：；！？（）［］｛｝“”‘’…—])`,
+	"u",
+);
+
+export const autocompleteSeparatorRegex = new RegExp(`(?:\\s|${cjkPunctuationRegex.source})`, "u");
+
+export const autocompleteBoundaryRegex = new RegExp(`(?:^|${autocompleteSeparatorRegex.source})`, "u");
 
 export const PUNCTUATION_REGEX = /[(){}[\]<>.,;:'"!?+\-=*/\\|&%^$#@~`]/;
 

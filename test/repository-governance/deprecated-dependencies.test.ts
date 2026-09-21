@@ -36,11 +36,9 @@ describe("deprecated dependency release policy", () => {
 
   it("allows only the documented exact pinned-Pi transitive exceptions", async () => {
     const result = await runPolicy({
-      "": { name: "fixture", version: "1.0.0", dependencies: { "@earendil-works/pi-coding-agent": "0.85.1" } },
-      "node_modules/@earendil-works/pi-coding-agent": { version: "0.85.1", dependencies: { "@earendil-works/pi-ai": "0.85.1" } },
-      "node_modules/@earendil-works/pi-ai": { version: "0.85.1", dependencies: { "@aws-sdk/client-bedrock-runtime": "3.1048.0", "google-auth-library": "10.6.2" } },
-      "node_modules/@aws-sdk/client-bedrock-runtime": { version: "3.1048.0", dependencies: { "@aws-sdk/core": "3.974.11" } },
-      "node_modules/@aws-sdk/core": { version: "3.974.11", deprecated: "Deprecated due to an error deserialization bug in JSON 1.0 protocol services" },
+      "": { name: "fixture", version: "1.0.0", dependencies: { "@earendil-works/pi-coding-agent": "0.86.0" } },
+      "node_modules/@earendil-works/pi-coding-agent": { version: "0.86.0", dependencies: { "@earendil-works/pi-ai": "0.86.0" } },
+      "node_modules/@earendil-works/pi-ai": { version: "0.86.0", dependencies: { "google-auth-library": "10.6.2" } },
       "node_modules/google-auth-library": { version: "10.6.2", dependencies: { gaxios: "7.1.4" } },
       "node_modules/gaxios": { version: "7.1.4", dependencies: { "node-fetch": "3.3.2" } },
       "node_modules/node-fetch": { version: "3.3.2", dependencies: { "fetch-blob": "3.2.0" } },
@@ -58,8 +56,8 @@ describe("deprecated dependency release policy", () => {
 
   it("does not generalize documented exceptions to other versions", async () => {
     const result = await runPolicy({
-      "": { name: "fixture", version: "1.0.0", dependencies: { "@earendil-works/pi-coding-agent": "0.86.0" } },
-      "node_modules/@earendil-works/pi-coding-agent": { version: "0.86.0", dependencies: { "node-domexception": "1.0.0" } },
+      "": { name: "fixture", version: "1.0.0", dependencies: { "@earendil-works/pi-coding-agent": "0.87.0" } },
+      "node_modules/@earendil-works/pi-coding-agent": { version: "0.87.0", dependencies: { "node-domexception": "1.0.0" } },
       "node_modules/node-domexception": { version: "1.0.0", deprecated: "Use your platform's native DOMException instead" },
     });
     expect(result.status).toBe(1);

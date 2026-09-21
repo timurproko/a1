@@ -4,7 +4,9 @@
   "description": "Standalone terminal workspace for supervised native and managed agents",
   "type": "module",
   "privateLaunchContract": "neutral-launch-v1",
-  "updateActivationContracts": ["activate-v1"],
+  "updateActivationContracts": [
+    "activate-v1"
+  ],
   "packageManager": "npm@11.13.0",
   "bin": {
     "a1": "bin/cli.js"
@@ -59,11 +61,11 @@
     "prepack": "node scripts/release/prepack-gate.mjs",
     "prepublishOnly": "npm run test:release",
     "prepare": "npm run build",
-        "typecheck:bin": "tsgo -p tsconfig.bin.json"
+    "typecheck:bin": "tsgo -p tsconfig.bin.json"
   },
   "dependencies": {
-    "@earendil-works/pi-coding-agent": "0.85.1",
-    "@earendil-works/pi-tui": "0.85.1",
+    "@earendil-works/pi-coding-agent": "0.86.0",
+    "@earendil-works/pi-tui": "0.86.0",
     "@silvia-odwyer/photon-node": "0.3.4",
     "chalk": "5.6.2",
     "cross-spawn": "7.0.6",

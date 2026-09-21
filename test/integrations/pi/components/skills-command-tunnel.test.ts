@@ -222,7 +222,7 @@ describe.each([false, true])("skills tunnel in the bare-A1 editor (history=%s)",
       // Invariant: a live switch to expand reinstalls the pinned per-skill entries without a skills command.
       presentation = "expand";
       editor.setAutocompleteCommands(COMMANDS);
-      editor.handleInput?.("/skill");
+      editor.handleInput?.("/skill:");
       await settle();
       menu = menuText(editor).join("\n");
       expect(menu).toContain("skill:framer");
@@ -329,7 +329,7 @@ describe("skills tunnel outside collapse", () => {
         });
         editor.setFocused?.(true);
         editor.setAutocompleteCommands(COMMANDS);
-        editor.handleInput?.("/skill");
+        editor.handleInput?.("/skill:");
         await settle();
         const text = editor.render(80).map(row => stripTerminalSequences(row)).join("\n");
         expect(text).toContain("skill:framer");

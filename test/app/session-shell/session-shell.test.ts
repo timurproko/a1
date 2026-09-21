@@ -44,6 +44,7 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
               },
               cacheWaste: { missedTokens: 0, missedCost: 0, missCount: 0 },
               usageBreakdown: [],
+              cacheWarming: { mode: "streaming" },
             },
           }
         : command === "changelog"
@@ -479,6 +480,7 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
           { key: "openai/gpt-5", cost: 0.1, tokens: 400 },
           { key: "Tools/summaries", cost: 0.025, tokens: 70 },
         ],
+        cacheWarming: { mode: "streaming" },
       },
     });
     const raw = shell.root.render(100).join("\n");

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { acceptanceChecklistDigest, acceptancePullBody, parseImplementationAcceptanceChecks,
+import { acceptanceChecklistDigest, acceptancePullBody, MAX_ACCEPTANCE_CHECKS, parseImplementationAcceptanceChecks,
   parseImplementationAcceptanceScenarios, verifyAcceptancePullBody } from "../../scripts/governance/openspec-acceptance-checklist.mjs";
 import type { AcceptanceRecord } from "../../scripts/governance/openspec-acceptance-policy.mjs";
 
@@ -20,7 +20,7 @@ const record = (): AcceptanceRecord => ({
 });
 
 describe("implementation-specific acceptance checklist", () => {
-  it("extracts one to three final reviewed behavior checks outside metadata fences", () => {
+  it("extracts one to ten final reviewed behavior checks outside metadata fences", () => {
     expect(parseImplementationAcceptanceChecks(sourceBody())).toEqual(checks);
     expect(parseImplementationAcceptanceChecks(sourceBody([checks[0]!]))).toEqual([checks[0]]);
     expect(acceptanceChecklistDigest(checks)).toMatch(/^[a-f0-9]{64}$/);
@@ -55,7 +55,7 @@ describe("implementation-specific acceptance checklist", () => {
   it.each([
     ["missing", "## Summary\nNo handoff.", "acceptance-checklist-missing"],
     ["empty", sourceBody([]), "acceptance-checklist-count"],
-    ["too many", sourceBody([...checks, "Mouse-wheel scrolling keeps the scrollbar thumb synchronized with the viewport.", "Keyboard scrolling keeps the scrollbar thumb synchronized with the viewport."]), "acceptance-checklist-count"],
+    ["too many", sourceBody(Array.from({ length: MAX_ACCEPTANCE_CHECKS + 1 }, (_value, index) => `Scrollbar row ${index} stays aligned with the viewport while the pane scrolls.`)), "acceptance-checklist-count"],
     ["duplicate", sourceBody([checks[0]!, checks[0]!.toUpperCase()]), "acceptance-checklist-duplicate"],
     ["generic review", sourceBody(["Review the linked implementation PR."]), "acceptance-checklist-generic"],
     ["generic CI", sourceBody(["Confirm the required CI checks passed."]), "acceptance-checklist-generic"],

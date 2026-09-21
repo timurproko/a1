@@ -124,6 +124,12 @@ export class PiEngineSettings {
           configureOwnedHttpDispatcher(value);
           settings.setHttpIdleTimeoutMs(value);
         } },
+        cacheWarmingMode: { apply: value => {
+          if (value !== "off" && value !== "streaming" && value !== "idle") throw new TypeError("Cache warming mode is invalid");
+          // Invariant: the warmer reads the mode per decision, but only the session route
+          // also retires an in-flight idle loop when the mode stops allowing one.
+          this.#ports.requireSession().setCacheWarmingMode(value);
+        } },
         modelThinkingLevels: { apply: value => {
           if (!isRecord(value)) throw new TypeError("Per-model thinking levels are invalid");
           // Invariant: an override for the model in use takes effect now, as the pinned selector applies it;
@@ -193,6 +199,7 @@ export class PiEngineSettings {
       followUpMode: session.followUpMode ?? setting(settings?.getFollowUpMode, "one-at-a-time"),
       transport: setting(settings?.getTransport, "sse"),
       httpIdleTimeoutMs: setting(settings?.getHttpIdleTimeoutMs, 300_000),
+      cacheWarmingMode: setting(settings?.getCacheWarmingMode, "streaming"),
       thinkingLevel: readThinkingLevel(session.thinkingLevel),
       availableThinkingLevels: Array.isArray(levels) ? levels.map(readThinkingLevel) : ["off", "minimal", "low", "medium", "high", "xhigh"],
       defaultThinkingLevel: readThinkingLevel(settings?.getDefaultThinkingLevel?.() ?? "medium"),
@@ -254,6 +261,7 @@ export class PiEngineSettings {
         onFollowUpModeChange: snapshot.followUpMode,
         onTransportChange: snapshot.transport,
         onHttpIdleTimeoutMsChange: snapshot.httpIdleTimeoutMs,
+        onCacheWarmingModeChange: snapshot.cacheWarmingMode,
         onModelThinkingLevelChange: snapshot.modelThinkingLevels,
         onModelThinkingLevelRemove: snapshot.modelThinkingLevels,
         onFullscreenCopyOnSelectChange: snapshot.fullscreenCopyOnSelect,
@@ -311,7 +319,8 @@ function settingKeyForCallback(callback: PiPinnedSettingsCallback): string | nul
     onAutoCompactChange: "autoCompact", onShowImagesChange: "showImages", onImageWidthCellsChange: "imageWidthCells",
     onAutoResizeImagesChange: "autoResizeImages", onBlockImagesChange: "blockImages", onEnableSkillCommandsChange: "enableSkillCommands",
     onSteeringModeChange: "steeringMode", onFollowUpModeChange: "followUpMode", onTransportChange: "transport",
-    onHttpIdleTimeoutMsChange: "httpIdleTimeoutMs", onModelThinkingLevelChange: "modelThinkingLevels", onModelThinkingLevelRemove: "modelThinkingLevels",
+    onHttpIdleTimeoutMsChange: "httpIdleTimeoutMs", onCacheWarmingModeChange: "cacheWarmingMode",
+    onModelThinkingLevelChange: "modelThinkingLevels", onModelThinkingLevelRemove: "modelThinkingLevels",
     onThemeChange: "theme", onThemePreview: "theme", onFullscreenCopyOnSelectChange: "fullscreenCopyOnSelect",
     onHideThinkingBlockChange: "hideThinkingBlock", onMermaidRenderingModeChange: "mermaidRenderingMode",
     onShowCacheMissNoticesChange: "showCacheMissNotices", onCollapseChangelogChange: "collapseChangelog",

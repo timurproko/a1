@@ -474,7 +474,7 @@ describe("Pi shell public component adapters", () => {
       config: {
         autoCompact: true, showImages: true, imageWidthCells: 80, autoResizeImages: true,
         blockImages: false, enableSkillCommands: true, steeringMode: "one-at-a-time", followUpMode: "one-at-a-time",
-        transport: "sse", httpIdleTimeoutMs: 300_000, thinkingLevel: "medium", modelThinkingLevels: {}, defaultModel: "not set", availableDefaultModels: [], fullscreenCopyOnSelect: false,
+        transport: "sse", httpIdleTimeoutMs: 300_000, cacheWarmingMode: "streaming", thinkingLevel: "medium", modelThinkingLevels: {}, defaultModel: "not set", availableDefaultModels: [], fullscreenCopyOnSelect: false,
         availableThinkingLevels: ["off", "minimal", "low", "medium", "high", "xhigh"], currentTheme: "dark",
         terminalTheme: "dark", availableThemes: ["dark", "light"], hideThinkingBlock: false,
         mermaidRenderingMode: "off", showCacheMissNotices: false, collapseChangelog: true,
@@ -490,7 +490,7 @@ describe("Pi shell public component adapters", () => {
     expect(rows).toMatch(/Auto-compact\s+true/);
     expect(rows).toMatch(/Auto-resize images\s+true/);
     settings.handleInput?.("\x1b[B");
-    expect(stripTerminalSequences(settings.render(88).join("\n"))).toContain("(2/30)");
+    expect(stripTerminalSequences(settings.render(88).join("\n"))).toContain("(2/31)");
     settings.handleInput?.("\x1b");
     expect(cancelled).toHaveBeenCalledOnce();
 

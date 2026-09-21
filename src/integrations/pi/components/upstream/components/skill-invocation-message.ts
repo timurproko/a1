@@ -1,12 +1,12 @@
 /**
- * Provenance: @earendil-works/pi-coding-agent 0.85.1 (MIT), commit d981de1229ef899957bbe968bc8dcda02a21f477,
+ * Provenance: @earendil-works/pi-coding-agent 0.86.0 (MIT), commit ecac0a9c4edad3dac5d9f8b40e0c7db7a56471fc,
  * packages/coding-agent/src/modes/interactive/components/skill-invocation-message.ts.
  * Modifications: Mechanical port uses A1's public pi-tui instance, owned theme boundary, and
  * root-instance keybinding registry because the public coding-agent component closes over a second
  * nested pi-tui singleton and cannot observe A1's keybindings.
  * Deviations: none.
  */
-import { Box, getKeybindings, Markdown, Text, type MarkdownTheme } from "@earendil-works/pi-tui";
+import { Box, Container, getKeybindings, Markdown, MouseRegion, Text, type MarkdownTheme } from "@earendil-works/pi-tui";
 import { piTheme } from "../theme/theme.js";
 
 export interface SkillInvocationBlock {
@@ -41,20 +41,26 @@ export class SkillInvocationMessageComponent extends Box {
 
   #updateDisplay(): void {
     this.clear();
+    const content = new Container();
     if (this.#expanded) {
       const label = piTheme().fg("customMessageLabel", "\x1b[1m[skill]\x1b[22m");
-      this.addChild(new Text(label, 0, 0));
+      content.addChild(new Text(label, 0, 0));
       const header = `**${this.skillBlock.name}**\n\n`;
-      this.addChild(new Markdown(header + this.skillBlock.content, 0, 0, this.markdownTheme, {
+      content.addChild(new Markdown(header + this.skillBlock.content, 0, 0, this.markdownTheme, {
         color: text => piTheme().fg("customMessageText", text),
       }));
-      return;
+    } else {
+      const expandKey = getKeybindings().getKeys("app.tools.expand")[0] ?? "";
+      const line = piTheme().fg("customMessageLabel", "\x1b[1m[skill]\x1b[22m ")
+        + piTheme().fg("customMessageText", this.skillBlock.name)
+        + piTheme().fg("dim", ` (${expandKey} to expand)`);
+      content.addChild(new Text(line, 0, 0));
     }
 
-    const expandKey = getKeybindings().getKeys("app.tools.expand")[0] ?? "";
-    const line = piTheme().fg("customMessageLabel", "\x1b[1m[skill]\x1b[22m ")
-      + piTheme().fg("customMessageText", this.skillBlock.name)
-      + piTheme().fg("dim", ` (${expandKey} to expand)`);
-    this.addChild(new Text(line, 0, 0));
+    this.addChild(new MouseRegion(content, event => {
+      if (event.type !== "click" || event.button !== "left") return undefined;
+      this.setExpanded(!this.#expanded);
+      return { handled: true };
+    }));
   }
 }

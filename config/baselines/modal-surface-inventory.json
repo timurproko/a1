@@ -3,8 +3,8 @@
   "change": "build-owned-pi-ui-foundation",
   "task": "7.26",
   "pinned": {
-    "version": "0.85.1",
-    "commit": "d981de1229ef899957bbe968bc8dcda02a21f477"
+    "version": "0.86.0",
+    "commit": "ecac0a9c4edad3dac5d9f8b40e0c7db7a56471fc"
   },
   "policy": {
     "scope": "Every root, nested, replacement, and overlay node plus every source-reachable transition from InteractiveMode, nested components, and public extension UI is mandatory.",
@@ -74,6 +74,7 @@
     "follow-up-mode",
     "transport",
     "http-idle-timeout",
+    "cache-warming-mode",
     "hide-thinking",
     "mermaid-rendering",
     "cache-miss-notices",
@@ -722,7 +723,7 @@
       "source": "session",
       "sourceAnchors": [
         "Resume Session (All)",
-        "this.scope = \"all\""
+        "const showCwd = this.scope === \"all\";"
       ],
       "heading": "Resume Session (All)",
       "body": "search plus all-session cwd/path rows and loading/progress/status",
@@ -2279,7 +2280,7 @@
       "to": "session.resume.all",
       "source": "session",
       "sourceAnchors": [
-        "this.scope = \"all\""
+        "this.scope = this.scope === \"current\" ? \"all\" : \"current\";"
       ],
       "trigger": "Tab",
       "stateMutation": "switch scope and load/cache all sessions",
@@ -2299,7 +2300,7 @@
       "to": "session.resume.current",
       "source": "session",
       "sourceAnchors": [
-        "this.scope = \"current\""
+        "this.scope = this.scope === \"current\" ? \"all\" : \"current\";"
       ],
       "trigger": "Tab",
       "stateMutation": "switch to current cached/loading sessions",

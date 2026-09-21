@@ -11,7 +11,7 @@ import { loadPiSettingsMetadata, type PiSettingsMetadata } from "./settings-meta
 
 export type PiSettingKey =
   | "autoCompact" | "showImages" | "imageWidthCells" | "autoResizeImages" | "blockImages"
-  | "enableSkillCommands" | "steeringMode" | "followUpMode" | "transport" | "httpIdleTimeoutMs"
+  | "enableSkillCommands" | "steeringMode" | "followUpMode" | "transport" | "httpIdleTimeoutMs" | "cacheWarmingMode"
   | "modelThinkingLevels" | "theme" | "hideThinkingBlock" | "mermaidRenderingMode" | "showCacheMissNotices"
   | "collapseChangelog" | "enableInstallTelemetry" | "quietStartup" | "defaultProjectTrust"
   | "doubleEscapeAction" | "treeFilterMode" | "showHardwareCursor" | "editorPaddingX" | "outputPad"
@@ -71,6 +71,7 @@ export const PI_SETTING_EFFECTS: Readonly<Record<PiSettingKey, PiSettingEffectDe
   followUpMode: effect("live", "agent", "queue-transcript", "pinned follow-up queue and submitted prompt rows", "pinned-status-indicator-parity"),
   transport: effect("live", "agent", "status-error", "pinned provider request status and failure rows", "settings-effects-provider-parity"),
   httpIdleTimeoutMs: effect("live", "agent", "retry-error", "pinned timeout, retry, and terminal failure rows", "pinned-transcript-lifecycle-parity"),
+  cacheWarmingMode: effect("live", "agent", "footer-transcript", "pinned cache warming notices and session usage rows", "pinned-transcript-lifecycle-parity"),
   modelThinkingLevels: effect("live", "agent", "footer-transcript", "pinned per-model thinking override, footer indicator, and thinking rows", "pinned-status-indicator-parity"),
   theme: hiddenEffect("live", "shell", "pinned theme selector and complete themed shell", "pinned-theme-parity"),
   hideThinkingBlock: effect("live", "shell", "transcript", "pinned thinking block presence and spacing", "pinned-transcript-lifecycle-parity"),
@@ -554,6 +555,7 @@ function operations(settings: SettingsManager, providers: PiSettingsProviders): 
     choice("followUpMode", offered("followUpMode"), () => settings.getFollowUpMode(), value => settings.setFollowUpMode(value as "all" | "one-at-a-time")),
     choice("transport", offered("transport"), () => settings.getTransport(), value => settings.setTransport(value as ReturnType<SettingsManager["getTransport"]>)),
     numberSetting("httpIdleTimeoutMs", () => settings.getHttpIdleTimeoutMs(), value => settings.setHttpIdleTimeoutMs(value), 0),
+    choice("cacheWarmingMode", offered("cacheWarmingMode"), () => settings.getCacheWarmingMode(), value => settings.setCacheWarmingMode(value as ReturnType<SettingsManager["getCacheWarmingMode"]>)),
     modelThinkingLevels(settings),
     themeSetting(settings, themes),
     bool("hideThinkingBlock", () => settings.getHideThinkingBlock(), value => settings.setHideThinkingBlock(value)),

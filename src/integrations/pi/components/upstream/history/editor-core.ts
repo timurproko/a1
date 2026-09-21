@@ -1,5 +1,5 @@
 /**
- * Provenance: @earendil-works/pi-tui 0.85.1 (MIT), commit d981de1229ef899957bbe968bc8dcda02a21f477,
+ * Provenance: @earendil-works/pi-tui 0.86.0 (MIT), commit ecac0a9c4edad3dac5d9f8b40e0c7db7a56471fc,
  * packages/tui/src/components/editor.ts.
  * Modifications: Owned editor core or minimal editor-local helper subset; public imports, strict
  * types, typed persistent-history hooks, and semantic border state with the user-approved numeric-only
@@ -11,7 +11,7 @@ import { getKeybindings, matchesKey, CURSOR_MARKER, sliceByColumn, truncateToWid
 import { decodePrintableKey } from "./printable-key.js";
 import { KillRing } from "./kill-ring.js";
 import { UndoStack } from "./undo-stack.js";
-import { cjkBreakRegex, getGraphemeSegmenter, getWordSegmenter, isWhitespaceChar } from "./text-helpers.js";
+import { autocompleteBoundaryRegex, autocompleteSeparatorRegex, cjkBreakRegex, getGraphemeSegmenter, getWordSegmenter, isWhitespaceChar } from "./text-helpers.js";
 import { findWordBackward, findWordForward } from "./word-navigation.js";
 import type { EditorInteractionPort, EditorRecallPort } from "../../editor-interaction.js";
 
@@ -244,18 +244,26 @@ const SLASH_COMMAND_SELECT_LIST_LAYOUT: SelectListLayoutOptions = {
 
 const ATTACHMENT_AUTOCOMPLETE_DEBOUNCE_MS = 20;
 const DEFAULT_AUTOCOMPLETE_TRIGGER_CHARACTERS = ["@", "#"];
+// Unquoted completions end at whitespace or CJK punctuation; quoted paths may contain either.
+const unquotedAutocompleteSuffixRegex = new RegExp(`(?:(?!${autocompleteSeparatorRegex.source}).)*`, "u");
 
 function escapeCharacterClass(value: string): string {
 	return value.replace(/[\\^$.*+?()[\]{}|-]/g, "\\$&");
 }
 
 function buildTriggerPattern(triggerCharacters: string[]): RegExp {
-	return new RegExp(`(?:^|[\\s])[${triggerCharacters.map(escapeCharacterClass).join("")}][^\\s]*$`);
+	return new RegExp(
+		`${autocompleteBoundaryRegex.source}(?:@"[^"]*|[${triggerCharacters.map(escapeCharacterClass).join("")}]${unquotedAutocompleteSuffixRegex.source})$`,
+		"u",
+	);
 }
 
 function buildDebouncePattern(triggerCharacters: string[]): RegExp {
 	const escapedWithoutAt = triggerCharacters.filter((character) => character !== "@").map(escapeCharacterClass);
-	return new RegExp(`(?:^|[ \\t])(?:@(?:"[^"]*|[^\\s]*)|[${escapedWithoutAt.join("")}][^\\s]*)$`);
+	return new RegExp(
+		`${autocompleteBoundaryRegex.source}(?:@(?:"[^"]*|${unquotedAutocompleteSuffixRegex.source})|[${escapedWithoutAt.join("")}]${unquotedAutocompleteSuffixRegex.source})$`,
+		"u",
+	);
 }
 
 function createScrollBorder(direction: "↑" | "↓", hiddenLineCount: number, width: number): string {
@@ -1313,13 +1321,12 @@ export class HistoryEditorCore implements Component, Focusable {
 			else if (this.autocompleteTriggerCharacters.includes(char)) {
 				const currentLine = this.state.lines[this.state.cursorLine] || "";
 				const textBeforeCursor = currentLine.slice(0, this.state.cursorCol);
-				const charBeforeSymbol = textBeforeCursor[textBeforeCursor.length - 2];
-				if (textBeforeCursor.length === 1 || charBeforeSymbol === " " || charBeforeSymbol === "\t") {
+				if (this.autocompleteTriggerPattern.test(textBeforeCursor)) {
 					this.tryTriggerAutocomplete();
 				}
 			}
 			// Also auto-trigger when typing letters in a slash command or symbol completion context
-			else if (/[a-zA-Z0-9.\-_]/.test(char)) {
+			else if (/[a-zA-Z0-9.\-_]/.test(char) || cjkBreakRegex.test(char)) {
 				const currentLine = this.state.lines[this.state.cursorLine] || "";
 				const textBeforeCursor = currentLine.slice(0, this.state.cursorCol);
 				// Check if we're in a slash command (with or without space for arguments)
