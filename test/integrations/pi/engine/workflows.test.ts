@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   createPiEngineAdapter,
   PI_SETTING_EFFECTS,
+  PINNED_PI_DECLINED_COMMAND_NAMES,
   PINNED_PI_HIDDEN_COMMAND_NAMES,
   PINNED_PI_SETTINGS_CALLBACKS,
   PINNED_PI_WORKFLOW_COMMAND_NAMES,
@@ -273,8 +274,13 @@ describe("pinned Pi command and input workflows", () => {
     const interactiveMap = JSON.parse(await readFile("node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/interactive-mode.js.map", "utf8"));
     const interactiveSource = String(interactiveMap.sourcesContent[0]);
 
-    expect(upstreamNames).toEqual(PINNED_PI_WORKFLOW_COMMAND_NAMES);
-    expect(evidence.advertised.map((entry: { name: string }) => entry.name)).toEqual(upstreamNames);
+    // Invariant: every advertised engine command is either presented by A1 or named as declined, so a
+    // route upstream adds still fails this gate until it is classified rather than silently absorbed.
+    const declined: readonly string[] = PINNED_PI_DECLINED_COMMAND_NAMES;
+    const presentedUpstreamNames = upstreamNames.filter(name => !declined.includes(name!));
+    expect(upstreamNames.filter(name => declined.includes(name!))).toEqual(declined);
+    expect(presentedUpstreamNames).toEqual(PINNED_PI_WORKFLOW_COMMAND_NAMES);
+    expect(evidence.advertised.map((entry: { name: string }) => entry.name)).toEqual(presentedUpstreamNames);
     expect(evidence.hidden).toEqual(PINNED_PI_HIDDEN_COMMAND_NAMES);
     expect(evidence.settingsCallbacks).toEqual(PINNED_PI_SETTINGS_CALLBACKS);
     for (const name of [...upstreamNames, ...PINNED_PI_HIDDEN_COMMAND_NAMES]) {

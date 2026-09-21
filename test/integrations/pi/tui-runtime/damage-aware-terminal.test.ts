@@ -78,8 +78,8 @@ describe("A1-owned damage-aware terminal adapter", () => {
   });
 
   it("forwards a batched-erase frame unchanged instead of reading its paints as one row's content", () => {
-    // Pinned 0.86.0 emits every row erase ahead of the paints for WezTerm frames that place Kitty
-    // images. That shape is outside this grammar, so it must fall through rather than be transformed.
+    // Compatibility: pinned 0.86.0 emits every row erase ahead of the paints for WezTerm frames that
+    // place Kitty images. That shape is outside this grammar, so it falls through untransformed.
     const { adapter, terminal } = initialized();
     const rows = ["B", "C", "D", "E", "F", "G"];
     const erases = rows.map((_content, index) => `\u001b[${index + 1};1H\u001b[2K`).join("");

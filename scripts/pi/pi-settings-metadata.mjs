@@ -79,6 +79,17 @@ function mapKeys(source, name) {
   return [...body.matchAll(/^\s*(\w+):/gm)].map(match => match[1]);
 }
 
+/** The string members of a declared constant array, in the order the engine declares them. */
+function constArray(sources, name) {
+  for (const source of sources) {
+    const match = new RegExp(`const ${name}\\s*=\\s*\\[([^\\]]*)\\]`).exec(source);
+    if (!match) continue;
+    const members = [...match[1].matchAll(/"([^"]*)"/g)].map(entry => entry[1]);
+    if (members.length > 0) return members;
+  }
+  return [];
+}
+
 /**
  * The item's own description, which the engine writes as a plain string or as a template whose
  * interpolations name keybinding hints. A sentence that needs a hint is dropped rather than shown
@@ -91,7 +102,7 @@ function itemDescription(body) {
   return (match[2] ?? "").split(/(?<=\.)\s+/).filter(sentence => !sentence.includes("${")).join(" ").trim();
 }
 
-function describedItems(source) {
+function describedItems(source, imported = "") {
   return itemChunks(source).map(chunk => {
     const description = itemDescription(chunk.body);
     // Invariant: an entry either offers a value list or opens its own dialog. That is the
@@ -101,7 +112,14 @@ function describedItems(source) {
       .map(match => match[1]);
     // Protocol: a map's keys are what the engine stores; its values are only how it words them.
     const fromMap = /values:\s*Object\.values\((\w+)\)/.exec(chunk.body)?.[1];
-    const values = listed.length > 0 ? listed : fromMap === undefined ? [] : mapKeys(source, fromMap);
+    // Protocol: the engine also spreads a named constant array, which it may declare in the
+    // settings file rather than the selector; an unresolved name offers nothing rather than guessing.
+    const fromSpread = /values:\s*\[\s*\.\.\.(\w+)\s*,?\s*\]/.exec(chunk.body)?.[1];
+    const values = listed.length > 0
+      ? listed
+      : fromMap !== undefined
+        ? mapKeys(source, fromMap)
+        : fromSpread === undefined ? [] : constArray([source, imported], fromSpread);
     const literalValue = /currentValue:\s*"([^"]+)"/.exec(chunk.body)?.[1];
     return { id: chunk.id, label: chunk.label, description, opensDialog, values, literalValue };
   });
@@ -203,7 +221,8 @@ export function numericBounds(source) {
 
 export function extractPiSettingsMetadata(packagesRoot) {
   const source = settingsSelectorSource(packagesRoot);
-  const byId = new Map(describedItems(source).map(item => [item.id, item]));
+  const manager = settingsManagerSource(packagesRoot);
+  const byId = new Map(describedItems(source, manager).map(item => [item.id, item]));
 
   const settings = {};
   for (const [id, key] of Object.entries(ID_TO_KEY)) {

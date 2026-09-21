@@ -188,7 +188,9 @@ describe("OwnedUiSessionShell skills command", () => {
       expect(shown).not.toContain("code-review");
 
       skills.set("expand");
-      shown = await menu("/skill");
+      // Compatibility: pinned 0.86.0 matches a `skill:` command on its bare name unless the typed
+      // query already carries the prefix, so the per-skill rows answer `/skill:` rather than `/skill`.
+      shown = await menu("/skill:");
       expect(shown).toContain("skill:framer");
       expect(shown).toContain("skill:code-review");
       expect(shown).not.toMatch(/\bskills\b/u);
@@ -214,7 +216,7 @@ describe("OwnedUiSessionShell skills command", () => {
       expect(shown).toContain("skills:framer");
       expect(shown).toContain("wrapped");
       skills.set("expand");
-      shown = await menu("/skill");
+      shown = await menu("/skill:");
       expect(shown).toContain("skill:framer");
       expect(shown).not.toContain("wrapped");
     } finally { await shell.dispose(); }
@@ -254,7 +256,7 @@ describe("OwnedUiSessionShell skills command", () => {
     const { shell, engine } = await fixture([], [], false, undefined, undefined, undefined, undefined, undefined,
       undefined, engine => withSkills(engine), undefined, undefined, undefined, undefined, undefined, skills.options);
     try {
-      shell.root.editor.handleInput?.("/skill");
+      shell.root.editor.handleInput?.("/skill:");
       await settle();
       const shown = stripTerminalSequences(shell.root.editor.render(100).join("\n"));
       expect(shown).toContain("skill:framer");

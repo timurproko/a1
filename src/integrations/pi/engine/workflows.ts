@@ -28,6 +28,14 @@ export const PINNED_PI_WORKFLOW_COMMAND_NAMES = [
 
 export const PINNED_PI_HIDDEN_COMMAND_NAMES = ["debug", "arminsayshi", "dementedelves"] as const;
 
+/**
+ * Commands the pinned engine advertises that A1 deliberately does not present. `/bug` collects,
+ * uploads, and archives a report through modules the package keeps off its public surface, so A1
+ * cannot reproduce the route and does not offer a partial one. Naming them here keeps the manifest
+ * comparison exact: a command upstream adds still fails the gate until it is classified.
+ */
+export const PINNED_PI_DECLINED_COMMAND_NAMES = ["bug"] as const;
+
 export type PiWorkflowCommandName = typeof PINNED_PI_WORKFLOW_COMMAND_NAMES[number];
 export type PiHiddenWorkflowCommandName = typeof PINNED_PI_HIDDEN_COMMAND_NAMES[number];
 
