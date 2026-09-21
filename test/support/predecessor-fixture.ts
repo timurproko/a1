@@ -1,6 +1,6 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { resolve } from "node:path";
+import { resolve, sep } from "node:path";
 import { performance } from "node:perf_hooks";
 import { PredecessorCommandError, runPredecessorCommand, type PredecessorCommand, type PredecessorCommandEvidence } from "./predecessor-command.js";
 
@@ -93,6 +93,29 @@ export class PredecessorFixture {
     }
   }
 
+  /**
+   * Releases one finished root while its phase budget still applies, so teardown is not left holding
+   * every predecessor installation at once. Only a fixture-owned root is reachable, and an active owned
+   * command blocks the removal rather than racing it.
+   */
+  async discard(path: string): Promise<void> {
+    const signal = this.#signal();
+    if (this.#commands.size > 0) throw new Error(`predecessor discard while ${this.#commands.size} owned command(s) are active`);
+    const root = this.#owningRoot(path);
+    const start = performance.now();
+    const evidence: PredecessorCommandEvidence = { phase: "discard", version: null, executable: "other", durationMs: 0,
+      stdoutBytes: 0, stderrBytes: 0, exitCode: null, signal: null, error: null, cleanupError: null, roots: 1 };
+    try {
+      await this.#remove(root);
+      this.#roots.delete(root);
+    } catch (error) {
+      this.#report({ ...evidence, durationMs: Math.round(performance.now() - start), error: signal.aborted ? "ABORTED" : "DISCARD_FAILED" });
+      throw error;
+    }
+    this.#report({ ...evidence, durationMs: Math.round(performance.now() - start), exitCode: 0 });
+    signal.throwIfAborted();
+  }
+
   /** Registers a root before observing cancellation so teardown cannot lose a newly created directory. */
   async temporaryRoot(prefix: string): Promise<string> {
     const signal = this.#signal();
@@ -126,6 +149,13 @@ export class PredecessorFixture {
     } finally { this.#commands.delete(promise); }
   }
 
+  #owningRoot(path: string): string {
+    const target = resolve(path);
+    const owner = [...this.#roots].find(root => target === root || target.startsWith(`${root}${sep}`));
+    if (!owner) throw new Error("predecessor discard outside a fixture-owned root");
+    return owner;
+  }
+
   #signal(): AbortSignal {
     if (this.#closing || !this.#controller) throw new Error("predecessor command outside active phase");
     this.#controller.signal.throwIfAborted();
@@ -143,8 +173,16 @@ export class PredecessorFixture {
       ]);
     } finally { if (timer) clearTimeout(timer); }
     if (this.#unsafeCleanup) throw new Error("predecessor cleanup: child ownership/closure unverified; roots retained");
+    // Rationale: a teardown that outgrows its hook budget reads as an opaque hook timeout, so the roots
+    // it still had to remove and the time they cost are reported before the outcome is decided.
+    const start = performance.now();
+    const retained = this.#roots.size;
     const outcomes = await Promise.allSettled([...this.#roots].map(async root => { await this.#remove(root); this.#roots.delete(root); }));
-    if (outcomes.some(outcome => outcome.status === "rejected")) throw new Error("predecessor cleanup: failed to remove fixture roots");
+    const failed = outcomes.some(outcome => outcome.status === "rejected");
+    this.#report({ phase: "cleanup", version: null, executable: "other", durationMs: Math.round(performance.now() - start),
+      stdoutBytes: 0, stderrBytes: 0, exitCode: failed ? null : 0, signal: null, error: failed ? "CLEANUP_FAILED" : null,
+      cleanupError: null, roots: retained });
+    if (failed) throw new Error("predecessor cleanup: failed to remove fixture roots");
   }
 }
 
