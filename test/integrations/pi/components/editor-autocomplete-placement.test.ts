@@ -316,7 +316,7 @@ describe("escape on a slash-command search", () => {
         expect(parts(editor, 80).menu, typed).toHaveLength(0);
       }
       // Compatibility: `/sk/rev` was a command-search case while a `skill:` command matched on its full
-      // name. Pinned 0.86.0 matches it on the bare name unless the query carries the prefix, so that
+      // name. The pinned engine matches it on the bare name unless the query carries the prefix, so that
       // input now offers no completion and is ordinary text here rather than a search this case covers.
       expect(interrupts).toHaveLength(0);
 

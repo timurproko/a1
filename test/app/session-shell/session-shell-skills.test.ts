@@ -188,7 +188,7 @@ describe("OwnedUiSessionShell skills command", () => {
       expect(shown).not.toContain("code-review");
 
       skills.set("expand");
-      // Compatibility: pinned 0.86.0 matches a `skill:` command on its bare name unless the typed
+      // Compatibility: the pinned engine matches a `skill:` command on its bare name unless the typed
       // query already carries the prefix, so the per-skill rows answer `/skill:` rather than `/skill`.
       shown = await menu("/skill:");
       expect(shown).toContain("skill:framer");

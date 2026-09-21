@@ -82,7 +82,7 @@ interface ParsedRow {
 const BEGIN_SYNCHRONIZED_OUTPUT = "\u001b[?2026h";
 const END_SYNCHRONIZED_OUTPUT = "\u001b[?2026l";
 const ROW_MARKER = /\u001b\[(\d+);1H\u001b\[2K/gu;
-// Invariant: in this grammar a row's painted content never repositions the cursor. Pinned 0.86.0
+// Invariant: in this grammar a row's painted content never repositions the cursor. The pinned engine
 // batches every row erase ahead of the paints for WezTerm frames that place Kitty images, so those
 // paints would otherwise be read as one row's content; an unrecognized frame is forwarded unchanged.
 const ROW_CONTENT_CURSOR = /\u001b\[\d+;1H/u;

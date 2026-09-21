@@ -1202,7 +1202,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       this.#appendAnchoredWorkflowComponent(width => ["", ...announcement.render(width)], () => announcement.dispose?.());
       return;
     }
-    // Rationale: pinned 0.85.1 links both share URLs; the workflow result carries the plain URLs.
+    // Rationale: the pinned engine links both share URLs; the workflow result carries the plain URLs.
     const message = result.command === "share" && result.detail
       ? `${linkShareUrl(result.message)}\nGist: ${piShellHyperlink(result.detail)}`
       : result.message;

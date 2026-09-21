@@ -53,7 +53,7 @@ describe("transcript image conversion lifetime", () => {
     const oldPixels = kittyData(reference.render(80));
     const replacement = image(0, "image/png");
     reference.updateResult({ content: [replacement], isError: false }, true);
-    // Compatibility: pinned 0.86.0 re-converts a replaced tool result, so the stale payload this
+    // Compatibility: the pinned engine re-converts a replaced tool result, so the stale payload this
     // baseline used to record is gone upstream; owned delivery and caching are asserted separately below.
     await vi.waitFor(() => expect(kittyData(reference.render(80))).toEqual([replacement.data]));
     expect(kittyData(reference.render(80))).not.toEqual(oldPixels);
