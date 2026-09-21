@@ -32,6 +32,7 @@ import {
   withScrollbarRail,
   stepperEnds,
   steppedValue,
+  truncateToWidth,
   valueColumnFor,
   valueMenuFrame,
   blockRowSpan,
@@ -66,6 +67,10 @@ import type {
 import { SETTINGS_APP_ID, SETTINGS_ROUTE } from "./settings-route.js";
 export { SETTINGS_APP_ID, SETTINGS_ROUTE } from "./settings-route.js";
 const SCOPE = SETTINGS_APP_ID;
+/** Fixed rows before the scrollable list: border, then title. */
+const SETTINGS_HEADER_ROWS = 2;
+/** Fixed border row between list content and whichever footer is active. */
+const SETTINGS_FOOTER_DIVIDER_ROWS = 1;
 /** The panel a setting with parts opens: its own keys, its own hint. */
 const DIALOG_SCOPE = `${SETTINGS_APP_ID}-parts`;
 const SCROLLBAR_TOP_INSET = 1;
@@ -173,8 +178,9 @@ export class SettingsApp implements UiApp {
   #interruptArmed = false;
   // Invariant: pending values remain visible until the source reflects them.
   readonly #pending = new Map<string, OwnedUiSettingValue>();
-  #footerHeight = 1;
   #dialogValueColumn = 0;
+  #bodyTopForFrame = SETTINGS_HEADER_ROWS;
+  #bodyHeightForFrame = 0;
   #panelTop = 0;
   #panelTopForFrame = 0;
   #hoverKey: string | null = null;
@@ -209,10 +215,11 @@ export class SettingsApp implements UiApp {
     const rows = this.#rows();
     const selected = indexOfKey(rows, this.#selectedKey);
     const footer = this.#footerLines(rect.width, theme);
-    this.#footerHeight = footer.length;
-    this.#panelTopForFrame = Math.max(0, rect.height - footer.length);
+    const bodyHeight = Math.max(0, rect.height - SETTINGS_HEADER_ROWS - SETTINGS_FOOTER_DIVIDER_ROWS - footer.length);
+    this.#bodyTopForFrame = SETTINGS_HEADER_ROWS;
+    this.#bodyHeightForFrame = bodyHeight;
+    this.#panelTopForFrame = SETTINGS_HEADER_ROWS + bodyHeight + SETTINGS_FOOTER_DIVIDER_ROWS;
     this.#panelTop = this.#panelTopForFrame;
-    const bodyHeight = Math.max(0, rect.height - footer.length);
     if (this.#selectionNeedsReveal) {
       this.#scroll = scrollForSelection(rows, bodyHeight, this.#scroll, selected, this.#reveal);
       this.#selectionNeedsReveal = false;
@@ -249,7 +256,7 @@ export class SettingsApp implements UiApp {
     });
     this.#railFrame = reservesRail && geometry !== null
       ? {
-        rail: { key: RAIL_KEY, column: rect.width, rowStart: SCROLLBAR_TOP_INSET, trackHeight: geometry.trackHeight },
+        rail: { key: RAIL_KEY, column: rect.width, rowStart: this.#bodyTopForFrame + SCROLLBAR_TOP_INSET, trackHeight: geometry.trackHeight },
         geometry,
         page: layout.visible,
       }
@@ -268,7 +275,7 @@ export class SettingsApp implements UiApp {
           const view = this.#viewRow(row.value);
           this.#frameRows.push({
             key: view.key,
-            screenRow: body.length,
+            screenRow: this.#bodyTopForFrame + body.length,
             valueColumn,
             valueWidth: displayWidth(view.value),
             stepper: view.stepper !== undefined,
@@ -283,7 +290,18 @@ export class SettingsApp implements UiApp {
       topInset: SCROLLBAR_TOP_INSET,
       presentation,
     });
-    return this.#withMenu([...withRail, ...footer], selected, layout, valueColumn, theme, rect, reservesRail ? RAIL_COLUMNS : 0);
+    const rule = theme.fg("border", "─".repeat(Math.max(0, rect.width)));
+    const title = truncateToWidth(` ${theme.bold(theme.fg("accent", "Settings"))}`, rect.width);
+    const frame = this.#withMenu(
+      [rule, title, ...withRail, rule, ...footer],
+      selected,
+      layout,
+      valueColumn,
+      theme,
+      rect,
+      reservesRail ? RAIL_COLUMNS : 0,
+    );
+    return frame.slice(0, rect.height).concat(Array(Math.max(0, rect.height - frame.length)).fill(""));
   }
 
   onInput(data: string, host: AppHostServices): PaneInputResult {
@@ -406,7 +424,10 @@ export class SettingsApp implements UiApp {
     if (event.kind === "wheel-up" || event.kind === "wheel-down") {
       // Invariant: the whole list pane owns wheel scrolling, including blank space beside
       // short labels. It must not depend on finding an item under the pointer.
-      if (event.row < 1 || event.row > this.#panelTopForFrame) return { consumed: false };
+      const screenRow = event.row - 1;
+      if (screenRow < this.#bodyTopForFrame || screenRow >= this.#bodyTopForFrame + this.#bodyHeightForFrame) {
+        return { consumed: false };
+      }
       const distance = scrollbarWheelRows(this.#scrollbarSpeed());
       this.#scroll = Math.max(0, this.#scroll + (event.kind === "wheel-down" ? distance : -distance));
       return { consumed: true };
@@ -825,7 +846,8 @@ export class SettingsApp implements UiApp {
       index: menu.index,
     };
     const frame = valueMenuFrame(state, { screenRow: anchor.screenRow, valueColumn }, {
-      bodyHeight: lines.length - this.#footerHeight,
+      bodyTop: this.#bodyTopForFrame,
+      bodyHeight: this.#bodyHeightForFrame,
       surfaceWidth: rect.width,
       reservedRight,
     });

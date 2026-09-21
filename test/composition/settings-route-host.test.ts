@@ -72,6 +72,12 @@ describe("owned settings route theme", () => {
       await new Promise(resolve => setTimeout(resolve, 10));
       initial = surface!.render(48, 12);
     }
+    expect(initial[0]).toContain(`${ESC}[38;2;95;135;255m`);
+    expect(initial[0]?.replace(STYLE, "")).toBe("─".repeat(48));
+    expect(initial[1]).toContain(`${ESC}[38;2;138;190;183mSettings`);
+    expect(initial[1]?.replace(STYLE, "")).toBe(" Settings");
+    expect(initial.some(line => line.includes(`${ESC}[38;2;240;198;116m`))).toBe(true);
+
     const row = initial.findIndex(line => line.replace(STYLE, "").includes("Mode"));
     const column = (initial[row] ?? "").replace(STYLE, "").indexOf("auto") + 1;
     surface!.handleMouse({ kind: "press", button: 0, row: row + 1, column });

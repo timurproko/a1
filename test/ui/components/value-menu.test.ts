@@ -49,6 +49,14 @@ describe("shared value menu", () => {
       surfaceWidth: 30,
       reservedRight: 2,
     })).toEqual({ top: 2, column: 18, width: 10, rows: 3 });
+
+    // Invariant: fixed screen chrome is not available when a framed list flips upward.
+    expect(valueMenuFrame(STATE, { screenRow: 4, valueColumn: 8 }, {
+      bodyTop: 2,
+      bodyHeight: 4,
+      surfaceWidth: 30,
+      reservedRight: 2,
+    })).toEqual({ top: 2, column: 8, width: 10, rows: 3 });
   });
 
   it("keeps pointer hit testing inside the visible menu cells", () => {

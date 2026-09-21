@@ -33,7 +33,9 @@ export interface ValueMenuFrame {
 }
 
 export interface ValueMenuLayout {
-  /** Rows available above the footer. */
+  /** First screen row available to the menu. Defaults to zero. */
+  readonly bodyTop?: number;
+  /** Rows available between the fixed header and footer. */
   readonly bodyHeight: number;
   /** Full surface width, so the menu stays inside it. */
   readonly surfaceWidth: number;
@@ -47,10 +49,12 @@ export function valueMenuFrame(
   anchor: ValueMenuAnchor,
   layout: ValueMenuLayout,
 ): ValueMenuFrame {
+  const bodyTop = layout.bodyTop ?? 0;
+  const bodyBottom = bodyTop + layout.bodyHeight;
   const below = anchor.screenRow + 1;
-  const top = below + state.choices.length <= layout.bodyHeight
+  const top = below + state.choices.length <= bodyBottom
     ? below
-    : Math.max(0, anchor.screenRow - state.choices.length);
+    : Math.max(bodyTop, anchor.screenRow - state.choices.length);
   const width = Math.max(...state.choices.map(choice => displayWidth(choice) + 4), 6);
   const column = Math.min(anchor.valueColumn, Math.max(0, layout.surfaceWidth - width - layout.reservedRight));
   return { top, column, width, rows: state.choices.length };

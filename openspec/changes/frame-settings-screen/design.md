@@ -26,7 +26,7 @@ This keeps list rendering, menus, dialogs, inputs, and status lines in the share
 
 ### 2. Add an owned semantic heading role mapped to the active theme's Markdown heading
 
-Extend the vendor-neutral owned UI theme token set with `heading`. The Pi-backed theme adapter will map it to Pi's `mdHeading` color, while plain/test themes continue to supply it through the existing `fg` seam. `renderGroupHeader` will use the heading role and bold weight; border rules continue to use `border`, and the main title uses `accent`.
+Extend the vendor-neutral owned UI theme token set with the existing cross-theme `mdHeading` role. The Pi-backed theme adapter can pass that role through directly, while plain/test themes continue to supply it through the existing `fg` seam. `renderGroupHeader` will use the heading role and bold weight; border rules continue to use `border`, and the main title uses `accent`.
 
 Using `warning` was rejected because section names are hierarchy, not warning state. Hard-coding the dark theme's yellow was rejected because it would break custom and light themes. Mapping to `mdHeading` deliberately aligns the section color with the yellow `### Added` headings in the supplied `What's New` reference.
 
@@ -52,3 +52,10 @@ A screenshot-only test was rejected because it would not distinguish a correct-l
 ## Migration Plan
 
 No stored settings or user data migration is required. Deploy the presentation and theme-seam additions together. Rollback removes the fixed chrome and heading role use without changing persisted values or engine settings.
+
+## Implementation Evidence
+
+- Strict OpenSpec validation passes for this change.
+- Typechecking passes under supported Node 24 after the build generated the TypeScript distribution.
+- Focused settings, list/menu component, route-host, terminal-color, owned-run, workflow, and pinned-row tests pass (87 assertions).
+- The supported local build completed environment validation, cleaning, TypeScript compilation, and Pi metadata/startup generation, then stopped at the unchanged native process-guardian build because this host has no MSVC linker or Windows SDK; Git's unrelated `link.exe` is the only linker on `PATH`. Exact-head CI remains the authoritative clean supported-toolchain build evidence.
