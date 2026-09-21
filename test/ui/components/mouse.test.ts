@@ -23,9 +23,12 @@ describe("decoding pointer input", () => {
       .toEqual([{ kind: "motion", button: 3, column: 7, row: 3 }]);
   });
 
-  it("decodes both wheel directions", () => {
-    expect(parseMouseInput(`${ESC}[<64;1;1M`).events[0]?.kind).toBe("wheel-up");
-    expect(parseMouseInput(`${ESC}[<65;1;1M`).events[0]?.kind).toBe("wheel-down");
+  it("decodes vertical wheel directions and ignores horizontal wheel reports", () => {
+    expect(parseMouseInput(`${ESC}[<64;1;1M`).events)
+      .toEqual([{ kind: "wheel-up", button: 0, column: 1, row: 1 }]);
+    expect(parseMouseInput(`${ESC}[<65;2;3M`).events)
+      .toEqual([{ kind: "wheel-down", button: 0, column: 2, row: 3 }]);
+    expect(parseMouseInput(`${ESC}[<66;4;5M${ESC}[<67;6;7M`)).toEqual({ events: [], rest: "" });
   });
 
   it("decodes a non-left button", () => {
@@ -64,6 +67,19 @@ describe("decoding pointer input", () => {
     const forwarded = `${ESC}[<0;20;10M`;
     const routed = routeMouseInput(`a${claimed}b${forwarded}c`, event => event.kind === "wheel-up");
     expect(routed).toEqual({ data: `ab${forwarded}c`, consumed: true });
+  });
+
+  it("consumes horizontal wheel noise while preserving vertical reports and keyboard text", () => {
+    const seen: string[] = [];
+    const routed = routeMouseInput(
+      `a${ESC}[<66;2;3M${ESC}[<65;4;5Mb${ESC}[<67;6;7M${ESC}[<64;8;9Mc`,
+      event => {
+        seen.push(`${event.kind}:${event.column}:${event.row}`);
+        return true;
+      },
+    );
+    expect(seen).toEqual(["wheel-down:4:5", "wheel-up:8:9"]);
+    expect(routed).toEqual({ data: "abc", consumed: true });
   });
 });
 
