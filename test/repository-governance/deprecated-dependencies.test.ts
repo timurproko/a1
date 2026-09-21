@@ -35,10 +35,13 @@ describe("deprecated dependency release policy", () => {
   });
 
   it("allows only the documented exact pinned-Pi transitive exceptions", async () => {
+    // Invariant: the fixture chain carries the pinned version, so re-evaluating an exception at a new
+    // pin does not also need this literal edited; a stale literal fails for the wrong reason.
+    const { version } = await readPinnedPiIdentity(repository);
     const result = await runPolicy({
-      "": { name: "fixture", version: "1.0.0", dependencies: { "@earendil-works/pi-coding-agent": "0.86.0" } },
-      "node_modules/@earendil-works/pi-coding-agent": { version: "0.86.0", dependencies: { "@earendil-works/pi-ai": "0.86.0" } },
-      "node_modules/@earendil-works/pi-ai": { version: "0.86.0", dependencies: { "google-auth-library": "10.6.2" } },
+      "": { name: "fixture", version: "1.0.0", dependencies: { "@earendil-works/pi-coding-agent": version } },
+      "node_modules/@earendil-works/pi-coding-agent": { version, dependencies: { "@earendil-works/pi-ai": version } },
+      "node_modules/@earendil-works/pi-ai": { version, dependencies: { "google-auth-library": "10.6.2" } },
       "node_modules/google-auth-library": { version: "10.6.2", dependencies: { gaxios: "7.1.4" } },
       "node_modules/gaxios": { version: "7.1.4", dependencies: { "node-fetch": "3.3.2" } },
       "node_modules/node-fetch": { version: "3.3.2", dependencies: { "fetch-blob": "3.2.0" } },

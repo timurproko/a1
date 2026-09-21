@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-09-21T19:04:14.426Z",
+  "recordedAt": "2026-09-21T19:34:25.023Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "13cbf77df2396303013a41646bcfa77b4271ae56",
@@ -890,7 +890,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Unchanged image bytes are losslessly encoded in an attributed owned JSON resource by scripts/pi/update-command-resources.mjs. Source bytes and digest are verified against this pinned asset authority; runtime reads only the owned resource, never the dependency directory.",
       "upgradeStrategy": "three-way",
-      "localSha256": "17b78ea58afd2fd10b84bd4849a3c56aef0c8fa82c26b5ac694cd0c6d85495bb",
+      "localSha256": "4fbfa999fadcc9c4c389f98a470dbe4dc426da39a11f92babd5b7a45fec69343",
       "approvedDeviations": [],
       "behaviorCategories": [
         "stateful-components"
@@ -1576,7 +1576,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Mechanical port: remap pi-tui to the root public singleton, use owned keybindings/theme and external-editor seams, preserve editor layout, hints, focus, submission, cancellation, and external-editor lifecycle.",
       "upgradeStrategy": "three-way",
-      "localSha256": "867bb1ef455116f6cc3e0a8f234d7f7a9ac6d5b6d465261e6afb9906655d69c2",
+      "localSha256": "60995cd4685c594f2ded93753217fad7f7bb0359cb8ab776d55d883ad8f731ef",
       "approvedDeviations": [],
       "behaviorCategories": [
         "editor",

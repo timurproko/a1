@@ -2297,7 +2297,8 @@
       "version": "0.86.1",
       "summary": "Sign in with Meta using `/login meta` or use `META_API_KEY` to access Muse Spark models.",
       "since": "0.86.1",
-      "disposition": "pending"
+      "disposition": "pinned",
+      "note": "Provider sign-in and catalog; reached through the pinned engine, with the provider default model mirrored in the owned resolver map."
     }
   ]
 }

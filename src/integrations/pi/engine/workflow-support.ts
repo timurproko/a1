@@ -21,7 +21,8 @@ const execFileAsync = promisify(execFile);
 
 export const AUTH_REFRESH_TIMEOUT_MS = 15_000;
 
-// Provenance: Pi 0.84.2 core/model-resolver.ts defaultModelPerProvider.
+// Provenance: the pinned engine's core/model-resolver.ts defaultModelPerProvider, which every
+// upgrade that adds a provider extends; the version this mirrors is the pin, not one named here.
 export const PINNED_DEFAULT_MODEL_BY_PROVIDER: Readonly<Record<string, string>> = Object.freeze({
   "amazon-bedrock": "us.anthropic.claude-opus-4-6-v1",
   "ant-ling": "Ring-2.6-1T",
@@ -42,6 +43,7 @@ export const PINNED_DEFAULT_MODEL_BY_PROVIDER: Readonly<Record<string, string>> 
   cerebras: "zai-glm-4.7",
   zai: "glm-5.1",
   "zai-coding-cn": "glm-5.1",
+  meta: "muse-spark-1.3",
   mistral: "devstral-medium-latest",
   minimax: "MiniMax-M2.7",
   "minimax-cn": "MiniMax-M2.7",
