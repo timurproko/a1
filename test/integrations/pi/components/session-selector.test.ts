@@ -45,7 +45,7 @@ describe("owned pinned session selector", () => {
       progress?.(values.length, values.length);
       return values.filter(value => existsSync(value.path));
     };
-    const component = createPiShellSessionSelector({
+    const component = await createPiShellSessionSelector({
       currentSessionsLoader: loadCurrent,
       allSessionsLoader: loadAll,
       currentSessionFilePath: currentPath,

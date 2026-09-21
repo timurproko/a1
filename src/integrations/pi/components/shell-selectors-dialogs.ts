@@ -24,12 +24,6 @@ import {
   EarendilAnnouncementComponent,
 } from "./upstream/components/earendil-announcement.js";
 import {
-  SessionSelectorComponent,
-} from "./upstream/components/session-selector.js";
-import {
-  TreeSelectorComponent,
-} from "./upstream/components/tree-selector.js";
-import {
   Box,
   Container,
   SelectList,
@@ -106,6 +100,7 @@ export function createPiShellSettingsSelector(options: PiShellSettingsSelectorOp
     onFollowUpModeChange: change("onFollowUpModeChange"),
     onTransportChange: change("onTransportChange"),
     onHttpIdleTimeoutMsChange: change("onHttpIdleTimeoutMsChange"),
+    onCacheWarmingModeChange: change("onCacheWarmingModeChange"),
     onModelThinkingLevelChange: change("onModelThinkingLevelChange"),
     onModelThinkingLevelRemove: change("onModelThinkingLevelRemove"),
     onThemeChange: change("onThemeChange"),
@@ -255,17 +250,21 @@ export function createPiShellTrustSelector(options: {
   return componentPort(new TrustSelectorComponent(options));
 }
 
-export function createPiShellSessionSelector(options: {
-  readonly currentSessionsLoader: (onProgress?: (loaded: number, total: number) => void) => Promise<SessionInfo[]>;
-  readonly allSessionsLoader: (onProgress?: (loaded: number, total: number) => void) => Promise<SessionInfo[]>;
+/** Mirrors the pinned session manager's progress callback, including its partial results. */
+type SessionListProgress = (loaded: number, total: number, partialSessions?: readonly SessionInfo[]) => void;
+
+export async function createPiShellSessionSelector(options: {
+  readonly currentSessionsLoader: (onProgress?: SessionListProgress) => Promise<SessionInfo[]>;
+  readonly allSessionsLoader: (onProgress?: SessionListProgress) => Promise<SessionInfo[]>;
   readonly onSelect: (path: string) => void;
   readonly onCancel: () => void;
   readonly onExit: () => void;
   readonly requestRender: () => void;
   readonly renameSession: (sessionFilePath: string, nextName: string | undefined) => Promise<void>;
   readonly currentSessionFilePath: string | undefined;
-}): PiShellComponentPort {
+}): Promise<PiShellComponentPort> {
   ensureTheme();
+  const { SessionSelectorComponent } = await import("./upstream/components/session-selector.js");
   const selector = new SessionSelectorComponent(
     options.currentSessionsLoader,
     options.allSessionsLoader,
@@ -279,7 +278,7 @@ export function createPiShellSessionSelector(options: {
   return componentPort(selector);
 }
 
-export function createPiShellTreeSelector(options: {
+export async function createPiShellTreeSelector(options: {
   readonly tree: readonly unknown[];
   readonly currentLeafId: string | null;
   readonly terminalHeight: number;
@@ -289,8 +288,9 @@ export function createPiShellTreeSelector(options: {
   readonly onCopy?: (text: string | undefined) => void;
   readonly initialSelectedId?: string;
   readonly initialFilterMode?: "default" | "no-tools" | "user-only" | "labeled-only" | "all";
-}): PiShellComponentPort {
+}): Promise<PiShellComponentPort> {
   ensureTheme();
+  const { TreeSelectorComponent } = await import("./upstream/components/tree-selector.js");
   const selector = new TreeSelectorComponent(
     [...options.tree] as SessionTreeNode[],
     options.currentLeafId,

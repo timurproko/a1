@@ -811,7 +811,7 @@ export class OwnedUiSessionShell {
     if (action === "none") return { outcome: "rejected", diagnostic: "nothing to interrupt" };
     if (now - this.#lastEscapeTime < 500) {
       this.#lastEscapeTime = 0;
-      if (action === "tree") this.showTreeSelector();
+      if (action === "tree") await this.showTreeSelector();
       else this.showForkSelector();
       return { outcome: "completed", diagnostic: null };
     }
@@ -1090,7 +1090,7 @@ export class OwnedUiSessionShell {
     this.runtime.requestRender();
   }
 
-  showTreeSelector(initialSelectedId?: string): void {
+  async showTreeSelector(initialSelectedId?: string): Promise<void> {
     const context = this.backend.pinnedTreeSelectorContext();
     if (context.tree.length === 0) {
       this.root.appendWorkflowStatus("No entries in session");
@@ -1101,7 +1101,7 @@ export class OwnedUiSessionShell {
       this.root.setInputSurface(null);
       this.runtime.requestRender();
     };
-    const component = createPiShellTreeSelector({
+    const component = await createPiShellTreeSelector({
       tree: context.tree,
       currentLeafId: context.currentLeafId,
       terminalHeight: this.runtime.viewport().rows,
@@ -1181,13 +1181,13 @@ export class OwnedUiSessionShell {
     this.runtime.requestRender();
   }
 
-  showSessionSelector(): void {
+  async showSessionSelector(): Promise<void> {
     const context = this.backend.pinnedSessionSelectorContext();
     const close = () => {
       this.root.setInputSurface(null);
       this.runtime.requestRender();
     };
-    const component = createPiShellSessionSelector({
+    const component = await createPiShellSessionSelector({
       currentSessionsLoader: context.loadCurrentSessions,
       allSessionsLoader: context.loadAllSessions,
       currentSessionFilePath: context.currentSessionFilePath,
@@ -1321,7 +1321,7 @@ export class OwnedUiSessionShell {
       return { outcome: "completed", diagnostic: null };
     }
     if (request.command === "resume" && request.selection === undefined && request.confirmed === undefined && request.argument.trim().length === 0) {
-      this.showSessionSelector();
+      await this.showSessionSelector();
       return { outcome: "completed", diagnostic: null };
     }
     if (request.command === "login" && request.selection === undefined && request.confirmed === undefined) {
@@ -1334,7 +1334,7 @@ export class OwnedUiSessionShell {
       return { outcome: "completed", diagnostic: null };
     }
     if (request.command === "tree" && request.selection === undefined && request.confirmed === undefined && request.argument.trim().length === 0) {
-      this.showTreeSelector();
+      await this.showTreeSelector();
       return { outcome: "completed", diagnostic: null };
     }
     if (request.command === "reload") {
@@ -2019,7 +2019,7 @@ export class OwnedUiSessionShell {
           "Summarize with custom prompt",
         ]);
         if (choice === undefined) {
-          this.showTreeSelector(entryId);
+          await this.showTreeSelector(entryId);
           return;
         }
         summarize = choice !== "No summary";
@@ -2039,7 +2039,7 @@ export class OwnedUiSessionShell {
         ...(customInstructions === undefined ? {} : { customInstructions }),
       },
     });
-    if (result.diagnostic === "Branch summarization cancelled") this.showTreeSelector(entryId);
+    if (result.diagnostic === "Branch summarization cancelled") await this.showTreeSelector(entryId);
   }
 
   #startWorkflowLogin(request: PiWorkflowLoginStart): void {
