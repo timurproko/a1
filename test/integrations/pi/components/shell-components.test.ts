@@ -297,6 +297,62 @@ describe("Pi shell public component adapters", () => {
     expect(rows).toContain("scoped-models");
   });
 
+  it("keeps selected autocomplete descriptions muted only in bare A1", async () => {
+    const options = {
+      getColumns: () => 80,
+      getRows: () => 24,
+      requestRender() {},
+      onSubmit() {},
+    };
+    const bare = createPiShellEditor({
+      ...options,
+      keybindingProfile: "a1",
+      promptPresentation: PROMPT_PRESENTATION,
+    });
+    bare.setAutocompleteCommands([{ name: "deploy", description: "Deploy extension", source: "extension" }]);
+    bare.handleInput?.("/");
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    const accentStart = piTheme().fg("accent", "MARK").split("MARK")[0]!;
+    const mutedStart = piTheme().fg("muted", "MARK").split("MARK")[0]!;
+    const selectedRow = (editor: ReturnType<typeof createPiShellEditor>, width: number, label: string): string => {
+      const row = editor.render(width)
+        .map(line => line.replaceAll(/\u001b\[2?7m/gu, ""))
+        .find(line => stripTerminalSequences(line).trimStart().startsWith(`→ ${label}`));
+      expect(row).toBeDefined();
+      return row!;
+    };
+    const expectSplitRoles = (row: string, label: string, description: string): void => {
+      const selected = row.slice(row.indexOf(`→ ${label}`));
+      expect(row).toContain(`${accentStart}→ ${label}`);
+      expect(selected).toContain(mutedStart);
+      expect(stripTerminalSequences(selected.slice(selected.indexOf(mutedStart)))).toMatch(new RegExp(`^\\s+${description}`, "u"));
+      expect(selected.slice(selected.indexOf(mutedStart))).not.toContain(accentStart);
+    };
+
+    expectSplitRoles(selectedRow(bare, 80, "settings"), "settings", "Open settings menu");
+    bare.handleInput?.("\u001b[B");
+    expectSplitRoles(selectedRow(bare, 80, "models"), "models", "Switch models and manage scoped model cycling");
+    bare.handleInput?.("\u001b");
+    bare.setText("");
+    bare.handleInput?.("/dep");
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expectSplitRoles(selectedRow(bare, 80, "deploy"), "deploy", "Deploy extension");
+    const narrow = selectedRow(bare, 40, "deploy");
+    expect(stripTerminalSequences(narrow)).not.toContain("Deploy extension");
+    expect(narrow.slice(narrow.indexOf("→ deploy"))).not.toContain(mutedStart);
+
+    const comparison = createPiShellEditor({ ...options, keybindingProfile: "pi" });
+    comparison.setAutocompleteCommands([{ name: "deploy", description: "Deploy extension", source: "extension" }]);
+    comparison.handleInput?.("/dep");
+    await new Promise(resolve => setTimeout(resolve, 0));
+    const pinnedRow = selectedRow(comparison, 80, "deploy");
+    const pinned = pinnedRow.slice(pinnedRow.indexOf("→ deploy"));
+    expect(pinnedRow).toContain(`${accentStart}→ deploy`);
+    expect(stripTerminalSequences(pinned)).toMatch(/→ deploy\s+Deploy extension/u);
+    expect(pinned).not.toContain(mutedStart);
+  });
+
   it("uses public message and tool components for all transcript states", () => {
     const fixtures = [
       block("user", "user text"),
