@@ -173,6 +173,10 @@ for (const theme of ["dark", "light"]) {
             getMarkdownThemeWithSettings: () => api.getMarkdownTheme(),
             showExtensionConfirm: async title => entry.condition !== "declined" && !(title === "Session cwd not found" && entry.condition === "missing-cwd-declined"),
             stop: () => { state.calls.push("stop"); },
+            // Compatibility: the pinned engine routes a fatal command error through crash recording before
+            // exiting. This fixture owns no crash log, so record nothing and report that nothing was
+            // recorded, which keeps the captured frame the command outcome rather than report guidance.
+            recordCrash: () => false,
           };
           for (const method of ["showStatus", "showError", "showWarning", "handleFatalRuntimeError", "getPathCommandArgument", "handleShareCommand", "handleExportCommand", "handleImportCommand", "handleClearCommand", "handleResumeSession", "handleCloneCommand", "handleCompactCommand", "handleNameCommand", "handleSessionCommand", "handleModelCommand", "handleThinkingCommand", "selectThinkingLevel", "showThinkingSelector", "findExactModelMatch", "completeProviderAuthentication", "handleCopyCommand", "showLoginDialog", "showApiKeyLoginDialog", "loginProvider", "notifyAuthDialog", "showAuthPrompt", "showAuthSelect", "disposeActiveSelector", "showSelector", "showOAuthSelector", "getLogoutProviderOptions", "showUserMessageSelector", "showTreeSelector", "showTrustSelector", "showSettingsSelector", "showModelsSelector", "showModelSelector", "handleReloadCommand", "maybeSaveImplicitProjectTrustAfterReload", "handleHotkeysCommand", "getAppKeyDisplay", "getEditorKeyDisplay", "handleDebugCommand", "handleChangelogCommand", "handleArminSaysHi", "handleDementedDelves", "shutdown", "handleLoginCommand", "findLoginProviderOptions", "getLoginProviderOptions", "showLoginAuthTypeSelector", "showLoginProviderSelector", "startProviderLogin", "showAmbientAuthDialog", "promptForMissingSessionCwd"]) {
             const implementation = api.InteractiveMode.prototype[method];
