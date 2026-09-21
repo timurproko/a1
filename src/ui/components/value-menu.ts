@@ -71,9 +71,15 @@ export function renderValueMenu(
   state.choices.forEach((choice, index) => {
     const target = frame.top + index;
     if (target < 0 || target >= output.length) return;
-    const mark = choice === state.current ? "✓ " : "  ";
-    const text = padToWidth(`${mark}${choice} `, frame.width);
-    const painted = index === state.index ? theme.highlight(text) : theme.panel(text);
+    const active = index === state.index;
+    const paint = active ? theme.highlight : theme.panel;
+    const current = choice === state.current;
+    const tail = padToWidth(`${current ? " " : "  "}${choice} `, frame.width - (current ? 1 : 0));
+    // Invariant: the effective-value check uses the same accent as modal marks, while
+    // the rest of an active row keeps its highlighted foreground and background.
+    const painted = current
+      ? `${paint(theme.fg("accent", "✓"))}${paint(tail)}`
+      : paint(tail);
     output[target] = overlaySpan(output[target] ?? "", frame.column, frame.column + frame.width, painted);
   });
   return output;

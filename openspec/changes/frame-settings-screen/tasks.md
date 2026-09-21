@@ -38,3 +38,10 @@
 - [x] 7.1 Preserve the shared layout's initial spacer between the `Settings` title and first section.
 - [x] 7.2 Extend the scrollbar track one row upward alongside the title while keeping its scrolled origin beside the pinned section.
 - [x] 7.3 Verify ordinary rendering, search Ctrl+Home/Ctrl+End, scrolling, exact frames, pointer geometry, and rail interaction with the title-level track.
+
+## 8. Refine search closure and dropdown marks
+
+- [x] 8.1 Remove the synthetic trailing search-result spacer so final content meets the ruled input without an empty row.
+- [x] 8.2 Snapshot the pre-search scroll position and restore it when an untouched search closes, while invalidating the snapshot after edits or navigation.
+- [x] 8.3 Paint dropdown effective-value checkmarks in the accent role without replacing the selected row's panel/highlight treatment.
+- [x] 8.4 Add focused regressions and rerun strict OpenSpec, type, architecture, route-theme, settings, and component validation.

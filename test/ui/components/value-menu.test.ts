@@ -8,7 +8,7 @@ import {
 } from "../../../src/ui/components/index.js";
 
 const NAMING_THEME: UiTheme = {
-  fg: (_token, text) => text,
+  fg: (token, text) => `<${token}>${text}</${token}>`,
   bold: text => text,
   plain: text => text,
   highlight: text => `<active>${text}</active>`,
@@ -31,10 +31,18 @@ describe("shared value menu", () => {
       NAMING_THEME,
     );
 
-    expect(rendered[0]).toContain("<panel>✓ auto");
+    expect(rendered[0]).toContain("<panel><accent>✓</accent></panel><panel> auto");
     expect(rendered[1]).toContain("<active>  always");
     expect(rendered[2]).toContain("<panel>  hidden");
     expect(rendered.join("\n")).not.toContain("→");
+
+    const activeCurrent = renderValueMenu(
+      ["under zero", "under one", "under two"],
+      { ...STATE, index: 0 },
+      { top: 0, column: 2, width: 10, rows: 3 },
+      NAMING_THEME,
+    );
+    expect(activeCurrent[0]).toContain("<active><accent>✓</accent></active><active> auto");
   });
 
   it("places below when possible and flips above while clipping at the right rail", () => {

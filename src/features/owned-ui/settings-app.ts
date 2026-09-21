@@ -173,6 +173,7 @@ export class SettingsApp implements UiApp {
   #reveal: ListRowSpan | undefined;
   #notice: string | null = null;
   #filter: LineInput | null = null;
+  #scrollBeforeFilter: number | null = null;
   #menu: ValueMenu | null = null;
   #structured: StructuredEdit | null = null;
   #interruptArmed = false;
@@ -334,6 +335,7 @@ export class SettingsApp implements UiApp {
         host.close();
         return { consumed: true };
       case "open-filter":
+        this.#scrollBeforeFilter = this.#scroll;
         this.#filter = new LineInput("");
         this.#notice = null;
         return { consumed: true };
@@ -643,6 +645,7 @@ export class SettingsApp implements UiApp {
     // Rationale: the boundary chords jump through the results; plain Home and End stay with
     // the search cursor, which the shared line input moves below.
     if (key === "ctrl+home" || key === "ctrl+end") {
+      this.#scrollBeforeFilter = null;
       const rows = this.#rows();
       const selectable = selectableIndexes(rows);
       const target = key === "ctrl+end" ? selectable.at(-1) : selectable[0];
@@ -653,6 +656,7 @@ export class SettingsApp implements UiApp {
       return { consumed: true };
     }
     if (key === "up" || key === "down" || key === "shift+up" || key === "shift+down") {
+      this.#scrollBeforeFilter = null;
       const rows = this.#rows();
       // Rationale: nothing found means nothing to move through; the key is still swallowed
       // rather than typed into the search.
@@ -669,8 +673,14 @@ export class SettingsApp implements UiApp {
     }
 
     const outcome = handleLineInputKey(input, data);
-    if (outcome.kind === "cancelled") this.#filter = null;
-    this.#scroll = 0;
+    if (outcome.kind === "cancelled") {
+      this.#filter = null;
+      if (this.#scrollBeforeFilter !== null) this.#scroll = this.#scrollBeforeFilter;
+      this.#scrollBeforeFilter = null;
+    } else {
+      this.#scrollBeforeFilter = null;
+      this.#scroll = 0;
+    }
     return { consumed: true };
   }
 
@@ -799,7 +809,6 @@ export class SettingsApp implements UiApp {
         });
       }
     }
-    if (this.#filter !== null && rows.length > 0) rows.push({ kind: "spacer" });
     return rows;
   }
 

@@ -538,8 +538,26 @@ describe("the settings screen", () => {
     const searchRow = lines.findIndex(line => line.includes("search settings"));
     expect(searchRow, JSON.stringify(lines)).toBeGreaterThanOrEqual(0);
     expect(lines.find(line => line.includes("Skills"))?.trimStart()).toMatch(/^→/);
-    // Invariant: the ruled input's top line replaces the divider after the final body row.
-    expect(lines[searchRow - 3]).toContain("Skills");
+    // Invariant: no trailing spacer separates the final result from the ruled input's top line.
+    expect(lines[searchRow - 2]).toContain("Skills");
+  });
+
+  it("restores the previous bottom position when an untouched search closes", async () => {
+    const { app: target } = await app(false, undefined, WHEEL_SETTINGS);
+    const rect = { width: 80, height: 8 };
+    target.render(rect, HOST);
+    for (let step = 0; step < 10; step++) {
+      target.onMouse?.({ kind: "wheel-down", button: 0, row: 3, column: 40 }, HOST);
+      target.render(rect, HOST);
+    }
+    const before = target.render(rect, HOST).map(line => line.replace(STYLE, "").trimEnd());
+    expect(before.join("\n")).toContain("Output padding");
+
+    target.onInput?.("/", HOST);
+    target.render(rect, HOST);
+    target.onInput?.(ESC, HOST);
+    const after = target.render(rect, HOST).map(line => line.replace(STYLE, "").trimEnd());
+    expect(after).toEqual(before);
   });
 
   it("jumps to the first and last setting on Ctrl+Home and Ctrl+End in either encoding", async () => {
