@@ -64,21 +64,33 @@ export function routeMouseInput(
   for (let match = pattern.exec(data); match !== null; match = pattern.exec(data)) {
     output += data.slice(index, match.index);
     index = match.index + match[0].length;
+    const code = Number.parseInt(match[1] ?? "", 10);
     const event = toEvent(
-      Number.parseInt(match[1] ?? "", 10),
+      code,
       Number.parseInt(match[2] ?? "", 10),
       Number.parseInt(match[3] ?? "", 10),
       match[4] === "m",
     );
-    if (event !== null && claim(event, match[0])) consumed = true;
-    else output += match[0];
+    if (event !== null) {
+      if (claim(event, match[0])) consumed = true;
+      else output += match[0];
+    } else if (isHorizontalWheel(code)) {
+      // A1 has no horizontal scroll event. Consume the report at the pointer
+      // boundary instead of leaking it as input or treating it as vertical.
+      consumed = true;
+    } else output += match[0];
   }
   output += data.slice(index);
   return { data: output, consumed };
 }
 
+function isHorizontalWheel(code: number): boolean {
+  return Number.isInteger(code) && (code & 64) !== 0 && (code & 2) !== 0;
+}
+
 function toEvent(code: number, column: number, row: number, released: boolean): PaneMouseEvent | null {
   if ((code & 64) !== 0) {
+    if (isHorizontalWheel(code)) return null;
     const kind = (code & 1) === 0 ? "wheel-up" : "wheel-down";
     return { kind, button: 0, column, row };
   }

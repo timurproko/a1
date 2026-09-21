@@ -45,3 +45,9 @@ Alternative: parser-only tests. Rejected because they would not prove that ignor
 ## Migration Plan
 
 Ship the decoder and tests together; no stored state or settings migration is needed. Rollback restores the prior decoder but also restores the direction-reversal defect.
+
+## Implementation Evidence
+
+- Focused component and session viewport validation passed on implementation head preparation: 2 files and 77 tests.
+- Typechecking passed after generated build output was available.
+- The complete local build reached the native process-guardian link step but could not finish because the active shell resolved the Unix `link` utility instead of Visual Studio's linker; Node 26.1.0 was also outside the declared Node 22.19–24 engine range. This environment limitation does not replace exact-candidate CI or physical touchpad validation.
