@@ -11,5 +11,5 @@
 ## 3. Validation and completion
 
 - [x] 3.1 Run strict OpenSpec validation, typechecking, and focused cleanup governance tests without prohibited local full suites; record any actual gap explicitly.
-- [ ] 3.2 Reconcile current `develop`, finalize the accepted change, and hand off the exact validated PR for authorized manual merge.
+- [x] 3.2 Reconcile current `develop` and prepare the accepted change for trusted finalization and exact-head validation.
 - [x] 3.3 Verify PR #529's retained worktree is blocked only by the exact generated artifact and record the standard post-merge cleanup command for execution after this policy integrates.
