@@ -215,18 +215,29 @@ export class SettingsApp implements UiApp {
     const selected = indexOfKey(rows, this.#selectedKey);
     const footer = this.#footerLines(rect.width, theme);
     const dividerRows = this.#filter === null ? SETTINGS_FOOTER_DIVIDER_ROWS : 0;
-    const bodyHeight = Math.max(0, rect.height - SETTINGS_HEADER_ROWS - dividerRows - footer.length);
-    this.#bodyTopForFrame = SETTINGS_HEADER_ROWS;
-    this.#bodyHeightForFrame = bodyHeight;
-    this.#panelTopForFrame = SETTINGS_HEADER_ROWS + bodyHeight + dividerRows;
-    this.#panelTop = this.#panelTopForFrame;
-    if (this.#selectionNeedsReveal) {
+    const contentHeight = Math.max(0, rect.height - dividerRows - footer.length);
+    let headerRows = this.#scroll <= 0 ? Math.min(SETTINGS_HEADER_ROWS, contentHeight) : 0;
+    let bodyHeight = contentHeight - headerRows;
+    if (this.#selectionNeedsReveal && bodyHeight > 0) {
       this.#scroll = scrollForSelection(rows, bodyHeight, this.#scroll, selected, this.#reveal);
       this.#selectionNeedsReveal = false;
+      this.#reveal = undefined;
     }
-    this.#reveal = undefined;
+    if (this.#scroll > 0 && headerRows > 0) {
+      headerRows = 0;
+      bodyHeight = contentHeight;
+    }
 
-    const layout = layoutList(rows, bodyHeight, this.#scroll);
+    let layout = layoutList(rows, bodyHeight, this.#scroll);
+    if (layout.scroll === 0 && headerRows === 0) {
+      headerRows = Math.min(SETTINGS_HEADER_ROWS, contentHeight);
+      bodyHeight = contentHeight - headerRows;
+      layout = layoutList(rows, bodyHeight, 0);
+    }
+    this.#bodyTopForFrame = headerRows;
+    this.#bodyHeightForFrame = bodyHeight;
+    this.#panelTopForFrame = contentHeight + dividerRows;
+    this.#panelTop = this.#panelTopForFrame;
     this.#scroll = layout.scroll;
     const now = Date.now();
     // Rationale: every way of scrolling ends in this frame, so a moved list is noticed here
@@ -292,8 +303,9 @@ export class SettingsApp implements UiApp {
     });
     const rule = theme.fg("border", "─".repeat(Math.max(0, rect.width)));
     const title = truncateToWidth(` ${theme.bold(theme.fg("accent", "Settings"))}`, rect.width);
+    const header = headerRows === 0 ? [] : [rule, title].slice(0, headerRows);
     const frame = this.#withMenu(
-      [rule, title, ...withRail, ...(dividerRows === 0 ? [] : [rule]), ...footer],
+      [...header, ...withRail, ...(dividerRows === 0 ? [] : [rule]), ...footer],
       selected,
       layout,
       valueColumn,
@@ -425,7 +437,7 @@ export class SettingsApp implements UiApp {
       // Invariant: the whole list pane owns wheel scrolling, including blank space beside
       // short labels. It must not depend on finding an item under the pointer.
       const screenRow = event.row - 1;
-      if (screenRow < this.#bodyTopForFrame || screenRow >= this.#bodyTopForFrame + this.#bodyHeightForFrame) {
+      if (screenRow < 0 || screenRow >= this.#bodyTopForFrame + this.#bodyHeightForFrame) {
         return { consumed: false };
       }
       const distance = scrollbarWheelRows(this.#scrollbarSpeed());
@@ -882,9 +894,7 @@ export class SettingsApp implements UiApp {
     const status = truncateToWidth(`${width > 0 ? " " : ""}${theme.fg("dim", report)}`, width);
     const input = this.#filter;
     if (input === null) return [status];
-    const inputWidth = Math.max(0, width - SETTINGS_CONTENT_INSET);
-    const lines = renderInputRow(input, inputWidth, { placeholder: SEARCH_PLACEHOLDER, ruled: false, theme }).lines;
-    return [width > 0 ? ` ${lines[0] ?? ""}` : "", status];
+    return [...renderInputRow(input, width, { placeholder: SEARCH_PLACEHOLDER, theme }).lines, status];
   }
 }
 

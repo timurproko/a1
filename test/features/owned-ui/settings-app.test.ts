@@ -118,13 +118,13 @@ const RAIL_SETTINGS: readonly OwnedUiSettingDeclaration[] = [
 const RAIL_RECT = { width: 80, height: 12 };
 const RAIL_COLUMN = RAIL_RECT.width;
 const SETTINGS_BODY_TOP = 2;
-const SETTINGS_FIXED_ROWS = 4;
-const RAIL_BODY_HEIGHT = RAIL_RECT.height - SETTINGS_FIXED_ROWS;
-const RAIL_LAST_EVENT_ROW = SETTINGS_BODY_TOP + RAIL_BODY_HEIGHT;
+const RAIL_CONTENT_HEIGHT = RAIL_RECT.height - 2;
+const INITIAL_RAIL_SCREEN_ROW = SETTINGS_BODY_TOP + 1;
+const RAIL_LAST_EVENT_ROW = RAIL_CONTENT_HEIGHT;
 
-/** Converts a zero-based row inside the list body to the terminal's one-based row. */
-function railEventRow(bodyRow: number): number {
-  return SETTINGS_BODY_TOP + bodyRow + 1;
+/** Converts a zero-based screen row to the terminal's one-based row. */
+function railEventRow(screenRow: number): number {
+  return screenRow + 1;
 }
 
 /** The rows of a rail-sized frame, with styling taken off. */
@@ -135,8 +135,11 @@ function railScreen(target: SettingsApp): string[] {
 /** The rail cells of a rail-sized frame, top to bottom. */
 function railCells(target: SettingsApp): string[] {
   return railScreen(target)
-    .slice(SETTINGS_BODY_TOP, SETTINGS_BODY_TOP + RAIL_BODY_HEIGHT)
-    .map(line => (line.length >= RAIL_COLUMN ? line.charAt(RAIL_COLUMN - 1) : ""));
+    .slice(0, RAIL_CONTENT_HEIGHT)
+    .map(line => {
+      const cell = line.length >= RAIL_COLUMN ? line.charAt(RAIL_COLUMN - 1) : " ";
+      return cell === "│" || cell === "┃" ? cell : " ";
+    });
 }
 
 async function app(
@@ -181,7 +184,7 @@ afterEach(() => {
 });
 
 describe("the settings screen", () => {
-  it("frames fixed settings chrome in border, accent, and heading roles", async () => {
+  it("frames settings chrome in border, accent, and heading roles", async () => {
     const { app: target } = await app();
     const lines = target.render({ width: 80, height: 24 }, BOLD_NAMING_HOST);
     const rule = "─".repeat(80);
@@ -196,11 +199,28 @@ describe("the settings screen", () => {
 
     target.onMouse?.({ kind: "wheel-down", button: 0, row: 3, column: 40 }, BOLD_NAMING_HOST);
     const scrolled = target.render({ width: 80, height: 24 }, BOLD_NAMING_HOST);
-    expect(scrolled.slice(0, 2)).toEqual(lines.slice(0, 2));
     expect(scrolled.at(-2)).toBe(lines.at(-2));
   });
 
-  it("keeps exact frame geometry when the fixed chrome exhausts the rectangle", async () => {
+  it("scrolls the main title away while pinning the active section", async () => {
+    const { app: target } = await app(false, undefined, WHEEL_SETTINGS);
+    const rect = { width: 80, height: 8 };
+    const initial = target.render(rect, HOST).map(line => line.replace(STYLE, "").trimEnd());
+    expect(initial[0]).toBe("─".repeat(rect.width));
+    expect(initial[1]).toBe(" Settings");
+
+    target.onMouse?.({ kind: "wheel-down", button: 0, row: 1, column: 40 }, HOST);
+    const scrolled = target.render(rect, HOST).map(line => line.replace(STYLE, "").trimEnd());
+    expect(scrolled.join("\n")).not.toContain("Settings");
+    expect(scrolled[0]).toBe(" Wheel Test");
+
+    target.onMouse?.({ kind: "wheel-up", button: 0, row: 1, column: 40 }, HOST);
+    const restored = target.render(rect, HOST).map(line => line.replace(STYLE, "").trimEnd());
+    expect(restored[0]).toBe(initial[0]);
+    expect(restored[1]).toBe(initial[1]);
+  });
+
+  it("keeps exact frame geometry when the chrome exhausts the rectangle", async () => {
     const { app: target, writes } = await app();
     for (const rect of [{ width: 0, height: 0 }, { width: 3, height: 1 }, { width: 5, height: 2 }, { width: 1, height: 3 }, { width: 12, height: 4 }]) {
       const lines = target.render(rect, HOST);
@@ -514,8 +534,8 @@ describe("the settings screen", () => {
     const searchRow = lines.findIndex(line => line.includes("search settings"));
     expect(searchRow, JSON.stringify(lines)).toBeGreaterThanOrEqual(0);
     expect(lines.find(line => line.includes("Skills"))?.trimStart()).toMatch(/^→/);
-    // Invariant: search replaces the divider and leaves its final result on the last body row.
-    expect(lines[searchRow - 1]).toContain("Skills");
+    // Invariant: the ruled input's top line replaces the divider after the final body row.
+    expect(lines[searchRow - 3]).toContain("Skills");
   });
 
   it("jumps to the first and last setting on Ctrl+Home and Ctrl+End in either encoding", async () => {
@@ -684,21 +704,20 @@ describe("the value dropdown behind the screen", () => {
 });
 
 describe("the input row and status line behind the screen", () => {
-  it("replaces the bottom divider with one search row without moving the list", async () => {
+  it("uses the shared ruled search input in place of the ordinary divider", async () => {
     const { app: target } = await app();
     expect(target.onInput?.("t", HOST)).toMatchObject({ consumed: false });
-    const ordinary = screen(target);
-    expect(ordinary.join("\n")).not.toContain("search settings");
+    expect(screen(target).join("\n")).not.toContain("search settings");
 
     target.onInput?.("/", HOST);
     const painted = target.render({ width: 80, height: 24 }, HOST);
     const visible = painted.map(line => line.replace(STYLE, "").trimEnd());
     const searchRow = visible.findIndex(line => line.includes("search settings"));
     expect(painted[searchRow]).toContain(String.fromCharCode(27) + "[7m");
-    expect(visible[searchRow]?.startsWith(" ❯ search settings")).toBe(true);
-    expect(searchRow).toBe(ordinary.length - 2);
-    expect(visible.slice(2, searchRow)).toEqual(ordinary.slice(2, -2));
-    expect(visible.filter(line => /^─+$/u.test(line))).toHaveLength(1);
+    expect(visible[searchRow]?.startsWith("❯ search settings")).toBe(true);
+    expect(visible[searchRow - 1]).toMatch(/^─+$/u);
+    expect(visible[searchRow + 1]).toMatch(/^─+$/u);
+    expect(searchRow).toBe(visible.length - 3);
   });
 
   it("derives the complete standing status from active shortcut declarations", async () => {
@@ -751,14 +770,14 @@ describe("the input row and status line behind the screen", () => {
     const blank = railCells(target);
     expect(blank.every(cell => cell === " ")).toBe(true);
 
-    target.onMouse?.({ kind: "motion", button: 0, row: railEventRow(1), column: RAIL_COLUMN }, HOST);
+    target.onMouse?.({ kind: "motion", button: 0, row: railEventRow(INITIAL_RAIL_SCREEN_ROW), column: RAIL_COLUMN }, HOST);
     const revealed = railCells(target);
     expect(revealed).toContain("│");
     expect(revealed).toContain("┃");
     // Invariant: the rail is not a row: pointing at it lights nothing in the list.
     expect(railScreen(target).some(line => line.includes("❯"))).toBe(false);
 
-    target.onMouse?.({ kind: "motion", button: 0, row: railEventRow(1), column: 10 }, HOST);
+    target.onMouse?.({ kind: "motion", button: 0, row: railEventRow(INITIAL_RAIL_SCREEN_ROW), column: 10 }, HOST);
     expect(railCells(target).every(cell => cell === " ")).toBe(true);
   });
 
@@ -769,9 +788,12 @@ describe("the input row and status line behind the screen", () => {
       const requestRender = vi.fn();
       const host = { ...HOST, requestRender };
       const cells = () => target.render(RAIL_RECT, host)
-        .slice(SETTINGS_BODY_TOP, SETTINGS_BODY_TOP + RAIL_BODY_HEIGHT)
+        .slice(0, RAIL_CONTENT_HEIGHT)
         .map(line => line.replace(STYLE, ""))
-        .map(line => (line.length >= RAIL_COLUMN ? line.charAt(RAIL_COLUMN - 1) : ""));
+        .map(line => {
+          const cell = line.length >= RAIL_COLUMN ? line.charAt(RAIL_COLUMN - 1) : " ";
+          return cell === "│" || cell === "┃" ? cell : " ";
+        });
       expect(cells().every(cell => cell === " ")).toBe(true);
 
       target.onMouse?.({ kind: "wheel-down", button: 0, row: 3, column: 40 }, host);
@@ -813,7 +835,7 @@ describe("the input row and status line behind the screen", () => {
     const { app: target } = await app(false, undefined, RAIL_SETTINGS, { scrollbarAppearance: "hidden" });
     const lines = target.render(RAIL_RECT, HOST).map(line => line.replace(STYLE, ""));
     expect(lines.join("\n")).not.toMatch(/[│┃]/);
-    target.onMouse?.({ kind: "motion", button: 0, row: railEventRow(1), column: RAIL_COLUMN }, HOST);
+    target.onMouse?.({ kind: "motion", button: 0, row: railEventRow(INITIAL_RAIL_SCREEN_ROW), column: RAIL_COLUMN }, HOST);
     expect(target.render(RAIL_RECT, HOST).map(line => line.replace(STYLE, "")).join("\n")).not.toMatch(/[│┃]/);
 
     // Invariant: the former rail column is ordinary list space; pressing it pages nothing.
