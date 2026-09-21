@@ -11,7 +11,7 @@ Version-1 and version-2 deliveries and their existing comments, acceptance PRs, 
 1. **Draft plan:** create one normally named branch/PR such as `feature/...`, `fix/...`, or `chore/...`. Start the body with `## Proposal`, use it for one or two sentences of intent, follow it with `## Implementation` for the concrete planned work, omit quoted phase lines and routine validation command lists, and keep machine linkage under final collapsed `Automation`. Keep it draft and include only planning artifacts until the maintainer approves the plan and explicitly requests implementation.
 2. **Same-PR implementation:** continue after explicit approval in the same worktree, branch, history, draft PR, and phase-free body. Reconcile approved refinements in proposal, design, deltas, and tasks before corresponding code edits.
 3. **Complete evidence:** finish implementation, required tests/evidence, substantive tasks, and explicit known-gap disposition. CI success is objective evidence, not acceptance.
-4. **Plain acceptance list:** keep the body phase-free and add final `## Acceptance` with one to three concise implementation-specific behavior-and-result bullets. Do not use checkboxes, generic review/CI/approval/archive statements, URLs, mentions, or automated-test inventory.
+4. **Plain acceptance list:** keep the body phase-free and add final `## Acceptance` with one to ten concise implementation-specific behavior-and-result bullets. Do not use checkboxes, generic review/CI/approval/archive statements, URLs, mentions, or automated-test inventory.
 5. **Ready and automated finalization:** mark the PR ready. The trusted `OpenSpec finalization` workflow reconciles current `develop`, conservatively synchronizes all deltas, moves the active change into its dated archive, stages the conditional acceptance manifest, commits that to the same branch with the archive App identity, and writes the emitted paths into the body's implementation fence. Running the [finalization command](#finalization-command) locally first is optional and yields the same bytes.
 6. **Validate:** one normal exact-head workflow validates the finalized head: implementation, synchronized specs, archive, manifest, tasks/evidence, exact PR-body list, and every selected product/governance scope before emitting the stable protected aggregate. A new commit or acceptance-list change re-finalizes automatically when needed and requires full renewed validation; no lifecycle body edit or second workflow run is required.
 7. **Manual merge accepts:** after the stable protected aggregate succeeds, an authorized human reviews and manually merges the exact validated head. That single action means the listed scenarios are accepted and explicitly authorizes integration. Auto-merge, merge queue, Apps, bots, and documentation reconciliation are forbidden.
@@ -57,7 +57,7 @@ Do not add a quoted phase line or a routine `Validation` section listing command
 
 ## Acceptance
 
-<!-- one to three plain behavior-and-result bullets -->
+<!-- one to ten plain behavior-and-result bullets -->
 
 ## Automation
 

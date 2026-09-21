@@ -22,7 +22,7 @@ describe("repository-owned atomic delivery guidance", () => {
     expect(config).toContain("Never arm or invoke auto-merge");
     expect(config).toContain("A new head, changed body list, changed manifest, or advanced target baseline requires renewed validation");
     expect(config).toContain("manual merge of the exact validated head means the listed scenarios are accepted");
-    expect(config).toContain("one to three concise implementation-specific behavior-and-result bullets");
+    expect(config).toContain("one to ten concise implementation-specific behavior-and-result bullets");
     expect(config).toContain("no acceptance, spec-only, or archive-only follow-up PR");
     expect(config).toContain("Standalone existing-spec/OpenSpec revisions and ordinary docs retain this route");
     expect(config).toContain("`local-worktree-cleanup.mjs complete`");

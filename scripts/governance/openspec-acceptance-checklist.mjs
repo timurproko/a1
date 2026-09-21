@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { archiveFailure } from "./openspec-archive-policy.mjs";
 
 export const MIN_ACCEPTANCE_CHECKS = 1;
-export const MAX_ACCEPTANCE_CHECKS = 3;
+export const MAX_ACCEPTANCE_CHECKS = 10;
 export const PHASE_FREE_VERSION3_BODY_POLICY = true;
 const MAX_BODY_BYTES = 256 * 1024;
 const MAX_CHECK_BYTES = 300;
