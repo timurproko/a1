@@ -221,7 +221,8 @@ export class SettingsApp implements UiApp {
     let titleRows = this.#scroll <= 0 ? Math.min(SETTINGS_TITLE_ROWS, contentHeight) : 0;
     let bodyHeight = contentHeight - titleRows;
     if (this.#selectionNeedsReveal && bodyHeight > 0) {
-      this.#scroll = scrollForSelection(rows, bodyHeight, this.#scroll, selected, this.#reveal);
+      const selectionHeight = bodyHeight + (this.#scroll <= 0 ? 1 : 0);
+      this.#scroll = scrollForSelection(rows, selectionHeight, this.#scroll, selected, this.#reveal);
       this.#selectionNeedsReveal = false;
       this.#reveal = undefined;
     }
@@ -230,11 +231,11 @@ export class SettingsApp implements UiApp {
       bodyHeight = contentHeight;
     }
 
-    let layout = layoutList(rows, bodyHeight, this.#scroll);
+    let layout = layoutList(rows, bodyHeight + (this.#scroll <= 0 ? 1 : 0), this.#scroll);
     if (layout.scroll === 0 && titleRows === 0) {
       titleRows = Math.min(SETTINGS_TITLE_ROWS, contentHeight);
       bodyHeight = contentHeight - titleRows;
-      layout = layoutList(rows, bodyHeight, 0);
+      layout = layoutList(rows, bodyHeight + 1, 0);
     }
     this.#bodyTopForFrame = topRows + titleRows;
     this.#bodyHeightForFrame = bodyHeight;
@@ -280,7 +281,6 @@ export class SettingsApp implements UiApp {
     if (rows.length === 0) {
       body.push(...renderEmptyState("No settings found.", "👀", bodyHeight, contentWidth, theme));
     } else {
-      if (layout.topPadding > 0) body.push("");
       if (layout.stickyHeader !== undefined) body.push(this.#header(layout.stickyHeader, theme, contentWidth));
       for (const index of layout.rowIndexes) {
         const row = rows[index];

@@ -32,3 +32,8 @@
 - [x] 6.1 Reserve the blue top rule independently so it remains visible while the title scrolls away and the active section pins immediately below it.
 - [x] 6.2 Remove the scrollbar's extra top inset so its track starts at the top of the current scrolling region before and after the title disappears.
 - [x] 6.3 Verify fixed-rule/title-scroll composition, section pinning, rail geometry, pointer behavior, ruled search, constrained frames, and local validation before renewed exact-head CI and visual handoff.
+
+## 7. Remove the opening list gap
+
+- [x] 7.1 Consume the shared layout's initial spacer as viewport capacity so the first section begins directly below the `Settings` title.
+- [x] 7.2 Verify ordinary rendering, search Ctrl+Home/Ctrl+End, scrolling, exact frames, pointer geometry, and the top-origin rail with the gapless opening list.

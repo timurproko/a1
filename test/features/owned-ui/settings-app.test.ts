@@ -191,6 +191,8 @@ describe("the settings screen", () => {
     expect(lines).toHaveLength(24);
     expect(lines[0]).toBe(`<border>${rule}</border>`);
     expect(lines[1]).toBe(" <b><accent>Settings</accent></b>");
+    expect(lines[2]).toContain("Generic");
+    expect(lines[3]).toContain("Quit animation");
     expect(lines.find(line => line.includes("Generic"))?.startsWith(" ")).toBe(true);
     expect(lines.find(line => line.includes("Generic"))).toContain("<mdHeading><b>Generic</b></mdHeading>");
     expect(lines.find(line => line.includes("Quit animation"))?.startsWith(" <accent>→ ")).toBe(true);
@@ -510,7 +512,7 @@ describe("the settings screen", () => {
     expect([...visited].sort()).toEqual(["History limit", "Output padding", "Persistent history", "Prompt suggestions", "Skills", "Thinking level"]);
   });
 
-  it("restores the opening blank row when Ctrl+Home returns to the beginning during search", async () => {
+  it("places the first section directly below the title when Ctrl+Home returns to the beginning during search", async () => {
     const { app: target } = await app();
     target.onInput?.("/", HOST);
     target.render({ width: 80, height: 13 }, HOST);
@@ -521,9 +523,8 @@ describe("the settings screen", () => {
     const lines = target.render({ width: 80, height: 13 }, HOST).map(line => line.replace(STYLE, "").trimEnd());
     expect(lines[0]).toBe("─".repeat(80));
     expect(lines[1]).toBe(" Settings");
-    expect(lines[2]?.replace(/[│┃]$/u, "").trimEnd()).toBe("");
-    expect(lines[3]).toContain("Generic");
-    expect(lines[4]?.trimStart()).toMatch(/^→\s+Quit animation/);
+    expect(lines[2]).toContain("Generic");
+    expect(lines[3]?.trimStart()).toMatch(/^→\s+Quit animation/);
   });
 
   it("moves the last result onto the final body row when Ctrl+End is used during search", async () => {
@@ -535,8 +536,8 @@ describe("the settings screen", () => {
     const searchRow = lines.findIndex(line => line.includes("search settings"));
     expect(searchRow, JSON.stringify(lines)).toBeGreaterThanOrEqual(0);
     expect(lines.find(line => line.includes("Skills"))?.trimStart()).toMatch(/^→/);
-    // Invariant: the ruled input's top line replaces the divider after the final body row.
-    expect(lines[searchRow - 3]).toContain("Skills");
+    // Invariant: the ruled input's top line replaces the divider directly after the final body row.
+    expect(lines[searchRow - 2]).toContain("Skills");
   });
 
   it("jumps to the first and last setting on Ctrl+Home and Ctrl+End in either encoding", async () => {
