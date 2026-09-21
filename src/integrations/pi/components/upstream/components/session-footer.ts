@@ -15,9 +15,9 @@ export class SessionFooter implements Component {
   private readonly getView: () => OwnedUiSessionViewModel;
   private readonly cwd: string;
   private readonly profile: "pi" | "a1";
-  private readonly showLevel: () => boolean;
-  constructor(getView: () => OwnedUiSessionViewModel, cwd: string, profile: "pi" | "a1" = "pi", showLevel: () => boolean = () => true) {
-    this.getView = getView; this.cwd = cwd; this.profile = profile; this.showLevel = showLevel;
+  private readonly show: () => boolean;
+  constructor(getView: () => OwnedUiSessionViewModel, cwd: string, profile: "pi" | "a1" = "pi", show: () => boolean = () => true) {
+    this.getView = getView; this.cwd = cwd; this.profile = profile; this.show = show;
   }
   invalidate(): void {}
   dispose(): void {}
@@ -62,9 +62,9 @@ export class SessionFooter implements Component {
 
     const modelName = view.activeModel?.modelId ?? "no-model";
     const rightWithoutProvider = this.profile === "a1"
-      ? view.activeModel === null || !this.showLevel() ? theme.fg("dim", modelName)
+      ? view.activeModel === null || !this.show() ? theme.fg("dim", modelName)
         : theme.fg("dim", `${modelName} • `) + theme.getThinkingBorderColor(view.thinkingLevel)(view.thinkingLevel)
-      : view.activeModel === null || view.thinkingLevel === "off" || !this.showLevel() ? modelName : `${modelName} • ${view.thinkingLevel}`;
+      : view.activeModel === null || view.thinkingLevel === "off" || !this.show() ? modelName : `${modelName} • ${view.thinkingLevel}`;
     let right = rightWithoutProvider;
     if ((view.status.footer?.availableProviderCount ?? 1) > 1 && view.activeModel) {
       const provider = `(${view.activeModel.providerId}) `;
