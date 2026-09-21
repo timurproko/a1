@@ -70,7 +70,7 @@ describe("exact packed npm command surface", () => {
   it("resolves Pi's lazily loaded OAuth and bedrock modules from the packed startup artifact", async () => {
     const artifact = await readFile(resolve(extracted.packageRoot, "dist", "integrations", "pi", "startup-public.js"), "utf8");
     expect(artifact).not.toMatch(/\bimportOAuthModule\("|\bimportNodeOnlyApi\("/);
-    for (const flow of ["anthropic", "openai-codex", "github-copilot", "openrouter", "kimi-coding", "xai", "radius"]) {
+    for (const flow of ["anthropic", "openai-codex", "github-copilot", "openrouter", "kimi-coding", "meta", "xai", "radius"]) {
       expect(artifact, flow).not.toContain(`"./${flow}.ts"`);
     }
     expect(artifact).toContain('__piResolve("@earendil-works/pi-ai/api/bedrock-converse-stream")');
@@ -85,7 +85,7 @@ describe("exact packed npm command surface", () => {
       oauth: Record<string, { source?: string; derived?: boolean; error?: string }>;
       bedrock: { api?: string; events: string[]; error?: string };
     };
-    expect(Object.keys(oauth).sort()).toEqual(["anthropic", "github-copilot", "kimi-coding", "openai-codex", "openrouter", "radius", "xai"]);
+    expect(Object.keys(oauth).sort()).toEqual(["anthropic", "github-copilot", "kimi-coding", "meta", "openai-codex", "openrouter", "radius", "xai"]);
     for (const [providerId, result] of Object.entries(oauth)) {
       expect(result, providerId).toEqual({ source: "OAuth", derived: true });
     }
