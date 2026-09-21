@@ -11,4 +11,4 @@
 ## 3. Regression validation and handoff
 
 - [x] 3.1 Run typechecking and focused component, shortcut, shell-workflow, and modal presentation suites; verify filtering, selection, default save, cancellation, focus restoration, default/custom hints, heading styling, muted inline descriptions, trailing active marker, and non-duplication all pass without running prohibited local full suites.
-- [ ] 3.2 Build the candidate and prepare manual checks through `./scripts/dev` for `/thinking`, confirming the bold cyan/accent heading, `Ctrl+L` hint, grey inline descriptions, one trailing green active checkmark, and no duplicate selected detail while preserving all selector actions; compare `./scripts/dev pi` for profile isolation and record any known gap.
+- [x] 3.2 Build the candidate and prepare manual checks through `./scripts/dev` for `/thinking`, confirming the bold cyan/accent heading, `Ctrl+L` hint, grey inline descriptions, one trailing green active checkmark, and no duplicate selected detail while preserving all selector actions; compare `./scripts/dev pi` for profile isolation and record any known gap.
