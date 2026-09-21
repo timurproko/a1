@@ -294,6 +294,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   };
   #toolsExpanded = false;
   #thinkingVisible = true;
+  #footerLevel = true;
   #mermaidRenderingMode: "off" | "final" | "streaming" = "off";
   #showImages = true;
   #imageWidthCells = 80;
@@ -401,7 +402,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.resources = createPiShellLoadedResources(startup.resources ?? [], startup.expanded ?? false);
     this.#status = createPiShellStatus(view, progressStatusText, handlers);
     this.#status.setProgressPresentation(this.#customViewport ? "custom-viewport" : "pinned");
-    this.#footer = createPiShellFooter(this.#viewWithExtensionStatuses(view), cwd, this.#customViewport ? "a1" : "pi");
+    this.#footer = createPiShellFooter(this.#viewWithExtensionStatuses(view), cwd, this.#customViewport ? "a1" : "pi", () => this.#footerLevel);
     this.#queued = createPiQueuedInputStatus(
       view.editor.queuedSubmissions,
       this.#customViewport ? "custom-viewport" : "pinned",
@@ -1333,6 +1334,8 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   transcriptRenderCount(): number {
     return this.#transcriptBlockRenders;
   }
+
+  setFooterLevel(visible: boolean): void { this.#footerLevel = visible; }
 
   setInputSurface(
     component: PiShellComponentPort | null,
