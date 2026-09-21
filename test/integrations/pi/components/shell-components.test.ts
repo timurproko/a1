@@ -28,6 +28,7 @@ import {
   renderPiShellTranscriptBlock,
   WorkingStatusIndicator,
 } from "../../../../src/integrations/pi/components/index.js";
+import { PINNED_PI_WORKFLOW_COMMAND_NAMES } from "../../../../src/integrations/pi/engine/index.js";
 
 function block(kind: OwnedUiTranscriptBlock["kind"], text: string, payload: unknown = {}): OwnedUiTranscriptBlock {
   return { id: `${kind}-1`, kind, status: "finalized", revision: 1, title: kind.startsWith("tool") ? "read" : null, text, payload };
@@ -274,7 +275,9 @@ describe("Pi shell public component adapters", () => {
   });
 
   it("binds the pinned built-in command manifest to public editor autocomplete", async () => {
-    expect(PINNED_PI_BUILTIN_SLASH_COMMANDS.map(command => command.name)).toHaveLength(22);
+    // Invariant: the editor catalog lists exactly the routes the shell runs, in their order. A count
+    // here only records how many there were when it was written, and went stale when `thinking` landed.
+    expect(PINNED_PI_BUILTIN_SLASH_COMMANDS.map(command => command.name)).toEqual([...PINNED_PI_WORKFLOW_COMMAND_NAMES]);
     expect(PINNED_PI_BUILTIN_SLASH_COMMANDS.find(command => command.name === "quit")).toEqual({
       name: "quit",
       description: "Quit",
