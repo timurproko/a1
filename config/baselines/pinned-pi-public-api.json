@@ -3,7 +3,7 @@
   "packages": [
     {
       "name": "@earendil-works/pi-coding-agent",
-      "version": "0.86.0",
+      "version": "0.86.1",
       "entry": "dist/index.d.ts",
       "exports": [
         {
@@ -931,7 +931,7 @@
         {
           "name": "ExtensionEditorComponent",
           "kind": "class",
-          "hash": "dd43b03c58cb78e5ddbd86ab286668bfdd56ce02c77ebe9216369e5f3a9e2753",
+          "hash": "36bf546f8deab738c9c20069a914c680ac8490a5f7753fa0e518cc05ae9bf79b",
           "consumers": []
         },
         {
@@ -1327,7 +1327,7 @@
         {
           "name": "InteractiveMode",
           "kind": "class",
-          "hash": "679f3b1cd5be26840c653a973e4b706feeb78f36d0c83d1e0f7575193cc303ed",
+          "hash": "6df8055724d790ef00bd70687835febc437c7757725461945075b5719744e366",
           "consumers": []
         },
         {
@@ -2717,7 +2717,7 @@
     },
     {
       "name": "@earendil-works/pi-tui",
-      "version": "0.86.0",
+      "version": "0.86.1",
       "entry": "dist/index.d.ts",
       "exports": [
         {
