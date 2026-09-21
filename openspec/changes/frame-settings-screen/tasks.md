@@ -33,7 +33,8 @@
 - [x] 6.2 Remove the scrollbar's extra top inset so its track starts at the top of the current scrolling region before and after the title disappears.
 - [x] 6.3 Verify fixed-rule/title-scroll composition, section pinning, rail geometry, pointer behavior, ruled search, constrained frames, and local validation before renewed exact-head CI and visual handoff.
 
-## 7. Remove the opening list gap
+## 7. Preserve the opening spacer and raise the scrollbar
 
-- [x] 7.1 Consume the shared layout's initial spacer as viewport capacity so the first section begins directly below the `Settings` title.
-- [x] 7.2 Verify ordinary rendering, search Ctrl+Home/Ctrl+End, scrolling, exact frames, pointer geometry, and the top-origin rail with the gapless opening list.
+- [x] 7.1 Preserve the shared layout's initial spacer between the `Settings` title and first section.
+- [x] 7.2 Extend the scrollbar track one row upward alongside the title while keeping its scrolled origin beside the pinned section.
+- [x] 7.3 Verify ordinary rendering, search Ctrl+Home/Ctrl+End, scrolling, exact frames, pointer geometry, and rail interaction with the title-level track.

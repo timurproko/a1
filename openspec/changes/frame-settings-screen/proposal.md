@@ -6,9 +6,9 @@ The owned settings screen lacks the framed visual hierarchy used by the `What's 
 
 - Frame the settings screen with a full-width blue theme-border rule above the content and an ordinary full-width divider above footer guidance.
 - Keep the blue top rule fixed, add a bold cyan `Settings` title below it, and let only the title scroll away with the content.
-- Render settings section headings in the theme's yellow heading role; align headings, list content, and footer guidance to the title's one-column left inset; and place the first section directly below the title without an empty opening row.
+- Render settings section headings in the theme's yellow heading role; align headings, list content, and footer guidance to the title's one-column left inset; and preserve one opening spacer between the title and first section.
 - Preserve the shared ruled search-input component while using its top rule in place of the ordinary bottom divider.
-- Pin only the active section heading below the fixed top rule, start the scrollbar at the top of the scrolling region, and account for the changing title offset in pointer, rail, menu, narrow-terminal, and exact-height geometry.
+- Pin only the active section heading below the fixed top rule, start the scrollbar alongside the title one row above the initial list body, and account for the changing title offset in pointer, rail, menu, narrow-terminal, and exact-height geometry.
 - Add focused semantic-style and terminal-cell regression coverage for ordinary, searched, scrolled, dialog, and constrained settings frames.
 
 ## Capabilities
@@ -19,7 +19,7 @@ None.
 
 ### Modified Capabilities
 
-- `owned-ui-settings`: Define the settings screen's fixed top rule, scrollable framed title, gapless opening list, top-origin scrollbar, fixed conditional footer divider, aligned yellow section headings/content/guidance, and unchanged interaction behavior.
+- `owned-ui-settings`: Define the settings screen's fixed top rule, scrollable framed title, opening spacer, title-level scrollbar, fixed conditional footer divider, aligned yellow section headings/content/guidance, and unchanged interaction behavior.
 
 ## Impact
 

@@ -119,7 +119,7 @@ const RAIL_RECT = { width: 80, height: 12 };
 const RAIL_COLUMN = RAIL_RECT.width;
 const SETTINGS_BODY_TOP = 2;
 const RAIL_CONTENT_HEIGHT = RAIL_RECT.height - 2;
-const INITIAL_RAIL_SCREEN_ROW = SETTINGS_BODY_TOP;
+const INITIAL_RAIL_SCREEN_ROW = SETTINGS_BODY_TOP - 1;
 const RAIL_LAST_EVENT_ROW = RAIL_CONTENT_HEIGHT;
 
 /** Converts a zero-based screen row to the terminal's one-based row. */
@@ -190,9 +190,10 @@ describe("the settings screen", () => {
     const rule = "─".repeat(80);
     expect(lines).toHaveLength(24);
     expect(lines[0]).toBe(`<border>${rule}</border>`);
-    expect(lines[1]).toBe(" <b><accent>Settings</accent></b>");
-    expect(lines[2]).toContain("Generic");
-    expect(lines[3]).toContain("Quit animation");
+    expect(lines[1]?.trimEnd()).toBe(" <b><accent>Settings</accent></b>");
+    expect(lines[2]?.trimEnd()).toBe("");
+    expect(lines[3]).toContain("Generic");
+    expect(lines[4]).toContain("Quit animation");
     expect(lines.find(line => line.includes("Generic"))?.startsWith(" ")).toBe(true);
     expect(lines.find(line => line.includes("Generic"))).toContain("<mdHeading><b>Generic</b></mdHeading>");
     expect(lines.find(line => line.includes("Quit animation"))?.startsWith(" <accent>→ ")).toBe(true);
@@ -220,7 +221,7 @@ describe("the settings screen", () => {
     target.onMouse?.({ kind: "wheel-up", button: 0, row: 1, column: 40 }, HOST);
     const restored = target.render(rect, HOST).map(line => line.replace(STYLE, "").trimEnd());
     expect(restored[0]).toBe(initial[0]);
-    expect(restored[1]).toBe(initial[1]);
+    expect(restored[1]).toContain(" Settings");
   });
 
   it("keeps exact frame geometry when the chrome exhausts the rectangle", async () => {
@@ -512,7 +513,7 @@ describe("the settings screen", () => {
     expect([...visited].sort()).toEqual(["History limit", "Output padding", "Persistent history", "Prompt suggestions", "Skills", "Thinking level"]);
   });
 
-  it("places the first section directly below the title when Ctrl+Home returns to the beginning during search", async () => {
+  it("restores the opening spacer when Ctrl+Home returns to the beginning during search", async () => {
     const { app: target } = await app();
     target.onInput?.("/", HOST);
     target.render({ width: 80, height: 13 }, HOST);
@@ -522,9 +523,10 @@ describe("the settings screen", () => {
     target.onInput?.(CTRL_HOME, HOST);
     const lines = target.render({ width: 80, height: 13 }, HOST).map(line => line.replace(STYLE, "").trimEnd());
     expect(lines[0]).toBe("─".repeat(80));
-    expect(lines[1]).toBe(" Settings");
-    expect(lines[2]).toContain("Generic");
-    expect(lines[3]?.trimStart()).toMatch(/^→\s+Quit animation/);
+    expect(lines[1]).toContain(" Settings");
+    expect(lines[2]?.replace(/[│┃]$/u, "").trimEnd()).toBe("");
+    expect(lines[3]).toContain("Generic");
+    expect(lines[4]?.trimStart()).toMatch(/^→\s+Quit animation/);
   });
 
   it("moves the last result onto the final body row when Ctrl+End is used during search", async () => {
@@ -536,8 +538,8 @@ describe("the settings screen", () => {
     const searchRow = lines.findIndex(line => line.includes("search settings"));
     expect(searchRow, JSON.stringify(lines)).toBeGreaterThanOrEqual(0);
     expect(lines.find(line => line.includes("Skills"))?.trimStart()).toMatch(/^→/);
-    // Invariant: the ruled input's top line replaces the divider directly after the final body row.
-    expect(lines[searchRow - 2]).toContain("Skills");
+    // Invariant: the ruled input's top line replaces the divider after the final body row.
+    expect(lines[searchRow - 3]).toContain("Skills");
   });
 
   it("jumps to the first and last setting on Ctrl+Home and Ctrl+End in either encoding", async () => {
@@ -824,6 +826,7 @@ describe("the input row and status line behind the screen", () => {
   it("draws the rail whenever the list overflows under always, in the configured style", async () => {
     const thin = await app(false, undefined, RAIL_SETTINGS, { scrollbarAppearance: "always" });
     const thinCells = railCells(thin.app);
+    expect(thinCells[INITIAL_RAIL_SCREEN_ROW]).toBe("│");
     expect(thinCells).toContain("│");
     expect(thinCells).not.toContain("┃");
 

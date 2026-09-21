@@ -221,8 +221,7 @@ export class SettingsApp implements UiApp {
     let titleRows = this.#scroll <= 0 ? Math.min(SETTINGS_TITLE_ROWS, contentHeight) : 0;
     let bodyHeight = contentHeight - titleRows;
     if (this.#selectionNeedsReveal && bodyHeight > 0) {
-      const selectionHeight = bodyHeight + (this.#scroll <= 0 ? 1 : 0);
-      this.#scroll = scrollForSelection(rows, selectionHeight, this.#scroll, selected, this.#reveal);
+      this.#scroll = scrollForSelection(rows, bodyHeight, this.#scroll, selected, this.#reveal);
       this.#selectionNeedsReveal = false;
       this.#reveal = undefined;
     }
@@ -231,11 +230,11 @@ export class SettingsApp implements UiApp {
       bodyHeight = contentHeight;
     }
 
-    let layout = layoutList(rows, bodyHeight + (this.#scroll <= 0 ? 1 : 0), this.#scroll);
+    let layout = layoutList(rows, bodyHeight, this.#scroll);
     if (layout.scroll === 0 && titleRows === 0) {
       titleRows = Math.min(SETTINGS_TITLE_ROWS, contentHeight);
       bodyHeight = contentHeight - titleRows;
-      layout = layoutList(rows, bodyHeight + 1, 0);
+      layout = layoutList(rows, bodyHeight, 0);
     }
     this.#bodyTopForFrame = topRows + titleRows;
     this.#bodyHeightForFrame = bodyHeight;
@@ -257,7 +256,7 @@ export class SettingsApp implements UiApp {
       contentLength: rows.length,
       viewportHeight: layout.visible,
       scroll: layout.scroll,
-      trackHeight: Math.max(0, bodyHeight - SCROLLBAR_TOP_INSET),
+      trackHeight: Math.max(0, titleRows + bodyHeight - SCROLLBAR_TOP_INSET),
     });
     const presentation = scrollbarPresentation({
       geometry,
@@ -270,7 +269,7 @@ export class SettingsApp implements UiApp {
     });
     this.#railFrame = reservesRail && geometry !== null
       ? {
-        rail: { key: RAIL_KEY, column: rect.width, rowStart: this.#bodyTopForFrame + SCROLLBAR_TOP_INSET, trackHeight: geometry.trackHeight },
+        rail: { key: RAIL_KEY, column: rect.width, rowStart: topRows + SCROLLBAR_TOP_INSET, trackHeight: geometry.trackHeight },
         geometry,
         page: layout.visible,
       }
@@ -281,6 +280,7 @@ export class SettingsApp implements UiApp {
     if (rows.length === 0) {
       body.push(...renderEmptyState("No settings found.", "👀", bodyHeight, contentWidth, theme));
     } else {
+      if (layout.topPadding > 0) body.push("");
       if (layout.stickyHeader !== undefined) body.push(this.#header(layout.stickyHeader, theme, contentWidth));
       for (const index of layout.rowIndexes) {
         const row = rows[index];
@@ -299,15 +299,15 @@ export class SettingsApp implements UiApp {
       while (body.length < bodyHeight) body.push("");
     }
 
-    const withRail = withScrollbarRail(body.slice(0, bodyHeight), geometry, contentWidth, theme, {
+    const title = truncateToWidth(` ${theme.bold(theme.fg("accent", "Settings"))}`, contentWidth);
+    const scrollingFrame = [...(titleRows === 0 ? [] : [title]), ...body.slice(0, bodyHeight)];
+    const withRail = withScrollbarRail(scrollingFrame, geometry, contentWidth, theme, {
       topInset: SCROLLBAR_TOP_INSET,
       presentation,
     });
     const rule = theme.fg("border", "─".repeat(Math.max(0, rect.width)));
-    const title = truncateToWidth(` ${theme.bold(theme.fg("accent", "Settings"))}`, rect.width);
-    const header = [rule, ...(titleRows === 0 ? [] : [title])];
     const frame = this.#withMenu(
-      [...header, ...withRail, ...(dividerRows === 0 ? [] : [rule]), ...footer],
+      [rule, ...withRail, ...(dividerRows === 0 ? [] : [rule]), ...footer],
       selected,
       layout,
       valueColumn,
