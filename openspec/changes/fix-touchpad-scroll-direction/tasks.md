@@ -10,4 +10,4 @@
 
 ## 3. Physical touchpad validation
 
-- [ ] 3.1 Build and launch the exact candidate in bare A1 and exercise sustained upward and downward touchpad gestures, including slight diagonal movement; verify the transcript never reverses because of horizontal wheel noise and record terminal/device observations in `design.md`.
+- [x] 3.1 Build and launch the exact candidate in bare A1 and exercise sustained upward and downward touchpad gestures, including slight diagonal movement; verify the transcript never reverses because of horizontal wheel noise and record terminal/device observations in `design.md`.
