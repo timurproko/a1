@@ -74,6 +74,7 @@
     "follow-up-mode",
     "transport",
     "http-idle-timeout",
+    "cache-warming-mode",
     "hide-thinking",
     "mermaid-rendering",
     "cache-miss-notices",
@@ -722,7 +723,7 @@
       "source": "session",
       "sourceAnchors": [
         "Resume Session (All)",
-        "this.scope = \"all\""
+        "const showCwd = this.scope === \"all\";"
       ],
       "heading": "Resume Session (All)",
       "body": "search plus all-session cwd/path rows and loading/progress/status",
@@ -742,7 +743,7 @@
       "viewport": "maximum ten session rows",
       "scrolling": "session list scrolling",
       "destination": "src/integrations/pi/components/upstream/components/session-selector.ts",
-      "status": "orphaned",
+      "status": "implemented-pending-exhaustive-parity",
       "controller": "SessionSelectorComponent",
       "acceptance": "modal-node:session.resume.all",
       "parents": [
@@ -2279,7 +2280,7 @@
       "to": "session.resume.all",
       "source": "session",
       "sourceAnchors": [
-        "this.scope = \"all\""
+        "this.scope = this.scope === \"current\" ? \"all\" : \"current\";"
       ],
       "trigger": "Tab",
       "stateMutation": "switch scope and load/cache all sessions",
@@ -2291,8 +2292,7 @@
         "terminal:session-selector-cancel-restored",
         "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
         "authority:pinned-controller-transition"
-      ],
-      "status": "orphaned"
+      ]
     },
     {
       "id": "resume.scope.current",
@@ -2300,7 +2300,7 @@
       "to": "session.resume.current",
       "source": "session",
       "sourceAnchors": [
-        "this.scope = \"current\""
+        "this.scope = this.scope === \"current\" ? \"all\" : \"current\";"
       ],
       "trigger": "Tab",
       "stateMutation": "switch to current cached/loading sessions",
@@ -2312,8 +2312,7 @@
         "terminal:session-selector-cancel-restored",
         "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
         "authority:pinned-controller-transition"
-      ],
-      "status": "orphaned"
+      ]
     },
     {
       "id": "resume.rename.open",

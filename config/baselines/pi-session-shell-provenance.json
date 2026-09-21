@@ -4,11 +4,17 @@
   "recordedAt": "2026-08-16T12:00:00.000Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
-    "commit": "d981de1229ef899957bbe968bc8dcda02a21f477",
+    "commit": "ecac0a9c4edad3dac5d9f8b40e0c7db7a56471fc",
     "license": "MIT",
     "packages": [
-      { "name": "@earendil-works/pi-coding-agent", "version": "0.85.1" },
-      { "name": "@earendil-works/pi-tui", "version": "0.85.1" }
+      {
+        "name": "@earendil-works/pi-coding-agent",
+        "version": "0.86.0"
+      },
+      {
+        "name": "@earendil-works/pi-tui",
+        "version": "0.86.0"
+      }
     ]
   },
   "publicExports": [
@@ -33,8 +39,11 @@
   "orchestrationPorts": [
     {
       "upstreamSource": "packages/coding-agent/src/modes/interactive/interactive-mode.ts",
-      "upstreamCommit": "d981de1229ef899957bbe968bc8dcda02a21f477",
-      "upstreamLines": [528, 994],
+      "upstreamCommit": "ecac0a9c4edad3dac5d9f8b40e0c7db7a56471fc",
+      "upstreamLines": [
+        528,
+        994
+      ],
       "localFile": "src/app/session-shell/session-shell.ts",
       "adapterFile": "src/integrations/pi/components/shell-components.ts",
       "behavior": "persistent startup/header/transcript/status/editor/footer composition, session-event subscription, selector/dialog focus, shutdown and terminal restoration",
@@ -52,19 +61,43 @@
     },
     {
       "upstreamSource": "packages/coding-agent/src/core/slash-commands.ts and packages/coding-agent/src/modes/interactive/interactive-mode.ts",
-      "upstreamCommit": "d981de1229ef899957bbe968bc8dcda02a21f477",
-      "upstreamLines": [[3, 42], [638, 740]],
+      "upstreamCommit": "ecac0a9c4edad3dac5d9f8b40e0c7db7a56471fc",
+      "upstreamLines": [
+        [
+          3,
+          42
+        ],
+        [
+          638,
+          740
+        ]
+      ],
       "localFile": "src/integrations/pi/components/shell-components.ts",
       "behavior": "complete advertised built-in command autocomplete, vanilla descriptions and argument hints",
       "copiedFiles": [],
       "copiedLines": false,
       "modifications": "Manifest data was transcribed into an AddOne adapter constant and passed to the public CombinedAutocompleteProvider; routing remains AddOne-owned.",
-      "coverage": ["test/integrations/pi/components/shell-components.test.ts"]
+      "coverage": [
+        "test/integrations/pi/components/shell-components.test.ts"
+      ]
     },
     {
       "upstreamSource": "packages/coding-agent/src/modes/interactive/interactive-mode.ts",
-      "upstreamCommit": "d981de1229ef899957bbe968bc8dcda02a21f477",
-      "upstreamLines": [[2870, 3058], [3998, 6205], [6207, 6374]],
+      "upstreamCommit": "ecac0a9c4edad3dac5d9f8b40e0c7db7a56471fc",
+      "upstreamLines": [
+        [
+          2870,
+          3058
+        ],
+        [
+          3998,
+          6205
+        ],
+        [
+          6207,
+          6374
+        ]
+      ],
       "localFile": "src/integrations/pi/engine/adapter.ts",
       "shellFile": "src/app/session-shell/session-shell.ts",
       "contractFile": "src/integrations/pi/engine/workflows.ts",
@@ -87,8 +120,11 @@
     },
     {
       "upstreamSource": "packages/coding-agent/src/modes/interactive/components/footer.ts",
-      "upstreamCommit": "d981de1229ef899957bbe968bc8dcda02a21f477",
-      "upstreamLines": [60, 245],
+      "upstreamCommit": "ecac0a9c4edad3dac5d9f8b40e0c7db7a56471fc",
+      "upstreamLines": [
+        60,
+        245
+      ],
       "localFile": "src/integrations/pi/components/shell-components.ts",
       "behavior": "vanilla two-row cwd/context/model/thinking footer over AddOne-owned view state",
       "copiedFiles": [],
@@ -101,32 +137,59 @@
     },
     {
       "upstreamSource": "packages/coding-agent/src/modes/interactive/components/mermaid.ts",
-      "upstreamCommit": "d981de1229ef899957bbe968bc8dcda02a21f477",
-      "upstreamLines": [1, 103],
+      "upstreamCommit": "ecac0a9c4edad3dac5d9f8b40e0c7db7a56471fc",
+      "upstreamLines": [
+        1,
+        103
+      ],
       "localFile": "src/integrations/pi/components/upstream/components/mermaid.ts",
       "behavior": "live off, finalized, and streaming Mermaid markdown transformation",
-      "copiedFiles": ["src/integrations/pi/components/upstream/components/mermaid.ts"],
+      "copiedFiles": [
+        "src/integrations/pi/components/upstream/components/mermaid.ts"
+      ],
       "copiedLines": true,
       "modifications": "Private imports were replaced with package-root types and the owned theme boundary.",
-      "coverage": ["test/integrations/pi/components/shell-components.test.ts"]
+      "coverage": [
+        "test/integrations/pi/components/shell-components.test.ts"
+      ]
     },
     {
       "upstreamSource": "packages/coding-agent/src/core/http-dispatcher.ts",
-      "upstreamCommit": "d981de1229ef899957bbe968bc8dcda02a21f477",
-      "upstreamLines": [1, 112],
+      "upstreamCommit": "ecac0a9c4edad3dac5d9f8b40e0c7db7a56471fc",
+      "upstreamLines": [
+        1,
+        112
+      ],
       "localFile": "src/integrations/pi/engine/http-dispatcher.ts",
       "behavior": "profile-scoped HTTP idle timeout dispatcher configuration including disabled semantics",
-      "copiedFiles": ["src/integrations/pi/engine/http-dispatcher.ts"],
+      "copiedFiles": [
+        "src/integrations/pi/engine/http-dispatcher.ts"
+      ],
       "copiedLines": true,
       "modifications": "Reduced to the public undici dispatcher seam and A1 diagnostics state; no private Pi import remains.",
-      "coverage": ["test/integrations/pi/engine/http-dispatcher.test.ts"]
+      "coverage": [
+        "test/integrations/pi/engine/http-dispatcher.test.ts"
+      ]
     },
     {
       "upstreamSource": "packages/coding-agent/src/modes/interactive/components/settings-selector.ts and packages/tui/src/components/settings-list.ts",
-      "upstreamCommit": "d981de1229ef899957bbe968bc8dcda02a21f477",
-      "upstreamLines": [[1, 620], [1, 251]],
+      "upstreamCommit": "ecac0a9c4edad3dac5d9f8b40e0c7db7a56471fc",
+      "upstreamLines": [
+        [
+          1,
+          620
+        ],
+        [
+          1,
+          251
+        ]
+      ],
       "localFile": "src/features/owned-ui/settings-app.ts",
-      "componentFiles": ["src/ui/components/list-view.ts", "src/ui/components/dialog-panel.ts", "src/ui/components/value-menu.ts"],
+      "componentFiles": [
+        "src/ui/components/list-view.ts",
+        "src/ui/components/dialog-panel.ts",
+        "src/ui/components/value-menu.ts"
+      ],
       "behavior": "semantic ANSI, selected setting rows and values, scalar and structured controls, notices, wrapping, narrow-width geometry, and reviewed owned search, status, description-visibility, wheel, and floating scalar-menu interactions",
       "copiedFiles": [],
       "copiedLines": false,
@@ -140,8 +203,21 @@
     },
     {
       "upstreamSource": "packages/coding-agent/src/cli/startup-ui.ts, packages/coding-agent/src/cli/project-trust.ts, and packages/coding-agent/src/core/project-trust.ts",
-      "upstreamCommit": "d981de1229ef899957bbe968bc8dcda02a21f477",
-      "upstreamLines": [[1, 190], [1, 52], [1, 61]],
+      "upstreamCommit": "ecac0a9c4edad3dac5d9f8b40e0c7db7a56471fc",
+      "upstreamLines": [
+        [
+          1,
+          190
+        ],
+        [
+          1,
+          52
+        ],
+        [
+          1,
+          61
+        ]
+      ],
       "localFile": "src/features/owned-ui/project-trust-prompt.ts",
       "behavior": "pre-resource startup selector focus, navigation, accept, reject, cancel, clearing, fail-closed diagnostics, and terminal restoration",
       "copiedFiles": [],
@@ -155,8 +231,17 @@
     },
     {
       "upstreamSource": "packages/coding-agent/src/modes/interactive/interactive-mode.ts",
-      "upstreamCommit": "d981de1229ef899957bbe968bc8dcda02a21f477",
-      "upstreamLines": [[115, 131], [3138, 3150]],
+      "upstreamCommit": "ecac0a9c4edad3dac5d9f8b40e0c7db7a56471fc",
+      "upstreamLines": [
+        [
+          115,
+          131
+        ],
+        [
+          3138,
+          3150
+        ]
+      ],
       "localFile": "src/app/session-shell/session-shell.ts",
       "transcriptFile": "src/app/session-shell/session-shell-root.ts",
       "behavior": "styled fullscreen transcript output after restoration and compact dim session-id resume command grammar",

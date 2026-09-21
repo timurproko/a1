@@ -1,6 +1,6 @@
 import type { PiTuiTerminalPort } from "./contracts.js";
 
-export const PINNED_PI_TUI_DAMAGE_GRAMMAR = "@earendil-works/pi-tui@0.85.1:tui-alt-screen-one-write-v1";
+export const PINNED_PI_TUI_DAMAGE_GRAMMAR = "@earendil-works/pi-tui@0.86.0:tui-alt-screen-one-write-v1";
 
 export interface PiTuiDamageFrameDescriptor {
   readonly frameId: number;
@@ -82,6 +82,10 @@ interface ParsedRow {
 const BEGIN_SYNCHRONIZED_OUTPUT = "\u001b[?2026h";
 const END_SYNCHRONIZED_OUTPUT = "\u001b[?2026l";
 const ROW_MARKER = /\u001b\[(\d+);1H\u001b\[2K/gu;
+// Invariant: in this grammar a row's painted content never repositions the cursor. Pinned 0.86.0
+// batches every row erase ahead of the paints for WezTerm frames that place Kitty images, so those
+// paints would otherwise be read as one row's content; an unrecognized frame is forwarded unchanged.
+const ROW_CONTENT_CURSOR = /\u001b\[\d+;1H/u;
 const CURSOR_SUFFIX = /(?:\u001b\[(\d+);(\d+)H)?\u001b\[\?25[hl]\u001b\[\?2026l$/u;
 const OUT_OF_BAND = /^(?:\u001b\](?:0|2|9|52);[^\u0007\u001b]*(?:\u0007|\u001b\\)|\u001b\[\?25[hl])+$/u;
 
@@ -456,6 +460,7 @@ function parsePinnedFullscreenWrite(data: string): ParsedFullscreenWrite | null 
     const contentStart = start + match[0].length;
     const end = matches[index + 1]?.index ?? body.length;
     const content = body.slice(contentStart, end);
+    if (ROW_CONTENT_CURSOR.test(content)) return null;
     rows.push({ row, content, segment: body.slice(start, end) });
   }
   return { structuralPrefix, rows, cursorSuffix: data.slice(suffix.index) };

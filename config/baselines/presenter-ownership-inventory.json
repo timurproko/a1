@@ -567,6 +567,24 @@
       ]
     },
     {
+      "name": "bug",
+      "success": [
+        "replacement.selector-dialog-editor",
+        "replacement.operation-loader",
+        "document.status"
+      ],
+      "cancel": [
+        "replacement.selector-dialog-editor",
+        "document.status"
+      ],
+      "failure": [
+        "document.error-warning"
+      ],
+      "sourceAnchors": [
+        "this.handleBugCommand(hint ? hint : undefined)"
+      ]
+    },
+    {
       "name": "copy",
       "success": [
         "document.status"

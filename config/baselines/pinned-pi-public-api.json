@@ -2832,6 +2832,7 @@
             "src/integrations/pi/components/upstream/components/extension-editor.ts",
             "src/integrations/pi/components/upstream/components/scoped-models-selector.ts",
             "src/integrations/pi/components/upstream/components/session-selector.ts",
+            "src/integrations/pi/components/upstream/components/skill-invocation-message.ts",
             "src/integrations/pi/components/upstream/components/tool-execution.ts",
             "src/integrations/pi/components/upstream/components/tree-selector.ts",
             "src/integrations/pi/components/upstream/components/trust-selector.ts"
@@ -3283,6 +3284,7 @@
           "kind": "class",
           "hash": "c206e8171623f1ddd209144d8bb9296282a1bb13d3449025072f43e5092e56ed",
           "consumers": [
+            "src/integrations/pi/components/upstream/components/skill-invocation-message.ts",
             "src/integrations/pi/components/upstream/components/tool-execution.ts"
           ]
         },

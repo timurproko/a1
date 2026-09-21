@@ -18,7 +18,7 @@ export function readUsageView(session: AgentSession | undefined, runtime: AgentS
     const message = entry.type === "message" && isRecord(entry.message) ? entry.message : undefined;
     const usage = message !== undefined && isRecord(message.usage)
       ? message.usage
-      : (entry.type === "branch_summary" || entry.type === "compaction") && isRecord(entry.usage) ? entry.usage : undefined;
+      : (entry.type === "usage" || entry.type === "branch_summary" || entry.type === "compaction") && isRecord(entry.usage) ? entry.usage : undefined;
     if (usage === undefined) continue;
     input += finiteNumber(usage.input);
     output += finiteNumber(usage.output);

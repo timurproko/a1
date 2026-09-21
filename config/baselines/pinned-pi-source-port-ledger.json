@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-09-20T08:42:54.867Z",
+  "recordedAt": "2026-09-21T13:31:22.249Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "ecac0a9c4edad3dac5d9f8b40e0c7db7a56471fc",
@@ -39,8 +39,8 @@
     "assets": 4,
     "classifications": {
       "public-api-reuse": 63,
-      "owned-presentation": 28,
-      "host-adaptation": 27
+      "owned-presentation": 27,
+      "host-adaptation": 28
     },
     "requiredBehaviorIds": 29,
     "coveredBehaviorIds": 29,
@@ -890,7 +890,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Unchanged image bytes are losslessly encoded in an attributed owned JSON resource by scripts/pi/update-command-resources.mjs. Source bytes and digest are verified against this pinned asset authority; runtime reads only the owned resource, never the dependency directory.",
       "upgradeStrategy": "three-way",
-      "localSha256": "ef3db0f781a221c0bf5ad724f20e2900b9a3b55b4025ea05aefbc4e25e85b498",
+      "localSha256": "17b78ea58afd2fd10b84bd4849a3c56aef0c8fa82c26b5ac694cd0c6d85495bb",
       "approvedDeviations": [],
       "behaviorCategories": [
         "stateful-components"
@@ -914,12 +914,11 @@
       "sourceMap": "modes/interactive/bug-report.js.map",
       "lines": 293,
       "sha256": "afdbfc56c42f39349052cd5232c155cfcc41556a3ea2fa94c44c14c3a83f549a",
-      "classification": "owned-presentation",
-      "localDestination": "src/integrations/pi/components/upstream/bug-report.ts",
-      "implementationStatus": "not-ported",
+      "classification": "host-adaptation",
+      "localDestination": "src/integrations/pi/components/index.ts",
+      "implementationStatus": "declined-not-adopted",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Mechanical port planned: remap imports, inject A1 engine/runtime ownership, preserve control flow and state, and record every deviation.",
-      "upgradeStrategy": "three-way",
+      "modifications": "Not adopted. The flow depends on bug-report metadata and diagnostics collection, the archive writer, the upload client, the crash log, the Radius gateway identity, and session-branch export; none of these are on the pinned package public API or its exports map, so they are reachable only through deep imports this architecture forbids. Only the consent UI shells are public, so reproducing the report would mean reimplementing a private upstream wire format. A1 advertises no /bug command and retains this unit in source inventory.",
       "approvedDeviations": [],
       "behaviorCategories": [
         "stateful-components"
@@ -931,7 +930,8 @@
         "7.5"
       ],
       "tests": [
-        "test/integrations/pi/components/pinned-component-lifecycle-parity.test.ts"
+        "test/repository-governance/pi-presenter-ownership-inventory.test.ts",
+        "test/integrations/pi/components/shell-components.test.ts"
       ]
     },
     {
@@ -1738,7 +1738,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Consumes neutral owned-UI view data instead of a fabricated concrete AgentSession; an explicit bare-A1 profile colors the thinking-level name while preserving the remaining footer layout and formatting.",
       "upgradeStrategy": "three-way",
-      "localSha256": "df9fe2f5c2c78edaefd5091d71444857a7f022fd6aed0461128db1c256b5cc2c",
+      "localSha256": "fc06e53d844178a5b7958e678408d14dae47465f24cc053c544cd1d16afd82f8",
       "approvedDeviations": [
         {
           "id": "owned-status-level-color",
@@ -2114,7 +2114,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Source-synchronized session selector port: preserve threaded/current/all scope, search, sort, named/path filters, rename, delete confirmation, active-session protection, loading progress, cancellation, focus, and disposal while remapping public helpers, owned keybindings/theme, and canonical path handling.",
       "upgradeStrategy": "three-way",
-      "localSha256": "395b0cddbc8eb34a14fa87f2ad656d60ffd366538e42709d971f15ece659f709",
+      "localSha256": "9177eb05b2520e9a211e6c8b0ce384ff38c8ef1730b9a0eadeadf0d24341fecb",
       "approvedDeviations": [],
       "behaviorCategories": [
         "selectors",
@@ -2261,7 +2261,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Mechanical port uses A1's public pi-tui instance, owned theme boundary, and root-instance keybinding registry because the public coding-agent component closes over a second nested pi-tui singleton and cannot observe A1's keybindings.",
       "upgradeStrategy": "three-way",
-      "localSha256": "067ef84a26a71592352f1a4304a1ba86fb807e3d06a34afb557e6e952b96c0eb",
+      "localSha256": "7d3f1680e67fc05077b7f015696b4eeae577eea24202f03d8d16da7363b2a828",
       "approvedDeviations": [],
       "behaviorCategories": [
         "stateful-components",
@@ -2300,7 +2300,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Mechanical source port with public package-root keybinding, Loader, and owned theme/countdown imports plus ECMAScript private fields.",
       "upgradeStrategy": "three-way",
-      "localSha256": "d18d08793c7dcf0be78c0124a375f7ef6f93f2289c75ad1860de3d861213b7cb",
+      "localSha256": "e28ae49cdbb83c5f48385cd358f372cbf42ec5ffad68ac47ee8eca1dfcf254ab",
       "approvedDeviations": [
         {
           "id": "status-indicator-public-boundaries",
@@ -2422,7 +2422,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Retain pinned shell and actual public tool-definition renderers. Replace private index-keyed image conversion with current-source ownership, serial conversion, visible fallback, and disposal; guard reentrant invalidation. Remap private types, definition factories, theme, and generic text helpers to public or locally attributed equivalents. See docs/architecture/tool-image-presentation.md.",
       "upgradeStrategy": "three-way",
-      "localSha256": "9d637bd31fe3409815991fc7dd54c2af4d5dd09840408dd85ca249987f2b7213",
+      "localSha256": "a1aedcdd27089e8d3b4574896d1a32236c6507635df8e859d2915d7a19cb5cf3",
       "approvedDeviations": [
         {
           "id": "current-tool-image-conversion-ownership",
@@ -3410,7 +3410,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Owned editor core or minimal editor-local helper subset; public imports, strict types, typed persistent-history hooks, and semantic border state with the user-approved numeric-only history label. Public terminal runtime/exports remain shared and unchanged. See docs/architecture/history-editor-provenance.md.",
       "upgradeStrategy": "three-way",
-      "localSha256": "5725ea8c12a00b244941d8c7139dbdcac10f1f52fd9148b33c854413bd75468f",
+      "localSha256": "698e548c2ae88e9a01297780e48e089872a42d9d1391af0f1a206d70e8f8c4f8",
       "approvedDeviations": [
         {
           "id": "compact-history-counter-label",
@@ -4387,7 +4387,7 @@
       "localDestination": "src/integrations/pi/components/index.ts",
       "implementationStatus": "available-through-pinned-package",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "None planned; import only from the pinned public pi-tui package root.",
+      "modifications": "None planned; the bundled macOS, Windows, and X11 clipboard helpers are reached through the pinned public pi-tui package root.",
       "approvedDeviations": [],
       "behaviorCategories": [
         "keybindings",
@@ -4405,8 +4405,8 @@
         "7.21"
       ],
       "tests": [
-        "test/features/owned-ui/pinned-input-parity.test.ts",
-        "test/integrations/pi/tui-runtime/pinned-lifecycle-parity.test.ts"
+        "test/integrations/pi/components/pinned-editor-input-parity.test.ts",
+        "test/integrations/pi/tui-runtime/adapter.test.ts"
       ]
     },
     {
@@ -4728,7 +4728,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Owned editor core or minimal editor-local helper subset; public imports, strict types, typed persistent-history hooks, and semantic border state. Public terminal runtime/exports remain shared and unchanged. See docs/architecture/history-editor-provenance.md.",
       "upgradeStrategy": "keep-owned",
-      "localSha256": "8650264326cd3daa10c85e537a84a0e49b11d41e58304354d0bf5ee57ef8418c",
+      "localSha256": "5a4d7fe9526682b47671fbbfbec0c843facf5a5eca1c78dd84904ff881d79d67",
       "approvedDeviations": [
         {
           "id": "persistent-history-owned-editor-boundary",

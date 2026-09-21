@@ -7,65 +7,13 @@
  * docs/architecture/history-editor-provenance.md.
  * Deviations: compact-history-counter-label, persistent-history-owned-editor-boundary.
  */
-<<<<<<< a1
 import { getKeybindings, matchesKey, CURSOR_MARKER, sliceByColumn, truncateToWidth, visibleWidth, SelectList, type AutocompleteProvider, type AutocompleteSuggestions, type Component, type Focusable, type TUI, type TuiMouseEvent, type TuiMouseEventResult, type SelectListLayoutOptions, type SelectListTheme } from "@earendil-works/pi-tui";
 import { decodePrintableKey } from "./printable-key.js";
 import { KillRing } from "./kill-ring.js";
 import { UndoStack } from "./undo-stack.js";
-import { cjkBreakRegex, getGraphemeSegmenter, getWordSegmenter, isWhitespaceChar } from "./text-helpers.js";
+import { autocompleteBoundaryRegex, autocompleteSeparatorRegex, cjkBreakRegex, getGraphemeSegmenter, getWordSegmenter, isWhitespaceChar } from "./text-helpers.js";
 import { findWordBackward, findWordForward } from "./word-navigation.js";
 import type { EditorInteractionPort, EditorRecallPort } from "../../editor-interaction.js";
-||||||| pi 0.85.1
-import type { AutocompleteProvider, AutocompleteSuggestions } from "../autocomplete.ts";
-import { getKeybindings } from "../keybindings.ts";
-import { decodePrintableKey, matchesKey } from "../keys.ts";
-import { KillRing } from "../kill-ring.ts";
-import {
-	type Component,
-	CURSOR_MARKER,
-	type Focusable,
-	type TUI,
-	type TuiMouseEvent,
-	type TuiMouseEventResult,
-} from "../tui.ts";
-import { UndoStack } from "../undo-stack.ts";
-import {
-	cjkBreakRegex,
-	getGraphemeSegmenter,
-	getWordSegmenter,
-	isWhitespaceChar,
-	sliceByColumn,
-	visibleWidth,
-} from "../utils.ts";
-import { findWordBackward, findWordForward } from "../word-navigation.ts";
-import { SelectList, type SelectListLayoutOptions, type SelectListTheme } from "./select-list.ts";
-=======
-import type { AutocompleteProvider, AutocompleteSuggestions } from "../autocomplete.ts";
-import { getKeybindings } from "../keybindings.ts";
-import { decodePrintableKey, matchesKey } from "../keys.ts";
-import { KillRing } from "../kill-ring.ts";
-import {
-	type Component,
-	CURSOR_MARKER,
-	type Focusable,
-	type TUI,
-	type TuiMouseEvent,
-	type TuiMouseEventResult,
-} from "../tui.ts";
-import { UndoStack } from "../undo-stack.ts";
-import {
-	autocompleteBoundaryRegex,
-	autocompleteSeparatorRegex,
-	cjkBreakRegex,
-	getGraphemeSegmenter,
-	getWordSegmenter,
-	isWhitespaceChar,
-	sliceByColumn,
-	visibleWidth,
-} from "../utils.ts";
-import { findWordBackward, findWordForward } from "../word-navigation.ts";
-import { SelectList, type SelectListLayoutOptions, type SelectListTheme } from "./select-list.ts";
->>>>>>> pi 0.86.0
 
 const graphemeSegmenter = getGraphemeSegmenter();
 const wordSegmenter = getWordSegmenter();

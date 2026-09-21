@@ -13,14 +13,8 @@ export const DOCUMENTED_DEPRECATED_EXCEPTIONS = Object.freeze([
   {
     name: "node-domexception",
     version: "1.0.0",
-    upstream: "@earendil-works/pi-coding-agent@0.85.1",
+    upstream: "@earendil-works/pi-coding-agent@0.86.0",
     reasonIncludes: "native DOMException",
-  },
-  {
-    name: "@aws-sdk/core",
-    version: "3.974.11",
-    upstream: "@earendil-works/pi-coding-agent@0.85.1",
-    reasonIncludes: "error deserialization",
   },
 ]);
 

@@ -6,25 +6,13 @@
  * nested pi-tui singleton and cannot observe A1's keybindings.
  * Deviations: none.
  */
-<<<<<<< a1
-import { Box, getKeybindings, Markdown, Text, type MarkdownTheme } from "@earendil-works/pi-tui";
+import { Box, Container, getKeybindings, Markdown, MouseRegion, Text, type MarkdownTheme } from "@earendil-works/pi-tui";
 import { piTheme } from "../theme/theme.js";
 
 export interface SkillInvocationBlock {
   readonly name: string;
   readonly content: string;
 }
-||||||| pi 0.85.1
-import { Box, Markdown, type MarkdownTheme, Text } from "@earendil-works/pi-tui";
-import type { ParsedSkillBlock } from "../../../core/agent-session.ts";
-import { getMarkdownTheme, theme } from "../theme/theme.ts";
-import { keyText } from "./keybinding-hints.ts";
-=======
-import { Box, Container, Markdown, type MarkdownTheme, MouseRegion, Text } from "@earendil-works/pi-tui";
-import type { ParsedSkillBlock } from "../../../core/agent-session.ts";
-import { getMarkdownTheme, theme } from "../theme/theme.ts";
-import { keyText } from "./keybinding-hints.ts";
->>>>>>> pi 0.86.0
 
 export class SkillInvocationMessageComponent extends Box {
   #expanded = false;
@@ -51,81 +39,28 @@ export class SkillInvocationMessageComponent extends Box {
     this.#updateDisplay();
   }
 
-<<<<<<< a1
   #updateDisplay(): void {
     this.clear();
+    const content = new Container();
     if (this.#expanded) {
       const label = piTheme().fg("customMessageLabel", "\x1b[1m[skill]\x1b[22m");
-      this.addChild(new Text(label, 0, 0));
+      content.addChild(new Text(label, 0, 0));
       const header = `**${this.skillBlock.name}**\n\n`;
-      this.addChild(new Markdown(header + this.skillBlock.content, 0, 0, this.markdownTheme, {
+      content.addChild(new Markdown(header + this.skillBlock.content, 0, 0, this.markdownTheme, {
         color: text => piTheme().fg("customMessageText", text),
       }));
-      return;
+    } else {
+      const expandKey = getKeybindings().getKeys("app.tools.expand")[0] ?? "";
+      const line = piTheme().fg("customMessageLabel", "\x1b[1m[skill]\x1b[22m ")
+        + piTheme().fg("customMessageText", this.skillBlock.name)
+        + piTheme().fg("dim", ` (${expandKey} to expand)`);
+      content.addChild(new Text(line, 0, 0));
     }
-||||||| pi 0.85.1
-	private updateDisplay(): void {
-		this.clear();
-=======
-	private updateDisplay(): void {
-		this.clear();
-		const content = new Container();
->>>>>>> pi 0.86.0
 
-<<<<<<< a1
-    const expandKey = getKeybindings().getKeys("app.tools.expand")[0] ?? "";
-    const line = piTheme().fg("customMessageLabel", "\x1b[1m[skill]\x1b[22m ")
-      + piTheme().fg("customMessageText", this.skillBlock.name)
-      + piTheme().fg("dim", ` (${expandKey} to expand)`);
-    this.addChild(new Text(line, 0, 0));
+    this.addChild(new MouseRegion(content, event => {
+      if (event.type !== "click" || event.button !== "left") return undefined;
+      this.setExpanded(!this.#expanded);
+      return { handled: true };
+    }));
   }
-||||||| pi 0.85.1
-		if (this.expanded) {
-			// Expanded: label + skill name header + full content
-			const label = theme.fg("customMessageLabel", `\x1b[1m[skill]\x1b[22m`);
-			this.addChild(new Text(label, 0, 0));
-			const header = `**${this.skillBlock.name}**\n\n`;
-			this.addChild(
-				new Markdown(header + this.skillBlock.content, 0, 0, this.markdownTheme, {
-					color: (text: string) => theme.fg("customMessageText", text),
-				}),
-			);
-		} else {
-			// Collapsed: single line - [skill] name (hint to expand)
-			const line =
-				theme.fg("customMessageLabel", `\x1b[1m[skill]\x1b[22m `) +
-				theme.fg("customMessageText", this.skillBlock.name) +
-				theme.fg("dim", ` (${keyText("app.tools.expand")} to expand)`);
-			this.addChild(new Text(line, 0, 0));
-		}
-	}
-=======
-		if (this.expanded) {
-			// Expanded: label + skill name header + full content
-			const label = theme.fg("customMessageLabel", `\x1b[1m[skill]\x1b[22m`);
-			content.addChild(new Text(label, 0, 0));
-			const header = `**${this.skillBlock.name}**\n\n`;
-			content.addChild(
-				new Markdown(header + this.skillBlock.content, 0, 0, this.markdownTheme, {
-					color: (text: string) => theme.fg("customMessageText", text),
-				}),
-			);
-		} else {
-			// Collapsed: single line - [skill] name (hint to expand)
-			const line =
-				theme.fg("customMessageLabel", `\x1b[1m[skill]\x1b[22m `) +
-				theme.fg("customMessageText", this.skillBlock.name) +
-				theme.fg("dim", ` (${keyText("app.tools.expand")} to expand)`);
-			content.addChild(new Text(line, 0, 0));
-		}
-
-		this.addChild(
-			new MouseRegion(content, (event) => {
-				if (event.type !== "click" || event.button !== "left") return undefined;
-				this.setExpanded(!this.expanded);
-				return { handled: true };
-			}),
-		);
-	}
->>>>>>> pi 0.86.0
 }

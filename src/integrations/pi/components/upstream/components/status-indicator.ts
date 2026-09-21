@@ -27,36 +27,6 @@ export class StatusIndicator extends Loader {
     this.kind = kind;
   }
 
-<<<<<<< a1
-  dispose(): void {
-    this.stop();
-  }
-||||||| pi 0.85.1
-	dispose(): void {
-		this.stop();
-	}
-=======
-	renderInBorder(width: number): string {
-		const line = super.render(width + 2)[1] ?? "";
-		return truncateToWidth(line.startsWith(" ") ? line.slice(1).trimEnd() : line.trimEnd(), width, "");
-	}
-
-	renderSpinnerInBorder(width: number): string {
-		return truncateToWidth(this.getRenderedIndicator(), width, "");
-	}
-
-	dispose(): void {
-		this.stop();
-	}
->>>>>>> pi 0.86.0
-}
-
-export class WorkingStatusIndicator extends StatusIndicator {
-<<<<<<< a1
-  constructor(ui: TUI, message: string, indicator?: LoaderIndicatorOptions, colorFn?: (text: string) => string) {
-    super("working", ui, colorFn ?? (spinner => piTheme().fg("accent", spinner)), colorFn ?? (text => piTheme().fg("muted", text)), message, indicator);
-  }
-
   renderInBorder(width: number): string {
     const line = super.render(width + 2)[1] ?? "";
     return truncateToWidth(line.startsWith(" ") ? line.slice(1).trimEnd() : line.trimEnd(), width, "");
@@ -65,38 +35,16 @@ export class WorkingStatusIndicator extends StatusIndicator {
   renderSpinnerInBorder(width: number): string {
     return truncateToWidth(this.getRenderedIndicator(), width, "");
   }
-||||||| pi 0.85.1
-	constructor(ui: TUI, message: string, indicator?: WorkingIndicatorOptions, colorFn?: (text: string) => string) {
-		super(
-			"working",
-			ui,
-			colorFn ?? ((text) => theme.fg("accent", text)),
-			colorFn ?? ((text) => theme.fg("muted", text)),
-			message,
-			indicator,
-		);
-	}
 
-	renderInBorder(width: number): string {
-		const line = super.render(width + 2)[1] ?? "";
-		return truncateToWidth(line.startsWith(" ") ? line.slice(1).trimEnd() : line.trimEnd(), width, "");
-	}
+  dispose(): void {
+    this.stop();
+  }
+}
 
-	renderSpinnerInBorder(width: number): string {
-		return truncateToWidth(this.getRenderedIndicator(), width, "");
-	}
-=======
-	constructor(ui: TUI, message: string, indicator?: WorkingIndicatorOptions, colorFn?: (text: string) => string) {
-		super(
-			"working",
-			ui,
-			colorFn ?? ((text) => theme.fg("accent", text)),
-			colorFn ?? ((text) => theme.fg("muted", text)),
-			message,
-			indicator,
-		);
-	}
->>>>>>> pi 0.86.0
+export class WorkingStatusIndicator extends StatusIndicator {
+  constructor(ui: TUI, message: string, indicator?: LoaderIndicatorOptions, colorFn?: (text: string) => string) {
+    super("working", ui, colorFn ?? (spinner => piTheme().fg("accent", spinner)), colorFn ?? (text => piTheme().fg("muted", text)), message, indicator);
+  }
 }
 
 export class RetryStatusIndicator extends StatusIndicator {

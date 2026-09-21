@@ -62,6 +62,7 @@ export const PINNED_PI_SETTINGS_CALLBACKS = [
   "onFollowUpModeChange",
   "onTransportChange",
   "onHttpIdleTimeoutMsChange",
+  "onCacheWarmingModeChange",
   "onModelThinkingLevelChange",
   "onModelThinkingLevelRemove",
   "onThemeChange",
@@ -102,6 +103,7 @@ export interface PiPinnedSettingsSnapshot {
   readonly followUpMode: "all" | "one-at-a-time";
   readonly transport: "sse" | "websocket" | "websocket-cached" | "auto";
   readonly httpIdleTimeoutMs: number;
+  readonly cacheWarmingMode: "off" | "streaming" | "idle";
   readonly thinkingLevel: "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
   readonly availableThinkingLevels: readonly ("off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max")[];
   /** The stored global default the selector offers to restore; the session's level may differ. */
@@ -315,10 +317,20 @@ export interface PiSessionResumeMetadata {
   readonly usesDefaultSessionDir: boolean;
 }
 
+/**
+ * Progress a session listing reports. `partialSessions` carries what the pinned manager has
+ * loaded so far, so the selector can show results before the listing finishes.
+ */
+export type PiSessionListProgress = (
+  loaded: number,
+  total: number,
+  partialSessions?: readonly SessionInfo[],
+) => void;
+
 export interface PiSessionSelectorContext {
   readonly currentSessionFilePath: string | undefined;
-  readonly loadCurrentSessions: (onProgress?: (loaded: number, total: number) => void) => Promise<SessionInfo[]>;
-  readonly loadAllSessions: (onProgress?: (loaded: number, total: number) => void) => Promise<SessionInfo[]>;
+  readonly loadCurrentSessions: (onProgress?: PiSessionListProgress) => Promise<SessionInfo[]>;
+  readonly loadAllSessions: (onProgress?: PiSessionListProgress) => Promise<SessionInfo[]>;
   readonly renameSession: (sessionFilePath: string, nextName: string | undefined) => Promise<void>;
 }
 

@@ -26,7 +26,12 @@ import { KeybindingsManager } from "../adjacent/core/keybindings.js";
 import { DynamicBorder, type SessionInfo } from "@earendil-works/pi-coding-agent";
 import { piTheme } from "../theme/theme.js";
 
-type SessionListProgress = (loaded: number, total: number) => void;
+type SessionListProgress = (
+	loaded: number,
+	total: number,
+	/** Sessions loaded so far, sorted by activity. Present on periodic updates. */
+	partialSessions?: readonly SessionInfo[],
+) => void;
 
 const theme = new Proxy({} as ReturnType<typeof piTheme>, {
 	get(_target, property) {
@@ -756,21 +761,9 @@ export class SessionSelectorComponent extends Container implements Focusable {
 	private currentSessionsLoader: SessionsLoader;
 	private allSessionsLoader: SessionsLoader;
 	private requestRender: () => void;
-<<<<<<< a1
 	private renameSession: ((sessionPath: string, currentName: string | undefined) => Promise<void>) | undefined;
-	private currentLoading = false;
-	private allLoading = false;
-	private allLoadSeq = 0;
-||||||| pi 0.85.1
-	private renameSession?: (sessionPath: string, currentName: string | undefined) => Promise<void>;
-	private currentLoading = false;
-	private allLoading = false;
-	private allLoadSeq = 0;
-=======
-	private renameSession?: (sessionPath: string, currentName: string | undefined) => Promise<void>;
 	private currentLoad: AbortController | null = null;
 	private allLoad: AbortController | null = null;
->>>>>>> pi 0.86.0
 
 	private mode: "list" | "rename" = "list";
 	private renameInput = new Input();

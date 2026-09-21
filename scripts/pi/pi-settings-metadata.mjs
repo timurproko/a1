@@ -26,6 +26,7 @@ const ID_TO_KEY = Object.freeze({
   "follow-up-mode": "followUpMode",
   transport: "transport",
   "http-idle-timeout": "httpIdleTimeoutMs",
+  "cache-warming-mode": "cacheWarmingMode",
   "hide-thinking": "hideThinkingBlock",
   "mermaid-rendering": "mermaidRenderingMode",
   "cache-miss-notices": "showCacheMissNotices",
