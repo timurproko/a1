@@ -19,7 +19,7 @@ The manual merge accepts these scenarios:
   "archive": "openspec/changes/archive/2026-09-21-clean-generated-settings-metadata/",
   "acceptanceManifest": "openspec/changes/archive/2026-09-21-clean-generated-settings-metadata/acceptance.md",
   "finalizedDate": "2026-09-21",
-  "specBaseSha": "6ae061516ba71675476541a958bd6e49903e280f",
+  "specBaseSha": "12d29445f57981756cfadb7bafcfabfbcbe626bc",
   "acceptanceScenarios": [
     "Completed-delivery cleanup removes the exact ignored Pi settings metadata regular file through the existing bounded, non-force path.",
     "Near-match metadata names and unrelated ignored content remain `worktree-content` blockers.",
