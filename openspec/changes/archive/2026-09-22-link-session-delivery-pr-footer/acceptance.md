@@ -18,7 +18,7 @@ The manual merge accepts these scenarios:
   "archive": "openspec/changes/archive/2026-09-22-link-session-delivery-pr-footer/",
   "acceptanceManifest": "openspec/changes/archive/2026-09-22-link-session-delivery-pr-footer/acceptance.md",
   "finalizedDate": "2026-09-22",
-  "specBaseSha": "9ecb43861946b084665a8d8e68072c825d033731",
+  "specBaseSha": "9d2074cf2a8152d191b54d4d8b01d7ae6efacb03",
   "acceptanceScenarios": [
     "A session can explicitly link its same-repository delivery worktree and restore that context after resume.",
     "Concurrent sessions remain isolated by stable session identity, while foreign, detached, malformed, deleted, and reused contexts fail closed.",
@@ -26,10 +26,10 @@ The manual merge accepts these scenarios:
     "Narrow bare-A1 footers preserve the complete linked PR badge by truncating path and branch text first without leaking hyperlink state.",
     "Clearing or omitting an association falls back to startup-repository discovery, and `a1 pi` retains comparison output without cleanup authority changes."
   ],
-  "archiveDigest": "2b7b922e43ceaa458ac29e94450cc6cea872b27ca088c99580d4db84b4eac599",
+  "archiveDigest": "3525eb5956bb67cdc7fa933cc73099f302ca4d0bfe72c34deb359fab288966a0",
   "specDigest": "2c5231d57a3c945f7f84bb0d8a04748a486d3795b12bf8871abef6b0d943d402",
   "tasksDigest": "bb397adce06b8c20e0639594b0bc64b9897adf1af3570fe8106b3928b1dc056f",
-  "evidenceDigest": "d91d9e58952a0509abc45f3543a0f0a59eb3dfbf64bc26d20826d0e35b92b726",
+  "evidenceDigest": "85acb95ba6e66f19490e41a5e328e2fc781f6fe8e5d0c23466d84bddd2dff334",
   "knownGaps": []
 }
 ```
