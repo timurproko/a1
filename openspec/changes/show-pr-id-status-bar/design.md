@@ -4,7 +4,7 @@ The footer currently formats `path (branch) • session-name` from `OwnedUiFoote
 
 A1 already emits OSC 8 hyperlinks and uses the `mdLink` theme role for web links. Supported terminals own their native idle, hover, and Ctrl+click behavior. Claude Code's analogous badge uses an explicit PR URL rather than relying on terminal URL detection; the same principle applies here.
 
-The planning base is `535caf53`. The requested examples use both `PR564` and `PR567`; the design treats the number as dynamic and standardizes the visible form as `PR<number>` without a `#`, matching the supplied status-bar shape.
+The planning base is `535caf53`. The approved presentation refinement standardizes the dynamic visible form as `PR #<number>`: `PR` remains footer-grey and only `#<number>` is linked.
 
 ## Goals / Non-Goals
 
@@ -47,7 +47,7 @@ Alternative rejected: inject an already styled badge into `extensionStatuses`. T
 
 ### 4. Render a bare-A1-only OSC 8 badge in the path row
 
-For the `a1` profile, append ` PR<number>` after `path (branch)` and before the existing ` • session-name` suffix. Wrap only `PR<number>` with Pi TUI's hyperlink primitive and color its text with the established `mdLink` role. The path, branch, spaces, and session name remain dim and unlinked. The `pi` profile ignores the PR field, preserving the pinned footer.
+For the `a1` profile, append ` PR #<number>` after `path (branch)` and before the existing ` • session-name` suffix. Keep `PR ` in the footer's dim role. Wrap only `#<number>` with Pi TUI's hyperlink primitive and color that linked number with the established `mdLink` role. The path, branch, spaces, `PR` prefix, and session name remain dim and unlinked. The `pi` profile ignores the PR field, preserving the pinned footer.
 
 Keep the current ANSI-aware `truncateToWidth` path-row limit. A narrow terminal may truncate the tail, including some or all of the badge; truncation must close OSC 8 and SGR state and never leak the link onto adjacent cells or rows.
 
@@ -64,3 +64,11 @@ Alternative rejected: print the raw URL. It consumes footer width and does not m
 ## Migration Plan
 
 No data migration is required. Add the optional contract field, repository probe, lifecycle refresh, and renderer in one implementation. Rollback removes the optional producer and bare-A1 rendering while leaving existing footer data and session files compatible.
+
+## Implementation Evidence
+
+- Focused repository-probe, runtime-lifecycle, owned-contract, footer/hyperlink, adapter, and independent pinned-startup suites passed: 6 files and 94 tests.
+- The complete TypeScript/package build, source typechecking, strict OpenSpec validation, and code-documentation governance passed.
+- The footer source-ledger record includes the approved bare-A1 deviation and its exact local hash; its focused hash check passed.
+- The complete pinned-source-ledger command reaches the target branch's pre-existing stale `pi-coding-agent:src/core/keybindings` record. The unchanged primary checkout fails on the same record, so this change neither edits nor suppresses that unrelated baseline issue.
+- No known implementation gap remains. Hover and Ctrl+click presentation are terminal-native OSC 8 behavior and are included in the Windows Terminal handoff.

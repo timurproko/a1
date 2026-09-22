@@ -2,7 +2,7 @@
 
 ### Requirement: Bare A1 links the current branch's open pull request from the footer
 
-Bare A1 SHALL discover the open GitHub pull request associated with the effective working tree branch and, when one is available, SHALL render `PR<number>` directly after the footer's path and branch. The visible badge SHALL use the established web-link color and SHALL carry the pull request's canonical HTTPS URL as a terminal-native hyperlink so the terminal provides its ordinary hover and Ctrl+click behavior. The path, branch, separator, and session name SHALL remain outside the hyperlink.
+Bare A1 SHALL discover the open GitHub pull request associated with the effective working tree branch and, when one is available, SHALL render `PR #<number>` directly after the footer's path and branch. The `PR` prefix SHALL retain the footer's grey, while only `#<number>` SHALL use the established web-link color and carry the pull request's canonical HTTPS URL as a terminal-native hyperlink so the terminal provides its ordinary hover and Ctrl+click behavior. The path, branch, `PR` prefix, separator, and session name SHALL remain outside the hyperlink.
 
 Discovery SHALL be asynchronous, bounded, serialized, and optional. Missing GitHub CLI or authentication, detached or mismatched branches, no open pull request, malformed or unsafe output, command failure, and timeout SHALL leave the existing footer unchanged and SHALL NOT block startup or fail the session. A running session SHALL refresh the association at a bounded cadence and SHALL release its timer and active probe on disposal.
 
@@ -11,15 +11,16 @@ The badge is a declared bare-A1 addition. The `a1 pi` comparison profile SHALL r
 #### Scenario: Show an open branch pull request
 
 - **WHEN** bare A1 runs in a Git working tree whose current branch has an open pull request numbered 567 at `https://github.com/example/project/pull/567`
-- **THEN** the footer path row SHALL contain `path (branch) PR567`
-- **AND** only `PR567` SHALL be an OSC 8 hyperlink targeting that canonical URL
-- **AND** its visible text SHALL use the same theme role as established web links
+- **THEN** the footer path row SHALL contain `path (branch) PR #567`
+- **AND** `PR` SHALL retain the same grey role as the surrounding footer
+- **AND** only `#567` SHALL be an OSC 8 hyperlink targeting that canonical URL
+- **AND** the linked number SHALL use the same theme role as established web links
 
 #### Scenario: Keep surrounding footer text outside the link
 
 - **WHEN** the footer also has a session name
-- **THEN** the row SHALL order path, branch, PR badge, and session name as `path (branch) PR<number> • session-name`
-- **AND** the path, branch, spaces, separator, and session name SHALL NOT resolve to the PR target
+- **THEN** the row SHALL order path, branch, PR badge, and session name as `path (branch) PR #<number> • session-name`
+- **AND** the path, branch, spaces, `PR` prefix, separator, and session name SHALL NOT resolve to the PR target
 
 #### Scenario: No open pull request is available
 

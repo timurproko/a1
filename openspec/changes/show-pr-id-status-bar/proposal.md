@@ -6,7 +6,7 @@ The bare-A1 footer identifies the working directory and Git branch but not the o
 
 - Discover the open GitHub pull request associated with the current working tree branch through the GitHub CLI, without making GitHub availability a startup requirement.
 - Carry the bounded PR number and URL through the owned footer view model and refresh it while the session remains active.
-- Render `PR<number>` immediately after the path and branch in bare A1, using the established web-link color and an OSC 8 target so terminal hover and Ctrl+click open the pull request URL.
+- Render `PR #<number>` immediately after the path and branch in bare A1, keeping `PR` in the footer's grey and styling only the linked `#<number>` with the established web-link color and an OSC 8 target so terminal hover and Ctrl+click open the pull request URL.
 - Omit the badge when the directory is not a Git repository, no open PR is associated, GitHub CLI/authentication is unavailable, or the probe fails or times out.
 - Keep the `a1 pi` comparison footer unchanged.
 
