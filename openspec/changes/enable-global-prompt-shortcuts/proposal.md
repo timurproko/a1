@@ -23,4 +23,4 @@ None.
 
 ## Impact
 
-Implementation is expected in the bare-A1 session viewport pre-input/pointer routing and runtime focus bridge, with focused tests around `session-viewport-controller.ts`, `session-shell.ts`, the shell root/editor facade, and TUI adapter fixtures. The editor remains the authority for keybinding matching and edit history; no installed Pi patch, clipboard transport change, persisted-data migration, or `a1 pi` behavior change is intended.
+Implementation is expected in the bare-A1 session viewport pre-input/pointer routing and root/editor focus facade, with focused tests around `session-viewport-controller.ts`, `session-shell.ts`, and shell integration fixtures. The editor remains the authority for keybinding matching and edit history; no installed Pi patch, clipboard transport change, persisted-data migration, or `a1 pi` behavior change is intended. Physical testing rejected candidate `c50bf418` because outer runtime focus restoration did not restore the nested ordinary input surface; the refined implementation explicitly restores that surface after content pointer routing.

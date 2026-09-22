@@ -449,9 +449,7 @@ export class OwnedUiSessionShell {
     this.#removeViewportPreInput = this.#customViewport
       ? this.runtime.addPreInputListener(data => {
           if (inputPresentation?.coordination === false) this.#streamPresentation.noteImmediatePresentation();
-          // Compatibility: Pi's fullscreen renderer also intercepts plain Home/End.
-          // Deliver them to the focused owned input before that outer scroll handler;
-          // overlays retain Pi's normal dispatch, and comparison profiles never enter here.
+          // Compatibility: deliver Home/End before Pi's fullscreen scroll handler.
           if (!this.runtime.hasOverlay() && (this.root.editor.matchesTerminalKey(data, "home")
             || this.root.editor.matchesTerminalKey(data, "end"))) {
             if (this.root.usesDefaultInputSurface()) this.root.handleViewportPreInput(data, true);
@@ -465,15 +463,9 @@ export class OwnedUiSessionShell {
           if (data.includes("\u001b[<") && !this.root.viewportInputGeometryReady(viewport.columns, viewport.rows)) {
             this.runtime.renderNow();
           }
-          const routed = this.root.handleViewportPreInput(data, true, Date.now(),
-            this.root.usesDefaultInputSurface() && !this.runtime.hasFocusedOverlay());
-          // Invariant: transcript and viewport gestures own only their pointer sequence. Once
-          // routed, they leave the visible ordinary prompt as keyboard owner, so terminal-owned
-          // bracketed paste and every declared editor binding follow the same editor path. A
-          // focused overlay or replacement input remains authoritative.
-          if (data.includes("\u001b[<") && this.root.usesDefaultInputSurface() && !this.runtime.hasFocusedOverlay()) {
-            this.runtime.ensureFocus(this.root);
-          }
+          const editorActive = this.root.usesDefaultInputSurface() && !this.runtime.hasFocusedOverlay();
+          const routed = this.root.handleViewportPreInput(data, true, Date.now(), editorActive);
+          if (editorActive && data.includes("\u001b[<")) this.root.setFocused(true);
           if (routed.copySelection !== undefined) {
             void this.#responseCopy?.submit(routed.copySelection, pendingClipboardWrite);
           }
