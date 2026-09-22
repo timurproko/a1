@@ -14,4 +14,4 @@
 
 - [x] 3.1 Run focused session-shell/component tests, typechecking, architecture checks, and strict OpenSpec validation; record any gap explicitly in `design.md`.
 - [x] 3.2 Build the reconciled candidate and hand off a color-preserving `./scripts/dev` check that compares `/export` in bare A1 with `a1 pi`.
-- [ ] 3.3 Obtain maintainer confirmation that bare A1 shows the red export error immediately above the prompt with no top-left transcript message or large gap, while the comparison profile remains unchanged.
+- [x] 3.3 Obtain maintainer confirmation that bare A1 shows the red export error immediately above the prompt with no top-left transcript message or large gap, while the comparison profile remains unchanged.

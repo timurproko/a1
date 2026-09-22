@@ -66,4 +66,5 @@ Existing independent command-message parity tests remain the control for the unc
 - `npx --no-install vitest run test/app/session-shell/command-message-parity.test.ts` passes all 3 independent pinned-versus-owned geometry, severity, punctuation, and failure-closure controls.
 - `npm run check:architecture` passes after advancing the derived startup-graph ceiling by the exact 491 added source bytes, from 1,441,230 to 1,441,721; file reachability and all other boundaries remain unchanged.
 - `npx --no-install openspec validate place-command-errors-above-prompt --strict` passes.
-- No implementation gap is known. Exact-candidate visual confirmation through the color-preserving development launcher remains the explicit maintainer task.
+- The maintainer confirmed commit `3de92f88` works as expected through the color-preserving development launcher: bare A1 places the red empty-session export failure immediately above the prompt without a top-left message or large gap, while the comparison profile remains unchanged.
+- No implementation gap is known.
