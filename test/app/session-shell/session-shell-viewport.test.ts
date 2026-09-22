@@ -322,7 +322,7 @@ describe("OwnedUiSessionShell viewport and streaming", () => {
     }
   });
 
-  it("keeps Working bottom-aligned while fitting and keeps true dock rows stable at overflow", async () => {
+  it("bottom-aligns steering above Working while fitting and keeps true dock rows stable at overflow", async () => {
     const { engine, terminal, shell } = await fixture([
       { role: "assistant", content: [{ type: "text", text: "fitting transcript" }], timestamp: 1 },
     ], [], true);
@@ -350,7 +350,9 @@ describe("OwnedUiSessionShell viewport and streaming", () => {
       const fitting = positions();
       expect(fitting.rows.findIndex(row => row.includes("fitting transcript"))).toBe(settledTranscriptRow);
       expect(fitting.queue).toBeGreaterThanOrEqual(0);
-      expect(fitting.hint).toBeGreaterThan(fitting.queue);
+      expect(fitting.hint).toBe(fitting.queue + 1);
+      expect(fitting.working).toBeGreaterThan(fitting.hint);
+      expect(fitting.rows.slice(fitting.hint + 1, fitting.working).every(row => row.trim() === "")).toBe(true);
       expect(fitting.working).toBe(fitting.viewportEnd);
       expect(fitting.working).toBeLessThan(fitting.dockStart);
       expect(fitting.alignmentGap).toBeGreaterThan(0);
@@ -361,6 +363,8 @@ describe("OwnedUiSessionShell viewport and streaming", () => {
       });
       await shell.backend.flushEvents();
       const grownButFitting = positions();
+      expect(grownButFitting.queue).toBe(fitting.queue);
+      expect(grownButFitting.hint).toBe(fitting.hint);
       expect(grownButFitting.working).toBe(fitting.working);
       expect(grownButFitting.dockStart).toBe(fitting.dockStart);
       expect(grownButFitting.alignmentGap).toBeLessThan(fitting.alignmentGap);
