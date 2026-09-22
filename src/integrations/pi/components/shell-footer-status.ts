@@ -201,7 +201,7 @@ function liveWorkingText(
   const message = workingOverride ?? view.status.workingMessage ?? "Working";
   const progress = view.status.workingProgress;
   return workingOverride === undefined && progressPresentation === "custom-viewport" && typeof progress === "number"
-    ? `${message} (${progress}%)`
+    ? `${message}(${progress}%)`
     : message;
 }
 
