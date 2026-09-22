@@ -107,10 +107,10 @@ export function blockRowSpan<T>(rows: readonly ListRow<T>[], index: number): Lis
   return { from, to };
 }
 
-/** The header pinned above the body when the top visible row belongs to a group. */
+/** The header pinned above the body while its content or outgoing spacer is at the top. */
 export function stickyHeaderFor<T>(rows: readonly ListRow<T>[], scroll: number): string | undefined {
   const row = rows[scroll];
-  if (row === undefined || (row.kind !== "element" && row.kind !== "note")) return undefined;
+  if (row === undefined || row.kind === "group") return undefined;
   const header = headerAbove(rows, scroll);
   const headerRow = header < 0 ? undefined : rows[header];
   return headerRow !== undefined && headerRow.kind === "group" ? headerRow.title : undefined;
@@ -196,7 +196,11 @@ export function layoutList<T>(
   const sticky = stickyHeaderFor(rows, clamped.scroll);
   const padding = topPaddingRows(clamped.scroll);
   const indexes: number[] = [];
-  for (let offset = 0; offset < clamped.visible && clamped.scroll + offset < rows.length; offset++) {
+  // A spacer at the scroll boundary belongs to the outgoing pinned section. The pin
+  // already represents that transition, so consume the spacer without spending a
+  // body row and let the final setting remain reachable at the bottom.
+  const firstOffset = rows[clamped.scroll]?.kind === "spacer" && sticky !== undefined ? 1 : 0;
+  for (let offset = firstOffset; indexes.length < clamped.visible && clamped.scroll + offset < rows.length; offset++) {
     indexes.push(clamped.scroll + offset);
   }
   return {

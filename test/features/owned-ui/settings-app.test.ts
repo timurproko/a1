@@ -510,7 +510,7 @@ describe("the settings screen", () => {
     }
     const searchRow = lines.findIndex(line => line.includes("search settings"));
     expect(searchRow).toBeGreaterThanOrEqual(2);
-    expect(lines.some(line => line.includes("Skills"))).toBe(true);
+    expect(lines.some(line => line.includes("Skills")), JSON.stringify(lines)).toBe(true);
     expect([...visited].sort()).toEqual(["History limit", "Output padding", "Persistent history", "Prompt suggestions", "Skills", "Thinking level"]);
   });
 
