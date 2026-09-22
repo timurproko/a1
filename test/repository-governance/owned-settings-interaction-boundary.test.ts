@@ -31,7 +31,7 @@ describe("owned settings interaction boundary", () => {
     ]);
     expect(host).toContain("48;2;55;55;55");
     expect(host).toContain("48;2;82;82;82");
-    expect(menu).toContain('choice === state.current ? "✓ " : "  "');
+    expect(menu).toContain('paint(theme.fg("accent", "✓"))');
     expect(app).not.toContain("48;2;");
   });
 
