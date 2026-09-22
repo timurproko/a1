@@ -20,6 +20,6 @@ None.
 
 ## Impact
 
-Implementation will affect the bare-A1 autocomplete catalog assembly in `src/integrations/pi/components/shell-editor-autocomplete.ts` and focused skills autocomplete tests. No engine command, dialog, persistence, or comparison-profile behavior changes are intended.
+Implementation will affect the bare-A1 autocomplete catalog assembly in `src/integrations/pi/components/shell-editor-autocomplete.ts`, focused skills autocomplete tests, and the measured startup-graph source-byte baseline. No engine command, dialog, persistence, or comparison-profile behavior changes are intended.
 
 This change contains planning artifacts only, not implementation.

@@ -41,3 +41,11 @@ Focused helper/editor and session-shell tests will assert that collapsed mode be
 ## Migration Plan
 
 No persisted data migration is required. Implement the catalog insertion, run focused autocomplete and session-shell skills tests, and revert the catalog assembly change if ordering or profile isolation regresses.
+
+## Implementation Evidence
+
+- The focused skills-tunnel and session-shell skills suites pass all 23 tests, covering exact collapsed catalog traversal, expanded mode, live switching, and the `a1 pi` comparison profile.
+- `npm run build` and `npm run typecheck` pass on the reconciled candidate.
+- `npm run check:architecture` passes after refreshing the measured startup-graph source-byte baseline from 1,441,230 to 1,441,855 bytes.
+- Strict OpenSpec validation passes for `place-collapsed-skills-after-settings`.
+- No known gaps remain.
