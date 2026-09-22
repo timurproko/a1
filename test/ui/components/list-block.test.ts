@@ -181,10 +181,12 @@ describe("layout", () => {
     expect(layout.rowIndexes.at(-1)).toBeLessThan(ROWS.length);
   });
 
-  it("reaches the final row when the bottom starts on a section spacer", () => {
+  it("fills the bottom viewport when its clamp starts on a section spacer", () => {
     const layout = layoutList(ROWS, 10, 999);
+    expect(layout.scroll).toBe(3);
     expect(layout.stickyHeader).toBe("A");
-    expect(layout.rowIndexes[0]).toBe(4);
+    expect(layout.rowIndexes).toEqual([2, 4, 5, 6, 7, 8, 9, 10, 11]);
+    expect(layout.rowIndexes).toHaveLength(layout.visible);
     expect(layout.rowIndexes.at(-1)).toBe(ROWS.length - 1);
   });
 });
