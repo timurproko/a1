@@ -1,5 +1,5 @@
 /**
- * Provenance: @earendil-works/pi-coding-agent 0.86.1 (MIT), commit 13cbf77df2396303013a41646bcfa77b4271ae56,
+ * Provenance: @earendil-works/pi-coding-agent 0.87.0 (MIT), commit 16787ad5b2dc748047f314ca1bfe7708f30f54f3,
  * packages/coding-agent/src/modes/interactive/external-editor.ts.
  * Modifications: Mechanical port: retain temporary prompt file, asynchronous inherited-stdio editor
  * process, completion readback, and best-effort cleanup behind the owned extension-editor component.

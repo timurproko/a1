@@ -1,5 +1,5 @@
 /**
- * Provenance: @earendil-works/pi-coding-agent 0.86.1 (MIT), commit 13cbf77df2396303013a41646bcfa77b4271ae56,
+ * Provenance: @earendil-works/pi-coding-agent 0.87.0 (MIT), commit 16787ad5b2dc748047f314ca1bfe7708f30f54f3,
  * packages/coding-agent/src/modes/interactive/components/tree-selector.ts.
  * Modifications: Source-synchronized tree selector port: preserve filtering, folding, labels, copying,
  * tree navigation, key hints, focus, and viewport behavior while remapping public types/components
@@ -385,6 +385,7 @@ class TreeList implements Component {
 			// Entry types hidden in default view (settings/bookkeeping)
 			const isSettingsEntry =
 				entry.type === "label" ||
+				entry.type === "context_edit" ||
 				entry.type === "custom" ||
 				entry.type === "model_change" ||
 				entry.type === "thinking_level_change" ||
@@ -634,6 +635,9 @@ class TreeList implements Component {
 			case "custom":
 				parts.push("custom", entry.customType);
 				break;
+			case "context_edit":
+				parts.push("context edit", entry.replacement === null ? "omit" : "replace", entry.targetId);
+				break;
 			case "label":
 				parts.push("label", entry.label ?? "");
 				break;
@@ -868,6 +872,9 @@ class TreeList implements Component {
 				break;
 			case "custom":
 				result = theme.fg("dim", `[custom: ${entry.customType}]`);
+				break;
+			case "context_edit":
+				result = theme.fg("dim", `[context ${entry.replacement === null ? "omit" : "replace"}: ${entry.targetId}]`);
 				break;
 			case "label":
 				result = theme.fg("dim", `[label: ${entry.label ?? "(cleared)"}]`);
