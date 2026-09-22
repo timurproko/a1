@@ -13,4 +13,4 @@
 ## 3. Validation and acceptance
 
 - [x] 3.1 Run focused tests, typecheck, build, architecture governance, strict OpenSpec validation, and diff hygiene.
-- [ ] 3.2 Physically verify through `./scripts/dev` that queued steering appears directly above live status and both remain correctly ordered when the viewport overflows.
+- [x] 3.2 Physically verify through `./scripts/dev` that queued steering appears directly above live status and both remain correctly ordered when the viewport overflows.
