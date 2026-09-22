@@ -199,6 +199,10 @@ export interface OwnedUiTranscriptBlock {
   readonly title: string | null;
   readonly text: string;
   readonly payload: unknown;
+  /** Bare-A1-only user presentation derived without mutating persisted/model message text. */
+  readonly userPresentation?: {
+    readonly visibleText: string;
+  };
   /** Tool-call message completion alone must not settle execution. */
   readonly toolState?: OwnedUiToolState;
   /** Authoritative renderer inputs, separate from diagnostic payloads. */

@@ -292,6 +292,10 @@ export function assertOwnedUiTranscriptBlock(block: OwnedUiTranscriptBlock): voi
   assertNonNegativeInteger(block.revision, "owned-UI transcript block revision");
   assertOptionalText(block.title, "owned-UI transcript block title", MAX_LABEL_LENGTH);
   assertPossiblyEmptyText(block.text, "owned-UI transcript block text", MAX_TEXT_BYTES);
+  if (block.userPresentation !== undefined) {
+    if (block.kind !== "user") throw new TypeError("owned-UI user presentation requires a user block");
+    assertPossiblyEmptyText(block.userPresentation.visibleText, "owned-UI visible user text", MAX_TEXT_BYTES);
+  }
   assertJsonValue(block.toolRendering === undefined ? block.payload : {
     payload: block.payload, toolRendering: block.toolRendering,
   }, "owned-UI transcript block payload", MAX_PAYLOAD_BYTES);

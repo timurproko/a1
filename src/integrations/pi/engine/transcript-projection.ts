@@ -3,6 +3,35 @@ import { TranscriptImageAssets } from "./transcript-image-assets.js";
 import { acceptsTranscriptUpdate, transcriptToolState, type OwnedUiTranscriptBlock, type OwnedUiTranscriptImageReference } from "../../../contracts/owned-ui/index.js";
 import { assistantContent, contentImageCount, isRecord, jsonSummary, messageFallbackKey, retainCompletedArguments, sameBlockContent, sanitizeJson, stringValue, textFromContent } from "./message-values.js";
 
+const IMAGE_DIMENSION_NOTE = /^\[Image: original \d+x\d+, displayed at \d+x\d+\. Multiply coordinates by \d+(?:\.\d+)? to map to original image\.\]$/u;
+const IMAGE_CONVERSION_NOTE = /^\[Image converted from image\/[a-z0-9.+-]+ to image\/[a-z0-9.+-]+\.\]$/iu;
+const IMAGE_OMISSION_NOTE = /^\[Image omitted: could not be (?:converted to a supported inline image format|resized below the inline image size limit)\.\]$/u;
+
+function isImageProcessingHint(line: string): boolean {
+  return IMAGE_DIMENSION_NOTE.test(line) || IMAGE_CONVERSION_NOTE.test(line) || IMAGE_OMISSION_NOTE.test(line);
+}
+
+function userPresentation(content: unknown): OwnedUiTranscriptBlock["userPresentation"] | undefined {
+  const imageCount = contentImageCount(content);
+  if (imageCount === 0) return undefined;
+  const lines = textFromContent(content).split("\n");
+  const retainedHints: string[] = [];
+  let dimensionCount = 0;
+  let hintStart = lines.length;
+  while (hintStart > 0) {
+    const line = lines[hintStart - 1]!;
+    if (!isImageProcessingHint(line)) break;
+    if (IMAGE_DIMENSION_NOTE.test(line)) dimensionCount++;
+    else retainedHints.unshift(line);
+    hintStart--;
+  }
+  if (dimensionCount === 0 || dimensionCount > imageCount) return undefined;
+  lines.splice(hintStart);
+  if (lines.at(-1) === "") lines.pop();
+  if (retainedHints.length > 0) lines.push("", ...retainedHints);
+  return { visibleText: lines.join("\n") };
+}
+
 export interface PiTranscriptProjectionPorts {
   /** Pinned Pi's current retry attempt, which words an aborted declaration's failure text. */
   retryAttempt(): number;
@@ -144,6 +173,7 @@ export class PiTranscriptProjection {
     if (!isRecord(message) || typeof message.role !== "string") return [];
     const baseId = this.#messageBlockId(message, fallbackIndex, status, occurrence);
     if (message.role === "user") {
+      const presentation = userPresentation(message.content);
       return [{
         id: baseId,
         kind: "user",
@@ -151,6 +181,7 @@ export class PiTranscriptProjection {
         revision: this.nextRevision(baseId),
         title: "User",
         text: textFromContent(message.content),
+        ...(presentation === undefined ? {} : { userPresentation: presentation }),
         imageReferences: this.imageReferences(message.content, "user"),
         payload: {
           role: "user",
