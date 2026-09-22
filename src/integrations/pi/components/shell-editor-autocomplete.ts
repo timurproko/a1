@@ -165,7 +165,7 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
     const builtInNames = new Set(builtInCatalog.map(command => command.name));
     const builtIns = builtInCatalog.flatMap(command => [
       autocompleteCommand(command, additions.get(command.name)),
-      // Product order: the collapsed browser is a primary bare-A1 command, not a resource after quit.
+      // Rationale: the collapsed browser is a primary bare-A1 command, not a resource after quit.
       ...(command.name === "settings" && collapsed.collapsedCommand !== undefined
         ? [autocompleteCommand(collapsed.collapsedCommand)]
         : []),
