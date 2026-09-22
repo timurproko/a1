@@ -159,10 +159,13 @@ describe("PiEngineRuntime", () => {
     await vi.advanceTimersByTimeAsync(60_000);
     expect(probe).toHaveBeenCalledTimes(3);
     const late = pending[2]!;
-    await engine.dispose();
+    let disposalSettled = false;
+    const disposal = engine.dispose().then(() => { disposalSettled = true; });
     expect(late.signal.aborted).toBe(true);
-    late.resolve({ number: 541, url: "https://github.com/timurproko/a1/pull/541" });
     await Promise.resolve();
+    expect(disposalSettled).toBe(false);
+    late.resolve({ number: 541, url: "https://github.com/timurproko/a1/pull/541" });
+    await disposal;
     expect(engine.pullRequest?.number).toBe(540);
     await vi.advanceTimersByTimeAsync(120_000);
     expect(probe).toHaveBeenCalledTimes(3);

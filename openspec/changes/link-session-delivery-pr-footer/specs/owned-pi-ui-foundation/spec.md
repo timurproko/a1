@@ -6,7 +6,7 @@ Bare A1 SHALL support one explicit optional repository-context association per s
 
 The association operation SHALL validate active session identity, canonical worktree identity, non-detached branch state, and same Git common-directory identity as the session's startup repository. It SHALL change only repository metadata discovery and SHALL NOT change tool cwd, session cwd, Git state, GitHub state, worktree cleanup registration, or cleanup authority. Missing, malformed, foreign, detached, deleted, reused, or otherwise invalid associations SHALL fail closed to the startup repository context without making A1 startup or the running session fail.
 
-When the selected repository context has an open pull request, bare A1 SHALL render `PR #<number>` directly after the footer's path and branch. The `PR` prefix SHALL retain the footer's grey, while only `#<number>` SHALL use the established web-link color and carry the pull request's canonical HTTPS URL as a terminal-native hyperlink. The path, branch, `PR` prefix, separator, ellipsis, and session name SHALL remain outside the hyperlink. Width allocation SHALL preserve a complete valid PR badge at ordinary constrained widths by truncating path/branch text first; widths too small for the complete badge SHALL truncate safely without leaking hyperlink or foreground state.
+When the selected repository context has an open pull request, bare A1 SHALL render only `#<number>` directly after the footer's path and branch. The complete `#<number>` badge SHALL use the established web-link color and carry the pull request's canonical HTTPS URL as a terminal-native hyperlink. The path, branch, separator, ellipsis, and session name SHALL remain outside the hyperlink. Width allocation SHALL preserve a complete valid PR badge at ordinary constrained widths by truncating path/branch text first; widths too small for the complete badge SHALL truncate safely without leaking hyperlink or foreground state.
 
 Discovery SHALL reread associated context and branch, and SHALL remain asynchronous, bounded, serialized, optional, and lifecycle-owned. Missing GitHub CLI or authentication, no open PR, mismatched branch, malformed or unsafe output, command failure, and timeout SHALL leave the footer without a badge and SHALL NOT block startup or fail the session. Association, branch, and PR changes SHALL refresh while the session runs, unchanged observations SHALL NOT emit redundant views, and disposal SHALL release timers and active work.
 
@@ -18,7 +18,7 @@ The badge and association are declared bare-A1 behavior. The `a1 pi` comparison 
 - **AND** the session explicitly associates its newly created same-repository worktree on branch `fix/example`
 - **AND** that branch has open pull request 567 at `https://github.com/example/project/pull/567`
 - **WHEN** repository metadata refresh completes
-- **THEN** the footer SHALL contain `PR #567` for the associated worktree
+- **THEN** the footer SHALL contain `#567` for the associated worktree
 - **AND** discovery SHALL NOT continue using the primary checkout's `develop` branch
 - **AND** the session and tool cwd SHALL remain the primary checkout
 
@@ -56,7 +56,7 @@ The badge and association are declared bare-A1 behavior. The `a1 pi` comparison 
 
 - **GIVEN** a valid linked pull request and path/branch text too wide for the footer row
 - **WHEN** the row is wide enough for the complete PR badge but not all text
-- **THEN** A1 SHALL truncate path/branch text before truncating `PR #<number>`
+- **THEN** A1 SHALL truncate path/branch text before truncating `#<number>`
 - **AND** only `#<number>` SHALL resolve to the canonical PR URL
 - **AND** hyperlink and foreground state SHALL close within the row
 
@@ -69,16 +69,15 @@ The badge and association are declared bare-A1 behavior. The `a1 pi` comparison 
 #### Scenario: Show an open branch pull request
 
 - **WHEN** bare A1's selected repository context has a current branch with open pull request 567 at `https://github.com/example/project/pull/567`
-- **THEN** the footer path row SHALL contain `path (branch) PR #567`
-- **AND** `PR` SHALL retain the same grey role as the surrounding footer
+- **THEN** the footer path row SHALL contain `path (branch) #567`
 - **AND** only `#567` SHALL be an OSC 8 hyperlink targeting that canonical URL
 - **AND** the linked number SHALL use the established web-link theme role
 
 #### Scenario: Keep surrounding footer text outside the link
 
 - **WHEN** the footer also has a session name
-- **THEN** the row SHALL order path, branch, PR badge, and session name as `path (branch) PR #<number> • session-name`
-- **AND** the path, branch, spaces, `PR` prefix, separator, ellipsis, and session name SHALL NOT resolve to the PR target
+- **THEN** the row SHALL order path, branch, PR badge, and session name as `path (branch) #<number> • session-name`
+- **AND** the path, branch, spaces, separator, ellipsis, and session name SHALL NOT resolve to the PR target
 
 #### Scenario: No open pull request is available
 

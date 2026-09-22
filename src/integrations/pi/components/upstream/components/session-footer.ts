@@ -47,7 +47,7 @@ export class SessionFooter implements Component {
     if (pullRequest === undefined || pullRequest === null) {
       pathRow = theme.fg("dim", sessionName ? `${pwd} • ${sessionName}` : pwd);
     } else {
-      const badge = theme.fg("dim", " PR ")
+      const badge = theme.fg("dim", " ")
         + hyperlink(theme.fg("mdLink", `#${pullRequest.number}`), pullRequest.url);
       const sessionSuffix = sessionName ? theme.fg("dim", ` • ${sessionName}`) : "";
       const full = theme.fg("dim", pwd) + badge + sessionSuffix;

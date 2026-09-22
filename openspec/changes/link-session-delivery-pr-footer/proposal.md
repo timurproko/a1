@@ -8,7 +8,7 @@ The linked-PR footer currently probes only the branch of the directory where A1 
 - Persist the validated association by stable Pi session identity so the same session restores its linked worktree after restart or resume, while invalid, missing, foreign-repository, or detached contexts fail closed to the startup repository.
 - Refresh repository branch and open-PR identity when the association changes and while the session runs, rather than permanently binding discovery to the startup branch.
 - Integrate delivery setup with the association command immediately after creating its owned worktree, keeping independent concurrent sessions mapped to their own worktrees and PRs.
-- Make the bare-A1 footer reserve room for `PR #<number>` before truncating long path/branch text; keep hyperlink/style boundaries and the `a1 pi` comparison unchanged.
+- Make the bare-A1 footer show only linked `#<number>` and reserve room for it before truncating long path/branch text; keep hyperlink/style boundaries and the `a1 pi` comparison unchanged.
 
 ## Capabilities
 

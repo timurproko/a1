@@ -59,7 +59,7 @@ The PR validation from #540 remains: positive number, canonical HTTPS GitHub URL
 
 ### 4. Keep the badge visible by allocating width semantically
 
-For bare A1 with valid PR identity, reserve the visible width and complete OSC 8/SGR span for ` PR #<number>` before allocating the remaining first-row width to path/branch text. Truncate only the path/branch segment to that allocation, then append the intact badge and fit the optional session-name suffix only if space remains. At widths too small for the complete badge, use the existing safe ANSI-aware truncation without leaking hyperlink/style state.
+For bare A1 with valid PR identity, render only ` #<number>` and reserve its visible width and complete OSC 8/SGR span before allocating the remaining first-row width to path/branch text. Truncate only the path/branch segment to that allocation, then append the intact badge and fit the optional session-name suffix only if space remains. At widths too small for the complete badge, use the existing safe ANSI-aware truncation without leaking hyperlink/style state.
 
 No-PR output keeps existing path/branch/session behavior. The comparison profile ignores the association and remains byte-for-byte pinned.
 

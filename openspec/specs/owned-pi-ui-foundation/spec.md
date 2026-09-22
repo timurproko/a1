@@ -2148,100 +2148,42 @@ Bare A1 SHALL present `thinking` immediately after its unified `models` command 
 
 ### Requirement: Bare A1 links the current branch's open pull request from the footer
 
-Bare A1 SHALL support one explicit optional repository-context association per stable Pi session. When a valid association exists, A1 SHALL discover the branch and open GitHub pull request from that associated worktree even when the session started in another checkout; otherwise it SHALL use the session's effective startup working tree and SHALL NOT guess among other worktrees. The association SHALL be scoped by stable session identity, SHALL survive restart or resume of that same session, SHALL reload on session replacement, and SHALL NOT be inherited by an unrelated or forked session without an explicit association.
+Bare A1 SHALL discover the open GitHub pull request associated with the effective working tree branch and, when one is available, SHALL render `PR #<number>` directly after the footer's path and branch. The `PR` prefix SHALL retain the footer's grey, while only `#<number>` SHALL use the established web-link color and carry the pull request's canonical HTTPS URL as a terminal-native hyperlink so the terminal provides its ordinary hover and Ctrl+click behavior. The path, branch, `PR` prefix, separator, and session name SHALL remain outside the hyperlink.
 
-The association operation SHALL validate active session identity, canonical worktree identity, non-detached branch state, and same Git common-directory identity as the session's startup repository. It SHALL change only repository metadata discovery and SHALL NOT change tool cwd, session cwd, Git state, GitHub state, worktree cleanup registration, or cleanup authority. Missing, malformed, foreign, detached, deleted, reused, or otherwise invalid associations SHALL fail closed to the startup repository context without making A1 startup or the running session fail.
+Discovery SHALL be asynchronous, bounded, serialized, and optional. Missing GitHub CLI or authentication, detached or mismatched branches, no open pull request, malformed or unsafe output, command failure, and timeout SHALL leave the existing footer unchanged and SHALL NOT block startup or fail the session. A running session SHALL refresh the association at a bounded cadence and SHALL release its timer and active probe on disposal.
 
-When the selected repository context has an open pull request, bare A1 SHALL render `PR #<number>` directly after the footer's path and branch. The `PR` prefix SHALL retain the footer's grey, while only `#<number>` SHALL use the established web-link color and carry the pull request's canonical HTTPS URL as a terminal-native hyperlink. The path, branch, `PR` prefix, separator, ellipsis, and session name SHALL remain outside the hyperlink. Width allocation SHALL preserve a complete valid PR badge at ordinary constrained widths by truncating path/branch text first; widths too small for the complete badge SHALL truncate safely without leaking hyperlink or foreground state.
-
-Discovery SHALL reread associated context and branch, and SHALL remain asynchronous, bounded, serialized, optional, and lifecycle-owned. Missing GitHub CLI or authentication, no open PR, mismatched branch, malformed or unsafe output, command failure, and timeout SHALL leave the footer without a badge and SHALL NOT block startup or fail the session. Association, branch, and PR changes SHALL refresh while the session runs, unchanged observations SHALL NOT emit redundant views, and disposal SHALL release timers and active work.
-
-The badge and association are declared bare-A1 behavior. The `a1 pi` comparison profile SHALL retain its pinned footer bytes and SHALL NOT render the badge or consume the association.
-
-#### Scenario: Link a delivery worktree created after session startup
-
-- **GIVEN** a bare-A1 session started in a primary checkout on `develop`
-- **AND** the session explicitly associates its newly created same-repository worktree on branch `fix/example`
-- **AND** that branch has open pull request 567 at `https://github.com/example/project/pull/567`
-- **WHEN** repository metadata refresh completes
-- **THEN** the footer SHALL contain `PR #567` for the associated worktree
-- **AND** discovery SHALL NOT continue using the primary checkout's `develop` branch
-- **AND** the session and tool cwd SHALL remain the primary checkout
-
-#### Scenario: Keep concurrent sessions independent
-
-- **GIVEN** two sessions started from the same primary checkout
-- **AND** each session associates a different valid worktree with a different open pull request
-- **WHEN** both footers refresh
-- **THEN** each footer SHALL show only its own associated pull request
-- **AND** neither session SHALL select a worktree by recency, name, scanning, or another session's record
-
-#### Scenario: Restore association after resume
-
-- **GIVEN** a session has a valid associated worktree
-- **WHEN** that same stable session is restarted or resumed
-- **THEN** A1 SHALL revalidate and restore its repository context
-- **AND** SHALL refresh the associated branch and open pull request without requiring another association command
-
-#### Scenario: Reject invalid or stale association
-
-- **WHEN** an association is malformed, foreign-repository, detached, deleted, reused with changed identity, or belongs to another session
-- **THEN** A1 SHALL ignore it and use the startup repository context
-- **AND** SHALL NOT mutate Git, GitHub, the session, or cleanup state
-- **AND** SHALL NOT fail startup or emit an unbounded diagnostic
-
-#### Scenario: Association or branch changes during the session
-
-- **WHEN** the session sets or clears an association, switches to another session, or the selected context's branch or open pull request changes
-- **THEN** bounded serialized discovery SHALL update to the newest normalized branch and PR identity
-- **AND** no two discovery processes SHALL overlap
-- **AND** unchanged observations SHALL NOT cause redundant view updates
-- **AND** stale results from an older association or session generation SHALL NOT render
-
-#### Scenario: Preserve the badge in a constrained row
-
-- **GIVEN** a valid linked pull request and path/branch text too wide for the footer row
-- **WHEN** the row is wide enough for the complete PR badge but not all text
-- **THEN** A1 SHALL truncate path/branch text before truncating `PR #<number>`
-- **AND** only `#<number>` SHALL resolve to the canonical PR URL
-- **AND** hyperlink and foreground state SHALL close within the row
-
-#### Scenario: No explicit association exists
-
-- **WHEN** a session has no valid explicit repository-context association
-- **THEN** A1 SHALL preserve startup-working-tree discovery
-- **AND** SHALL NOT scan or guess among other local worktrees or pull requests
+The badge is a declared bare-A1 addition. The `a1 pi` comparison profile SHALL retain its pinned footer bytes and SHALL NOT render the badge.
 
 #### Scenario: Show an open branch pull request
 
-- **WHEN** bare A1's selected repository context has a current branch with open pull request 567 at `https://github.com/example/project/pull/567`
+- **WHEN** bare A1 runs in a Git working tree whose current branch has an open pull request numbered 567 at `https://github.com/example/project/pull/567`
 - **THEN** the footer path row SHALL contain `path (branch) PR #567`
 - **AND** `PR` SHALL retain the same grey role as the surrounding footer
 - **AND** only `#567` SHALL be an OSC 8 hyperlink targeting that canonical URL
-- **AND** the linked number SHALL use the established web-link theme role
+- **AND** the linked number SHALL use the same theme role as established web links
 
 #### Scenario: Keep surrounding footer text outside the link
 
 - **WHEN** the footer also has a session name
 - **THEN** the row SHALL order path, branch, PR badge, and session name as `path (branch) PR #<number> • session-name`
-- **AND** the path, branch, spaces, `PR` prefix, separator, ellipsis, and session name SHALL NOT resolve to the PR target
+- **AND** the path, branch, spaces, `PR` prefix, separator, and session name SHALL NOT resolve to the PR target
 
 #### Scenario: No open pull request is available
 
-- **WHEN** the selected context is not a Git repository, its head is detached, no open PR matches its branch, or GitHub CLI discovery fails, times out, or returns invalid data
-- **THEN** the footer SHALL retain the selected safe path, branch, and session-name presentation without a PR badge
+- **WHEN** the current directory is not a Git repository, the head is detached, no open PR matches the current branch, or GitHub CLI discovery fails, times out, or returns invalid data
+- **THEN** the footer SHALL retain its existing path, branch, and session-name presentation without a PR badge
 - **AND** startup and the running agent session SHALL continue without a PR-discovery diagnostic
 
 #### Scenario: Pull request association changes during the session
 
-- **WHEN** a bounded refresh observes that the selected branch gains, loses, or changes its open pull request association
+- **WHEN** a bounded refresh observes that the current branch gains, loses, or changes its open pull request association
 - **THEN** the footer SHALL update to the newest normalized identity
 - **AND** unchanged refreshes SHALL NOT cause redundant view updates
 - **AND** no two discovery processes SHALL overlap
 
 #### Scenario: Dispose while discovery is pending
 
-- **WHEN** the session is disposed with a refresh timer or repository discovery process pending
+- **WHEN** the session is disposed with a refresh timer or PR discovery process pending
 - **THEN** the timer and process SHALL be cancelled or released
 - **AND** a late result SHALL NOT update or render the disposed session
 
@@ -2253,8 +2195,8 @@ The badge and association are declared bare-A1 behavior. The `a1 pi` comparison 
 
 #### Scenario: Use the pinned comparison profile
 
-- **WHEN** the same session and footer state are rendered through `a1 pi`
-- **THEN** its output SHALL match the pinned footer without a PR badge or association-specific presentation
+- **WHEN** the same footer state is rendered through `a1 pi`
+- **THEN** its output SHALL match the pinned footer without a PR badge or PR hyperlink
 
 ### Requirement: The collapsed skills command keeps a primary built-in position
 

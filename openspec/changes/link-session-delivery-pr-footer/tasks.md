@@ -12,7 +12,7 @@
 
 ## 3. Preserve the PR badge under path pressure
 
-- [x] 3.1 Allocate the bare footer's first row so a complete valid `PR #<number>` badge is reserved before truncating associated worktree path/branch text and fitting the optional session suffix; verify ordinary no-PR output remains unchanged.
+- [x] 3.1 Render only the complete valid `#<number>` badge and reserve it before truncating associated worktree path/branch text and fitting the optional session suffix; verify ordinary no-PR output remains unchanged.
 - [x] 3.2 Verify narrow-row boundaries preserve width, close OSC 8 and SGR state, link/style only `#<number>`, and never leak into ellipsis/session/adjacent rows; retain byte-for-byte pinned `a1 pi` output.
 
 ## 4. Validate and hand off

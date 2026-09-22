@@ -136,13 +136,12 @@ describe("owned shared input and status presentation", () => {
     };
     const ownedRow = createPiShellFooter(footerState, "/WORK", "a1").render(120)[0]!;
     const plain = stripTerminalSequences(ownedRow);
-    expect(plain).toBe("/DELIVERY/WORKTREE/WITH/A/LONG/PATH (feature/show-pr-id-status-bar) PR #540 • footer-test");
+    expect(plain).toBe("/DELIVERY/WORKTREE/WITH/A/LONG/PATH (feature/show-pr-id-status-bar) #540 • footer-test");
     const linkColumn = plain.indexOf("#540");
     expect(hyperlinkTargetAtColumn(ownedRow, linkColumn - 1)).toBeUndefined();
     expect(hyperlinkTargetAtColumn(ownedRow, linkColumn)).toBe("https://github.com/timurproko/a1/pull/540");
     expect(hyperlinkTargetAtColumn(ownedRow, linkColumn + 3)).toBe("https://github.com/timurproko/a1/pull/540");
     expect(hyperlinkTargetAtColumn(ownedRow, linkColumn + 4)).toBeUndefined();
-    expect(cellStyle(ownedRow, "P")).toEqual(cellStyle(piTheme().fg("dim", "P"), "P"));
     expect(cellStyle(ownedRow, "#")).toEqual(cellStyle(piTheme().fg("mdLink", "#"), "#"));
 
     const pinnedRow = createPiShellFooter(footerState, "/WORK", "pi").render(120)[0]!;
@@ -152,7 +151,7 @@ describe("owned shared input and status presentation", () => {
     const truncated = createPiShellFooter(footerState, "/WORK", "a1").render(40)[0]!;
     const truncatedPlain = stripTerminalSequences(truncated);
     expect(visibleWidth(truncated)).toBeLessThanOrEqual(40);
-    expect(truncatedPlain).toMatch(/\.\.\. PR #540$/);
+    expect(truncatedPlain).toMatch(/\.\.\. #540$/);
     const truncatedLink = truncatedPlain.indexOf("#540");
     expect(hyperlinkTargetAtColumn(truncated, truncatedLink - 1)).toBeUndefined();
     expect(hyperlinkTargetAtColumn(truncated, truncatedLink)).toBe("https://github.com/timurproko/a1/pull/540");

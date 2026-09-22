@@ -108,6 +108,8 @@ export class PiEngineRuntime {
   #pullRequest: PiPullRequestIdentity | null = null;
   #repositoryRefreshTimer: ReturnType<typeof setTimeout> | undefined;
   #repositoryRefreshAbort: AbortController | undefined;
+  #repositoryRefreshTask: Promise<void> | undefined;
+  #repositoryRefreshPending = false;
   #lastPullRequestProbeAt: number | null = null;
   #repositoryRefreshEnabled = false;
   #disposed = false;
@@ -308,25 +310,38 @@ export class PiEngineRuntime {
     this.#repositoryRefreshEnabled = false;
     if (this.#repositoryRefreshTimer !== undefined) clearTimeout(this.#repositoryRefreshTimer);
     this.#repositoryRefreshTimer = undefined;
+    this.#repositoryRefreshPending = false;
     this.#repositoryRefreshAbort?.abort();
-    this.#repositoryRefreshAbort = undefined;
+    const repositoryRefreshTask = this.#repositoryRefreshTask;
     this.#unsubscribe?.();
     this.#unsubscribe = undefined;
     this.#compactionProgress?.dispose();
     this.#compactionProgress = null;
+    await repositoryRefreshTask;
     await this.#runtime?.dispose();
   }
 
   #startRepositoryRefresh(): void {
     if (!this.#repositoryRefreshEnabled || this.#disposed || this.#ports.disposed()) return;
-    void this.#refreshRepositoryMetadata();
+    if (this.#repositoryRefreshTask !== undefined) {
+      this.#repositoryRefreshPending = true;
+      return;
+    }
+    const task = this.#refreshRepositoryMetadata();
+    this.#repositoryRefreshTask = task;
+    const settled = (): void => {
+      if (this.#repositoryRefreshTask === task) this.#repositoryRefreshTask = undefined;
+      if (!this.#repositoryRefreshPending) return;
+      this.#repositoryRefreshPending = false;
+      this.#startRepositoryRefresh();
+    };
+    void task.then(settled, settled);
   }
 
   #resetRepositoryRefresh(): void {
     if (this.#repositoryRefreshTimer !== undefined) clearTimeout(this.#repositoryRefreshTimer);
     this.#repositoryRefreshTimer = undefined;
     this.#repositoryRefreshAbort?.abort();
-    this.#repositoryRefreshAbort = undefined;
     this.#repositoryCwd = this.#cwd;
     this.#gitBranch = null;
     this.#pullRequest = null;
@@ -396,7 +411,7 @@ export class PiEngineRuntime {
     if (controller.signal.aborted || generation !== this.#sessionBindingGeneration || this.#disposed || this.#ports.disposed()) return;
     this.#repositoryRefreshTimer = setTimeout(() => {
       this.#repositoryRefreshTimer = undefined;
-      void this.#refreshRepositoryMetadata();
+      this.#startRepositoryRefresh();
     }, this.#repositoryContextPollMs);
     this.#repositoryRefreshTimer.unref?.();
   }

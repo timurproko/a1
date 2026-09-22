@@ -43,8 +43,8 @@ describe("OwnedUiSessionShell prompt bar, links, and hover", () => {
       },
     });
     const footer = shell.root.render(120).map(row => stripTerminalSequences(row))
-      .find(row => row.includes("PR #552"));
-    expect(footer).toContain("D:/delivery/session-associated-pr-footer (fix/session-associated-pr-footer) PR #552");
+      .find(row => row.includes("#552"));
+    expect(footer).toContain("D:/delivery/session-associated-pr-footer (fix/session-associated-pr-footer) #552");
     await shell.dispose();
   });
 

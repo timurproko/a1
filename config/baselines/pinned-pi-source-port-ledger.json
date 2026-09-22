@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-09-22T22:13:02.220Z",
+  "recordedAt": "2026-09-22T22:30:16.931Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "16787ad5b2dc748047f314ca1bfe7708f30f54f3",
@@ -1738,7 +1738,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Consumes neutral owned-UI view data instead of a fabricated concrete AgentSession; an explicit bare-A1 profile colors the thinking-level name, renders its repository-context path, and reserves its linked pull-request badge before path truncation while preserving the remaining footer layout and formatting; replacement surfaces may suppress a thinking level they already present.",
       "upgradeStrategy": "three-way",
-      "localSha256": "35c318aa8a255e158946f5e6fa11ba83355e383e6e7c32496778fec8a30918ec",
+      "localSha256": "0a1ac2537a4db588ba4e6398c44e154134e67d680c94efc1454155a08688ffab",
       "approvedDeviations": [
         {
           "id": "owned-status-level-color",
