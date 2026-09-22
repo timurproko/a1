@@ -144,6 +144,13 @@ describe("PiTuiRuntimeAdapter", () => {
     expect(runtime.getHardwareCursor()).toBe(true);
     expect(runtime.getClearOnShrink()).toBe(false);
     expect(terminal.writes).toContain("progress:true");
+    const initialFocusEvents = root.focus.length;
+    runtime.ensureFocus(root);
+    expect(root.focus).toHaveLength(initialFocusEvents);
+    runtime.setFocus(null);
+    expect(root.focus.at(-1)).toBe(false);
+    runtime.ensureFocus(root);
+    expect(root.focus.at(-1)).toBe(true);
 
     terminal.input("root");
     runtime.renderNow();

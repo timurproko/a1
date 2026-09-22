@@ -467,6 +467,13 @@ export class OwnedUiSessionShell {
           }
           const routed = this.root.handleViewportPreInput(data, true, Date.now(),
             this.root.usesDefaultInputSurface() && !this.runtime.hasFocusedOverlay());
+          // Invariant: transcript and viewport gestures own only their pointer sequence. Once
+          // routed, they leave the visible ordinary prompt as keyboard owner, so terminal-owned
+          // bracketed paste and every declared editor binding follow the same editor path. A
+          // focused overlay or replacement input remains authoritative.
+          if (data.includes("\u001b[<") && this.root.usesDefaultInputSurface() && !this.runtime.hasFocusedOverlay()) {
+            this.runtime.ensureFocus(this.root);
+          }
           if (routed.copySelection !== undefined) {
             void this.#responseCopy?.submit(routed.copySelection, pendingClipboardWrite);
           }

@@ -30,6 +30,47 @@ import { OwnedUiSessionShell } from "../../../src/app/session-shell/index.js";
 import { Session, fixture, observedPasteFixture, nextImmediate } from "./session-shell-fixture.js";
 
 describe("OwnedUiSessionShell paste and clipboard", () => {
+  it("restores prompt editing shortcuts after a transcript click without moving editor state", async () => {
+    const copied: string[] = [];
+    const { shell, terminal } = await fixture(
+      [{ role: "assistant", content: [{ type: "text", text: "clickable response" }] }],
+      [], true, undefined, { readText: async () => "native paste", writeText: async text => { copied.push(text); } },
+    );
+    try {
+      terminal.resize(80, 24);
+      shell.root.editor.setText("alpha");
+      shell.runtime.renderNow();
+      const rows = shell.root.render(80).map(stripTerminalSequences);
+      const row = rows.findIndex(text => text.includes("clickable response")) + 1;
+      expect(row).toBeGreaterThan(0);
+      const clickTranscript = () => terminal.input(`\u001b[<0;3;${row}M\u001b[<0;3;${row}m`);
+
+      // Regression: a terminal-provided paste reaches only the focused component. The
+      // content click must restore the ordinary prompt rather than requiring a prompt click.
+      shell.runtime.setFocus(null);
+      clickTranscript();
+      terminal.input("\u001b[200~ beta\u001b[201~");
+      await vi.waitFor(() => expect(shell.root.editor.getText()).toBe("alpha beta"));
+
+      terminal.input("\u0001"); // Ctrl+A: select all prompt text.
+      terminal.input("\u0018"); // Ctrl+X: cut through the declared editor binding.
+      expect(shell.root.editor.getText()).toBe("");
+      await vi.waitFor(() => expect(copied).toContain("alpha beta"));
+      terminal.input("\u001a"); // Ctrl+Z: undo.
+      expect(shell.root.editor.getText()).toBe("alpha beta");
+      terminal.input("\u0019"); // Ctrl+Y: redo.
+      expect(shell.root.editor.getText()).toBe("");
+
+      shell.root.editor.setText("abc");
+      shell.runtime.setFocus(null);
+      clickTranscript();
+      terminal.input("\u001b[H"); // Home retains prompt-line navigation ownership.
+      terminal.input("X");
+      await nextImmediate();
+      expect(shell.root.editor.getText()).toBe("Xabc");
+    } finally { await shell.dispose(); }
+  });
+
   it("reserves and settles the cold first Ctrl+V exactly once before any mouse paste", async () => {
     let release!: (value: string) => void;
     const readText = vi.fn(() => new Promise<string>(resolve => { release = resolve; }));

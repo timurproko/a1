@@ -328,6 +328,15 @@ export class PiTuiRuntimeAdapter {
     this.#tui.setFocus(this.#bridgeFor(component));
   }
 
+  /** Restores a component as keyboard owner without churning an already-correct focus state. */
+  ensureFocus(component: PiTuiComponentPort): void {
+    this.#assertRunning("focus");
+    const bridge = this.#bridgeFor(component);
+    if (bridge?.focused) return;
+    if (this.#overlayInputCoordination.size > 0) this.#overlayGeometry?.invalidate();
+    this.#tui.setFocus(bridge);
+  }
+
   showOverlay(component: PiTuiComponentPort, options?: PiTuiOverlayOptions): PiTuiOverlayHandle {
     this.#assertRunning("overlay");
     if (this.#bridges.has(component)) throw new TypeError("Pi TUI component is already mounted");
