@@ -21,4 +21,4 @@ None.
 
 ## Impact
 
-Implementation is expected in `src/app/session-shell/session-shell-root.ts`, reusing the existing command-message and status presenters. Focused coverage belongs in the bare-A1 session-shell placement tests, extension-notification tests, and existing command-message parity controls. No engine workflow wording, transcript persistence format, viewport composer, installed Pi package, or pinned comparison presentation changes are intended.
+Implementation is expected in `src/app/session-shell/session-shell-root.ts`, reusing the existing command-message and status presenters. Focused coverage belongs in the bare-A1 session-shell placement tests, extension-notification tests, and existing command-message parity controls. The derived startup-graph byte ceiling may move by the exact added eagerly reachable source bytes. No engine workflow wording, transcript persistence format, viewport composer, installed Pi package, or pinned comparison presentation changes are intended.

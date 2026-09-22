@@ -59,4 +59,11 @@ Existing independent command-message parity tests remain the control for the unc
 
 ## Implementation Evidence
 
-To be completed after plan approval and implementation.
+- `npm run build` passes and produces the candidate's runtime outputs before test and handoff use.
+- `npm run typecheck` passes after the build.
+- `npx --no-install vitest run test/app/session-shell/session-shell.test.ts` passes all 24 command, notice, and presentation cases, including empty-session export placement, severity roles, replacement, wrapping, extension notifications, structured output, and the existing informational lifecycle.
+- `npx --no-install vitest run test/app/session-shell/session-shell-paste.test.ts -t "does not paste the previous clipboard after a known response-copy failure"` passes the affected copy/paste notice replacement case. An earlier broad paste-file invocation ran before the required build outputs existed and failed helper-dependent URL/path/image cases; it is environment-invalid evidence rather than a product gap, and the affected focused case passed after the build.
+- `npx --no-install vitest run test/app/session-shell/command-message-parity.test.ts` passes all 3 independent pinned-versus-owned geometry, severity, punctuation, and failure-closure controls.
+- `npm run check:architecture` passes after advancing the derived startup-graph ceiling by the exact 491 added source bytes, from 1,441,230 to 1,441,721; file reachability and all other boundaries remain unchanged.
+- `npx --no-install openspec validate place-command-errors-above-prompt --strict` passes.
+- No implementation gap is known. Exact-candidate visual confirmation through the color-preserving development launcher remains the explicit maintainer task.
