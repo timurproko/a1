@@ -69,7 +69,7 @@ jobs:
           const git = args => execFileSync('git', args, { encoding: 'utf8', timeout: 30000, maxBuffer: 8 * 1024 * 1024 });
           const mergeBase = git(['merge-base', current.base, current.head]).trim();
           const paths = git(['diff', '--no-renames', '--name-only', '-z', mergeBase, current.head]).split('\0').filter(Boolean);
-          if (paths.length > 8192 || paths.some(p => /[\x00-\x1f\\]/.test(p) || p.split('/').includes('..'))) throw new Error('Invalid or oversized comparison');
+          if (paths.length === 0 || paths.length > 8192 || paths.some(p => /[\x00-\x1f\\]/.test(p) || p.split('/').includes('..'))) throw new Error('Invalid or oversized comparison');
           const planning = current.draft && paths.every(p => p === 'README.md' || p.startsWith('docs/') || p.startsWith('openspec/'));
           const value = { schema: 'a1-pr-full-regression-bootstrap-v1', head: current.head, base: current.base, pr: current.pr, selected: !planning, metadataDigest: hash(current), comparisonDigest: hash(paths), reason: planning ? 'planning-only-draft' : 'base-policy-bootstrap' };
           const selection = { ...value, selectionId: hash(value) };
@@ -761,7 +761,7 @@ jobs:
           const git = args => execFileSync('git', args, { encoding: 'utf8', timeout: 30000, maxBuffer: 8 * 1024 * 1024 });
           const mergeBase = git(['merge-base', current.base, current.head]).trim();
           const paths = git(['diff', '--no-renames', '--name-only', '-z', mergeBase, current.head]).split('\0').filter(Boolean);
-          if (paths.length > 8192 || paths.some(p => /[\x00-\x1f\\]/.test(p) || p.split('/').includes('..'))) throw new Error('Invalid or oversized comparison');
+          if (paths.length === 0 || paths.length > 8192 || paths.some(p => /[\x00-\x1f\\]/.test(p) || p.split('/').includes('..'))) throw new Error('Invalid or oversized comparison');
           const planning = current.draft && paths.every(p => p === 'README.md' || p.startsWith('docs/') || p.startsWith('openspec/'));
           const value = { schema: 'a1-pr-full-regression-bootstrap-v1', head: current.head, base: current.base, pr: current.pr, selected: !planning, metadataDigest: hash(current), comparisonDigest: hash(paths), reason: planning ? 'planning-only-draft' : 'base-policy-bootstrap' };
           const selection = { ...value, selectionId: hash(value) };

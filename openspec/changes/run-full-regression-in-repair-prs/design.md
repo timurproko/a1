@@ -87,7 +87,8 @@ Introduce selection, reusable execution, aggregation, policy/spec reconciliation
 
 - Approved implementation continues in #543 on `feature/pr-full-regression`; the selector, shared caller, native lane envelopes, protected aggregate, governance inventory, lifecycle templates, and focused fixtures are implemented together.
 - Focused selector/workflow/governance execution initially ran 70 tests: 69 passed and one fixture expected a historical 60-minute lane instead of the retained 40-minute deadline. The assertion was corrected without changing the deadline; the replacement focused run passed 98 tests across nine files.
-- #536's independently dispatched run 35757525387 was still in progress when implementation began and remains evidence for that separate repair, not a substitute for #543's PR-attached canary.
+- #536's independently dispatched run 35757525387 completed successfully on all four lanes. It remains evidence for that separate repair, not a substitute for #543's PR-attached canary.
+- Draft PR run 35762396554 proved native Checks-rollup attachment for `PR Full regression / Full documentation review` and the reusable aggregate. Documentation then failed because the tracked fixture's test-seam comment lacked an allowed classification; no platform lane ran. The comment was classified as rationale without weakening the review.
 
 ## Known gaps
 

@@ -12,7 +12,7 @@ const pull = (patch: Partial<RegressionPull> = {}): RegressionPull => ({ number:
 const select = (paths: string[], patch: Partial<RegressionPull> = {}, options = {}) => selectFullRegression({ pull: pull(patch), paths, mergeBase: base, ...options });
 const repairLink = '```openspec-implementation\n{"version":3,"change":"fix-nightly-regression-2026-09-22"}\n```';
 
-// Test seam: these are orchestration envelopes, not substitutes for executing complete validation on hosted lanes.
+// Rationale: these test seams verify orchestration envelopes, not complete validation on hosted lanes.
 function result(): FullTierResult {
   const selected = ["update-predecessor", "update-performance", "package-startup", "package-contracts", "typecheck", "architecture", "fast-remainder", "fast-resource-sensitive"];
   return { schema: "a1-validation-outcomes-v1", passed: true, requested: ["full-release"], selected,
@@ -78,6 +78,7 @@ describe("trusted complete-regression selection", () => {
     for (const body of [repairLink + "\n" + repairLink, "```openspec-implementation\n{}", repairLink.replace('"version":3', '"version":9'),
       repairLink.replace('"version":3', '"version":3,"version":3'), repairLink.replace('"version":3', '"version":3,"unexpected":true')]) expect(() => select(["docs/a.md"], { body })).toThrow();
     for (const patch of [{ state: "closed" }, { head: { sha: "short", ref: "feature/a" } }, { base: { sha: base, ref: "master" } }]) expect(() => select(["src/features/example.ts"], patch)).toThrow();
+    expect(() => select([])).toThrow(/incomplete/);
     expect(select(["new-build-input.yaml"]).reasons).toContain("unknown-operational-input");
     expect(select(["scripts/unknown-owner.mjs"]).selected).toBe(true);
   });
