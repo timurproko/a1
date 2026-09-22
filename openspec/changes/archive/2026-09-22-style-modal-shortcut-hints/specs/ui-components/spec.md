@@ -1,8 +1,8 @@
 ## ADDED Requirements
 
-### Requirement: Modal shortcut rows distinguish keys from actions without separator glyphs
+### Requirement: Dialog shortcut rows distinguish keys from actions without separator glyphs
 
-The component layer SHALL provide one semantic presentation for modal shortcut hints. Each hint entry SHALL render its shortcut label in the declared quiet key role and its action name in a distinct declared text role. Adjacent entries SHALL be separated by whitespace only, with exactly two display cells between entries and no middle dot, bullet, or other separator glyph. The presentation SHALL retain entry boundaries while measuring, truncating, or wrapping so ANSI styling is not counted as visible width and no style sequence is split.
+The component layer SHALL provide one semantic presentation for modal and full-screen dialog shortcut hints. Each hint entry SHALL render its shortcut label in the declared quiet key role and its action name in a distinct declared text role. Adjacent entries SHALL be separated by whitespace only, with exactly two display cells between entries and no middle dot, bullet, or other separator glyph. The presentation SHALL retain entry boundaries while measuring, truncating, or wrapping so ANSI styling is not counted as visible width and no style sequence is split.
 
 Punctuation that belongs to an action name or ordinary explanatory prose SHALL remain content and SHALL NOT be treated as an entry separator.
 

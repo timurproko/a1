@@ -11,7 +11,7 @@ const REQUIRED_LIFECYCLE = [
 ];
 const FORBIDDEN_CONTROLLERS = new Set(["generic-selector", "generic-input", "generic-dialog", "generic-workflow"]);
 const MODAL_HINT_COVERAGE = Object.fromEntries([
-  ["settings.root", "non-modal-footer-out-of-scope"],
+  ["settings.root", "owned-settings-fullscreen"],
   ...`settings.value-submenu settings.warnings settings.thinking settings.theme.single settings.theme.automatic settings.theme.light settings.theme.dark`.split(" ").map(id => [id, "already-semantic-or-no-row"]),
   ...`models.select`.split(" ").map(id => [id, "owned-models"]),
   ...`models.scope models.scope.refreshing`.split(" ").map(id => [id, "owned-scoped-models"]),
@@ -178,6 +178,10 @@ describe("pinned Pi modal transition graph", () => {
     }
     const settings = await readFile("src/features/owned-ui/settings-app.ts", "utf8");
     expect(settings).toContain("SETTINGS_SHORTCUTS.hintEntries(DIALOG_SCOPE)");
+    expect(settings).toContain("SETTINGS_SHORTCUTS.hintEntries(SCOPE)");
+    const reference = await readFile("src/features/owned-ui/reference-screen-app.ts", "utf8");
+    expect(reference).toContain("REFERENCE_SCREEN_SHORTCUTS.hintEntries(SCOPE)");
+    expect(reference).not.toContain("HINT_SEPARATOR");
     const startupTrust = await readFile("src/features/owned-ui/project-trust-prompt.ts", "utf8");
     expect(startupTrust).toContain("${DIM}  ↑/↓${MUTED} to navigate  ${DIM}Enter${MUTED} to select");
     expect(startupTrust).not.toContain("to navigate · Enter");

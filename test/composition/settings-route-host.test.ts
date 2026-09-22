@@ -151,7 +151,8 @@ describe("owned reference routes", () => {
     expect(lines[1]?.startsWith(" What's New")).toBe(true);
     expect(lines[2]?.startsWith("changelog complete at 58")).toBe(true);
     expect(lines[6]).toBe("─".repeat(60));
-    expect(lines.at(-1)?.startsWith("esc close • ↑↓ scroll")).toBe(true);
+    expect(lines.at(-1)?.startsWith("esc close  ↑↓ scroll")).toBe(true);
+    expect(lines.at(-1)).not.toMatch(/[·•]/u);
     complete.close();
     expect(complete.isClosed()).toBe(true);
 

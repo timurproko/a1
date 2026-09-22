@@ -101,10 +101,14 @@ describe("ReferenceScreenApp frame", () => {
     expect(lines[4]?.startsWith("beta")).toBe(true);
     expect(lines.slice(5, RECT.height - 2).every(line => line.trim() === "")).toBe(true);
     expect(lines.at(-2)).toBe(`<border>${RULE}</border>`);
-    const hint = REFERENCE_SCREEN_SHORTCUTS.hint("reference-screen", " • ");
-    expect(hint).toBe("esc close • ↑↓ scroll");
-    // Compatibility: the footer is set against the left edge and padded, as v2 draws it.
-    expect(lines.at(-1)?.startsWith(`<dim>${hint}</dim> `)).toBe(true);
+    expect(REFERENCE_SCREEN_SHORTCUTS.hintEntries("reference-screen")).toEqual([
+      { key: "esc", action: "close" },
+      { key: "↑↓", action: "scroll" },
+    ]);
+    // Compatibility: the footer remains against the left edge and padded.
+    const wideFooter = screen(target, { ...HOST, theme: NAMING_THEME }, { width: 100, height: RECT.height }).at(-1) ?? "";
+    expect(wideFooter.startsWith("<dim>esc</dim> <muted>close</muted>  <dim>↑↓</dim> <muted>scroll</muted> ")).toBe(true);
+    expect(wideFooter).not.toMatch(/[·•]/u);
     // Invariant: a fitting document does not move and reserves the rail columns under auto.
     target.onInput?.(DOWN, HOST);
     target.onInput?.(END, HOST);

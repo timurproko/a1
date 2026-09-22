@@ -775,6 +775,9 @@ describe("the input row and status line behind the screen", () => {
     expect(hint).toContain("←→ to adjust");
     expect(hint).toContain("Esc to cancel");
     expect(hint).not.toContain("Type to search");
+    expect(hint).not.toMatch(/[·•]/u);
+    const styledHint = target.render({ width: 200, height: 24 }, NAMING_HOST).find(line => line.includes("<dim>/</dim>")) ?? "";
+    expect(styledHint).toContain("<dim>/</dim> <muted>to search</muted>  <dim>↑↓</dim> <muted>to navigate</muted>");
 
     const narrow = target.render({ width: 24, height: 8 }, HOST).map(line => line.replace(STYLE, ""));
     expect(narrow.at(-1)).toHaveLength(24);

@@ -11,6 +11,7 @@ import {
   layoutList,
   padToWidth,
   renderGroupHeader,
+  renderShortcutHints,
   scrollForTrackPage,
   scrollbarGeometry,
   scrollbarPresentation,
@@ -39,8 +40,7 @@ const LOADING_NOTICE = "Loading…";
 type Action = "up" | "down" | "page-up" | "page-down" | "first" | "last" | "close";
 
 export const REFERENCE_SCREEN_SHORTCUTS = new ShortcutRegistry<Action>();
-// Compatibility: the footer reads as v2's `esc/ctrl+c close • ↑↓ scroll`, without ctrl+c, which is
-// the A1 interrupt chord here rather than a close key.
+// Compatibility: Ctrl+C remains the A1 interrupt chord here rather than a close key.
 REFERENCE_SCREEN_SHORTCUTS.declare({ key: "escape", scope: GLOBAL_SCOPE, description: "Close", section: "Screen", hint: { keys: "esc", does: "close" } }, "close");
 REFERENCE_SCREEN_SHORTCUTS.declare({ key: "up", scope: SCOPE, description: "Scroll up", section: "Navigate", hint: { keys: "↑↓", does: "scroll" } }, "up");
 REFERENCE_SCREEN_SHORTCUTS.declare({ key: "down", scope: SCOPE, description: "Scroll down", section: "Navigate", hint: { keys: "↑↓", does: "scroll" } }, "down");
@@ -48,8 +48,6 @@ REFERENCE_SCREEN_SHORTCUTS.declare({ key: "pageUp", scope: SCOPE, description: "
 REFERENCE_SCREEN_SHORTCUTS.declare({ key: "pageDown", scope: SCOPE, description: "Down a page", section: "Navigate" }, "page-down");
 REFERENCE_SCREEN_SHORTCUTS.declare({ key: "home", scope: SCOPE, description: "First row", section: "Navigate" }, "first");
 REFERENCE_SCREEN_SHORTCUTS.declare({ key: "end", scope: SCOPE, description: "Last row", section: "Navigate" }, "last");
-/** The separator v2's footer puts between its hints. */
-const HINT_SEPARATOR = " • ";
 assertNoShortcutConflicts(REFERENCE_SCREEN_SHORTCUTS.assemble());
 
 const KEYS: Readonly<Record<string, string>> = {
@@ -195,11 +193,13 @@ export class ReferenceScreenApp implements UiApp {
       : null;
 
     const withRail = withScrollbarRail(body.slice(0, bodyHeight), geometry, contentWidth, theme, { presentation });
-    const hint = this.#interruptArmed ? "press ctrl+c again to exit a1" : REFERENCE_SCREEN_SHORTCUTS.hint(SCOPE, HINT_SEPARATOR);
+    const hint = this.#interruptArmed
+      ? theme.fg("dim", "press ctrl+c again to exit a1")
+      : renderShortcutHints(REFERENCE_SCREEN_SHORTCUTS.hintEntries(SCOPE), theme);
     // Compatibility: the v2 reference screen frames its document between two border-coloured rules.
     const rule = theme.fg("border", "─".repeat(rect.width));
-    // Compatibility: v2 sets its footer against the left edge, unlike the settings status line.
-    const frame = [rule, ...withRail, rule, padToWidth(theme.fg("dim", hint), rect.width)];
+    // Compatibility: the footer remains against the left edge, unlike the settings status line.
+    const frame = [rule, ...withRail, rule, padToWidth(hint, rect.width)];
     // Invariant: a rectangle too small for the chrome still gets exactly its rows, top first.
     return frame.slice(0, rect.height).concat(Array(Math.max(0, rect.height - frame.length)).fill(""));
   }

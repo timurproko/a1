@@ -5,13 +5,13 @@ See `proposal.md` for motivation. Modal instruction rows are assembled in severa
 ## Goals / Non-Goals
 
 **Goals:**
-- Make the Skills footer the visual reference for every bare-A1 modal shortcut row: dim shortcut, muted action name, and two spaces between adjacent entries.
+- Make the Skills footer the visual reference for every bare-A1 modal and full-screen dialog shortcut row: dim shortcut, muted action name, and two spaces between adjacent entries.
 - Keep shortcut labels derived from each surface's effective keybindings and preserve platform-aware labels.
 - Cover top-level and nested modal branches through one inventory-backed rule, including narrow-width behavior and theme invalidation.
 - Preserve the startup trust boundary with a byte-light equivalent of the same semantic roles.
 
 **Non-Goals:**
-- Restyle non-modal startup help, transcript/status text, the session footer, or `/hotkeys` tables.
+- Restyle ordinary startup help, transcript/status text, the session footer, or the content tables inside `/hotkeys`.
 - Remove punctuation that is part of an action description or ordinary prose rather than a separator between shortcut entries.
 - Change key assignments, modal wording, modal geometry, or controller transitions.
 - Modify installed Pi package files or alter the `a1 pi` comparison presentation.
@@ -24,11 +24,11 @@ Introduce ordered semantic entries containing a shortcut label and action name. 
 
 This keeps color boundaries and separators structural instead of relying on replacing rendered strings. Continuing to concatenate pre-styled strings at each call site or crossing presentation-layer boundaries for code reuse was rejected because either choice permits drift or violates the dependency policy.
 
-### 2. Adapt every bare-A1 modal producer at its ownership boundary
+### 2. Adapt every bare-A1 dialog producer at its ownership boundary
 
-Use the modal transition inventory and modal construction routes to enumerate shortcut-bearing surfaces. Owned and source-synchronized components will consume the shared semantic formatter directly. Public package components used by bare A1 will be wrapped or minimally source-synchronized at the existing A1 component boundary where their instruction rows cannot be configured; installed dependency bytes will not be patched. The pinned `a1 pi` factories continue to instantiate public pinned components.
+Use the modal transition inventory, modal construction routes, and owned full-screen route host to enumerate shortcut-bearing surfaces. Owned and source-synchronized components will consume the shared semantic formatter directly. The full-screen Settings status row and shared Changelog/Hotkeys reference-screen footer use the same semantic entries while retaining their existing frame geometry. Public package components used by bare A1 will be wrapped or minimally source-synchronized at the existing A1 component boundary where their instruction rows cannot be configured; installed dependency bytes will not be patched. The pinned `a1 pi` factories continue to instantiate public pinned components.
 
-This is broader than changing the obvious Models and Thinking dialogs, but avoids claiming “all modals” from a few snapshots. A terminal-output postprocessor was rejected because ANSI-aware text rewriting is fragile, cannot reliably distinguish separators from prose, and violates the owned presentation boundary.
+This is broader than changing the obvious Models and Thinking dialogs, but avoids claiming consistent dialog styling from a few snapshots while leaving full-screen dialog routes behind. A terminal-output postprocessor was rejected because ANSI-aware text rewriting is fragile, cannot reliably distinguish separators from prose, and violates the owned presentation boundary.
 
 ### 3. Keep layout behavior with chunk-aware width handling
 
@@ -40,7 +40,7 @@ The pre-resource project-trust prompt will use its existing fixed dim and muted 
 
 ### 5. Make completeness testable
 
-Focused semantic-role tests will assert separate key/action ANSI roles and absence of `·`/`•` separators for representative selector, searchable, nested confirmation, editor/input, and startup surfaces. An inventory-backed audit will ensure each shortcut-bearing bare-A1 modal node is either covered by the shared formatter or explicitly has no shortcut row. Existing interaction tests remain the authority for effective bindings and lifecycle behavior.
+Focused semantic-role tests will assert separate key/action ANSI roles and absence of `·`/`•` separators for representative selector, searchable, nested confirmation, editor/input, startup, Settings, Changelog, and Hotkeys surfaces. An inventory-backed audit will ensure each shortcut-bearing bare-A1 dialog node or owned full-screen dialog route is covered by the shared formatter or explicitly has no shortcut row. Existing interaction tests remain the authority for effective bindings and lifecycle behavior.
 
 ## Risks / Trade-offs
 
