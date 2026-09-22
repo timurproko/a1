@@ -18,7 +18,7 @@ The manual merge accepts these scenarios:
   "archive": "openspec/changes/archive/2026-09-22-show-pr-id-status-bar/",
   "acceptanceManifest": "openspec/changes/archive/2026-09-22-show-pr-id-status-bar/acceptance.md",
   "finalizedDate": "2026-09-22",
-  "specBaseSha": "98b88f36b68d2ec70e2a3bd572cc49970d55dfbd",
+  "specBaseSha": "b26ad5dbcec4d83ea1c881a83edf045cb4ce31ad",
   "acceptanceScenarios": [
     "Bare A1 shows the current branch's open pull request as `PR #567`-style text immediately after path and branch.",
     "The `PR` prefix remains footer-grey while only the numbered `#567`-style span uses the web-link style and opens the canonical GitHub PR URL.",
