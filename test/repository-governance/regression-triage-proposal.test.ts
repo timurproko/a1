@@ -126,11 +126,17 @@ describe("nightly regression fix proposal", () => {
     expect(gh.calls.find(call => call[1] === "create")).toEqual(["pr", "create", "--draft", "--base", "develop", "--head", "fix/nightly-regression-2026-09-19", "--title", "fix(regression): repair the 2026-09-19 full regression failure", "--body-file", `${output}/body.md`.replaceAll("/", process.platform === "win32" ? "\\" : "/")]);
     expect([...files.files.keys()].filter(path => path.includes("openspec/changes/"))).toEqual([
       "D:/repo/openspec/changes/fix-nightly-regression-2026-09-19/.openspec.yaml",
+      "D:/repo/openspec/changes/fix-nightly-regression-2026-09-19/regression-provenance.json",
       "D:/repo/openspec/changes/fix-nightly-regression-2026-09-19/proposal.md",
       "D:/repo/openspec/changes/fix-nightly-regression-2026-09-19/design.md",
       "D:/repo/openspec/changes/fix-nightly-regression-2026-09-19/tasks.md",
     ]);
     expect(files.files.get(`${output}/body.md`)).toContain("- Triage key: `full-regression.yml:package-startup`");
+    expect(JSON.parse(files.files.get("D:/repo/openspec/changes/fix-nightly-regression-2026-09-19/regression-provenance.json")!)).toMatchObject({
+      schema: "a1-regression-triage-provenance-v1",
+      candidate: { branch: "fix/nightly-regression-2026-09-19", change: "fix-nightly-regression-2026-09-19" },
+      sources: [{ workflowName: "Full regression", workflowFile: "full-regression.yml", runId: 9001, conclusion: "failure", headBranch: "develop", headSha: head }],
+    });
     expect(JSON.parse(files.files.get(`${output}/report.json`)!)).toMatchObject({ schema: "a1-regression-triage-proposal-v1", mode: "new", pr: 777 });
   });
 
@@ -142,7 +148,14 @@ describe("nightly regression fix proposal", () => {
       { number: 702, headRefName: "feature/other", body: existingBody, url: "https://github.com/timurproko/a1/pull/702" },
     ]) }));
     const git = recorder(gitAnswers());
-    const files = memoryFiles({ [artifact]: tierResult(true), "D:/repo/openspec/changes/fix-nightly-regression-2026-09-18/design.md": "## Context\n\nOpened.\n\n## Evidence\n\n- Run [Full regression #411](x) (attempt 1, schedule) on `82d76c5` at 2026-09-18T02:47:00Z:\n" });
+    const files = memoryFiles({
+      [artifact]: tierResult(true),
+      "D:/repo/openspec/changes/fix-nightly-regression-2026-09-18/design.md": "## Context\n\nOpened.\n\n## Evidence\n\n- Run [Full regression #411](x) (attempt 1, schedule) on `82d76c5` at 2026-09-18T02:47:00Z:\n",
+      "D:/repo/openspec/changes/fix-nightly-regression-2026-09-18/regression-provenance.json": JSON.stringify({
+        schema: "a1-regression-triage-provenance-v1", candidate: { branch: "fix/nightly-regression-2026-09-18", change: "fix-nightly-regression-2026-09-18" },
+        sources: [{ workflowName: "Full regression", workflowFile: "full-regression.yml", runId: 8995, runNumber: 411, attempt: 1, event: "schedule", conclusion: "failure", headBranch: "develop", headSha: green, url: "https://github.com/timurproko/a1/actions/runs/8995", createdAt: "2026-09-18T02:47:00Z" }],
+      }),
+    });
     const result = await proposeRegressionFix({ runId: 9001, repository, output, gh: gh.executor, git: git.executor, files, today });
     expect(result).toMatchObject({ changed: true, mode: "refresh", branch: "fix/nightly-regression-2026-09-18", pr: 700 });
     expect(git.calls.map(call => call.slice(0, 2).join(" "))).toEqual(["log --first-parent", "fetch origin", "checkout -B", "add -A", "commit --allow-empty", "push origin"]);
@@ -153,6 +166,7 @@ describe("nightly regression fix proposal", () => {
     expect(body.indexOf("Full regression #412")).toBeGreaterThan(body.indexOf("Full regression #411"));
     expect(body.indexOf("Full regression #412")).toBeLessThan(body.indexOf("## Automation"));
     expect(files.files.get("D:/repo/openspec/changes/fix-nightly-regression-2026-09-18/design.md")).toContain("- Run [Full regression #412]");
+    expect(JSON.parse(files.files.get("D:/repo/openspec/changes/fix-nightly-regression-2026-09-18/regression-provenance.json")!).sources.map((source: any) => source.runId)).toEqual([8995, 9001]);
   });
 
   it("proposes nothing for a cancelled run or a manual publication and records why", async () => {
