@@ -48,6 +48,12 @@ Search results will not append a synthetic trailing spacer. While search is open
 
 Always resetting scroll on search cancellation was rejected because merely opening and closing the input displaced readers at the bottom. Painting the whole dropdown row in accent was rejected because it would destroy the distinction between effective and actively highlighted choices.
 
+### 6. Keep model and reasoning controls adjacent in bare A1
+
+Bare A1 will present `thinking` immediately after its unified `models` command in both the advertised workflow catalog and editor autocomplete. The pinned catalog remains in upstream order for the `a1 pi` comparison profile. Both owned catalogs derive the move while replacing `model` and removing `scoped-models`, and a focused assertion binds their complete order.
+
+Changing the pinned source order was rejected because the comparison profile intentionally mirrors upstream. Reordering only the editor rows was rejected because the advertised workflow catalog and visible autocomplete would disagree.
+
 ## Risks / Trade-offs
 
 - **[Risk] The optional title leaves one fewer row at scroll zero and changes height when it scrolls away.** → Reserve the top rule independently, recompute layout from current title visibility, and preserve exact frame finalization for degenerate sizes.
@@ -65,5 +71,6 @@ No stored settings or user data migration is required. Deploy the presentation a
 - Strict OpenSpec validation passes for this refined change.
 - Typechecking passes under supported Node 24 after the build generated the TypeScript distribution.
 - Focused settings, list/menu component, route-host, terminal-color, owned-run, workflow, and pinned-row tests pass (115 assertions), covering section-boundary bottom clamping, the opening spacer, wheel scrolling anywhere over the search footer through the final item, no trailing result gap, untouched-search scroll restoration, accent dropdown checks, aligned content/guidance, the fixed top rule, title scrolling, section-only pinning, and a title-level scrollbar.
+- Focused command-catalog coverage passes (65 assertions), verifying bare A1 presents `settings`, `models`, `thinking`, then `tree`, while the pinned comparison order remains unchanged.
 - Startup architecture, product-identity, and package-identity checks pass locally after recovering the 14-byte startup budget reported by the first exact-head run. The chained local architecture command then reaches a CRLF-sensitive pinned-source hash mismatch on this Windows checkout even though the tracked blobs are unchanged; renewed clean exact-head CI remains authoritative for the ledger check.
 - The supported local build completed environment validation, cleaning, TypeScript compilation, and Pi metadata/startup generation, then stopped at the unchanged native process-guardian build because this host has no MSVC linker or Windows SDK; Git's unrelated `link.exe` is the only linker on `PATH`. The first exact-head run built successfully, and renewed exact-head CI remains the authoritative final supported-toolchain evidence.

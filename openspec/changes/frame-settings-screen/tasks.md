@@ -51,3 +51,8 @@
 - [x] 9.1 Route wheel input anywhere over the search footer, including its bottom status row, to the result list and invalidate untouched-search restoration after deliberate wheel navigation.
 - [x] 9.2 Verify wheel scrolling from the bottom row reaches the actual final setting without restoring an obsolete pre-search position.
 - [x] 9.3 Keep the outgoing section pinned when bottom clamping lands on its spacer, consume that spacer outside body capacity, and verify the real final `Skills` row remains reachable.
+
+## 10. Keep model and thinking commands adjacent
+
+- [x] 10.1 Move `thinking` immediately after `models` in bare A1's advertised workflow and autocomplete catalogs without changing the pinned comparison catalog.
+- [x] 10.2 Add focused regression coverage that binds the owned command order and catalog parity.
