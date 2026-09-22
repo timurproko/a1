@@ -3,16 +3,12 @@
 Verdict: accepted only when the containing exact pull-request head is manually merged by an authorized human after required current-head validation.
 
 The manual merge accepts these scenarios:
-- `/settings` keeps a full-width theme-border rule fixed at the top and initially shows a one-column-inset bold accent `Settings` title below it.
-- One empty row separates the title from the first settings section.
-- Settings group names render bold in the active theme's Markdown-heading color.
-- Scrolling moves the `Settings` title out of view and pins only the active section heading below the fixed top rule.
-- Before scrolling, the scrollbar starts alongside the title; afterward it starts alongside the pinned section.
-- Search retains its top rule, prompt row, and bottom rule without a trailing empty result row.
-- Wheel input anywhere over the open search footer, including its bottom status row, reaches the actual final setting.
-- Opening and closing an untouched search restores the prior scroll position.
+- `/settings` retains the requested semantic frame, title, headings, alignment, menus, dialogs, and constrained geometry.
+- Search has no trailing synthetic result gap.
+- Wheel input anywhere over the search footer reaches the actual final setting.
+- A section-boundary spacer cannot clamp the viewport one row before `Skills`.
+- Opening and closing an untouched search restores the prior position.
 - Dropdown effective-value checkmarks render cyan, including when highlighted.
-- Pointer rows, wheel ownership, scrollbar interaction, menus, dialogs, and constrained frames remain aligned.
 
 ```openspec-delivery
 {
@@ -25,16 +21,12 @@ The manual merge accepts these scenarios:
   "finalizedDate": "2026-09-22",
   "specBaseSha": "6ae061516ba71675476541a958bd6e49903e280f",
   "acceptanceScenarios": [
-    "`/settings` keeps a full-width theme-border rule fixed at the top and initially shows a one-column-inset bold accent `Settings` title below it.",
-    "One empty row separates the title from the first settings section.",
-    "Settings group names render bold in the active theme's Markdown-heading color.",
-    "Scrolling moves the `Settings` title out of view and pins only the active section heading below the fixed top rule.",
-    "Before scrolling, the scrollbar starts alongside the title; afterward it starts alongside the pinned section.",
-    "Search retains its top rule, prompt row, and bottom rule without a trailing empty result row.",
-    "Wheel input anywhere over the open search footer, including its bottom status row, reaches the actual final setting.",
-    "Opening and closing an untouched search restores the prior scroll position.",
-    "Dropdown effective-value checkmarks render cyan, including when highlighted.",
-    "Pointer rows, wheel ownership, scrollbar interaction, menus, dialogs, and constrained frames remain aligned."
+    "`/settings` retains the requested semantic frame, title, headings, alignment, menus, dialogs, and constrained geometry.",
+    "Search has no trailing synthetic result gap.",
+    "Wheel input anywhere over the search footer reaches the actual final setting.",
+    "A section-boundary spacer cannot clamp the viewport one row before `Skills`.",
+    "Opening and closing an untouched search restores the prior position.",
+    "Dropdown effective-value checkmarks render cyan, including when highlighted."
   ],
   "archiveDigest": "3cd7067885b83a269c1ad1e6eda91ca3f6954b550fe1f5ff47f86c4f2b403f2c",
   "specDigest": "7a3505a3228487c082573d6858f4a364cafc1891f540cd5907cacff630a57001",
