@@ -18,7 +18,7 @@ The manual merge accepts these scenarios:
   "archive": "openspec/changes/archive/2026-09-22-restore-prompt-suggestion-after-delete/",
   "acceptanceManifest": "openspec/changes/archive/2026-09-22-restore-prompt-suggestion-after-delete/acceptance.md",
   "finalizedDate": "2026-09-22",
-  "specBaseSha": "f7df7624f9ae75f76b9cc55714ad42d7fca23a7c",
+  "specBaseSha": "91acd99bef9292e5d0d69bc58a1860c212eda179",
   "acceptanceScenarios": [
     "A delivered prompt suggestion stays hidden while a draft owns the editor and returns immediately when the complete draft is deleted.",
     "Deleting a draft closes its visible or pending autocomplete before the restored suggestion reclaims presentation and Tab.",
