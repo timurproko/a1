@@ -60,10 +60,12 @@ export class PromptChipStore {
   #preparation = new ImagePreparationClient();
   readonly #stopping = new Set<Promise<void>>();
   readonly #isolated: PastePreparationClient | undefined;
+  readonly #hideReadyImages: boolean;
   readonly #provisionalOwners = new Map<string, Set<symbol>>();
   readonly #ownedChipTags = new Map<symbol, Set<string>>();
 
-  constructor(options: { readonly isolated?: boolean; readonly onEvent?: (event: PasteEvent) => void; readonly preparation?: Omit<PastePreparationClientOptions, "onEvent"> } = {}) {
+  constructor(options: { readonly isolated?: boolean; readonly hideReadyImages?: boolean; readonly onEvent?: (event: PasteEvent) => void; readonly preparation?: Omit<PastePreparationClientOptions, "onEvent"> } = {}) {
+    this.#hideReadyImages = options.hideReadyImages ?? false;
     this.#isolated = options.isolated
       ? new PastePreparationClient({ ...options.preparation, ...(options.onEvent === undefined ? {} : { onEvent: options.onEvent }) })
       : undefined;
@@ -86,10 +88,7 @@ export class PromptChipStore {
     const job = this.#preparation.start(async signal => {
       const content = await read(signal);
       entry.kind = content?.kind === "image" ? "image" : "text";
-      if (content?.kind === "image") {
-        onImage();
-        if (this.#imageCount(currentText) >= 8) throw new ImageAttachmentError("image-count");
-      }
+      if (content?.kind === "image" && this.#imageCount(currentText) >= 8) throw new ImageAttachmentError("image-count");
       return content;
     });
     const entry: PendingPaste = { marker, job, references: 0, kind: "unknown", completion: job.result.then(content => {
@@ -104,6 +103,7 @@ export class PromptChipStore {
       return marker.replace("screenshot-", "failed-");
     }).then(replacement => {
       entry.replacement = replacement;
+      if (entry.kind === "image" && entry.error === undefined) onImage();
       return replacement;
     }) };
     this.#pending.set(marker, entry);
@@ -124,7 +124,6 @@ export class PromptChipStore {
       return this.#adoptPreparedText(value, signal, owner);
     }, () => {
       entry.kind = "image";
-      onImage();
       if (this.#imageCount(currentText) >= 8) throw new ImageAttachmentError("image-count");
     }, () => { entry.kind = "text"; });
     entry = { marker, job, references: 0, kind: "unknown", completion: job.result.catch(error => {
@@ -134,7 +133,11 @@ export class PromptChipStore {
       if (entry.kind === "unknown" && entry.error.code.startsWith("image-") && entry.error.code !== "image-canceled") entry.kind = "image";
       if (entry.error.code !== "image-canceled" && entry.references === 0) onError(entry.error);
       return entry.kind === "image" ? marker.replace("screenshot-", "failed-") : "";
-    }).then(replacement => { entry.replacement = replacement; return replacement; }) };
+    }).then(replacement => {
+      entry.replacement = replacement;
+      if (entry.kind === "image" && entry.error === undefined) onImage();
+      return replacement;
+    }) };
     entry.onComplete = () => {
       this.#finishChipOwnership(owner, job.isCurrent() && entry.error === undefined);
       job.complete();
@@ -212,6 +215,16 @@ export class PromptChipStore {
     this.#ownedChipTags.clear();
   }
 
+  readyImageCount(text: string): number {
+    const tags = new Set([...this.#chips.values()].filter(chip => chip.kind === "image" && text.includes(chip.tag)).map(chip => chip.tag));
+    for (const entry of this.#pending.values()) {
+      if (entry.kind !== "image" || entry.error !== undefined) continue;
+      const tag = entry.replacement ?? entry.marker;
+      if (text.includes(entry.marker) || text.includes(tag)) tags.add(tag);
+    }
+    return tags.size;
+  }
+
   #imageCount(text: string): number {
     const tags = new Set([...this.#chips.values()].filter(chip => chip.kind === "image" && text.includes(chip.tag)).map(chip => chip.tag));
     for (const entry of this.#pending.values()) {
@@ -269,15 +282,22 @@ export class PromptChipStore {
     return paste.paths.map(item => this.#recordUnique({ kind: item.kind, tag: pathChipTag(item), path: item.fullPath }, owner)).join("");
   }
 
-  /** Hide provisional clipboard identities until the read identifies an actual image. */
+  /** Hide provisional clipboard identities and, in bare A1, ready generated image identities. */
   hiddenRanges(line: string): readonly PiShellEditorTextRange[] {
     const ranges: PiShellEditorTextRange[] = [];
+    const hiddenTags = new Set<string>();
+    if (this.#hideReadyImages) {
+      for (const chip of this.#chips.values()) if (chip.kind === "image") hiddenTags.add(chip.tag);
+    }
     for (const entry of this.#pending.values()) {
-      if (entry.kind === "image") continue;
+      if (entry.kind === "image" && !this.#hideReadyImages) continue;
+      hiddenTags.add(entry.marker);
+    }
+    for (const tag of hiddenTags) {
       let from = 0;
-      while ((from = line.indexOf(entry.marker, from)) >= 0) {
-        ranges.push({ start: from, end: from + entry.marker.length });
-        from += entry.marker.length;
+      while ((from = line.indexOf(tag, from)) >= 0) {
+        ranges.push({ start: from, end: from + tag.length });
+        from += tag.length;
       }
     }
     return ranges.sort((left, right) => left.start - right.start);

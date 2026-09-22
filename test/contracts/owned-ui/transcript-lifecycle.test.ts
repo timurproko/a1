@@ -7,6 +7,23 @@ function block(execution: OwnedUiToolState["execution"], argsComplete: boolean, 
     title: "Tool", text: "", payload: null, toolState: { execution, argsComplete } };
 }
 
+describe("owned user presentation", () => {
+  const user = (): OwnedUiTranscriptBlock => ({ id: "user", kind: "user", status: "finalized", revision: 1,
+    title: "User", text: "stored", payload: null });
+
+  it("accepts bounded display-only image metadata only on user blocks", () => {
+    expect(() => assertOwnedUiTranscriptBlock({ ...user(), userPresentation: {
+      visibleText: "visible", imageNotices: ["[Image converted from image/bmp to image/png.]"],
+    } })).not.toThrow();
+    expect(() => assertOwnedUiTranscriptBlock({ ...user(), kind: "assistant", userPresentation: {
+      visibleText: "visible", imageNotices: [],
+    } })).toThrow("requires a user block");
+    expect(() => assertOwnedUiTranscriptBlock({ ...user(), userPresentation: {
+      visibleText: "", imageNotices: Array.from({ length: 33 }, () => "notice"),
+    } })).toThrow("exceeds its maximum length");
+  });
+});
+
 describe("owned tool lifecycle", () => {
   it("validates argument completion independently of execution completion", () => {
     for (const state of [block("pending", false, 1), block("pending", true, 2), block("running", true, 3),

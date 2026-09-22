@@ -667,7 +667,9 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
       first({ data: firstData, mimeType: "image/png" });
       await vi.waitFor(() => expect(shell.root.hasPendingPastes(firstChip)).toBe(false));
       expect(shell.root.editor.getText()).toBe(`${firstChip}${secondChip} tail`);
-      expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain(`${firstChip}${secondChip}`);
+      const readyFrame = stripTerminalSequences(shell.root.render(100).join("\n"));
+      expect(readyFrame).not.toContain("screenshot-");
+      expect(readyFrame).toContain("2 images attached");
       terminal.input("!");
       await nextImmediate();
       expect(shell.root.editor.getText()).toMatch(/ tail!$/u);
@@ -861,6 +863,7 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
       shell.root.editor.setText("keep draft");
       terminal.input("\u0016");
       await vi.waitFor(() => expect(shell.root.render(80).join("\n")).toContain("20 MiB"));
+      expect(stripTerminalSequences(shell.root.render(80).join("\n"))).not.toContain("Image attached");
       expect(shell.root.editor.getText()).toMatch(/^keep draft\[📷 failed-/u);
       expect((await shell.submit(shell.root.editor.getText())).outcome).toBe("rejected");
       shell.root.editor.setText("keep draft");
@@ -973,6 +976,10 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
     expect(imageTag).toMatch(/^\[📷 screenshot-[a-f0-9]+\]$/u);
     await vi.waitFor(() => expect(shell.root.hasPendingPastes(imageTag)).toBe(false));
     expect(shell.root.editor.getText()).toBe(imageTag);
+    expect(stripTerminalSequences(shell.root.editor.render(60).join("\n"))).not.toContain("screenshot-");
+    const attachedFrame = stripTerminalSequences(shell.root.render(60).join("\n"));
+    expect(attachedFrame).toContain("Image attached");
+    expect(attachedFrame).not.toContain("screenshot-");
     terminal.input("\u001b[D");
     terminal.input("\u0003");
     await vi.waitFor(() => expect(clipboardText).toBe(imageTag));

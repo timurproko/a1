@@ -30,6 +30,95 @@ describe("PiTranscriptProjection", () => {
     expect(target.block(live!.id)?.text).toBe("partial");
   });
 
+  it("derives image-only presentation without mutating persisted user text or attachment guidance", () => {
+    const { target } = projection();
+    const marker = "[📷 screenshot-0123456789]";
+    const dimension = "[Image: original 3840x2280, displayed at 2000x1188. Multiply coordinates by 1.92 to map to original image.]";
+    const conversion = "[Image converted from image/bmp to image/png.]";
+    const message = {
+      role: "user",
+      content: [
+        { type: "text", text: `inspect ${marker} beside [📷 literal.png]\n\n${conversion}\n${dimension}` },
+        { type: "image", data: "aW1hZ2U=", mimeType: "image/png" },
+      ],
+      timestamp: 1_500,
+    };
+    const projected = target.upsertMessage(message, "finalized")!;
+    expect(projected.text).toContain(marker);
+    expect(projected.text).toContain(dimension);
+    expect(projected.userPresentation).toEqual({
+      visibleText: "inspect beside [📷 literal.png]",
+      imageNotices: [conversion, dimension],
+    });
+    expect(projected.imageReferences).toHaveLength(1);
+  });
+
+  it("derives an attachment-only view and preserves successful note order", () => {
+    const { target } = projection();
+    const conversion = "[Image converted from image/bmp to image/png.]";
+    const firstDimension = "[Image: original 3840x2280, displayed at 2000x1188. Multiply coordinates by 1.92 to map to original image.]";
+    const secondDimension = "[Image: original 3000x2000, displayed at 1500x1000. Multiply coordinates by 2.00 to map to original image.]";
+    const text = `[📷 screenshot-0123456789][📷 screenshot-abcdef0123-resized]\n\n${conversion}\n${firstDimension}\n${secondDimension}`;
+    const projected = target.upsertMessage({ role: "user", content: [
+      { type: "text", text },
+      { type: "image", data: "Zmlyc3Q=", mimeType: "image/png" },
+      { type: "image", data: "c2Vjb25k", mimeType: "image/jpeg" },
+    ], timestamp: 1_600 }, "finalized")!;
+    expect(projected.text).toBe(text);
+    expect(projected.userPresentation).toEqual({
+      visibleText: "",
+      imageNotices: [conversion, firstDimension, secondDimension],
+    });
+    expect(projected.imageReferences?.map(image => image.mimeType)).toEqual(["image/png", "image/jpeg"]);
+  });
+
+  it("keeps omission failures and all generated-looking text visible when attachment provenance is ambiguous", () => {
+    const { target } = projection();
+    const marker = "[📷 screenshot-0123456789]";
+    const literal = "[📷 screenshot-abcdef0123]";
+    const failure = "[Image omitted: could not be resized below the inline image size limit.]";
+    const projected = target.upsertMessage({ role: "user", content: [
+      { type: "text", text: `${marker} ${literal}\n\n${failure}` },
+      { type: "image", data: "aW1hZ2U=", mimeType: "image/png" },
+    ], timestamp: 1_700 }, "finalized")!;
+    expect(projected.userPresentation).toBeUndefined();
+    expect(projected.text).toBe(`${marker} ${literal}\n\n${failure}`);
+  });
+
+  it("extracts successful notes around an omitted-image failure without hiding the failure", () => {
+    const { target } = projection();
+    const first = "[📷 screenshot-0123456789]";
+    const second = "[📷 screenshot-abcdef0123]";
+    const dimension = "[Image: original 3000x2000, displayed at 1500x1000. Multiply coordinates by 2.00 to map to original image.]";
+    const failure = "[Image omitted: could not be resized below the inline image size limit.]";
+    const projected = target.upsertMessage({ role: "user", content: [
+      { type: "text", text: `${first}${second}\n\n${dimension}\n${failure}` },
+      { type: "image", data: "aW1hZ2U=", mimeType: "image/png" },
+    ], timestamp: 1_750 }, "finalized")!;
+    expect(projected.userPresentation).toEqual({
+      visibleText: `${first}${second}\n\n${failure}`,
+      imageNotices: [dimension],
+    });
+  });
+
+  it("does not derive or trim presentation for ordinary image-bearing text", () => {
+    const { target } = projection();
+    const text = "  authored spacing stays  ";
+    const projected = target.upsertMessage({ role: "user", content: [
+      { type: "text", text },
+      { type: "image", data: "aW1hZ2U=", mimeType: "image/png" },
+    ], timestamp: 1_800 }, "finalized")!;
+    expect(projected.text).toBe(text);
+    expect(projected.userPresentation).toBeUndefined();
+  });
+
+  it("keeps image-looking text visible when no image attachment establishes generated provenance", () => {
+    const { target } = projection();
+    const text = "literal [📷 screenshot-0123456789] and [Image: original 1x1, displayed at 1x1.]";
+    expect(target.upsertMessage(user(text), "finalized")).toMatchObject({ text });
+    expect(target.blocks[0]?.userPresentation).toBeUndefined();
+  });
+
   it("keeps a message's block id across streaming, settlement, and the same timestamp reused by a later message", () => {
     const { target } = projection();
     const streaming = assistant("a");

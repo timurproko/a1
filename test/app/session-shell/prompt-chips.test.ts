@@ -12,7 +12,7 @@ afterEach(async () => {
 });
 
 describe("PromptChipStore", () => {
-  it("hides an unknown paste and reveals its screenshot chip before image preparation finishes", async () => {
+  it("hides an unknown paste and reports its screenshot only after image preparation finishes", async () => {
     const store = new PromptChipStore();
     const data = screenshotPng(4, 4).toString("base64");
     let release!: (content: { kind: "image"; data: string; mimeType: string }) => void;
@@ -22,7 +22,7 @@ describe("PromptChipStore", () => {
     const paste = store.beginPaste("", () => content, error => errors.push(error), () => {
       imageNotifications++;
       expect(store.hiddenRanges(paste.marker)).toEqual([]);
-      expect(store.hasPending(paste.marker)).toBe(true);
+      expect(store.hasPending(paste.marker)).toBe(false);
     });
     try {
       expect(paste.marker).toMatch(/^\[📷 screenshot-[a-f0-9]+\]$/u);
@@ -42,6 +42,25 @@ describe("PromptChipStore", () => {
         images: [{ type: "image", data, mimeType: "image/png" }],
       });
       expect(errors).toEqual([]);
+    } finally { await store.dispose(); }
+  });
+
+  it("keeps ready image identities hidden only when bare-A1 presentation requests it", async () => {
+    const store = new PromptChipStore({ hideReadyImages: true });
+    const data = screenshotPng(4, 4).toString("base64");
+    try {
+      const ready = store.transformPastedContent({ kind: "image", data, mimeType: "image/png" });
+      expect(store.hiddenRanges(`before ${ready} after`)).toEqual([{
+        start: "before ".length,
+        end: "before ".length + ready.length,
+      }]);
+      expect(store.atomicRanges(ready)).toEqual([{ start: 0, end: ready.length }]);
+      expect(store.prepareSubmission(ready).images).toHaveLength(1);
+      expect(store.hiddenRanges("[📷 literal.png]")).toEqual([]);
+
+      const failed = store.beginPaste(ready, async () => { throw new Error("unavailable"); }, () => {});
+      const failedTag = await failed.result;
+      expect(store.hiddenRanges(failedTag)).toEqual([]);
     } finally { await store.dispose(); }
   });
 
@@ -204,12 +223,16 @@ describe("PromptChipStore", () => {
     const chip = store.transformPastedContent({ kind: "image", data: "aW1hZ2U=", mimeType: "image/png" });
     const identifier = chip.match(/screenshot-([a-f0-9]+)/u)?.[1] ?? "";
     // Rationale: a fresh store simulates a recall in a new process: neither `chip` nor its URL is registered.
-    const recall = new PromptChipStore();
+    const recall = new PromptChipStore({ hideReadyImages: true });
     const rehydrated = recall.rehydrateHistoryText(`explain ${chip} vs https://example.com/`, id => {
       if (id !== identifier) return null;
       return { type: "image", data: "aW1hZ2U=", mimeType: "image/png" };
     });
     expect(rehydrated).toMatch(new RegExp(`^explain \\[📷 screenshot-${identifier}\\] vs \\[🔗 https:\/\/example\\.com\/\\]$`, "u"));
+    expect(recall.hiddenRanges(rehydrated)).toEqual([{
+      start: "explain ".length,
+      end: "explain ".length + chip.length,
+    }]);
     const prepared = recall.prepareSubmission(rehydrated);
     expect(prepared.text).toBe("explain [📷 screenshot-" + identifier + "] vs https://example.com/");
     expect(prepared.images).toEqual([{ type: "image", data: "aW1hZ2U=", mimeType: "image/png" }]);
