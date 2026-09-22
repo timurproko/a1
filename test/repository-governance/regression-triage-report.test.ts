@@ -19,7 +19,7 @@ import { parseImplementationAcceptanceScenarios } from "../../scripts/governance
 import { parseImplementation } from "../../scripts/governance/openspec-archive-policy.mjs";
 
 const workflow = { name: "Full regression", file: "full-regression.yml", scheduledOnly: false };
-const run = { id: 9001, number: 412, attempt: 1, url: "https://github.com/timurproko/a1/actions/runs/9001", headSha: "30546e1d9c0b4c3f8a2d7e6f5a4b3c2d1e0f9a8b", event: "schedule", createdAt: "2026-09-19T02:47:13Z" };
+const run = { id: 9001, number: 412, attempt: 1, workflowName: "Full regression", conclusion: "failure", headBranch: "develop", url: "https://github.com/timurproko/a1/actions/runs/9001", headSha: "30546e1d9c0b4c3f8a2d7e6f5a4b3c2d1e0f9a8b", event: "schedule", createdAt: "2026-09-19T02:47:13Z" };
 const lastGreen = { id: 8990, number: 411, url: "https://github.com/timurproko/a1/actions/runs/8990", headSha: "82d76c5a1111111111111111111111111111aaaa" };
 const commits = [
   { sha: "30546e1d9c0b4c3f8a2d7e6f5a4b3c2d1e0f9a8b", subject: "refactor(settings): consolidate the settings path (#500)", pr: 500 },
@@ -177,9 +177,14 @@ describe("nightly regression triage report", () => {
       "openspec/changes/fix-nightly-regression-2026-09-19/.openspec.yaml",
       "openspec/changes/fix-nightly-regression-2026-09-19/design.md",
       "openspec/changes/fix-nightly-regression-2026-09-19/proposal.md",
+      "openspec/changes/fix-nightly-regression-2026-09-19/regression-provenance.json",
       "openspec/changes/fix-nightly-regression-2026-09-19/tasks.md",
     ]);
     expect(files["openspec/changes/fix-nightly-regression-2026-09-19/.openspec.yaml"]).toBe("schema: spec-driven\ncreated: 2026-09-19\nskip_specs: true\n");
+    expect(JSON.parse(files["openspec/changes/fix-nightly-regression-2026-09-19/regression-provenance.json"]!)).toMatchObject({
+      schema: "a1-regression-triage-provenance-v1", candidate: { branch: "fix/nightly-regression-2026-09-19", change: "fix-nightly-regression-2026-09-19" },
+      sources: [{ workflowName: "Full regression", workflowFile: "full-regression.yml", runId: 9001, conclusion: "failure", headBranch: "develop" }],
+    });
     expect(files["openspec/changes/fix-nightly-regression-2026-09-19/proposal.md"]).toContain("remove `skip_specs: true`");
     expect(files["openspec/changes/fix-nightly-regression-2026-09-19/proposal.md"]).toContain("Failed: `vitest-fast` (fast-remainder) on windows-2025-node24; `vitest-package-startup` (package-startup) on windows-2025-node24, windows-2025-node22.");
     expect(files["openspec/changes/fix-nightly-regression-2026-09-19/tasks.md"]).toContain("- [ ] 1.1 Reproduce the failure");

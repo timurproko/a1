@@ -121,11 +121,6 @@
   ],
   "labels": [
     {
-      "name": "ci:full-regression",
-      "color": "1d76db",
-      "description": "Require PR-attached complete regression; additive to automatic repair and publishing selection."
-    },
-    {
       "name": "pi-upgrade-skipped",
       "color": "6e7781",
       "description": "Closing a Pi upgrade proposal with this label skips its version in the nightly upstream sync."
