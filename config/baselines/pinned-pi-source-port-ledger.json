@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-09-22T16:51:06.986Z",
+  "recordedAt": "2026-09-22T19:57:39.101Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "16787ad5b2dc748047f314ca1bfe7708f30f54f3",
@@ -2387,9 +2387,9 @@
       "localDestination": "src/integrations/pi/components/upstream/components/thinking-selector.ts",
       "implementationStatus": "ported",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Preserve the searchable thinking-level selector, current/default semantics, selection, save, cancellation, and focus while accepting the active bare-A1 cycle-key label from the shell, styling the title with the established bold semantic accent treatment, placing its muted hint directly below it, deduplicating levels, and rendering aligned muted descriptions after an adjacent success-colored active marker. All list and border colors use the owned theme and its explicit color mode. The comparison profile retains the public pinned component.",
+      "modifications": "Preserve the searchable thinking-level selector, current/default semantics, selection, save, cancellation, and focus while accepting the active bare-A1 cycle-key label from the shell, styling the title with the established bold semantic accent treatment, placing its muted hint directly below it, deduplicating levels, and rendering aligned muted descriptions after adjacent active and bracketed default markers. All list and border colors use the owned theme and its explicit color mode. The comparison profile retains the public pinned component.",
       "upgradeStrategy": "three-way",
-      "localSha256": "0896a9a92cae071fc7ef0ee924e4aed5534aac7588b2583559c414f92814814e",
+      "localSha256": "0142666283d58d6dec0fdf6f145b99eecefd3f0a34996b8cf63af99bde387cf1",
       "approvedDeviations": [
         {
           "id": "owned-level-cycle-shortcut",
@@ -2399,7 +2399,7 @@
         },
         {
           "id": "owned-thinking-selector-heading",
-          "reason": "The accepted bare-A1 presentation uses the same bold semantic accent heading and compact row treatment as its Models configuration surface, including an adjacent muted hint, unique level rows, aligned muted descriptions, and one adjacent success-colored active marker.",
+          "reason": "The accepted bare-A1 presentation uses the same bold semantic accent heading and compact row treatment as its Models configuration surface, including an adjacent muted hint, unique level rows, aligned muted descriptions, one adjacent success-colored active marker, and a bracketed configured-default marker after that optional active marker.",
           "upstreamBehavior": "Selector geometry, search, navigation, selection, persistence, cancellation, and focus remain source-equivalent; duplicate footer level presentation is suppressed only while the selector is open.",
           "acceptanceTest": "test/app/session-shell/session-shell-workflows.test.ts"
         }
