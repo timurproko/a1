@@ -198,9 +198,11 @@ describe("owned level and model keybindings", () => {
       const assertTheme = () => {
         const rows = selector.render(100);
         const selected = rows.find(row => stripTerminalSequences(row).includes("Moderate reasoning"))!;
+        expect(stripTerminalSequences(selected).replace(/\s+/g, " ")).toContain("→ medium ✓ [default] Moderate reasoning");
         expect(cellStyle(selected, "m")).toEqual(cellStyle(piTheme().fg("accent", "m"), "m"));
         expect(cellStyle(selected, "M")).toEqual(cellStyle(piTheme().fg("muted", "M"), "M"));
         expect(cellStyle(selected, "✓")).toEqual(cellStyle(piTheme().fg("success", "✓"), "✓"));
+        expect(cellStyle(selected, "[")).toEqual(cellStyle(piTheme().fg("muted", "["), "["));
         expect(cellStyle(rows[0]!, "─")).toEqual(cellStyle(piTheme().fg("border", "─"), "─"));
       };
       assertTheme();
@@ -239,7 +241,8 @@ describe("owned level and model keybindings", () => {
     expect(cellStyle(hint, "C")).toEqual(cellStyle(piTheme().fg("muted", "C"), "C"));
     const selectedRow = rows.find(row => stripTerminalSequences(row).includes("Moderate reasoning"))!;
     const unselectedRow = rows.find(row => stripTerminalSequences(row).includes("Light reasoning"))!;
-    expect(stripTerminalSequences(selectedRow)).toContain("→ medium ✓ Moderate reasoning (~8k tokens) · default");
+    expect(stripTerminalSequences(selectedRow).replace(/\s+/g, " ")).toContain("→ medium ✓ [default] Moderate reasoning (~8k tokens)");
+    expect(plain).not.toContain("· default");
     const descriptionColumns = ["No reasoning", "Very brief reasoning", "Light reasoning", "Moderate reasoning", "Deep reasoning"]
       .map(description => rows.map(stripTerminalSequences).find(row => row.includes(description))!.indexOf(description));
     expect(new Set(descriptionColumns).size).toBe(1);
@@ -247,7 +250,9 @@ describe("owned level and model keybindings", () => {
     expect(cellStyle(selectedRow, "M")).toEqual(cellStyle(piTheme().fg("muted", "M"), "M"));
     expect(cellStyle(unselectedRow, "L")).toEqual(cellStyle(piTheme().fg("muted", "L"), "L"));
     expect(cellStyle(selectedRow, "✓")).toEqual(cellStyle(piTheme().fg("success", "✓"), "✓"));
+    expect(cellStyle(selectedRow, "[")).toEqual(cellStyle(piTheme().fg("muted", "["), "["));
     expect(rows.filter(row => stripTerminalSequences(row).includes("Moderate reasoning"))).toHaveLength(1);
+    for (const width of [24, 32, 40]) expect(selector.render(width).every(row => visibleWidth(row) <= width)).toBe(true);
 
     selector.handleInput?.("low");
     selector.handleInput?.("\r");
@@ -262,8 +267,16 @@ describe("owned level and model keybindings", () => {
       "low",
       { profile: "bare", cycleBinding: "alt+r" },
     );
-    expect(custom.render(100).map(stripTerminalSequences).join("\n"))
+    const customRows = custom.render(100).map(stripTerminalSequences);
+    expect(customRows.join("\n"))
       .toContain(`${process.platform === "darwin" ? "Option" : "Alt"}+R cycles thinking levels in-session`);
+    const customActiveRow = customRows.find(row => row.includes("Deep reasoning"))!;
+    const customDefaultRow = customRows.find(row => row.includes("Light reasoning"))!;
+    expect(customActiveRow.replace(/\s+/g, " ")).toContain("→ high ✓ Deep reasoning (~16k tokens)");
+    expect(customActiveRow).not.toContain("[default]");
+    expect(customDefaultRow.replace(/\s+/g, " ")).toContain("low [default] Light reasoning (~2k tokens)");
+    expect(customDefaultRow).not.toContain("✓");
+    expect(customActiveRow.indexOf("Deep reasoning")).toBe(customDefaultRow.indexOf("Light reasoning"));
     custom.handleInput?.("\x13");
     expect(saved).toHaveBeenCalledWith("high");
     custom.handleInput?.("\x1b");
