@@ -126,7 +126,7 @@ When a contextual suggestion is visible, the configured `tui.input.tab` action S
 ### Requirement: Suggestion lifecycle rejects stale work
 A1 SHALL associate each suggestion request and result with the session generation, run, candidate assistant-response sequence, and model that produced it. Starting or continuing a run after that candidate response, accepting or submitting, interrupting, changing model, replacing or clearing the session, replacing the input surface, disabling the feature, or disposing the shell SHALL abort pending generation and clear any unaccepted suggestion. A late result whose identity no longer matches current state SHALL be discarded.
 
-Typing, pasting, deleting, or clearing draft text SHALL abort pending generation but SHALL NOT discard a suggestion that has already been prepared or shown. While the editor contains text the suggestion SHALL NOT be painted, accepted, or submitted, and Tab and the submit action SHALL act on the draft as they do without a suggestion. When the editor becomes empty again and is otherwise eligible, the same suggestion SHALL reappear in that presentation cycle without a new request, a new diagnostic outcome, or an artificial delay. A prepared suggestion whose run settles while the editor still contains a draft SHALL be discarded as blocked by that draft.
+Typing, pasting, deleting, or clearing draft text SHALL abort pending generation but SHALL NOT discard a suggestion that has already been prepared or shown. While the editor contains text the suggestion SHALL NOT be painted, accepted, or submitted, and Tab and the submit action SHALL act on the draft as they do without a suggestion. When the editor becomes empty again and is otherwise eligible, the same suggestion SHALL reappear in that presentation cycle without a new request, a new diagnostic outcome, or an artificial delay. Every supported character-deletion, whole-draft deletion, and non-shutdown clear route SHALL reevaluate this eligibility after synchronizing autocomplete with the resulting text; autocomplete created by a removed draft SHALL NOT remain active over an empty editor or prevent the retained suggestion from repainting. A prepared suggestion whose run settles while the editor still contains a draft SHALL be discarded as blocked by that draft.
 
 A newly generated current suggestion SHALL replace an older unaccepted suggestion. A suggestion SHALL not be persisted in the session transcript or restored after restart or resume.
 
@@ -140,6 +140,12 @@ A newly generated current suggestion SHALL replace an older unaccepted suggestio
 - **THEN** the suggestion SHALL not be painted while the draft exists
 - **AND** the same suggestion SHALL reappear as ghost text once the editor is empty
 - **AND** Tab SHALL then accept it and no additional suggestion request SHALL have been made
+
+#### Scenario: Draft removal closes its autocomplete before restoring the suggestion
+- **WHEN** text typed over a visible suggestion activates ordinary autocomplete and a supported deletion action removes the complete draft
+- **THEN** autocomplete derived from that removed draft SHALL relinquish presentation and Tab ownership when the editor becomes empty
+- **AND** the original contextual suggestion SHALL be painted in that same presentation cycle
+- **AND** the restoration SHALL produce neither another model request nor another terminal diagnostic outcome
 
 #### Scenario: User clears the draft with the clear shortcut
 - **WHEN** a suggestion is visible, the user types a draft, and then presses the clear shortcut once so the editor is emptied without shutting down

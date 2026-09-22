@@ -259,8 +259,19 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
       if (editorUx !== undefined && matchesKey(data, "shift+tab")
         && !Object.values(keybindings.getEffectiveConfig()).some(keys =>
           (Array.isArray(keys) ? keys : [keys]).some(key => key !== undefined && matchesKey(data, key)))) return;
+      const hadDraft = editor.getText().length > 0;
       if (editorUx === undefined) editor.handleInput(data);
       else editorUx.handleInput(data);
+      if (editorUx === undefined || !hadDraft || editor.getText().length > 0) return;
+      // Invariant: Pi's deletion paths can leave a visible or debounced autocomplete request owned by
+      // the removed draft. Reapplying empty text cancels both forms without a duplicate change notice.
+      const onChange = editor.onChange;
+      delete editor.onChange;
+      try { editor.setText(""); }
+      finally {
+        if (onChange === undefined) delete editor.onChange;
+        else editor.onChange = onChange;
+      }
     },
     invalidate: () => editor.invalidate(),
     setFocused: focused => {
