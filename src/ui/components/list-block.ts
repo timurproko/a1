@@ -196,9 +196,9 @@ export function layoutList<T>(
   const sticky = stickyHeaderFor(rows, clamped.scroll);
   const padding = topPaddingRows(clamped.scroll);
   const indexes: number[] = [];
-  // A spacer at the scroll boundary belongs to the outgoing pinned section. The pin
-  // already represents that transition, so consume the spacer without spending a
-  // body row and let the final setting remain reachable at the bottom.
+  // Invariant: a spacer at the scroll boundary belongs to the outgoing pinned section.
+  // The pin represents that transition, so the spacer spends no body row and the final
+  // setting remains reachable at the bottom.
   const firstOffset = rows[clamped.scroll]?.kind === "spacer" && sticky !== undefined ? 1 : 0;
   for (let offset = firstOffset; indexes.length < clamped.visible && clamped.scroll + offset < rows.length; offset++) {
     indexes.push(clamped.scroll + offset);
