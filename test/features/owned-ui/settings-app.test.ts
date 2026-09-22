@@ -491,8 +491,11 @@ describe("the settings screen", () => {
     expect(after.some(line => line.trimStart().startsWith("→"))).toBe(true);
   });
 
-  it("allows the mouse wheel to reveal the final row while search preserves the list height", async () => {
-    const { app: target } = await app();
+  it("fills the final search row while keeping the scrollbar at the bottom", async () => {
+    const { app: target } = await app(false, undefined, OWNED_UI_SETTING_DECLARATIONS, {
+      scrollbarAppearance: "always",
+      scrollbarStyle: "thick",
+    });
     target.onInput?.("/", HOST);
     const render = () => target.render({ width: 80, height: 13 }, HOST).map(line => line.replace(STYLE, "").trimEnd());
     let lines = render();
@@ -510,7 +513,8 @@ describe("the settings screen", () => {
     }
     const searchRow = lines.findIndex(line => line.includes("search settings"));
     expect(searchRow).toBeGreaterThanOrEqual(2);
-    expect(lines.some(line => line.includes("Skills")), JSON.stringify(lines)).toBe(true);
+    expect(lines[searchRow - 2]).toContain("Skills");
+    expect(lines[searchRow - 2]?.endsWith("┃")).toBe(true);
     expect([...visited].sort()).toEqual(["History limit", "Output padding", "Persistent history", "Prompt suggestions", "Skills", "Thinking level"]);
   });
 
