@@ -58,9 +58,13 @@ describe("deprecated dependency release policy", () => {
   });
 
   it("does not generalize documented exceptions to other versions", async () => {
+    // Invariant: the fixture chain carries a major the pin does not have, so an upgrade cannot turn
+    // this negative case into the documented exception it exists to rule out.
+    const { version } = await readPinnedPiIdentity(repository);
+    const other = `${Number(version.split(".")[0]) + 1}.0.0`;
     const result = await runPolicy({
-      "": { name: "fixture", version: "1.0.0", dependencies: { "@earendil-works/pi-coding-agent": "0.87.0" } },
-      "node_modules/@earendil-works/pi-coding-agent": { version: "0.87.0", dependencies: { "node-domexception": "1.0.0" } },
+      "": { name: "fixture", version: "1.0.0", dependencies: { "@earendil-works/pi-coding-agent": other } },
+      "node_modules/@earendil-works/pi-coding-agent": { version: other, dependencies: { "node-domexception": "1.0.0" } },
       "node_modules/node-domexception": { version: "1.0.0", deprecated: "Use your platform's native DOMException instead" },
     });
     expect(result.status).toBe(1);

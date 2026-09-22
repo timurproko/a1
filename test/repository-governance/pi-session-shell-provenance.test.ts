@@ -35,7 +35,7 @@ describe("Pi session shell provenance", () => {
       copiedLines: false,
       localFile: "src/app/session-shell/session-shell.ts",
       upstreamCommit: pinned.commit,
-      upstreamLines: [528, 994],
+      upstreamLines: [546, 1012],
     });
     expect(evidence.orchestrationPorts[0]?.coverage).toContain("test/features/owned-ui/pi-startup-composition-parity.test.ts");
     expect(evidence.orchestrationPorts[2]).toMatchObject({
