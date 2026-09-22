@@ -500,7 +500,7 @@ Selection acceptance SHALL include deterministic component, shell, and terminal-
 ### Requirement: Working status is a transient scrollable tail
 Bare A1 SHALL place its live working-status surface, including status-owned blank spacing and retry, compaction, or extension working replacements, in a non-persistent, non-selectable transient viewport tail after semantic transcript and pending steering rows. While all semantic and transient content fits above the dock, otherwise unused viewport rows SHALL precede the working-status surface so that it remains immediately above the dock without moving already visible transcript or steering rows. When content overflows, that flexible alignment space SHALL be zero and the same working surface SHALL participate in normal viewport scrolling. The surface SHALL NOT be duplicated in the dock, converted into persisted conversation content, counted as a completed assistant message, or treated as a submitted prompt.
 
-Pending steering and working rows SHALL contribute to overflow, scrollbar geometry, and end-following navigation while present. While detached, new transcript output, queue updates, and status animation, replacement, or removal SHALL preserve the current transcript position unless the new extent requires clamping to a valid scroll position. Removing transient rows SHALL remove their owned spacing and leave no stale copy. Failure messages SHALL retain their existing placement; idle informational messages are governed by the transient dock notice requirement. The pinned `a1 pi` route SHALL retain its existing presentation and behavior.
+Pending steering and working rows SHALL contribute to overflow, scrollbar geometry, and end-following navigation while present. While detached, new transcript output, queue updates, and status animation, replacement, or removal SHALL preserve the current transcript position unless the new extent requires clamping to a valid scroll position. Removing transient rows SHALL remove their owned spacing and leave no stale copy. Idle informational messages and simple workflow failures and warnings are governed by their transient dock-notice requirements. The pinned `a1 pi` route SHALL retain its existing presentation and behavior.
 
 #### Scenario: Scroll the active indicator out of view
 - **WHEN** the viewport overflows with pending steering or live working rows present and the reader scrolls toward older content
@@ -1228,7 +1228,7 @@ When an interactive bare-A1 session quits through `/quit`, the second `Ctrl+C` o
 ### Requirement: Informational messages are a transient dock notice
 Bare A1 SHALL present informational workflow status messages, including model and thinking-level confirmations, reload and compaction confirmations, generic completed command results, `status`-kind workflow messages, and extension `info` notifications, as one transient notice at the top of the dock rather than as transcript content. The notice SHALL consist of one blank row followed by the message in the existing dim status style with Pi's one-cell status padding regardless of the output pad setting, SHALL be placed after any non-live dock status rows and before above-editor widgets and the editor, and SHALL therefore sit directly below the live working status when that status is visible and directly above the editor group otherwise. The notice SHALL wrap at the dock width and SHALL NOT scroll with transcript content.
 
-A newer informational message SHALL replace the current notice in place. The notice SHALL be removed when a submitted prompt or shell command block is mounted, when a non-informational workflow presentation such as an error, warning, structured command output, or celebratory component is appended to the transcript, and when workflow presentation is reset for a new, resumed, forked, or replaced session. Assistant, thinking, tool, custom, and compaction blocks that start or update while the agent works SHALL NOT remove it, the agent finishing SHALL NOT remove it, and no timer SHALL remove it. The notice SHALL NOT enter transcript order, the selectable document, copied text, prompt navigation, persisted session content, or the pinned `a1 pi` route, whose transcript placement of status text SHALL remain unchanged.
+A newer simple workflow notice of any informational, warning, or error severity SHALL replace the current notice in place. The notice SHALL be removed when a submitted prompt or shell command block is mounted, when a structured workflow presentation or celebratory component is appended to the transcript, and when workflow presentation is reset for a new, resumed, forked, or replaced session. Assistant, thinking, tool, custom, and compaction blocks that start or update while the agent works SHALL NOT remove it, the agent finishing SHALL NOT remove it, and no timer SHALL remove it. The notice SHALL NOT enter transcript order, the selectable document, copied text, prompt navigation, persisted session content, or the pinned `a1 pi` route, whose transcript placement of status text SHALL remain unchanged.
 
 #### Scenario: Confirm a model switch in a fresh session
 - **WHEN** model selection from `/models` completes in a bare-A1 session with no transcript content
@@ -1243,9 +1243,9 @@ A newer informational message SHALL replace the current notice in place. The not
 - **AND** the notice SHALL remain after the run finishes until the next submitted prompt
 
 #### Scenario: Replace and dismiss
-- **WHEN** a second informational message arrives before any new transcript content
+- **WHEN** another simple informational, warning, or error message arrives before any new reader submission
 - **THEN** it SHALL replace the first notice without adding a row
-- **AND** a subsequently submitted prompt, appended error, or session reset SHALL remove the notice and its blank row
+- **AND** a subsequently submitted prompt, appended structured presentation, or session reset SHALL remove the notice and its blank row
 
 #### Scenario: Keep the notice out of content semantics
 - **WHEN** a selection is dragged toward the dock, the transcript is copied, prompt navigation is used, or the session is persisted and resumed
@@ -1331,3 +1331,39 @@ Existing pasted-image chips and generated screenshot labels SHALL remain visible
 #### Scenario: Keep pinned Pi unchanged
 - **WHEN** the same image-bearing message is rendered through `a1 pi`
 - **THEN** the screenshot chip and inline resize guidance SHALL retain their pinned presentation
+
+### Requirement: Command failures and warnings are a transient dock notice
+Bare A1 SHALL present simple workflow failures and warnings, including built-in command failures, explicit `error`- or `warning`-kind workflow messages, and extension error/warning notifications, through the same single transient dock-notice region used by informational messages rather than as transcript content. The notice SHALL preserve the existing contextual wording, `Error:` or `Warning:` prefix, severity theme role, output-padding rule, leading blank row, and width-aware wrapping supplied by the command-message presenter. It SHALL sit directly above the editor group, or directly below live working status when that status is visible, and SHALL NOT scroll with transcript content.
+
+The latest simple workflow notice SHALL replace any earlier informational, warning, or error notice in place. A submitted prompt or shell command, a structured transcript-bound workflow presentation, or workflow/session reset SHALL dismiss it under the common notice lifecycle. Structured command output SHALL remain transcript content. The pinned `a1 pi` route SHALL retain its chronological transcript placement of command failures and warnings.
+
+#### Scenario: Fail to export an empty session
+- **WHEN** `/export` fails in a fresh bare-A1 session because there is nothing to export
+- **THEN** `Error: Failed to export session: Nothing to export yet - start a conversation first` SHALL appear immediately above the prompt group in the existing error color
+- **AND** the message SHALL NOT appear at the top-left of the transcript or leave a large empty gap below it
+- **AND** the selectable document range SHALL remain empty
+
+#### Scenario: Show a warning near the prompt
+- **WHEN** a workflow emits a simple warning in bare A1
+- **THEN** the warning SHALL appear in the same dock region with its `Warning:` prefix, warning color, existing padding, and wrapping
+- **AND** it SHALL NOT become transcript, selection, copy, prompt-navigation, or persisted-session content
+
+#### Scenario: Replace notices across severity
+- **WHEN** an error or warning follows an informational notice, or an informational notice follows an error or warning
+- **THEN** the newer message SHALL replace the older notice in the same dock position
+- **AND** no stale notice row or transcript component SHALL remain
+
+#### Scenario: Show an extension failure
+- **WHEN** an extension emits an error or warning notification in bare A1
+- **THEN** it SHALL use the same prompt-adjacent severity presentation and lifecycle as a built-in simple workflow message
+- **AND** no extension-specific duplicate SHALL be appended to the transcript
+
+#### Scenario: Keep structured output in the transcript
+- **WHEN** a route presents session information, hotkeys, changelog, new/name/debug output, or another structured component
+- **THEN** that component SHALL retain its existing transcript placement
+- **AND** it SHALL dismiss any stale simple dock notice
+
+#### Scenario: Keep pinned command-message placement
+- **WHEN** the same command failure or warning is produced through `a1 pi`
+- **THEN** it SHALL remain chronological transcript content with its pinned spacing, prefix, style, and wording
+- **AND** no custom-viewport dock notice SHALL be introduced
