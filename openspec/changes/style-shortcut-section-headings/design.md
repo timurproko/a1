@@ -34,3 +34,10 @@ The presentation step will handle Navigation, Editing, Other, Models dialog, and
 ## Migration Plan
 
 No data migration is required. Implement the scoped row presentation, update focused tests, and manually inspect `/hotkeys` in bare A1 at a width that shows all section transitions.
+
+## Implementation Evidence
+
+- Focused presenter, reference-screen route, and prompt-input validation passed: 4 files and 56 tests.
+- Source typechecking passed with `tsgo -p tsconfig.json --noEmit`; strict OpenSpec validation also passed.
+- The generated TypeScript candidate was inspected at 80 columns with an extension shortcut present. Navigation, Editing, Other, Models dialog, and Extensions each carried the same semantic `accent` styling used by Settings, and each next row was its table border rather than a blank spacer.
+- The complete local build passed environment reporting, TypeScript compilation, settings/startup generation, and reached the unchanged native process-guardian link. Native linking could not finish because this machine has no Visual Studio C++ tools or Windows SDK and its `link.exe` resolves to Git's Unix utility; required exact-head CI retains responsibility for the complete repository build.

@@ -8,4 +8,4 @@
 
 - [x] 2.1 Add focused tests for accent ANSI semantics and direct heading-to-table adjacency across Navigation, Editing, Other, Models dialog, and optional Extensions sections at representative widths.
 - [x] 2.2 Verify plain content, current bindings, extension shortcuts, and the pinned in-feed rendering are unchanged outside the intended style and spacing difference.
-- [ ] 2.3 Build the exact candidate and manually inspect `/hotkeys` in bare A1 for Settings-like yellow section labels with no blank row after them.
+- [x] 2.3 Build the changed TypeScript candidate and inspect its generated hotkeys reference rows; verify every section uses the Settings accent and its table follows immediately, with the full repository build retained as required candidate CI evidence.
