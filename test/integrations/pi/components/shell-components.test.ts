@@ -442,7 +442,7 @@ describe("Pi shell public component adapters", () => {
     expect(plain).toContain("Start of content");
     expect(plain).toContain("Probe extension");
     expect(plain).not.toContain("Keyboard Shortcuts");
-    // The comparison profile retains the exact in-feed Markdown rows.
+    // Compatibility: the comparison profile retains the exact in-feed Markdown rows.
     expect(renderPiShellHotkeysLines({}, width)).toEqual(createPiShellHotkeys().render(width).slice(4, -1));
   });
 
