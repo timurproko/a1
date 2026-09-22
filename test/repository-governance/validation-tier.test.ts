@@ -159,7 +159,7 @@ describe("validation tier planning", () => {
     const smoke = await createTierPlan(["fast", "rendering-smoke"]);
     expect(smoke.vitest?.invocations[0]).toEqual(expect.objectContaining({ id: "vitest-fast" }));
     expect(smoke.vitest?.invocations.filter(invocation => invocation.evidence?.executionClass === "resource-sensitive")).toHaveLength(1);
-    expect(smoke.vitest?.invocations.find(invocation => invocation.id === "vitest-fast-resource-sensitive")?.evidence?.testFiles).toHaveLength(20);
+    expect(smoke.vitest?.invocations.find(invocation => invocation.id === "vitest-fast-resource-sensitive")?.evidence?.testFiles).toHaveLength(21);
     expect(smoke.vitest?.invocations.at(-1)).toEqual(expect.objectContaining({
       id: "vitest-isolated-suites",
       arguments: expect.arrayContaining([

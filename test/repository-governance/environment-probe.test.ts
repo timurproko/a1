@@ -97,7 +97,7 @@ describe("CI Rust preparation", () => {
     ["release.yml", "guardians", "npm run build:process-guardian"],
     ["release.yml", "package", "npm ci"],
     ["release.yml", "validate", "npm ci"],
-    ["full-regression.yml", "full-regression", "npm ci"],
+    ["full-regression-shared.yml", "full-regression", "npm ci"],
   ])("prepares Rust before %s/%s builds", (file, job, build) => {
     const workflow = parse(readFileSync(`.github/workflows/${file}`, "utf8"));
     const steps = workflow.jobs[job].steps as Array<{ run?: string; shell?: string; if?: string }>;

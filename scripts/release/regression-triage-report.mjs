@@ -284,7 +284,9 @@ export function renderTriageChange({ workflow, run, date, summary, lastGreen, co
       "",
       "## 3. Prove",
       "",
-      "- [ ] 3.1 Dispatch `gh workflow run full-regression.yml --ref <this branch>` on the completed fix head, wait for it, and record the run number and head under Evidence in design.md; the failed owners pass on the failed lane.",
+      "- [ ] 3.1 Record focused implementation evidence and pre-finalization PR Full regression observations under Evidence in design.md; preserve the failed owners and lanes and disposition known gaps before finalization.",
+      "",
+      "After finalization, the exact-head PR Full regression lanes and Development validation required must pass before manual handoff. Report final run/head/selection in Actions and handoff, not another committed design edit. Standalone dispatch is diagnostic, not a replacement for selected PR checks. Numbered-package nightly recovery remains independent.",
       "",
     ].join("\n"),
   };

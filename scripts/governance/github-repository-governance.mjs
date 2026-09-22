@@ -57,6 +57,7 @@ export function inspectWorkflowSource(path, source) {
   }
   if (line(/^  workflow_run:\s*$/m)) triggers.push("workflow_run");
   if (line(/^  workflow_dispatch:\s*/m)) triggers.push("workflow_dispatch");
+  if (line(/^  workflow_call:\s*/m)) triggers.push("workflow_call");
   if (line(/^  schedule:\s*$/m)) triggers.push("schedule");
   if (line(/^  push:\s*$/m)) triggers.push("push");
 
@@ -68,7 +69,8 @@ export function inspectWorkflowSource(path, source) {
   let trustedSource = "unknown";
   if (source.includes("ref: ${{ github.event.repository.default_branch }}")) trustedSource = "default-branch";
   else if (path.endsWith("ci.yml") && source.includes("github.event.pull_request.head.sha") && permissions.every(value => value.endsWith("read"))) trustedSource = "pull-request-head-read-only";
-  else if (path.endsWith("full-regression.yml") && source.includes("ref: ${{ github.sha }}")) trustedSource = "dispatch-commit";
+  else if (path.endsWith("full-regression.yml") && source.includes("source: ${{ github.sha }}") && source.includes("uses: ./.github/workflows/full-regression-shared.yml")) trustedSource = "dispatch-commit";
+  else if (path.endsWith("full-regression-shared.yml") && source.includes("ref: ${{ inputs.source }}") && permissions.every(value => value.endsWith("read"))) trustedSource = "explicit-source-read-only";
   else if (path.endsWith("release.yml") && source.includes("git/ref/heads/develop") && source.includes("ref: ${{ needs.source.outputs.sha }}")) trustedSource = "authoritative-develop";
 
   const authority = [];
@@ -76,7 +78,7 @@ export function inspectWorkflowSource(path, source) {
   if (source.includes("acceptance-validation-route.mjs")) authority.push("acceptance-only-routing");
   if (source.includes("delivery_candidate=")) authority.push("single-pr-finalization-validation");
   if (source.includes("manage-documentation-auto-merge.mjs")) authority.push("documentation-auto-merge", "matching-merged-head-delete", "archive-protected-integration");
-  if (source.includes('VALIDATION_SELECTION_JSON: \'["full-release"]\'')) authority.push("complete-regression");
+  if (source.includes('VALIDATION_SELECTION_JSON: \'["full-release"]\'') || source.includes("uses: ./.github/workflows/full-regression-shared.yml")) authority.push("complete-regression");
   if (source.includes("reconcile-merged-branch.mjs")) authority.push("matching-merged-head-delete");
   if (source.includes("reconcile-openspec-archive.mjs")) {
     if (source.includes("OPENSPEC_ARCHIVE_APP_PRIVATE_KEY")) {

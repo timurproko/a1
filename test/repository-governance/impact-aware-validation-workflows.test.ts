@@ -17,7 +17,7 @@ describe("impact-aware validation workflows", () => {
     const matrixStep = workflow.jobs.changes.steps.find((step: { id?: string }) => step.id === "matrix");
     expect(matrixStep.run).toContain("validation-matrix.mjs --impact .artifacts/validation/impact.json");
     expect(matrixStep.run).not.toContain("--manual-no-comparison");
-    expect(workflow.jobs.required.needs).toEqual(["changes", "acceptance", "delivery", "docs", "naming", "documentation", "modular", "rendering"]);
+    expect(workflow.jobs.required.needs).toEqual(["changes", "acceptance", "delivery", "docs", "naming", "documentation", "modular", "rendering", "full-selection", "full-regression"]);
     expect(workflow.jobs.required.name).toContain("Draft validation intentionally skipped");
     expect(workflow.jobs.required.name).toContain("Development validation required");
     expect(workflow.jobs.required.name).not.toContain("Implementation validation complete");
@@ -152,7 +152,7 @@ describe("impact-aware validation workflows", () => {
   });
 
   it("runs one full documentation review outside release platform matrices", async () => {
-    const [release, regression] = await Promise.all([readFile(".github/workflows/release.yml", "utf8"), readFile(".github/workflows/full-regression.yml", "utf8")]);
+    const [release, regression] = await Promise.all([readFile(".github/workflows/release.yml", "utf8"), readFile(".github/workflows/full-regression-shared.yml", "utf8")]);
     expect(release.slice(release.indexOf("\n  documentation:"), release.indexOf("\n  guardians:")).match(/check-code-documentation\.mjs --mode full/g)).toHaveLength(1);
     expect(release.slice(release.indexOf("\n  validate:"), release.indexOf("\n  publish:"))).not.toContain("check-code-documentation.mjs");
     expect(regression.match(/check-code-documentation\.mjs --mode full/g)).toHaveLength(1);

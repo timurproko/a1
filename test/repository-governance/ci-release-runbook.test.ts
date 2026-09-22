@@ -18,6 +18,8 @@ describe("CI and release operations runbook", () => {
     expect(runbook).not.toMatch(/within five seconds|within three seconds/);
     expect(runbook).toContain("gh workflow run full-regression.yml --ref <branch-or-tag>");
     expect(runbook).toContain("a Node-24-specific regression can reach `develop` before nightly catches it");
+    expect(runbook).toContain("PR-attached Full regression");
+    expect(runbook).toContain("`ci:full-regression`");
     expect(runbook).toContain("nightly failure still blocks its publication");
     expect(runbook).toContain("a failed budget remains failed and is never retried");
   });
@@ -62,7 +64,7 @@ describe("CI and release operations runbook", () => {
   it("records startup budgets on every scheduled and preview channel and enforces them on stable publication only", async () => {
     const [release, regression, development] = await Promise.all([
       readFile(".github/workflows/release.yml", "utf8"),
-      readFile(".github/workflows/full-regression.yml", "utf8"),
+      readFile(".github/workflows/full-regression-shared.yml", "utf8"),
       readFile(".github/workflows/ci.yml", "utf8"),
     ]);
     expect(release).toContain("STARTUP_BUDGET_ENFORCEMENT: ${{ needs.plan.outputs.mode == 'stable' && 'fail' || 'record' }}");
@@ -79,7 +81,7 @@ describe("CI and release operations runbook", () => {
   });
 
   it("enables Defender after installation and before accepted Windows exact-package startup gates", async () => {
-    for (const path of [".github/workflows/release.yml", ".github/workflows/full-regression.yml"]) {
+    for (const path of [".github/workflows/release.yml", ".github/workflows/full-regression-shared.yml"]) {
       const workflow = await readFile(path, "utf8");
       expect(workflow).toContain("Set-MpPreference -DisableRealtimeMonitoring $false");
       expect(workflow).toContain("Get-MpComputerStatus).RealTimeProtectionEnabled");

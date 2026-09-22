@@ -31,7 +31,7 @@ describe("workflow prerequisite receipts", () => {
   });
 
   it("binds full-regression build and package receipts before the complete plan", async () => {
-    const workflow = parse(await readFile(".github/workflows/full-regression.yml", "utf8"));
+    const workflow = parse(await readFile(".github/workflows/full-regression-shared.yml", "utf8"));
     const job = workflow.jobs["full-regression"];
     const install = step(job, "Install dependencies and build once");
     const build = step(job, "Record verified install-time build");
@@ -68,7 +68,7 @@ describe("workflow prerequisite receipts", () => {
   });
 
   it("never treats receipt or download caches as publication authority", async () => {
-    const sources = await Promise.all([".github/workflows/ci.yml", ".github/workflows/full-regression.yml", ".github/workflows/release.yml"].map(path => readFile(path, "utf8")));
+    const sources = await Promise.all([".github/workflows/ci.yml", ".github/workflows/full-regression-shared.yml", ".github/workflows/release.yml", ".github/workflows/full-regression.yml"].map(path => readFile(path, "utf8")));
     for (const source of sources) {
       expect(source).not.toMatch(/node_modules[\s\S]{0,80}(?:cache|restore)|certification-[^\s]*[\s\S]{0,80}(?:cache|restore)/i);
       expect(source).not.toMatch(/startup-node[^\s]*performance[^\n]*(?:cache|restore)/i);

@@ -183,7 +183,8 @@ describe("nightly regression triage report", () => {
     expect(files["openspec/changes/fix-nightly-regression-2026-09-19/proposal.md"]).toContain("remove `skip_specs: true`");
     expect(files["openspec/changes/fix-nightly-regression-2026-09-19/proposal.md"]).toContain("Failed: `vitest-fast` (fast-remainder) on windows-2025-node24; `vitest-package-startup` (package-startup) on windows-2025-node24, windows-2025-node22.");
     expect(files["openspec/changes/fix-nightly-regression-2026-09-19/tasks.md"]).toContain("- [ ] 1.1 Reproduce the failure");
-    expect(files["openspec/changes/fix-nightly-regression-2026-09-19/tasks.md"]).toContain("- [ ] 3.1 Dispatch `gh workflow run full-regression.yml --ref <this branch>`");
+    expect(files["openspec/changes/fix-nightly-regression-2026-09-19/tasks.md"]).toContain("- [ ] 3.1 Record focused implementation evidence and pre-finalization PR Full regression observations");
+    expect(files["openspec/changes/fix-nightly-regression-2026-09-19/tasks.md"]).toContain("Report final run/head/selection in Actions and handoff, not another committed design edit");
     const design = appendRunToDesign(files["openspec/changes/fix-nightly-regression-2026-09-19/design.md"]!, evidence({ run: { ...run, number: 413 } }));
     expect(design).toContain("## Evidence\n\n- Run [Full regression #412]");
     expect(design.trimEnd().split("\n").some(line => line.startsWith("- Run [Full regression #413]"))).toBe(true);
