@@ -3,7 +3,8 @@
 Verdict: accepted only when the containing exact pull-request head is manually merged by an authorized human after required current-head validation.
 
 The manual merge accepts these scenarios:
-- Bare A1’s keyboard-shortcut sections use the same shared accent header as Settings and place each table directly below its label.
+- Bare A1’s keyboard-shortcut section headers use the same bold yellow heading role as Settings and align with the main title’s one-cell left inset.
+- One blank row separates the main title from the first section, while every section table starts immediately below its header.
 - The active keyboard-shortcut section header remains pinned while its rows scroll and yields to the next section through shared grouped layout.
 - Shortcut sections are data-driven while bindings, optional extension rows, wrapping, reference-screen controls, changelog presentation, and `a1 pi` remain unchanged.
 
@@ -16,15 +17,16 @@ The manual merge accepts these scenarios:
   "archive": "openspec/changes/archive/2026-09-22-style-shortcut-section-headings/",
   "acceptanceManifest": "openspec/changes/archive/2026-09-22-style-shortcut-section-headings/acceptance.md",
   "finalizedDate": "2026-09-22",
-  "specBaseSha": "6ae061516ba71675476541a958bd6e49903e280f",
+  "specBaseSha": "12d29445f57981756cfadb7bafcfabfbcbe626bc",
   "acceptanceScenarios": [
-    "Bare A1’s keyboard-shortcut sections use the same shared accent header as Settings and place each table directly below its label.",
+    "Bare A1’s keyboard-shortcut section headers use the same bold yellow heading role as Settings and align with the main title’s one-cell left inset.",
+    "One blank row separates the main title from the first section, while every section table starts immediately below its header.",
     "The active keyboard-shortcut section header remains pinned while its rows scroll and yields to the next section through shared grouped layout.",
     "Shortcut sections are data-driven while bindings, optional extension rows, wrapping, reference-screen controls, changelog presentation, and `a1 pi` remain unchanged."
   ],
-  "archiveDigest": "0e90b016e32628f624e88326d6ee489c3888ec815282af4eb706116a7f386caa",
-  "specDigest": "f908dbf3e075fda68bd17cfe0d654723ea4e9669b2bc281059984f244f40958c",
-  "tasksDigest": "934bcb1389698cc3d1fdde79716f253ad43df49a94526fe6a467f53cf6692b69",
+  "archiveDigest": "16991fb48f3c8af856dd98835225d95fde0ddc83de734c10e95f3e23f8b879a6",
+  "specDigest": "2813c517c9be4bedc236e7184c86398656d16ec9f137916b9bbbd456f58efda0",
+  "tasksDigest": "32915bbe77223bd6123413546b7be3f7515bac5952c944865f710ce5347c3ed1",
   "evidenceDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
   "knownGaps": []
 }
