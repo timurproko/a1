@@ -46,4 +46,5 @@ Focused component tests will render a selected built-in command and a runtime-pr
 - `npm run typecheck` passes after the TypeScript build output is generated.
 - `npx --no-install openspec validate mute-selected-command-descriptions --strict` passes.
 - `npm run check:architecture` reaches the pinned-source-ledger gate and reports `mapped owned source destination hash is stale: pi-coding-agent:src/core/keybindings`; the same command reports the same failure on unchanged `develop`, outside this presentation change.
-- `npm run build` completes environment inspection, clean, TypeScript compilation, and Pi metadata/startup generation, then cannot link the native process guardian because this host resolves Git's POSIX `link.exe` and has no MSVC linker/Windows SDK. The build/manual-color task remains open pending a correctly provisioned Windows build environment.
+- `npm run build` passes on the candidate after reconciliation with current `develop`, including native process-guardian linking and runtime payload generation.
+- Color-preserving interactive review remains pending through `./scripts/dev`.
