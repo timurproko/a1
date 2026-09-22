@@ -50,12 +50,22 @@ Assertions verify:
 
 Keep focused editor tests for mutation/completion state and controller tests for lifecycle ownership. Direct `render()` checks remain useful component evidence but are not sufficient alone for this regression.
 
+## Implementation Result
+
+The production input regression confirmed the uncovered transition: after `/` opened autocomplete, the configured delete-to-line-start action made semantic editor text empty but left `promptSuggestionPresentationBlockReason()` at `autocomplete`. The retained suggestion still existed, but the stale menu continued to mask it. Debounced autocomplete had the same ownership risk because deletion did not cancel its timer.
+
+The adapter now detects a bare-A1 input transition from a nonempty draft to empty and reapplies the already-empty value without a duplicate semantic change notification. Pi's public `setText` boundary cancels both visible and pending autocomplete, after which the existing retained suggestion becomes eligible and the coordinated render paints it. The comparison profile is excluded. Focused evidence covers visible and debounced completion, persistent-history and non-history editors, ordinary Backspace, the clear shortcut, the actual terminal frame, one generation/display outcome, and Tab acceptance.
+
 ## Risks / Trade-offs
 
 - **Autocomplete is canceled too aggressively.** Restrict cancellation to completion state derived from removed input; retain normal completion priority and update behavior for nonempty drafts.
 - **A repaint fix masks lost suggestion state, or vice versa.** Assert controller state, semantic editor value, completion visibility, render request, and emitted frame separately around the failing transition.
 - **Programmatic clears accidentally revive stale suggestions after submission.** Preserve full invalidation before submit/run/session lifecycle changes and add a negative regression assertion.
 - **Configured keybindings differ from raw test bytes.** Dispatch named configured actions through the production classifier/keybinding route where possible and retain narrow component cases for mutation details.
+
+## Known Gaps
+
+None. Interactive terminal confirmation remains the maintainer acceptance step, not an undispositioned implementation gap.
 
 ## Migration Plan
 
