@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AgentSession, AgentSessionRuntime } from "@earendil-works/pi-coding-agent";
-import { PiEngineRuntime, type PiEngineRuntimePorts } from "../../../../src/integrations/pi/engine/session-runtime.js";
+import { PiEngineRuntime, type PiEngineRuntimePorts, type PiRepositoryContextReader } from "../../../../src/integrations/pi/engine/session-runtime.js";
 import type { PiPullRequestIdentity, PiPullRequestProbe } from "../../../../src/integrations/pi/engine/repository-pr.js";
 import type { PiWorkflowHost } from "../../../../src/integrations/pi/engine/workflows.js";
 
@@ -9,9 +9,10 @@ afterEach(() => { vi.useRealTimers(); });
 class FakeSession {
   readonly listeners = new Set<(event: unknown) => void>();
   readonly messages: unknown[] = [];
-  readonly sessionManager = { getSessionFile: () => this.file };
+  readonly sessionManager = { getSessionFile: () => this.file, getSessionId: () => this.id };
   readonly file: string | undefined;
-  constructor(file: string | undefined = undefined) { this.file = file; }
+  readonly id: string;
+  constructor(file: string | undefined = undefined, id = "session-one") { this.file = file; this.id = id; }
   subscribe(listener: (event: unknown) => void): () => void { this.listeners.add(listener); return () => this.listeners.delete(listener); }
   emit(event: unknown): void { for (const listener of this.listeners) listener(event); }
 }
@@ -42,6 +43,9 @@ function harness(overrides: Partial<PiEngineRuntimePorts> = {}, options: {
   branch?: string | null;
   pullRequestProbe?: PiPullRequestProbe;
   pullRequestRefreshMs?: number;
+  repositoryContextPollMs?: number;
+  repositoryContextReader?: PiRepositoryContextReader;
+  gitBranchReader?: (cwd: string) => Promise<string | null>;
 } = {}) {
   const runtime = new FakeRuntime();
   const calls: string[] = [];
@@ -51,9 +55,13 @@ function harness(overrides: Partial<PiEngineRuntimePorts> = {}, options: {
     cwd: "D:/work", agentDir: "D:/agent", sessionId: "owned-1", sessionPath: undefined, sessionSelection: undefined,
     sessionForkPrompt: undefined, projectTrustPrompt: undefined, createRuntime: async () => runtime as unknown as AgentSessionRuntime,
     checkPackageUpdates: options.updates === undefined ? undefined : async () => options.updates!,
-    ...(options.branch === undefined ? {} : { gitBranchReader: async () => options.branch! }),
+    ...(options.gitBranchReader !== undefined
+      ? { gitBranchReader: options.gitBranchReader }
+      : options.branch === undefined ? {} : { gitBranchReader: async () => options.branch! }),
     ...(options.pullRequestProbe === undefined ? {} : { pullRequestProbe: options.pullRequestProbe }),
     ...(options.pullRequestRefreshMs === undefined ? {} : { pullRequestRefreshMs: options.pullRequestRefreshMs }),
+    ...(options.repositoryContextPollMs === undefined ? {} : { repositoryContextPollMs: options.repositoryContextPollMs }),
+    ...(options.repositoryContextReader === undefined ? {} : { repositoryContextReader: options.repositoryContextReader }),
     host,
   }, {
     disposed: () => state.disposed,
@@ -127,10 +135,12 @@ describe("PiEngineRuntime", () => {
     const probe = vi.fn<PiPullRequestProbe>((_cwd, _branch, signal) => new Promise(resolve => { pending.push({ resolve, signal }); }));
     const { engine, calls } = harness({}, {
       branch: "feature/show-pr-id-status-bar",
+      repositoryContextReader: async () => null,
       pullRequestProbe: probe,
       pullRequestRefreshMs: 60_000,
     });
     await engine.start();
+    await vi.advanceTimersByTimeAsync(0);
     expect(probe).toHaveBeenCalledTimes(1);
     expect(probe).toHaveBeenLastCalledWith("D:/resolved", "feature/show-pr-id-status-bar", expect.any(AbortSignal));
 
@@ -149,13 +159,58 @@ describe("PiEngineRuntime", () => {
     await vi.advanceTimersByTimeAsync(60_000);
     expect(probe).toHaveBeenCalledTimes(3);
     const late = pending[2]!;
-    await engine.dispose();
+    let disposalSettled = false;
+    const disposal = engine.dispose().then(() => { disposalSettled = true; });
     expect(late.signal.aborted).toBe(true);
-    late.resolve({ number: 541, url: "https://github.com/timurproko/a1/pull/541" });
     await Promise.resolve();
+    expect(disposalSettled).toBe(false);
+    late.resolve({ number: 541, url: "https://github.com/timurproko/a1/pull/541" });
+    await disposal;
     expect(engine.pullRequest?.number).toBe(540);
     await vi.advanceTimersByTimeAsync(120_000);
     expect(probe).toHaveBeenCalledTimes(3);
+  });
+
+  it("follows one session's associated repository, detects clearing, and keeps another session generation isolated", async () => {
+    vi.useFakeTimers();
+    let associated: { cwd: string; branch: string } | null = { cwd: "D:/worktrees/one", branch: "fix/one" };
+    const contextReader = vi.fn<PiRepositoryContextReader>(async sessionId => sessionId === "session-one"
+      ? associated
+      : { cwd: "D:/worktrees/two", branch: "fix/two" });
+    const branchReader = vi.fn(async (cwd: string) => cwd.endsWith("one") ? "fix/one" : cwd.endsWith("two") ? "fix/two" : "develop");
+    const probe = vi.fn<PiPullRequestProbe>(async (_cwd, branch) => {
+      const number = branch === "fix/one" ? 551 : branch === "fix/two" ? 552 : branch === "fix/changed" ? 553 : 500;
+      return { number, url: `https://github.com/timurproko/a1/pull/${number}` };
+    });
+    const { engine, runtime } = harness({}, {
+      repositoryContextReader: contextReader,
+      repositoryContextPollMs: 1_000,
+      pullRequestRefreshMs: 60_000,
+      gitBranchReader: branchReader,
+      pullRequestProbe: probe,
+    });
+    await engine.start();
+    await vi.waitFor(() => expect(engine.pullRequest?.number).toBe(551));
+    expect(engine.repositoryCwd).toBe("D:/worktrees/one");
+    expect(probe).toHaveBeenLastCalledWith("D:/worktrees/one", "fix/one", expect.any(AbortSignal));
+
+    associated = { cwd: "D:/worktrees/one", branch: "fix/changed" };
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(engine.pullRequest?.number).toBe(553);
+    expect(probe).toHaveBeenLastCalledWith("D:/worktrees/one", "fix/changed", expect.any(AbortSignal));
+
+    associated = null;
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(engine.repositoryCwd).toBe("D:/resolved");
+    expect(engine.gitBranch).toBe("develop");
+    expect(engine.pullRequest?.number).toBe(500);
+
+    const next = new FakeSession("D:/sessions/two.jsonl", "session-two");
+    await runtime.rebind!(next);
+    await vi.waitFor(() => expect(engine.pullRequest?.number).toBe(552));
+    expect(engine.repositoryCwd).toBe("D:/worktrees/two");
+    expect(contextReader).toHaveBeenLastCalledWith("session-two", "D:/sessions/two.jsonl", expect.any(AbortSignal));
+    await engine.dispose();
   });
 
   it("announces package updates as an informational diagnostic and skips the probe once disposed", async () => {

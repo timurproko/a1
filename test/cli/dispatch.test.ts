@@ -11,6 +11,7 @@ function handlers() {
     version: vi.fn(async () => 0),
     update: vi.fn(async () => 0),
     packages: vi.fn(async () => 0),
+    sessionContext: vi.fn(async () => 0),
   };
 }
 
@@ -38,8 +39,19 @@ describe("A1 CLI dispatch", () => {
     [["pi", "update", "npm:pi-mcp-adapter"], { kind: "packages", request: { verb: "update", source: "npm:pi-mcp-adapter" } }],
     [["update", "--models"], { kind: "packages", request: { verb: "refresh-models", source: null } }],
     [["pi", "update", "--models"], { kind: "packages", request: { verb: "refresh-models", source: null } }],
+    [["session", "link-worktree", "D:/worktree"], { kind: "session-context", request: { action: "link-worktree", path: "D:/worktree" } }],
+    [["session", "unlink-worktree"], { kind: "session-context", request: { action: "unlink-worktree" } }],
   ] as const)("parses %j", (arguments_, expected) => {
     expect(parseCliCommand(arguments_, PRERELEASE)).toEqual(expected);
+  });
+
+  it("dispatches session repository context without launching a nested UI", async () => {
+    const commands = handlers();
+    const transcript = output();
+    await expect(dispatchCli(["session", "link-worktree", "D:/delivery"], commands, transcript, PRERELEASE)).resolves.toBe(0);
+    expect(commands.sessionContext).toHaveBeenCalledExactlyOnceWith({ action: "link-worktree", path: "D:/delivery" });
+    expect(commands.launch).not.toHaveBeenCalled();
+    expect(cliHelp(PRERELEASE)).toContain("session unlink-worktree");
   });
 
   it.each([PRERELEASE, RELEASE])("dispatches explicit session selection in either option order (%j)", async capabilities => {
@@ -289,4 +301,5 @@ function expectNoHandler(commands: ReturnType<typeof handlers>): void {
   expect(commands.version).not.toHaveBeenCalled();
   expect(commands.update).not.toHaveBeenCalled();
   expect(commands.packages).not.toHaveBeenCalled();
+  expect(commands.sessionContext).not.toHaveBeenCalled();
 }

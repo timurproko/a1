@@ -1,6 +1,7 @@
 import { interactiveLaunchIntent, parseSessionSelection, type InteractiveLaunchIntent, type LaunchProfileId, type SessionSelection } from "../features/launch/index.js";
 import type { CliCapabilities } from "./capabilities.js";
 import type { PackageCommandRequest } from "./packages.js";
+import type { SessionContextRequest } from "./session-context.js";
 import { packageCommandHelp, renderPackageSyntax, type PackageCliVerb, type PackageSyntaxDiagnostic } from "./package-messages.js";
 import { PRODUCT_TEXT } from "../product-identity.js";
 
@@ -11,6 +12,7 @@ export interface CliHandlers {
   readonly version: () => Promise<number>;
   readonly update: (channel: UpdateChannel, target?: string) => Promise<number>;
   readonly packages: (request: PackageCommandRequest) => Promise<number>;
+  readonly sessionContext: (request: SessionContextRequest) => Promise<number>;
 }
 
 export interface CliOutput {
@@ -31,6 +33,8 @@ export function cliUsage(capabilities: CliCapabilities): string {
     "update",
     "update --develop [preview-or-version]",
     "update --models",
+    "session link-worktree <path>",
+    "session unlink-worktree",
     "pi install <source>",
     "pi remove <source>",
     "pi uninstall <source>",
@@ -58,6 +62,10 @@ export function cliHelp(capabilities: CliCapabilities): string {
     `  ${command} update`,
     `  ${command} update --develop [preview-or-version]`,
     `  ${command} update --models`,
+    "",
+    "Session context:",
+    `  ${command} session link-worktree <path>`,
+    `  ${command} session unlink-worktree`,
     "",
     "Pi-compatible packages:",
     `  ${command} pi install <source>`,
@@ -100,6 +108,7 @@ export async function dispatchCli(
   if (command.kind === "launch") return await handlers.launch(interactiveLaunchIntent(command.profileId, command.sessionSelection));
   if (command.kind === "version") return await handlers.version();
   if (command.kind === "packages") return await handlers.packages(command.request);
+  if (command.kind === "session-context") return await handlers.sessionContext(command.request);
   return await handlers.update(command.channel, command.target);
 }
 
@@ -112,6 +121,7 @@ export type CliCommand =
   | { readonly kind: "version" }
   | { readonly kind: "update"; readonly channel: UpdateChannel; readonly target?: string }
   | { readonly kind: "packages"; readonly request: PackageCommandRequest }
+  | { readonly kind: "session-context"; readonly request: SessionContextRequest }
   | { readonly kind: "error"; readonly message: string };
 
 export function parseCliCommand(arguments_: readonly string[], capabilities: CliCapabilities): CliCommand {
@@ -133,11 +143,26 @@ export function parseCliCommand(arguments_: readonly string[], capabilities: Cli
     return capabilities.developmentComparison ? { kind: "launch", profileId: "pi" } : { kind: "noop" };
   }
   if (command === "update") return parseUpdate(rest);
+  if (command === "session") return parseSessionContext(rest);
   if (command?.startsWith("update:")) return { kind: "noop" };
 
   // Rationale: unsupported and reserved command spaces are deliberately quiet. Help is
   // explicit, and a typo must never start an interactive or maintenance path.
   return { kind: "noop" };
+}
+
+function parseSessionContext(rest: readonly string[]): CliCommand {
+  const [action, value, extra] = rest;
+  if (action === "link-worktree") {
+    if (value === undefined) return { kind: "error", message: PRODUCT_TEXT.diagnostic("session link-worktree requires one path.") };
+    if (extra !== undefined) return { kind: "error", message: PRODUCT_TEXT.diagnostic("session link-worktree accepts one path.") };
+    return { kind: "session-context", request: { action, path: value } };
+  }
+  if (action === "unlink-worktree") {
+    if (value !== undefined) return { kind: "error", message: PRODUCT_TEXT.diagnostic("session unlink-worktree does not accept arguments.") };
+    return { kind: "session-context", request: { action } };
+  }
+  return { kind: "error", message: PRODUCT_TEXT.diagnostic("session accepts link-worktree <path> or unlink-worktree.") };
 }
 
 /**

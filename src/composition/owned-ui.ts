@@ -5,6 +5,7 @@ import { PromptImageSidecar } from "../features/prompt-history/image-sidecar.js"
 import { resolvePromptHistoryPath } from "../features/prompt-history/paths.js";
 import { resolvePromptHistoryDataDir } from "../features/launch/profile-paths.js";
 import { resolveProductPaths } from "../foundation/lifecycle/paths.js";
+import { readSessionRepositoryContext } from "../foundation/lifecycle/session-repository-context.js";
 import type { SessionSelection } from "../foundation/lifecycle/session-selection.js";
 import { applyConfiguredPiTheme, getAvailablePiThemes } from "../integrations/pi/components/upstream/theme/theme.js";
 import { createPiEngineAdapter } from "../integrations/pi/engine/adapter.js";
@@ -58,18 +59,22 @@ export async function composeOwnedUiApplication(options: OwnedUiCompositionOptio
 
 export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): Promise<OwnedUiComposition> {
   const cwd = options.cwd ?? process.cwd();
+  const ownedSurfaces = options.ownedSurfaces !== "off";
   const adapter = options.createPiAdapter
     ? await options.createPiAdapter()
     : await createPiEngineAdapter({
       cwd,
       availableThemes: () => getAvailablePiThemes().map(theme => theme.name),
-      settingsProductMode: options.ownedSurfaces === "off" ? "comparison" : "bare",
+      settingsProductMode: ownedSurfaces ? "bare" : "comparison",
+      ...(ownedSurfaces ? {
+        repositoryContextReader: async (sessionId: string, sessionFile: string, signal: AbortSignal) =>
+          await readSessionRepositoryContext({ sessionId, sessionFile }, { signal }),
+      } : {}),
       ...(options.sessionPath === undefined ? {} : { sessionPath: options.sessionPath }),
       ...(options.sessionSelection === undefined ? {} : { sessionSelection: options.sessionSelection }),
       ...(options.sessionForkPrompt === undefined ? {} : { sessionForkPrompt: options.sessionForkPrompt }),
       ...(options.projectTrustPrompt === undefined ? {} : { projectTrustPrompt: options.projectTrustPrompt }),
     });
-  const ownedSurfaces = options.ownedSurfaces !== "off";
   const settings = options.profileId === undefined
     ? null
     : new OwnedSettingsManager({

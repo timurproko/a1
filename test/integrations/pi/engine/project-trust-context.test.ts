@@ -17,7 +17,7 @@ const adapters: Awaited<ReturnType<typeof createPiEngineAdapter>>[] = [];
 afterEach(async () => {
   vi.mocked(fs.realpathSync).mockReset().mockImplementation(originalRealpath);
   for (const adapter of adapters.splice(0)) await adapter.dispose();
-  for (const home of homes.splice(0)) await rm(home, { recursive: true, force: true });
+  for (const home of homes.splice(0)) await rm(home, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
 });
 const originalRealpath = vi.mocked(fs.realpathSync).getMockImplementation()!;
 

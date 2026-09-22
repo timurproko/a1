@@ -47,7 +47,7 @@ Focused semantic-role tests will assert display-capitalized shortcut labels, low
 - **[Public Pi components hardcode their own hint rows]** → Adapt them only behind existing A1 factories, keep source provenance, and leave comparison-profile constructors untouched.
 - **[A broad punctuation search changes prose such as `default` annotations or regex help]** → Convert typed hint separators, not arbitrary rendered middle dots, and retain punctuation inside action text.
 - **[Narrow terminals wrap differently after structural formatting]** → Preserve each surface's clipping/wrapping policy and add width-focused snapshots with ANSI-safe measurements.
-- **[The Pi renderer grows the eager startup graph]** → Keep shared semantics in the already-reachable presentation contract and themed wrappers in their existing façades, re-pin only the measured source-byte total (154 files / 1,461,988 bytes), and use the isolated fixed-color equivalent for pre-resource trust.
+- **[The Pi renderer grows the eager startup graph]** → Keep shared semantics in the already-reachable presentation contract and themed wrappers in their existing façades, re-pin only the measured source-byte total (155 files / 1,477,685 bytes), and use the isolated fixed-color equivalent for pre-resource trust.
 - **[Theme changes leave pre-baked colors stale]** → Compute role styling during render or rebuild styled child content during invalidation, following the TUI invalidation contract.
 
 ## Migration Plan

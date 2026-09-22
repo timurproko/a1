@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-09-22T22:53:57.920Z",
+  "recordedAt": "2026-09-22T23:18:50.222Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "16787ad5b2dc748047f314ca1bfe7708f30f54f3",
@@ -1761,9 +1761,9 @@
       "localDestination": "src/integrations/pi/components/upstream/components/session-footer.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Consumes neutral owned-UI view data instead of a fabricated concrete AgentSession; an explicit bare-A1 profile colors the thinking-level name and adds its linked pull-request badge while preserving the remaining footer layout and formatting, and replacement surfaces may suppress a thinking level they already present.",
+      "modifications": "Consumes neutral owned-UI view data instead of a fabricated concrete AgentSession; an explicit bare-A1 profile colors the thinking-level name, renders its repository-context path, and reserves its linked pull-request badge before path truncation while preserving the remaining footer layout and formatting; replacement surfaces may suppress a thinking level they already present.",
       "upgradeStrategy": "three-way",
-      "localSha256": "b39b22695eeb6a10d504b729dab320d43e4a27504eb763d6c662d1d9624734cb",
+      "localSha256": "0a1ac2537a4db588ba4e6398c44e154134e67d680c94efc1454155a08688ffab",
       "approvedDeviations": [
         {
           "id": "owned-status-level-color",
@@ -2444,7 +2444,7 @@
         },
         {
           "id": "owned-thinking-selector-heading",
-          "reason": "The accepted bare-A1 presentation uses the same bold semantic accent heading and compact row treatment as its Models configuration surface, including an adjacent muted hint, unique level rows, aligned muted descriptions, one adjacent success-colored active marker, and a bracketed configured-default marker after that optional active marker.",
+          "reason": "The accepted bare-A1 presentation uses the same bold semantic accent heading and compact row treatment as its Models configuration surface, including an adjacent muted hint, unique level rows, aligned muted descriptions, one adjacent success-colored active marker, and an adjacent bracketed default marker.",
           "upstreamBehavior": "Selector geometry, search, navigation, selection, persistence, cancellation, and focus remain source-equivalent; duplicate footer level presentation is suppressed only while the selector is open.",
           "acceptanceTest": "test/app/session-shell/session-shell-workflows.test.ts"
         }

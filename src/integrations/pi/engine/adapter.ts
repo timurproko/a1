@@ -52,7 +52,7 @@ import { PiEventDelivery, type PiEmittedEvent } from "./event-delivery.js";
 import { PiExtensionUiBinding, type OwnedPiVisualExtensionSupport } from "./extension-ui-binding.js";
 import { PiPromptSuggestions } from "./prompt-suggestions.js";
 import { PiResourceCatalog, type OwnedPiExtensionResourceSummary, type OwnedPiResourceSummary } from "./resource-catalog.js";
-import { PiEngineRuntime, type PiEnginePackageUpdateProbe, type PiEngineRuntimeFactory } from "./session-runtime.js";
+import { PiEngineRuntime, type PiEnginePackageUpdateProbe, type PiEngineRuntimeFactory, type PiRepositoryContextReader } from "./session-runtime.js";
 import { PiEngineSettings } from "./settings-port.js";
 import { PiSessionEvents } from "./session-events.js";
 import { readUsageView } from "./usage-view.js";
@@ -95,6 +95,7 @@ export interface PiEngineAdapterOptions {
    * mode. Returns display names of packages with updates available.
    */
   readonly checkPackageUpdates?: PiEnginePackageUpdateProbe;
+  readonly repositoryContextReader?: PiRepositoryContextReader;
 }
 
 const DEFAULT_SURFACE: OwnedUiTerminalSurface = {
@@ -211,6 +212,7 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
       projectTrustPrompt: options.projectTrustPrompt,
       createRuntime: options.createRuntime,
       checkPackageUpdates: options.checkPackageUpdates,
+      ...(options.repositoryContextReader === undefined ? {} : { repositoryContextReader: options.repositoryContextReader }),
       host: this.#workflowHost,
     }, {
       disposed: () => this.#disposed,
@@ -561,6 +563,7 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
         usage: this.#usageCache ??= readUsageView(this.#engine.session, this.#engine.runtime, this.#activeModel),
         footer: {
           branch: this.#engine.gitBranch,
+          repositoryPath: this.#engine.repositoryCwd,
           pullRequest: this.#engine.pullRequest,
           sessionName: this.#engine.session?.sessionManager?.getSessionName() ?? null,
           availableProviderCount: new Set(this.#engine.runtime?.services.modelRuntime.getAvailableSnapshot?.().map(model => model.provider).filter(provider => provider !== undefined) ?? []).size,

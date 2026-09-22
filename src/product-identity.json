@@ -32,7 +32,8 @@
     "unixControlDirectory": "a1",
     "developmentDirectory": "a1-development",
     "piAgentProfile": ".a1/agent",
-    "piVanillaProfile": ".pi/agent"
+    "piVanillaProfile": ".pi/agent",
+    "sessionRepositoryDirectory": "session-repositories"
   },
   "endpoint": {
     "windowsPipeStem": "a1",

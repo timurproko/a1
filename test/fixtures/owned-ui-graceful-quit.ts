@@ -33,10 +33,24 @@ const shell = new OwnedUiSessionShell({
   engine: { backend: adapter, cwd: home, sessionLayout: "custom-viewport" },
   presentation: { terminal, startup: { quiet: true } },
 });
+let settleStartupFlush!: () => void;
+let rejectStartupFlush!: (error: unknown) => void;
+const startupFlushed = new Promise<void>((resolve, reject) => {
+  settleStartupFlush = resolve;
+  rejectStartupFlush = reject;
+});
 const application = {
   get disposed() { return adapter.disposed; },
   start: () => shell.start(),
-  flush: () => adapter.flushEvents(),
+  flush: async () => {
+    try {
+      await adapter.flushEvents();
+      settleStartupFlush();
+    } catch (error) {
+      rejectStartupFlush(error);
+      throw error;
+    }
+  },
   waitUntilStopped: () => shell.waitUntilStopped(),
   dispose: () => shell.dispose(),
 };
@@ -46,6 +60,9 @@ for (let attempt = 0; attempt < 100 && !terminal.active; attempt += 1) {
   await new Promise(resolve => setTimeout(resolve, 10));
 }
 if (!terminal.active) throw new Error("Owned UI did not become input-ready");
+// Rationale: the terminal becomes active during start; wait until runOwnedUi has drained startup
+// events so this fixture tests shutdown rather than racing startup delivery.
+await startupFlushed;
 if (route === "slash") {
   terminal.input("/quit");
   terminal.input("\r");

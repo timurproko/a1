@@ -54,6 +54,10 @@ process.exitCode = await dispatchCli(process.argv.slice(2), {
     const { createPiPackagesPort } = await import("../dist/integrations/pi/engine/package-integration.js");
     return await runPackageCommand(request, { createPort: createPiPackagesPort });
   },
+  sessionContext: async request => {
+    const { runSessionContextCommand } = await import("../dist/cli/session-context.js");
+    return await runSessionContextCommand(request);
+  },
 }, {
   stdout: message => process.stdout.write(message),
   stderr: message => process.stderr.write(message),
