@@ -7,6 +7,20 @@ function block(execution: OwnedUiToolState["execution"], argsComplete: boolean, 
     title: "Tool", text: "", payload: null, toolState: { execution, argsComplete } };
 }
 
+describe("owned user presentation", () => {
+  const user = (): OwnedUiTranscriptBlock => ({ id: "user", kind: "user", status: "finalized", revision: 1,
+    title: "User", text: "stored", payload: null });
+
+  it("accepts display-only text only on user blocks", () => {
+    expect(() => assertOwnedUiTranscriptBlock({ ...user(), userPresentation: {
+      visibleText: "visible",
+    } })).not.toThrow();
+    expect(() => assertOwnedUiTranscriptBlock({ ...user(), kind: "assistant", userPresentation: {
+      visibleText: "visible",
+    } })).toThrow("requires a user block");
+  });
+});
+
 describe("owned tool lifecycle", () => {
   it("validates argument completion independently of execution completion", () => {
     for (const state of [block("pending", false, 1), block("pending", true, 2), block("running", true, 3),

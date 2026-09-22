@@ -456,6 +456,29 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
     }
   });
 
+  it("keeps the screenshot chip but hides resize guidance from a submitted prompt", async () => {
+    const { engine, adapter, shell } = await fixture([], [], true);
+    const marker = "[📷 screenshot-0123456789]";
+    const note = "[Image: original 3840x2280, displayed at 2000x1188. Multiply coordinates by 1.92 to map to original image.]";
+    try {
+      shell.root.setImagePresentation(false, 40);
+      engine.session.emit({ type: "message_start", message: {
+        role: "user",
+        content: [
+          { type: "text", text: `${marker}\n\n${note}` },
+          { type: "image", data: "aW1hZ2U=", mimeType: "image/png" },
+        ],
+        timestamp: 1_000,
+      } });
+      await adapter.flushEvents();
+      const frame = stripTerminalSequences(shell.root.render(120).join("\n"));
+      expect(frame).toContain(marker);
+      expect(frame).not.toContain(note);
+      expect(frame).not.toContain("Image attached");
+      expect(frame).toContain("Image hidden: image/png");
+    } finally { await shell.dispose(); }
+  });
+
   it("shows bare-A1 command errors and warnings as the transient dock notice above the editor", async () => {
     const { terminal, shell } = await fixture([], [], true);
     try {

@@ -257,8 +257,10 @@ function transcriptComponent(
 ): Component {
   switch (block.kind) {
     case "user": {
-      const skill = parseSkillBlock(block.text);
-      if (!skill) return submittedPrompt ? createPiSubmittedPromptComponent(block, submittedPrompt) : new UserMessageComponent(block.text);
+      const visibleBlock = submittedPrompt === undefined || block.userPresentation === undefined ? block
+        : { ...block, text: block.userPresentation.visibleText };
+      const skill = parseSkillBlock(visibleBlock.text);
+      if (!skill) return submittedPrompt ? createPiSubmittedPromptComponent(visibleBlock, submittedPrompt) : new UserMessageComponent(visibleBlock.text);
       const invocation = new SkillInvocationMessageComponent(skill, getMarkdownTheme());
       invocation.setExpanded(expanded);
       if (!skill.userMessage) return invocation;
