@@ -21,6 +21,7 @@ on:
         type: number
 
 permissions:
+  actions: read
   contents: read
 
 env:

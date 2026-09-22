@@ -96,6 +96,7 @@ jobs:
     needs: full-selection
     if: needs.full-selection.outputs.selected == 'true'
     permissions:
+      actions: read
       contents: read
     uses: ./.github/workflows/full-regression-shared.yml
     with:

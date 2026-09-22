@@ -161,7 +161,7 @@ describe("complete regression automation", () => {
     expect(workflow).toContain("Owned gate");
     expect(workflow).toContain("outcome.exitCode");
     expect(workflow).toContain("full-regression-${{ inputs.source }}-${{ github.run_id }}-${{ github.run_attempt }}");
-    expect(workflow).toContain("permissions:\n  contents: read");
+    expect(workflow).toContain("permissions:\n  actions: read\n  contents: read");
     expect(workflow).not.toMatch(/id-token:\s*write|npm publish|environment:\s*npm-/);
   });
 });
