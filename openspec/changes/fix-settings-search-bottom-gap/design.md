@@ -45,3 +45,10 @@ A screenshot-only assertion is rejected because it would not identify whether li
 ## Migration Plan
 
 No data or settings migration is required. Deploy the geometry correction and regressions together. Rollback restores the prior shared-list clamp and its trailing search gap without affecting persisted settings.
+
+## Implementation Evidence
+
+- Shared grouped-list layout now backfills otherwise unused bottom capacity from the outgoing section when its boundary spacer is represented by the sticky heading, while retaining the clamped end position.
+- Focused component and settings-screen coverage passes with 90 assertions, including wheel navigation to the final setting, immediate adjacency to the search rule, a bottom-positioned thick scrollbar thumb, and reference-screen compatibility.
+- Strict OpenSpec validation, the supported build, and TypeScript typechecking pass on the implementation worktree.
+- Physical-terminal confirmation remains pending under task 3.2.
