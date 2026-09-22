@@ -20,7 +20,7 @@ The manual merge accepts these scenarios:
   "archive": "openspec/changes/archive/2026-09-22-style-modal-shortcut-hints/",
   "acceptanceManifest": "openspec/changes/archive/2026-09-22-style-modal-shortcut-hints/acceptance.md",
   "finalizedDate": "2026-09-22",
-  "specBaseSha": "91acd99bef9292e5d0d69bc58a1860c212eda179",
+  "specBaseSha": "9fa1e231a33ab9aad337850d843739cfcedc88b4",
   "acceptanceScenarios": [
     "Bare-A1 modal shortcut rows show dim shortcut labels and muted action names with two-space gaps and no decorative dot or bullet separators.",
     "Models, Skills, settings subdialogs, thinking, scoped-model, session, tree, trust, and extension-editor surfaces retain their effective bindings and action wording.",
