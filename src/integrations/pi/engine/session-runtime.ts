@@ -18,6 +18,9 @@ import {
 
 const execFileAsync = promisify(execFile);
 const PULL_REQUEST_REFRESH_MS = 60_000;
+const REPOSITORY_CONTEXT_POLL_MS = 5_000;
+const GIT_BRANCH_TIMEOUT_MS = 5_000;
+const GIT_BRANCH_MAX_BUFFER_BYTES = 4 * 1024;
 
 export interface PiEngineRuntimeFactoryInput {
   readonly cwd: string;
@@ -32,6 +35,12 @@ export interface PiEngineRuntimeFactoryInput {
 export type PiEngineRuntimeFactory = (input: PiEngineRuntimeFactoryInput) => Promise<AgentSessionRuntime>;
 
 export type PiEnginePackageUpdateProbe = (settingsManager: AgentSessionServices["settingsManager"]) => Promise<readonly string[]>;
+export interface PiRepositoryContextSelection {
+  readonly cwd: string;
+  readonly branch: string;
+}
+export type PiRepositoryContextReader = (sessionId: string, sessionFile: string, signal: AbortSignal) => Promise<PiRepositoryContextSelection | null>;
+export type PiGitBranchReader = (cwd: string, signal: AbortSignal) => Promise<string | null>;
 
 export interface PiEngineRuntimeOptions {
   readonly cwd: string;
@@ -45,13 +54,15 @@ export interface PiEngineRuntimeOptions {
   readonly checkPackageUpdates: PiEnginePackageUpdateProbe | undefined;
   readonly pullRequestProbe?: PiPullRequestProbe;
   readonly pullRequestRefreshMs?: number;
-  readonly gitBranchReader?: (cwd: string) => Promise<string | null>;
+  readonly repositoryContextPollMs?: number;
+  readonly repositoryContextReader?: PiRepositoryContextReader;
+  readonly gitBranchReader?: PiGitBranchReader;
   readonly host: PiWorkflowHost;
 }
 
 export interface PiEngineRuntimePorts {
   disposed(): boolean;
-  /** The runtime exists and its cwd and git branch are known; nothing is bound yet. */
+  /** The runtime exists and its startup cwd is known; repository metadata resolves after binding. */
   started(runtime: AgentSessionRuntime): void;
   /** True while a runtime-initiated rebind must be ignored: delivery overload, stopped admission, or disposal. */
   rebindBlocked(): boolean;
@@ -81,7 +92,9 @@ export class PiEngineRuntime {
   readonly #checkPackageUpdates: PiEnginePackageUpdateProbe;
   readonly #pullRequestProbe: PiPullRequestProbe;
   readonly #pullRequestRefreshMs: number;
-  readonly #gitBranchReader: (cwd: string) => Promise<string | null>;
+  readonly #repositoryContextPollMs: number;
+  readonly #repositoryContextReader: PiRepositoryContextReader;
+  readonly #gitBranchReader: PiGitBranchReader;
   #cwd: string;
   #runtime: AgentSessionRuntime | undefined;
   #session: AgentSession | undefined;
@@ -90,16 +103,20 @@ export class PiEngineRuntime {
   #sessionBindingGeneration = 0;
   #sessionCommands: PiSessionCommandIntegration | undefined;
   #compactionProgress: CompactionProgressObserver | null = null;
+  #repositoryCwd: string;
   #gitBranch: string | null = null;
   #pullRequest: PiPullRequestIdentity | null = null;
-  #pullRequestTimer: ReturnType<typeof setTimeout> | undefined;
-  #pullRequestAbort: AbortController | undefined;
+  #repositoryRefreshTimer: ReturnType<typeof setTimeout> | undefined;
+  #repositoryRefreshAbort: AbortController | undefined;
+  #lastPullRequestProbeAt: number | null = null;
+  #repositoryRefreshEnabled = false;
   #disposed = false;
 
   constructor(options: PiEngineRuntimeOptions, ports: PiEngineRuntimePorts) {
     this.#options = options;
     this.#ports = ports;
     this.#cwd = options.cwd;
+    this.#repositoryCwd = options.cwd;
     this.#runtimeFactory = options.createRuntime ?? createDefaultPiRuntime;
     this.#checkPackageUpdates = options.checkPackageUpdates
       ?? (options.createRuntime
@@ -107,6 +124,8 @@ export class PiEngineRuntime {
         : settingsManager => checkDefaultPiPackageUpdates(this.#cwd, options.agentDir, settingsManager));
     this.#pullRequestProbe = options.pullRequestProbe ?? readOpenPullRequest;
     this.#pullRequestRefreshMs = options.pullRequestRefreshMs ?? PULL_REQUEST_REFRESH_MS;
+    this.#repositoryContextPollMs = options.repositoryContextPollMs ?? REPOSITORY_CONTEXT_POLL_MS;
+    this.#repositoryContextReader = options.repositoryContextReader ?? (async () => null);
     this.#gitBranchReader = options.gitBranchReader ?? readGitBranch;
   }
 
@@ -130,6 +149,10 @@ export class PiEngineRuntime {
 
   get cwd(): string {
     return this.#runtime?.cwd ?? this.#cwd;
+  }
+
+  get repositoryCwd(): string {
+    return this.#repositoryCwd;
   }
 
   get gitBranch(): string | null {
@@ -161,7 +184,7 @@ export class PiEngineRuntime {
     });
     this.#runtime = runtime;
     this.#cwd = runtime.cwd ?? this.#cwd;
-    this.#gitBranch = await this.#gitBranchReader(this.#cwd);
+    this.#repositoryCwd = this.#cwd;
     this.#ports.started(runtime);
     runtime.setRebindSession(async session => {
       if (this.#ports.rebindBlocked()) return;
@@ -178,7 +201,8 @@ export class PiEngineRuntime {
     }
     this.bindSession(runtime.session);
     await this.#announceChangelog(runtime.services.settingsManager);
-    this.#startPullRequestRefresh();
+    this.#repositoryRefreshEnabled = true;
+    this.#startRepositoryRefresh();
     return runtime;
   }
 
@@ -238,7 +262,9 @@ export class PiEngineRuntime {
     // Invariant: the subscription is live before the adapter rebuilds its state so the extension
     // rebind that finishes the rebuild cannot emit an event nobody is listening to.
     this.#subscribe();
+    this.#resetRepositoryRefresh();
     this.#ports.sessionReplaced(session);
+    if (this.#repositoryRefreshEnabled) this.#startRepositoryRefresh();
   }
 
   /** Stop forwarding the current session's events and open a new generation; overload recovery resumes or abandons it. */
@@ -279,10 +305,11 @@ export class PiEngineRuntime {
   /** Unsubscribe, stop observing compaction, and dispose the runtime; the session reference is kept for final reads. */
   async dispose(): Promise<void> {
     this.#disposed = true;
-    if (this.#pullRequestTimer !== undefined) clearTimeout(this.#pullRequestTimer);
-    this.#pullRequestTimer = undefined;
-    this.#pullRequestAbort?.abort();
-    this.#pullRequestAbort = undefined;
+    this.#repositoryRefreshEnabled = false;
+    if (this.#repositoryRefreshTimer !== undefined) clearTimeout(this.#repositoryRefreshTimer);
+    this.#repositoryRefreshTimer = undefined;
+    this.#repositoryRefreshAbort?.abort();
+    this.#repositoryRefreshAbort = undefined;
     this.#unsubscribe?.();
     this.#unsubscribe = undefined;
     this.#compactionProgress?.dispose();
@@ -290,34 +317,88 @@ export class PiEngineRuntime {
     await this.#runtime?.dispose();
   }
 
-  #startPullRequestRefresh(): void {
-    if (this.#gitBranch === null || this.#disposed || this.#ports.disposed()) return;
-    void this.#refreshPullRequest();
+  #startRepositoryRefresh(): void {
+    if (!this.#repositoryRefreshEnabled || this.#disposed || this.#ports.disposed()) return;
+    void this.#refreshRepositoryMetadata();
   }
 
-  async #refreshPullRequest(): Promise<void> {
-    const branch = this.#gitBranch;
-    if (branch === null || this.#pullRequestAbort !== undefined || this.#disposed || this.#ports.disposed()) return;
+  #resetRepositoryRefresh(): void {
+    if (this.#repositoryRefreshTimer !== undefined) clearTimeout(this.#repositoryRefreshTimer);
+    this.#repositoryRefreshTimer = undefined;
+    this.#repositoryRefreshAbort?.abort();
+    this.#repositoryRefreshAbort = undefined;
+    this.#repositoryCwd = this.#cwd;
+    this.#gitBranch = null;
+    this.#pullRequest = null;
+    this.#lastPullRequestProbeAt = null;
+  }
+
+  async #refreshRepositoryMetadata(): Promise<void> {
+    if (this.#repositoryRefreshAbort !== undefined || this.#disposed || this.#ports.disposed()) return;
     const controller = new AbortController();
-    this.#pullRequestAbort = controller;
-    let next: PiPullRequestIdentity | null = null;
+    const generation = this.#sessionBindingGeneration;
+    this.#repositoryRefreshAbort = controller;
+    let associatedContext: PiRepositoryContextSelection | null = null;
+    const manager = this.#session?.sessionManager;
+    const sessionId = manager?.getSessionId?.();
+    const sessionFile = manager?.getSessionFile?.();
     try {
-      next = await this.#pullRequestProbe(this.#cwd, branch, controller.signal);
+      if (typeof sessionId === "string" && sessionId.length > 0 && typeof sessionFile === "string" && sessionFile.length > 0) {
+        try {
+          associatedContext = await this.#repositoryContextReader(sessionId, sessionFile, controller.signal);
+        } catch {
+          associatedContext = null;
+        }
+      }
+      const nextCwd = associatedContext?.cwd ?? this.#cwd;
+      let nextBranch: string | null = associatedContext?.branch ?? null;
+      if (associatedContext === null) {
+        try {
+          nextBranch = await this.#gitBranchReader(nextCwd, controller.signal);
+        } catch {
+          nextBranch = null;
+        }
+      }
+      const metadataChanged = nextCwd !== this.#repositoryCwd || nextBranch !== this.#gitBranch;
+      const remoteDue = metadataChanged || this.#lastPullRequestProbeAt === null
+        || Date.now() - this.#lastPullRequestProbeAt >= this.#pullRequestRefreshMs;
+      if (remoteDue) {
+        let nextPullRequest: PiPullRequestIdentity | null = null;
+        try {
+          nextPullRequest = nextBranch === null
+            ? null
+            : await this.#pullRequestProbe(nextCwd, nextBranch, controller.signal);
+        } catch {
+          nextPullRequest = null;
+        }
+        if (controller.signal.aborted || generation !== this.#sessionBindingGeneration || this.#disposed || this.#ports.disposed()) return;
+        const changed = nextCwd !== this.#repositoryCwd
+          || nextBranch !== this.#gitBranch
+          || !samePullRequest(this.#pullRequest, nextPullRequest);
+        this.#repositoryCwd = nextCwd;
+        this.#gitBranch = nextBranch;
+        this.#pullRequest = nextPullRequest;
+        this.#lastPullRequestProbeAt = Date.now();
+        if (changed) this.#ports.emitView();
+      }
     } catch {
-      next = null;
+      if (!controller.signal.aborted && generation === this.#sessionBindingGeneration && !this.#disposed && !this.#ports.disposed()) {
+        const changed = this.#repositoryCwd !== this.#cwd || this.#gitBranch !== null || this.#pullRequest !== null;
+        this.#repositoryCwd = this.#cwd;
+        this.#gitBranch = null;
+        this.#pullRequest = null;
+        this.#lastPullRequestProbeAt = Date.now();
+        if (changed) this.#ports.emitView();
+      }
     } finally {
-      if (this.#pullRequestAbort === controller) this.#pullRequestAbort = undefined;
+      if (this.#repositoryRefreshAbort === controller) this.#repositoryRefreshAbort = undefined;
     }
-    if (controller.signal.aborted || this.#disposed || this.#ports.disposed()) return;
-    if (!samePullRequest(this.#pullRequest, next)) {
-      this.#pullRequest = next;
-      this.#ports.emitView();
-    }
-    this.#pullRequestTimer = setTimeout(() => {
-      this.#pullRequestTimer = undefined;
-      void this.#refreshPullRequest();
-    }, this.#pullRequestRefreshMs);
-    this.#pullRequestTimer.unref?.();
+    if (controller.signal.aborted || generation !== this.#sessionBindingGeneration || this.#disposed || this.#ports.disposed()) return;
+    this.#repositoryRefreshTimer = setTimeout(() => {
+      this.#repositoryRefreshTimer = undefined;
+      void this.#refreshRepositoryMetadata();
+    }, this.#repositoryContextPollMs);
+    this.#repositoryRefreshTimer.unref?.();
   }
 
   #subscribe(): void {
@@ -379,9 +460,16 @@ function samePullRequest(left: PiPullRequestIdentity | null, right: PiPullReques
   return left?.number === right?.number && left?.url === right?.url;
 }
 
-async function readGitBranch(cwd: string): Promise<string | null> {
+async function readGitBranch(cwd: string, signal: AbortSignal): Promise<string | null> {
   try {
-    const { stdout } = await execFileAsync("git", ["branch", "--show-current"], { cwd, windowsHide: true });
+    const { stdout } = await execFileAsync("git", ["branch", "--show-current"], {
+      cwd,
+      windowsHide: true,
+      timeout: GIT_BRANCH_TIMEOUT_MS,
+      maxBuffer: GIT_BRANCH_MAX_BUFFER_BYTES,
+      signal,
+      encoding: "utf8",
+    });
     const branch = stdout.trim();
     return branch.length > 0 ? branch : null;
   } catch {

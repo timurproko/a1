@@ -37,16 +37,29 @@ export class SessionFooter implements Component {
     const contextPercentSource = usage?.contextAvailable === false ? undefined : usage?.contextPercent;
     const contextPercent = contextPercentSource !== null ? contextPercentValue.toFixed(1) : "?";
 
-    let pwd = formatCwd(this.cwd, process.env.HOME || process.env.USERPROFILE);
+    const repositoryPath = this.profile === "a1" ? view.status.footer?.repositoryPath ?? this.cwd : this.cwd;
+    let pwd = formatCwd(repositoryPath, process.env.HOME || process.env.USERPROFILE);
     const branch = view.status.footer?.branch;
     if (branch) pwd = `${pwd} (${branch})`;
     const sessionName = view.status.footer?.sessionName;
     const pullRequest = this.profile === "a1" ? view.status.footer?.pullRequest : null;
-    const pathRow = pullRequest === undefined || pullRequest === null
-      ? theme.fg("dim", sessionName ? `${pwd} • ${sessionName}` : pwd)
-      : theme.fg("dim", `${pwd} PR `)
-        + hyperlink(theme.fg("mdLink", `#${pullRequest.number}`), pullRequest.url)
-        + (sessionName ? theme.fg("dim", ` • ${sessionName}`) : "");
+    let pathRow: string;
+    if (pullRequest === undefined || pullRequest === null) {
+      pathRow = theme.fg("dim", sessionName ? `${pwd} • ${sessionName}` : pwd);
+    } else {
+      const badge = theme.fg("dim", " PR ")
+        + hyperlink(theme.fg("mdLink", `#${pullRequest.number}`), pullRequest.url);
+      const sessionSuffix = sessionName ? theme.fg("dim", ` • ${sessionName}`) : "";
+      const full = theme.fg("dim", pwd) + badge + sessionSuffix;
+      if (visibleWidth(full) <= width) pathRow = full;
+      else if (visibleWidth(badge) <= width) {
+        const pathWidth = Math.max(0, width - visibleWidth(badge));
+        const path = pathWidth === 0 ? "" : truncateToWidth(theme.fg("dim", pwd), pathWidth, theme.fg("dim", "..."));
+        pathRow = path + badge;
+      } else {
+        pathRow = truncateToWidth(badge, width, theme.fg("dim", "..."));
+      }
+    }
 
     const parts: string[] = [];
     if (input) parts.push(`↑${formatTokens(input)}`);

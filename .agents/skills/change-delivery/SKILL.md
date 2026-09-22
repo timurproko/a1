@@ -9,7 +9,7 @@ Read [project workflow](../../../openspec/config.yaml) and [delivery runbook](..
 
 ## Deliver
 
-1. Keep the primary checkout on `develop`. Run `local-worktree-cleanup.mjs sweep --repo <primary>` there first and relay its `lines`; results never delay new work. Use one worktree from fresh `origin/develop`, one branch, one draft PR. Start with `## Proposal` containing one or two sentences of intent, then `## Implementation` with two to five bullets; do not add a quoted phase line. Omit routine validation commands; put link JSON last under `## Automation` in an explained collapsed disclosure.
+1. Keep primary on `develop`. Run `local-worktree-cleanup.mjs sweep --repo <primary>` first; relay `lines`; results never delay. From fresh `origin/develop`, create a worktree; run `a1 session link-worktree <worktree>` in the owning session. One branch/draft PR. Start with `## Proposal` containing one or two sentences of intent, then `## Implementation` with two to five bullets; do not add a quoted phase line. Omit routine validation commands; put link JSON last under `## Automation` in an explained collapsed disclosure.
 2. A planning request authorizes only planning artifacts; no implementation, canonical-spec synchronization, finalization, or merge until the maintainer approves the plan and explicitly requests implementation.
 3. Continue approved implementation in the same worktree, branch, history, and PR without a body-phase edit; keep it draft while incomplete; reconcile approved planning refinements before related code edits.
 4. Complete implementation, evidence, gap disposition, and substantive tasks. Keep the body phase-free; add one to ten implementation-specific behavior-and-result bullets under `## Acceptance`, never checkboxes or generic items.

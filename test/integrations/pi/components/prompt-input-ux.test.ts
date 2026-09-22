@@ -128,6 +128,7 @@ describe("owned shared input and status presentation", () => {
         footer: {
           ...state.status.footer!,
           branch: "feature/show-pr-id-status-bar",
+          repositoryPath: "/DELIVERY/WORKTREE/WITH/A/LONG/PATH",
           pullRequest: { number: 540, url: "https://github.com/timurproko/a1/pull/540" },
           sessionName: "footer-test",
         },
@@ -135,7 +136,7 @@ describe("owned shared input and status presentation", () => {
     };
     const ownedRow = createPiShellFooter(footerState, "/WORK", "a1").render(120)[0]!;
     const plain = stripTerminalSequences(ownedRow);
-    expect(plain).toBe("/WORK (feature/show-pr-id-status-bar) PR #540 • footer-test");
+    expect(plain).toBe("/DELIVERY/WORKTREE/WITH/A/LONG/PATH (feature/show-pr-id-status-bar) PR #540 • footer-test");
     const linkColumn = plain.indexOf("#540");
     expect(hyperlinkTargetAtColumn(ownedRow, linkColumn - 1)).toBeUndefined();
     expect(hyperlinkTargetAtColumn(ownedRow, linkColumn)).toBe("https://github.com/timurproko/a1/pull/540");
@@ -148,10 +149,14 @@ describe("owned shared input and status presentation", () => {
     expect(stripTerminalSequences(pinnedRow)).toBe("/WORK (feature/show-pr-id-status-bar) • footer-test");
     expect(pinnedRow).not.toContain("\u001b]8;;");
 
-    const truncated = createPiShellFooter(footerState, "/WORK", "a1").render(linkColumn + 5)[0]!;
-    expect(visibleWidth(truncated)).toBeLessThanOrEqual(linkColumn + 5);
-    expect(hyperlinkTargetAtColumn(truncated, linkColumn)).toBe("https://github.com/timurproko/a1/pull/540");
-    expect(hyperlinkTargetAtColumn(truncated, linkColumn + 2)).toBeUndefined();
+    const truncated = createPiShellFooter(footerState, "/WORK", "a1").render(40)[0]!;
+    const truncatedPlain = stripTerminalSequences(truncated);
+    expect(visibleWidth(truncated)).toBeLessThanOrEqual(40);
+    expect(truncatedPlain).toMatch(/\.\.\. PR #540$/);
+    const truncatedLink = truncatedPlain.indexOf("#540");
+    expect(hyperlinkTargetAtColumn(truncated, truncatedLink - 1)).toBeUndefined();
+    expect(hyperlinkTargetAtColumn(truncated, truncatedLink)).toBe("https://github.com/timurproko/a1/pull/540");
+    expect(hyperlinkTargetAtColumn(truncated, truncatedLink + 3)).toBe("https://github.com/timurproko/a1/pull/540");
   });
 
   it.each(["dark", "light"] as const)("colors only the effective level span in the %s footer", themeName => {
