@@ -3,7 +3,7 @@ name: Development validation
 on:
   pull_request:
     branches: [develop]
-    types: [opened, edited, synchronize, reopened, ready_for_review]
+    types: [opened, edited, synchronize, reopened, ready_for_review, converted_to_draft, labeled, unlabeled]
   workflow_dispatch:
 
 permissions:
@@ -14,6 +14,99 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  full-selection:
+    name: Select PR Full regression
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+      pull-requests: read
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      selected: ${{ steps.selection.outputs.selected }}
+      head: ${{ steps.selection.outputs.head }}
+      base: ${{ steps.selection.outputs.base }}
+      selection-id: ${{ steps.selection.outputs.selection-id }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Check out trusted full-regression policy
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: .artifacts/full-regression-policy
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 24
+      - name: Select using base policy or conservative deployment bootstrap
+        id: selection
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SELECTION_MODE: --select
+        run: |
+          set -euo pipefail
+          policy=.artifacts/full-regression-policy/scripts/release/pr-full-regression.mjs
+          if [ -f "$policy" ]; then
+            node "$policy" "$SELECTION_MODE"
+          else
+            node --input-type=module <<'NODE'
+          import { execFileSync } from 'node:child_process';
+          import { createHash } from 'node:crypto';
+          import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+          const hash = value => createHash('sha256').update(JSON.stringify(value)).digest('hex');
+          const event = JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'));
+          const identity = p => ({ pr: p.number, head: p.head.sha, base: p.base.sha, branch: p.head.ref, draft: p.draft, state: p.state, labels: p.labels.map(l => l.name).sort(), body: p.body ?? '' });
+          const expected = identity(event.pull_request);
+          const response = await fetch(`https://api.github.com/repos/${process.env.GITHUB_REPOSITORY}/pulls/${expected.pr}`, { headers: { authorization: `Bearer ${process.env.GITHUB_TOKEN}`, accept: 'application/vnd.github+json' }, signal: AbortSignal.timeout(30000) });
+          if (!response.ok) throw new Error('Current PR metadata unavailable');
+          const metadata = await response.text();
+          if (Buffer.byteLength(metadata) > 1024 * 1024) throw new Error('Current PR metadata exceeds its bound');
+          const current = identity(JSON.parse(metadata));
+          if (hash(current) !== hash(expected) || current.state !== 'open' || !/^[0-9a-f]{40}$/.test(current.head) || !/^[0-9a-f]{40}$/.test(current.base)) throw new Error('PR identity changed; await the current event');
+          const git = args => execFileSync('git', args, { encoding: 'utf8', timeout: 30000, maxBuffer: 8 * 1024 * 1024 });
+          const mergeBase = git(['merge-base', current.base, current.head]).trim();
+          const paths = git(['diff', '--no-renames', '--name-only', '-z', mergeBase, current.head]).split('\0').filter(Boolean);
+          if (paths.length === 0 || paths.length > 8192 || paths.some(p => /[\x00-\x1f\\]/.test(p) || p.split('/').includes('..'))) throw new Error('Invalid or oversized comparison');
+          const planning = current.draft && paths.every(p => p === 'README.md' || p.startsWith('docs/') || p.startsWith('openspec/'));
+          const value = { schema: 'a1-pr-full-regression-bootstrap-v1', head: current.head, base: current.base, pr: current.pr, selected: !planning, metadataDigest: hash(current), comparisonDigest: hash(paths), reason: planning ? 'planning-only-draft' : 'base-policy-bootstrap' };
+          const selection = { ...value, selectionId: hash(value) };
+          const path = '.artifacts/validation/full-regression-selection.json';
+          if (process.env.SELECTION_MODE === '--verify') {
+            const recorded = JSON.parse(readFileSync(path, 'utf8'));
+            if (hash(recorded) !== hash(selection) || process.env.FULL_REGRESSION_RESULT !== (selection.selected ? 'success' : 'skipped')) throw new Error('Full regression evidence is stale, missing, or unsuccessful');
+          } else {
+            mkdirSync('.artifacts/validation', { recursive: true });
+            writeFileSync(path, JSON.stringify(selection, null, 2) + '\n');
+            appendFileSync(process.env.GITHUB_OUTPUT, `selected=${selection.selected}\nhead=${selection.head}\nbase=${selection.base}\nselection-id=${selection.selectionId}\n`);
+          }
+          appendFileSync(process.env.GITHUB_STEP_SUMMARY, `## PR Full regression\nHead: \`${selection.head}\`\nSelected: **${selection.selected}** (${selection.reason})\nSelection: \`${selection.selectionId}\`\n`);
+          NODE
+          fi
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: pr-full-regression-selection-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .artifacts/validation/full-regression-selection.json
+          if-no-files-found: error
+
+  full-regression:
+    name: PR Full regression
+    needs: full-selection
+    if: needs.full-selection.outputs.selected == 'true'
+    permissions:
+      actions: read
+      contents: read
+    uses: ./.github/workflows/full-regression-shared.yml
+    with:
+      source: ${{ needs.full-selection.outputs.head }}
+      base: ${{ needs.full-selection.outputs.base }}
+      selection: ${{ needs.full-selection.outputs.selection-id }}
+      pr: ${{ github.event.pull_request.number }}
+
   changes:
     name: Detect change surface
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
@@ -616,7 +709,7 @@ jobs:
   required:
     name: "${{ github.event_name == 'pull_request' && github.event.pull_request.draft && 'Draft validation intentionally skipped' || 'Development validation required' }}"
     if: always() && (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
-    needs: [changes, acceptance, delivery, docs, naming, documentation, modular, rendering]
+    needs: [changes, acceptance, delivery, docs, naming, documentation, modular, rendering, full-selection, full-regression]
     permissions:
       actions: read
       contents: read
@@ -627,8 +720,68 @@ jobs:
       - name: Check out selected head
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
-          ref: ${{ needs.changes.outputs.head-sha }}
+          ref: ${{ needs.changes.outputs.head-sha || github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
           persist-credentials: false
+      - name: Check out trusted aggregate policy
+        if: github.event_name == 'pull_request'
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: .artifacts/full-regression-policy
+          persist-credentials: false
+      - name: Download exact PR full-regression selection
+        if: github.event_name == 'pull_request'
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: pr-full-regression-selection-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .artifacts/validation
+      - name: Require current PR full-regression selection and result
+        if: github.event_name == 'pull_request'
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SELECTION_MODE: --verify
+          FULL_REGRESSION_RESULT: ${{ needs.full-regression.result }}
+        run: |
+          set -euo pipefail
+          policy=.artifacts/full-regression-policy/scripts/release/pr-full-regression.mjs
+          if [ -f "$policy" ]; then
+            node "$policy" "$SELECTION_MODE"
+          else
+            node --input-type=module <<'NODE'
+          import { execFileSync } from 'node:child_process';
+          import { createHash } from 'node:crypto';
+          import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+          const hash = value => createHash('sha256').update(JSON.stringify(value)).digest('hex');
+          const event = JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'));
+          const identity = p => ({ pr: p.number, head: p.head.sha, base: p.base.sha, branch: p.head.ref, draft: p.draft, state: p.state, labels: p.labels.map(l => l.name).sort(), body: p.body ?? '' });
+          const expected = identity(event.pull_request);
+          const response = await fetch(`https://api.github.com/repos/${process.env.GITHUB_REPOSITORY}/pulls/${expected.pr}`, { headers: { authorization: `Bearer ${process.env.GITHUB_TOKEN}`, accept: 'application/vnd.github+json' }, signal: AbortSignal.timeout(30000) });
+          if (!response.ok) throw new Error('Current PR metadata unavailable');
+          const metadata = await response.text();
+          if (Buffer.byteLength(metadata) > 1024 * 1024) throw new Error('Current PR metadata exceeds its bound');
+          const current = identity(JSON.parse(metadata));
+          if (hash(current) !== hash(expected) || current.state !== 'open' || !/^[0-9a-f]{40}$/.test(current.head) || !/^[0-9a-f]{40}$/.test(current.base)) throw new Error('PR identity changed; await the current event');
+          const git = args => execFileSync('git', args, { encoding: 'utf8', timeout: 30000, maxBuffer: 8 * 1024 * 1024 });
+          const mergeBase = git(['merge-base', current.base, current.head]).trim();
+          const paths = git(['diff', '--no-renames', '--name-only', '-z', mergeBase, current.head]).split('\0').filter(Boolean);
+          if (paths.length === 0 || paths.length > 8192 || paths.some(p => /[\x00-\x1f\\]/.test(p) || p.split('/').includes('..'))) throw new Error('Invalid or oversized comparison');
+          const planning = current.draft && paths.every(p => p === 'README.md' || p.startsWith('docs/') || p.startsWith('openspec/'));
+          const value = { schema: 'a1-pr-full-regression-bootstrap-v1', head: current.head, base: current.base, pr: current.pr, selected: !planning, metadataDigest: hash(current), comparisonDigest: hash(paths), reason: planning ? 'planning-only-draft' : 'base-policy-bootstrap' };
+          const selection = { ...value, selectionId: hash(value) };
+          const path = '.artifacts/validation/full-regression-selection.json';
+          if (process.env.SELECTION_MODE === '--verify') {
+            const recorded = JSON.parse(readFileSync(path, 'utf8'));
+            if (hash(recorded) !== hash(selection) || process.env.FULL_REGRESSION_RESULT !== (selection.selected ? 'success' : 'skipped')) throw new Error('Full regression evidence is stale, missing, or unsuccessful');
+          } else {
+            mkdirSync('.artifacts/validation', { recursive: true });
+            writeFileSync(path, JSON.stringify(selection, null, 2) + '\n');
+            appendFileSync(process.env.GITHUB_OUTPUT, `selected=${selection.selected}\nhead=${selection.head}\nbase=${selection.base}\nselection-id=${selection.selectionId}\n`);
+          }
+          appendFileSync(process.env.GITHUB_STEP_SUMMARY, `## PR Full regression\nHead: \`${selection.head}\`\nSelected: **${selection.selected}** (${selection.reason})\nSelection: \`${selection.selectionId}\`\n`);
+          NODE
+          fi
       - name: Require acceptance policy for acceptance candidates
         if: github.event_name == 'pull_request' && needs.changes.outputs.acceptance-only == 'true'
         shell: bash
