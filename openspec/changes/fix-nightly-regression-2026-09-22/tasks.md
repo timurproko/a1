@@ -15,5 +15,5 @@
 
 ## 3. Prove
 
-- [ ] 3.1 Dispatch Full regression on the completed fix head and record the passing run number, exact head, and all platform/runtime outcomes in design.md.
-- [ ] 3.2 Complete evidence, gap disposition, and acceptance scenarios for automated finalization and required exact-head CI in this PR.
+- [x] 3.1 Dispatch Full regression on the completed fix head and record the passing run number, exact head, and all platform/runtime outcomes in design.md.
+- [x] 3.2 Complete evidence, gap disposition, and acceptance scenarios for automated finalization and required exact-head CI in this PR.
