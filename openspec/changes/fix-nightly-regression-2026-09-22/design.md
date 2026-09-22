@@ -8,7 +8,7 @@ Opened by the nightly regression triage from the failed run's evidence artifacts
 - Publication run 35754423252 stopped before Windows package validation. `check-environment.mjs` used a 15-second version probe and converted absence, timeout, spawn error, nonzero exit, and unparseable output into the same null result. The log cannot establish which failure occurred. Provision and exercise Rust explicitly before CI builds and retain structured probe failures; keep the existing 15-second deadline and fail-closed build gate.
 - #529 added the owned thinking selector and moved upstream consumers without updating the public-API consumer record. Its list uses upstream `getSelectListTheme()` while its labels use owned `piTheme()`; `applyPiTheme(..., "truecolor")` does not pass that explicit mode to upstream initialization. Give list and borders owned semantic color callbacks, leave the pinned comparison selector unchanged, and cover both themes and color modes.
 - Recheck the API baseline after the current develop merge (#537 already regenerated it); regenerate only actual implementation-derived records.
-- Release #148 also timed out in the Windows Node 22 update-CLI beforeAll hook, which copies and compiles the entire source tree for a CLI-only isolation test. Investigate a narrower real compilation closure without relaxing the 30-second hook or subprocess bounds, loader guards, or assertions.
+- Release #148 also timed out in the Windows Node 22 update-CLI beforeAll hook, which copies and compiles the entire source tree for a CLI-only isolation test. The fresh isolated reproduction passes locally (setup plus test about 10 seconds), but repeats a JavaScript TypeScript compilation under parallel hosted load. Use the repository's already-pinned native TypeScript compiler for this fixture's same full project instead, preserving real compilation, isolation, configuration, the 30-second hook and subprocess bounds, loader guards, and every assertion. This removes compiler overhead without excluding any source or trusting stale dist.
 - Full regression on the completed implementation is required before handoff. Local focused evidence and the smaller develop publication package suite are not substitutes.
 
 ## Consolidated release and publication evidence
@@ -19,7 +19,15 @@ Opened by the nightly regression triage from the failed run's evidence artifacts
 
 ## Known gaps
 
-Implementation and live validation are pending. Do not infer restored publication from local tests or publish before required remote validation passes.
+No product assertions, compile scope, build gates, or existing probe/test deadlines were relaxed. The original Rust probe's exact failure mode is unrecoverable from its discarded result; explicit CI provisioning/warmup and preserved diagnostics address that uncertainty without asserting a proven timeout. Publication itself still requires manual integration and a subsequent release run; do not treat Full regression as registry publication. Cross-platform Full regression evidence is pending.
+
+## Implementation evidence
+
+- Current baseline: after reconciling `7b80f6a3` and installing the locked Pi 0.87.0 dependencies, `update-pinned-pi-public-api.mjs --check` passed (567 exports). The original consumer drift was already repaired on develop. This change subsequently removes only the owned selector's upstream `getSelectListTheme` consumer and regenerates the matching API/source-ledger records.
+- Red/green reproduction: explicit owned color mode opposite host capabilities failed all four dark/light × truecolor/256-color cases before the fix. The same cases pass with owned callbacks for selection, descriptions, markers, and borders, including list reconstruction after filtering.
+- Windows local focused suite: 103 tests passed across environment prerequisites/probes, stdout discipline, prompt-input UX, update-CLI isolation, Pi API baseline, and session-shell workflows. Probe tests cover missing executables, timeout, spawn error, nonzero/signal termination, unparseable output, a real version command, advisory severity, Windows shim quoting, and redacted diagnostics. Hermetic shell tests exercise provisioning order and stop-on-failure at every Rust setup command; parsed workflows verify setup precedes every relevant build.
+- Update-CLI fixture: original full-project JavaScript compilation plus test took 10.14 seconds locally; the same isolated project compiled with the already-pinned native TypeScript compiler plus unchanged assertions took 4.48 seconds under the broader focused run. Both 30000ms limits remain unchanged.
+- Build, source and bin typecheck, architecture, product identity, source-ledger provenance/currentness, full code-documentation audit, full internal-naming audit, and diff whitespace checks passed. An additional 39 tests passed for release workflow/runbook policy, validation suites, Pi parity evidence, and source-ledger governance.
 
 ## Evidence
 

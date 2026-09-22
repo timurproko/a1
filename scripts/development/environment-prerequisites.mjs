@@ -5,6 +5,8 @@
  * This module owns the contract and the wording; probing the machine belongs to its callers.
  */
 
+import { probeFailureDetail } from "./environment-probe.mjs";
+
 export const CARGO_RANGE = ">=1.85";
 
 /**
@@ -70,7 +72,13 @@ export function evaluatePrerequisites(observation) {
     githubCliCheck(observation, platform),
     nodeCheck(observation),
     packageManagerCheck(observation),
-  ];
+  ].map(check => {
+    const probe = observation.probes?.[check.id];
+    const detail = probe && probeFailureDetail(check.id, probe);
+    if (!detail) return check;
+    return { ...check, severity: ["gh", "npm"].includes(check.id) ? ADVISORY : check.severity, satisfied: false, detail,
+      remedy: `run \`${check.id} --version\` directly to diagnose the toolchain before retrying the build` };
+  });
 }
 
 function dependencyCheck({ dependencies }) {

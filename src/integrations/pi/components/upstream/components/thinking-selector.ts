@@ -5,7 +5,8 @@
  * selection, save, cancellation, and focus while accepting the active bare-A1 cycle-key label from the
  * shell, styling the title with the established bold semantic accent treatment, placing its muted hint
  * directly below it, deduplicating levels, and rendering aligned muted descriptions after an adjacent
- * success-colored active marker. The comparison profile retains the public pinned component.
+ * success-colored active marker. All list and border colors use the owned theme and its explicit color
+ * mode. The comparison profile retains the public pinned component.
  * Deviations: owned-level-cycle-shortcut, owned-thinking-selector-heading.
  */
 import {
@@ -20,7 +21,7 @@ import {
 	Spacer,
 	Text,
 } from "@earendil-works/pi-tui";
-import { DynamicBorder, getSelectListTheme } from "@earendil-works/pi-coding-agent";
+import { DynamicBorder } from "@earendil-works/pi-coding-agent";
 import { piTheme } from "../theme/theme.js";
 
 export type ThinkingSelectorLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
@@ -83,7 +84,7 @@ export class OwnedThinkingSelectorComponent extends Container implements Focusab
 				level === defaultThinkingLevel ? `${LEVEL_DESCRIPTIONS[level]} · default` : LEVEL_DESCRIPTIONS[level],
 		}));
 
-		this.addChild(new DynamicBorder());
+		this.addChild(new DynamicBorder((text: string) => piTheme().fg("border", text)));
 		this.addChild(new Spacer(1));
 		this.addChild(new Text(piTheme().fg("accent", piTheme().bold("Thinking Level")), 0, 0));
 		this.addChild(new Text(piTheme().fg("muted", `${cycleKeyDisplay} cycles thinking levels in-session`), 0, 0));
@@ -108,7 +109,7 @@ export class OwnedThinkingSelectorComponent extends Container implements Focusab
 				0,
 			),
 		);
-		this.addChild(new DynamicBorder());
+		this.addChild(new DynamicBorder((text: string) => piTheme().fg("border", text)));
 	}
 
 	private keyDisplayText(keybinding: Parameters<ReturnType<typeof getKeybindings>["getKeys"]>[0]): string {
@@ -133,7 +134,14 @@ export class OwnedThinkingSelectorComponent extends Container implements Focusab
 			const description = item.description ? piTheme().fg("muted", item.description) : "";
 			return { value: item.value, label: `${level}${currentMarker}${separator}${description}` };
 		});
-		const list = new SelectList(themedItems, Math.max(1, themedItems.length), getSelectListTheme(), THINKING_SELECT_LIST_LAYOUT);
+		// Invariant: the bare selector uses the owned theme's explicit color mode, not upstream's host detection.
+		const list = new SelectList(themedItems, Math.max(1, themedItems.length), {
+			selectedPrefix: text => piTheme().fg("accent", text),
+			selectedText: text => piTheme().fg("accent", text),
+			description: text => piTheme().fg("muted", text),
+			scrollInfo: text => piTheme().fg("muted", text),
+			noMatch: text => piTheme().fg("muted", text),
+		}, THINKING_SELECT_LIST_LAYOUT);
 		const currentIndex = themedItems.findIndex((item) => item.value === preselect);
 		if (currentIndex !== -1) list.setSelectedIndex(currentIndex);
 		list.onSelect = (item) => this.onSelect(item.value as ThinkingSelectorLevel);

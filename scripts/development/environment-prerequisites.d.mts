@@ -1,3 +1,5 @@
+import type { VersionProbeResult } from "./environment-probe.mjs";
+
 export type PrerequisiteSeverity = "required" | "advisory";
 export interface PrerequisiteCheck {
   readonly id: string;
@@ -24,6 +26,7 @@ export interface EnvironmentObservation {
   readonly cargo?: string | null;
   readonly rustc?: string | null;
   readonly dependencies?: DependencyObservation;
+  readonly probes?: Readonly<Record<string, VersionProbeResult>>;
 }
 export const CARGO_RANGE: string;
 export const BLOCKING: "required";

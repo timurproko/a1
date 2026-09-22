@@ -5,43 +5,19 @@
  * Cargo error, and runs standalone as `npm run doctor`. It imports nothing outside `node:` builtins
  * because the condition it most needs to diagnose is an absent `node_modules`.
  */
-import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
-import { delimiter, dirname, resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { advisories, blockingFailures, evaluatePrerequisites, formatFailures, formatReport } from "./environment-prerequisites.mjs";
+import { probeVersion } from "./environment-probe.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const verbose = process.argv.includes("--report") || process.env.A1_BUILD_VERBOSE === "1";
 
-/**
- * Platform: Node resolves a bare command against PATH without applying PATHEXT, and refuses to spawn
- * `.cmd` or `.bat` without a shell, so probing by name alone reports a present tool as absent on
- * Windows. Resolving the executable here keeps "not installed" distinguishable from "not spawnable".
- */
-function locate(command) {
-  const extensions = process.platform === "win32" ? (process.env.PATHEXT ?? ".EXE;.CMD;.BAT").split(";").filter(Boolean) : [""];
-  for (const entry of (process.env.PATH ?? "").split(delimiter).filter(Boolean)) {
-    const directory = entry.replace(/^"|"$/gu, "");
-    for (const extension of extensions) {
-      const candidate = resolve(directory, `${command}${extension}`);
-      if (existsSync(candidate)) return candidate;
-    }
-  }
-  return null;
-}
-
-// Security: a `.cmd` or `.bat` shim only runs through a shell, and passing a separate argument
-// vector to a shell concatenates it unescaped. The argument is folded into the quoted command
-// string instead, so nothing but this file's own literals ever reaches the interpreter.
+const probes = {};
 function probe(command) {
-  const executable = locate(command);
-  if (!executable) return null;
-  const shell = /\.(?:cmd|bat)$/iu.test(executable);
-  const options = { encoding: "utf8", windowsHide: true, timeout: 15000, shell };
-  const result = shell ? spawnSync(`"${executable}" --version`, options) : spawnSync(executable, ["--version"], options);
-  if (result.error || result.status !== 0 || typeof result.stdout !== "string") return null;
-  return /(\d+\.\d+(?:\.\d+)?)/u.exec(result.stdout)?.[1] ?? null;
+  probes[command] = probeVersion(command);
+  return probes[command].version;
 }
 
 // Rationale: npm runs this script, so its own banner is already in the environment; spawning the
@@ -85,6 +61,7 @@ const checks = evaluatePrerequisites({
   cargo: probe("cargo"),
   rustc: probe("rustc"),
   dependencies: inspectDependencies(manifest),
+  probes,
 });
 
 if (verbose) process.stdout.write(formatReport(checks, manifest.name));

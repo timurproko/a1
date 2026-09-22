@@ -25,8 +25,9 @@ beforeAll(async () => {
     cp(resolve(repository, "package.json"), resolve(isolatedBuildRoot, "package.json")),
   ]);
   await symlink(resolve(repository, "node_modules"), resolve(isolatedBuildRoot, "node_modules"), "junction");
+  // Performance: compile the same isolated project with the pinned native checker, not a second JS compiler under full-suite load.
   await execFileAsync(process.execPath, [
-    resolve(repository, "node_modules", "typescript", "bin", "tsc"),
+    resolve(repository, "node_modules", "@typescript", "native-preview", "bin", "tsgo"),
     "-p",
     resolve(isolatedBuildRoot, "tsconfig.build.json"),
     "--outDir",
