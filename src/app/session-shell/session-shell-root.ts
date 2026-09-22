@@ -770,7 +770,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
         // fitting alignment, and live Working remain transient presentation chrome.
         selectableDocumentRowCount,
         ...(document.liveTailStartRow === undefined ? {} : { liveTailStartRow: document.liveTailStartRow }),
-        bottomAlignedTailRowCount: statusRows.length,
+        bottomAlignedTailRowCount: steeringRows.length + statusRows.length,
         dockRows,
         promptAnchors: document.promptAnchors,
         width,
