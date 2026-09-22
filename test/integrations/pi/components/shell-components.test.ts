@@ -435,13 +435,18 @@ describe("Pi shell public component adapters", () => {
     const hotkeysFeed = createPiShellHotkeys(undefined, shortcuts, "a1").render(width);
     expect(stripTerminalSequences(hotkeysFeed[2] ?? "")).toContain("Keyboard Shortcuts");
     const hotkeys = renderPiShellHotkeysLines({ getShortcuts: shortcuts, profile: "a1" }, width);
-    expect(hotkeys).toEqual(hotkeysFeed.slice(4, hotkeysFeed.length - 1));
-    const plain = stripTerminalSequences(hotkeys.join("\n"));
-    expect(plain).toContain("Navigation");
+    const plainRows = hotkeys.map(row => stripTerminalSequences(row).trimEnd());
+    const plain = plainRows.join("\n");
+    for (const section of ["Navigation", "Editing", "Other", "Models dialog", "Extensions"]) {
+      const index = plainRows.findIndex(row => row.trim() === section);
+      expect(index).toBeGreaterThanOrEqual(0);
+      expect(hotkeys[index]).toContain(piTheme().fg("accent", piTheme().bold(section)));
+      expect(plainRows[index + 1]?.trim()).not.toBe("");
+    }
     expect(plain).toContain("Start of content");
-    expect(plain).toContain("Extensions");
     expect(plain).toContain("Probe extension");
     expect(plain).not.toContain("Keyboard Shortcuts");
+    // The comparison profile retains the exact in-feed Markdown rows.
     expect(renderPiShellHotkeysLines({}, width)).toEqual(createPiShellHotkeys().render(width).slice(4, -1));
   });
 
