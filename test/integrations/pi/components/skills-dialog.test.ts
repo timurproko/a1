@@ -59,7 +59,7 @@ describe("the Skills dialog", () => {
       "",
       "  Design, edit, and publish Framer sites",
       "",
-      "  ↑↓ navigate  enter select  escape/ctrl+c cancel",
+      "  ↑↓ navigate  Enter select  Escape/Ctrl+C cancel",
       "─".repeat(80),
     ]);
     expect(plain(40)).toEqual([
@@ -76,8 +76,8 @@ describe("the Skills dialog", () => {
       "  Design, edit, and publish Framer sites",
       "",
       // Compatibility: the pinned Text component wraps the footer at a narrow width.
-      "  ↑↓ navigate  enter select",
-      "escape/ctrl+c cancel",
+      "  ↑↓ navigate  Enter select",
+      "Escape/Ctrl+C cancel",
       "─".repeat(40),
     ]);
     const rows = semantic(component.render(80));
@@ -93,15 +93,15 @@ describe("the Skills dialog", () => {
     const pinned = new ExtensionSelectorComponent("Pinned", ["one"], () => {}, () => {}).render(80)
       .map(row => stripTerminalSequences(row).trim()).find(row => row.includes("navigate"));
     const footer = component.render(80).map(row => stripTerminalSequences(row).trim()).find(row => row.includes("navigate"));
-    expect(footer).toBe(pinned);
-    expect(footer).toBe("↑↓ navigate  enter select  escape/ctrl+c cancel");
+    expect(footer?.toLowerCase()).toBe(pinned);
+    expect(footer).toBe("↑↓ navigate  Enter select  Escape/Ctrl+C cancel");
   });
 
   it("wraps the selection, shows the selected description, and applies with Enter", () => {
     const { component, onSelect, onCancel, plain } = dialog();
     component.handleInput?.(UP);
     // Invariant: a skill without a description shows no description block.
-    expect(plain(80).slice(6, 11)).toEqual(["  skill:framer", "  skill:code-review", "→ skill:apply-patch", "", "  ↑↓ navigate  enter select  escape/ctrl+c cancel"]);
+    expect(plain(80).slice(6, 11)).toEqual(["  skill:framer", "  skill:code-review", "→ skill:apply-patch", "", "  ↑↓ navigate  Enter select  Escape/Ctrl+C cancel"]);
     component.handleInput?.(DOWN);
     expect(plain(80).slice(6, 11)).toEqual(["→ skill:framer", "  skill:code-review", "  skill:apply-patch", "", "  Design, edit, and publish Framer sites"]);
     component.handleInput?.(DOWN);
@@ -116,14 +116,14 @@ describe("the Skills dialog", () => {
     const { plain } = dialog([{ name: "openspec-update-change", description: long }]);
     const rows = plain(60);
     expect(rows[8]).toBe("  " + long.slice(0, 58));
-    expect(rows.slice(9)).toEqual(["", "  ↑↓ navigate  enter select  escape/ctrl+c cancel", "─".repeat(60)]);
+    expect(rows.slice(9)).toEqual(["", "  ↑↓ navigate  Enter select  Escape/Ctrl+C cancel", "─".repeat(60)]);
   });
 
   it("filters on name or description ignoring case and skill:, resets the selection, and reports no matches", () => {
     const { component, onSelect, plain, type } = dialog();
     component.handleInput?.(DOWN);
     type("SKILL:APP");
-    expect(plain(80).slice(4, 9)).toEqual(["> SKILL:APP", "", "→ skill:apply-patch", "", "  ↑↓ navigate  enter select  escape/ctrl+c cancel"]);
+    expect(plain(80).slice(4, 9)).toEqual(["> SKILL:APP", "", "→ skill:apply-patch", "", "  ↑↓ navigate  Enter select  Escape/Ctrl+C cancel"]);
     for (let index = 0; index < "SKILL:APP".length; index++) component.handleInput?.(BACKSPACE);
     type("diff");
     expect(plain(80).slice(6, 9)).toEqual(["→ skill:code-review", "", "  Review the current diff"]);

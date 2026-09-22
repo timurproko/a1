@@ -49,6 +49,8 @@ describe("bounded project trust terminal preflight", () => {
     expect(output.text).toContain("D:/work");
     expect(output.text).toContain("→ Trust");
     expect(output.text).toContain("Do not trust");
+    expect(output.text).toContain("\u001b[38;2;102;102;102m  ↑/↓\u001b[38;2;128;128;128m to navigate  \u001b[38;2;102;102;102mEnter\u001b[38;2;128;128;128m to select");
+    expect(output.text).not.toMatch(/[·•]/u);
     expect(input.rawTransitions).toEqual([true, false]);
   });
 

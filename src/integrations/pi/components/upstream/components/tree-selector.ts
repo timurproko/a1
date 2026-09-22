@@ -3,8 +3,9 @@
  * packages/coding-agent/src/modes/interactive/components/tree-selector.ts.
  * Modifications: Source-synchronized tree selector port: preserve filtering, folding, labels, copying,
  * tree navigation, key hints, focus, and viewport behavior while remapping public types/components
- * plus owned keybindings/theme helpers required to avoid the pinned package nested pi-tui singleton.
- * Deviations: none.
+ * plus owned keybindings/theme helpers required to avoid the pinned package nested pi-tui singleton;
+ * bare A1 uses the shared semantic modal shortcut row.
+ * Deviations: owned-modal-shortcut-hints.
  */
 import {
 	type Component,
@@ -21,7 +22,7 @@ import {
 } from "@earendil-works/pi-tui";
 import { DynamicBorder, type SessionTreeNode } from "@earendil-works/pi-coding-agent";
 import { KeybindingsManager } from "../adjacent/core/keybindings.js";
-import { piTheme } from "../theme/theme.js";
+import { piTheme, renderPiModalShortcutHints, type PiModalShortcutHint } from "../../theme.js";
 
 const theme = new Proxy({} as ReturnType<typeof piTheme>, {
 	get(_target, property) {
@@ -40,8 +41,8 @@ function formatKeyText(key: string): string {
 		.join("/");
 }
 
-function keyHint(keybinding: Parameters<KeybindingsManager["getKeys"]>[0], description: string): string {
-	return theme.fg("dim", formatKeyText(treeKeybindings.getKeys(keybinding).join("/"))) + theme.fg("muted", ` ${description}`);
+function shortcutHint(keybinding: Parameters<KeybindingsManager["getKeys"]>[0], action: string): PiModalShortcutHint {
+	return { key: formatKeyText(treeKeybindings.getKeys(keybinding).join("/")), action };
 }
 
 /** Gutter info: position (displayIndent where connector was) and whether to show │ */
@@ -1220,14 +1221,13 @@ class TreeHelp implements Component {
 
 	render(width: number): string[] {
 		const items = TREE_HELP_ITEMS.map(({ keys, label, labelFirst }) => {
-			const text = formatHelpKeys(keys);
-			if (!text) return label;
-			return labelFirst ? `${label} ${text}` : `${text} ${label}`;
+			const key = formatHelpKeys(keys);
+			return renderPiModalShortcutHints([key ? { key, action: label, ...(labelFirst === undefined ? {} : { actionFirst: labelFirst }) } : { action: label }]);
 		});
 
 		const availableWidth = Math.max(1, width);
 		const indent = "  ";
-		const separator = " · ";
+		const separator = "  ";
 		const lines: string[] = [];
 		let currentLine = "";
 
@@ -1250,7 +1250,7 @@ class TreeHelp implements Component {
 			lines.push(...wrapTextWithAnsi(currentLine.trimEnd(), availableWidth));
 		}
 
-		return lines.map((line) => theme.fg("muted", line));
+		return lines;
 	}
 }
 
@@ -1342,7 +1342,10 @@ class LabelInput implements Component, Focusable {
 		lines.push(...this.input.render(availableWidth).map((line) => truncateToWidth(`${indent}${line}`, width)));
 		lines.push(
 			truncateToWidth(
-				`${indent}${keyHint("tui.select.confirm", "save")}  ${keyHint("tui.select.cancel", "cancel")}`,
+				renderPiModalShortcutHints([
+					shortcutHint("tui.select.confirm", "save"),
+					shortcutHint("tui.select.cancel", "cancel"),
+				], indent.length),
 				width,
 			),
 		);

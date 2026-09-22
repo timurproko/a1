@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-09-22T22:50:33.974Z",
+  "recordedAt": "2026-09-22T23:18:50.222Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "16787ad5b2dc748047f314ca1bfe7708f30f54f3",
@@ -38,8 +38,8 @@
     "sourceModules": 114,
     "assets": 4,
     "classifications": {
-      "public-api-reuse": 62,
-      "owned-presentation": 28,
+      "public-api-reuse": 60,
+      "owned-presentation": 30,
       "host-adaptation": 28
     },
     "requiredBehaviorIds": 29,
@@ -1574,10 +1574,17 @@
       "localDestination": "src/integrations/pi/components/upstream/components/extension-editor.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Mechanical port: remap pi-tui to the root public singleton, use owned keybindings/theme and external-editor seams, preserve editor layout, hints, focus, submission, cancellation, and external-editor lifecycle.",
+      "modifications": "Mechanical port: remap pi-tui to the root public singleton, use owned keybindings/theme and external-editor seams, preserve editor layout, hints, focus, submission, cancellation, and external-editor lifecycle; bare A1 uses the shared semantic modal shortcut row.",
       "upgradeStrategy": "three-way",
-      "localSha256": "cfe80429cb7c1483af1e1ab2237a81091b10d5c42def4edc6d25e793c4716824",
-      "approvedDeviations": [],
+      "localSha256": "bd1ab618834da9e7432b509b0cc4549614077d4813662e39c050f3b4f21d7a87",
+      "approvedDeviations": [
+        {
+          "id": "owned-modal-shortcut-hints",
+          "reason": "Bare A1 distinguishes shortcut keys from action names and separates modal hint entries with whitespace instead of dots.",
+          "upstreamBehavior": "The comparison profile retains pinned components while bare-A1 bindings, wording, and modal behavior remain unchanged.",
+          "acceptanceTest": "test/integrations/pi/components/extension-ui-bridge.test.ts"
+        }
+      ],
       "behaviorCategories": [
         "editor",
         "autocomplete",
@@ -1610,12 +1617,21 @@
       "sourceMap": "modes/interactive/components/extension-input.js.map",
       "lines": 95,
       "sha256": "efd8f7c27b2a1f1a9215e0cca31a34b3d54db2783ade2914dfa1facf8e1945bd",
-      "classification": "public-api-reuse",
-      "localDestination": "src/integrations/pi/components/index.ts",
-      "implementationStatus": "available-through-pinned-package",
+      "classification": "owned-presentation",
+      "localDestination": "src/integrations/pi/components/upstream/components/extension-input.ts",
+      "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "None planned; import the exact component or helper from the pinned public coding-agent package root.",
-      "approvedDeviations": [],
+      "modifications": "Mechanical port: remap public imports, use ECMAScript private fields, and route the bare-A1 instruction row through the shared semantic shortcut renderer while preserving input, timeout, focus, submission, cancellation, and disposal behavior.",
+      "upgradeStrategy": "three-way",
+      "localSha256": "0ffef39917d9e6f959aededc8655050c03fa2c92e8e68401b82cd08456ad288b",
+      "approvedDeviations": [
+        {
+          "id": "owned-modal-shortcut-hints",
+          "reason": "Bare A1 uses display-capitalized shortcut labels, lowercase action names, semantic roles, and whitespace-only entry gaps.",
+          "upstreamBehavior": "The comparison profile retains pinned components while bare-A1 bindings, wording, and modal behavior remain unchanged.",
+          "acceptanceTest": "test/integrations/pi/components/extension-ui-bridge.test.ts"
+        }
+      ],
       "behaviorCategories": [
         "selectors",
         "settings",
@@ -1651,12 +1667,21 @@
       "sourceMap": "modes/interactive/components/extension-selector.js.map",
       "lines": 118,
       "sha256": "d83767b09d73264eb0cb9af54b6f13e0e9c15a429a6dd7b9c8e7498e013b7704",
-      "classification": "public-api-reuse",
-      "localDestination": "src/integrations/pi/components/index.ts",
-      "implementationStatus": "available-through-pinned-package",
+      "classification": "owned-presentation",
+      "localDestination": "src/integrations/pi/components/upstream/components/extension-selector.ts",
+      "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "None planned; import the exact component or helper from the pinned public coding-agent package root.",
-      "approvedDeviations": [],
+      "modifications": "Mechanical port: remap public imports, use ECMAScript private fields, and route the bare-A1 instruction row through the shared semantic shortcut renderer while preserving options, timeout, navigation, selection, cancellation, and disposal behavior.",
+      "upgradeStrategy": "three-way",
+      "localSha256": "d11ba6067431ac13493b0fa7f08d05369370f4ff507281bdfe68b3ffe0c9d4d0",
+      "approvedDeviations": [
+        {
+          "id": "owned-modal-shortcut-hints",
+          "reason": "Bare A1 uses display-capitalized shortcut labels, lowercase action names, semantic roles, and whitespace-only entry gaps.",
+          "upstreamBehavior": "The comparison profile retains pinned components while bare-A1 bindings, wording, and modal behavior remain unchanged.",
+          "acceptanceTest": "test/integrations/pi/components/extension-ui-bridge.test.ts"
+        }
+      ],
       "behaviorCategories": [
         "selectors",
         "settings",
@@ -2037,10 +2062,17 @@
       "localDestination": "src/integrations/pi/components/upstream/components/scoped-models-selector.ts",
       "implementationStatus": "ported",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Source-synchronized scoped-model selector port: preserve session-only toggles, search, bulk/provider/reorder actions, dirty state, Ctrl+S persistence, refresh status, cancellation, and focus while remapping theme and public helper imports; local key labels preserve pinned platform formatting before layout without changing binding identities.",
+      "modifications": "Source-synchronized scoped-model selector port: preserve session-only toggles, search, bulk/provider/reorder actions, dirty state, Ctrl+S persistence, refresh status, cancellation, and focus while remapping theme and public helper imports; local key labels preserve pinned platform formatting before layout without changing binding identities, and bare A1 uses the shared semantic modal shortcut row.",
       "upgradeStrategy": "three-way",
-      "localSha256": "dad3b57ca3b472255d2be1c85f02d9b6ca3fa2739cb5ddada8e15587b56dfc97",
-      "approvedDeviations": [],
+      "localSha256": "cf99d8f03b8b6eb91018b29be2b4c10fd393ee41885390f588c4ed3bf5ca6075",
+      "approvedDeviations": [
+        {
+          "id": "owned-modal-shortcut-hints",
+          "reason": "Bare A1 distinguishes shortcut keys from action names and separates modal hint entries with whitespace instead of dots.",
+          "upstreamBehavior": "The comparison profile retains pinned components while bare-A1 bindings, wording, and modal behavior remain unchanged.",
+          "acceptanceTest": "test/integrations/pi/components/scoped-model-platform-hints.test.ts"
+        }
+      ],
       "behaviorCategories": [
         "selectors",
         "settings",
@@ -2118,10 +2150,17 @@
       "localDestination": "src/integrations/pi/components/upstream/components/session-selector.ts",
       "implementationStatus": "ported",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Source-synchronized session selector port: preserve threaded/current/all scope, search, sort, named/path filters, rename, delete confirmation, active-session protection, loading progress, cancellation, focus, and disposal while remapping public helpers, owned keybindings/theme, and canonical path handling.",
+      "modifications": "Source-synchronized session selector port: preserve threaded/current/all scope, search, sort, named/path filters, rename, delete confirmation, active-session protection, loading progress, cancellation, focus, and disposal while remapping public helpers, owned keybindings/theme, canonical path handling, and the shared bare-A1 modal shortcut row.",
       "upgradeStrategy": "three-way",
-      "localSha256": "5a4a9711156a45a407ba011e3a3c470a4920dbc87a83721f1b6bb39769fd7944",
-      "approvedDeviations": [],
+      "localSha256": "432d941b6cc2e23938382eaf1981a4b6734f39f2c879e763c52f8b6b4e045966",
+      "approvedDeviations": [
+        {
+          "id": "owned-modal-shortcut-hints",
+          "reason": "Bare A1 distinguishes shortcut keys from action names and separates modal hint entries with whitespace instead of dots.",
+          "upstreamBehavior": "The comparison profile retains pinned components while bare-A1 bindings, wording, and modal behavior remain unchanged.",
+          "acceptanceTest": "test/integrations/pi/components/session-selector.test.ts"
+        }
+      ],
       "behaviorCategories": [
         "selectors",
         "settings",
@@ -2387,10 +2426,16 @@
       "localDestination": "src/integrations/pi/components/upstream/components/thinking-selector.ts",
       "implementationStatus": "ported",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Preserve the searchable thinking-level selector, current/default semantics, selection, save, cancellation, and focus while accepting the active bare-A1 cycle-key label from the shell, styling the title with the established bold semantic accent treatment, placing its muted hint directly below it, deduplicating levels, and rendering aligned muted descriptions after an adjacent success-colored active marker. All list and border colors use the owned theme and its explicit color mode. The comparison profile retains the public pinned component.",
+      "modifications": "Preserve the searchable thinking-level selector, current/default semantics, selection, save, cancellation, and focus while accepting the active bare-A1 cycle-key label from the shell, styling the title with the established bold semantic accent treatment, placing its muted hint directly below it, deduplicating levels, and rendering aligned muted descriptions after adjacent active and bracketed default markers. All list and border colors use the owned theme and its explicit color mode, and the footer uses the shared bare-A1 modal shortcut row. The comparison profile retains the public pinned component.",
       "upgradeStrategy": "three-way",
-      "localSha256": "c5b130a5ae5adf3f163a35e545399ba460ffc7534ce125096ff8b31aa3fe3c83",
+      "localSha256": "3ce79f4488e430e82dff66f2fea8666003068a0e7d4a61218854bcbc6ef5c79b",
       "approvedDeviations": [
+        {
+          "id": "owned-modal-shortcut-hints",
+          "reason": "Bare A1 distinguishes shortcut keys from action names and separates modal hint entries with whitespace instead of dots.",
+          "upstreamBehavior": "The comparison profile retains pinned components while bare-A1 bindings, wording, and modal behavior remain unchanged.",
+          "acceptanceTest": "test/integrations/pi/components/prompt-input-ux.test.ts"
+        },
         {
           "id": "owned-level-cycle-shortcut",
           "reason": "Bare A1 presents its accepted Ctrl+L level-cycle binding instead of the pinned Shift+Tab default inside the selector.",
@@ -2399,7 +2444,7 @@
         },
         {
           "id": "owned-thinking-selector-heading",
-          "reason": "The accepted bare-A1 presentation uses the same bold semantic accent heading and compact row treatment as its Models configuration surface, including an adjacent muted hint, unique level rows, aligned muted descriptions, and one adjacent success-colored active marker.",
+          "reason": "The accepted bare-A1 presentation uses the same bold semantic accent heading and compact row treatment as its Models configuration surface, including an adjacent muted hint, unique level rows, aligned muted descriptions, one adjacent success-colored active marker, and an adjacent bracketed default marker.",
           "upstreamBehavior": "Selector geometry, search, navigation, selection, persistence, cancellation, and focus remain source-equivalent; duplicate footer level presentation is suppressed only while the selector is open.",
           "acceptanceTest": "test/app/session-shell/session-shell-workflows.test.ts"
         }
@@ -2491,10 +2536,17 @@
       "localDestination": "src/integrations/pi/components/upstream/components/tree-selector.ts",
       "implementationStatus": "ported",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Source-synchronized tree selector port: preserve filtering, folding, labels, copying, tree navigation, key hints, focus, and viewport behavior while remapping public types/components plus owned keybindings/theme helpers required to avoid the pinned package nested pi-tui singleton.",
+      "modifications": "Source-synchronized tree selector port: preserve filtering, folding, labels, copying, tree navigation, key hints, focus, and viewport behavior while remapping public types/components plus owned keybindings/theme helpers required to avoid the pinned package nested pi-tui singleton; bare A1 uses the shared semantic modal shortcut row.",
       "upgradeStrategy": "three-way",
-      "localSha256": "2abc3f00b224b7f155998c473028c8d9ebe41401c7c4fea8058510298b0d66af",
-      "approvedDeviations": [],
+      "localSha256": "075db098aaf1bfef4a3ac0c07b46bf230fa99700ca1d03e7f6b36547e622e702",
+      "approvedDeviations": [
+        {
+          "id": "owned-modal-shortcut-hints",
+          "reason": "Bare A1 distinguishes shortcut keys from action names and separates modal hint entries with whitespace instead of dots.",
+          "upstreamBehavior": "The comparison profile retains pinned components while bare-A1 bindings, wording, and modal behavior remain unchanged.",
+          "acceptanceTest": "test/repository-governance/pi-modal-surface-inventory.test.ts"
+        }
+      ],
       "behaviorCategories": [
         "selectors",
         "settings",
@@ -2531,10 +2583,17 @@
       "localDestination": "src/integrations/pi/components/upstream/components/trust-selector.ts",
       "implementationStatus": "ported",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Mechanical source-synchronized trust selector port with injected public ProjectTrustStore-derived options and remapped owned theme imports.",
+      "modifications": "Mechanical source-synchronized trust selector port with injected public ProjectTrustStore-derived options, remapped owned theme imports, and the shared bare-A1 modal shortcut row.",
       "upgradeStrategy": "three-way",
-      "localSha256": "5d8ae4b6eef013f75f82695e2d8a99e666a95d6fa12813351203494024973560",
-      "approvedDeviations": [],
+      "localSha256": "dbe3ecb15a93cfab9b4c399def88bb29fc7020dc77406c30d3b24c8bc5685a8c",
+      "approvedDeviations": [
+        {
+          "id": "owned-modal-shortcut-hints",
+          "reason": "Bare A1 distinguishes shortcut keys from action names and separates modal hint entries with whitespace instead of dots.",
+          "upstreamBehavior": "The comparison profile retains pinned components while bare-A1 bindings, wording, and modal behavior remain unchanged.",
+          "acceptanceTest": "test/integrations/pi/engine/project-trust-context.test.ts"
+        }
+      ],
       "behaviorCategories": [
         "selectors",
         "settings",

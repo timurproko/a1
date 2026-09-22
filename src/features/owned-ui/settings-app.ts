@@ -24,7 +24,7 @@ import {
   renderInputRow,
   renderListRow,
   renderNote,
-  statusText,
+  renderShortcutHints,
   dialogRowAt,
   menuRowAt,
   regionAt,
@@ -896,16 +896,20 @@ export class SettingsApp implements UiApp {
     });
     this.#dialogValueColumn = dialogValueColumn(rows);
     this.#panelTop = this.#panelTopForFrame;
-    return renderDialogPanel({ rows, index: open.index, hint: SETTINGS_SHORTCUTS.hint(DIALOG_SCOPE) }, width, theme);
+    return renderDialogPanel({ rows, index: open.index, hint: SETTINGS_SHORTCUTS.hintEntries(DIALOG_SCOPE) }, width, theme);
   }
 
   #footerLines(width: number, theme: UiTheme): readonly string[] {
     const open = this.#structured;
     if (open !== null) return this.#dialogLines(open, width, theme);
 
-    const hint = this.#interruptArmed ? "press ctrl+c again to exit a1" : SETTINGS_SHORTCUTS.hint(SCOPE);
-    const report = statusText({ hint, report: this.#notice });
-    const status = truncateToWidth(`${width > 0 ? " " : ""}${theme.fg("dim", report)}`, width);
+    const notice = this.#notice;
+    const plainStatus = notice !== null && notice.length > 0
+      ? notice
+      : this.#interruptArmed ? "press ctrl+c again to exit a1" : null;
+    const status = plainStatus === null
+      ? truncateToWidth(renderShortcutHints(SETTINGS_SHORTCUTS.hintEntries(SCOPE), theme, width > 0 ? 1 : 0), width)
+      : truncateToWidth(`${width > 0 ? " " : ""}${theme.fg("dim", plainStatus)}`, width);
     const input = this.#filter;
     if (input === null) return [status];
     return [...renderInputRow(input, width, { placeholder: SEARCH_PLACEHOLDER, theme }).lines, status];

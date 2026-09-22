@@ -1,6 +1,6 @@
-import { DynamicBorder, keyHint, rawKeyHint } from "../startup-public.js";
+import { DynamicBorder } from "../startup-public.js";
 import { Container, getKeybindings, Input, Spacer, Text } from "@earendil-works/pi-tui";
-import { PINNED_PI_LAYOUT, piTheme } from "./theme.js";
+import { PINNED_PI_LAYOUT, piTheme, renderPiModalShortcutHints } from "./theme.js";
 import { componentPort, ensureTheme, piShellTruncateToWidth, piShellVisibleWidth, type PiShellComponentPort } from "./shell-shared-facade.js";
 import { SKILL_COMMAND_PREFIX, skillMatchesQuery, type PiShellSkillSummary } from "./skills-command.js";
 
@@ -54,7 +54,12 @@ class SkillsSelectorComponent extends Container {
     this.addChild(new Spacer(1));
     this.addChild(this.#listContainer);
     this.addChild(new Spacer(1));
-    this.addChild(new Text(`  ${rawKeyHint("↑↓", "navigate")}  ${keyHint("tui.select.confirm", "select")}  ${keyHint("tui.select.cancel", "cancel")}`, 0, 0));
+    const bindings = getKeybindings();
+    this.addChild(new Text(renderPiModalShortcutHints([
+      { key: "↑↓", action: "navigate" },
+      { key: bindings.getKeys("tui.select.confirm").join("/"), action: "select" },
+      { key: bindings.getKeys("tui.select.cancel").join("/"), action: "cancel" },
+    ], 2), 0, 0));
     this.addChild(new DynamicBorder());
     this.#updateList();
   }

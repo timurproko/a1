@@ -4,8 +4,8 @@
  * Modifications: Source-synchronized session selector port: preserve threaded/current/all scope,
  * search, sort, named/path filters, rename, delete confirmation, active-session protection, loading
  * progress, cancellation, focus, and disposal while remapping public helpers, owned keybindings/theme,
- * and canonical path handling.
- * Deviations: none.
+ * canonical path handling, and the shared bare-A1 modal shortcut row.
+ * Deviations: owned-modal-shortcut-hints.
  */
 import { spawnSync } from "node:child_process";
 import { existsSync, realpathSync } from "node:fs";
@@ -24,7 +24,7 @@ import {
 } from "@earendil-works/pi-tui";
 import { KeybindingsManager } from "../adjacent/core/keybindings.js";
 import { DynamicBorder, type SessionInfo } from "@earendil-works/pi-coding-agent";
-import { piTheme } from "../theme/theme.js";
+import { piTheme, renderPiModalShortcutHints, type PiModalShortcutHint } from "../../theme.js";
 
 type SessionListProgress = (
 	loaded: number,
@@ -47,8 +47,8 @@ function keyText(keybinding: KeybindingName, keybindings: KeybindingsManager): s
 	return keybindings.getKeys(keybinding).join("/");
 }
 
-function keyHint(keybinding: KeybindingName, description: string, keybindings: KeybindingsManager): string {
-	return theme.fg("dim", keyText(keybinding, keybindings)) + theme.fg("muted", ` ${description}`);
+function shortcutHint(keybinding: KeybindingName, action: string, keybindings: KeybindingsManager): PiModalShortcutHint {
+	return { key: keyText(keybinding, keybindings), action };
 }
 import { filterAndSortSessions, hasSessionName, type NameFilter, type SortMode } from "./session-selector-search.js";
 
@@ -199,8 +199,11 @@ class SessionSelectorHeader implements Component {
 		let hintLine1: string;
 		let hintLine2: string;
 		if (this.confirmingDeletePath !== null) {
-			const confirmHint = `Delete session? ${keyHint("tui.select.confirm", "confirm", this.keybindings)} · ${keyHint("tui.select.cancel", "cancel", this.keybindings)}`;
-			hintLine1 = theme.fg("error", truncateToWidth(confirmHint, width, "…"));
+			const confirmHint = theme.fg("error", "Delete session? ") + renderPiModalShortcutHints([
+				shortcutHint("tui.select.confirm", "confirm", this.keybindings),
+				shortcutHint("tui.select.cancel", "cancel", this.keybindings),
+			]);
+			hintLine1 = truncateToWidth(confirmHint, width, "…");
 			hintLine2 = "";
 		} else if (this.statusMessage) {
 			const color = this.statusMessage.type === "error" ? "error" : "accent";
@@ -208,19 +211,21 @@ class SessionSelectorHeader implements Component {
 			hintLine2 = "";
 		} else {
 			const pathState = this.showPath ? "(on)" : "(off)";
-			const sep = theme.fg("muted", " · ");
-			const hint1 =
-				keyHint("tui.input.tab", "scope", this.keybindings) + sep + theme.fg("muted", 're:<pattern> regex · "phrase" exact');
-			const hint2Parts = [
-				keyHint("app.session.toggleSort", "sort", this.keybindings),
-				keyHint("app.session.toggleNamedFilter", "named", this.keybindings),
-				keyHint("app.session.delete", "delete", this.keybindings),
-				keyHint("app.session.togglePath", `path ${pathState}`, this.keybindings),
+			const hint1 = renderPiModalShortcutHints([
+				shortcutHint("tui.input.tab", "scope", this.keybindings),
+				{ action: "re:<pattern> regex" },
+				{ action: '"phrase" exact' },
+			]);
+			const hint2Parts: PiModalShortcutHint[] = [
+				shortcutHint("app.session.toggleSort", "sort", this.keybindings),
+				shortcutHint("app.session.toggleNamedFilter", "named", this.keybindings),
+				shortcutHint("app.session.delete", "delete", this.keybindings),
+				shortcutHint("app.session.togglePath", `path ${pathState}`, this.keybindings),
 			];
 			if (this.showRenameHint) {
-				hint2Parts.push(keyHint("app.session.rename", "rename", this.keybindings));
+				hint2Parts.push(shortcutHint("app.session.rename", "rename", this.keybindings));
 			}
-			const hint2 = hint2Parts.join(sep);
+			const hint2 = renderPiModalShortcutHints(hint2Parts);
 			hintLine1 = truncateToWidth(hint1, width, "…");
 			hintLine2 = truncateToWidth(hint2, width, "…");
 		}
@@ -936,13 +941,10 @@ export class SessionSelectorComponent extends Container implements Focusable {
 		panel.addChild(new Spacer(1));
 		panel.addChild(this.renameInput);
 		panel.addChild(new Spacer(1));
-		panel.addChild(
-			new Text(
-				theme.fg("muted", `${keyText("tui.select.confirm", this.keybindings)} to save · ${keyText("tui.select.cancel", this.keybindings)} to cancel`),
-				1,
-				0,
-			),
-		);
+		panel.addChild(new Text(renderPiModalShortcutHints([
+			shortcutHint("tui.select.confirm", "to save", this.keybindings),
+			shortcutHint("tui.select.cancel", "to cancel", this.keybindings),
+		]), 1, 0));
 
 		this.buildBaseLayout(panel, { showHeader: false });
 		this.requestRender();

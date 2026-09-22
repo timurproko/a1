@@ -1,5 +1,49 @@
 export type PresentationRuntimeState = "idle" | "running" | "stopping" | "stopped" | "failed";
 
+export interface SemanticShortcutHint {
+  readonly key?: string;
+  readonly action: string;
+  readonly actionFirst?: boolean;
+}
+
+export interface ShortcutHintRoles {
+  key(label: string): string;
+  action(name: string): string;
+}
+
+const SHORTCUT_KEY_NAMES: Readonly<Record<string, string>> = Object.freeze({
+  alt: "Alt", backspace: "Backspace", cmd: "Cmd", ctrl: "Ctrl", delete: "Delete", down: "Down", end: "End",
+  enter: "Enter", esc: "Esc", escape: "Escape", home: "Home", insert: "Insert", left: "Left", meta: "Meta",
+  option: "Option", pagedown: "PageDown", pageup: "PageUp", pgdn: "PgDn", pgup: "PgUp", return: "Return",
+  right: "Right", shift: "Shift", space: "Space", tab: "Tab", up: "Up",
+});
+
+/** Applies the common display casing to each named key and letter in a shortcut label. */
+export function displayShortcutKeyLabel(label: string): string {
+  if (label === "/") return label;
+  return label.split("/").map(chord => chord.split("+").map(part => {
+    const named = SHORTCUT_KEY_NAMES[part.toLowerCase()];
+    if (named !== undefined) return named;
+    return /^\p{L}$/u.test(part) ? part.toUpperCase() : part;
+  }).join("+")).join("/");
+}
+
+/** Renders the canonical semantic shortcut row independently of either presentation framework. */
+export function renderSemanticShortcutHints(
+  entries: readonly SemanticShortcutHint[],
+  roles: ShortcutHintRoles,
+  indent = 0,
+): string {
+  const rendered = entries.flatMap(entry => {
+    if (entry.key === "" || (entry.key !== undefined && entry.key.trim().length === 0)) return [];
+    if (entry.key === undefined) return entry.action.length === 0 ? [] : [roles.action(entry.action)];
+    const key = roles.key(displayShortcutKeyLabel(entry.key));
+    const action = roles.action(entry.action);
+    return [entry.actionFirst ? `${action} ${key}` : `${key} ${action}`];
+  });
+  return `${" ".repeat(Math.max(0, indent))}${rendered.join("  ")}`;
+}
+
 export interface PresentationComponentPort {
   render(width: number): readonly string[];
   invalidate(): void;

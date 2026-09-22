@@ -5,6 +5,8 @@
  * listed shortcut is one dispatch would actually invoke.
  */
 
+import type { ShortcutHintEntry } from "./shortcut-hints.js";
+
 export interface ShortcutDeclaration {
   /** Key token, for example `up`, `shift+down`, `ctrl+c`, or a literal character. */
   readonly key: string;
@@ -97,14 +99,18 @@ export class ShortcutRegistry<Action extends string = string> {
    * the same declarations dispatch reads, so a key cannot be described here and
    * bound to something else, or bound and never mentioned.
    */
-  hint(scope: string, separator = " · "): string {
+  hintEntries(scope: string): readonly ShortcutHintEntry[] {
     const shown = new Map<string, string>();
     for (const declaration of this.#declarations) {
       if (declaration.hint === undefined) continue;
       if (declaration.scope !== scope && declaration.scope !== GLOBAL_SCOPE) continue;
       if (!shown.has(declaration.hint.keys)) shown.set(declaration.hint.keys, declaration.hint.does);
     }
-    return [...shown].map(([keys, does]) => `${keys} ${does}`).join(separator);
+    return Object.freeze([...shown].map(([key, action]) => ({ key, action })));
+  }
+
+  hint(scope: string, separator = " · "): string {
+    return this.hintEntries(scope).map(({ key, action }) => `${key} ${action}`).join(separator);
   }
 
   /** The listing, derived from the declarations dispatch reads. */

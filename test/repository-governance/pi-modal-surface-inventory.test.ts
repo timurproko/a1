@@ -10,6 +10,31 @@ const REQUIRED_LIFECYCLE = [
   "open", "active", "complete-or-save", "back", "cancel", "failure", "focus-restoration", "resize", "dispose", "session-switch",
 ];
 const FORBIDDEN_CONTROLLERS = new Set(["generic-selector", "generic-input", "generic-dialog", "generic-workflow"]);
+const MODAL_HINT_COVERAGE = Object.fromEntries([
+  ["settings.root", "owned-settings-fullscreen"],
+  ...`settings.value-submenu settings.warnings settings.thinking settings.theme.single settings.theme.automatic settings.theme.light settings.theme.dark`.split(" ").map(id => [id, "already-semantic-or-no-row"]),
+  ...`models.select`.split(" ").map(id => [id, "owned-models"]),
+  ...`models.scope models.scope.refreshing`.split(" ").map(id => [id, "owned-scoped-models"]),
+  ...`trust.project`.split(" ").map(id => [id, "owned-trust"]),
+  ...`tree.root tree.summary-choice tree.summary-custom`.split(" ").map(id => [id, "owned-tree"]),
+  ...`session.resume.current session.resume.all session.resume.rename session.resume.delete`.split(" ").map(id => [id, "owned-sessions"]),
+  ...`extension.editor`.split(" ").map(id => [id, "owned-extension-editor"]),
+  ...`extension.select extension.confirm extension.input`.split(" ").map(id => [id, "owned-extension-prompts"]),
+  ...`session.fork session.missing-cwd auth.login-type auth.login-provider auth.logout-provider auth.dialog.oauth auth.dialog.api-key auth.dialog.ambient auth.dialog.details auth.dialog.auth-url auth.dialog.device-code auth.dialog.select-prompt auth.dialog.manual-code auth.dialog.text-prompt auth.dialog.info auth.dialog.waiting auth.dialog.progress command.import-confirm operation.share-loader`.split(" ").map(id => [id, "already-semantic"]),
+  ...`editor.root operation.reload-loader extension.custom-editor extension.custom-replacement extension.overlay`.split(" ").map(id => [id, "no-owned-shortcut-row"]),
+]);
+const SHARED_HINT_SOURCES = [
+  "src/integrations/pi/components/models-dialog.ts",
+  "src/integrations/pi/components/skills-dialog.ts",
+  "src/integrations/pi/components/upstream/components/extension-editor.ts",
+  "src/integrations/pi/components/upstream/components/extension-input.ts",
+  "src/integrations/pi/components/upstream/components/extension-selector.ts",
+  "src/integrations/pi/components/upstream/components/scoped-models-selector.ts",
+  "src/integrations/pi/components/upstream/components/session-selector.ts",
+  "src/integrations/pi/components/upstream/components/thinking-selector.ts",
+  "src/integrations/pi/components/upstream/components/tree-selector.ts",
+  "src/integrations/pi/components/upstream/components/trust-selector.ts",
+];
 
 type Node = {
   id: string;
@@ -142,6 +167,32 @@ describe("pinned Pi modal transition graph", () => {
     expect(unified?.nodes).toEqual(["models.select", "models.scope", "models.scope.refreshing"]);
     expect(unified?.finding).toContain("src/integrations/pi/components/models-dialog.ts");
     await access("src/integrations/pi/components/models-dialog.ts");
+  });
+
+  it("maps every inventory node to its shortcut-presentation ownership", async () => {
+    const inventory = await loadInventory();
+    expect(Object.keys(MODAL_HINT_COVERAGE).sort()).toEqual(inventory.nodes.map(node => node.id).sort());
+    const semanticRenderer = await readFile("src/contracts/presentation/index.ts", "utf8");
+    expect(semanticRenderer).toContain("displayShortcutKeyLabel(entry.key)");
+    expect(semanticRenderer).toContain("roles.key(");
+    expect(semanticRenderer).toContain("roles.action(");
+    expect(semanticRenderer).toContain('.join("  ")');
+    const helper = await readFile("src/integrations/pi/components/theme.ts", "utf8");
+    expect(helper).toContain("renderSemanticShortcutHints");
+    expect(helper).toContain('theme.fg("dim", text)');
+    expect(helper).toContain('theme.fg("muted", text)');
+    for (const path of SHARED_HINT_SOURCES) {
+      expect(await readFile(path, "utf8"), path).toContain("renderPiModalShortcutHints");
+    }
+    const settings = await readFile("src/features/owned-ui/settings-app.ts", "utf8");
+    expect(settings).toContain("SETTINGS_SHORTCUTS.hintEntries(DIALOG_SCOPE)");
+    expect(settings).toContain("SETTINGS_SHORTCUTS.hintEntries(SCOPE)");
+    const reference = await readFile("src/features/owned-ui/reference-screen-app.ts", "utf8");
+    expect(reference).toContain("REFERENCE_SCREEN_SHORTCUTS.hintEntries(SCOPE)");
+    expect(reference).not.toContain("HINT_SEPARATOR");
+    const startupTrust = await readFile("src/features/owned-ui/project-trust-prompt.ts", "utf8");
+    expect(startupTrust).toContain("${DIM}  ↑/↓${MUTED} to navigate  ${DIM}Enter${MUTED} to select");
+    expect(startupTrust).not.toContain("to navigate · Enter");
   });
 
   it("rejects omitted nodes/edges, missing presentation, generic controllers, stale parents, and missing acceptance", async () => {
