@@ -15,7 +15,7 @@ The manual merge accepts these scenarios:
   "archive": "openspec/changes/archive/2026-09-22-fix-settings-search-bottom-gap/",
   "acceptanceManifest": "openspec/changes/archive/2026-09-22-fix-settings-search-bottom-gap/acceptance.md",
   "finalizedDate": "2026-09-22",
-  "specBaseSha": "4605f4a27c89cfbb85a9354eb82f4e02c4f88dc3",
+  "specBaseSha": "98b88f36b68d2ec70e2a3bd572cc49970d55dfbd",
   "acceptanceScenarios": [
     "Bottom-scrolled settings search places the final setting directly above the input rule without an empty row.",
     "Sticky section context and scrollbar position remain aligned with the filled result viewport."
