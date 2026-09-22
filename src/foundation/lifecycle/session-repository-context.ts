@@ -1,12 +1,10 @@
 import { createHash, randomUUID } from "node:crypto";
-import { execFile } from "node:child_process";
 import { open, lstat, mkdir, readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { PRODUCT_IDENTITY } from "../../product-identity.js";
 import { resolveProductPaths } from "./paths.js";
 
-const execFileAsync = promisify(execFile);
 const SCHEMA = "a1-session-repository-context-v1";
 const MAX_RECORD_BYTES = 16 * 1024;
 const MAX_HEADER_BYTES = 64 * 1024;
@@ -160,10 +158,11 @@ async function readSessionHeader(identity: SessionRepositoryIdentity): Promise<S
 async function readGitWorktreeIdentity(path: string, requireWorktreeRoot: boolean, signal?: AbortSignal): Promise<GitWorktreeIdentity> {
   if (!validPath(path)) throw new Error("associated worktree path is invalid");
   const cwd = await realpath(resolve(path));
-  const { stdout } = await execFileAsync(
-    "git",
+  const { stdout } = await executeGit(
     ["rev-parse", "--path-format=absolute", "--show-toplevel", "--git-common-dir", "--git-dir"],
-    { cwd, windowsHide: true, timeout: GIT_TIMEOUT_MS, maxBuffer: MAX_RECORD_BYTES, encoding: "utf8", signal },
+    cwd,
+    MAX_RECORD_BYTES,
+    signal,
   );
   const lines = stdout.split(/\r?\n/u).filter(Boolean);
   if (lines.length !== 3) throw new Error("associated worktree identity is invalid");
@@ -175,15 +174,34 @@ async function readGitWorktreeIdentity(path: string, requireWorktreeRoot: boolea
   const gitDir = await realpath(gitValue);
   let branch: string | null = null;
   if (requireWorktreeRoot) {
-    const branchResult = await execFileAsync(
-      "git",
+    const branchResult = await executeGit(
       ["symbolic-ref", "--quiet", "--short", "HEAD"],
-      { cwd, windowsHide: true, timeout: GIT_TIMEOUT_MS, maxBuffer: 4_096, encoding: "utf8", signal },
+      cwd,
+      4_096,
+      signal,
     );
     branch = branchResult.stdout.trim();
     if (branch.length === 0 || branch.length > 256) throw new Error("associated worktree has a detached or invalid branch");
   }
   return { root, commonDir, gitDir, branch };
+}
+
+async function executeGit(
+  arguments_: readonly string[],
+  cwd: string,
+  maxBuffer: number,
+  signal?: AbortSignal,
+): Promise<{ readonly stdout: string }> {
+  const { execFile } = await import("node:child_process");
+  const execute = promisify(execFile);
+  return await execute("git", [...arguments_], {
+    cwd,
+    windowsHide: true,
+    timeout: GIT_TIMEOUT_MS,
+    maxBuffer,
+    encoding: "utf8",
+    signal,
+  });
 }
 
 function requireBranch(identity: GitWorktreeIdentity): string {
