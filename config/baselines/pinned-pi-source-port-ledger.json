@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-09-22T22:30:16.931Z",
+  "recordedAt": "2026-09-22T22:31:28.083Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "16787ad5b2dc748047f314ca1bfe7708f30f54f3",
