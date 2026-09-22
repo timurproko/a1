@@ -45,9 +45,10 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
       expect(row).toBeGreaterThan(0);
       const clickTranscript = () => terminal.input(`\u001b[<0;3;${row}M\u001b[<0;3;${row}m`);
 
-      // Invariant: a terminal-provided paste reaches only the focused input surface.
+      // Invariant: ordinary prompt input is routed before runtime focus can drop it.
       shell.root.setFocused(false);
       clickTranscript();
+      shell.runtime.setFocus(null);
       terminal.input("\u001b[200~ beta\u001b[201~");
       await vi.waitFor(() => expect(shell.root.editor.getText()).toBe("alpha beta"));
 
@@ -59,10 +60,14 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
       expect(shell.root.editor.getText()).toBe("alpha beta");
       terminal.input("\u0019"); // Protocol: Ctrl+Y redoes the cut.
       expect(shell.root.editor.getText()).toBe("");
+      shell.runtime.setFocus(null);
+      terminal.input("\u0016"); // Protocol: physical Ctrl+V uses the owned clipboard path.
+      await vi.waitFor(() => expect(shell.root.editor.getText()).toBe("native paste"));
 
       shell.root.editor.setText("abc");
       shell.root.setFocused(false);
       clickTranscript();
+      shell.runtime.setFocus(null);
       terminal.input("\u001b[H"); // Protocol: Home retains prompt-line navigation ownership.
       terminal.input("X");
       await nextImmediate();

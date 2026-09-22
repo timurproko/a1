@@ -449,14 +449,6 @@ export class OwnedUiSessionShell {
     this.#removeViewportPreInput = this.#customViewport
       ? this.runtime.addPreInputListener(data => {
           if (inputPresentation?.coordination === false) this.#streamPresentation.noteImmediatePresentation();
-          // Compatibility: deliver Home/End before Pi's fullscreen scroll handler.
-          if (!this.runtime.hasOverlay() && (this.root.editor.matchesTerminalKey(data, "home")
-            || this.root.editor.matchesTerminalKey(data, "end"))) {
-            if (this.root.usesDefaultInputSurface()) this.root.handleViewportPreInput(data, true);
-            this.root.handleInput(data);
-            this.runtime.requestRender();
-            return { consume: true };
-          }
           // Invariant: geometry must belong to the painted frame, including newly opened/nested
           // surfaces. Steady pointer input does not trigger a synchronous composition.
           const viewport = this.runtime.viewport();
@@ -464,10 +456,17 @@ export class OwnedUiSessionShell {
             this.runtime.renderNow();
           }
           const editorActive = this.root.usesDefaultInputSurface() && !this.runtime.hasFocusedOverlay();
+          if (editorActive && !this.runtime.hasOverlay() && !data.startsWith("\u001b[<")) this.runtime.setFocus(this.root);
           const routed = this.root.handleViewportPreInput(data, true, Date.now(), editorActive);
           if (editorActive && data.includes("\u001b[<")) this.root.setFocused(true);
           if (routed.copySelection !== undefined) {
             void this.#responseCopy?.submit(routed.copySelection, pendingClipboardWrite);
+          }
+          if (!routed.consumed && editorActive && (this.root.editor.matchesTerminalKey(data, "home")
+            || this.root.editor.matchesTerminalKey(data, "end"))) {
+            this.root.handleInput(data);
+            this.runtime.requestRender();
+            return { consume: true };
           }
           if (!routed.consumed) return routed.data === data ? undefined : { data: routed.data };
           return routed.data.length === 0 ? { consume: true } : { data: routed.data };

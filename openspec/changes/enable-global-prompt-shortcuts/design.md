@@ -4,7 +4,7 @@ Bare A1 presents the transcript and bottom prompt through one fullscreen shell, 
 
 The effective editor bindings are configurable and already resolved by the owned keybinding manager. Reimplementing a list of raw `Ctrl` sequences in the viewport would diverge from custom bindings, terminal encodings, shortcut help, and editor undo/selection semantics.
 
-Physical testing of candidate `c50bf418` showed that restoring only the outer runtime component was insufficient: that bridge could already report focused while the nested ordinary input surface remained unfocused, so terminal-provided bracketed paste and editor shortcuts still had no prompt owner. The correction must explicitly restore the default root input surface after content pointer routing, not short-circuit on outer focus state.
+Physical testing of candidate `c50bf418` showed that restoring only the outer runtime component was insufficient: that bridge could already report focused while the nested ordinary input surface remained unfocused. Physical testing of the follow-up candidate `a6b4d8dc` showed that pointer-time nested focus restoration was also insufficient: focus could still be absent when the later key or terminal-provided bracketed paste reached TUI dispatch. The correction must reassert the ordinary root as keyboard owner at each non-modal keyboard receipt, immediately before established viewport/editor dispatch, rather than relying on remembered pointer-time focus.
 
 ## Goals / Non-Goals
 
@@ -22,7 +22,7 @@ Physical testing of candidate `c50bf418` showed that restoring only the outer ru
 
 ### 1. Separate pointer ownership from ordinary keyboard ownership
 
-On the default bare-A1 screen, transcript selection, scrolling, scrollbar use, sticky-prompt activation, and empty-content clicks may own their pointer gesture but SHALL NOT leave the ordinary prompt unfocused for subsequent keyboard editing. After the pointer report is routed, explicitly restore the default root input surface even when the outer runtime bridge already considers the root focused, while retaining pointer latches through release.
+On the default bare-A1 screen, transcript selection, scrolling, scrollbar use, sticky-prompt activation, and empty-content clicks may own their pointer gesture but SHALL NOT leave the ordinary prompt unfocused for subsequent keyboard editing. After pointer routing, restore the nested default input surface for presentation. More importantly, whenever no overlay or replacement input owns a later keyboard event, reassert the ordinary root through the runtime focus boundary before normal dispatch; this preserves runtime listeners, key-release filtering, viewport precedence, and terminal-provided bracketed paste while making stale focus irrelevant. Pointer latches remain owned through release.
 
 Do not synthesize a click into the prompt or move its caret. Focus restoration changes only keyboard eligibility and cursor presentation; the draft, prompt selection, atomic-chip focus, history position, undo/redo stacks, autocomplete state, and pending paste reservations remain intact.
 
