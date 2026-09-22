@@ -1,0 +1,6 @@
+#!/bin/sh
+# Launch bare A1 with a deterministic clickable PR footer for manual presentation testing.
+fixture_dir="$(CDPATH= cd -- "$(dirname "$0")/development/pr-footer-preview" && pwd)"
+PATH="$fixture_dir:$PATH"
+export PATH
+exec "$(dirname "$0")/dev" "$@"
