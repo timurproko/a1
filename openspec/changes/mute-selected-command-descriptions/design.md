@@ -47,4 +47,4 @@ Focused component tests will render a selected built-in command and a runtime-pr
 - `npx --no-install openspec validate mute-selected-command-descriptions --strict` passes.
 - `npm run check:architecture` reaches the pinned-source-ledger gate and reports `mapped owned source destination hash is stale: pi-coding-agent:src/core/keybindings`; the same command reports the same failure on unchanged `develop`, outside this presentation change.
 - `npm run build` passes on the candidate after reconciliation with current `develop`, including native process-guardian linking and runtime payload generation.
-- Color-preserving interactive review remains pending through `./scripts/dev`.
+- Maintainer color-preserving review through `./scripts/dev` passed: selected arrows and primary candidates are cyan, descriptions remain muted, and navigation/completion retain their behavior.

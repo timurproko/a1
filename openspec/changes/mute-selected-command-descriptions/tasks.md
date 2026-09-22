@@ -7,4 +7,4 @@
 
 - [x] 2.1 Run typechecking, architecture checks, and focused shell/component suites covering autocomplete and the skills tunnel; record any rendering gap explicitly.
 - [x] 2.2 Build the reconciled candidate and provide a color-preserving manual test through `./scripts/dev`.
-- [ ] 2.3 Verify only the selected candidate is cyan while its description remains muted and navigation/completion still behave normally.
+- [x] 2.3 Verify only the selected candidate is cyan while its description remains muted and navigation/completion still behave normally.
