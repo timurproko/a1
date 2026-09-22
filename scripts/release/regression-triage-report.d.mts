@@ -2,6 +2,8 @@ export const TRIAGE_WORKFLOWS: Readonly<Record<string, { readonly file: string; 
 export const BRANCH_PREFIX: string;
 export const TRIAGED_BRANCH: string;
 export const TRIAGE_KEY_LABEL: string;
+export const TRIAGE_PROVENANCE_SCHEMA: string;
+export const TRIAGE_PROVENANCE_FILE: string;
 export const EXCERPT_LINE_LIMIT: number;
 export const EXCERPT_BYTE_LIMIT: number;
 
@@ -69,5 +71,7 @@ export function extractLogExcerpts(log: string, options?: { lineLimit?: number; 
 export function renderRunEvidence(evidence: TriageEvidence): string[];
 export function renderTriageBody(input: TriageEvidence & { readonly date: string; readonly key: string }): string;
 export function appendRunToBody(body: string, evidence: TriageEvidence): string;
+export function renderTriageProvenance(input: TriageEvidence & { readonly date: string }): string;
+export function appendTriageProvenance(text: string, evidence: TriageEvidence): string;
 export function renderTriageChange(input: TriageEvidence & { readonly date: string }): Record<string, string>;
 export function appendRunToDesign(design: string, evidence: TriageEvidence): string;

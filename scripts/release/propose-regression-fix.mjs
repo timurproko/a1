@@ -15,8 +15,10 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import {
   BRANCH_PREFIX,
+  TRIAGE_PROVENANCE_FILE,
   appendRunToBody,
   appendRunToDesign,
+  appendTriageProvenance,
   branchName,
   changeId,
   extractLogExcerpts,
@@ -24,6 +26,7 @@ import {
   parseTriageKey,
   renderTriageBody,
   renderTriageChange,
+  renderTriageProvenance,
   startupBudgetFailure,
   summarizeLanes,
   triageDecision,
@@ -86,9 +89,16 @@ export async function proposeRegressionFix({ runId, repository, output, gh, git,
     if (dryRun) return finish({ ...report, changed: false, mode: "refresh", branch: existing.headRefName, pr: existing.number, message: `dry run: would refresh #${existing.number}` }, output, files);
     await git(["fetch", "origin", existing.headRefName]);
     await git(["checkout", "-B", existing.headRefName, `origin/${existing.headRefName}`]);
-    const designPath = join(repository, "openspec", "changes", changeId(existing.headRefName.slice(BRANCH_PREFIX.length)), "design.md");
+    const stamp = existing.headRefName.slice(BRANCH_PREFIX.length);
+    const change = changeId(stamp);
+    const designPath = join(repository, "openspec", "changes", change, "design.md");
     const design = await files.read(designPath).catch(() => null);
-    if (design !== null) await files.write(designPath, appendRunToDesign(design, evidence));
+    if (design !== null) {
+      await files.write(designPath, appendRunToDesign(design, evidence));
+      const provenancePath = join(repository, "openspec", "changes", change, TRIAGE_PROVENANCE_FILE);
+      const provenance = await files.read(provenancePath).catch(() => null);
+      await files.write(provenancePath, provenance === null ? renderTriageProvenance({ ...evidence, date: stamp }) : appendTriageProvenance(provenance, evidence));
+    }
     await git(["add", "-A"]);
     await git(["commit", "--allow-empty", "-m", `chore(regression): record the ${date(today)} ${workflow.name} failure`, "-m", `Appended by the nightly regression triage from run ${run.url}.`]);
     await git(["push", "origin", existing.headRefName]);
