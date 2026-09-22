@@ -12,14 +12,14 @@ Regression coverage proves ordinary Backspace and the clear shortcut through ter
 
 - `npx vitest run test/app/session-shell/prompt-suggestion-controller.test.ts test/app/session-shell/session-shell-suggestions.test.ts test/integrations/pi/components/shell-components.test.ts` — passed: 3 files, 100 tests.
 - `npm run typecheck` — passed.
-- `npm run check:architecture` — passed after repinning the reviewed startup source-byte total from 1,441,230 to 1,441,804; file count, optional-module exclusions, and Pi artifact limits are unchanged.
+- `npm run check:architecture` — passed after reconciling current `origin/develop` and repinning the reviewed startup source-byte total from the target's 1,441,851 to the combined 1,442,425; file count, optional-module exclusions, and Pi artifact limits are unchanged.
 - `npm run check:code-documentation` — passed.
 - `npm run check:code-documentation:changed` — passed.
 - `npm run build` — passed.
 - `npx openspec validate restore-prompt-suggestion-after-delete --strict --no-interactive` — passed.
 - `git diff --check` — passed.
 
-No broad local test tier was run. Required exact-head CI remains the integration gate.
+The focused tests and all listed gates were rerun successfully after merging current `origin/develop`. No broad local test tier was run. Required exact-head CI remains the integration gate.
 
 ## Known gaps
 
