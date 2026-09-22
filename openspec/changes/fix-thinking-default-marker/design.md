@@ -9,7 +9,7 @@ The requested row grammar is `<level> ✓ [default] <description>` when both sta
 **Goals:**
 
 - Place a literal `[default]` marker in the primary label region after the optional active checkmark.
-- Preserve semantic success styling for the checkmark and muted styling for descriptions.
+- Preserve semantic success styling for the checkmark and use muted styling for the default marker and descriptions.
 - Keep every description aligned after the widest rendered level and marker combination.
 - Preserve current/default independence and all selector interactions.
 
@@ -29,7 +29,7 @@ Keeping `[default]` out of the description avoids presenting persisted state as 
 
 ### 2. Align descriptions using the complete rendered primary region
 
-Calculate the description start column from the widest level name plus its applicable marker widths. Filtering must rebuild rows with the same marker composition and alignment rules. The checkmark retains semantic success color; `[default]` remains part of the selected/unselected primary presentation rather than inheriting the muted description suffix treatment.
+Calculate the description start column from the widest level name plus its applicable marker widths. Filtering must rebuild rows with the same marker composition and alignment rules. The checkmark retains semantic success color; `[default]` retains semantic muted color while moving from the description suffix into the selected/unselected primary marker region.
 
 Leaving alignment based only on the level name was rejected because `[default]` would push one description into a different column.
 
@@ -49,3 +49,12 @@ Change only owned bare-A1 row construction and its recorded deviation. Filtering
 2. Update focused selector and shell presentation evidence plus the source-port ledger description.
 3. Build and manually inspect `/thinking` in bare A1, with `a1 pi` retained as an unchanged control.
 4. Roll back the presentation commit if needed; no settings or session migration is required.
+
+## Implementation Evidence
+
+- `npm exec vitest -- run test/integrations/pi/components/prompt-input-ux.test.ts test/app/session-shell/session-shell-workflows.test.ts` passes all 34 focused selector and shell-workflow tests, including coincident and differing active/default states, filtering, marker styling, alignment, narrow widths, interactions, footer restoration, and comparison-profile isolation.
+- `npm run typecheck` passes.
+- `node scripts/governance/check-pinned-pi-source-ledger.mjs` verifies all 118 source-port records and the updated owned selector provenance.
+- `npm exec openspec -- validate fix-thinking-default-marker --strict` passes.
+- `npm run build` passes and prepares the candidate for color-preserving review through `./scripts/dev`; `./scripts/dev pi` remains the comparison control.
+- No known implementation gaps remain. Exact terminal appearance remains subject to maintainer manual acceptance.
