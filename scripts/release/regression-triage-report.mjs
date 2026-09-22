@@ -16,6 +16,8 @@ export const BRANCH_PREFIX = "fix/nightly-regression-";
 /** The only branch whose failed runs open or refresh a candidate; a run on any other branch is that branch's own evidence. */
 export const TRIAGED_BRANCH = "develop";
 export const TRIAGE_KEY_LABEL = "Triage key:";
+export const TRIAGE_PROVENANCE_SCHEMA = "a1-regression-triage-provenance-v1";
+export const TRIAGE_PROVENANCE_FILE = "regression-provenance.json";
 /** Bounds of one failure's log excerpt in the body; the run link carries the rest. */
 export const EXCERPT_LINE_LIMIT = 40;
 export const EXCERPT_BYTE_LIMIT = 2048;
@@ -34,6 +36,41 @@ export function changeId(date) {
 
 export function branchName(date) {
   return `${BRANCH_PREFIX}${date}`;
+}
+
+function provenanceSource({ workflow, run }) {
+  return {
+    workflowName: workflow.name,
+    workflowFile: workflow.file,
+    runId: run.id,
+    runNumber: run.number,
+    attempt: run.attempt,
+    event: run.event,
+    conclusion: run.conclusion,
+    headBranch: run.headBranch,
+    headSha: run.headSha,
+    url: run.url,
+    createdAt: run.createdAt,
+  };
+}
+
+/** Immutable generated origin used by base-controlled PR Full regression selection. */
+export function renderTriageProvenance({ workflow, run, date }) {
+  return `${JSON.stringify({
+    schema: TRIAGE_PROVENANCE_SCHEMA,
+    candidate: { branch: branchName(date), change: changeId(date) },
+    sources: [provenanceSource({ workflow, run })],
+  }, null, 2)}\n`;
+}
+
+/** Preserve every distinct trusted source when triage refreshes an active candidate. */
+export function appendTriageProvenance(text, evidence) {
+  const value = JSON.parse(text);
+  if (value?.schema !== TRIAGE_PROVENANCE_SCHEMA || !Array.isArray(value.sources) || !value.candidate) throw new Error("existing triage provenance is malformed");
+  const source = provenanceSource(evidence);
+  if (!value.sources.some(item => item.runId === source.runId && item.attempt === source.attempt)) value.sources.push(source);
+  if (value.sources.length > 32) throw new Error("existing triage provenance exceeds its bound");
+  return `${JSON.stringify(value, null, 2)}\n`;
 }
 
 /** Decide whether a completed run should be triaged; the reason explains a `false` in the workflow summary. */
@@ -232,6 +269,7 @@ export function renderTriageChange({ workflow, run, date, summary, lastGreen, co
   return {
     // Rationale: strict validation and finalization both need a delta or an explicit skip; the fixer drops the skip when a delta is added.
     [`openspec/changes/${id}/.openspec.yaml`]: `schema: spec-driven\ncreated: ${date}\nskip_specs: true\n`,
+    [`openspec/changes/${id}/${TRIAGE_PROVENANCE_FILE}`]: renderTriageProvenance({ workflow, run, date }),
     [`openspec/changes/${id}/proposal.md`]: [
       "## Why",
       "",

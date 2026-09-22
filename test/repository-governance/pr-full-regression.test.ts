@@ -1,16 +1,25 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it, vi } from "vitest";
 import { parse } from "yaml";
-import { changedPaths, readCurrentPull, requireFullRegressionSelection, selectFullRegression, type RegressionPull } from "../../scripts/release/pr-full-regression.mjs";
+import { changedPaths, readCurrentPull, requireFullRegressionSelection, selectFullRegression, verifyFailedRegressionSource, type RegressionProvenance, type RegressionPull } from "../../scripts/release/pr-full-regression.mjs";
 import { bindFullLane, fullContext, FULL_LANES, requireFullLanes, type FullTierResult } from "../../scripts/release/full-regression-evidence.mjs";
 import { triageDecision } from "../../scripts/release/regression-triage-report.mjs";
 
 const head = "a".repeat(40);
 const base = "b".repeat(40);
-const pull = (patch: Partial<RegressionPull> = {}): RegressionPull => ({ number: 543, state: "open", draft: false, body: "", labels: [],
+const human = { login: "maintainer", id: 123, type: "User" };
+const bot = { login: "openspec-ci[bot]", id: 329165293, type: "Bot" };
+const pull = (patch: Partial<RegressionPull> = {}): RegressionPull => ({ number: 543, state: "open", draft: false, body: "", labels: [], user: human,
   head: { sha: head, ref: "feature/ordinary-ui" }, base: { sha: base, ref: "develop", repo: { full_name: "timurproko/a1" } }, ...patch });
-const select = (paths: string[], patch: Partial<RegressionPull> = {}, options = {}) => selectFullRegression({ pull: pull(patch), paths, mergeBase: base, ...options });
+const select = (paths: string[], patch: Partial<RegressionPull> = {}, options: { versionOnly?: boolean; provenance?: RegressionProvenance | null } = {}) => selectFullRegression({ pull: pull(patch), paths, mergeBase: base, ...options });
 const repairLink = '```openspec-implementation\n{"version":3,"change":"fix-nightly-regression-2026-09-22"}\n```';
+const provenance = (patch: Partial<RegressionProvenance["sources"][number]> = {}): RegressionProvenance => ({
+  schema: "a1-regression-triage-provenance-v1",
+  candidate: { branch: "fix/nightly-regression-2026-09-22", change: "fix-nightly-regression-2026-09-22" },
+  sources: [{ workflowName: "Full regression", workflowFile: "full-regression.yml", runId: 9001, runNumber: 412, attempt: 1, event: "schedule", conclusion: "failure",
+    headBranch: "develop", headSha: "c".repeat(40), url: "https://github.com/timurproko/a1/actions/runs/9001", createdAt: "2026-09-22T02:47:00Z", ...patch }],
+});
+const repair = (patch: Partial<RegressionPull> = {}) => ({ user: bot, body: repairLink, head: { sha: head, ref: "fix/nightly-regression-2026-09-22" }, ...patch });
 
 // Rationale: these test seams verify orchestration envelopes, not complete validation on hosted lanes.
 function result(): FullTierResult {
@@ -25,62 +34,73 @@ describe("trusted complete-regression selection", () => {
     "scripts/release/require-development-validation.mjs", "src/foundation/release/update.ts", "test/foundation/release/update-predecessor.integration.test.ts",
     "scripts/development/environment-probe.mjs", "scripts/development/prepare-ci-rust.sh", "package.json", "package-lock.json", "bin/cli.js", "native/process-guardian/Cargo.lock",
     "config/integration-owners.json", "config/validation-ownership.json", "config/validation-suites.json", "tsconfig.build.json", "vitest.config.ts",
-    "src/cli/dispatch.ts", "src/cli/version-stats.ts", "test/cli/update-cli.test.ts", "test/support/release-command-fixture.ts", "test/fixtures/package.ts"])("selects reviewed release impact: %s", path => {
-    expect(select([path])).toMatchObject({ selected: true, reasons: ["release-impact"] });
+    "src/cli/dispatch.ts", "src/cli/version-stats.ts", "test/cli/update-cli.test.ts", "test/support/release-command-fixture.ts", "test/fixtures/package.ts",
+    "new-build-input.yaml"])("keeps ordinary cadence for former broad trigger: %s", path => {
+    expect(select([path])).toMatchObject({ selected: false, reasons: ["ordinary-cadence"] });
   });
 
-  it("preserves ordinary cadence and independent docs/version exemptions", () => {
-    expect(select(["src/features/example.ts", "test/features/example.test.ts"])).toMatchObject({ selected: false, reasons: ["ordinary-cadence"] });
+  it("selects only an App-authored repair carrying a failed Full regression source", () => {
+    expect(select(["src/features/example.ts"], repair(), { provenance: provenance() })).toMatchObject({ selected: true, reasons: ["generated-failed-full-regression-repair"] });
+    expect(select(["src/features/example.ts"], { ...repair(), user: human }, { provenance: provenance() })).toMatchObject({ selected: false, reasons: ["ordinary-cadence"] });
+    expect(select(["src/features/example.ts"], { ...repair(), head: { sha: head, ref: "feature/lookalike" } }, { provenance: provenance() }).selected).toBe(false);
+    expect(select(["src/features/example.ts"], { ...repair(), body: repairLink.replace("2026-09-22", "2026-09-23") }, { provenance: provenance() }).selected).toBe(false);
+  });
+
+  it("rejects Release, successful Full regression, and mismatched App provenance as complete-suite authority", () => {
+    expect(select(["src/features/example.ts"], repair(), { provenance: provenance({ workflowName: "Release", workflowFile: "release.yml" }) }).selected).toBe(false);
+    expect(select(["src/features/example.ts"], repair(), { provenance: provenance({ conclusion: "success" }) }).selected).toBe(false);
+    expect(select(["src/features/example.ts"], { ...repair(), user: { ...bot, id: 1 } }, { provenance: provenance() }).selected).toBe(false);
+  });
+
+  it("keeps planning drafts lightweight and validates implementation-bearing generated repairs", () => {
+    expect(select(["openspec/changes/fix-nightly-regression-2026-09-22/design.md", "openspec/changes/fix-nightly-regression-2026-09-22/regression-provenance.json"],
+      { ...repair(), draft: true }, { provenance: provenance() })).toMatchObject({ selected: false, reasons: ["planning-only-draft"] });
+    expect(select(["src/features/example.ts"], { ...repair(), draft: true }, { provenance: provenance() }).selected).toBe(true);
+  });
+
+  it("preserves independent docs and version exemptions for ordinary PRs", () => {
     expect(select(["README.md", "docs/validation.md", "openspec/specs/a1-shell/spec.md"])).toMatchObject({ selected: false, reasons: ["docs-only"] });
     expect(select(["package.json", "package-lock.json"], {}, { versionOnly: true })).toMatchObject({ selected: false, reasons: ["version-only"] });
   });
 
-  it("keeps planning drafts lightweight but validates implementation drafts without granting integration authority", () => {
-    const draft = { draft: true, body: repairLink, labels: [{ name: "ci:full-regression" }] };
-    expect(select(["openspec/changes/fix-nightly-regression-2026-09-22/design.md"], draft)).toMatchObject({ selected: false, reasons: ["planning-only-draft"] });
-    expect(select(["src/features/example.ts"], draft)).toMatchObject({ selected: true, reasons: ["nightly-repair", "maintainer-opt-in"] });
-    expect(select(["scripts/release/build.mjs"], { draft: true }).selected).toBe(true);
-  });
-
-  it("recognizes generated, linked, archived, moved, and erased repair associations", () => {
-    expect(select(["src/features/example.ts"], { head: { sha: head, ref: "fix/nightly-regression-2026-09-22" } }).reasons).toContain("nightly-repair");
-    expect(select(["docs/fix.md"], { body: repairLink }).selected).toBe(true);
-    const archived = repairLink.replace('"change":"fix-nightly-regression-2026-09-22"', '"change":"fix-nightly-regression-2026-09-22","archive":"openspec/changes/archive/2026-09-22-fix-nightly-regression-2026-09-22/","acceptanceManifest":"openspec/changes/archive/2026-09-22-fix-nightly-regression-2026-09-22/acceptance.md"');
-    expect(select(["docs/fix.md"], { body: archived }).selected).toBe(true);
-    for (const path of ["openspec/changes/fix-nightly-regression-2026-09-22/tasks.md", "openspec/changes/archive/2026-09-22-fix-nightly-regression-2026-09-22/tasks.md"]) {
-      expect(select(["src/features/example.ts"], {}, { historyPaths: [path] }).reasons).toContain("nightly-repair");
-    }
-  });
-
-  it("treats opt-in as additive and invalidates label/body/head/base/ready transitions", () => {
+  it("ignores labels as selection inputs while retaining current body, head, and provenance freshness", () => {
     const paths = ["src/features/example.ts"];
     const initial = select(paths);
-    const opted = select(paths, { labels: [{ name: "ci:full-regression" }] });
-    expect(opted.selected).toBe(true);
-    expect(select(["scripts/release/build.mjs"], { labels: [] }).selected).toBe(true);
-    for (const fresh of [opted, select(paths, { body: "new acceptance list" }), select(paths, { head: { sha: "d".repeat(40), ref: "feature/ordinary-ui" } }),
-      select(paths, { base: { sha: "e".repeat(40), ref: "develop" } }), select(paths, { draft: true })]) {
-      expect(() => requireFullRegressionSelection(initial, fresh, "success")).toThrow(/stale/);
-    }
-    expect(requireFullRegressionSelection(initial, select(paths), "skipped").selected).toBe(false);
-    expect(() => requireFullRegressionSelection(opted, initial, "skipped")).toThrow(/stale/);
+    const labeled = select(paths, { labels: [{ name: "ci:full-regression" }] });
+    expect(labeled).toMatchObject({ selected: false, reasons: ["ordinary-cadence"], selectionId: initial.selectionId });
+    expect(requireFullRegressionSelection(initial, labeled, "skipped").selected).toBe(false);
+    const selected = select(paths, repair(), { provenance: provenance() });
+    expect(() => requireFullRegressionSelection(initial, selected, "success")).toThrow(/stale/);
+    expect(() => requireFullRegressionSelection(initial, select(paths, { body: "changed" }), "skipped")).toThrow(/stale/);
   });
 
-  it("preserves renamed-from and deleted support, and rejects malformed or truncated comparison", () => {
-    const paths = changedPaths("R100\0test/support/release-fixture.ts\0docs/moved.md\0D\0scripts/release/old.mjs\0");
-    expect(paths).toContain("test/support/release-fixture.ts");
-    expect(select(paths).selected).toBe(true);
+  it("preserves renamed-from paths and rejects malformed or truncated comparison", () => {
+    const paths = changedPaths("R100\0openspec/changes/fix-nightly-regression-2026-09-22/regression-provenance.json\0openspec/changes/archive/2026-09-22-fix-nightly-regression-2026-09-22/regression-provenance.json\0D\0scripts/release/old.mjs\0");
+    expect(paths).toContain("openspec/changes/fix-nightly-regression-2026-09-22/regression-provenance.json");
     for (const invalid of ["M\0missing-final-nul", "R100\0only-one-path\0", "M\0../unsafe\0", "M\0a\\b\0", "?\0file\0"]) expect(() => changedPaths(invalid)).toThrow();
     expect(() => changedPaths(Array.from({ length: 8193 }, (_, i) => `M\0test/${i}\0`).join(""))).toThrow(/bound/);
   });
 
-  it("blocks malformed lifecycle and metadata instead of granting an ordinary skip", () => {
+  it("blocks malformed lifecycle, provenance, and PR metadata instead of granting selection", () => {
     for (const body of [repairLink + "\n" + repairLink, "```openspec-implementation\n{}", repairLink.replace('"version":3', '"version":9'),
       repairLink.replace('"version":3', '"version":3,"version":3'), repairLink.replace('"version":3', '"version":3,"unexpected":true')]) expect(() => select(["docs/a.md"], { body })).toThrow();
-    for (const patch of [{ state: "closed" }, { head: { sha: "short", ref: "feature/a" } }, { base: { sha: base, ref: "master" } }]) expect(() => select(["src/features/example.ts"], patch)).toThrow();
+    expect(() => select(["src/a.ts"], repair(), { provenance: { ...provenance(), extra: true } as unknown as RegressionProvenance })).toThrow(/provenance/);
+    expect(() => select(["src/a.ts"], repair(), { provenance: provenance({ url: "https://example.test/run/9001" }) })).toThrow(/source/);
+    for (const patch of [{ state: "closed" }, { head: { sha: "short", ref: "feature/a" } }, { base: { sha: base, ref: "master" } }, { user: { login: "x", id: 0.5, type: "User" } }]) expect(() => select(["src/features/example.ts"], patch)).toThrow();
     expect(() => select([])).toThrow(/incomplete/);
-    expect(select(["new-build-input.yaml"]).reasons).toContain("unknown-operational-input");
-    expect(select(["scripts/unknown-owner.mjs"]).selected).toBe(true);
+  });
+
+  it("binds generated source provenance to GitHub's actual failed workflow run", async () => {
+    const source = provenance().sources[0]!;
+    const run = { name: source.workflowName, path: `.github/workflows/${source.workflowFile}`, id: source.runId, run_number: source.runNumber,
+      run_attempt: source.attempt, event: source.event, status: "completed", conclusion: source.conclusion, head_branch: source.headBranch,
+      head_sha: source.headSha, html_url: source.url, created_at: source.createdAt };
+    const request = vi.fn(async () => new Response(JSON.stringify(run), { status: 200 })) as unknown as typeof fetch;
+    await expect(verifyFailedRegressionSource("timurproko/a1", provenance(), "read-token", request)).resolves.toMatchObject({ runId: 9001 });
+    expect(request).toHaveBeenCalledWith("https://api.github.com/repos/timurproko/a1/actions/runs/9001", expect.objectContaining({ headers: expect.objectContaining({ authorization: "Bearer read-token" }) }));
+    const mismatched = vi.fn(async () => new Response(JSON.stringify({ ...run, conclusion: "success" }), { status: 200 })) as unknown as typeof fetch;
+    await expect(verifyFailedRegressionSource("timurproko/a1", provenance(), "read-token", mismatched)).rejects.toThrow(/does not match GitHub/);
+    await expect(verifyFailedRegressionSource("timurproko/a1", provenance({ workflowName: "Release", workflowFile: "release.yml" }), "read-token", request)).rejects.toThrow(/no failed Full regression/);
   });
 
   it("blocks unavailable API metadata including fork-approval errors without retry or writes", async () => {
@@ -95,7 +115,7 @@ describe("trusted complete-regression selection", () => {
   });
 
   it.each(["failure", "cancelled", "timed_out", "skipped", undefined])("rejects selected result %s", status => {
-    const selected = select(["scripts/release/build.mjs"]);
+    const selected = select(["src/features/example.ts"], repair(), { provenance: provenance() });
     expect(() => requireFullRegressionSelection(selected, selected, status)).toThrow();
   });
 });
@@ -138,7 +158,8 @@ describe("PR-native caller, security, and lifecycle contracts", () => {
     expect(ci.jobs["full-regression"].with).toEqual({ source: "${{ needs.full-selection.outputs.head }}", base: "${{ needs.full-selection.outputs.base }}", selection: "${{ needs.full-selection.outputs.selection-id }}", pr: "${{ github.event.pull_request.number }}" });
     expect(ci.jobs.required.needs).toEqual(expect.arrayContaining(["full-selection", "full-regression", "delivery", "modular"]));
     expect(ci.jobs.required.if).toContain("github.event.pull_request.draft == false");
-    expect(ci.on.pull_request.types).toEqual(expect.arrayContaining(["edited", "synchronize", "ready_for_review", "converted_to_draft", "labeled", "unlabeled"]));
+    expect(ci.on.pull_request.types).toEqual(expect.arrayContaining(["edited", "synchronize", "ready_for_review", "converted_to_draft"]));
+    expect(ci.on.pull_request.types).not.toEqual(expect.arrayContaining(["labeled", "unlabeled"]));
     expect(shared.jobs["full-regression"].strategy.matrix.include.map((lane: any) => `${lane.os}-node${lane.node}`).sort()).toEqual([...FULL_LANES].sort());
     expect(shared.jobs.required.if).toBe("always()");
     expect(shared.jobs.required.needs).toEqual(["documentation", "full-regression"]);
@@ -149,7 +170,7 @@ describe("PR-native caller, security, and lifecycle contracts", () => {
     expect(ci.concurrency["cancel-in-progress"]).toBe(true);
   });
 
-  it("executes trusted selection on a separate exact-base checkout, with identical bootstrap recomputation", async () => {
+  it("executes trusted selection on a separate exact-base checkout and blocks when policy is unavailable", async () => {
     const ci = parse(await readFile(".github/workflows/ci.yml", "utf8"));
     const selection = ci.jobs["full-selection"].steps.find((s: any) => s.id === "selection");
     const verify = ci.jobs.required.steps.find((s: any) => s.name === "Require current PR full-regression selection and result");
@@ -157,7 +178,7 @@ describe("PR-native caller, security, and lifecycle contracts", () => {
     expect(selection.env.SELECTION_MODE).toBe("--select");
     expect(verify.env).toMatchObject({ SELECTION_MODE: "--verify", FULL_REGRESSION_RESULT: "${{ needs.full-regression.result }}" });
     expect(selection.run).toContain(".artifacts/full-regression-policy/scripts/release/pr-full-regression.mjs");
-    expect(selection.run).toContain("base-policy-bootstrap");
+    expect(selection.run).toContain("selector is unavailable");
     expect(selection.run).not.toMatch(/npm|import\(['"]\.\//);
     for (const job of [ci.jobs["full-selection"], ci.jobs.required]) {
       expect(job.steps.some((s: any) => s.with?.ref === "${{ github.event.pull_request.base.sha }}" && s.with?.path === ".artifacts/full-regression-policy")).toBe(true);
