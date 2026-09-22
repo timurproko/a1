@@ -19,7 +19,8 @@ describe("CI and release operations runbook", () => {
     expect(runbook).toContain("gh workflow run full-regression.yml --ref <branch-or-tag>");
     expect(runbook).toContain("a Node-24-specific regression can reach `develop` before nightly catches it");
     expect(runbook).toContain("PR-attached Full regression");
-    expect(runbook).toContain("`ci:full-regression`");
+    expect(runbook).toContain("`regression-provenance.json`");
+    expect(runbook).toContain("labels and high-risk release/update impact do not add it to PR checks");
     expect(runbook).toContain("nightly failure still blocks its publication");
     expect(runbook).toContain("a failed budget remains failed and is never retried");
   });

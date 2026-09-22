@@ -115,7 +115,8 @@ Planning-only generated repair drafts SHALL not launch complete regression. Impl
 
 #### Scenario: Maintainer applies the former opt-in label
 - **WHEN** `ci:full-regression` or another label is added to an ordinary PR
-- **THEN** selection MAY be recomputed for freshness but SHALL remain unselected unless generated failed-regression provenance independently qualifies
+- **THEN** the label SHALL NOT trigger Development validation or alter complete-regression selection
+- **AND** only a later qualifying generated failed-regression provenance change MAY select the suite
 
 #### Scenario: A path or repair marker is moved
 - **WHEN** trusted finalization moves the eligible repair's active OpenSpec path into its archive
@@ -123,8 +124,8 @@ Planning-only generated repair drafts SHALL not launch complete regression. Impl
 
 #### Scenario: Opt-in is removed
 - **WHEN** `ci:full-regression` or another label is removed from any PR
-- **THEN** selection MAY be recomputed for freshness but SHALL continue to depend only on valid generated failed-regression provenance
-- **AND** an earlier selected or unselected result SHALL not authorize a changed selection identity
+- **THEN** removal SHALL NOT trigger Development validation or alter complete-regression selection
+- **AND** current head, body, base, readiness, and provenance identity SHALL retain their existing freshness rules
 
 #### Scenario: Source provenance is not a failed Full regression
 - **WHEN** generated provenance identifies a successful or cancelled Full regression, a Release run, an unsupported event, or an unverifiable source
