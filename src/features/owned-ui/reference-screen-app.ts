@@ -301,7 +301,7 @@ export class ReferenceScreenApp implements UiApp {
 
   #withTitle(content: ReferenceContent, title: string): ReferenceContent {
     if (content.kind === "flat") return { kind: "flat", rows: [title, ...content.rows] };
-    return { kind: "sections", rows: [{ kind: "note", group: "", text: title }, ...content.rows] };
+    return { kind: "sections", rows: [{ kind: "note", group: "", text: title }, { kind: "spacer" }, ...content.rows] };
   }
 
   #renderSectionRow(row: ListRow<string> | undefined, width: number, theme: UiTheme): string {

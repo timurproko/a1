@@ -163,16 +163,18 @@ describe("owned reference routes", () => {
 
     const keys = host.open("hotkeys")!;
     expect(keys.id).toBe("hotkeys");
-    lines = await settled(keys, current => current[2]?.startsWith("hotkeys") === true);
+    lines = await settled(keys, current => current[3]?.startsWith(" hotkeys") === true);
     expect(lines[1]?.startsWith(" Keyboard Shortcuts")).toBe(true);
-    expect(lines[2]?.trimEnd()).toBe("hotkeys first");
-    expect(lines[3]?.startsWith("table at 58")).toBe(true);
+    expect(lines[2]?.trim()).toBe("");
+    expect(lines[3]?.trimEnd()).toBe(" hotkeys first");
+    expect(lines[4]?.startsWith("table at 58")).toBe(true);
     keys.close();
     shortcut = "second";
     const reopened = host.open("hotkeys")!;
-    lines = await settled(reopened, current => current[2]?.startsWith("hotkeys") === true);
-    expect(lines[2]?.trimEnd()).toBe("hotkeys second");
-    expect(lines[3]?.startsWith("table at 58")).toBe(true);
+    lines = await settled(reopened, current => current[3]?.startsWith(" hotkeys") === true);
+    expect(lines[2]?.trim()).toBe("");
+    expect(lines[3]?.trimEnd()).toBe(" hotkeys second");
+    expect(lines[4]?.startsWith("table at 58")).toBe(true);
     reopened.close();
   });
 

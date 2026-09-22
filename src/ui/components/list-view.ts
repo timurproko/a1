@@ -52,9 +52,10 @@ export function valueColumnFor(rows: readonly ListViewRow[], indent = 2, gap = 2
   return indent + widest + gap + stepper;
 }
 
-/** A group's name, above the rows that belong to it. */
+/** A group's name with the shared one-cell section inset used by owned screens. */
 export function renderGroupHeader(title: string, width: number, theme: UiTheme): string {
-  return truncateToWidth(theme.fg("mdHeading", theme.bold(title)), width);
+  if (width <= 0) return "";
+  return ` ${truncateToWidth(theme.fg("mdHeading", theme.bold(title)), width - 1)}`;
 }
 
 /**

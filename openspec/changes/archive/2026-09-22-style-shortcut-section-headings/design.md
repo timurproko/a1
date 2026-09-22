@@ -7,8 +7,8 @@ The requested refinement is that a sectioned read-only view should opt into the 
 ## Goals / Non-Goals
 
 **Goals:**
-- Give every bare-A1 shortcut section the exact shared header treatment and sticky behavior used by Settings.
-- Keep section headings adjacent to their table rows.
+- Give every bare-A1 shortcut section the exact shared yellow heading role, one-cell inset, and sticky behavior used by Settings.
+- Keep one blank row after the main screen title while keeping section headings adjacent to their table rows.
 - Expose generic structured section data so future reference documents can reuse the behavior without hardcoded names.
 - Remove the failed candidate's rendered-text scan from the startup graph.
 
@@ -21,7 +21,7 @@ The requested refinement is that a sectioned read-only view should opt into the 
 
 ### 1. Reuse grouped-row layout as the section component
 
-Use the existing grouped-list rows and layout directly. A sectioned reference document maps its title to a group row, each rendered table row to a read-only note row, and inter-section separation to a spacer; its own screen title remains a prelude note. A layout option suppresses Settings' opening padding for an embedded document while preserving the current default. `layoutList()` supplies clamping and sticky headers, while `renderGroupHeader()` remains the single styling authority, so Settings and hotkeys cannot drift in color or emphasis.
+Use the existing grouped-list rows and layout directly. A sectioned reference document maps its title to a group row, each rendered table row to a read-only note row, and inter-section separation to a spacer; its own screen title remains a prelude note followed by one spacer. A layout option suppresses Settings' list-opening padding for an embedded document while preserving the current default. `layoutList()` supplies clamping and sticky headers. `renderGroupHeader()` owns the shared one-cell inset and yellow `mdHeading` role, so Settings and hotkeys cannot drift in alignment, color, or emphasis.
 
 A second bespoke section widget was rejected because `ListRow`, `layoutList()`, and `renderGroupHeader()` already are the shared component requested; the missing piece is structured input at the reference boundary.
 
@@ -33,7 +33,7 @@ Refactor the hotkeys generator into ordered `{ title, markdown }` sections. The 
 
 ### 3. Prove pinning, theming, and profile isolation
 
-Component tests cover padding-free grouped layout without changing Settings defaults. Reference-screen tests cover a section header becoming sticky and yielding to the next section. Presenter/composition tests cover fixed and optional hotkeys sections, accent semantics, direct header-to-table adjacency, and unchanged pinned in-feed output.
+Component tests cover padding-free grouped layout without changing Settings defaults. Reference-screen tests cover title-to-section spacing, title/header alignment, the shared `mdHeading` role, and a section header becoming sticky and yielding to the next section. Presenter/composition tests cover fixed and optional hotkeys sections, direct header-to-table adjacency, and unchanged pinned in-feed output.
 
 ## Risks / Trade-offs
 
@@ -48,8 +48,8 @@ Restore the finalized change to active form, replace the first candidate in the 
 
 ## Implementation Evidence
 
-- Six focused grouped-layout, reference-screen, composition, shell-presenter, route, and prompt-input files passed 98 tests.
-- Source typechecking, TypeScript build compilation, strict OpenSpec validation, and the architecture boundary check passed.
-- Startup reachability is 1,434,497 source bytes, 39 bytes below the protected maximum; the rendered-row label scanner from the first candidate is absent from the eager graph.
+- Seven focused shared-header, grouped-layout, Settings, reference-screen, composition, shell-presenter, and route files passed 136 tests after reconciliation with the framed Settings screen.
+- Source typechecking, TypeScript build compilation, full strict OpenSpec validation, code-documentation governance, and the architecture boundary check passed.
+- Startup reachability is 1,434,487 source bytes, 49 bytes below the protected maximum; the rendered-row label scanner from the first candidate is absent from the eager graph.
 - The full architecture command proceeds past startup, product identity, and architecture boundaries, then encounters the target branch's pre-existing stale pinned-source-ledger hash for `pi-coding-agent:src/core/keybindings`. The unchanged primary `develop` checkout produces the same failure, so this change neither edits nor suppresses that unrelated governance evidence; exact-head CI remains blocked until the target baseline is repaired and reconciled.
 - The local complete package build remains unable to link the unchanged native process guardian because this machine lacks Visual Studio C++ tools and the Windows SDK; direct TypeScript candidate compilation succeeds.

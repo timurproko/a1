@@ -19,7 +19,7 @@ function render(state: { selected: boolean; hovered: boolean; region: "label" | 
 
 describe("list rows against the reader's terminal", () => {
   it("renders a group name as a bold Markdown heading", () => {
-    expect(renderGroupHeader("Generic", 80, NAMING_THEME)).toBe("<mdHeading><b>Generic</b></mdHeading>");
+    expect(renderGroupHeader("Generic", 80, NAMING_THEME)).toBe(" <mdHeading><b>Generic</b></mdHeading>");
   });
 
   // Compatibility: a theme built for a light background writes near-black text; painting rows

@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { OwnedUiViewportSettings } from "../../../src/contracts/owned-ui/index.js";
 import { REFERENCE_SCREEN_SHORTCUTS, ReferenceScreenApp, type ReferenceDocumentProvider, type ReferenceDocumentSection } from "../../../src/features/owned-ui/index.js";
 import { UiAppHost, UiAppRegistry, type AppHostServices } from "../../../src/ui/apps/index.js";
-import { RAIL_COLUMNS, finalizeFrame, type UiTheme, type UiThemeToken } from "../../../src/ui/components/index.js";
+import { RAIL_COLUMNS, finalizeFrame, renderGroupHeader, type UiTheme, type UiThemeToken } from "../../../src/ui/components/index.js";
 
 const ESC = "\u001b";
 const UP = `${ESC}[A`;
@@ -121,18 +121,19 @@ describe("ReferenceScreenApp frame", () => {
     const rect = { width: 60, height: 7 };
     let lines = screen(target, { ...HOST, theme: NAMING_THEME }, rect);
     expect(lines[1]?.startsWith(" <b><accent>Keyboard Shortcuts</accent></b>")).toBe(true);
-    expect(lines[2]?.startsWith("<accent><b>Navigation</b></accent>")).toBe(true);
-    expect(lines[3]?.startsWith("row 01")).toBe(true);
+    expect(lines[2]?.trim()).toBe("");
+    expect(lines[3]?.startsWith(renderGroupHeader("Navigation", rect.width - RAIL_COLUMNS, NAMING_THEME))).toBe(true);
+    expect(lines[4]?.startsWith("row 01")).toBe(true);
 
     target.onInput?.(DOWN, HOST);
     target.onInput?.(DOWN, HOST);
     lines = screen(target, { ...HOST, theme: NAMING_THEME }, rect);
-    expect(lines[1]?.startsWith("<accent><b>Navigation</b></accent>")).toBe(true);
+    expect(lines[1]?.startsWith(renderGroupHeader("Navigation", rect.width - RAIL_COLUMNS, NAMING_THEME))).toBe(true);
     expect(lines[2]?.startsWith("row 01")).toBe(true);
 
     target.onInput?.(END, HOST);
     lines = screen(target, { ...HOST, theme: NAMING_THEME }, rect);
-    expect(lines[1]?.startsWith("<accent><b>Editing</b></accent>")).toBe(true);
+    expect(lines[1]?.startsWith(renderGroupHeader("Editing", rect.width - RAIL_COLUMNS, NAMING_THEME))).toBe(true);
     expect(lines.join("\n")).toContain("edit three");
   });
 

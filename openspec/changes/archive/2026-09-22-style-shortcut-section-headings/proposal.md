@@ -5,7 +5,8 @@ The bare-A1 keyboard-shortcut screen renders its table section labels like ordin
 ## What Changes
 
 - Represent `/hotkeys` as structured sections instead of rediscovering known labels from rendered text.
-- Reuse the shared grouped-row component that Settings uses so section headers receive the same theme accent, sit directly against their content, and pin while their rows scroll.
+- Reuse the shared grouped-row component that Settings uses so section headers receive the same yellow Markdown-heading role and one-cell left inset, sit directly against their content, and pin while their rows scroll.
+- Keep one blank row between the main `Keyboard Shortcuts` title and the first section while retaining no blank row between a section header and its table.
 - Keep section data and rendering generic so another reference view can supply sections without adding label-specific styling or pinning code.
 - Preserve shortcut table content, wrapping, section order, screen chrome, and the pinned `a1 pi` in-feed document.
 

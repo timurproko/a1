@@ -822,8 +822,7 @@ export class SettingsApp implements UiApp {
   }
 
   #header(title: string, theme: UiTheme, width: number): string {
-    if (width < SETTINGS_CONTENT_INSET) return "";
-    return ` ${renderGroupHeader(humanizeTitle(title), width - SETTINGS_CONTENT_INSET, theme)}`;
+    return renderGroupHeader(humanizeTitle(title), width, theme);
   }
 
   #renderRow(row: Row | undefined, selected: boolean, width: number, valueColumn: number, theme: UiTheme): string {
