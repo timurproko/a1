@@ -801,6 +801,7 @@
             "src/integrations/pi/components/upstream/components/extension-editor.ts",
             "src/integrations/pi/components/upstream/components/scoped-models-selector.ts",
             "src/integrations/pi/components/upstream/components/session-selector.ts",
+            "src/integrations/pi/components/upstream/components/thinking-selector.ts",
             "src/integrations/pi/components/upstream/components/tree-selector.ts",
             "src/integrations/pi/components/upstream/components/trust-selector.ts",
             "src/integrations/pi/startup-public.ts"
@@ -1222,6 +1223,7 @@
             "src/integrations/pi/components/shell-extension-ui.ts",
             "src/integrations/pi/components/shell-selectors-dialogs.ts",
             "src/integrations/pi/components/upstream/components/extension-editor.ts",
+            "src/integrations/pi/components/upstream/components/thinking-selector.ts",
             "src/integrations/pi/startup-public.ts"
           ]
         },
@@ -2436,7 +2438,7 @@
           "hash": "3ddede1ee2ec9090e36c87de575f83d2b260ae52e1cf1679514c8ee0ebe7b4e0",
           "consumers": [
             "src/integrations/pi/components/conformance.ts",
-            "src/integrations/pi/components/shell-selectors-dialogs.ts",
+            "src/integrations/pi/components/thinking-selector-dialog.ts",
             "src/integrations/pi/startup-public.ts"
           ]
         },
@@ -2833,6 +2835,7 @@
             "src/integrations/pi/components/upstream/components/scoped-models-selector.ts",
             "src/integrations/pi/components/upstream/components/session-selector.ts",
             "src/integrations/pi/components/upstream/components/skill-invocation-message.ts",
+            "src/integrations/pi/components/upstream/components/thinking-selector.ts",
             "src/integrations/pi/components/upstream/components/tool-execution.ts",
             "src/integrations/pi/components/upstream/components/tree-selector.ts",
             "src/integrations/pi/components/upstream/components/trust-selector.ts"
@@ -2935,6 +2938,7 @@
             "src/integrations/pi/components/shell-shared-facade.ts",
             "src/integrations/pi/components/upstream/components/scoped-models-selector.ts",
             "src/integrations/pi/components/upstream/components/session-selector.ts",
+            "src/integrations/pi/components/upstream/components/thinking-selector.ts",
             "src/integrations/pi/components/upstream/components/tree-selector.ts",
             "src/integrations/pi/components/upstream/history/editor-core.ts",
             "src/integrations/pi/tui-runtime/adapter.ts"
@@ -2945,7 +2949,8 @@
           "kind": "function",
           "hash": "2c370c44434c0cecb387fb2da676e63c2731ab2580a603d6f2b8f9020b2150fc",
           "consumers": [
-            "src/integrations/pi/components/upstream/components/scoped-models-selector.ts"
+            "src/integrations/pi/components/upstream/components/scoped-models-selector.ts",
+            "src/integrations/pi/components/upstream/components/thinking-selector.ts"
           ]
         },
         {
@@ -3008,6 +3013,7 @@
             "src/integrations/pi/components/upstream/components/scoped-models-selector.ts",
             "src/integrations/pi/components/upstream/components/session-selector.ts",
             "src/integrations/pi/components/upstream/components/skill-invocation-message.ts",
+            "src/integrations/pi/components/upstream/components/thinking-selector.ts",
             "src/integrations/pi/components/upstream/components/trust-selector.ts",
             "src/integrations/pi/components/upstream/history/editor-core.ts"
           ]
@@ -3109,6 +3115,7 @@
             "src/integrations/pi/components/skills-dialog.ts",
             "src/integrations/pi/components/upstream/components/scoped-models-selector.ts",
             "src/integrations/pi/components/upstream/components/session-selector.ts",
+            "src/integrations/pi/components/upstream/components/thinking-selector.ts",
             "src/integrations/pi/components/upstream/components/tree-selector.ts"
           ]
         },
@@ -3432,7 +3439,8 @@
           "kind": "interface",
           "hash": "a3555b1afcc2f6a266c8d145d6ab14fbfee639b932bd6e6a50da6323abe2fc19",
           "consumers": [
-            "src/integrations/pi/components/shell-selectors-dialogs.ts"
+            "src/integrations/pi/components/shell-selectors-dialogs.ts",
+            "src/integrations/pi/components/upstream/components/thinking-selector.ts"
           ]
         },
         {
@@ -3441,6 +3449,7 @@
           "hash": "17c28b2a8fd6ab480bab4257e9325418943913666ce8e4685114b3993e415a17",
           "consumers": [
             "src/integrations/pi/components/shell-selectors-dialogs.ts",
+            "src/integrations/pi/components/upstream/components/thinking-selector.ts",
             "src/integrations/pi/components/upstream/history/editor-core.ts"
           ]
         },
@@ -3449,6 +3458,7 @@
           "kind": "interface",
           "hash": "8ec765c9e4cf1103ca891f80908d20d8b65d5c8382f64fd45dd65ebefdf814fe",
           "consumers": [
+            "src/integrations/pi/components/upstream/components/thinking-selector.ts",
             "src/integrations/pi/components/upstream/history/editor-core.ts"
           ]
         },
@@ -3553,6 +3563,7 @@
             "src/integrations/pi/components/upstream/components/extension-editor.ts",
             "src/integrations/pi/components/upstream/components/scoped-models-selector.ts",
             "src/integrations/pi/components/upstream/components/session-selector.ts",
+            "src/integrations/pi/components/upstream/components/thinking-selector.ts",
             "src/integrations/pi/components/upstream/components/tool-execution.ts",
             "src/integrations/pi/components/upstream/components/tree-selector.ts",
             "src/integrations/pi/components/upstream/components/trust-selector.ts"
@@ -3642,6 +3653,7 @@
             "src/integrations/pi/components/upstream/components/scoped-models-selector.ts",
             "src/integrations/pi/components/upstream/components/session-selector.ts",
             "src/integrations/pi/components/upstream/components/skill-invocation-message.ts",
+            "src/integrations/pi/components/upstream/components/thinking-selector.ts",
             "src/integrations/pi/components/upstream/components/tool-execution.ts",
             "src/integrations/pi/components/upstream/components/tree-selector.ts",
             "src/integrations/pi/components/upstream/components/trust-selector.ts"

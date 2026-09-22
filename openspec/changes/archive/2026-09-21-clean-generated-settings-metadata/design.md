@@ -44,6 +44,10 @@ Extend local-cleanup fixtures to prove the central list and CLI expose the exact
 - **[Risk] File purge could accept links or special files.** → Continue rejecting symbolic links and allow only `isDirectory()` or `isFile()` before bounded removal.
 - **[Risk] Tests leave the file in active worktrees.** → It is ignored, deterministic, shared safely by concurrent tests, and removed only after verified delivery by the central policy.
 
+## Validation Gap Disposition
+
+Exact-head CI exposed pre-existing consumer-inventory drift from merged PR #529: the pinned Pi public API baseline did not name the owned thinking selector's public-package imports. Regenerate only that inventory so its export hashes remain unchanged while its consumer paths match the merged source. This is delivery reconciliation for the prerequisite selector change, not a cleanup-authority expansion.
+
 ## Migration Plan
 
 1. Add exact regular-file support and the metadata path with focused tests and documentation.

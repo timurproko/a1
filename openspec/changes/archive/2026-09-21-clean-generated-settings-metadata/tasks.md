@@ -13,3 +13,4 @@
 - [x] 3.1 Run strict OpenSpec validation, typechecking, and focused cleanup governance tests without prohibited local full suites; record any actual gap explicitly.
 - [x] 3.2 Reconcile current `develop` and prepare the accepted change for trusted finalization and exact-head validation.
 - [x] 3.3 Verify PR #529's retained worktree is blocked only by the exact generated artifact and record the standard post-merge cleanup command for execution after this policy integrates.
+- [x] 3.4 Regenerate the pinned Pi public API consumer inventory after exact-head CI exposed drift from PR #529's merged owned selector; verify the baseline check passes without export hash changes.

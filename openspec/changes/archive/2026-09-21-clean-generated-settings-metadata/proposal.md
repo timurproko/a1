@@ -21,5 +21,5 @@ None.
 
 ## Impact
 
-- Affects the central local-worktree cleanup schema, purge logic, allowlist, documentation, and governance tests.
+- Affects the central local-worktree cleanup schema, purge logic, allowlist, documentation, governance tests, and the generated pinned Pi public API consumer inventory corrected during exact-head validation.
 - Does not make arbitrary files under `src/` disposable and does not weaken merge, archive, identity, ownership, remote-ref, or non-force removal gates.
