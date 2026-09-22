@@ -7,7 +7,7 @@ Defines A1's independently owned Pi shell with vanilla-default regular main-scre
 ## Requirements
 
 ### Requirement: The owned shell presents the complete pinned Pi interactive UI
-The A1-owned UI SHALL reproduce the complete visible and interactive behavior of pinned Pi `0.86.1` at commit `13cbf77df2396303013a41646bcfa77b4271ae56`. The baseline SHALL include startup composition, themes, colors, spacing, layout, editor, autocomplete, keybindings, commands, prompt execution, transcript, streaming, tools, selectors, dialogs, settings, sessions, models, thinking, status/footer state, clipboard, resize, errors, and shutdown. A1 SHALL NOT substitute approximate layouts, colors, controllers, or workflows for covered pinned behavior. After parity acceptance a route MAY be superseded by a declared A1-owned replacement; the pinned behavior of a superseded route SHALL remain provable through `a1 pi`, and every capability the pinned route exposed SHALL remain reachable from its replacement.
+The A1-owned UI SHALL reproduce the complete visible and interactive behavior of pinned Pi `0.87.0` at commit `16787ad5b2dc748047f314ca1bfe7708f30f54f3`. The baseline SHALL include startup composition, themes, colors, spacing, layout, editor, autocomplete, keybindings, commands, prompt execution, transcript, streaming, tools, selectors, dialogs, settings, sessions, models, thinking, status/footer state, clipboard, resize, errors, and shutdown. A1 SHALL NOT substitute approximate layouts, colors, controllers, or workflows for covered pinned behavior. After parity acceptance a route MAY be superseded by a declared A1-owned replacement; the pinned behavior of a superseded route SHALL remain provable through `a1 pi`, and every capability the pinned route exposed SHALL remain reachable from its replacement.
 
 #### Scenario: Start an owned Pi session
 - **WHEN** the user starts the owned UI in an equivalent terminal and session state
@@ -1607,7 +1607,7 @@ In the bare-A1 custom transcript viewport, Shift+Down SHALL navigate to the next
 ### Requirement: Above-prompt autocomplete is a declared bare-A1 presentation replacement
 Bare A1 SHALL declare above-prompt autocomplete with a matching top line as a placement-and-decoration replacement for the ordinary editor's pinned below-prompt list. This named exception SHALL supersede pinned row-order, top-line decoration and counter relocation, and resulting editor-anchor parity only for that surface. The additional line SHALL match the prompt border's current color, glyph, and width and appear only while the menu has rendered rows; candidate rows SHALL retain their existing rendering, including background and padding. The existing trailing completion counter SHALL move into the top line without parentheses, at the history border label inset and in its dim color, with its old row removed. Its selected-item/total meaning, visibility conditions, and updates SHALL remain unchanged; this is not a new page-count calculation. The replacement SHALL NOT apply menu-panel shading. The related bare-A1 history border label SHALL omit only its `History` title, retaining its numeric value, dim color, inset, and overflow suffix. Menu sizing and clipping, editor choice, history behavior, contextual suggestions, settings, extensions, and unrelated shell behavior SHALL otherwise retain their existing contracts.
 
-The replacement SHALL apply to slash-command, command-argument, path/resource, and extension-provider completions displayed by the default editor, with persistent history both enabled and disabled. It SHALL preserve candidate ordering, labels, descriptions, semantic styling, selection, the existing pagination and visible-item policy, configured keys, Tab/Enter application or submission semantics, asynchronous provider lifecycle, and Escape cancellation except for the separately declared sole slash-command search clearing. It SHALL NOT reverse the list or change navigation direction merely because the list is above the prompt. Active autocomplete SHALL retain priority over contextual ghost suggestions.
+The replacement SHALL apply to slash-command, command-argument, path/resource, and extension-provider completions displayed by the default editor, with persistent history both enabled and disabled. It SHALL preserve candidate ordering, labels, descriptions, semantic styling, selection, the existing pagination and visible-item policy, configured keys, Tab/Enter application or submission semantics, asynchronous provider lifecycle, and Escape cancellation except for the separately declared sole slash-command search clearing. On every selected row that renders a description, the selection arrow and primary candidate SHALL use the selected accent role while the aligned description SHALL retain the ordinary muted description role. A selected row without a rendered description SHALL retain the ordinary selected styling. The replacement SHALL NOT reverse the list or change navigation direction merely because the list is above the prompt. Active autocomplete SHALL retain priority over contextual ghost suggestions.
 
 The `a1 pi` comparison route, untouched pinned Pi, and extension-owned replacement editors SHALL retain their existing presentation and input ownership. A1 SHALL NOT mutate installed Pi packages, their exported constructors, or their prototypes to implement this replacement.
 
@@ -1615,6 +1615,11 @@ The `a1 pi` comparison route, untouched pinned Pi, and extension-owned replaceme
 - **WHEN** equivalent input invokes slash-command or argument completion in bare A1
 - **THEN** the same candidates, active-item behavior, and completion or command outcome SHALL remain available above the prompt
 - **AND** Up and Down SHALL retain their established selection direction and configured keybindings
+
+#### Scenario: Style a selected candidate description
+- **WHEN** bare A1's default-editor autocomplete selects a command, argument, resource, or extension candidate that renders a description
+- **THEN** the selection arrow and primary candidate SHALL be accented
+- **AND** the description SHALL remain muted exactly as it is on an unselected row
 
 #### Scenario: Complete paths or provider resources
 - **WHEN** a path/resource provider or an extension autocomplete provider returns candidates for the default editor
@@ -1638,9 +1643,9 @@ The `a1 pi` comparison route, untouched pinned Pi, and extension-owned replaceme
 
 #### Scenario: Compare with pinned Pi
 - **WHEN** equivalent completion input runs through `a1 pi` and untouched pinned Pi
-- **THEN** their list placement, editor coordinates, candidates, and interactions SHALL retain their pinned behavior
-- **AND** neither comparison producer SHALL gain the new top line or relocate its original counter
-- **AND** only bare A1's explicitly declared placement, top-line, counter-relocation, and sole slash-command search clearing differences SHALL be treated as expected autocomplete deviations
+- **THEN** their list placement, editor coordinates, candidates, interactions, and selected-row styling SHALL retain their pinned behavior
+- **AND** neither comparison producer SHALL gain the new top line, relocate its original counter, or receive bare A1's split selected-description styling
+- **AND** only bare A1's explicitly declared placement, top-line, counter-relocation, selected-description styling, and sole slash-command search clearing differences SHALL be treated as expected autocomplete deviations
 
 ### Requirement: Rendering stability is proven from terminal paint evidence
 A rendering-affecting change to the owned shell SHALL be validated with bounded terminal-paint evidence in addition to semantic row snapshots. The evidence SHALL independently exercise bare A1, the pinned `a1 pi` comparison, and untouched pinned Pi under equivalent profile state, terminal geometry, theme, capabilities, transcript, deterministic stream updates, and input checkpoints. It SHALL distinguish the default regular-mode comparison from a mode-matched fullscreen comparison so differences caused by terminal ownership are not misattributed to transcript content.
@@ -2058,7 +2063,7 @@ When the command menu is open on a sole top-level slash search whose selected ro
 - **THEN** no tunnel rows SHALL appear and the text SHALL be treated as pinned Pi treats it
 
 ### Requirement: The changelog and hotkeys commands open reference screens in bare A1
-Bare A1 SHALL declare `/changelog` and `/hotkeys` as A1-owned replacements for the pinned in-feed changelog and keyboard-shortcut documents. The owned route host SHALL claim both routes ahead of the pinned workflow table, so invoking either in bare A1 opens the A1-owned reference screen full screen over the session and appends no document, status, checkmark, or error row to the feed. `/changelog` SHALL open the screen titled `What's New` with the complete pinned changelog Markdown in the same order and with the same link rewriting the pinned `/changelog` workflow produces. `/hotkeys` SHALL open the screen titled `Keyboard Shortcuts` with the bare-A1 keybinding-derived tables the in-feed presenter produced for the `a1` profile, including the current editor keybinding configuration and the extension shortcut descriptions, gathered when the screen opens. Both documents SHALL be rendered through the same settings-aware Markdown presentation and theme the in-feed documents used, without the spacer, border, and heading rows that were feed chrome, so each visible document row equals the corresponding row of the former in-feed document at the same width.
+Bare A1 SHALL declare `/changelog` and `/hotkeys` as A1-owned replacements for the pinned in-feed changelog and keyboard-shortcut documents. The owned route host SHALL claim both routes ahead of the pinned workflow table, so invoking either in bare A1 opens the A1-owned reference screen full screen over the session and appends no document, status, checkmark, or error row to the feed. `/changelog` SHALL open the screen titled `What's New` with the complete pinned changelog Markdown in the same order and with the same link rewriting the pinned `/changelog` workflow produces. `/hotkeys` SHALL open the screen titled `Keyboard Shortcuts` with the bare-A1 keybinding-derived tables the in-feed presenter produced for the `a1` profile, including the current editor keybinding configuration and extension shortcut descriptions gathered when the screen opens. Bare A1 SHALL carry those tables as structured sections into the reference screen rather than recognizing labels from rendered text. Every section SHALL use the same shared header component, bold yellow Markdown-heading role, one-cell left inset, content adjacency, inter-section spacing, and active-section pinning as owned Settings. One blank row SHALL separate the main screen title from the first section. The changelog document SHALL retain its flat settings-aware Markdown presentation, and the hotkeys refinement SHALL NOT alter table content, wrapping, section order, or the pinned comparison presentation. Both screens SHALL omit the spacer, border, and heading rows that were feed chrome.
 
 The screen SHALL be presented through the same owned route path as `/settings`: full-size top-left overlay with owned input coordination, pointer reporting enabled for its lifetime and disabled when it closes, mouse reports routed to the screen before any other surface, and the interrupt chord watched on raw input. The commands SHALL remain listed in the slash-command menu with their pinned descriptions. The `a1 pi` comparison profile and untouched pinned Pi SHALL retain the pinned in-feed documents; without the owned route host the commands remain pinned workflow routes. A1 SHALL NOT mutate installed Pi packages, their exported constructors, or their prototypes to implement the replacement.
 
@@ -2069,7 +2074,11 @@ The screen SHALL be presented through the same owned route path as `/settings`: 
 
 #### Scenario: Invoke the hotkeys command in bare A1
 - **WHEN** the user submits `/hotkeys` in bare A1
-- **THEN** the `Keyboard Shortcuts` reference screen SHALL open with the bare-A1 Navigation, Editing, Other, and, when any exist, Extensions tables and the feed SHALL gain no rows
+- **THEN** the `Keyboard Shortcuts` reference screen SHALL open with the bare-A1 Navigation, Editing, Other, Models dialog, and, when any exist, Extensions tables and the feed SHALL gain no rows
+- **AND** each section label SHALL use the Settings bold yellow heading role, align with the main title's one-cell left inset, and begin after one blank row below that title
+- **AND** each section table SHALL begin on the row immediately following its label with no blank spacer
+- **AND** scrolling within a section SHALL pin that section label as the first document row until the next section takes over
+- **AND** adding another structured section SHALL require only section data, not a label-specific styling or pinning branch
 - **AND** a keybinding configuration reloaded before the next invocation SHALL be reflected the next time the screen opens
 
 #### Scenario: Scroll and close a reference command screen
@@ -2121,3 +2130,67 @@ The bare-A1 thinking selector SHALL render `Thinking Level` in bold semantic acc
 - **WHEN** the user filters or navigates levels, selects a session level, saves a default level, or cancels the selector
 - **THEN** the selector SHALL retain its existing interaction and restoration outcomes
 - **AND** heading and row styling SHALL NOT alter list geometry, focus, or instruction placement
+
+### Requirement: Bare A1 keeps model and thinking commands adjacent
+Bare A1 SHALL present `thinking` immediately after its unified `models` command in the advertised workflow catalog and slash-command autocomplete. All other owned built-in commands SHALL retain their relative order. The pinned `a1 pi` comparison profile SHALL retain its upstream command order unchanged.
+
+#### Scenario: Open bare A1 slash-command autocomplete
+- **WHEN** bare A1 presents its built-in slash-command catalog
+- **THEN** its first four commands SHALL be `settings`, `models`, `thinking`, and `tree` in that order
+- **AND** its advertised workflow catalog SHALL use the same order
+
+#### Scenario: Open comparison slash-command autocomplete
+- **WHEN** the `a1 pi` comparison profile presents its built-in slash-command catalog
+- **THEN** `model`, `tree`, `thinking`, and `scoped-models` SHALL remain in pinned upstream order
+
+### Requirement: Bare A1 links the current branch's open pull request from the footer
+
+Bare A1 SHALL discover the open GitHub pull request associated with the effective working tree branch and, when one is available, SHALL render `PR #<number>` directly after the footer's path and branch. The `PR` prefix SHALL retain the footer's grey, while only `#<number>` SHALL use the established web-link color and carry the pull request's canonical HTTPS URL as a terminal-native hyperlink so the terminal provides its ordinary hover and Ctrl+click behavior. The path, branch, `PR` prefix, separator, and session name SHALL remain outside the hyperlink.
+
+Discovery SHALL be asynchronous, bounded, serialized, and optional. Missing GitHub CLI or authentication, detached or mismatched branches, no open pull request, malformed or unsafe output, command failure, and timeout SHALL leave the existing footer unchanged and SHALL NOT block startup or fail the session. A running session SHALL refresh the association at a bounded cadence and SHALL release its timer and active probe on disposal.
+
+The badge is a declared bare-A1 addition. The `a1 pi` comparison profile SHALL retain its pinned footer bytes and SHALL NOT render the badge.
+
+#### Scenario: Show an open branch pull request
+
+- **WHEN** bare A1 runs in a Git working tree whose current branch has an open pull request numbered 567 at `https://github.com/example/project/pull/567`
+- **THEN** the footer path row SHALL contain `path (branch) PR #567`
+- **AND** `PR` SHALL retain the same grey role as the surrounding footer
+- **AND** only `#567` SHALL be an OSC 8 hyperlink targeting that canonical URL
+- **AND** the linked number SHALL use the same theme role as established web links
+
+#### Scenario: Keep surrounding footer text outside the link
+
+- **WHEN** the footer also has a session name
+- **THEN** the row SHALL order path, branch, PR badge, and session name as `path (branch) PR #<number> • session-name`
+- **AND** the path, branch, spaces, `PR` prefix, separator, and session name SHALL NOT resolve to the PR target
+
+#### Scenario: No open pull request is available
+
+- **WHEN** the current directory is not a Git repository, the head is detached, no open PR matches the current branch, or GitHub CLI discovery fails, times out, or returns invalid data
+- **THEN** the footer SHALL retain its existing path, branch, and session-name presentation without a PR badge
+- **AND** startup and the running agent session SHALL continue without a PR-discovery diagnostic
+
+#### Scenario: Pull request association changes during the session
+
+- **WHEN** a bounded refresh observes that the current branch gains, loses, or changes its open pull request association
+- **THEN** the footer SHALL update to the newest normalized identity
+- **AND** unchanged refreshes SHALL NOT cause redundant view updates
+- **AND** no two discovery processes SHALL overlap
+
+#### Scenario: Dispose while discovery is pending
+
+- **WHEN** the session is disposed with a refresh timer or PR discovery process pending
+- **THEN** the timer and process SHALL be cancelled or released
+- **AND** a late result SHALL NOT update or render the disposed session
+
+#### Scenario: Render a narrow footer
+
+- **WHEN** the linked PR badge reaches the footer's truncation boundary
+- **THEN** the rendered row SHALL remain within its declared width
+- **AND** hyperlink and foreground state SHALL close at the truncation boundary without extending to another cell or row
+
+#### Scenario: Use the pinned comparison profile
+
+- **WHEN** the same footer state is rendered through `a1 pi`
+- **THEN** its output SHALL match the pinned footer without a PR badge or PR hyperlink

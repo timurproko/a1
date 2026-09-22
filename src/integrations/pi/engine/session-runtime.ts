@@ -10,8 +10,14 @@ import type { PiProjectTrustPreflightPrompt } from "./project-trust-preflight.js
 import type { PiSessionForkPrompt, PiSessionSelection } from "./session-selection.js";
 import type { OwnedUiDiagnostics } from "../../../contracts/owned-ui/index.js";
 import type { PiSessionResumeMetadata, PiWorkflowHost } from "./workflows.js";
+import {
+  readOpenPullRequest,
+  type PiPullRequestIdentity,
+  type PiPullRequestProbe,
+} from "./repository-pr.js";
 
 const execFileAsync = promisify(execFile);
+const PULL_REQUEST_REFRESH_MS = 60_000;
 
 export interface PiEngineRuntimeFactoryInput {
   readonly cwd: string;
@@ -37,6 +43,9 @@ export interface PiEngineRuntimeOptions {
   readonly projectTrustPrompt: PiProjectTrustPreflightPrompt | undefined;
   readonly createRuntime: PiEngineRuntimeFactory | undefined;
   readonly checkPackageUpdates: PiEnginePackageUpdateProbe | undefined;
+  readonly pullRequestProbe?: PiPullRequestProbe;
+  readonly pullRequestRefreshMs?: number;
+  readonly gitBranchReader?: (cwd: string) => Promise<string | null>;
   readonly host: PiWorkflowHost;
 }
 
@@ -70,6 +79,9 @@ export class PiEngineRuntime {
   readonly #ports: PiEngineRuntimePorts;
   readonly #runtimeFactory: PiEngineRuntimeFactory;
   readonly #checkPackageUpdates: PiEnginePackageUpdateProbe;
+  readonly #pullRequestProbe: PiPullRequestProbe;
+  readonly #pullRequestRefreshMs: number;
+  readonly #gitBranchReader: (cwd: string) => Promise<string | null>;
   #cwd: string;
   #runtime: AgentSessionRuntime | undefined;
   #session: AgentSession | undefined;
@@ -79,6 +91,10 @@ export class PiEngineRuntime {
   #sessionCommands: PiSessionCommandIntegration | undefined;
   #compactionProgress: CompactionProgressObserver | null = null;
   #gitBranch: string | null = null;
+  #pullRequest: PiPullRequestIdentity | null = null;
+  #pullRequestTimer: ReturnType<typeof setTimeout> | undefined;
+  #pullRequestAbort: AbortController | undefined;
+  #disposed = false;
 
   constructor(options: PiEngineRuntimeOptions, ports: PiEngineRuntimePorts) {
     this.#options = options;
@@ -89,6 +105,9 @@ export class PiEngineRuntime {
       ?? (options.createRuntime
         ? async () => []
         : settingsManager => checkDefaultPiPackageUpdates(this.#cwd, options.agentDir, settingsManager));
+    this.#pullRequestProbe = options.pullRequestProbe ?? readOpenPullRequest;
+    this.#pullRequestRefreshMs = options.pullRequestRefreshMs ?? PULL_REQUEST_REFRESH_MS;
+    this.#gitBranchReader = options.gitBranchReader ?? readGitBranch;
   }
 
   get runtime(): AgentSessionRuntime | undefined {
@@ -117,6 +136,10 @@ export class PiEngineRuntime {
     return this.#gitBranch;
   }
 
+  get pullRequest(): PiPullRequestIdentity | null {
+    return this.#pullRequest;
+  }
+
   get sessionCommands(): PiSessionCommandIntegration | undefined {
     return this.#sessionCommands;
   }
@@ -138,7 +161,7 @@ export class PiEngineRuntime {
     });
     this.#runtime = runtime;
     this.#cwd = runtime.cwd ?? this.#cwd;
-    this.#gitBranch = await readGitBranch(this.#cwd);
+    this.#gitBranch = await this.#gitBranchReader(this.#cwd);
     this.#ports.started(runtime);
     runtime.setRebindSession(async session => {
       if (this.#ports.rebindBlocked()) return;
@@ -155,6 +178,7 @@ export class PiEngineRuntime {
     }
     this.bindSession(runtime.session);
     await this.#announceChangelog(runtime.services.settingsManager);
+    this.#startPullRequestRefresh();
     return runtime;
   }
 
@@ -254,11 +278,46 @@ export class PiEngineRuntime {
 
   /** Unsubscribe, stop observing compaction, and dispose the runtime; the session reference is kept for final reads. */
   async dispose(): Promise<void> {
+    this.#disposed = true;
+    if (this.#pullRequestTimer !== undefined) clearTimeout(this.#pullRequestTimer);
+    this.#pullRequestTimer = undefined;
+    this.#pullRequestAbort?.abort();
+    this.#pullRequestAbort = undefined;
     this.#unsubscribe?.();
     this.#unsubscribe = undefined;
     this.#compactionProgress?.dispose();
     this.#compactionProgress = null;
     await this.#runtime?.dispose();
+  }
+
+  #startPullRequestRefresh(): void {
+    if (this.#gitBranch === null || this.#disposed || this.#ports.disposed()) return;
+    void this.#refreshPullRequest();
+  }
+
+  async #refreshPullRequest(): Promise<void> {
+    const branch = this.#gitBranch;
+    if (branch === null || this.#pullRequestAbort !== undefined || this.#disposed || this.#ports.disposed()) return;
+    const controller = new AbortController();
+    this.#pullRequestAbort = controller;
+    let next: PiPullRequestIdentity | null = null;
+    try {
+      next = await this.#pullRequestProbe(this.#cwd, branch, controller.signal);
+    } catch {
+      next = null;
+    } finally {
+      if (this.#pullRequestAbort === controller) this.#pullRequestAbort = undefined;
+    }
+    if (controller.signal.aborted || this.#disposed || this.#ports.disposed()) return;
+    if (!samePullRequest(this.#pullRequest, next)) {
+      this.#pullRequest = next;
+      this.#ports.emitView();
+    }
+    this.#pullRequestTimer = setTimeout(() => {
+      this.#pullRequestTimer = undefined;
+      void this.#refreshPullRequest();
+    }, this.#pullRequestRefreshMs);
+    this.#pullRequestTimer.unref?.();
   }
 
   #subscribe(): void {
@@ -314,6 +373,10 @@ async function checkDefaultPiPackageUpdates(
   const packageManager = new DefaultPackageManager({ cwd, agentDir, settingsManager });
   const updates = await packageManager.checkForAvailableUpdates();
   return updates.map(update => update.displayName);
+}
+
+function samePullRequest(left: PiPullRequestIdentity | null, right: PiPullRequestIdentity | null): boolean {
+  return left?.number === right?.number && left?.url === right?.url;
 }
 
 async function readGitBranch(cwd: string): Promise<string | null> {

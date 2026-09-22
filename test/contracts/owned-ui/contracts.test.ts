@@ -201,6 +201,21 @@ describe("owned UI command, event, and snapshot contracts", () => {
     expect(() => assertOwnedUiSessionViewModel(view({ transcript: [block({ payload: { data: "x".repeat(70 * 1024) } })] }))).toThrow(/byte limit/);
   });
 
+  it("validates normalized footer pull request identity", () => {
+    const footer = {
+      branch: "feature/show-pr-id-status-bar",
+      pullRequest: { number: 540, url: "https://github.com/timurproko/a1/pull/540" },
+      sessionName: null,
+      availableProviderCount: 1,
+      extensionStatuses: [],
+    };
+    const status = { ...view().status, footer };
+    expect(() => assertOwnedUiSessionViewModel(view({ status }))).not.toThrow();
+    expect(() => assertOwnedUiSessionViewModel(view({ status: { ...status, footer: { ...footer, pullRequest: { ...footer.pullRequest, number: 0 } } } }))).toThrow(/pull request number/);
+    expect(() => assertOwnedUiSessionViewModel(view({ status: { ...status, footer: { ...footer, pullRequest: { ...footer.pullRequest, url: "https://example.com/timurproko/a1/pull/540" } } } }))).toThrow(/pull request URL/);
+    expect(() => assertOwnedUiSessionViewModel(view({ status: { ...status, footer: { ...footer, pullRequest: { number: 540 } as never } } }))).toThrow(/pull request URL/);
+  });
+
   it("rejects malformed identities, unknown enums, and invalid focus geometry", () => {
     expect(() => assertOwnedUiCommand(command({ correlationId: "bad id" }))).toThrow(/unsupported characters/);
     expect(() => assertOwnedUiEvent(event({ type: "future" } as unknown as OwnedUiEvent))).toThrow(/unknown/);

@@ -18,7 +18,7 @@ export function processAlive(pid) {
 }
 export const safeRef = ref => typeof ref === "string" && /^refs\/heads\/(?:feature|fix|refactor|docs|test|chore|style)\/[A-Za-z0-9][A-Za-z0-9._/-]*$/.test(ref)
   && !/(?:\.\.|\/\.|\/\/|\/$|\.$|\.lock(?:\/|$))/.test(ref);
-const disposablePath = value => typeof value === "string" && /^(?:(?:node_modules|dist|\.builds|\.artifacts)(?:\/[A-Za-z0-9_-]+)*|native\/(?:process-guardian|terminal-host)\/target(?:\/[A-Za-z0-9_-]+)*)$/.test(value);
+const disposablePath = value => typeof value === "string" && /^(?:(?:node_modules|dist|\.builds|\.artifacts)(?:\/[A-Za-z0-9_-]+)*|native\/(?:process-guardian|terminal-host)\/target(?:\/[A-Za-z0-9_-]+)*|src\/integrations\/pi\/engine\/pi-settings-metadata\.json)$/.test(value);
 const identityKeys = ["primary", "root", "common", "repository", "remote"];
 export function validateIdentity(identity) {
   if (!exact(identity, identityKeys) || ![identity.primary, identity.root, identity.common].every(isAbsolute)

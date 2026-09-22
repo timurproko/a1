@@ -3,8 +3,8 @@
   "change": "build-owned-pi-ui-foundation",
   "task": "7.23",
   "pinned": {
-    "version": "0.86.1",
-    "commit": "13cbf77df2396303013a41646bcfa77b4271ae56",
+    "version": "0.87.0",
+    "commit": "16787ad5b2dc748047f314ca1bfe7708f30f54f3",
     "source": "packages/coding-agent/src/modes/interactive/interactive-mode.ts",
     "packageArtifact": "node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/interactive-mode.js"
   },

@@ -133,6 +133,7 @@ export interface OwnedUiUsageView {
 
 export interface OwnedUiFooterView {
   readonly branch: string | null;
+  readonly pullRequest?: { readonly number: number; readonly url: string } | null;
   readonly sessionName: string | null;
   readonly availableProviderCount: number;
   readonly extensionStatuses: readonly (readonly [string, string])[];

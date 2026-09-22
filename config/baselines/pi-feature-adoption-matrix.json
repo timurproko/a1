@@ -1,7 +1,7 @@
 {
   "schema": "a1-pi-feature-adoption-matrix-v1",
   "pinned": {
-    "version": "0.86.1"
+    "version": "0.87.0"
   },
   "changelogSince": "0.84.2",
   "rows": [
@@ -2299,6 +2299,36 @@
       "since": "0.86.1",
       "disposition": "pinned",
       "note": "Provider sign-in and catalog; reached through the pinned engine, with the provider default model mirrored in the owned resolver map."
+    },
+    {
+      "id": "changelog:0.87.0:canonical-session-context-and-extension-boundaries",
+      "kind": "changelog",
+      "feature": "Canonical session context and extension boundaries",
+      "version": "0.87.0",
+      "summary": "Edit model context without rewriting history and add actionable lifecycle hooks.",
+      "since": "0.87.0",
+      "disposition": "pinned",
+      "note": "Session-projection and extension-boundary behavior of the pinned engine A1 hosts; A1 appends no context edits and registers no boundary handler, and the owned transcript projects session events rather than provider context, so an omitted message leaves the UI history intact as upstream states. The one visible surface, the session tree, follows upstream through the source-synchronized tree-selector copy, which renders and filters the new context_edit entry."
+    },
+    {
+      "id": "changelog:0.87.0:full-transcript-context-extensions",
+      "kind": "changelog",
+      "feature": "Full-transcript context extensions",
+      "version": "0.87.0",
+      "summary": "Use `context_with_system` for per-request system-message transformations.",
+      "since": "0.87.0",
+      "disposition": "pinned",
+      "note": "Extension event of the pinned engine, dispatched by its own extension runner; A1 hosts extensions rather than transforming context, and its one extension registers only session_start and tool_result."
+    },
+    {
+      "id": "changelog:0.87.0:per-model-image-input-limits",
+      "kind": "changelog",
+      "feature": "Per-model image input limits",
+      "version": "0.87.0",
+      "summary": "Configure cache-safe image resizing per model for attachments, `read`, and tool-result images.",
+      "since": "0.87.0",
+      "disposition": "pinned",
+      "note": "Per-model inputLimits.images.resize read from the model registry by the pinned engine for attachments, read, and tool-result images; the pinned settings selector offers no row for it."
     }
   ]
 }

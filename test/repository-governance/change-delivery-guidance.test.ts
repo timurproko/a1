@@ -71,12 +71,13 @@ describe("repository-owned atomic delivery guidance", () => {
   it("documents the exact generated-artifact cleanup boundary", async () => {
     const cleanup = await readFile("docs/local-worktree-cleanup.md", "utf8");
     expect(cleanup).toContain("`.artifacts`, `native/process-guardian/target`");
-    expect(cleanup).toContain("widened to the root on the next `complete`");
-    expect(cleanup).toContain("near matches such as `.artifacts-user` or `artifacts`");
+    expect(cleanup).toContain("widened to the current policy on the next `complete`");
+    expect(cleanup).toContain("near matches such as `.artifacts-user`, `artifacts`, or `pi-settings-metadata-user.json`");
     expect(cleanup).toContain("worktree-absent-unregistered");
     expect(cleanup).toContain("within five seconds of the pull request's `merged_at`");
     expect(cleanup).toContain("`native/process-guardian/target`");
     expect(cleanup).toContain("`native/terminal-host/target`");
+    expect(cleanup).toContain("`src/integrations/pi/engine/pi-settings-metadata.json`");
     expect(cleanup).toContain("arbitrary `target` directories");
     expect(cleanup).toContain("bounded to 20,000 ordinary entries plus 100,000 entries beneath exact approved generated roots");
     expect(cleanup).toContain("exhausting either allowance never grants deletion authority");

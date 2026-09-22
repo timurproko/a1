@@ -1,13 +1,14 @@
 /**
- * Provenance: @earendil-works/pi-coding-agent 0.86.1 (MIT), commit 13cbf77df2396303013a41646bcfa77b4271ae56,
+ * Provenance: @earendil-works/pi-coding-agent 0.87.0 (MIT), commit 16787ad5b2dc748047f314ca1bfe7708f30f54f3,
  * packages/coding-agent/src/modes/interactive/components/footer.ts.
  * Modifications: Consumes neutral owned-UI view data instead of a fabricated concrete AgentSession; an
- * explicit bare-A1 profile colors the thinking-level name while preserving the remaining footer layout
- * and formatting, and replacement surfaces may suppress a thinking level they already present.
- * Deviations: owned-status-level-color.
+ * explicit bare-A1 profile colors the thinking-level name and adds its linked pull-request badge while
+ * preserving the remaining footer layout and formatting, and replacement surfaces may suppress a
+ * thinking level they already present.
+ * Deviations: owned-status-level-color, owned-pull-request-badge.
  */
 import { isAbsolute, relative, resolve, sep } from "node:path";
-import { truncateToWidth, visibleWidth, type Component } from "@earendil-works/pi-tui";
+import { hyperlink, truncateToWidth, visibleWidth, type Component } from "@earendil-works/pi-tui";
 import type { OwnedUiSessionViewModel } from "../../../../../contracts/owned-ui/index.js";
 import { piTheme } from "../../theme.js";
 
@@ -40,7 +41,12 @@ export class SessionFooter implements Component {
     const branch = view.status.footer?.branch;
     if (branch) pwd = `${pwd} (${branch})`;
     const sessionName = view.status.footer?.sessionName;
-    if (sessionName) pwd = `${pwd} • ${sessionName}`;
+    const pullRequest = this.profile === "a1" ? view.status.footer?.pullRequest : null;
+    const pathRow = pullRequest === undefined || pullRequest === null
+      ? theme.fg("dim", sessionName ? `${pwd} • ${sessionName}` : pwd)
+      : theme.fg("dim", `${pwd} PR `)
+        + hyperlink(theme.fg("mdLink", `#${pullRequest.number}`), pullRequest.url)
+        + (sessionName ? theme.fg("dim", ` • ${sessionName}`) : "");
 
     const parts: string[] = [];
     if (input) parts.push(`↑${formatTokens(input)}`);
@@ -85,7 +91,7 @@ export class SessionFooter implements Component {
     }
 
     const lines = [
-      truncateToWidth(theme.fg("dim", pwd), width, theme.fg("dim", "...")),
+      truncateToWidth(pathRow, width, theme.fg("dim", "...")),
       theme.fg("dim", left) + (this.profile === "a1" ? line.slice(left.length) : theme.fg("dim", line.slice(left.length))),
     ];
     const statuses = view.status.footer?.extensionStatuses ?? [];

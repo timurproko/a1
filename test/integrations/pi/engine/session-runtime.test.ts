@@ -1,7 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AgentSession, AgentSessionRuntime } from "@earendil-works/pi-coding-agent";
 import { PiEngineRuntime, type PiEngineRuntimePorts } from "../../../../src/integrations/pi/engine/session-runtime.js";
+import type { PiPullRequestIdentity, PiPullRequestProbe } from "../../../../src/integrations/pi/engine/repository-pr.js";
 import type { PiWorkflowHost } from "../../../../src/integrations/pi/engine/workflows.js";
+
+afterEach(() => { vi.useRealTimers(); });
 
 class FakeSession {
   readonly listeners = new Set<(event: unknown) => void>();
@@ -33,7 +36,13 @@ class FakeRuntime {
   async dispose(): Promise<void> { this.disposed = true; }
 }
 
-function harness(overrides: Partial<PiEngineRuntimePorts> = {}, options: { updates?: readonly string[]; changelog?: string } = {}) {
+function harness(overrides: Partial<PiEngineRuntimePorts> = {}, options: {
+  updates?: readonly string[];
+  changelog?: string;
+  branch?: string | null;
+  pullRequestProbe?: PiPullRequestProbe;
+  pullRequestRefreshMs?: number;
+} = {}) {
   const runtime = new FakeRuntime();
   const calls: string[] = [];
   const state = { disposed: false, blocked: false };
@@ -41,7 +50,11 @@ function harness(overrides: Partial<PiEngineRuntimePorts> = {}, options: { updat
   const engine = new PiEngineRuntime({
     cwd: "D:/work", agentDir: "D:/agent", sessionId: "owned-1", sessionPath: undefined, sessionSelection: undefined,
     sessionForkPrompt: undefined, projectTrustPrompt: undefined, createRuntime: async () => runtime as unknown as AgentSessionRuntime,
-    checkPackageUpdates: options.updates === undefined ? undefined : async () => options.updates!, host,
+    checkPackageUpdates: options.updates === undefined ? undefined : async () => options.updates!,
+    ...(options.branch === undefined ? {} : { gitBranchReader: async () => options.branch! }),
+    ...(options.pullRequestProbe === undefined ? {} : { pullRequestProbe: options.pullRequestProbe }),
+    ...(options.pullRequestRefreshMs === undefined ? {} : { pullRequestRefreshMs: options.pullRequestRefreshMs }),
+    host,
   }, {
     disposed: () => state.disposed,
     started: () => { calls.push("started"); },
@@ -106,6 +119,43 @@ describe("PiEngineRuntime", () => {
     runtime.session.emit({ type: "after-dispose" });
     expect(calls).toEqual(["event:kept"]);
     expect(engine.session).toBeDefined();
+  });
+
+  it("refreshes pull request identity serially, avoids unchanged views, and cancels pending work on disposal", async () => {
+    vi.useFakeTimers();
+    const pending: Array<{ resolve: (value: PiPullRequestIdentity | null) => void; signal: AbortSignal }> = [];
+    const probe = vi.fn<PiPullRequestProbe>((_cwd, _branch, signal) => new Promise(resolve => { pending.push({ resolve, signal }); }));
+    const { engine, calls } = harness({}, {
+      branch: "feature/show-pr-id-status-bar",
+      pullRequestProbe: probe,
+      pullRequestRefreshMs: 60_000,
+    });
+    await engine.start();
+    expect(probe).toHaveBeenCalledTimes(1);
+    expect(probe).toHaveBeenLastCalledWith("D:/resolved", "feature/show-pr-id-status-bar", expect.any(AbortSignal));
+
+    pending[0]!.resolve({ number: 540, url: "https://github.com/timurproko/a1/pull/540" });
+    await Promise.resolve();
+    expect(engine.pullRequest).toEqual({ number: 540, url: "https://github.com/timurproko/a1/pull/540" });
+    expect(calls.at(-1)).toBe("view");
+    calls.length = 0;
+
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(probe).toHaveBeenCalledTimes(2);
+    pending[1]!.resolve({ number: 540, url: "https://github.com/timurproko/a1/pull/540" });
+    await Promise.resolve();
+    expect(calls).toEqual([]);
+
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(probe).toHaveBeenCalledTimes(3);
+    const late = pending[2]!;
+    await engine.dispose();
+    expect(late.signal.aborted).toBe(true);
+    late.resolve({ number: 541, url: "https://github.com/timurproko/a1/pull/541" });
+    await Promise.resolve();
+    expect(engine.pullRequest?.number).toBe(540);
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(probe).toHaveBeenCalledTimes(3);
   });
 
   it("announces package updates as an informational diagnostic and skips the probe once disposed", async () => {

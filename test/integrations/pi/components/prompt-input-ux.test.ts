@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { CURSOR_MARKER, stripTerminalSequences, visibleWidth } from "@earendil-works/pi-tui";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { OwnedUiSessionViewModel, OwnedUiThinkingLevel } from "../../../../src/contracts/owned-ui/index.js";
-import { LineInput, PromptInput, promptRule, renderInputRow } from "../../../../src/ui/components/index.js";
+import { hyperlinkTargetAtColumn, LineInput, PromptInput, promptRule, renderInputRow } from "../../../../src/ui/components/index.js";
 import { applyPiTheme, createPiShellEditor, createPiShellFooter, createPiShellHeader, createPiShellHotkeys, piTheme, PINNED_PI_BUILTIN_SLASH_COMMANDS } from "../../../../src/integrations/pi/components/index.js";
 import { createPiShellThinkingSelector } from "../../../../src/integrations/pi/components/thinking-selector-dialog.js";
 import { KeybindingsManager } from "../../../../src/integrations/pi/components/upstream/adjacent/core/keybindings.js";
@@ -115,6 +115,42 @@ describe("owned shared input and status presentation", () => {
     input.handleInput?.("\u0003");
     expect(copy).toHaveBeenCalledWith("hello");
     expect(input.getText()).toBe("hello world");
+  });
+
+  it("links only the PR number in the owned footer and leaves the pinned profile unchanged", () => {
+    applyPiTheme("dark", false, "truecolor");
+    const state = view();
+    const footerState: OwnedUiSessionViewModel = {
+      ...state,
+      status: {
+        ...state.status,
+        footer: {
+          ...state.status.footer!,
+          branch: "feature/show-pr-id-status-bar",
+          pullRequest: { number: 540, url: "https://github.com/timurproko/a1/pull/540" },
+          sessionName: "footer-test",
+        },
+      },
+    };
+    const ownedRow = createPiShellFooter(footerState, "/WORK", "a1").render(120)[0]!;
+    const plain = stripTerminalSequences(ownedRow);
+    expect(plain).toBe("/WORK (feature/show-pr-id-status-bar) PR #540 • footer-test");
+    const linkColumn = plain.indexOf("#540");
+    expect(hyperlinkTargetAtColumn(ownedRow, linkColumn - 1)).toBeUndefined();
+    expect(hyperlinkTargetAtColumn(ownedRow, linkColumn)).toBe("https://github.com/timurproko/a1/pull/540");
+    expect(hyperlinkTargetAtColumn(ownedRow, linkColumn + 3)).toBe("https://github.com/timurproko/a1/pull/540");
+    expect(hyperlinkTargetAtColumn(ownedRow, linkColumn + 4)).toBeUndefined();
+    expect(cellStyle(ownedRow, "P")).toEqual(cellStyle(piTheme().fg("dim", "P"), "P"));
+    expect(cellStyle(ownedRow, "#")).toEqual(cellStyle(piTheme().fg("mdLink", "#"), "#"));
+
+    const pinnedRow = createPiShellFooter(footerState, "/WORK", "pi").render(120)[0]!;
+    expect(stripTerminalSequences(pinnedRow)).toBe("/WORK (feature/show-pr-id-status-bar) • footer-test");
+    expect(pinnedRow).not.toContain("\u001b]8;;");
+
+    const truncated = createPiShellFooter(footerState, "/WORK", "a1").render(linkColumn + 5)[0]!;
+    expect(visibleWidth(truncated)).toBeLessThanOrEqual(linkColumn + 5);
+    expect(hyperlinkTargetAtColumn(truncated, linkColumn)).toBe("https://github.com/timurproko/a1/pull/540");
+    expect(hyperlinkTargetAtColumn(truncated, linkColumn + 2)).toBeUndefined();
   });
 
   it.each(["dark", "light"] as const)("colors only the effective level span in the %s footer", themeName => {

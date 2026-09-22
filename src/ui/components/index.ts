@@ -22,7 +22,7 @@ export {
   topPaddingRows,
   visibleRowCount,
 } from "./list-block.js";
-export type { ListLayout, ListRow, ListRowSpan } from "./list-block.js";
+export type { ListLayout, ListLayoutOptions, ListRow, ListRowSpan } from "./list-block.js";
 export { STEPPER_RESERVE, placementFor, regionAt, renderGroupHeader, renderListRow, renderNote, valueColumnFor } from "./list-view.js";
 export type { ListRegion, ListRowPlacement, ListRowState, ListViewRow } from "./list-view.js";
 export { MOUSE_TRACKING_OFF, MOUSE_TRACKING_ON, parseMouseInput, routeMouseInput } from "./mouse.js";
