@@ -22,7 +22,7 @@
 
 ## 4. Live validation and handoff gates
 
-- [ ] 4.1 Verify native full-regression lane visibility in the implementation PR's actual Checks rollup and record pre-finalization observations without asserting they certify a later head.
+- [x] 4.1 Verify native full-regression lane visibility in the implementation PR's actual Checks rollup and record pre-finalization observations without asserting they certify a later head.
 - [ ] 4.2 Verify standalone Full regression caller compatibility and retained schedule/triage contracts; record this implementation evidence before finalization.
 
 After these substantive tasks and evidence are complete, automated finalization and one exact-head PR validation run must succeed, including selected Full regression, before manual handoff. That final remote gate is reported through Actions evidence and the handoff, not through an extra committed task or run-ID edit. No auto-merge or publication is part of this change.
