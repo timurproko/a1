@@ -698,13 +698,15 @@ describe("Pi shell public component adapters", () => {
     try {
       expect(stripTerminalSequences(status.renderLive(80).join("\n"))).toContain("Compacting...");
       status.setProgressPresentation("custom-viewport");
-      expect(stripTerminalSequences(status.renderLive(80).join("\n"))).toContain("Compacting (0%)...");
+      expect(stripTerminalSequences(status.renderLive(80).join("\n"))).toContain("Compacting(0%)...");
       const live = status.renderLive(80);
       status.update(busy(37));
-      expect(stripTerminalSequences(status.renderLive(80).join("\n"))).toContain("Compacting (37%)...");
+      expect(stripTerminalSequences(status.renderLive(80).join("\n"))).toContain("Compacting(37%)...");
       expect(status.renderLive(80)).toHaveLength(live.length);
+      status.update(busy(99));
+      expect(stripTerminalSequences(status.renderLive(80).join("\n"))).toContain("Compacting(99%)...");
       status.update(busy(37, "Working"));
-      expect(stripTerminalSequences(status.renderLive(80).join("\n"))).toContain("Working (37%)...");
+      expect(stripTerminalSequences(status.renderLive(80).join("\n"))).toContain("Working(37%)...");
       status.update(busy(null));
       expect(stripTerminalSequences(status.renderLive(80).join("\n"))).toContain("Compacting...");
       expect(stripTerminalSequences(status.renderLive(80).join("\n"))).not.toContain("%");
