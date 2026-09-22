@@ -6,6 +6,7 @@ import {
   createNpmProcessRunner,
   PRODUCT_PACKAGE,
   runSelfUpdate,
+  updateNpmInstallArguments,
   UPDATE_JOURNAL_SCHEMA,
   type ProcessRequest,
   type ProcessResult,
@@ -25,6 +26,12 @@ interface Invocation {
 
 const NEWLINE = String.fromCharCode(10);
 const RETURN = String.fromCharCode(13);
+const globalRootForPrefix = (prefix: string) => process.platform === "win32"
+  ? resolve(prefix, "node_modules")
+  : resolve(prefix, "lib", "node_modules");
+const TEST_PREFIX = resolve("fixtures", "prefix");
+const TEST_GLOBAL_ROOT = globalRootForPrefix(TEST_PREFIX);
+const LEGACY_TEST_GLOBAL_ROOT = resolve("fixtures", "global");
 
 /**
  * What a terminal would be showing: a carriage return rewrites the row, so only
@@ -45,18 +52,23 @@ function createHarness(options: {
   transactionPhase?: UpdateTransactionPhase;
   transactionTarget?: string;
 } = {}) {
-  const packageRoot = options.packageRoot ?? resolve("fixtures", "global", "@timurproko", "a1");
-  const globalRoot = options.globalRoot ?? resolve("fixtures", "global");
+  const globalRoot = options.globalRoot ?? TEST_GLOBAL_ROOT;
+  const packageRoot = options.packageRoot ?? resolve(globalRoot, "@timurproko", "a1");
   const responses = [...(options.responses ?? [])];
   const invocations: Invocation[] = [];
   const stdout: string[] = [];
   const stderr: string[] = [];
   const fileSystem: UpdateFileSystem = {
-    async readFile() {
-      return JSON.stringify({ version: options.current ?? "1.2.3" });
+    async readFile(path) {
+      return path.endsWith("package.json")
+        ? JSON.stringify({ name: PRODUCT_PACKAGE, version: options.current ?? "1.2.3" })
+        : "node_modules/@timurproko/a1/bin/cli.js";
     },
     async realpath(path) {
-      return resolve(path);
+      return resolve(path) === LEGACY_TEST_GLOBAL_ROOT ? globalRoot : resolve(path);
+    },
+    async lstat() {
+      return { mode: 0o755, isFile: () => true, isSymbolicLink: () => false };
     },
   };
   const output: UpdateOutput = {
@@ -122,14 +134,7 @@ function createHarness(options: {
 }
 
 const success = (stdout = ""): ProcessResult => ({ code: 0, stdout });
-const installArguments = (version: string) => [
-  "install",
-  "--global",
-  "--loglevel=error",
-  "--no-fund",
-  "--no-audit",
-  `${PRODUCT_PACKAGE}@${version}`,
-];
+const installArguments = (version: string, globalRoot = TEST_GLOBAL_ROOT) => updateNpmInstallArguments(globalRoot, version);
 
 describe("update progress presentation", () => {
   it.each([
@@ -620,6 +625,79 @@ describe("A1 self-update orchestration", () => {
     expect(timings.every(event => event.durationMs === 5)).toBe(true);
   });
 
+  it("updates the invoked installation under a confirmed non-default npm prefix", async () => {
+    const activePrefix = resolve("fixtures", "active-fnm-prefix");
+    const activeRoot = globalRootForPrefix(activePrefix);
+    const installedPrefix = resolve("fixtures", "legacy-prefix");
+    const installedRoot = globalRootForPrefix(installedPrefix);
+    const packageRoot = resolve(installedRoot, "@timurproko", "a1");
+    const harness = createHarness({ packageRoot, globalRoot: activeRoot });
+    harness.runner = async (command, arguments_, request) => {
+      harness.invocations.push({ command, arguments: arguments_, request });
+      if (arguments_[0] === "view") return success("1.3.0\n");
+      if (arguments_[0] === "root" && arguments_.includes("--prefix")) return success(`${installedRoot}\n`);
+      if (arguments_[0] === "root") return success(`${activeRoot}\n`);
+      return success();
+    };
+
+    await expect(runSelfUpdate(harness)).resolves.toBe(0);
+
+    expect(harness.invocations).toEqual([
+      { command: "npm", arguments: ["view", `${PRODUCT_PACKAGE}@latest`, "version"], request: { captureStdout: true } },
+      { command: "npm", arguments: ["root", "--global"], request: { captureStdout: true } },
+      { command: "npm", arguments: ["root", "--global", "--prefix", installedPrefix], request: { captureStdout: true } },
+      { command: "npm", arguments: installArguments("1.3.0", installedRoot), request: { captureStdout: true } },
+    ]);
+    expect(harness.lifecycleCalls).toContain(`unlock:${packageRoot}`);
+    expect(harness.lifecycleCalls).toContain(`activate:${packageRoot}:1.3.0`);
+    expect(harness.stderr).toEqual([]);
+  });
+
+  it.each(["missing", "symlinked", "wrong-target"] as const)("refuses a non-default npm-shaped package with a %s launcher set", async fault => {
+    const activeRoot = globalRootForPrefix(resolve("fixtures", "active-prefix"));
+    const installedPrefix = resolve("fixtures", `lookalike-${fault}-prefix`);
+    const installedRoot = globalRootForPrefix(installedPrefix);
+    const harness = createHarness({
+      packageRoot: resolve(installedRoot, "@timurproko", "a1"),
+      globalRoot: activeRoot,
+    });
+    if (fault === "missing") harness.fileSystem.lstat = async () => { throw new Error("missing launcher"); };
+    if (fault === "symlinked") harness.fileSystem.lstat = async () => ({ mode: 0o755, isFile: () => false, isSymbolicLink: () => true });
+    if (fault === "wrong-target") {
+      const readPackage = harness.fileSystem.readFile;
+      harness.fileSystem.readFile = async path => path.endsWith("package.json") ? await readPackage(path) : "node_modules/@example/other/bin/cli.js";
+    }
+    harness.runner = async (command, arguments_, request) => {
+      harness.invocations.push({ command, arguments: arguments_, request });
+      if (arguments_[0] === "view") return success("2.0.0\n");
+      if (arguments_[0] === "root" && arguments_.includes("--prefix")) return success(`${installedRoot}\n`);
+      return success(`${activeRoot}\n`);
+    };
+
+    await expect(runSelfUpdate(harness)).resolves.toBe(1);
+
+    expect(harness.invocations).toHaveLength(3);
+    expect(harness.invocations.some(call => call.arguments[0] === "install")).toBe(false);
+    expect(harness.stderr.join("")).toContain("could not be verified as an npm-managed");
+  });
+
+  it("refuses an npm link whose package canonicalizes outside the active global root", async () => {
+    const lexicalPackageRoot = resolve(TEST_GLOBAL_ROOT, "@timurproko", "a1");
+    const linkedCheckout = resolve("fixtures", "linked-checkout");
+    const harness = createHarness({ packageRoot: lexicalPackageRoot });
+    harness.fileSystem.realpath = async path => resolve(path) === lexicalPackageRoot ? linkedCheckout : resolve(path);
+    harness.runner = async (command, arguments_, request) => {
+      harness.invocations.push({ command, arguments: arguments_, request });
+      return arguments_[0] === "view" ? success("2.0.0\n") : success(`${TEST_GLOBAL_ROOT}\n`);
+    };
+
+    await expect(runSelfUpdate(harness)).resolves.toBe(1);
+
+    expect(harness.invocations).toHaveLength(2);
+    expect(harness.invocations.some(call => call.arguments[0] === "install")).toBe(false);
+    expect(harness.stderr.join("")).toContain("could not be verified as an npm-managed");
+  });
+
   it("refuses an unmanaged checkout and prints the pinned fallback", async () => {
     const harness = createHarness({
       packageRoot: resolve("fixtures", "checkout"),
@@ -633,7 +711,8 @@ describe("A1 self-update orchestration", () => {
     await expect(runSelfUpdate(harness)).resolves.toBe(1);
 
     expect(harness.invocations).toHaveLength(2);
-    expect(harness.stderr.join("")).toContain("not managed beneath npm's global package root");
+    expect(harness.stderr.join("")).toContain("could not be verified as an npm-managed");
+    expect(harness.stderr.join("")).toContain(`npm install --global ${PRODUCT_PACKAGE}`);
     expect(harness.stderr.join("")).not.toContain("taskkill");
   });
 

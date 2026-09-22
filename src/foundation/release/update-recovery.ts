@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 import { chmod, lstat, mkdir, open, readFile, readdir, realpath, rename, rm, writeFile } from "node:fs/promises";
-import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
+import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../../product-identity.js";
 import { processIsAlive } from "./process-cleanup.js";
@@ -52,6 +52,8 @@ export interface UpdateRecoveryResult {
 export interface ProtectedPackageReplacementOptions {
   readonly dataDir: string;
   readonly globalRoot: string;
+  /** Root used only to locate the active npm implementation; installation remains pinned to globalRoot. */
+  readonly npmCliRoot?: string;
   readonly packageRoot: string;
   readonly transaction: UpdateTransaction;
   readonly priorRelease: { readonly releaseId: string; readonly releaseRoot: string; readonly contentDigest: string };
@@ -67,9 +69,28 @@ export interface ProtectedPackageReplacementResult extends UpdateRecoveryResult 
   readonly recovery: UpdateRecoveryState;
 }
 
-/** Resolve the complete public launcher set npm owns for the active platform. */
+/** Derive the only npm prefix that can own a platform's canonical global package root. */
+export function npmPrefixForGlobalRoot(globalRoot: string, platform: NodeJS.Platform = process.platform): string {
+  const root = resolve(globalRoot);
+  if (!sameSegment(basename(root), "node_modules", platform)) throw new Error(`npm global root has an unsupported layout: ${globalRoot}`);
+  if (platform === "win32") return dirname(root);
+  const libraryRoot = dirname(root);
+  if (!sameSegment(basename(libraryRoot), "lib", platform)) throw new Error(`npm global root has an unsupported layout: ${globalRoot}`);
+  return dirname(libraryRoot);
+}
+
+/** Fixed replacement arguments pin npm to the installation that owns the invoked launcher. */
+export function updateNpmInstallArguments(globalRoot: string, targetVersion: string, platform: NodeJS.Platform = process.platform): readonly string[] {
+  return [
+    "install", "--global", "--prefix", npmPrefixForGlobalRoot(globalRoot, platform),
+    "--loglevel=error", "--no-fund", "--no-audit", `${PRODUCT_TEXT.packageName}@${targetVersion}`,
+  ];
+}
+
+/** Resolve the complete public launcher set npm owns for the selected platform and prefix. */
 export function updateLauncherPaths(globalRoot: string, platform: NodeJS.Platform = process.platform): readonly string[] {
-  const launcherRoot = platform === "win32" ? dirname(globalRoot) : resolve(globalRoot, "..", "..", "bin");
+  const prefix = npmPrefixForGlobalRoot(globalRoot, platform);
+  const launcherRoot = platform === "win32" ? prefix : resolve(prefix, "bin");
   return platform === "win32"
     ? [resolve(launcherRoot, "a1"), resolve(launcherRoot, "a1.cmd"), resolve(launcherRoot, "a1.ps1")]
     : [resolve(launcherRoot, "a1")];
@@ -91,8 +112,11 @@ export async function readUpdateRecoveryCapsule(manifestPath: string, platform: 
   const canonicalPackage = await realpath(capsule.packageRoot).catch(() => resolve(capsule.packageRoot));
   const expectedPackage = resolve(canonicalGlobal, ...capsule.packageName.split("/"));
   if (!samePath(canonicalPackage, expectedPackage) || !containedBy(canonicalGlobal, canonicalPackage)) throw new Error("recovery package root is outside npm global root");
-  const expectedNpmArguments = ["install", "--global", "--loglevel=error", "--no-fund", "--no-audit", `${capsule.packageName}@${capsule.targetVersion}`];
-  if (JSON.stringify(capsule.npmArguments) !== JSON.stringify(expectedNpmArguments)) throw new Error("recovery npm arguments differ from the selected target");
+  const expectedNpmArguments = updateNpmInstallArguments(canonicalGlobal, capsule.targetVersion, platform);
+  const legacyNpmArguments = ["install", "--global", "--loglevel=error", "--no-fund", "--no-audit", `${capsule.packageName}@${capsule.targetVersion}`];
+  if (![expectedNpmArguments, legacyNpmArguments].some(arguments_ => sameArguments(capsule.npmArguments, arguments_))) {
+    throw new Error("recovery npm arguments differ from the selected target and prefix");
+  }
   const expectedLaunchers = updateLauncherPaths(canonicalGlobal, platform);
   if (JSON.stringify(capsule.launchers.map(path => resolve(path))) !== JSON.stringify(expectedLaunchers.map(path => resolve(path)))) {
     throw new Error("recovery launcher set differs from the canonical npm launcher set");
@@ -144,8 +168,10 @@ export async function prepareUpdateRecoveryCapsule(options: ProtectedPackageRepl
     await chmod(candidateEntry, 0o500);
     const canonicalGlobal = await realpath(options.globalRoot);
     const platform = options.platform ?? process.platform;
-    const launcherRoot = platform === "win32" ? dirname(canonicalGlobal) : resolve(canonicalGlobal, "..", "..", "bin");
-    const npmCli = await resolveNpmCli(canonicalGlobal, options.environment ?? process.env);
+    const prefix = npmPrefixForGlobalRoot(canonicalGlobal, platform);
+    const launcherRoot = platform === "win32" ? prefix : resolve(prefix, "bin");
+    const npmCliRoot = await realpath(options.npmCliRoot ?? canonicalGlobal);
+    const npmCli = await resolveNpmCli(npmCliRoot, options.environment ?? process.env);
     const capsule: UpdateRecoveryCapsule = {
       schema: UPDATE_RECOVERY_SCHEMA,
       launchContract: PRIVATE_LAUNCH_CONTRACT,
@@ -164,7 +190,7 @@ export async function prepareUpdateRecoveryCapsule(options: ProtectedPackageRepl
       recoveryEntryDigest: createHash("sha256").update(entryBytes).digest("hex"),
       nodeExecutable: process.execPath,
       npmCli,
-      npmArguments: ["install", "--global", "--loglevel=error", "--no-fund", "--no-audit", `${PRODUCT_TEXT.packageName}@${options.transaction.targetVersion}`],
+      npmArguments: updateNpmInstallArguments(canonicalGlobal, options.transaction.targetVersion, platform),
       cancellationPath: resolve(finalRoot, "cancel.json"),
       resultPath: resolve(finalRoot, "result.json"),
       ownerPath: resolve(finalRoot, "owner.json"),
@@ -374,6 +400,12 @@ async function writeDurableJson(path: string, value: unknown): Promise<void> {
 async function readJson<T>(path: string): Promise<T> { return JSON.parse(await readFile(path, "utf8")) as T; }
 function samePath(left: string, right: string): boolean {
   return process.platform === "win32" ? resolve(left).toLowerCase() === resolve(right).toLowerCase() : resolve(left) === resolve(right);
+}
+function sameSegment(left: string, right: string, platform: NodeJS.Platform): boolean {
+  return platform === "win32" ? left.toLowerCase() === right.toLowerCase() : left === right;
+}
+function sameArguments(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
 }
 function containedBy(parent: string, child: string): boolean {
   const fromParent = relative(parent, child);

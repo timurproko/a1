@@ -118,6 +118,7 @@ export type {
   SelfUpdateOptions,
   UpdateActivationPhase,
   UpdateChannel,
+  UpdateFileMetadata,
   UpdateFileSystem,
   UpdateLifecycleCoordinator,
   UpdateMaterializationProgress,
@@ -145,11 +146,13 @@ export {
   UPDATE_RECOVERY_SCHEMA,
   cleanupUpdateRecoveryCapsules,
   inspectUpdateLauncherSet,
+  npmPrefixForGlobalRoot,
   prepareUpdateRecoveryCapsule,
   readUpdateRecoveryCapsule,
   removeUpdateRecoveryCapsule,
   runProtectedPackageReplacement,
   updateLauncherPaths,
+  updateNpmInstallArguments,
 } from "./update-recovery.js";
 export type { ProtectedPackageReplacementOptions, ProtectedPackageReplacementResult, UpdateRecoveryCapsule, UpdateRecoveryResult } from "./update-recovery.js";
 export { UPDATE_JOURNAL_SCHEMA, UpdateTransactionStore } from "./update-transaction.js";
