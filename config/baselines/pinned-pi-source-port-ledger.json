@@ -1738,7 +1738,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Consumes neutral owned-UI view data instead of a fabricated concrete AgentSession; an explicit bare-A1 profile colors the thinking-level name and adds its linked pull-request badge while preserving the remaining footer layout and formatting, and replacement surfaces may suppress a thinking level they already present.",
       "upgradeStrategy": "three-way",
-      "localSha256": "52868279b22bf8013fff38f610d96be641d4d8f952c59696161a0067cf7f8724",
+      "localSha256": "a41fcfac4d24dfecf9c62706234ccb359b381ecec2ba591fc41720d39ed3b4da",
       "approvedDeviations": [
         {
           "id": "owned-status-level-color",
