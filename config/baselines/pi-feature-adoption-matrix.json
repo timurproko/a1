@@ -1,7 +1,7 @@
 {
   "schema": "a1-pi-feature-adoption-matrix-v1",
   "pinned": {
-    "version": "0.86.1"
+    "version": "0.87.0"
   },
   "changelogSince": "0.84.2",
   "rows": [
@@ -2299,6 +2299,33 @@
       "since": "0.86.1",
       "disposition": "pinned",
       "note": "Provider sign-in and catalog; reached through the pinned engine, with the provider default model mirrored in the owned resolver map."
+    },
+    {
+      "id": "changelog:0.87.0:canonical-session-context-and-extension-boundaries",
+      "kind": "changelog",
+      "feature": "Canonical session context and extension boundaries",
+      "version": "0.87.0",
+      "summary": "Edit model context without rewriting history and add actionable lifecycle hooks.",
+      "since": "0.87.0",
+      "disposition": "pending"
+    },
+    {
+      "id": "changelog:0.87.0:full-transcript-context-extensions",
+      "kind": "changelog",
+      "feature": "Full-transcript context extensions",
+      "version": "0.87.0",
+      "summary": "Use `context_with_system` for per-request system-message transformations.",
+      "since": "0.87.0",
+      "disposition": "pending"
+    },
+    {
+      "id": "changelog:0.87.0:per-model-image-input-limits",
+      "kind": "changelog",
+      "feature": "Per-model image input limits",
+      "version": "0.87.0",
+      "summary": "Configure cache-safe image resizing per model for attachments, `read`, and tool-result images.",
+      "since": "0.87.0",
+      "disposition": "pending"
     }
   ]
 }

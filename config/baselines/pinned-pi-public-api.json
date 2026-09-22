@@ -3,13 +3,31 @@
   "packages": [
     {
       "name": "@earendil-works/pi-coding-agent",
-      "version": "0.86.1",
+      "version": "0.87.0",
       "entry": "dist/index.d.ts",
       "exports": [
         {
           "name": "AfterProviderResponseEvent",
           "kind": "interface",
           "hash": "2a97c4546ecda448c1e8866be7175304c23f04c6563c72289f8790f49eb62aee",
+          "consumers": []
+        },
+        {
+          "name": "AgentActivityOutcome",
+          "kind": "type",
+          "hash": "1801b0bef4de5a7daef75e79e7bc564416bf411837d3454b287f93937158016b",
+          "consumers": []
+        },
+        {
+          "name": "AgentBeforeSettleEvent",
+          "kind": "interface",
+          "hash": "0e8b9d62be646bf6fae644c19d3881cc038bdaeb1568e3fdf0e00b96d80e434b",
+          "consumers": []
+        },
+        {
+          "name": "AgentBeforeSettleEventResult",
+          "kind": "type",
+          "hash": "bee4318d9bdb54d4f72a4beb0b2ec3278a52c893620f8fb4309dcd2853054054",
           "consumers": []
         },
         {
@@ -21,7 +39,7 @@
         {
           "name": "AgentSession",
           "kind": "class",
-          "hash": "b232c193e29ca5cd4a06f913824cec6aad63ca2f01a70a32480c6f3887eac407",
+          "hash": "17599d47bb1ac03df7d2845abded88ebea9d1954ecfcfcfafd7b5845da4b9d9d",
           "consumers": [
             "src/integrations/pi/engine/adapter.ts",
             "src/integrations/pi/engine/compaction-progress.ts",
@@ -243,6 +261,24 @@
           ]
         },
         {
+          "name": "BoundaryContextPreview",
+          "kind": "interface",
+          "hash": "833c4d089f1436c19709302798eba15f7a57acd3607b8df62de21437c19487a3",
+          "consumers": []
+        },
+        {
+          "name": "BoundaryResult",
+          "kind": "interface",
+          "hash": "a4fcd4c074773a2bc7b4cfd6e4d605ded14bb8f59e3f6faca7509263c4899abd",
+          "consumers": []
+        },
+        {
+          "name": "BoundaryState",
+          "kind": "interface",
+          "hash": "eeaefec23825ba5e89689ed68aaa46c579adfd87cd0619290fcdb34a87989e0f",
+          "consumers": []
+        },
+        {
           "name": "BranchPreparation",
           "kind": "interface",
           "hash": "1d0c0bea0d1d3210cc23731eea7e7bd4e32b51236e428ee4e914f2a9a00dcd31",
@@ -276,6 +312,12 @@
           "name": "buildSessionContext",
           "kind": "function",
           "hash": "b4615a3394d6dc5d1698e5f637df0f5b75e9c83da4829f6ad83f6a75f7d85b80",
+          "consumers": []
+        },
+        {
+          "name": "buildSessionProjection",
+          "kind": "function",
+          "hash": "598f3a091256ae3bb17cc5f346d1b9bd88be0469ceb03e38c546ccd17d5ad903",
           "consumers": []
         },
         {
@@ -345,6 +387,12 @@
           "consumers": []
         },
         {
+          "name": "CompactionEntryDraft",
+          "kind": "interface",
+          "hash": "c30297b5611895d92cf501bf8fa85f65b70b05ccdae69b26a75db87dc108a595",
+          "consumers": []
+        },
+        {
           "name": "CompactionModelOverride",
           "kind": "interface",
           "hash": "7d43984879de12bbff5e46611b663febafb2cc0736f63d5093e25bef85168ebe",
@@ -384,6 +432,24 @@
           "consumers": []
         },
         {
+          "name": "ContextEditableContent",
+          "kind": "type",
+          "hash": "6fa2bc4731c7ebd7a093bc48c08fc35c10e1073d8818e37df2a56fe669f17392",
+          "consumers": []
+        },
+        {
+          "name": "ContextEditEntry",
+          "kind": "interface",
+          "hash": "a572b84a6d5ac3a12be711e3790438bac51921ea2ab5c80975ff3cbf9029984b",
+          "consumers": []
+        },
+        {
+          "name": "ContextEditEntryDraft",
+          "kind": "interface",
+          "hash": "dadbeb638da3358d1222433cad30c5d1cf248ef7d6a02d781093f4c22aea5728",
+          "consumers": []
+        },
+        {
           "name": "ContextEvent",
           "kind": "interface",
           "hash": "136c1122c09793869499ae8bdbc3f05a5bd4e06c3482548cd941896a49c90fa5",
@@ -399,6 +465,12 @@
           "name": "ContextUsage",
           "kind": "interface",
           "hash": "740d8a9c249591c5ff8c9b6ce4b7456b949488152f2925373c13fba14ee2889d",
+          "consumers": []
+        },
+        {
+          "name": "ContextWithSystemEvent",
+          "kind": "interface",
+          "hash": "7ad39c1d99d5964145cba3b931252da55c46ee2ecad694c1dafbfb5891d60d76",
           "consumers": []
         },
         {
@@ -704,6 +776,12 @@
           "consumers": []
         },
         {
+          "name": "CustomEntryDraft",
+          "kind": "interface",
+          "hash": "cc5e565b5246b0b325631b2d9b87fefd7ae219b94a95f754a1374fd3d5c786aa",
+          "consumers": []
+        },
+        {
           "name": "CustomMessageComponent",
           "kind": "class",
           "hash": "bd35063349f27a31c5078dfa65e063cfbdf3de3b7fba36d4da1a83e3f19a41ab",
@@ -716,6 +794,12 @@
           "name": "CustomMessageEntry",
           "kind": "interface",
           "hash": "1776cea46df8eb021cb5ffd799e8c50ab85712909b1d592e8f49e714401007c1",
+          "consumers": []
+        },
+        {
+          "name": "CustomMessageEntryDraft",
+          "kind": "interface",
+          "hash": "48403b5d4b8ba8679527efa8f14a924fb655a42395e2a00c0066876561c53171",
           "consumers": []
         },
         {
@@ -801,6 +885,7 @@
             "src/integrations/pi/components/upstream/components/extension-editor.ts",
             "src/integrations/pi/components/upstream/components/scoped-models-selector.ts",
             "src/integrations/pi/components/upstream/components/session-selector.ts",
+            "src/integrations/pi/components/upstream/components/thinking-selector.ts",
             "src/integrations/pi/components/upstream/components/tree-selector.ts",
             "src/integrations/pi/components/upstream/components/trust-selector.ts",
             "src/integrations/pi/startup-public.ts"
@@ -899,7 +984,7 @@
         {
           "name": "ExtensionAPI",
           "kind": "interface",
-          "hash": "0c7fde9df919d4ef61d8d0e335887885f328c6484258015d20ecc4bb45207af5",
+          "hash": "8ab33830db979aacac202fd552b60e5f7619ad2418ecd19174c4829fe567b33a",
           "consumers": [
             "src/integrations/pi/engine/windows-filesystem-hygiene.ts"
           ]
@@ -943,7 +1028,7 @@
         {
           "name": "ExtensionEvent",
           "kind": "type",
-          "hash": "e66c31187eb46cd8e532393a136ac7d46be1664f013a1ca870cc1a1a76728297",
+          "hash": "a65cd544467b9acc2966a4002ae5c9ee243d873e5dd21d0a61a5d57aec67515d",
           "consumers": []
         },
         {
@@ -976,7 +1061,7 @@
         {
           "name": "ExtensionRunner",
           "kind": "class",
-          "hash": "5e1271946216519835584c8da703e1ea46990284e3f2b1f7ca4efb463cfc95b2",
+          "hash": "bb37ab15a0cd6dc8d65c463c3010333f92ca59745a9afaab9808bc8f7f52807f",
           "consumers": []
         },
         {
@@ -1222,6 +1307,7 @@
             "src/integrations/pi/components/shell-extension-ui.ts",
             "src/integrations/pi/components/shell-selectors-dialogs.ts",
             "src/integrations/pi/components/upstream/components/extension-editor.ts",
+            "src/integrations/pi/components/upstream/components/thinking-selector.ts",
             "src/integrations/pi/startup-public.ts"
           ]
         },
@@ -1327,7 +1413,7 @@
         {
           "name": "InteractiveMode",
           "kind": "class",
-          "hash": "6df8055724d790ef00bd70687835febc437c7757725461945075b5719744e366",
+          "hash": "f71a95b6148a4526c460605ae9fbe461faa15f497842026a77643d9894d2a0f0",
           "consumers": []
         },
         {
@@ -1784,6 +1870,12 @@
           "consumers": []
         },
         {
+          "name": "ProjectedSessionEntry",
+          "kind": "interface",
+          "hash": "98309dc298b4aad75b1b433c2f5a787516ae18f07810332d4761a747a62444c3",
+          "consumers": []
+        },
+        {
           "name": "ProjectTrustContext",
           "kind": "interface",
           "hash": "568e62661234dfcb7949eacf0306da493b4074e1250eb3f75993c6c7246d40be",
@@ -1864,7 +1956,7 @@
         {
           "name": "ProviderModelConfig",
           "kind": "interface",
-          "hash": "6a74ecd6614f13f4507bbfc9ae29cd3b10bcb4ceebc5c87f294d33666ec4d3a1",
+          "hash": "596bdfabb47cf4e964cbe2c9c535f1ef149ddee996bf7809fe2256096e55f27b",
           "consumers": []
         },
         {
@@ -1917,7 +2009,7 @@
         {
           "name": "ReadToolOptions",
           "kind": "interface",
-          "hash": "a8aa1226394559b237b48732d205e53628954a88b6638d9a32b142c57b25beea",
+          "hash": "2ee48f2fcb280e5fedf71a5346fc370b204e028a254d529f274e9a087fd496e5",
           "consumers": []
         },
         {
@@ -2160,6 +2252,12 @@
           "consumers": []
         },
         {
+          "name": "SessionBoundaryDraft",
+          "kind": "type",
+          "hash": "3e9cdedb115b1bfef798868d4e0f6251bbeeb1bd9a5e06edecc5977003ff876e",
+          "consumers": []
+        },
+        {
           "name": "SessionCompactEvent",
           "kind": "interface",
           "hash": "e8731315def2dd24a076b1c841e66c8cf6cea0f1b4c9da478ba13814319cab4e",
@@ -2180,7 +2278,7 @@
         {
           "name": "SessionEntry",
           "kind": "type",
-          "hash": "79d4cd79a1f8073102eea08a7b183838448627e7dd5d4d2b6343212c60ad8345",
+          "hash": "ef418189a565484ddb2ba786f12ee82846b15db4a28350eec58b267c0064fe59",
           "consumers": []
         },
         {
@@ -2228,7 +2326,7 @@
         {
           "name": "SessionManager",
           "kind": "class",
-          "hash": "d97033181bd658303000fb0b57713783e5e729def8b83c6743cfdff411b4f1ee",
+          "hash": "a510740621453676ab4078c217cb21607b3bcef3b0d36392ecc5d44af2497db4",
           "consumers": [
             "src/integrations/pi/engine/conformance.ts",
             "src/integrations/pi/engine/runtime-integration.ts",
@@ -2241,6 +2339,12 @@
           "name": "SessionMessageEntry",
           "kind": "interface",
           "hash": "d0bf1d0110c3bd4074fd5c8accd32a2299f42bbe53c302ed20930cc3cc3e7bab",
+          "consumers": []
+        },
+        {
+          "name": "SessionProjection",
+          "kind": "interface",
+          "hash": "28731e39f28e9b756e032e495991039220693a1a0596eb169b4d1aac05bafcfd",
           "consumers": []
         },
         {
@@ -2436,7 +2540,7 @@
           "hash": "3ddede1ee2ec9090e36c87de575f83d2b260ae52e1cf1679514c8ee0ebe7b4e0",
           "consumers": [
             "src/integrations/pi/components/conformance.ts",
-            "src/integrations/pi/components/shell-selectors-dialogs.ts",
+            "src/integrations/pi/components/thinking-selector-dialog.ts",
             "src/integrations/pi/startup-public.ts"
           ]
         },
@@ -2581,7 +2685,13 @@
         {
           "name": "TurnEndEvent",
           "kind": "interface",
-          "hash": "0fc26c886ab048c7eec33ce804866cb5fb6773a702649e51c1a6c527cbcf3dc7",
+          "hash": "ef9ac537095a4a1e3d5e257e10618fedd7432a37701364b148d73b4a5d7b25e8",
+          "consumers": []
+        },
+        {
+          "name": "TurnEndEventResult",
+          "kind": "type",
+          "hash": "d650dba61f933053dd3f14ae3e1157c8841537135f383c9ca8dbfc044ae7f2fb",
           "consumers": []
         },
         {
@@ -2717,7 +2827,7 @@
     },
     {
       "name": "@earendil-works/pi-tui",
-      "version": "0.86.1",
+      "version": "0.87.0",
       "entry": "dist/index.d.ts",
       "exports": [
         {
@@ -2833,6 +2943,7 @@
             "src/integrations/pi/components/upstream/components/scoped-models-selector.ts",
             "src/integrations/pi/components/upstream/components/session-selector.ts",
             "src/integrations/pi/components/upstream/components/skill-invocation-message.ts",
+            "src/integrations/pi/components/upstream/components/thinking-selector.ts",
             "src/integrations/pi/components/upstream/components/tool-execution.ts",
             "src/integrations/pi/components/upstream/components/tree-selector.ts",
             "src/integrations/pi/components/upstream/components/trust-selector.ts"
@@ -2935,6 +3046,7 @@
             "src/integrations/pi/components/shell-shared-facade.ts",
             "src/integrations/pi/components/upstream/components/scoped-models-selector.ts",
             "src/integrations/pi/components/upstream/components/session-selector.ts",
+            "src/integrations/pi/components/upstream/components/thinking-selector.ts",
             "src/integrations/pi/components/upstream/components/tree-selector.ts",
             "src/integrations/pi/components/upstream/history/editor-core.ts",
             "src/integrations/pi/tui-runtime/adapter.ts"
@@ -2945,7 +3057,8 @@
           "kind": "function",
           "hash": "2c370c44434c0cecb387fb2da676e63c2731ab2580a603d6f2b8f9020b2150fc",
           "consumers": [
-            "src/integrations/pi/components/upstream/components/scoped-models-selector.ts"
+            "src/integrations/pi/components/upstream/components/scoped-models-selector.ts",
+            "src/integrations/pi/components/upstream/components/thinking-selector.ts"
           ]
         },
         {
@@ -3008,6 +3121,7 @@
             "src/integrations/pi/components/upstream/components/scoped-models-selector.ts",
             "src/integrations/pi/components/upstream/components/session-selector.ts",
             "src/integrations/pi/components/upstream/components/skill-invocation-message.ts",
+            "src/integrations/pi/components/upstream/components/thinking-selector.ts",
             "src/integrations/pi/components/upstream/components/trust-selector.ts",
             "src/integrations/pi/components/upstream/history/editor-core.ts"
           ]
@@ -3109,6 +3223,7 @@
             "src/integrations/pi/components/skills-dialog.ts",
             "src/integrations/pi/components/upstream/components/scoped-models-selector.ts",
             "src/integrations/pi/components/upstream/components/session-selector.ts",
+            "src/integrations/pi/components/upstream/components/thinking-selector.ts",
             "src/integrations/pi/components/upstream/components/tree-selector.ts"
           ]
         },
@@ -3432,7 +3547,8 @@
           "kind": "interface",
           "hash": "a3555b1afcc2f6a266c8d145d6ab14fbfee639b932bd6e6a50da6323abe2fc19",
           "consumers": [
-            "src/integrations/pi/components/shell-selectors-dialogs.ts"
+            "src/integrations/pi/components/shell-selectors-dialogs.ts",
+            "src/integrations/pi/components/upstream/components/thinking-selector.ts"
           ]
         },
         {
@@ -3441,6 +3557,7 @@
           "hash": "17c28b2a8fd6ab480bab4257e9325418943913666ce8e4685114b3993e415a17",
           "consumers": [
             "src/integrations/pi/components/shell-selectors-dialogs.ts",
+            "src/integrations/pi/components/upstream/components/thinking-selector.ts",
             "src/integrations/pi/components/upstream/history/editor-core.ts"
           ]
         },
@@ -3449,6 +3566,7 @@
           "kind": "interface",
           "hash": "8ec765c9e4cf1103ca891f80908d20d8b65d5c8382f64fd45dd65ebefdf814fe",
           "consumers": [
+            "src/integrations/pi/components/upstream/components/thinking-selector.ts",
             "src/integrations/pi/components/upstream/history/editor-core.ts"
           ]
         },
@@ -3553,6 +3671,7 @@
             "src/integrations/pi/components/upstream/components/extension-editor.ts",
             "src/integrations/pi/components/upstream/components/scoped-models-selector.ts",
             "src/integrations/pi/components/upstream/components/session-selector.ts",
+            "src/integrations/pi/components/upstream/components/thinking-selector.ts",
             "src/integrations/pi/components/upstream/components/tool-execution.ts",
             "src/integrations/pi/components/upstream/components/tree-selector.ts",
             "src/integrations/pi/components/upstream/components/trust-selector.ts"
@@ -3642,6 +3761,7 @@
             "src/integrations/pi/components/upstream/components/scoped-models-selector.ts",
             "src/integrations/pi/components/upstream/components/session-selector.ts",
             "src/integrations/pi/components/upstream/components/skill-invocation-message.ts",
+            "src/integrations/pi/components/upstream/components/thinking-selector.ts",
             "src/integrations/pi/components/upstream/components/tool-execution.ts",
             "src/integrations/pi/components/upstream/components/tree-selector.ts",
             "src/integrations/pi/components/upstream/components/trust-selector.ts"
