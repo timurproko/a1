@@ -18,6 +18,8 @@ export interface PiShellSkillSummary {
 
 export interface PiShellCollapsedSkillCommands {
   readonly commands: readonly PiShellAutocompleteCommand[];
+  /** The synthetic command replacing the withheld entries, when skill commands were present. */
+  readonly collapsedCommand?: PiShellAutocompleteCommand;
   /** The skills withheld from the top-level menu, in the engine's discovery order. */
   readonly skills: readonly PiShellSkillSummary[];
 }
@@ -43,6 +45,15 @@ export function collapseSkillCommands(commands: readonly PiShellAutocompleteComm
   const skills = skillsFromCommands(commands);
   if (skills.length === 0) return { commands, skills };
   const collapsed: PiShellAutocompleteCommand[] = [];
+  const collapsedCommand: PiShellAutocompleteCommand = {
+    name: SKILLS_COMMAND_NAME,
+    description: SKILLS_COMMAND_DESCRIPTION,
+    argumentOptions: skills.map(skill => ({
+      id: skill.name,
+      label: skill.name,
+      ...(skill.description.length === 0 ? {} : { description: skill.description }),
+    })),
+  };
   let inserted = false;
   for (const command of commands) {
     if (!command.name.startsWith(SKILL_COMMAND_PREFIX)) {
@@ -51,17 +62,9 @@ export function collapseSkillCommands(commands: readonly PiShellAutocompleteComm
     }
     if (inserted) continue;
     inserted = true;
-    collapsed.push({
-      name: SKILLS_COMMAND_NAME,
-      description: SKILLS_COMMAND_DESCRIPTION,
-      argumentOptions: skills.map(skill => ({
-        id: skill.name,
-        label: skill.name,
-        ...(skill.description.length === 0 ? {} : { description: skill.description }),
-      })),
-    });
+    collapsed.push(collapsedCommand);
   }
-  return { commands: collapsed, skills };
+  return { commands: collapsed, collapsedCommand, skills };
 }
 
 /** Case-insensitive substring match on the name or description; a leading `skill:`/`skills:` in the query is ignored for the name. */
