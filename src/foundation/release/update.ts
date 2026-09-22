@@ -1,7 +1,7 @@
 import { spawn, type StdioOptions } from "node:child_process";
-import { access, readFile, realpath } from "node:fs/promises";
+import { access, lstat, readFile, realpath } from "node:fs/promises";
 import { connect } from "node:net";
-import { isAbsolute, relative, resolve, sep } from "node:path";
+import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import crossSpawn from "cross-spawn";
 import { valid as validSemver } from "semver";
 import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../../product-identity.js";
@@ -28,7 +28,14 @@ import {
   type UpdateMaterializationProgress,
 } from "./update-activation.js";
 import { UpdateTransactionStore, type UpdateRecoveryState, type UpdateTransaction, type UpdateTransactionPhase } from "./update-transaction.js";
-import { removeUpdateRecoveryCapsule, runProtectedPackageReplacement, type ProtectedPackageReplacementResult } from "./update-recovery.js";
+import {
+  npmPrefixForGlobalRoot,
+  removeUpdateRecoveryCapsule,
+  runProtectedPackageReplacement,
+  updateLauncherPaths,
+  updateNpmInstallArguments,
+  type ProtectedPackageReplacementResult,
+} from "./update-recovery.js";
 
 export const PRODUCT_PACKAGE = PRODUCT_TEXT.packageName;
 export type { UpdateChannel } from "./types.js";
@@ -36,9 +43,15 @@ const UPDATE_DIST_TAGS: Readonly<Record<UpdateChannel, "latest" | "next">> = { s
 export interface ProcessRequest { captureStdout: boolean }
 export interface ProcessResult { code: number | null; stdout: string; stderr?: string }
 export type UpdateProcessRunner = (command: string, arguments_: readonly string[], request: ProcessRequest) => Promise<ProcessResult>;
+export interface UpdateFileMetadata {
+  readonly mode: number;
+  isFile(): boolean;
+  isSymbolicLink(): boolean;
+}
 export interface UpdateFileSystem {
   readFile(path: string): Promise<string>;
   realpath(path: string): Promise<string>;
+  lstat?(path: string): Promise<UpdateFileMetadata>;
   access?(path: string): Promise<void>;
 }
 export interface UpdateOutput { stdout(message: string): void; stderr(message: string): void }
@@ -114,6 +127,7 @@ export interface UpdateTransactionJournal {
 export interface UpdatePackageReplacementInput {
   readonly dataDir: string;
   readonly globalRoot: string;
+  readonly npmCliRoot: string;
   readonly packageRoot: string;
   readonly transaction: UpdateTransaction;
   readonly priorRelease: { readonly releaseId: string; readonly releaseRoot: string; readonly contentDigest: string };
@@ -125,6 +139,7 @@ export interface UpdatePackageReplacementInput {
 const defaultFileSystem: UpdateFileSystem = {
   async readFile(path) { return await readFile(path, "utf8"); },
   realpath,
+  lstat,
   access,
 };
 const defaultOutput: UpdateOutput = {
@@ -413,6 +428,127 @@ async function resolveRequestedPreview(runner: UpdateProcessRunner, requested: s
   return { version: null, exitCode: 1 };
 }
 
+interface ManagedNpmInstallation {
+  readonly packageRoot: string;
+  readonly globalRoot: string;
+  readonly npmCliRoot: string;
+}
+
+interface ManagedNpmResolution {
+  readonly installation: ManagedNpmInstallation | null;
+  readonly exitCode: number;
+}
+
+async function resolveManagedNpmInstallation(
+  requestedPackageRoot: string,
+  fileSystem: UpdateFileSystem,
+  runner: UpdateProcessRunner,
+  output: UpdateOutput,
+): Promise<ManagedNpmResolution> {
+  const rootLookup = await runNpm(runner, ["root", "--global"], true, output, "resolve npm's global package root");
+  if (rootLookup.result === null) return { installation: null, exitCode: rootLookup.exitCode };
+  const activeRootText = rootLookup.result.stdout.trim();
+  if (activeRootText.length === 0) {
+    output.stderr(`${PRODUCT_TEXT.diagnostic("could not verify its installation because npm returned an empty global package root.")}\n`);
+    return { installation: null, exitCode: 1 };
+  }
+
+  let packageRoot: string;
+  let activeGlobalRoot: string;
+  try {
+    [packageRoot, activeGlobalRoot] = await Promise.all([fileSystem.realpath(requestedPackageRoot), fileSystem.realpath(activeRootText)]);
+  } catch (error) {
+    output.stderr(`${PRODUCT_TEXT.diagnostic(`could not canonicalize the running and global npm paths: ${errorMessage(error)}`)}\n`);
+    return { installation: null, exitCode: 1 };
+  }
+
+  const expectedActivePackage = resolve(activeGlobalRoot, ...PRODUCT_PACKAGE.split("/"));
+  if (samePath(packageRoot, expectedActivePackage)) {
+    try {
+      npmPrefixForGlobalRoot(activeGlobalRoot);
+      return {
+        installation: {
+          packageRoot,
+          globalRoot: activeGlobalRoot,
+          npmCliRoot: activeGlobalRoot,
+        },
+        exitCode: 0,
+      };
+    } catch (error) {
+      output.stderr(`${PRODUCT_TEXT.diagnostic(`could not verify npm's active global package layout: ${errorMessage(error)}`)}\n`);
+      return { installation: null, exitCode: 1 };
+    }
+  }
+
+  let candidateGlobalRoot = packageRoot;
+  for (const _segment of PRODUCT_PACKAGE.split("/")) candidateGlobalRoot = dirname(candidateGlobalRoot);
+  let candidatePrefix: string;
+  try {
+    candidatePrefix = npmPrefixForGlobalRoot(candidateGlobalRoot);
+  } catch {
+    reportUnmanagedInstallation(output, packageRoot, activeGlobalRoot);
+    return { installation: null, exitCode: 1 };
+  }
+  if (!samePath(packageRoot, resolve(candidateGlobalRoot, ...PRODUCT_PACKAGE.split("/")))) {
+    reportUnmanagedInstallation(output, packageRoot, activeGlobalRoot);
+    return { installation: null, exitCode: 1 };
+  }
+
+  const confirmation = await runNpm(
+    runner,
+    ["root", "--global", "--prefix", candidatePrefix],
+    true,
+    output,
+    "confirm npm ownership of the running installation",
+  );
+  if (confirmation.result === null) return { installation: null, exitCode: confirmation.exitCode };
+  const confirmedRootText = confirmation.result.stdout.trim();
+  if (confirmedRootText.length === 0) {
+    output.stderr(`${PRODUCT_TEXT.diagnostic("could not verify its installation because npm returned an empty global package root for the inferred prefix.")}\n`);
+    return { installation: null, exitCode: 1 };
+  }
+
+  let confirmedRoot: string;
+  try {
+    confirmedRoot = await fileSystem.realpath(confirmedRootText);
+  } catch (error) {
+    output.stderr(`${PRODUCT_TEXT.diagnostic(`could not canonicalize npm's confirmed global package root: ${errorMessage(error)}`)}\n`);
+    return { installation: null, exitCode: 1 };
+  }
+  if (!samePath(confirmedRoot, candidateGlobalRoot)
+    || !await launchersOwnPackage(candidateGlobalRoot, fileSystem)) {
+    reportUnmanagedInstallation(output, packageRoot, activeGlobalRoot);
+    return { installation: null, exitCode: 1 };
+  }
+
+  return {
+    installation: {
+      packageRoot,
+      globalRoot: candidateGlobalRoot,
+      npmCliRoot: activeGlobalRoot,
+    },
+    exitCode: 0,
+  };
+}
+
+async function launchersOwnPackage(globalRoot: string, fileSystem: UpdateFileSystem): Promise<boolean> {
+  const token = `node_modules/${PRODUCT_PACKAGE}/bin/cli.js`;
+  try {
+    for (const launcher of updateLauncherPaths(globalRoot)) {
+      const metadata = await (fileSystem.lstat ?? lstat)(launcher);
+      if (!metadata.isFile() || metadata.isSymbolicLink() || (process.platform !== "win32" && (metadata.mode & 0o111) === 0)) return false;
+      if (!(await fileSystem.readFile(launcher)).replaceAll("\\", "/").includes(token)) return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function reportUnmanagedInstallation(output: UpdateOutput, packageRoot: string, activeGlobalRoot: string): void {
+  output.stderr(`${PRODUCT_TEXT.diagnostic(`refused to update automatically because ${packageRoot} could not be verified as an npm-managed ${PRODUCT_PACKAGE} installation; npm's active global package root is ${activeGlobalRoot}. Run npm install --global ${PRODUCT_PACKAGE} to install it manually.`)}\n`);
+}
+
 export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number> {
   const fileSystem = options.fileSystem ?? defaultFileSystem;
   const output = options.output ?? defaultOutput;
@@ -428,8 +564,9 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
 
   let runningVersion: string;
   try {
-    const packageJson = JSON.parse(await measure("package-version", async () => await fileSystem.readFile(resolve(options.packageRoot, "package.json")))) as { version?: unknown };
+    const packageJson = JSON.parse(await measure("package-version", async () => await fileSystem.readFile(resolve(options.packageRoot, "package.json")))) as { name?: unknown; version?: unknown };
     const parsedVersion = typeof packageJson.version === "string" ? validSemver(packageJson.version) : null;
+    if (packageJson.name !== PRODUCT_PACKAGE) throw new Error(`package.json does not identify ${PRODUCT_PACKAGE}`);
     if (parsedVersion === null) throw new Error("package.json does not contain a valid semantic version");
     runningVersion = parsedVersion;
   } catch (error) {
@@ -448,24 +585,9 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
   output.stdout(`${PRODUCT_TEXT.commandName} update: ${runningVersion} → ${targetVersion}\n`);
   const progress = createUpdateProgress(output, options.progress ?? (options.output === undefined && process.stdout.isTTY === true));
 
-  const rootLookup = await measure("global-root", async () => await runNpm(runner, ["root", "--global"], true, output, "resolve npm's global package root"));
-  if (rootLookup.result === null) return rootLookup.exitCode;
-  if (rootLookup.result.stdout.trim().length === 0) {
-    output.stderr(`${PRODUCT_TEXT.diagnostic("could not verify its installation because npm returned an empty global package root.")}\n`);
-    return 1;
-  }
-  let packageRoot: string;
-  let globalRoot: string;
-  try {
-    [packageRoot, globalRoot] = await Promise.all([fileSystem.realpath(options.packageRoot), fileSystem.realpath(rootLookup.result.stdout.trim())]);
-  } catch (error) {
-    output.stderr(`${PRODUCT_TEXT.diagnostic(`could not canonicalize the running and global npm paths: ${errorMessage(error)}`)}\n`);
-    return 1;
-  }
-  if (!isContainedBy(globalRoot, packageRoot)) {
-    output.stderr(`${PRODUCT_TEXT.diagnostic(`refused to update automatically because ${packageRoot} is not managed beneath npm's global package root ${globalRoot}.`)}\n`);
-    return 1;
-  }
+  const managed = await measure("global-root", async () => await resolveManagedNpmInstallation(options.packageRoot, fileSystem, runner, output));
+  if (managed.installation === null) return managed.exitCode;
+  const { packageRoot, globalRoot, npmCliRoot } = managed.installation;
 
   const environment = options.environment ?? process.env;
   const paths = resolveProductPaths(environment);
@@ -528,6 +650,7 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
         const replacement = await measure("npm-install", async () => await (options.packageReplacement ?? runProtectedPackageReplacement)({
           dataDir: paths.dataDir,
           globalRoot,
+          npmCliRoot,
           packageRoot,
           transaction: replacementTransaction,
           priorRelease,
@@ -552,7 +675,7 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
       } else {
         const installation = await measure("npm-install", async () => await runNpm(
           runner,
-          ["install", "--global", "--loglevel=error", "--no-fund", "--no-audit", `${PRODUCT_PACKAGE}@${targetVersion}`],
+          updateNpmInstallArguments(globalRoot, targetVersion),
           true,
           output,
           "start the global npm installation",
@@ -712,6 +835,9 @@ async function canonicalImmutableRoot(dataDir: string, releaseRoot: string): Pro
   }
 }
 
+function samePath(left: string, right: string): boolean {
+  return process.platform === "win32" ? resolve(left).toLowerCase() === resolve(right).toLowerCase() : resolve(left) === resolve(right);
+}
 function isContainedBy(parent: string, child: string): boolean {
   const pathFromParent = relative(parent, child);
   return pathFromParent.length > 0 && pathFromParent !== ".." && !pathFromParent.startsWith(`..${sep}`) && !isAbsolute(pathFromParent);

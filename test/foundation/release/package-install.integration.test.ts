@@ -54,7 +54,9 @@ describe("clean installation of the exact candidate", () => {
     const dataDir = resolve(fixtureRoot, "data");
     const globalRoot = process.platform === "win32" ? resolve(fixtureRoot, "npm", "node_modules") : resolve(fixtureRoot, "prefix", "lib", "node_modules");
     const packageRoot = resolve(globalRoot, "@timurproko", "a1");
-    const npmCli = resolve(globalRoot, "npm", "bin", "npm-cli.js");
+    const activePrefix = resolve(fixtureRoot, "active-npm");
+    const activeGlobalRoot = process.platform === "win32" ? resolve(activePrefix, "node_modules") : resolve(activePrefix, "lib", "node_modules");
+    const npmCli = resolve(activeGlobalRoot, "npm", "bin", "npm-cli.js");
     const priorReleaseId = "1.0.0-aaaaaaaaaaaaaaaaaaaa";
     const priorReleaseRoot = resolve(dataDir, "releases", priorReleaseId);
     const launchers = releaseModule.updateLauncherPaths(globalRoot);
@@ -90,6 +92,7 @@ describe("clean installation of the exact candidate", () => {
     const replacementOptions = {
       dataDir,
       globalRoot,
+      npmCliRoot: activeGlobalRoot,
       packageRoot,
       transaction,
       priorRelease: { releaseId: priorReleaseId, releaseRoot: priorReleaseRoot, contentDigest: "a".repeat(64) },
@@ -128,7 +131,9 @@ describe("clean installation of the exact candidate", () => {
     const dataDir = resolve(fixtureRoot, "data");
     const globalRoot = process.platform === "win32" ? resolve(fixtureRoot, "npm", "node_modules") : resolve(fixtureRoot, "prefix", "lib", "node_modules");
     const packageRoot = resolve(globalRoot, "@timurproko", "a1");
-    const npmCli = resolve(globalRoot, "npm", "bin", "npm-cli.js");
+    const activePrefix = resolve(fixtureRoot, "active-npm");
+    const activeGlobalRoot = process.platform === "win32" ? resolve(activePrefix, "node_modules") : resolve(activePrefix, "lib", "node_modules");
+    const npmCli = resolve(activeGlobalRoot, "npm", "bin", "npm-cli.js");
     const priorReleaseId = "1.0.0-bbbbbbbbbbbbbbbbbbbb";
     const priorReleaseRoot = resolve(dataDir, "releases", priorReleaseId);
     const launchers = releaseModule.updateLauncherPaths(globalRoot);
@@ -174,6 +179,7 @@ describe("clean installation of the exact candidate", () => {
     const serializable = {
       dataDir,
       globalRoot,
+      npmCliRoot: activeGlobalRoot,
       packageRoot,
       transaction,
       priorRelease: { releaseId: priorReleaseId, releaseRoot: priorReleaseRoot, contentDigest: "b".repeat(64) },

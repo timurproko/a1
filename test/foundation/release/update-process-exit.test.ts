@@ -11,8 +11,8 @@ describe("self-update process settlement", () => {
     const updateModule = pathToFileURL(resolve("src/foundation/release/index.ts")).href;
     const script = `
       const { runSelfUpdate, UPDATE_JOURNAL_SCHEMA } = await import(${JSON.stringify(updateModule)});
-      const packageRoot = ${JSON.stringify(resolve("fixture-global", "package"))};
-      const globalRoot = ${JSON.stringify(resolve("fixture-global"))};
+      const globalRoot = ${JSON.stringify(process.platform === "win32" ? resolve("fixture-prefix", "node_modules") : resolve("fixture-prefix", "lib", "node_modules"))};
+      const packageRoot = ${JSON.stringify(resolve(process.platform === "win32" ? resolve("fixture-prefix", "node_modules") : resolve("fixture-prefix", "lib", "node_modules"), "@timurproko", "a1"))};
       let transaction = null;
       const journal = {
         path: "memory-journal",
@@ -25,7 +25,7 @@ describe("self-update process settlement", () => {
       const code = await runSelfUpdate({
         packageRoot,
         fileSystem: {
-          readFile: async () => JSON.stringify({ version: "1.0.0" }),
+          readFile: async () => JSON.stringify({ name: "@timurproko/a1", version: "1.0.0" }),
           realpath: async path => path,
         },
         runner: async (_command, args) => args[0] === "view"
