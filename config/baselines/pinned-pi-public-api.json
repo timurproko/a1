@@ -1308,7 +1308,6 @@
             "src/integrations/pi/components/shell-extension-ui.ts",
             "src/integrations/pi/components/shell-selectors-dialogs.ts",
             "src/integrations/pi/components/upstream/components/extension-editor.ts",
-            "src/integrations/pi/components/upstream/components/thinking-selector.ts",
             "src/integrations/pi/startup-public.ts"
           ]
         },

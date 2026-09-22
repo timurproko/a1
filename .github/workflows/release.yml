@@ -258,6 +258,9 @@ jobs:
         with:
           node-version: 24
           cache: npm
+      - name: Prepare Rust toolchain
+        shell: bash
+        run: bash scripts/development/prepare-ci-rust.sh
       - name: Cache process guardian build
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
@@ -293,6 +296,11 @@ jobs:
         with:
           node-version: 24
           cache: npm
+
+      - name: Prepare Rust toolchain
+        if: needs.plan.outputs.build == 'true'
+        shell: bash
+        run: bash scripts/development/prepare-ci-rust.sh
 
       - name: Install dependencies and build source once
         if: needs.plan.outputs.build == 'true'
@@ -414,6 +422,9 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
           cache: npm
+      - name: Prepare Rust toolchain
+        shell: bash
+        run: bash scripts/development/prepare-ci-rust.sh
       - run: npm ci
       - name: Record verified install-time build
         run: node scripts/release/record-validation-prerequisite.mjs build

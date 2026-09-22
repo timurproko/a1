@@ -10,6 +10,7 @@ import { createPiShellThinkingSelector } from "../../../../src/integrations/pi/c
 import { KeybindingsManager } from "../../../../src/integrations/pi/components/upstream/adjacent/core/keybindings.js";
 import { cellStyle } from "../../../support/ansi-cell-style.js";
 import { promptInputPresentation } from "../../../support/prompt-input-presentation.js";
+import { withPiParityColorMode } from "../../../support/pi-terminal-capabilities.js";
 
 const LEVELS: readonly OwnedUiThinkingLevel[] = ["off", "minimal", "low", "medium", "high", "xhigh"];
 const directories: string[] = [];
@@ -181,6 +182,29 @@ describe("owned shared input and status presentation", () => {
 });
 
 describe("owned level and model keybindings", () => {
+  it.each([
+    ["dark", "truecolor"], ["light", "truecolor"],
+    ["dark", "256color"], ["light", "256color"],
+  ] as const)("uses the owned %s/%s theme even when host color detection disagrees", (name, mode) => {
+    withPiParityColorMode(mode === "truecolor" ? "256color" : "truecolor", () => {
+      applyPiTheme(name, false, mode);
+      const selector = createPiShellThinkingSelector("medium", ["low", "medium"], vi.fn(), vi.fn(), undefined, "medium",
+        { profile: "bare", cycleBinding: "ctrl+l" });
+      const assertTheme = () => {
+        const rows = selector.render(100);
+        const selected = rows.find(row => stripTerminalSequences(row).includes("Moderate reasoning"))!;
+        expect(cellStyle(selected, "m")).toEqual(cellStyle(piTheme().fg("accent", "m"), "m"));
+        expect(cellStyle(selected, "M")).toEqual(cellStyle(piTheme().fg("muted", "M"), "M"));
+        expect(cellStyle(selected, "✓")).toEqual(cellStyle(piTheme().fg("success", "✓"), "✓"));
+        expect(cellStyle(rows[0]!, "─")).toEqual(cellStyle(piTheme().fg("border", "─"), "─"));
+      };
+      assertTheme();
+      selector.handleInput?.("medium");
+      assertTheme(); // Invariant: filtering rebuilds the list with the same theme authority.
+    });
+    applyPiTheme("dark", false, "truecolor");
+  });
+
   it("renders the bare thinking selector with the resolved cycle key and bold accent heading", async () => {
     const { input } = await editor();
     const selected = vi.fn();
