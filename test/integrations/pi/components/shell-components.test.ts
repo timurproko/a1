@@ -30,6 +30,7 @@ import {
   WorkingStatusIndicator,
 } from "../../../../src/integrations/pi/components/index.js";
 import { PINNED_PI_WORKFLOW_COMMAND_NAMES } from "../../../../src/integrations/pi/engine/index.js";
+import { composeSubmittedPromptRows, submittedPromptLayout } from "../../../../src/ui/components/index.js";
 
 function block(kind: OwnedUiTranscriptBlock["kind"], text: string, payload: unknown = {}): OwnedUiTranscriptBlock {
   return { id: `${kind}-1`, kind, status: "finalized", revision: 1, title: kind.startsWith("tool") ? "read" : null, text, payload };
@@ -415,6 +416,29 @@ describe("Pi shell public component adapters", () => {
       const rows = renderPiShellTranscriptBlock(fixture, 60, process.cwd());
       expect(rows.length, fixture.kind).toBeGreaterThan(0);
     }
+  });
+
+  it("hides derived resize guidance only in the bare-A1 submitted-prompt presenter", () => {
+    const marker = "[📷 screenshot-0123456789]";
+    const note = "[Image: original 3840x2280, displayed at 2000x1188. Multiply coordinates by 1.92 to map to original image.]";
+    const imageBlock: OwnedUiTranscriptBlock = {
+      ...block("user", `inspect ${marker}\n\n${note}`, { role: "user", timestamp: 1_000 }),
+      userPresentation: { visibleText: `inspect ${marker}` },
+      imageReferences: [{ assetId: "image-1", mimeType: "image/png", byteLength: 128, source: "user" }],
+    };
+    const pinned = createPiShellTranscriptComponent(imageBlock, process.cwd(), undefined, undefined, 1, false, "off", false, 40,
+      { resolve: () => null });
+    const composer = { layout: submittedPromptLayout, compose: composeSubmittedPromptRows };
+    const bare = createPiShellTranscriptComponent(imageBlock, process.cwd(), undefined, composer,
+      1, false, "off", false, 40, { resolve: () => null });
+    const pinnedText = stripTerminalSequences(pinned.render(120).join("\n"));
+    const bareText = stripTerminalSequences(bare.render(120).join("\n"));
+    expect(pinnedText).toContain(marker);
+    expect(pinnedText).toContain(note);
+    expect(bareText).toContain("inspect");
+    expect(bareText).toContain(marker);
+    expect(bareText).not.toContain(note);
+    expect(bareText).toContain("Image hidden: image/png");
   });
 
   it("renders safe transcript-image placeholders for hidden and unavailable assets", () => {

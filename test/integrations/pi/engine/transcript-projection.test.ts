@@ -30,6 +30,64 @@ describe("PiTranscriptProjection", () => {
     expect(target.block(live!.id)?.text).toBe("partial");
   });
 
+  it("hides resize guidance without changing the stored prompt, screenshot chip, or model context", () => {
+    const { target } = projection();
+    const marker = "[📷 screenshot-0123456789]";
+    const dimension = "[Image: original 3840x2280, displayed at 2000x1188. Multiply coordinates by 1.92 to map to original image.]";
+    const text = `inspect ${marker}\n\n${dimension}`;
+    const projected = target.upsertMessage({ role: "user", content: [
+      { type: "text", text },
+      { type: "image", data: "aW1hZ2U=", mimeType: "image/png" },
+    ], timestamp: 1_500 }, "finalized")!;
+    expect(projected.text).toBe(text);
+    expect(projected.userPresentation).toEqual({ visibleText: `inspect ${marker}` });
+    expect(projected.imageReferences).toHaveLength(1);
+  });
+
+  it("removes multiple resize notes while retaining chips, conversion notes, and omission failures", () => {
+    const { target } = projection();
+    const markers = "[📷 screenshot-0123456789][📷 screenshot-abcdef0123-resized]";
+    const conversion = "[Image converted from image/bmp to image/png.]";
+    const firstDimension = "[Image: original 3840x2280, displayed at 2000x1188. Multiply coordinates by 1.92 to map to original image.]";
+    const failure = "[Image omitted: could not be resized below the inline image size limit.]";
+    const secondDimension = "[Image: original 3000x2000, displayed at 1500x1000. Multiply coordinates by 2.00 to map to original image.]";
+    const text = `${markers}\n\n${conversion}\n${firstDimension}\n${failure}\n${secondDimension}`;
+    const projected = target.upsertMessage({ role: "user", content: [
+      { type: "text", text },
+      { type: "image", data: "Zmlyc3Q=", mimeType: "image/png" },
+      { type: "image", data: "c2Vjb25k", mimeType: "image/jpeg" },
+    ], timestamp: 1_600 }, "finalized")!;
+    expect(projected.text).toBe(text);
+    expect(projected.userPresentation).toEqual({
+      visibleText: `${markers}\n\n${conversion}\n${failure}`,
+    });
+    expect(projected.imageReferences?.map(image => image.mimeType)).toEqual(["image/png", "image/jpeg"]);
+  });
+
+  it("does not derive presentation for ordinary image text, failures alone, or ambiguous guidance", () => {
+    const { target } = projection();
+    const failure = "[Image omitted: could not be resized below the inline image size limit.]";
+    const ordinary = target.upsertMessage({ role: "user", content: [
+      { type: "text", text: `  authored spacing stays  \n\n${failure}` },
+      { type: "image", data: "aW1hZ2U=", mimeType: "image/png" },
+    ], timestamp: 1_700 }, "finalized")!;
+    expect(ordinary.userPresentation).toBeUndefined();
+
+    const dimension = "[Image: original 3000x2000, displayed at 1500x1000. Multiply coordinates by 2.00 to map to original image.]";
+    const ambiguous = target.upsertMessage({ role: "user", content: [
+      { type: "text", text: `literal\n\n${dimension}\n${dimension}` },
+      { type: "image", data: "aW1hZ2U=", mimeType: "image/png" },
+    ], timestamp: 1_800 }, "finalized")!;
+    expect(ambiguous.userPresentation).toBeUndefined();
+  });
+
+  it("keeps resize-looking text visible when there is no image attachment", () => {
+    const { target } = projection();
+    const text = "[Image: original 3840x2280, displayed at 2000x1188. Multiply coordinates by 1.92 to map to original image.]";
+    expect(target.upsertMessage(user(text), "finalized")).toMatchObject({ text });
+    expect(target.blocks[0]?.userPresentation).toBeUndefined();
+  });
+
   it("keeps a message's block id across streaming, settlement, and the same timestamp reused by a later message", () => {
     const { target } = projection();
     const streaming = assistant("a");
