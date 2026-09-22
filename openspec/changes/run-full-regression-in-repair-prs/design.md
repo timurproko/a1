@@ -2,7 +2,7 @@
 
 On 2026-09-22, #536's head `99f1cba4333678d240e03c77388df6ceea90e340` had Full regression run 35757525387 in the commit check-runs API, but its PR `statusCheckRollup` contained only Development validation and repository-policy workflows. Full regression currently supports `schedule` and `workflow_dispatch`; Development validation is PR-triggered but skips drafts and intentionally defers exhaustive integration owners. Dispatching another branch workflow is therefore not a reliable PR-visible handoff.
 
-The maintainer approved this plan and explicitly requested implementation on 2026-09-22. Continue in PR #543 and branch `feature/pr-full-regression`. Base: `origin/develop` at `7b80f6a30cf82ae654a668fc577734bdd33dcaa5`. #536 remains a separate delivery; reconcile any changes it merges before implementation here.
+The maintainer approved this plan and explicitly requested implementation on 2026-09-22. Continue in PR #543 and branch `feature/pr-full-regression`. Implementation began from `origin/develop` at `7b80f6a30cf82ae654a668fc577734bdd33dcaa5`; merged #536 was reconciled at `d24718c1` without changing its repair.
 
 ## Goals and non-goals
 
@@ -94,4 +94,4 @@ Introduce selection, reusable execution, aggregation, policy/spec reconciliation
 
 ## Known gaps
 
-Standalone caller compatibility remains to be observed after the PR-attached draft run. The live label is intentionally not created ad hoc: `ci:full-regression` remains pending the repository's separately confirmed governance-apply operation; automatic repair/publishing selection does not depend on that label. Successful draft evidence will not certify the later finalized head. Current Full regression also exposes the thinking-selector mismatch repaired in unmerged #536, so #543 must reconcile #536 if it integrates rather than duplicating that repair. Existing startup-enforcement prose inconsistencies remain outside this orchestration change; execution modes, budgets, deadlines, and first-attempt behavior were preserved.
+Standalone caller compatibility remains to be observed after the PR-attached draft run. The live label is intentionally not created ad hoc: `ci:full-regression` remains pending the repository's separately confirmed governance-apply operation; automatic repair/publishing selection does not depend on that label. Successful draft evidence will not certify the later finalized head. The draft Full regression exposed the thinking-selector mismatch repaired by #536; merged #536 was subsequently reconciled rather than duplicating that repair. Existing startup-enforcement prose inconsistencies remain outside this orchestration change; execution modes, budgets, deadlines, and first-attempt behavior were preserved.

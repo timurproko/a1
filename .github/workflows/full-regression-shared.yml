@@ -93,6 +93,10 @@ jobs:
           if [ "$current" != "$pinned" ]; then npm install -g "npm@$pinned"; fi
           npm --version
 
+      - name: Prepare Rust toolchain
+        shell: bash
+        run: bash scripts/development/prepare-ci-rust.sh
+
       - name: Install dependencies and build once
         run: npm ci
 
