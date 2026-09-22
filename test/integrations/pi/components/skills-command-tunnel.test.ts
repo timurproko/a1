@@ -60,6 +60,7 @@ describe("skills command helpers", () => {
     const collapsed = collapseSkillCommands(COMMANDS);
     expect(collapsed.commands.map(command => command.name)).toEqual(["model", "plan", "skills", "mcp"]);
     expect(collapsed.commands[2]).toMatchObject({ name: "skills", description: "Browse, search, and apply a skill" });
+    expect(collapsed.collapsedCommand).toBe(collapsed.commands[2]);
     expect(collapsed.commands[2]!.argumentOptions).toEqual([
       { id: "framer", label: "framer", description: "Design, edit, and publish Framer sites" },
       { id: "code-review", label: "code-review", description: "Review the current diff" },
@@ -152,10 +153,28 @@ describe("skills command helpers", () => {
 describe.each([false, true])("skills tunnel in the bare-A1 editor (history=%s)", history => {
   it("collapses the menu, lists tunnel rows, and completes the selected skills row with a colon", async () => {
     let presentation: "collapse" | "expand" = "collapse";
-    const { editor, submitted, dispose } = await fixture(history, { skillsPresentation: () => presentation });
+    const { editor, submitted, dispose } = await fixture(history, { skillsPresentation: () => presentation, getRows: () => 80 });
     try {
+      editor.setAutocompleteMaxVisible(50);
       editor.setAutocompleteCommands(COMMANDS);
-      // Rationale: the menu window shows five rows, so the narrowed search proves the collapsed entries.
+      editor.handleInput?.("/");
+      await settle();
+      const catalog: string[] = [];
+      for (let index = 0; index < 40; index++) {
+        const selected = menuText(editor).find(row => row.includes("→"));
+        const name = /^\s*→\s+(\S+)/u.exec(selected ?? "")?.[1];
+        expect(name).toBeDefined();
+        if (name === "settings" && catalog.length > 0) break;
+        catalog.push(name!);
+        editor.handleInput?.(DOWN);
+      }
+      expect(catalog.slice(0, 3)).toEqual(["settings", "skills", "models"]);
+      expect(catalog.filter(name => name === "skills")).toHaveLength(1);
+      expect(catalog.slice(-4)).toEqual(["quit", "model", "plan", "mcp"]);
+      editor.handleInput?.(ESC);
+      editor.setText("");
+
+      // Rationale: the narrowed search proves the collapsed entries without depending on menu height.
       editor.handleInput?.("/skill");
       await settle();
       let menu = menuText(editor).join("\n");
@@ -266,6 +285,7 @@ describe.each([false, true])("skills tunnel in the bare-A1 editor (history=%s)",
       editor.setText("");
       editor.handleInput?.("/s");
       await settle();
+      editor.handleInput?.(DOWN);
       editor.handleInput?.(DOWN);
       expect(menuText(editor).find(row => row.includes("→"))).not.toMatch(/skills/u);
       editor.handleInput?.(":");
