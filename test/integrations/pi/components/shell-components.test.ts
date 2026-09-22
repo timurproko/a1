@@ -148,6 +148,51 @@ describe("Pi shell public component adapters", () => {
     expect(editor.render(40).join("\n")).not.toContain("\u001b[2mgo ahead and merge it");
   });
 
+  it("closes autocomplete from a deleted draft before restoring its contextual suggestion", async () => {
+    const accepted = vi.fn();
+    const editor = createPiShellEditor({
+      getColumns: () => 80, getRows: () => 24, requestRender() {}, onSubmit() {},
+      onPromptSuggestionAccepted: accepted, keybindingProfile: "a1", promptPresentation: PROMPT_PRESENTATION,
+    });
+    editor.setFocused?.(true);
+    editor.setPromptSuggestion("run the tests");
+    editor.handleInput?.("/");
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(editor.getText()).toBe("/");
+    expect(stripTerminalSequences(editor.render(40).join("\n"))).not.toContain("run the tests");
+
+    editor.handleInput?.("\u0015");
+    expect(editor.getText()).toBe("");
+    expect(editor.promptSuggestionBlockReason?.()).toBeNull();
+    expect(stripTerminalSequences(editor.render(40).join("\n"))).toContain("❯ run the tests");
+    editor.handleInput?.("\t");
+    expect(editor.getText()).toBe("run the tests");
+    expect(accepted).toHaveBeenCalledOnce();
+  });
+
+  it("cancels debounced autocomplete from a deleted draft before restoring its contextual suggestion", async () => {
+    const getSuggestions = vi.fn(async () => ({ prefix: "@", items: [{ value: "resource", label: "resource" }] }));
+    const editor = createPiShellEditor({
+      getColumns: () => 80, getRows: () => 24, requestRender() {}, onSubmit() {},
+      keybindingProfile: "a1", promptPresentation: PROMPT_PRESENTATION,
+    });
+    editor.setFocused?.(true);
+    editor.addAutocompleteProvider(() => ({
+      triggerCharacters: ["@"],
+      getSuggestions,
+      applyCompletion: () => ({ lines: ["resource"], cursorLine: 0, cursorCol: 8 }),
+    }));
+    editor.setPromptSuggestion("run the tests");
+    editor.handleInput?.("@");
+    editor.handleInput?.("\u0015");
+    await new Promise(resolve => setTimeout(resolve, 30));
+
+    expect(editor.getText()).toBe("");
+    expect(getSuggestions).not.toHaveBeenCalled();
+    expect(editor.promptSuggestionBlockReason?.()).toBeNull();
+    expect(stripTerminalSequences(editor.render(40).join("\n"))).toContain("❯ run the tests");
+  });
+
   it("reports semantic suggestion presentation blockers without inspecting rendered text", async () => {
     const editor = createPiShellEditor({ getColumns: () => 80, getRows: () => 24, requestRender() {}, onSubmit() {}, keybindingProfile: "a1", promptPresentation: PROMPT_PRESENTATION });
     editor.setFocused?.(true);
