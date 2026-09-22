@@ -27,6 +27,27 @@ import { BottomHoverEvidence, classifyBottomHoverFinding, type BottomHoverState 
 import { withPinnedHyperlinks, fixture, InputImmediateScheduler, nextImmediate } from "./session-shell-fixture.js";
 
 describe("OwnedUiSessionShell prompt bar, links, and hover", () => {
+  it("preserves repository path and linked PR metadata while merging extension footer status", async () => {
+    const { adapter, shell } = await fixture([], [], true);
+    const view = adapter.view();
+    shell.root.update({
+      ...view,
+      status: {
+        ...view.status,
+        footer: {
+          ...view.status.footer!,
+          branch: "fix/session-associated-pr-footer",
+          repositoryPath: "D:/delivery/session-associated-pr-footer",
+          pullRequest: { number: 552, url: "https://github.com/timurproko/a1/pull/552" },
+        },
+      },
+    });
+    const footer = shell.root.render(120).map(row => stripTerminalSequences(row))
+      .find(row => row.includes("PR #552"));
+    expect(footer).toContain("D:/delivery/session-associated-pr-footer (fix/session-associated-pr-footer) PR #552");
+    await shell.dispose();
+  });
+
   it("renders the bare-A1 prompt bar and one-row-inset rail above an unchanged pinned dock", async () => {
     const messages = Array.from({ length: 18 }, (_, index) => ({
       role: index % 2 === 0 ? "user" : "assistant",

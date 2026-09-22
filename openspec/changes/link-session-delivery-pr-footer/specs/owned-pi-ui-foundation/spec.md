@@ -1,6 +1,6 @@
 ## MODIFIED Requirements
 
-### Requirement: Bare A1 links the session-associated worktree's open pull request from the footer
+### Requirement: Bare A1 links the current branch's open pull request from the footer
 
 Bare A1 SHALL support one explicit optional repository-context association per stable Pi session. When a valid association exists, A1 SHALL discover the branch and open GitHub pull request from that associated worktree even when the session started in another checkout; otherwise it SHALL use the session's effective startup working tree and SHALL NOT guess among other worktrees. The association SHALL be scoped by stable session identity, SHALL survive restart or resume of that same session, SHALL reload on session replacement, and SHALL NOT be inherited by an unrelated or forked session without an explicit association.
 
@@ -65,6 +65,45 @@ The badge and association are declared bare-A1 behavior. The `a1 pi` comparison 
 - **WHEN** a session has no valid explicit repository-context association
 - **THEN** A1 SHALL preserve startup-working-tree discovery
 - **AND** SHALL NOT scan or guess among other local worktrees or pull requests
+
+#### Scenario: Show an open branch pull request
+
+- **WHEN** bare A1's selected repository context has a current branch with open pull request 567 at `https://github.com/example/project/pull/567`
+- **THEN** the footer path row SHALL contain `path (branch) PR #567`
+- **AND** `PR` SHALL retain the same grey role as the surrounding footer
+- **AND** only `#567` SHALL be an OSC 8 hyperlink targeting that canonical URL
+- **AND** the linked number SHALL use the established web-link theme role
+
+#### Scenario: Keep surrounding footer text outside the link
+
+- **WHEN** the footer also has a session name
+- **THEN** the row SHALL order path, branch, PR badge, and session name as `path (branch) PR #<number> • session-name`
+- **AND** the path, branch, spaces, `PR` prefix, separator, ellipsis, and session name SHALL NOT resolve to the PR target
+
+#### Scenario: No open pull request is available
+
+- **WHEN** the selected context is not a Git repository, its head is detached, no open PR matches its branch, or GitHub CLI discovery fails, times out, or returns invalid data
+- **THEN** the footer SHALL retain the selected safe path, branch, and session-name presentation without a PR badge
+- **AND** startup and the running agent session SHALL continue without a PR-discovery diagnostic
+
+#### Scenario: Pull request association changes during the session
+
+- **WHEN** a bounded refresh observes that the selected branch gains, loses, or changes its open pull request association
+- **THEN** the footer SHALL update to the newest normalized identity
+- **AND** unchanged refreshes SHALL NOT cause redundant view updates
+- **AND** no two discovery processes SHALL overlap
+
+#### Scenario: Dispose while discovery is pending
+
+- **WHEN** the session is disposed with a refresh timer or repository discovery process pending
+- **THEN** the timer and process SHALL be cancelled or released
+- **AND** a late result SHALL NOT update or render the disposed session
+
+#### Scenario: Render a narrow footer
+
+- **WHEN** the linked PR badge reaches the footer's truncation boundary
+- **THEN** the rendered row SHALL remain within its declared width
+- **AND** hyperlink and foreground state SHALL close at the truncation boundary without extending to another cell or row
 
 #### Scenario: Use the pinned comparison profile
 

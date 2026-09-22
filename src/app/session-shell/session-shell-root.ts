@@ -1514,6 +1514,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       status: {
         ...view.status,
         footer: {
+          ...footer,
           branch: footer?.branch ?? null,
           sessionName: footer?.sessionName ?? null,
           availableProviderCount: footer?.availableProviderCount ?? 1,
