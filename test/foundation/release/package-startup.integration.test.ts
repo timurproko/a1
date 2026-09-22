@@ -61,8 +61,14 @@ describe("fresh first-attempt startup of the exact candidate", () => {
     const { certifyMaterializedRelease, CohortStateStore, materializeRelease, releaseVerifiedIdleOwner, startSupervisor, waitForVerifiedEndpoint, warmMaterializedRelease } = await import("../../../src/foundation/release/index.js");
     const { resolveCohortEndpoint, resolveProductPaths } = await import("../../../src/foundation/lifecycle/index.js");
     const { PRODUCT_IDENTITY } = await import("../../../src/product-identity.js");
+    const { cliCapabilities } = await import("../../../src/cli/index.js");
     await phases.run("defender-prerequisite", () => expectWindowsDefenderProtection());
     const packageRoot = resolve(prefix, "node_modules", "@timurproko", "a1");
+    // Compatibility: the packed entry derives its commands from the packed version, so a stable
+    // candidate deliberately answers `a1 pi` with a quiet no-op. Measure exactly the profiles the
+    // candidate advertises; launching one it is required to refuse reads as a startup failure.
+    const { developmentComparison } = cliCapabilities(candidate.manifest.version);
+    const profiles = developmentComparison ? (["a1", "pi"] as const) : (["a1"] as const);
     const startupModuleGraph = await loadStartupModuleGraph(packageRoot);
     const dataDir = resolve(root, "startup-data");
     const runtimeDir = resolve(root, "startup-runtime");
@@ -98,7 +104,7 @@ describe("fresh first-attempt startup of the exact candidate", () => {
     const cohort = resolveCohortEndpoint(paths, release.releaseId, environment);
     await phases.run("startup-supervisor-ready", () => waitForVerifiedEndpoint(cohort.endpointMetadataPath, release, 8_000, startup));
     try {
-      for (const profileId of ["a1", "pi"] as const) {
+      for (const profileId of profiles) {
         const postUpdate = await captureReadyLaunch(packageRoot, environment, profileId, "post-update");
         await recordStartupMeasurement(profileId, "post-update", postUpdate, startupModuleGraph);
         await gateStartupBudget({ profileId, launchKind: "post-update", events: postUpdate, moduleGraph: startupModuleGraph });
@@ -121,7 +127,13 @@ describe("fresh first-attempt startup of the exact candidate", () => {
       }
       // Invariant: a recording channel still proves that every declared scenario produced an
       // input-ready measurement; only the timing verdict is downgraded to a warning.
-      expect(startupMeasurements.length).toBe(6);
+      expect(startupMeasurements.length).toBe(profiles.length * 3);
+      // Invariant: the profile a stable build withholds must be proven absent rather than skipped,
+      // so the boundary that made this gate unpassable stays covered on the channel that enforces it.
+      if (!developmentComparison) await phases.run("stable-comparison-profile-withheld", async () => {
+        const refused = await captureQuietLaunch(packageRoot, environment);
+        expect(refused, "stable a1 pi must exit quietly without launching").toEqual({ exitCode: 0, stdout: "", stderr: "", traced: false });
+      });
     } finally {
       await phases.cleanup("supervisor-final-stop", () => stopPackagedSupervisor(cohort.endpointMetadataPath, dataDir, releaseVerifiedIdleOwner)).catch(() => {});
     }
@@ -244,6 +256,39 @@ async function captureReadyLaunch(
       ]);
     }
   });
+}
+
+/**
+ * Observes the profile a non-prerelease build withholds. The packed entry still initializes the
+ * startup trace before dispatch, so absence is proven by the missing input-ready frame and the
+ * silent successful exit rather than by a missing trace file.
+ */
+async function captureQuietLaunch(packageRoot: string, environment: NodeJS.ProcessEnv) {
+  const { parseStartupTrace } = await import("../../../src/foundation/startup/index.js");
+  const { PRODUCT_IDENTITY } = await import("../../../src/product-identity.js");
+  const tracePath = resolve(root, "startup-pi-withheld.jsonl");
+  await rm(tracePath, { force: true });
+  const child = crossSpawn(process.execPath, [resolve(packageRoot, "bin", "cli.js"), "pi"], {
+    cwd: root,
+    env: { ...environment, [PRODUCT_IDENTITY.environment.startupTrace]: tracePath },
+    windowsHide: true,
+  });
+  let stdout = "";
+  let stderr = "";
+  child.stdout?.on("data", chunk => { stdout += chunk.toString(); });
+  child.stderr?.on("data", chunk => { stderr += chunk.toString(); });
+  const exitCode = await new Promise<number | null>((resolvePromise, rejectPromise) => {
+    const timer = setTimeout(() => {
+      if (child.pid) crossSpawn.sync("taskkill.exe", ["/PID", String(child.pid), "/T", "/F"], { windowsHide: true, stdio: "ignore" });
+      rejectPromise(new Error("withheld a1 pi did not exit within 15000ms"));
+    }, 15_000);
+    child.once("error", error => { clearTimeout(timer); rejectPromise(error); });
+    child.once("close", code => { clearTimeout(timer); resolvePromise(code); });
+  });
+  const source = await readFile(tracePath, "utf8").catch(() => "");
+  let traced = false;
+  try { traced = parseStartupTrace(source).some(event => event.phase === "first-input-ready-render"); } catch { traced = false; }
+  return { exitCode, stdout, stderr, traced };
 }
 
 async function stopPackagedSupervisor(
