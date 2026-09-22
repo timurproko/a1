@@ -1,0 +1,6 @@
+#!/bin/sh
+# Launch bare A1 with a deterministic clickable PR footer for manual presentation testing.
+fixture="$(dirname "$0")/development/pr-footer-preview/pr-footer-fixture.mjs"
+A1_PR_FOOTER_PREVIEW="$(node "$fixture")"
+export A1_PR_FOOTER_PREVIEW
+exec "$(dirname "$0")/dev" "$@"

@@ -561,6 +561,7 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
         usage: this.#usageCache ??= readUsageView(this.#engine.session, this.#engine.runtime, this.#activeModel),
         footer: {
           branch: this.#engine.gitBranch,
+          pullRequest: this.#engine.pullRequest,
           sessionName: this.#engine.session?.sessionManager?.getSessionName() ?? null,
           availableProviderCount: new Set(this.#engine.runtime?.services.modelRuntime.getAvailableSnapshot?.().map(model => model.provider).filter(provider => provider !== undefined) ?? []).size,
           extensionStatuses: [],

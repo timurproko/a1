@@ -1274,6 +1274,7 @@
           "kind": "function",
           "hash": "24a181cf61600283625f75434a2590009e53f8a165718654ceb1beaa7182b0b8",
           "consumers": [
+            "src/integrations/pi/components/shell-hotkey-sections.ts",
             "src/integrations/pi/components/shell-presenters-info.ts",
             "src/integrations/pi/components/shell-presenters-transcript.ts",
             "src/integrations/pi/components/submitted-prompt-adapter.ts",
@@ -3163,7 +3164,8 @@
           "kind": "function",
           "hash": "9730bac132a52ab615493cbfc14ba9bf158b9f5e4402851fb9305e8711bc438b",
           "consumers": [
-            "src/integrations/pi/components/shell-shared-facade.ts"
+            "src/integrations/pi/components/shell-shared-facade.ts",
+            "src/integrations/pi/components/upstream/components/session-footer.ts"
           ]
         },
         {
@@ -3356,6 +3358,7 @@
           "kind": "class",
           "hash": "cfcf9f200919675b3e834e09430594ee3399be20de28c9b2abadc423094680d2",
           "consumers": [
+            "src/integrations/pi/components/shell-hotkey-sections.ts",
             "src/integrations/pi/components/shell-presenters-info.ts",
             "src/integrations/pi/components/submitted-prompt-adapter.ts",
             "src/integrations/pi/components/upstream/components/skill-invocation-message.ts"

@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-09-22T15:48:59.703Z",
+  "recordedAt": "2026-09-22T16:04:22.686Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "16787ad5b2dc748047f314ca1bfe7708f30f54f3",
@@ -1736,14 +1736,20 @@
       "localDestination": "src/integrations/pi/components/upstream/components/session-footer.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Consumes neutral owned-UI view data instead of a fabricated concrete AgentSession; an explicit bare-A1 profile colors the thinking-level name while preserving the remaining footer layout and formatting, and replacement surfaces may suppress a thinking level they already present.",
+      "modifications": "Consumes neutral owned-UI view data instead of a fabricated concrete AgentSession; an explicit bare-A1 profile colors the thinking-level name and adds its linked pull-request badge while preserving the remaining footer layout and formatting, and replacement surfaces may suppress a thinking level they already present.",
       "upgradeStrategy": "three-way",
-      "localSha256": "f4d98364c744231baddf55288062bf3fb4c5976e0d5479632d4c40754115cefa",
+      "localSha256": "b39b22695eeb6a10d504b729dab320d43e4a27504eb763d6c662d1d9624734cb",
       "approvedDeviations": [
         {
           "id": "owned-status-level-color",
           "reason": "Accepted unify-prompt-input-ux moves the existing thinking-level border color to the bare-A1 footer level-name span, including a visible off label for a selected model; a thinking selector suppresses that duplicate span until close.",
           "upstreamBehavior": "The comparison footer presentation is unchanged outside the same temporary selector suppression. Owned provider omission, width fitting, usage, and extension rows preserve existing behavior; a missing model has no fabricated level.",
+          "acceptanceTest": "test/integrations/pi/components/prompt-input-ux.test.ts"
+        },
+        {
+          "id": "owned-pull-request-badge",
+          "reason": "Approved show-pr-id-status-bar adds `PR #<number>` to bare A1 so the current branch's open pull request is available from the footer; only the number is a terminal-native hyperlink.",
+          "upstreamBehavior": "The pinned comparison footer remains unchanged. Bare A1 preserves the upstream path, branch, session, width, usage, and extension-row behavior when no validated pull request identity is available.",
           "acceptanceTest": "test/integrations/pi/components/prompt-input-ux.test.ts"
         }
       ],

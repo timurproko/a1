@@ -24,6 +24,7 @@ import {
   createPiShellTranscriptComponent,
   PINNED_PI_BUILTIN_SLASH_COMMANDS,
   renderPiShellChangelogLines,
+  renderPiShellHotkeySections,
   renderPiShellHotkeysLines,
   renderPiShellTranscriptBlock,
   WorkingStatusIndicator,
@@ -297,6 +298,62 @@ describe("Pi shell public component adapters", () => {
     expect(rows).toContain("scoped-models");
   });
 
+  it("keeps selected autocomplete descriptions muted only in bare A1", async () => {
+    const options = {
+      getColumns: () => 80,
+      getRows: () => 24,
+      requestRender() {},
+      onSubmit() {},
+    };
+    const bare = createPiShellEditor({
+      ...options,
+      keybindingProfile: "a1",
+      promptPresentation: PROMPT_PRESENTATION,
+    });
+    bare.setAutocompleteCommands([{ name: "deploy", description: "Deploy extension", source: "extension" }]);
+    bare.handleInput?.("/");
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    const accentStart = piTheme().fg("accent", "MARK").split("MARK")[0]!;
+    const mutedStart = piTheme().fg("muted", "MARK").split("MARK")[0]!;
+    const selectedRow = (editor: ReturnType<typeof createPiShellEditor>, width: number, label: string): string => {
+      const row = editor.render(width)
+        .map(line => line.replaceAll(/\u001b\[2?7m/gu, ""))
+        .find(line => stripTerminalSequences(line).trimStart().startsWith(`→ ${label}`));
+      expect(row).toBeDefined();
+      return row!;
+    };
+    const expectSplitRoles = (row: string, label: string, description: string): void => {
+      const selected = row.slice(row.indexOf(`→ ${label}`));
+      expect(row).toContain(`${accentStart}→ ${label}`);
+      expect(selected).toContain(mutedStart);
+      expect(stripTerminalSequences(selected.slice(selected.indexOf(mutedStart)))).toMatch(new RegExp(`^\\s+${description}`, "u"));
+      expect(selected.slice(selected.indexOf(mutedStart))).not.toContain(accentStart);
+    };
+
+    expectSplitRoles(selectedRow(bare, 80, "settings"), "settings", "Open settings menu");
+    bare.handleInput?.("\u001b[B");
+    expectSplitRoles(selectedRow(bare, 80, "models"), "models", "Switch models and manage scoped model cycling");
+    bare.handleInput?.("\u001b");
+    bare.setText("");
+    bare.handleInput?.("/dep");
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expectSplitRoles(selectedRow(bare, 80, "deploy"), "deploy", "Deploy extension");
+    const narrow = selectedRow(bare, 40, "deploy");
+    expect(stripTerminalSequences(narrow)).not.toContain("Deploy extension");
+    expect(narrow.slice(narrow.indexOf("→ deploy"))).not.toContain(mutedStart);
+
+    const comparison = createPiShellEditor({ ...options, keybindingProfile: "pi" });
+    comparison.setAutocompleteCommands([{ name: "deploy", description: "Deploy extension", source: "extension" }]);
+    comparison.handleInput?.("/dep");
+    await new Promise(resolve => setTimeout(resolve, 0));
+    const pinnedRow = selectedRow(comparison, 80, "deploy");
+    const pinned = pinnedRow.slice(pinnedRow.indexOf("→ deploy"));
+    expect(pinnedRow).toContain(`${accentStart}→ deploy`);
+    expect(stripTerminalSequences(pinned)).toMatch(/→ deploy\s+Deploy extension/u);
+    expect(pinned).not.toContain(mutedStart);
+  });
+
   it("uses public message and tool components for all transcript states", () => {
     const fixtures = [
       block("user", "user text"),
@@ -434,14 +491,14 @@ describe("Pi shell public component adapters", () => {
     const shortcuts = () => [{ key: "ctrl+alt+p", description: "Probe extension" }];
     const hotkeysFeed = createPiShellHotkeys(undefined, shortcuts, "a1").render(width);
     expect(stripTerminalSequences(hotkeysFeed[2] ?? "")).toContain("Keyboard Shortcuts");
-    const hotkeys = renderPiShellHotkeysLines({ getShortcuts: shortcuts, profile: "a1" }, width);
-    expect(hotkeys).toEqual(hotkeysFeed.slice(4, hotkeysFeed.length - 1));
-    const plain = stripTerminalSequences(hotkeys.join("\n"));
-    expect(plain).toContain("Navigation");
+    const sections = renderPiShellHotkeySections({ getShortcuts: shortcuts, profile: "a1" }, width);
+    expect(sections.map(section => section.title)).toEqual(["Navigation", "Editing", "Other", "Models dialog", "Extensions"]);
+    for (const section of sections) expect(stripTerminalSequences(section.rows[0] ?? "").trim()).not.toBe("");
+    const plain = stripTerminalSequences(sections.flatMap(section => section.rows).join("\n"));
     expect(plain).toContain("Start of content");
-    expect(plain).toContain("Extensions");
     expect(plain).toContain("Probe extension");
     expect(plain).not.toContain("Keyboard Shortcuts");
+    // Compatibility: the comparison profile retains the exact in-feed Markdown rows.
     expect(renderPiShellHotkeysLines({}, width)).toEqual(createPiShellHotkeys().render(width).slice(4, -1));
   });
 
