@@ -498,9 +498,9 @@ Selection acceptance SHALL include deterministic component, shell, and terminal-
 - **AND** the code change SHALL remain unmerged until corrected and revalidated
 
 ### Requirement: Working status is a transient scrollable tail
-Bare A1 SHALL place its live working-status surface, including status-owned blank spacing and retry, compaction, or extension working replacements, in a non-persistent, non-selectable transient viewport tail after semantic transcript and pending steering rows. While all semantic and transient content fits above the dock, otherwise unused viewport rows SHALL precede the working-status surface so that it remains immediately above the dock without moving already visible transcript or steering rows. When content overflows, that flexible alignment space SHALL be zero and the same working surface SHALL participate in normal viewport scrolling. The surface SHALL NOT be duplicated in the dock, converted into persisted conversation content, counted as a completed assistant message, or treated as a submitted prompt.
+Bare A1 SHALL place its live working-status surface, including status-owned blank spacing and retry, compaction, or extension working replacements, in a non-persistent, non-selectable transient viewport tail after semantic transcript and pending steering rows. While all semantic and transient content fits above the dock, otherwise unused viewport rows SHALL precede the pending-steering and working-status group so that pending steering appears immediately above the status and the status remains immediately above the dock without moving already visible semantic transcript rows. When content overflows, that flexible alignment space SHALL be zero and the same steering and working surfaces SHALL participate in normal viewport scrolling. The surfaces SHALL NOT be duplicated in the dock, converted into persisted conversation content, counted as completed assistant messages, or treated as submitted prompts.
 
-Pending steering and working rows SHALL contribute to overflow, scrollbar geometry, and end-following navigation while present. While detached, new transcript output, queue updates, and status animation, replacement, or removal SHALL preserve the current transcript position unless the new extent requires clamping to a valid scroll position. Removing transient rows SHALL remove their owned spacing and leave no stale copy. Idle informational messages and simple workflow failures and warnings are governed by their transient dock-notice requirements. The pinned `a1 pi` route SHALL retain its existing presentation and behavior.
+Pending steering and working rows SHALL contribute to overflow, scrollbar geometry, and end-following navigation while present. While detached, new transcript output, queue updates, and status animation, replacement, or removal SHALL preserve the current transcript position unless the new extent requires clamping to a valid scroll position. Removing transient rows SHALL remove their owned spacing and leave no stale copy. Failure messages SHALL retain their existing placement; idle informational messages are governed by the transient dock notice requirement. The pinned `a1 pi` route SHALL retain its existing presentation and behavior.
 
 #### Scenario: Scroll the active indicator out of view
 - **WHEN** the viewport overflows with pending steering or live working rows present and the reader scrolls toward older content
@@ -518,7 +518,7 @@ Pending steering and working rows SHALL contribute to overflow, scrollbar geomet
 #### Scenario: Cross the fit boundary
 - **WHEN** growing content exhausts the flexible space and then exceeds the rows available above the dock
 - **THEN** the one working-status surface SHALL remain the final transient viewport surface without duplication or omission
-- **AND** end following SHALL advance the overflowing viewport while keeping the working status visible immediately above the dock
+- **AND** end following SHALL advance the overflowing viewport while keeping the pending-steering and working-status group visible immediately above the dock
 - **AND** the editor/footer position SHALL NOT change solely because of that boundary crossing
 
 #### Scenario: Update status while detached
@@ -550,15 +550,16 @@ Pending steering and working rows SHALL contribute to overflow, scrollbar geomet
 
 #### Scenario: Keep a fitting status above the input
 - **WHEN** live work begins or updates while semantic transcript, pending steering, and working rows all fit above the dock
-- **THEN** the working-status surface SHALL appear immediately above the dock
-- **AND** unused rows SHALL remain between earlier viewport content and the working status
-- **AND** existing transcript and steering rows and the editor/footer group SHALL remain at their current terminal rows
+- **THEN** pending steering rows and their edit hint SHALL appear immediately above the working-status surface
+- **AND** the working-status surface SHALL appear immediately above the dock
+- **AND** unused rows SHALL remain between semantic transcript content and the steering/status group
+- **AND** existing semantic transcript rows and the editor/footer group SHALL remain at their current terminal rows
 
 #### Scenario: Grow content while it still fits
 - **WHEN** streamed content consumes one or more previously unused rows while the complete viewport content still fits
-- **THEN** the flexible space before the working status SHALL shrink by the consumed rows
-- **AND** the working status and pinned dock SHALL remain at their current terminal rows
-- **AND** no follow scroll SHALL occur solely to keep the fitting status visible
+- **THEN** the flexible space before the pending-steering and working-status group SHALL shrink by the consumed rows
+- **AND** the steering/status group and pinned dock SHALL remain at their current terminal rows
+- **AND** no follow scroll SHALL occur solely to keep the fitting group visible
 
 #### Scenario: Suppress pointer sequences begun on transient rows
 - **WHEN** a pointer sequence begins on pending steering, working-status, or status-owned alignment rows outside a viewport control
