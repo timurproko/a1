@@ -1859,12 +1859,12 @@ Bare A1 SHALL declare Escape on a sole top-level slash-command search as an inpu
 - **THEN** the menu SHALL close and `/mod` SHALL remain in the editor exactly as in pinned Pi
 
 ### Requirement: Compaction progress is estimated in the working status
-While a compaction is shown, bare A1 SHALL estimate its progress from the summarization stream and present it in the working status as `Compacting (n%)` beside the spinner, where `n` is an integer percent. The engine adapter SHALL observe the stream through the session agent's public stream function only between the compaction's start and end, SHALL count streamed summary text against an expected summary size taken from the previous compaction summary on the current branch or a fixed default when there is none, and SHALL publish the percent as engine status data separate from the semantic `Compacting` word. The percent SHALL start at 0 when the stream begins, SHALL never decrease within one compaction, SHALL NOT reach 100 while the compaction is still running, and SHALL be removed together with the compacting state when compaction ends. When the stream cannot be observed the status SHALL remain `Compacting`. This SHALL be a declared bare-A1 presentation difference; the `a1 pi` comparison route SHALL keep its existing `Compacting` label.
+While a compaction is shown, bare A1 SHALL estimate its progress from the summarization stream and present it in the working status as `Compacting(n%)` beside the spinner, where `n` is an integer percent. The engine adapter SHALL observe the stream through the session agent's public stream function only between the compaction's start and end, SHALL count streamed summary text against an expected summary size taken from the previous compaction summary on the current branch or a fixed default when there is none, and SHALL publish the percent as engine status data separate from the semantic `Compacting` word. The percent SHALL start at 0 when the stream begins, SHALL never decrease within one compaction, SHALL NOT reach 100 while the compaction is still running, and SHALL be removed together with the compacting state when compaction ends. When the stream cannot be observed the status SHALL remain `Compacting`. This SHALL be a declared bare-A1 presentation difference; the `a1 pi` comparison route SHALL keep its existing `Compacting` label.
 
 #### Scenario: Watch a compaction progress
 - **WHEN** a compaction streams its summary and the branch holds a previous summary of 4,000 characters
-- **THEN** bare A1 SHALL show `Compacting (0%)...` when the stream starts and `Compacting (50%)...` after 2,000 characters have streamed
-- **AND** the label SHALL show at most `Compacting (99%)...` until the compaction ends, after which no compaction label SHALL remain
+- **THEN** bare A1 SHALL show `Compacting(0%)...` when the stream starts and `Compacting(50%)...` after 2,000 characters have streamed
+- **AND** the label SHALL show at most `Compacting(99%)...` until the compaction ends, after which no compaction label SHALL remain
 
 #### Scenario: First compaction without a previous summary
 - **WHEN** the branch holds no previous compaction summary
@@ -2194,3 +2194,24 @@ The badge is a declared bare-A1 addition. The `a1 pi` comparison profile SHALL r
 
 - **WHEN** the same footer state is rendered through `a1 pi`
 - **THEN** its output SHALL match the pinned footer without a PR badge or PR hyperlink
+
+### Requirement: The collapsed skills command keeps a primary built-in position
+
+While bare A1 presents skills in collapsed form, the synthetic `skills` command SHALL appear exactly once in the top-level slash-command catalog immediately after `settings`. All other built-in commands SHALL retain their declared relative order, including `quit` as the final built-in command, and all remaining prompt-template, extension, and other resource commands SHALL retain their existing relative order after the built-in catalog.
+
+This ordering SHALL apply only to the synthetic collapsed command. Expanded `skill:<name>` entries SHALL retain their engine-provided placement, a catalog with no synthetic collapsed command SHALL remain unchanged, and the `a1 pi` comparison profile SHALL retain the pinned catalog.
+
+#### Scenario: Open the collapsed command menu
+- **WHEN** bare A1 has discovered skills, skill commands are enabled, `skillsPresentation` is `collapse`, and the user opens the top-level slash-command menu
+- **THEN** `skills` SHALL appear exactly once immediately after `settings`
+- **AND** the remaining built-ins SHALL follow in their existing relative order through `quit`
+- **AND** ordinary resource commands SHALL retain their existing relative order after `quit`
+
+#### Scenario: Open the expanded command menu
+- **WHEN** bare A1 uses `skillsPresentation` value `expand`
+- **THEN** no synthetic `skills` command SHALL be inserted after `settings`
+- **AND** discovered `skill:<name>` entries SHALL retain their existing engine-provided placement
+
+#### Scenario: Compare the pinned profile
+- **WHEN** the command menu is opened through the `a1 pi` comparison profile
+- **THEN** the pinned command catalog SHALL remain unchanged and no synthetic `skills` command SHALL be inserted
