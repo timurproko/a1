@@ -51,4 +51,4 @@ No data or settings migration is required. Deploy the geometry correction and re
 - Shared grouped-list layout now backfills otherwise unused bottom capacity from the outgoing section when its boundary spacer is represented by the sticky heading, while retaining the clamped end position.
 - Focused component and settings-screen coverage passes with 90 assertions, including wheel navigation to the final setting, immediate adjacency to the search rule, a bottom-positioned thick scrollbar thumb, and reference-screen compatibility.
 - Strict OpenSpec validation, the supported build, and TypeScript typechecking pass on the implementation worktree.
-- Physical-terminal confirmation remains pending under task 3.2.
+- The maintainer physically tested implementation head `d081992c` and confirmed the result looks correct: the trailing gap is gone while the intended scrolling presentation remains.

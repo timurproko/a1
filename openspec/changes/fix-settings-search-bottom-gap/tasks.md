@@ -11,4 +11,4 @@
 ## 3. Validate the change
 
 - [x] 3.1 Run strict OpenSpec validation, focused grouped-list and settings-app tests, typechecking, and the supported build; record any host-toolchain limitation without weakening the behavioral assertions.
-- [ ] 3.2 Hand off the exact candidate for a physical-terminal check that search wheel scrolling reaches the final setting with no trailing gap and with the scrollbar presentation unchanged.
+- [x] 3.2 Hand off the exact candidate for a physical-terminal check that search wheel scrolling reaches the final setting with no trailing gap and with the scrollbar presentation unchanged.
