@@ -77,7 +77,7 @@ describe("build prerequisite executable probes", () => {
 
 describe("CI Rust preparation", () => {
   it.each([0, 1, 2, 3, 4])("stops at a failed provisioning/version command (failure index %i)", failure => {
-    // Hermetic shell functions exercise the real script, never the machine's Rust installation.
+    // Security: hermetic shell functions exercise the real script, never the machine's Rust installation.
     const script = `
       count=0
       probe() { count=$((count+1)); printf '%s\\n' "$*"; [ "$count" -ne "${failure}" ]; }

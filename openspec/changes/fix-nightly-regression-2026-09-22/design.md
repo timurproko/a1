@@ -23,6 +23,8 @@ No product assertions, compile scope, build gates, or existing probe/test deadli
 
 ## Implementation evidence
 
+- Full regression attempt: https://github.com/timurproko/a1/actions/runs/35757294970 on `561c5d634dce0475bb02ba5cd49371fe990d664a` stopped in documentation review before platform lanes: DOC005 in the newly tracked probe fixture comment. The initial local full audit did not inspect that then-untracked file. Added the required Security rationale prefix and reran audits after tracking all new files; no check or scope was relaxed.
+
 - Current baseline: after reconciling `7b80f6a3` and installing the locked Pi 0.87.0 dependencies, `update-pinned-pi-public-api.mjs --check` passed (567 exports). The original consumer drift was already repaired on develop. This change subsequently removes only the owned selector's upstream `getSelectListTheme` consumer and regenerates the matching API/source-ledger records.
 - Red/green reproduction: explicit owned color mode opposite host capabilities failed all four dark/light × truecolor/256-color cases before the fix. The same cases pass with owned callbacks for selection, descriptions, markers, and borders, including list reconstruction after filtering.
 - Windows local focused suite: 103 tests passed across environment prerequisites/probes, stdout discipline, prompt-input UX, update-CLI isolation, Pi API baseline, and session-shell workflows. Probe tests cover missing executables, timeout, spawn error, nonzero/signal termination, unparseable output, a real version command, advisory severity, Windows shim quoting, and redacted diagnostics. Hermetic shell tests exercise provisioning order and stop-on-failure at every Rust setup command; parsed workflows verify setup precedes every relevant build.
