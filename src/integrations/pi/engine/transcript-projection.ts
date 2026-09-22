@@ -3,49 +3,33 @@ import { TranscriptImageAssets } from "./transcript-image-assets.js";
 import { acceptsTranscriptUpdate, transcriptToolState, type OwnedUiTranscriptBlock, type OwnedUiTranscriptImageReference } from "../../../contracts/owned-ui/index.js";
 import { assistantContent, contentImageCount, isRecord, jsonSummary, messageFallbackKey, retainCompletedArguments, sameBlockContent, sanitizeJson, stringValue, textFromContent } from "./message-values.js";
 
-const GENERATED_IMAGE_TAG = /([ \t]?)\[📷 screenshot-[a-f0-9]{10}(?:-resized)?\]([ \t]?)/gu;
 const IMAGE_DIMENSION_NOTE = /^\[Image: original \d+x\d+, displayed at \d+x\d+\. Multiply coordinates by \d+(?:\.\d+)? to map to original image\.\]$/u;
 const IMAGE_CONVERSION_NOTE = /^\[Image converted from image\/[a-z0-9.+-]+ to image\/[a-z0-9.+-]+\.\]$/iu;
 const IMAGE_OMISSION_NOTE = /^\[Image omitted: could not be (?:converted to a supported inline image format|resized below the inline image size limit)\.\]$/u;
 
-function isSuccessfulImageNote(line: string): boolean {
-  return IMAGE_DIMENSION_NOTE.test(line) || IMAGE_CONVERSION_NOTE.test(line);
+function isImageProcessingHint(line: string): boolean {
+  return IMAGE_DIMENSION_NOTE.test(line) || IMAGE_CONVERSION_NOTE.test(line) || IMAGE_OMISSION_NOTE.test(line);
 }
 
 function userPresentation(content: unknown): OwnedUiTranscriptBlock["userPresentation"] | undefined {
   const imageCount = contentImageCount(content);
   if (imageCount === 0) return undefined;
-  const original = textFromContent(content);
-  const lines = original.split("\n");
-  const imageNotices: string[] = [];
-  const omissionNotes: string[] = [];
+  const lines = textFromContent(content).split("\n");
+  const retainedHints: string[] = [];
+  let dimensionCount = 0;
   let hintStart = lines.length;
   while (hintStart > 0) {
     const line = lines[hintStart - 1]!;
-    if (isSuccessfulImageNote(line)) imageNotices.unshift(line);
-    else if (IMAGE_OMISSION_NOTE.test(line)) omissionNotes.unshift(line);
-    else break;
+    if (!isImageProcessingHint(line)) break;
+    if (IMAGE_DIMENSION_NOTE.test(line)) dimensionCount++;
+    else retainedHints.unshift(line);
     hintStart--;
   }
-  if (imageNotices.length > imageCount * 2) imageNotices.splice(0);
-  if (imageNotices.length > 0) {
-    lines.splice(hintStart);
-    if (lines.at(-1) === "") lines.pop();
-    if (omissionNotes.length > 0) lines.push("", ...omissionNotes);
-  }
-  const sourceText = lines.join("\n");
-  const generatedTagCount = [...sourceText.matchAll(GENERATED_IMAGE_TAG)].length;
-  let tagsRemaining = generatedTagCount === imageCount ? imageCount : 0;
-  let tagsRemoved = 0;
-  const projectedText = sourceText.replace(GENERATED_IMAGE_TAG, (match, left: string, right: string) => {
-    if (tagsRemaining === 0) return match;
-    tagsRemaining--;
-    tagsRemoved++;
-    return left.length > 0 && right.length > 0 ? " " : "";
-  });
-  if (tagsRemoved === 0 && imageNotices.length === 0) return undefined;
-  const visibleText = projectedText.trim().length === 0 ? "" : projectedText;
-  return { visibleText, imageNotices: Object.freeze(imageNotices) };
+  if (dimensionCount === 0 || dimensionCount > imageCount) return undefined;
+  lines.splice(hintStart);
+  if (lines.at(-1) === "") lines.pop();
+  if (retainedHints.length > 0) lines.push("", ...retainedHints);
+  return { visibleText: lines.join("\n") };
 }
 
 export interface PiTranscriptProjectionPorts {

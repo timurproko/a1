@@ -455,71 +455,26 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
     }
   });
 
-  it("moves live image-processing metadata from the submitted prompt into the dock notice", async () => {
+  it("keeps the screenshot chip but hides resize guidance from a submitted prompt", async () => {
     const { engine, adapter, shell } = await fixture([], [], true);
     const marker = "[📷 screenshot-0123456789]";
     const note = "[Image: original 3840x2280, displayed at 2000x1188. Multiply coordinates by 1.92 to map to original image.]";
     try {
       shell.root.setImagePresentation(false, 40);
-      const message = {
+      engine.session.emit({ type: "message_start", message: {
         role: "user",
         content: [
-          { type: "text", text: `inspect ${marker}\n\n${note}` },
+          { type: "text", text: `${marker}\n\n${note}` },
           { type: "image", data: "aW1hZ2U=", mimeType: "image/png" },
         ],
         timestamp: 1_000,
-      };
-      engine.session.emit({ type: "message_start", message });
-      await adapter.flushEvents();
-      let rows = shell.root.render(120).map(row => stripTerminalSequences(row).trimEnd());
-      expect(rows.join("\n")).not.toContain("screenshot-");
-      expect(rows.filter(row => row.includes("Image: original 3840x2280"))).toHaveLength(1);
-      expect(rows.findIndex(row => row.includes("Image: original 3840x2280"))).toBeGreaterThan(rows.findIndex(row => row.includes("inspect")));
-      expect(rows.join("\n")).toContain("Image hidden: image/png");
-
-      engine.session.emit({ type: "message_start", message: {
-        role: "assistant", content: [{ type: "text", text: "working" }], timestamp: 2_000,
       } });
       await adapter.flushEvents();
-      rows = shell.root.render(120).map(row => stripTerminalSequences(row).trimEnd());
-      expect(rows.join("\n")).toContain("Image: original 3840x2280");
-
-      engine.session.emit({ type: "message_start", message: {
-        role: "user", content: [{ type: "text", text: "next prompt" }], timestamp: 3_000,
-      } });
-      await adapter.flushEvents();
-      rows = shell.root.render(120).map(row => stripTerminalSequences(row).trimEnd());
-      expect(rows.join("\n")).not.toContain(note);
-      expect(rows.join("\n")).toContain("inspect");
-    } finally { await shell.dispose(); }
-  });
-
-  it("does not resurrect an image-processing notice from restored transcript history", async () => {
-    const marker = "[📷 screenshot-0123456789]";
-    const note = "[Image: original 3840x2280, displayed at 2000x1188. Multiply coordinates by 1.92 to map to original image.]";
-    const restored = {
-      role: "user",
-      content: [
-        { type: "text", text: `restored ${marker}\n\n${note}` },
-        { type: "image", data: "aW1hZ2U=", mimeType: "image/png" },
-      ],
-      timestamp: 1_000,
-    };
-    const { engine, adapter, shell } = await fixture([restored], [], true);
-    try {
-      shell.root.setImagePresentation(false, 40);
       const frame = stripTerminalSequences(shell.root.render(120).join("\n"));
-      expect(frame).toContain("restored");
-      expect(frame).not.toContain(marker);
+      expect(frame).toContain(marker);
       expect(frame).not.toContain(note);
+      expect(frame).not.toContain("Image attached");
       expect(frame).toContain("Image hidden: image/png");
-
-      await engine.rebindSession?.(new Session([{ ...restored, timestamp: 2_000 }]));
-      await adapter.flushEvents();
-      const reboundFrame = stripTerminalSequences(shell.root.render(120).join("\n"));
-      expect(reboundFrame).toContain("restored");
-      expect(reboundFrame).not.toContain(marker);
-      expect(reboundFrame).not.toContain(note);
     } finally { await shell.dispose(); }
   });
 

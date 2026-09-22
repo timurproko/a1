@@ -305,7 +305,6 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   #lastWorkflowStatusId: string | undefined;
   // Invariant: the notice is dock chrome, never transcript content; the custom viewport alone uses it.
   #dockNotice: string | undefined;
-  #publishTranscriptNotices = false;
   #inputSurface: PiShellComponentPort;
   #inputSurfaceCoordination: PiTuiInputSurfaceKind = "editor";
   readonly #dockInputReuseEnabled: boolean;
@@ -379,7 +378,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   ) {
     this.#view = view;
     this.#customViewport = sessionLayout === "custom-viewport";
-    this.#promptChips = new PromptChipStore({ isolated: this.#customViewport, hideReadyImages: this.#customViewport,
+    this.#promptChips = new PromptChipStore({ isolated: this.#customViewport,
       ...(handlers.pasteDiagnostics === undefined ? {} : { onEvent: handlers.pasteDiagnostics }),
       ...(handlers.pastePreparation === undefined ? {} : { preparation: handlers.pastePreparation }) });
     this.#submittedPromptComposer = this.#customViewport
@@ -432,11 +431,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
           this.editor.getText(),
           handlers.captureClipboardPaste?.() ?? { kind: "provided", read: signal => handlers.readClipboardContent?.(signal) ?? Promise.resolve(null) },
           error => handlers.onPasteRejected?.(error),
-          () => {
-            const count = this.#promptChips.readyImageCount(this.editor.getText());
-            this.appendWorkflowStatus(count === 1 ? "Image attached" : `${count} images attached`);
-            handlers.requestRender();
-          },
+          () => handlers.requestRender(),
         ),
         onPasteInput: (bytes, phase) => {
           try {
@@ -671,10 +666,6 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     const current = this.#blocksById.get(block.id);
     // Invariant: a full-view/final presentation may preempt queued partials. Never revive an older revision.
     if (current !== undefined && !acceptsTranscriptUpdate(current, block)) return;
-    const imageNotices = block.kind === "user" ? block.userPresentation?.imageNotices ?? [] : [];
-    const previousImageNotices = current?.kind === "user" ? current.userPresentation?.imageNotices ?? [] : [];
-    const publishImageNotice = this.#customViewport && this.#publishTranscriptNotices && imageNotices.length > 0
-      && imageNotices.join("\n") !== previousImageNotices.join("\n");
     this.#blocksById.set(block.id, block);
     const component = this.#transcript.get(block.id);
     if (component === undefined) {
@@ -684,7 +675,6 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     } else if (component.revision !== block.revision) {
       component.update(block);
     }
-    if (publishImageNotice) this.appendWorkflowStatus(imageNotices.join("\n"));
     // Performance: one chunk touches one block, and the updated component tracks its own dirtiness.
     // Invalidating the whole shell here would re-wrap the entire transcript per chunk.
     this.#renderedRows.delete(block.id);
@@ -857,7 +847,6 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
 
   /** A new session binding owns new mounts even when it reuses semantic invocation ids. */
   resetTranscript(): void {
-    this.#publishTranscriptNotices = false;
     for (const component of this.#transcript.values()) component.dispose?.();
     this.#transcript.clear();
     this.#blocksById.clear();
@@ -1434,13 +1423,6 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   }
 
   #syncTranscript(blocks: OwnedUiSessionViewModel["transcript"]): void {
-    const imageNotices = this.#customViewport && this.#publishTranscriptNotices ? blocks.flatMap(block => {
-      if (block.kind !== "user") return [];
-      const next = block.userPresentation?.imageNotices ?? [];
-      const previous = this.#blocksById.get(block.id);
-      const prior = previous?.kind === "user" ? previous.userPresentation?.imageNotices ?? [] : [];
-      return next.length > 0 && next.join("\n") !== prior.join("\n") ? [next.join("\n")] : [];
-    }) : [];
     const previousIds = this.#transcriptOrder.filter(id => !id.startsWith("workflow-status-"));
     const transcriptChanged = previousIds.length !== blocks.length || blocks.some((block, index) => {
       const previous = this.#blocksById.get(block.id);
@@ -1465,7 +1447,6 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
         component.update(block);
       }
     }
-    for (const notice of imageNotices) this.appendWorkflowStatus(notice);
     const statusIds = [...this.#workflowStatusAnchors.keys()];
     const order: string[] = [];
     for (let index = 0; index <= blocks.length; index += 1) {
@@ -1480,7 +1461,6 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       if (!placed.has(statusId)) order.push(statusId);
     }
     this.#transcriptOrder = order;
-    this.#publishTranscriptNotices = true;
   }
 
   #appendAnchoredWorkflowComponent(render: (width: number) => readonly string[], dispose?: () => void): string {

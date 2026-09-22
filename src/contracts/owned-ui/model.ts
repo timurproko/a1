@@ -201,7 +201,6 @@ export interface OwnedUiTranscriptBlock {
   /** Bare-A1-only user presentation derived without mutating persisted/model message text. */
   readonly userPresentation?: {
     readonly visibleText: string;
-    readonly imageNotices: readonly string[];
   };
   /** Tool-call message completion alone must not settle execution. */
   readonly toolState?: OwnedUiToolState;

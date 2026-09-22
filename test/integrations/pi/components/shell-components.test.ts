@@ -373,12 +373,12 @@ describe("Pi shell public component adapters", () => {
     }
   });
 
-  it("uses derived image prompt text only for the bare-A1 submitted-prompt presenter", () => {
+  it("hides derived resize guidance only in the bare-A1 submitted-prompt presenter", () => {
     const marker = "[📷 screenshot-0123456789]";
     const note = "[Image: original 3840x2280, displayed at 2000x1188. Multiply coordinates by 1.92 to map to original image.]";
     const imageBlock: OwnedUiTranscriptBlock = {
       ...block("user", `inspect ${marker}\n\n${note}`, { role: "user", timestamp: 1_000 }),
-      userPresentation: { visibleText: "inspect", imageNotices: [note] },
+      userPresentation: { visibleText: `inspect ${marker}` },
       imageReferences: [{ assetId: "image-1", mimeType: "image/png", byteLength: 128, source: "user" }],
     };
     const pinned = createPiShellTranscriptComponent(imageBlock, process.cwd(), undefined, undefined, 1, false, "off", false, 40,
@@ -386,21 +386,14 @@ describe("Pi shell public component adapters", () => {
     const composer = { layout: submittedPromptLayout, compose: composeSubmittedPromptRows };
     const bare = createPiShellTranscriptComponent(imageBlock, process.cwd(), undefined, composer,
       1, false, "off", false, 40, { resolve: () => null });
-    const imageOnly = createPiShellTranscriptComponent({ ...imageBlock, id: "image-only", text: marker,
-      userPresentation: { visibleText: "", imageNotices: [] } }, process.cwd(), undefined, composer,
-      1, false, "off", false, 40, { resolve: () => null });
     const pinnedText = stripTerminalSequences(pinned.render(120).join("\n"));
     const bareText = stripTerminalSequences(bare.render(120).join("\n"));
     expect(pinnedText).toContain(marker);
     expect(pinnedText).toContain(note);
     expect(bareText).toContain("inspect");
-    expect(bareText).not.toContain(marker);
+    expect(bareText).toContain(marker);
     expect(bareText).not.toContain(note);
     expect(bareText).toContain("Image hidden: image/png");
-    const imageOnlyText = stripTerminalSequences(imageOnly.render(120).join("\n"));
-    expect(imageOnlyText).toContain("❯");
-    expect(imageOnlyText).toContain("Image hidden: image/png");
-    expect(imageOnlyText).not.toContain(marker);
   });
 
   it("renders safe transcript-image placeholders for hidden and unavailable assets", () => {

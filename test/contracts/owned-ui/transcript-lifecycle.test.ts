@@ -11,16 +11,13 @@ describe("owned user presentation", () => {
   const user = (): OwnedUiTranscriptBlock => ({ id: "user", kind: "user", status: "finalized", revision: 1,
     title: "User", text: "stored", payload: null });
 
-  it("accepts bounded display-only image metadata only on user blocks", () => {
+  it("accepts display-only text only on user blocks", () => {
     expect(() => assertOwnedUiTranscriptBlock({ ...user(), userPresentation: {
-      visibleText: "visible", imageNotices: ["[Image converted from image/bmp to image/png.]"],
+      visibleText: "visible",
     } })).not.toThrow();
     expect(() => assertOwnedUiTranscriptBlock({ ...user(), kind: "assistant", userPresentation: {
-      visibleText: "visible", imageNotices: [],
+      visibleText: "visible",
     } })).toThrow("requires a user block");
-    expect(() => assertOwnedUiTranscriptBlock({ ...user(), userPresentation: {
-      visibleText: "", imageNotices: Array.from({ length: 33 }, () => "notice"),
-    } })).toThrow("exceeds its maximum length");
   });
 });
 

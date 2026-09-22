@@ -1,64 +1,46 @@
 ## Context
 
-See `proposal.md` for motivation. At planning base `b8672719`, `PromptChipStore` assigns each clipboard image a generated `[📷 screenshot-<id>]` token. The token is both an atomic editor range and the key used to resolve attachment bytes, wait for preparation, enforce image limits, persist history sidecars, and rebuild recalled drafts. Unknown text pastes already use editor hidden ranges, proving that bare A1 can retain a semantic reservation without painting its token; ready images currently stop participating in those hidden ranges.
+See `proposal.md` for motivation. Pi may append a canonical line such as `[Image: original 3840x2280, displayed at 2000x1188. Multiply coordinates by 1.92 to map to original image.]` after normalizing a submitted image. That line is useful model guidance and belongs in stored/provider content, but bare A1 currently renders it as part of the user's submitted prompt.
 
-On submission, the shell sends the generated token as ordinary prompt text together with the image attachment. Pi may normalize the image for the selected model and append a canonical dimension note such as `[Image: original …, displayed at ….]` to the stored user-message text. The transcript projection currently renders all user text verbatim. Bare A1 separately owns a transient dock notice for informational workflow messages, while `a1 pi` intentionally keeps pinned transcript placement.
+Pasted-image chips and their `[📷 screenshot-…]` labels are existing interactive editor affordances. They must remain visible and unchanged. The dock notice also remains unchanged and must not receive synthetic attachment feedback.
 
 ## Goals / Non-Goals
 
 **Goals:**
-- Make generated image identities presentation-private while retaining one authoritative token for preparation, editing, history, and attachment resolution.
-- Separate recognized successful image-processing metadata from the visible submitted request and surface it through the existing bare-A1 dock notice.
-- Preserve literal user-authored image-looking text, image previews/fallbacks, and all attachment semantics across ordinary, steering, follow-up, queued, and recalled submissions.
+- Hide canonical successful resize/dimension guidance only from bare-A1 submitted-prompt presentation.
+- Preserve the complete stored message, model context, image attachments, screenshot chips, and transcript image rendering.
+- Preserve failure/omission messages and unrelated authored text.
 
 **Non-Goals:**
-- Do not remove image identifiers from persisted/model context, change Pi's image-normalization guidance to the model, or rewrite historical session files.
-- Do not hide failed-image chips or image validation errors, redesign the dock notice, add image thumbnails to the editor, or alter `a1 pi`.
-- Do not infer arbitrary bracketed user text as image metadata; only provenance-bound generated markers and recognized successful processing notes qualify.
+- Do not hide or relabel image chips or generated screenshot labels.
+- Do not add `Image attached` or image-processing dock notices.
+- Do not alter prompt editing, paste preparation, attachment delivery, history, persisted sessions, or `a1 pi`.
 
 ## Decisions
 
-### 1. Hide generated image tokens at presentation boundaries, not by deleting semantic text
+### 1. Derive display-only submitted-prompt text at the transcript boundary
 
-Ready image tags will join pending non-text image reservations in the editor's hidden-range presentation. The underlying token remains an atomic range at its exact insertion position, so caret mapping, Backspace/Delete, selection replacement, undo/redo, asynchronous completion, image order, copy/history preparation, and sidecar lookup keep one existing source of truth. Failed-image tags remain visible because they identify a recoverable attachment error.
+For an image-bearing user message, the projection recognizes Pi's exact canonical resize/dimension form only in the trailing image-processing hint suffix. It derives a bounded `visibleText` value with those lines removed while retaining the original block text unchanged for persistence and model behavior.
 
-Submitted user-message presentation will omit generated screenshot tags only when they are associated with image attachments owned by that message. Literal `[📷 …]` text without matching generated attachment provenance remains visible. An image-only submission still renders its image presentation and prompt identity/timestamp without an empty text bubble or leaked token.
+Recognition requires image attachment provenance and rejects more dimension lines than attached images. Canonical conversion and omission/failure lines may delimit the suffix but remain visible. Ordinary text and resize-looking text without an image attachment remain unchanged.
 
-Alternative rejected: remove tags from the editor or prepared text. That would require a parallel positional attachment model and would risk image-only submission, out-of-order preparation, durable recall, and editing regressions. Alternative rejected: hide every image-looking regular expression match. That would erase authored text and stale identifiers that are not live attachments.
+### 2. Apply the derived view only to bare A1
 
-### 2. Keep model guidance intact while deriving a display-only user-message view
+The custom submitted-prompt presenter uses `visibleText`; pinned `a1 pi` continues to render the original message. Image references and actual image presentation remain attached to the same transcript block.
 
-Pi's successful conversion/dimension notes remain in the stored user message and provider context because coordinate mapping can be useful to the model. The transcript projection will derive visible user text and recognized image-note metadata from the same immutable message content without mutating the message. Recognition is limited to the canonical successful image-processing note forms and requires image attachment provenance; omission/failure text is not downgraded to an informational notice.
+### 3. Preserve existing chip and dock behavior
 
-The derived metadata will travel as bounded presentation metadata on the user transcript block. This keeps parsing at the engine boundary, lets transcript components remain renderers, and avoids coupling the shell to Pi session objects or installed private fields.
-
-Alternative rejected: intercept or patch Pi's image normalizer. It would change model context, require an installed dependency patch or unsupported private hook, and make behavior model-version dependent. Alternative rejected: strip bracketed text in the renderer alone. The shell would have no trustworthy metadata to place in the notice and could hide authored text.
-
-### 3. Publish attachment information through the existing dock-notice lifecycle
-
-When a live bare-A1 image paste becomes a ready attachment, the shell will publish a concise attachment notice above the editor, coalescing the current count rather than exposing identifiers. When the corresponding submitted user message introduces recognized successful processing notes, those notes replace the attachment notice in the same dock slot after the user block retires any older unrelated notice. Normal notice wrapping, working-status ordering, replacement, selection exclusion, and next-prompt/session-reset dismissal remain authoritative.
-
-Restored transcript reconstruction will not recreate old dock notices. Only incremental live user-message delivery may publish processing metadata, so resuming a session remains free of stale prompt-adjacent status. Multiple notes from one submitted message form one bounded multiline notice in attachment order.
-
-Alternative rejected: append a second transcript block. That would remain selectable, navigable, persistent-looking content and would not meet the requested prompt-adjacent placement. Alternative rejected: use a new widget. It would duplicate notice lifecycle, ordering, and cleanup rules.
-
-### 4. Preserve pinned comparison and non-image chip behavior
-
-The new hidden ready-image ranges and dock routing are enabled only by the custom-viewport/bare-A1 composition. The pinned route continues to show Pi-compatible chip and note placement. URL, path, large-text, and failed-image chips retain their existing presentation and expansion rules.
-
-Alternative rejected: change the shared pinned editor or upstream component adaptation. That would invalidate the explicit comparison control and broaden the change beyond the reported surface.
+`PromptChipStore`, hidden ranges, attachment callbacks, and dock-notice lifecycle are not changed. Ready image chips remain visible with their existing labels before submission. No `Image attached` message is introduced.
 
 ## Risks / Trade-offs
 
-- [An invisible token can be hard to discover or remove] → Show a concise attachment-count notice while editing and retain atomic deletion/undo behavior at the token position; verify surrounding-text and image-only cases physically.
-- [A note-shaped authored line could be mistaken for generated metadata] → Require image-bearing message provenance and exact canonical successful-note parsing at the projection boundary; retain nonmatching and failure text verbatim.
-- [Projection updates could publish a notice more than once] → Key publication to first incremental mount/revision semantics and coalesce through the single dock slot; restored full-view synchronization never publishes.
-- [Empty visible text can create blank prompt chrome] → Give image-bearing user blocks an explicit attachment-only presentation path that retains timestamp/navigation identity and the actual image component without an empty text row.
-- [Hiding tags only visually leaves them in copied/session/model text] → This is intentional compatibility: semantic and model behavior stay unchanged. The contract changes presentation, not stored context or attachment identity.
+- [Authored text could resemble resize guidance] → Require an image-bearing message, exact canonical syntax, a trailing processing-hint suffix, and a count bounded by attached images.
+- [Presentation filtering could mutate model context] → Store the derived text separately on the owned transcript block and retain `block.text` unchanged.
+- [Comparison behavior could drift] → Use the derived text only when the bare-A1 submitted-prompt composer is present.
 
 ## Migration Plan
 
-1. Add provenance-aware display projection for image tags and successful processing notes, then route live note metadata through the existing bare-A1 notice lifecycle.
-2. Extend bare-A1 editor presentation to hide ready generated image tags and add attachment-count feedback while retaining current semantic operations.
-3. Validate ordinary, streaming, queued, recalled, image-only, multiple-image, literal-text, failure, and pinned-comparison paths with focused deterministic tests and exact-head CI.
-4. Build and launch through `./scripts/dev` for physical review of paste, edit, submit, notice placement, image preview, and history recall. No data migration is required. Rollback restores visible markers/inline notes without rewriting stored sessions or history sidecars.
+1. Derive bounded bare-A1 visible text for canonical resize guidance.
+2. Render that text only through the custom submitted-prompt presenter.
+3. Verify chips remain visible, no attachment notice appears, model/stored text remains intact, failures remain visible, and `a1 pi` remains unchanged.
+4. Build and launch through `./scripts/dev` for physical review. No data migration is required.

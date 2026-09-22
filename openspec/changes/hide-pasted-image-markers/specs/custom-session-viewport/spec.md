@@ -1,41 +1,31 @@
 ## ADDED Requirements
 
-### Requirement: Image attachment metadata uses the transient dock notice
-Bare A1 SHALL present ready pasted-image feedback and recognized successful image-processing metadata in the existing transient informational notice above the editor rather than inside the prompt editor or submitted user-message text. A ready draft SHALL show concise attachment feedback without exposing generated screenshot identifiers. When submission produces canonical conversion or original/displayed-dimension guidance for an attached image, the complete guidance SHALL remain available to the agent context while its visible copy SHALL replace the draft attachment feedback in the dock notice. Multiple successful notes from one submission SHALL form one bounded multiline notice in attachment order.
+### Requirement: Bare A1 omits generated resize guidance from submitted prompts
+Bare A1 SHALL omit Pi's canonical successful image resize/dimension guidance from visible submitted user-prompt text while retaining the complete original message and guidance in stored and model-facing content. Filtering SHALL require image attachment provenance, exact canonical syntax, a trailing image-processing hint position, and no more recognized dimension lines than attached images.
 
-Image feedback SHALL inherit the informational notice's wrapping, dim status styling, working-status ordering, single-slot replacement, transcript-selection exclusion, and session-reset cleanup. The submitted prompt that produces image metadata SHALL replace the draft attachment feedback with that metadata rather than dismissing it without presentation; the next submitted prompt, non-informational workflow presentation, or session reset SHALL dismiss it normally. Reconstructing or resuming persisted transcript history SHALL NOT recreate old image notices. Image omission, validation, and preparation failures SHALL retain their existing actionable failure presentation and SHALL NOT be reclassified as successful informational metadata. The `a1 pi` comparison route SHALL retain pinned inline image-note presentation.
+Existing pasted-image chips and generated screenshot labels SHALL remain visible and unchanged. Bare A1 SHALL NOT introduce an `Image attached` dock notice or move resize guidance into the dock. Canonical conversion notes, image omission/failure messages, unrelated authored text, attachment delivery, transcript image presentation, and prompt editing/history behavior SHALL remain unchanged. The `a1 pi` comparison route SHALL retain its original inline resize guidance.
 
-#### Scenario: Prepare an image in a draft
-- **WHEN** a clipboard image becomes ready in a bare-A1 draft
-- **THEN** concise attachment feedback SHALL appear in the transient notice above the editor
-- **AND** neither the notice nor the editor SHALL expose the generated screenshot identifier
+#### Scenario: Submit a resized pasted image
+- **WHEN** an image-bearing user message ends with canonical original/displayed-dimension guidance
+- **THEN** bare A1 SHALL omit that guidance from the visible submitted prompt
+- **AND** the submitted prompt SHALL retain its existing screenshot chip label
+- **AND** the stored message and agent context SHALL retain the complete guidance and attachment
+- **AND** no synthetic attachment or processing notice SHALL be added to the dock
 
-#### Scenario: Submit an image that was resized for the model
-- **WHEN** a submitted image produces canonical original/displayed-dimension guidance
-- **THEN** the submitted user-message text SHALL omit the visible guidance and generated screenshot token
-- **AND** the complete dimension guidance SHALL appear in the transient notice above the editor
-- **AND** the agent context SHALL retain the guidance and image attachment
+#### Scenario: Preserve existing image-chip behavior
+- **WHEN** a pasted image is ready in the prompt editor
+- **THEN** its existing image chip and screenshot label SHALL remain visible and editable
+- **AND** the change SHALL NOT replace it with an `Image attached` message
 
-#### Scenario: Submit multiple processed images
-- **WHEN** one submitted prompt produces successful processing notes for multiple attached images
-- **THEN** bare A1 SHALL show one multiline dock notice with the notes in attachment order
-- **AND** it SHALL NOT add separate transcript rows or expose the notes inside the submitted prompt
+#### Scenario: Preserve failures and other image hints
+- **WHEN** trailing image-processing hints contain conversion or omission/failure text alongside resize guidance
+- **THEN** bare A1 SHALL omit only the canonical resize/dimension lines
+- **AND** it SHALL retain conversion and omission/failure text visibly
 
-#### Scenario: Keep metadata while the agent works
-- **WHEN** image-processing metadata is presented while the live working status and streamed output are active
-- **THEN** the working status SHALL remain above the notice and transcript updates SHALL NOT remove the notice
-- **AND** the notice SHALL remain after settlement until the existing dismissal boundary occurs
+#### Scenario: Preserve ordinary text
+- **WHEN** resize-looking text has no matching image attachment provenance, is not in the trailing processing-hint suffix, or exceeds the attached-image count
+- **THEN** bare A1 SHALL render it unchanged
 
-#### Scenario: Do not resurrect historical image metadata
-- **WHEN** a session containing an older image-bearing user message is resumed or rebuilt from persisted messages
-- **THEN** its previous processing metadata SHALL NOT be recreated as a current dock notice
-- **AND** the stored user message and agent context SHALL remain unchanged
-
-#### Scenario: Preserve image failure visibility
-- **WHEN** image acquisition, validation, conversion, or provider preparation fails or omits an image
-- **THEN** the failure SHALL remain visible through its existing error or failed-attachment presentation
-- **AND** bare A1 SHALL NOT present it as a successful transient image notice
-
-#### Scenario: Keep pinned inline notes unchanged
-- **WHEN** an image produces processing guidance in `a1 pi`
-- **THEN** the guidance and screenshot marker SHALL retain their pinned prompt/transcript presentation
+#### Scenario: Keep pinned Pi unchanged
+- **WHEN** the same image-bearing message is rendered through `a1 pi`
+- **THEN** the screenshot chip and inline resize guidance SHALL retain their pinned presentation

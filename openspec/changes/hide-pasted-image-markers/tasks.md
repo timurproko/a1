@@ -1,20 +1,21 @@
-## 1. Derive safe image presentation metadata
+## 1. Derive submitted-prompt presentation
 
-- [x] 1.1 Add provenance-aware user-message projection that separates generated screenshot markers and canonical successful image-processing notes from visible text while retaining stored/model content, and verify projection tests preserve literal lookalikes, failure text, attachment order, and image-only messages.
-- [x] 1.2 Carry bounded image-note presentation metadata on owned user transcript blocks and verify contract validation, equality/revision handling, transcript rebuilds, and image asset retention remain deterministic.
+- [x] 1.1 Recognize canonical trailing resize/dimension guidance only on image-bearing user messages and bound recognized lines by attachment count.
+- [x] 1.2 Preserve original stored/model text while exposing a bounded display-only `visibleText` value.
+- [x] 1.3 Retain screenshot chips, conversion notes, omission/failure text, ordinary authored text, and image references unchanged.
 
-## 2. Hide generated image identities without changing semantics
+## 2. Apply the bare-A1 presentation boundary
 
-- [x] 2.1 Extend bare-A1 editor presentation so pending and ready generated image identities remain hidden while failed identities and literal image-looking text stay visible, and verify caret mapping, surrounding typing, selection replacement, atomic deletion, undo/redo, and out-of-order preparation.
-- [x] 2.2 Add attachment-only submitted-prompt presentation that omits generated markers and empty text chrome while retaining timestamps, prompt navigation, actual images, textual fallbacks, and unchanged `a1 pi` rendering; verify ordinary and image-only transcript cases.
-- [x] 2.3 Preserve hidden identity behavior through ordinary, steering, follow-up, compaction-queued, copy/history, restart recall, and resubmission paths, and verify attachment bytes, ordering, limits, and sidecar-backed recovery are unchanged.
+- [x] 2.1 Use derived text only in the bare-A1 submitted-prompt presenter.
+- [x] 2.2 Keep `a1 pi` on the original prompt text and inline guidance.
+- [x] 2.3 Leave prompt-chip rendering and dock notices unchanged; do not add attachment feedback.
 
-## 3. Route image feedback through the dock notice
+## 3. Regression coverage
 
-- [x] 3.1 Publish concise coalesced attachment feedback when live pasted images become ready, and verify singular/multiple attachments update one notice without identifiers, extra transcript rows, selection content, or persistence.
-- [x] 3.2 Publish recognized successful processing notes from incremental user-message delivery after normal prompt notice dismissal, and verify wrapping, multiline attachment order, working-status placement, replacement/dismissal, no replay on resume, and unchanged actionable failure presentation.
+- [x] 3.1 Cover stored/model text preservation, visible screenshot chips, resize-guidance filtering, multiple images, retained failures/conversion notes, and ambiguous text.
+- [x] 3.2 Cover bare-A1 versus `a1 pi` rendering and the absence of an `Image attached` notice.
 
-## 4. Validate the integrated behavior
+## 4. Validation and acceptance
 
-- [x] 4.1 Run focused deterministic editor, prompt-chip, transcript-projection, shell-paste, dock-notice, persistent-history, and pinned-comparison tests; verify no generated marker or successful dimension note appears in bare-A1 prompt presentation while semantic context and image delivery remain exact.
-- [ ] 4.2 Build the candidate and perform the color-preserving `./scripts/dev` manual flow for single, multiple, resized, image-only, failed, deleted/undone, and recalled images; record that notices appear above the editor, prompt text stays uncluttered, images remain usable, and `./scripts/dev pi` remains unchanged.
+- [x] 4.1 Run focused tests, typecheck, build, architecture governance, strict OpenSpec validation, and diff hygiene.
+- [ ] 4.2 Physically verify through `./scripts/dev` that image chips remain visible, no `Image attached` notice appears, submitted resize guidance is hidden, and image delivery still works.
