@@ -16,14 +16,14 @@ The manual merge accepts these scenarios:
   "archive": "openspec/changes/archive/2026-09-22-fix-thinking-default-marker/",
   "acceptanceManifest": "openspec/changes/archive/2026-09-22-fix-thinking-default-marker/acceptance.md",
   "finalizedDate": "2026-09-22",
-  "specBaseSha": "f7df7624f9ae75f76b9cc55714ad42d7fca23a7c",
+  "specBaseSha": "91acd99bef9292e5d0d69bc58a1860c212eda179",
   "acceptanceScenarios": [
     "Bare A1 renders the configured thinking default as a muted bracketed marker after the optional green active checkmark and before the aligned description, without the former prose suffix.",
     "Coincident active/default state places the active checkmark immediately before the configured-default marker, while differing states retain only their respective markers and stay aligned through filtering and narrow widths.",
     "Thinking selection, default persistence, cancellation, footer restoration, and the `a1 pi` comparison selector retain their existing behavior."
   ],
   "archiveDigest": "ed8a690d5a7b32b330da042fc12a0f30d03b068bd68fe384f0f87533a9f6acaa",
-  "specDigest": "339e2f82979c69fb46a2af8b4302d2bae1496bfcf3d7b94319d3b7abc214c44c",
+  "specDigest": "6344cf02eab28c52327b55c27fcb42229191cf2e6dfc0f34d7cd5ff8259e3e8b",
   "tasksDigest": "104c431ba20d90beb50d3f04a91cd069b42a5434dbd3b46d2204d35371c09567",
   "evidenceDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
   "knownGaps": []
