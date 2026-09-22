@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { chmod, mkdir, mkdtemp, readFile, rm, symlink, utimes, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, realpath, rm, symlink, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -7,10 +7,12 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   cleanupUpdateRecoveryCapsules,
   inspectUpdateLauncherSet,
+  npmPrefixForGlobalRoot,
   prepareUpdateRecoveryCapsule,
   readUpdateRecoveryCapsule,
   runProtectedPackageReplacement,
   updateLauncherPaths,
+  updateNpmInstallArguments,
   type UpdateTransaction,
 } from "../../../src/foundation/release/index.js";
 
@@ -18,15 +20,27 @@ const roots: string[] = [];
 afterEach(async () => await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))));
 
 describe("cancellation-safe package replacement", () => {
-  it("defines the complete platform launcher set", () => {
-    const globalRoot = process.platform === "win32" ? resolve("C:/npm/node_modules") : "/usr/local/lib/node_modules";
-    const launchers = updateLauncherPaths(globalRoot);
-    expect(launchers.map(path => path.split(/[\\/]/).at(-1))).toEqual(process.platform === "win32" ? ["a1", "a1.cmd", "a1.ps1"] : ["a1"]);
+  it("derives exact platform prefixes, launchers, and pinned npm arguments", () => {
+    const windowsRoot = resolve("C:/npm/node_modules");
+    const unixRoot = "/usr/local/lib/node_modules";
+    expect(npmPrefixForGlobalRoot(windowsRoot, "win32")).toBe(resolve("C:/npm"));
+    expect(npmPrefixForGlobalRoot(unixRoot, "linux")).toBe(resolve("/usr/local"));
+    expect(updateLauncherPaths(windowsRoot, "win32").map(path => path.split(/[\\/]/).at(-1))).toEqual(["a1", "a1.cmd", "a1.ps1"]);
+    expect(updateLauncherPaths(unixRoot, "linux")).toEqual([resolve("/usr/local/bin/a1")]);
+    expect(updateNpmInstallArguments(unixRoot, "1.2.3", "linux")).toEqual([
+      "install", "--global", "--prefix", resolve("/usr/local"),
+      "--loglevel=error", "--no-fund", "--no-audit", "@timurproko/a1@1.2.3",
+    ]);
+    expect(() => npmPrefixForGlobalRoot(resolve("fixtures", "global"), "win32")).toThrow(/unsupported layout/);
   });
 
   it("rejects incomplete and mixed launcher sets", async () => {
     const fixture = await recoveryFixture("success");
     const prepared = await prepareUpdateRecoveryCapsule(fixture.options);
+    expect(prepared.capsule.npmArguments).toEqual([
+      "install", "--global", "--prefix", npmPrefixForGlobalRoot(prepared.capsule.globalRoot),
+      "--loglevel=error", "--no-fund", "--no-audit", "@timurproko/a1@1.1.0",
+    ]);
     for (const launcher of fixture.launchers) {
       await writeFile(launcher, "node_modules/@timurproko/a1/bin/cli.js");
       await chmod(launcher, 0o755);
@@ -65,6 +79,30 @@ describe("cancellation-safe package replacement", () => {
     await expect(readUpdateRecoveryCapsule(resolve(incomplete, "capsule.json"))).rejects.toThrow();
   });
 
+  it("uses the active npm implementation while pinning replacement to another prefix", async () => {
+    const fixture = await recoveryFixture("success");
+    const activePrefix = resolve(fixture.root, "active-prefix");
+    const activeGlobalRoot = process.platform === "win32"
+      ? resolve(activePrefix, "node_modules")
+      : resolve(activePrefix, "lib", "node_modules");
+    const activeNpmCli = resolve(activeGlobalRoot, "npm", "bin", "npm-cli.js");
+    await mkdir(dirname(activeNpmCli), { recursive: true });
+    await writeFile(activeNpmCli, "// active npm");
+    const environment: NodeJS.ProcessEnv = { ...fixture.options.environment };
+    delete environment.npm_execpath;
+
+    const prepared = await prepareUpdateRecoveryCapsule({
+      ...fixture.options,
+      npmCliRoot: activeGlobalRoot,
+      environment,
+    });
+
+    expect(prepared.capsule.npmCli).toBe(await realpath(activeNpmCli));
+    expect(prepared.capsule.globalRoot).toBe(await realpath(fixture.options.globalRoot));
+    expect(prepared.capsule.npmArguments).toContain(npmPrefixForGlobalRoot(prepared.capsule.globalRoot));
+    expect(prepared.capsule.npmArguments.map(value => value.toLowerCase())).not.toContain(activePrefix.toLowerCase());
+  });
+
   it("rejects capsule path and payload tampering", async () => {
     const fixture = await recoveryFixture("success");
     const prepared = await prepareUpdateRecoveryCapsule(fixture.options);
@@ -85,6 +123,12 @@ describe("cancellation-safe package replacement", () => {
       await writeFile(prepared.manifestPath, JSON.stringify({ ...document, ...mutation }));
       await expect(readUpdateRecoveryCapsule(prepared.manifestPath)).rejects.toThrow();
     }
+
+    await writeFile(prepared.manifestPath, JSON.stringify({
+      ...document,
+      npmArguments: ["install", "--global", "--loglevel=error", "--no-fund", "--no-audit", "@timurproko/a1@1.1.0"],
+    }));
+    await expect(readUpdateRecoveryCapsule(prepared.manifestPath)).resolves.toMatchObject({ transactionId: fixture.options.transaction.transactionId });
 
     await writeFile(prepared.manifestPath, JSON.stringify(document));
     await chmod(prepared.capsule.recoveryEntry, 0o600);

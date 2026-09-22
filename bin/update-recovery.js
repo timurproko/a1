@@ -5,7 +5,7 @@
 import { spawn } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { chmod, lstat, mkdir, open, readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
-import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
+import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const SCHEMA = "a1-update-recovery-v1";
@@ -200,9 +200,15 @@ async function readCapsule(path) {
   const packageRoot = await realpath(value.packageRoot).catch(() => resolve(value.packageRoot));
   const expectedPackage = resolve(globalRoot, ...value.packageName.split("/"));
   if (!samePath(packageRoot, expectedPackage) || !containedBy(globalRoot, packageRoot)) throw new Error("A1 update recovery package root escapes npm global root");
-  const expectedNpmArguments = ["install", "--global", "--loglevel=error", "--no-fund", "--no-audit", `${value.packageName}@${value.targetVersion}`];
-  if (JSON.stringify(value.npmArguments) !== JSON.stringify(expectedNpmArguments)) throw new Error("A1 update recovery npm arguments are invalid");
+  const prefix = npmPrefixForGlobalRoot(globalRoot);
+  const expectedNpmArguments = ["install", "--global", "--prefix", prefix, "--loglevel=error", "--no-fund", "--no-audit", `${value.packageName}@${value.targetVersion}`];
+  const legacyNpmArguments = ["install", "--global", "--loglevel=error", "--no-fund", "--no-audit", `${value.packageName}@${value.targetVersion}`];
+  if (![expectedNpmArguments, legacyNpmArguments].some(arguments_ => sameArguments(value.npmArguments, arguments_))) {
+    throw new Error("A1 update recovery npm arguments are invalid");
+  }
   const launcherRoot = resolve(value.launcherRoot);
+  const expectedLauncherRoot = process.platform === "win32" ? prefix : resolve(prefix, "bin");
+  if (!samePath(launcherRoot, expectedLauncherRoot)) throw new Error("A1 update recovery launcher root is invalid");
   const expectedLaunchers = process.platform === "win32"
     ? [resolve(launcherRoot, "a1"), resolve(launcherRoot, "a1.cmd"), resolve(launcherRoot, "a1.ps1")]
     : [resolve(launcherRoot, "a1")];
@@ -304,6 +310,22 @@ async function writeJson(path, value) {
   finally { await file.close(); }
   await rm(path, { force: true });
   await rename(temporary, path);
+}
+
+/** @param {string} globalRoot */
+function npmPrefixForGlobalRoot(globalRoot) {
+  const root = resolve(globalRoot);
+  const nodeModules = process.platform === "win32" ? basename(root).toLowerCase() === "node_modules" : basename(root) === "node_modules";
+  if (!nodeModules) throw new Error("A1 update recovery npm global root layout is invalid");
+  if (process.platform === "win32") return dirname(root);
+  const libraryRoot = dirname(root);
+  if (basename(libraryRoot) !== "lib") throw new Error("A1 update recovery npm global root layout is invalid");
+  return dirname(libraryRoot);
+}
+
+/** @param {string[]} left @param {string[]} right */
+function sameArguments(left, right) {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
 /**

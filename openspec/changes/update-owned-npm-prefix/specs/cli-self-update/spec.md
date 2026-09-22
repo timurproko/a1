@@ -1,14 +1,14 @@
 ## MODIFIED Requirements
 
 ### Requirement: Self-update is limited to the managed global installation
-A1 SHALL verify through npm's global package-root resolution that the running package occupies the exact `@timurproko/a1` package location in an npm-managed global installation before replacing it. The installation MAY use npm's active default prefix or a different prefix whose inferred global root active npm independently confirms. A1 SHALL pin replacement to the confirmed prefix that owns the running package. It SHALL refuse automatic replacement when running from a local checkout, npm link, malformed package layout, unconfirmed root, or a different package-manager context.
+A1 SHALL verify through npm's global package-root resolution that the running package occupies the exact `@timurproko/a1` package location in an npm-managed global installation before replacing it. The installation MAY use npm's active default prefix or a different prefix whose inferred global root active npm independently confirms and whose complete platform launcher set targets that package. A1 SHALL pin replacement to the confirmed prefix that owns the running package. It SHALL refuse automatic replacement when running from a local checkout, npm link, malformed package layout, unconfirmed root, or a different package-manager context.
 
 #### Scenario: Running package is globally managed by npm
 - **WHEN** the running A1 package exactly occupies its canonical package location beneath npm's canonical active global package root
 - **THEN** A1 may perform the global update against that root
 
 #### Scenario: Running package is managed under a confirmed non-default npm prefix
-- **WHEN** the running A1 package exactly occupies the canonical package location under another global root and active npm confirms that root for its inferred prefix
+- **WHEN** the running A1 package exactly occupies the canonical package location under another global root, active npm confirms that root for its inferred prefix, and the prefix's complete launcher set targets that package
 - **THEN** A1 SHALL update the invoked installation in place using that explicit prefix
 - **AND** SHALL NOT create or select an installation under the active default prefix merely because the defaults differ
 

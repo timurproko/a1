@@ -24,9 +24,9 @@ The active npm root and the invoked installation root have different roles in th
 
 ### 1. Resolve an owned installation, not only the active default root
 
-Keep the current active-root lookup as the fast path. When the canonical running package is outside that root, derive a candidate global root only if the canonical path ends exactly in `node_modules/@timurproko/a1`. Derive the platform npm prefix from that root (`<prefix>/node_modules` on Windows and `<prefix>/lib/node_modules` on Unix), then ask active npm for `root --global --prefix <candidate-prefix>`. Accept the fallback only when npm's canonical answer exactly equals the candidate root and the expected scoped package path exactly equals the running package root.
+Keep the current active-root lookup as the fast path. When the canonical running package is outside that root, derive a candidate global root only if the canonical path ends exactly in `node_modules/@timurproko/a1`. Derive the platform npm prefix from that root (`<prefix>/node_modules` on Windows and `<prefix>/lib/node_modules` on Unix), then ask active npm for `root --global --prefix <candidate-prefix>`. Accept the fallback only when npm's canonical answer exactly equals the candidate root, the expected scoped package path exactly equals the running package root, and the platform's complete regular launcher set is executable where required and targets `node_modules/@timurproko/a1/bin/cli.js` under that prefix.
 
-Canonical equality is case-insensitive on Windows. The package root itself must resolve to the exact expected location; mere containment is insufficient. A checkout or npm link resolves outside that shape and remains refused. Failure to derive, query, canonicalize, or match the candidate does not fall through to installation.
+The launcher proof distinguishes a prior global installation from an arbitrary local project whose dependency path could otherwise be reinterpreted as a synthetic global prefix. Canonical equality is case-insensitive on Windows. The package root itself must resolve to the exact expected location; mere containment is insufficient. A checkout or npm link resolves outside that shape and remains refused. Failure to derive, query, canonicalize, match, or verify launchers does not fall through to installation.
 
 Alternative: treat any path containing `node_modules` as managed. Rejected because containment does not establish npm ownership and can overwrite a checkout, store link, or nested dependency.
 
@@ -61,11 +61,19 @@ Alternative: automatically retry `npm install -g` against the active root after 
 ## Risks / Trade-offs
 
 - **[npm prefix layouts differ by platform]** → Recognize only the established Windows and Unix global layouts and require npm to echo the inferred root before mutation.
-- **[A crafted directory resembles a global installation]** → Require exact canonical package placement plus active npm confirmation; never accept broad containment or a linked canonical target.
+- **[A crafted directory resembles a global installation]** → Require exact canonical package placement, active npm confirmation, and the complete npm launcher set targeting A1; never accept broad containment or a linked canonical target.
 - **[Node-manager symlinks change lexical paths]** → Compare canonical roots and package paths, with platform-aware path equality, before deriving transaction authority.
 - **[The active npm CLI and selected install root differ]** → Track acquisition and destination roots separately and pin destination with `--prefix` in both foreground and detached execution.
 - **[An interrupted older update has unprefixed capsule arguments]** → Read the one exact legacy argument form but emit only explicit-prefix capsules going forward.
 - **[The user has duplicate A1 installations]** → Update only the package whose CLI was invoked; automatic migration and deletion remain out of scope.
+
+## Implementation Evidence
+
+- The focused self-update, recovery, process-settlement, and transition suites pass with 73 tests on Windows; the one Unix executable-bit case is platform-gated and remains selected on Unix CI.
+- The build, source/bin typecheck, architecture boundaries, product identity governance, pinned Pi ledger, terminal-host provenance, strict OpenSpec validation, and diff checks pass locally.
+- A non-mutating probe against the reported installation resolved `AppData/Roaming/npm/node_modules/@timurproko/a1` as the selected package/global root while independently retaining the active FNM Node installation's `node_modules` as `npmCliRoot`; the injected replacement completed without writing either installation.
+- Exact-package fixtures now place the active npm implementation under a prefix different from the package/launcher prefix for cancellation and updater-loss cases. Their packaged execution remains part of required CI rather than a workstation release-gate run.
+- No known implementation gap remains. Exact-head CI and the maintainer's real update from the reported installation remain validation and acceptance steps, not deferred product behavior.
 
 ## Migration Plan
 

@@ -87,7 +87,9 @@ describe("release-gating N-1 update transitions", () => {
   ] as const)("uses identical immediate replacement semantics for %s", async (channel, tag) => {
     const root = await mkdtemp(resolve(tmpdir(), `a1-update-${channel}-`));
     cleanupRoots.push(root);
-    const packageRoot = resolve(root, "global", "@timurproko", "a1");
+    const prefix = resolve(root, "prefix");
+    const globalRoot = process.platform === "win32" ? resolve(prefix, "node_modules") : resolve(prefix, "lib", "node_modules");
+    const packageRoot = resolve(globalRoot, "@timurproko", "a1");
     const dataDir = resolve(root, "data");
     await mkdir(packageRoot, { recursive: true });
     await writeFile(resolve(packageRoot, "package.json"), JSON.stringify({ name: "@timurproko/a1", version: "1.0.0" }));
@@ -113,7 +115,7 @@ describe("release-gating N-1 update transitions", () => {
       runner: async (_command, arguments_) => {
         calls.push(`npm:${arguments_.join(" ")}`);
         if (arguments_[0] === "view") return { code: 0, stdout: "1.1.0\n" };
-        if (arguments_[0] === "root") return { code: 0, stdout: resolve(root, "global") + "\n" };
+        if (arguments_[0] === "root") return { code: 0, stdout: globalRoot + "\n" };
         return { code: 0, stdout: "installed" };
       },
       output: { stdout: message => stdout.push(message), stderr: () => {} },
@@ -125,7 +127,7 @@ describe("release-gating N-1 update transitions", () => {
       "npm:root --global",
       "shutdown:1.1.0:owned-ui,supervisor,child-process",
       "unlock:package-root",
-      "npm:install --global --loglevel=error --no-fund --no-audit @timurproko/a1@1.1.0",
+      `npm:install --global --prefix ${prefix} --loglevel=error --no-fund --no-audit @timurproko/a1@1.1.0`,
       "shutdown:1.1.0:owned-ui,supervisor,child-process",
       "activate:1.1.0:maintenance-mode",
     ]);

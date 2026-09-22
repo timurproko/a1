@@ -4,7 +4,7 @@ A1 currently refuses self-update when the invoked package is a valid npm global 
 
 ## What Changes
 
-- Recognize an invoked A1 package as npm-owned when its canonical path exactly matches the package location under a global root that active npm independently confirms for an inferred prefix.
+- Recognize an invoked A1 package as npm-owned when its canonical path exactly matches the package location under a global root that active npm independently confirms for an inferred prefix and that prefix's complete launcher set targets the package.
 - Pin package replacement to that confirmed prefix so a default-prefix mismatch updates the invoked installation in place rather than creating or mutating a different installation.
 - Bind cancellation-safe recovery to the selected package root, global root, launcher set, npm executable, and explicit prefix arguments while retaining compatibility with valid in-flight recovery evidence.
 - Preserve refusal for local checkouts, npm links, malformed package layouts, unconfirmed roots, and different package-manager contexts, with no package or launcher mutation.
