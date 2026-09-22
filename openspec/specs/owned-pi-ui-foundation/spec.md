@@ -2058,7 +2058,7 @@ When the command menu is open on a sole top-level slash search whose selected ro
 - **THEN** no tunnel rows SHALL appear and the text SHALL be treated as pinned Pi treats it
 
 ### Requirement: The changelog and hotkeys commands open reference screens in bare A1
-Bare A1 SHALL declare `/changelog` and `/hotkeys` as A1-owned replacements for the pinned in-feed changelog and keyboard-shortcut documents. The owned route host SHALL claim both routes ahead of the pinned workflow table, so invoking either in bare A1 opens the A1-owned reference screen full screen over the session and appends no document, status, checkmark, or error row to the feed. `/changelog` SHALL open the screen titled `What's New` with the complete pinned changelog Markdown in the same order and with the same link rewriting the pinned `/changelog` workflow produces. `/hotkeys` SHALL open the screen titled `Keyboard Shortcuts` with the bare-A1 keybinding-derived tables the in-feed presenter produced for the `a1` profile, including the current editor keybinding configuration and the extension shortcut descriptions, gathered when the screen opens. Both documents SHALL be rendered through the same settings-aware Markdown presentation and theme the in-feed documents used, without the spacer, border, and heading rows that were feed chrome, so each visible document row equals the corresponding row of the former in-feed document at the same width.
+Bare A1 SHALL declare `/changelog` and `/hotkeys` as A1-owned replacements for the pinned in-feed changelog and keyboard-shortcut documents. The owned route host SHALL claim both routes ahead of the pinned workflow table, so invoking either in bare A1 opens the A1-owned reference screen full screen over the session and appends no document, status, checkmark, or error row to the feed. `/changelog` SHALL open the screen titled `What's New` with the complete pinned changelog Markdown in the same order and with the same link rewriting the pinned `/changelog` workflow produces. `/hotkeys` SHALL open the screen titled `Keyboard Shortcuts` with the bare-A1 keybinding-derived tables the in-feed presenter produced for the `a1` profile, including the current editor keybinding configuration and extension shortcut descriptions gathered when the screen opens. Bare A1 SHALL carry those tables as structured sections into the reference screen rather than recognizing labels from rendered text. Every section SHALL use the same shared header component, bold yellow Markdown-heading role, one-cell left inset, content adjacency, inter-section spacing, and active-section pinning as owned Settings. One blank row SHALL separate the main screen title from the first section. The changelog document SHALL retain its flat settings-aware Markdown presentation, and the hotkeys refinement SHALL NOT alter table content, wrapping, section order, or the pinned comparison presentation. Both screens SHALL omit the spacer, border, and heading rows that were feed chrome.
 
 The screen SHALL be presented through the same owned route path as `/settings`: full-size top-left overlay with owned input coordination, pointer reporting enabled for its lifetime and disabled when it closes, mouse reports routed to the screen before any other surface, and the interrupt chord watched on raw input. The commands SHALL remain listed in the slash-command menu with their pinned descriptions. The `a1 pi` comparison profile and untouched pinned Pi SHALL retain the pinned in-feed documents; without the owned route host the commands remain pinned workflow routes. A1 SHALL NOT mutate installed Pi packages, their exported constructors, or their prototypes to implement the replacement.
 
@@ -2069,7 +2069,11 @@ The screen SHALL be presented through the same owned route path as `/settings`: 
 
 #### Scenario: Invoke the hotkeys command in bare A1
 - **WHEN** the user submits `/hotkeys` in bare A1
-- **THEN** the `Keyboard Shortcuts` reference screen SHALL open with the bare-A1 Navigation, Editing, Other, and, when any exist, Extensions tables and the feed SHALL gain no rows
+- **THEN** the `Keyboard Shortcuts` reference screen SHALL open with the bare-A1 Navigation, Editing, Other, Models dialog, and, when any exist, Extensions tables and the feed SHALL gain no rows
+- **AND** each section label SHALL use the Settings bold yellow heading role, align with the main title's one-cell left inset, and begin after one blank row below that title
+- **AND** each section table SHALL begin on the row immediately following its label with no blank spacer
+- **AND** scrolling within a section SHALL pin that section label as the first document row until the next section takes over
+- **AND** adding another structured section SHALL require only section data, not a label-specific styling or pinning branch
 - **AND** a keybinding configuration reloaded before the next invocation SHALL be reflected the next time the screen opens
 
 #### Scenario: Scroll and close a reference command screen
@@ -2099,3 +2103,37 @@ Bare A1 SHALL keep the pinned changelog startup lifecycle: the engine's new-entr
 #### Scenario: Start the comparison profile after an upgrade
 - **WHEN** `a1 pi` starts under the same conditions
 - **THEN** the pinned expanded or collapsed transcript block SHALL be rendered in the feed exactly as before and no screen SHALL open
+
+### Requirement: The bare-A1 thinking selector uses the established selector treatment
+The bare-A1 thinking selector SHALL render `Thinking Level` in bold semantic accent color, matching the heading treatment used by the Models configuration surface. Its resolved cycle hint SHALL render in semantic muted grey on the immediately following row. Repeated available-level values SHALL collapse to one row. Each level SHALL render its description inline in semantic muted grey regardless of cursor selection, with every description aligned to the same column one separator after the widest rendered level-name and marker region. The active session level SHALL have exactly one semantic success-green checkmark immediately after its level name. While the selector is open, the footer SHALL omit its thinking-level suffix so the active level is not duplicated below the selector, then restore that suffix when the selector closes. The presentation change SHALL preserve the selector's borders, search input, default marker, navigation, selection, default persistence, cancellation, focus, and restoration behavior.
+
+#### Scenario: Render the thinking selector heading
+- **WHEN** the user opens the bare-A1 thinking selector
+- **THEN** the heading SHALL read `Thinking Level`
+- **AND** every heading cell SHALL use the active theme's accent color and bold emphasis
+- **AND** the resolved cycle hint SHALL use semantic muted grey on the row directly below the heading
+
+#### Scenario: Render level rows
+- **WHEN** the selector displays selected and unselected level rows
+- **THEN** repeated available-level values SHALL render exactly once
+- **AND** each description SHALL use semantic muted grey and begin in the same aligned column
+- **AND** only the active session level SHALL place one semantic success-green checkmark immediately after its name
+- **AND** the footer SHALL omit its thinking-level suffix until the selector closes
+- **AND** closing the selector SHALL restore the footer's current thinking-level suffix
+
+#### Scenario: Interact with the styled selector
+- **WHEN** the user filters or navigates levels, selects a session level, saves a default level, or cancels the selector
+- **THEN** the selector SHALL retain its existing interaction and restoration outcomes
+- **AND** heading and row styling SHALL NOT alter list geometry, focus, or instruction placement
+
+### Requirement: Bare A1 keeps model and thinking commands adjacent
+Bare A1 SHALL present `thinking` immediately after its unified `models` command in the advertised workflow catalog and slash-command autocomplete. All other owned built-in commands SHALL retain their relative order. The pinned `a1 pi` comparison profile SHALL retain its upstream command order unchanged.
+
+#### Scenario: Open bare A1 slash-command autocomplete
+- **WHEN** bare A1 presents its built-in slash-command catalog
+- **THEN** its first four commands SHALL be `settings`, `models`, `thinking`, and `tree` in that order
+- **AND** its advertised workflow catalog SHALL use the same order
+
+#### Scenario: Open comparison slash-command autocomplete
+- **WHEN** the `a1 pi` comparison profile presents its built-in slash-command catalog
+- **THEN** `model`, `tree`, `thinking`, and `scoped-models` SHALL remain in pinned upstream order

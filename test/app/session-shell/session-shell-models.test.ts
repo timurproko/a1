@@ -38,6 +38,8 @@ describe("bare-A1 unified Models dialog", () => {
     expect(ownedBuiltIns).toContain("models");
     expect(ownedBuiltIns).not.toContain("model");
     expect(ownedBuiltIns).not.toContain("scoped-models");
+    expect(ownedBuiltIns.slice(0, 4)).toEqual(["settings", "models", "thinking", "tree"]);
+    expect(ownedBuiltIns).toEqual(OWNED_WORKFLOW_COMMAND_NAMES);
     expect(ownedBuiltIns.every(name => (OWNED_WORKFLOW_COMMAND_NAMES as readonly string[]).includes(name))).toBe(true);
     expect(ownedBuiltIns).toHaveLength(PINNED_PI_BUILTIN_SLASH_COMMANDS.length - 1);
     // Invariant: the editor catalog is the engine's advertised manifest in the engine's order, minus the

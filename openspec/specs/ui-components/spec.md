@@ -131,11 +131,7 @@ The shared scrollbar SHALL accept a speed of `normal`, `fast`, or `high`. Normal
 - **THEN** the wheel distance selected by `scrollbarSpeed` SHALL remain unchanged
 
 ### Requirement: A grouped list block presents rows with sticky group headers
-A1 SHALL provide a list pane over rows that are group headers, selectable elements, notes, or
-spacers. While the top visible row belongs to a group, that group's header SHALL remain pinned as the
-first rendered row so the reader always knows which group is on screen. Selection SHALL move only
-between selectable rows, SHALL clamp at both ends without wrapping, and SHALL scroll the minimum
-needed to bring the selection into view.
+A1 SHALL provide a grouped-row component over group headers, selectable elements, read-only notes, and spacers. While the top visible row belongs to a group, that group's header SHALL remain pinned as the first rendered row so the reader always knows which group is on screen. Both selectable lists and read-only sectioned documents SHALL use the same group-header renderer and sticky layout rather than reimplementing title recognition, the yellow Markdown-heading role, one-cell left inset, spacing, or pinning. The layout SHALL allow an embedded document to suppress initial top padding while preserving the current padded default for Settings. Selection SHALL move only between selectable rows, SHALL clamp at both ends without wrapping, and SHALL scroll the minimum needed to bring the selection into view.
 
 #### Scenario: Scroll into a group
 - **WHEN** the top visible row is an element or note belonging to a group
@@ -143,8 +139,7 @@ needed to bring the selection into view.
 
 #### Scenario: Move the selection
 - **WHEN** the user moves the selection
-- **THEN** it SHALL land on the next selectable row, skipping headers, notes, and spacers, and SHALL
-  stay put at the first and last selectable row
+- **THEN** it SHALL land on the next selectable row, skipping headers, notes, and spacers, and SHALL stay put at the first and last selectable row
 
 #### Scenario: Selection leaves the viewport
 - **WHEN** the selection moves outside the visible rows
@@ -153,6 +148,11 @@ needed to bring the selection into view.
 #### Scenario: List has no selectable row
 - **WHEN** every row is a header, note, or spacer
 - **THEN** the list SHALL render without a selection rather than selecting an unselectable row
+
+#### Scenario: Present a read-only sectioned document
+- **WHEN** a screen supplies ordered section titles and read-only content rows
+- **THEN** each title SHALL use the shared yellow heading role and one-cell inset, its first content row SHALL follow directly, and the active title SHALL pin through the shared layout
+- **AND** no title-specific rendering or scroll branch SHALL be required
 
 ### Requirement: A grouped list supports block navigation
 A1 SHALL provide navigation between groups: a forward block jump lands on the first selectable
@@ -487,3 +487,20 @@ Bare A1's agent prompt and Settings search SHALL render top and bottom bars in t
 - **WHEN** a user wraps a draft, resizes the terminal, moves the caret, selects text, or opens prompt suggestions
 - **THEN** the shared prefix and rules SHALL preserve content width, continuation alignment, pointer hit geometry, and caret placement
 - **AND** no rule or prefix SHALL become part of the submitted draft or copied text
+
+### Requirement: Wheel axes remain distinct
+A1 SHALL decode SGR vertical wheel reports as vertical wheel events and SHALL NOT reinterpret horizontal wheel reports as vertical movement. Unsupported horizontal wheel reports SHALL be removed from owned pointer input without becoming keyboard input.
+
+#### Scenario: Decode vertical wheel input
+- **WHEN** the terminal reports a vertical wheel-up or wheel-down action
+- **THEN** A1 SHALL emit the matching vertical wheel event with the reported pointer position
+
+#### Scenario: Receive horizontal wheel input
+- **WHEN** the terminal reports a horizontal wheel-left or wheel-right action
+- **THEN** A1 SHALL NOT emit a vertical wheel event
+- **AND** the report SHALL NOT be delivered as typed or navigational keyboard input
+
+#### Scenario: Receive mixed touchpad reports
+- **WHEN** one input chunk contains vertical wheel reports, horizontal wheel reports, and keyboard text
+- **THEN** A1 SHALL preserve the order and direction of the vertical wheel events
+- **AND** SHALL preserve the keyboard text while safely discarding the horizontal wheel reports

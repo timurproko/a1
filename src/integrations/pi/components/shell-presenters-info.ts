@@ -210,7 +210,7 @@ function hotkeysMarkdownComponent(markdown: string): Markdown {
   return new Markdown(markdown, 1, 1, getMarkdownTheme());
 }
 
-function hotkeysMarkdown(
+export function hotkeysMarkdown(
   bindings: KeybindingsConfig | undefined,
   getShortcuts: NonNullable<PiShellExtensionRendererResolver["getShortcuts"]>,
   profile: "pi" | "a1",

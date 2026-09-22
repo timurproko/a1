@@ -24,6 +24,7 @@ import {
   createPiShellTranscriptComponent,
   PINNED_PI_BUILTIN_SLASH_COMMANDS,
   renderPiShellChangelogLines,
+  renderPiShellHotkeySections,
   renderPiShellHotkeysLines,
   renderPiShellTranscriptBlock,
   WorkingStatusIndicator,
@@ -490,14 +491,14 @@ describe("Pi shell public component adapters", () => {
     const shortcuts = () => [{ key: "ctrl+alt+p", description: "Probe extension" }];
     const hotkeysFeed = createPiShellHotkeys(undefined, shortcuts, "a1").render(width);
     expect(stripTerminalSequences(hotkeysFeed[2] ?? "")).toContain("Keyboard Shortcuts");
-    const hotkeys = renderPiShellHotkeysLines({ getShortcuts: shortcuts, profile: "a1" }, width);
-    expect(hotkeys).toEqual(hotkeysFeed.slice(4, hotkeysFeed.length - 1));
-    const plain = stripTerminalSequences(hotkeys.join("\n"));
-    expect(plain).toContain("Navigation");
+    const sections = renderPiShellHotkeySections({ getShortcuts: shortcuts, profile: "a1" }, width);
+    expect(sections.map(section => section.title)).toEqual(["Navigation", "Editing", "Other", "Models dialog", "Extensions"]);
+    for (const section of sections) expect(stripTerminalSequences(section.rows[0] ?? "").trim()).not.toBe("");
+    const plain = stripTerminalSequences(sections.flatMap(section => section.rows).join("\n"));
     expect(plain).toContain("Start of content");
-    expect(plain).toContain("Extensions");
     expect(plain).toContain("Probe extension");
     expect(plain).not.toContain("Keyboard Shortcuts");
+    // Compatibility: the comparison profile retains the exact in-feed Markdown rows.
     expect(renderPiShellHotkeysLines({}, width)).toEqual(createPiShellHotkeys().render(width).slice(4, -1));
   });
 

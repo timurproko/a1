@@ -8,23 +8,19 @@ import {
 } from "../features/owned-ui/reference-routes.js";
 import { SETTINGS_APP_ID, SETTINGS_ROUTE } from "../features/owned-ui/settings-route.js";
 import { piTheme } from "../integrations/pi/components/upstream/theme/theme.js";
+import type { ReferenceDocumentProvider } from "../features/owned-ui/reference-screen-app.js";
 import type { OwnedSettingsManager } from "../ui/settings/manager.js";
 import type { UiApp, UiRouteHost, UiRouteInput, UiRouteSurface } from "../ui/apps/contracts.js";
 import { faint } from "../ui/components/text.js";
 import type { UiTheme, UiThemeToken } from "../ui/components/theme.js";
 
 /** Styled document rows for one content width. */
-export type OwnedReferenceRows = (width: number) => readonly string[];
+export type OwnedReferenceRows = NonNullable<ReferenceDocumentProvider["rows"]>;
 
-/**
- * The documents the reference routes present, supplied by the composition so the
- * route host never reads the changelog or the shell's keybindings itself.
- */
+/** Documents supplied by composition so the route host never reads shell data itself. */
 export interface OwnedReferenceProviders {
-  /** The complete pinned changelog, or the supplied document when the route input carries one. */
-  changelog(input?: UiRouteInput): Promise<OwnedReferenceRows>;
-  /** The shell's keyboard shortcuts as they stand when the screen opens. */
-  hotkeys(): Promise<OwnedReferenceRows>;
+  changelog(input?: UiRouteInput): Promise<ReferenceDocumentProvider>;
+  hotkeys(): Promise<ReferenceDocumentProvider>;
 }
 
 /**
@@ -95,15 +91,15 @@ async function loadReferenceSurface(
   id: string,
   route: string,
   title: string,
-  document: Promise<OwnedReferenceRows>,
+  document: Promise<ReferenceDocumentProvider>,
 ): Promise<UiRouteSurface> {
   // Rationale: the app module and the document load together, so a document that fails
   // to render is reported by the placeholder rather than by a screen that never fills.
-  const [{ ReferenceScreenApp }, rows] = await Promise.all([import("../features/owned-ui/reference-screen-app.js"), document]);
+  const [{ ReferenceScreenApp }, content] = await Promise.all([import("../features/owned-ui/reference-screen-app.js"), document]);
   return hostApp(id, route, () => new ReferenceScreenApp({
     id,
     title,
-    document: { rows },
+    document: content,
     scrollSettings: () => ({
       scrollbarAppearance: settings.value("scrollbarAppearance"),
       scrollbarStyle: settings.value("scrollbarStyle"),

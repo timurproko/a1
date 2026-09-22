@@ -14,7 +14,6 @@ import {
   type SettingsCallbacks,
   type SettingsConfig,
   ThemeSelectorComponent,
-  ThinkingSelectorComponent,
   UserMessageSelectorComponent,
 } from "../startup-public.js";
 import {
@@ -436,20 +435,6 @@ export function createPiShellExtensionSelector(
 ): PiShellComponentPort {
   ensureTheme();
   return componentPort(new ExtensionSelectorComponent(title, [...options], onSelect, onCancel));
-}
-
-export function createPiShellThinkingSelector(
-  currentLevel: "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max",
-  availableLevels: readonly ("off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max")[],
-  onSelect: (level: string) => void,
-  onCancel: () => void,
-  onSelectAsDefault?: (level: string) => void,
-  defaultLevel?: "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max",
-): PiShellComponentPort {
-  ensureTheme();
-  const selector = new ThinkingSelectorComponent(currentLevel, [...availableLevels], onSelect, onCancel, onSelectAsDefault, defaultLevel);
-  const list = selector.getSelectList();
-  return componentPort(selector, data => list.handleInput(data));
 }
 
 export function createPiShellThemeSelector(

@@ -44,10 +44,12 @@ export const OWNED_MODELS_COMMAND_NAME = "models" as const;
 export type OwnedModelsCommandName = typeof OWNED_MODELS_COMMAND_NAME;
 export type OwnedWorkflowCommandName = Exclude<PiWorkflowCommandName, "model" | "scoped-models"> | OwnedModelsCommandName;
 
-/** Bare A1's advertised command catalog: the pinned catalog with `models` in place of `model` and `scoped-models`. */
+/** Bare A1's advertised catalog: `models` replaces the pinned pair and is followed by `thinking`. */
 export const OWNED_WORKFLOW_COMMAND_NAMES: readonly OwnedWorkflowCommandName[] = Object.freeze(
   PINNED_PI_WORKFLOW_COMMAND_NAMES.flatMap((name): OwnedWorkflowCommandName[] =>
-    name === "model" ? [OWNED_MODELS_COMMAND_NAME] : name === "scoped-models" ? [] : [name]),
+    name === "model"
+      ? [OWNED_MODELS_COMMAND_NAME, "thinking"]
+      : name === "thinking" || name === "scoped-models" ? [] : [name]),
 );
 
 export type PiProductMode = "bare" | "comparison";

@@ -11,6 +11,7 @@ export const COMPLETION_DISPOSABLE_PATHS = Object.freeze([
   ".artifacts",
   "native/process-guardian/target",
   "native/terminal-host/target",
+  "src/integrations/pi/engine/pi-settings-metadata.json",
 ]);
 
 // Protocol: the head may have moved to an accepted ancestor of the merged PR head; the reconciler judges that, not the binder.

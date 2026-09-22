@@ -36,7 +36,6 @@ export {
   createPiShellSkillsSelector,
   createPiShellStatus,
   createPiShellThemeSelector,
-  createPiShellThinkingSelector,
   createPiShellTranscriptComponent,
   createPiShellTreeSelector,
   createPiShellTrustSelector,
@@ -60,6 +59,8 @@ export {
   renderPiShellTranscriptBlock,
   validatedAssistantMessage,
 } from "./shell-components.js";
+export { renderPiShellHotkeySections } from "./shell-hotkey-sections.js";
+export type { PiShellHotkeySection } from "./shell-hotkey-sections.js";
 export type {
   PiExtensionUiBridge,
   PiExtensionUiBridgeHost,

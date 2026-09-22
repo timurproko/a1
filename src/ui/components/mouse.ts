@@ -65,12 +65,12 @@ export function routeMouseInput(
     output += data.slice(index, match.index);
     index = match.index + match[0].length;
     const event = toEvent(
-      Number.parseInt(match[1] ?? "", 10),
-      Number.parseInt(match[2] ?? "", 10),
-      Number.parseInt(match[3] ?? "", 10),
+      Number(match[1]),
+      Number(match[2]),
+      Number(match[3]),
       match[4] === "m",
     );
-    if (event !== null && claim(event, match[0])) consumed = true;
+    if (event === null || claim(event, match[0])) consumed = true;
     else output += match[0];
   }
   output += data.slice(index);
@@ -78,6 +78,7 @@ export function routeMouseInput(
 }
 
 function toEvent(code: number, column: number, row: number, released: boolean): PaneMouseEvent | null {
+  if ((code & 66) === 66) return null;
   if ((code & 64) !== 0) {
     const kind = (code & 1) === 0 ? "wheel-up" : "wheel-down";
     return { kind, button: 0, column, row };

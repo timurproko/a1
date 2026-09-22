@@ -33,7 +33,9 @@ export interface ValueMenuFrame {
 }
 
 export interface ValueMenuLayout {
-  /** Rows available above the footer. */
+  /** First screen row available to the menu. Defaults to zero. */
+  readonly bodyTop?: number;
+  /** Rows available between the fixed header and footer. */
   readonly bodyHeight: number;
   /** Full surface width, so the menu stays inside it. */
   readonly surfaceWidth: number;
@@ -47,10 +49,12 @@ export function valueMenuFrame(
   anchor: ValueMenuAnchor,
   layout: ValueMenuLayout,
 ): ValueMenuFrame {
+  const bodyTop = layout.bodyTop ?? 0;
+  const bodyBottom = bodyTop + layout.bodyHeight;
   const below = anchor.screenRow + 1;
-  const top = below + state.choices.length <= layout.bodyHeight
+  const top = below + state.choices.length <= bodyBottom
     ? below
-    : Math.max(0, anchor.screenRow - state.choices.length);
+    : Math.max(bodyTop, anchor.screenRow - state.choices.length);
   const width = Math.max(...state.choices.map(choice => displayWidth(choice) + 4), 6);
   const column = Math.min(anchor.valueColumn, Math.max(0, layout.surfaceWidth - width - layout.reservedRight));
   return { top, column, width, rows: state.choices.length };
@@ -67,9 +71,15 @@ export function renderValueMenu(
   state.choices.forEach((choice, index) => {
     const target = frame.top + index;
     if (target < 0 || target >= output.length) return;
-    const mark = choice === state.current ? "✓ " : "  ";
-    const text = padToWidth(`${mark}${choice} `, frame.width);
-    const painted = index === state.index ? theme.highlight(text) : theme.panel(text);
+    const active = index === state.index;
+    const paint = active ? theme.highlight : theme.panel;
+    const current = choice === state.current;
+    const tail = padToWidth(`${current ? " " : "  "}${choice} `, frame.width - (current ? 1 : 0));
+    // Invariant: the effective-value check uses the same accent as modal marks, while
+    // the rest of an active row keeps its highlighted foreground and background.
+    const painted = current
+      ? `${paint(theme.fg("accent", "✓"))}${paint(tail)}`
+      : paint(tail);
     output[target] = overlaySpan(output[target] ?? "", frame.column, frame.column + frame.width, painted);
   });
   return output;
