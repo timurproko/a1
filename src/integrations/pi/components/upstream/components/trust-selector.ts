@@ -2,12 +2,13 @@
  * Provenance: @earendil-works/pi-coding-agent 0.87.0 (MIT), commit 16787ad5b2dc748047f314ca1bfe7708f30f54f3,
  * packages/coding-agent/src/modes/interactive/components/trust-selector.ts.
  * Modifications: Mechanical source-synchronized trust selector port with injected public
- * ProjectTrustStore-derived options and remapped owned theme imports.
- * Deviations: none.
+ * ProjectTrustStore-derived options, remapped owned theme imports, and the shared bare-A1 modal
+ * shortcut row.
+ * Deviations: owned-modal-shortcut-hints.
  */
-import { DynamicBorder, keyHint, rawKeyHint } from "@earendil-works/pi-coding-agent";
+import { DynamicBorder } from "@earendil-works/pi-coding-agent";
 import { Container, getKeybindings, Spacer, Text } from "@earendil-works/pi-tui";
-import { piTheme } from "../theme/theme.js";
+import { piTheme, renderPiModalShortcutHints } from "../../theme.js";
 
 export interface TrustDecision { readonly path: string; readonly decision: boolean }
 export interface TrustUpdate { readonly path: string; readonly decision: boolean | null }
@@ -56,7 +57,12 @@ export class TrustSelectorComponent extends Container {
     this.listContainer = new Container();
     this.addChild(this.listContainer);
     this.addChild(new Spacer(1));
-    this.addChild(new Text(`${rawKeyHint("↑↓", "navigate")}  ${keyHint("tui.select.confirm", "save")}  ${keyHint("tui.select.cancel", "cancel")}`, 1, 0));
+    const keybindings = getKeybindings();
+    this.addChild(new Text(renderPiModalShortcutHints([
+      { key: "↑↓", action: "navigate" },
+      { key: keybindings.getKeys("tui.select.confirm").join("/"), action: "save" },
+      { key: keybindings.getKeys("tui.select.cancel").join("/"), action: "cancel" },
+    ]), 1, 0));
     this.addChild(new Spacer(1));
     this.addChild(new DynamicBorder());
     this.updateList(options.savedDecision);

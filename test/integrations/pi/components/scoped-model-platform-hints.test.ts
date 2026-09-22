@@ -62,7 +62,8 @@ for (const platform of ["darwin", "win32", "linux"] as const) {
       withSelector(platform, bindings, (selector, callbacks, keys) => {
         const before = keys.getEffectiveConfig();
         expect(text(selector)).toContain(`Session-only. ${alt}+S/Ctrl+S to save to settings.`);
-        expect(text(selector)).toContain(`${alt}+T toggle · ${alt}+A/Ctrl+A all · Ctrl+${alt}+X clear · ${alt}+P provider · ${alt}+Up/Ctrl+Up/${alt}+Down reorder · ${alt}+S/Ctrl+S save · all enabled`);
+        expect(text(selector)).toContain(`${alt}+T toggle  ${alt}+A/Ctrl+A all  Ctrl+${alt}+X clear  ${alt}+P provider  ${alt}+Up/Ctrl+Up/${alt}+Down reorder  ${alt}+S/Ctrl+S save  all enabled`);
+        expect(text(selector)).not.toMatch(/[·•]/u);
         selector.handleInput("\u001bt");
         // Rationale: since 0.85.1 the first toggle from "all enabled" disables that one model rather than keeping only it.
         const allButFirst = ids.filter(id => id !== ids[0]);
@@ -77,8 +78,9 @@ for (const platform of ["darwin", "win32", "linux"] as const) {
     it("preserves non-Alt spelling and the empty presentation of unbound actions", () => {
       withSelector(platform, { "app.models.save": [], "app.models.reorderUp": [], "app.models.reorderDown": "shift+ctrl+down" }, (selector, callbacks, keys) => {
         const rendered = text(selector);
-        expect(rendered).toContain("Session-only.  to save to settings.");
-        expect(rendered).toContain("/Shift+Ctrl+Down reorder ·  save · all enabled");
+        expect(rendered).toContain("Session-only.");
+        expect(rendered).not.toContain("to save to settings");
+        expect(rendered).toContain("Shift+Ctrl+Down reorder  all enabled");
         expect(rendered).not.toContain("Ctrl+S");
         expect(keys.getKeys("app.models.save")).toEqual([]);
         selector.handleInput("\u0013");

@@ -243,6 +243,11 @@ describe("owned level and model keybindings", () => {
     expect(cellStyle(unselectedRow, "L")).toEqual(cellStyle(piTheme().fg("muted", "L"), "L"));
     expect(cellStyle(selectedRow, "✓")).toEqual(cellStyle(piTheme().fg("success", "✓"), "✓"));
     expect(rows.filter(row => stripTerminalSequences(row).includes("Moderate reasoning"))).toHaveLength(1);
+    const controls = rows.find(row => stripTerminalSequences(row).includes("to select"))!;
+    expect(stripTerminalSequences(controls)).toContain("Enter to select  Ctrl+S to set as default  Escape/Ctrl+C to cancel");
+    expect(controls).not.toMatch(/[·•]/u);
+    expect(cellStyle(controls, "E")).toEqual(cellStyle(piTheme().fg("dim", "E"), "E"));
+    expect(cellStyle(controls, "s")).toEqual(cellStyle(piTheme().fg("muted", "s"), "s"));
 
     selector.handleInput?.("low");
     selector.handleInput?.("\r");

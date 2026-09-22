@@ -1,3 +1,4 @@
+import { renderShortcutHints, shortcutHintsText, type ShortcutHintEntry } from "./shortcut-hints.js";
 import { displayWidth, truncateToWidth } from "./text.js";
 import type { UiTheme } from "./theme.js";
 
@@ -19,7 +20,7 @@ export interface DialogPanelState {
   /** The row in hand. */
   readonly index: number;
   /** How to change it, in the words the engine uses. */
-  readonly hint: string;
+  readonly hint: string | readonly ShortcutHintEntry[];
 }
 
 /** Where the panel sits, for reading a pointer against its rows. */
@@ -61,13 +62,17 @@ export function renderDialogPanel(state: DialogPanelState, width: number, theme:
   });
 
   const description = state.rows[state.index]?.description ?? "";
+  const hint = typeof state.hint === "string"
+    ? theme.fg("dim", `  ${state.hint}`)
+    : renderShortcutHints(state.hint, theme, 2);
+  const plainHint = typeof state.hint === "string" ? `  ${state.hint}` : shortcutHintsText(state.hint, 2);
   return [
     rule,
     ...rows,
     "",
     pad(truncateToWidth(theme.fg("dim", `  ${description}`), width), width, `  ${description}`),
     "",
-    pad(truncateToWidth(theme.fg("dim", `  ${state.hint}`), width), width, `  ${state.hint}`),
+    pad(truncateToWidth(hint, width), width, plainHint),
     rule,
   ];
 }

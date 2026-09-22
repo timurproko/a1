@@ -441,6 +441,9 @@ describe("the settings screen", () => {
     expect(find(target, "Anthropic extra usage")).toContain("true");
     expect(find(target, "Unknown tools")).toContain("false");
     expect(find(target, "Enter/Space to change")).toContain("Esc to cancel");
+    const styledHint = target.render({ width: 200, height: 24 }, NAMING_HOST).find(line => line.includes("Enter/Space")) ?? "";
+    expect(styledHint).toContain("<dim>Esc</dim> <muted>to cancel</muted>  <dim>Enter/Space</dim> <muted>to change</muted>");
+    expect(styledHint).not.toMatch(/[·•]/u);
 
     target.onInput?.(SPACE, HOST);
     expect(find(target, "Anthropic extra usage")).toContain("false");

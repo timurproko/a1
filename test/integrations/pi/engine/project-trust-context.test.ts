@@ -103,6 +103,7 @@ describe("canonical project trust context", () => {
     // Rationale: 0.85.1 marks the saved option with a leading checkmark before its label.
     expect(rendered.some(row => row.trim() === `→ ${kind === "ancestor" ? "  " : "✓ "}${selected}`)).toBe(true);
     expect(rendered.some(row => row.trim() === resolve(f.alias))).toBe(true);
+    expect(rendered.some(row => row.includes("↑↓ navigate  enter save  escape/ctrl+c cancel"))).toBe(true);
   });
 
   it.each(["trust", "deny", "parent", "cancel"] as const)("keeps %s effects explicit, canonical and restart-only", async action => {

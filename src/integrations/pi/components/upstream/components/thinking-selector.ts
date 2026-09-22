@@ -6,8 +6,9 @@
  * shell, styling the title with the established bold semantic accent treatment, placing its muted hint
  * directly below it, deduplicating levels, and rendering aligned muted descriptions after an adjacent
  * success-colored active marker. All list and border colors use the owned theme and its explicit color
- * mode. The comparison profile retains the public pinned component.
- * Deviations: owned-level-cycle-shortcut, owned-thinking-selector-heading.
+ * mode, and the footer uses the shared bare-A1 modal shortcut row. The comparison profile retains the
+ * public pinned component.
+ * Deviations: owned-modal-shortcut-hints, owned-level-cycle-shortcut, owned-thinking-selector-heading.
  */
 import {
 	Container,
@@ -22,7 +23,7 @@ import {
 	Text,
 } from "@earendil-works/pi-tui";
 import { DynamicBorder } from "@earendil-works/pi-coding-agent";
-import { piTheme } from "../theme/theme.js";
+import { piTheme, renderPiModalShortcutHints } from "../../theme.js";
 
 export type ThinkingSelectorLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
 
@@ -99,16 +100,11 @@ export class OwnedThinkingSelectorComponent extends Container implements Focusab
 		this.selectListChildIndex = this.children.length;
 		this.addChild(this.selectList);
 		this.addChild(new Spacer(1));
-		this.addChild(
-			new Text(
-				piTheme().fg(
-					"dim",
-					`  ${this.keyDisplayText("tui.select.confirm")} to select · ${this.keyDisplayText("app.thinking.save")} to set as default · ${this.keyDisplayText("tui.select.cancel")} to cancel`,
-				),
-				0,
-				0,
-			),
-		);
+		this.addChild(new Text(renderPiModalShortcutHints([
+			{ key: this.keyDisplayText("tui.select.confirm"), action: "to select" },
+			{ key: this.keyDisplayText("app.thinking.save"), action: "to set as default" },
+			{ key: this.keyDisplayText("tui.select.cancel"), action: "to cancel" },
+		], 2), 0, 0));
 		this.addChild(new DynamicBorder((text: string) => piTheme().fg("border", text)));
 	}
 

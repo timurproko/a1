@@ -3,8 +3,8 @@
  * packages/coding-agent/src/modes/interactive/components/extension-editor.ts.
  * Modifications: Mechanical port: remap pi-tui to the root public singleton, use owned
  * keybindings/theme and external-editor seams, preserve editor layout, hints, focus, submission,
- * cancellation, and external-editor lifecycle.
- * Deviations: none.
+ * cancellation, and external-editor lifecycle; bare A1 uses the shared semantic modal shortcut row.
+ * Deviations: owned-modal-shortcut-hints.
  */
 import {
   Container,
@@ -16,13 +16,7 @@ import {
 import { DynamicBorder, getSelectListTheme } from "@earendil-works/pi-coding-agent";
 import type { KeybindingsManager } from "../adjacent/core/keybindings.js";
 import { editInExternalEditor } from "../external-editor.js";
-import { piTheme } from "../../theme.js";
-
-type HintKey = "tui.select.confirm" | "tui.input.newLine" | "tui.select.cancel" | "app.editor.external";
-
-function keyHint(keybindings: KeybindingsManager, keybinding: HintKey, description: string): string {
-  return piTheme().fg("dim", keybindings.getKeys(keybinding).join("/")) + piTheme().fg("muted", ` ${description}`);
-}
+import { piTheme, renderPiModalShortcutHints } from "../../theme.js";
 
 export class ExtensionEditorComponent extends Container {
   readonly #editor: Editor;
@@ -76,10 +70,12 @@ export class ExtensionEditorComponent extends Container {
     this.#editor.onSubmit = onSubmit;
     this.addChild(this.#editor);
     this.addChild(new Spacer(1));
-    const hint = keyHint(this.#keybindings, "tui.select.confirm", "submit")
-      + "  " + keyHint(this.#keybindings, "tui.input.newLine", "newline")
-      + "  " + keyHint(this.#keybindings, "tui.select.cancel", "cancel")
-      + "  " + keyHint(this.#keybindings, "app.editor.external", "external editor");
+    const hint = renderPiModalShortcutHints([
+      { key: this.#keybindings.getKeys("tui.select.confirm").join("/"), action: "submit" },
+      { key: this.#keybindings.getKeys("tui.input.newLine").join("/"), action: "newline" },
+      { key: this.#keybindings.getKeys("tui.select.cancel").join("/"), action: "cancel" },
+      { key: this.#keybindings.getKeys("app.editor.external").join("/"), action: "external editor" },
+    ]);
     this.addChild(new Text(hint, 1, 0));
     this.addChild(new Spacer(1));
     this.addChild(new DynamicBorder());

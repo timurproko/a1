@@ -7,7 +7,7 @@ import {
   type Component,
   type Focusable,
 } from "@earendil-works/pi-tui";
-import { piTheme } from "./theme.js";
+import { piTheme, renderPiModalShortcutHints, type PiModalShortcutHint } from "./theme.js";
 
 export type ModelsDialogFilter = "all" | "scoped";
 
@@ -284,23 +284,23 @@ export class ModelsDialogComponent implements Component, Focusable {
 
     push();
     if (this.#refreshStatus !== undefined) push(theme.fg(this.#refreshStatus.kind, `  ${this.#refreshStatus.message}`));
-    push(theme.fg("dim", `  ${this.#hints().join(" · ")}`));
+    push(renderPiModalShortcutHints(this.#hints(), 2));
     push(border);
     return lines;
   }
 
-  #hints(): readonly string[] {
+  #hints(): readonly PiModalShortcutHint[] {
     const tab = keyLabel("tui.input.tab");
     const confirm = keyLabel("tui.select.confirm");
     const save = keyLabel("app.models.save");
     return [
-      "type to search",
-      "↑↓ navigate",
-      ...(tab.length === 0 ? [] : [`${tab} filter`]),
-      ...(confirm.length === 0 ? [] : [`${confirm} switch`]),
-      "space scope",
-      ...(save.length === 0 ? [] : [`${save} save`]),
-      "esc close",
+      { action: "type to search" },
+      { key: "↑↓", action: "navigate" },
+      ...(tab.length === 0 ? [] : [{ key: tab, action: "filter" }]),
+      ...(confirm.length === 0 ? [] : [{ key: confirm, action: "switch" }]),
+      { key: "space", action: "scope" },
+      ...(save.length === 0 ? [] : [{ key: save, action: "save" }]),
+      { key: "esc", action: "close" },
     ];
   }
 

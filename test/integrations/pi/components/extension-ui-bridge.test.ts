@@ -53,16 +53,29 @@ describe("pinned extension UI bridge", () => {
   it("opens, resolves, cancels, and restores selectors and text inputs", async () => {
     const value = fixture();
     const selection = value.bridge.context.select("Choose", ["alpha", "beta"]);
-    expect(stripTerminalSequences(value.inputSurface!.render(60).join("\n"))).toContain("alpha");
+    const selectorFrame = stripTerminalSequences(value.inputSurface!.render(60).join("\n"));
+    expect(selectorFrame).toContain("alpha");
+    expect(selectorFrame).toContain("↑↓ navigate  enter select  escape/ctrl+c cancel");
+    expect(selectorFrame).not.toMatch(/[·•]/u);
     value.inputSurface!.handleInput?.("\x1b[B");
     value.inputSurface!.handleInput?.("\r");
     await expect(selection).resolves.toBe("beta");
     expect(value.inputSurface).toBeNull();
 
     const input = value.bridge.context.input("Name", "placeholder");
+    const inputFrame = stripTerminalSequences(value.inputSurface!.render(60).join("\n"));
+    expect(inputFrame).toContain("enter submit  escape/ctrl+c cancel");
+    expect(inputFrame).not.toMatch(/[·•]/u);
     value.inputSurface!.handleInput?.("Ada");
     value.inputSurface!.handleInput?.("\r");
     await expect(input).resolves.toBe("Ada");
+
+    const editor = value.bridge.context.editor("Notes", "draft");
+    const editorFrame = stripTerminalSequences(value.inputSurface!.render(100).join("\n"));
+    expect(editorFrame).toContain(`enter submit  ${process.platform === "win32" ? "shift+enter/ctrl+j" : "shift+enter"} newline  escape/ctrl+c cancel  ctrl+g external editor`);
+    expect(editorFrame).not.toMatch(/[·•]/u);
+    value.inputSurface!.handleInput?.("\x1b");
+    await expect(editor).resolves.toBeUndefined();
 
     const controller = new AbortController();
     const cancelled = value.bridge.context.select("Abort", ["one"], { signal: controller.signal });

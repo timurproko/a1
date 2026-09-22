@@ -20,9 +20,9 @@ See `proposal.md` for motivation. Modal instruction rows are assembled in severa
 
 ### 1. Represent a hint row as semantic entries
 
-Introduce an owned formatter/component that accepts ordered entries containing a shortcut label and action name. It will paint the shortcut with the existing dim key role, paint the action with the muted text role, and join entries with exactly two unstyled spaces. Entries with no effective key are omitted unless the surface intentionally supplies a keyless instruction such as `type to search`.
+Introduce ordered semantic entries containing a shortcut label and action name. The A1 UI component layer and Pi component adapter each expose a thin boundary-local renderer for that same shape because architecture policy forbids either presentation layer importing the other. Both paint shortcuts with the existing dim key role, action names with the muted text role, and join entries with exactly two unstyled spaces; shared behavioral tests lock the two renderers to the same policy. Entries with no effective key are omitted unless the surface intentionally supplies a keyless instruction such as `type to search`.
 
-This keeps color boundaries and separators structural instead of relying on replacing rendered strings. Continuing to concatenate pre-styled strings at each call site was rejected because it allows separator and whole-line color drift to return.
+This keeps color boundaries and separators structural instead of relying on replacing rendered strings. Continuing to concatenate pre-styled strings at each call site or crossing presentation-layer boundaries for code reuse was rejected because either choice permits drift or violates the dependency policy.
 
 ### 2. Adapt every bare-A1 modal producer at its ownership boundary
 
@@ -47,7 +47,7 @@ Focused semantic-role tests will assert separate key/action ANSI roles and absen
 - **[Public Pi components hardcode their own hint rows]** → Adapt them only behind existing A1 factories, keep source provenance, and leave comparison-profile constructors untouched.
 - **[A broad punctuation search changes prose such as `default` annotations or regex help]** → Convert typed hint separators, not arbitrary rendered middle dots, and retain punctuation inside action text.
 - **[Narrow terminals wrap differently after structural formatting]** → Preserve each surface's clipping/wrapping policy and add width-focused snapshots with ANSI-safe measurements.
-- **[The shared formatter enters the eager startup graph]** → Keep it dependency-light, measure architecture/startup reachability, and use the isolated fixed-color equivalent for pre-resource trust.
+- **[The Pi renderer grows the eager startup graph]** → Keep it in the already-reachable theme façade, re-pin only the measured source-byte total (151 files / 1,442,925 bytes), and use the isolated fixed-color equivalent for pre-resource trust.
 - **[Theme changes leave pre-baked colors stale]** → Compute role styling during render or rebuild styled child content during invalidation, following the TUI invalidation contract.
 
 ## Migration Plan

@@ -65,7 +65,7 @@ export function createConsoleProjectTrustPrompt(
         optionRow("Trust", selected === 0),
         optionRow("Do not trust", selected === 1),
         "",
-        `${DIM}  ↑/↓ to navigate · Enter to select · Esc to cancel${RESET_FG}`,
+        `${DIM}  ↑/↓${MUTED} to navigate  ${DIM}Enter${MUTED} to select  ${DIM}Esc${MUTED} to cancel${RESET_FG}`,
       ];
       output.write(`${CLEAR_HOME}${lines.map(line => clipAnsiSafe(line, width)).join("\n")}`);
     };

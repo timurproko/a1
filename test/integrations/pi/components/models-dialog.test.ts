@@ -88,7 +88,11 @@ describe("unified Models dialog", () => {
       expect(active).toContain(piTheme().fg("dim", "○"));
       expect(active).toContain(piTheme().fg("accent", "gpt-5"));
       expect(stripped).toContain("  Model Name: GPT-5");
-      expect(stripped.at(-2)).toBe("  type to search · ↑↓ navigate · tab filter · enter switch · space scope · ctrl+s save · esc close");
+      expect(stripped.at(-2)).toBe("  type to search  ↑↓ navigate  tab filter  enter switch  space scope  ctrl+s save  esc close");
+      const footer = lines.at(-2)!;
+      expect(footer).toContain(piTheme().fg("dim", "↑↓"));
+      expect(footer).toContain(piTheme().fg("muted", "navigate"));
+      expect(footer).not.toMatch(/[·•]/u);
       expect(stripped).not.toContain("(unsaved)");
       expect(dialog.selectedModelId).toBe(ids.gpt5);
     });
@@ -287,15 +291,15 @@ describe("unified Models dialog", () => {
     it(`labels custom and unbound save hints on ${platform} without changing logical keys`, () => {
       const alt = platform === "darwin" ? "option" : "alt";
       withDialog((dialog, callbacks, keys) => {
-        expect(text(dialog)).toContain(`· ${alt}+s/ctrl+s save · esc close`);
+        expect(text(dialog)).toContain(`  ${alt}+s/ctrl+s save  esc close`);
         expect(keys.getKeys("app.models.save")).toEqual(["alt+s", "ctrl+s"]);
         dialog.handleInput(SPACE);
         dialog.handleInput("\u001bs");
         expect(callbacks.onSave).toHaveBeenCalledExactlyOnceWith([ids.gpt5]);
       }, {}, { "app.models.save": ["alt+s", "ctrl+s"] }, platform);
       withDialog((dialog, callbacks) => {
-        expect(text(dialog)).toContain("· space scope · esc close");
-        expect(text(dialog)).not.toContain(" save ·");
+        expect(text(dialog)).toContain("  space scope  esc close");
+        expect(text(dialog)).not.toContain(" save  esc close");
         dialog.handleInput(SPACE);
         dialog.handleInput(CTRL_S);
         expect(callbacks.onSave).not.toHaveBeenCalled();

@@ -896,7 +896,7 @@ export class SettingsApp implements UiApp {
     });
     this.#dialogValueColumn = dialogValueColumn(rows);
     this.#panelTop = this.#panelTopForFrame;
-    return renderDialogPanel({ rows, index: open.index, hint: SETTINGS_SHORTCUTS.hint(DIALOG_SCOPE) }, width, theme);
+    return renderDialogPanel({ rows, index: open.index, hint: SETTINGS_SHORTCUTS.hintEntries(DIALOG_SCOPE) }, width, theme);
   }
 
   #footerLines(width: number, theme: UiTheme): readonly string[] {

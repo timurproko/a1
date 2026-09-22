@@ -4,8 +4,9 @@
  * Modifications: Source-synchronized scoped-model selector port: preserve session-only toggles,
  * search, bulk/provider/reorder actions, dirty state, Ctrl+S persistence, refresh status,
  * cancellation, and focus while remapping theme and public helper imports; local key labels preserve
- * pinned platform formatting before layout without changing binding identities.
- * Deviations: none.
+ * pinned platform formatting before layout without changing binding identities, and bare A1 uses the
+ * shared semantic modal shortcut row.
+ * Deviations: owned-modal-shortcut-hints.
  */
 interface ScopedModel {
 	readonly provider: string;
@@ -25,7 +26,7 @@ import {
 } from "@earendil-works/pi-tui";
 import { DynamicBorder } from "@earendil-works/pi-coding-agent";
 import { getModelSearchText } from "../model-search.js";
-import { piTheme } from "../theme/theme.js";
+import { piTheme, renderPiModalShortcutHints } from "../../theme.js";
 
 // Rationale: upstream's capitalized hint formatter is private to the package; the same mapping lives here.
 function keyDisplayText(keybinding: Parameters<ReturnType<typeof getKeybindings>["getKeys"]>[0]): string {
@@ -167,9 +168,9 @@ export class ScopedModelsSelectorComponent extends Container implements Focusabl
 		this.addChild(new DynamicBorder());
 		this.addChild(new Spacer(1));
 		this.addChild(new Text(theme.fg("accent", theme.bold("Model Configuration")), 0, 0));
-		this.addChild(
-			new Text(theme.fg("muted", `Session-only. ${keyDisplayText("app.models.save")} to save to settings.`), 0, 0),
-		);
+		const saveKey = keyDisplayText("app.models.save");
+		this.addChild(new Text(theme.fg("muted", "Session-only.")
+			+ (saveKey ? ` ${renderPiModalShortcutHints([{ key: saveKey, action: "to save to settings." }])}` : ""), 0, 0));
 		this.addChild(new Spacer(1));
 
 		// Search input
@@ -230,19 +231,18 @@ export class ScopedModelsSelectorComponent extends Container implements Focusabl
 		const allEnabled = this.enabledIds === null;
 		const countText = allEnabled
 			? "all enabled"
-			: `${enabledCount}/${this.allIds.length} enabled${unavailableCount ? ` · ${unavailableCount} unavailable` : ""}`;
-		const parts = [
-			`${keyDisplayText("tui.select.confirm")} toggle`,
-			`${keyDisplayText("app.models.enableAll")} all`,
-			`${keyDisplayText("app.models.clearAll")} clear`,
-			`${keyDisplayText("app.models.toggleProvider")} provider`,
-			`${keyDisplayText("app.models.reorderUp")}/${keyDisplayText("app.models.reorderDown")} reorder`,
-			`${keyDisplayText("app.models.save")} save`,
-			countText,
-		];
-		return this.isDirty
-			? theme.fg("dim", `  ${parts.join(" · ")} `) + theme.fg("warning", "(unsaved)")
-			: theme.fg("dim", `  ${parts.join(" · ")}`);
+			: `${enabledCount}/${this.allIds.length} enabled${unavailableCount ? `, ${unavailableCount} unavailable` : ""}`;
+		const reorderKeys = [keyDisplayText("app.models.reorderUp"), keyDisplayText("app.models.reorderDown")].filter(Boolean).join("/");
+		const hint = renderPiModalShortcutHints([
+			{ key: keyDisplayText("tui.select.confirm"), action: "toggle" },
+			{ key: keyDisplayText("app.models.enableAll"), action: "all" },
+			{ key: keyDisplayText("app.models.clearAll"), action: "clear" },
+			{ key: keyDisplayText("app.models.toggleProvider"), action: "provider" },
+			{ key: reorderKeys, action: "reorder" },
+			{ key: keyDisplayText("app.models.save"), action: "save" },
+			{ action: countText },
+		], 2);
+		return this.isDirty ? `${hint} ${theme.fg("warning", "(unsaved)")}` : hint;
 	}
 
 	private refresh(): void {

@@ -100,4 +100,16 @@ describe("the listing", () => {
     expect(target.list(SCREEN).some(entry => entry.key === "n")).toBe(false);
     expect(target.list().some(entry => entry.key === "n")).toBe(true);
   });
+
+  it("exposes deduplicated semantic hint entries for modal rendering", () => {
+    const target = new ShortcutRegistry<"move-up" | "close">();
+    target.declare({ key: "up", scope: SCREEN, description: "Previous", hint: { keys: "↑↓", does: "navigate" } }, "move-up");
+    target.declare({ key: "down", scope: SCREEN, description: "Next", hint: { keys: "↑↓", does: "navigate" } }, "move-up");
+    target.declare({ key: "escape", scope: GLOBAL_SCOPE, description: "Close", hint: { keys: "esc", does: "close" } }, "close");
+    expect(target.hintEntries(SCREEN)).toEqual([
+      { key: "↑↓", action: "navigate" },
+      { key: "esc", action: "close" },
+    ]);
+    expect(target.hint(SCREEN)).toBe("↑↓ navigate · esc close");
+  });
 });
