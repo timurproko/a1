@@ -20,7 +20,7 @@ The manual merge accepts these scenarios:
   "archive": "openspec/changes/archive/2026-09-22-run-full-regression-in-repair-prs/",
   "acceptanceManifest": "openspec/changes/archive/2026-09-22-run-full-regression-in-repair-prs/acceptance.md",
   "finalizedDate": "2026-09-22",
-  "specBaseSha": "d24718c100d0839f0fca96a00301da17e468c012",
+  "specBaseSha": "7e4817466f99196f0455f4cf0ee7dbb5f357e6fe",
   "acceptanceScenarios": [
     "Selected nightly-repair and publishing-impact PRs expose complete regression as native PR checks.",
     "Planning-only drafts stay lightweight while selected implementation drafts receive full feedback without integration authority.",
