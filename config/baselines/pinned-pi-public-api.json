@@ -1502,9 +1502,7 @@
           "kind": "function",
           "hash": "54753d4c8d65fe246145b8ca66f66474e81ae9fae28f5087eb8748b5625364af",
           "consumers": [
-            "src/integrations/pi/components/skills-dialog.ts",
             "src/integrations/pi/components/upstream/components/tool-execution.ts",
-            "src/integrations/pi/components/upstream/components/trust-selector.ts",
             "src/integrations/pi/startup-public.ts"
           ]
         },
@@ -1965,8 +1963,6 @@
           "hash": "c70a4a1fd9c02da81d28740a0fc5ef27576a6be9f6ca2ca98ea785a4d5e170b0",
           "consumers": [
             "src/integrations/pi/components/shell-footer-status.ts",
-            "src/integrations/pi/components/skills-dialog.ts",
-            "src/integrations/pi/components/upstream/components/trust-selector.ts",
             "src/integrations/pi/startup-public.ts"
           ]
         },

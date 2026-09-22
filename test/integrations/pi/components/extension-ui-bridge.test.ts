@@ -72,7 +72,7 @@ describe("pinned extension UI bridge", () => {
 
     const editor = value.bridge.context.editor("Notes", "draft");
     const editorFrame = stripTerminalSequences(value.inputSurface!.render(100).join("\n"));
-    expect(editorFrame).toContain(`enter submit  ${process.platform === "win32" ? "shift+enter/ctrl+j" : "shift+enter"} newline  escape/ctrl+c cancel  ctrl+g external editor`);
+    expect(editorFrame).toContain("enter submit  shift+enter/ctrl+j newline  escape/ctrl+c cancel  ctrl+g external editor");
     expect(editorFrame).not.toMatch(/[·•]/u);
     value.inputSurface!.handleInput?.("\x1b");
     await expect(editor).resolves.toBeUndefined();
