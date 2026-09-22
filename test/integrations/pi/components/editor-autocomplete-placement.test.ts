@@ -54,8 +54,7 @@ function parts(editor: ReturnType<typeof createPiShellEditor>, width: number) {
 function expectSameAutocompleteLayout(actual: string[], expected: string[]): void {
   expect(actual.map(stripTerminalSequences)).toEqual(expected.map(stripTerminalSequences));
   for (const [index, row] of actual.entries()) {
-    // Bare A1 deliberately splits only the selected row's ANSI roles; placement parity
-    // still requires every unselected row to match pinned Pi byte-for-byte.
+    // Rationale: Bare A1 splits only the selected row's ANSI roles; every unselected row remains byte-identical to pinned Pi.
     if (!stripTerminalSequences(row).includes("→ ")) expect(row).toBe(expected[index]);
   }
 }
