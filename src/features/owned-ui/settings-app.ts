@@ -24,7 +24,7 @@ import {
   renderInputRow,
   renderListRow,
   renderNote,
-  renderStatusLine,
+  statusText,
   dialogRowAt,
   menuRowAt,
   regionAt,
@@ -32,6 +32,7 @@ import {
   withScrollbarRail,
   stepperEnds,
   steppedValue,
+  truncateToWidth,
   valueColumnFor,
   valueMenuFrame,
   blockRowSpan,
@@ -66,9 +67,15 @@ import type {
 import { SETTINGS_APP_ID, SETTINGS_ROUTE } from "./settings-route.js";
 export { SETTINGS_APP_ID, SETTINGS_ROUTE } from "./settings-route.js";
 const SCOPE = SETTINGS_APP_ID;
+const SETTINGS_TOP_RULE_ROWS = 1;
+const SETTINGS_TITLE_ROWS = 1;
+const SETTINGS_FOOTER_DIVIDER_ROWS = 1;
+const SETTINGS_SEARCH_INPUT_ROWS = 3;
+const SETTINGS_STATUS_ROWS = 1;
+const SETTINGS_CONTENT_INSET = 1;
 /** The panel a setting with parts opens: its own keys, its own hint. */
 const DIALOG_SCOPE = `${SETTINGS_APP_ID}-parts`;
-const SCROLLBAR_TOP_INSET = 1;
+const SCROLLBAR_TOP_INSET = 0;
 /** Identity of the settings list rail in the shared rail state. */
 const RAIL_KEY = "settings";
 // Compatibility: the transcript rail stays lit this long after a scroll, and repaints just after.
@@ -168,13 +175,15 @@ export class SettingsApp implements UiApp {
   #reveal: ListRowSpan | undefined;
   #notice: string | null = null;
   #filter: LineInput | null = null;
+  #scrollBeforeFilter: number | null = null;
   #menu: ValueMenu | null = null;
   #structured: StructuredEdit | null = null;
   #interruptArmed = false;
   // Invariant: pending values remain visible until the source reflects them.
   readonly #pending = new Map<string, OwnedUiSettingValue>();
-  #footerHeight = 1;
   #dialogValueColumn = 0;
+  #bodyTopForFrame = SETTINGS_TOP_RULE_ROWS + SETTINGS_TITLE_ROWS;
+  #bodyHeightForFrame = 0;
   #panelTop = 0;
   #panelTopForFrame = 0;
   #hoverKey: string | null = null;
@@ -209,17 +218,31 @@ export class SettingsApp implements UiApp {
     const rows = this.#rows();
     const selected = indexOfKey(rows, this.#selectedKey);
     const footer = this.#footerLines(rect.width, theme);
-    this.#footerHeight = footer.length;
-    this.#panelTopForFrame = Math.max(0, rect.height - footer.length);
-    this.#panelTop = this.#panelTopForFrame;
-    const bodyHeight = Math.max(0, rect.height - footer.length);
-    if (this.#selectionNeedsReveal) {
+    const dividerRows = this.#filter === null ? SETTINGS_FOOTER_DIVIDER_ROWS : 0;
+    const topRows = Math.min(SETTINGS_TOP_RULE_ROWS, rect.height);
+    const contentHeight = Math.max(0, rect.height - topRows - dividerRows - footer.length);
+    let titleRows = this.#scroll <= 0 ? Math.min(SETTINGS_TITLE_ROWS, contentHeight) : 0;
+    let bodyHeight = contentHeight - titleRows;
+    if (this.#selectionNeedsReveal && bodyHeight > 0) {
       this.#scroll = scrollForSelection(rows, bodyHeight, this.#scroll, selected, this.#reveal);
       this.#selectionNeedsReveal = false;
+      this.#reveal = undefined;
     }
-    this.#reveal = undefined;
+    if (this.#scroll > 0 && titleRows > 0) {
+      titleRows = 0;
+      bodyHeight = contentHeight;
+    }
 
-    const layout = layoutList(rows, bodyHeight, this.#scroll);
+    let layout = layoutList(rows, bodyHeight, this.#scroll);
+    if (layout.scroll === 0 && titleRows === 0) {
+      titleRows = Math.min(SETTINGS_TITLE_ROWS, contentHeight);
+      bodyHeight = contentHeight - titleRows;
+      layout = layoutList(rows, bodyHeight, 0);
+    }
+    this.#bodyTopForFrame = topRows + titleRows;
+    this.#bodyHeightForFrame = bodyHeight;
+    this.#panelTopForFrame = topRows + contentHeight + dividerRows;
+    this.#panelTop = this.#panelTopForFrame;
     this.#scroll = layout.scroll;
     const now = Date.now();
     // Rationale: every way of scrolling ends in this frame, so a moved list is noticed here
@@ -236,7 +259,7 @@ export class SettingsApp implements UiApp {
       contentLength: rows.length,
       viewportHeight: layout.visible,
       scroll: layout.scroll,
-      trackHeight: Math.max(0, bodyHeight - SCROLLBAR_TOP_INSET),
+      trackHeight: Math.max(0, titleRows + bodyHeight - SCROLLBAR_TOP_INSET),
     });
     const presentation = scrollbarPresentation({
       geometry,
@@ -249,7 +272,7 @@ export class SettingsApp implements UiApp {
     });
     this.#railFrame = reservesRail && geometry !== null
       ? {
-        rail: { key: RAIL_KEY, column: rect.width, rowStart: SCROLLBAR_TOP_INSET, trackHeight: geometry.trackHeight },
+        rail: { key: RAIL_KEY, column: rect.width, rowStart: topRows + SCROLLBAR_TOP_INSET, trackHeight: geometry.trackHeight },
         geometry,
         page: layout.visible,
       }
@@ -268,8 +291,8 @@ export class SettingsApp implements UiApp {
           const view = this.#viewRow(row.value);
           this.#frameRows.push({
             key: view.key,
-            screenRow: body.length,
-            valueColumn,
+            screenRow: this.#bodyTopForFrame + body.length,
+            valueColumn: valueColumn + Math.min(SETTINGS_CONTENT_INSET, contentWidth),
             valueWidth: displayWidth(view.value),
             stepper: view.stepper !== undefined,
           });
@@ -279,11 +302,23 @@ export class SettingsApp implements UiApp {
       while (body.length < bodyHeight) body.push("");
     }
 
-    const withRail = withScrollbarRail(body.slice(0, bodyHeight), geometry, contentWidth, theme, {
+    const title = truncateToWidth(` ${theme.bold(theme.fg("accent", "Settings"))}`, contentWidth);
+    const scrollingFrame = [...(titleRows === 0 ? [] : [title]), ...body.slice(0, bodyHeight)];
+    const withRail = withScrollbarRail(scrollingFrame, geometry, contentWidth, theme, {
       topInset: SCROLLBAR_TOP_INSET,
       presentation,
     });
-    return this.#withMenu([...withRail, ...footer], selected, layout, valueColumn, theme, rect, reservesRail ? RAIL_COLUMNS : 0);
+    const rule = theme.fg("border", "─".repeat(Math.max(0, rect.width)));
+    const frame = this.#withMenu(
+      [rule, ...withRail, ...(dividerRows === 0 ? [] : [rule]), ...footer],
+      selected,
+      layout,
+      valueColumn,
+      theme,
+      rect,
+      reservesRail ? RAIL_COLUMNS : 0,
+    );
+    return frame.slice(0, rect.height).concat(Array(Math.max(0, rect.height - frame.length)).fill(""));
   }
 
   onInput(data: string, host: AppHostServices): PaneInputResult {
@@ -302,6 +337,7 @@ export class SettingsApp implements UiApp {
         host.close();
         return { consumed: true };
       case "open-filter":
+        this.#scrollBeforeFilter = this.#scroll;
         this.#filter = new LineInput("");
         this.#notice = null;
         return { consumed: true };
@@ -406,8 +442,13 @@ export class SettingsApp implements UiApp {
     if (event.kind === "wheel-up" || event.kind === "wheel-down") {
       // Invariant: the whole list pane owns wheel scrolling, including blank space beside
       // short labels. It must not depend on finding an item under the pointer.
-      if (event.row < 1 || event.row > this.#panelTopForFrame) return { consumed: false };
+      const screenRow = event.row - 1;
+      const wheelBottom = this.#filter === null
+        ? this.#bodyTopForFrame + this.#bodyHeightForFrame
+        : this.#panelTopForFrame + SETTINGS_SEARCH_INPUT_ROWS + SETTINGS_STATUS_ROWS;
+      if (screenRow < 0 || screenRow >= wheelBottom) return { consumed: false };
       const distance = scrollbarWheelRows(this.#scrollbarSpeed());
+      if (this.#filter !== null) this.#scrollBeforeFilter = null;
       this.#scroll = Math.max(0, this.#scroll + (event.kind === "wheel-down" ? distance : -distance));
       return { consumed: true };
     }
@@ -608,6 +649,7 @@ export class SettingsApp implements UiApp {
     // Rationale: the boundary chords jump through the results; plain Home and End stay with
     // the search cursor, which the shared line input moves below.
     if (key === "ctrl+home" || key === "ctrl+end") {
+      this.#scrollBeforeFilter = null;
       const rows = this.#rows();
       const selectable = selectableIndexes(rows);
       const target = key === "ctrl+end" ? selectable.at(-1) : selectable[0];
@@ -618,6 +660,7 @@ export class SettingsApp implements UiApp {
       return { consumed: true };
     }
     if (key === "up" || key === "down" || key === "shift+up" || key === "shift+down") {
+      this.#scrollBeforeFilter = null;
       const rows = this.#rows();
       // Rationale: nothing found means nothing to move through; the key is still swallowed
       // rather than typed into the search.
@@ -634,8 +677,14 @@ export class SettingsApp implements UiApp {
     }
 
     const outcome = handleLineInputKey(input, data);
-    if (outcome.kind === "cancelled") this.#filter = null;
-    this.#scroll = 0;
+    if (outcome.kind === "cancelled") {
+      this.#filter = null;
+      if (this.#scrollBeforeFilter !== null) this.#scroll = this.#scrollBeforeFilter;
+      this.#scrollBeforeFilter = null;
+    } else {
+      this.#scrollBeforeFilter = null;
+      this.#scroll = 0;
+    }
     return { consumed: true };
   }
 
@@ -773,18 +822,20 @@ export class SettingsApp implements UiApp {
   }
 
   #header(title: string, theme: UiTheme, width: number): string {
-    return renderGroupHeader(humanizeTitle(title), width, theme);
+    if (width < SETTINGS_CONTENT_INSET) return "";
+    return ` ${renderGroupHeader(humanizeTitle(title), width - SETTINGS_CONTENT_INSET, theme)}`;
   }
 
   #renderRow(row: Row | undefined, selected: boolean, width: number, valueColumn: number, theme: UiTheme): string {
-    if (row === undefined || row.kind === "spacer") return "";
+    if (row === undefined || row.kind === "spacer" || width < SETTINGS_CONTENT_INSET) return "";
     if (row.kind === "group") return this.#header(row.title, theme, width);
-    if (row.kind === "note") return renderNote(row.text, width, theme);
+    const innerWidth = width - SETTINGS_CONTENT_INSET;
+    if (row.kind === "note") return ` ${renderNote(row.text, innerWidth, theme)}`;
 
     const entry = row.value;
     const key = `${entry.backend}:${entry.id}`;
     const hovered = this.#hoverKey === key;
-    return renderListRow(this.#viewRow(entry), { selected, hovered, region: this.#hoverRegion }, valueColumn, width, theme);
+    return ` ${renderListRow(this.#viewRow(entry), { selected, hovered, region: this.#hoverRegion }, valueColumn, innerWidth, theme)}`;
   }
 
   #viewRow(entry: OwnedUiSettingsEntry): ListViewRow {
@@ -825,7 +876,8 @@ export class SettingsApp implements UiApp {
       index: menu.index,
     };
     const frame = valueMenuFrame(state, { screenRow: anchor.screenRow, valueColumn }, {
-      bodyHeight: lines.length - this.#footerHeight,
+      bodyTop: this.#bodyTopForFrame,
+      bodyHeight: this.#bodyHeightForFrame,
       surfaceWidth: rect.width,
       reservedRight,
     });
@@ -853,7 +905,8 @@ export class SettingsApp implements UiApp {
     if (open !== null) return this.#dialogLines(open, width, theme);
 
     const hint = this.#interruptArmed ? "press ctrl+c again to exit a1" : SETTINGS_SHORTCUTS.hint(SCOPE);
-    const status = renderStatusLine({ hint, report: this.#notice }, width, theme);
+    const report = statusText({ hint, report: this.#notice });
+    const status = truncateToWidth(`${width > 0 ? " " : ""}${theme.fg("dim", report)}`, width);
     const input = this.#filter;
     if (input === null) return [status];
     return [...renderInputRow(input, width, { placeholder: SEARCH_PLACEHOLDER, theme }).lines, status];

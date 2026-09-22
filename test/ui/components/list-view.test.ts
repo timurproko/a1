@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { renderListRow, type ListViewRow, type UiTheme, type UiThemeToken } from "../../../src/ui/components/index.js";
+import { renderGroupHeader, renderListRow, type ListViewRow, type UiTheme, type UiThemeToken } from "../../../src/ui/components/index.js";
 
 /** Names every token it is asked for, so a row says which colour it chose. */
 const NAMING_THEME: UiTheme = Object.freeze({
   fg: (token: UiThemeToken, text: string) => `<${token}>${text}</${token}>`,
-  bold: (text: string) => text,
+  bold: (text: string) => `<b>${text}</b>`,
   plain: (text: string) => text,
   highlight: (text: string) => `<highlight>${text}</highlight>`,
   disabled: (text: string) => `<disabled>${text}</disabled>`,
@@ -18,6 +18,10 @@ function render(state: { selected: boolean; hovered: boolean; region: "label" | 
 }
 
 describe("list rows against the reader's terminal", () => {
+  it("renders a group name as a bold Markdown heading", () => {
+    expect(renderGroupHeader("Generic", 80, NAMING_THEME)).toBe("<mdHeading><b>Generic</b></mdHeading>");
+  });
+
   // Compatibility: a theme built for a light background writes near-black text; painting rows
   // with it puts a settings list out of reach in a dark terminal, so unselected
   // rows stay the terminal's own foreground, as the engine's lists do.
