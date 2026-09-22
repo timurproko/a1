@@ -4,7 +4,22 @@ Opened by the nightly regression triage from the failed run's evidence artifacts
 
 ## Decisions
 
-- To be written by the maintainer once the cause is known: what failed, why, and the smallest change that fixes it without reducing validation.
+- Maintainer approval: on 2026-09-22 the maintainer requested “fix publishing and consolidate 536 and 538” after the diagnosis. Continue in #536's existing branch/history, reconcile current develop, and preserve #538's evidence here before closing it as superseded. Do not delete its remote branch.
+- Publication run 35754423252 stopped before Windows package validation. `check-environment.mjs` used a 15-second version probe and converted absence, timeout, spawn error, nonzero exit, and unparseable output into the same null result. The log cannot establish which failure occurred. Provision and exercise Rust explicitly before CI builds and retain structured probe failures; keep the existing 15-second deadline and fail-closed build gate.
+- #529 added the owned thinking selector and moved upstream consumers without updating the public-API consumer record. Its list uses upstream `getSelectListTheme()` while its labels use owned `piTheme()`; `applyPiTheme(..., "truecolor")` does not pass that explicit mode to upstream initialization. Give list and borders owned semantic color callbacks, leave the pinned comparison selector unchanged, and cover both themes and color modes.
+- Recheck the API baseline after the current develop merge (#537 already regenerated it); regenerate only actual implementation-derived records.
+- Release #148 also timed out in the Windows Node 22 update-CLI beforeAll hook, which copies and compiles the entire source tree for a CLI-only isolation test. Investigate a narrower real compilation closure without relaxing the 30-second hook or subprocess bounds, loader guards, or assertions.
+- Full regression on the completed implementation is required before handoff. Local focused evidence and the smaller develop publication package suite are not substitutes.
+
+## Consolidated release and publication evidence
+
+- PR #538: https://github.com/timurproko/a1/pull/538, planning-only head `c07a02b88700e708b8c9a264dbecef80e1d9fdb8`; no executable changes to integrate.
+- Release #148: https://github.com/timurproko/a1/actions/runs/35705803548, attempt 1, scheduled on `6ae061516ba71675476541a958bd6e49903e280f`. Every lane failed `test/repository-governance/pinned-pi-public-api.test.ts:36` with consumer drift for DynamicBorder, getSelectListTheme, ThinkingSelectorComponent, and the selector's Pi TUI imports. Linux/macOS additionally failed `test/integrations/pi/components/prompt-input-ux.test.ts:181` (`palette:66` versus `90;128;128`). Windows Node 22 additionally timed out at `test/cli/update-cli.test.ts:16` in the 30000ms setup hook. The Publication result failure is downstream orchestration, not another root cause.
+- Develop publication: https://github.com/timurproko/a1/actions/runs/35754423252, attempt 1, source `7b80f6a30cf82ae654a668fc577734bdd33dcaa5`, candidate `0.1.8-dev.537`. `Validate win32-node24` failed `npm ci` in prepare/build with `Rust compiler: rustc is not on PATH`. The preflight consumed approximately 32 seconds across all probes. Package creation on another Windows runner and Linux/macOS package validation passed. Publishing was skipped. Timeout is plausible but unproven because the existing probe discarded its diagnostic result.
+
+## Known gaps
+
+Implementation and live validation are pending. Do not infer restored publication from local tests or publish before required remote validation passes.
 
 ## Evidence
 

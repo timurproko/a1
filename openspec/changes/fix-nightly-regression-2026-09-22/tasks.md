@@ -1,13 +1,19 @@
-## 1. Reproduce
+## 1. Consolidate and reproduce
 
-- [ ] 1.1 Reproduce the failure locally or on a dispatched Full regression of the failed head and record the exact failing test or command.
-- [ ] 1.2 Identify the introducing commit among the suspect range, or record that the failure is environmental.
+- [x] 1.1 Compare the original Full regression, Release, and develop publication logs and identify the failed commands and introducing changes or environmental uncertainty.
+- [x] 1.2 Record the maintainer-approved consolidation and both nightly failure records in #536; reconcile current develop.
+- [ ] 1.3 Close planning-only #538 as superseded after the consolidated evidence is pushed; retain its remote branch.
+- [ ] 1.4 Reproduce the owned-theme mismatch with deterministic color-mode coverage and recheck the public API baseline using current pinned dependencies.
 
-## 2. Fix
+## 2. Repair
 
-- [ ] 2.1 Fix the cause without weakening assertions, budgets, timeouts, or coverage.
-- [ ] 2.2 Add or adjust regression evidence where the failure exposed a gap.
+- [ ] 2.1 Explicitly prepare and verify Rust before release and Full regression builds.
+- [ ] 2.2 Preserve distinct missing, timeout, spawn, exit, and invalid-version probe diagnostics with hermetic tests and unchanged deadlines.
+- [ ] 2.3 Repair owned selector theme consistency without changing pinned comparison behavior; update derived governance records.
+- [ ] 2.4 Investigate and resolve or explicitly disposition the Windows update-CLI setup timeout without weakening isolation, assertions, or deadlines.
+- [ ] 2.5 Run focused tests, build/typecheck, and affected governance checks.
 
 ## 3. Prove
 
-- [ ] 3.1 Dispatch `gh workflow run full-regression.yml --ref <this branch>` on the completed fix head, wait for it, and record the run number and head under Evidence in design.md; the failed owners pass on the failed lane.
+- [ ] 3.1 Dispatch Full regression on the completed fix head and record the passing run number, exact head, and all platform/runtime outcomes in design.md.
+- [ ] 3.2 Complete evidence and gap disposition, finalize in this PR, and obtain required exact-head CI before manual handoff.
