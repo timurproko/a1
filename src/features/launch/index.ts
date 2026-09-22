@@ -8,5 +8,7 @@ export { configurationRootForProfile, resolveLaunchProfilePaths, resolvePromptHi
 export type { LaunchProfilePathOptions, LaunchProfilePaths } from "./profile-paths.js";
 export { prepareInteractiveLaunch } from "./prepare-launch.js";
 export type { PrepareInteractiveLaunchOptions, PreparedInteractiveLaunch } from "./prepare-launch.js";
+export { updateSessionRepositoryContext } from "./session-context.js";
+export type { SessionContextRequest } from "./session-context.js";
 export { runSelectedInteractiveRuntime, selectInteractiveRuntime } from "./runtime-selection.js";
 export type { InteractiveRuntimeRunners, InteractiveRuntimeSelection, OwnedUiProfileId } from "./runtime-selection.js";

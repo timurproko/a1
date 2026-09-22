@@ -4,9 +4,9 @@
  * Modifications: Preserve the searchable thinking-level selector, current/default semantics,
  * selection, save, cancellation, and focus while accepting the active bare-A1 cycle-key label from the
  * shell, styling the title with the established bold semantic accent treatment, placing its muted hint
- * directly below it, deduplicating levels, and rendering aligned muted descriptions after adjacent
- * active and bracketed default markers. All list and border colors use the owned theme and its
- * explicit color mode. The comparison profile retains the public pinned component.
+ * directly below it, deduplicating levels, and rendering aligned muted descriptions after an adjacent
+ * success-colored active marker. All list and border colors use the owned theme and its explicit color
+ * mode. The comparison profile retains the public pinned component.
  * Deviations: owned-level-cycle-shortcut, owned-thinking-selector-heading.
  */
 import {

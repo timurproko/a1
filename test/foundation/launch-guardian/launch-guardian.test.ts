@@ -62,6 +62,7 @@ describe("launch guardian", () => {
         version: async () => { throw new Error("unexpected version"); },
         update: async () => { throw new Error("unexpected update"); },
         packages: async () => { throw new Error("unexpected packages"); },
+        sessionContext: async () => { throw new Error("unexpected session context"); },
       }, { stdout() {}, stderr() {} }, cliCapabilities("0.1.8-dev"));
       expect(fixture.containment.spawn).toHaveBeenCalledWith(process.execPath, ["D:/release/bin/ui.js", ...args], expect.anything());
       expect(fixture.containment.close).toHaveBeenCalledOnce();
