@@ -108,9 +108,9 @@ describe("sticky headers and scrolling", () => {
     expect(stickyHeaderFor(ROWS, 8)).toBe("C");
   });
 
-  it("does not pin a header when the top row is itself a header or spacer", () => {
+  it("keeps the outgoing header over a section spacer but not over the next header", () => {
     expect(stickyHeaderFor(ROWS, 0)).toBeUndefined();
-    expect(stickyHeaderFor(ROWS, 3)).toBeUndefined();
+    expect(stickyHeaderFor(ROWS, 3)).toBe("A");
     expect(stickyHeaderFor(ROWS, 4)).toBeUndefined();
   });
 
@@ -179,5 +179,12 @@ describe("layout", () => {
   it("never lists a row past the end of the content", () => {
     const layout = layoutList(ROWS, 30, 0);
     expect(layout.rowIndexes.at(-1)).toBeLessThan(ROWS.length);
+  });
+
+  it("reaches the final row when the bottom starts on a section spacer", () => {
+    const layout = layoutList(ROWS, 10, 999);
+    expect(layout.stickyHeader).toBe("A");
+    expect(layout.rowIndexes[0]).toBe(4);
+    expect(layout.rowIndexes.at(-1)).toBe(ROWS.length - 1);
   });
 });
