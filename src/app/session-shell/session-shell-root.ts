@@ -304,7 +304,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   readonly #workflowStatusMessages = new Map<string, string>();
   #lastWorkflowStatusId: string | undefined;
   // Invariant: the notice is dock chrome, never transcript content; the custom viewport alone uses it.
-  #dockNotice: string | undefined;
+  #dockNotice: { readonly kind: "status" | "warning" | "error"; readonly message: string } | undefined;
   #inputSurface: PiShellComponentPort;
   #inputSurfaceCoordination: PiTuiInputSurfaceKind = "editor";
   readonly #dockInputReuseEnabled: boolean;
@@ -770,7 +770,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
         // fitting alignment, and live Working remain transient presentation chrome.
         selectableDocumentRowCount,
         ...(document.liveTailStartRow === undefined ? {} : { liveTailStartRow: document.liveTailStartRow }),
-        bottomAlignedTailRowCount: statusRows.length,
+        bottomAlignedTailRowCount: steeringRows.length + statusRows.length,
         dockRows,
         promptAnchors: document.promptAnchors,
         width,
@@ -903,9 +903,13 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   }
 
   #renderDockNotice(width: number): readonly string[] {
-    if (this.#dockNotice === undefined) return [];
-    // Compatibility: Pi pads its status text by one cell regardless of the output pad setting.
-    return ["", ...renderPiShellStatusText(this.#dockNotice, width, PINNED_PI_LAYOUT.outputPad)];
+    const notice = this.#dockNotice;
+    if (notice === undefined) return [];
+    if (notice.kind === "status") {
+      // Compatibility: Pi pads its status text by one cell regardless of the output pad setting.
+      return ["", ...renderPiShellStatusText(notice.message, width, PINNED_PI_LAYOUT.outputPad)];
+    }
+    return renderPiShellCommandMessage({ kind: notice.kind, message: notice.message }, width, this.#outputPad);
   }
 
   #dismissDockNotice(): void {
@@ -1117,7 +1121,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     // reader's eye already is, instead of a transcript row that opens an empty session at the
     // top-left or sinks into a long feed. The pinned route keeps Pi's chat placement.
     if (this.#customViewport) {
-      this.#dockNotice = message;
+      this.#dockNotice = { kind: "status", message };
       this.#invalidateChrome();
       return;
     }
@@ -1141,6 +1145,11 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   appendWorkflowMessage(message: PiWorkflowMessage): void {
     if (message.kind === "status") {
       this.appendWorkflowStatus(message.message);
+      return;
+    }
+    if (this.#customViewport && (message.kind === "warning" || message.kind === "error")) {
+      this.#dockNotice = { kind: message.kind, message: message.message };
+      this.#invalidateChrome();
       return;
     }
     this.#lastWorkflowStatusId = undefined;

@@ -21,6 +21,7 @@ vi.mock("node:worker_threads", async importOriginal => {
   } };
 });
 import { createPiEngineAdapter, PINNED_PI_HIDDEN_COMMAND_NAMES, PINNED_PI_WORKFLOW_COMMAND_NAMES } from "../../../src/integrations/pi/engine/index.js";
+import { piTheme } from "../../../src/integrations/pi/components/index.js";
 import { OwnedUiSessionShell } from "../../../src/app/session-shell/index.js";
 import { TestPresentationTerminal } from "../../features/owned-ui/neutral-port-doubles.js";
 import { Session, Runtime, fixture, nextImmediate } from "./session-shell-fixture.js";
@@ -450,6 +451,87 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
       expect(rowOf(plainRows(), "Model selection saved to settings")).toBeGreaterThan(-1);
       shell.root.resetWorkflowPresentation();
       expect(rowOf(plainRows(), "Model selection saved to settings")).toBe(-1);
+    } finally {
+      await shell.dispose();
+    }
+  });
+
+  it("keeps the screenshot chip but hides resize guidance from a submitted prompt", async () => {
+    const { engine, adapter, shell } = await fixture([], [], true);
+    const marker = "[📷 screenshot-0123456789]";
+    const note = "[Image: original 3840x2280, displayed at 2000x1188. Multiply coordinates by 1.92 to map to original image.]";
+    try {
+      shell.root.setImagePresentation(false, 40);
+      engine.session.emit({ type: "message_start", message: {
+        role: "user",
+        content: [
+          { type: "text", text: `${marker}\n\n${note}` },
+          { type: "image", data: "aW1hZ2U=", mimeType: "image/png" },
+        ],
+        timestamp: 1_000,
+      } });
+      await adapter.flushEvents();
+      const frame = stripTerminalSequences(shell.root.render(120).join("\n"));
+      expect(frame).toContain(marker);
+      expect(frame).not.toContain(note);
+      expect(frame).not.toContain("Image attached");
+      expect(frame).toContain("Image hidden: image/png");
+    } finally { await shell.dispose(); }
+  });
+
+  it("shows bare-A1 command errors and warnings as the transient dock notice above the editor", async () => {
+    const { terminal, shell } = await fixture([], [], true);
+    try {
+      terminal.resize(100, 20);
+      const exportFailure = "Failed to export session: Nothing to export yet - start a conversation first";
+      shell.root.appendWorkflowResult({ command: "export", outcome: "failed", message: exportFailure });
+      let rawRows = shell.root.render(100);
+      let rows = rawRows.map(row => stripTerminalSequences(row).trimEnd());
+      let notice = rows.findIndex(row => row.includes(`Error: ${exportFailure}`));
+      let border = rows.findIndex((row, index) => index > notice && /^─+$/.test(row));
+      expect(notice).toBeGreaterThan(0);
+      expect(rows.slice(0, notice - 1).every(row => row === "")).toBe(true);
+      expect(rows[notice - 1]).toBe("");
+      expect(rows[notice + 1]).toBe("");
+      expect(border).toBe(notice + 2);
+      expect(rawRows[notice]).toContain(piTheme().fg("error", `Error: ${exportFailure}`));
+      expect(shell.root.viewportFrameDescriptor()?.nextDocumentRange.end).toBe(0);
+
+      shell.root.appendWorkflowMessage({ kind: "warning", message: "Use a destination with write access" });
+      rawRows = shell.root.render(100);
+      rows = rawRows.map(row => stripTerminalSequences(row).trimEnd());
+      expect(rows.some(row => row.includes(exportFailure))).toBe(false);
+      notice = rows.findIndex(row => row.includes("Warning: Use a destination with write access"));
+      expect(notice).toBeGreaterThan(0);
+      expect(rows[notice]!.startsWith(" Warning:")).toBe(true);
+      expect(rawRows[notice]).toContain(piTheme().fg("warning", "Warning: Use a destination with write access"));
+      expect(shell.root.viewportFrameDescriptor()?.nextDocumentRange.end).toBe(0);
+
+      shell.root.addExtensionNotification("Extension export failed", "error");
+      rows = shell.root.render(100).map(row => stripTerminalSequences(row).trimEnd());
+      expect(rows.some(row => row.includes("Use a destination"))).toBe(false);
+      expect(rows.some(row => row.includes("Error: Extension export failed"))).toBe(true);
+
+      shell.root.appendWorkflowStatus("Model selection saved to settings");
+      rows = shell.root.render(100).map(row => stripTerminalSequences(row).trimEnd());
+      expect(rows.some(row => row.includes("Extension export failed"))).toBe(false);
+      expect(rows.some(row => row.includes("Model selection saved to settings"))).toBe(true);
+
+      shell.root.addExtensionNotification("Extension warning whose complete message wraps in a narrow dock", "warning");
+      rows = shell.root.render(32).map(row => stripTerminalSequences(row).trimEnd());
+      notice = rows.findIndex(row => row.includes("Warning: Extension warning"));
+      border = rows.findIndex((row, index) => index > notice && /^─+$/.test(row));
+      expect(notice).toBeGreaterThan(0);
+      const wrappedNotice = rows.slice(notice, border).join(" ").replace(/\s+/g, " ");
+      expect(wrappedNotice).toContain("complete message wraps in a");
+      expect(wrappedNotice).toContain("narrow dock");
+      expect(shell.root.viewportFrameDescriptor()?.nextDocumentRange.end).toBe(0);
+
+      shell.root.appendWorkflowResult({ command: "new", outcome: "completed", message: "New session started" });
+      rows = shell.root.render(100).map(row => stripTerminalSequences(row).trimEnd());
+      expect(rows.some(row => row.includes("Extension warning"))).toBe(false);
+      expect(rows.some(row => row.includes("New session started"))).toBe(true);
+      expect(shell.root.viewportFrameDescriptor()?.nextDocumentRange.end).toBeGreaterThan(0);
     } finally {
       await shell.dispose();
     }

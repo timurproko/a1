@@ -106,7 +106,7 @@ export interface TranscriptViewportFrameDescriptor {
   readonly transientRowCount: number;
   /** Flexible rows inserted before the bottom-aligned live status while content fits. */
   readonly transientAlignmentGapRows: number;
-  /** Live status rows at the end of the transient suffix. */
+  /** Bottom-aligned transient rows. */
   readonly bottomAlignedTailRowCount: number;
   /** Visible rows owned by the currently streaming transcript block. */
   readonly liveTailRows: number;

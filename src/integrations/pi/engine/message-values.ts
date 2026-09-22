@@ -33,6 +33,7 @@ export function sameBlockContent(left: OwnedUiTranscriptBlock, right: OwnedUiTra
     && left.status === right.status
     && left.title === right.title
     && left.text === right.text
+    && sameValue(left.userPresentation, right.userPresentation)
     && sameValue(left.toolState, right.toolState)
     && sameValue(left.toolRendering, right.toolRendering)
     && sameValue(left.payload, right.payload)
