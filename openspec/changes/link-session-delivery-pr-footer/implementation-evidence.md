@@ -16,7 +16,7 @@ Commands were run from `C:/git/a1/.worktrees/session-associated-pr-footer` on Wi
 | `npm exec -- openspec validate link-session-delivery-pr-footer --strict` | Valid. |
 | `npm run build` | Passed; runtime payload inventory and startup artifact generated. |
 | `npm run typecheck` | Passed for source and bin projects. |
-| `npm run check:architecture` | Passed architecture, product/package identity, refreshed 118-record Pi source ledger, and terminal provenance. Startup baseline was explicitly re-pinned to 152 source files / 1,456,075 bytes and 2,044 Pi artifact files / 9,564,564 evaluated bytes for the repository resolver and footer changes. |
+| `npm run check:architecture` | Passed architecture, product/package identity, refreshed 118-record Pi source ledger, and terminal provenance. Startup baseline was explicitly re-pinned to 152 source files / 1,456,756 bytes and 2,044 Pi artifact files / 9,564,564 evaluated bytes for the repository resolver and footer changes. |
 | `npm run check:code-documentation` and `npm run check:code-documentation:changed` | Passed. |
 | Focused store, CLI, repository resolver, runtime, adapter, contract, footer, dispatch, and guardian suites | 227 passed in the recorded focused run; the follow-up store/runtime/CLI run passed 10. |
 | `npm run test:pr-core` | Passed: typecheck, architecture, and 156 PR-core tests. |

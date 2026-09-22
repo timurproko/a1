@@ -2,9 +2,9 @@
  * Provenance: @earendil-works/pi-coding-agent 0.87.0 (MIT), commit 16787ad5b2dc748047f314ca1bfe7708f30f54f3,
  * packages/coding-agent/src/modes/interactive/components/footer.ts.
  * Modifications: Consumes neutral owned-UI view data instead of a fabricated concrete AgentSession; an
- * explicit bare-A1 profile colors the thinking-level name and adds its linked pull-request badge while
- * preserving the remaining footer layout and formatting, and replacement surfaces may suppress a
- * thinking level they already present.
+ * explicit bare-A1 profile colors the thinking-level name, renders its repository-context path, and
+ * reserves its linked pull-request badge before path truncation while preserving the remaining footer
+ * layout and formatting; replacement surfaces may suppress a thinking level they already present.
  * Deviations: owned-status-level-color, owned-pull-request-badge.
  */
 import { isAbsolute, relative, resolve, sep } from "node:path";
