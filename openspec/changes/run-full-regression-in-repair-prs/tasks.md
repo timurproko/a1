@@ -18,11 +18,11 @@
 - [x] 3.1 Update skill, workflow context, delivery/release/validation guidance, and affected task templates so selected PR full evidence replaces separate mandatory dispatch without a self-invalidating final-run-ID commit.
 - [x] 3.2 Add classifier, workflow/matrix, aggregate-negative, lifecycle-ordering, cadence-exemption, fork-permission, and triage-compatibility fixtures from design.md.
 - [x] 3.3 Verify ordinary PR cadence, standalone docs behavior, existing startup/runtime assertions, exact-package authority, and numbered-package nightly recovery requirements remain intact.
-- [ ] 3.4 Complete implementation evidence and known-gap disposition; reconcile the target and acceptance scenarios for finalization. Do not mark future final-head workflow outcomes as already completed tasks.
+- [x] 3.4 Complete implementation evidence and known-gap disposition; reconcile the target and acceptance scenarios for finalization. Do not mark future final-head workflow outcomes as already completed tasks.
 
 ## 4. Live validation and handoff gates
 
 - [x] 4.1 Verify native full-regression lane visibility in the implementation PR's actual Checks rollup and record pre-finalization observations without asserting they certify a later head.
-- [ ] 4.2 Verify standalone Full regression caller compatibility and retained schedule/triage contracts; record this implementation evidence before finalization.
+- [x] 4.2 Verify standalone Full regression caller compatibility and retained schedule/triage contracts; record this implementation evidence before finalization.
 
 After these substantive tasks and evidence are complete, automated finalization and one exact-head PR validation run must succeed, including selected Full regression, before manual handoff. That final remote gate is reported through Actions evidence and the handoff, not through an extra committed task or run-ID edit. No auto-merge or publication is part of this change.
