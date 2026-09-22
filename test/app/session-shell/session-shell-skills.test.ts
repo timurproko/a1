@@ -176,7 +176,10 @@ describe("OwnedUiSessionShell skills command", () => {
   it("collapses the installed menu and refreshes it live when the presentation changes", async () => {
     const { shell, skills, menu } = await skillsFixture();
     try {
-      let shown = await menu("/skill");
+      let shown = await menu("/s");
+      expect(shown.indexOf("settings")).toBeLessThan(shown.indexOf("skills"));
+      expect(shown.indexOf("skills")).toBeLessThan(shown.indexOf("session"));
+      shown = await menu("/skill");
       expect(shown).toContain("skills");
       expect(shown).toContain("Browse, search, and apply a skill");
       expect(shown).not.toContain("skill:framer");
