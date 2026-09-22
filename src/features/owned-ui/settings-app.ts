@@ -71,6 +71,7 @@ const SETTINGS_TOP_RULE_ROWS = 1;
 const SETTINGS_TITLE_ROWS = 1;
 const SETTINGS_FOOTER_DIVIDER_ROWS = 1;
 const SETTINGS_SEARCH_INPUT_ROWS = 3;
+const SETTINGS_STATUS_ROWS = 1;
 const SETTINGS_CONTENT_INSET = 1;
 /** The panel a setting with parts opens: its own keys, its own hint. */
 const DIALOG_SCOPE = `${SETTINGS_APP_ID}-parts`;
@@ -444,7 +445,7 @@ export class SettingsApp implements UiApp {
       const screenRow = event.row - 1;
       const wheelBottom = this.#filter === null
         ? this.#bodyTopForFrame + this.#bodyHeightForFrame
-        : this.#panelTopForFrame + SETTINGS_SEARCH_INPUT_ROWS;
+        : this.#panelTopForFrame + SETTINGS_SEARCH_INPUT_ROWS + SETTINGS_STATUS_ROWS;
       if (screenRow < 0 || screenRow >= wheelBottom) return { consumed: false };
       const distance = scrollbarWheelRows(this.#scrollbarSpeed());
       if (this.#filter !== null) this.#scrollBeforeFilter = null;

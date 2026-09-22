@@ -514,6 +514,20 @@ describe("the settings screen", () => {
     expect([...visited].sort()).toEqual(["History limit", "Output padding", "Persistent history", "Prompt suggestions", "Skills", "Thinking level"]);
   });
 
+  it("reaches the actual final setting by wheeling over the bottom of an open search", async () => {
+    const { app: target } = await app(false, undefined, WHEEL_SETTINGS);
+    const rect = { width: 80, height: 8 };
+    target.onInput?.("/", HOST);
+    let lines = target.render(rect, HOST).map(line => line.replace(STYLE, "").trimEnd());
+    for (let step = 0; step < 20; step++) {
+      // Invariant: the bottom status row still scrolls the results while search owns the footer.
+      target.onMouse?.({ kind: "wheel-down", button: 0, row: rect.height, column: 70 }, HOST);
+      lines = target.render(rect, HOST).map(line => line.replace(STYLE, "").trimEnd());
+    }
+    const promptRow = lines.findIndex(line => line.includes("search settings"));
+    expect(lines[promptRow - 2]).toContain("Output padding");
+  });
+
   it("restores the opening spacer when Ctrl+Home returns to the beginning during search", async () => {
     const { app: target } = await app();
     target.onInput?.("/", HOST);

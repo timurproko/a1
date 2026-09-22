@@ -46,7 +46,7 @@
 - [x] 8.3 Paint dropdown effective-value checkmarks in the accent role without replacing the selected row's panel/highlight treatment.
 - [x] 8.4 Add focused regressions and rerun strict OpenSpec, type, architecture, route-theme, settings, and component validation.
 
-## 9. Let search chrome scroll all results
+## 9. Let the search footer scroll all results
 
-- [x] 9.1 Route wheel input over the ruled search component to its result list and invalidate untouched-search restoration after deliberate wheel navigation.
-- [x] 9.2 Verify wheel scrolling from the search prompt reaches the final setting without restoring an obsolete pre-search position.
+- [x] 9.1 Route wheel input anywhere over the search footer, including its bottom status row, to the result list and invalidate untouched-search restoration after deliberate wheel navigation.
+- [x] 9.2 Verify wheel scrolling from the bottom row reaches the actual final setting without restoring an obsolete pre-search position.
