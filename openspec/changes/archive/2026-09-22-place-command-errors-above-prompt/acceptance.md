@@ -18,7 +18,7 @@ The manual merge accepts these scenarios:
   "archive": "openspec/changes/archive/2026-09-22-place-command-errors-above-prompt/",
   "acceptanceManifest": "openspec/changes/archive/2026-09-22-place-command-errors-above-prompt/acceptance.md",
   "finalizedDate": "2026-09-22",
-  "specBaseSha": "65f7e7c9d34a620f4af8b5f0f6ef6b2fe2ca9536",
+  "specBaseSha": "39b8df5eca7a09070803cdb7a12791c47bf44a97",
   "acceptanceScenarios": [
     "Bare A1 renders simple workflow errors and warnings in the transient notice immediately above the editor instead of in transcript content.",
     "Empty-session `/export` shows its exact red contextual failure without a top-left message or large gap.",
