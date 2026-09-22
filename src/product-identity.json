@@ -20,6 +20,7 @@
     "paneId": "A1_PANE_ID",
     "probeTrace": "A1_PROBE_TRACE",
     "processGuardianPath": "A1_PROCESS_GUARDIAN_PATH",
+    "prFooterPreview": "A1_PR_FOOTER_PREVIEW",
     "profileHome": "A1_PROFILE_HOME",
     "runtimeDir": "A1_RUNTIME_DIR",
     "startupTrace": "A1_STARTUP_TRACE",

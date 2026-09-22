@@ -1,14 +1,6 @@
 #!/bin/sh
 # Launch bare A1 with a deterministic clickable PR footer for manual presentation testing.
-fixture_dir="$(CDPATH= cd -- "$(dirname "$0")/development/pr-footer-preview" && pwd)"
-if [ "${OS:-}" = "Windows_NT" ]; then
-  fixture_bin="$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)/.artifacts/pr-footer-preview-bin"
-  mkdir -p "$fixture_bin"
-  fixture_script="$fixture_dir/gh-fixture.mjs"
-  if command -v cygpath >/dev/null 2>&1; then fixture_script="$(cygpath -w "$fixture_script")"; fi
-  printf '@echo off\r\nnode "%s" %%*\r\n' "$fixture_script" > "$fixture_bin/gh.cmd"
-  fixture_dir="$fixture_bin:$fixture_dir"
-fi
-PATH="$fixture_dir:$PATH"
-export PATH
+fixture="$(dirname "$0")/development/pr-footer-preview/pr-footer-fixture.mjs"
+A1_PR_FOOTER_PREVIEW="$(node "$fixture")"
+export A1_PR_FOOTER_PREVIEW
 exec "$(dirname "$0")/dev" "$@"

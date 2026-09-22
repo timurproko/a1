@@ -3056,7 +3056,8 @@
           "kind": "function",
           "hash": "9730bac132a52ab615493cbfc14ba9bf158b9f5e4402851fb9305e8711bc438b",
           "consumers": [
-            "src/integrations/pi/components/shell-shared-facade.ts"
+            "src/integrations/pi/components/shell-shared-facade.ts",
+            "src/integrations/pi/components/upstream/components/session-footer.ts"
           ]
         },
         {
