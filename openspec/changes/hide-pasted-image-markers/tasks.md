@@ -18,4 +18,4 @@
 ## 4. Validation and acceptance
 
 - [x] 4.1 Run focused tests, typecheck, build, architecture governance, strict OpenSpec validation, and diff hygiene.
-- [ ] 4.2 Physically verify through `./scripts/dev` that image chips remain visible, no `Image attached` notice appears, submitted resize guidance is hidden, and image delivery still works.
+- [x] 4.2 Physically verify through `./scripts/dev` that image chips remain visible, no `Image attached` notice appears, submitted resize guidance is hidden, and image delivery still works.
