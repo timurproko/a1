@@ -33,3 +33,11 @@ Update the existing shell-status assertions for zero and intermediate percentage
 ## Migration Plan
 
 No data or settings migration is required. Reverting the status-composition and matching test expectation restores the prior spacing.
+
+## Implementation Evidence
+
+- `npx vitest run test/integrations/pi/components/shell-components.test.ts` passes all 28 focused shell-component tests, including compact 0%, 37%, and 99% labels, the no-percentage fallback, extension overrides, and pinned presentation.
+- `npm run typecheck` passes both TypeScript project checks.
+- `npx --no-install openspec validate compact-compacting-progress-label --strict` passes.
+- `npm run build` passes on the implementation candidate after installing the worktree dependencies.
+- No known implementation gaps remain.
