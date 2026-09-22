@@ -54,7 +54,7 @@ export function valueColumnFor(rows: readonly ListViewRow[], indent = 2, gap = 2
 
 /** A group's name, above the rows that belong to it. */
 export function renderGroupHeader(title: string, width: number, theme: UiTheme): string {
-  return truncateToWidth(theme.fg("accent", theme.bold(title)), width);
+  return truncateToWidth(theme.fg("mdHeading", theme.bold(title)), width);
 }
 
 /**
