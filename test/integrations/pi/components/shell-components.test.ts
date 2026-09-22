@@ -24,6 +24,7 @@ import {
   createPiShellTranscriptComponent,
   PINNED_PI_BUILTIN_SLASH_COMMANDS,
   renderPiShellChangelogLines,
+  renderPiShellHotkeySections,
   renderPiShellHotkeysLines,
   renderPiShellTranscriptBlock,
   WorkingStatusIndicator,
@@ -434,15 +435,10 @@ describe("Pi shell public component adapters", () => {
     const shortcuts = () => [{ key: "ctrl+alt+p", description: "Probe extension" }];
     const hotkeysFeed = createPiShellHotkeys(undefined, shortcuts, "a1").render(width);
     expect(stripTerminalSequences(hotkeysFeed[2] ?? "")).toContain("Keyboard Shortcuts");
-    const hotkeys = renderPiShellHotkeysLines({ getShortcuts: shortcuts, profile: "a1" }, width);
-    const plainRows = hotkeys.map(row => stripTerminalSequences(row).trimEnd());
-    const plain = plainRows.join("\n");
-    for (const section of ["Navigation", "Editing", "Other", "Models dialog", "Extensions"]) {
-      const index = plainRows.findIndex(row => row.trim() === section);
-      expect(index).toBeGreaterThanOrEqual(0);
-      expect(hotkeys[index]).toContain(piTheme().fg("accent", piTheme().bold(section)));
-      expect(plainRows[index + 1]?.trim()).not.toBe("");
-    }
+    const sections = renderPiShellHotkeySections({ getShortcuts: shortcuts, profile: "a1" }, width);
+    expect(sections.map(section => section.title)).toEqual(["Navigation", "Editing", "Other", "Models dialog", "Extensions"]);
+    for (const section of sections) expect(stripTerminalSequences(section.rows[0] ?? "").trim()).not.toBe("");
+    const plain = stripTerminalSequences(sections.flatMap(section => section.rows).join("\n"));
     expect(plain).toContain("Start of content");
     expect(plain).toContain("Probe extension");
     expect(plain).not.toContain("Keyboard Shortcuts");

@@ -18,7 +18,7 @@ import { createPiTerminalBridge } from "../integrations/pi/tui-runtime/presentat
 import type { OwnedUiApplicationPort, PresentationTerminalPort } from "../contracts/presentation/index.js";
 import type { OwnedUiQuitOutroSettings, OwnedUiViewportSettings, OwnedUiViewportSettingsPort } from "../contracts/owned-ui/index.js";
 import { createOwnedRouteHost, type OwnedReferenceProviders } from "./settings-route-host.js";
-import { renderPiShellChangelogLines, renderPiShellHotkeysLines } from "../integrations/pi/components/shell-presenters-info.js";
+import { renderPiShellChangelogLines } from "../integrations/pi/components/shell-presenters-info.js";
 import { readPinnedCommandChangelog } from "../integrations/pi/engine/changelog.js";
 
 export interface OwnedUiCompositionOptions {
@@ -87,11 +87,12 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
   const references: OwnedReferenceProviders = {
     changelog: async input => {
       const markdown = input?.document ?? await readPinnedCommandChangelog();
-      return width => renderPiShellChangelogLines(markdown, width);
+      return { rows: width => renderPiShellChangelogLines(markdown, width) };
     },
     hotkeys: async () => {
       const presentation = shell.hotkeysPresentation();
-      return width => renderPiShellHotkeysLines(presentation, width);
+      const { renderPiShellHotkeySections } = await import("../integrations/pi/components/shell-hotkey-sections.js");
+      return { sections: width => renderPiShellHotkeySections(presentation, width) };
     },
   };
   const routeHost = settings === null || !ownedSurfaces ? null : createOwnedRouteHost(settings, references);

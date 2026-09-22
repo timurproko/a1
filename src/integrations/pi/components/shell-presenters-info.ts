@@ -1,5 +1,5 @@
 import { DynamicBorder, getMarkdownTheme } from "../startup-public.js";
-import { Container, Markdown, Spacer, Text, stripTerminalSequences, type KeybindingsConfig } from "@earendil-works/pi-tui";
+import { Container, Markdown, Spacer, Text, type KeybindingsConfig } from "@earendil-works/pi-tui";
 import { KeybindingsManager } from "./upstream/adjacent/core/keybindings.js";
 import { PINNED_PI_LAYOUT, piTheme } from "./theme.js";
 import { componentPort, ensureTheme, formatSessionTokens, type PiShellComponentPort, type PiShellExtensionRendererResolver } from "./shell-shared-facade.js";
@@ -200,39 +200,17 @@ export function createPiShellHotkeys(
   return componentPort(container);
 }
 
-const OWNED_HOTKEY_SECTION_LABELS = new Set(["Navigation", "Editing", "Other", "Models dialog", "Extensions"]);
-
-/** The keyboard-shortcut document rows for a reference screen, without feed chrome. */
+/** The keyboard-shortcut document rows the feed presenter shows, without its spacer, borders, and heading. */
 export function renderPiShellHotkeysLines(presentation: PiShellHotkeysPresentation, width: number): readonly string[] {
   ensureTheme();
-  const profile = presentation.profile ?? "pi";
-  const rows = hotkeysMarkdownComponent(hotkeysMarkdown(presentation.bindings, presentation.getShortcuts ?? (() => []), profile)).render(width);
-  return profile === "a1" ? styleOwnedHotkeySections(rows) : rows;
-}
-
-/** Gives owned section labels Settings' emphasis and removes Markdown's paragraph-to-table gap. */
-function styleOwnedHotkeySections(rows: readonly string[]): readonly string[] {
-  const styled: string[] = [];
-  for (let index = 0; index < rows.length; index++) {
-    const plain = stripTerminalSequences(rows[index] ?? "");
-    const label = plain.trim();
-    if (!OWNED_HOTKEY_SECTION_LABELS.has(label)) {
-      styled.push(rows[index] ?? "");
-      continue;
-    }
-    const leading = plain.length - plain.trimStart().length;
-    const trailing = plain.length - plain.trimEnd().length;
-    styled.push(`${" ".repeat(leading)}${piTheme().fg("accent", piTheme().bold(label))}${" ".repeat(trailing)}`);
-    if (stripTerminalSequences(rows[index + 1] ?? "").trim().length === 0) index++;
-  }
-  return styled;
+  return hotkeysMarkdownComponent(hotkeysMarkdown(presentation.bindings, presentation.getShortcuts ?? (() => []), presentation.profile ?? "pi")).render(width);
 }
 
 function hotkeysMarkdownComponent(markdown: string): Markdown {
   return new Markdown(markdown, 1, 1, getMarkdownTheme());
 }
 
-function hotkeysMarkdown(
+export function hotkeysMarkdown(
   bindings: KeybindingsConfig | undefined,
   getShortcuts: NonNullable<PiShellExtensionRendererResolver["getShortcuts"]>,
   profile: "pi" | "a1",
