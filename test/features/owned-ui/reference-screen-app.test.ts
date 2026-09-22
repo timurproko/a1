@@ -107,7 +107,7 @@ describe("ReferenceScreenApp frame", () => {
     ]);
     // Compatibility: the footer remains against the left edge and padded.
     const wideFooter = screen(target, { ...HOST, theme: NAMING_THEME }, { width: 100, height: RECT.height }).at(-1) ?? "";
-    expect(wideFooter.startsWith("<dim>esc</dim> <muted>close</muted>  <dim>↑↓</dim> <muted>scroll</muted> ")).toBe(true);
+    expect(wideFooter.startsWith("<dim>Esc</dim> <muted>close</muted>  <dim>↑↓</dim> <muted>scroll</muted> ")).toBe(true);
     expect(wideFooter).not.toMatch(/[·•]/u);
     // Invariant: a fitting document does not move and reserves the rail columns under auto.
     target.onInput?.(DOWN, HOST);

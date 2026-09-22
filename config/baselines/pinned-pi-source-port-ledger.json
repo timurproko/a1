@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-09-22T22:15:24.662Z",
+  "recordedAt": "2026-09-22T22:53:57.920Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "16787ad5b2dc748047f314ca1bfe7708f30f54f3",
@@ -38,8 +38,8 @@
     "sourceModules": 114,
     "assets": 4,
     "classifications": {
-      "public-api-reuse": 62,
-      "owned-presentation": 28,
+      "public-api-reuse": 60,
+      "owned-presentation": 30,
       "host-adaptation": 28
     },
     "requiredBehaviorIds": 29,
@@ -1617,12 +1617,21 @@
       "sourceMap": "modes/interactive/components/extension-input.js.map",
       "lines": 95,
       "sha256": "efd8f7c27b2a1f1a9215e0cca31a34b3d54db2783ade2914dfa1facf8e1945bd",
-      "classification": "public-api-reuse",
-      "localDestination": "src/integrations/pi/components/index.ts",
-      "implementationStatus": "available-through-pinned-package",
+      "classification": "owned-presentation",
+      "localDestination": "src/integrations/pi/components/upstream/components/extension-input.ts",
+      "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "None planned; import the exact component or helper from the pinned public coding-agent package root.",
-      "approvedDeviations": [],
+      "modifications": "Mechanical port: remap public imports, use ECMAScript private fields, and route the bare-A1 instruction row through the shared semantic shortcut renderer while preserving input, timeout, focus, submission, cancellation, and disposal behavior.",
+      "upgradeStrategy": "three-way",
+      "localSha256": "0ffef39917d9e6f959aededc8655050c03fa2c92e8e68401b82cd08456ad288b",
+      "approvedDeviations": [
+        {
+          "id": "owned-modal-shortcut-hints",
+          "reason": "Bare A1 uses display-capitalized shortcut labels, lowercase action names, semantic roles, and whitespace-only entry gaps.",
+          "upstreamBehavior": "The comparison profile retains pinned components while bare-A1 bindings, wording, and modal behavior remain unchanged.",
+          "acceptanceTest": "test/integrations/pi/components/extension-ui-bridge.test.ts"
+        }
+      ],
       "behaviorCategories": [
         "selectors",
         "settings",
@@ -1658,12 +1667,21 @@
       "sourceMap": "modes/interactive/components/extension-selector.js.map",
       "lines": 118,
       "sha256": "d83767b09d73264eb0cb9af54b6f13e0e9c15a429a6dd7b9c8e7498e013b7704",
-      "classification": "public-api-reuse",
-      "localDestination": "src/integrations/pi/components/index.ts",
-      "implementationStatus": "available-through-pinned-package",
+      "classification": "owned-presentation",
+      "localDestination": "src/integrations/pi/components/upstream/components/extension-selector.ts",
+      "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "None planned; import the exact component or helper from the pinned public coding-agent package root.",
-      "approvedDeviations": [],
+      "modifications": "Mechanical port: remap public imports, use ECMAScript private fields, and route the bare-A1 instruction row through the shared semantic shortcut renderer while preserving options, timeout, navigation, selection, cancellation, and disposal behavior.",
+      "upgradeStrategy": "three-way",
+      "localSha256": "d11ba6067431ac13493b0fa7f08d05369370f4ff507281bdfe68b3ffe0c9d4d0",
+      "approvedDeviations": [
+        {
+          "id": "owned-modal-shortcut-hints",
+          "reason": "Bare A1 uses display-capitalized shortcut labels, lowercase action names, semantic roles, and whitespace-only entry gaps.",
+          "upstreamBehavior": "The comparison profile retains pinned components while bare-A1 bindings, wording, and modal behavior remain unchanged.",
+          "acceptanceTest": "test/integrations/pi/components/extension-ui-bridge.test.ts"
+        }
+      ],
       "behaviorCategories": [
         "selectors",
         "settings",

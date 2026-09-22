@@ -1,8 +1,8 @@
 ## 1. Establish the shared shortcut-row presentation
 
 - [x] 1.1 Inventory every shortcut-bearing bare-A1 modal node and classify its current formatter, width policy, ownership boundary, and comparison-profile behavior.
-- [x] 1.2 Add boundary-safe semantic hint-entry renderers with dim shortcut labels, muted action names, two-space entry gaps, platform-aware effective labels, ANSI-safe clipping/wrapping, and an exact startup source-byte baseline.
-- [x] 1.3 Add focused component tests for semantic color roles, exact spacing, omitted unbound actions, punctuation inside descriptions, narrow widths, and theme invalidation.
+- [x] 1.2 Add a framework-neutral semantic hint-entry renderer with boundary-local theme wrappers, display-capitalized dim shortcut labels, lowercase muted action names, two-space entry gaps, platform-aware effective labels, ANSI-safe clipping/wrapping, and an exact startup source-byte baseline.
+- [x] 1.3 Add focused component tests for display casing, semantic color roles, exact spacing, omitted unbound actions, punctuation inside descriptions, narrow widths, and theme invalidation.
 
 ## 2. Adopt the presentation across modal surfaces
 

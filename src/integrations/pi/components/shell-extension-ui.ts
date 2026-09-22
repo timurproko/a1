@@ -1,12 +1,10 @@
 import {
-  ExtensionInputComponent,
-  ExtensionSelectorComponent,
   type ExtensionUIContext,
   getSelectListTheme,
 } from "../startup-public.js";
-import {
-  ExtensionEditorComponent,
-} from "./upstream/components/extension-editor.js";
+import { ExtensionEditorComponent } from "./upstream/components/extension-editor.js";
+import { ExtensionInputComponent } from "./upstream/components/extension-input.js";
+import { ExtensionSelectorComponent } from "./upstream/components/extension-selector.js";
 import {
   setKeybindings,
   Text,

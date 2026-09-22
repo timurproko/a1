@@ -63,13 +63,15 @@ function verify(actual: Capture, expected: Capture): void {
   expect(actual.progressRows, `${actual.id} before catalog completion`).toEqual(expected.progressRows);
   expect(actual.surfaceOpen, `${actual.id} input ownership`).toBe(expected.surfaceOpen);
   if (/\/(tree|scoped-models|trust|resume|thinking|model)\//u.test(expected.id)) {
-    // Compatibility: bare A1 changes modal-hint styling, separators, and consequent wrapping; pinned text and behavior remain the oracle.
+    // Compatibility: bare A1 changes modal-hint styling, display casing, separators, and consequent wrapping; pinned text and behavior remain the oracle.
     const plainSurfaceText = (rows: readonly string[]) => {
       let text = rows.map(row => stripTerminalSequences(row).replace(/\s*·\s*/gu, " "))
-        .join("\n").replace(/\s+/gu, " ").trim();
+        .join("\n").replace(/\s+/gu, " ").trim()
+        .replace(/\b(?:Alt|Backspace|Cmd|Ctrl|Delete|Down|End|Enter|Esc|Escape|Home|Insert|Left|Meta|Option|PageDown|PageUp|PgDn|PgUp|Return|Right|Shift|Space|Tab|Up)\b/gu, key => key.toLowerCase())
+        .replace(/(?<=[+/])[A-Z](?=[/+\s]|$)/gu, key => key.toLowerCase());
       if (expected.id.includes("/scoped-models/unbound-hints/")) {
         text = text.replace("Session-only. to save to settings.", "Session-only.")
-          .replace("provider /Shift+Ctrl+Down reorder save all enabled", "provider Shift+Ctrl+Down reorder all enabled");
+          .replace("provider /shift+ctrl+down reorder save all enabled", "provider shift+ctrl+down reorder all enabled");
       }
       return text;
     };

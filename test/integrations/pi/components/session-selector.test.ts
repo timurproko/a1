@@ -65,7 +65,7 @@ describe("owned pinned session selector", () => {
     expect(frame()).toContain("Resume Session (Current Folder)");
     expect(frame()).toContain("Current session");
     const hintRows = component.render(100).filter(row => stripPortableTerminalSequences(row).includes("scope"));
-    expect(hintRows.map(stripPortableTerminalSequences).join("\n")).toContain('tab scope  re:<pattern> regex  "phrase" exact');
+    expect(hintRows.map(stripPortableTerminalSequences).join("\n")).toContain('Tab scope  re:<pattern> regex  "phrase" exact');
     expect(hintRows.join("\n")).not.toMatch(/[·•]/u);
 
     input("Prompt other");

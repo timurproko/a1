@@ -883,6 +883,8 @@
             "src/integrations/pi/components/skills-dialog.ts",
             "src/integrations/pi/components/upstream/components/earendil-announcement.ts",
             "src/integrations/pi/components/upstream/components/extension-editor.ts",
+            "src/integrations/pi/components/upstream/components/extension-input.ts",
+            "src/integrations/pi/components/upstream/components/extension-selector.ts",
             "src/integrations/pi/components/upstream/components/scoped-models-selector.ts",
             "src/integrations/pi/components/upstream/components/session-selector.ts",
             "src/integrations/pi/components/upstream/components/thinking-selector.ts",
@@ -1054,7 +1056,6 @@
           "kind": "class",
           "hash": "a913dae6b70d1df97d2cbe56c09249c2d213f34edca9528f9e79cb0a6abd317f",
           "consumers": [
-            "src/integrations/pi/components/shell-extension-ui.ts",
             "src/integrations/pi/startup-public.ts"
           ]
         },
@@ -1076,7 +1077,6 @@
           "hash": "b4a845b4055a50486312a5b2e4b073b9c494d00d77921ed5e46163c1baba2361",
           "consumers": [
             "src/integrations/pi/components/conformance.ts",
-            "src/integrations/pi/components/shell-extension-ui.ts",
             "src/integrations/pi/components/shell-selectors-dialogs.ts",
             "src/integrations/pi/startup-public.ts"
           ]
@@ -2936,6 +2936,8 @@
             "src/integrations/pi/components/skills-dialog.ts",
             "src/integrations/pi/components/upstream/components/earendil-announcement.ts",
             "src/integrations/pi/components/upstream/components/extension-editor.ts",
+            "src/integrations/pi/components/upstream/components/extension-input.ts",
+            "src/integrations/pi/components/upstream/components/extension-selector.ts",
             "src/integrations/pi/components/upstream/components/scoped-models-selector.ts",
             "src/integrations/pi/components/upstream/components/session-selector.ts",
             "src/integrations/pi/components/upstream/components/skill-invocation-message.ts",
@@ -3114,6 +3116,8 @@
           "consumers": [
             "src/integrations/pi/components/models-dialog.ts",
             "src/integrations/pi/components/skills-dialog.ts",
+            "src/integrations/pi/components/upstream/components/extension-input.ts",
+            "src/integrations/pi/components/upstream/components/extension-selector.ts",
             "src/integrations/pi/components/upstream/components/scoped-models-selector.ts",
             "src/integrations/pi/components/upstream/components/session-selector.ts",
             "src/integrations/pi/components/upstream/components/skill-invocation-message.ts",
@@ -3218,6 +3222,7 @@
           "consumers": [
             "src/integrations/pi/components/models-dialog.ts",
             "src/integrations/pi/components/skills-dialog.ts",
+            "src/integrations/pi/components/upstream/components/extension-input.ts",
             "src/integrations/pi/components/upstream/components/scoped-models-selector.ts",
             "src/integrations/pi/components/upstream/components/session-selector.ts",
             "src/integrations/pi/components/upstream/components/thinking-selector.ts",
@@ -3667,6 +3672,8 @@
             "src/integrations/pi/components/skills-dialog.ts",
             "src/integrations/pi/components/upstream/components/earendil-announcement.ts",
             "src/integrations/pi/components/upstream/components/extension-editor.ts",
+            "src/integrations/pi/components/upstream/components/extension-input.ts",
+            "src/integrations/pi/components/upstream/components/extension-selector.ts",
             "src/integrations/pi/components/upstream/components/scoped-models-selector.ts",
             "src/integrations/pi/components/upstream/components/session-selector.ts",
             "src/integrations/pi/components/upstream/components/thinking-selector.ts",
@@ -3756,6 +3763,8 @@
             "src/integrations/pi/components/tool-image-presentation.ts",
             "src/integrations/pi/components/upstream/components/earendil-announcement.ts",
             "src/integrations/pi/components/upstream/components/extension-editor.ts",
+            "src/integrations/pi/components/upstream/components/extension-input.ts",
+            "src/integrations/pi/components/upstream/components/extension-selector.ts",
             "src/integrations/pi/components/upstream/components/scoped-models-selector.ts",
             "src/integrations/pi/components/upstream/components/session-selector.ts",
             "src/integrations/pi/components/upstream/components/skill-invocation-message.ts",
@@ -3810,6 +3819,8 @@
             "src/integrations/pi/components/upstream/components/countdown-timer.ts",
             "src/integrations/pi/components/upstream/components/daxnuts.ts",
             "src/integrations/pi/components/upstream/components/extension-editor.ts",
+            "src/integrations/pi/components/upstream/components/extension-input.ts",
+            "src/integrations/pi/components/upstream/components/extension-selector.ts",
             "src/integrations/pi/components/upstream/components/owned-editor.ts",
             "src/integrations/pi/components/upstream/components/status-indicator.ts",
             "src/integrations/pi/components/upstream/components/tool-execution.ts",

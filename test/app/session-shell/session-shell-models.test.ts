@@ -94,7 +94,7 @@ describe("bare-A1 unified Models dialog", () => {
       text = frame(shell);
       expect(text).toContain("→ ○ gpt-5 [openai] ✓");
       expect(text).toContain("  ○ claude [anthropic]");
-      expect(text).toContain("space scope  ctrl+s save  esc close");
+      expect(text).toContain("Space scope  Ctrl+S save  Esc close");
       shell.root.handleInput(ESCAPE);
 
       const open = vi.spyOn(shell, "showModelsDialog");

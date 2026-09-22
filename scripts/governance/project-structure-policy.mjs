@@ -25,7 +25,7 @@ export const PROJECT_OWNERS = Object.freeze({
   release: owner("release", "foundation", "src/foundation/release", "test/foundation/release", ["lifecycle", "protocol", "startup", "terminal-cleanup", "launch-context"]),
   storage: owner("storage", "foundation", "src/foundation/storage", "test/foundation/storage", ["lifecycle"]),
   "owned-ui-contracts": owner("owned-ui-contracts", "foundation", "src/contracts/owned-ui", "test/contracts/owned-ui", []),
-  "ui-components": owner("ui-components", "foundation", "src/ui/components", "test/ui/components", []),
+  "ui-components": owner("ui-components", "foundation", "src/ui/components", "test/ui/components", ["presentation-contracts"]),
   "ui-apps": owner("ui-apps", "foundation", "src/ui/apps", "test/ui/apps", ["ui-components"]),
   "owned-ui-settings": owner("owned-ui-settings", "foundation", "src/ui/settings", "test/ui/settings", ["agent-engine-contracts", "owned-ui-contracts"]),
   "agent-engine-contracts": owner("agent-engine-contracts", "foundation", "src/contracts/agent-engine", "test/contracts/agent-engine", []),

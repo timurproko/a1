@@ -20,7 +20,7 @@ See `proposal.md` for motivation. Modal instruction rows are assembled in severa
 
 ### 1. Represent a hint row as semantic entries
 
-Introduce ordered semantic entries containing a shortcut label and action name. The A1 UI component layer and Pi component adapter each expose a thin boundary-local renderer for that same shape because architecture policy forbids either presentation layer importing the other. Both paint shortcuts with the existing dim key role, action names with the muted text role, and join entries with exactly two unstyled spaces; shared behavioral tests lock the two renderers to the same policy. Entries with no effective key are omitted unless the surface intentionally supplies a keyless instruction such as `type to search`.
+Introduce ordered semantic entries containing a shortcut label and action name. A framework-neutral presentation-contract renderer owns key display capitalization, omission, ordering, and two-space joining. The A1 UI component layer and Pi component adapter each expose a thin boundary-local theme wrapper around that renderer because architecture policy forbids either presentation layer importing the other. Both wrappers paint shortcuts with the existing dim key role and action names with the muted text role. Entries with no effective key are omitted unless the surface intentionally supplies a keyless instruction such as `type to search`.
 
 This keeps color boundaries and separators structural instead of relying on replacing rendered strings. Continuing to concatenate pre-styled strings at each call site or crossing presentation-layer boundaries for code reuse was rejected because either choice permits drift or violates the dependency policy.
 
@@ -40,14 +40,14 @@ The pre-resource project-trust prompt will use its existing fixed dim and muted 
 
 ### 5. Make completeness testable
 
-Focused semantic-role tests will assert separate key/action ANSI roles and absence of `·`/`•` separators for representative selector, searchable, nested confirmation, editor/input, startup, Settings, Changelog, and Hotkeys surfaces. An inventory-backed audit will ensure each shortcut-bearing bare-A1 dialog node or owned full-screen dialog route is covered by the shared formatter or explicitly has no shortcut row. Existing interaction tests remain the authority for effective bindings and lifecycle behavior.
+Focused semantic-role tests will assert display-capitalized shortcut labels, lowercase action names, separate key/action ANSI roles, and absence of `·`/`•` separators for representative selector, searchable, nested confirmation, editor/input, startup, Settings, Changelog, and Hotkeys surfaces. An inventory-backed audit will ensure each shortcut-bearing bare-A1 dialog node or owned full-screen dialog route is covered by the shared formatter or explicitly has no shortcut row. Existing interaction tests remain the authority for effective bindings and lifecycle behavior.
 
 ## Risks / Trade-offs
 
 - **[Public Pi components hardcode their own hint rows]** → Adapt them only behind existing A1 factories, keep source provenance, and leave comparison-profile constructors untouched.
 - **[A broad punctuation search changes prose such as `default` annotations or regex help]** → Convert typed hint separators, not arbitrary rendered middle dots, and retain punctuation inside action text.
 - **[Narrow terminals wrap differently after structural formatting]** → Preserve each surface's clipping/wrapping policy and add width-focused snapshots with ANSI-safe measurements.
-- **[The Pi renderer grows the eager startup graph]** → Keep it in the already-reachable theme façade, re-pin only the measured source-byte total (151 files / 1,442,925 bytes), and use the isolated fixed-color equivalent for pre-resource trust.
+- **[The Pi renderer grows the eager startup graph]** → Keep shared semantics in the already-reachable presentation contract and themed wrappers in their existing façades, re-pin only the measured source-byte total (154 files / 1,459,246 bytes), and use the isolated fixed-color equivalent for pre-resource trust.
 - **[Theme changes leave pre-baked colors stale]** → Compute role styling during render or rebuild styled child content during invalidation, following the TUI invalidation contract.
 
 ## Migration Plan

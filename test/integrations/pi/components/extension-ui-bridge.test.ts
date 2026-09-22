@@ -55,7 +55,7 @@ describe("pinned extension UI bridge", () => {
     const selection = value.bridge.context.select("Choose", ["alpha", "beta"]);
     const selectorFrame = stripTerminalSequences(value.inputSurface!.render(60).join("\n"));
     expect(selectorFrame).toContain("alpha");
-    expect(selectorFrame).toContain("↑↓ navigate  enter select  escape/ctrl+c cancel");
+    expect(selectorFrame).toContain("↑↓ navigate  Enter select  Escape/Ctrl+C cancel");
     expect(selectorFrame).not.toMatch(/[·•]/u);
     value.inputSurface!.handleInput?.("\x1b[B");
     value.inputSurface!.handleInput?.("\r");
@@ -64,7 +64,7 @@ describe("pinned extension UI bridge", () => {
 
     const input = value.bridge.context.input("Name", "placeholder");
     const inputFrame = stripTerminalSequences(value.inputSurface!.render(60).join("\n"));
-    expect(inputFrame).toContain("enter submit  escape/ctrl+c cancel");
+    expect(inputFrame).toContain("Enter submit  Escape/Ctrl+C cancel");
     expect(inputFrame).not.toMatch(/[·•]/u);
     value.inputSurface!.handleInput?.("Ada");
     value.inputSurface!.handleInput?.("\r");
@@ -72,7 +72,7 @@ describe("pinned extension UI bridge", () => {
 
     const editor = value.bridge.context.editor("Notes", "draft");
     const editorFrame = stripTerminalSequences(value.inputSurface!.render(100).join("\n"));
-    expect(editorFrame).toContain("enter submit  shift+enter/ctrl+j newline  escape/ctrl+c cancel  ctrl+g external editor");
+    expect(editorFrame).toContain("Enter submit  Shift+Enter/Ctrl+J newline  Escape/Ctrl+C cancel  Ctrl+G external editor");
     expect(editorFrame).not.toMatch(/[·•]/u);
     value.inputSurface!.handleInput?.("\x1b");
     await expect(editor).resolves.toBeUndefined();

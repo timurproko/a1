@@ -88,7 +88,7 @@ describe("unified Models dialog", () => {
       expect(active).toContain(piTheme().fg("dim", "○"));
       expect(active).toContain(piTheme().fg("accent", "gpt-5"));
       expect(stripped).toContain("  Model Name: GPT-5");
-      expect(stripped.at(-2)).toBe("  type to search  ↑↓ navigate  tab filter  enter switch  space scope  ctrl+s save  esc close");
+      expect(stripped.at(-2)).toBe("  type to search  ↑↓ navigate  Tab filter  Enter switch  Space scope  Ctrl+S save  Esc close");
       const footer = lines.at(-2)!;
       expect(footer).toContain(piTheme().fg("dim", "↑↓"));
       expect(footer).toContain(piTheme().fg("muted", "navigate"));
@@ -145,7 +145,7 @@ describe("unified Models dialog", () => {
       expect(stripTerminalSequences(lines[2]!)).toBe("Models (unsaved)");
       expect(lines[2]).toBe(`${piTheme().fg("accent", piTheme().bold("Models"))}${piTheme().fg("warning", " (unsaved)")}`);
       expect(rows(dialog)[1]).toBe("→ ● gpt-5 [openai] ✓");
-      expect(text(dialog)).not.toMatch(/esc close\n.*unsaved/u);
+      expect(text(dialog)).not.toMatch(/Esc close\n.*unsaved/u);
       dialog.handleInput(TAB);
       expect(dialog.filter).toBe("scoped");
       expect(stripTerminalSequences(dialog.render(200)[3]!)).toBe("Filter: all | scoped");
@@ -289,17 +289,17 @@ describe("unified Models dialog", () => {
 
   for (const platform of ["darwin", "win32", "linux"] as const) {
     it(`labels custom and unbound save hints on ${platform} without changing logical keys`, () => {
-      const alt = platform === "darwin" ? "option" : "alt";
+      const alt = platform === "darwin" ? "Option" : "Alt";
       withDialog((dialog, callbacks, keys) => {
-        expect(text(dialog)).toContain(`  ${alt}+s/ctrl+s save  esc close`);
+        expect(text(dialog)).toContain(`  ${alt}+S/Ctrl+S save  Esc close`);
         expect(keys.getKeys("app.models.save")).toEqual(["alt+s", "ctrl+s"]);
         dialog.handleInput(SPACE);
         dialog.handleInput("\u001bs");
         expect(callbacks.onSave).toHaveBeenCalledExactlyOnceWith([ids.gpt5]);
       }, {}, { "app.models.save": ["alt+s", "ctrl+s"] }, platform);
       withDialog((dialog, callbacks) => {
-        expect(text(dialog)).toContain("  space scope  esc close");
-        expect(text(dialog)).not.toContain(" save  esc close");
+        expect(text(dialog)).toContain("  Space scope  Esc close");
+        expect(text(dialog)).not.toContain(" save  Esc close");
         dialog.handleInput(SPACE);
         dialog.handleInput(CTRL_S);
         expect(callbacks.onSave).not.toHaveBeenCalled();

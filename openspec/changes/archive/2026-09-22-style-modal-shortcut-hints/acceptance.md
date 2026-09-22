@@ -3,7 +3,7 @@
 Verdict: accepted only when the containing exact pull-request head is manually merged by an authorized human after required current-head validation.
 
 The manual merge accepts these scenarios:
-- Bare-A1 modal and full-screen dialog shortcut rows show dim shortcut labels and muted action names with two-space gaps and no decorative dot or bullet separators.
+- Bare-A1 modal and full-screen dialog shortcut rows show display-capitalized dim shortcut labels and lowercase muted action names with two-space gaps and no decorative dot or bullet separators.
 - Models, Skills, Settings, Changelog, Hotkeys, thinking, scoped-model, session, tree, trust, and extension-editor surfaces retain their effective bindings and action wording.
 - Keyless prose, action-first grammar, unavailable bindings, and platform-specific key labels render without empty or malformed hint entries.
 - Narrow dialog layouts remain ANSI-safe and preserve their existing clipping or wrapping behavior.
@@ -22,7 +22,7 @@ The manual merge accepts these scenarios:
   "finalizedDate": "2026-09-22",
   "specBaseSha": "39b8df5eca7a09070803cdb7a12791c47bf44a97",
   "acceptanceScenarios": [
-    "Bare-A1 modal and full-screen dialog shortcut rows show dim shortcut labels and muted action names with two-space gaps and no decorative dot or bullet separators.",
+    "Bare-A1 modal and full-screen dialog shortcut rows show display-capitalized dim shortcut labels and lowercase muted action names with two-space gaps and no decorative dot or bullet separators.",
     "Models, Skills, Settings, Changelog, Hotkeys, thinking, scoped-model, session, tree, trust, and extension-editor surfaces retain their effective bindings and action wording.",
     "Keyless prose, action-first grammar, unavailable bindings, and platform-specific key labels render without empty or malformed hint entries.",
     "Narrow dialog layouts remain ANSI-safe and preserve their existing clipping or wrapping behavior.",

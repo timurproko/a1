@@ -19,13 +19,16 @@ const MODAL_HINT_COVERAGE = Object.fromEntries([
   ...`tree.root tree.summary-choice tree.summary-custom`.split(" ").map(id => [id, "owned-tree"]),
   ...`session.resume.current session.resume.all session.resume.rename session.resume.delete`.split(" ").map(id => [id, "owned-sessions"]),
   ...`extension.editor`.split(" ").map(id => [id, "owned-extension-editor"]),
-  ...`session.fork session.missing-cwd auth.login-type auth.login-provider auth.logout-provider auth.dialog.oauth auth.dialog.api-key auth.dialog.ambient auth.dialog.details auth.dialog.auth-url auth.dialog.device-code auth.dialog.select-prompt auth.dialog.manual-code auth.dialog.text-prompt auth.dialog.info auth.dialog.waiting auth.dialog.progress command.import-confirm operation.share-loader extension.select extension.confirm extension.input`.split(" ").map(id => [id, "already-semantic"]),
+  ...`extension.select extension.confirm extension.input`.split(" ").map(id => [id, "owned-extension-prompts"]),
+  ...`session.fork session.missing-cwd auth.login-type auth.login-provider auth.logout-provider auth.dialog.oauth auth.dialog.api-key auth.dialog.ambient auth.dialog.details auth.dialog.auth-url auth.dialog.device-code auth.dialog.select-prompt auth.dialog.manual-code auth.dialog.text-prompt auth.dialog.info auth.dialog.waiting auth.dialog.progress command.import-confirm operation.share-loader`.split(" ").map(id => [id, "already-semantic"]),
   ...`editor.root operation.reload-loader extension.custom-editor extension.custom-replacement extension.overlay`.split(" ").map(id => [id, "no-owned-shortcut-row"]),
 ]);
 const SHARED_HINT_SOURCES = [
   "src/integrations/pi/components/models-dialog.ts",
   "src/integrations/pi/components/skills-dialog.ts",
   "src/integrations/pi/components/upstream/components/extension-editor.ts",
+  "src/integrations/pi/components/upstream/components/extension-input.ts",
+  "src/integrations/pi/components/upstream/components/extension-selector.ts",
   "src/integrations/pi/components/upstream/components/scoped-models-selector.ts",
   "src/integrations/pi/components/upstream/components/session-selector.ts",
   "src/integrations/pi/components/upstream/components/thinking-selector.ts",
@@ -169,10 +172,15 @@ describe("pinned Pi modal transition graph", () => {
   it("maps every inventory node to its shortcut-presentation ownership", async () => {
     const inventory = await loadInventory();
     expect(Object.keys(MODAL_HINT_COVERAGE).sort()).toEqual(inventory.nodes.map(node => node.id).sort());
+    const semanticRenderer = await readFile("src/contracts/presentation/index.ts", "utf8");
+    expect(semanticRenderer).toContain("displayShortcutKeyLabel(entry.key)");
+    expect(semanticRenderer).toContain("roles.key(");
+    expect(semanticRenderer).toContain("roles.action(");
+    expect(semanticRenderer).toContain('.join("  ")');
     const helper = await readFile("src/integrations/pi/components/theme.ts", "utf8");
-    expect(helper).toContain('theme.fg("dim", entry.key)');
-    expect(helper).toContain('theme.fg("muted", entry.action)');
-    expect(helper).toContain('.join("  ")');
+    expect(helper).toContain("renderSemanticShortcutHints");
+    expect(helper).toContain('theme.fg("dim", text)');
+    expect(helper).toContain('theme.fg("muted", text)');
     for (const path of SHARED_HINT_SOURCES) {
       expect(await readFile(path, "utf8"), path).toContain("renderPiModalShortcutHints");
     }

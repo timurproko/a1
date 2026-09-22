@@ -13,8 +13,8 @@ describe("modal shortcut hints", () => {
       { key: "enter", action: "select" },
       { key: "escape", action: "cancel" },
     ], theme, 2);
-    expect(rendered).toBe("  \u001b[2m↑↓\u001b[0m \u001b[22mnavigate\u001b[0m  \u001b[2menter\u001b[0m \u001b[22mselect\u001b[0m  \u001b[2mescape\u001b[0m \u001b[22mcancel\u001b[0m");
-    expect(stripAnsi(rendered)).toBe("  ↑↓ navigate  enter select  escape cancel");
+    expect(rendered).toBe("  \u001b[2m↑↓\u001b[0m \u001b[22mnavigate\u001b[0m  \u001b[2mEnter\u001b[0m \u001b[22mselect\u001b[0m  \u001b[2mEscape\u001b[0m \u001b[22mcancel\u001b[0m");
+    expect(stripAnsi(rendered)).toBe("  ↑↓ navigate  Enter select  Escape cancel");
     expect(rendered).not.toMatch(/[·•]/u);
   });
 
@@ -22,10 +22,10 @@ describe("modal shortcut hints", () => {
     const rendered = renderShortcutHints([
       { action: "type to search" },
       { key: "", action: "save" },
-      { key: "ctrl+p", action: "open (current/default)" },
+      { key: "ctrl+p/alt+up", action: "open (current/default)" },
       { key: "1/2/3", action: "filters", actionFirst: true },
     ], theme);
-    expect(stripAnsi(rendered)).toBe("type to search  ctrl+p open (current/default)  filters 1/2/3");
+    expect(stripAnsi(rendered)).toBe("type to search  Ctrl+P/Alt+Up open (current/default)  filters 1/2/3");
     expect(stripAnsi(rendered)).not.toContain("save");
   });
 
