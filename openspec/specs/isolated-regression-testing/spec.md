@@ -204,7 +204,7 @@ A confirmed regression SHALL gain the smallest independent current-contract test
 - **AND** the existing deadline SHALL remain enforced
 
 ### Requirement: Changed tests pass in pull-request validation
-A retained or newly added pull-request-eligible test SHALL pass in the pull-request validation of continuous integration before its change is integrated. A changed exhaustive-only test SHALL receive focused deterministic contract validation in the pull request, SHALL be recorded as cadence-deferred, and SHALL remain mandatory in Full regression and nightly/release validation. Local execution is an optional debugging aid, not a completion gate.
+A retained or newly added pull-request-eligible test SHALL pass in the pull-request validation of continuous integration before its change is integrated. A changed exhaustive-only test SHALL receive focused deterministic contract validation in the ordinary PR scopes and SHALL remain mandatory in Full regression and nightly/release validation. If trusted PR policy selects complete regression, the exhaustive test SHALL additionally execute within that PR's full suite rather than being reported as wholly deferred. Otherwise it SHALL be recorded as cadence-deferred. Local execution is an optional debugging aid, not a completion gate.
 
 #### Scenario: Pull-request validation passes
 - **WHEN** continuous integration validates the pull request containing changed pull-request-eligible tests
@@ -212,9 +212,14 @@ A retained or newly added pull-request-eligible test SHALL pass in the pull-requ
 - **AND** no local suite execution SHALL be required
 
 #### Scenario: Exhaustive-only test changes
-- **WHEN** a pull request changes a test whose declared cadence is exhaustive
-- **THEN** pull-request validation SHALL run its focused deterministic contract coverage and report the exhaustive test as cadence-deferred
+- **WHEN** a PR changes an exhaustive test and trusted policy proves PR Full regression unselected
+- **THEN** ordinary validation SHALL run its focused deterministic contract coverage and report the exhaustive test as cadence-deferred
 - **AND** the exhaustive test SHALL remain required in Full regression and nightly/release validation without reduced assertions
+
+#### Scenario: Exhaustive-only test changes with full selection
+- **WHEN** release impact, repair association, or opt-in selects PR Full regression
+- **THEN** the retained exhaustive test SHALL execute in the PR full suite with its original assertions and targets
+- **AND** focused deterministic success SHALL not substitute for a failed exhaustive result
 
 ### Requirement: Resource-sensitive regressions avoid shared runner contention
 Automated tests that repeatedly create repositories, launch subprocesses, mutate temporary storage, or coordinate release processes SHALL be eligible for a declared resource-sensitive execution class. Tests in that class SHALL run one file at a time in one serial process under the partition's explicit hang bound rather than sharing the parallel fast-test worker pool. Classification SHALL be reviewed configuration, SHALL be applied consistently across supported platforms, and SHALL not suppress output, remove assertions, or authorize retries of semantic failures. The hang bound SHALL be a fixed explicit value shared with the other explicit fast-tier invocations, not a per-test allowance that grows to fit a slow test. Repeated isolated evidence SHALL expose available fixture and subprocess timing and SHALL name every test body above five seconds, and a test that stays on that list SHALL be optimized rather than accommodated. Tests not assigned to the class SHALL retain the ordinary fast scheduler unless another declared isolation contract applies.
@@ -278,35 +283,40 @@ Release validation SHALL exercise bounded retention migration, live superseded c
 - **THEN** cleanup SHALL accept the canonical managed identity, delete only the obsolete contained artifact, and preserve unrelated paths
 
 ### Requirement: Development startup validation uses one required Windows runtime lane
-For non-draft pull requests into `develop` that are neither documentation-only nor version-only, Development validation SHALL select first-attempt exact-package startup according to the complete trusted impact selection. A selected startup scope SHALL run exactly one Windows Node 22 startup lane and SHALL NOT schedule a Windows Node 24 PR startup lane. Manual invocation of Development validation SHALL use the same startup runtime selection and SHALL run the retained development scopes conservatively when no trusted change comparison exists. This is a validation-cadence decision, not removal of Node 24 runtime support or of tests from their retained scopes.
+For non-draft pull requests into `develop` that are neither documentation-only nor version-only, ordinary Development scopes SHALL select first-attempt exact-package startup according to the complete trusted impact selection. An ordinary selected startup scope SHALL run exactly one Windows Node 22 startup lane and SHALL NOT schedule an additional Node 24 lane in that bounded scope. Manual invocation of Development validation SHALL retain the same ordinary startup runtime selection and conservative retained development scopes when no trusted comparison exists. A separately selected PR Full regression SHALL additionally execute the complete suite, including Windows Node 22 and Node 24, through its shared complete-regression matrix. This explicit full-suite exception SHALL not change ordinary scope cadence or supported Node runtimes.
 
-The retained Node 22 startup scope SHALL preserve first-attempt exact-package startup checks, enabled Defender real-time protection, unchanged performance limits, isolation, assertions, failure semantics, and evidence artifacts. Image preparation, packaged image workers, and durable-history compatibility SHALL remain Node 22 impact-selectable PR scopes independent of startup timing. Package identity, layer reuse, cleanup backlog, and updater cancellation/loss scenarios SHALL retain explicit exact-package owners instead of running solely because startup timing was selected. Changed tests and support SHALL select all affected owners even without production changes. Full-regression and nightly/release compositions SHALL retain all extracted scenarios on their existing applicable platforms and runtimes.
+The retained Node 22 startup scope SHALL preserve first-attempt exact-package startup checks, enabled Defender real-time protection, unchanged performance limits, isolation, assertions, failure semantics, and evidence artifacts. Image preparation, packaged image workers, and durable-history compatibility SHALL remain Node 22 impact-selectable ordinary scopes independent of startup timing. Package identity, layer reuse, cleanup backlog, and updater cancellation/loss scenarios SHALL retain explicit exact-package owners. Changed tests and support SHALL select all affected owners even without production changes. Full-regression and nightly/release compositions SHALL retain all extracted scenarios on their existing applicable platforms and runtimes.
 
-Documentation-only and version-only exemptions and draft behavior SHALL remain unchanged. This change SHALL not introduce a reduced startup smoke test in place of the complete selected startup contract or weaken the required aggregate.
+Ordinary documentation-only, version-only, and draft exemptions SHALL remain unchanged except for explicitly selected PR Full regression. Planning-only drafts SHALL stay lightweight; selected implementation drafts MAY run full validation without gaining integration authority. No reduced startup smoke test SHALL replace the complete selected startup contract or weaken the required aggregate.
 
 #### Scenario: Applicable code PR is validated
-- **WHEN** a ready code/operational PR has classified startup impact
+- **WHEN** a ready PR has startup impact and trusted policy proves full regression unselected
 - **THEN** exactly one Windows startup lane SHALL run on Node 22
 - **AND** no Node 24 startup job SHALL be queued or required for that PR
-- **AND** all retained startup assertions SHALL execute without semantic retries or ignored failures
+- **AND** retained startup assertions SHALL execute without semantic retries or ignored failures
+
+#### Scenario: Full regression is selected inside a PR
+- **WHEN** a repair or publishing-impact PR requires complete regression
+- **THEN** its full matrix SHALL retain both Windows runtimes and the complete startup contract
+- **AND** ordinary Node 22 success SHALL not exempt the selected full Node 24 result
 
 #### Scenario: Exempt or draft PR is evaluated
-- **WHEN** a PR is documentation-only, version-only, or draft
-- **THEN** the existing applicable validation and startup-skip behavior SHALL be preserved rather than starting either startup lane unnecessarily
+- **WHEN** an unselected docs-only or version-only PR, or a planning-only draft, is evaluated
+- **THEN** existing lightweight behavior SHALL be preserved without starting startup lanes unnecessarily
 
 #### Scenario: Development validation is manually dispatched
-- **WHEN** the maintainer invokes Development validation for a non-exempt source without a trusted impact comparison
-- **THEN** the startup portion SHALL run on Windows Node 22 only and all retained development compatibility scopes SHALL run
-- **AND** full Windows Node 24 validation SHALL remain available through the separate Full regression workflow
+- **WHEN** the maintainer invokes ordinary Development validation for a non-exempt source without a trusted impact comparison
+- **THEN** its startup portion SHALL run on Windows Node 22 only and retained development compatibility scopes SHALL run
+- **AND** complete Windows Node 24 coverage SHALL remain available through Full regression
 
 #### Scenario: Startup is proven unrelated
-- **WHEN** complete trusted classification proves a ready PR does not affect startup and no startup test, supporting input, or invalidator changed
-- **THEN** the Node 22 startup job SHALL be explicitly unselected
+- **WHEN** complete trusted classification proves a ready PR does not affect startup, no supporting input or invalidator changed, and full regression is unselected
+- **THEN** the ordinary Node 22 startup job SHALL be explicitly unselected
 - **AND** mandatory fast partitions and every other selected integration scope SHALL still gate the PR
 
 #### Scenario: Image or history compatibility changes
 - **WHEN** an image/history implementation, packaged worker, test, or shared dependency changes
-- **THEN** all affected Node 22 compatibility owners SHALL execute independently of whether startup timing is selected
+- **THEN** all affected Node 22 compatibility owners SHALL execute independently of whether ordinary startup timing is selected
 - **AND** any transitive startup impact SHALL still select startup validation
 
 #### Scenario: Cleanup scenarios move out of the startup suite
@@ -315,26 +325,30 @@ Documentation-only and version-only exemptions and draft behavior SHALL remain u
 - **AND** changes to those tests or their dependencies SHALL require their PR execution
 
 ### Requirement: Required PR validation remains fail closed after runtime deferral
-The required development aggregate SHALL depend on successful current-head Node 22 startup validation whenever the authoritative impact selection requires it, without waiting for a Node 24 PR startup result. It SHALL also require every selected image/history, exact-package, and containment scope. A failed, cancelled, missing, or unexpectedly skipped required result SHALL NOT be accepted as successful validation. An unselected startup result SHALL be accepted only with a complete trustworthy current-head selection explicitly proving it unnecessary; missing or invalid selection SHALL require conservative execution or block the aggregate. Nightly or earlier-head results SHALL NOT substitute for current-head PR checks. The named protected-branch aggregate and every other selected or mandatory gate SHALL remain in force.
+The required development aggregate SHALL depend on successful current-head Node 22 startup validation whenever authoritative ordinary impact selection requires it. It SHALL not wait for Node 24 evidence when trusted policy proves complete regression unselected. When PR Full regression is selected, the aggregate SHALL additionally require its complete matrix, including Windows Node 24. It SHALL also require every selected image/history, exact-package, containment, delivery, and governance scope. Failed, cancelled, missing, stale, or unexpectedly skipped required results SHALL NOT be accepted as successful validation. Unselected work SHALL be accepted only with complete trustworthy current-head selection explicitly proving it unnecessary; missing or invalid selection SHALL require conservative execution or block the aggregate. Nightly, independent dispatch, or earlier-head results SHALL NOT substitute for current PR checks. The named protected aggregate and all other mandatory gates SHALL remain in force.
 
 #### Scenario: Required Node 22 startup succeeds
-- **WHEN** current-head Node 22 startup and every other selected required PR gate succeed
-- **THEN** the aggregate SHALL be able to succeed without any Node 24 PR startup result
+- **WHEN** Node 22 startup and every other required PR gate succeed and full regression is proven unselected
+- **THEN** the aggregate MAY succeed without any Node 24 startup result
+
+#### Scenario: Selected full runtime coverage fails
+- **WHEN** ordinary Node 22 startup passes but a selected full Node 24 or other native lane does not succeed
+- **THEN** the protected aggregate SHALL remain unsuccessful
 
 #### Scenario: Retained startup coverage does not succeed
-- **WHEN** a PR's selected Node 22 startup job fails, is cancelled, is missing, or is unexpectedly skipped
+- **WHEN** selected Node 22 startup fails, is cancelled, is missing, or is unexpectedly skipped
 - **THEN** the required aggregate SHALL reject the result and integration SHALL remain blocked
 
 #### Scenario: Previous or nightly startup evidence is green
-- **WHEN** the current PR head lacks successful selected validation but an earlier head or nightly run passed
+- **WHEN** the current PR lacks successful selected validation but an earlier head or independent workflow passed
 - **THEN** that other evidence SHALL NOT satisfy the PR's required aggregate
 
 #### Scenario: A startup skip lacks authority
-- **WHEN** a startup job is skipped without a valid current-head selection explicitly excluding it
+- **WHEN** startup is skipped without a valid current-head selection explicitly excluding it
 - **THEN** the aggregate SHALL fail rather than infer irrelevance from the skip
 
 #### Scenario: Selected compatibility coverage fails
-- **WHEN** startup passes but a required extracted package, image/history, or containment scope fails
+- **WHEN** startup passes but a required package, image/history, or containment scope fails
 - **THEN** the aggregate SHALL remain unsuccessful
 
 ### Requirement: Deferred Windows Node 24 coverage remains mandatory outside ordinary PR validation
@@ -507,7 +521,7 @@ A file-owned integration fixture SHALL use the current build's real cold emitted
 ### Requirement: Published predecessor subprocess waits preserve runner responsiveness
 Published-predecessor compatibility validation SHALL remain able to process runner messages, timers, and cancellation while waiting for package installation, registry lookup, or shipped setup subprocesses. Command waits SHALL NOT block the test worker's event loop. The real multi-release scenario SHALL retain existing test, hook, warmup, runner, and workflow time limits, predecessor selection and coverage, exact candidate bytes, command ordering, and the requirement to execute each selected predecessor's own release code.
 
-The real multi-release scenario SHALL use exhaustive cadence: it SHALL run in manual Full regression and scheduled nightly/stable release validation and SHALL NOT run in ordinary `pull_request` or manual Development validation. Pull-request validation SHALL retain focused deterministic predecessor command, lifecycle, error, fixture, materialization, and warmup contracts, but SHALL NOT claim that those contracts exercised published predecessor code. Moving the real scenario SHALL not reduce its default predecessor count, supported-entry checks, exact-package authority, assertions, or failure semantics.
+The real multi-release scenario SHALL use exhaustive cadence: it SHALL run in manual, scheduled, and selected PR-attached Full regression and in nightly/stable release validation. It SHALL NOT be added to ordinary bounded Development scopes. Those scopes SHALL retain focused deterministic predecessor command, lifecycle, error, fixture, materialization, and warmup contracts, but SHALL NOT claim that those contracts exercised published predecessor code. Without full-regression selection the real scenario SHALL remain explicitly deferred; with full selection its complete result SHALL gate the PR. This exception SHALL not reduce its default predecessor count, supported-entry checks, exact-package authority, assertions, or failure semantics.
 
 Subprocess results SHALL be bounded and fail closed. Validation SHALL not report success before the owned command and its captured output have closed successfully. Spawn failure, nonzero exit, signal termination, cancellation, output overflow, malformed required metadata, or failed setup SHALL prevent later dependent phases. Cleanup SHALL preserve unrelated state and processes and SHALL not remove a temporary installation while its owned subprocess is active.
 
@@ -528,25 +542,25 @@ Subprocess results SHALL be bounded and fail closed. Validation SHALL not report
 - **AND** truncated output SHALL NOT be interpreted as successful or complete evidence
 
 #### Scenario: Validation is cancelled during installation
-- **WHEN** the enclosing validation is cancelled or expires while an owned command is active
-- **THEN** its command lifetime SHALL end through ownership-safe cleanup before temporary installation removal
+- **WHEN** enclosing validation is cancelled or expires while an owned command is active
+- **THEN** its lifetime SHALL end through ownership-safe cleanup before temporary installation removal
 - **AND** unrelated processes and paths SHALL remain untouched
 
 #### Scenario: Ordinary pull-request validation runs
-- **WHEN** a product, test, workflow, selector, or unknown operational change is validated by the Development pull-request workflow
-- **THEN** the real multi-release predecessor scenario SHALL be reported as exhaustive-cadence deferred and SHALL not be scheduled
-- **AND** focused deterministic predecessor contracts selected by the change SHALL retain their assertions and fail-closed outcomes
+- **WHEN** trusted PR policy proves complete regression unselected
+- **THEN** the real multi-release predecessor scenario SHALL be reported as exhaustive-cadence deferred and not scheduled
+- **AND** selected focused deterministic contracts SHALL retain their assertions and fail-closed outcomes
 
 #### Scenario: Real predecessor coverage executes
-- **WHEN** Full regression or nightly/stable release validation selects complete coverage
-- **THEN** the published-predecessor gate SHALL retain publication-time selection, the existing default predecessor limit and override semantics, supported-entry checks, and the existing minimum exercised-predecessor assertion
-- **AND** it SHALL exercise real predecessor release code against the exact selected candidate without using the user's npm installation prefix
+- **WHEN** standalone or PR-attached Full regression, or nightly/stable release validation, selects complete coverage
+- **THEN** the published-predecessor gate SHALL retain publication-time selection, the existing predecessor limit and override semantics, supported-entry checks, and the minimum exercised-predecessor assertion
+- **AND** it SHALL exercise real predecessor release code against the exact candidate without using the user's npm installation prefix
 - **AND** it SHALL not reduce coverage, add success retries, restore mutable installed fixtures, or replace published code with a candidate-authored oracle
 
 #### Scenario: Focused coverage passes but exhaustive coverage fails
-- **WHEN** deterministic pull-request predecessor contracts pass and a later exhaustive run fails
-- **THEN** the exhaustive workflow SHALL remain failed and block its publication authority
-- **AND** focused PR success SHALL not be reinterpreted as real published-predecessor compatibility evidence
+- **WHEN** deterministic predecessor contracts pass but selected exhaustive coverage fails
+- **THEN** the exhaustive result SHALL remain failed and block its applicable PR or publication gate
+- **AND** focused success SHALL not be reinterpreted as real published-predecessor compatibility evidence
 
 ### Requirement: Nightly recovery is proven by numbered merged-package evidence
 A nightly recovery effort SHALL not be declared complete solely from focused tests, passing PR CI, an implementation merge, a branch Full regression run, or reduced-scope manual development publication. Completion SHALL require the actual scheduled nightly workflow to successfully perform full-release validation on a newly numbered package whose merged source contains the accepted repairs, across Windows Node 22 and 24, Linux Node 24, and macOS Node 24, with a successful aggregate publication or immutable-registry verification outcome.

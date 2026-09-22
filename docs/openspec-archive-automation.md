@@ -17,6 +17,12 @@ Version-1 and version-2 deliveries and their existing comments, acceptance PRs, 
 7. **Manual merge accepts:** after the stable protected aggregate succeeds, an authorized human reviews and manually merges the exact validated head. That single action means the listed scenarios are accepted and explicitly authorizes integration. Auto-merge, merge queue, Apps, bots, and documentation reconciliation are forbidden.
 8. **Verify and clean:** trusted post-merge policy derives `Archived` and reports `accepted-and-archived` from committed bytes and immutable GitHub provenance without editing the accepted PR body. It publishes no lifecycle branch or PR. Shared exact-head remote cleanup may delete the unchanged topic ref; local cleanup remains separately ownership-controlled: the agent parks the worktree with `handoff` at step 7, and the next session's `sweep` removes it once the merge, archive, and remote-ref evidence verify (see [local cleanup](local-worktree-cleanup.md)).
 
+### Complete-regression evidence ordering
+
+Nightly-repair and publishing/validation-authority changes automatically select PR-attached Full regression; maintainers can add `ci:full-regression` for other changes. Planning-only drafts remain lightweight. Selected implementation drafts expose all four native lane checks without becoming mergeable. Finish substantive implementation tasks, focused evidence, pre-finalization observations, and known-gap disposition before marking ready. The finalized head then receives new full evidence, required by `Development validation required` alongside the existing gates.
+
+The final exact-head run is a handoff gate, not a task requiring a future run ID in committed `design.md`. Keep final head/run/selection identity in Actions outcomes and the maintainer handoff; do not invalidate successful evidence with an extra recording commit. Changed code, acceptance/body metadata, selection labels, or target baseline requires fresh evidence. A selected PR success removes the additional mandatory Full regression dispatch, but a standalone/manual run never substitutes for selected PR checks. Before deployment, existing separate-dispatch obligations remain. Neither PR validation nor manual regression proves numbered-package nightly publication recovery.
+
 The implementation, synchronized canonical specs, conditional acceptance record, and archive therefore reach `develop` atomically. Closing the PR unmerged integrates none of them.
 
 ## Draft PR body

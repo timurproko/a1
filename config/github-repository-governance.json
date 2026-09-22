@@ -121,6 +121,11 @@
   ],
   "labels": [
     {
+      "name": "ci:full-regression",
+      "color": "1d76db",
+      "description": "Require PR-attached complete regression; additive to automatic repair and publishing selection."
+    },
+    {
       "name": "pi-upgrade-skipped",
       "color": "6e7781",
       "description": "Closing a Pi upgrade proposal with this label skips its version in the nightly upstream sync."
@@ -134,7 +139,7 @@
       "triggers": ["pull_request", "workflow_dispatch"],
       "permissions": ["actions: read", "contents: read", "pull-requests: read"],
       "trustedSource": "pull-request-head-read-only",
-      "authority": ["Development validation required", "acceptance-only-routing", "acceptance-record-validation", "single-pr-finalization-validation", "archive-merge-result-validation"],
+      "authority": ["Development validation required", "acceptance-only-routing", "acceptance-record-validation", "single-pr-finalization-validation", "archive-merge-result-validation", "complete-regression"],
       "concurrency": "development-validation-",
       "environments": [],
       "artifactRetentionDays": [14]
@@ -156,10 +161,22 @@
       "path": ".github/workflows/full-regression.yml",
       "state": "active",
       "triggers": ["schedule", "workflow_dispatch"],
-      "permissions": ["contents: read"],
+      "permissions": ["actions: read", "contents: read"],
       "trustedSource": "dispatch-commit",
       "authority": ["complete-regression"],
       "concurrency": "full-regression-",
+      "environments": [],
+      "artifactRetentionDays": []
+    },
+    {
+      "name": "Complete regression implementation",
+      "path": ".github/workflows/full-regression-shared.yml",
+      "state": "active",
+      "triggers": ["workflow_call"],
+      "permissions": ["actions: read", "contents: read"],
+      "trustedSource": "explicit-source-read-only",
+      "authority": ["complete-regression"],
+      "concurrency": "",
       "environments": [],
       "artifactRetentionDays": [30]
     },

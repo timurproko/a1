@@ -20,6 +20,7 @@ const originalResourceSensitiveTests = [
 const resourceSensitiveTests = [
   ...originalResourceSensitiveTests.slice(0, 1),
   "test/repository-governance/naming-selection.test.ts",
+  "test/repository-governance/pr-full-regression-history.test.ts",
   "test/foundation/launch-context/cutover.test.ts",
   ...originalResourceSensitiveTests.slice(1, 2),
   "test/repository-governance/local-cleanup.test.ts",
