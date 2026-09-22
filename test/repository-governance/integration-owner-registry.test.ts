@@ -103,7 +103,7 @@ describe("integration owner registry", () => {
     noDuplicates("full-release", full);
     const lanes = (matrix: { include: { os: string; node: number }[] }) => matrix.include.map(value => `${value.os}:node${value.node}`).sort();
     const allLanes = ["macos-15:node24", "ubuntu-24.04:node24", "windows-2025:node22", "windows-2025:node24"];
-    const regression = parse(await readFile(".github/workflows/full-regression.yml", "utf8"));
+    const regression = parse(await readFile(".github/workflows/full-regression-shared.yml", "utf8"));
     expect(lanes(regression.jobs["full-regression"].strategy.matrix)).toEqual(allLanes);
     const release = parse(await readFile(".github/workflows/release.yml", "utf8"));
     expect(release.jobs.validate.strategy.matrix).toBe("${{ fromJson(needs.plan.outputs.validate_matrix) }}");

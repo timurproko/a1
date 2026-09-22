@@ -17,7 +17,7 @@ describe("complete regression automation", () => {
   });
 
   it("builds and packs once before the complete deduplicated suite", async () => {
-    const workflow = await readFile(".github/workflows/full-regression.yml", "utf8");
+    const workflow = await readFile(".github/workflows/full-regression-shared.yml", "utf8");
     expect(workflow.match(/run: npm ci/g)).toHaveLength(2);
     expect(workflow.match(/check-code-documentation\.mjs --mode full/g)).toHaveLength(1);
     expect(workflow).toContain('VALIDATION_DOCUMENTATION_FULL_READY: "1"');
@@ -32,7 +32,8 @@ describe("complete regression automation", () => {
 
   it("retains both Windows runtimes outside development previews, Defender, and exact-package gates outside PR startup", async () => {
     const release = parse(await readFile(".github/workflows/release.yml", "utf8"));
-    const regression = parse(await readFile(".github/workflows/full-regression.yml", "utf8"));
+    const regression = parse(await readFile(".github/workflows/full-regression-shared.yml", "utf8"));
+    const wrapper = parse(await readFile(".github/workflows/full-regression.yml", "utf8"));
     const releaseJob = release.jobs.validate;
     const fullJob = regression.jobs["full-regression"];
     const lanes = (matrix: { include: { os: string; node: number }[] }) => matrix.include.map(({ os, node }) => `${os}:${node}`).sort();
@@ -72,7 +73,9 @@ describe("complete regression automation", () => {
       expect(JSON.stringify(job)).not.toMatch(/continue-on-error|--retry/);
     }
     expect(release.on.schedule).toEqual([{ cron: "17 3 * * *" }]);
-    expect(regression.on).toEqual({ schedule: [{ cron: "47 2 * * *" }], workflow_dispatch: null });
+    expect(wrapper.on).toEqual({ schedule: [{ cron: "47 2 * * *" }], workflow_dispatch: null });
+    expect(wrapper.jobs.complete.uses).toBe("./.github/workflows/full-regression-shared.yml");
+    expect(wrapper.jobs.complete.with.source).toBe("${{ github.sha }}");
     const selection = releaseJob.steps.find((step: { id: string }) => step.id === "selection");
     expect(selection.env.MODE).toBe("${{ needs.plan.outputs.mode }}");
     expect(selection.run).toContain('if [ "$MODE" = "develop" ]; then');
@@ -153,11 +156,11 @@ describe("complete regression automation", () => {
   });
 
   it("reports owned failures and timings without publication authority", async () => {
-    const workflow = await readFile(".github/workflows/full-regression.yml", "utf8");
+    const workflow = await readFile(".github/workflows/full-regression-shared.yml", "utf8");
     expect(workflow).toContain("Report gate ownership and timing");
     expect(workflow).toContain("Owned gate");
     expect(workflow).toContain("outcome.exitCode");
-    expect(workflow).toContain("full-regression-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}");
+    expect(workflow).toContain("full-regression-${{ inputs.source }}-${{ github.run_id }}-${{ github.run_attempt }}");
     expect(workflow).toContain("permissions:\n  contents: read");
     expect(workflow).not.toMatch(/id-token:\s*write|npm publish|environment:\s*npm-/);
   });

@@ -2,7 +2,7 @@
 
 On 2026-09-22, #536's head `99f1cba4333678d240e03c77388df6ceea90e340` had Full regression run 35757525387 in the commit check-runs API, but its PR `statusCheckRollup` contained only Development validation and repository-policy workflows. Full regression currently supports `schedule` and `workflow_dispatch`; Development validation is PR-triggered but skips drafts and intentionally defers exhaustive integration owners. Dispatching another branch workflow is therefore not a reliable PR-visible handoff.
 
-The maintainer approved preparing this plan after requesting PR-visible full validation for nightly/publishing fixes. Implementation is not yet approved. Base: `origin/develop` at `7b80f6a30cf82ae654a668fc577734bdd33dcaa5`. #536 remains a separate delivery; reconcile any changes it merges before implementation here.
+The maintainer approved this plan and explicitly requested implementation on 2026-09-22. Continue in PR #543 and branch `feature/pr-full-regression`. Base: `origin/develop` at `7b80f6a30cf82ae654a668fc577734bdd33dcaa5`. #536 remains a separate delivery; reconcile any changes it merges before implementation here.
 
 ## Goals and non-goals
 
@@ -35,6 +35,8 @@ Select complete regression for any of these reasons:
 Documentation-only and pure version-only changes retain existing exemptions unless a nightly-repair association or explicit opt-in applies. Planning-only drafts remain exempt even with repair association or the opt-in label; explanatory docs and new active OpenSpec artifacts alone are not implementation. A draft with executable implementation and an automatic reason or opt-in receives visible full checks but remains draft and ineligible for integration. Unknown/malformed classification or incomplete pagination blocks selection or conservatively requires full validation; it must never become a green unselected result.
 
 Add `labeled`, `unlabeled`, and `converted_to_draft` to the applicable PR event handling alongside opened, synchronize, reopened, edited, and ready_for_review. Re-evaluate selection on every relevant event; compare the current head and selection inputs again before aggregation. An opt-in removal can deselect only when a fresh complete decision proves there is no automatic reason. Superseded checks cannot authorize the new selection.
+
+Bootstrap refinement: while the target lacks the new base-controlled selector, an inline dependency-free bootstrap conservatively selects full validation for every non-planning candidate and binds the same source/base/metadata identities. It never executes the candidate's classifier to decide whether to skip itself. Once deployed, selector and aggregate recomputation execute from a separate exact-base checkout with read-only credentials. Complete Git comparison avoids API file-list truncation; bounded PR-commit history paths preserve a deleted or moved nightly scaffold. Shared test support is conservatively selected as release-sensitive rather than trusting candidate-controlled import analysis.
 
 ### 3. PR-visible checks and stable fail-closed aggregation
 
@@ -81,6 +83,12 @@ Selected repairs will take as long as complete regression and may expose existin
 
 Introduce selection, reusable execution, aggregation, policy/spec reconciliation, and regression tests in the same approved implementation PR. Keep the stable protected context unchanged. Until deployed, do not claim the new rule applies to #536. If rollout fails, revert through a normal manually merged corrective PR and preserve scheduled/manual full validation; do not bypass a selected failed gate.
 
+## Implementation evidence
+
+- Approved implementation continues in #543 on `feature/pr-full-regression`; the selector, shared caller, native lane envelopes, protected aggregate, governance inventory, lifecycle templates, and focused fixtures are implemented together.
+- Focused selector/workflow/governance execution initially ran 70 tests: 69 passed and one fixture expected a historical 60-minute lane instead of the retained 40-minute deadline. The assertion was corrected without changing the deadline; the replacement focused run passed 98 tests across nine files.
+- #536's independently dispatched run 35757525387 was still in progress when implementation began and remains evidence for that separate repair, not a substitute for #543's PR-attached canary.
+
 ## Known gaps
 
-This is planning only. No implementation, fixture result, live PR-visible canary, or successful final-head regression evidence is claimed. Existing startup-enforcement prose inconsistencies are outside this orchestration change; preserve the currently approved execution contract and do not silently retune it during workflow extraction.
+Live PR Checks-rollup visibility and standalone caller compatibility remain to be observed after pushing an implementation head. They are explicit rollout gates, not claimed by local YAML tests. Successful draft evidence will not certify the later finalized head. Existing startup-enforcement prose inconsistencies remain outside this orchestration change; execution modes, budgets, deadlines, and first-attempt behavior were preserved.

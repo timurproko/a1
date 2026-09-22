@@ -1,0 +1,261 @@
+name: Complete regression implementation
+
+on:
+  workflow_call:
+    inputs:
+      source:
+        description: Exact immutable source commit
+        required: true
+        type: string
+      base:
+        description: Target baseline for PR evidence
+        default: ''
+        type: string
+      selection:
+        description: Trusted PR selection digest; standalone callers derive their full-suite identity
+        default: ''
+        type: string
+      pr:
+        description: PR number, or zero for standalone validation
+        default: 0
+        type: number
+
+permissions:
+  contents: read
+
+env:
+  FULL_SOURCE: ${{ inputs.source }}
+  FULL_BASE: ${{ inputs.base }}
+  FULL_SELECTION: ${{ inputs.selection }}
+  FULL_PR: ${{ inputs.pr }}
+
+jobs:
+  documentation:
+    name: Full documentation review
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ inputs.source }}
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: node scripts/governance/check-code-documentation.mjs --mode full --result .artifacts/validation/code-documentation-full.json
+
+  full-regression:
+    needs: documentation
+    name: Complete non-physical regression (${{ matrix.os }}, node ${{ matrix.node }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-2025
+            node: 24
+          - os: ubuntu-24.04
+            node: 24
+          - os: macos-15
+            node: 24
+          - os: windows-2025
+            node: 22
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    steps:
+      - name: Preserve repository bytes during checkout
+        if: runner.os == 'Windows'
+        shell: bash
+        run: git config --global core.autocrlf false
+
+      - name: Check out exact regression source
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ inputs.source }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      # Compatibility: Node 22 ships npm 10, whose pack runs the prepare script even under
+      # --ignore-scripts and rebuilds the workspace, invalidating the build receipt. Every lane
+      # packs with the pinned package manager so the candidate is produced the same way.
+      - name: Use the pinned npm for packing
+        shell: bash
+        run: |
+          pinned=$(node -p "require('./package.json').packageManager.split('@')[1]")
+          current=$(npm --version)
+          if [ "$current" != "$pinned" ]; then npm install -g "npm@$pinned"; fi
+          npm --version
+
+      - name: Install dependencies and build once
+        run: npm ci
+
+      - name: Record verified install-time build
+        run: node scripts/release/record-validation-prerequisite.mjs build
+
+      - name: Pack exact regression candidate once
+        env:
+          VALIDATION_BUILD_RECEIPT: ${{ github.workspace }}/.artifacts/validation/receipts/build.json
+        run: node scripts/release/prepare-validation-package.mjs
+
+      - name: Prepare the exact package
+        shell: bash
+        env:
+          VALIDATION_SELECTION_JSON: '["full-release"]'
+          VALIDATION_BUILD_READY: "1"
+          VALIDATION_BUILD_RECEIPT: ${{ github.workspace }}/.artifacts/validation/receipts/build.json
+          VALIDATION_CANDIDATE_TARBALL: ${{ github.workspace }}/.artifacts/validation/package/candidate.tgz
+          VALIDATION_PACKAGE_RECEIPT: ${{ github.workspace }}/.artifacts/validation/package/candidate.receipt.json
+        run: >-
+          node scripts/release/run-validation-tier.mjs
+          --prepare-exact-package
+          --handoff .artifacts/validation/exact-package-handoff.json
+
+      - name: Enable Defender real-time protection for startup acceptance
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          Set-MpPreference -DisableRealtimeMonitoring $false
+          $deadline = (Get-Date).AddSeconds(30)
+          do {
+            $enabled = (Get-MpComputerStatus).RealTimeProtectionEnabled
+            if ($enabled) { break }
+            Start-Sleep -Seconds 1
+          } while ((Get-Date) -lt $deadline)
+          if (-not $enabled) { throw "Windows Defender real-time protection could not be enabled" }
+
+      - name: Run complete non-physical validation
+        shell: bash
+        env:
+          VALIDATION_SELECTION_JSON: '["full-release"]'
+          VALIDATION_BUILD_READY: "1"
+          VALIDATION_BUILD_RECEIPT: ${{ github.workspace }}/.artifacts/validation/receipts/build.json
+          VALIDATION_DOCUMENTATION_FULL_READY: "1"
+          VALIDATION_CANDIDATE_TARBALL: ${{ github.workspace }}/.artifacts/validation/package/candidate.tgz
+          VALIDATION_PACKAGE_RECEIPT: ${{ github.workspace }}/.artifacts/validation/package/candidate.receipt.json
+          RELEASE_RUNNER_LABEL: github-${{ matrix.os }}-node${{ matrix.node }}-full-regression
+          A1_CONFIG_DIR: ${{ runner.temp }}/a1-full-config
+          A1_DATA_DIR: ${{ runner.temp }}/a1-full-data
+          A1_RUNTIME_DIR: ${{ runner.temp }}/a1-full-runtime
+          # Rationale: one hosted-runner sample is noise; the nightly regression triage judges a
+          # persistent overrun across three consecutive develop runs from the uploaded evidence.
+          STARTUP_BUDGET_ENFORCEMENT: record
+          STARTUP_PERFORMANCE_RESULT: .artifacts/validation/startup-${{ matrix.os }}-node${{ matrix.node }}.json
+        run: >-
+          node scripts/release/run-validation-tier.mjs
+          --exact-package-handoff .artifacts/validation/exact-package-handoff.json
+          --result .artifacts/validation/full-regression.json
+
+      - name: Summarize first-attempt startup measurements
+        if: always() && runner.os == 'Windows'
+        shell: bash
+        env:
+          STARTUP_PERFORMANCE_RESULT: .artifacts/validation/startup-${{ matrix.os }}-node${{ matrix.node }}.json
+          PLATFORM: ${{ matrix.os }}-node${{ matrix.node }}
+        run: |
+          if [ ! -f "$STARTUP_PERFORMANCE_RESULT" ]; then
+            echo "No first-attempt startup evidence was produced for $PLATFORM." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          node --input-type=module <<'NODE' >> "$GITHUB_STEP_SUMMARY"
+          import { readFile } from "node:fs/promises";
+          const evidence = JSON.parse(await readFile(process.env.STARTUP_PERFORMANCE_RESULT, "utf8"));
+          const violated = new Set(evidence.budgetViolations.map(violation => `${violation.profileId}/${violation.launchKind}`));
+          const overrun = evidence.enforcement === "record" ? "recorded overrun" : "failed";
+          console.log(`## First-attempt startup (${process.env.PLATFORM}, ${evidence.enforcement} mode)`);
+          console.log("");
+          console.log("The nightly regression triage judges a persistent overrun from this run and the two previous develop runs.");
+          console.log("");
+          console.log("| Profile | Launch kind | Elapsed | Budget | Status |");
+          console.log("| --- | --- | ---: | ---: | --- |");
+          for (const measurement of evidence.measurements) {
+            const status = violated.has(`${measurement.profileId}/${measurement.launchKind}`) ? overrun : "passed";
+            console.log(`| ${measurement.profileId} | ${measurement.launchKind} | ${Math.round(measurement.elapsedMs)}ms | ${measurement.budgetMs}ms | ${status} |`);
+          }
+          NODE
+
+      - name: Bind complete lane evidence
+        env:
+          FULL_LANE: ${{ matrix.os }}-node${{ matrix.node }}
+        run: node scripts/release/full-regression-evidence.mjs --record
+
+      - name: Report gate ownership and timing
+        if: always()
+        shell: bash
+        run: |
+          if [ -f .artifacts/validation/full-regression.json ]; then
+            node --input-type=module <<'NODE' >> "$GITHUB_STEP_SUMMARY"
+          import { readFile } from "node:fs/promises";
+          const result = JSON.parse(await readFile(".artifacts/validation/full-regression.json", "utf8"));
+          console.log("## Complete regression outcomes\n");
+          console.log(`Selected owners: ${result.selected.map(value => `\`${value}\``).join(", ")}\n`);
+          console.log(`Total: **${((result.completedAt - result.startedAt) / 1000).toFixed(2)}s**\n`);
+          console.log("| Owned gate | Seconds | Result |\n| --- | ---: | --- |");
+          for (const outcome of result.outcomes) console.log(`| ${outcome.id} | ${(outcome.durationMs / 1000).toFixed(2)} | ${outcome.exitCode === 0 ? outcome.skipped ?? "passed" : "failed"} |`);
+          NODE
+          else
+            echo "## Complete regression outcomes" >> "$GITHUB_STEP_SUMMARY"
+            echo "Validation orchestration failed before producing owned outcomes." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload complete regression evidence
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: full-regression-${{ inputs.source }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.os }}-node${{ matrix.node }}
+          path: |
+            .artifacts/validation/full-regression.json
+            .artifacts/validation/full-lanes/*.json
+            .artifacts/validation/startup-*.json
+            .artifacts/validation/package/npm-pack-result.json
+            .artifacts/validation/package/*.receipt.json
+            .artifacts/validation/receipts/*.json
+            .artifacts/validation/phases/*.jsonl
+            .artifacts/release-verdicts/*.json
+          if-no-files-found: warn
+          retention-days: 30
+
+  required:
+    name: Complete regression required
+    if: always()
+    needs: [documentation, full-regression]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ inputs.source }}
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          pattern: full-regression-${{ inputs.source }}-${{ github.run_id }}-${{ github.run_attempt }}-*
+          path: .artifacts/full-regression-downloads
+      - name: Collect unique lane evidence
+        shell: bash
+        run: |
+          mkdir -p .artifacts/validation/full-lanes
+          while IFS= read -r -d '' path; do
+            target=".artifacts/validation/full-lanes/$(basename "$path")"
+            test ! -e "$target"
+            cp "$path" "$target"
+          done < <(find .artifacts/full-regression-downloads -type f -path '*/full-lanes/*.json' -print0)
+      - name: Require every exact-run native lane
+        env:
+          FULL_JOBS_RESULT: ${{ needs.documentation.result == 'success' && needs.full-regression.result || 'failure' }}
+        run: node scripts/release/full-regression-evidence.mjs --require
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: complete-regression-aggregate-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .artifacts/validation/full-regression-aggregate.json
+          if-no-files-found: error
+          retention-days: 30
