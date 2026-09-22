@@ -33,8 +33,8 @@ import {
   type PiShellSkillSummary,
 } from "./skills-command.js";
 
-/** A selected tunnel row: the accent label, then at least two spaces, then the description. */
-const SELECTED_TUNNEL_ROW = /^(→ skills:\S+)(\s{2,}.*)$/u;
+/** A selected autocomplete row: the accent primary column, then the aligned description. */
+const SELECTED_DESCRIBED_ROW = /^(→ .*?\S)(\s{2,}.*)$/u;
 const THINKING_SLASH_COMMAND = { name: "thinking", description: "Set thinking level", argumentHint: "<level>" } as const;
 
 export const PINNED_PI_BUILTIN_SLASH_COMMANDS = [
@@ -95,9 +95,9 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
         return selectListTheme.scrollInfo(text);
       },
       selectedText: text => {
-        // Rationale: a selected tunnel row keeps its description muted like the unselected rows (v2 behavior);
-        // the pinned list styles the whole selected row, so the split happens in the owned theme.
-        const row = tunnelSkills.length === 0 ? null : SELECTED_TUNNEL_ROW.exec(text);
+        // Rationale: the pinned list styles a whole selected row at once. Bare A1 keeps the
+        // actionable primary column accented while every aligned description remains muted.
+        const row = SELECTED_DESCRIBED_ROW.exec(text);
         return row === null ? selectListTheme.selectedText(text) : selectListTheme.selectedText(row[1]!) + selectListTheme.description(row[2]!);
       },
     },
