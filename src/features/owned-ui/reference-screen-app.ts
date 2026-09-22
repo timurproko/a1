@@ -8,13 +8,16 @@ import {
   ScrollbarRails,
   assertNoShortcutConflicts,
   displayWidth,
+  layoutList,
   padToWidth,
+  renderGroupHeader,
   scrollForTrackPage,
   scrollbarGeometry,
   scrollbarPresentation,
   scrollbarWheelRows,
   truncateToWidth,
   withScrollbarRail,
+  type ListRow,
   type PaneInputResult,
   type PaneMouseEvent,
   type PaneRect,
@@ -65,12 +68,23 @@ const KEYS: Readonly<Record<string, string>> = {
 };
 
 /** Rows of a document already styled and wrapped for one content width. */
+export interface ReferenceDocumentSection {
+  readonly title: string;
+  readonly rows: readonly string[];
+}
+
 export interface ReferenceDocumentProvider {
-  /** The rows for this width, or null while the document is not available yet. */
-  rows(width: number): readonly string[] | null;
-  /** Settles once `rows` answers; absent when the document is available at once. */
+  /** Flat rows for this width, or null while the document is not available yet. */
+  readonly rows?: (width: number) => readonly string[] | null;
+  /** Structured groups opt into shared Settings-style headers and pinning. */
+  readonly sections?: (width: number) => readonly ReferenceDocumentSection[] | null;
+  /** Settles once the selected content provider answers; absent when available at once. */
   readonly ready?: Promise<void>;
 }
+
+type ReferenceContent =
+  | { readonly kind: "flat"; readonly rows: readonly string[] }
+  | { readonly kind: "sections"; readonly rows: readonly ListRow<string>[] };
 
 export interface ReferenceScreenOptions {
   readonly id: string;
@@ -96,7 +110,7 @@ export class ReferenceScreenApp implements UiApp {
   #interruptArmed = false;
   #failure: string | null = null;
   // Performance: the provider wraps Markdown; wheel and drag frames must not repeat that work.
-  #cached: { readonly width: number; readonly rows: readonly string[] } | null = null;
+  #cached: { readonly width: number; readonly content: ReferenceContent } | null = null;
   // Invariant: rail hover and drag live in the shared keyed state, as the transcript's do.
   readonly #rails = new ScrollbarRails();
   // Rationale: the rail as drawn in the last frame, or null when nothing can be pointed at.
@@ -139,16 +153,34 @@ export class ReferenceScreenApp implements UiApp {
     const contentWidth = reservesRail ? Math.max(0, rect.width - RAIL_COLUMNS) : rect.width;
     const bodyHeight = Math.max(0, rect.height - HEADER_ROWS - FOOTER_ROWS);
     this.#bodyHeight = bodyHeight;
-    const rows = this.#rows(contentWidth, theme);
-    const maxScroll = Math.max(0, rows.length - bodyHeight);
-    this.#scroll = Math.min(Math.max(0, this.#scroll), maxScroll);
+    const content = this.#content(contentWidth, theme);
+    const body: string[] = [];
+    let contentLength: number;
+    let viewportLength = bodyHeight;
+    if (content.kind === "sections") {
+      const layout = layoutList(content.rows, bodyHeight, this.#scroll, { topPadding: false });
+      this.#scroll = layout.scroll;
+      contentLength = content.rows.length;
+      viewportLength = layout.visible;
+      if (layout.stickyHeader !== undefined) body.push(renderGroupHeader(layout.stickyHeader, contentWidth, theme));
+      for (const index of layout.rowIndexes) body.push(this.#renderSectionRow(content.rows[index], contentWidth, theme));
+    } else {
+      contentLength = content.rows.length;
+      const maxScroll = Math.max(0, content.rows.length - bodyHeight);
+      this.#scroll = Math.min(Math.max(0, this.#scroll), maxScroll);
+      for (let index = this.#scroll; index < this.#scroll + bodyHeight; index++) {
+        const row = content.rows[index] ?? "";
+        body.push(displayWidth(row) > contentWidth ? truncateToWidth(row, contentWidth) : row);
+      }
+    }
+    while (body.length < bodyHeight) body.push("");
     const now = Date.now();
     // Rationale: every way of scrolling ends in this frame, so a moved document is noticed here
     // once rather than at each wheel, drag, and key branch.
     if (this.#renderedScroll !== undefined && this.#renderedScroll !== this.#scroll) this.#noteScrollActivity(host, now);
     this.#renderedScroll = this.#scroll;
 
-    const geometry = scrollbarGeometry({ contentLength: rows.length, viewportHeight: bodyHeight, scroll: this.#scroll, trackHeight: bodyHeight });
+    const geometry = scrollbarGeometry({ contentLength, viewportHeight: viewportLength, scroll: this.#scroll, trackHeight: bodyHeight });
     const presentation = scrollbarPresentation({
       geometry,
       appearance: settings.scrollbarAppearance,
@@ -159,15 +191,10 @@ export class ReferenceScreenApp implements UiApp {
       now,
     });
     this.#railFrame = reservesRail && geometry !== null
-      ? { rail: { key: this.id, column: rect.width, rowStart: HEADER_ROWS, trackHeight: geometry.trackHeight }, geometry, page: bodyHeight }
+      ? { rail: { key: this.id, column: rect.width, rowStart: HEADER_ROWS, trackHeight: geometry.trackHeight }, geometry, page: viewportLength }
       : null;
 
-    const body: string[] = [];
-    for (let index = this.#scroll; index < this.#scroll + bodyHeight; index++) {
-      const row = rows[index] ?? "";
-      body.push(displayWidth(row) > contentWidth ? truncateToWidth(row, contentWidth) : row);
-    }
-    const withRail = withScrollbarRail(body, geometry, contentWidth, theme, { presentation });
+    const withRail = withScrollbarRail(body.slice(0, bodyHeight), geometry, contentWidth, theme, { presentation });
     const hint = this.#interruptArmed ? "press ctrl+c again to exit a1" : REFERENCE_SCREEN_SHORTCUTS.hint(SCOPE, HINT_SEPARATOR);
     // Compatibility: the v2 reference screen frames its document between two border-coloured rules.
     const rule = theme.fg("border", "─".repeat(rect.width));
@@ -245,16 +272,43 @@ export class ReferenceScreenApp implements UiApp {
   }
 
   // Invariant: the title is the first document row, as in v2, so it scrolls with the document.
-  #rows(width: number, theme: UiTheme): readonly string[] {
+  #content(width: number, theme: UiTheme): ReferenceContent {
     // Compatibility: one leading space, so the title lines up with the padded Markdown rows as in v2.
     const title = ` ${theme.bold(theme.fg("accent", this.#title))}`;
-    if (this.#failure !== null) return [title, "", this.#failure];
+    if (this.#failure !== null) return { kind: "flat", rows: [title, "", this.#failure] };
     const cached = this.#cached;
-    if (cached !== null && cached.width === width) return [title, ...cached.rows];
-    const rows = this.#document.rows(width);
-    if (rows === null) return [title, "", LOADING_NOTICE];
-    this.#cached = { width, rows };
-    return [title, ...rows];
+    if (cached !== null && cached.width === width) return this.#withTitle(cached.content, title);
+    const sections = this.#document.sections?.(width);
+    if (sections === null) return { kind: "flat", rows: [title, "", LOADING_NOTICE] };
+    if (sections !== undefined) {
+      const rows: ListRow<string>[] = [];
+      sections.forEach((section, sectionIndex) => {
+        if (sectionIndex > 0) rows.push({ kind: "spacer" });
+        const group = `section-${sectionIndex}`;
+        rows.push({ kind: "group", group, title: section.title });
+        for (const row of section.rows) rows.push({ kind: "note", group, text: row });
+      });
+      const content: ReferenceContent = { kind: "sections", rows };
+      this.#cached = { width, content };
+      return this.#withTitle(content, title);
+    }
+    const flat = this.#document.rows?.(width);
+    if (flat === null) return { kind: "flat", rows: [title, "", LOADING_NOTICE] };
+    const content: ReferenceContent = { kind: "flat", rows: flat ?? [] };
+    this.#cached = { width, content };
+    return this.#withTitle(content, title);
+  }
+
+  #withTitle(content: ReferenceContent, title: string): ReferenceContent {
+    if (content.kind === "flat") return { kind: "flat", rows: [title, ...content.rows] };
+    return { kind: "sections", rows: [{ kind: "note", group: "", text: title }, { kind: "spacer" }, ...content.rows] };
+  }
+
+  #renderSectionRow(row: ListRow<string> | undefined, width: number, theme: UiTheme): string {
+    if (row === undefined || row.kind === "spacer") return "";
+    if (row.kind === "group") return renderGroupHeader(row.title, width, theme);
+    const text = row.kind === "note" ? row.text : row.value;
+    return displayWidth(text) > width ? truncateToWidth(text, width) : text;
   }
 
   #scrollBy(distance: number): void {

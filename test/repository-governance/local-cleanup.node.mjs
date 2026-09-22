@@ -27,7 +27,7 @@ async function fixture(t, branch = false, registered = true) {
   await writeFile(join(primary, "tracked.txt"), "base\n");
   await mkdir(join(primary, "vendor")); await writeFile(join(primary, "vendor", ".gitmodules"), "");
   await mkdir(join(primary, "node_modules-cache")); await writeFile(join(primary, "node_modules-cache", "tracked.txt"), "ordinary content\n");
-  await writeFile(join(primary, ".gitignore"), "node_modules/\nsecret.txt\n/.artifacts/\n/.artifacts-user/\n/artifacts/\n.builds/\ndist/\n/native/process-guardian/target/\n/native/terminal-host/target/\n/target/\n/native/other/target/\n/native/process-guardian/target-user/\n");
+  await writeFile(join(primary, ".gitignore"), "node_modules/\nsecret.txt\n/.artifacts/\n/.artifacts-user/\n/artifacts/\n.builds/\ndist/\n/native/process-guardian/target/\n/native/terminal-host/target/\n/src/integrations/pi/engine/pi-settings-metadata.json\n/src/integrations/pi/engine/pi-settings-metadata-user.json\n/target/\n/native/other/target/\n/native/process-guardian/target-user/\n");
   await git(primary, "add", "."); await git(primary, "commit", "-m", "fixture"); await git(primary, "remote", "add", "origin", "https://github.com/owner/repo.git");
   const path = join(primary, ".worktrees", "example");
   await git(primary, "worktree", "add", ...(branch ? ["-b", "feature/example"] : ["--detach"]), path);
@@ -97,7 +97,9 @@ test("CLI registration, ownership, recovery, preview and enable controls use the
   });
   const help = invoke("--help"); assert.match(help, /complete/); assert.match(help, /discard/); assert.match(help, /confirm-closed-unmerged/);
   assert.match(help, /\.artifacts,/); assert.match(help, /native\/process-guardian\/target/);
-  assert.match(help, /native\/terminal-host\/target/); assert.equal(COMPLETION_DISPOSABLE_PATHS.includes(".artifacts"), true);
+  assert.match(help, /native\/terminal-host\/target/); assert.match(help, /src\/integrations\/pi\/engine\/pi-settings-metadata\.json/);
+  assert.equal(COMPLETION_DISPOSABLE_PATHS.includes(".artifacts"), true);
+  assert.equal(COMPLETION_DISPOSABLE_PATHS.includes("src/integrations/pi/engine/pi-settings-metadata.json"), true);
   assert.equal(COMPLETION_DISPOSABLE_PATHS.includes(".artifacts/validation"), false);
   assert.equal(COMPLETION_DISPOSABLE_PATHS.includes("target"), false); assert.equal(COMPLETION_DISPOSABLE_PATHS.includes("native\/*\/target"), false);
   const other = join(f.identity.root, "registered"); await git(f.primary, "worktree", "add", "--detach", other);
@@ -153,17 +155,30 @@ test("complete registers one exact candidate, applies central disposables, and i
 test("complete blocks unknown ignored content and conflicting ownership", async t => {
   let f = await fixture(t, false, false); await writeFile(join(f.path, "secret.txt"), "preserve");
   await mkdir(join(f.path, "node_modules-user")); await writeFile(join(f.path, "node_modules-user", "data"), "preserve-near-match");
+  const metadataNearMatch = join(f.path, "src", "integrations", "pi", "engine", "pi-settings-metadata-user.json");
+  await mkdir(join(metadataNearMatch, ".."), { recursive: true }); await writeFile(metadataNearMatch, "preserve-near-match");
   const options = { identity: f.identity, store: f.store, reader: {}, path: f.path, change: "example", sourcePr: 20,
     cwd: f.primary, reconcileOptions: { verify: f.verify, git: f.boundedGit } };
   const blocked = await completeLocalCleanup(options);
   assert.equal(blocked.results[0].reason, "worktree-content"); assert.equal(await readFile(join(f.path, "secret.txt"), "utf8"), "preserve");
   assert.equal(await readFile(join(f.path, "node_modules-user", "data"), "utf8"), "preserve-near-match");
+  assert.equal(await readFile(metadataNearMatch, "utf8"), "preserve-near-match");
   f = await fixture(t);
   await f.store.locked(async (state, save) => { transitionEntry(state.entries[0], "claim", owner, state.entries[0].generation); await save(state); });
   await assert.rejects(completeLocalCleanup({ identity: f.identity, store: f.store, reader: {}, path: f.path,
     change: "example", sourcePr: 20, cwd: f.primary }), /owned-worktree/);
   await assert.rejects(completeLocalCleanup({ ...options, identity: f.identity, store: f.store, path: f.path,
     change: "different" }), /completion-registration-conflict/);
+});
+
+test("complete accepts the exact generated Pi settings metadata file", async t => {
+  const f = await fixture(t, true, false);
+  const metadata = join(f.path, "src", "integrations", "pi", "engine", "pi-settings-metadata.json");
+  await mkdir(join(metadata, ".."), { recursive: true }); await writeFile(metadata, "{\"generated\":true}\n");
+  const report = await completeLocalCleanup({ identity: f.identity, store: f.store, reader: {}, path: f.path,
+    change: "example", sourcePr: 20, cwd: f.primary, reconcileOptions: { verify: f.verify, git: f.boundedGit } });
+  assert.equal(report.results[0].disposition, "removed", JSON.stringify(report));
+  assert.equal(await exists(f.path), false);
 });
 
 test("complete accepts only the two exact native Cargo output roots", async t => {

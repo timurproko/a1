@@ -72,13 +72,19 @@ describe("owned settings route theme", () => {
       await new Promise(resolve => setTimeout(resolve, 10));
       initial = surface!.render(48, 12);
     }
+    expect(initial[0]).toContain(`${ESC}[38;2;95;135;255m`);
+    expect(initial[0]?.replace(STYLE, "")).toBe("─".repeat(48));
+    expect(initial[1]).toContain(`${ESC}[38;2;138;190;183mSettings`);
+    expect(initial[1]?.replace(STYLE, "").trimEnd()).toBe(" Settings");
+    expect(initial.some(line => line.includes(`${ESC}[38;2;240;198;116m`))).toBe(true);
+
     const row = initial.findIndex(line => line.replace(STYLE, "").includes("Mode"));
     const column = (initial[row] ?? "").replace(STYLE, "").indexOf("auto") + 1;
     surface!.handleMouse({ kind: "press", button: 0, row: row + 1, column });
     surface!.handleInput(DOWN);
 
     const menu = surface!.render(48, 12).join("\n");
-    expect(menu).toContain(`${ESC}[48;2;55;55;55m✓ auto `);
+    expect(menu).toContain(`${ESC}[48;2;55;55;55m${ESC}[38;2;138;190;183m✓`);
     expect(menu).toContain(`${ESC}[48;2;82;82;82m${ESC}[97m  always `);
     expect(menu).toContain(`${ESC}[39m${ESC}[49m`);
   });
@@ -113,8 +119,8 @@ describe("owned reference routes", () => {
     expect(withoutReferences.open("changelog")).toBeNull();
 
     const host = createOwnedRouteHost(session, {
-      changelog: async () => () => ["log"],
-      hotkeys: async () => () => ["keys"],
+      changelog: async () => ({ rows: () => ["log"] }),
+      hotkeys: async () => ({ sections: () => [{ title: "Keys", rows: ["keys"] }] }),
     });
     expect(host.claims("settings")).toBe(true);
     expect(host.claims("changelog")).toBe(true);
@@ -126,9 +132,12 @@ describe("owned reference routes", () => {
   it("opens the changelog with the complete document or the supplied one, and the hotkeys as gathered at open time", async () => {
     applyPiTheme("dark", false, "truecolor");
     const session = await manager();
-    const changelog = vi.fn(async (input?: { document?: string }) => (width: number) => [`changelog ${input?.document ?? "complete"} at ${width}`]);
+    const changelog = vi.fn(async (input?: { document?: string }) => ({ rows: (width: number) => [`changelog ${input?.document ?? "complete"} at ${width}`] }));
     let shortcut = "first";
-    const hotkeys = vi.fn(async () => { const captured = shortcut; return (width: number) => [`hotkeys ${captured} at ${width}`]; });
+    const hotkeys = vi.fn(async () => {
+      const captured = shortcut;
+      return { sections: (width: number) => [{ title: `hotkeys ${captured}`, rows: [`table at ${width}`] }] };
+    });
     const host = createOwnedRouteHost(session, { changelog, hotkeys });
 
     const complete = host.open("changelog")!;
@@ -154,21 +163,28 @@ describe("owned reference routes", () => {
 
     const keys = host.open("hotkeys")!;
     expect(keys.id).toBe("hotkeys");
-    lines = await settled(keys, current => current[2]?.startsWith("hotkeys") === true);
+    lines = await settled(keys, current => current[3]?.startsWith(" hotkeys") === true);
     expect(lines[1]?.startsWith(" Keyboard Shortcuts")).toBe(true);
-    expect(lines[2]?.startsWith("hotkeys first at 58")).toBe(true);
+    expect(lines[2]?.trim()).toBe("");
+    expect(lines[3]?.trimEnd()).toBe(" hotkeys first");
+    expect(lines[4]?.startsWith("table at 58")).toBe(true);
     keys.close();
     shortcut = "second";
     const reopened = host.open("hotkeys")!;
-    lines = await settled(reopened, current => current[2]?.startsWith("hotkeys") === true);
-    expect(lines[2]?.startsWith("hotkeys second at 58")).toBe(true);
+    lines = await settled(reopened, current => current[3]?.startsWith(" hotkeys") === true);
+    expect(lines[2]?.trim()).toBe("");
+    expect(lines[3]?.trimEnd()).toBe(" hotkeys second");
+    expect(lines[4]?.startsWith("table at 58")).toBe(true);
     reopened.close();
   });
 
   it("forwards keys and pointer reports to the screen and propagates close and exit", async () => {
     const session = await manager();
     const rows = Array.from({ length: 30 }, (_row, index) => `row ${String(index + 1).padStart(2, "0")}`);
-    const host = createOwnedRouteHost(session, { changelog: async () => () => rows, hotkeys: async () => () => rows });
+    const host = createOwnedRouteHost(session, {
+      changelog: async () => ({ rows: () => rows }),
+      hotkeys: async () => ({ sections: () => [{ title: "Keys", rows }] }),
+    });
     const surface = host.open("changelog")!;
     let renders = 0;
     let exits = 0;
@@ -205,7 +221,7 @@ describe("owned reference routes", () => {
     const session = await manager();
     const host = createOwnedRouteHost(session, {
       changelog: async () => { throw new Error("changelog unreadable"); },
-      hotkeys: async () => () => [],
+      hotkeys: async () => ({ sections: () => [] }),
     });
     const surface = host.open("changelog")!;
     const lines = await settled(surface, current => current[0]?.startsWith("Could not") === true);
