@@ -88,6 +88,10 @@ describe("trusted complete-regression selection", () => {
     await expect(readCurrentPull("timurproko/a1", 543, "read-token", request)).rejects.toThrow(/unavailable/);
     expect(request).toHaveBeenCalledTimes(1);
     await expect(readCurrentPull("invalid", 543, "token", request)).rejects.toThrow(/identity/);
+    const oversized = vi.fn(async () => new Response("x".repeat(1024 * 1024 + 1))) as unknown as typeof fetch;
+    await expect(readCurrentPull("timurproko/a1", 543, "token", oversized)).rejects.toThrow(/bound/);
+    const malformed = vi.fn(async () => new Response("not JSON")) as unknown as typeof fetch;
+    await expect(readCurrentPull("timurproko/a1", 543, "token", malformed)).rejects.toThrow();
   });
 
   it.each(["failure", "cancelled", "timed_out", "skipped", undefined])("rejects selected result %s", status => {

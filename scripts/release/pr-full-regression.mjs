@@ -115,7 +115,11 @@ export async function readCurrentPull(repository, number, token, request = fetch
     headers: { accept: "application/vnd.github+json", authorization: `Bearer ${token}`, "x-github-api-version": "2022-11-28" }, signal: AbortSignal.timeout(30000),
   });
   if (!response.ok) throw new Error(`full-regression PR metadata unavailable (${response.status})`);
-  return response.json();
+  const declared = Number(response.headers.get("content-length") ?? 0);
+  if (Number.isFinite(declared) && declared > 1024 * 1024) throw new Error("full-regression PR metadata exceeds its bound");
+  const text = await response.text();
+  if (Buffer.byteLength(text) > 1024 * 1024) throw new Error("full-regression PR metadata exceeds its bound");
+  return JSON.parse(text);
 }
 
 /** Full Git comparison and bounded branch history avoid pagination truncation and erased repair scaffolds. */

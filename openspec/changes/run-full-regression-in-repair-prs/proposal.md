@@ -24,6 +24,6 @@ None.
 
 ## Impact
 
-Implementation would touch `.github/workflows/ci.yml`, the shared Full regression workflow and its scheduled/manual wrapper, trusted selection and aggregation tooling, regression/triage policy tests, and delivery documentation including `.agents/skills/change-delivery/SKILL.md`, `openspec/config.yaml`, `docs/ci-release-runbook.md`, `docs/validation.md`, and `docs/openspec-archive-automation.md`. Existing canonical specs remain untouched until approved implementation finalization.
+Implementation touches `.github/workflows/ci.yml`, the shared Full regression workflow and its scheduled/manual wrapper, trusted selection and aggregation tooling, regression/triage policy tests, and delivery documentation including `.agents/skills/change-delivery/SKILL.md`, `openspec/config.yaml`, `docs/ci-release-runbook.md`, `docs/validation.md`, and `docs/openspec-archive-automation.md`. Canonical specs remain unchanged until trusted finalization.
 
-This is a separate planning-only delivery from #536. It neither changes that repair's current obligations nor blocks its integration. No workflow, script, test, package, label, protection rule, or canonical specification is changed by this proposal.
+This delivery remained separate from #536 and reconciled that merged repair without duplicating it. It declares `ci:full-regression` in repository governance but does not bypass the separately confirmed live-governance apply operation. It changes no package or publication authority.
