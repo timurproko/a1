@@ -116,21 +116,26 @@ export function stickyHeaderFor<T>(rows: readonly ListRow<T>[], scroll: number):
   return headerRow !== undefined && headerRow.kind === "group" ? headerRow.title : undefined;
 }
 
+export interface ListLayoutOptions {
+  /** Settings keeps one opening row; embedded documents can start with their own prelude. */
+  readonly topPadding?: boolean;
+}
+
 /** One blank row above the first group while the list is scrolled to the top. */
-export function topPaddingRows(scroll: number): number {
-  return scroll <= 0 ? 1 : 0;
+export function topPaddingRows(scroll: number, enabled = true): number {
+  return enabled && scroll <= 0 ? 1 : 0;
 }
 
 /** Rows of content visible after the padding and any pinned header. */
-export function visibleRowCount<T>(rows: readonly ListRow<T>[], bodyHeight: number, scroll: number): number {
-  const reserved = topPaddingRows(scroll) + (stickyHeaderFor(rows, scroll) === undefined ? 0 : 1);
+export function visibleRowCount<T>(rows: readonly ListRow<T>[], bodyHeight: number, scroll: number, options: ListLayoutOptions = {}): number {
+  const reserved = topPaddingRows(scroll, options.topPadding !== false) + (stickyHeaderFor(rows, scroll) === undefined ? 0 : 1);
   return Math.max(1, bodyHeight - reserved);
 }
 
-export function maxScrollFor<T>(rows: readonly ListRow<T>[], bodyHeight: number): number {
+export function maxScrollFor<T>(rows: readonly ListRow<T>[], bodyHeight: number, options: ListLayoutOptions = {}): number {
   let scroll = Math.max(0, rows.length - 1);
   for (let pass = 0; pass < 8; pass++) {
-    const next = Math.max(0, rows.length - visibleRowCount(rows, bodyHeight, scroll));
+    const next = Math.max(0, rows.length - visibleRowCount(rows, bodyHeight, scroll, options));
     if (next === scroll) break;
     scroll = next;
   }
@@ -141,9 +146,10 @@ export function clampScroll<T>(
   rows: readonly ListRow<T>[],
   bodyHeight: number,
   scroll: number,
+  options: ListLayoutOptions = {},
 ): { readonly scroll: number; readonly visible: number } {
-  const bounded = Math.min(Math.max(scroll, 0), maxScrollFor(rows, bodyHeight));
-  return { scroll: bounded, visible: visibleRowCount(rows, bodyHeight, bounded) };
+  const bounded = Math.min(Math.max(scroll, 0), maxScrollFor(rows, bodyHeight, options));
+  return { scroll: bounded, visible: visibleRowCount(rows, bodyHeight, bounded, options) };
 }
 
 /**
@@ -191,10 +197,11 @@ export function layoutList<T>(
   rows: readonly ListRow<T>[],
   bodyHeight: number,
   scroll: number,
+  options: ListLayoutOptions = {},
 ): ListLayout {
-  const clamped = clampScroll(rows, bodyHeight, scroll);
+  const clamped = clampScroll(rows, bodyHeight, scroll, options);
   const sticky = stickyHeaderFor(rows, clamped.scroll);
-  const padding = topPaddingRows(clamped.scroll);
+  const padding = topPaddingRows(clamped.scroll, options.topPadding !== false);
   const indexes: number[] = [];
   // Invariant: a spacer at the scroll boundary belongs to the outgoing pinned section.
   // The pin represents that transition, so the spacer spends no body row and the final

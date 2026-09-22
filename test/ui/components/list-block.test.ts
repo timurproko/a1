@@ -168,6 +168,14 @@ describe("layout", () => {
     expect(layout.rowIndexes[0]).toBe(5);
   });
 
+  it("lets an embedded grouped document suppress only the initial padding", () => {
+    const first = layoutList(ROWS, 6, 0, { topPadding: false });
+    expect(first.topPadding).toBe(0);
+    expect(first.visible).toBe(6);
+    expect(first.rowIndexes).toEqual([0, 1, 2, 3, 4, 5]);
+    expect(layoutList(ROWS, 6, 5, { topPadding: false }).stickyHeader).toBe("B");
+  });
+
   it("never lists a row past the end of the content", () => {
     const layout = layoutList(ROWS, 30, 0);
     expect(layout.rowIndexes.at(-1)).toBeLessThan(ROWS.length);

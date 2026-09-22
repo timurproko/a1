@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { OwnedUiViewportSettings } from "../../../src/contracts/owned-ui/index.js";
-import { REFERENCE_SCREEN_SHORTCUTS, ReferenceScreenApp, type ReferenceDocumentProvider } from "../../../src/features/owned-ui/index.js";
+import { REFERENCE_SCREEN_SHORTCUTS, ReferenceScreenApp, type ReferenceDocumentProvider, type ReferenceDocumentSection } from "../../../src/features/owned-ui/index.js";
 import { UiAppHost, UiAppRegistry, type AppHostServices } from "../../../src/ui/apps/index.js";
-import { RAIL_COLUMNS, finalizeFrame, type UiTheme, type UiThemeToken } from "../../../src/ui/components/index.js";
+import { RAIL_COLUMNS, finalizeFrame, renderGroupHeader, type UiTheme, type UiThemeToken } from "../../../src/ui/components/index.js";
 
 const ESC = "\u001b";
 const UP = `${ESC}[A`;
@@ -56,6 +56,15 @@ function app(rows: readonly string[] | ((width: number) => readonly string[]), o
   return { app: new ReferenceScreenApp({ id: "reference", title, document: provider, scrollSettings: settings(overrides) }), calls };
 }
 
+function sectioned(sections: readonly ReferenceDocumentSection[], title = "Reference"): ReferenceScreenApp {
+  return new ReferenceScreenApp({
+    id: "reference",
+    title,
+    document: { sections: () => sections },
+    scrollSettings: settings(),
+  });
+}
+
 function screen(target: ReferenceScreenApp, host: AppHostServices = HOST, rect = RECT): string[] {
   return [...target.render(rect, host)];
 }
@@ -102,6 +111,30 @@ describe("ReferenceScreenApp frame", () => {
     expect(body(target)).toEqual(["Reference", "", "alpha", "beta", ...Array(BODY - 4).fill("")]);
     expect(screen(target).slice(TOP, TOP + BODY).every(line => line.length === RECT.width)).toBe(true);
     expect(railCells(target).every(cell => cell === " ")).toBe(true);
+  });
+
+  it("uses shared accent headers directly above section rows and pins the active section", () => {
+    const target = sectioned([
+      { title: "Navigation", rows: numbered(8) },
+      { title: "Editing", rows: ["edit one", "edit two", "edit three"] },
+    ], "Keyboard Shortcuts");
+    const rect = { width: 60, height: 7 };
+    let lines = screen(target, { ...HOST, theme: NAMING_THEME }, rect);
+    expect(lines[1]?.startsWith(" <b><accent>Keyboard Shortcuts</accent></b>")).toBe(true);
+    expect(lines[2]?.trim()).toBe("");
+    expect(lines[3]?.startsWith(renderGroupHeader("Navigation", rect.width - RAIL_COLUMNS, NAMING_THEME))).toBe(true);
+    expect(lines[4]?.startsWith("row 01")).toBe(true);
+
+    target.onInput?.(DOWN, HOST);
+    target.onInput?.(DOWN, HOST);
+    lines = screen(target, { ...HOST, theme: NAMING_THEME }, rect);
+    expect(lines[1]?.startsWith(renderGroupHeader("Navigation", rect.width - RAIL_COLUMNS, NAMING_THEME))).toBe(true);
+    expect(lines[2]?.startsWith("row 01")).toBe(true);
+
+    target.onInput?.(END, HOST);
+    lines = screen(target, { ...HOST, theme: NAMING_THEME }, rect);
+    expect(lines[1]?.startsWith(renderGroupHeader("Editing", rect.width - RAIL_COLUMNS, NAMING_THEME))).toBe(true);
+    expect(lines.join("\n")).toContain("edit three");
   });
 
   it("shows the interrupt notice while the chord is armed and leaves the interrupt byte to the host", () => {
