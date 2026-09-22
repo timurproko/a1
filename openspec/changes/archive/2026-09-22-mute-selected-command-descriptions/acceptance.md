@@ -22,7 +22,7 @@ The manual merge accepts these scenarios:
     "Built-in, runtime-provided, and skills-tunnel completions preserve their text, navigation, and completion behavior.",
     "Narrow rows without rendered descriptions and the `a1 pi` comparison profile retain their existing selected styling."
   ],
-  "archiveDigest": "ccee1c13eebf2c327fc2b680fc075dd6dcb6e8b2c20f5d58ccfc5579dae6e935",
+  "archiveDigest": "1d6d104e6d47d240b5f42d0dc61dd1c33ae134f2b1643800266b32ecc71e073d",
   "specDigest": "c3f8c4ff6d0c7f8ec874f42023cd8f7fa53ba6ea197669b9cae1183d0148cd03",
   "tasksDigest": "b3b5f6eec5fe80ae150e42849e46cfec2bf4e74ea3a26d5c7bab1a9e84b0d35f",
   "evidenceDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
