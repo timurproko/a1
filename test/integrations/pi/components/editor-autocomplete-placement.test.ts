@@ -51,6 +51,15 @@ function parts(editor: ReturnType<typeof createPiShellEditor>, width: number) {
   return { rows, menu: rows.slice(0, body.rowOffset), body: rows.slice(body.rowOffset), geometry: body };
 }
 
+function expectSameAutocompleteLayout(actual: string[], expected: string[]): void {
+  expect(actual.map(stripTerminalSequences)).toEqual(expected.map(stripTerminalSequences));
+  for (const [index, row] of actual.entries()) {
+    // Bare A1 deliberately splits only the selected row's ANSI roles; placement parity
+    // still requires every unselected row to match pinned Pi byte-for-byte.
+    if (!stripTerminalSequences(row).includes("→ ")) expect(row).toBe(expected[index]);
+  }
+}
+
 describe.each([false, true])("above-prompt autocomplete (history=%s)", history => {
   it("keeps the bottom-aligned input steady through menu changes", async () => {
     const { editor, dispose } = await fixture(history);
@@ -180,7 +189,7 @@ describe.each([false, true])("above-prompt autocomplete (history=%s)", history =
             const actual = parts(editor, width);
             const expected = reference.editor.render(width - 2).slice(3).map(row => `  ${row}`);
             const counter = limit < items.length ? expected.pop() : undefined;
-            expect(actual.menu).toEqual(expected);
+            expectSameAutocompleteLayout(actual.menu, expected);
             if (counter !== undefined) {
               const value = /^\((\d+\/\d+)\)$/u.exec(stripTerminalSequences(counter).trim())?.[1];
               if (value !== undefined) expect(actual.body[0]).toContain(piTheme().fg("dim", `${value} `));
@@ -195,7 +204,7 @@ describe.each([false, true])("above-prompt autocomplete (history=%s)", history =
         editor.setAutocompleteMaxVisible(8); reference.editor.setAutocompleteMaxVisible(8);
         const referenceRows = reference.editor.render(78).slice(3).map(row => `  ${row}`);
         if (limit < items.length) referenceRows.pop();
-        expect(parts(editor, 80).menu).toEqual(referenceRows);
+        expectSameAutocompleteLayout(parts(editor, 80).menu, referenceRows);
         for (const target of [editor, reference.editor]) target.handleInput?.("\t");
         expect(editor.getText()).toBe(reference.editor.getText());
       }
