@@ -1302,36 +1302,6 @@ Bare A1 SHALL move the transcript only for vertical wheel input and in the direc
 - **THEN** the transcript SHALL move only upward by the configured distance for each vertical report
 - **AND** the horizontal reports SHALL NOT change end-following or viewport-control state
 
-### Requirement: Bare A1 omits generated resize guidance from submitted prompts
-Bare A1 SHALL omit Pi's canonical successful image resize/dimension guidance from visible submitted user-prompt text while retaining the complete original message and guidance in stored and model-facing content. Filtering SHALL require image attachment provenance, exact canonical syntax, a trailing image-processing hint position, and no more recognized dimension lines than attached images.
-
-Existing pasted-image chips and generated screenshot labels SHALL remain visible and unchanged. Bare A1 SHALL NOT introduce an `Image attached` dock notice or move resize guidance into the dock. Canonical conversion notes, image omission/failure messages, unrelated authored text, attachment delivery, transcript image presentation, and prompt editing/history behavior SHALL remain unchanged. The `a1 pi` comparison route SHALL retain its original inline resize guidance.
-
-#### Scenario: Submit a resized pasted image
-- **WHEN** an image-bearing user message ends with canonical original/displayed-dimension guidance
-- **THEN** bare A1 SHALL omit that guidance from the visible submitted prompt
-- **AND** the submitted prompt SHALL retain its existing screenshot chip label
-- **AND** the stored message and agent context SHALL retain the complete guidance and attachment
-- **AND** no synthetic attachment or processing notice SHALL be added to the dock
-
-#### Scenario: Preserve existing image-chip behavior
-- **WHEN** a pasted image is ready in the prompt editor
-- **THEN** its existing image chip and screenshot label SHALL remain visible and editable
-- **AND** the change SHALL NOT replace it with an `Image attached` message
-
-#### Scenario: Preserve failures and other image hints
-- **WHEN** trailing image-processing hints contain conversion or omission/failure text alongside resize guidance
-- **THEN** bare A1 SHALL omit only the canonical resize/dimension lines
-- **AND** it SHALL retain conversion and omission/failure text visibly
-
-#### Scenario: Preserve ordinary text
-- **WHEN** resize-looking text has no matching image attachment provenance, is not in the trailing processing-hint suffix, or exceeds the attached-image count
-- **THEN** bare A1 SHALL render it unchanged
-
-#### Scenario: Keep pinned Pi unchanged
-- **WHEN** the same image-bearing message is rendered through `a1 pi`
-- **THEN** the screenshot chip and inline resize guidance SHALL retain their pinned presentation
-
 ### Requirement: Command failures and warnings are a transient dock notice
 Bare A1 SHALL present simple workflow failures and warnings, including built-in command failures, explicit `error`- or `warning`-kind workflow messages, and extension error/warning notifications, through the same single transient dock-notice region used by informational messages rather than as transcript content. The notice SHALL preserve the existing contextual wording, `Error:` or `Warning:` prefix, severity theme role, output-padding rule, leading blank row, and width-aware wrapping supplied by the command-message presenter. It SHALL sit directly above the editor group, or directly below live working status when that status is visible, and SHALL NOT scroll with transcript content.
 
@@ -1367,3 +1337,33 @@ The latest simple workflow notice SHALL replace any earlier informational, warni
 - **WHEN** the same command failure or warning is produced through `a1 pi`
 - **THEN** it SHALL remain chronological transcript content with its pinned spacing, prefix, style, and wording
 - **AND** no custom-viewport dock notice SHALL be introduced
+
+### Requirement: Bare A1 omits generated resize guidance from submitted prompts
+Bare A1 SHALL omit Pi's canonical successful image resize/dimension guidance from visible submitted user-prompt text while retaining the complete original message and guidance in stored and model-facing content. Filtering SHALL require image attachment provenance, exact canonical syntax, a trailing image-processing hint position, and no more recognized dimension lines than attached images.
+
+Existing pasted-image chips and generated screenshot labels SHALL remain visible and unchanged. Bare A1 SHALL NOT introduce an `Image attached` dock notice or move resize guidance into the dock. Canonical conversion notes, image omission/failure messages, unrelated authored text, attachment delivery, transcript image presentation, and prompt editing/history behavior SHALL remain unchanged. The `a1 pi` comparison route SHALL retain its original inline resize guidance.
+
+#### Scenario: Submit a resized pasted image
+- **WHEN** an image-bearing user message ends with canonical original/displayed-dimension guidance
+- **THEN** bare A1 SHALL omit that guidance from the visible submitted prompt
+- **AND** the submitted prompt SHALL retain its existing screenshot chip label
+- **AND** the stored message and agent context SHALL retain the complete guidance and attachment
+- **AND** no synthetic attachment or processing notice SHALL be added to the dock
+
+#### Scenario: Preserve existing image-chip behavior
+- **WHEN** a pasted image is ready in the prompt editor
+- **THEN** its existing image chip and screenshot label SHALL remain visible and editable
+- **AND** the change SHALL NOT replace it with an `Image attached` message
+
+#### Scenario: Preserve failures and other image hints
+- **WHEN** trailing image-processing hints contain conversion or omission/failure text alongside resize guidance
+- **THEN** bare A1 SHALL omit only the canonical resize/dimension lines
+- **AND** it SHALL retain conversion and omission/failure text visibly
+
+#### Scenario: Preserve ordinary text
+- **WHEN** resize-looking text has no matching image attachment provenance, is not in the trailing processing-hint suffix, or exceeds the attached-image count
+- **THEN** bare A1 SHALL render it unchanged
+
+#### Scenario: Keep pinned Pi unchanged
+- **WHEN** the same image-bearing message is rendered through `a1 pi`
+- **THEN** the screenshot chip and inline resize guidance SHALL retain their pinned presentation
