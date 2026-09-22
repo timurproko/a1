@@ -1607,7 +1607,7 @@ In the bare-A1 custom transcript viewport, Shift+Down SHALL navigate to the next
 ### Requirement: Above-prompt autocomplete is a declared bare-A1 presentation replacement
 Bare A1 SHALL declare above-prompt autocomplete with a matching top line as a placement-and-decoration replacement for the ordinary editor's pinned below-prompt list. This named exception SHALL supersede pinned row-order, top-line decoration and counter relocation, and resulting editor-anchor parity only for that surface. The additional line SHALL match the prompt border's current color, glyph, and width and appear only while the menu has rendered rows; candidate rows SHALL retain their existing rendering, including background and padding. The existing trailing completion counter SHALL move into the top line without parentheses, at the history border label inset and in its dim color, with its old row removed. Its selected-item/total meaning, visibility conditions, and updates SHALL remain unchanged; this is not a new page-count calculation. The replacement SHALL NOT apply menu-panel shading. The related bare-A1 history border label SHALL omit only its `History` title, retaining its numeric value, dim color, inset, and overflow suffix. Menu sizing and clipping, editor choice, history behavior, contextual suggestions, settings, extensions, and unrelated shell behavior SHALL otherwise retain their existing contracts.
 
-The replacement SHALL apply to slash-command, command-argument, path/resource, and extension-provider completions displayed by the default editor, with persistent history both enabled and disabled. It SHALL preserve candidate ordering, labels, descriptions, semantic styling, selection, the existing pagination and visible-item policy, configured keys, Tab/Enter application or submission semantics, asynchronous provider lifecycle, and Escape cancellation except for the separately declared sole slash-command search clearing. On every selected row that renders a description, the selection arrow and primary candidate SHALL use the selected accent role while the aligned description SHALL retain the ordinary muted description role. A selected row without a rendered description SHALL retain the ordinary selected styling. The replacement SHALL NOT reverse the list or change navigation direction merely because the list is above the prompt. Active autocomplete SHALL retain priority over contextual ghost suggestions.
+The replacement SHALL apply to slash-command, command-argument, path/resource, and extension-provider completions displayed by the default editor, with persistent history both enabled and disabled. It SHALL preserve candidate ordering, labels, descriptions, semantic styling, selection, the existing pagination and visible-item policy, configured keys, Tab/Enter application or submission semantics, asynchronous provider lifecycle, and Escape cancellation except for the separately declared sole slash-command search clearing. It SHALL NOT reverse the list or change navigation direction merely because the list is above the prompt. Active autocomplete SHALL retain priority over contextual ghost suggestions.
 
 The `a1 pi` comparison route, untouched pinned Pi, and extension-owned replacement editors SHALL retain their existing presentation and input ownership. A1 SHALL NOT mutate installed Pi packages, their exported constructors, or their prototypes to implement this replacement.
 
@@ -1615,11 +1615,6 @@ The `a1 pi` comparison route, untouched pinned Pi, and extension-owned replaceme
 - **WHEN** equivalent input invokes slash-command or argument completion in bare A1
 - **THEN** the same candidates, active-item behavior, and completion or command outcome SHALL remain available above the prompt
 - **AND** Up and Down SHALL retain their established selection direction and configured keybindings
-
-#### Scenario: Style a selected candidate description
-- **WHEN** bare A1's default-editor autocomplete selects a command, argument, resource, or extension candidate that renders a description
-- **THEN** the selection arrow and primary candidate SHALL be accented
-- **AND** the description SHALL remain muted exactly as it is on an unselected row
 
 #### Scenario: Complete paths or provider resources
 - **WHEN** a path/resource provider or an extension autocomplete provider returns candidates for the default editor
@@ -1643,9 +1638,9 @@ The `a1 pi` comparison route, untouched pinned Pi, and extension-owned replaceme
 
 #### Scenario: Compare with pinned Pi
 - **WHEN** equivalent completion input runs through `a1 pi` and untouched pinned Pi
-- **THEN** their list placement, editor coordinates, candidates, interactions, and selected-row styling SHALL retain their pinned behavior
-- **AND** neither comparison producer SHALL gain the new top line, relocate its original counter, or receive bare A1's split selected-description styling
-- **AND** only bare A1's explicitly declared placement, top-line, counter-relocation, selected-description styling, and sole slash-command search clearing differences SHALL be treated as expected autocomplete deviations
+- **THEN** their list placement, editor coordinates, candidates, and interactions SHALL retain their pinned behavior
+- **AND** neither comparison producer SHALL gain the new top line or relocate its original counter
+- **AND** only bare A1's explicitly declared placement, top-line, counter-relocation, and sole slash-command search clearing differences SHALL be treated as expected autocomplete deviations
 
 ### Requirement: Rendering stability is proven from terminal paint evidence
 A rendering-affecting change to the owned shell SHALL be validated with bounded terminal-paint evidence in addition to semantic row snapshots. The evidence SHALL independently exercise bare A1, the pinned `a1 pi` comparison, and untouched pinned Pi under equivalent profile state, terminal geometry, theme, capabilities, transcript, deterministic stream updates, and input checkpoints. It SHALL distinguish the default regular-mode comparison from a mode-matched fullscreen comparison so differences caused by terminal ownership are not misattributed to transcript content.
