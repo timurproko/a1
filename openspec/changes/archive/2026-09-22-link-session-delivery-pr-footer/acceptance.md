@@ -18,7 +18,7 @@ The manual merge accepts these scenarios:
   "archive": "openspec/changes/archive/2026-09-22-link-session-delivery-pr-footer/",
   "acceptanceManifest": "openspec/changes/archive/2026-09-22-link-session-delivery-pr-footer/acceptance.md",
   "finalizedDate": "2026-09-22",
-  "specBaseSha": "9d2074cf2a8152d191b54d4d8b01d7ae6efacb03",
+  "specBaseSha": "8653fa4ffbe95d00c236065ee5efbdb4ddf4babf",
   "acceptanceScenarios": [
     "A session can explicitly link its same-repository delivery worktree and restore that context after resume.",
     "Concurrent sessions remain isolated by stable session identity, while foreign, detached, malformed, deleted, and reused contexts fail closed.",
