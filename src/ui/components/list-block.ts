@@ -210,7 +210,7 @@ export function layoutList<T>(
   for (let offset = firstOffset; indexes.length < clamped.visible && clamped.scroll + offset < rows.length; offset++) {
     indexes.push(clamped.scroll + offset);
   }
-  // A bottom clamp can land on the outgoing spacer with too few rows after it to fill the
+  // Invariant: a bottom clamp can land on the outgoing spacer with too few rows after it to fill the
   // viewport. The pinned heading already represents that boundary, so fill the freed capacity
   // from the same section rather than exposing a synthetic blank row at the bottom.
   if (firstOffset > 0 && indexes.length < clamped.visible) {
