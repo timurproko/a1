@@ -399,6 +399,13 @@ export function assertOwnedUiStatusView(status: OwnedUiStatusView): void {
   }
   if (status.footer !== undefined) {
     assertOptionalText(status.footer.branch, "owned-UI footer branch", MAX_LABEL_LENGTH);
+    if (status.footer.pullRequest !== undefined && status.footer.pullRequest !== null) {
+      const pullRequest = status.footer.pullRequest;
+      assertIntegerInRange(pullRequest.number, 1, Number.MAX_SAFE_INTEGER, "owned-UI footer pull request number");
+      if (!isCanonicalGitHubPullRequestUrl(pullRequest.url, pullRequest.number)) {
+        throw new TypeError("owned-UI footer pull request URL is invalid");
+      }
+    }
     assertOptionalText(status.footer.sessionName, "owned-UI footer session name", MAX_LABEL_LENGTH);
     assertIntegerInRange(status.footer.availableProviderCount, 0, 1_000, "owned-UI footer provider count");
     assertCollection(status.footer.extensionStatuses, "owned-UI footer extension statuses", MAX_BADGES);
@@ -423,6 +430,23 @@ export function assertOwnedUiDiagnostics(diagnostic: OwnedUiDiagnostics): void {
   assertEnum(diagnostic.severity, SEVERITIES, "owned-UI diagnostic severity");
   assertBoundedText(diagnostic.message, "owned-UI diagnostic message", MAX_MESSAGE_LENGTH);
   if (typeof diagnostic.recoverable !== "boolean") throw new TypeError("owned-UI diagnostic recoverability is invalid");
+}
+
+function isCanonicalGitHubPullRequestUrl(value: unknown, number: number): value is string {
+  if (typeof value !== "string" || value.length > MAX_LABEL_LENGTH) return false;
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:"
+      && url.hostname.toLowerCase() === "github.com"
+      && url.username === ""
+      && url.password === ""
+      && url.port === ""
+      && url.search === ""
+      && url.hash === ""
+      && new RegExp(`^/[^/]+/[^/]+/pull/${number}/?$`, "u").test(url.pathname);
+  } catch {
+    return false;
+  }
 }
 
 function assertOwnedUiModelInfo(model: { readonly providerId: string; readonly modelId: string; readonly displayName: string }): void {

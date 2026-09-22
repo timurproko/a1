@@ -82,6 +82,14 @@
       "semantics": "Explicit helper executable override; retain pending caller exposure review"
     },
     {
+      "role": "prFooterPreview",
+      "key": "A1_PR_FOOTER_PREVIEW",
+      "exposure": "review",
+      "owner": "src/integrations/pi/engine/repository-pr.ts",
+      "evidence": "test/integrations/pi/engine/repository-pr.test.ts",
+      "semantics": "Development-only validated PR footer fixture; retain pending exposure review"
+    },
+    {
       "role": "clipboardDiagnostics",
       "key": "A1_CLIPBOARD_DIAGNOSTICS",
       "exposure": "review",
