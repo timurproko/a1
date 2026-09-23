@@ -5,6 +5,7 @@ import { PRODUCT_TEXT } from "../product-identity.js";
 
 /** Supported subset of pinned Pi's package-manager CLI presentation. */
 export type PackageCliVerb = "install" | "remove" | "list" | "update";
+export type PackageCommandNamespace = "direct" | "pi";
 export type PackageSyntaxDiagnostic =
   | { readonly verb: PackageCliVerb; readonly kind: "missing-source" }
   | { readonly verb: PackageCliVerb; readonly kind: "unknown-option"; readonly value: string }
@@ -13,20 +14,29 @@ export type PackageSyntaxDiagnostic =
 
 type MessageStyle = Pick<typeof chalk, "red" | "dim" | "bold">;
 
-export function packageCommandUsage(verb: PackageCliVerb): string {
-  const command = `${PRODUCT_TEXT.commandName} pi ${verb}`;
+export function packageCommandUsage(verb: PackageCliVerb, namespace: PackageCommandNamespace = "pi"): string {
+  const command = namespace === "direct"
+    ? `${PRODUCT_TEXT.commandName} ${verb}`
+    : `${PRODUCT_TEXT.commandName} pi ${verb}`;
   if (verb === "install" || verb === "remove") return `${command} <source>`;
+  if (verb === "update" && namespace === "direct") {
+    return `${command} [--develop [preview-or-version]|--models|--extensions|source]`;
+  }
   if (verb === "update") return `${command} [source|--extensions|--models]`;
   return command;
 }
 
 /** Diagnostic facts stay unstyled until the terminal boundary decides color support. */
-export function renderPackageSyntax(diagnostic: PackageSyntaxDiagnostic, style: MessageStyle = chalk): string {
-  const usage = packageCommandUsage(diagnostic.verb);
+export function renderPackageSyntax(
+  diagnostic: PackageSyntaxDiagnostic,
+  namespace: PackageCommandNamespace = "pi",
+  style: MessageStyle = chalk,
+): string {
+  const usage = packageCommandUsage(diagnostic.verb, namespace);
   let message: string;
   if (diagnostic.kind === "unknown-option") {
     return `${style.red(`Unknown option ${diagnostic.value} for "${diagnostic.verb}".`)}\n`
-      + `${style.dim(`Use "${PRODUCT_TEXT.commandName} --help" or "${usage}".`)}\n`;
+      + `${style.dim(`Use "${PRODUCT_TEXT.commandName} help" or "${usage}".`)}\n`;
   }
   if (diagnostic.kind === "missing-source") message = `Missing ${diagnostic.verb} source.`;
   else if (diagnostic.kind === "unexpected-argument") message = `Unexpected argument ${diagnostic.value}.`;
@@ -35,9 +45,20 @@ export function renderPackageSyntax(diagnostic: PackageSyntaxDiagnostic, style: 
 }
 
 /** Pi's help layout, with unsupported options and examples deliberately absent. */
-export function packageCommandHelp(verb: PackageCliVerb, style: MessageStyle = chalk): string {
-  const command = `${PRODUCT_TEXT.commandName} pi`;
-  const header = `${style.bold("Usage:")}\n  ${packageCommandUsage(verb)}\n\n`;
+export function packageCommandHelp(
+  verb: PackageCliVerb,
+  namespace: PackageCommandNamespace = "pi",
+  style: MessageStyle = chalk,
+): string {
+  const command = namespace === "direct" ? PRODUCT_TEXT.commandName : `${PRODUCT_TEXT.commandName} pi`;
+  const header = verb === "update" && namespace === "direct"
+    ? `${style.bold("Usage:")}\n`
+      + `  ${command} update\n`
+      + `  ${command} update --develop [preview-or-version]\n`
+      + `  ${command} update --models\n`
+      + `  ${command} update --extensions\n`
+      + `  ${command} update <source>\n\n`
+    : `${style.bold("Usage:")}\n  ${packageCommandUsage(verb, namespace)}\n\n`;
   switch (verb) {
     case "install":
       return header + `Install a package and add it to settings.
@@ -63,14 +84,14 @@ Examples:
     case "list":
       return header + "List installed packages from user settings.\n\n";
     case "update":
-      return header + `Update installed packages or model catalogs.
+      return header + `${namespace === "direct" ? "Update A1, installed packages, or model catalogs." : "Update installed packages or model catalogs."}
 
 Options:
-  --extensions            Update installed packages only
+${namespace === "direct" ? "  --develop [target]     Update to the development channel or one preview\n" : ""}  --extensions            Update installed packages only
   --models                Refresh model catalogs only
 
 Short forms:
-  ${command} update --extensions   Update installed packages only
+${namespace === "direct" ? `  ${command} update                Update A1 to the stable release\n  ${command} update --develop      Update A1 to the development preview\n` : ""}  ${command} update --extensions   Update installed packages only
   ${command} update --models       Refresh model catalogs only
   ${command} update <source>       Update one package
 

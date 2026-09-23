@@ -545,10 +545,11 @@ jobs:
       - name: Record verified install-time build
         if: steps.job-selection.outputs.active == 'true' && matrix.build
         run: node scripts/release/record-validation-prerequisite.mjs build
-      - name: Build process guardian fixture artifact
+      - name: Test and build process guardian fixture artifact
         if: steps.job-selection.outputs.active == 'true' && matrix.guardian
         shell: bash
         run: |
+          cargo test --locked --manifest-path native/process-guardian/Cargo.toml
           cargo build --locked --manifest-path native/process-guardian/Cargo.toml
           echo "A1_PROCESS_GUARDIAN_PATH=${{ github.workspace }}/native/process-guardian/target/debug/${{ matrix.binary }}" >> "$GITHUB_ENV"
       - name: Run exact selected scopes

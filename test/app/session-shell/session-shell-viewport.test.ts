@@ -8,6 +8,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { stripTerminalSequences } from "@earendil-works/pi-tui";
 import { describe, expect, it, onTestFailed, onTestFinished, vi } from "vitest";
+
+const DEQUEUE_HINT = `${process.platform === "darwin" ? "Option" : "Alt"}+Up to edit all queued messages`;
 // Performance: this integration file exercises real cold emitted entries; dedicated tests retain source-loader coverage.
 vi.mock("../../../src/app/session-shell/paste-executor.js", async importOriginal => {
   const actual = await importOriginal<typeof import("../../../src/app/session-shell/paste-executor.js")>();
@@ -297,7 +299,7 @@ describe("OwnedUiSessionShell viewport and streaming", () => {
       const rows = shell.root.render(60).map(row => stripTerminalSequences(row));
       const first = rows.findIndex(row => row.includes("Steering: first"));
       const second = rows.findIndex(row => row.includes("Steering: second"));
-      const hint = rows.findIndex(row => row.includes("Alt+Up to edit all queued messages"));
+      const hint = rows.findIndex(row => row.includes(DEQUEUE_HINT));
       const working = rows.findIndex(row => row.includes("Working"));
       const viewportEnd = shell.root.viewportFrameDescriptor()!.transcript!.rowEnd - 1;
       expect(first).toBeGreaterThanOrEqual(0);
@@ -310,7 +312,7 @@ describe("OwnedUiSessionShell viewport and streaming", () => {
       const detached = shell.root.render(60).map(row => stripTerminalSequences(row));
       expect(detached.some(row => row.includes("Steering: first"))).toBe(false);
       expect(detached.some(row => row.includes("Steering: second"))).toBe(false);
-      expect(detached.some(row => row.includes("Alt+Up to edit all queued messages"))).toBe(false);
+      expect(detached.some(row => row.includes(DEQUEUE_HINT))).toBe(false);
       expect(detached.some(row => row.includes("Working"))).toBe(false);
       expect(detached.some(row => row.includes("Jump to bottom (Ctrl+End) ↓"))).toBe(true);
       terminal.input("\u001b[1;5F");
@@ -340,7 +342,7 @@ describe("OwnedUiSessionShell viewport and streaming", () => {
         return {
           rows,
           queue: rows.findIndex(row => row.includes("Steering: stable queue")),
-          hint: rows.findIndex(row => row.includes("Alt+Up to edit all queued messages")),
+          hint: rows.findIndex(row => row.includes(DEQUEUE_HINT)),
           working: rows.findIndex(row => row.includes("Working")),
           viewportEnd: descriptor.transcript!.rowEnd - 1,
           dockStart: descriptor.dock!.rowStart - 1,
@@ -409,11 +411,11 @@ describe("OwnedUiSessionShell viewport and streaming", () => {
       engine.session.emit({ type: "agent_start" });
       await shell.backend.flushEvents();
       const plainRows = () => shell.root.render(60).map(row => stripTerminalSequences(row));
-      expect(plainRows().some(row => row.includes("Working..."))).toBe(true);
+      expect(plainRows().some(row => row.includes("Working…"))).toBe(true);
       shell.root.setExtensionWorking("Indexing sources");
       shell.runtime.renderNow();
-      expect(plainRows().some(row => row.includes("Indexing sources..."))).toBe(true);
-      expect(plainRows().some(row => row.includes("Working..."))).toBe(false);
+      expect(plainRows().some(row => row.includes("Indexing sources…"))).toBe(true);
+      expect(plainRows().some(row => row.includes("Working…"))).toBe(false);
 
       terminal.input("\u001b[<64;30;1M");
       shell.runtime.renderNow();
@@ -426,7 +428,7 @@ describe("OwnedUiSessionShell viewport and streaming", () => {
       expect(plainRows().some(row => row.includes("Indexing sources"))).toBe(false);
       terminal.input("\u001b[1;5F");
       shell.runtime.renderNow();
-      expect(plainRows().some(row => row.includes("Still indexing..."))).toBe(true);
+      expect(plainRows().some(row => row.includes("Still indexing…"))).toBe(true);
 
       engine.session.emit({ type: "message_end", message: {
         role: "assistant",
