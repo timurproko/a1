@@ -52,19 +52,19 @@ registry, start the supervisor, install anything, or print migration guidance.
 - **THEN** A1 SHALL exit successfully without output or side effects
 
 ### Requirement: Version output follows the Pi command convention
-The installed application SHALL expose equivalent `a1 --version` and `a1 -v` forms and SHALL NOT expose a `version` subcommand or start or mutate the interactive runtime, supervisor, storage, release cohort, or update transaction. A stable release SHALL print only its installed exact semantic version without remote discovery. A development build SHALL report `Current`, `Develop`, and `Release` in that order and SHALL discover authoritative package dist-tags as one coherent result; an absent development tag SHALL be unavailable without a diagnostic, while discovery failure SHALL make both remote fields unavailable with one concise `A1` diagnostic.
+The installed application SHALL expose `a1 version` as the preferred version command and SHALL retain equivalent `a1 --version` and `a1 -v` compatibility forms. None of those forms SHALL start or mutate the interactive runtime, supervisor, storage, release cohort, or update transaction. A stable release SHALL print only its installed exact semantic version without remote discovery. A development build SHALL report `Current`, `Develop`, and `Release` in that order and SHALL discover authoritative package dist-tags as one coherent result; an absent development tag SHALL be unavailable without a diagnostic, while discovery failure SHALL make both remote fields unavailable with one concise `A1` diagnostic.
 
 #### Scenario: Stable release version
-- **WHEN** the user runs `a1 --version` from a stable release
+- **WHEN** the user runs `a1 version`, `a1 --version`, or `a1 -v` from a stable release
 - **THEN** A1 SHALL print only the installed exact semantic version without querying remote channels
 
 #### Scenario: Development build versions
-- **WHEN** the user runs `a1 --version` from a development build
-- **THEN** A1 SHALL display `Current`, `Develop`, and `Release` in order, applying the declared unavailable behavior when remote channel metadata is absent or unreachable
+- **WHEN** the user runs `a1 version`, `a1 --version`, or `a1 -v` from a development build
+- **THEN** every form SHALL display the same `Current`, `Develop`, and `Release` result in order, applying the declared unavailable behavior when remote channel metadata is absent or unreachable
 
 #### Scenario: Old subcommand notation
-- **WHEN** the user runs `a1 version`
-- **THEN** A1 SHALL reject it as an unknown command
+- **WHEN** the user runs the formerly unsupported `a1 version` notation
+- **THEN** A1 SHALL now treat it as the preferred equivalent of `a1 --version` and `a1 -v`
 
 ### Requirement: Interactive launch forms use the owned Pi UI pipeline
 Bare `a1` SHALL launch the A1-owned product surface directly. Explicit prerelease `a1 pi` SHALL use the same owned rendering and input pipeline with A1-specific surfaces withheld and Pi's ordinary user profile selected. Profile selection SHALL NOT introduce transparent child attachment, a PTY, a terminal parser, a byte relay, or a second rendering path. The redundant `a1 ui` route SHALL NOT be exposed.
@@ -134,13 +134,13 @@ The immutable interactive launcher SHALL establish the same non-detachable launc
 - **THEN** it SHALL create another independent instance rather than acquiring a product-wide foreground slot
 
 ### Requirement: Help is explicit and unsupported commands are quiet
-The installed application SHALL expose equivalent `a1 --help` and `a1 -h` forms that print the complete commands supported by that build and exit successfully. Explicit `--help` and `-h` on recognized `a1 pi install`, `remove`, `uninstall`, `list`, and `update` commands SHALL print focused command help for A1's supported subset without executing the command. A1 SHALL NOT append the complete application or command help to command failures; a focused syntax diagnostic MAY include pinned-style usage guidance for the affected supported command.
+The installed application SHALL expose `a1 help` as the preferred complete-help command and SHALL retain equivalent `a1 --help` and `a1 -h` compatibility forms. Complete help SHALL lead with the direct `help`, `version`, `install`, `remove`, `uninstall`, `list`, and `update` forms, while identifying the retained flag and `a1 pi` compatibility aliases without making them the primary examples. Explicit help on recognized direct or compatibility package commands SHALL print focused help for A1's supported subset without executing the command. Direct `a1 update --help` SHALL describe the supported stable, development, extension, model, and single-package update forms together. A1 SHALL NOT append the complete application or command help to command failures; a focused syntax diagnostic MAY include pinned-style usage guidance for the affected supported command.
 
 A word outside the supported command grammar SHALL be a silent successful no-op. It SHALL write nothing to stdout or stderr and SHALL NOT start an interactive runtime, supervisor, shell, update, package operation, or model refresh. A malformed invocation whose leading command is recognized MAY fail with one focused diagnostic and applicable usage guidance. A1-only update-selector errors SHALL retain their focused product-specific diagnostics.
 
 #### Scenario: Help is requested
-- **WHEN** the user runs `a1 --help` or `a1 -h`
-- **THEN** A1 SHALL print the command list appropriate to that build and exit successfully without launching a runtime
+- **WHEN** the user runs `a1 help`, `a1 --help`, or `a1 -h`
+- **THEN** A1 SHALL print the same command list appropriate to that build and exit successfully without launching a runtime
 
 #### Scenario: Unknown top-level word is given
 - **WHEN** the user runs `a1 sdjjhd`
@@ -155,13 +155,17 @@ A word outside the supported command grammar SHALL be a silent successful no-op.
 - **THEN** A1 SHALL fail before any operation with one concise diagnostic and without the complete help text
 
 #### Scenario: Package command help is explicitly requested
-- **WHEN** the user runs `a1 pi install --help`, `a1 pi remove -h`, `a1 pi uninstall --help`, `a1 pi list --help`, or `a1 pi update --help`
-- **THEN** A1 SHALL print the respective supported command help and exit successfully without profile preparation, package/model work, or runtime launch
+- **WHEN** the user runs `a1 install --help`, `a1 remove -h`, `a1 uninstall --help`, `a1 list --help`, or `a1 update --help`
+- **THEN** A1 SHALL print the respective supported command help and exit successfully without profile preparation, package/model work, self-update, or runtime launch
 - **AND** help SHALL NOT advertise project-local packages, independent Pi updates, or other unsupported operations or options
 
+#### Scenario: Compatibility package command help is explicitly requested
+- **WHEN** the user requests help from a supported `a1 pi` package command
+- **THEN** A1 SHALL retain focused compatibility help without profile preparation, package/model work, or runtime launch
+
 #### Scenario: Focused package syntax guidance is needed
-- **WHEN** a recognized Pi-compatible package command has a missing source, unexpected argument, or genuinely unknown option
-- **THEN** A1 SHALL emit its pinned-style diagnostic and focused usage guidance rather than the complete command help
+- **WHEN** a recognized direct or compatibility package command has a missing source, unexpected argument, or genuinely unknown option
+- **THEN** A1 SHALL emit its pinned-style diagnostic and focused usage guidance for the invoked namespace rather than the complete command help
 
 ### Requirement: Interrupted update preserves the public command
 After an update accepts cancellation or loses its invoking updater or terminal process, A1 SHALL automatically leave or restore the complete platform launcher set needed to invoke `a1`. The recovered command SHALL execute either the prior verified immutable release or the completely installed target and SHALL retain the durable update transaction needed to continue or roll back. Recovery SHALL require no manual npm installation, launcher reconstruction, process termination, or A1 state deletion.
