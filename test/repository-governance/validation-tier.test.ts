@@ -51,13 +51,13 @@ describe("validation tier planning", () => {
     });
     const invocations = plan.vitest!.invocations;
     const ordinary = invocations.find(invocation => invocation.id === "vitest-full-without-isolated");
-    expect(FULL_REGRESSION_MAX_WORKERS).toBe(2);
+    expect(FULL_REGRESSION_MAX_WORKERS).toBe(1);
     expect(ordinary?.arguments)
-      .toEqual(expect.arrayContaining(["--exclude", "test/foundation/release/update-performance.integration.test.ts", "--exclude", "test/foundation/release/package-surface.test.ts", "test/foundation/release/package-install.integration.test.ts", "--exclude", "test/repository-governance/validation-impact.test.ts", "--maxWorkers=2", "--reporter=default", "--reporter=./scripts/release/validation-progress-reporter.mjs"]));
+      .toEqual(expect.arrayContaining(["--exclude", "test/foundation/release/update-performance.integration.test.ts", "--exclude", "test/foundation/release/package-surface.test.ts", "test/foundation/release/package-install.integration.test.ts", "--exclude", "test/repository-governance/validation-impact.test.ts", "--maxWorkers=1", "--reporter=default", "--reporter=./scripts/release/validation-progress-reporter.mjs"]));
     expect(ordinary?.evidence).toEqual({
       executionClass: "bounded-parallel",
       fileParallelism: true,
-      maxWorkers: 2,
+      maxWorkers: 1,
       timeoutMs: 30_000,
       timeoutSource: "explicit",
       retries: 0,

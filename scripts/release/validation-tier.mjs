@@ -17,7 +17,7 @@ const maximumPortableCommandCharacters = 6_000;
 /** Hang bound for the resource-sensitive partition; the same explicit bound the other fast-tier invocations use. */
 export const RESOURCE_SENSITIVE_TIMEOUT_MS = 30_000;
 /** Bounds the complete ordinary partition below hosted-runner process and memory capacity. */
-export const FULL_REGRESSION_MAX_WORKERS = 2;
+export const FULL_REGRESSION_MAX_WORKERS = 1;
 
 export async function loadValidationSuites(repository = process.cwd()) {
   const suites = JSON.parse(await readFile(resolve(repository, "config", "validation-suites.json"), "utf8"));

@@ -18,7 +18,7 @@ export interface ResourceSensitiveInvocationEvidence {
 export interface BoundedParallelInvocationEvidence {
   executionClass: "bounded-parallel";
   fileParallelism: true;
-  maxWorkers: 2;
+  maxWorkers: 1;
   timeoutMs: 30000;
   timeoutSource: "explicit";
   retries: 0;
@@ -103,7 +103,7 @@ export function prepareSharedExactPackage(plan: ValidationPlan, options?: {
 /** Explicit per-test hang bound of the resource-sensitive partition. */
 export const RESOURCE_SENSITIVE_TIMEOUT_MS: 30000;
 /** Maximum Vitest workers in the complete ordinary partition. */
-export const FULL_REGRESSION_MAX_WORKERS: 2;
+export const FULL_REGRESSION_MAX_WORKERS: 1;
 export function createTierPlan(requested: string[], repository?: string, options?: { additionalTests?: string[] }): Promise<ValidationPlan>;
 export function runTierPlan(plan: ValidationPlan, options?: {
   env?: NodeJS.ProcessEnv;
