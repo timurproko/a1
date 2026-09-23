@@ -5,10 +5,10 @@
     "evidenceAuthority": false,
     "colorMode": "truecolor",
     "repository": "https://github.com/earendil-works/pi.git",
-    "sourceCommit": "16787ad5b2dc748047f314ca1bfe7708f30f54f3",
+    "sourceCommit": "f07218c4d4bbc12bef056a7058c3dd49dfe41abe",
     "packages": {
-      "@earendil-works/pi-coding-agent": "0.87.0",
-      "@earendil-works/pi-tui": "0.87.0"
+      "@earendil-works/pi-coding-agent": "0.87.1",
+      "@earendil-works/pi-tui": "0.87.1"
     }
   },
   "tolerance": {
@@ -53,7 +53,7 @@
       ],
       "rows": [
         "",
-        " \u001b[38;2;138;190;183mpi\u001b[39m\u001b[38;2;102;102;102m v0.87.0\u001b[39m                                                             ",
+        " \u001b[38;2;138;190;183mpi\u001b[39m\u001b[38;2;102;102;102m v0.87.1\u001b[39m                                                             ",
         " \u001b[38;2;102;102;102mescape\u001b[39m\u001b[38;2;128;128;128m interrupt\u001b[39m\u001b[38;2;128;128;128m · \u001b[39m\u001b[38;2;102;102;102mctrl+c/ctrl+d\u001b[39m\u001b[38;2;128;128;128m clear/exit\u001b[39m\u001b[38;2;128;128;128m · \u001b[39m\u001b[38;2;102;102;102m/\u001b[39m\u001b[38;2;128;128;128m commands\u001b[39m\u001b[38;2;128;128;128m · \u001b[39m\u001b[38;2;102;102;102m!\u001b[39m\u001b[38;2;128;128;128m bash\u001b[39m\u001b[38;2;128;128;128m ·    ",
         " \u001b[38;2;128;128;128m\u001b[39m\u001b[38;2;102;102;102mctrl+o\u001b[39m\u001b[38;2;128;128;128m more\u001b[39m                                                            ",
         " \u001b[38;2;102;102;102mPress ctrl+o to show full startup help and loaded resources.\u001b[39m           ",
@@ -114,7 +114,7 @@
       ],
       "rows": [
         "",
-        " \u001b[38;2;138;190;183mpi\u001b[39m\u001b[38;2;102;102;102m v0.87.0\u001b[39m                                 ",
+        " \u001b[38;2;138;190;183mpi\u001b[39m\u001b[38;2;102;102;102m v0.87.1\u001b[39m                                 ",
         " \u001b[38;2;102;102;102mescape\u001b[39m\u001b[38;2;128;128;128m interrupt\u001b[39m\u001b[38;2;128;128;128m · \u001b[39m\u001b[38;2;102;102;102mctrl+c/ctrl+d\u001b[39m\u001b[38;2;128;128;128m           ",
         " \u001b[38;2;128;128;128mclear/exit\u001b[39m\u001b[38;2;128;128;128m · \u001b[39m\u001b[38;2;102;102;102m/\u001b[39m\u001b[38;2;128;128;128m commands\u001b[39m\u001b[38;2;128;128;128m · \u001b[39m\u001b[38;2;102;102;102m!\u001b[39m\u001b[38;2;128;128;128m bash\u001b[39m\u001b[38;2;128;128;128m · \u001b[39m\u001b[38;2;102;102;102mctrl+o\u001b[39m\u001b[38;2;128;128;128m  ",
         " \u001b[38;2;128;128;128mmore\u001b[39m                                       ",

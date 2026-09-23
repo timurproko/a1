@@ -1,7 +1,7 @@
 {
   "schema": "a1-pi-feature-adoption-matrix-v1",
   "pinned": {
-    "version": "0.87.0"
+    "version": "0.87.1"
   },
   "changelogSince": "0.84.2",
   "rows": [
@@ -2329,6 +2329,24 @@
       "since": "0.87.0",
       "disposition": "pinned",
       "note": "Per-model inputLimits.images.resize read from the model registry by the pinned engine for attachments, read, and tool-result images; the pinned settings selector offers no row for it."
+    },
+    {
+      "id": "changelog:0.87.1:grok-4-7-by-default-for-xai",
+      "kind": "changelog",
+      "feature": "Grok 4.7 by default for xAI",
+      "version": "0.87.1",
+      "summary": "New xAI sessions now default to Grok 4.7.",
+      "since": "0.87.1",
+      "disposition": "pending"
+    },
+    {
+      "id": "changelog:0.87.1:latest-frontier-models",
+      "kind": "changelog",
+      "feature": "Latest frontier models",
+      "version": "0.87.1",
+      "summary": "Use Claude Opus 5.5, GPT-6 Sol, and GPT-6 Luna through supported providers, including GitHub Copilot.",
+      "since": "0.87.1",
+      "disposition": "pending"
     }
   ]
 }

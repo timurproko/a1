@@ -2,21 +2,21 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-09-22T23:18:50.222Z",
+  "recordedAt": "2026-09-23T08:42:40.031Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
-    "commit": "16787ad5b2dc748047f314ca1bfe7708f30f54f3",
+    "commit": "f07218c4d4bbc12bef056a7058c3dd49dfe41abe",
     "license": "MIT",
     "packages": [
       {
         "name": "@earendil-works/pi-coding-agent",
-        "version": "0.87.0",
-        "integrity": "sha512-S9JJVGHya/h0e0M+zwPTB6RkPe7PmLLqfBUTssFYW5mxAti6oZEILn4jvaUImENRC3U9RwXAB6H4gw8xj2J0GQ=="
+        "version": "0.87.1",
+        "integrity": "sha512-m8ArJUtVcQMSe1lLE/Ei7vX/JV7O39sWmWBsXV2NOU70F0qCp8GubA24pT3LnwTmM6LL2xV80/h6sQg85n69ew=="
       },
       {
         "name": "@earendil-works/pi-tui",
-        "version": "0.87.0",
-        "integrity": "sha512-7gTC0XOgQfVWg4yGxwHINBpCnGl9p4KEC7PXIc8gAwc/cyxSW4VuFQrp+r1YD3oM+rBkoepKwAt6w6+VJ7BCaw=="
+        "version": "0.87.1",
+        "integrity": "sha512-YEH2vRyOeiO7hhN6j6AE6YwKSq2Kz2f3XR8bj1TbR+aGE/JsnY1hLPMI2pvaZfRM1n9Y00tejxFQ4zbzvF7nkQ=="
       }
     ]
   },
@@ -448,7 +448,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Mechanical source port with Node import prefixes, public package-root agent-directory resolution, and an opt-in bare-A1 input profile including Ctrl+L level cycling and unbound model selection.",
       "upgradeStrategy": "three-way",
-      "localSha256": "9a6773f4c4062b2c5979c5ea372514354587533633d1960fc19a99f8db5235bd",
+      "localSha256": "c5d915bd08924a51ae592b8d853bc34b428ba438a7a173f29d2bca69e84b5959",
       "approvedDeviations": [
         {
           "id": "keybindings-public-config-boundary",
@@ -1238,7 +1238,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Mechanical source port with ECMAScript private fields; imports remain on the public Pi TUI package root.",
       "upgradeStrategy": "three-way",
-      "localSha256": "26e9e99b8637dd0a15b64ea3ef003c2796de081d10daa357c1882098bb9bdee3",
+      "localSha256": "74afb5c1b22da1b00fd2ac0704d5e04422b9eb56a6bd1f1623c92eea472373e3",
       "approvedDeviations": [
         {
           "id": "countdown-owned-private-fields",
@@ -1283,7 +1283,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "A1-owned class name and synchronized A1 keybinding contract replace the nominal private upstream keybinding constructor dependency; bare A1 injects the shared Settings/agent input frame, transient contextual-suggestion branch, and explicit body geometry for selection and above-prompt autocomplete. Bare A1 also clears a sole top-level slash-command search on Escape. Bare A1 also completes a selected tunnel command with `:` and reopens the menu on its tunnel rows.",
       "upgradeStrategy": "keep-owned",
-      "localSha256": "8a2e60bf9b5d78130815cc3bc636bdb00f1e2a3208536964897027a67ab62328",
+      "localSha256": "6bbe953e9fe6f588d910dec7a164a338ea3b417221b465d490e4ea271e1e1418",
       "approvedDeviations": [
         {
           "id": "owned-shared-input-frame",
@@ -1424,7 +1424,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Mechanical pinned source port with private imports remapped to public package-root types/APIs and A1-owned theme boundaries; behavior remains acceptance-tested.",
       "upgradeStrategy": "three-way",
-      "localSha256": "4d000b11b0a2da000463e86bc09fcd0a07f37b9da0a6c93d9b373505daeb5dd7",
+      "localSha256": "d2fbc2a4cf0b54980e1cbad90556b1d142b253a821c902092e3f2b0a3836b665",
       "approvedDeviations": [],
       "behaviorCategories": [
         "startup-composition",
@@ -1533,7 +1533,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Mechanical pinned source port with private imports remapped to public package-root types/APIs and A1-owned theme boundaries. The unchanged image is loaded lazily from its attributed, verified owned resource, preserving pinned image/fallback rows without runtime dependency-directory reads or package mutation. Command-outcome parity exercises the restored presentation.",
       "upgradeStrategy": "three-way",
-      "localSha256": "6be41a092256740868154adbd99027ed02f576cdfd59d37b3322fa659f5c1574",
+      "localSha256": "beb3fa6601dd37d22b5ae53fea92028a712057bf082e3ef70cde30deb2e5126d",
       "approvedDeviations": [],
       "behaviorCategories": [
         "startup-composition",
@@ -1576,7 +1576,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Mechanical port: remap pi-tui to the root public singleton, use owned keybindings/theme and external-editor seams, preserve editor layout, hints, focus, submission, cancellation, and external-editor lifecycle; bare A1 uses the shared semantic modal shortcut row.",
       "upgradeStrategy": "three-way",
-      "localSha256": "bd1ab618834da9e7432b509b0cc4549614077d4813662e39c050f3b4f21d7a87",
+      "localSha256": "2521604b08f0aa0c84f318785ed44ff712c760dbba148a418dd79014f2b5b501",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -1623,7 +1623,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Mechanical port: remap public imports, use ECMAScript private fields, and route the bare-A1 instruction row through the shared semantic shortcut renderer while preserving input, timeout, focus, submission, cancellation, and disposal behavior.",
       "upgradeStrategy": "three-way",
-      "localSha256": "0ffef39917d9e6f959aededc8655050c03fa2c92e8e68401b82cd08456ad288b",
+      "localSha256": "70b1772a79be762f9bc8e5629798f313a2002136c3414c6148f6c948af27ce69",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -1673,7 +1673,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Mechanical port: remap public imports, use ECMAScript private fields, and route the bare-A1 instruction row through the shared semantic shortcut renderer while preserving options, timeout, navigation, selection, cancellation, and disposal behavior.",
       "upgradeStrategy": "three-way",
-      "localSha256": "d11ba6067431ac13493b0fa7f08d05369370f4ff507281bdfe68b3ffe0c9d4d0",
+      "localSha256": "7e92fbabf159f0500b9f729789830fb109cf69c57a93b1fa2fa2e54fd46b6436",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -1763,7 +1763,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Consumes neutral owned-UI view data instead of a fabricated concrete AgentSession; an explicit bare-A1 profile colors the thinking-level name, renders its repository-context path, and reserves its linked pull-request badge before path truncation while preserving the remaining footer layout and formatting; replacement surfaces may suppress a thinking level they already present.",
       "upgradeStrategy": "three-way",
-      "localSha256": "0a1ac2537a4db588ba4e6398c44e154134e67d680c94efc1454155a08688ffab",
+      "localSha256": "39a6bdd0a220470ce307d83e10070e94c074ca4e17fdf26db94298b0095612d4",
       "approvedDeviations": [
         {
           "id": "owned-status-level-color",
@@ -1944,7 +1944,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Mechanical pinned source port with private imports remapped to public package-root types/APIs and A1-owned theme boundaries; behavior remains acceptance-tested.",
       "upgradeStrategy": "three-way",
-      "localSha256": "27d628efb3b19aba789c6e475cbd32fb3bd5a31816ee224f05ea556dd3b97c11",
+      "localSha256": "eb464a4245c8b41c6e2bbf65c1a900b6b1ead0422c3f63a80a8af7260164e5c5",
       "approvedDeviations": [],
       "behaviorCategories": [
         "startup-composition",
@@ -2064,7 +2064,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Source-synchronized scoped-model selector port: preserve session-only toggles, search, bulk/provider/reorder actions, dirty state, Ctrl+S persistence, refresh status, cancellation, and focus while remapping theme and public helper imports; local key labels preserve pinned platform formatting before layout without changing binding identities, and bare A1 uses the shared semantic modal shortcut row.",
       "upgradeStrategy": "three-way",
-      "localSha256": "cf99d8f03b8b6eb91018b29be2b4c10fd393ee41885390f588c4ed3bf5ca6075",
+      "localSha256": "227da919525aaec7639ca35393c28a64c3c11bf326b9547e7761e64a5771f3fc",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -2112,7 +2112,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Source-synchronized session search port with only the public SessionInfo type import remapped.",
       "upgradeStrategy": "three-way",
-      "localSha256": "fc9bca51e3beb976d57e125915f6913f700f999ec7c139d63c8f9117ce86aa93",
+      "localSha256": "64ba3681b3e9130a9b2bd63c459982f79b6098cbd10a827a5c542c3fede3cdcf",
       "approvedDeviations": [],
       "behaviorCategories": [
         "selectors",
@@ -2152,7 +2152,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Source-synchronized session selector port: preserve threaded/current/all scope, search, sort, named/path filters, rename, delete confirmation, active-session protection, loading progress, cancellation, focus, and disposal while remapping public helpers, owned keybindings/theme, canonical path handling, and the shared bare-A1 modal shortcut row.",
       "upgradeStrategy": "three-way",
-      "localSha256": "432d941b6cc2e23938382eaf1981a4b6734f39f2c879e763c52f8b6b4e045966",
+      "localSha256": "25b0ab5f008e49378d9480a74185b5ad7906b5a74f73322b5ae664f53de87b27",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -2306,7 +2306,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Mechanical port uses A1's public pi-tui instance, owned theme boundary, and root-instance keybinding registry because the public coding-agent component closes over a second nested pi-tui singleton and cannot observe A1's keybindings.",
       "upgradeStrategy": "three-way",
-      "localSha256": "00e399691595ea742ebc1e985fbeeef5cbd630d92efc9eef284bdec7c57b48b4",
+      "localSha256": "d7a4dda4fafb2ccf8da99dd856af2f7634c1bb731e27a93fb48893a58a8153f3",
       "approvedDeviations": [],
       "behaviorCategories": [
         "stateful-components",
@@ -2345,7 +2345,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Mechanical source port with public package-root keybinding, Loader, and owned theme/countdown imports plus ECMAScript private fields.",
       "upgradeStrategy": "three-way",
-      "localSha256": "0bd7120db8c820c014234f338918c9369ea6ceea18cb92131b3eecff5d4f35c0",
+      "localSha256": "3659d7949814244fde3488e9b575bede735715136f0dd3f7c569efc6cea8870f",
       "approvedDeviations": [
         {
           "id": "status-indicator-public-boundaries",
@@ -2428,7 +2428,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Preserve the searchable thinking-level selector, current/default semantics, selection, save, cancellation, and focus while accepting the active bare-A1 cycle-key label from the shell, styling the title with the established bold semantic accent treatment, placing its muted hint directly below it, deduplicating levels, and rendering aligned muted descriptions after adjacent active and bracketed default markers. All list and border colors use the owned theme and its explicit color mode, and the footer uses the shared bare-A1 modal shortcut row. The comparison profile retains the public pinned component.",
       "upgradeStrategy": "three-way",
-      "localSha256": "3ce79f4488e430e82dff66f2fea8666003068a0e7d4a61218854bcbc6ef5c79b",
+      "localSha256": "d4ea27d4cdedcd06368ba2b4d9b1a2e4b84bfb24e208e62ca4de8e41aacf762e",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -2488,7 +2488,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Retain pinned shell and actual public tool-definition renderers. Replace private index-keyed image conversion with current-source ownership, serial conversion, visible fallback, and disposal; guard reentrant invalidation. Remap private types, definition factories, theme, and generic text helpers to public or locally attributed equivalents. See docs/architecture/tool-image-presentation.md.",
       "upgradeStrategy": "three-way",
-      "localSha256": "12ea6e10bbf7b9a55017d23153c7e212fe2d9d233556eda563605be0304b4abd",
+      "localSha256": "20fff4adcde3385a65f1fd8f1c22d74cdc867f2407de7ca2f855c3d7f5bce62a",
       "approvedDeviations": [
         {
           "id": "current-tool-image-conversion-ownership",
@@ -2538,7 +2538,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Source-synchronized tree selector port: preserve filtering, folding, labels, copying, tree navigation, key hints, focus, and viewport behavior while remapping public types/components plus owned keybindings/theme helpers required to avoid the pinned package nested pi-tui singleton; bare A1 uses the shared semantic modal shortcut row.",
       "upgradeStrategy": "three-way",
-      "localSha256": "075db098aaf1bfef4a3ac0c07b46bf230fa99700ca1d03e7f6b36547e622e702",
+      "localSha256": "8c22e5f0a74091c89ee1d5becd54c0427f8c5bf58ebf41ac73e45490c312a1b2",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -2585,7 +2585,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Mechanical source-synchronized trust selector port with injected public ProjectTrustStore-derived options, remapped owned theme imports, and the shared bare-A1 modal shortcut row.",
       "upgradeStrategy": "three-way",
-      "localSha256": "dbe3ecb15a93cfab9b4c399def88bb29fc7020dc77406c30d3b24c8bc5685a8c",
+      "localSha256": "ede54af3d3e7daf15571c3e896a427761746a1c002b57742466d8f4be248955f",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -2746,7 +2746,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Mechanical port: retain temporary prompt file, asynchronous inherited-stdio editor process, completion readback, and best-effort cleanup behind the owned extension-editor component.",
       "upgradeStrategy": "three-way",
-      "localSha256": "a9af2c15ab26c85bcff6f9ce6ad22b68c574dd7c0f8a694add7f9d9b5f42527a",
+      "localSha256": "9de267dc01c0eb2b39f80a169479058b4a997dc20dc28c4c35fc8d9fd7de9491",
       "approvedDeviations": [],
       "behaviorCategories": [
         "editor",
@@ -2906,7 +2906,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Mechanical source-synchronized port preserving pinned model search terms for stateful scoped-model filtering.",
       "upgradeStrategy": "three-way",
-      "localSha256": "5fc4dada9c77da52c60cfcf7985a94f01b91b6469d73ddac9bfd5b6068a5bbcc",
+      "localSha256": "022b8c8be35fdc14929276e71739f3967f9e26555c01f1dd8879be8f26c771dd",
       "approvedDeviations": [],
       "behaviorCategories": [
         "selectors",
@@ -3055,7 +3055,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Source-synchronized controller port: renamed owner class, injected dependency-free settings/runtime ports, remapped private theme helpers to the public-backed A1 theme adapter, and added explicit disposal.",
       "upgradeStrategy": "keep-owned",
-      "localSha256": "c50d231cfa88dbf73bb257866697e282cac32f357ae0a7a421cc78a233e3572a",
+      "localSha256": "fbbceccd9c8d539e5e935b5eda54e09476fa50f3f2f9b86c19d60e1fdcf848c8",
       "approvedDeviations": [
         {
           "id": "theme-controller-owned-boundaries",
@@ -3187,7 +3187,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Source-synchronized theme port: retain pinned theme schema, variable/color resolution, built-in and custom loading, terminal detection, and layout defaults while constructing the public package-root Theme class.",
       "upgradeStrategy": "keep-owned",
-      "localSha256": "f86e9d39c9a4be81833ee01ebf5f1697d05d45f0bd074e4d31c1c333ca2a4e47",
+      "localSha256": "2cd01b7945e65f5e79f65fe30d073bff20f400735a053a8b4e7a20906f360a86",
       "approvedDeviations": [
         {
           "id": "theme-public-api-boundary",
@@ -3490,7 +3490,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Owned editor core or minimal editor-local helper subset; public imports, strict types, typed persistent-history hooks, and semantic border state with the user-approved numeric-only history label. Public terminal runtime/exports remain shared and unchanged. See docs/architecture/history-editor-provenance.md.",
       "upgradeStrategy": "three-way",
-      "localSha256": "a986e1ab3bc0d6729d7a02ceb5be9c11eec3618756d092de23f78d9420545ebe",
+      "localSha256": "b7c3558f67232a9a8b9a2e396ccd2b73807e9a5f2b5adba3464f08fe8df3c0d3",
       "approvedDeviations": [
         {
           "id": "compact-history-counter-label",
@@ -4201,7 +4201,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Owned editor core or minimal editor-local helper subset; public imports, strict types, typed persistent-history hooks, and semantic border state. Public terminal runtime/exports remain shared and unchanged. See docs/architecture/history-editor-provenance.md.",
       "upgradeStrategy": "three-way",
-      "localSha256": "a64eb0d193764485f1b1832dac666561227a191d32cdd13dde8f7f340529d3c2",
+      "localSha256": "ab4917cfee267e37245641c3e8349ef5a2a4da7bed17c63c9d8c49d662a3e76f",
       "approvedDeviations": [
         {
           "id": "persistent-history-owned-editor-boundary",
@@ -4245,7 +4245,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Owned editor core or minimal editor-local helper subset; public imports, strict types, typed persistent-history hooks, and semantic border state. Public terminal runtime/exports remain shared and unchanged. See docs/architecture/history-editor-provenance.md.",
       "upgradeStrategy": "three-way",
-      "localSha256": "721d87ee3ed9b1365a356185f680a2a89f6d0185c4cd9caeb81d9a5d25b6ca30",
+      "localSha256": "758247a51af0c83b97b00bb15a8c571ba48a70709b7a97adc1bbb3b87c709a5e",
       "approvedDeviations": [
         {
           "id": "persistent-history-owned-editor-boundary",
@@ -4761,7 +4761,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Owned editor core or minimal editor-local helper subset; public imports, strict types, typed persistent-history hooks, and semantic border state. Public terminal runtime/exports remain shared and unchanged. See docs/architecture/history-editor-provenance.md.",
       "upgradeStrategy": "three-way",
-      "localSha256": "61196f6e3061c9fa94ebc2b17f71a1d8b2a969e3a90f9c67c934fe76af77ada8",
+      "localSha256": "a8e65ab0544b759917f1f32e256aaf83245d8a82cfc1df53676aab8bf1180cb7",
       "approvedDeviations": [
         {
           "id": "persistent-history-owned-editor-boundary",
@@ -4808,7 +4808,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Owned editor core or minimal editor-local helper subset; public imports, strict types, typed persistent-history hooks, and semantic border state. Public terminal runtime/exports remain shared and unchanged. See docs/architecture/history-editor-provenance.md.",
       "upgradeStrategy": "keep-owned",
-      "localSha256": "9080c0356305dfb0c7cc5f8e3672982bd110f8c687a688a7a23f5f85adbae1e1",
+      "localSha256": "bff8529e4d0d311530f8779e58f9c855ad506c5a7d3531916aba664cbe221edb",
       "approvedDeviations": [
         {
           "id": "persistent-history-owned-editor-boundary",
@@ -4852,7 +4852,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Owned editor core or minimal editor-local helper subset; public imports, strict types, typed persistent-history hooks, and semantic border state. Public terminal runtime/exports remain shared and unchanged. See docs/architecture/history-editor-provenance.md.",
       "upgradeStrategy": "three-way",
-      "localSha256": "82d18980e3e6593f877d250e3ef4f2e88c5fb213e456eff473911eff3822536e",
+      "localSha256": "8bcb435de86c4e80b938a8133add37dfd827015d271b33838a186e2ccc92302e",
       "approvedDeviations": [
         {
           "id": "persistent-history-owned-editor-boundary",

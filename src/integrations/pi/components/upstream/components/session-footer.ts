@@ -1,5 +1,5 @@
 /**
- * Provenance: @earendil-works/pi-coding-agent 0.87.0 (MIT), commit 16787ad5b2dc748047f314ca1bfe7708f30f54f3,
+ * Provenance: @earendil-works/pi-coding-agent 0.87.1 (MIT), commit f07218c4d4bbc12bef056a7058c3dd49dfe41abe,
  * packages/coding-agent/src/modes/interactive/components/footer.ts.
  * Modifications: Consumes neutral owned-UI view data instead of a fabricated concrete AgentSession; an
  * explicit bare-A1 profile colors the thinking-level name, renders its repository-context path, and
