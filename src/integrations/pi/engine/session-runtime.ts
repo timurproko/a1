@@ -1,6 +1,7 @@
+import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
+import { promisify } from "node:util";
 import { PRODUCT_IDENTITY } from "../../../product-identity.js";
-import { executeAbortableFile } from "./abortable-exec-file.js";
 import { observeCompactionProgress, type CompactionProgressObserver } from "./compaction-progress.js";
 import { createPiRuntimeIntegration } from "./runtime-integration.js";
 import { PiSessionCommandIntegration } from "./session-integration.js";
@@ -15,6 +16,7 @@ import {
   type PiPullRequestProbe,
 } from "./repository-pr.js";
 
+const execFileAsync = promisify(execFile);
 const PULL_REQUEST_REFRESH_MS = 60_000;
 const REPOSITORY_CONTEXT_POLL_MS = 5_000;
 const GIT_BRANCH_TIMEOUT_MS = 5_000;
@@ -474,12 +476,19 @@ function samePullRequest(left: PiPullRequestIdentity | null, right: PiPullReques
 }
 
 async function readGitBranch(cwd: string, signal: AbortSignal): Promise<string | null> {
-  const stdout = await executeAbortableFile("git", ["branch", "--show-current"], {
-    cwd,
-    signal,
-    timeoutMs: GIT_BRANCH_TIMEOUT_MS,
-    maxBufferBytes: GIT_BRANCH_MAX_BUFFER_BYTES,
-  });
-  const branch = stdout?.trim() ?? "";
-  return branch.length > 0 ? branch : null;
+  if (signal.aborted || !existsSync(cwd)) return null;
+  try {
+    const { stdout } = await execFileAsync("git", ["branch", "--show-current"], {
+      cwd,
+      windowsHide: true,
+      timeout: GIT_BRANCH_TIMEOUT_MS,
+      maxBuffer: GIT_BRANCH_MAX_BUFFER_BYTES,
+      signal,
+      encoding: "utf8",
+    });
+    const branch = stdout.trim();
+    return branch.length > 0 ? branch : null;
+  } catch {
+    return null;
+  }
 }

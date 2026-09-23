@@ -1,5 +1,6 @@
+import { execFile } from "node:child_process";
+import { existsSync } from "node:fs";
 import { PRODUCT_IDENTITY } from "../../../product-identity.js";
-import { executeAbortableFile } from "./abortable-exec-file.js";
 
 export interface PiPullRequestIdentity {
   readonly number: number;
@@ -25,6 +26,7 @@ export async function readOpenPullRequest(
   if (branch.length === 0 || signal.aborted) return null;
   const preview = environment[PRODUCT_IDENTITY.environment.prFooterPreview];
   if (preview !== undefined) return parseOpenPullRequest(preview, branch);
+  if (!existsSync(cwd)) return null;
   const stdout = await executeGh(cwd, signal);
   if (stdout === null) return null;
   return parseOpenPullRequest(stdout, branch);
@@ -62,16 +64,18 @@ export function parseOpenPullRequest(stdout: string, branch: string): PiPullRequ
 }
 
 function executeGh(cwd: string, signal: AbortSignal): Promise<string | null> {
-  try {
-    return executeAbortableFile("gh", ["pr", "view", "--json", "number,url,state,headRefName"], {
-      cwd,
-      signal,
-      timeoutMs: GH_TIMEOUT_MS,
-      maxBufferBytes: GH_MAX_BUFFER_BYTES,
-    });
-  } catch {
-    return Promise.resolve(null);
-  }
+  return new Promise(resolve => {
+    try {
+      execFile(
+        "gh",
+        ["pr", "view", "--json", "number,url,state,headRefName"],
+        { cwd, windowsHide: true, timeout: GH_TIMEOUT_MS, maxBuffer: GH_MAX_BUFFER_BYTES, signal, encoding: "utf8" },
+        (error, stdout) => { resolve(error === null && typeof stdout === "string" ? stdout : null); },
+      );
+    } catch {
+      resolve(null);
+    }
+  });
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

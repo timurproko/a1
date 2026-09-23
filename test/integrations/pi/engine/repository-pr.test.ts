@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { PRODUCT_IDENTITY } from "../../../../src/product-identity.js";
 import { parseOpenPullRequest, readOpenPullRequest } from "../../../../src/integrations/pi/engine/repository-pr.js";
@@ -16,6 +17,15 @@ describe("open pull request metadata", () => {
       number: 540,
       url: "https://github.com/timurproko/a1/pull/540",
     });
+  });
+
+  it("fails closed before launching GitHub CLI when the repository directory is absent", async () => {
+    await expect(readOpenPullRequest(
+      join(process.cwd(), "missing-repository-probe-cwd"),
+      "feature/show-pr-id-status-bar",
+      new AbortController().signal,
+      {},
+    )).resolves.toBeNull();
   });
 
   it("uses a validated development preview without invoking GitHub CLI", async () => {

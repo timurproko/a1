@@ -6,7 +6,7 @@
 
 ## 2. Fix
 
-- [x] 2.1 Route Git branch and GitHub pull-request probes through spawn-aware cancellation that signals only a positive child PID.
+- [x] 2.1 Reject missing repository directories before launching Git branch or GitHub pull-request probes.
 - [x] 2.2 Remove the disproven worker cap and diagnostic reporter, and add focused cancellation regression coverage.
 
 ## 3. Prove

@@ -4,8 +4,8 @@ The Full regression run of 2026-09-23 failed on `develop` at `c37f420` (https://
 
 ## What Changes
 
-- Replace repository-metadata probes' built-in AbortSignal subprocess termination with a spawn-aware executor that sends SIGTERM only after the child has a positive PID.
-- Preserve bounded branch and pull-request discovery while preventing an immediate session disposal from reaching POSIX `kill(0, SIGTERM)` and terminating the validation runner's process group.
+- Validate repository directories before launching Git branch or GitHub pull-request probes, so missing contexts fail closed without creating an incompletely spawned child.
+- Preserve bounded branch and pull-request discovery while preventing immediate disposal of a missing repository context from reaching POSIX `kill(0, SIGTERM)` and terminating the validation runner's process group.
 - Remove the disproven worker-cap workaround and retain every selected test, assertion, timeout, isolated partition, native lane, and zero-retry failure semantic.
 
 ## Capabilities
@@ -16,7 +16,7 @@ None.
 
 ### Modified Capabilities
 
-- `owned-pi-ui-foundation`: require repository discovery disposal to avoid signaling any unowned process or process group when a subprocess has not finished spawning.
+- `owned-pi-ui-foundation`: require a missing repository context to fail closed before branch or pull-request subprocess launch.
 
 ## Impact
 
