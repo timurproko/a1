@@ -39,6 +39,24 @@ describe("repository-owned atomic delivery guidance", () => {
     expect(config).not.toContain("After the initial specification merges");
   });
 
+  it("requires the owning session to link its exact worktree before delivery edits", async () => {
+    const config = await readFile("openspec/config.yaml", "utf8");
+    const skill = await readFile(".agents/skills/change-delivery/SKILL.md", "utf8");
+    const structure = await readFile("docs/architecture/project-structure.md", "utf8");
+    for (const guidance of [config, skill, structure]) {
+      expect(guidance).toContain("`a1 session link-worktree <absolute-worktree>`");
+      expect(guidance).toMatch(/before (?:changing |any )?(?:planning|planning or implementation)/i);
+      expect(guidance).toMatch(/stop (?:feature |task )?edits? and report the blocker|report the blocker and stop feature edits/);
+      expect(guidance).toMatch(/not tool cwd|does not change process or tool cwd/);
+      expect(guidance).toMatch(/resuming or switching streams|resuming an existing delivery or switching streams/);
+    }
+    expect(config).toContain("Continue only when the command confirms that exact canonical worktree");
+    expect(skill).toContain("continue only after it confirms the exact path");
+    expect(structure).toContain("A successful link response confirming the exact canonical worktree is required");
+    expect(structure).toContain("git worktree add -b <type>/<short-description>");
+    expect(structure).toContain("Repository commands therefore keep an explicit worktree path");
+  });
+
   it("ships a concise first-party skill with resolvable local guidance links", async () => {
     const path = resolve(".agents/skills/change-delivery/SKILL.md");
     const skill = await readFile(path, "utf8");

@@ -241,7 +241,7 @@ export class ScopedModelsSelectorComponent extends Container implements Focusabl
 			{ key: reorderKeys, action: "reorder" },
 			{ key: keyDisplayText("app.models.save"), action: "save" },
 			{ action: countText },
-		], 2);
+		]);
 		return this.isDirty ? `${hint} ${theme.fg("warning", "(unsaved)")}` : hint;
 	}
 

@@ -105,7 +105,7 @@ export class OwnedThinkingSelectorComponent extends Container implements Focusab
 			{ key: this.keyDisplayText("tui.select.confirm"), action: "to select" },
 			{ key: this.keyDisplayText("app.thinking.save"), action: "to set as default" },
 			{ key: this.keyDisplayText("tui.select.cancel"), action: "to cancel" },
-		], 2), 0, 0));
+		]), 0, 0));
 		this.addChild(new DynamicBorder((text: string) => piTheme().fg("border", text)));
 	}
 

@@ -63,9 +63,9 @@ export function renderDialogPanel(state: DialogPanelState, width: number, theme:
 
   const description = state.rows[state.index]?.description ?? "";
   const hint = typeof state.hint === "string"
-    ? theme.fg("dim", `  ${state.hint}`)
-    : renderShortcutHints(state.hint, theme, 2);
-  const plainHint = typeof state.hint === "string" ? `  ${state.hint}` : shortcutHintsText(state.hint, 2);
+    ? theme.fg("dim", ` ${state.hint}`)
+    : renderShortcutHints(state.hint, theme, 1);
+  const plainHint = typeof state.hint === "string" ? ` ${state.hint}` : shortcutHintsText(state.hint, 1);
   return [
     rule,
     ...rows,

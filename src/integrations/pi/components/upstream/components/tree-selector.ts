@@ -1226,7 +1226,8 @@ class TreeHelp implements Component {
 		});
 
 		const availableWidth = Math.max(1, width);
-		const indent = "  ";
+		// Match the title's Text padding plus its two-cell authored inset.
+		const indent = "   ";
 		const separator = "  ";
 		const lines: string[] = [];
 		let currentLine = "";

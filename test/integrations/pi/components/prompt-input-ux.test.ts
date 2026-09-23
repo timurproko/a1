@@ -9,6 +9,7 @@ import { applyPiTheme, createPiShellEditor, createPiShellFooter, createPiShellHe
 import { createPiShellThinkingSelector } from "../../../../src/integrations/pi/components/thinking-selector-dialog.js";
 import { KeybindingsManager } from "../../../../src/integrations/pi/components/upstream/adjacent/core/keybindings.js";
 import { cellStyle } from "../../../support/ansi-cell-style.js";
+import { firstVisibleTextColumn } from "../../../support/dialog-alignment.js";
 import { promptInputPresentation } from "../../../support/prompt-input-presentation.js";
 import { withPiParityColorMode } from "../../../support/pi-terminal-capabilities.js";
 
@@ -253,6 +254,7 @@ describe("owned level and model keybindings", () => {
     expect(rows.filter(row => stripTerminalSequences(row).includes("Moderate reasoning"))).toHaveLength(1);
     const controls = rows.find(row => stripTerminalSequences(row).includes("to select"))!;
     expect(stripTerminalSequences(controls)).toContain("Enter to select  Ctrl+S to set as default  Escape/Ctrl+C to cancel");
+    expect(firstVisibleTextColumn(controls)).toBe(firstVisibleTextColumn(heading));
     expect(controls).not.toMatch(/[·•]/u);
     expect(cellStyle(controls, "E")).toEqual(cellStyle(piTheme().fg("dim", "E"), "E"));
     expect(cellStyle(controls, "s")).toEqual(cellStyle(piTheme().fg("muted", "s"), "s"));
