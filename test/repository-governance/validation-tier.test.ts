@@ -1,6 +1,6 @@
 import { readFile, readdir } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
-import { createTierPlan, FULL_REGRESSION_MAX_WORKERS, prepareSharedExactPackage, runTierPlan } from "../../scripts/release/validation-tier.mjs";
+import { createTierPlan, prepareSharedExactPackage, runTierPlan } from "../../scripts/release/validation-tier.mjs";
 
 describe("validation tier planning", () => {
   it("keeps planning validation free of builds and runtime tests", async () => {
@@ -50,19 +50,8 @@ describe("validation tier planning", () => {
       consumers: ["package-startup", "package-contracts"],
     });
     const invocations = plan.vitest!.invocations;
-    const ordinary = invocations.find(invocation => invocation.id === "vitest-full-without-isolated");
-    expect(FULL_REGRESSION_MAX_WORKERS).toBe(1);
-    expect(ordinary?.arguments)
-      .toEqual(expect.arrayContaining(["--exclude", "test/foundation/release/update-performance.integration.test.ts", "--exclude", "test/foundation/release/package-surface.test.ts", "test/foundation/release/package-install.integration.test.ts", "--exclude", "test/repository-governance/validation-impact.test.ts", "--maxWorkers=1", "--reporter=default", "--reporter=./scripts/release/validation-progress-reporter.mjs"]));
-    expect(ordinary?.evidence).toEqual({
-      executionClass: "bounded-parallel",
-      fileParallelism: true,
-      maxWorkers: 1,
-      timeoutMs: 30_000,
-      timeoutSource: "explicit",
-      retries: 0,
-      perFileTiming: "vitest-default-and-start-reporter",
-    });
+    expect(invocations.find(invocation => invocation.id === "vitest-full-without-isolated")?.arguments)
+      .toEqual(expect.arrayContaining(["--exclude", "test/foundation/release/update-performance.integration.test.ts", "--exclude", "test/foundation/release/package-surface.test.ts", "test/foundation/release/package-install.integration.test.ts", "--exclude", "test/repository-governance/validation-impact.test.ts"]));
     expect(invocations.filter(invocation => invocation.evidence?.executionClass === "resource-sensitive")
       .flatMap(invocation => invocation.arguments)).toEqual(expect.arrayContaining(["test/repository-governance/validation-impact.test.ts", "--no-file-parallelism", "--testTimeout=30000"]));
     expect(invocations.find(invocation => invocation.id === "vitest-isolated-timing")?.arguments)
@@ -170,10 +159,7 @@ describe("validation tier planning", () => {
     const smoke = await createTierPlan(["fast", "rendering-smoke"]);
     expect(smoke.vitest?.invocations[0]).toEqual(expect.objectContaining({ id: "vitest-fast" }));
     expect(smoke.vitest?.invocations.filter(invocation => invocation.evidence?.executionClass === "resource-sensitive")).toHaveLength(1);
-    const resourceEvidence = smoke.vitest?.invocations.find(invocation => invocation.id === "vitest-fast-resource-sensitive")?.evidence;
-    expect(resourceEvidence?.executionClass).toBe("resource-sensitive");
-    if (resourceEvidence?.executionClass !== "resource-sensitive") throw new Error("missing resource-sensitive evidence");
-    expect(resourceEvidence.testFiles).toHaveLength(21);
+    expect(smoke.vitest?.invocations.find(invocation => invocation.id === "vitest-fast-resource-sensitive")?.evidence?.testFiles).toHaveLength(21);
     expect(smoke.vitest?.invocations.at(-1)).toEqual(expect.objectContaining({
       id: "vitest-isolated-suites",
       arguments: expect.arrayContaining([

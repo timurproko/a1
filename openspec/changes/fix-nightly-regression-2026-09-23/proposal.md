@@ -4,8 +4,9 @@ The Full regression run of 2026-09-23 failed on `develop` at `c37f420` (https://
 
 ## What Changes
 
-- Emit each complete-partition test module before execution so runner-level termination leaves the active file set in the job log.
-- Identify and fix the process behavior that terminates hosted POSIX runners while retaining every selected test, assertion, timeout, isolated partition, and native lane.
+- Replace repository-metadata probes' built-in AbortSignal subprocess termination with a spawn-aware executor that sends SIGTERM only after the child has a positive PID.
+- Preserve bounded branch and pull-request discovery while preventing an immediate session disposal from reaching POSIX `kill(0, SIGTERM)` and terminating the validation runner's process group.
+- Remove the disproven worker-cap workaround and retain every selected test, assertion, timeout, isolated partition, native lane, and zero-retry failure semantic.
 
 ## Capabilities
 
@@ -15,7 +16,7 @@ None.
 
 ### Modified Capabilities
 
-None identified yet. The active diagnostic changes validation evidence only; add a capability delta if the identified root-cause fix changes required behavior.
+- `owned-pi-ui-foundation`: require repository discovery disposal to avoid signaling any unowned process or process group when a subprocess has not finished spawning.
 
 ## Impact
 

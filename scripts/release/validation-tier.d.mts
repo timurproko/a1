@@ -5,7 +5,7 @@ export interface ValidationCommandPlan {
   owners: string[];
 }
 
-export interface ResourceSensitiveInvocationEvidence {
+export interface ValidationInvocationEvidence {
   executionClass: "resource-sensitive";
   testFiles: string[];
   fileParallelism: false;
@@ -14,18 +14,6 @@ export interface ResourceSensitiveInvocationEvidence {
   retries: 0;
   perFileTiming: "vitest-default-reporter";
 }
-
-export interface BoundedParallelInvocationEvidence {
-  executionClass: "bounded-parallel";
-  fileParallelism: true;
-  maxWorkers: 1;
-  timeoutMs: 30000;
-  timeoutSource: "explicit";
-  retries: 0;
-  perFileTiming: "vitest-default-and-start-reporter";
-}
-
-export type ValidationInvocationEvidence = ResourceSensitiveInvocationEvidence | BoundedParallelInvocationEvidence;
 
 export interface ExactPackagePreparationEvidence {
   schema: "a1-exact-package-preparation-evidence-v1";
@@ -102,8 +90,6 @@ export function prepareSharedExactPackage(plan: ValidationPlan, options?: {
 }): Promise<ExactPackageHandoff>;
 /** Explicit per-test hang bound of the resource-sensitive partition. */
 export const RESOURCE_SENSITIVE_TIMEOUT_MS: 30000;
-/** Maximum Vitest workers in the complete ordinary partition. */
-export const FULL_REGRESSION_MAX_WORKERS: 1;
 export function createTierPlan(requested: string[], repository?: string, options?: { additionalTests?: string[] }): Promise<ValidationPlan>;
 export function runTierPlan(plan: ValidationPlan, options?: {
   env?: NodeJS.ProcessEnv;

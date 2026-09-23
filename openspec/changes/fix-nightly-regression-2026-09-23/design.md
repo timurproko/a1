@@ -5,22 +5,18 @@ Opened by the nightly regression triage from the failed run's evidence artifacts
 ## Decisions
 
 - Treat both generated repairs as one orchestration defect because Full regression #38 and Release #155 run the same `full-release` plan and terminate only after the complete ordinary Vitest partition starts. Do not infer a test assertion failure from the absent owner result.
-- The first repair hypothesis was hosted-runner capacity exhaustion. PR Full regression run `35897923519` disproved it: macOS received the same runner shutdown one second after Vitest started with the ordinary partition explicitly capped at two workers. Diagnostic run `35899141418` then identified exactly two active modules. Run the next diagnostic with one worker to distinguish them; the cap is not accepted as the root-cause fix.
-- Add a complete-partition progress reporter that emits each module path before execution while retaining Vitest's default reporter. Runner-level termination can then identify the active module set even though Vitest never emits a completed-file result. The reporter is diagnostic evidence and does not alter selection, assertions, retries, timeouts, or isolation.
+- Withdraw the hosted-runner capacity hypothesis. A two-worker exact-head run reproduced the shutdown, module-start evidence narrowed it to `adapter.test.ts`, and local syscall tracing reproduced a worker calling `kill(0, SIGTERM)` while adapter disposal canceled repository metadata discovery.
+- Replace Node's built-in child-process `signal` option for the Git branch and GitHub pull-request probes. The shared executor records cancellation while spawn is pending and calls `ChildProcess.kill()` only after `child.pid` is a positive safe integer. Preserve the existing time bounds, output bounds, asynchronous failure-closed behavior, and lifecycle cancellation.
+- Remove both the disproven worker cap and temporary progress reporter. The final change does not alter test selection, assertions, retries, timeouts, isolation, or Full regression parallelism.
 
 ## Evidence
 
-- PR Full regression run `35897923519` on finalized head `c2b2399e` reproduced the macOS shutdown with `--maxWorkers=2`: Vitest started at 17:48:44Z and the runner received shutdown at 17:48:45Z before any file completed. The two-worker cap therefore did not fix the failure and the earlier resource-exhaustion conclusion is withdrawn.
-- Diagnostic PR Full regression run `35899141418` on head `18af40ad` recorded `test/integrations/pi/engine/workflows.test.ts` and `test/integrations/pi/engine/adapter.test.ts` as the only active modules immediately before the macOS runner shutdown. The next one-worker run distinguishes which module triggers it.
-- Both attempts of Full regression #38 and Release #155 reached `vitest-full-without-isolated`; every macOS lane then shut down before completing a test file. The Full regression Linux lane shut down after different amounts of the deterministic suite on its two attempts, and Release Linux failed once before passing its rerun only after a much longer complete-partition execution. This variability excludes one deterministic failing test as the cause and localizes the defect to complete-suite runner pressure.
-- The same Full regression attempt completed Windows Node 24 and Node 22. Windows Node 24 ran all 360 ordinary-partition files in 807.22 seconds and completed the whole lane within its existing forty-minute bound, showing that a two-worker effective lane retains viable timing without reducing coverage.
-- Release #154 on the same `c37f420` source passed because impact selection ran focused package owners rather than the complete 360-file ordinary partition; Release #155 selected `full-release` and reproduced the Full regression shutdown. This distinguishes candidate bytes from complete-suite orchestration pressure.
-- Focused implementation evidence after adding the worker bound:
-  - `validation-tier.test.ts`: 23/23 passed and verifies `--maxWorkers=2` plus bounded-parallel plan evidence.
-  - `full-regression-policy.test.ts`, `validation-suite-policy.test.ts`, and `resource-sensitive-validation.test.ts`: 28/28 passed, preserving full selection and the separate serial resource-sensitive partition.
-  - OpenSpec acceptance policy/checklist tests: 29/29 passed; strict validation of this change passed.
-  - TypeScript build prerequisite and `npm run typecheck` passed; full code-documentation governance reported no violations.
-- Known gap: start-boundary evidence has narrowed the termination to `workflows.test.ts` or `adapter.test.ts`, but both started in the two-worker run. The next exact-head one-worker PR Full regression remains a diagnostic run, not handoff proof.
+- PR Full regression run `35897923519` on finalized head `c2b2399e` reproduced the macOS shutdown with `--maxWorkers=2`; the capacity conclusion is withdrawn.
+- Diagnostic run `35899141418` recorded `workflows.test.ts` and `adapter.test.ts` as active. One-worker run `35899855509` then recorded only `adapter.test.ts` immediately before shutdown.
+- Local WSL reproduction of `adapter.test.ts` exited with signal 15. `strace` identified the test worker issuing `kill(0, SIGTERM)`, and a preload trace identified repeated `ChildProcess.kill()` calls with `pid === undefined` from `PiEngineRuntime.dispose()` and `#resetRepositoryRefresh()` through Node's AbortSignal child-process path.
+- The spawn-aware executor regression passed 2/2 tests, including twenty immediate aborts against children whose invalid working directories prevent spawn from assigning a PID. Repository pull-request parsing/probing passed 11/11 tests.
+- `adapter.test.ts` then passed 49/49 three consecutive times under Linux with the production fix and without instrumentation, where the unmodified path had reproduced process-group termination.
+- Known gap before finalization: local syscall evidence proves the mechanism and focused repair, but exact-head hosted macOS and Linux Full regression lanes remain required native proof.
 
 - Run [Full regression #38](https://github.com/timurproko/a1/actions/runs/35834483448) (attempt 1, schedule) on `c37f420` at 2026-09-23T07:57:58Z:
   - Lane macos-15-node24 failed in job `Full regression / Complete non-physical regression (macos-15, node 24)` before producing owner outcomes (orchestration failure).

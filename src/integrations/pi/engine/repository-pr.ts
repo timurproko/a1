@@ -1,5 +1,5 @@
-import { execFile } from "node:child_process";
 import { PRODUCT_IDENTITY } from "../../../product-identity.js";
+import { executeAbortableFile } from "./abortable-exec-file.js";
 
 export interface PiPullRequestIdentity {
   readonly number: number;
@@ -62,18 +62,16 @@ export function parseOpenPullRequest(stdout: string, branch: string): PiPullRequ
 }
 
 function executeGh(cwd: string, signal: AbortSignal): Promise<string | null> {
-  return new Promise(resolve => {
-    try {
-      execFile(
-        "gh",
-        ["pr", "view", "--json", "number,url,state,headRefName"],
-        { cwd, windowsHide: true, timeout: GH_TIMEOUT_MS, maxBuffer: GH_MAX_BUFFER_BYTES, signal, encoding: "utf8" },
-        (error, stdout) => { resolve(error === null && typeof stdout === "string" ? stdout : null); },
-      );
-    } catch {
-      resolve(null);
-    }
-  });
+  try {
+    return executeAbortableFile("gh", ["pr", "view", "--json", "number,url,state,headRefName"], {
+      cwd,
+      signal,
+      timeoutMs: GH_TIMEOUT_MS,
+      maxBufferBytes: GH_MAX_BUFFER_BYTES,
+    });
+  } catch {
+    return Promise.resolve(null);
+  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
