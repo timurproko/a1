@@ -3,7 +3,7 @@
   "packages": [
     {
       "name": "@earendil-works/pi-coding-agent",
-      "version": "0.87.0",
+      "version": "0.87.1",
       "entry": "dist/index.d.ts",
       "exports": [
         {
@@ -2823,7 +2823,7 @@
     },
     {
       "name": "@earendil-works/pi-tui",
-      "version": "0.87.0",
+      "version": "0.87.1",
       "entry": "dist/index.d.ts",
       "exports": [
         {
