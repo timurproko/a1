@@ -18,7 +18,7 @@ The manual merge accepts these scenarios:
   "archive": "openspec/changes/archive/2026-09-23-tolerate-transient-package-locks/",
   "acceptanceManifest": "openspec/changes/archive/2026-09-23-tolerate-transient-package-locks/acceptance.md",
   "finalizedDate": "2026-09-23",
-  "specBaseSha": "c37f420d17863fbe8dac99bba672763041ee38b5",
+  "specBaseSha": "e904bb37b6c1f5664fb90a33e8a9c7118a25ce0f",
   "acceptanceScenarios": [
     "A file under the package tree that is held for a few seconds after a session ends no longer fails the update; the update proceeds once the holder lets go.",
     "A tree that stays held for the whole window fails with a diagnostic that names the package path, the kinds of program that hold it, and that nothing was changed and the update can be run again.",
