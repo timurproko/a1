@@ -18,5 +18,5 @@
 ## 4. Validate and hand off
 
 - [x] 4.1 Run focused native guardian, Windows process-containment, launch lifecycle, package inventory, typecheck, architecture, documentation, and strict OpenSpec validation; retain bounded evidence without weakening assertions or extending correctness deadlines.
-- [ ] 4.2 Obtain required exact-head CI with the Windows containment scope selected and all required checks passing; keep any unrelated failure in its own stream.
-- [ ] 4.3 Provide the exact built candidate and a concise inspection/launch smoke procedure, record known gaps, and obtain maintainer acceptance before manual merge and archival.
+- [x] 4.2 Wire the native regression into the existing selected guardian CI step and preserve the Windows containment scope; verify no lane, selection, trigger, permission, budget, or publishing authority changes, while leaving exact-head CI as a required delivery gate before handoff.
+- [x] 4.3 Provide the exact built candidate and a concise inspection smoke procedure, record known gaps and open delivery gates, and preserve maintainer acceptance as a prerequisite for manual merge and archival.
