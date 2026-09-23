@@ -7,6 +7,6 @@ import { resolve } from "node:path";
 // @ts-expect-error — plain shipped JS module without type declarations.
 import { installPinnedPiTuiResolver } from "../../bin/module-resolver.js";
 
-// Test the checkout's pin even when Vitest was launched by another Pi installation.
+// Invariant: tests use the checkout's pin even when launched by another Pi installation.
 delete process.env.PI_PACKAGE_DIR;
 installPinnedPiTuiResolver(resolve("."));
