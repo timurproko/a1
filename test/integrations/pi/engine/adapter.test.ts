@@ -882,10 +882,11 @@ describe("Pi engine adapter", () => {
 
     session.emit({ type: "compaction_start", reason: "manual" });
     await adapter.flushEvents();
+    expect(progress().at(-1)).toBe("Compacting:0");
+    expect(streamFunction).toHaveBeenCalledTimes(1);
     await agent.streamFunction({}, {}, {});
     await new Promise(resolve => setImmediate(resolve));
     await adapter.flushEvents();
-    expect(progress().at(-1)).toBe("Compacting:0");
     streams[1]!.push({ type: "text_delta", delta: "a".repeat(100) });
     streams[1]!.push({ type: "text_delta", delta: "b".repeat(100) });
     streams[1]!.push({ type: "thinking_delta", delta: "c".repeat(100) });

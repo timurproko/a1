@@ -40,3 +40,12 @@ This is preferred over another handcrafted session event fixture because the def
 ## Migration Plan
 
 No data migration is required. Reverting the `begin()` report and its focused tests restores the previous delayed-zero behavior.
+
+## Implementation Evidence
+
+- `CompactionProgressObserver.begin()` now reports through the existing deduplicated estimator after activating and resolving its denominator.
+- Focused adapter coverage observes `workingProgress: 0` before a second invocation of the wrapped stream function.
+- `compaction-progress.integration.test.ts` constructs pinned Pi 0.87.1's real `AgentSession`, gates model authentication, verifies the stream has not started while adapter progress is zero, then verifies a 2,000-character text delta advances the first-compaction estimate to 50 and successful compaction clears it.
+- Focused engine and shell rendering validation passed: 82 tests across the adapter, pinned lifecycle integration, and shell component suites.
+- `npm run typecheck`, `npm run build`, and strict OpenSpec validation passed.
+- `npm run test:fast` completed 3,752 tests successfully but reported five unrelated timeout failures under parallel load. Each affected test file was rerun independently; all 54 tests passed. No change-specific acceptance gap remains.
