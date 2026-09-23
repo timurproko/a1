@@ -168,10 +168,10 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
       const frame = stripTerminalSequences(shell.root.render(80).join("\n"));
       expect(frame).toContain("Steering: first");
       expect(frame).toContain("Steering: second");
-      expect(frame).toContain("↳ Alt+Up to edit all queued messages");
+      expect(frame).toContain(`↳ ${process.platform === "darwin" ? "Option" : "Alt"}+Up to edit all queued messages`);
       expect(frame).toContain("Compacting...");
       expect(frame).not.toContain("Queued during compaction");
-      shell.restoreQueuedInput();
+      shell.root.editor.handleInput?.("\u001b[1;3A");
       expect(shell.root.editor.getText()).toBe("first\nsecond");
       await adapter.flushEvents();
       expect(stripTerminalSequences(shell.root.render(80).join("\n"))).not.toContain("Steering:");

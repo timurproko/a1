@@ -7,7 +7,7 @@ import type { OwnedUiSessionViewModel, OwnedUiThinkingLevel } from "../../../../
 import { hyperlinkTargetAtColumn, LineInput, PromptInput, promptRule, renderInputRow } from "../../../../src/ui/components/index.js";
 import { applyPiTheme, createPiShellEditor, createPiShellFooter, createPiShellHeader, createPiShellHotkeys, piTheme, PINNED_PI_BUILTIN_SLASH_COMMANDS } from "../../../../src/integrations/pi/components/index.js";
 import { createPiShellThinkingSelector } from "../../../../src/integrations/pi/components/thinking-selector-dialog.js";
-import { KeybindingsManager } from "../../../../src/integrations/pi/components/upstream/adjacent/core/keybindings.js";
+import { KeybindingsManager, useWindowsKeybindings } from "../../../../src/integrations/pi/components/upstream/adjacent/core/keybindings.js";
 import { cellStyle } from "../../../support/ansi-cell-style.js";
 import { firstVisibleTextColumn } from "../../../support/dialog-alignment.js";
 import { promptInputPresentation } from "../../../support/prompt-input-presentation.js";
@@ -45,14 +45,15 @@ async function editor(profile: "a1" | "pi" = "a1", bindings: Record<string, stri
   const select = vi.fn();
   const submit = vi.fn();
   const copy = vi.fn();
+  const dequeue = vi.fn();
   const input = createPiShellEditor({
     agentDir: await agentDir(bindings), keybindingProfile: profile,
     getColumns: () => 80, getRows: () => 24, requestRender() {}, onSubmit: submit,
-    onThinkingCycle: cycle, onModelSelect: select, onCopyText: copy,
+    onThinkingCycle: cycle, onModelSelect: select, onCopyText: copy, onDequeue: dequeue,
     promptPresentation: promptInputPresentation(),
   });
   input.setFocused?.(true);
-  return { input, cycle, select, submit, copy };
+  return { input, cycle, select, submit, copy, dequeue };
 }
 
 describe("owned shared input and status presentation", () => {
@@ -301,6 +302,27 @@ describe("owned level and model keybindings", () => {
     expect(PINNED_PI_BUILTIN_SLASH_COMMANDS.find(command => command.name === "model")).toBeDefined();
   });
 
+  it("dispatches bare-A1 Alt+Up across platforms while preserving overrides and pinned defaults", async () => {
+    const owned = await editor();
+    owned.input.setText("draft");
+    owned.input.handleInput?.("\u001b[1;3A");
+    expect(owned.dequeue).toHaveBeenCalledOnce();
+    expect(owned.input.getText()).toBe("draft");
+    expect(owned.input.keybindingConfig()["app.message.dequeue"]).toBe("alt+up");
+
+    const custom = await editor("a1", { "app.message.dequeue": "alt+d" });
+    custom.input.handleInput?.("\u001b[1;3A");
+    expect(custom.dequeue).not.toHaveBeenCalled();
+    custom.input.handleInput?.("\u001bd");
+    expect(custom.dequeue).toHaveBeenCalledOnce();
+
+    const pinned = await editor("pi");
+    expect(pinned.input.keybindingConfig()["app.message.dequeue"])
+      .toBe(useWindowsKeybindings() ? "alt+q" : "alt+up");
+    pinned.input.handleInput?.("\u001b[1;3A");
+    expect(pinned.dequeue).toHaveBeenCalledTimes(useWindowsKeybindings() ? 0 : 1);
+  });
+
   it.each(["\u001b[Z", "\u001b[9;2u", "\u001b[27;2;9~"])("leaves reverse Tab %j unassigned and inert for drafts and suggestions", async key => {
     const { input, cycle, select, copy } = await editor();
     for (const text of ["", "draft", "/mo"]) {
@@ -331,6 +353,7 @@ describe("owned level and model keybindings", () => {
     const ownedKeys = KeybindingsManager.fromOwnedBindings();
     expect(ownedKeys.getKeys("app.tree.filter.labeledOnly")).toEqual(["ctrl+l"]);
     expect(ownedKeys.getConflicts().some(conflict => conflict.keybindings.includes("app.model.select"))).toBe(false);
+    expect(ownedKeys.getConflicts().some(conflict => conflict.keybindings.includes("app.message.dequeue"))).toBe(false);
     const pinned = await editor("pi");
     pinned.input.handleInput?.("\u001b[Z");
     pinned.input.handleInput?.("\u000c");
@@ -344,19 +367,30 @@ describe("owned level and model keybindings", () => {
     let lines = header.render(100).map(stripTerminalSequences);
     expect(lines.find(line => line.includes("to cycle thinking level"))).toContain("ctrl+l");
     expect(lines.find(line => line.includes("to select model"))).toContain("/models");
+    expect(lines.find(line => line.includes("to edit all queued messages"))).toContain("alt+up");
     expect(lines.join("\n")).not.toContain("shift+tab");
     const hotkeys = stripTerminalSequences(createPiShellHotkeys(undefined, undefined, "a1").render(120).join("\n"));
     expect(hotkeys).toContain("Ctrl+L");
+    expect(hotkeys).toContain(`${process.platform === "darwin" ? "Option" : "Alt"}+Up`);
     expect(hotkeys).toContain("Unbound (/models)");
     expect(hotkeys).toContain("Models dialog");
     expect(hotkeys).toContain("Reorder the cycling scope");
     expect(stripTerminalSequences(createPiShellHotkeys(undefined, undefined, "pi").render(120).join("\n"))).not.toContain("Models dialog");
     expect(hotkeys).not.toContain("Shift+Tab");
-    keys = KeybindingsManager.fromOwnedBindings({ "app.thinking.cycle": "ctrl+r", "app.model.select": "alt+m" });
+    keys = KeybindingsManager.fromOwnedBindings({
+      "app.thinking.cycle": "ctrl+r", "app.model.select": "alt+m", "app.message.dequeue": "alt+d",
+    });
     lines = header.render(100).map(stripTerminalSequences);
     expect(lines.find(line => line.includes("to cycle thinking level"))).toContain("ctrl+r");
     expect(keys.getKeys("app.model.select")).toEqual(["alt+m"]);
     expect(lines.find(line => line.includes("to select model"))).toContain(process.platform === "darwin" ? "option+m" : "alt+m");
+    expect(lines.find(line => line.includes("to edit all queued messages")))
+      .toContain(process.platform === "darwin" ? "option+d" : "alt+d");
+    const customHotkeys = createPiShellHotkeys(keys.getEffectiveConfig(), undefined, "a1").render(120)
+      .map(stripTerminalSequences);
+    const restoreRow = customHotkeys.find(line => line.includes("Restore queued messages"));
+    expect(restoreRow).toContain(`${process.platform === "darwin" ? "Option" : "Alt"}+D`);
+    expect(restoreRow).not.toContain(`${process.platform === "darwin" ? "Option" : "Alt"}+Up`);
     const pinned = createPiShellHeader({ expanded: true }).render(100).map(stripTerminalSequences);
     expect(pinned.find(line => line.includes("to cycle thinking level"))).toContain("shift+tab");
     expect(pinned.find(line => line.includes("to select model"))).toContain("ctrl+l");
