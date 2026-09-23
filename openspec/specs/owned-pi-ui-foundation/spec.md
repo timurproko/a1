@@ -2157,13 +2157,13 @@ Bare A1 SHALL present `thinking` immediately after its unified `models` command 
 
 ### Requirement: Bare A1 links the current branch's open pull request from the footer
 
-Bare A1 SHALL support one explicit optional repository-context association per stable Pi session. When a valid association exists, A1 SHALL discover the branch and open GitHub pull request from that associated worktree even when the session started in another checkout; otherwise it SHALL use the session's effective startup working tree and SHALL NOT guess among other worktrees. The association SHALL be scoped by stable session identity, SHALL survive restart or resume of that same session, SHALL reload on session replacement, and SHALL NOT be inherited by an unrelated or forked session without an explicit association.
+Bare A1 SHALL support one explicit optional repository-context association per stable Pi session. When a valid association exists, A1 SHALL discover the branch and its open or merged GitHub pull request from that associated worktree even when the session started in another checkout; otherwise it SHALL use the session's effective startup working tree and SHALL NOT guess among other worktrees. The association SHALL be scoped by stable session identity, SHALL survive restart or resume of that same session, SHALL reload on session replacement, and SHALL NOT be inherited by an unrelated or forked session without an explicit association.
 
 The association operation SHALL validate active session identity, canonical worktree identity, non-detached branch state, and same Git common-directory identity as the session's startup repository. It SHALL change only repository metadata discovery and SHALL NOT change tool cwd, session cwd, Git state, GitHub state, worktree cleanup registration, or cleanup authority. Missing, malformed, foreign, detached, deleted, reused, or otherwise invalid associations SHALL fail closed to the startup repository context without making A1 startup or the running session fail.
 
-When the selected repository context has an open pull request, bare A1 SHALL render only `#<number>` directly after the footer's path and branch. The complete `#<number>` badge SHALL use the established web-link color and carry the pull request's canonical HTTPS URL as a terminal-native hyperlink. The path, branch, separator, ellipsis, and session name SHALL remain outside the hyperlink. Width allocation SHALL preserve a complete valid PR badge at ordinary constrained widths by truncating path/branch text first; widths too small for the complete badge SHALL truncate safely without leaking hyperlink or foreground state.
+When the selected repository context has an open or merged pull request, bare A1 SHALL render only `#<number>` directly after the footer's path and branch. The complete `#<number>` badge SHALL use the established web-link color and carry the pull request's canonical HTTPS URL as a terminal-native hyperlink. The path, branch, separator, ellipsis, and session name SHALL remain outside the hyperlink. Width allocation SHALL preserve a complete valid PR badge at ordinary constrained widths by truncating path/branch text first; widths too small for the complete badge SHALL truncate safely without leaking hyperlink or foreground state.
 
-Discovery SHALL reread associated context and branch, and SHALL remain asynchronous, bounded, serialized, optional, and lifecycle-owned. Missing GitHub CLI or authentication, no open PR, mismatched branch, malformed or unsafe output, command failure, and timeout SHALL leave the footer without a badge and SHALL NOT block startup or fail the session. Association, branch, and PR changes SHALL refresh while the session runs, unchanged observations SHALL NOT emit redundant views, and disposal SHALL release timers and active work.
+Discovery SHALL reread associated context and branch, and SHALL remain asynchronous, bounded, serialized, optional, and lifecycle-owned. Missing GitHub CLI or authentication, no open or merged PR, a closed-unmerged PR, mismatched branch, malformed or unsafe output, command failure, and timeout SHALL leave the footer without a badge and SHALL NOT block startup or fail the session. Association, branch, and PR changes SHALL refresh while the session runs, unchanged normalized observations SHALL NOT emit redundant views, and disposal SHALL release timers and active work. A transition of the same exact PR from open to merged SHALL retain the same normalized badge identity.
 
 The badge and association are declared bare-A1 behavior. The `a1 pi` comparison profile SHALL retain its pinned footer bytes and SHALL NOT render the badge or consume the association.
 
@@ -2177,20 +2177,28 @@ The badge and association are declared bare-A1 behavior. The `a1 pi` comparison 
 - **AND** discovery SHALL NOT continue using the primary checkout's `develop` branch
 - **AND** the session and tool cwd SHALL remain the primary checkout
 
+#### Scenario: Keep a merged delivery link during cleanup
+
+- **GIVEN** the selected repository context remains the same associated worktree and branch
+- **AND** its exact pull request was previously open and is now merged
+- **WHEN** repository metadata refresh completes during post-merge verification or cleanup
+- **THEN** the footer SHALL retain the same linked `#<number>` badge
+- **AND** the state-only transition SHALL NOT emit a redundant normalized footer identity
+
 #### Scenario: Keep concurrent sessions independent
 
 - **GIVEN** two sessions started from the same primary checkout
-- **AND** each session associates a different valid worktree with a different open pull request
+- **AND** each session associates a different valid worktree with a different open or merged pull request
 - **WHEN** both footers refresh
 - **THEN** each footer SHALL show only its own associated pull request
 - **AND** neither session SHALL select a worktree by recency, name, scanning, or another session's record
 
 #### Scenario: Restore association after resume
 
-- **GIVEN** a session has a valid associated worktree
+- **GIVEN** a session has a valid associated worktree whose exact pull request is open or merged
 - **WHEN** that same stable session is restarted or resumed
 - **THEN** A1 SHALL revalidate and restore its repository context
-- **AND** SHALL refresh the associated branch and open pull request without requiring another association command
+- **AND** SHALL refresh the associated branch and pull request without requiring another association command
 
 #### Scenario: Reject invalid or stale association
 
@@ -2201,8 +2209,9 @@ The badge and association are declared bare-A1 behavior. The `a1 pi` comparison 
 
 #### Scenario: Association or branch changes during the session
 
-- **WHEN** the session sets or clears an association, switches to another session, or the selected context's branch or open pull request changes
+- **WHEN** the session sets or clears an association, switches to another session, or the selected context's branch or pull request changes
 - **THEN** bounded serialized discovery SHALL update to the newest normalized branch and PR identity
+- **AND** the previous PR badge SHALL be absent unless the new context independently resolves an exact open or merged PR
 - **AND** no two discovery processes SHALL overlap
 - **AND** unchanged observations SHALL NOT cause redundant view updates
 - **AND** stale results from an older association or session generation SHALL NOT render
@@ -2223,7 +2232,7 @@ The badge and association are declared bare-A1 behavior. The `a1 pi` comparison 
 
 #### Scenario: Show an open branch pull request
 
-- **WHEN** bare A1's selected repository context has a current branch with open pull request 567 at `https://github.com/example/project/pull/567`
+- **WHEN** bare A1's selected repository context has a current branch with open or merged pull request 567 at `https://github.com/example/project/pull/567`
 - **THEN** the footer path row SHALL contain `path (branch) #567`
 - **AND** only `#567` SHALL be an OSC 8 hyperlink targeting that canonical URL
 - **AND** the linked number SHALL use the established web-link theme role
@@ -2236,13 +2245,13 @@ The badge and association are declared bare-A1 behavior. The `a1 pi` comparison 
 
 #### Scenario: No open pull request is available
 
-- **WHEN** the selected context is not a Git repository, its head is detached, no open PR matches its branch, or GitHub CLI discovery fails, times out, or returns invalid data
+- **WHEN** the selected context is not a Git repository, its head is detached, no open or merged PR matches its branch, the matching PR is closed without merge, or GitHub CLI discovery fails, times out, or returns invalid data
 - **THEN** the footer SHALL retain the selected safe path, branch, and session-name presentation without a PR badge
 - **AND** startup and the running agent session SHALL continue without a PR-discovery diagnostic
 
 #### Scenario: Pull request association changes during the session
 
-- **WHEN** a bounded refresh observes that the selected branch gains, loses, or changes its open pull request association
+- **WHEN** a bounded refresh observes that the selected branch gains, loses, or changes its eligible pull request association
 - **THEN** the footer SHALL update to the newest normalized identity
 - **AND** unchanged refreshes SHALL NOT cause redundant view updates
 - **AND** no two discovery processes SHALL overlap
@@ -2355,3 +2364,26 @@ Bare A1 SHALL present the built-in `thinking` command with the description `Set 
 - **WHEN** the `a1 pi` comparison profile presents the `thinking` and `login` command rows
 - **THEN** `thinking` SHALL retain its pinned `<level>` argument hint
 - **AND** `login` SHALL retain its pinned `<provider>` argument hint
+
+### Requirement: Bare A1 progress labels share one quiet animated presentation
+Every built-in or extension working message rendered by bare A1's spinner-backed status surface SHALL use the shared A1 progress presentation. This SHALL include ordinary working, retry, compaction, measured compaction progress, and extension override labels. Changing the presentation SHALL NOT change semantic work-state transitions, spinner glyphs, status placement, replacement behavior, extension lifecycle, cancellation, teardown, or the pinned comparison profile.
+
+#### Scenario: Show each built-in work state
+- **WHEN** bare A1 displays working, retry, compaction, or measured compaction progress beside its spinner
+- **THEN** the label SHALL end in one Unicode ellipsis and use the same restrained accent animation
+- **AND** its spinner and semantic wording SHALL retain their existing behavior
+
+#### Scenario: Show extension-provided work
+- **WHEN** an extension supplies or replaces the active working message
+- **THEN** bare A1 SHALL normalize and animate that label through the same shared progress presentation
+- **AND** clearing or replacing the extension state SHALL retain the existing lifecycle behavior
+
+#### Scenario: Use the pinned comparison profile
+- **WHEN** the user runs `a1 pi`
+- **THEN** its spinner-backed status SHALL retain pinned Pi's text, styling, timing, and geometry
+- **AND** the A1-only Unicode marker and text animation SHALL be absent
+
+#### Scenario: Finish active work
+- **WHEN** a working state settles, is replaced by a non-spinner status, or the session is disposed
+- **THEN** the animated label SHALL stop with the existing spinner lifecycle
+- **AND** no animation timer or stale styled status SHALL remain

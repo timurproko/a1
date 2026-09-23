@@ -29,7 +29,8 @@ export { MOUSE_TRACKING_OFF, MOUSE_TRACKING_ON, parseMouseInput, routeMouseInput
 export type { ParsedMouseInput, RoutedMouseInput } from "./mouse.js";
 export { isInsidePane, toPaneLocalMouse } from "./pane.js";
 export type { Pane, PaneInputResult, PaneMouseEvent } from "./pane.js";
-export { progressStatusText } from "./progress-status.js";
+export { progressStatusFrame, progressStatusText } from "./progress-status.js";
+export type { ProgressStatusFrameStyles, ProgressStatusMarker } from "./progress-status.js";
 export { FrameCache, RENDER_REVISION_KINDS, RenderRevisionTracker, ZERO_REVISIONS, normalizeRevisions, revisionsEqual } from "./revision.js";
 export type { RenderCacheContract, RenderRevisionKind, RenderRevisions } from "./revision.js";
 export { MAX_COPY_ROWS, MAX_COPY_SOURCE_UNITS, selectionCopyLineContent, selectionCopyRowText } from "./selection-copy.js";

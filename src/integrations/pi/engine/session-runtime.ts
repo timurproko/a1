@@ -11,7 +11,7 @@ import type { PiSessionForkPrompt, PiSessionSelection } from "./session-selectio
 import type { OwnedUiDiagnostics } from "../../../contracts/owned-ui/index.js";
 import type { PiSessionResumeMetadata, PiWorkflowHost } from "./workflows.js";
 import {
-  readOpenPullRequest,
+  readPullRequest,
   type PiPullRequestIdentity,
   type PiPullRequestProbe,
 } from "./repository-pr.js";
@@ -124,7 +124,7 @@ export class PiEngineRuntime {
       ?? (options.createRuntime
         ? async () => []
         : settingsManager => checkDefaultPiPackageUpdates(this.#cwd, options.agentDir, settingsManager));
-    this.#pullRequestProbe = options.pullRequestProbe ?? readOpenPullRequest;
+    this.#pullRequestProbe = options.pullRequestProbe ?? readPullRequest;
     this.#pullRequestRefreshMs = options.pullRequestRefreshMs ?? PULL_REQUEST_REFRESH_MS;
     this.#repositoryContextPollMs = options.repositoryContextPollMs ?? REPOSITORY_CONTEXT_POLL_MS;
     this.#repositoryContextReader = options.repositoryContextReader ?? (async () => null);

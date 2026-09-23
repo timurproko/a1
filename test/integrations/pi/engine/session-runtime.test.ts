@@ -179,6 +179,7 @@ describe("PiEngineRuntime", () => {
       : { cwd: "D:/worktrees/two", branch: "fix/two" });
     const branchReader = vi.fn(async (cwd: string) => cwd.endsWith("one") ? "fix/one" : cwd.endsWith("two") ? "fix/two" : "develop");
     const probe = vi.fn<PiPullRequestProbe>(async (_cwd, branch) => {
+      if (branch === "fix/unrelated") return null;
       const number = branch === "fix/one" ? 551 : branch === "fix/two" ? 552 : branch === "fix/changed" ? 553 : 500;
       return { number, url: `https://github.com/timurproko/a1/pull/${number}` };
     });
@@ -198,6 +199,12 @@ describe("PiEngineRuntime", () => {
     await vi.advanceTimersByTimeAsync(1_000);
     expect(engine.pullRequest?.number).toBe(553);
     expect(probe).toHaveBeenLastCalledWith("D:/worktrees/one", "fix/changed", expect.any(AbortSignal));
+
+    associated = { cwd: "D:/worktrees/unrelated", branch: "fix/unrelated" };
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(engine.repositoryCwd).toBe("D:/worktrees/unrelated");
+    expect(engine.gitBranch).toBe("fix/unrelated");
+    expect(engine.pullRequest).toBeNull();
 
     associated = null;
     await vi.advanceTimersByTimeAsync(1_000);
