@@ -86,13 +86,21 @@ describe("PiResourceCatalog", () => {
     expect(catalog.extensionResources().map(resource => `${resource.id}:${resource.loaded}:${resource.diagnostic ?? ""}`)).toEqual([
       "extension-0:true:", "extension-diagnostic-1:false:Extension discovery returned malformed extension metadata", "extension-diagnostic-2:false:syntax",
     ]);
-    expect(catalog.workflowAutocompleteCommands().map(command => `${command.source}:${command.name}`)).toEqual([
+    const commands = catalog.workflowAutocompleteCommands();
+    expect(commands.map(command => `${command.source}:${command.name}`)).toEqual([
       "builtin:models", "builtin:login", "prompt:plan", "skill:skill:review", "extension:deploy",
     ]);
+    const login = commands.find(command => command.name === "login");
+    expect(login).toMatchObject({ description: "Configure provider authentication", argumentOptions: expect.any(Array) });
+    expect(login?.argumentOptions?.map(option => option.id)).toEqual(["openai"]);
+    expect(login).not.toHaveProperty("argumentHint");
+    expect(commands.find(command => command.name === "plan")).toMatchObject({ argumentHint: "<goal>" });
     const comparison = new PiResourceCatalog({ contexts, productMode: "comparison" }, { session: () => session(), runtime: () => current });
-    expect(comparison.workflowAutocompleteCommands().map(command => `${command.source}:${command.name}`)).toEqual([
+    const comparisonCommands = comparison.workflowAutocompleteCommands();
+    expect(comparisonCommands.map(command => `${command.source}:${command.name}`)).toEqual([
       "builtin:model", "builtin:login", "prompt:plan", "skill:skill:review", "extension:deploy",
     ]);
+    expect(comparisonCommands.find(command => command.name === "login")).toMatchObject({ argumentHint: "<provider>" });
     expect(new PiResourceCatalog({ contexts }, { session: () => undefined, runtime: () => undefined }).nonVisualResources()).toEqual([]);
   });
 });
