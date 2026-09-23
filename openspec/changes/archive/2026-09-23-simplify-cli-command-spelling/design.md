@@ -10,7 +10,7 @@ Existing contracts deliberately keep unknown top-level words quiet, preserve `a1
 
 - Normalize preferred and compatibility spellings into the existing typed help, version, update, and package requests.
 - Keep direct `update` selection deterministic across self-update, package-update, and model-refresh forms.
-- Render focused package help and syntax guidance in the namespace the user entered while making complete help and README examples direct-first.
+- Render focused package help and syntax guidance in the namespace the user entered while making complete help and README examples direct-only.
 - Prove aliases perform identical operations without launching the interactive runtime.
 
 **Non-Goals:**
@@ -41,7 +41,7 @@ The removed `self` spelling remains a silent no-op, and `pi`, `--self`, and `--a
 
 ### Preserve invocation context only for presentation
 
-Package parsing will carry whether the user entered the direct or `a1 pi` namespace into focused help/error rendering, while operation requests stay namespace-neutral. Direct invocations will show direct usage and `a1 help`; compatibility invocations will keep `a1 pi` usage. Complete application help and README examples will list direct forms first and identify retained compatibility aliases separately.
+Package parsing will carry whether the user entered the direct or `a1 pi` namespace into focused help/error rendering, while operation requests stay namespace-neutral. Direct invocations will show direct usage and `a1 help`; compatibility invocations will keep `a1 pi` usage only after the user explicitly invokes one. Complete application help, generated usage, and README examples will advertise only direct forms.
 
 Always rendering only direct syntax was considered but rejected because it would unnecessarily change compatibility transcripts. Always rendering `a1 pi` was rejected because it would tell users of the new direct commands to add back the namespace this change removes.
 
@@ -54,7 +54,7 @@ Always rendering only direct syntax was considered but rejected because it would
 - **[More top-level words become active commands]** → Recognize only the specified verbs, preserve quiet behavior for every other word, and test that no package or runtime handler runs for unsupported grammar.
 - **[Direct update can dispatch the wrong operation]** → Pin selector precedence and assert every self-update, package-update, model-refresh, removed, pinned-runtime, and malformed branch independently.
 - **[Aliases drift in behavior or output]** → Compare parsed requests, dispatch calls, exit codes, and focused transcript context across preferred and compatibility forms.
-- **[Help becomes noisy]** → Lead with preferred direct forms, group compatibility aliases separately, and continue omitting unsupported scopes and operations.
+- **[Retained aliases clutter help]** → Advertise only preferred direct forms while keeping compatibility parsing covered by tests.
 
 ## Migration Plan
 

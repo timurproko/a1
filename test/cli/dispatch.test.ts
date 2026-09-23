@@ -260,22 +260,18 @@ describe("A1 CLI dispatch", () => {
     expectNoHandler(commands);
   });
 
-  it("advertises exactly the implemented command design", () => {
+  it("advertises exactly the preferred command design", () => {
     const usage = cliUsage(PRERELEASE);
     const help = cliHelp(PRERELEASE);
     expect(help).toMatch(/^Common:\n/);
     expect(help).toContain("\nUpdate:\n");
     expect(help).toContain("\nPackages:\n");
-    expect(help).toContain("\nCompatibility aliases:\n");
+    expect(help).not.toContain("Compatibility aliases:");
     expect(help).not.toContain("Update A1:");
     expect(help).not.toContain("Pi-compatible packages for A1:");
     for (const form of [
       "help",
       "version",
-      "--help",
-      "-h",
-      "--version",
-      "-v",
       "update --develop [preview-or-version]",
       "update --models",
       "update --extensions",
@@ -284,12 +280,10 @@ describe("A1 CLI dispatch", () => {
       "remove <source>",
       "uninstall <source>",
       "list",
-      "pi install <source>",
-      "pi uninstall <source>",
-      "pi update --extensions",
-      "pi update --models",
-      "pi update <source>",
     ]) expect(usage).toContain(form);
+    expect(usage).not.toContain("--help");
+    expect(usage).not.toContain("--version");
+    expect(usage).not.toContain("pi install");
     expect(usage).not.toContain("update:");
     expect(usage).not.toContain("pi config");
     expect(usage).not.toContain(" -l");
@@ -306,9 +300,10 @@ describe("A1 CLI dispatch in a release build", () => {
     expectNoHandler(commands);
   });
 
-  it("keeps the comparison launch out of help but retains package commands", () => {
+  it("keeps the comparison launch out of release help and advertises direct package commands", () => {
     expect(cliHelp(RELEASE)).not.toContain("\n  a1 pi\n");
-    expect(cliHelp(RELEASE)).toContain("a1 pi install <source>");
+    expect(cliHelp(RELEASE)).not.toContain("a1 pi install <source>");
+    expect(cliHelp(RELEASE)).toContain("a1 install <source>");
     expect(cliHelp(PRERELEASE)).toContain("\n  a1 pi\n");
   });
 

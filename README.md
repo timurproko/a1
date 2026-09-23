@@ -44,10 +44,8 @@ Development previews add the Pi comparison profile; release builds do not carry 
 a1 pi                                   # vanilla Pi oracle: ~/.pi/agent
 ```
 
-The earlier `a1 --help`/`a1 -h`, `a1 --version`/`a1 -v`, and supported
-`a1 pi` package commands remain compatibility aliases. Unsupported commands exit
-quietly without launching anything. The removed `update:<preview>` forms are not
-aliases; use `update --develop`.
+Unsupported commands exit quietly without launching anything. The removed
+`update:<preview>` forms are not aliases; use `update --develop`.
 
 ## Extensions
 
@@ -65,9 +63,7 @@ a1 update --models                 # refresh A1's model catalogs
 ```
 
 A1 pins the Pi runtime carried by each release, so Pi self-update forms are refused.
-Update A1 itself with `a1 update` or `a1 update --develop`. The corresponding
-supported `a1 pi install`, `remove`/`uninstall`, `list`, and package/model `update`
-forms remain compatibility aliases.
+Update A1 itself with `a1 update` or `a1 update --develop`.
 
 A running session picks up a newly installed package after a restart.
 Configuration is isolated the same way: bare `a1` reads `~/.a1/agent` (or the

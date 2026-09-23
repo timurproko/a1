@@ -45,17 +45,6 @@ export function cliUsage(capabilities: CliCapabilities): string {
     "list",
     "session link-worktree <path>",
     "session unlink-worktree",
-    "--help",
-    "-h",
-    "--version",
-    "-v",
-    "pi install <source>",
-    "pi remove <source>",
-    "pi uninstall <source>",
-    "pi list",
-    "pi update --extensions",
-    "pi update --models",
-    "pi update <source>",
   ]);
 }
 
@@ -86,16 +75,6 @@ export function cliHelp(capabilities: CliCapabilities): string {
     "Session context:",
     `  ${command} session link-worktree <path>`,
     `  ${command} session unlink-worktree`,
-    "",
-    "Compatibility aliases:",
-    `  ${command} --help | ${command} -h`,
-    `  ${command} --version | ${command} -v`,
-    `  ${command} pi install <source>`,
-    `  ${command} pi remove <source> | ${command} pi uninstall <source>`,
-    `  ${command} pi list`,
-    `  ${command} pi update --extensions`,
-    `  ${command} pi update --models`,
-    `  ${command} pi update <source>`,
     "",
   ].join("\n");
 }

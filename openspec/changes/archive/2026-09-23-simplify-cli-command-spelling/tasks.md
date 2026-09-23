@@ -8,12 +8,12 @@
 
 - [x] 2.1 Carry direct-versus-compatibility invocation context through package help and syntax diagnostics, and verify focused transcript tests preserve pinned styling, streams, exit codes, and the entered namespace.
 - [x] 2.2 Add complete direct update help covering stable, development, model, extension, and single-package forms, and verify explicit help dispatches no update, package, model, or runtime operation.
-- [x] 2.3 Make complete application help lead with the direct commands while identifying retained compatibility aliases, and verify prerelease and release usage snapshots advertise exactly the supported grammar.
+- [x] 2.3 Make complete application help advertise only the direct commands while omitting retained compatibility aliases, and verify prerelease and release usage snapshots advertise exactly the preferred grammar.
 
 ## 3. Update user documentation
 
 - [x] 3.1 Replace README usage examples with `a1 help`, `a1 version`, direct package verbs, `a1 update --extensions`, and `a1 update <source>`, and verify the documentation-governance test matches the implemented command surface.
-- [x] 3.2 Document `--help`/`-h`, `--version`/`-v`, and supported `a1 pi` package forms as compatibility aliases without advertising project-local package scope, package configuration, or independent Pi updates, and verify repository documentation assertions pass.
+- [x] 3.2 Keep compatibility aliases unadvertised while retaining parser regression coverage, without advertising project-local package scope, package configuration, or independent Pi updates, and verify repository documentation assertions pass.
 
 ## 4. Verify the integrated behavior
 

@@ -139,7 +139,8 @@ else process.exitCode = 64;
     expect(help.stderr).toBe("");
     expect(help.stdout).toContain("a1 update --develop [preview-or-version]");
     expect(help.stdout).toContain("a1 update --extensions");
-    expect(help.stdout).toContain("Compatibility aliases:");
+    expect(help.stdout).not.toContain("Compatibility aliases:");
+    expect(help.stdout).not.toContain("a1 pi install <source>");
 
     const updateHelp = await execFileAsync(process.execPath, [cli, "update", "--help"], {
       cwd: temporaryRoot,
