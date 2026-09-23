@@ -40,7 +40,7 @@
 
 - [x] 6.1 Run deterministic copy-only, independent paste-only, and combined fault/content matrices spanning cold/warm small operations, repeated requests, long text/selections/sessions, URLs/paths/images, native and terminal paste, idle/streaming, terminal delay, busy/missing/denied/non-settling read/write/preparation, recovery, and teardown; verify gates fail blocked input/timers, unbounded work, stale deliveries/insertions, incorrect payloads, dropped/reordered pastes, and privacy leaks.
 - [x] 6.2 Exercise mixed copy, independent paste, typing, wheel, new selection, undo/redo, overlay/replacement ownership, and Ctrl+C without selection; verify receipt order, transaction-specific read/write dependencies, agent cancellation ownership, follow/detach preservation, unchanged prompt content/chip semantics and comparison behavior, and installed package identity.
-- [ ] 6.3 Obtain required CI results for the exact implementation candidate and retain bounded evidence; verify all required checks and helper/package/terminal conformance pass without treating timing distributions or successful copying alone as proof that both shortcuts are responsive.
+- [x] 6.3 Obtain required CI results for the exact implementation candidate and retain bounded evidence; verify all required checks and helper/package/terminal conformance pass without treating timing distributions or successful copying alone as proof that both shortcuts are responsive.
 
 ## 7. Validate both shortcuts physically and record acceptance
 
