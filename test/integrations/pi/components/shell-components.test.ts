@@ -344,6 +344,60 @@ describe("Pi shell public component adapters", () => {
     expect(rows).toContain("scoped-models");
   });
 
+  it("omits thinking and login argument hints only from bare-A1 command rows", async () => {
+    const options = {
+      getColumns: () => 100,
+      getRows: () => 24,
+      requestRender() {},
+      onSubmit() {},
+      cwd: "D:/work",
+    };
+    const bare = createPiShellEditor({
+      ...options,
+      keybindingProfile: "a1",
+      promptPresentation: PROMPT_PRESENTATION,
+      autocompleteCommands: [
+        {
+          name: "login",
+          description: "Configure provider authentication",
+          argumentOptions: [{ id: "openai", label: "OpenAI" }],
+          source: "builtin",
+        },
+        { name: "deploy", description: "Deploy extension", argumentHint: "<environment>", source: "extension" },
+      ],
+    });
+    const comparison = createPiShellEditor({ ...options, keybindingProfile: "pi" });
+    const selectedRow = async (editor: ReturnType<typeof createPiShellEditor>, input: string, label: string): Promise<string> => {
+      editor.setText("");
+      for (const character of input) editor.handleInput?.(character);
+      await new Promise(resolve => setTimeout(resolve, 0));
+      const row = editor.render(100).map(stripTerminalSequences)
+        .find(line => line.trimStart().startsWith(`→ ${label}`));
+      expect(row).toBeDefined();
+      return row!.trimEnd();
+    };
+
+    const bareThinking = await selectedRow(bare, "/thinking", "thinking");
+    expect(bareThinking).toMatch(/→ thinking\s+Set thinking level$/u);
+    expect(bareThinking).not.toContain("<level>");
+    expect(bareThinking).not.toContain("—");
+    const bareLogin = await selectedRow(bare, "/login", "login");
+    expect(bareLogin).toMatch(/→ login\s+Configure provider authentication$/u);
+    expect(bareLogin).not.toContain("<provider>");
+    expect(bareLogin).not.toContain("—");
+    expect(await selectedRow(bare, "/deploy", "deploy")).toContain("<environment> — Deploy extension");
+
+    bare.setText("");
+    for (const character of "/login ") bare.handleInput?.(character);
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(bare.render(100).map(stripTerminalSequences).join("\n")).toContain("OpenAI");
+    bare.handleInput?.("\t");
+    expect(bare.getText()).toBe("/login openai");
+
+    expect(await selectedRow(comparison, "/thinking", "thinking")).toContain("<level> — Set thinking level");
+    expect(await selectedRow(comparison, "/login", "login")).toContain("<provider> — Configure provider authentication");
+  });
+
   it("keeps selected autocomplete descriptions muted only in bare A1", async () => {
     const options = {
       getColumns: () => 80,

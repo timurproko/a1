@@ -35,6 +35,14 @@ describe("bare-A1 unified Models dialog", () => {
     expect(PINNED_PI_WORKFLOW_COMMAND_NAMES).toContain("model");
     expect(PINNED_PI_WORKFLOW_COMMAND_NAMES).toContain("scoped-models");
     const ownedBuiltIns = OWNED_BUILTIN_SLASH_COMMANDS.map(command => command.name);
+    expect(OWNED_BUILTIN_SLASH_COMMANDS.find(command => command.name === "thinking")).toEqual({
+      name: "thinking", description: "Set thinking level",
+    });
+    expect(OWNED_BUILTIN_SLASH_COMMANDS.find(command => command.name === "login")).toEqual({
+      name: "login", description: "Configure provider authentication",
+    });
+    expect(PINNED_PI_BUILTIN_SLASH_COMMANDS.find(command => command.name === "thinking")).toMatchObject({ argumentHint: "<level>" });
+    expect(PINNED_PI_BUILTIN_SLASH_COMMANDS.find(command => command.name === "login")).toMatchObject({ argumentHint: "<provider>" });
     expect(ownedBuiltIns).toContain("models");
     expect(ownedBuiltIns).not.toContain("model");
     expect(ownedBuiltIns).not.toContain("scoped-models");

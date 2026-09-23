@@ -213,7 +213,7 @@ export class PiResourceCatalog {
       {
         name: "login",
         description: "Configure provider authentication",
-        argumentHint: "<provider>",
+        ...(this.#productMode === "comparison" ? { argumentHint: "<provider>" } : {}),
         argumentOptions: this.#contexts.loginOptions().map(option => ({ ...option, id: option.id.split(":").at(-1) ?? option.id })),
         source: "builtin",
       },
