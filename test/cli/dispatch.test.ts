@@ -23,14 +23,22 @@ describe("A1 CLI dispatch", () => {
   it.each([
     [[], { kind: "launch", profileId: "a1" }],
     [["pi"], { kind: "launch", profileId: "pi" }],
+    [["help"], { kind: "help" }],
     [["--help"], { kind: "help" }],
     [["-h"], { kind: "help" }],
+    [["version"], { kind: "version" }],
     [["--version"], { kind: "version" }],
     [["-v"], { kind: "version" }],
     [["update"], { kind: "update", channel: "stable" }],
     [["update", "--develop"], { kind: "update", channel: "next" }],
     [["update", "--develop", "107"], { kind: "update", channel: "next", target: "107" }],
     [["update", "--develop", "0.1.8-dev.107"], { kind: "update", channel: "next", target: "0.1.8-dev.107" }],
+    [["update", "--extensions"], { kind: "packages", request: { verb: "update", source: null } }],
+    [["update", "npm:pi-mcp-adapter"], { kind: "packages", request: { verb: "update", source: "npm:pi-mcp-adapter" } }],
+    [["install", "npm:pi-mcp-adapter"], { kind: "packages", request: { verb: "install", source: "npm:pi-mcp-adapter" } }],
+    [["remove", "npm:pi-mcp-adapter"], { kind: "packages", request: { verb: "remove", source: "npm:pi-mcp-adapter" } }],
+    [["uninstall", "npm:pi-mcp-adapter"], { kind: "packages", request: { verb: "remove", source: "npm:pi-mcp-adapter" } }],
+    [["list"], { kind: "packages", request: { verb: "list", source: null } }],
     [["pi", "install", "npm:pi-mcp-adapter"], { kind: "packages", request: { verb: "install", source: "npm:pi-mcp-adapter" } }],
     [["pi", "remove", "npm:pi-mcp-adapter"], { kind: "packages", request: { verb: "remove", source: "npm:pi-mcp-adapter" } }],
     [["pi", "uninstall", "npm:pi-mcp-adapter"], { kind: "packages", request: { verb: "remove", source: "npm:pi-mcp-adapter" } }],
@@ -72,22 +80,39 @@ describe("A1 CLI dispatch", () => {
   });
 
   it.each(["install", "remove", "uninstall", "list", "update"])("shows focused %s help before syntax checks without dispatch", async verb => {
-    for (const flag of ["--help", "-h"]) {
-      const commands = handlers();
-      const transcript = output();
-      expect(await dispatchCli(["pi", verb, "--unknown", flag], commands, transcript, PRERELEASE)).toBe(0);
-      const help = transcript.stdout.mock.calls[0]?.[0] ?? "";
-      expect(help).toContain("Usage:");
-      expect(help).toContain(`a1 pi ${verb === "uninstall" ? "remove" : verb}`);
-      expect(help).not.toMatch(/--local|--approve|--self|--all|--extension\s|pi config|\[-l\]/);
-      expect(transcript.stderr).not.toHaveBeenCalled();
-      expectNoHandler(commands);
+    for (const namespace of ["direct", "pi"] as const) {
+      for (const flag of ["--help", "-h"]) {
+        const commands = handlers();
+        const transcript = output();
+        const arguments_ = namespace === "direct" ? [verb, "--unknown", flag] : ["pi", verb, "--unknown", flag];
+        expect(await dispatchCli(arguments_, commands, transcript, PRERELEASE)).toBe(0);
+        const help = transcript.stdout.mock.calls[0]?.[0] ?? "";
+        expect(help).toContain("Usage:");
+        expect(help).toContain(namespace === "direct"
+          ? `a1 ${verb === "uninstall" ? "remove" : verb}`
+          : `a1 pi ${verb === "uninstall" ? "remove" : verb}`);
+        expect(help).not.toMatch(/--local|--approve|--self|--all|--extension\s|pi config|\[-l\]/);
+        if (namespace === "direct" && verb === "update") {
+          expect(help).toContain("a1 update --develop [preview-or-version]");
+          expect(help).toContain("a1 update --extensions");
+        }
+        expect(transcript.stderr).not.toHaveBeenCalled();
+        expectNoHandler(commands);
+      }
     }
   });
 
   it("gives aliases the same typed requests", () => {
-    expect(parseCliCommand(["pi", "uninstall", "npm:x"], PRERELEASE)).toEqual(parseCliCommand(["pi", "remove", "npm:x"], PRERELEASE));
-    expect(parseCliCommand(["pi", "update", "--models"], PRERELEASE)).toEqual(parseCliCommand(["update", "--models"], PRERELEASE));
+    expect(parseCliCommand(["uninstall", "npm:x"], PRERELEASE)).toEqual(parseCliCommand(["remove", "npm:x"], PRERELEASE));
+    for (const [direct, compatibility] of [
+      [["install", "npm:x"], ["pi", "install", "npm:x"]],
+      [["remove", "npm:x"], ["pi", "remove", "npm:x"]],
+      [["uninstall", "npm:x"], ["pi", "uninstall", "npm:x"]],
+      [["list"], ["pi", "list"]],
+      [["update", "--extensions"], ["pi", "update", "--extensions"]],
+      [["update", "npm:x"], ["pi", "update", "npm:x"]],
+      [["update", "--models"], ["pi", "update", "--models"]],
+    ] as const) expect(parseCliCommand(direct, PRERELEASE)).toEqual(parseCliCommand(compatibility, PRERELEASE));
   });
 
   it.each([
@@ -103,7 +128,7 @@ describe("A1 CLI dispatch", () => {
   });
 
   it("prints help only when explicitly requested", async () => {
-    for (const argument of ["--help", "-h"] as const) {
+    for (const argument of ["help", "--help", "-h"] as const) {
       const commands = handlers();
       const transcript = output();
       expect(await dispatchCli([argument], commands, transcript, PRERELEASE)).toBe(0);
@@ -125,9 +150,9 @@ describe("A1 CLI dispatch", () => {
     expect(commands.packages).not.toHaveBeenCalled();
   });
 
-  it("dispatches package operations without launching a profile", async () => {
+  it("dispatches direct package operations without launching a profile", async () => {
     const commands = { ...handlers(), packages: vi.fn(async () => 3) };
-    expect(await dispatchCli(["pi", "install", "npm:pi-mcp-adapter"], commands, output(), PRERELEASE)).toBe(3);
+    expect(await dispatchCli(["install", "npm:pi-mcp-adapter"], commands, output(), PRERELEASE)).toBe(3);
     expect(commands.packages).toHaveBeenCalledWith({ verb: "install", source: "npm:pi-mcp-adapter" });
     expect(commands.launch).not.toHaveBeenCalled();
     expect(commands.update).not.toHaveBeenCalled();
@@ -137,17 +162,11 @@ describe("A1 CLI dispatch", () => {
     ["--resume"], ["-r"], ["--continue"], ["-c"], ["resume"], ["pi", "--session", "saved-id"],
     ["unknown"],
     ["sdjjhd"],
-    ["version"],
     ["ui"],
     ["agent"],
-    ["help"],
-    ["install", "npm:x"],
-    ["remove", "npm:x"],
-    ["list"],
     ["config"],
     ["update", "self"],
     ["update", "self", "extra"],
-    ["update", "npm:x"],
     ["update:develop"],
     ["update:develop", "107"],
     ["update:107"],
@@ -181,9 +200,15 @@ describe("A1 CLI dispatch", () => {
     ["update", "--develop", "--models"],
     ["update", "--models", "extra"],
     ["update", "--all"],
+    ["help", "extra"],
     ["--help", "extra"],
+    ["version", "extra"],
     ["--version", "extra"],
     ["-v", "extra"],
+    ["install"],
+    ["remove"],
+    ["install", "npm:one", "npm:two"],
+    ["update", "npm:one", "npm:two"],
     ["pi", "install"],
     ["pi", "remove"],
     ["pi", "install", "npm:one", "npm:two"],
@@ -218,8 +243,8 @@ describe("A1 CLI dispatch", () => {
     const message = transcript.stderr.mock.calls[0]?.[0] ?? "";
     expect(message).toContain("pins its certified Pi runtime");
     expect(message).toContain("a1 update");
-    expect(message).toContain("a1 pi update --extensions");
-    expect(message).toContain("a1 pi update --models");
+    expect(message).toContain("a1 update --extensions");
+    expect(message).toContain("a1 update --models");
     expect(message).not.toContain("Usage:");
     expectNoHandler(commands);
   });
@@ -240,16 +265,25 @@ describe("A1 CLI dispatch", () => {
     const help = cliHelp(PRERELEASE);
     expect(help).toMatch(/^Common:\n/);
     expect(help).toContain("\nUpdate:\n");
-    expect(help).toContain("\nPi-compatible packages:\n");
+    expect(help).toContain("\nPackages:\n");
+    expect(help).toContain("\nCompatibility aliases:\n");
     expect(help).not.toContain("Update A1:");
     expect(help).not.toContain("Pi-compatible packages for A1:");
     for (const form of [
+      "help",
+      "version",
       "--help",
       "-h",
       "--version",
       "-v",
       "update --develop [preview-or-version]",
       "update --models",
+      "update --extensions",
+      "update <source>",
+      "install <source>",
+      "remove <source>",
+      "uninstall <source>",
+      "list",
       "pi install <source>",
       "pi uninstall <source>",
       "pi update --extensions",
@@ -280,12 +314,19 @@ describe("A1 CLI dispatch in a release build", () => {
 
   it.each([
     { arguments_: [] as const },
+    { arguments_: ["help"] as const },
     { arguments_: ["--help"] as const },
     { arguments_: ["-h"] as const },
+    { arguments_: ["version"] as const },
     { arguments_: ["--version"] as const },
     { arguments_: ["-v"] as const },
     { arguments_: ["update"] as const },
     { arguments_: ["update", "--develop"] as const },
+    { arguments_: ["update", "--extensions"] as const },
+    { arguments_: ["update", "npm:x"] as const },
+    { arguments_: ["list"] as const },
+    { arguments_: ["install", "npm:x"] as const },
+    { arguments_: ["remove", "npm:x"] as const },
     { arguments_: ["pi", "list"] as const },
     { arguments_: ["pi", "install", "npm:x"] as const },
     { arguments_: ["pi", "remove", "npm:x"] as const },

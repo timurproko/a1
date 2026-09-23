@@ -20,17 +20,23 @@ describe("owned UI launch documentation", () => {
     expect(checkpoint).toContain("For recovery, use `a1 pi`");
     expect(cliUsage(prerelease)).toBe(
       "Usage: a1 | a1 --session <path|id> | a1 --session-dir <dir> --session <path|id>"
-      + " | a1 pi | a1 --help | a1 -h | a1 --version | a1 -v | a1 update"
+      + " | a1 pi | a1 help | a1 version | a1 update"
       + " | a1 update --develop [preview-or-version] | a1 update --models"
-      + " | a1 session link-worktree <path> | a1 session unlink-worktree | a1 pi install <source>"
+      + " | a1 update --extensions | a1 update <source> | a1 install <source>"
+      + " | a1 remove <source> | a1 uninstall <source> | a1 list"
+      + " | a1 session link-worktree <path> | a1 session unlink-worktree"
+      + " | a1 --help | a1 -h | a1 --version | a1 -v | a1 pi install <source>"
       + " | a1 pi remove <source> | a1 pi uninstall <source> | a1 pi list"
       + " | a1 pi update --extensions | a1 pi update --models | a1 pi update <source>",
     );
     expect(cliUsage(release)).toBe(
       "Usage: a1 | a1 --session <path|id> | a1 --session-dir <dir> --session <path|id>"
-      + " | a1 --help | a1 -h | a1 --version | a1 -v | a1 update"
+      + " | a1 help | a1 version | a1 update"
       + " | a1 update --develop [preview-or-version] | a1 update --models"
-      + " | a1 session link-worktree <path> | a1 session unlink-worktree | a1 pi install <source>"
+      + " | a1 update --extensions | a1 update <source> | a1 install <source>"
+      + " | a1 remove <source> | a1 uninstall <source> | a1 list"
+      + " | a1 session link-worktree <path> | a1 session unlink-worktree"
+      + " | a1 --help | a1 -h | a1 --version | a1 -v | a1 pi install <source>"
       + " | a1 pi remove <source> | a1 pi uninstall <source> | a1 pi list"
       + " | a1 pi update --extensions | a1 pi update --models | a1 pi update <source>",
     );

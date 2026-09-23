@@ -51,7 +51,7 @@ describe("update CLI dispatch", () => {
     await writeFile(loader, `
 import { appendFileSync } from "node:fs";
 export async function resolve(specifier, context, nextResolve) {
-  if (specifier === "node-pty" || specifier.includes("/dist/foundation/supervision/") || specifier.includes("/dist/foundation/transparent-terminal/") || (process.argv.includes("--version") && specifier.includes("/dist/foundation/release/"))) {
+  if (specifier === "node-pty" || specifier.includes("/dist/foundation/supervision/") || specifier.includes("/dist/foundation/transparent-terminal/") || ((process.argv.includes("version") || process.argv.includes("--version")) && specifier.includes("/dist/foundation/release/"))) {
     appendFileSync(${JSON.stringify(forbiddenImportLog)}, specifier + "\\n");
     throw new Error("Update imported forbidden interactive runtime module: " + specifier);
   }
@@ -110,7 +110,7 @@ else process.exitCode = 64;
     expect(removed).toMatchObject({ stdout: "", stderr: "" });
     await expect(access(npmLog)).rejects.toThrow();
 
-    const result = await execFileAsync(process.execPath, [cli, "--version"], {
+    const result = await execFileAsync(process.execPath, [cli, "version"], {
       cwd: temporaryRoot,
       env: {
         ...process.env,
@@ -128,7 +128,7 @@ else process.exitCode = 64;
     const versionCalls = (await readFile(npmLog, "utf8")).trim().split("\n").map(line => JSON.parse(line) as string[]);
     expect(versionCalls).toEqual([["view", PRODUCT_PACKAGE, "dist-tags", "--json"]]);
 
-    const help = await execFileAsync(process.execPath, [cli, "--help"], {
+    const help = await execFileAsync(process.execPath, [cli, "help"], {
       cwd: temporaryRoot,
       env: {
         ...process.env,
@@ -138,7 +138,32 @@ else process.exitCode = 64;
     });
     expect(help.stderr).toBe("");
     expect(help.stdout).toContain("a1 update --develop [preview-or-version]");
-    expect(help.stdout).toContain("a1 pi update --models");
+    expect(help.stdout).toContain("a1 update --extensions");
+    expect(help.stdout).toContain("Compatibility aliases:");
+
+    const updateHelp = await execFileAsync(process.execPath, [cli, "update", "--help"], {
+      cwd: temporaryRoot,
+      env: {
+        ...process.env,
+        NODE_OPTIONS: `--no-warnings --experimental-loader=${pathToFileURL(loader).href}`,
+      },
+      timeout: 15_000,
+    });
+    expect(updateHelp.stderr).toBe("");
+    expect(updateHelp.stdout).toContain("a1 update --develop [preview-or-version]");
+    expect(updateHelp.stdout).toContain("a1 update <source>");
+
+    const installHelp = await execFileAsync(process.execPath, [cli, "install", "--help"], {
+      cwd: temporaryRoot,
+      env: {
+        ...process.env,
+        NODE_OPTIONS: `--no-warnings --experimental-loader=${pathToFileURL(loader).href}`,
+      },
+      timeout: 15_000,
+    });
+    expect(installHelp.stderr).toBe("");
+    expect(installHelp.stdout).toContain("a1 install <source>");
+
     const callsAfterHelp = (await readFile(npmLog, "utf8")).trim().split("\n").map(line => JSON.parse(line) as string[]);
     expect(callsAfterHelp).toEqual(versionCalls);
 

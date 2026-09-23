@@ -24,13 +24,15 @@ npm install -g @timurproko/a1@0.1.8-dev.107
 
 ```sh
 a1                                      # launch A1 (profile: ~/.a1/agent)
-a1 --help                               # show all commands (short form: a1 -h)
-a1 --version                            # show the version (short form: a1 -v)
+a1 help                                 # show all commands
+a1 version                              # show the version
 a1 update                               # install the newest stable release
 a1 update --develop                     # install the current development preview
 a1 update --develop 107                 # install numbered preview 107
 a1 update --develop 0.1.8-dev.107       # install that exact preview
 a1 update --models                      # refresh A1's model catalogs
+a1 update --extensions                  # update every installed package
+a1 update npm:pi-mcp-adapter            # update one package
 ```
 
 Stable builds print only their installed version. Development builds also show the
@@ -42,26 +44,30 @@ Development previews add the Pi comparison profile; release builds do not carry 
 a1 pi                                   # vanilla Pi oracle: ~/.pi/agent
 ```
 
-Unsupported commands exit quietly without launching anything. The removed
-`update:<preview>` forms are not aliases; use `update --develop`.
+The earlier `a1 --help`/`a1 -h`, `a1 --version`/`a1 -v`, and supported
+`a1 pi` package commands remain compatibility aliases. Unsupported commands exit
+quietly without launching anything. The removed `update:<preview>` forms are not
+aliases; use `update --develop`.
 
 ## Extensions
 
-Pi extension packages install into A1's own profile (`~/.a1/agent`), so bare `a1`
-loads them and `a1 pi` does not. Sources are Pi's: `npm:`, git, or a
-local path.
+Pi-compatible extension packages install into A1's own profile (`~/.a1/agent`), so
+bare `a1` loads them and the `a1 pi` comparison profile does not. Sources use Pi's
+`npm:`, git, or local-path grammar.
 
 ```sh
-a1 pi install npm:pi-mcp-adapter   # install a package
-a1 pi remove npm:pi-mcp-adapter    # remove it (alias: a1 pi uninstall)
-a1 pi list                         # list installed packages
-a1 pi update --extensions          # update every installed package
-a1 pi update npm:pi-mcp-adapter    # update one
-a1 pi update --models              # refresh A1's model catalogs
+a1 install npm:pi-mcp-adapter      # install a package
+a1 remove npm:pi-mcp-adapter       # remove it (alias: a1 uninstall)
+a1 list                            # list installed packages
+a1 update --extensions             # update every installed package
+a1 update npm:pi-mcp-adapter       # update one
+a1 update --models                 # refresh A1's model catalogs
 ```
 
 A1 pins the Pi runtime carried by each release, so Pi self-update forms are refused.
-Update A1 itself with `a1 update` or `a1 update --develop`.
+Update A1 itself with `a1 update` or `a1 update --develop`. The corresponding
+supported `a1 pi install`, `remove`/`uninstall`, `list`, and package/model `update`
+forms remain compatibility aliases.
 
 A running session picks up a newly installed package after a restart.
 Configuration is isolated the same way: bare `a1` reads `~/.a1/agent` (or the
