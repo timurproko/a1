@@ -154,10 +154,11 @@ describe("PR-native caller, security, and lifecycle contracts", () => {
     const wrapper = parse(await readFile(".github/workflows/full-regression.yml", "utf8"));
     expect(ci.jobs["full-regression"].uses).toBe(wrapper.jobs.complete.uses);
     expect(shared.on.workflow_call.inputs.source).toMatchObject({ required: true, type: "string" });
-    expect(ci.jobs["full-selection"].if).toBe("github.event_name == 'pull_request'");
+    expect(ci.jobs["full-selection"].needs).toBe("readiness");
+    expect(ci.jobs["full-selection"].if).toBe("needs.readiness.outputs.validate == 'true' && github.event_name == 'pull_request'");
     expect(ci.jobs["full-regression"].with).toEqual({ source: "${{ needs.full-selection.outputs.head }}", base: "${{ needs.full-selection.outputs.base }}", selection: "${{ needs.full-selection.outputs.selection-id }}", pr: "${{ github.event.pull_request.number }}" });
     expect(ci.jobs.required.needs).toEqual(expect.arrayContaining(["full-selection", "full-regression", "delivery", "modular"]));
-    expect(ci.jobs.required.if).toContain("github.event.pull_request.draft == false");
+    expect(ci.jobs.required.if).toContain("needs.readiness.outputs.validate == 'true'");
     expect(ci.on.pull_request.types).toEqual(expect.arrayContaining(["edited", "synchronize", "ready_for_review", "converted_to_draft"]));
     expect(ci.on.pull_request.types).not.toEqual(expect.arrayContaining(["labeled", "unlabeled"]));
     expect(shared.jobs["full-regression"].strategy.matrix.include.map((lane: any) => `${lane.os}-node${lane.node}`).sort()).toEqual([...FULL_LANES].sort());

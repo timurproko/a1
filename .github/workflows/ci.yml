@@ -14,9 +14,49 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  readiness:
+    name: Determine validation readiness
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    permissions:
+      contents: read
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      validate: ${{ steps.readiness.outputs.validate }}
+      reason: ${{ steps.readiness.outputs.reason }}
+    steps:
+      - name: Check out trusted readiness policy
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ github.event.pull_request.base.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 24
+      - name: Classify candidate readiness
+        id: readiness
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PULL_DRAFT: ${{ github.event.pull_request.draft || false }}
+          PULL_BODY: ${{ github.event.pull_request.body || '' }}
+        run: |
+          set -euo pipefail
+          policy=scripts/release/development-validation-readiness.mjs
+          if [ -f "$policy" ]; then
+            node "$policy"
+          else
+            echo 'validate=true' >> "$GITHUB_OUTPUT"
+            echo 'reason=policy-bootstrap' >> "$GITHUB_OUTPUT"
+            echo '## Development validation readiness' >> "$GITHUB_STEP_SUMMARY"
+            echo >> "$GITHUB_STEP_SUMMARY"
+            echo 'The exact base predates readiness classification; preserving conservative validation for this rollout.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
   full-selection:
     name: Select PR Full regression
-    if: github.event_name == 'pull_request'
+    needs: readiness
+    if: needs.readiness.outputs.validate == 'true' && github.event_name == 'pull_request'
     permissions:
       contents: read
       pull-requests: read
@@ -79,7 +119,8 @@ jobs:
 
   changes:
     name: Detect change surface
-    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    needs: readiness
+    if: needs.readiness.outputs.validate == 'true'
     permissions:
       contents: read
       pull-requests: read
@@ -678,9 +719,9 @@ jobs:
           retention-days: 14
 
   required:
-    name: "${{ github.event_name == 'pull_request' && github.event.pull_request.draft && 'Draft validation intentionally skipped' || 'Development validation required' }}"
-    if: always() && (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
-    needs: [changes, acceptance, delivery, docs, naming, documentation, modular, rendering, full-selection, full-regression]
+    name: "${{ needs.readiness.outputs.validate == 'true' && 'Development validation required' || 'Development validation deferred' }}"
+    if: always() && needs.readiness.result == 'success' && needs.readiness.outputs.validate == 'true'
+    needs: [readiness, changes, acceptance, delivery, docs, naming, documentation, modular, rendering, full-selection, full-regression]
     permissions:
       actions: read
       contents: read

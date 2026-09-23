@@ -17,9 +17,9 @@ describe("impact-aware validation workflows", () => {
     const matrixStep = workflow.jobs.changes.steps.find((step: { id?: string }) => step.id === "matrix");
     expect(matrixStep.run).toContain("validation-matrix.mjs --impact .artifacts/validation/impact.json");
     expect(matrixStep.run).not.toContain("--manual-no-comparison");
-    expect(workflow.jobs.required.needs).toEqual(["changes", "acceptance", "delivery", "docs", "naming", "documentation", "modular", "rendering", "full-selection", "full-regression"]);
-    expect(workflow.jobs.required.name).toContain("Draft validation intentionally skipped");
+    expect(workflow.jobs.required.needs).toEqual(["readiness", "changes", "acceptance", "delivery", "docs", "naming", "documentation", "modular", "rendering", "full-selection", "full-regression"]);
     expect(workflow.jobs.required.name).toContain("Development validation required");
+    expect(workflow.jobs.required.name).toContain("Development validation deferred");
     expect(workflow.jobs.required.name).not.toContain("Implementation validation complete");
   });
 
@@ -133,15 +133,26 @@ describe("impact-aware validation workflows", () => {
     expect(JSON.stringify(workflow.jobs.modular)).not.toMatch(/retry|rerun-failed|attempts?:\s*[2-9]/iu);
   });
 
-  it("preserves documentation, version, draft, manual fallback, rendering, and naming controls", async () => {
+  it("defers drafts and active delivery heads before preserving manual, rendering, and naming controls", async () => {
     const source = await readFile(".github/workflows/ci.yml", "utf8");
     const workflow = parse(source);
     expect(workflow.on.pull_request.branches).toEqual(["develop"]);
-    expect(workflow.on.pull_request.types).toEqual(expect.arrayContaining(["edited", "ready_for_review", "synchronize"]));
+    expect(workflow.on.pull_request.types).toEqual(expect.arrayContaining(["edited", "ready_for_review", "synchronize", "converted_to_draft"]));
     expect(workflow.on).toHaveProperty("workflow_dispatch");
-    expect(workflow.jobs.changes.if).toBe("github.event_name != 'pull_request' || github.event.pull_request.draft == false");
-    expect(workflow.jobs.required.if).toBe("always() && (github.event_name != 'pull_request' || github.event.pull_request.draft == false)");
-    expect(workflow.jobs.required.name).toBe("${{ github.event_name == 'pull_request' && github.event.pull_request.draft && 'Draft validation intentionally skipped' || 'Development validation required' }}");
+    expect(workflow.jobs.readiness.if).toBe("github.event_name != 'pull_request' || github.event.pull_request.draft == false");
+    expect(workflow.jobs.readiness.permissions).toEqual({ contents: "read" });
+    expect(workflow.jobs.readiness.steps.find((step: any) => step.name === "Check out trusted readiness policy").with.ref)
+      .toBe("${{ github.event.pull_request.base.sha || github.sha }}");
+    const classifier = workflow.jobs.readiness.steps.find((step: any) => step.id === "readiness");
+    expect(classifier.run).toContain("scripts/release/development-validation-readiness.mjs");
+    expect(classifier.run).toContain("reason=policy-bootstrap");
+    expect(JSON.stringify(workflow.jobs.readiness)).not.toMatch(/npm ci|npm install|pull_request_target|contents: write/);
+    expect(workflow.jobs.changes.needs).toBe("readiness");
+    expect(workflow.jobs.changes.if).toBe("needs.readiness.outputs.validate == 'true'");
+    expect(workflow.jobs["full-selection"].needs).toBe("readiness");
+    expect(workflow.jobs["full-selection"].if).toContain("needs.readiness.outputs.validate == 'true'");
+    expect(workflow.jobs.required.if).toBe("always() && needs.readiness.result == 'success' && needs.readiness.outputs.validate == 'true'");
+    expect(workflow.jobs.required.name).toBe("${{ needs.readiness.outputs.validate == 'true' && 'Development validation required' || 'Development validation deferred' }}");
     expect(source).toContain("manual_args=(--manual-no-comparison)");
     expect(source).toContain("implementation_args=(--implementation-bound)");
     expect(workflow.jobs.changes.outputs["implementation-bound"]).toContain("implementation_bound");

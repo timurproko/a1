@@ -10,7 +10,7 @@ describe("repository-owned atomic delivery guidance", () => {
     expect(config).not.toContain("> Phase: Proposal");
     expect(config).not.toContain("> Phase: Implementation");
     expect(config).toContain("do not add a quoted proposal or implementation phase line");
-    expect(config).toContain("no lifecycle body edit or second validation run is required");
+    expect(config).toContain("no lifecycle body edit or second test run is required");
     expect(config).toContain("derive the post-merge state `Archived`");
     expect(config).toContain("`## Proposal`");
     expect(config).toContain("one or two sentences of intent");
@@ -138,7 +138,8 @@ describe("repository-owned atomic delivery guidance", () => {
     expect(docs).toContain("Do not revert a finalization commit to make a fix");
     expect(docs).toContain("pull before pushing");
     expect(docs).toContain("`finalization-merge-conflict`");
-    expect(docs).toContain("Awaiting automated finalization");
+    expect(docs).toContain("Base-controlled readiness defers a ready head that still holds the active change");
+    expect(docs).toContain("Generated repair drafts run no Development test suites");
     const config = await readFile("openspec/config.yaml", "utf8");
     const skill = await readFile(".agents/skills/change-delivery/SKILL.md", "utf8");
     for (const text of [config, skill]) {
