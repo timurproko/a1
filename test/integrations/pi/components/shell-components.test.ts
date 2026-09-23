@@ -63,15 +63,23 @@ function view(): OwnedUiSessionViewModel {
 }
 
 describe("Pi shell public component adapters", () => {
-  it("matches Pi's queued steering rows, spacing, and dequeue hint", () => {
-    const queued = createPiQueuedInputStatus(["first", "second\nline"], "custom-viewport");
-    const rows = queued.render(80).map(row => stripTerminalSequences(row).trimEnd());
+  it("matches Pi's queued steering rows and derives the dequeue hint from live bindings", () => {
+    let dequeueBinding = "alt+up";
+    const queued = createPiQueuedInputStatus(
+      ["first", "second\nline"],
+      "custom-viewport",
+      () => ({ "app.message.dequeue": dequeueBinding as "alt+up" | "ctrl+r" }),
+    );
+    let rows = queued.render(80).map(row => stripTerminalSequences(row).trimEnd());
     expect(rows).toEqual([
       "",
       " Steering: first",
       " Steering: second ⏎ line",
-      " ↳ Alt+Up to edit all queued messages",
+      ` ↳ ${process.platform === "darwin" ? "Option" : "Alt"}+Up to edit all queued messages`,
     ]);
+    dequeueBinding = "ctrl+r";
+    rows = queued.render(80).map(row => stripTerminalSequences(row).trimEnd());
+    expect(rows.at(-1)).toBe(" ↳ Ctrl+R to edit all queued messages");
   });
 
   it("adapts editor input and focus through owned contracts", () => {
