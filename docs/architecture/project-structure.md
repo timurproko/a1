@@ -92,15 +92,18 @@ Build output mirrors the production namespaces directly under ignored `dist/`, w
 
 Every task worktree must be created at `{working-dir}/.worktrees/<task-id>`, where `{working-dir}` is the agent session's initial working directory. The `.worktrees` directory is inside that working directory, not beside it. For working directory `D:/Git/a1`, `D:/Git/a1/.worktrees/<task-id>` is correct and `D:/Git/a1-<task-id>` is forbidden.
 
-From the initial working directory, create and address a task worktree explicitly:
+From the initial working directory, create the task branch and worktree, run `a1 session link-worktree <absolute-worktree>` from the owning A1 session, and continue to address it explicitly:
 
 ```sh
 git fetch origin develop
-git worktree add --detach .worktrees/<task-id> origin/develop
+git worktree add -b <type>/<short-description> .worktrees/<task-id> origin/develop
+a1 session link-worktree <absolute-worktree>
 git -C .worktrees/<task-id> status
 ```
 
-The primary worktree stays on `develop` for integration and must not be used for task edits. Do not edit, move, or remove another session's worktree.
+A successful link response confirming the exact canonical worktree is required before planning, implementation, test, or delivery-documentation edits. If linking fails or confirms another path, stop task edits and report the blocker instead of continuing with primary-checkout footer metadata. A session resuming an existing delivery or switching streams links the exact owned worktree before editing it.
+
+The association switches bare A1's footer repository context and pull-request discovery; it does not change process or tool cwd and does not register, claim, release, or authorize cleanup of the worktree. Repository commands therefore keep an explicit worktree path. The primary worktree stays on `develop` for integration and must not be used for task edits. Do not edit, adopt, move, or remove another session's worktree.
 
 ## Documentation and comments
 

@@ -7,6 +7,7 @@ import { stripTerminalSequences } from "@earendil-works/pi-tui";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createPiEngineAdapter } from "../../../../src/integrations/pi/engine/adapter.js";
 import { TrustSelectorComponent } from "../../../../src/integrations/pi/components/upstream/components/trust-selector.js";
+import { firstVisibleTextColumn } from "../../../support/dialog-alignment.js";
 
 vi.mock("node:fs", async importOriginal => {
   const actual = await importOriginal<typeof fs>();
@@ -103,7 +104,9 @@ describe("canonical project trust context", () => {
     // Rationale: 0.85.1 marks the saved option with a leading checkmark before its label.
     expect(rendered.some(row => row.trim() === `→ ${kind === "ancestor" ? "  " : "✓ "}${selected}`)).toBe(true);
     expect(rendered.some(row => row.trim() === resolve(f.alias))).toBe(true);
-    expect(rendered.some(row => row.includes("↑↓ navigate  Enter save  Escape/Ctrl+C cancel"))).toBe(true);
+    const heading = rendered.find(row => row.includes("Project trust"))!;
+    const hint = rendered.find(row => row.includes("↑↓ navigate  Enter save  Escape/Ctrl+C cancel"))!;
+    expect(firstVisibleTextColumn(hint)).toBe(firstVisibleTextColumn(heading));
   });
 
   it.each(["trust", "deny", "parent", "cancel"] as const)("keeps %s effects explicit, canonical and restart-only", async action => {

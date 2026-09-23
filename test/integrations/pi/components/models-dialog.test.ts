@@ -3,6 +3,7 @@ import { getKeybindings, setKeybindings, stripTerminalSequences } from "@earendi
 import { applyPiTheme, applyPiThemeInstance, piTheme } from "../../../../src/integrations/pi/components/index.js";
 import { KeybindingsManager, type KeybindingsConfig } from "../../../../src/integrations/pi/components/upstream/adjacent/core/keybindings.js";
 import { ModelsDialogComponent, type ModelsDialogConfig } from "../../../../src/integrations/pi/components/models-dialog.js";
+import { firstVisibleTextColumn } from "../../../support/dialog-alignment.js";
 import { withPiParityColorMode } from "../../../support/pi-terminal-capabilities.js";
 
 const models = [
@@ -88,8 +89,10 @@ describe("unified Models dialog", () => {
       expect(active).toContain(piTheme().fg("dim", "○"));
       expect(active).toContain(piTheme().fg("accent", "gpt-5"));
       expect(stripped).toContain("  Model Name: GPT-5");
-      expect(stripped.at(-2)).toBe("  type to search  ↑↓ navigate  Tab filter  Enter switch  Space scope  Ctrl+S save  Esc close");
+      expect(stripped.at(-2)).toBe("type to search  ↑↓ navigate  Tab filter  Enter switch  Space scope  Ctrl+S save  Esc close");
       const footer = lines.at(-2)!;
+      expect(firstVisibleTextColumn(footer)).toBe(firstVisibleTextColumn(lines[2]!));
+      expect(firstVisibleTextColumn(stripped.find(line => line.includes("○ claude"))!)).toBe(2);
       expect(footer).toContain(piTheme().fg("dim", "↑↓"));
       expect(footer).toContain(piTheme().fg("muted", "navigate"));
       expect(footer).not.toMatch(/[·•]/u);

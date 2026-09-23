@@ -998,6 +998,15 @@ describe("bare-A1 unified models route", () => {
     await adapter.dispose();
   });
 
+  it("keeps direct thinking-level arguments available", async () => {
+    const { adapter, runtime } = await bareFixture();
+    await expect(adapter.executeWorkflow({ command: "thinking", argument: "high" })).resolves.toMatchObject({
+      outcome: "completed", message: "Thinking level: high",
+    });
+    expect(runtime.session.thinkingLevel).toBe("high");
+    await adapter.dispose();
+  });
+
   it("separates the authenticated catalog, active model, explicit session scope, and persisted scope", async () => {
     const { adapter, runtime } = await bareFixture(runtime => {
       runtime.allModels = [
