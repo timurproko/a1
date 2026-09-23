@@ -561,7 +561,7 @@ describe("transcript viewport", () => {
         expect(selected.rows[0]).toBe(backgroundSgrSpan("abcd      ", first - 1, 10, "\u001b[45m"));
         expect(selected.rows[1]).toBe(backgroundSgrSpan("efgh      ", 0, 10, "\u001b[45m"));
         expect(selected.rows[2]).toBe(backgroundSgrSpan("ijkl      ", 0, last, "\u001b[45m"));
-        expect(selected.rows[3]).not.toContain("\u001b[45m");
+        expect(selected.rows[3]).toBe("dock");
         expect(viewport.pressSelection(1, 4, 1_000)).toBe(true);
       }
     }

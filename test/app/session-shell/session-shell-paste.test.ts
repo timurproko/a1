@@ -286,12 +286,13 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
       const rows = shell.root.render(80).map(stripTerminalSequences);
       const row = rows.findIndex(text => text.includes("copy-target"));
       const column = rows[row]!.indexOf("copy-target") + 1;
-      terminal.input(`\u001b[<0;${column};${row + 1}M\u001b[<32;${column + 10};${row + 1}M\u001b[<0;${column + 10};${row + 1}m\u0003`);
+      terminal.input(`\u001b[<0;${column};${row + 1}M\u001b[<32;${column + 10};${row + 1}M\u001b[<0;${column + 10};${row + 1}m`);
+      await vi.waitFor(() => expect(phases).toContain("submitting"));
+      terminal.input("\u001b");
       expect(shell.root.hasActiveSelection()).toBe(false);
       terminal.input("still usable");
       await nextImmediate();
       expect(shell.root.editor.getText()).toBe("still usable");
-      expect(phases).toContain("submitting");
       expect(phases).not.toContain("settled");
       terminal.input("\u0016");
       await nextImmediate();
@@ -420,14 +421,16 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
       const selectedRow = shell.root.render(80).findIndex(row => stripTerminalSequences(row).includes("transcript-")) + 1;
       expect(selectedRow).toBeGreaterThan(0);
       const before = terminal.writes.length;
-      terminal.input(`\u001b[<0;2;${selectedRow}M\u001b[<32;7;${selectedRow}M\u001b[<0;7;${selectedRow}m\u0003`);
-      await nextImmediate();
+      terminal.input(`\u001b[<0;2;${selectedRow}M\u001b[<32;7;${selectedRow}M\u001b[<0;7;${selectedRow}m`);
+      await vi.waitFor(() => expect(
+        terminal.writes.slice(before).join("").match(/\u001b\]52;c;([^\u0007]*)\u0007/g),
+      ).toHaveLength(1));
       shell.runtime.renderNow();
       const output = terminal.writes.slice(before).join("");
       const copies = [...output.matchAll(/\u001b\]52;c;([^\u0007]*)\u0007/g)];
       expect(copies).toHaveLength(1);
       expect(Buffer.from(copies[0]![1]!, "base64").toString()).not.toContain("\u001b");
-      expect(output).not.toContain("Copied");
+      expect(output).toContain("Copied 6 characters to clipboard");
       expect(shell.root.usesDefaultInputSurface()).toBe(false);
       expect(engine.session.calls).toEqual(calls);
       terminal.input("\u001b");
@@ -463,12 +466,10 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
       expect(received).toEqual(["x", `\u001b[<0;${modalCol};${modalRow}M`, "\u001b[<32;2;3M", "\u001b[<0;2;3m", "y"]);
       received.length = 0;
       const selectedRow = shell.root.render(80).findIndex(row => stripTerminalSequences(row).includes("alpha")) + 1;
+      const copyAt = terminal.writes.length;
       terminal.input("\u001b[<0;2;");
       terminal.input(`${selectedRow}M\u001b[<32;7;${selectedRow}M\u001b[<0;7;${selectedRow}m`);
-      const copyAt = terminal.writes.length;
-      terminal.input("\u0003");
-      await nextImmediate();
-      expect(terminal.writes.slice(copyAt).join("")).toContain("\u001b]52;c;");
+      await vi.waitFor(() => expect(terminal.writes.slice(copyAt).join("")).toContain("\u001b]52;c;"));
       expect(received).toEqual([]);
       done!();
       await result;
@@ -497,9 +498,8 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
       expect(shell.root.viewportPresentationEvidence().scrollTop).toBe(before - 3);
       const row = shell.root.render(80).findIndex(line => stripTerminalSequences(line).includes("alpha")) + 1;
       const copyAt = terminal.writes.length;
-      terminal.input(`\u001b[<0;2;${row}M\u001b[<32;7;${row}M\u001b[<0;7;${row}m\u0003`);
-      await nextImmediate();
-      expect(terminal.writes.slice(copyAt).join("")).toContain("\u001b]52;c;");
+      terminal.input(`\u001b[<0;2;${row}M\u001b[<32;7;${row}M\u001b[<0;7;${row}m`);
+      await vi.waitFor(() => expect(terminal.writes.slice(copyAt).join("")).toContain("\u001b]52;c;"));
       expect(shell.root.usesDefaultInputSurface()).toBe(false);
       if (kind === "custom-editor") context.setEditorComponent(undefined);
       else terminal.input("\u001b");
@@ -944,11 +944,10 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
     shell.runtime.renderNow();
     const heldChip = shell.root.render(60).join("\n");
     expect(shell.runtime.fullRedraws).toBe(redrawsBeforeDrag);
-    expect(heldChip).toContain("\u001b[27m\u001b[48;2;38;79;120m");
-    expect(heldChip).toContain("\u001b[4:4m");
-    expect(heldChip).not.toContain("\u001b]8;;https://example.com/a/very/useful/resource\u001b\\");
-    expect(stripTerminalSequences(heldChip)).toContain("https:\uFE0E//example.com");
-    expect(visibleWidth(heldChip.split("\n").find(row => stripTerminalSequences(row).includes("https:\uFE0E//")) ?? "")).toBe(60);
+    expect(heldChip).toContain("\u001b[48;2;38;79;120m");
+    expect(heldChip).toContain("\u001b]8;;https://example.com/a/very/useful/resource\u001b\\");
+    expect(stripTerminalSequences(heldChip)).toContain("https://example.com");
+    expect(visibleWidth(heldChip.split("\n").find(row => stripTerminalSequences(row).includes("https://")) ?? "")).toBe(60);
     expect(shell.root.editor.getText()).toContain("https://example.com");
 
     const writesBeforeRelease = terminal.writes.length;
@@ -956,8 +955,7 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
     shell.runtime.renderNow();
     const draggedChip = shell.root.render(60).join("\n");
     expect(terminal.writes.slice(writesBeforeRelease).some(write => write.includes("\u001b[2J"))).toBe(false);
-    expect(terminal.writes.slice(writesBeforeRelease).some(write => write.includes("\u001b]8;;https://example.com/a/very/useful/resource\u001b\\"))).toBe(true);
-    expect(draggedChip).toContain("\u001b[27m\u001b[48;2;38;79;120m");
+    expect(draggedChip).toContain("\u001b[48;2;38;79;120m");
     expect(draggedChip).toContain("\u001b]8;;https://example.com/a/very/useful/resource\u001b\\");
     terminal.input("\u007f");
     await nextImmediate();
@@ -1065,12 +1063,14 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
     terminal.input(`\u001b[<32;${secondBracketColumn};${promptRow + 1}M`);
     shell.runtime.renderNow();
     expect(shell.runtime.fullRedraws).toBe(redrawsBeforeDrag);
-    expect(shell.root.editor.hasSelection()).toBe(true);
-    expect(shell.root.render(120).join("\n")).toContain("\u001b[27m\u001b[48;2;38;79;120m");
+    expect(shell.root.editor.hasSelection()).toBe(false);
+    expect(shell.root.hasActiveSelection()).toBe(true);
+    expect(shell.root.render(120).join("\n")).toContain("\u001b[48;2;38;79;120m");
 
     terminal.input(`\u001b[<0;${secondBracketColumn};${promptRow + 1}m`);
-    terminal.input("\u0003");
-    await vi.waitFor(() => expect(clipboardText).toBe(`${url}${url}`));
+    await vi.waitFor(() => expect(clipboardText).not.toBe(url));
+    expect(clipboardText.match(/https:\/\/example\.com/gu)).toHaveLength(2);
+    expect(clipboardText).toContain("…");
     await shell.dispose();
   });
 

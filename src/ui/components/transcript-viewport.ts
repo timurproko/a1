@@ -559,14 +559,15 @@ export class TranscriptViewport {
     this.#updateCopyableSelection();
     for (let row = 0; row < frameRows.length; row += 1) {
       const painted = frameRows[row] ?? "";
+      const range = selectionRangeForLine(orderedSelection, row, this.#selectionRows.length, width);
+      const padded = row < viewportHeight || range !== null;
       const base = cachedString(
         this.#baseRowCache,
-        `${width}\u0000${painted}`,
+        `${width}\u0000${padded}\u0000${painted}`,
         cacheLimit,
-        () => padRowPreservingBackground(painted, width),
+        () => padded ? padRowPreservingBackground(painted, width) : painted,
       );
       let rowRecomputed = row < viewportHeight && paintRecomputedRows.has(row) || !base.reused;
-      const range = selectionRangeForLine(orderedSelection, row, this.#selectionRows.length, width);
       const rangeKey = range === null ? "-" : `${range.from}:${range.to}`;
       const selected = range === null
         ? { value: base.value, reused: true }
