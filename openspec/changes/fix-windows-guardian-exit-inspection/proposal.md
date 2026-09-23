@@ -22,6 +22,6 @@ None.
 
 ## Impact
 
-The expected implementation surface is `native/process-guardian/src/windows.rs`, narrowly related native test support, `test/foundation/process-containment/windows-job.integration.test.ts`, and packaged guardian validation. No command syntax, persisted state schema, release format, terminal behavior, dependency, or process-termination policy changes are intended.
+The expected implementation surface is `native/process-guardian/src/windows.rs`, narrowly related native test support, `test/foundation/process-containment/windows-job.integration.test.ts`, packaged guardian validation, and the existing selected guardian-build CI step so the native regression executes before that fixture is used. The workflow refinement adds no validation selection, permission, trigger, budget, or publishing-authority change. No command syntax, persisted state schema, release format, terminal behavior, dependency, or process-termination policy changes are intended.
 
 Issue #377 remains the source evidence. A single current focused pass does not prove the historical race impossible, and this planning change does not claim the implementation is already fixed.

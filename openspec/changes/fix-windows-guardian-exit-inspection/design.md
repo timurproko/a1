@@ -52,6 +52,8 @@ Keep public-boundary integration coverage for:
 
 If deterministic evidence contradicts the proposed mechanism, stop and refine the plan rather than adding speculative production changes.
 
+Run the native regression in the existing selected guardian-build CI step before building the executable consumed by process-containment tests. This adds no new lane, selection rule, permission, trigger, or release action; it makes the already-required Windows native fixture executable evidence instead of leaving it as unrun source.
+
 ### 4. Preserve containment and release behavior
 
 The change affects inspection only. Guardian-owned process creation, Job Object assignment, parent/root waits, descendant termination, status publication, and root exit propagation retain their existing paths. Required validation must include those controls so extra process access rights or state checks cannot weaken containment or keep handles alive beyond their established lifetime.
