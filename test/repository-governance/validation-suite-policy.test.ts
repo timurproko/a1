@@ -112,6 +112,7 @@ describe("validation suite ownership", () => {
       "test/repository-governance/naming-selection.test.ts",
       "test/repository-governance/pr-full-regression-history.test.ts",
       "test/foundation/launch-context/cutover.test.ts",
+      "test/foundation/supervision/foreground-terminal-lease.test.ts",
       "test/repository-governance/code-documentation.test.ts",
       "test/repository-governance/local-cleanup.test.ts",
       "test/foundation/storage/storage.test.ts",

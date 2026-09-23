@@ -476,6 +476,7 @@ function samePullRequest(left: PiPullRequestIdentity | null, right: PiPullReques
 }
 
 async function readGitBranch(cwd: string, signal: AbortSignal): Promise<string | null> {
+  if (!existsSync(cwd)) return null;
   try {
     const { stdout } = await execFileAsync("git", ["branch", "--show-current"], {
       cwd,
@@ -485,8 +486,7 @@ async function readGitBranch(cwd: string, signal: AbortSignal): Promise<string |
       signal,
       encoding: "utf8",
     });
-    const branch = stdout.trim();
-    return branch.length > 0 ? branch : null;
+    return stdout.trim() || null;
   } catch {
     return null;
   }
