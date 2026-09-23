@@ -21,6 +21,10 @@ Focused coverage proves punctuation normalization, pinned-marker compatibility, 
 
 No broad local fast, full, or release test tier was completed. Required exact-head CI remains the integration gate.
 
+## Physical review
+
+The maintainer reviewed the exact repository candidate through the prescribed development launch and confirmed the presentation looks good. This accepts the Unicode marker, restrained cyan motion, and pinned-profile comparison for finalization.
+
 ## Known gaps
 
-None. Interactive comparison of animation subtlety in bare A1 and unchanged pinned presentation remains the maintainer acceptance step.
+None.

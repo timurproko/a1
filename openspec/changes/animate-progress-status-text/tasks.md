@@ -21,5 +21,5 @@
 
 - [x] 4.1 Run focused component, shell, lifecycle, extension, parity, provenance, architecture, and timer-cleanup tests.
 - [x] 4.2 Run typecheck, build, code-documentation and architecture checks, strict OpenSpec validation, and diff hygiene.
-- [ ] 4.3 Physically verify through `./scripts/dev` that the Unicode ellipsis is stable, the cyan sweep is visible but not distracting, all active status kinds share it, and work settlement removes it cleanly.
-- [ ] 4.4 Compare `./scripts/dev pi` and confirm pinned spinner text, styling, cadence, and geometry remain unchanged.
+- [x] 4.3 Physically verify through `./scripts/dev` that the Unicode ellipsis is stable, the cyan sweep is visible but not distracting, all active status kinds share it, and work settlement removes it cleanly.
+- [x] 4.4 Compare `./scripts/dev pi` and confirm pinned spinner text, styling, cadence, and geometry remain unchanged.
