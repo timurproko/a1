@@ -13,7 +13,7 @@ Focused coverage proves punctuation normalization, pinned-marker compatibility, 
 - Focused component, shell, lifecycle, extension, parity, provenance, customization, and timer-cleanup tests — passed: 12 files, 190 tests.
 - `npm run build` — passed.
 - `npm run typecheck` — passed.
-- `npm run check:architecture` — passed after repinning the reviewed startup source-byte total from 1,478,064 to 1,480,974; file count, optional-module exclusions, and Pi artifact limits are unchanged.
+- `npm run check:architecture` — passed after reconciling current `origin/develop` and repinning the reviewed startup source-byte total from the target's 1,478,902 to the combined 1,482,072; file count, optional-module exclusions, and Pi artifact limits are unchanged.
 - `npm run check:code-documentation` — passed.
 - `npm run check:code-documentation:changed` — passed.
 - `openspec validate animate-progress-status-text --strict` — passed.

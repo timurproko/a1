@@ -406,10 +406,6 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     }, handlers);
     this.#status.setProgressPresentation(this.#customViewport ? "custom-viewport" : "pinned");
     this.#footer = createPiShellFooter(this.#viewWithExtensionStatuses(view), cwd, this.#customViewport ? "a1" : "pi", () => this.#footerLevel);
-    this.#queued = createPiQueuedInputStatus(
-      view.editor.queuedSubmissions,
-      this.#customViewport ? "custom-viewport" : "pinned",
-    );
     this.editor = createPiShellEditor({
       ...handlers,
       keybindingProfile: this.#customViewport ? "a1" : "pi",
@@ -505,6 +501,11 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       },
       ...(handlers.onPromptSuggestionAccepted === undefined ? {} : { onPromptSuggestionAccepted: handlers.onPromptSuggestionAccepted }),
     });
+    this.#queued = createPiQueuedInputStatus(
+      view.editor.queuedSubmissions,
+      this.#customViewport ? "custom-viewport" : "pinned",
+      this.#customViewport ? () => this.editor.keybindingConfig() : undefined,
+    );
     this.#viewportController = new SessionViewportController({
       enabled: this.#customViewport,
       editor: this.editor,

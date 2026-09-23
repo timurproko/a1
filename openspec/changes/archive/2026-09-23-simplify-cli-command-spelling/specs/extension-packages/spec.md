@@ -1,9 +1,4 @@
-# extension-packages Specification
-
-## Purpose
-Define non-interactive extension package management for A1's own profile through the `a1 pi` command namespace. Preserve pinned Pi source grammar, command transcripts, and actionable failures while isolating other profiles and preventing independent updates of the pinned Pi runtime.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Package commands manage the A1 profile only
 `a1 install <source>`, `a1 remove <source>`, its alias `a1 uninstall <source>`,
@@ -60,46 +55,6 @@ by this change.
 #### Scenario: A profile is named
 - **WHEN** the user supplies a profile flag or project-local scope to a package command
 - **THEN** A1 SHALL fail before package work and explain that package commands manage the A1 profile only
-
-### Requirement: Package sources follow Pi's grammar
-Package commands SHALL accept the source forms pinned Pi accepts — `npm:<package>`,
-git sources by SSH or HTTPS, and local paths — and SHALL NOT invent an A1-specific
-source syntax. A source pinned Pi rejects SHALL be rejected by A1 for the same
-reason.
-
-#### Scenario: Git source is installed
-- **WHEN** the user runs `a1 pi install git:github.com/user/repo`
-- **THEN** A1 SHALL install it into the A1 profile the way pinned Pi would install it into its own
-
-#### Scenario: Source is unrecognized
-- **WHEN** the user gives a source Pi cannot parse
-- **THEN** A1 SHALL report what was wrong with the source and SHALL NOT create or modify anything in the profile
-
-### Requirement: Package operations never reach another profile
-A package command SHALL NOT read, create, or modify `<home>/.pi/agent`,
-root and its empty resource directories when absent is permitted; nothing else
-outside that root is.
-
-#### Scenario: Other profiles are inspected after an install
-- **WHEN** any package command completes against the A1 profile
-
-#### Scenario: First install with no profile yet
-- **WHEN** `<home>/.a1/agent` does not exist and the user installs a package
-- **THEN** A1 SHALL create the profile root and its resource directories, then install into it
-
-### Requirement: Package commands run without the interactive runtime
-Package commands SHALL execute in the installed package process and SHALL NOT
-materialize a release, start or contact the supervisor, take the foreground lease,
-or start an interactive session. They SHALL exit with a status that distinguishes
-success from failure.
-
-#### Scenario: Install with no A1 session running
-- **WHEN** the user installs a package and no A1 instance is running
-- **THEN** A1 SHALL complete the install without starting a supervisor or an interactive profile
-
-#### Scenario: Install while an A1 session is running
-- **WHEN** the user installs a package from a second terminal while bare `a1` is running
-- **THEN** A1 SHALL complete the install without disturbing the running session's ownership
 
 ### Requirement: Package command transcripts match pinned Pi
 For an equivalent accepted user-scope package operation, both the preferred direct
@@ -227,19 +182,3 @@ Pinned-runtime-update restrictions, unsupported project/profile scope, and A1 pr
 #### Scenario: Pi self-update is requested
 - **WHEN** a recognized independent Pi-update form is supplied without explicit help
 - **THEN** A1 SHALL retain its pinned-runtime rejection and focused supported alternatives rather than simulate a Pi self-update
-
-### Requirement: User-scope package diagnostics preserve pinned reporting
-For equivalent user-scope settings and package-manager behavior, A1 SHALL preserve pinned Pi's diagnostic sequence, warning wording, streams, emphasis, and secondary diagnostic detail in addition to the final operation outcome. Progress and child-process output SHALL retain existing transcript parity. Diagnostics SHALL NOT cause project-local settings or another profile to be read merely to imitate a message.
-
-#### Scenario: User settings report a recoverable error
-- **WHEN** equivalent user settings yield a package-command settings error
-- **THEN** A1 SHALL report yellow `Warning (package command, <scope> settings): <message>` and the dim secondary stack detail when pinned Pi emits it, before the corresponding package operation output
-- **AND** its continuation or failure SHALL follow the equivalent pinned user-scope result
-
-#### Scenario: Project settings are excluded
-- **WHEN** project-local settings contain packages, warnings, or trust-requiring resources
-- **THEN** A1's user-scope package command SHALL NOT load them, prompt for their trust, mutate them, or synthesize project-scope diagnostics
-
-#### Scenario: Existing success and progress transcripts remain unchanged
-- **WHEN** install, remove/uninstall, list, all-package update, or single-package update succeeds
-- **THEN** the established pinned success text, dim progress/paths, bold headings, indentation, and inherited child output SHALL remain unchanged

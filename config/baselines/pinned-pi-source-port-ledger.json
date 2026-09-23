@@ -446,9 +446,9 @@
       "localDestination": "src/integrations/pi/components/upstream/adjacent/core/keybindings.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Mechanical source port with Node import prefixes, public package-root agent-directory resolution, and an opt-in bare-A1 input profile including Ctrl+L level cycling and unbound model selection.",
+      "modifications": "Mechanical source port with Node import prefixes, public package-root agent-directory resolution, and an opt-in bare-A1 input profile including Ctrl+L level cycling, unbound model selection, and cross-platform Alt+Up queued-message restoration.",
       "upgradeStrategy": "three-way",
-      "localSha256": "c5d915bd08924a51ae592b8d853bc34b428ba438a7a173f29d2bca69e84b5959",
+      "localSha256": "ea28da41c2d22922d9e27252a1506cf1b24f64a30003c76d9d274c3600f71d4e",
       "approvedDeviations": [
         {
           "id": "keybindings-public-config-boundary",
@@ -464,7 +464,7 @@
         },
         {
           "id": "owned-input-keybinding-aliases",
-          "reason": "Bare A1 opts into ergonomic vanilla editing aliases plus declarative prompt-selection, cut, paste, redo, and extension actions while the comparison profile retains pinned defaults.",
+          "reason": "Bare A1 opts into ergonomic vanilla editing aliases, declarative prompt-selection actions, and cross-platform Alt+Up queued-message restoration while the comparison profile retains pinned defaults.",
           "upstreamBehavior": "The pinned comparison profile continues to use the exact upstream keybinding definitions and effective configuration.",
           "acceptanceTest": "test/app/session-shell/session-shell.test.ts"
         }
