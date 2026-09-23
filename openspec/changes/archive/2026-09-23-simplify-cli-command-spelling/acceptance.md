@@ -17,7 +17,7 @@ The manual merge accepts these scenarios:
   "archive": "openspec/changes/archive/2026-09-23-simplify-cli-command-spelling/",
   "acceptanceManifest": "openspec/changes/archive/2026-09-23-simplify-cli-command-spelling/acceptance.md",
   "finalizedDate": "2026-09-23",
-  "specBaseSha": "2fd59d4bba46e98a3bfe6240f25a5a71e474d542",
+  "specBaseSha": "47351772ae064146df120c209b68d74a26486928",
   "acceptanceScenarios": [
     "`a1 help` and `a1 version` produce the established help and version outcomes without launching an interactive runtime.",
     "Direct install, remove/uninstall, and list commands dispatch the same isolated A1-profile operations as their compatibility aliases.",
