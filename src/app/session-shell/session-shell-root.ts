@@ -27,7 +27,7 @@ import {
   nativeHyperlinkStyle,
   overlaySpan,
 } from "../../ui/components/spans.js";
-import { progressStatusText } from "../../ui/components/progress-status.js";
+import { progressStatusFrame, progressStatusText } from "../../ui/components/progress-status.js";
 import { displayWidth, faint, stripAnsi } from "../../ui/components/text.js";
 import type {
   TranscriptPromptAnchor,
@@ -400,7 +400,10 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       ...(this.#customViewport ? { getKeybindings: () => this.editor.keybindingConfig() } : {}),
     });
     this.resources = createPiShellLoadedResources(startup.resources ?? [], startup.expanded ?? false);
-    this.#status = createPiShellStatus(view, progressStatusText, handlers);
+    this.#status = createPiShellStatus(view, {
+      text: (message, mode) => progressStatusText(message, mode === "custom-viewport" ? "…" : "..."),
+      frame: progressStatusFrame,
+    }, handlers);
     this.#status.setProgressPresentation(this.#customViewport ? "custom-viewport" : "pinned");
     this.#footer = createPiShellFooter(this.#viewWithExtensionStatuses(view), cwd, this.#customViewport ? "a1" : "pi", () => this.#footerLevel);
     this.#queued = createPiQueuedInputStatus(

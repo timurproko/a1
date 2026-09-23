@@ -169,7 +169,7 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
       expect(frame).toContain("Steering: first");
       expect(frame).toContain("Steering: second");
       expect(frame).toContain("↳ Alt+Up to edit all queued messages");
-      expect(frame).toContain("Compacting...");
+      expect(frame).toContain("Compacting…");
       expect(frame).not.toContain("Queued during compaction");
       shell.restoreQueuedInput();
       expect(shell.root.editor.getText()).toBe("first\nsecond");
@@ -395,11 +395,11 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
       engine.session.emit({ type: "message_start", message: streamed });
       await adapter.flushEvents();
       rows = plainRows();
-      expect(rowOf(rows, "Thinking level: medium")).toBeGreaterThan(rowOf(rows, "Working..."));
+      expect(rowOf(rows, "Thinking level: medium")).toBeGreaterThan(rowOf(rows, "Working…"));
 
       shell.root.appendWorkflowStatus("Switched to GPT-6 Astra (thinking: high)");
       rows = plainRows();
-      const working = rowOf(rows, "Working...");
+      const working = rowOf(rows, "Working…");
       let astra = rowOf(rows, "Switched to GPT-6 Astra");
       expect(working).toBeGreaterThan(rowOf(rows, "streamed"));
       expect(astra).toBeGreaterThan(working);
@@ -412,7 +412,7 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
       rows = plainRows();
       astra = rowOf(rows, "Switched to GPT-6 Astra");
       expect(rowOf(rows, "streamed further")).toBeGreaterThan(-1);
-      expect(astra).toBeGreaterThan(rowOf(rows, "Working..."));
+      expect(astra).toBeGreaterThan(rowOf(rows, "Working…"));
 
       engine.session.emit({ type: "message_end", message: longer });
       const toolCall = { role: "assistant", timestamp: 11, content: [{ type: "toolCall", id: "call-1", name: "read", arguments: { path: "a.txt" } }] };

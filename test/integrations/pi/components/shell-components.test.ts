@@ -30,7 +30,7 @@ import {
   WorkingStatusIndicator,
 } from "../../../../src/integrations/pi/components/index.js";
 import { PINNED_PI_WORKFLOW_COMMAND_NAMES } from "../../../../src/integrations/pi/engine/index.js";
-import { composeSubmittedPromptRows, submittedPromptLayout } from "../../../../src/ui/components/index.js";
+import { composeSubmittedPromptRows, progressStatusFrame, progressStatusText, submittedPromptLayout } from "../../../../src/ui/components/index.js";
 
 function block(kind: OwnedUiTranscriptBlock["kind"], text: string, payload: unknown = {}): OwnedUiTranscriptBlock {
   return { id: `${kind}-1`, kind, status: "finalized", revision: 1, title: kind.startsWith("tool") ? "read" : null, text, payload };
@@ -38,9 +38,10 @@ function block(kind: OwnedUiTranscriptBlock["kind"], text: string, payload: unkn
 
 const PROMPT_PRESENTATION = promptInputPresentation();
 
-function canonicalProgressStatus(message: string): string {
-  return `${message.replace(/(?:…|\.+)$/u, "")}...`;
-}
+const canonicalProgressStatus = {
+  text: (message: string, mode: "pinned" | "custom-viewport") => progressStatusText(message, mode === "pinned" ? "..." : "…"),
+  frame: progressStatusFrame,
+};
 
 function view(): OwnedUiSessionViewModel {
   return {
@@ -776,21 +777,21 @@ describe("Pi shell public component adapters", () => {
     try {
       expect(stripTerminalSequences(status.renderLive(80).join("\n"))).toContain("Compacting...");
       status.setProgressPresentation("custom-viewport");
-      expect(stripTerminalSequences(status.renderLive(80).join("\n"))).toContain("Compacting(0%)...");
+      expect(stripTerminalSequences(status.renderLive(80).join("\n"))).toContain("Compacting(0%)…");
       const live = status.renderLive(80);
       status.update(busy(37));
-      expect(stripTerminalSequences(status.renderLive(80).join("\n"))).toContain("Compacting(37%)...");
+      expect(stripTerminalSequences(status.renderLive(80).join("\n"))).toContain("Compacting(37%)…");
       expect(status.renderLive(80)).toHaveLength(live.length);
       status.update(busy(99));
-      expect(stripTerminalSequences(status.renderLive(80).join("\n"))).toContain("Compacting(99%)...");
+      expect(stripTerminalSequences(status.renderLive(80).join("\n"))).toContain("Compacting(99%)…");
       status.update(busy(37, "Working"));
-      expect(stripTerminalSequences(status.renderLive(80).join("\n"))).toContain("Working(37%)...");
+      expect(stripTerminalSequences(status.renderLive(80).join("\n"))).toContain("Working(37%)…");
       status.update(busy(null));
-      expect(stripTerminalSequences(status.renderLive(80).join("\n"))).toContain("Compacting...");
+      expect(stripTerminalSequences(status.renderLive(80).join("\n"))).toContain("Compacting…");
       expect(stripTerminalSequences(status.renderLive(80).join("\n"))).not.toContain("%");
       status.update(busy(80));
       status.setWorkingOverride("Indexing sources");
-      expect(stripTerminalSequences(status.renderLive(80).join("\n"))).toContain("Indexing sources...");
+      expect(stripTerminalSequences(status.renderLive(80).join("\n"))).toContain("Indexing sources…");
       expect(stripTerminalSequences(status.renderLive(80).join("\n"))).not.toContain("%");
       status.setWorkingOverride(undefined);
       status.setProgressPresentation("pinned");
@@ -859,7 +860,10 @@ describe("Pi shell public component adapters", () => {
       synchronized.dispose();
     }
 
-    const untouched = vi.fn(canonicalProgressStatus);
+    const untouched = {
+      text: vi.fn(canonicalProgressStatus.text),
+      frame: vi.fn(canonicalProgressStatus.frame),
+    };
     const failed = createPiShellStatus({
       ...candidate,
       lifecycle: "failed",
@@ -877,7 +881,8 @@ describe("Pi shell public component adapters", () => {
       expect(createPiShellStatus(view(), canonicalProgressStatus).placement()).toBe("hidden");
       expect(stripTerminalSequences(failed.renderDock(80).join("\n")).trim()).toBe("Failure…");
       expect(stripTerminalSequences(nonSpinner.renderDock(80).join("\n")).trim()).toBe("Plain status…");
-      expect(untouched).not.toHaveBeenCalled();
+      expect(untouched.text).not.toHaveBeenCalled();
+      expect(untouched.frame).not.toHaveBeenCalled();
     } finally {
       failed.dispose?.();
       nonSpinner.dispose?.();

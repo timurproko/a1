@@ -409,11 +409,11 @@ describe("OwnedUiSessionShell viewport and streaming", () => {
       engine.session.emit({ type: "agent_start" });
       await shell.backend.flushEvents();
       const plainRows = () => shell.root.render(60).map(row => stripTerminalSequences(row));
-      expect(plainRows().some(row => row.includes("Working..."))).toBe(true);
+      expect(plainRows().some(row => row.includes("Working…"))).toBe(true);
       shell.root.setExtensionWorking("Indexing sources");
       shell.runtime.renderNow();
-      expect(plainRows().some(row => row.includes("Indexing sources..."))).toBe(true);
-      expect(plainRows().some(row => row.includes("Working..."))).toBe(false);
+      expect(plainRows().some(row => row.includes("Indexing sources…"))).toBe(true);
+      expect(plainRows().some(row => row.includes("Working…"))).toBe(false);
 
       terminal.input("\u001b[<64;30;1M");
       shell.runtime.renderNow();
@@ -426,7 +426,7 @@ describe("OwnedUiSessionShell viewport and streaming", () => {
       expect(plainRows().some(row => row.includes("Indexing sources"))).toBe(false);
       terminal.input("\u001b[1;5F");
       shell.runtime.renderNow();
-      expect(plainRows().some(row => row.includes("Still indexing..."))).toBe(true);
+      expect(plainRows().some(row => row.includes("Still indexing…"))).toBe(true);
 
       engine.session.emit({ type: "message_end", message: {
         role: "assistant",

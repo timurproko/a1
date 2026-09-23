@@ -81,13 +81,16 @@ its own `core` facade layer; A1 is a product, so the port adapts imports and kee
   input behavior, but A1 uses its prior dark floating panel, lighter white-text active row,
   and independent effective-value check mark because physical review rejected a menu that
   blended into the settings rows.
-- **Spinner-backed progress punctuation.** Bare A1 resolves built-in and extension working
+- **Spinner-backed progress presentation.** Bare A1 resolves built-in and extension working
   labels through `ui-components/progress-status.ts`, injected by
   `session-shell/session-shell-root.ts` into the shared `pi-components/shell-footer-status.ts`
-  spinner factory. The factory canonicalizes the visible progress marker once, to three ASCII
-  periods, without importing across the component-adapter boundary. Engine producers remain
-  semantic and the source-synchronized Pi status indicators, installed packages, `a1 pi`, and
-  vanilla Pi remain untouched.
+  spinner factory. The factory canonicalizes the visible progress marker once, to one Unicode
+  ellipsis, and uses the existing spinner updates to move a two-grapheme accent band slowly
+  across otherwise muted label text with a muted pause between passes. The ellipsis remains
+  stationary, no additional timer exists, and theme roles cross the component-adapter boundary
+  as styling callbacks rather than imports or literal colours. Engine producers remain semantic;
+  pinned presentation keeps its three periods; and the source-synchronized Pi status indicators,
+  installed packages, `a1 pi`, and vanilla Pi remain untouched.
 - **Keyboard presentation scheduling.** Pinned components, semantic key handling, and the
   comparison profiles stay unchanged. Bare A1 adds one A1-owned event-loop-turn coordinator
   before its fullscreen root and may omit only superseded visual states after every delivery
