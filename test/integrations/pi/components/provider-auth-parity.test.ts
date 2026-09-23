@@ -60,8 +60,8 @@ function plainRows(component: { render(width: number): readonly string[] }, widt
   return component.render(width).map(row => stripTerminalSequences(row));
 }
 
-describe("pinned provider authentication selector parity", () => {
-  it.each(STATES)("matches untouched Pi for $name provider state", state => {
+describe("provider authentication selector presentation", () => {
+  it.each(STATES)("preserves untouched Pi for $name except for the shared compact title header", state => {
     initTheme("dark", false);
     const upstreamSelected = vi.fn();
     const ownedSelected = vi.fn();
@@ -69,7 +69,10 @@ describe("pinned provider authentication selector parity", () => {
     const owned = createPiShellAuthProviderSelector("login", [state.option], ownedSelected, () => {});
 
     for (const width of [44, 100]) {
-      expect(plainRows(owned, width), `${state.name}@${width}`).toEqual(plainRows(upstream, width));
+      const expected = [...plainRows(upstream, width)];
+      expect(expected[1]?.trim(), `${state.name}@${width} pinned top-title gap`).toBe("");
+      expected.splice(1, 1);
+      expect(plainRows(owned, width), `${state.name}@${width}`).toEqual(expected);
     }
     upstream.handleInput("\r");
     owned.handleInput?.("\r");

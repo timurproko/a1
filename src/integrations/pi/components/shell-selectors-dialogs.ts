@@ -36,6 +36,7 @@ import type {
 import {
   ScopedModelsSelectorComponent,
 } from "./upstream/components/scoped-models-selector.js";
+import { adoptPiModalHeader } from "./modal-frame.js";
 import {
   ModelsDialogComponent,
   type ModelsDialogCallbacks,
@@ -341,6 +342,7 @@ export function createPiShellLoginDialog(
 ): PiShellLoginDialogPort {
   ensureTheme();
   const dialog = new LoginDialogComponent(createTuiFacade(runtime), providerId, onComplete, providerName, title);
+  adoptPiModalHeader(dialog, 0, 1);
   return {
     ...componentPort(dialog),
     showAuth: (url, instructions) => dialog.showAuth(url, instructions),
@@ -424,6 +426,7 @@ export function createPiShellAuthProviderSelector(
     const selected = providers.find(provider => provider.providerId === providerId && provider.authType === authType);
     if (selected) onSelect(selected.id);
   }, onCancel, initialSearchInput);
+  adoptPiModalHeader(selector, 0, 2);
   return componentPort(selector);
 }
 

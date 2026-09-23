@@ -4,7 +4,7 @@
  * Modifications: Source-synchronized tree selector port: preserve filtering, folding, labels, copying,
  * tree navigation, key hints, focus, and viewport behavior while remapping public types/components
  * plus owned keybindings/theme helpers required to avoid the pinned package nested pi-tui singleton;
- * bare A1 uses the shared semantic modal shortcut row.
+ * bare A1 uses the shared semantic modal shortcut row and compact modal header.
  * Deviations: owned-modal-shortcut-hints.
  */
 import {
@@ -22,6 +22,7 @@ import {
 } from "@earendil-works/pi-tui";
 import { DynamicBorder, type SessionTreeNode } from "@earendil-works/pi-coding-agent";
 import { KeybindingsManager } from "../adjacent/core/keybindings.js";
+import { addPiModalHeader } from "../../modal-frame.js";
 import { piTheme, renderPiModalShortcutHints, type PiModalShortcutHint } from "../../theme.js";
 
 const theme = new Proxy({} as ReturnType<typeof piTheme>, {
@@ -1417,8 +1418,7 @@ export class TreeSelectorComponent extends Container implements Focusable {
 		this.labelInputContainer = new Container();
 
 		this.addChild(new Spacer(1));
-		this.addChild(new DynamicBorder());
-		this.addChild(new Text(theme.bold("  Session Tree"), 1, 0));
+		addPiModalHeader(this, new DynamicBorder(), new Text(theme.bold("  Session Tree"), 1, 0));
 		this.addChild(new TreeHelp());
 		this.addChild(new SearchLine(this.treeList));
 		this.addChild(new DynamicBorder());

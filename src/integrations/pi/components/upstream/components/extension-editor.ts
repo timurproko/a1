@@ -3,7 +3,8 @@
  * packages/coding-agent/src/modes/interactive/components/extension-editor.ts.
  * Modifications: Mechanical port: remap pi-tui to the root public singleton, use owned
  * keybindings/theme and external-editor seams, preserve editor layout, hints, focus, submission,
- * cancellation, and external-editor lifecycle; bare A1 uses the shared semantic modal shortcut row.
+ * cancellation, and external-editor lifecycle; bare A1 uses the shared semantic modal shortcut row and
+ * compact modal header.
  * Deviations: owned-modal-shortcut-hints.
  */
 import {
@@ -16,6 +17,7 @@ import {
 import { DynamicBorder, getSelectListTheme } from "@earendil-works/pi-coding-agent";
 import type { KeybindingsManager } from "../adjacent/core/keybindings.js";
 import { editInExternalEditor } from "../external-editor.js";
+import { addPiModalHeader } from "../../modal-frame.js";
 import { piTheme, renderPiModalShortcutHints } from "../../theme.js";
 
 export class ExtensionEditorComponent extends Container {
@@ -54,9 +56,7 @@ export class ExtensionEditorComponent extends Container {
       || process.env.EDITOR
       || (process.platform === "win32" ? "notepad" : "nano");
     const { description, ...editorOptions } = options ?? {};
-    this.addChild(new DynamicBorder());
-    this.addChild(new Spacer(1));
-    this.addChild(new Text(piTheme().fg("accent", title), 1, 0));
+    addPiModalHeader(this, new DynamicBorder(), new Text(piTheme().fg("accent", title), 1, 0));
     if (description) {
       this.addChild(new Spacer(1));
       this.addChild(new Text(piTheme().fg("text", description), 1, 0));

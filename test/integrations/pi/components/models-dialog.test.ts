@@ -77,8 +77,8 @@ describe("unified Models dialog", () => {
     withDialog(dialog => {
       const lines = dialog.render(200);
       const stripped = lines.map(stripTerminalSequences);
-      expect(stripped[2]).toBe("Models");
-      expect(stripped[3]).toBe("Filter: all | scoped");
+      expect(stripped[1]).toBe("Models");
+      expect(stripped[2]).toBe("Filter: all | scoped");
       expect(rows(dialog)).toEqual([
         "  ○ claude [anthropic]",
         "→ ○ gpt-5 [openai] ✓",
@@ -91,7 +91,7 @@ describe("unified Models dialog", () => {
       expect(stripped).toContain("  Model Name: GPT-5");
       expect(stripped.at(-2)).toBe("type to search  ↑↓ navigate  Tab filter  Enter switch  Space scope  Ctrl+S save  Esc close");
       const footer = lines.at(-2)!;
-      expect(firstVisibleTextColumn(footer)).toBe(firstVisibleTextColumn(lines[2]!));
+      expect(firstVisibleTextColumn(footer)).toBe(firstVisibleTextColumn(lines[1]!));
       expect(firstVisibleTextColumn(stripped.find(line => line.includes("○ claude"))!)).toBe(2);
       expect(footer).toContain(piTheme().fg("dim", "↑↓"));
       expect(footer).toContain(piTheme().fg("muted", "navigate"));
@@ -145,13 +145,13 @@ describe("unified Models dialog", () => {
       expect(callbacks.onScopeChange).toHaveBeenLastCalledWith([ids.gpt5]);
       expect(callbacks.onSave).not.toHaveBeenCalled();
       const lines = dialog.render(200);
-      expect(stripTerminalSequences(lines[2]!)).toBe("Models (unsaved)");
-      expect(lines[2]).toBe(`${piTheme().fg("accent", piTheme().bold("Models"))}${piTheme().fg("warning", " (unsaved)")}`);
+      expect(stripTerminalSequences(lines[1]!)).toBe("Models (unsaved)");
+      expect(lines[1]).toBe(`${piTheme().fg("accent", piTheme().bold("Models"))}${piTheme().fg("warning", " (unsaved)")}`);
       expect(rows(dialog)[1]).toBe("→ ● gpt-5 [openai] ✓");
       expect(text(dialog)).not.toMatch(/Esc close\n.*unsaved/u);
       dialog.handleInput(TAB);
       expect(dialog.filter).toBe("scoped");
-      expect(stripTerminalSequences(dialog.render(200)[3]!)).toBe("Filter: all | scoped");
+      expect(stripTerminalSequences(dialog.render(200)[2]!)).toBe("Filter: all | scoped");
       expect(rows(dialog)).toEqual(["→ ● gpt-5 [openai] ✓"]);
       dialog.handleInput(SPACE);
       expect(callbacks.onScopeChange).toHaveBeenLastCalledWith([]);

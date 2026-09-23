@@ -4,7 +4,7 @@
  * Modifications: Source-synchronized session selector port: preserve threaded/current/all scope,
  * search, sort, named/path filters, rename, delete confirmation, active-session protection, loading
  * progress, cancellation, focus, and disposal while remapping public helpers, owned keybindings/theme,
- * canonical path handling, and the shared bare-A1 modal shortcut row.
+ * canonical path handling, and the shared bare-A1 modal shortcut row and compact modal header.
  * Deviations: owned-modal-shortcut-hints.
  */
 import { spawnSync } from "node:child_process";
@@ -24,6 +24,7 @@ import {
 } from "@earendil-works/pi-tui";
 import { KeybindingsManager } from "../adjacent/core/keybindings.js";
 import { DynamicBorder, type SessionInfo } from "@earendil-works/pi-coding-agent";
+import { addPiModalHeader } from "../../modal-frame.js";
 import { piTheme, renderPiModalShortcutHints, type PiModalShortcutHint } from "../../theme.js";
 
 type SessionListProgress = (
@@ -791,10 +792,11 @@ export class SessionSelectorComponent extends Container implements Focusable {
 	private buildBaseLayout(content: Component, options?: { showHeader?: boolean }): void {
 		this.clear();
 		this.addChild(new Spacer(1));
-		this.addChild(new DynamicBorder((s) => theme.fg("accent", s)));
-		this.addChild(new Spacer(1));
 		if (options?.showHeader ?? true) {
-			this.addChild(this.header);
+			addPiModalHeader(this, new DynamicBorder((s) => theme.fg("accent", s)), this.header);
+			this.addChild(new Spacer(1));
+		} else {
+			this.addChild(new DynamicBorder((s) => theme.fg("accent", s)));
 			this.addChild(new Spacer(1));
 		}
 		this.addChild(content);

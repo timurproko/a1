@@ -3,11 +3,12 @@
  * packages/coding-agent/src/modes/interactive/components/trust-selector.ts.
  * Modifications: Mechanical source-synchronized trust selector port with injected public
  * ProjectTrustStore-derived options, remapped owned theme imports, and the shared bare-A1 modal
- * shortcut row.
+ * shortcut row and compact modal header.
  * Deviations: owned-modal-shortcut-hints.
  */
 import { DynamicBorder } from "@earendil-works/pi-coding-agent";
 import { Container, getKeybindings, Spacer, Text } from "@earendil-works/pi-tui";
+import { addPiModalHeader } from "../../modal-frame.js";
 import { piTheme, renderPiModalShortcutHints } from "../../theme.js";
 
 export interface TrustDecision { readonly path: string; readonly decision: boolean }
@@ -46,9 +47,7 @@ export class TrustSelectorComponent extends Container {
       && options.savedDecision?.decision === option.trusted
       && options.savedDecision.path === option.savedPath;
     this.selectedIndex = Math.max(0, this.trustOptions.findIndex(isSaved));
-    this.addChild(new DynamicBorder());
-    this.addChild(new Spacer(1));
-    this.addChild(new Text(piTheme().fg("accent", piTheme().bold("Project trust")), 1, 0));
+    addPiModalHeader(this, new DynamicBorder(), new Text(piTheme().fg("accent", piTheme().bold("Project trust")), 1, 0));
     this.addChild(new Text(piTheme().fg("muted", options.cwd), 1, 0));
     this.addChild(new Spacer(1));
     this.addChild(new Text(piTheme().fg("muted", `Saved decision: ${formatDecision(this.trustOptions[0]?.savedPath, options.savedDecision)}`), 1, 0));

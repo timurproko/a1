@@ -3,11 +3,12 @@
  * packages/coding-agent/src/modes/interactive/components/thinking-selector.ts.
  * Modifications: Preserve the searchable thinking-level selector, current/default semantics,
  * selection, save, cancellation, and focus while accepting the active bare-A1 cycle-key label from the
- * shell, styling the title with the established bold semantic accent treatment, placing its muted hint
- * directly below it, deduplicating levels, and rendering aligned muted descriptions after adjacent
- * active and bracketed default markers. All list and border colors use the owned theme and its
- * explicit color mode, and the footer uses the shared bare-A1 modal shortcut row. The comparison
- * profile retains the public pinned component.
+ * shell, styling the title with the established bold semantic accent treatment, placing it directly
+ * below the top rule through the shared compact modal header and its muted hint directly below it,
+ * deduplicating levels, and rendering aligned muted descriptions after adjacent active and bracketed
+ * default markers. All list and border colors use the owned theme and its explicit color mode, and the
+ * footer uses the shared bare-A1 modal shortcut row. The comparison profile retains the public pinned
+ * component.
  * Deviations: owned-modal-shortcut-hints, owned-level-cycle-shortcut, owned-thinking-selector-heading.
  */
 import {
@@ -23,6 +24,7 @@ import {
 	Text,
 } from "@earendil-works/pi-tui";
 import { DynamicBorder } from "@earendil-works/pi-coding-agent";
+import { addPiModalHeader } from "../../modal-frame.js";
 import { piTheme, renderPiModalShortcutHints } from "../../theme.js";
 
 export type ThinkingSelectorLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
@@ -86,9 +88,11 @@ export class OwnedThinkingSelectorComponent extends Container implements Focusab
 			description: LEVEL_DESCRIPTIONS[level],
 		}));
 
-		this.addChild(new DynamicBorder((text: string) => piTheme().fg("border", text)));
-		this.addChild(new Spacer(1));
-		this.addChild(new Text(piTheme().fg("accent", piTheme().bold("Thinking Level")), 0, 0));
+		addPiModalHeader(
+			this,
+			new DynamicBorder((text: string) => piTheme().fg("border", text)),
+			new Text(piTheme().fg("accent", piTheme().bold("Thinking Level")), 0, 0),
+		);
 		this.addChild(new Text(piTheme().fg("muted", `${cycleKeyDisplay} cycles thinking levels in-session`), 0, 0));
 		this.addChild(new Spacer(1));
 

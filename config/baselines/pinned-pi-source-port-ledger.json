@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-09-23T10:39:44.960Z",
+  "recordedAt": "2026-09-23T23:51:51.558Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "f07218c4d4bbc12bef056a7058c3dd49dfe41abe",
@@ -1574,9 +1574,9 @@
       "localDestination": "src/integrations/pi/components/upstream/components/extension-editor.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Mechanical port: remap pi-tui to the root public singleton, use owned keybindings/theme and external-editor seams, preserve editor layout, hints, focus, submission, cancellation, and external-editor lifecycle; bare A1 uses the shared semantic modal shortcut row.",
+      "modifications": "Mechanical port: remap pi-tui to the root public singleton, use owned keybindings/theme and external-editor seams, preserve editor layout, hints, focus, submission, cancellation, and external-editor lifecycle; bare A1 uses the shared semantic modal shortcut row and compact modal header.",
       "upgradeStrategy": "three-way",
-      "localSha256": "2521604b08f0aa0c84f318785ed44ff712c760dbba148a418dd79014f2b5b501",
+      "localSha256": "4d56aa1161eac950fe95494d83fffde631c6fdc3f42d343ebe7eaff26bbf2ebd",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -1621,9 +1621,9 @@
       "localDestination": "src/integrations/pi/components/upstream/components/extension-input.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Mechanical port: remap public imports, use ECMAScript private fields, and route the bare-A1 instruction row through the shared semantic shortcut renderer while preserving input, timeout, focus, submission, cancellation, and disposal behavior.",
+      "modifications": "Mechanical port: remap public imports, use ECMAScript private fields, and route the bare-A1 instruction row and top chrome through the shared semantic shortcut and compact modal-header components while preserving input, timeout, focus, submission, cancellation, and disposal behavior.",
       "upgradeStrategy": "three-way",
-      "localSha256": "70b1772a79be762f9bc8e5629798f313a2002136c3414c6148f6c948af27ce69",
+      "localSha256": "b3ea9c0691d2924b7cb3de10ba6672802190e2a513c86c14295fad4004e6a680",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -1671,9 +1671,9 @@
       "localDestination": "src/integrations/pi/components/upstream/components/extension-selector.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Mechanical port: remap public imports, use ECMAScript private fields, and route the bare-A1 instruction row through the shared semantic shortcut renderer while preserving options, timeout, navigation, selection, cancellation, and disposal behavior.",
+      "modifications": "Mechanical port: remap public imports, use ECMAScript private fields, and route the bare-A1 instruction row and top chrome through the shared semantic shortcut and compact modal-header components while preserving options, timeout, navigation, selection, cancellation, and disposal behavior.",
       "upgradeStrategy": "three-way",
-      "localSha256": "7e92fbabf159f0500b9f729789830fb109cf69c57a93b1fa2fa2e54fd46b6436",
+      "localSha256": "6b87d8fb3f2c958ac6377e2d88b3cfb74cec82e7a0e52da1761627e93ee78344",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -2062,9 +2062,9 @@
       "localDestination": "src/integrations/pi/components/upstream/components/scoped-models-selector.ts",
       "implementationStatus": "ported",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Source-synchronized scoped-model selector port: preserve session-only toggles, search, bulk/provider/reorder actions, dirty state, Ctrl+S persistence, refresh status, cancellation, and focus while remapping theme and public helper imports; local key labels preserve pinned platform formatting before layout without changing binding identities, and bare A1 uses the shared semantic modal shortcut row.",
+      "modifications": "Source-synchronized scoped-model selector port: preserve session-only toggles, search, bulk/provider/reorder actions, dirty state, Ctrl+S persistence, refresh status, cancellation, and focus while remapping theme and public helper imports; local key labels preserve pinned platform formatting before layout without changing binding identities, and bare A1 uses the shared semantic modal shortcut row and compact modal header.",
       "upgradeStrategy": "three-way",
-      "localSha256": "a396adb7d7add21ecd8b0f59ae8dc525b7ec1f2e87b97cd1c7499a64aad1997a",
+      "localSha256": "8ec90750ae8060fa3d5645121d08f8b4e35022abd13525ffb20dad087f529f49",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -2150,9 +2150,9 @@
       "localDestination": "src/integrations/pi/components/upstream/components/session-selector.ts",
       "implementationStatus": "ported",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Source-synchronized session selector port: preserve threaded/current/all scope, search, sort, named/path filters, rename, delete confirmation, active-session protection, loading progress, cancellation, focus, and disposal while remapping public helpers, owned keybindings/theme, canonical path handling, and the shared bare-A1 modal shortcut row.",
+      "modifications": "Source-synchronized session selector port: preserve threaded/current/all scope, search, sort, named/path filters, rename, delete confirmation, active-session protection, loading progress, cancellation, focus, and disposal while remapping public helpers, owned keybindings/theme, canonical path handling, and the shared bare-A1 modal shortcut row and compact modal header.",
       "upgradeStrategy": "three-way",
-      "localSha256": "25b0ab5f008e49378d9480a74185b5ad7906b5a74f73322b5ae664f53de87b27",
+      "localSha256": "6e50dc1ce0b472abc255c4aa03ffdf16445abd524f4f5a7bfc925d53e244b6b9",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -2426,9 +2426,9 @@
       "localDestination": "src/integrations/pi/components/upstream/components/thinking-selector.ts",
       "implementationStatus": "ported",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Preserve the searchable thinking-level selector, current/default semantics, selection, save, cancellation, and focus while accepting the active bare-A1 cycle-key label from the shell, styling the title with the established bold semantic accent treatment, placing its muted hint directly below it, deduplicating levels, and rendering aligned muted descriptions after adjacent active and bracketed default markers. All list and border colors use the owned theme and its explicit color mode, and the footer uses the shared bare-A1 modal shortcut row. The comparison profile retains the public pinned component.",
+      "modifications": "Preserve the searchable thinking-level selector, current/default semantics, selection, save, cancellation, and focus while accepting the active bare-A1 cycle-key label from the shell, styling the title with the established bold semantic accent treatment, placing it directly below the top rule through the shared compact modal header and its muted hint directly below it, deduplicating levels, and rendering aligned muted descriptions after adjacent active and bracketed default markers. All list and border colors use the owned theme and its explicit color mode, and the footer uses the shared bare-A1 modal shortcut row. The comparison profile retains the public pinned component.",
       "upgradeStrategy": "three-way",
-      "localSha256": "afd55ea02c849c14693fd3313f442b81a95429760e9670e6c584365e1b8f7cb8",
+      "localSha256": "b508797eb2f224105ec6203459b9890871c419af9a4313543a1d0ac2b4cd0530",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -2536,9 +2536,9 @@
       "localDestination": "src/integrations/pi/components/upstream/components/tree-selector.ts",
       "implementationStatus": "ported",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Source-synchronized tree selector port: preserve filtering, folding, labels, copying, tree navigation, key hints, focus, and viewport behavior while remapping public types/components plus owned keybindings/theme helpers required to avoid the pinned package nested pi-tui singleton; bare A1 uses the shared semantic modal shortcut row.",
+      "modifications": "Source-synchronized tree selector port: preserve filtering, folding, labels, copying, tree navigation, key hints, focus, and viewport behavior while remapping public types/components plus owned keybindings/theme helpers required to avoid the pinned package nested pi-tui singleton; bare A1 uses the shared semantic modal shortcut row and compact modal header.",
       "upgradeStrategy": "three-way",
-      "localSha256": "7b8555676963c72e30a977004898f1a2d5ca89b4093f63219b489b7a93972aa4",
+      "localSha256": "eadf1d57fc63bee6f0a8876402037051be95ed36329f316fffa9b0e79f6b7b38",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -2583,9 +2583,9 @@
       "localDestination": "src/integrations/pi/components/upstream/components/trust-selector.ts",
       "implementationStatus": "ported",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Mechanical source-synchronized trust selector port with injected public ProjectTrustStore-derived options, remapped owned theme imports, and the shared bare-A1 modal shortcut row.",
+      "modifications": "Mechanical source-synchronized trust selector port with injected public ProjectTrustStore-derived options, remapped owned theme imports, and the shared bare-A1 modal shortcut row and compact modal header.",
       "upgradeStrategy": "three-way",
-      "localSha256": "ede54af3d3e7daf15571c3e896a427761746a1c002b57742466d8f4be248955f",
+      "localSha256": "fcbfdc622badbea840275ef565cd44c2233d94e6925c0e075b355a6d30afbc06",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",

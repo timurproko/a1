@@ -56,6 +56,7 @@ describe("pinned extension UI bridge", () => {
     const selection = value.bridge.context.select("Choose", ["alpha", "beta"]);
     const selectorRows = value.inputSurface!.render(60);
     const selectorFrame = stripTerminalSequences(selectorRows.join("\n"));
+    expect(stripTerminalSequences(selectorRows[1]!)).toContain("Choose");
     expect(firstVisibleTextColumn(selectorRows.find(row => stripTerminalSequences(row).includes("Choose"))!))
       .toBe(firstVisibleTextColumn(selectorRows.find(row => stripTerminalSequences(row).includes("↑↓ navigate"))!));
     expect(selectorFrame).toContain("alpha");
@@ -69,6 +70,7 @@ describe("pinned extension UI bridge", () => {
     const input = value.bridge.context.input("Name", "placeholder");
     const inputRows = value.inputSurface!.render(60);
     const inputFrame = stripTerminalSequences(inputRows.join("\n"));
+    expect(stripTerminalSequences(inputRows[1]!)).toContain("Name");
     expect(firstVisibleTextColumn(inputRows.find(row => stripTerminalSequences(row).includes("Name"))!))
       .toBe(firstVisibleTextColumn(inputRows.find(row => stripTerminalSequences(row).includes("Enter submit"))!));
     expect(inputFrame).toContain("Enter submit  Escape/Ctrl+C cancel");
@@ -80,6 +82,7 @@ describe("pinned extension UI bridge", () => {
     const editor = value.bridge.context.editor("Notes", "draft");
     const editorRows = value.inputSurface!.render(100);
     const editorFrame = stripTerminalSequences(editorRows.join("\n"));
+    expect(stripTerminalSequences(editorRows[1]!)).toContain("Notes");
     expect(firstVisibleTextColumn(editorRows.find(row => stripTerminalSequences(row).includes("Notes"))!))
       .toBe(firstVisibleTextColumn(editorRows.find(row => stripTerminalSequences(row).includes("Enter submit"))!));
     expect(editorFrame).toContain("Enter submit  Shift+Enter/Ctrl+J newline  Escape/Ctrl+C cancel  Ctrl+G external editor");

@@ -2,12 +2,14 @@
  * Provenance: @earendil-works/pi-coding-agent 0.87.1 (MIT), commit f07218c4d4bbc12bef056a7058c3dd49dfe41abe,
  * packages/coding-agent/src/modes/interactive/components/extension-selector.ts.
  * Modifications: Mechanical port: remap public imports, use ECMAScript private fields, and route the
- * bare-A1 instruction row through the shared semantic shortcut renderer while preserving options,
- * timeout, navigation, selection, cancellation, and disposal behavior.
+ * bare-A1 instruction row and top chrome through the shared semantic shortcut and compact modal-header
+ * components while preserving options, timeout, navigation, selection, cancellation, and disposal
+ * behavior.
  * Deviations: owned-modal-shortcut-hints.
  */
 import { DynamicBorder } from "@earendil-works/pi-coding-agent";
 import { Container, getKeybindings, Spacer, Text, type TUI } from "@earendil-works/pi-tui";
+import { addPiModalHeader } from "../../modal-frame.js";
 import { piTheme, renderPiModalShortcutHints } from "../../theme.js";
 import { CountdownTimer } from "./countdown-timer.js";
 
@@ -38,10 +40,8 @@ export class ExtensionSelectorComponent extends Container {
     this.#baseTitle = title;
     this.#onToggleToolsExpanded = opts?.onToggleToolsExpanded;
     const theme = piTheme();
-    this.addChild(new DynamicBorder());
-    this.addChild(new Spacer(1));
     this.#titleText = new Text(theme.fg("accent", theme.bold(title)), 1, 0);
-    this.addChild(this.#titleText);
+    addPiModalHeader(this, new DynamicBorder(), this.#titleText);
     if (opts?.description) {
       this.addChild(new Spacer(1));
       this.addChild(new Text(theme.fg("text", opts.description), 1, 0));
