@@ -18,4 +18,4 @@
 ## 4. Validation and acceptance
 
 - [x] 4.1 Run focused tests, typecheck, build, architecture governance, strict OpenSpec validation, and diff hygiene.
-- [ ] 4.2 Physically verify through `./scripts/dev` that a fitting chip moves intact to the next submitted-prompt row and an oversized chip remains width-safe.
+- [x] 4.2 Physically verify through `./scripts/dev` that a fitting chip moves intact to the next submitted-prompt row and an oversized chip remains width-safe.
