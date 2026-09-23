@@ -15,8 +15,8 @@ export type PiPullRequestProbe = (
 const GH_TIMEOUT_MS = 5_000;
 const GH_MAX_BUFFER_BYTES = 64 * 1024;
 
-/** Read the open GitHub pull request associated with one exact local branch. */
-export async function readOpenPullRequest(
+/** Read an exact branch's open or merged PR. */
+export async function readPullRequest(
   cwd: string,
   branch: string,
   signal: AbortSignal,
@@ -24,13 +24,13 @@ export async function readOpenPullRequest(
 ): Promise<PiPullRequestIdentity | null> {
   if (branch.length === 0 || signal.aborted) return null;
   const preview = environment[PRODUCT_IDENTITY.environment.prFooterPreview];
-  if (preview !== undefined) return parseOpenPullRequest(preview, branch);
+  if (preview !== undefined) return parsePullRequest(preview, branch);
   const stdout = await executeGh(cwd, signal);
   if (stdout === null) return null;
-  return parseOpenPullRequest(stdout, branch);
+  return parsePullRequest(stdout, branch);
 }
 
-export function parseOpenPullRequest(stdout: string, branch: string): PiPullRequestIdentity | null {
+export function parsePullRequest(stdout: string, branch: string): PiPullRequestIdentity | null {
   let value: unknown;
   try {
     value = JSON.parse(stdout);
@@ -40,7 +40,7 @@ export function parseOpenPullRequest(stdout: string, branch: string): PiPullRequ
   if (!isRecord(value)
     || !Number.isSafeInteger(value.number)
     || (value.number as number) <= 0
-    || value.state !== "OPEN"
+    || (value.state !== "OPEN" && value.state !== "MERGED")
     || value.headRefName !== branch
     || typeof value.url !== "string") return null;
 
