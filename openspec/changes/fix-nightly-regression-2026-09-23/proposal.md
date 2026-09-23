@@ -4,8 +4,8 @@ The Full regression run of 2026-09-23 failed on `develop` at `c37f420` (https://
 
 ## What Changes
 
-- Bound the worker fanout of the complete ordinary Vitest partition so its hundreds of files cannot exhaust a hosted runner while preserving file parallelism.
-- Retain every selected test, assertion, timeout, isolated partition, and native lane, and record the worker bound in validation-plan evidence.
+- Emit each complete-partition test module before execution so runner-level termination leaves the active file set in the job log.
+- Identify and fix the process behavior that terminates hosted POSIX runners while retaining every selected test, assertion, timeout, isolated partition, and native lane.
 
 ## Capabilities
 
@@ -15,7 +15,7 @@ None.
 
 ### Modified Capabilities
 
-- `continuous-integration`: require bounded, evidenced worker fanout for the complete ordinary test partition without reducing coverage or failure semantics.
+None identified yet. The active diagnostic changes validation evidence only; add a capability delta if the identified root-cause fix changes required behavior.
 
 ## Impact
 

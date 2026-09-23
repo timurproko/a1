@@ -172,6 +172,8 @@ export async function createTierPlan(requested, repository = process.cwd(), opti
               "vitest", "run",
               ...[...packageTests, ...independentlyTimedTests, ...resourceSensitiveTests.map(entry => entry.test)].flatMap(path => ["--exclude", path]),
               `--maxWorkers=${FULL_REGRESSION_MAX_WORKERS}`,
+              "--reporter=default",
+              "--reporter=./scripts/release/validation-progress-reporter.mjs",
               "--testTimeout=30000",
             ],
             evidence: {
@@ -181,7 +183,7 @@ export async function createTierPlan(requested, repository = process.cwd(), opti
               timeoutMs: 30_000,
               timeoutSource: "explicit",
               retries: 0,
-              perFileTiming: "vitest-default-reporter",
+              perFileTiming: "vitest-default-and-start-reporter",
             },
           },
           ...resourceSensitiveInvocations,

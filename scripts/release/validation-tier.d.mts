@@ -22,7 +22,7 @@ export interface BoundedParallelInvocationEvidence {
   timeoutMs: 30000;
   timeoutSource: "explicit";
   retries: 0;
-  perFileTiming: "vitest-default-reporter";
+  perFileTiming: "vitest-default-and-start-reporter";
 }
 
 export type ValidationInvocationEvidence = ResourceSensitiveInvocationEvidence | BoundedParallelInvocationEvidence;

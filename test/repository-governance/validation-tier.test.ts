@@ -53,7 +53,7 @@ describe("validation tier planning", () => {
     const ordinary = invocations.find(invocation => invocation.id === "vitest-full-without-isolated");
     expect(FULL_REGRESSION_MAX_WORKERS).toBe(2);
     expect(ordinary?.arguments)
-      .toEqual(expect.arrayContaining(["--exclude", "test/foundation/release/update-performance.integration.test.ts", "--exclude", "test/foundation/release/package-surface.test.ts", "test/foundation/release/package-install.integration.test.ts", "--exclude", "test/repository-governance/validation-impact.test.ts", "--maxWorkers=2"]));
+      .toEqual(expect.arrayContaining(["--exclude", "test/foundation/release/update-performance.integration.test.ts", "--exclude", "test/foundation/release/package-surface.test.ts", "test/foundation/release/package-install.integration.test.ts", "--exclude", "test/repository-governance/validation-impact.test.ts", "--maxWorkers=2", "--reporter=default", "--reporter=./scripts/release/validation-progress-reporter.mjs"]));
     expect(ordinary?.evidence).toEqual({
       executionClass: "bounded-parallel",
       fileParallelism: true,
@@ -61,7 +61,7 @@ describe("validation tier planning", () => {
       timeoutMs: 30_000,
       timeoutSource: "explicit",
       retries: 0,
-      perFileTiming: "vitest-default-reporter",
+      perFileTiming: "vitest-default-and-start-reporter",
     });
     expect(invocations.filter(invocation => invocation.evidence?.executionClass === "resource-sensitive")
       .flatMap(invocation => invocation.arguments)).toEqual(expect.arrayContaining(["test/repository-governance/validation-impact.test.ts", "--no-file-parallelism", "--testTimeout=30000"]));
