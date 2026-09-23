@@ -3,8 +3,8 @@
   "change": "build-owned-pi-ui-foundation",
   "task": "7.23",
   "pinned": {
-    "version": "0.87.0",
-    "commit": "16787ad5b2dc748047f314ca1bfe7708f30f54f3",
+    "version": "0.87.1",
+    "commit": "f07218c4d4bbc12bef056a7058c3dd49dfe41abe",
     "source": "packages/coding-agent/src/modes/interactive/interactive-mode.ts",
     "packageArtifact": "node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/interactive-mode.js"
   },
@@ -256,7 +256,7 @@
       ],
       "destination": "src/features/owned-ui/reference-screen-app.ts",
       "comparisonDestination": "src/app/session-shell/session-shell-root.ts",
-      "bareA1Presentation": "full-screen reference screen opened through the owned route host (What's New, Keyboard Shortcuts); the pinned in-feed document is retained for the a1 pi comparison profile",
+      "bareA1Presentation": "on-demand full-screen reference screen opened through the owned route host (What's New, Keyboard Shortcuts); startup changelog diagnostics use the one-line transient dock notice; the pinned in-feed documents are retained for the a1 pi comparison profile",
       "deviation": "bare-a1-reference-screens",
       "implementationStatus": "known-divergence"
     },

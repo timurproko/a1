@@ -114,6 +114,85 @@ describe("launch selection across update completion", () => {
     expect(materializeRelease).not.toHaveBeenCalled();
   });
 
+  it("keeps ordinary launch on a newer active release when invoked from an older installation", async () => {
+    await mkdir(previous.packageRoot, { recursive: true });
+    await writeFile(resolve(previous.packageRoot, "package.json"), JSON.stringify({ version: previous.packageVersion }));
+    vi.mocked(materializeRelease).mockResolvedValueOnce(previous);
+
+    await expect(bootstrap()).resolves.toBe(0);
+
+    expect(selectedRelease()).toBe(target.releaseId);
+    expect((await store.read()).references.active).toBe(target.releaseId);
+    expect(materializeRelease).toHaveBeenCalledOnce();
+  });
+
+  it("activates a newer installed release while the old cohort keeps running", async () => {
+    await store.activate(previous.releaseId);
+    await mkdir(target.packageRoot, { recursive: true });
+    await writeFile(resolve(target.packageRoot, "package.json"), JSON.stringify({ version: target.packageVersion }));
+    vi.mocked(materializeRelease).mockResolvedValueOnce(target);
+
+    await expect(bootstrap()).resolves.toBe(0);
+
+    expect(selectedRelease()).toBe(target.releaseId);
+    expect((await store.read()).references.active).toBe(target.releaseId);
+    const previousEndpoint = await import("../../../src/foundation/release/endpoints.js").then(module => module.readEndpointMetadata(
+      resolveCohortEndpoint(resolveProductPaths(environment), previous.releaseId, environment).endpointMetadataPath,
+    ));
+    expect(previousEndpoint?.releaseId).toBe(previous.releaseId);
+  });
+
+  it("silently reselects once when admission reports a concurrent release handoff", async () => {
+    await mkdir(target.packageRoot, { recursive: true });
+    await writeFile(resolve(target.packageRoot, "package.json"), JSON.stringify({ version: target.packageVersion }));
+    const output: string[] = [];
+    vi.mocked(spawn).mockImplementationOnce(() => {
+      const child = new EventEmitter();
+      queueMicrotask(() => {
+        child.emit("message", { type: "a1-release-reselection" });
+        child.emit("close", 1, null);
+      });
+      return child as ReturnType<typeof spawn>;
+    });
+
+    await expect(runBootstrap({
+      packageRoot: target.packageRoot,
+      environment,
+      scheduleMaintenance: async () => {},
+      output: { write: message => { output.push(String(message)); return true; } },
+    })).resolves.toBe(0);
+
+    expect(spawn).toHaveBeenCalledTimes(2);
+    expect(output).toEqual([]);
+    expect(selectedRelease()).toBe(target.releaseId);
+  });
+
+  it("bounds repeated release handoffs and reports one concise failure", async () => {
+    await mkdir(target.packageRoot, { recursive: true });
+    await writeFile(resolve(target.packageRoot, "package.json"), JSON.stringify({ version: target.packageVersion }));
+    const output: string[] = [];
+    vi.mocked(spawn).mockImplementation(() => {
+      const child = new EventEmitter();
+      queueMicrotask(() => {
+        child.emit("message", { type: "a1-release-reselection" });
+        child.emit("close", 1, null);
+      });
+      return child as ReturnType<typeof spawn>;
+    });
+
+    await expect(runBootstrap({
+      packageRoot: target.packageRoot,
+      environment,
+      scheduleMaintenance: async () => {},
+      output: { write: message => { output.push(String(message)); return true; } },
+    })).resolves.toBe(1);
+
+    expect(spawn).toHaveBeenCalledTimes(2);
+    expect(output).toHaveLength(1);
+    expect(output[0]).toMatch(/could not converge/);
+    expect(output[0]).not.toMatch(/no longer the release|restart|close|delete/i);
+  });
+
   it("starts the previous supervisor when no previous session is running during the update", async () => {
     await begin();
     await servers[0]!.close();

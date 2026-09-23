@@ -4,16 +4,16 @@
   "recordedAt": "2026-08-16T12:00:00.000Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
-    "commit": "16787ad5b2dc748047f314ca1bfe7708f30f54f3",
+    "commit": "f07218c4d4bbc12bef056a7058c3dd49dfe41abe",
     "license": "MIT",
     "packages": [
       {
         "name": "@earendil-works/pi-coding-agent",
-        "version": "0.87.0"
+        "version": "0.87.1"
       },
       {
         "name": "@earendil-works/pi-tui",
-        "version": "0.87.0"
+        "version": "0.87.1"
       }
     ]
   },
@@ -39,7 +39,7 @@
   "orchestrationPorts": [
     {
       "upstreamSource": "packages/coding-agent/src/modes/interactive/interactive-mode.ts",
-      "upstreamCommit": "16787ad5b2dc748047f314ca1bfe7708f30f54f3",
+      "upstreamCommit": "f07218c4d4bbc12bef056a7058c3dd49dfe41abe",
       "upstreamLines": [
         546,
         1012
@@ -61,7 +61,7 @@
     },
     {
       "upstreamSource": "packages/coding-agent/src/core/slash-commands.ts and packages/coding-agent/src/modes/interactive/interactive-mode.ts",
-      "upstreamCommit": "16787ad5b2dc748047f314ca1bfe7708f30f54f3",
+      "upstreamCommit": "f07218c4d4bbc12bef056a7058c3dd49dfe41abe",
       "upstreamLines": [
         [
           3,
@@ -83,7 +83,7 @@
     },
     {
       "upstreamSource": "packages/coding-agent/src/modes/interactive/interactive-mode.ts",
-      "upstreamCommit": "16787ad5b2dc748047f314ca1bfe7708f30f54f3",
+      "upstreamCommit": "f07218c4d4bbc12bef056a7058c3dd49dfe41abe",
       "upstreamLines": [
         [
           2905,
@@ -120,7 +120,7 @@
     },
     {
       "upstreamSource": "packages/coding-agent/src/modes/interactive/components/footer.ts",
-      "upstreamCommit": "16787ad5b2dc748047f314ca1bfe7708f30f54f3",
+      "upstreamCommit": "f07218c4d4bbc12bef056a7058c3dd49dfe41abe",
       "upstreamLines": [
         60,
         245
@@ -137,7 +137,7 @@
     },
     {
       "upstreamSource": "packages/coding-agent/src/modes/interactive/components/mermaid.ts",
-      "upstreamCommit": "16787ad5b2dc748047f314ca1bfe7708f30f54f3",
+      "upstreamCommit": "f07218c4d4bbc12bef056a7058c3dd49dfe41abe",
       "upstreamLines": [
         1,
         103
@@ -155,7 +155,7 @@
     },
     {
       "upstreamSource": "packages/coding-agent/src/core/http-dispatcher.ts",
-      "upstreamCommit": "16787ad5b2dc748047f314ca1bfe7708f30f54f3",
+      "upstreamCommit": "f07218c4d4bbc12bef056a7058c3dd49dfe41abe",
       "upstreamLines": [
         1,
         112
@@ -173,7 +173,7 @@
     },
     {
       "upstreamSource": "packages/coding-agent/src/modes/interactive/components/settings-selector.ts and packages/tui/src/components/settings-list.ts",
-      "upstreamCommit": "16787ad5b2dc748047f314ca1bfe7708f30f54f3",
+      "upstreamCommit": "f07218c4d4bbc12bef056a7058c3dd49dfe41abe",
       "upstreamLines": [
         [
           1,
@@ -203,7 +203,7 @@
     },
     {
       "upstreamSource": "packages/coding-agent/src/cli/startup-ui.ts, packages/coding-agent/src/cli/project-trust.ts, and packages/coding-agent/src/core/project-trust.ts",
-      "upstreamCommit": "16787ad5b2dc748047f314ca1bfe7708f30f54f3",
+      "upstreamCommit": "f07218c4d4bbc12bef056a7058c3dd49dfe41abe",
       "upstreamLines": [
         [
           1,
@@ -231,7 +231,7 @@
     },
     {
       "upstreamSource": "packages/coding-agent/src/modes/interactive/interactive-mode.ts",
-      "upstreamCommit": "16787ad5b2dc748047f314ca1bfe7708f30f54f3",
+      "upstreamCommit": "f07218c4d4bbc12bef056a7058c3dd49dfe41abe",
       "upstreamLines": [
         [
           115,

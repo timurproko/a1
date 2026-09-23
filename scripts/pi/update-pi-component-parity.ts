@@ -8,6 +8,8 @@ import identity from "../../src/product-identity.json" with { type: "json" };
 // Invariant: the resolver hook must be live before any Pi module links, exactly as the bin entries and the
 // Vitest setup do, so the pinned components and A1's renderer share one pi-tui identity (and one keybinding
 // registry, which the pinned hints read). The fixture module is therefore imported after the hook.
+// A generator always describes this checkout's pin, not a parent Pi process's package override.
+delete process.env.PI_PACKAGE_DIR;
 installPinnedPiTuiResolver(resolve("."));
 const { buildStaticParityCases, STATIC_PARITY_COLOR_MODE, STATIC_PARITY_COVERAGE } = await import("../../test/features/owned-ui/pi-static-parity-fixture.js");
 const pinned = await readPinnedPiIdentity(".");

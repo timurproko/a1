@@ -3,7 +3,7 @@ import { PRODUCT_TEXT } from "../../product-identity.js";
 import { readLaunchContext } from "../launch-context/index.js";
 import { resolve } from "node:path";
 import type { LaunchInstanceOutcome, LaunchInstanceStopIntent, LaunchInstanceStopReason, LaunchProfileId, NativeProcessIdentity, SupervisorCommand } from "../lifecycle/index.js";
-import { assertLaunchProfileId, sessionSelectionArguments, type SessionSelection } from "../lifecycle/index.js";
+import { assertLaunchProfileId, resolveCohortEndpoint, resolveProductPaths, sessionSelectionArguments, type SessionSelection } from "../lifecycle/index.js";
 import {
   closeVerifiedContainment,
   DarwinNativeProcessInspector,
@@ -16,7 +16,6 @@ import {
   type ProcessContainment,
 } from "../process-containment/index.js";
 import { SupervisorClient } from "../protocol/index.js";
-import { resolveCohortEndpoint, resolveProductPaths } from "../supervision/index.js";
 import { markStartupPhase } from "../startup/index.js";
 
 interface GuardianControl {
