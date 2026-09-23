@@ -7,7 +7,7 @@ Opened by the nightly regression triage from the failed run's evidence artifacts
 - Treat both generated repairs as one orchestration defect because Full regression #38 and Release #155 run the same `full-release` plan and terminate only after the complete ordinary Vitest partition starts. Do not infer a test assertion failure from the absent owner result.
 - Withdraw the hosted-runner capacity hypothesis. A two-worker exact-head run reproduced the shutdown, module-start evidence narrowed it to `adapter.test.ts`, and local syscall tracing reproduced a worker calling `kill(0, SIGTERM)` while adapter disposal canceled repository metadata discovery.
 - Reject a missing repository directory before starting Git branch or GitHub pull-request discovery. The failing adapter uses the intentionally synthetic cross-platform path `D:/work`; on POSIX it must fail closed rather than enter Node's AbortSignal spawn-failure race. Preserve the probes' existing time bounds, output bounds, asynchronous behavior, and lifecycle cancellation for valid repositories.
-- Remove both the disproven worker cap and temporary progress reporter. The final change does not alter test selection, assertions, retries, timeouts, isolation, or Full regression parallelism.
+- Retain the explicit two-worker bound, not as the POSIX root-cause fix but as deadline protection for the complete ordinary partition. Remove the temporary progress reporter. The final change does not alter test selection, assertions, retries, timeouts, or isolation.
 
 ## Evidence
 
@@ -16,7 +16,9 @@ Opened by the nightly regression triage from the failed run's evidence artifacts
 - Local WSL reproduction of `adapter.test.ts` exited with signal 15. `strace` identified the test worker issuing `kill(0, SIGTERM)`, and a preload trace identified repeated `ChildProcess.kill()` calls with `pid === undefined` from `PiEngineRuntime.dispose()` and `#resetRepositoryRefresh()` through Node's AbortSignal child-process path.
 - Repository pull-request parsing/probing passes 12/12 tests, including a missing-directory contract that returns before GitHub CLI launch.
 - `adapter.test.ts` then passed 49/49 three consecutive times under Linux with the production fix and without instrumentation, where the unmodified path had reproduced process-group termination.
-- Exact-head run `35904835461` did not reach Vitest because the added helper module exceeded the startup architecture budget; all four complete lanes failed the same two architecture checks. The repair was reduced to pre-launch repository-directory validation without increasing the startup graph. Exact-head hosted macOS and Linux Full regression lanes remain required native proof.
+- Exact-head run `35904835461` did not reach Vitest because the added helper module exceeded the startup architecture budget; all four complete lanes failed the same two architecture checks. The repair was reduced to pre-launch repository-directory validation without increasing the startup graph.
+- Exact-head run `35906721478` proved the root-cause repair: macOS, Linux, and Windows Node 22 completed the unchanged suite. Windows Node 24 completed its 361-file ordinary partition and four later partitions but the job deadline canceled it during the final partition; its ordinary partition took 1,355.82 seconds. Retain the explicit two-worker bound to restore deadline margin while preserving the forty-minute timeout.
+- Known gap before finalization: one new exact-head run must prove all four lanes with both the repository guard and worker bound.
 
 - Run [Full regression #38](https://github.com/timurproko/a1/actions/runs/35834483448) (attempt 1, schedule) on `c37f420` at 2026-09-23T07:57:58Z:
   - Lane macos-15-node24 failed in job `Full regression / Complete non-physical regression (macos-15, node 24)` before producing owner outcomes (orchestration failure).

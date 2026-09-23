@@ -6,7 +6,8 @@ The Full regression run of 2026-09-23 failed on `develop` at `c37f420` (https://
 
 - Validate repository directories before launching Git branch or GitHub pull-request probes, so missing contexts fail closed without creating an incompletely spawned child.
 - Preserve bounded branch and pull-request discovery while preventing immediate disposal of a missing repository context from reaching POSIX `kill(0, SIGTERM)` and terminating the validation runner's process group.
-- Remove the disproven worker-cap workaround and retain every selected test, assertion, timeout, isolated partition, native lane, and zero-retry failure semantic.
+- Bound the complete ordinary partition at two workers so the unchanged Windows suite retains margin inside the existing forty-minute lane deadline.
+- Retain every selected test, assertion, timeout, isolated partition, native lane, and zero-retry failure semantic.
 
 ## Capabilities
 
@@ -17,6 +18,7 @@ None.
 ### Modified Capabilities
 
 - `owned-pi-ui-foundation`: require a missing repository context to fail closed before branch or pull-request subprocess launch.
+- `continuous-integration`: bound complete ordinary regression worker fanout without reducing coverage or failure semantics.
 
 ## Impact
 

@@ -16,6 +16,8 @@ const npxExecutable = process.platform === "win32" ? "npx.cmd" : "npx";
 const maximumPortableCommandCharacters = 6_000;
 /** Hang bound for the resource-sensitive partition; the same explicit bound the other fast-tier invocations use. */
 export const RESOURCE_SENSITIVE_TIMEOUT_MS = 30_000;
+/** Bounds the complete ordinary partition below hosted-runner process and memory capacity. */
+export const FULL_REGRESSION_MAX_WORKERS = 2;
 
 export async function loadValidationSuites(repository = process.cwd()) {
   const suites = JSON.parse(await readFile(resolve(repository, "config", "validation-suites.json"), "utf8"));
@@ -163,7 +165,25 @@ export async function createTierPlan(requested, repository = process.cwd(), opti
     ? {
         mode: "full-deduplicated",
         invocations: [
-          { id: "vitest-full-without-isolated", scopes: atomic, arguments: ["vitest", "run", ...[...packageTests, ...independentlyTimedTests, ...resourceSensitiveTests.map(entry => entry.test)].flatMap(path => ["--exclude", path]), "--testTimeout=30000"] },
+          {
+            id: "vitest-full-without-isolated",
+            scopes: atomic,
+            arguments: [
+              "vitest", "run",
+              ...[...packageTests, ...independentlyTimedTests, ...resourceSensitiveTests.map(entry => entry.test)].flatMap(path => ["--exclude", path]),
+              `--maxWorkers=${FULL_REGRESSION_MAX_WORKERS}`,
+              "--testTimeout=30000",
+            ],
+            evidence: {
+              executionClass: "bounded-parallel",
+              fileParallelism: true,
+              maxWorkers: FULL_REGRESSION_MAX_WORKERS,
+              timeoutMs: 30_000,
+              timeoutSource: "explicit",
+              retries: 0,
+              perFileTiming: "vitest-default-reporter",
+            },
+          },
           ...resourceSensitiveInvocations,
           { id: "vitest-isolated-timing", scopes: ["update-performance"], arguments: ["vitest", "run", ...performanceTests, "--no-file-parallelism", "--testTimeout=120000"] },
           ...[...packageSmokeTests].map((path, index) => ({ id: `vitest-package-smoke-${index + 1}`, scopes: ["package-smoke"], arguments: ["vitest", "run", path, "--no-file-parallelism", "--testTimeout=120000"] })),
