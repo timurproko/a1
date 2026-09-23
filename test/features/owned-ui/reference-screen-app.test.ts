@@ -105,7 +105,7 @@ describe("ReferenceScreenApp frame", () => {
       { key: "esc", action: "close" },
       { key: "↑↓", action: "scroll" },
     ]);
-    // Dialog chrome uses the same one-cell inset as the title.
+    // Invariant: dialog chrome uses the same one-cell inset as the title.
     const wideFooter = screen(target, { ...HOST, theme: NAMING_THEME }, { width: 100, height: RECT.height }).at(-1) ?? "";
     expect(wideFooter.startsWith(" <dim>Esc</dim> <muted>close</muted>  <dim>↑↓</dim> <muted>scroll</muted> ")).toBe(true);
     expect(wideFooter.indexOf("<dim>")).toBe(lines[1]!.indexOf("<b>"));
