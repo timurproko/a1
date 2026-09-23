@@ -22,6 +22,7 @@ const resourceSensitiveTests = [
   "test/repository-governance/naming-selection.test.ts",
   "test/repository-governance/pr-full-regression-history.test.ts",
   "test/foundation/launch-context/cutover.test.ts",
+  "test/foundation/supervision/foreground-terminal-lease.test.ts",
   ...originalResourceSensitiveTests.slice(1, 2),
   "test/repository-governance/local-cleanup.test.ts",
   ...originalResourceSensitiveTests.slice(2, 4),

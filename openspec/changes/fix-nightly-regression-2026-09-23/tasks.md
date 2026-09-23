@@ -7,7 +7,7 @@
 ## 2. Fix
 
 - [x] 2.1 Reject missing repository directories before launching Git branch or GitHub pull-request probes.
-- [x] 2.2 Retain the two-worker deadline bound, remove the diagnostic reporter, and add focused cancellation and validation-plan coverage.
+- [x] 2.2 Retain the two-worker deadline bound, move the shared-state foreground lease suite to the existing resource-sensitive partition, remove the diagnostic reporter, and add focused coverage.
 
 ## 3. Prove
 

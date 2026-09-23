@@ -7,7 +7,8 @@ The Full regression run of 2026-09-23 failed on `develop` at `c37f420` (https://
 - Validate repository directories before launching Git branch or GitHub pull-request probes, so missing contexts fail closed without creating an incompletely spawned child.
 - Preserve bounded branch and pull-request discovery while preventing immediate disposal of a missing repository context from reaching POSIX `kill(0, SIGTERM)` and terminating the validation runner's process group.
 - Bound the complete ordinary partition at two workers so the unchanged Windows suite retains margin inside the existing forty-minute lane deadline.
-- Retain every selected test, assertion, timeout, isolated partition, native lane, and zero-retry failure semantic.
+- Run the shared SQLite/process-state foreground lease suite in the existing serial resource-sensitive partition rather than concurrently with long update fixtures.
+- Retain every selected test, assertion, timeout, native lane, and zero-retry failure semantic.
 
 ## Capabilities
 

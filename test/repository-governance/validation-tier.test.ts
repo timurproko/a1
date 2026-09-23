@@ -173,7 +173,7 @@ describe("validation tier planning", () => {
     const resourceEvidence = smoke.vitest?.invocations.find(invocation => invocation.id === "vitest-fast-resource-sensitive")?.evidence;
     expect(resourceEvidence?.executionClass).toBe("resource-sensitive");
     if (resourceEvidence?.executionClass !== "resource-sensitive") throw new Error("missing resource-sensitive evidence");
-    expect(resourceEvidence.testFiles).toHaveLength(21);
+    expect(resourceEvidence.testFiles).toHaveLength(22);
     expect(smoke.vitest?.invocations.at(-1)).toEqual(expect.objectContaining({
       id: "vitest-isolated-suites",
       arguments: expect.arrayContaining([
