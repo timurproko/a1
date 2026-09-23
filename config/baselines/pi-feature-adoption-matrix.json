@@ -2337,7 +2337,8 @@
       "version": "0.87.1",
       "summary": "New xAI sessions now default to Grok 4.7.",
       "since": "0.87.1",
-      "disposition": "pending"
+      "disposition": "pinned",
+      "note": "Provider default and catalog behavior reached through the pinned engine; A1 mirrors Grok 4.7 in its owned post-login default-model resolver so a new xAI login selects the same model."
     },
     {
       "id": "changelog:0.87.1:latest-frontier-models",
@@ -2346,7 +2347,8 @@
       "version": "0.87.1",
       "summary": "Use Claude Opus 5.5, GPT-6 Sol, and GPT-6 Luna through supported providers, including GitHub Copilot.",
       "since": "0.87.1",
-      "disposition": "pending"
+      "disposition": "pinned",
+      "note": "Provider models reached through the pinned engine's model registry: Claude Opus 5.5 for Anthropic and GitHub Copilot, and GPT-6 Sol and GPT-6 Luna for OpenAI API keys, OpenAI Codex subscriptions, and GitHub Copilot. A1's model and scoped-model selectors consume that public registry without a separate catalog."
     }
   ]
 }

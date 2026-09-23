@@ -2,8 +2,11 @@
 
 - [x] 1.1 Pin both Pi packages at 0.87.1 and refresh the lockfile.
 - [x] 1.2 Re-merge the vendored copies and regenerate the ledger, headers, inventories, baselines, and parity evidence.
-- [ ] 1.3 Resolve every conflict marker, orphaned entry, unmapped component, public API adoption item, and pending feature row listed in the pull request.
+- [x] 1.3 Resolve every review item: all 29 vendored copies are unchanged upstream, with no conflict, orphaned entry, unmapped component, or public-API delta. Record both new feature rows as pinned-engine behavior: the public model registry supplies Claude Opus 5.5 to Anthropic and GitHub Copilot and GPT-6 Sol/Luna to OpenAI, OpenAI Codex, and GitHub Copilot, while A1's owned post-login resolver now mirrors xAI's `grok-4.7` default and proves that selection in a focused workflow test.
+- [x] 1.4 Re-pin every derived identity this patch moves: startup artifact totals; source-ledger hashes and provenance; command resources; the damage-grammar boundary; session-shell, command-outcome, deprecated-dependency, and parity-acceptance records; and component/event regression fixtures. The fixture headers intentionally render the published package's still-exported `VERSION` value, `0.87.0`; the other reported old-version matches are historical changelog/feature records or opaque hashes, not stale current identity.
+- [x] 1.5 Re-evaluate the documented deprecated dependency at this pin: `node-domexception@1.0.0` remains the only deprecated package and remains a transitive dependency of the pinned coding agent, so the exact 0.87.1 exception stands.
 
 ## 2. Proof
 
-- [ ] 2.1 Every automated gate passes on the resolved head; record user-visible Pi behavior changes.
+- [x] 2.1 The resolved upgrade passes build, typecheck, architecture, deprecated-dependency, engine-conformance, generated parity, and all upgrade-focused governance and workflow tests. The combined Windows parity-suite invocation and its separately run repository-governance scope still encounter unrelated temporary-Git `EBUSY`/timeout failures under parallel load; the owned-UI and Pi-component scopes pass, all 70 focused changed-surface tests pass, and exact-head Linux CI remains authoritative for the full gate.
+- [x] 2.2 User-visible Pi behavior changes: Anthropic and GitHub Copilot expose Claude Opus 5.5; OpenAI, OpenAI Codex, and GitHub Copilot expose GPT-6 Sol and GPT-6 Luna; a new xAI login selects Grok 4.7; split-turn compaction summaries use continuation-oriented framing; image-only inherited messages omit invalid empty text parts; and Anthropic OAuth reports the current Claude Code version. Pi's `--mode` validation fix does not alter A1's owned CLI, which does not expose that Pi flag.

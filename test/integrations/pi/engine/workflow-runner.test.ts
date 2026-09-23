@@ -202,6 +202,18 @@ describe("PiWorkflowRunner", () => {
     expect(state.reconciled).toBe(1);
     expect(session.calls).toContain("setModel");
   });
+
+  it("selects Grok 4.7 as the pinned default after a new xAI login", async () => {
+    const { runner, session, runtime, state } = harness();
+    runtime.providers.push({ id: "xai", name: "xAI", auth: { apiKey: {} } });
+    runtime.models.push({ provider: "xai", id: "grok-4.7", name: "Grok 4.7" });
+    session.model = { provider: "unknown", id: "unknown", api: "unknown" };
+
+    const result = await runner.executeWorkflow({ command: "login", argument: "xai" });
+
+    expect(result).toMatchObject({ command: "login", outcome: "completed", message: expect.stringContaining("Selected grok-4.7.") });
+    expect(state.activeModel).toEqual({ providerId: "xai", modelId: "grok-4.7", displayName: "Grok 4.7" });
+  });
 });
 
 describe("PiWorkflowContexts", () => {
