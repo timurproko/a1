@@ -367,7 +367,8 @@ describe("owned level and model keybindings", () => {
     let lines = header.render(100).map(stripTerminalSequences);
     expect(lines.find(line => line.includes("to cycle thinking level"))).toContain("ctrl+l");
     expect(lines.find(line => line.includes("to select model"))).toContain("/models");
-    expect(lines.find(line => line.includes("to edit all queued messages"))).toContain("alt+up");
+    expect(lines.find(line => line.includes("to edit all queued messages")))
+      .toContain(process.platform === "darwin" ? "option+up" : "alt+up");
     expect(lines.join("\n")).not.toContain("shift+tab");
     const hotkeys = stripTerminalSequences(createPiShellHotkeys(undefined, undefined, "a1").render(120).join("\n"));
     expect(hotkeys).toContain("Ctrl+L");
