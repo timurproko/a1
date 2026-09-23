@@ -169,14 +169,26 @@ export function createPiShellFooter(view: OwnedUiSessionViewModel, cwd: string, 
 export function createPiQueuedInputStatus(
   submissions: readonly string[],
   presentation: "pinned" | "custom-viewport" = "pinned",
+  getKeybindings?: () => KeybindingsConfig,
 ): PiShellQueuedInputPort {
-  const text = new Text(queuedInputText(submissions, presentation), 1, 0);
+  let renderedText = queuedInputText(submissions, presentation, getKeybindings?.());
+  const text = new Text(renderedText, 1, 0);
+  const refresh = () => {
+    const next = queuedInputText(submissions, presentation, getKeybindings?.());
+    if (next === renderedText) return;
+    renderedText = next;
+    text.setText(next);
+  };
   return {
-    render: width => submissions.length === 0 ? [] : text.render(width),
+    render(width) {
+      if (submissions.length === 0) return [];
+      refresh();
+      return text.render(width);
+    },
     invalidate: () => text.invalidate(),
     update(next) {
       submissions = next;
-      text.setText(queuedInputText(next, presentation));
+      refresh();
     },
   };
 }
@@ -239,6 +251,7 @@ function statusSignature(
 function queuedInputText(
   submissions: readonly string[],
   presentation: "pinned" | "custom-viewport",
+  bindings?: KeybindingsConfig,
 ): string {
   if (submissions.length === 0) return "";
   const theme = piTheme();
@@ -246,10 +259,19 @@ function queuedInputText(
     return submissions.map(submission => theme.fg("muted", `Steering: ${submission.replaceAll("\n", " ⏎ ")}`)).join("\n");
   }
   const messages = submissions.map(submission => theme.fg("dim", `Steering: ${submission.replaceAll("\n", " ⏎ ")}`));
-  const dequeueHint = theme.fg("dim", "↳ Alt+Up to edit all queued messages");
+  const keys = KeybindingsManager.fromOwnedBindings(bindings).getKeys("app.message.dequeue");
+  const label = keys.length === 0 ? "Unbound" : keys.map(displayKeybinding).join("/");
+  const dequeueHint = theme.fg("dim", `↳ ${label} to edit all queued messages`);
   // Compatibility: the custom viewport matches Pi's interactive queue presentation while the
   // comparison shell remains byte-for-byte compatible with its pinned fixture.
   return ["", ...messages, dequeueHint].join("\n");
+}
+
+function displayKeybinding(key: string): string {
+  return key.split("+").map(part => {
+    const display = process.platform === "darwin" && part.toLowerCase() === "alt" ? "option" : part;
+    return display.charAt(0).toUpperCase() + display.slice(1);
+  }).join("+");
 }
 
 function compactHeaderText(): string {
@@ -287,7 +309,7 @@ function expandedHeaderText(bindings?: KeybindingsConfig): string {
     rawKeyHint("!", "to run bash"),
     rawKeyHint("!!", "to run bash (no context)"),
     rawKeyHint("alt+enter", "to queue follow-up"),
-    rawKeyHint("alt+up", "to edit all queued messages"),
+    rawKeyHint(keys === undefined ? "alt+up" : keys.getKeys("app.message.dequeue").join("/") || "unbound", "to edit all queued messages"),
     rawKeyHint(process.platform === "win32" ? "alt+v" : "ctrl+v", "to paste image (with text fallback)"),
     rawKeyHint("drop files", "to attach"),
   ].join("\n");

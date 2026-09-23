@@ -2,8 +2,8 @@
  * Provenance: @earendil-works/pi-coding-agent 0.87.1 (MIT), commit f07218c4d4bbc12bef056a7058c3dd49dfe41abe,
  * packages/coding-agent/src/core/keybindings.ts.
  * Modifications: Mechanical source port with Node import prefixes, public package-root agent-directory
- * resolution, and an opt-in bare-A1 input profile including Ctrl+L level cycling and unbound model
- * selection.
+ * resolution, and an opt-in bare-A1 input profile including Ctrl+L level cycling, unbound model
+ * selection, and cross-platform Alt+Up queued-message restoration.
  * Deviations: keybindings-public-config-boundary, owned-level-cycle-shortcut,
  * owned-input-keybinding-aliases.
  */
@@ -256,6 +256,7 @@ const OWNED_INPUT_KEYBINDINGS = {
 	...KEYBINDINGS,
 	"app.thinking.cycle": { ...KEYBINDINGS["app.thinking.cycle"], defaultKeys: "ctrl+l" },
 	"app.model.select": { ...KEYBINDINGS["app.model.select"], defaultKeys: [] },
+	"app.message.dequeue": { ...KEYBINDINGS["app.message.dequeue"], defaultKeys: "alt+up" },
 	"tui.editor.deleteWordBackward": {
 		...KEYBINDINGS["tui.editor.deleteWordBackward"],
 		defaultKeys: [...KEYBINDINGS["tui.editor.deleteWordBackward"].defaultKeys, "ctrl+backspace"],
