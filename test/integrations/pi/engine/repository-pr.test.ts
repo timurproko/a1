@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { PRODUCT_IDENTITY } from "../../../../src/product-identity.js";
-import { parseOpenPullRequest, readOpenPullRequest } from "../../../../src/integrations/pi/engine/repository-pr.js";
+import { parsePullRequest, readPullRequest } from "../../../../src/integrations/pi/engine/repository-pr.js";
 
 const payload = (overrides: Record<string, unknown> = {}) => JSON.stringify({
   number: 540,
@@ -10,20 +10,20 @@ const payload = (overrides: Record<string, unknown> = {}) => JSON.stringify({
   ...overrides,
 });
 
-describe("open pull request metadata", () => {
-  it("accepts an exact open branch association and canonical GitHub URL", () => {
-    expect(parseOpenPullRequest(payload(), "feature/show-pr-id-status-bar")).toEqual({
+describe("branch pull request metadata", () => {
+  it.each(["OPEN", "MERGED"])("accepts an exact %s branch association and canonical GitHub URL", state => {
+    expect(parsePullRequest(payload({ state }), "feature/show-pr-id-status-bar")).toEqual({
       number: 540,
       url: "https://github.com/timurproko/a1/pull/540",
     });
   });
 
-  it("uses a validated development preview without invoking GitHub CLI", async () => {
-    await expect(readOpenPullRequest(
+  it("uses a validated merged development preview without invoking GitHub CLI", async () => {
+    await expect(readPullRequest(
       "ignored",
       "feature/show-pr-id-status-bar",
       new AbortController().signal,
-      { [PRODUCT_IDENTITY.environment.prFooterPreview]: payload() },
+      { [PRODUCT_IDENTITY.environment.prFooterPreview]: payload({ state: "MERGED" }) },
     )).resolves.toEqual({ number: 540, url: "https://github.com/timurproko/a1/pull/540" });
   });
 
@@ -38,6 +38,6 @@ describe("open pull request metadata", () => {
     ["URL credentials", payload({ url: "https://user@github.com/timurproko/a1/pull/540" })],
     ["URL query", payload({ url: "https://github.com/timurproko/a1/pull/540?diff=split" })],
   ])("rejects %s", (_label, stdout) => {
-    expect(parseOpenPullRequest(stdout, "feature/show-pr-id-status-bar")).toBeNull();
+    expect(parsePullRequest(stdout, "feature/show-pr-id-status-bar")).toBeNull();
   });
 });
