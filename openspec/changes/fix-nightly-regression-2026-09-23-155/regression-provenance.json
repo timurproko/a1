@@ -17,6 +17,19 @@
       "headSha": "c37f420d17863fbe8dac99bba672763041ee38b5",
       "url": "https://github.com/timurproko/a1/actions/runs/35838366882",
       "createdAt": "2026-09-23T08:39:32Z"
+    },
+    {
+      "workflowName": "Release",
+      "workflowFile": "release.yml",
+      "runId": 35838366882,
+      "runNumber": 155,
+      "attempt": 2,
+      "event": "schedule",
+      "conclusion": "failure",
+      "headBranch": "develop",
+      "headSha": "c37f420d17863fbe8dac99bba672763041ee38b5",
+      "url": "https://github.com/timurproko/a1/actions/runs/35838366882",
+      "createdAt": "2026-09-23T08:39:32Z"
     }
   ]
 }
