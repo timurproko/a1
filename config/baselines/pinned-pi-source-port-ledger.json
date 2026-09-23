@@ -2785,8 +2785,8 @@
       "approvedDeviations": [
         {
           "id": "bare-a1-reference-screens",
-          "reason": "Accepted present-changelog-and-hotkeys-fullscreen shows /changelog, /hotkeys, and the startup What's New notes in bare A1 as one full-screen A1-owned reference screen instead of persistent in-feed documents.",
-          "upstreamBehavior": "The comparison profile keeps the pinned workflows and in-feed documents; the changelog source, version filtering, link rewriting, keybinding-derived tables, and acknowledged-version bookkeeping are unchanged.",
+          "reason": "Accepted present-changelog-and-hotkeys-fullscreen shows /changelog and /hotkeys as full-screen A1-owned reference screens; accepted transient-changelog-notice shows startup release notes as a one-line transient dock notice instead of persistent in-feed content or an automatic screen.",
+          "upstreamBehavior": "The comparison profile keeps the pinned workflows and in-feed documents; the changelog source, version filtering, collapse decision, link rewriting, keybinding-derived tables, and acknowledged-version bookkeeping are unchanged.",
           "acceptanceTest": "test/app/session-shell/session-shell-reference-screens.test.ts"
         }
       ],

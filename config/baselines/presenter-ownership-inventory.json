@@ -256,7 +256,7 @@
       ],
       "destination": "src/features/owned-ui/reference-screen-app.ts",
       "comparisonDestination": "src/app/session-shell/session-shell-root.ts",
-      "bareA1Presentation": "full-screen reference screen opened through the owned route host (What's New, Keyboard Shortcuts); the pinned in-feed document is retained for the a1 pi comparison profile",
+      "bareA1Presentation": "on-demand full-screen reference screen opened through the owned route host (What's New, Keyboard Shortcuts); startup changelog diagnostics use the one-line transient dock notice; the pinned in-feed documents are retained for the a1 pi comparison profile",
       "deviation": "bare-a1-reference-screens",
       "implementationStatus": "known-divergence"
     },
