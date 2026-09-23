@@ -265,8 +265,8 @@ describe("OwnedUiSessionShell viewport and streaming", () => {
       };
       clickWorking();
       clickWorking();
-      expect(shell.root.render(60)[workingRowIndex]).not.toContain("\u001b[48;2;38;79;120m");
-      expect(shell.root.handleViewportPreInput("\u0003")).toMatchObject({ data: "\u0003", consumed: false });
+      expect(shell.root.render(60)[workingRowIndex]).toContain("\u001b[48;2;38;79;120m");
+      expect(shell.root.handleViewportPreInput("\u0003")).toMatchObject({ data: "", consumed: true });
 
       const writesBeforeWheel = terminal.writes.length;
       terminal.input("\u001b[<64;30;3M");

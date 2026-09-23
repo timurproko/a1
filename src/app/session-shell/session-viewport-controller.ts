@@ -52,16 +52,18 @@ export class SessionViewportController {
   #inputSurfacePending = false;
   #overlays: readonly PiTuiPointerSurface[] | null = [];
   #pointerOwner: PiTuiPointerSurface | "viewport" | "drain" | undefined;
-  // Invariant: a left-button sequence begun in dock chrome remains owned by the dock.
+  // Invariant: a right-click editor gesture remains owned by the dock.
   #dockPointerSuppressed = false;
-  // Invariant: a left-button sequence begun in non-selectable transcript tail chrome is held there.
+  // Invariant: a gesture begun on an explicit control remains owned by that control.
   #tailPointerSuppressed = false;
   // Invariant: editor selection remains true only while its left button is held.
   #editorPointerSelecting = false;
+  // Invariant: no-drag editor presses replay on release; distinct motion promotes frame selection.
+  #pendingEditorClick: { readonly column: number; readonly row: number } | undefined;
   // Invariant: pointer routing uses the most recently composed editor rows.
   #editorPointerFrame: { readonly rowStart: number; readonly rowEnd: number } | undefined;
   #selectionAutoScrollTimer: ReturnType<typeof setTimeout> | undefined;
-  #selectionAutoScrollPointer: { readonly column: number; readonly row: number } | undefined;
+  #selectionAutoScrollPointer: { readonly column: number; readonly row: number; readonly direction: -1 | 1 } | undefined;
   #pointerPosition: { readonly column: number; readonly row: number } | undefined;
   #hoveredHyperlinkKey: string | undefined;
   #lastRequestedSelectionRevision = -1;
@@ -149,9 +151,20 @@ export class SessionViewportController {
       || previous.hits.viewportHeight !== Math.max(0, input.height - input.dockRows.length))) this.#cancelGesture();
     this.#viewport.setConfig(this.#config);
     const selectionRevision = this.#viewport.selectionRevision;
+    const coveredSurfaces = [
+      ...(this.#overlays ?? []),
+      ...(this.#inputSurface === undefined ? [] : [this.#inputSurface]),
+    ];
+    const coveredCells = coveredSurfaces.flatMap(surface =>
+      Array.from({ length: Math.max(0, surface.rowEnd - surface.rowStart + 1) }, (_value, index) => ({
+        row: surface.rowStart + index,
+        columnStart: surface.columnStart,
+        columnEnd: surface.columnEnd,
+      })));
     const frame = this.#viewport.compose({
       ...input,
       ...(this.#pointerPosition === undefined ? {} : { pointerPosition: this.#pointerPosition }),
+      ...(coveredCells.length === 0 ? {} : { coveredCells }),
     });
     // Concurrency: if selection changed during composition, this frame truthfully carries
     // the older revision and exactly one ordinary follow-up render publishes the latest.
@@ -205,6 +218,7 @@ export class SessionViewportController {
     this.#clearActivityTimer();
     this.#stopSelectionAutoScroll();
     this.#editorPointerSelecting = false;
+    this.#pendingEditorClick = undefined;
     this.#editorPointerFrame = undefined;
     this.#pointerPosition = undefined;
     this.#hoveredHyperlinkKey = undefined;
@@ -222,6 +236,7 @@ export class SessionViewportController {
     this.#dockPointerSuppressed = false;
     this.#tailPointerSuppressed = false;
     this.#editorPointerSelecting = false;
+    this.#pendingEditorClick = undefined;
     this.#editorPointerFrame = undefined;
     this.#pointerPosition = undefined;
     this.#hoveredHyperlinkKey = undefined;
@@ -332,6 +347,7 @@ export class SessionViewportController {
     let repaint = false;
     let forceRepaint = false;
     let activity = false;
+    let completedCopy: SelectionCopySnapshot | undefined;
     const routed = routeMouseInput(data, (event, report) => {
       const hits = frame.hits;
       const overModal = this.#modalAt(event.column, event.row);
@@ -399,6 +415,10 @@ export class SessionViewportController {
         if (this.#dockPointerSuppressed || this.#tailPointerSuppressed) return true;
         if (this.#viewport.selectionActive) {
           this.#viewport.extendSelection(event.column, event.row, now, false);
+          if (this.#pendingEditorClick !== undefined
+            && (event.column !== this.#pendingEditorClick.column || event.row !== this.#pendingEditorClick.row)) {
+            this.#pendingEditorClick = undefined;
+          }
           this.#updateSelectionAutoScroll(event.column, event.row, hits.viewportHeight);
           activity = true;
           return true;
@@ -435,16 +455,19 @@ export class SessionViewportController {
         if (event.button !== 0) return false;
         this.#dockPointerSuppressed = false;
         this.#tailPointerSuppressed = false;
+        this.#pendingEditorClick = undefined;
         this.#stopSelectionAutoScroll();
         if (this.#viewport.clearSelection()) repaint = true;
         if (overBottom) {
           this.#viewport.scrollToEnd(now);
+          this.#tailPointerSuppressed = true;
           activity = true;
           repaint = true;
           return true;
         }
         if (overSticky && hits.sticky !== null) {
           this.#viewport.scrollTo(hits.sticky.target, now);
+          this.#tailPointerSuppressed = true;
           activity = true;
           repaint = true;
           return true;
@@ -457,34 +480,19 @@ export class SessionViewportController {
             this.#viewport.setRailDragging(true);
           } else {
             this.#viewport.scrollTo(scrollForTrackPage(geometry, trackRow, frame.scrollTop, hits.viewportHeight), now);
+            this.#tailPointerSuppressed = true;
           }
           activity = true;
           repaint = true;
           return true;
         }
-        if (editorFrame !== undefined && event.row >= editorFrame.rowStart && event.row <= editorFrame.rowEnd) {
-          const handled = this.#editor.handlePointer({
-            kind: "press",
-            button: event.button,
-            column: event.column,
-            row: event.row - editorFrame.rowStart + 1,
-          });
-          if (!handled) this.#dockPointerSuppressed = true;
-          this.#editorPointerSelecting = handled;
-          repaint = true;
-          return true;
-        }
-        if (event.row > hits.viewportHeight) {
-          this.#dockPointerSuppressed = true;
-          return true;
-        }
-        if (event.row >= 1 && event.row <= hits.viewportHeight && event.column <= frame.contentWidth) {
-          if (!this.#viewport.pressSelection(event.column, event.row, now)) {
-            // Invariant: empty rows and transient tail rows must never start Pi selection.
-            this.#tailPointerSuppressed = true;
-            repaint = true;
-            return true;
+        if (event.row >= 1 && event.row <= frame.rows.length && event.column <= frame.descriptor.width) {
+          if (editorFrame !== undefined && event.row >= editorFrame.rowStart && event.row <= editorFrame.rowEnd) {
+            this.#pendingEditorClick = { column: event.column, row: event.row };
           }
+          // Invariant: frame selection includes transient and dock rows without changing
+          // semantic ownership; no-drag editor presses replay on release.
+          this.#viewport.pressSelection(event.column, event.row, now);
           repaint = true;
           return true;
         }
@@ -507,6 +515,16 @@ export class SessionViewportController {
         }
         if (this.#viewport.releaseSelection()) {
           this.#stopSelectionAutoScroll();
+          const pendingEditorClick = this.#pendingEditorClick;
+          this.#pendingEditorClick = undefined;
+          if (pendingEditorClick !== undefined && this.#editorPointerFrame !== undefined) {
+            this.#viewport.clearSelection();
+            const editorRow = pendingEditorClick.row - this.#editorPointerFrame.rowStart + 1;
+            this.#editor.handlePointer({ kind: "press", button: 0, column: pendingEditorClick.column, row: editorRow });
+            this.#editor.handlePointer({ kind: "release", button: 0, column: pendingEditorClick.column, row: editorRow });
+          } else {
+            completedCopy = this.#viewport.captureSelectedText() ?? undefined;
+          }
           // Platform: restore OSC 8 links only after the held-button selection paint has
           // ended, then overwrite any terminal-cached hover cells immediately.
           forceRepaint = true;
@@ -535,7 +553,7 @@ export class SessionViewportController {
       this.#lastRequestedSelectionRevision = this.#viewport.selectionRevision;
       this.#requestRender(forceRepaint);
     }
-    return routed;
+    return completedCopy === undefined ? routed : { ...routed, copySelection: completedCopy };
   }
 
   #modalAt(column: number, row: number): PiTuiPointerSurface | undefined {
@@ -552,13 +570,13 @@ export class SessionViewportController {
     return range === undefined ? undefined : JSON.stringify([row, range]);
   }
 
-  #updateSelectionAutoScroll(column: number, row: number, viewportHeight: number): void {
-    const beyondEdge = row <= 1 || row > viewportHeight;
+  #updateSelectionAutoScroll(column: number, row: number, frameHeight: number): void {
+    const beyondEdge = row <= 1 || row >= frameHeight;
     if (!beyondEdge) {
       this.#stopSelectionAutoScroll();
       return;
     }
-    this.#selectionAutoScrollPointer = { column, row };
+    this.#selectionAutoScrollPointer = { column, row, direction: row <= 1 ? -1 : 1 };
     if (this.#selectionAutoScrollTimer !== undefined) return;
     this.#selectionAutoScrollTimer = setTimeout(() => this.#selectionAutoScrollTick(), SELECTION_AUTO_SCROLL_INTERVAL_MS);
     this.#selectionAutoScrollTimer.unref?.();
@@ -575,7 +593,8 @@ export class SessionViewportController {
     const rowsPerTick = scrollbarSelectionRows(this.#config.scrollbarSpeed);
     for (let row = 0; row < rowsPerTick; row += 1) {
       const previous = this.#viewport.scrollTop;
-      this.#viewport.extendSelection(pointer.column, pointer.row);
+      this.#viewport.scrollBy(pointer.direction);
+      this.#viewport.extendSelection(pointer.column, pointer.row, undefined, false);
       if (this.#viewport.scrollTop === previous) break;
     }
     if (this.#viewport.scrollTop === before) {

@@ -155,7 +155,7 @@ describe("transcript viewport", () => {
       verticalShiftRows: 0,
       safeVerticalShift: false,
       selectionRevision: 0,
-      selectionDamagedRows: [1, 2, 3, 4, 5],
+      selectionDamagedRows: [1, 2, 3, 4, 5, 6, 7],
       cause: "initial",
     });
 
@@ -190,8 +190,9 @@ describe("transcript viewport", () => {
     viewport.scrollToEnd(106);
     viewport.compose({ documentRows: rows(14), dockRows: ["editor", "footer"], promptAnchors: [], width: 31, height: 8, now: 107 });
     viewport.pressSelection(2, 2, 108);
+    viewport.extendSelection(4, 2, 108.5, false);
     const selectedShift = viewport.compose({ documentRows: rows(15), dockRows: ["editor", "footer"], promptAnchors: [], width: 31, height: 8, now: 109 });
-    expect(selectedShift.descriptor).toMatchObject({ verticalShiftRows: 1, safeVerticalShift: false, cause: "steady" });
+    expect(selectedShift.descriptor).toMatchObject({ verticalShiftRows: 0, safeVerticalShift: false, cause: "detached" });
 
     viewport.reset();
     const reset = viewport.compose({ documentRows: rows(2), dockRows: rows(5), promptAnchors: [], width: 20, height: 3, now: 110 });
@@ -507,7 +508,7 @@ describe("transcript viewport", () => {
       return { range, copied };
     };
 
-    expect(selectedRange("abc      ", 5)).toEqual({ range: [3, 10], copied: "" });
+    expect(selectedRange("abc      ", 5)).toEqual({ range: [3, 9], copied: null });
     expect(selectedRange("abcdefghi", 5)).toEqual({ range: [0, 9], copied: "abcdefghi" });
 
     const viewport = new TranscriptViewport();
@@ -560,8 +561,8 @@ describe("transcript viewport", () => {
         expect(selected.rows[0]).toBe(backgroundSgrSpan("abcd      ", first - 1, 10, "\u001b[45m"));
         expect(selected.rows[1]).toBe(backgroundSgrSpan("efgh      ", 0, 10, "\u001b[45m"));
         expect(selected.rows[2]).toBe(backgroundSgrSpan("ijkl      ", 0, last, "\u001b[45m"));
-        expect(selected.rows[3]).not.toContain("\u001b[45m");
-        expect(viewport.pressSelection(1, 4, 1_000)).toBe(false);
+        expect(selected.rows[3]).toBe("dock");
+        expect(viewport.pressSelection(1, 4, 1_000)).toBe(true);
       }
     }
   });
@@ -591,7 +592,7 @@ describe("transcript viewport", () => {
     expect(viewport.selectedText()).toBeNull();
   });
 
-  it("copies source rows rather than pinned prompt, timestamp, bottom control, or dock copies", () => {
+  it("copies the exact visible sticky prompt and bottom control text", () => {
     const viewport = new TranscriptViewport();
     viewport.setConfig(ALWAYS);
     const input = {
@@ -609,7 +610,7 @@ describe("transcript viewport", () => {
     viewport.pressSelection(1, 2, 103);
     viewport.extendSelection(40, 4, 104, false);
     viewport.releaseSelection();
-    expect(viewport.selectedText()).toBe("row 2\nrow 3\nrow 4");
+    expect(viewport.selectedText()).toBe("row 2\nrow 3\nrow 4 Jump to bottom (Ctrl+End) ↓");
 
     viewport.clearSelection();
     viewport.scrollTo(0, 105);
@@ -617,7 +618,49 @@ describe("transcript viewport", () => {
     viewport.pressSelection(3, 1, 1_000);
     viewport.extendSelection(40, 1, 1_001, false);
     viewport.releaseSelection();
-    expect(viewport.selectedText()).toBe("prompt");
+    expect(viewport.selectedText()).toBe("prompt                     11:45");
+  });
+
+  it.each([false, true])("captures one immutable literal range across transcript, transient, prompt, and footer rows (reverse=%s)", reverse => {
+    const viewport = new TranscriptViewport();
+    const input = {
+      documentRows: ["transcript", "⠋ Working..."],
+      selectableDocumentRowCount: 1,
+      dockRows: ["❯ prompt", "branch footer"],
+      promptAnchors: [],
+      width: 20,
+      height: 4,
+      now: 100,
+    };
+    viewport.compose(input);
+    viewport.pressSelection(reverse ? 7 : 2, reverse ? 4 : 1, 101);
+    viewport.extendSelection(reverse ? 2 : 7, reverse ? 1 : 4, 102, false);
+    viewport.releaseSelection();
+
+    const snapshot = viewport.captureSelectedText();
+    expect(viewport.selectedText()).toBe("ranscript\n⠋ Working...\n❯ prompt\nbranch");
+    expect(snapshot).toMatchObject({ literal: true, sourceUnits: 38 });
+    viewport.compose({ ...input, documentRows: ["changed"], dockRows: ["new prompt", "new footer"], now: 103 });
+    expect(snapshot?.rows[0]?.text).toBe("ranscript\n⠋ Working...\n❯ prompt\nbranch");
+  });
+
+  it("excludes base-frame cells covered by an owning overlay", () => {
+    const viewport = new TranscriptViewport();
+    const input = {
+      documentRows: ["visible secret tail"],
+      dockRows: [] as string[],
+      promptAnchors: [],
+      coveredCells: [{ row: 1, columnStart: 9, columnEnd: 14 }],
+      width: 24,
+      height: 1,
+      now: 100,
+    };
+    viewport.compose(input);
+    viewport.pressSelection(1, 1, 101);
+    viewport.extendSelection(20, 1, 102, false);
+    viewport.releaseSelection();
+    expect(viewport.selectedText()).toBe("visible        tail");
+    expect(viewport.selectedText()).not.toContain("secret");
   });
 
   it("keeps paint-only row transforms out of transcript copying", () => {
@@ -743,7 +786,7 @@ describe("transcript viewport", () => {
     expect(viewport.scrollTop).toBe(before - 1);
   });
 
-  it("keeps trailing status rows outside transcript selection and copying", () => {
+  it("includes transient status rows in complete-frame selection and copying", () => {
     const viewport = new TranscriptViewport();
     viewport.setConfig(ALWAYS);
     const input = {
@@ -757,13 +800,14 @@ describe("transcript viewport", () => {
     };
     viewport.compose(input);
 
-    expect(viewport.pressSelection(3, 2, 101)).toBe(false);
+    expect(viewport.pressSelection(3, 2, 101)).toBe(true);
     expect(viewport.hasSelection).toBe(false);
+    viewport.clearSelection();
 
     expect(viewport.pressSelection(1, 1, 102)).toBe(true);
     expect(viewport.extendSelection(20, 2, 103)).toBe(true);
     viewport.releaseSelection();
-    expect(viewport.selectedText()).not.toContain("Working");
+    expect(viewport.selectedText()).toBe("Selectable transcript\n⠋ Working...");
 
     const selected = viewport.compose({
       ...input,
@@ -778,7 +822,7 @@ describe("transcript viewport", () => {
       },
     });
     expect(selected.rows[0]).toContain("\u001b[45m");
-    expect(selected.rows[1]).not.toContain("\u001b[45m");
+    expect(selected.rows[1]).toContain("\u001b[45m");
   });
 
   it("keeps the scrollbar thumb visible through a multi-row text selection", () => {
