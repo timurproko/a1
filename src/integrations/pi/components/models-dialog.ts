@@ -284,7 +284,7 @@ export class ModelsDialogComponent implements Component, Focusable {
 
     push();
     if (this.#refreshStatus !== undefined) push(theme.fg(this.#refreshStatus.kind, `  ${this.#refreshStatus.message}`));
-    push(renderPiModalShortcutHints(this.#hints(), 2));
+    push(renderPiModalShortcutHints(this.#hints()));
     push(border);
     return lines;
   }

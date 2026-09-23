@@ -179,6 +179,7 @@ describe("pinned Pi modal transition graph", () => {
     expect(semanticRenderer).toContain('.join("  ")');
     const helper = await readFile("src/integrations/pi/components/theme.ts", "utf8");
     expect(helper).toContain("renderSemanticShortcutHints");
+    expect(helper).toContain("indent = 0");
     expect(helper).toContain('theme.fg("dim", text)');
     expect(helper).toContain('theme.fg("muted", text)');
     for (const path of SHARED_HINT_SOURCES) {
@@ -187,11 +188,19 @@ describe("pinned Pi modal transition graph", () => {
     const settings = await readFile("src/features/owned-ui/settings-app.ts", "utf8");
     expect(settings).toContain("SETTINGS_SHORTCUTS.hintEntries(DIALOG_SCOPE)");
     expect(settings).toContain("SETTINGS_SHORTCUTS.hintEntries(SCOPE)");
+    const dialogPanel = await readFile("src/ui/components/dialog-panel.ts", "utf8");
+    expect(dialogPanel).toContain("renderShortcutHints(state.hint, theme, 1)");
     const reference = await readFile("src/features/owned-ui/reference-screen-app.ts", "utf8");
-    expect(reference).toContain("REFERENCE_SCREEN_SHORTCUTS.hintEntries(SCOPE)");
+    expect(reference).toContain("REFERENCE_SCREEN_SHORTCUTS.hintEntries(SCOPE), theme, 1");
     expect(reference).not.toContain("HINT_SEPARATOR");
+    const models = await readFile("src/integrations/pi/components/models-dialog.ts", "utf8");
+    expect(models).toContain("renderPiModalShortcutHints(this.#hints())");
+    const tree = await readFile("src/integrations/pi/components/upstream/components/tree-selector.ts", "utf8");
+    expect(tree).toContain('const indent = "   ";');
+    expect(tree).toContain('new Text(theme.bold("  Session Tree"), 1, 0)');
     const startupTrust = await readFile("src/features/owned-ui/project-trust-prompt.ts", "utf8");
-    expect(startupTrust).toContain("${DIM}  ↑/↓${MUTED} to navigate  ${DIM}Enter${MUTED} to select");
+    expect(startupTrust).toContain("${DIM}↑/↓${MUTED} to navigate  ${DIM}Enter${MUTED} to select");
+    expect(startupTrust).not.toContain("${DIM}  ↑/↓");
     expect(startupTrust).not.toContain("to navigate · Enter");
   });
 
