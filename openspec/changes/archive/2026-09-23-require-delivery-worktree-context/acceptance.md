@@ -15,7 +15,7 @@ The manual merge accepts these scenarios:
   "archive": "openspec/changes/archive/2026-09-23-require-delivery-worktree-context/",
   "acceptanceManifest": "openspec/changes/archive/2026-09-23-require-delivery-worktree-context/acceptance.md",
   "finalizedDate": "2026-09-23",
-  "specBaseSha": "c37f420d17863fbe8dac99bba672763041ee38b5",
+  "specBaseSha": "e904bb37b6c1f5664fb90a33e8a9c7118a25ce0f",
   "acceptanceScenarios": [
     "Starting or resuming an interactive delivery links its exact owned worktree before edits, and the bare-A1 footer follows that feature branch and displays its open pull request number.",
     "A failed or mismatched worktree association stops feature edits while the primary checkout stays on `develop` and repository commands remain explicitly scoped to the intended worktree."
