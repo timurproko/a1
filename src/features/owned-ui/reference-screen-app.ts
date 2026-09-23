@@ -194,11 +194,11 @@ export class ReferenceScreenApp implements UiApp {
 
     const withRail = withScrollbarRail(body.slice(0, bodyHeight), geometry, contentWidth, theme, { presentation });
     const hint = this.#interruptArmed
-      ? theme.fg("dim", "press ctrl+c again to exit a1")
-      : renderShortcutHints(REFERENCE_SCREEN_SHORTCUTS.hintEntries(SCOPE), theme);
+      ? theme.fg("dim", " press ctrl+c again to exit a1")
+      : renderShortcutHints(REFERENCE_SCREEN_SHORTCUTS.hintEntries(SCOPE), theme, 1);
     // Compatibility: the v2 reference screen frames its document between two border-coloured rules.
     const rule = theme.fg("border", "─".repeat(rect.width));
-    // Compatibility: the footer remains against the left edge, unlike the settings status line.
+    // Dialog chrome shares the title's one-cell inset; document content keeps its own layout.
     const frame = [rule, ...withRail, rule, padToWidth(hint, rect.width)];
     // Invariant: a rectangle too small for the chrome still gets exactly its rows, top first.
     return frame.slice(0, rect.height).concat(Array(Math.max(0, rect.height - frame.length)).fill(""));

@@ -59,7 +59,7 @@ class SkillsSelectorComponent extends Container {
       { key: "↑↓", action: "navigate" },
       { key: bindings.getKeys("tui.select.confirm").join("/"), action: "select" },
       { key: bindings.getKeys("tui.select.cancel").join("/"), action: "cancel" },
-    ], 2), 0, 0));
+    ]), 0, 0));
     this.addChild(new DynamicBorder());
     this.#updateList();
   }
