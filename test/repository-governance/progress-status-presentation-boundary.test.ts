@@ -30,10 +30,16 @@ describe("progress-status presentation boundary", () => {
 
     expect(() => assertSemanticWorkStateProducers(engine)).not.toThrow();
     expect(() => assertNoUiComponentImport(shell)).not.toThrow();
-    expect(shell.match(/\bformatProgressStatus\(/gu)).toHaveLength(1);
-    expect(root).toContain("createPiShellStatus(view, progressStatusText, handlers)");
+    expect(shell.match(/\bprogressStatus\.text\(/gu)).toHaveLength(1);
+    expect(shell.match(/\bprogressStatus\.frame\b/gu)).toHaveLength(1);
+    expect(shell).toContain('progressPresentation === "custom-viewport"');
+    expect(shell).toContain("new OwnedWorkingStatusIndicator");
+    expect(root).toContain("createPiShellStatus(view, {");
+    expect(root).toContain('mode === "custom-viewport" ? "…" : "..."');
+    expect(root).toContain("frame: progressStatusFrame");
     expect(synchronized).toContain(`Provenance: @earendil-works/pi-coding-agent ${(await readPinnedPiIdentity(".")).version}`);
     expect(synchronized).not.toContain("progressStatusText");
+    expect(synchronized).not.toContain("OwnedWorkingStatusIndicator");
     expect(dispatch).not.toContain("progressStatusText");
     expect(runtimeSelection).not.toContain("progressStatusText");
   });

@@ -10,7 +10,7 @@ import type {
 } from "../../../contracts/owned-ui/index.js";
 import { SessionFooter } from "./upstream/components/session-footer.js";
 import { KeybindingsManager, type KeybindingsConfig } from "./upstream/adjacent/core/keybindings.js";
-import { WorkingStatusIndicator } from "./upstream/components/status-indicator.js";
+import { StatusIndicator, WorkingStatusIndicator } from "./upstream/components/status-indicator.js";
 import {
   PINNED_PI_LAYOUT,
   piTheme,
@@ -21,6 +21,8 @@ import {
   type PiShellViewComponentPort,
   type PiShellStatusPort,
   type PiShellStatusPlacement,
+  type PiShellProgressPresentationMode,
+  type PiShellProgressStatusPresentation,
   type PiShellQueuedInputPort,
   type PiShellHeaderPort,
   type PiShellResourceSection,
@@ -97,24 +99,27 @@ export function createPiShellLoadedResources(
 
 export function createPiShellStatus(
   view: OwnedUiSessionViewModel,
-  formatProgressStatus: (message: string) => string,
+  progressStatus: PiShellProgressStatusPresentation,
   runtime?: Pick<PiShellEditorOptions, "getColumns" | "getRows" | "requestRender">,
 ): PiShellStatusPort {
   ensureTheme();
   const statusUi = createTuiFacade(runtime ?? { getColumns: () => 80, getRows: () => 24, requestRender() {} });
   let workingOverride: string | undefined;
   let outputPad: 0 | 1 = PINNED_PI_LAYOUT.outputPad;
-  let progressPresentation: "pinned" | "custom-viewport" = "pinned";
+  let progressPresentation: PiShellProgressPresentationMode = "pinned";
   let placement: PiShellStatusPlacement = statusPlacement(view, workingOverride);
-  const liveStatusText = () => formatProgressStatus(liveWorkingText(view, workingOverride, progressPresentation));
-  let component = statusComponent(view, statusUi, outputPad, liveStatusText, placement);
+  const liveStatusText = () => progressStatus.text(liveWorkingText(view, workingOverride, progressPresentation), progressPresentation);
+  let component = statusComponent(view, statusUi, outputPad, liveStatusText, placement, progressPresentation, progressStatus);
   let signature = statusSignature(view, workingOverride, outputPad, placement, progressPresentation);
   const rebuild = () => {
     const nextPlacement = statusPlacement(view, workingOverride);
     const nextSignature = statusSignature(view, workingOverride, outputPad, nextPlacement, progressPresentation);
     if (nextSignature === signature) return;
     // Performance: progress ticks change only the live message; the spinner keeps its frame and timer.
-    if (placement === "live" && nextPlacement === "live" && component instanceof WorkingStatusIndicator
+    const componentMatchesPresentation = progressPresentation === "custom-viewport"
+      ? component instanceof OwnedWorkingStatusIndicator
+      : component instanceof WorkingStatusIndicator;
+    if (placement === "live" && nextPlacement === "live" && component instanceof StatusIndicator && componentMatchesPresentation
       && statusSignature(view, workingOverride, outputPad, nextPlacement, progressPresentation, false)
         === statusSignature(view, workingOverride, outputPad, placement, progressPresentation, false)) {
       component.setMessage(liveStatusText());
@@ -124,7 +129,7 @@ export function createPiShellStatus(
     if (component !== undefined && "dispose" in component && typeof component.dispose === "function") component.dispose();
     placement = nextPlacement;
     signature = nextSignature;
-    component = statusComponent(view, statusUi, outputPad, liveStatusText, placement);
+    component = statusComponent(view, statusUi, outputPad, liveStatusText, placement, progressPresentation, progressStatus);
   };
   return {
     render: width => component?.render(width) ?? [],
@@ -208,7 +213,7 @@ function statusPlacement(view: OwnedUiSessionViewModel, workingOverride: string 
 function liveWorkingText(
   view: OwnedUiSessionViewModel,
   workingOverride: string | undefined,
-  progressPresentation: "pinned" | "custom-viewport",
+  progressPresentation: PiShellProgressPresentationMode,
 ): string {
   const message = workingOverride ?? view.status.workingMessage ?? "Working";
   const progress = view.status.workingProgress;
@@ -217,15 +222,38 @@ function liveWorkingText(
     : message;
 }
 
+class OwnedWorkingStatusIndicator extends StatusIndicator {
+  constructor(ui: TUI, message: string, frame: PiShellProgressStatusPresentation["frame"]) {
+    let phase = -1;
+    super(
+      "working",
+      ui,
+      spinner => {
+        phase += 1;
+        return piTheme().fg("accent", spinner);
+      },
+      text => frame(text, phase, {
+        muted: value => piTheme().fg("muted", value),
+        accent: value => piTheme().fg("accent", value),
+      }),
+      message,
+    );
+  }
+}
+
 function statusComponent(
   view: OwnedUiSessionViewModel,
   ui: TUI,
   outputPad: 0 | 1,
   liveStatusText: () => string,
   placement: PiShellStatusPlacement,
+  progressPresentation: PiShellProgressPresentationMode,
+  progressStatus: PiShellProgressStatusPresentation,
 ): Component | undefined {
   if (placement === "live") {
-    return new WorkingStatusIndicator(ui, liveStatusText());
+    return progressPresentation === "custom-viewport"
+      ? new OwnedWorkingStatusIndicator(ui, liveStatusText(), progressStatus.frame)
+      : new WorkingStatusIndicator(ui, liveStatusText());
   }
   if (placement === "dock") {
     if (view.lifecycle === "failed") {
@@ -241,7 +269,7 @@ function statusSignature(
   workingOverride: string | undefined,
   outputPad: 0 | 1,
   placement: PiShellStatusPlacement,
-  progressPresentation: "pinned" | "custom-viewport",
+  progressPresentation: PiShellProgressPresentationMode,
   withMessage = true,
 ): string {
   const message = withMessage ? `${workingOverride ?? ""}\u0000${view.status.workingMessage ?? ""}\u0000${view.status.workingProgress ?? ""}` : "";
