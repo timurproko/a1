@@ -321,7 +321,7 @@ describe("session viewport interaction controller", () => {
       target.reset();
       frame(target, 0);
       expect(target.handlePreInput("\u001b[<0;4;2M\u001b[<32;15;3M\u001b[<0;15;3m").consumed).toBe(true);
-      expect(target.handlePreInput("\u0003").consumed).toBe(false);
+      expect(copiedText(target.handlePreInput("\u0003"))).toBe("\n");
     } finally { target.clearPointerState(); }
   });
 
@@ -383,7 +383,7 @@ describe("session viewport interaction controller", () => {
     }
   });
 
-  it("owns a whole drag begun on transient tail chrome without creating a selection", () => {
+  it("selects across a drag begun on transient tail chrome", () => {
     const { target, input, compose } = hoverFixture();
     try {
       const tailed = {
@@ -396,18 +396,19 @@ describe("session viewport interaction controller", () => {
       expect(followed.hits.transientTail).toEqual([5, 6, 7]);
       expect(target.handlePreInput("\u001b[<0;5;5M").consumed).toBe(true);
       expect(target.handlePreInput("\u001b[<32;5;3M").consumed).toBe(true);
-      expect(target.handlePreInput("\u001b[<0;5;3m").consumed).toBe(true);
+      const release = target.handlePreInput("\u001b[<0;5;3m");
+      expect(release.consumed).toBe(true);
+      expect(copiedText(release)).toContain("Stee");
       const selected = target.compose(tailed);
-      expect(target.hasSelection).toBe(false);
+      expect(target.hasSelection).toBe(true);
       expect(selected.rows[4]).toContain("Steering: later");
       expect(selected.rows[6]).toContain("Working...");
-      expect(selected.rows[6]).not.toContain("\u001b[48;2;38;79;120m");
     } finally {
       target.clearPointerState();
     }
   });
 
-  it("keeps wheel scrolling over the transient tail while suppressing selection", () => {
+  it("keeps wheel scrolling over the transient tail while allowing selection", () => {
     const { target, input, compose } = hoverFixture();
     try {
       const tailed = { ...input, documentRows: [...input.documentRows, "", " Working..."], selectableDocumentRowCount: 30 };
@@ -422,8 +423,9 @@ describe("session viewport interaction controller", () => {
       expect(again.hits.transientTail).toEqual([6, 7]);
       target.handlePreInput("\u001b[<0;5;7M");
       target.handlePreInput("\u001b[<32;5;4M");
-      target.handlePreInput("\u001b[<0;5;4m");
-      expect(target.hasSelection).toBe(false);
+      const release = target.handlePreInput("\u001b[<0;5;4m");
+      expect(target.hasSelection).toBe(true);
+      expect(copiedText(release)).toContain("Work");
     } finally {
       target.clearPointerState();
     }
@@ -795,11 +797,17 @@ describe("session viewport interaction controller", () => {
 
     expect(target.handlePreInput("\u001b[<0;3;4M").consumed).toBe(true);
     expect(target.handlePreInput("\u001b[<32;4;5M").consumed).toBe(true);
-    expect(target.handlePreInput("\u001b[<0;4;5m").consumed).toBe(true);
+    const dragRelease = target.handlePreInput("\u001b[<0;4;5m");
+    expect(dragRelease.consumed).toBe(true);
+    expect(copiedText(dragRelease)).toBeTruthy();
+    expect(events).toEqual([]);
+
+    target.handlePreInput("\u0003");
+    target.handlePreInput("\u001b[<0;3;4M");
+    target.handlePreInput("\u001b[<0;3;4m");
     expect(events.map(event => [event.kind, event.row])).toEqual([
       ["press", 1],
-      ["motion", 2],
-      ["release", 2],
+      ["release", 1],
     ]);
   });
 

@@ -467,7 +467,12 @@ export class OwnedUiSessionShell {
           const routed = this.root.handleViewportPreInput(data, true, Date.now(),
             this.root.usesDefaultInputSurface() && !this.runtime.hasFocusedOverlay());
           if (routed.copySelection !== undefined) {
-            void this.#responseCopy?.submit(routed.copySelection, pendingClipboardWrite);
+            const snapshot = routed.copySelection;
+            void this.#responseCopy?.submit(snapshot, pendingClipboardWrite).then(result => {
+              if (this.#disposed || !runtime.active
+                || result.outcome !== "delivered" && result.outcome !== "submitted-unverified") return;
+              runtime.showFlash(`Copied ${snapshot.sourceUnits} character${snapshot.sourceUnits === 1 ? "" : "s"} to clipboard`);
+            });
           }
           if (!routed.consumed) return routed.data === data ? undefined : { data: routed.data };
           return routed.data.length === 0 ? { consume: true } : { data: routed.data };

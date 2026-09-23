@@ -221,8 +221,8 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
       terminal.input(`\u001b[<32;6;${row}M`);
       terminal.input(`\u001b[<0;6;${row}m`);
       expect(shell.root.hasActiveSelection()).toBe(true);
-      terminal.input("\u0003"); await nextImmediate();
-      expect(copied).toEqual(["/mo"]);
+      terminal.input("\u0003");
+      await vi.waitFor(() => expect(copied).toEqual(["/mo"]));
       const ui = (engine.session.extensionBindings as { uiContext: ExtensionUIContext }).uiContext;
       ui.setEditorComponent(tui => new Editor(tui, {
         borderColor: text => text,
@@ -271,7 +271,7 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
     expect(terminal.writes).toHaveLength(count);
   });
 
-  it("never paints or copies Pi selection for an empty transcript drag", async () => {
+  it("paints and copies blank rows in the complete session frame", async () => {
     const { shell, terminal } = await fixture([], [], true);
     try {
       const start = terminal.writes.length;
@@ -279,12 +279,11 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
       terminal.input("\u001b[<32;20;5M");
       shell.runtime.renderNow();
       terminal.input("\u001b[<0;20;5m");
-      await nextImmediate();
+      await vi.waitFor(() => expect(terminal.writes.slice(start).join("")).toContain("\u001b]52;c;CgoK\u0007"));
       shell.runtime.renderNow();
       const output = terminal.writes.slice(start).join("");
-      expect(output).not.toContain("Copied!");
-      expect(output).not.toContain("\u001b]52;c;");
-      expect(output).not.toContain("\u001b[7m");
+      expect(output).toContain("Copied 3 characters to clipboard");
+      expect(output).toContain("\u001b[48;2;38;79;120m");
       terminal.input("still usable");
       await nextImmediate();
       expect(shell.root.editor.getText()).toBe("still usable");
@@ -375,16 +374,17 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
     click();
     click();
     terminal.input("\u0003");
-    await nextImmediate();
-    expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from("assistant").toString("base64")}\u0007`);
+    await vi.waitFor(() => expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from("assistant").toString("base64")}\u0007`));
 
     click();
     const tripleSelected = shell.root.render(60)[rowIndex] ?? "";
     expect(tripleSelected).toContain("\u001b[48;2;38;79;120m");
     expect(tripleSelected).not.toContain("38;2;0;0;0");
     terminal.input("\u0003");
-    await nextImmediate();
-    expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from("Selectable assistant words").toString("base64")}\u0007`);
+    await vi.waitFor(() => expect(terminal.writes.flatMap(write => {
+      const match = /^\u001b\]52;c;([^\u0007]+)\u0007$/u.exec(write);
+      return match?.[1] === undefined ? [] : [Buffer.from(match[1], "base64").toString()];
+    })).toEqual(["assistant", " Selectable assistant words"]));
   });
 
   it.each([1, -1])("selects and copies adjacent transcript characters at 192x54 in direction %i", async direction => {
@@ -404,8 +404,7 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
     const selected = shell.root.render(192)[rowIndex] ?? "";
     expect(selected).toContain("\u001b[48;2;38;79;120m");
     terminal.input("\u0003");
-    await nextImmediate();
-    expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from(direction === 1 ? "ch" : " c").toString("base64")}\u0007`);
+    await vi.waitFor(() => expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from(direction === 1 ? "ch" : " c").toString("base64")}\u0007`));
     await shell.dispose();
   });
 
@@ -724,13 +723,11 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
     click();
     click();
     terminal.input("\u0003");
-    await nextImmediate();
-    expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from("alpha").toString("base64")}\u0007`);
+    await vi.waitFor(() => expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from("alpha").toString("base64")}\u0007`));
 
     click();
     terminal.input("\u0003");
-    await nextImmediate();
-    expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from("mouse alpha beta").toString("base64")}\u0007`);
+    await vi.waitFor(() => expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from("mouse alpha beta").toString("base64")}\u0007`));
 
     await shell.dispose();
   });
@@ -817,6 +814,7 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
     terminal.input("\u001b[<0;5;1m");
     await new Promise(resolve => setTimeout(resolve, 130));
     expect(firstVisible()).toBe(whileHeld);
+    terminal.input("\u0003");
 
     // Rationale: leave enough room below for the faster direction to demonstrate its
     // greater distance rather than immediately hitting the document end.
@@ -824,6 +822,7 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
     terminal.input("\u001b[<64;30;3M");
     terminal.input("\u001b[<64;30;3M");
     shell.root.setViewportConfig({ scrollbarAppearance: "always", scrollbarStyle: "thin", scrollbarSpeed: "fast" });
+    shell.runtime.renderNow();
     terminal.input("\u001b[<0;5;3M");
     terminal.input("\u001b[<32;5;12M");
     const afterDownMotion = firstVisible();
@@ -843,7 +842,7 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
     await shell.dispose();
   });
 
-  it("suppresses selection sequences begun on status, input, or footer rows", async () => {
+  it("selects across status, input, footer, and transcript rows", async () => {
     const { terminal, shell } = await fixture([], [], true);
     terminal.resize(60, 12);
     shell.root.render(60);
@@ -856,7 +855,8 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
     expect(press).toMatchObject({ data: "", consumed: true });
     expect(motion).toMatchObject({ data: "", consumed: true });
     expect(release).toMatchObject({ data: "", consumed: true });
-    expect(copy).toMatchObject({ data: "\u0003", consumed: false });
+    expect(release.copySelection?.sourceUnits).toBeGreaterThan(0);
+    expect(copy).toMatchObject({ data: "", consumed: true });
     await shell.dispose();
   });
 
@@ -878,8 +878,7 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
     terminal.input(`\u001b[<0;${end + 1};${row}m`);
     terminal.input("\u0003");
 
-    await nextImmediate();
-    expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from("Selectable").toString("base64")}\u0007`);
+    await vi.waitFor(() => expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from("Selectable").toString("base64")}\u0007`));
     await shell.dispose();
   });
 

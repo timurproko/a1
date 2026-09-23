@@ -440,9 +440,9 @@ describe("OwnedUiSessionShell prompt bar, links, and hover", () => {
       terminal.input(`\u001b[<0;${end + 1};${row}m`);
       const released = shell.root.render(100)[rowIndex] ?? "";
       expect(released).toContain(`\u001b]8;;${target}\u001b\\`);
-      terminal.input("\u0003");
-      await nextImmediate();
-      expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from(label).toString("base64")}\u0007`);
+      await vi.waitFor(() => expect(terminal.writes).toContain(
+        `\u001b]52;c;${Buffer.from(label).toString("base64")}\u0007`,
+      ));
       await shell.dispose();
     });
   });
@@ -680,8 +680,9 @@ describe("OwnedUiSessionShell prompt bar, links, and hover", () => {
       const release = releaseWrites.find(write => write.includes(`\u001b]8;;${url}\u001b\\`));
       expect(release).toContain(`\u001b]8;;${url}\u001b\\`);
       expect(release).not.toContain("\uFE0E");
-      terminal.input("\u0003");
-      await nextImmediate();
+      await vi.waitFor(() => expect(
+        terminal.writes.some(write => write.startsWith("\u001b]52;c;")),
+      ).toBe(true));
       const copyWrite = terminal.writes.findLast(write => write.startsWith("\u001b]52;c;"));
       expect(copyWrite).toBeDefined();
       const copied = Buffer.from(copyWrite!.slice("\u001b]52;c;".length, -1), "base64").toString("utf8");
