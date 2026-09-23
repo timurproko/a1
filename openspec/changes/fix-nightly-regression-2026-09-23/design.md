@@ -4,9 +4,21 @@ Opened by the nightly regression triage from the failed run's evidence artifacts
 
 ## Decisions
 
-- To be written by the maintainer once the cause is known: what failed, why, and the smallest change that fixes it without reducing validation.
+- Treat both generated repairs as one validation-capacity defect. Full regression #38 and Release #155 ran the same `full-release` plan at `c37f420`; on both attempts the macOS runner shut down one to two seconds after the complete ordinary Vitest partition started, while Linux shut down at different points in that same partition. No assertion, timeout, or owner outcome failed first, and both Windows lanes completed the unchanged coverage. That repeatable boundary identifies unbounded ordinary-partition worker fanout and its process/memory pressure, not a product test or the native process-containment integration, as the common cause.
+- Keep file parallelism but cap the complete ordinary partition at two Vitest workers on every platform. Two is already the effective capacity of the successful Windows hosted lane, keeps the retained forty-minute job bound viable, and prevents the three/four-worker POSIX fanout that shut down the runner. Do not move tests, retry failures, increase timeouts, or weaken assertions.
+- Put the cap in the authoritative `full-release` plan rather than one workflow so scheduled/manual Full regression, selected repair PR regression, and release validation all receive the same behavior. Record the cap as invocation evidence and lock it with the validation-tier contract test.
 
 ## Evidence
+
+- Both attempts of Full regression #38 and Release #155 reached `vitest-full-without-isolated`; every macOS lane then shut down before completing a test file. The Full regression Linux lane shut down after different amounts of the deterministic suite on its two attempts, and Release Linux failed once before passing its rerun only after a much longer complete-partition execution. This variability excludes one deterministic failing test as the cause and localizes the defect to complete-suite runner pressure.
+- The same Full regression attempt completed Windows Node 24 and Node 22. Windows Node 24 ran all 360 ordinary-partition files in 807.22 seconds and completed the whole lane within its existing forty-minute bound, showing that a two-worker effective lane retains viable timing without reducing coverage.
+- Release #154 on the same `c37f420` source passed because impact selection ran focused package owners rather than the complete 360-file ordinary partition; Release #155 selected `full-release` and reproduced the Full regression shutdown. This distinguishes candidate bytes from complete-suite orchestration pressure.
+- Focused implementation evidence after adding the worker bound:
+  - `validation-tier.test.ts`: 23/23 passed and verifies `--maxWorkers=2` plus bounded-parallel plan evidence.
+  - `full-regression-policy.test.ts`, `validation-suite-policy.test.ts`, and `resource-sensitive-validation.test.ts`: 28/28 passed, preserving full selection and the separate serial resource-sensitive partition.
+  - OpenSpec acceptance policy/checklist tests: 29/29 passed; strict validation of this change passed.
+  - TypeScript build prerequisite and `npm run typecheck` passed; full code-documentation governance reported no violations.
+- Known gap before finalization: local Windows/WSL validation proves plan shape and focused contracts but cannot reproduce a GitHub-hosted macOS shutdown. The selected exact-head PR Full regression remains the required native proof and blocks handoff until all four lanes pass.
 
 - Run [Full regression #38](https://github.com/timurproko/a1/actions/runs/35834483448) (attempt 1, schedule) on `c37f420` at 2026-09-23T07:57:58Z:
   - Lane macos-15-node24 failed in job `Full regression / Complete non-physical regression (macos-15, node 24)` before producing owner outcomes (orchestration failure).
