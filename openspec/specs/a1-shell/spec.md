@@ -134,13 +134,14 @@ The immutable interactive launcher SHALL establish the same non-detachable launc
 - **THEN** it SHALL create another independent instance rather than acquiring a product-wide foreground slot
 
 ### Requirement: Help is explicit and unsupported commands are quiet
-The installed application SHALL expose `a1 help` as the preferred complete-help command and SHALL retain equivalent `a1 --help` and `a1 -h` compatibility forms. Complete help SHALL lead with the direct `help`, `version`, `install`, `remove`, `uninstall`, `list`, and `update` forms, while identifying the retained flag and `a1 pi` compatibility aliases without making them the primary examples. Explicit help on recognized direct or compatibility package commands SHALL print focused help for A1's supported subset without executing the command. Direct `a1 update --help` SHALL describe the supported stable, development, extension, model, and single-package update forms together. A1 SHALL NOT append the complete application or command help to command failures; a focused syntax diagnostic MAY include pinned-style usage guidance for the affected supported command.
+The installed application SHALL expose `a1 help` as the preferred complete-help command and SHALL retain equivalent `a1 --help` and `a1 -h` compatibility forms. Complete help and generated usage SHALL advertise only the direct `help`, `version`, `install`, `remove`, `uninstall`, `list`, and `update` forms and SHALL NOT include a compatibility-alias section or package forms under `a1 pi`. Explicit help on recognized direct or compatibility package commands SHALL print focused help for A1's supported subset without executing the command. Direct `a1 update --help` SHALL describe the supported stable, development, extension, model, and single-package update forms together. A1 SHALL NOT append the complete application or command help to command failures; a focused syntax diagnostic MAY include pinned-style usage guidance for the affected supported command.
 
 A word outside the supported command grammar SHALL be a silent successful no-op. It SHALL write nothing to stdout or stderr and SHALL NOT start an interactive runtime, supervisor, shell, update, package operation, or model refresh. A malformed invocation whose leading command is recognized MAY fail with one focused diagnostic and applicable usage guidance. A1-only update-selector errors SHALL retain their focused product-specific diagnostics.
 
 #### Scenario: Help is requested
 - **WHEN** the user runs `a1 help`, `a1 --help`, or `a1 -h`
-- **THEN** A1 SHALL print the same command list appropriate to that build and exit successfully without launching a runtime
+- **THEN** A1 SHALL print the same direct-command list appropriate to that build and exit successfully without launching a runtime
+- **AND** the list SHALL omit compatibility help/version flags and `a1 pi` package aliases
 
 #### Scenario: Unknown top-level word is given
 - **WHEN** the user runs `a1 sdjjhd`

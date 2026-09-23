@@ -24,10 +24,10 @@ The manual merge accepts these scenarios:
     "Direct update syntax keeps stable and development self-update distinct from model, all-extension, and single-package updates.",
     "Help, focused diagnostics, and README examples lead with direct commands while existing flags and supported `a1 pi` forms remain functional aliases."
   ],
-  "archiveDigest": "8d364d4b9e92d8eeb2d7b6c6726a4a1d2e75656f5457001d8c04ba8330dc2a61",
-  "specDigest": "2162c33ca4bcb152b5622faba69cb763123294e7d66cd50561410e7aa99ce24a",
-  "tasksDigest": "3eca060e910da8df8960f43842ce7663b473b0baf6cceb373ee77b9a4422f2fc",
-  "evidenceDigest": "899ff74ebc6ad291177557a337575fce1ba5b3cc304f2d85853d7bb686cf1b1b",
+  "archiveDigest": "b0d84259f1ce2b4b71dbb21321256ecfa17946b2f128aa9a8242fe5ba7433a43",
+  "specDigest": "fe9d318d25b33fd0f7826c0c1fe800aec2842654e3df1a8edb93610dbc2f6b9f",
+  "tasksDigest": "8bbedff3109e6dc4e850eca498f2ad2b08811d52a342b8e8bb752ee93dd018ed",
+  "evidenceDigest": "a043865dff4a0f8de724b201006b7be182ac3a82db4a33018c3f4c2473338339",
   "knownGaps": []
 }
 ```
