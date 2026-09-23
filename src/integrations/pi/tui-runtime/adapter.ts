@@ -457,6 +457,12 @@ export class PiTuiRuntimeAdapter {
     this.#terminal.setTitle(title);
   }
 
+  /** Shows a bounded fullscreen acknowledgement without changing root layout geometry. */
+  showFlash(message: string, durationMs?: number): void {
+    this.#assertRunning("flash");
+    this.#requireFullscreen().flash(message, durationMs);
+  }
+
   writeAfterStop(text: string): void {
     if (this.#state !== "stopped") throw new Error("terminal output requires a stopped Pi TUI runtime");
     this.#terminal.write(text);

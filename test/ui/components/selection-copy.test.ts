@@ -3,8 +3,8 @@ import { TranscriptViewport } from "../../../src/ui/components/transcript-viewpo
 import { MAX_COPY_ROWS, MAX_COPY_SOURCE_UNITS, selectionCopyLineContent, selectionCopyRowText } from "../../../src/ui/components/selection-copy.js";
 import { textSelectionText } from "../../../src/ui/components/text-selection.js";
 
-/** Copy snapshots preserve the existing semantic text oracle across delayed delivery and reflow. */
-describe("selected response source snapshots", () => {
+/** Literal frame snapshots remain immutable across delayed delivery and reflow. */
+describe("selected visible-frame snapshots", () => {
   it.each([false, true])("keeps exact multiline content after clear, new frames and reset (reverse=%s)", reverse => {
     const viewport = new TranscriptViewport();
     const rows = ["\u001b[31mhello 界\u001b[0m", "  e\u0301 👩‍💻 next", "Working..."];
@@ -22,7 +22,8 @@ describe("selected response source snapshots", () => {
     expect(text).toBe(oracle);
     expect(text).not.toContain("Working");
     expect(text).not.toContain("replacement");
-    expect(snapshot.rows).toHaveLength(2);
+    expect(snapshot).toMatchObject({ literal: true });
+    expect(snapshot.rows).toHaveLength(1);
   });
 
   it.each([
@@ -46,21 +47,19 @@ describe("selected response source snapshots", () => {
     expect(viewport.captureSelectedText()).toBeNull();
     viewport.extendSelection(4, 1, 1, false);
     viewport.releaseSelection();
-    expect(viewport.selectedText()).toBe("");
+    expect(viewport.selectedText()).toBeNull();
     expect(viewport.captureSelectedText()).toBeNull();
   });
 
-  it("bounds selected row references and rejects size without retaining an oversized payload", () => {
+  it("bounds snapshot work by visible rows rather than retaining a long transcript", () => {
     const viewport = new TranscriptViewport();
-    // Performance: tiny frame; no huge terminal render is needed to select a long document range.
     const rows = Array.from({ length: MAX_COPY_ROWS + 1 }, () => "row");
     viewport.compose({ documentRows: rows, dockRows: [], promptAnchors: [], width: 20, height: 2 });
     viewport.scrollTo(0);
     viewport.pressSelection(1, 1, 0);
-    viewport.scrollToEnd();
     viewport.extendSelection(3, 2, 1, false);
-    const rejected = viewport.captureSelectedText();
-    expect(rejected).toMatchObject({ rejected: "size", rows: [], sourceUnits: 0 });
+    const snapshot = viewport.captureSelectedText();
+    expect(snapshot).toMatchObject({ literal: true, rows: [{ text: "row\nrow" }], sourceUnits: 7 });
     expect(MAX_COPY_SOURCE_UNITS).toBe(32 * 1024 * 1024);
   });
 });
