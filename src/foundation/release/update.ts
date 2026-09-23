@@ -1,5 +1,5 @@
 import { spawn, type StdioOptions } from "node:child_process";
-import { access, lstat, readFile, realpath } from "node:fs/promises";
+import { access, lstat, readFile, realpath, rename } from "node:fs/promises";
 import { connect } from "node:net";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import crossSpawn from "cross-spawn";
@@ -53,6 +53,16 @@ export interface UpdateFileSystem {
   realpath(path: string): Promise<string>;
   lstat?(path: string): Promise<UpdateFileMetadata>;
   access?(path: string): Promise<void>;
+  rename?(from: string, to: string): Promise<void>;
+}
+/**
+ * How long the update keeps checking that nothing holds the package tree, and the clock it
+ * checks with. Tests inject a clock; the product waits in real time.
+ */
+export interface UpdateUnlockPatience {
+  readonly windowMs?: number;
+  readonly sleep?: (durationMs: number) => Promise<void>;
+  readonly now?: () => number;
 }
 export interface UpdateOutput { stdout(message: string): void; stderr(message: string): void }
 export type UpdateMeasuredPhase =
@@ -141,7 +151,36 @@ const defaultFileSystem: UpdateFileSystem = {
   realpath,
   lstat,
   access,
+  rename,
 };
+/**
+ * The package tree is checked for holders by renaming it and renaming it back, because on
+ * Windows that is the one operation that fails while any file under it is open. A holder is
+ * usually brief: a scanner, an indexer, a file browser, or a session still shutting down.
+ * The update therefore keeps checking for this long before it calls the package locked.
+ */
+export const PACKAGE_UNLOCK_PATIENCE_MS = 15_000;
+const PACKAGE_UNLOCK_INITIAL_DELAY_MS = 100;
+const PACKAGE_UNLOCK_MAX_DELAY_MS = 1_000;
+// Platform: Windows reports a held directory as EPERM or EBUSY; EACCES and ENOTEMPTY are the other
+// spellings a rename gives to a tree something is using. Anything else is not a lock.
+const PACKAGE_LOCK_CODES: ReadonlySet<string> = new Set(["EPERM", "EACCES", "EBUSY", "ENOTEMPTY"]);
+const defaultSleep = async (durationMs: number): Promise<void> => await new Promise(resolvePromise => setTimeout(resolvePromise, durationMs));
+
+/** Whether a rename failure means something holds the tree, as opposed to the tree being wrong. */
+export function isPackageLockError(error: unknown): boolean {
+  return error instanceof Error && "code" in error && typeof error.code === "string" && PACKAGE_LOCK_CODES.has(error.code);
+}
+
+/** What the user reads when the package stayed held for the whole patience window. */
+export function lockedPackageDiagnostic(packageRoot: string, waitedMs: number, attempts: number, error: unknown): string {
+  const seconds = Math.max(1, Math.round(waitedMs / 1_000));
+  return PRODUCT_TEXT.diagnostic(
+    `package remained locked for ${seconds}s after verified shutdown (${attempts} checks): ${errorMessage(error)}. `
+    + `Another program is holding a file under ${packageRoot}: an antivirus scan, a file browser or terminal open inside it, `
+    + `or a session still shutting down. Close it and run the update again; nothing was changed.`,
+  );
+}
 const defaultOutput: UpdateOutput = {
   stdout(message) { process.stdout.write(message); },
   stderr(message) { process.stderr.write(message); },
@@ -207,6 +246,7 @@ export function createUpdateLifecycleCoordinator(
   environment: NodeJS.ProcessEnv = process.env,
   fileSystem: UpdateFileSystem = defaultFileSystem,
   output: UpdateOutput = defaultOutput,
+  patience: UpdateUnlockPatience = {},
 ): UpdateLifecycleCoordinator {
   const paths = resolveProductPaths(environment);
   const stateStore = new CohortStateStore(paths.dataDir);
@@ -261,15 +301,40 @@ export function createUpdateLifecycleCoordinator(
     async verifyPackageUnlocked(packageRoot) {
       if (fileSystem.access) await fileSystem.access(packageRoot);
       const probe = `${packageRoot}.${PRODUCT_IDENTITY.filesystem.slug}-unlock-probe`;
-      const { rename } = await import("node:fs/promises");
-      try {
-        await rename(packageRoot, probe);
-        await rename(probe, packageRoot);
-      } catch (error) {
-        // Invariant: best-effort rollback runs if the first rename succeeded and the second did not.
-        await rename(probe, packageRoot).catch(() => {});
-        throw new Error(PRODUCT_TEXT.diagnostic(`package remains locked after verified shutdown: ${errorMessage(error)}`));
-      }
+      const renameTree = fileSystem.rename ?? rename;
+      const windowMs = patience.windowMs ?? PACKAGE_UNLOCK_PATIENCE_MS;
+      const now = patience.now ?? Date.now;
+      const sleep = patience.sleep ?? defaultSleep;
+      const startedAt = now();
+      let delay = PACKAGE_UNLOCK_INITIAL_DELAY_MS;
+      let attempts = 0;
+      // Rationale: a holder found right after ownership was released is almost always transient,
+      // so one failed rename is a reason to look again, not to abandon an update that has not
+      // yet changed anything. The wait is bounded so a genuine lock still fails clearly.
+      const withPatience = async (from: string, to: string, describeFailure: (error: unknown) => Error): Promise<void> => {
+        while (true) {
+          attempts += 1;
+          try {
+            await renameTree(from, to);
+            return;
+          } catch (error) {
+            const elapsed = now() - startedAt;
+            if (!isPackageLockError(error) || elapsed >= windowMs) throw describeFailure(error);
+            // Rationale: the last pause is cut to the window's edge so the wait ends when promised.
+            await sleep(Math.min(delay, windowMs - elapsed));
+            delay = Math.min(PACKAGE_UNLOCK_MAX_DELAY_MS, delay * 2);
+          }
+        }
+      };
+      await withPatience(packageRoot, probe, error => isPackageLockError(error)
+        ? new Error(lockedPackageDiagnostic(packageRoot, now() - startedAt, attempts, error))
+        : new Error(PRODUCT_TEXT.diagnostic(`could not verify that the package is unlocked: ${errorMessage(error)}`)));
+      // Invariant: the package tree is put back under its own name before this returns; a holder
+      // that appears while it wears the probe name is waited out the same way, and if it never
+      // lets go the diagnostic names where the tree is so the user can restore it.
+      await withPatience(probe, packageRoot, error => new Error(PRODUCT_TEXT.diagnostic(
+        `could not restore the package after checking it was unlocked: ${errorMessage(error)}. The package is at ${probe}; rename it back to ${packageRoot} before running the update again.`,
+      )));
     },
     async activateInstalled(packageRoot, targetVersion, phase, onMaterializing, onWarmup) {
       const request = { packageRoot, dataDir: paths.dataDir, targetVersion, environment };

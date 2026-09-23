@@ -104,10 +104,13 @@ export type { RestartSeal, RestartValidationEvent } from "./restart-certificatio
 export { STABLE_RELEASE_SCHEMA, createStableReleaseEvidence, verifyStableRegistry } from "./stable-release.js";
 export type { StableRegistryState, StableRegistryVerificationOptions, StableReleaseEvidence, StableReleaseEvidenceInput } from "./stable-release.js";
 export {
+  PACKAGE_UNLOCK_PATIENCE_MS,
   PRODUCT_PACKAGE,
   assertUpdatePerformanceBudget,
   createNpmProcessRunner,
   createUpdateLifecycleCoordinator,
+  isPackageLockError,
+  lockedPackageDiagnostic,
   planUpdateOwnership,
   renderUpdateProgressBar,
   runSelfUpdate,
@@ -130,6 +133,7 @@ export type {
   UpdatePhaseTimingEvent,
   UpdateProcessRunner,
   UpdateTransactionJournal,
+  UpdateUnlockPatience,
 } from "./update.js";
 export {
   UPDATE_ACTIVATION_CONTRACT,
