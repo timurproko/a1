@@ -47,5 +47,6 @@ No data migration is required. Reverting the `begin()` report and its focused te
 - Focused adapter coverage observes `workingProgress: 0` before a second invocation of the wrapped stream function.
 - `compaction-progress.integration.test.ts` constructs pinned Pi 0.87.1's real `AgentSession`, gates model authentication, verifies the stream has not started while adapter progress is zero, then verifies a 2,000-character text delta advances the first-compaction estimate to 50 and successful compaction clears it.
 - Focused engine and shell rendering validation passed: 82 tests across the adapter, pinned lifecycle integration, and shell component suites.
+- A manual smoke against the built observer produced `Compacting(0%)… before stream invocation`, exercising the reported acceptance state without opening a provider stream.
 - `npm run typecheck`, `npm run build`, and strict OpenSpec validation passed.
 - `npm run test:fast` completed 3,752 tests successfully but reported five unrelated timeout failures under parallel load. Each affected test file was rerun independently; all 54 tests passed. No change-specific acceptance gap remains.
