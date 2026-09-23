@@ -1044,11 +1044,13 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       )));
     rows.push(...diagnostics
       .filter(diagnostic => diagnostic.code === "changelog-collapsed" || diagnostic.code === "changelog-expanded")
-      // Rationale: the custom viewport shows the new entries on the What's New screen, so its feed
-      // carries only the hint for either diagnostic; the pinned layout keeps the full document.
-      .flatMap(diagnostic => diagnostic.code === "changelog-collapsed" || this.#customViewport
-        ? createPiShellCollapsedChangelog().render(width)
-        : createPiShellChangelog(diagnostic.message).render(width)));
+      // Rationale: bare A1 translates either startup diagnostic into transient dock chrome;
+      // the pinned layout retains Pi's collapsed hint or expanded document.
+      .flatMap(diagnostic => this.#customViewport
+        ? []
+        : diagnostic.code === "changelog-collapsed"
+          ? createPiShellCollapsedChangelog().render(width)
+          : createPiShellChangelog(diagnostic.message).render(width)));
     rows.push(...diagnostics
       .filter(diagnostic => diagnostic.code !== "engine-startup" && diagnostic.code !== "package-updates"
         && diagnostic.code !== "changelog-collapsed" && diagnostic.code !== "changelog-expanded")

@@ -9,6 +9,7 @@ import { TestPresentationTerminal } from "../../features/owned-ui/neutral-port-d
 import { Runtime } from "./session-shell-fixture.js";
 
 const ESC = "\u001b";
+const CHANGELOG_NOTICE = "Run /changelog to view the full release notes.";
 const NEW_ENTRIES = "## 0.85.1\n\n- **Reference screens** for the release notes";
 
 /** A route host that records every open and hands back a surface the test can close. */
@@ -159,46 +160,63 @@ describe("bare A1 reference command screens", () => {
 });
 
 describe("bare A1 startup release notes", () => {
-  it("shows the hint in the feed and opens the What's New screen once with the new entries", async () => {
-    const { shell, routes, stored, readChangelog, adapter, engine, terminal } = await shellFixture({ customViewport: true, lastVersion: "0.84.0" });
+  it("shows expanded release notes once as a transient dock notice without opening a screen", async () => {
+    const { shell, routes, stored, readChangelog, adapter, engine } = await shellFixture({ customViewport: true, lastVersion: "0.84.0" });
     expect(readChangelog).toHaveBeenCalledWith("0.84.0");
     expect(adapter.view().diagnostics).toContainEqual(expect.objectContaining({ code: "changelog-expanded", message: NEW_ENTRIES }));
     expect(stored!.version).toBe(VERSION);
     shell.start();
-    expect(routes!.opens).toEqual([{ route: "changelog", input: { document: NEW_ENTRIES } }]);
-    expect(shell.runtime.hasOverlay()).toBe(true);
-    const plain = feed(shell);
-    expect(plain).toContain("What's New");
-    expect(plain).toContain("Run /changelog to view the full release notes.");
+    expect(routes!.opens).toEqual([]);
+    expect(shell.runtime.hasOverlay()).toBe(false);
+    let plain = feed(shell);
+    expect(plain).toContain(CHANGELOG_NOTICE);
+    expect(plain).not.toContain("What's New");
     expect(plain).not.toContain("Reference screens");
+    expect(shell.root.exitTranscript(100)).toBe("");
+    expect(shell.root.viewportFrameDescriptor()?.nextDocumentRange.end).toBe(0);
 
-    // Invariant: later views carrying the same diagnostic do not reopen the screen.
-    terminal.input(ESC);
-    expect(routes!.surfaces[0]!.isClosed()).toBe(true);
-    expect(shell.runtime.hasOverlay()).toBe(false);
+    const streamed = { role: "assistant", timestamp: 10, content: [{ type: "text", text: "streamed after startup" }] };
     engine.session.emit({ type: "agent_start" });
-    engine.session.emit({ type: "agent_end" });
+    engine.session.emit({ type: "message_start", message: streamed });
     await adapter.flushEvents();
-    expect(routes!.opens).toHaveLength(1);
-    expect(shell.runtime.hasOverlay()).toBe(false);
-    expect(feed(shell)).toContain("Run /changelog to view the full release notes.");
+    plain = feed(shell);
+    expect(plain.indexOf(CHANGELOG_NOTICE)).toBeGreaterThan(plain.indexOf("streamed after startup"));
+    expect(shell.root.exitTranscript(100)).not.toContain(CHANGELOG_NOTICE);
+
+    // Invariant: a retained diagnostic cannot recreate the changelog notice after a newer status replaces it.
+    shell.root.appendWorkflowStatus("Newer informational notice");
+    engine.session.emit({ type: "agent_end", messages: [streamed] });
+    await adapter.flushEvents();
+    plain = feed(shell);
+    expect(plain).toContain("Newer informational notice");
+    expect(plain).not.toContain(CHANGELOG_NOTICE);
+    expect(routes!.opens).toEqual([]);
+
+    engine.session.emit({ type: "message_start", message: { role: "user", timestamp: 11, content: [{ type: "text", text: "next prompt" }] } });
+    await adapter.flushEvents();
+    plain = feed(shell);
+    expect(plain).toContain("next prompt");
+    expect(plain).not.toContain("Newer informational notice");
+    expect(plain).not.toContain(CHANGELOG_NOTICE);
     expect(stored!.version).toBe(VERSION);
     await shell.dispose();
   });
 
-  it("shows only the hint when the changelog is collapsed", async () => {
+  it("shows the same one-line transient notice when the changelog is collapsed", async () => {
     const { shell, routes, adapter } = await shellFixture({ customViewport: true, lastVersion: "0.84.0", collapsed: true });
     expect(adapter.view().diagnostics).toContainEqual(expect.objectContaining({ code: "changelog-collapsed" }));
     shell.start();
     expect(routes!.opens).toEqual([]);
     expect(shell.runtime.hasOverlay()).toBe(false);
     const plain = feed(shell);
-    expect(plain).toContain("Run /changelog to view the full release notes.");
+    expect(plain).toContain(CHANGELOG_NOTICE);
+    expect(plain).not.toContain("What's New");
     expect(plain).not.toContain("Reference screens");
+    expect(shell.root.exitTranscript(100)).toBe("");
     await shell.dispose();
   });
 
-  it("does not open the screen, now or later, when a modal is presented as the diagnostic arrives", async () => {
+  it("keeps the transient notice behind an existing modal and leaves the full changelog on demand", async () => {
     const { shell, routes, adapter, engine, terminal } = await shellFixture({ customViewport: true });
     shell.start();
     shell.showSelector("Choose", [{ id: "one", label: "One" }], () => {});
@@ -212,15 +230,15 @@ describe("bare A1 startup release notes", () => {
     engine.session.emit({ type: "agent_end" });
     await adapter.flushEvents();
     expect(routes!.opens).toEqual([]);
-    expect(feed(shell)).toContain("Run /changelog to view the full release notes.");
+    expect(feed(shell)).toContain(CHANGELOG_NOTICE);
 
-    // Invariant: the launch has passed; a later view without a modal still opens nothing.
     terminal.input(ESC);
     expect(shell.runtime.hasOverlay()).toBe(false);
     engine.session.emit({ type: "agent_start" });
     engine.session.emit({ type: "agent_end" });
     await adapter.flushEvents();
     expect(routes!.opens).toEqual([]);
+    expect(feed(shell)).toContain(CHANGELOG_NOTICE);
     // Rationale: the complete changelog remains one command away.
     await shell.submit("/changelog");
     expect(routes!.opens).toEqual([{ route: "changelog", input: undefined }]);
