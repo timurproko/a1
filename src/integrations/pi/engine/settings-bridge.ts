@@ -92,7 +92,7 @@ export const PI_SETTING_EFFECTS: Readonly<Record<PiSettingKey, PiSettingEffectDe
   tuiMode: hiddenEffect("next-session", "shell", "pinned regular/fullscreen selector and terminal lifecycle", "pi-terminal-operation-parity"),
   fullscreenExitOutput: hiddenEffect("current-exit", "shutdown", "pinned styled transcript and compact dim resume hint", "pinned-fullscreen-exit-parity"),
   fullscreenScrollbar: hiddenEffect("live", "shell", "pinned fullscreen scrollbar reservation", "pi-terminal-operation-parity"),
-  fullscreenCopyOnSelect: hiddenEffect("live", "shell", "pinned fullscreen copy-on-select toggle", "pi-terminal-operation-parity"),
+  fullscreenCopyOnSelect: effect("live", "shell", "terminal-status", "pinned fullscreen copy-on-select toggle and copy acknowledgement", "pi-terminal-operation-parity"),
   warnings: effect("live", "agent", "transcript-notice", "pinned warning rows by warning part", "pinned-transcript-lifecycle-parity"),
 });
 

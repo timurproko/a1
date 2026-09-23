@@ -55,6 +55,25 @@ describe("Pi settings integration", () => {
     expect(await port.readSetting("outputPad")).toBe(1);
   });
 
+  it("applies Pi's fullscreen copy preference through the live bare shell owner", async () => {
+    const settings = SettingsManager.inMemory({ fullscreenCopyOnSelect: true });
+    const port = new PiSettingsBridge(settings);
+    let effective = true;
+    port.bindOwner("shell", { fullscreenCopyOnSelect: { apply: value => {
+      if (typeof value !== "boolean") throw new TypeError("invalid copy preference");
+      effective = value;
+    } } });
+
+    expect((await port.listSettings()).find(value => value.key === "fullscreenCopyOnSelect")).toMatchObject({
+      label: "Fullscreen copy on select", storedValue: true, effectiveValue: true,
+    });
+    await expect(port.writeSetting("fullscreenCopyOnSelect", false)).resolves.toMatchObject({
+      status: "applied", storedValue: false, effectiveValue: false,
+    });
+    expect(effective).toBe(false);
+    expect(settings.getFullscreenCopyOnSelect()).toBe(false);
+  });
+
   it("omits every unavailable bare-A1 option while retaining supported fallbacks", async () => {
     const port = new PiSettingsBridge(SettingsManager.inMemory({ compaction: { enabled: true } }));
     bindEffects(port, (key, owner) => owner !== "installation" && PI_SETTING_EFFECTS[key].hiddenInBare !== true);
@@ -67,6 +86,14 @@ describe("Pi settings integration", () => {
       expect(visible.has(key), `${key} has incorrect bare-A1 visibility`).toBe(expected);
     }
     expect(visible.has("showImages")).toBe(true);
+    expect(visible.has("fullscreenCopyOnSelect")).toBe(true);
+    expect(descriptors.find(value => value.key === "fullscreenCopyOnSelect")).toMatchObject({
+      label: "Fullscreen copy on select",
+      description: "Automatically copy selected text in fullscreen mode; disable to copy selections with Ctrl+X",
+      owner: "shell",
+      application: "live",
+      valueType: "boolean",
+    });
     expect(visible.has("enableInstallTelemetry")).toBe(false);
     expect(descriptors.every(value => value.writable && value.available && value.limitationReason === null)).toBe(true);
     await expect(port.writeSetting("theme", "light")).resolves.toMatchObject({ status: "unavailable" });

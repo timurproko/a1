@@ -67,3 +67,12 @@ Controller tests will cover enabled/disabled release and setting changes while r
 ## Migration Plan
 
 No data migration is required because the setting already exists in Pi storage and defaults to true. Implement focused failing tests, wire the controller and settings effect, add the owned acknowledgement state, then validate exact terminal cells and comparison isolation. Rollback restores unconditional release copying and the prior flash call without changing stored settings; a previously stored `fullscreenCopyOnSelect` value remains valid for Pi.
+
+## Implementation Evidence
+
+- Controller coverage verifies enabled and disabled release behavior, retained selection, live toggling, and setting-independent explicit `Ctrl+C`.
+- Shell and terminal-paint coverage verifies exact payload counts, whitespace delivery without acknowledgement, one-row replacement, right alignment, accent-only styling, narrow clipping, expiry, stale-success fencing, failure suppression, and measured dock interaction.
+- Settings coverage verifies Pi's generated label and description, bare visibility, live owner application, persistence, Agent-section projection, and existing comparison-route isolation.
+- Focused selection, paste/clipboard, response-copy, workflow, settings bridge/section, component parity, and controller suites pass. `npm run test:pr-core`, `npm run typecheck`, `npm run build`, architecture checks, changed-documentation checks, and strict OpenSpec validation also pass.
+
+There are no known implementation or automated-evidence gaps. Physical color and interaction inspection remains the intended manual acceptance step rather than an automated claim. From this worktree, build and run `./scripts/dev`; verify rapid selections replace one lower-right acknowledgement, whitespace selection stays quiet, disabling **Fullscreen copy on select** retains selection for explicit `Ctrl+C`, and re-enabling it restores release copying. Then run `./scripts/dev pi` and verify pinned Pi's comparison behavior is unchanged.

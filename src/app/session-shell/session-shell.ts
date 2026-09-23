@@ -18,6 +18,7 @@ import type {
 } from "../../contracts/owned-ui/index.js";
 import type { UiRouteHost, UiRouteInput } from "../../ui/apps/contracts.js";
 import type { QuitOutroEffect } from "./quit-outro-effects.js";
+import type { SelectionCopySnapshot } from "../../ui/components/selection-copy.js";
 import { ContextualPromptSuggestionController } from "./prompt-suggestion-controller.js";
 import { MOUSE_TRACKING_OFF, MOUSE_TRACKING_ON, parseMouseInput } from "../../ui/components/mouse.js";
 import { readVisibleHyperlinks } from "../../ui/components/visible-hyperlinks.js";
@@ -183,6 +184,7 @@ export class OwnedUiSessionShell {
   readonly #responseCopy: ResponseCopyCoordinator | null;
   // Rationale: only an executor this shell created owns a spare copy helper worth warming and disposing.
   #copyExecutor: OwnedResponseCopyExecutor | undefined;
+  #copyIntentSequence = 0;
   readonly #unbindClipboardWriter: () => void;
   readonly #damageTerminal: DamageAwareTerminalAdapter | null;
   readonly #quitOutro: OwnedUiShellPresentationOptions["quitOutro"];
@@ -468,10 +470,14 @@ export class OwnedUiSessionShell {
             this.root.usesDefaultInputSurface() && !this.runtime.hasFocusedOverlay());
           if (routed.copySelection !== undefined) {
             const snapshot = routed.copySelection;
+            const acknowledgement = copyAcknowledgement(snapshot);
+            const intent = ++this.#copyIntentSequence;
             void this.#responseCopy?.submit(snapshot, pendingClipboardWrite).then(result => {
-              if (this.#disposed || !runtime.active
+              if (this.#disposed || !runtime.active || intent !== this.#copyIntentSequence
                 || result.outcome !== "delivered" && result.outcome !== "submitted-unverified") return;
-              runtime.showFlash(`Copied ${snapshot.sourceUnits} character${snapshot.sourceUnits === 1 ? "" : "s"} to clipboard`);
+              if (acknowledgement.hasNonWhitespace) {
+                this.root.showCopyAcknowledgement(`copied ${acknowledgement.characters} chars to clipboard`);
+              }
             });
           }
           if (!routed.consumed) return routed.data === data ? undefined : { data: routed.data };
@@ -493,6 +499,7 @@ export class OwnedUiSessionShell {
     this.root.setEditorPaddingX(initialPiSettings.editorPaddingX);
     this.root.setAutocompleteMaxVisible(initialPiSettings.autocompleteMaxVisible);
     this.root.setOutputPad(initialPiSettings.outputPad);
+    this.root.setFullscreenCopyOnSelect(initialPiSettings.fullscreenCopyOnSelect);
     this.root.setHideThinkingBlock(initialPiSettings.hideThinkingBlock);
     this.root.setMermaidRenderingMode(initialPiSettings.mermaidRenderingMode);
     this.#showImages = initialPiSettings.showImages;
@@ -529,6 +536,10 @@ export class OwnedUiSessionShell {
         this.#imageWidthCells = value;
         this.root.setImagePresentation(this.#showImages, this.#imageWidthCells);
       } },
+      ...(this.#customViewport ? { fullscreenCopyOnSelect: { apply: (value: unknown) => {
+        if (typeof value !== "boolean") throw new TypeError("Fullscreen copy-on-select setting is invalid");
+        this.root.setFullscreenCopyOnSelect(value);
+      } } } : {}),
     });
     if (this.#customViewport && promptHistory !== undefined) {
       this.#promptHistoryImageSidecar = promptHistory.imageSidecar;
@@ -1643,6 +1654,7 @@ export class OwnedUiSessionShell {
 
   async #dispose(): Promise<void> {
     this.#disposed = true;
+    this.#copyIntentSequence += 1;
     // Invariant: the outro frame is what the terminal shows now, before any cleanup writes.
     const outroFrame = this.#captureQuitOutroFrame();
     this.#responseCopy?.dispose();
@@ -1775,6 +1787,7 @@ export class OwnedUiSessionShell {
     this.#streamPresentation.noteImmediatePresentation();
     const view = this.view();
     if (this.backend.sessionGeneration !== this.#sessionGeneration) {
+      this.#copyIntentSequence += 1;
       this.#responseCopy?.reset();
       this.#cancelWaitingImages();
       this.root.resetPendingPastes();
@@ -2175,6 +2188,17 @@ export class OwnedUiSessionShell {
 
 function isCoalescedStreamBlock(kind: OwnedUiSessionViewModel["transcript"][number]["kind"]): boolean {
   return kind === "assistant" || kind === "thinking" || kind === "tool-call" || kind === "tool-result";
+}
+
+function copyAcknowledgement(snapshot: SelectionCopySnapshot): { readonly characters: number; readonly hasNonWhitespace: boolean } {
+  if (snapshot.literal !== true) return { characters: snapshot.sourceUnits, hasNonWhitespace: true };
+  let characters = Math.max(0, snapshot.rows.length - 1);
+  let hasNonWhitespace = false;
+  for (const row of snapshot.rows) {
+    characters += row.text.length;
+    hasNonWhitespace ||= /\S/u.test(row.text);
+  }
+  return { characters, hasNonWhitespace };
 }
 
 export interface SessionResumeCommandMetadata {
