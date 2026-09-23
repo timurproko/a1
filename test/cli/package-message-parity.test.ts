@@ -78,7 +78,10 @@ describe("independent pinned package command transcripts", () => {
     const cases: Case[] = [
       ...[
         ["list"], ["update", "--extensions"], ["remove", "npm:absent"], ["uninstall", "npm:absent"], ["update", "npm:absent"],
-      ].map((args, i) => ({ id: `operation-${i}`, pinnedArgs: args, ownedArgs: ["pi", ...args] })),
+      ].flatMap((args, i) => [
+        { id: `operation-direct-${i}`, pinnedArgs: args, ownedArgs: args },
+        { id: `operation-pi-${i}`, pinnedArgs: args, ownedArgs: ["pi", ...args] },
+      ]),
       {
         id: "equivalent-versioned-source",
         pinnedArgs: ["update", "npm:@fixture/example"],
@@ -111,10 +114,10 @@ describe("independent pinned package command transcripts", () => {
       writeFile(join(ownedHome, "extension/index.js"), "export default {};\n"),
     ]);
     const cases: Case[] = [
-      { id: "install", pinnedArgs: ["install", "./extension", "--no-approve"], ownedArgs: ["pi", "install", "./extension"] },
-      { id: "list", pinnedArgs: ["list", "--no-approve"], ownedArgs: ["pi", "list"] },
-      { id: "update-equivalent", pinnedArgs: ["update", "./extension", "--no-approve"], ownedArgs: ["pi", "update", "./extension"] },
-      { id: "remove", pinnedArgs: ["remove", "./extension", "--no-approve"], ownedArgs: ["pi", "remove", "./extension"] },
+      { id: "install", pinnedArgs: ["install", "./extension", "--no-approve"], ownedArgs: ["install", "./extension"] },
+      { id: "list", pinnedArgs: ["list", "--no-approve"], ownedArgs: ["list"] },
+      { id: "update-equivalent", pinnedArgs: ["update", "./extension", "--no-approve"], ownedArgs: ["update", "./extension"] },
+      { id: "remove", pinnedArgs: ["remove", "./extension", "--no-approve"], ownedArgs: ["remove", "./extension"] },
     ];
     const pinned = normalizeHome(await capture("pinned", pinnedHome, cases, color), pinnedHome);
     const owned = normalizeHome(await capture("owned", ownedHome, cases, color), ownedHome);
@@ -151,16 +154,16 @@ describe("independent pinned package command transcripts", () => {
       ["install", "--unknown"], ["remove", "--unknown"], ["list", "--unknown"], ["update", "--unknown"],
       ["install", "npm:one", "npm:two"], ["remove", "npm:one", "npm:two"], ["update", "npm:one", "npm:two"],
     ];
-    const cases: Case[] = forms.map((args, i) => ({ id: `syntax-${i}`, pinnedArgs: args, ownedArgs: ["pi", ...args] }));
+    const cases: (Case & { readonly namespace: "direct" | "pi" })[] = forms.flatMap((args, i) => [
+      { id: `syntax-direct-${i}`, pinnedArgs: args, ownedArgs: args, namespace: "direct" as const },
+      { id: `syntax-pi-${i}`, pinnedArgs: args, ownedArgs: ["pi", ...args], namespace: "pi" as const },
+    ]);
     const expected = await capture("pinned", root, cases, color);
     const actual = await capture("owned", root, cases, color);
-    const piUpdateUsage = "pi update [source|self|pi] [--self|--extensions|--models|--all] [--extension <source>] [--approve|--no-approve] [--force]";
     for (const [index, upstream] of expected.entries()) {
-      const projected = upstream.stderr
-        .replaceAll(piUpdateUsage, "a1 pi update [source|--extensions|--models]")
-        .replaceAll(/pi (install|remove) <source> \[-l\] \[--approve\|--no-approve\]/g, "a1 pi $1 <source>")
-        .replaceAll("pi list [--approve|--no-approve]", "a1 pi list")
-        .replaceAll('"pi --help"', '"a1 --help"');
+      const fixture = cases[index];
+      if (fixture === undefined) throw new Error(`Missing syntax fixture ${index}`);
+      const projected = projectSyntax(upstream.stderr, fixture.namespace);
       expect(actual[index]).toEqual({ ...upstream, stderr: projected, code: 2 });
       expect(upstream.code).toBe(1);
     }
@@ -184,6 +187,21 @@ describe("independent pinned package command transcripts", () => {
     expect(owned?.code).toBe(pinned?.code);
   }, 120_000);
 });
+
+function projectSyntax(upstream: string, namespace: "direct" | "pi"): string {
+  const command = namespace === "direct" ? "a1" : "a1 pi";
+  const updateUsage = namespace === "direct"
+    ? "a1 update [--develop [preview-or-version]|--models|--extensions|source]"
+    : "a1 pi update [source|--extensions|--models]";
+  return upstream
+    .replaceAll(
+      "pi update [source|self|pi] [--self|--extensions|--models|--all] [--extension <source>] [--approve|--no-approve] [--force]",
+      updateUsage,
+    )
+    .replaceAll(/pi (install|remove) <source> \[-l\] \[--approve\|--no-approve\]/g, `${command} $1 <source>`)
+    .replaceAll("pi list [--approve|--no-approve]", `${command} list`)
+    .replaceAll('"pi --help"', '"a1 help"');
+}
 
 function projectHelp(upstream: string, verb: "install" | "remove" | "list" | "update"): string {
   const command = `a1 pi ${verb}`;
