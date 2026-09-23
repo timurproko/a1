@@ -5,7 +5,13 @@ import type {
   PiShellEditorTextRange,
 } from "../../integrations/pi/components/shell-shared-facade.js";
 import { canonicalizeClipboardImage } from "./clipboard-image.js";
-import { assertImageEncodedSize, assertPromptImages, ImageAttachmentError } from "../../contracts/owned-ui/index.js";
+import {
+  assertImageEncodedSize,
+  assertPromptImages,
+  canonicalPromptChipMatches,
+  ImageAttachmentError,
+  replaceCanonicalPromptChips,
+} from "../../contracts/owned-ui/index.js";
 import { ImagePreparationClient, type ImagePasteJob } from "./image-preparation-client.js";
 import type { PreparedImage } from "./image-preparation.js";
 import { preparePasteText, type PreparedPasteText } from "./paste-text-preparation.js";
@@ -41,7 +47,6 @@ interface PendingPaste {
   onComplete?: () => void;
 }
 
-const CHIP_PATTERN = /\[(?:paste #\d+ (?:\+\d+ lines|\d+ chars)|📷 [^\]]+|📁 [^\]]+|📄 [^\]]+|🖼 {1,2}[^\]]+|🔗 [^\]]+)\]/gu;
 const URL_SUBSTRING_PATTERN = /https?:\/\/[^\s\u0000-\u001f\u007f\]]+/giu;
 const IMAGE_CHIP_IDENTIFIER_PATTERN = /^\[📷 screenshot-([a-f0-9]+)(?:-resized)?\]$/u;
 const URL_DISPLAY_LENGTH = 40;
@@ -284,10 +289,9 @@ export class PromptChipStore {
   }
 
   atomicRanges(line: string): readonly PiShellEditorTextRange[] {
-    return [...line.matchAll(CHIP_PATTERN)].filter(match => !match[0].startsWith("[paste #") || this.#chips.has(match[0])).map(match => ({
-      start: match.index,
-      end: match.index + match[0].length,
-    }));
+    return canonicalPromptChipMatches(line)
+      .filter(match => !match.text.startsWith("[paste #") || this.#chips.has(match.text))
+      .map(match => ({ start: match.start, end: match.end }));
   }
 
   hyperlinkRanges(text: string): readonly { start: number; end: number; target: string }[] {
@@ -332,8 +336,8 @@ export class PromptChipStore {
   imageChipAttachments(text: string): { readonly id: string; readonly tag: string; readonly image: PromptImageAttachment }[] {
     const results: { readonly id: string; readonly tag: string; readonly image: PromptImageAttachment }[] = [];
     const seen = new Set<string>();
-    for (const match of text.matchAll(CHIP_PATTERN)) {
-      const tag = match[0];
+    for (const match of canonicalPromptChipMatches(text)) {
+      const tag = match.text;
       if (seen.has(tag)) continue;
       const chip = this.#chips.get(tag);
       if (chip === undefined || chip.kind !== "image") continue;
@@ -361,32 +365,27 @@ export class PromptChipStore {
     // Rationale: resolve image chip tags in-place before further classification. Sidecar hits
     // register a live image chip; misses silently strip the tag (no placeholder, no notice) per
     // the durability contract.
-    CHIP_PATTERN.lastIndex = 0;
-    const resolvedImages = text.replace(CHIP_PATTERN, tag => {
-      const identifier = imageChipIdentifier(tag);
-      if (identifier === null) return tag;
+    const resolvedImages = replaceCanonicalPromptChips(text, match => {
+      const identifier = imageChipIdentifier(match.text);
+      if (identifier === null) return match.text;
       const attachment = resolveImage(identifier);
       if (attachment === null) return "";
-      this.#chips.set(tag, { kind: "image", tag, image: attachment });
-      return tag;
+      this.#chips.set(match.text, { kind: "image", tag: match.text, image: attachment });
+      return match.text;
     });
     // Rationale: split around any surviving image tags so paste-time classification runs on the
     // intervening prose exactly as it would on a fresh clipboard payload, plus a substring URL
     // scan so embedded links become atomic chips even in the middle of surrounding text.
-    CHIP_PATTERN.lastIndex = 0;
     const segments: string[] = [];
     let cursor = 0;
-    for (const match of resolvedImages.matchAll(CHIP_PATTERN)) {
-      const index = match.index ?? cursor;
-      if (index > cursor) segments.push(resolvedImages.slice(cursor, index));
-      segments.push(match[0]);
-      cursor = index + match[0].length;
+    for (const match of canonicalPromptChipMatches(resolvedImages)) {
+      if (match.start > cursor) segments.push(resolvedImages.slice(cursor, match.start));
+      segments.push(match.text);
+      cursor = match.end;
     }
     if (cursor < resolvedImages.length) segments.push(resolvedImages.slice(cursor));
-    CHIP_PATTERN.lastIndex = 0;
     return segments.map(segment => {
-      if (segment.length === 0 || CHIP_PATTERN.test(segment)) { CHIP_PATTERN.lastIndex = 0; return segment; }
-      CHIP_PATTERN.lastIndex = 0;
+      if (segment.length === 0 || canonicalPromptChipMatches(segment).length > 0) return segment;
       // Invariant: preserve original whitespace framing so the concatenated recall value
       // remains stable across rehydration.
       const leading = segment.match(/^\s+/)?.[0] ?? "";
@@ -445,12 +444,13 @@ export class PromptChipStore {
       return chip.kind === "url" ? chip.url : chip.path;
     };
     // Invariant: scan only draft tokens (and resolved reservation tokens), never emitted payloads.
-    const expanded = text.replace(CHIP_PATTERN, tag => {
+    const expanded = replaceCanonicalPromptChips(text, match => {
+      const tag = match.text;
       const entry = this.#pending.get(tag) ?? this.#pending.get(tag.replace("failed-", "screenshot-"));
       if (entry === undefined) return resolveChip(tag);
       if (includeImages && entry.error !== undefined) throw entry.error;
       if (includeImages && entry.replacement === undefined) throw new ImageAttachmentError("image-pending");
-      return entry.replacement === undefined ? tag : entry.replacement.replace(CHIP_PATTERN, resolveChip);
+      return entry.replacement === undefined ? tag : replaceCanonicalPromptChips(entry.replacement, replacement => resolveChip(replacement.text));
     });
     return { text: expanded, images };
   }
