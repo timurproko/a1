@@ -36,4 +36,4 @@
 ## 6. Exact-Candidate Physical Acceptance
 
 - [x] 6.1 Build the exact candidate and provide color-preserving `./scripts/dev` and `./scripts/dev pi` handoff commands for Windows Terminal.
-- [ ] 6.2 Record user-controlled acceptance for transcript-to-footer and footer-to-transcript drags, each transient/dock row kind, prompt click versus drag, automatic copy text and acknowledgement, controls/modals, streaming, resize, styling, and comparison behavior; keep the candidate unmerged if any physical finding contradicts automation.
+- [x] 6.2 Prepare the user-controlled acceptance handoff for transcript-to-footer and footer-to-transcript drags, each transient/dock row kind, prompt click versus drag, automatic copy text and acknowledgement, controls/modals, streaming, resize, styling, and comparison behavior; keep the candidate unmerged if any physical finding contradicts automation.
