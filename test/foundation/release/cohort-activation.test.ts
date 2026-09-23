@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { selectCohortLaunch } from "../../../src/foundation/release/index.js";
+import { selectCohortLaunch, selectOrdinaryLaunchReleaseId } from "../../../src/foundation/release/index.js";
 import { cleanupProvenIdleOwner } from "../../../src/foundation/release/index.js";
 import { emptyState, type CohortState, type SupervisorEndpointMetadata } from "../../../src/foundation/release/index.js";
 import type { MaterializedRelease } from "../../../src/foundation/release/index.js";
@@ -7,6 +7,22 @@ import { PRODUCT_IDENTITY } from "../../../src/product-identity.js";
 import { CONTROL_ENVELOPE } from "../../../src/foundation/protocol/index.js";
 
 describe("cohort activation and stale ownership", () => {
+  it("selects the newest semantic release for ordinary launch without granting rollback authority", () => {
+    const active = release("1.1.0", "a");
+    const older = release("1.0.0", "b");
+    const newer = release("1.2.0", "c");
+    const equal = release("1.1.0", "d");
+    const state = stateWith(active, newer);
+    const activeRecord = state.releases[active.releaseId];
+
+    expect(selectOrdinaryLaunchReleaseId(older, activeRecord)).toBe(active.releaseId);
+    expect(selectOrdinaryLaunchReleaseId(equal, activeRecord)).toBe(active.releaseId);
+    expect(selectOrdinaryLaunchReleaseId(newer, activeRecord)).toBe(newer.releaseId);
+    expect(selectOrdinaryLaunchReleaseId(newer, activeRecord ? { ...activeRecord, approval: "candidate" } : undefined)).toBe(newer.releaseId);
+    expect(selectOrdinaryLaunchReleaseId(newer)).toBe(newer.releaseId);
+    expect(() => selectOrdinaryLaunchReleaseId({ ...newer, packageVersion: "not-semver" }, activeRecord)).toThrow(/semantic versions/);
+  });
+
   it("replaces an idle cohort but retains a verified busy foreground generation", () => {
     const old = release("1.0.0", "a");
     const candidate = release("1.1.0", "b");

@@ -5,6 +5,7 @@ import { connect } from "node:net";
 import { platform } from "node:os";
 import { resolve } from "node:path";
 import { selectCohortLaunch } from "./cohort-selection.js";
+import { selectOrdinaryLaunchReleaseId } from "./ordinary-launch-selection.js";
 import { CohortStateStore, type CohortState, type SupervisorEndpointMetadata } from "./cohort-state.js";
 import { assertLaunchProfileId, createSupervisorStartupAttempt, readSupervisorStartupResult, resolveCohortEndpoint, resolveProductPaths, sessionSelectionArguments, type SessionSelection, type LaunchProfileId, type SupervisorStartupAttemptIdentity } from "../lifecycle/index.js";
 import { encodeFrame, LineFrameDecoder } from "../protocol/index.js";
@@ -38,7 +39,13 @@ export interface BootstrapOptions {
   readonly scheduleMaintenance?: (dataDir: string, paths: ReturnType<typeof resolveProductPaths>) => Promise<void>;
 }
 
+const RELEASE_RESELECTION_MESSAGE = "a1-release-reselection";
+
 export async function runBootstrap(options: BootstrapOptions): Promise<number> {
+  return await runBootstrapAttempt(options, 1);
+}
+
+async function runBootstrapAttempt(options: BootstrapOptions, retriesRemaining: number): Promise<number> {
   const environment = withLaunchContext(options.environment ?? process.env, { launchProfile: options.launchIntent?.profileId ?? "a1" });
   await markStartupPhase(environment, "bootstrap-start");
   const launchProfileId = options.launchIntent?.profileId ?? "a1";
@@ -49,6 +56,13 @@ export async function runBootstrap(options: BootstrapOptions): Promise<number> {
   const paths = resolveProductPaths(environment);
   await mkdir(paths.runtimeDir, { recursive: true, mode: 0o700 });
 
+  const launchSelected = async (release: MaterializedRelease): Promise<number> => {
+    const result = await launchUi(release, environment, sessionArgs);
+    if (!result.releaseSuperseded) return result.code;
+    if (retriesRemaining > 0) return await runBootstrapAttempt(options, retriesRemaining - 1);
+    output.write(`${PRODUCT_TEXT.diagnostic("active release changed repeatedly during startup; launch could not converge")}\n`);
+    return 1;
+  };
   const stateStore = new CohortStateStore(paths.dataDir);
   let state = await stateStore.read();
   const launchDuringUpdate = async (): Promise<number | null> => {
@@ -59,7 +73,7 @@ export async function runBootstrap(options: BootstrapOptions): Promise<number> {
     if (!prior) return null;
     const retained = await readCertifiedReleaseManifest(prior, resolve(paths.dataDir, "releases"));
     await ensureSupervisor(retained, environment);
-    return await launchUi(retained, environment, sessionArgs);
+    return await launchSelected(retained);
   };
   const duringUpdate = await launchDuringUpdate();
   if (duringUpdate !== null) return duringUpdate;
@@ -99,7 +113,7 @@ export async function runBootstrap(options: BootstrapOptions): Promise<number> {
       && endpoint.contentDigest === active.contentDigest;
     if (endpointMatches && probe === "live-verified") {
       const retained = await readCertifiedReleaseManifest(active, resolve(paths.dataDir, "releases"));
-      return await launchUi(retained, environment, sessionArgs);
+      return await launchSelected(retained);
     }
     if (endpoint === null || probe === "dead") {
       if (endpoint) await removeEndpointArtifacts(endpointPaths.endpointMetadataPath, endpointPaths.endpoint);
@@ -116,7 +130,7 @@ export async function runBootstrap(options: BootstrapOptions): Promise<number> {
       await markStartupPhase(environment, "replacement-supervisor-start");
       await ensureSupervisor(retained, environment);
       await markStartupPhase(environment, "replacement-supervisor-ready");
-      return await launchUi(retained, environment, sessionArgs);
+      return await launchSelected(retained);
     }
   }
 
@@ -128,30 +142,38 @@ export async function runBootstrap(options: BootstrapOptions): Promise<number> {
   try {
     candidate = await materializeRelease(options.packageRoot, paths.dataDir);
   } catch (error) {
-    const fallback = await launchRetainedActive(state, paths, environment, sessionArgs, output);
+    const fallback = await launchRetainedActive(state, paths, environment, launchSelected);
     if (fallback === null) throw error;
     return fallback;
   }
   // Concurrency: an update may have begun while this launch was reading the installed payload.
   const afterMaterialization = await launchDuringUpdate();
   if (afterMaterialization !== null) return afterMaterialization;
+  state = await stateStore.read();
+  const ordinarySelection = !activeIsLaunchable
+    ? candidate.releaseId
+    : selectOrdinaryLaunchReleaseId(candidate, state.references.active === null ? undefined : state.releases[state.references.active]);
+  if (ordinarySelection !== candidate.releaseId) {
+    const retainedRecord = state.releases[ordinarySelection];
+    if (!retainedRecord || retainedRecord.approval !== "approved") throw new Error("selected active release is not approved");
+    const retained = await readCertifiedReleaseManifest(retainedRecord, resolve(paths.dataDir, "releases"));
+    await ensureSupervisor(retained, environment);
+    return await launchSelected(retained);
+  }
+
   await stateStore.recordCandidate(candidate);
   state = await stateStore.read();
-  if (!state.references.active) {
+  if (state.releases[candidate.releaseId]?.approval !== "approved") {
     const diagnosticsPath = await certifyMaterializedRelease(candidate, paths.dataDir);
     await stateStore.approve(candidate.releaseId, diagnosticsPath);
-    await stateStore.activate(candidate.releaseId);
-    state = await stateStore.read();
-  } else if (!activeIsLaunchable && candidate.releaseId !== activeId
-    && state.releases[candidate.releaseId]?.approval !== "approved") {
-    // Invariant: the active reference points at a copy that cannot launch, so reusing it
-    // is off the table — but an unapproved candidate would lose the selection
-    // below to that same broken active (`start-active`). Approving the healed
-    // candidate here lets ordinary cohort selection activate it, while a live
-    // busy cohort still wins the endpoint checks and keeps its sessions.
-    const diagnosticsPath = await certifyMaterializedRelease(candidate, paths.dataDir);
-    await stateStore.approve(candidate.releaseId, diagnosticsPath);
-    state = await stateStore.read();
+  }
+  state = await stateStore.activateForLaunch(candidate.releaseId, !activeIsLaunchable ? activeId ?? undefined : undefined);
+  if (state.references.active !== candidate.releaseId) {
+    const retainedRecord = state.references.active === null ? undefined : state.releases[state.references.active];
+    if (!retainedRecord || retainedRecord.approval !== "approved") throw new Error("ordinary launch has no approved active release");
+    const retained = await readCertifiedReleaseManifest(retainedRecord, resolve(paths.dataDir, "releases"));
+    await ensureSupervisor(retained, environment);
+    return await launchSelected(retained);
   }
 
   // Protocol: the candidate's own endpoint decides whether this launch attaches or starts a supervisor.
@@ -160,7 +182,7 @@ export async function runBootstrap(options: BootstrapOptions): Promise<number> {
   endpoint = await readEndpointMetadata(endpointPaths.endpointMetadataPath);
   if (endpoint === null) {
     const legacy = await readEndpointMetadata(paths.endpointMetadataPath);
-    if (legacy !== null) {
+    if (legacy?.releaseId === candidate.releaseId) {
       endpoint = legacy;
       endpointPaths = { endpoint: paths.endpoint, endpointMetadataPath: paths.endpointMetadataPath };
     }
@@ -185,11 +207,14 @@ export async function runBootstrap(options: BootstrapOptions): Promise<number> {
   }
 
   if (decision.action === "launch-retained-ui") {
-    const retained = await verifyMaterializedRelease(decision.releaseRoot, undefined, resolve(paths.dataDir, "releases"));
+    const retainedRecord = state.releases[decision.releaseId];
+    const retained = retainedRecord?.approval === "approved"
+      ? await readCertifiedReleaseManifest(retainedRecord, resolve(paths.dataDir, "releases"))
+      : await verifyMaterializedRelease(decision.releaseRoot, undefined, resolve(paths.dataDir, "releases"));
     if (decision.recordPending && endpoint) {
       await stateStore.blockPending("candidate activation deferred by live non-resumable instances", endpoint.ownership.nonResumableInstanceIds);
     }
-    const code = await launchUi(retained, environment, sessionArgs);
+    const code = await launchSelected(retained);
     if (decision.recordPending) await activatePendingAfterBlockerExit(candidate, stateStore, paths, environment);
     return code;
   }
@@ -220,14 +245,21 @@ export async function runBootstrap(options: BootstrapOptions): Promise<number> {
       const diagnosticsPath = await certifyMaterializedRelease(candidate, paths.dataDir);
       await stateStore.approve(candidate.releaseId, diagnosticsPath);
     }
-    if ((await stateStore.read()).references.active !== candidate.releaseId) await stateStore.activate(candidate.releaseId);
-    selected = candidate;
+    const activated = (await stateStore.read()).references.active === candidate.releaseId
+      ? await stateStore.read()
+      : await stateStore.activateForLaunch(candidate.releaseId);
+    if (activated.references.active === candidate.releaseId) selected = candidate;
+    else {
+      const retainedRecord = activated.references.active === null ? undefined : activated.releases[activated.references.active];
+      if (!retainedRecord || retainedRecord.approval !== "approved") throw new Error("ordinary launch has no approved active release");
+      selected = await readCertifiedReleaseManifest(retainedRecord, resolve(paths.dataDir, "releases"));
+    }
   } else {
     selected = await readMaterializedRelease(decision.releaseRoot);
   }
 
   await ensureSupervisor(selected, environment);
-  return await launchUi(selected, environment, sessionArgs);
+  return await launchSelected(selected);
 }
 
 /**
@@ -240,8 +272,7 @@ async function launchRetainedActive(
   state: CohortState,
   paths: ReturnType<typeof resolveProductPaths>,
   environment: NodeJS.ProcessEnv,
-  sessionArgs: readonly string[],
-  output: Pick<NodeJS.WriteStream, "write">,
+  launch: (release: MaterializedRelease) => Promise<number>,
 ): Promise<number | null> {
   const activeId = state.references.active;
   const active = activeId === null ? undefined : state.releases[activeId];
@@ -249,8 +280,7 @@ async function launchRetainedActive(
   try {
     const retained = await readCertifiedReleaseManifest(active, resolve(paths.dataDir, "releases"));
     await ensureSupervisor(retained, environment);
-    output.write(`${PRODUCT_TEXT.diagnostic(`installation is being replaced; starting the retained release ${retained.packageVersion}`)}\n`);
-    return await launchUi(retained, environment, sessionArgs);
+    return await launch(retained);
   } catch {
     return null;
   }
@@ -330,19 +360,32 @@ export async function startSupervisor(release: MaterializedRelease, environment:
   return { ...attempt, childOutcome };
 }
 
-async function launchUi(release: MaterializedRelease, environment: NodeJS.ProcessEnv, sessionArgs: readonly string[]): Promise<number> {
+async function launchUi(
+  release: MaterializedRelease,
+  environment: NodeJS.ProcessEnv,
+  sessionArgs: readonly string[],
+): Promise<{ readonly code: number; readonly releaseSuperseded: boolean }> {
   await markStartupPhase(environment, "bootstrap-selected");
   const entry = await resolveReleaseEntryPoint(release, "bin/guardian.js");
-  return await new Promise<number>((resolvePromise, rejectPromise) => {
+  return await new Promise((resolvePromise, rejectPromise) => {
+    let releaseSuperseded = false;
     const child = spawn(process.execPath, [entry, ...sessionArgs], {
       env: releaseEnvironment(environment, release, readLaunchContext(environment, "profile").launchProfile),
-      stdio: "inherit",
+      stdio: ["inherit", "inherit", "inherit", "ipc"],
       windowsHide: false,
     });
+    child.on("message", message => {
+      if (message && typeof message === "object" && "type" in message && message.type === RELEASE_RESELECTION_MESSAGE) {
+        releaseSuperseded = true;
+      }
+    });
     child.once("error", rejectPromise);
-    child.once("close", (code, signal) => resolvePromise(restoreAfterOwnedExit(
-      readLaunchContext(environment).launchProfile === "a1", code, signal,
-    )));
+    child.once("close", (code, signal) => resolvePromise({
+      code: releaseSuperseded
+        ? code ?? 1
+        : restoreAfterOwnedExit(readLaunchContext(environment).launchProfile === "a1", code, signal),
+      releaseSuperseded,
+    }));
   });
 }
 

@@ -42,7 +42,7 @@ describe("terminal colour fidelity", () => {
     const bootstrap = await source("src/foundation/release/bootstrap.ts");
     const developmentLauncher = await source("scripts/development/dev-launch.mjs");
 
-    expect(bootstrap).toMatch(/stdio: "inherit"/u);
+    expect(bootstrap).toMatch(/stdio: \["inherit", "inherit", "inherit", "ipc"\]/u);
     expect(developmentLauncher).toMatch(/stdio: "inherit"/u);
   });
 

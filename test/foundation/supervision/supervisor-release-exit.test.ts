@@ -10,7 +10,7 @@ import type { MaterializedRelease } from "../../../src/foundation/release/index.
 import { ControlStore } from "../../../src/foundation/storage/index.js";
 import { commitEndpointMetadata, SupervisorServer } from "../../../src/foundation/supervision/index.js";
 import { PRODUCT_IDENTITY } from "../../../src/product-identity.js";
-import { CONTROL_ENVELOPE } from "../../../src/foundation/protocol/index.js";
+import { CONTROL_ENVELOPE, SupervisorClient } from "../../../src/foundation/protocol/index.js";
 
 const cleanupRoots: string[] = [];
 afterEach(async () => Promise.all(cleanupRoots.splice(0).map(root => rm(root, { recursive: true, force: true }))));
@@ -182,6 +182,61 @@ describe("supervisor release replacement exit", () => {
 });
 
 describe("superseded cohort retirement", () => {
+  it("revalidates active state for admission and returns a typed superseded result", async () => {
+    const root = await mkdtemp(resolve(tmpdir(), "a1-supervisor-readmit-"));
+    cleanupRoots.push(root);
+    const runtimeDir = resolve(root, "runtime");
+    const endpoint = process.platform === "win32"
+      ? `\\\\.\\pipe\\a1-readmit-${process.pid}-${Date.now()}`
+      : resolve(tmpdir(), `a1-readmit-${randomUUID().slice(0, 8)}.sock`);
+    if (process.platform !== "win32") cleanupRoots.push(endpoint);
+    let activeReleaseId = release().releaseId;
+    const server = new SupervisorServer(
+      new ControlStore(resolve(root, "control.sqlite3"), "boot"),
+      {
+        configDir: resolve(root, "config"), dataDir: root, runtimeDir,
+        databasePath: resolve(root, "control.sqlite3"), endpoint,
+        endpointMetadataPath: resolve(runtimeDir, "endpoints", "cohort.json"),
+        endpointsDir: resolve(runtimeDir, "endpoints"), supervisorLogPath: resolve(runtimeDir, "supervisor.log"),
+      },
+      release(),
+      "00000000-0000-4000-8000-000000000000",
+      vi.fn(),
+      undefined,
+      undefined,
+      async () => activeReleaseId,
+      10,
+    );
+    const first = new SupervisorClient(release().releaseId);
+    const second = new SupervisorClient(release().releaseId);
+    try {
+      await server.listen();
+      await first.connect(endpoint);
+      const firstId = randomUUID();
+      expect(await first.command(createInstanceCommand(firstId))).toMatchObject({ ok: true });
+
+      activeReleaseId = "9.9.9-cccccccccccccccccccc";
+      await vi.waitFor(() => expect(server.superseded).toBe(true));
+      await second.connect(endpoint);
+      const rejectedId = randomUUID();
+      expect(await second.command(createInstanceCommand(rejectedId))).toMatchObject({
+        ok: false,
+        error: { code: "release-superseded" },
+      });
+
+      activeReleaseId = release().releaseId;
+      const admittedId = randomUUID();
+      expect(await second.command(createInstanceCommand(admittedId))).toMatchObject({ ok: true });
+      expect(server.superseded).toBe(false);
+      expect(await first.command(completeInstanceCommand(firstId))).toMatchObject({ ok: true });
+      expect(await second.command(completeInstanceCommand(admittedId))).toMatchObject({ ok: true });
+    } finally {
+      first.close();
+      second.close();
+      await server.close();
+    }
+  });
+
   it("retires once it is no longer the release new sessions start on", async () => {
     const root = await mkdtemp(resolve(tmpdir(), "a1-supervisor-superseded-"));
     cleanupRoots.push(root);
@@ -261,6 +316,27 @@ describe("superseded cohort retirement", () => {
     await server.close();
   });
 });
+
+function createInstanceCommand(instanceId: string) {
+  return {
+    type: "create-launch-instance" as const,
+    requestId: randomUUID(),
+    instanceId,
+    profileId: "a1" as const,
+    shutdownPolicy: "terminate-tree-on-close" as const,
+    guardianIdentity: { pid: process.pid, startIdentity: `${process.pid}:test-guardian` },
+  };
+}
+
+function completeInstanceCommand(instanceId: string) {
+  return {
+    type: "complete-launch-instance" as const,
+    requestId: randomUUID(),
+    instanceId,
+    terminalState: "completed" as const,
+    outcome: { kind: "exited" as const, exitCode: 0 },
+  };
+}
 
 function metadata(): SupervisorEndpointMetadata {
   const value = release();

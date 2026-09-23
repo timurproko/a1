@@ -292,7 +292,7 @@ export class SupervisorServer {
     }
     let result: CommandResult;
     try {
-      if (command.type === "create-launch-instance") this.#createLaunchInstance(command, socket, clientId);
+      if (command.type === "create-launch-instance") await this.#createLaunchInstance(command, socket, clientId);
       if (command.type === "activate-launch-instance") this.#activateLaunchInstance(command, socket, clientId);
       if (command.type === "begin-launch-instance-stop") this.#beginLaunchInstanceStop(command, socket, clientId);
       if (command.type === "complete-launch-instance") this.#completeLaunchInstance(command, socket, clientId);
@@ -305,18 +305,28 @@ export class SupervisorServer {
       result = { requestId: command.requestId, ok: true, revision: this.#revision };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      const code = /not found/i.test(message) ? "not-found" : /owner|ownership|authenticated/i.test(message) ? "ownership-error" : "driver-error";
+      const explicitCode = error instanceof Error && "code" in error ? error.code : undefined;
+      const code: NonNullable<CommandResult["error"]>["code"] = explicitCode === "release-superseded"
+        ? "release-superseded"
+        : /not found/i.test(message) ? "not-found"
+          : /owner|ownership|authenticated/i.test(message) ? "ownership-error" : "driver-error";
       result = { requestId: command.requestId, ok: false, revision: this.#revision, error: { code, message } };
     }
     this.#results.set(resultKey, result);
     this.#send(socket, { type: "command-result", result });
   }
 
-  #createLaunchInstance(command: Extract<SupervisorCommand, { type: "create-launch-instance" }>, socket: Socket, clientId: string): void {
+  async #createLaunchInstance(command: Extract<SupervisorCommand, { type: "create-launch-instance" }>, socket: Socket, clientId: string): Promise<void> {
     assertNativeProcessIdentity(command.guardianIdentity);
     const existing = this.store.loadLaunchInstance(command.instanceId);
+    if (!existing && this.readActiveReleaseId) {
+      const active = await this.readActiveReleaseId().catch(() => null);
+      if (active !== null) this.#superseded = active !== this.release.releaseId;
+    }
     if (this.#superseded && !existing) {
-      throw new Error(PRODUCT_TEXT.diagnostic(`release ${this.release.releaseId} is no longer the release new sessions start on`));
+      throw Object.assign(new Error(PRODUCT_TEXT.diagnostic(`release ${this.release.releaseId} is no longer active for new sessions`)), {
+        code: "release-superseded",
+      });
     }
     if (existing) {
       if (existing.ownerClientId !== clientId

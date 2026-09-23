@@ -26,6 +26,11 @@ Promise.resolve().then(() => runLaunchGuardian({
 })).then(
   code => { process.exitCode = code; },
   error => {
+    if (error instanceof Error && "code" in error && error.code === "release-superseded" && typeof process.send === "function") {
+      process.send({ type: "a1-release-reselection" });
+      process.exitCode = 1;
+      return;
+    }
     console.error(error instanceof Error ? error.message : String(error));
     process.exitCode = 1;
   },

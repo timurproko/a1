@@ -50,7 +50,7 @@ export interface CommandResult {
   readonly requestId: RequestId;
   readonly ok: boolean;
   readonly revision: number;
-  readonly error?: { readonly code: "invalid-command" | "not-found" | "stale-generation" | "capability-error" | "containment-unsupported" | "ownership-error" | "driver-error"; readonly message: string };
+  readonly error?: { readonly code: "invalid-command" | "not-found" | "stale-generation" | "capability-error" | "containment-unsupported" | "ownership-error" | "release-superseded" | "driver-error"; readonly message: string };
 }
 
 export function assertLaunchProfileId(value: unknown): asserts value is LaunchProfileId {
