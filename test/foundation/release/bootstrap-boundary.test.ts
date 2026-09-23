@@ -29,6 +29,18 @@ describe("mutable bootstrap boundary", () => {
     expect(`${bin}\n${guardian}\n${ui}`).not.toMatch(/Start-Process|wt\.exe|SendInput|SetForegroundWindow/);
   });
 
+  it("keeps SQLite and its stability notice outside terminal-attached launch graphs", async () => {
+    const [guardianEntry, guardianMain, bootstrap] = await Promise.all([
+      readFile(resolve(repository, "bin/guardian.js"), "utf8"),
+      readFile(resolve(repository, "src/foundation/launch-guardian/main.ts"), "utf8"),
+      readFile(resolve(repository, "src/foundation/release/bootstrap.ts"), "utf8"),
+    ]);
+    expect(guardianMain).toContain('from "../lifecycle/index.js"');
+    expect(guardianMain).not.toMatch(/supervision\/index|storage\/index|node:sqlite/);
+    expect(guardianEntry).toContain('type: "a1-release-reselection"');
+    expect(`${guardianEntry}\n${guardianMain}\n${bootstrap}`).not.toMatch(/--no-warnings|NODE_NO_WARNINGS|disable-warning|process\.emitWarning/);
+  });
+
   it("carries selected launch identity without importing terminal implementation", async () => {
     const bootstrap = await readFile(resolve(repository, "src/foundation/release/bootstrap.ts"), "utf8");
     expect(bootstrap).toContain("options.launchIntent?.profileId");

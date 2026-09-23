@@ -139,6 +139,22 @@ describe("launch guardian", () => {
     expect(control.commands).toEqual([]);
   });
 
+  it("preserves the typed superseded result before starting containment", async () => {
+    const control = new FakeControl();
+    const fixture = containmentFixture(Promise.resolve({ kind: "exited", exitCode: 0 }));
+    vi.spyOn(control, "command").mockImplementationOnce(async command => ({
+      requestId: command.requestId,
+      ok: false,
+      revision: 1,
+      error: { code: "release-superseded", message: "release changed" },
+    }));
+
+    await expect(runLaunchGuardian(options(control, fixture.containment, fixture.inspector)))
+      .rejects.toMatchObject({ code: "release-superseded" });
+    expect(fixture.containment.spawn).not.toHaveBeenCalled();
+    expect(fixture.containment.close).toHaveBeenCalledOnce();
+  });
+
   it("records startup failure and closes partial containment", async () => {
     const control = new FakeControl();
     const fixture = containmentFixture(Promise.resolve({ kind: "exited", exitCode: 0 }));

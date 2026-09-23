@@ -11,6 +11,7 @@ export {
 } from "./bootstrap.js";
 export type { BootstrapOptions, SupervisorStartupAttempt } from "./bootstrap.js";
 export { selectCohortLaunch } from "./cohort-selection.js";
+export { selectOrdinaryLaunchReleaseId } from "./ordinary-launch-selection.js";
 export type { CohortLaunchDecision, OwnershipProbe } from "./cohort-selection.js";
 export { CohortStateStore, RELEASE_COHORT_SCHEMA, emptyState, planProtectedReleases } from "./cohort-state.js";
 export type {

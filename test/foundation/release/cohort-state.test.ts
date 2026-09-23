@@ -80,6 +80,28 @@ describe("atomic release references", () => {
     expect(await store.read()).toEqual(activated);
   });
 
+  it("keeps ordinary launch monotonic while explicit activation can select an older target", async () => {
+    const root = await mkdtemp(resolve(tmpdir(), "a1-cohort-monotonic-"));
+    roots.push(root);
+    const store = new CohortStateStore(root);
+    const older = release("1.0.0", "1");
+    const active = release("1.1.0", "2");
+    const newer = release("1.2.0", "3");
+    const seed = approvedState(older, active);
+    await writeFile(store.path, JSON.stringify(seed));
+
+    const retained = await store.activateForLaunch(older.releaseId);
+    expect(retained.references).toMatchObject({ active: active.releaseId, approved: active.releaseId, pending: null });
+
+    await store.recordCandidate(newer);
+    await store.approve(newer.releaseId, "newer-verdict.json");
+    const advanced = await store.activateForLaunch(newer.releaseId);
+    expect(advanced.references).toMatchObject({ active: newer.releaseId, rollback: active.releaseId });
+
+    const explicitDowngrade = await store.activate(older.releaseId);
+    expect(explicitDowngrade.references).toMatchObject({ active: older.releaseId, rollback: newer.releaseId });
+  });
+
   it("rolls back only to a retained approved release and protects referenced releases from collection", async () => {
     const root = await mkdtemp(resolve(tmpdir(), "a1-cohort-rollback-"));
     roots.push(root);

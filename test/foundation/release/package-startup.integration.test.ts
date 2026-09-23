@@ -230,7 +230,10 @@ async function captureReadyLaunch(
       if (source) {
         try {
           const events = parseStartupTrace(source);
-          if (events.some(event => event.phase === "first-input-ready-render")) return events;
+          if (events.some(event => event.phase === "first-input-ready-render")) {
+            expect(stderr).not.toMatch(/SQLite is an experimental feature|no longer (?:the release|active) for new sessions/);
+            return events;
+          }
         } catch {}
       }
       if (child.exitCode !== null) throw new Error(`exact ${profileId} launch exited before first render: ${stderr}`);

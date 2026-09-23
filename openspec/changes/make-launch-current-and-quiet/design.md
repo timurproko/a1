@@ -67,6 +67,13 @@ Alternative: add `--no-warnings` globally. Rejected because it hides actionable 
 - **[Concurrent newer candidates race]** → Serialized state mutation plus semantic ordering converges on the newest eligible version, while command-time admission and one retry cover the handoff interval.
 - **[The retry could mask another failure]** → Only the dedicated superseded result is silent and retryable; storage, identity, containment, protocol, and startup errors retain existing diagnostics.
 
+## Implementation Evidence
+
+- Source and bin typechecking, build, architecture/product-identity/ledger/terminal-host governance, code-documentation governance, docs governance, naming audit, strict OpenSpec validation, and whitespace validation pass.
+- Sixteen focused release, update, guardian, protocol, storage, supervision, and module-boundary files pass 113 tests. Coverage includes older-installation monotonicity, activation while the old cohort remains live, atomic concurrency ordering, typed command-time readmission, one silent retry, and bounded repeated handoff failure.
+- Exact-package startup now rejects SQLite and superseded-release stderr before first render. The local exact-package attempt installed the packed candidate successfully but stopped at its pre-existing Windows Defender prerequisite because real-time protection is disabled on this workstation; it did not reach product startup. The required package-startup CI owner runs that assertion on its certified Windows environment.
+- No product behavior, migration, privacy, or ownership gaps remain undispositioned.
+
 ## Migration Plan
 
 1. Ship the monotonic selection, activation-before-reuse, fresh admission check, private retry outcome, and narrow SQLite import boundary together.

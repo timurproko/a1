@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, open, readFile, rename, rm, stat } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import type { MaterializedRelease } from "./release-store.js";
+import { selectOrdinaryLaunchReleaseId } from "./ordinary-launch-selection.js";
 import { PRODUCT_IDENTITY } from "../../product-identity.js";
 
 export const RELEASE_COHORT_SCHEMA = PRODUCT_IDENTITY.protocol.releaseCohortSchema;
@@ -268,6 +269,40 @@ export class CohortStateStore {
     return await this.update(current => {
       const release = requiredRelease(current, releaseId);
       if (release.approval !== "approved") throw new Error(`cannot activate unverified release ${releaseId}`);
+      const prior = current.references.active;
+      return {
+        ...current,
+        references: {
+          ...current.references,
+          active: releaseId,
+          pending: null,
+          approved: releaseId,
+          rollback: prior && prior !== releaseId ? prior : current.references.rollback,
+        },
+        activation: activation("idle", null),
+      };
+    });
+  }
+
+  /** Atomically advances ordinary launch without allowing an older installation to roll active state back. */
+  async activateForLaunch(releaseId: string, replaceUnlaunchableActiveId?: string): Promise<CohortState> {
+    return await this.update(current => {
+      const release = requiredRelease(current, releaseId);
+      if (release.approval !== "approved") throw new Error(`cannot activate unverified release ${releaseId}`);
+      const selectedId = current.references.active === replaceUnlaunchableActiveId
+        ? releaseId
+        : selectOrdinaryLaunchReleaseId(release, current.references.active === null ? undefined : current.releases[current.references.active]);
+      if (selectedId !== releaseId) {
+        return {
+          ...current,
+          references: {
+            ...current.references,
+            pending: current.references.pending === releaseId ? null : current.references.pending,
+            approved: selectedId,
+          },
+          activation: activation("idle", null),
+        };
+      }
       const prior = current.references.active;
       return {
         ...current,
