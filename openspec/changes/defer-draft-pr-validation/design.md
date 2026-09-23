@@ -25,7 +25,7 @@ Malformed implementation metadata fails the readiness job rather than launching 
 
 Make impact detection and PR Full regression selection depend on the readiness output. The existing selectors run unchanged only when that output is true. Every dependent documentation, naming, modular, rendering, delivery, and Full regression job therefore remains unreachable for drafts and pre-finalization version-3 heads.
 
-The stable `Development validation required` job keeps its static protected name and is created only for an eligible validation head. A skipped draft or awaiting-finalization run does not emit a misleading successful protected aggregate; branch protection continues to require a successful aggregate attached to the eventual finalized head.
+The aggregate resolves to the stable protected name `Development validation required` only for an eligible validation head; deferred graphs use the non-protected name `Development validation deferred`. A skipped draft or awaiting-finalization run therefore does not emit a misleading successful protected aggregate, and branch protection continues to require a successful aggregate attached to the eventual finalized head.
 
 ### 3. Use finalization's body update as the exact validation trigger
 
@@ -53,8 +53,11 @@ Workflow changes are evaluated from the pull request candidate, while the classi
 
 ## Implementation evidence
 
-Pending implementation.
+- Added a dependency-free exact-base readiness classifier that distinguishes draft, ordinary ready, active/finalized version-3, legacy, manual, and malformed metadata states. Malformed metadata emits a bounded policy code and fails before head checkout or dependency installation.
+- `Detect change surface` and `Select PR Full regression` now share the positive readiness output. Draft and active pre-finalization graphs cannot reach test jobs, while the aggregate uses the protected `Development validation required` name only for eligible heads and the non-protected `Development validation deferred` name otherwise.
+- The workflow keeps `converted_to_draft`, PR-level cancellation, all downstream needs, exact-base Full regression selection, selected lane coverage, permissions, timeouts, and aggregate verification unchanged after readiness.
+- Seven focused repository-governance files passed 101 tests covering readiness, impact workflow, Full regression, delivery guidance, archive workflow, suite ownership, and validation tiers. Source/bin typecheck passed after producing the checkout-generated startup descriptor; architecture, product identity, package identity, Pi ledger, terminal-host provenance, changed-file documentation, docs governance, strict OpenSpec validation, and diff checks passed.
 
 ## Known gaps
 
-Hosted lifecycle behavior remains to be observed after implementation and finalization.
+The classifier is intentionally loaded from the exact target base. Because the target for this rollout predates it, this PR uses the explicit `policy-bootstrap` fallback and retains conservative ready-head validation rather than trusting new head policy to suppress its own tests. The first subsequent ready pull request is the live deployment observation for draft/pre-finalization deferral; this one-time rollout limitation does not weaken its exact-final-head gate.
