@@ -15,7 +15,7 @@ export interface CompactionProgressSession {
 }
 
 export interface CompactionProgressObserver {
-  /** Marks `compaction_start`: resets the streamed count and captures the expected summary size. */
+  /** Marks `compaction_start`: resets the estimate and immediately reports zero percent. */
   begin(): void;
   /** Marks `compaction_end`: later stream chunks are ignored. */
   end(): void;
@@ -82,6 +82,7 @@ export function observeCompactionProgress(
       reported = null;
       expected = latestCompactionSummaryLength(session) ?? DEFAULT_EXPECTED_COMPACTION_SUMMARY_CHARS;
       active = true;
+      report();
     },
     end() {
       active = false;
