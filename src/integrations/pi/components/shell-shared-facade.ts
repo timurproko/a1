@@ -106,12 +106,22 @@ export interface PiShellViewComponentPort extends PiShellComponentPort {
 }
 
 export type PiShellStatusPlacement = "live" | "dock" | "hidden";
+export type PiShellProgressPresentationMode = "pinned" | "custom-viewport";
+
+export interface PiShellProgressStatusPresentation {
+  readonly text: (message: string, mode: PiShellProgressPresentationMode) => string;
+  readonly frame: (
+    message: string,
+    phase: number,
+    styles: { readonly muted: (text: string) => string; readonly accent: (text: string) => string },
+  ) => string;
+}
 
 export interface PiShellStatusPort extends PiShellViewComponentPort {
   setWorkingOverride(message: string | undefined): void;
   setOutputPad(padding: 0 | 1): void;
   /** Bare A1 shows engine-measured progress beside the working word; the pinned route keeps the bare word. */
-  setProgressPresentation(presentation: "pinned" | "custom-viewport"): void;
+  setProgressPresentation(presentation: PiShellProgressPresentationMode): void;
   /** Semantic row placement; callers must not inspect rendered text. */
   placement(): PiShellStatusPlacement;
   renderDock(width: number): readonly string[];
