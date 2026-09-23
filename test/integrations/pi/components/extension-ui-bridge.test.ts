@@ -5,6 +5,7 @@ import {
   type PiExtensionUiBridgeHost,
   type PiShellComponentPort,
 } from "../../../../src/integrations/pi/components/index.js";
+import { firstVisibleTextColumn } from "../../../support/dialog-alignment.js";
 
 function fixture() {
   let inputSurface: PiShellComponentPort | null = null;
@@ -53,7 +54,10 @@ describe("pinned extension UI bridge", () => {
   it("opens, resolves, cancels, and restores selectors and text inputs", async () => {
     const value = fixture();
     const selection = value.bridge.context.select("Choose", ["alpha", "beta"]);
-    const selectorFrame = stripTerminalSequences(value.inputSurface!.render(60).join("\n"));
+    const selectorRows = value.inputSurface!.render(60);
+    const selectorFrame = stripTerminalSequences(selectorRows.join("\n"));
+    expect(firstVisibleTextColumn(selectorRows.find(row => stripTerminalSequences(row).includes("Choose"))!))
+      .toBe(firstVisibleTextColumn(selectorRows.find(row => stripTerminalSequences(row).includes("↑↓ navigate"))!));
     expect(selectorFrame).toContain("alpha");
     expect(selectorFrame).toContain("↑↓ navigate  Enter select  Escape/Ctrl+C cancel");
     expect(selectorFrame).not.toMatch(/[·•]/u);
@@ -63,7 +67,10 @@ describe("pinned extension UI bridge", () => {
     expect(value.inputSurface).toBeNull();
 
     const input = value.bridge.context.input("Name", "placeholder");
-    const inputFrame = stripTerminalSequences(value.inputSurface!.render(60).join("\n"));
+    const inputRows = value.inputSurface!.render(60);
+    const inputFrame = stripTerminalSequences(inputRows.join("\n"));
+    expect(firstVisibleTextColumn(inputRows.find(row => stripTerminalSequences(row).includes("Name"))!))
+      .toBe(firstVisibleTextColumn(inputRows.find(row => stripTerminalSequences(row).includes("Enter submit"))!));
     expect(inputFrame).toContain("Enter submit  Escape/Ctrl+C cancel");
     expect(inputFrame).not.toMatch(/[·•]/u);
     value.inputSurface!.handleInput?.("Ada");
@@ -71,7 +78,10 @@ describe("pinned extension UI bridge", () => {
     await expect(input).resolves.toBe("Ada");
 
     const editor = value.bridge.context.editor("Notes", "draft");
-    const editorFrame = stripTerminalSequences(value.inputSurface!.render(100).join("\n"));
+    const editorRows = value.inputSurface!.render(100);
+    const editorFrame = stripTerminalSequences(editorRows.join("\n"));
+    expect(firstVisibleTextColumn(editorRows.find(row => stripTerminalSequences(row).includes("Notes"))!))
+      .toBe(firstVisibleTextColumn(editorRows.find(row => stripTerminalSequences(row).includes("Enter submit"))!));
     expect(editorFrame).toContain("Enter submit  Shift+Enter/Ctrl+J newline  Escape/Ctrl+C cancel  Ctrl+G external editor");
     expect(editorFrame).not.toMatch(/[·•]/u);
     value.inputSurface!.handleInput?.("\x1b");

@@ -5,6 +5,7 @@ import { join } from "node:path";
 import type { SessionInfo } from "@earendil-works/pi-coding-agent";
 import { describe, expect, it, vi } from "vitest";
 import { applyPiTheme, createPiShellSessionSelector } from "../../../../src/integrations/pi/components/index.js";
+import { firstVisibleTextColumn } from "../../../support/dialog-alignment.js";
 
 function stripPortableTerminalSequences(value: string): string {
   return value
@@ -64,7 +65,10 @@ describe("owned pinned session selector", () => {
     const input = (data: string) => component.handleInput?.(data);
     expect(frame()).toContain("Resume Session (Current Folder)");
     expect(frame()).toContain("Current session");
-    const hintRows = component.render(100).filter(row => stripPortableTerminalSequences(row).includes("scope"));
+    const initialRows = component.render(100);
+    const hintRows = initialRows.filter(row => stripPortableTerminalSequences(row).includes("scope"));
+    const heading = initialRows.find(row => stripPortableTerminalSequences(row).includes("Resume Session"))!;
+    expect(firstVisibleTextColumn(hintRows[0]!)).toBe(firstVisibleTextColumn(heading));
     expect(hintRows.map(stripPortableTerminalSequences).join("\n")).toContain('Tab scope  re:<pattern> regex  "phrase" exact');
     expect(hintRows.join("\n")).not.toMatch(/[·•]/u);
 
@@ -87,6 +91,10 @@ describe("owned pinned session selector", () => {
     input("\x1b[B");
     input("\x12");
     expect(frame()).toContain("Rename Session");
+    const renameRows = component.render(100);
+    const renameHeading = renameRows.find(row => stripPortableTerminalSequences(row).includes("Rename Session"))!;
+    const renameHint = renameRows.find(row => stripPortableTerminalSequences(row).includes("to save"))!;
+    expect(firstVisibleTextColumn(renameHint)).toBe(firstVisibleTextColumn(renameHeading));
     input("Renamed session");
     input("\r");
     await new Promise(resolve => setTimeout(resolve, 0));

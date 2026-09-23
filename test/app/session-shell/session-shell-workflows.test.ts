@@ -20,6 +20,7 @@ vi.mock("node:worker_threads", async importOriginal => {
 });
 import { piTheme } from "../../../src/integrations/pi/components/index.js";
 import { cellStyle } from "../../support/ansi-cell-style.js";
+import { firstVisibleTextColumn } from "../../support/dialog-alignment.js";
 import { Session, fixture, nextImmediate } from "./session-shell-fixture.js";
 
 describe("OwnedUiSessionShell dialogs and workflows", () => {
@@ -231,7 +232,11 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     }));
 
     await shell.submit("/tree");
-    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Session Tree");
+    const treeRows = shell.root.render(100);
+    expect(stripTerminalSequences(treeRows.join("\n"))).toContain("Session Tree");
+    const treeHeading = treeRows.find(row => stripTerminalSequences(row).includes("Session Tree"))!;
+    const treeHint = treeRows.find(row => stripTerminalSequences(row).includes("move"))!;
+    expect(firstVisibleTextColumn(treeHint)).toBe(firstVisibleTextColumn(treeHeading));
     terminal.input("\r");
     await new Promise(resolve => setTimeout(resolve, 0));
     expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Summarize branch?");

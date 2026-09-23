@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-09-22T23:18:50.222Z",
+  "recordedAt": "2026-09-23T06:49:16.808Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "16787ad5b2dc748047f314ca1bfe7708f30f54f3",
@@ -2064,7 +2064,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Source-synchronized scoped-model selector port: preserve session-only toggles, search, bulk/provider/reorder actions, dirty state, Ctrl+S persistence, refresh status, cancellation, and focus while remapping theme and public helper imports; local key labels preserve pinned platform formatting before layout without changing binding identities, and bare A1 uses the shared semantic modal shortcut row.",
       "upgradeStrategy": "three-way",
-      "localSha256": "cf99d8f03b8b6eb91018b29be2b4c10fd393ee41885390f588c4ed3bf5ca6075",
+      "localSha256": "a41060d2803a947100634436a90e1c76c1d7528e710ed732c4b3e7d96707a3fe",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -2428,7 +2428,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Preserve the searchable thinking-level selector, current/default semantics, selection, save, cancellation, and focus while accepting the active bare-A1 cycle-key label from the shell, styling the title with the established bold semantic accent treatment, placing its muted hint directly below it, deduplicating levels, and rendering aligned muted descriptions after adjacent active and bracketed default markers. All list and border colors use the owned theme and its explicit color mode, and the footer uses the shared bare-A1 modal shortcut row. The comparison profile retains the public pinned component.",
       "upgradeStrategy": "three-way",
-      "localSha256": "3ce79f4488e430e82dff66f2fea8666003068a0e7d4a61218854bcbc6ef5c79b",
+      "localSha256": "7a5b52be8b922ec00ad1b3548721fe6a9b9219f1b13a482eead79986b1340c69",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -2538,7 +2538,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Source-synchronized tree selector port: preserve filtering, folding, labels, copying, tree navigation, key hints, focus, and viewport behavior while remapping public types/components plus owned keybindings/theme helpers required to avoid the pinned package nested pi-tui singleton; bare A1 uses the shared semantic modal shortcut row.",
       "upgradeStrategy": "three-way",
-      "localSha256": "075db098aaf1bfef4a3ac0c07b46bf230fa99700ca1d03e7f6b36547e622e702",
+      "localSha256": "6e8a0e419fe5e9a5ff9356c9b6035505780255287da88f022643ffc30d37b207",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
