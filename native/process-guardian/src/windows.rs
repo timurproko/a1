@@ -3,7 +3,9 @@ use std::mem::{size_of, zeroed};
 use std::os::windows::ffi::OsStrExt;
 use std::ptr::{null, null_mut};
 
-use windows_sys::Win32::Foundation::{CloseHandle, GetLastError, FILETIME, HANDLE, WAIT_OBJECT_0};
+use windows_sys::Win32::Foundation::{
+    CloseHandle, GetLastError, FILETIME, HANDLE, WAIT_FAILED, WAIT_OBJECT_0, WAIT_TIMEOUT,
+};
 use windows_sys::Win32::System::JobObjects::{
     AssignProcessToJobObject, CreateJobObjectW, JobObjectExtendedLimitInformation,
     JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
@@ -11,8 +13,8 @@ use windows_sys::Win32::System::JobObjects::{
 };
 use windows_sys::Win32::System::Threading::{
     CreateProcessW, GetExitCodeProcess, GetProcessTimes, OpenProcess, ResumeThread, WaitForMultipleObjects,
-    CREATE_SUSPENDED, CREATE_UNICODE_ENVIRONMENT, INFINITE, PROCESS_INFORMATION,
-    PROCESS_QUERY_LIMITED_INFORMATION, STARTUPINFOW,
+    WaitForSingleObject, CREATE_SUSPENDED, CREATE_UNICODE_ENVIRONMENT, INFINITE,
+    PROCESS_INFORMATION, PROCESS_QUERY_LIMITED_INFORMATION, STARTUPINFOW,
 };
 
 use crate::{Invocation, write_ready_status};
@@ -21,24 +23,49 @@ const SYNCHRONIZE_ACCESS: u32 = 0x0010_0000;
 const ERROR_INVALID_PARAMETER: u32 = 87;
 
 pub(super) fn inspect_process_start(pid: u32) -> Result<Option<String>, String> {
-    let handle = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid) };
+    let handle = unsafe {
+        OpenProcess(
+            SYNCHRONIZE_ACCESS | PROCESS_QUERY_LIMITED_INFORMATION,
+            0,
+            pid,
+        )
+    };
     if handle.is_null() {
         let error = unsafe { GetLastError() };
         if error == ERROR_INVALID_PARAMETER {
             return Ok(None);
         }
-        return Err(format!("cannot inspect process {pid}: {}", std::io::Error::from_raw_os_error(error as i32)));
+        return Err(format!(
+            "cannot inspect process {pid}: {}",
+            std::io::Error::from_raw_os_error(error as i32)
+        ));
     }
     let process = OwnedHandle(handle);
+    inspect_process_handle(process.raw())
+}
+
+fn inspect_process_handle(process: HANDLE) -> Result<Option<String>, String> {
+    match unsafe { WaitForSingleObject(process, 0) } {
+        WAIT_TIMEOUT => {}
+        WAIT_OBJECT_0 => return Ok(None),
+        WAIT_FAILED => return Err(last_error("cannot inspect process state")),
+        outcome => return Err(format!("cannot inspect process state: unexpected wait result {outcome}")),
+    }
+    Ok(Some(format!(
+        "windows-filetime:{}",
+        process_creation_ticks(process)?
+    )))
+}
+
+fn process_creation_ticks(process: HANDLE) -> Result<u64, String> {
     let mut creation: FILETIME = unsafe { zeroed() };
     let mut exit: FILETIME = unsafe { zeroed() };
     let mut kernel: FILETIME = unsafe { zeroed() };
     let mut user: FILETIME = unsafe { zeroed() };
-    if unsafe { GetProcessTimes(process.raw(), &mut creation, &mut exit, &mut kernel, &mut user) } == 0 {
+    if unsafe { GetProcessTimes(process, &mut creation, &mut exit, &mut kernel, &mut user) } == 0 {
         return Err(last_error("cannot read process creation time"));
     }
-    let ticks = ((creation.dwHighDateTime as u64) << 32) | creation.dwLowDateTime as u64;
-    Ok(Some(format!("windows-filetime:{ticks}")))
+    Ok(((creation.dwHighDateTime as u64) << 32) | creation.dwLowDateTime as u64)
 }
 
 pub(super) fn run(invocation: Invocation) -> Result<u8, String> {
@@ -222,7 +249,14 @@ impl Drop for OwnedHandle {
 
 #[cfg(test)]
 mod tests {
-    use super::{build_command_line, quote_windows_argument};
+    use super::{
+        build_command_line, inspect_process_handle, inspect_process_start,
+        process_creation_ticks, quote_windows_argument,
+    };
+    use std::os::windows::io::AsRawHandle;
+    use std::process::Command;
+    use windows_sys::Win32::Foundation::{HANDLE, WAIT_OBJECT_0};
+    use windows_sys::Win32::System::Threading::WaitForSingleObject;
 
     #[test]
     fn quotes_windows_arguments_without_shell_interpretation() {
@@ -233,5 +267,22 @@ mod tests {
             build_command_line("C:\\Program Files\\node.exe", &["a\\\"b".to_owned()]),
             "\"C:\\Program Files\\node.exe\" \"a\\\\\\\"b\"",
         );
+    }
+
+    #[test]
+    fn rejects_a_terminated_but_still_queryable_process_object() {
+        let mut child = Command::new("cmd.exe")
+            .args(["/D", "/C", "exit /b 0"])
+            .spawn()
+            .expect("spawn short-lived Windows child");
+        let pid = child.id();
+        let status = child.wait().expect("wait for Windows child");
+        assert!(status.success());
+
+        let process = child.as_raw_handle() as HANDLE;
+        assert_eq!(unsafe { WaitForSingleObject(process, 0) }, WAIT_OBJECT_0);
+        assert!(process_creation_ticks(process).is_ok());
+        assert_eq!(inspect_process_handle(process).expect("inspect retained process object"), None);
+        assert_eq!(inspect_process_start(pid).expect("inspect terminated PID"), None);
     }
 }
