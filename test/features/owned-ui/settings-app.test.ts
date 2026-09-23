@@ -7,6 +7,7 @@ import { OWNED_UI_SETTING_DECLARATIONS, OwnedSettingsManager, type OwnedUiSettin
 import { SettingsApp } from "../../../src/features/owned-ui/index.js";
 import type { AppHostServices } from "../../../src/ui/apps/index.js";
 import { finalizeFrame, type UiTheme, type UiThemeToken } from "../../../src/ui/components/index.js";
+import { firstVisibleTextColumn } from "../../support/dialog-alignment.js";
 
 const ESC = String.fromCharCode(27);
 const DOWN = `${ESC}[B`;
@@ -441,7 +442,10 @@ describe("the settings screen", () => {
     expect(find(target, "Anthropic extra usage")).toContain("true");
     expect(find(target, "Unknown tools")).toContain("false");
     expect(find(target, "Enter/Space to change")).toContain("Esc to cancel");
-    const styledHint = target.render({ width: 200, height: 24 }, NAMING_HOST).find(line => line.includes("Enter/Space")) ?? "";
+    const rendered = target.render({ width: 200, height: 24 }, NAMING_HOST);
+    const styledHint = rendered.find(line => line.includes("Enter/Space")) ?? "";
+    const title = rendered.find(line => line.includes("Settings")) ?? "";
+    expect(firstVisibleTextColumn(styledHint)).toBe(firstVisibleTextColumn(title));
     expect(styledHint).toContain("<dim>Esc</dim> <muted>to cancel</muted>  <dim>Enter/Space</dim> <muted>to change</muted>");
     expect(styledHint).not.toMatch(/[·•]/u);
 
@@ -768,6 +772,8 @@ describe("the input row and status line behind the screen", () => {
     const { app: target } = await app();
     const wide = target.render({ width: 200, height: 24 }, HOST).map(line => line.replace(STYLE, ""));
     const hint = wide.find(line => line.includes("/ to search")) ?? "";
+    const title = wide.find(line => line.includes("Settings")) ?? "";
+    expect(firstVisibleTextColumn(hint)).toBe(firstVisibleTextColumn(title));
     expect(hint.startsWith(" ")).toBe(true);
     expect(hint).toContain("↑↓ to navigate");
     expect(hint).toContain("Shift+↑↓ to jump");

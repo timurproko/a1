@@ -1,6 +1,7 @@
 import { Readable, Writable } from "node:stream";
 import { describe, expect, it } from "vitest";
 import { createConsoleProjectTrustPrompt } from "../../../src/features/owned-ui/index.js";
+import { firstVisibleTextColumn } from "../../support/dialog-alignment.js";
 
 class TtyInput extends Readable {
   readonly isTTY = true;
@@ -49,8 +50,13 @@ describe("bounded project trust terminal preflight", () => {
     expect(output.text).toContain("D:/work");
     expect(output.text).toContain("→ Trust");
     expect(output.text).toContain("Do not trust");
-    expect(output.text).toContain("\u001b[38;2;102;102;102m  ↑/↓\u001b[38;2;128;128;128m to navigate  \u001b[38;2;102;102;102mEnter\u001b[38;2;128;128;128m to select");
+    expect(output.text).toContain("\u001b[38;2;102;102;102m↑/↓\u001b[38;2;128;128;128m to navigate  \u001b[38;2;102;102;102mEnter\u001b[38;2;128;128;128m to select");
     expect(output.text).not.toMatch(/[·•]/u);
+    const lastFrame = output.text.split("\u001b[2J\u001b[H").reverse()
+      .find(frame => frame.includes("Trust project folder?"))!.split("\n");
+    const heading = lastFrame.find(line => line.includes("Trust project folder?"))!;
+    const hint = lastFrame.find(line => line.includes("↑/↓"))!;
+    expect(firstVisibleTextColumn(hint)).toBe(firstVisibleTextColumn(heading));
     expect(input.rawTransitions).toEqual([true, false]);
   });
 
