@@ -192,7 +192,12 @@ describe("transcript viewport", () => {
     viewport.pressSelection(2, 2, 108);
     viewport.extendSelection(4, 2, 108.5, false);
     const selectedShift = viewport.compose({ documentRows: rows(15), dockRows: ["editor", "footer"], promptAnchors: [], width: 31, height: 8, now: 109 });
-    expect(selectedShift.descriptor).toMatchObject({ verticalShiftRows: 0, safeVerticalShift: false, cause: "detached" });
+    expect(selectedShift.descriptor).toMatchObject({
+      verticalShiftRows: 1,
+      followingEnd: true,
+      safeVerticalShift: false,
+      cause: "steady",
+    });
 
     viewport.reset();
     const reset = viewport.compose({ documentRows: rows(2), dockRows: rows(5), promptAnchors: [], width: 20, height: 3, now: 110 });
@@ -232,6 +237,133 @@ describe("transcript viewport", () => {
     for (const liveTailRows of [-1, 1.5, 5, Number.NaN]) {
       expect(() => assertTranscriptViewportFrameDescriptor({ ...valid, liveTailRows })).toThrow(/live tail/);
     }
+  });
+
+  it("moves document selection with followed output while pinned and mixed endpoints keep their surfaces", () => {
+    const selection = (line: string, from: number, to: number) => backgroundSgrSpan(line, from, to);
+    const viewport = new TranscriptViewport();
+    const input = {
+      documentRows: rows(8),
+      dockRows: ["editor", "footer"],
+      promptAnchors: [],
+      width: 20,
+      height: 6,
+      theme: {
+        track: (text: string) => text,
+        thumb: (text: string) => text,
+        sticky: (text: string) => text,
+        quietSticky: (text: string) => text,
+        bottomControl: (text: string) => text,
+        selection,
+      },
+    };
+    viewport.compose(input);
+    viewport.pressSelection(1, 3, 100);
+    viewport.extendSelection(4, 3, 101, false);
+    viewport.releaseSelection();
+
+    const shifted = viewport.compose({ ...input, documentRows: rows(9) });
+    expect(shifted.followingEnd).toBe(true);
+    expect(stripAnsi(shifted.rows[1] ?? "").trimEnd()).toBe("row 6");
+    expect(shifted.rows[1]).toContain("\u001b[47mrow ");
+    expect(shifted.rows[2]).not.toContain("\u001b[47m");
+
+    viewport.clearSelection();
+    viewport.pressSelection(1, 6, 102);
+    viewport.extendSelection(4, 6, 103, false);
+    viewport.releaseSelection();
+    const pinned = viewport.compose({ ...input, documentRows: rows(10) });
+    expect(pinned.followingEnd).toBe(true);
+    expect(stripAnsi(pinned.rows[5] ?? "").trimEnd()).toBe("footer");
+    expect(pinned.rows[5]).toContain("\u001b[47mfoot");
+
+    viewport.clearSelection();
+    viewport.pressSelection(1, 3, 104);
+    viewport.extendSelection(4, 6, 105, false);
+    viewport.releaseSelection();
+    const mixed = viewport.compose({ ...input, documentRows: rows(11) });
+    expect(stripAnsi(mixed.rows[1] ?? "").trimEnd()).toBe("row 8");
+    expect(mixed.rows[1]).toContain("\u001b[47m");
+    expect(mixed.rows[5]).toContain("\u001b[47mfoot");
+  });
+
+  it("clips a retained document selection after its source scrolls off screen", () => {
+    const viewport = new TranscriptViewport();
+    const input = { documentRows: rows(8), dockRows: ["editor"], promptAnchors: [], width: 20, height: 5 };
+    viewport.compose(input);
+    viewport.pressSelection(1, 2, 100);
+    viewport.extendSelection(4, 2, 101, false);
+    viewport.releaseSelection();
+
+    const clipped = viewport.compose({ ...input, documentRows: rows(14) });
+    expect(viewport.hasSelection).toBe(true);
+    expect(viewport.selectedText()).toBeNull();
+    expect(clipped.rows.every(row => !row.includes("\u001b[47m"))).toBe(true);
+  });
+
+  it("retains a unique document selection when resize changes only row padding", () => {
+    const viewport = new TranscriptViewport();
+    const input = {
+      documentRows: ["alpha              ", "target text        ", "omega              "],
+      dockRows: ["editor"],
+      promptAnchors: [],
+      width: 20,
+      height: 4,
+    };
+    viewport.compose(input);
+    viewport.pressSelection(1, 2, 100);
+    viewport.extendSelection(7, 2, 101, false);
+    viewport.releaseSelection();
+
+    viewport.compose({
+      ...input,
+      documentRows: ["alpha    ", "target text", "omega    "],
+      width: 10,
+    });
+    expect(viewport.hasSelection).toBe(true);
+    expect(viewport.selectedText()).toBe("target");
+  });
+
+  it("clears a document selection rather than transferring it after source replacement", () => {
+    const viewport = new TranscriptViewport();
+    const input = { documentRows: rows(8), dockRows: ["editor"], promptAnchors: [], width: 20, height: 5 };
+    viewport.compose(input);
+    viewport.pressSelection(1, 2, 100);
+    viewport.extendSelection(4, 2, 101, false);
+    viewport.releaseSelection();
+    expect(viewport.hasSelection).toBe(true);
+
+    viewport.compose({ ...input, documentRows: rows(8).map(row => `changed ${row}`) });
+    expect(viewport.hasSelection).toBe(false);
+    expect(viewport.selectedText()).toBeNull();
+  });
+
+  it("paints transient frame feedback without changing allocation, controls, or copy source", () => {
+    const viewport = new TranscriptViewport();
+    const input = { documentRows: rows(10), dockRows: ["editor", "footer"], promptAnchors: [], width: 40, height: 7, now: 100 };
+    const before = viewport.compose(input);
+    const overlaid = viewport.compose({
+      ...input,
+      frameOverlay: { row: 5, text: "\u001b[36mcopied 5 chars to clipboard\u001b[39m" },
+    });
+    expect(overlaid.rows).toHaveLength(before.rows.length);
+    expect(overlaid.rows[4]).toContain("copied 5 chars to clipboard");
+    expect(overlaid).toMatchObject({
+      scrollTop: before.scrollTop,
+      maxScroll: before.maxScroll,
+      followingEnd: before.followingEnd,
+      hits: before.hits,
+    });
+    expect(overlaid.descriptor).toMatchObject({
+      transcript: before.descriptor.transcript,
+      dock: before.descriptor.dock,
+      nextDocumentRange: before.descriptor.nextDocumentRange,
+    });
+    expect(overlaid.descriptor.selectionDamagedRows).toEqual([5]);
+
+    const restored = viewport.compose({ ...input, now: 101 });
+    expect(restored.rows[4]).not.toContain("copied 5 chars to clipboard");
+    expect(restored.descriptor.selectionDamagedRows).toEqual([5]);
   });
 
   it("keeps a detached row fixed while output grows and resumes at the end", () => {
@@ -881,7 +1013,7 @@ describe("transcript viewport", () => {
       expect(frame.selectionDamage.recomputedRows.length).toBeLessThanOrEqual(2);
     }
     expect(frame.selectionDamage.cacheEntries).toBeLessThanOrEqual(54 * 24);
-  });
+  }, 10_000);
 
   it("invalidates only rows affected by source, selection painter, and geometry revisions", () => {
     const viewport = new TranscriptViewport();

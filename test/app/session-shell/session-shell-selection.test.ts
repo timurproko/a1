@@ -338,9 +338,14 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
 
   it("shows one transient right-aligned accent copy acknowledgement immediately above the editor", async () => {
     vi.useFakeTimers();
-    const { shell, terminal } = await fixture([], [], true);
+    const { shell, terminal } = await fixture(Array.from({ length: 20 }, (_, index) => ({
+      role: "assistant", content: [{ type: "text", text: `ack-row-${index}` }], timestamp: index + 1,
+    })), [], true);
     try {
       terminal.resize(60, 12);
+      const beforeRows = shell.root.render(60).map(stripTerminalSequences);
+      const beforeDescriptor = shell.root.viewportFrameDescriptor()!;
+      const beforeRule = beforeRows.findIndex(value => value.trim().match(/^─+$/u));
       shell.root.showCopyAcknowledgement("copied 5 chars to clipboard");
       shell.root.showCopyAcknowledgement("copied 12 chars to clipboard");
       const rows = shell.root.render(60);
@@ -351,13 +356,26 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
       expect(stripTerminalSequences(rows[row + 1] ?? "").trim()).toMatch(/^─+$/u);
       expect(rows[row]).toContain(piTheme().fg("accent", "copied 12 chars to clipboard"));
       expect(rows[row]).not.toContain("\u001b[7m");
+      expect(row + 1).toBe(beforeRule);
+      expect(shell.root.viewportFrameDescriptor()).toMatchObject({
+        transcript: beforeDescriptor.transcript,
+        dock: beforeDescriptor.dock,
+        nextDocumentRange: beforeDescriptor.nextDocumentRange,
+      });
       const narrow = shell.root.render(10).map(stripTerminalSequences).find(value => value.includes("copied"));
       expect(narrow).toBeDefined();
       expect(narrow!.length).toBeLessThanOrEqual(10);
       await vi.advanceTimersByTimeAsync(999);
       expect(shell.root.render(60).map(stripTerminalSequences).join("\n")).toContain("copied 12 chars to clipboard");
       await vi.advanceTimersByTimeAsync(1);
-      expect(shell.root.render(60).map(stripTerminalSequences).join("\n")).not.toContain("chars to clipboard");
+      const expired = shell.root.render(60).map(stripTerminalSequences);
+      expect(expired.join("\n")).not.toContain("chars to clipboard");
+      expect(expired.findIndex(value => value.trim().match(/^─+$/u))).toBe(beforeRule);
+      expect(shell.root.viewportFrameDescriptor()).toMatchObject({
+        transcript: beforeDescriptor.transcript,
+        dock: beforeDescriptor.dock,
+        nextDocumentRange: beforeDescriptor.nextDocumentRange,
+      });
     } finally {
       await shell.dispose();
       vi.useRealTimers();
@@ -497,6 +515,48 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
       const match = /^\u001b\]52;c;([^\u0007]+)\u0007$/u.exec(write);
       return match?.[1] === undefined ? [] : [Buffer.from(match[1], "base64").toString()];
     })).toEqual(["assistant", " Selectable assistant words"]));
+  });
+
+  it("moves retained agent-stream selection with followed output while footer selection stays pinned", async () => {
+    const messages = Array.from({ length: 20 }, (_, index) => ({
+      role: "assistant", content: [{ type: "text", text: `surface-anchor-${index}` }], timestamp: index + 1,
+    }));
+    const { terminal, shell, engine } = await fixture(messages, [], true);
+    try {
+      terminal.resize(60, 14);
+      shell.root.setFullscreenCopyOnSelect(false);
+      shell.runtime.renderNow();
+      const initial = shell.root.render(60).map(stripTerminalSequences);
+      const sourceRow = initial.findIndex(row => row.includes("surface-anchor-18"));
+      expect(sourceRow).toBeGreaterThanOrEqual(0);
+      const sourceColumn = initial[sourceRow]!.indexOf("surface-anchor-18") + 1;
+      terminal.input(`\u001b[<0;${sourceColumn};${sourceRow + 1}M\u001b[<32;${sourceColumn + 6};${sourceRow + 1}M\u001b[<0;${sourceColumn + 6};${sourceRow + 1}m`);
+      shell.runtime.renderNow();
+
+      const appended = { role: "assistant", content: [{ type: "text", text: "new followed output" }], timestamp: 100 };
+      engine.session.emit({ type: "message_start", message: appended });
+      engine.session.emit({ type: "message_end", message: appended });
+      await shell.backend.flushEvents();
+      shell.runtime.renderNow();
+      const shiftedPlain = shell.root.render(60).map(stripTerminalSequences);
+      const shiftedRow = shiftedPlain.findIndex(row => row.includes("surface-anchor-18"));
+      expect(shiftedRow).toBeLessThan(sourceRow);
+      expect(shell.root.render(60)[shiftedRow]).toContain("\u001b[48;2;38;79;120m");
+      expect(shell.root.viewportFrameDescriptor()!.followingEnd).toBe(true);
+
+      const footerFrame = shell.root.render(60).map(stripTerminalSequences);
+      const footerRow = footerFrame.findLastIndex(row => row.trim().length > 0);
+      const footerColumn = Math.max(1, footerFrame[footerRow]!.search(/\S/u) + 1);
+      terminal.input(`\u001b[<0;${footerColumn};${footerRow + 1}M\u001b[<32;${footerColumn + 3};${footerRow + 1}M\u001b[<0;${footerColumn + 3};${footerRow + 1}m`);
+      shell.runtime.renderNow();
+      const next = { role: "assistant", content: [{ type: "text", text: "another followed output" }], timestamp: 101 };
+      engine.session.emit({ type: "message_start", message: next });
+      engine.session.emit({ type: "message_end", message: next });
+      await shell.backend.flushEvents();
+      shell.runtime.renderNow();
+      expect(shell.root.render(60)[footerRow]).toContain("\u001b[48;2;38;79;120m");
+      expect(shell.root.viewportFrameDescriptor()!.followingEnd).toBe(true);
+    } finally { await shell.dispose(); }
   });
 
   it.each([1, -1])("selects and copies adjacent transcript characters at 192x54 in direction %i", async direction => {
