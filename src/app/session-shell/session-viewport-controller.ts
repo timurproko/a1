@@ -68,6 +68,7 @@ export class SessionViewportController {
   #hoveredHyperlinkKey: string | undefined;
   #lastRequestedSelectionRevision = -1;
   #presentationRevision = 0;
+  #copyOnSelect = true;
   #activityTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(options: SessionViewportControllerOptions) {
@@ -110,6 +111,10 @@ export class SessionViewportController {
   /** Latest reported coordinates; exposed without rendering for frame provenance and evidence. */
   get pointerPosition(): { readonly column: number; readonly row: number } | undefined {
     return this.#pointerPosition;
+  }
+
+  setCopyOnSelect(enabled: boolean): void {
+    this.#copyOnSelect = enabled;
   }
 
   get frame(): TranscriptViewportFrame | null {
@@ -522,7 +527,7 @@ export class SessionViewportController {
             const editorRow = pendingEditorClick.row - this.#editorPointerFrame.rowStart + 1;
             this.#editor.handlePointer({ kind: "press", button: 0, column: pendingEditorClick.column, row: editorRow });
             this.#editor.handlePointer({ kind: "release", button: 0, column: pendingEditorClick.column, row: editorRow });
-          } else {
+          } else if (this.#copyOnSelect) {
             completedCopy = this.#viewport.captureSelectedText() ?? undefined;
           }
           // Platform: restore OSC 8 links only after the held-button selection paint has
