@@ -16,7 +16,7 @@ The manual merge accepts these scenarios:
   "archive": "openspec/changes/archive/2026-09-24-finish-compaction-progress/",
   "acceptanceManifest": "openspec/changes/archive/2026-09-24-finish-compaction-progress/acceptance.md",
   "finalizedDate": "2026-09-24",
-  "specBaseSha": "69c1959a5f5447da0dd2e0ac6dd772a49be4737b",
+  "specBaseSha": "66d91a0353e8a54d51b1db90b750397bbc5ce032",
   "acceptanceScenarios": [
     "Bare A1 shows `Compacting(100%)` after an observable summary stream finishes normally instead of remaining at 99%.",
     "Failed, stale, ended, or disposed observations never publish false terminal progress.",
