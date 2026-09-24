@@ -16,7 +16,7 @@ The manual merge accepts these scenarios:
   "archive": "openspec/changes/archive/2026-09-24-extend-selection-under-scrollbar/",
   "acceptanceManifest": "openspec/changes/archive/2026-09-24-extend-selection-under-scrollbar/acceptance.md",
   "finalizedDate": "2026-09-24",
-  "specBaseSha": "4920eed828387e598c69b09182f658e723e48b55",
+  "specBaseSha": "c2b0ea65ac65cb3e6ce4b08877bcf2ecbc67e94d",
   "acceptanceScenarios": [
     "A transcript selection that reaches the right edge paints continuously through the final-column gutter while visible scrollbar glyphs remain above it.",
     "A selection ending before the final source grapheme leaves both that grapheme and the gutter on their ordinary row background.",
