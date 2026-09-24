@@ -148,6 +148,10 @@ The commit is pushed with a lease on the head the run read, so a developer push 
 
 Because the branch gains commits from the archive App, pull before pushing. A rebase that drops them is harmless: the next push is reconciled from whatever the head contains. Do not revert a finalization commit to make a fix; push the fix and let the workflow re-finalize. When the workflow fails, its summary names the finalization code (`tasks-incomplete`, `acceptance-*`, `delivery-known-gaps`, `openspec-operation`, `finalization-merge-conflict`, ...), nothing is pushed, and `Finalized delivery validation` on the unfinalized head reports that automated finalization is pending.
 
+A missing fence is not an ordinary ready PR when immutable base/head evidence shows that the candidate introduces or restores an active change, or mixes active-change edits with code or operational paths. Base-controlled readiness and finalization both fail with `missing-implementation-association`; deleting editable body metadata cannot bypass finalization. Existing active-change documentation-only revisions and ordinary code PRs without active delivery paths retain their established routes.
+
+If an unassociated implementation has already integrated, do not edit its merged body or publish an archive-only follow-up. A corrective implementation-bound PR for the same still-active change must add the prevention fix and an exact `association-repair.json` record naming the original PR/head/merge/validation and the corrective PR. Normal version-3 finalization then synchronizes and archives the change; the corrective PR's authorized manual merge accepts that repair without pretending the original PR was finalized retroactively.
+
 ## Finalization command
 
 The local command remains available for inspection or when a developer prefers to finalize before marking the PR ready; the workflow then verifies the head and pushes nothing. It has inspection mode by default and an explicit `--write` mode. It never commits, pushes, edits GitHub, marks a PR ready, or merges. Use a temporary body file so the operation can update exact version-3 paths without mutating remote PR state:

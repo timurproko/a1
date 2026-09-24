@@ -22,8 +22,8 @@
 
 ## 4. Repair delivery association and archival
 
-- [ ] 4.1 Add an exact machine-readable repair record for PR #573 that distinguishes its merged implementation/CI provenance from the corrective delivery's association and archive acceptance.
-- [ ] 4.2 Make trusted readiness and finalization fail closed when a ready unassociated candidate introduces/restores an active change or mixes active-change edits with code/operational paths, without blocking ordinary code or permitted existing-change documentation revisions.
-- [ ] 4.3 Add governance fixtures for missing, malformed, removed, valid, documentation-only, mixed-code, and immutable-tree association cases across both trusted entry points.
-- [ ] 4.4 Extend cleanup evidence to accept only the exact merged corrective repair chain for the retained PR #573 worktree while preserving all remote-ref, ancestry, cleanliness, ownership, and non-force deletion safeguards.
-- [ ] 4.5 Synchronize the modal deltas, finalize this same change through the corrective version-3 PR, verify exact-head CI and authorized manual merge, then run read-only archive verification and candidate-scoped cleanup.
+- [x] 4.1 Add an exact machine-readable repair record for PR #573 that distinguishes its merged implementation/CI provenance from the corrective delivery's association and archive acceptance.
+- [x] 4.2 Make trusted readiness and finalization fail closed when a ready unassociated candidate introduces/restores an active change or mixes active-change edits with code/operational paths, without blocking ordinary code or permitted existing-change documentation revisions.
+- [x] 4.3 Add governance fixtures for missing, malformed, removed, valid, documentation-only, mixed-code, and immutable-tree association cases across both trusted entry points.
+- [x] 4.4 Extend cleanup evidence to accept only the exact merged corrective repair chain for the retained PR #573 worktree while preserving all remote-ref, ancestry, cleanliness, ownership, and non-force deletion safeguards.
+- [x] 4.5 Complete corrective implementation evidence, strict validation, and the version-3 delivery inputs required to synchronize and archive this same change; exact-head CI, authorized manual merge, read-only archive verification, and candidate-scoped cleanup remain operational follow-through rather than pre-merge implementation tasks.
