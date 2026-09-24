@@ -35,7 +35,7 @@ export function protectPromptChipWrapping(text: string): PromptChipWrapProtectio
   let protectedText = "", cursor = 0;
   for (const match of matches) {
     protectedText += text.slice(cursor, match.start);
-    // Adjacent chips need a temporary break opportunity or Markdown treats the complete run as one word.
+    // Rationale: adjacent chips need a temporary break opportunity or Markdown treats the complete run as one word.
     if (match.start === cursor && cursor > 0) protectedText += `${boundaryMarker} `;
     protectedText += match.text.replaceAll(" ", spaceMarker);
     cursor = match.end;
