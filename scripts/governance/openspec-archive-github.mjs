@@ -143,13 +143,15 @@ export async function validateVersion3Candidate(reader, number) {
     "delivery-diff-incomplete");
   const specPaths = new Set(value.specEntries.map(([path]) => path));
   const activePrefix = `openspec/changes/${implementation.change}/`;
-  const archivedRenameSources = new Set(files.flatMap(file => {
-    if (file.status !== "renamed" || typeof file.previous_filename !== "string" || !file.previous_filename.startsWith(activePrefix)) return [];
-    const expected = `${implementation.archive}${file.previous_filename.slice(activePrefix.length)}`;
-    return file.filename === expected ? [file.previous_filename] : [];
+  const deliveredArchivePaths = new Set([...value.archiveEntries.map(([path]) => path), implementation.acceptanceManifest]);
+  const archivedSources = new Set(files.flatMap(file => {
+    const source = file.status === "renamed" ? file.previous_filename : file.status === "removed" ? file.filename : null;
+    if (typeof source !== "string" || !source.startsWith(activePrefix)) return [];
+    const expected = `${implementation.archive}${source.slice(activePrefix.length)}`;
+    return deliveredArchivePaths.has(expected) && (file.status === "removed" || file.filename === expected) ? [source] : [];
   }));
   for (const path of changed) {
-    if (path.startsWith("openspec/changes/") && !path.startsWith(implementation.archive) && !archivedRenameSources.has(path)) {
+    if (path.startsWith("openspec/changes/") && !path.startsWith(implementation.archive) && !archivedSources.has(path)) {
       throw archiveFailure("delivery-unexpected-openspec-path", path);
     }
     if (path.startsWith("openspec/specs/") && !specPaths.has(path)) throw archiveFailure("delivery-unexpected-openspec-path", path);

@@ -93,6 +93,13 @@ describe("version-3 GitHub delivery authority", () => {
     await expect(validateVersion3Candidate(f.reader, 42)).resolves.toMatchObject({ disposition: "ready-for-manual-merge" });
   });
 
+  it("accepts an exact active deletion plus archive addition when GitHub does not detect the move", async () => {
+    const f = fixture(false);
+    f.changed.push({ filename: "openspec/changes/example/implementation-evidence.md", status: "removed" });
+    f.pull.changed_files = f.changed.length;
+    await expect(validateVersion3Candidate(f.reader, 42)).resolves.toMatchObject({ disposition: "ready-for-manual-merge" });
+  });
+
   it("rejects the superseded phase-prefixed layout for an open candidate", async () => {
     const f = fixture(false);
     f.pull.body = `> Phase: Implementation\n\n${f.pull.body}`;
