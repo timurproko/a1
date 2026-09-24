@@ -19,6 +19,7 @@ jobs:
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     permissions:
       contents: read
+      pull-requests: read
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
@@ -40,6 +41,10 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           PULL_DRAFT: ${{ github.event.pull_request.draft || false }}
           PULL_BODY: ${{ github.event.pull_request.body || '' }}
+          PULL_NUMBER: ${{ github.event.pull_request.number || '' }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || '' }}
+          EXPECTED_BASE: ${{ github.event.pull_request.base.sha || '' }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           policy=scripts/release/development-validation-readiness.mjs
@@ -342,7 +347,8 @@ jobs:
         shell: bash
         run: |
           if grep -q 'PHASE_FREE_VERSION3_BODY_POLICY = true' scripts/governance/openspec-acceptance-checklist.mjs \
-            && grep -q 'ACTIVE_TO_ARCHIVE_RENAME_POLICY = true' scripts/governance/openspec-archive-github.mjs; then
+            && grep -q 'ACTIVE_TO_ARCHIVE_RENAME_POLICY = true' scripts/governance/openspec-archive-github.mjs \
+            && grep -q 'ASSOCIATION_REPAIR_POLICY = true' scripts/governance/openspec-archive-github.mjs; then
             echo 'installed=true' >> "$GITHUB_OUTPUT"
           else
             echo 'The complete finalized-delivery policy is not deployed on the base; validating this bootstrap candidate with its full authority-changing head.' >> "$GITHUB_STEP_SUMMARY"

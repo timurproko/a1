@@ -3,6 +3,7 @@ import { mkdtemp, mkdir, readdir, realpath, rm, rename, writeFile } from "node:f
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
+import { inspectUnassociatedPull } from "./openspec-association-policy.mjs";
 import { prepareSinglePrDelivery, replaceImplementationMetadata } from "./openspec-delivery-finalization.mjs";
 import { readCanonicalSpecs } from "./openspec-delivery-git.mjs";
 import { archiveFailure, archivePaths, assertArchiveDiff, parseImplementation, SHA } from "./openspec-archive-policy.mjs";
@@ -75,7 +76,13 @@ export async function reconcileFinalization({ reader, publisher, number, toolRoo
   const pull = await reader.get(`${prefix}/pulls/${number}`);
   if (pull.number !== number) throw archiveFailure("implementation-pr");
   const classified = classifyFinalizationCandidate(pull, reader.repository);
-  if (classified.skip) return { disposition: "skipped", reason: classified.skip, head: pull.head?.sha ?? null };
+  if (classified.skip) {
+    if (classified.skip === "unassociated") {
+      const association = await inspectUnassociatedPull(reader, pull);
+      if (association.blocked) throw archiveFailure(association.reason, association.changes.join(","));
+    }
+    return { disposition: "skipped", reason: classified.skip, head: pull.head?.sha ?? null };
+  }
   const { implementation } = classified;
   const change = implementation.change;
   const target = (await reader.get(`${prefix}/git/ref/heads/develop`)).object?.sha;

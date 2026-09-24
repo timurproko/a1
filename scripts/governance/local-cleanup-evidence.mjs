@@ -1,6 +1,7 @@
 import { archiveReaderFromGet, loadArchiveEvidence, findImplementationValidation } from "./openspec-archive-github.mjs";
 import { readArchiveMarker } from "./openspec-archive-publication.mjs";
 import { snapshotOpenSpec } from "./openspec-archive-staging.mjs";
+import { loadAssociationRepair } from "./openspec-association-repair.mjs";
 import { acceptanceBranch, archivedAcceptanceMatches, receiptIdentityMatches } from "./openspec-acceptance-policy.mjs";
 import { parseImplementation, SHA } from "./openspec-archive-policy.mjs";
 import { digest, fail } from "./local-cleanup-state.mjs";
@@ -115,9 +116,44 @@ export async function mergedIntoDevelop(reader, entry) {
     && pull.base.repo?.full_name === reader.repository && pull.head?.repo?.full_name === reader.repository && SHA.test(pull.merge_commit_sha ?? "");
 }
 
+async function verifyCorrectiveAssociation(reader, entry, source) {
+  merged(source.pull, reader.repository);
+  const targetSha = (await reader.get(`${reader.prefix}/git/ref/heads/develop`)).object?.sha;
+  if (!SHA.test(targetSha ?? "")) fail("target-identity");
+  await reader.ancestor(source.pull.merge_commit_sha, targetSha);
+  const target = await snapshotOpenSpec(reader, targetSha);
+  if ([...target.entries.keys()].some(path => path.startsWith(`openspec/changes/${entry.change}/`))) fail("change-still-active");
+  let repair;
+  try { repair = await loadAssociationRepair(target, entry.change); }
+  catch (error) { if (error.cleanupCode) throw error; fail("association-repair"); }
+  const record = repair.record;
+  if (record.repository !== reader.repository || record.sourcePr !== source.pull.number
+    || record.sourceHead !== source.pull.head.sha || record.sourceMerge !== source.pull.merge_commit_sha) fail("association-repair-source");
+  const corrective = await loadArchiveEvidence(reader, record.correctivePr);
+  if (corrective.disposition !== "eligible" || corrective.implementation?.version !== 3
+    || corrective.implementation.change !== entry.change || corrective.implementation.archive !== repair.archive
+    || corrective.pull.number !== record.correctivePr || corrective.targetSha !== targetSha) fail("association-repair-corrective-delivery");
+  if (entry.role !== "implementation" || entry.candidatePr !== source.pull.number
+    || !await acceptedHead(reader, entry.head, source.pull.head.sha)
+    || entry.ref !== null && entry.ref !== `refs/heads/${source.pull.head.ref}`) fail("candidate-head-association");
+  const refs = [...new Set([source.pull.head.ref, corrective.pull.head.ref])];
+  for (const ref of refs) {
+    if (typeof ref !== "string" || !/^[A-Za-z0-9._/-]+$/.test(ref) || ref.includes("..")) fail("remote-ref-identity");
+    try {
+      const live = await reader.get(`${reader.prefix}/git/ref/heads/${encodeURIComponent(ref)}`);
+      return { disposition: "pending", reason: "remote-ref-present", ref,
+        actualSha: SHA.test(live.object?.sha ?? "") ? live.object.sha : null };
+    } catch (error) { if (error.archiveCode !== "github-not-found") throw error; }
+  }
+  return { disposition: "eligible", sourcePr: source.pull.number, sourceHead: source.pull.head.sha,
+    sourceMerge: source.pull.merge_commit_sha, archivePr: corrective.pull.number, archiveHead: corrective.pull.head.sha,
+    archiveMerge: corrective.pull.merge_commit_sha, targetSha, refs, associationRepair: repair.path };
+}
+
 /** A status comment or absent branch is never proof of integrated archival. */
 export async function verifyCleanupEvidence(reader, entry) {
   const source = await loadArchiveEvidence(reader, entry.sourcePr);
+  if (source.disposition === "unlinked") return await verifyCorrectiveAssociation(reader, entry, source);
   if (source.implementation?.version === 3 && source.implementation.change === entry.change) {
     // Protocol: an unmerged hand-off is reported, never acted on; closure alone grants no discard authority.
     if (source.disposition === "closed") return { disposition: "awaiting-discard", reason: "pr-closed-unmerged", sourcePr: source.pull.number };

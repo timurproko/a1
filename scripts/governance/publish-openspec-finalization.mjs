@@ -3,6 +3,7 @@ import { appendFile, readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
+import { inspectUnassociatedPull } from "./openspec-association-policy.mjs";
 import { createArchiveReader } from "./openspec-archive-github.mjs";
 import { archiveFailure } from "./openspec-archive-policy.mjs";
 import { createArchivePublisher } from "./openspec-archive-publication.mjs";
@@ -35,6 +36,10 @@ export async function main(args = process.argv.slice(2), environment = process.e
   if (dryRun) {
     const pull = await reader.get(`${reader.prefix}/pulls/${number}`);
     const classified = classifyFinalizationCandidate(pull, repository);
+    if (classified.skip === "unassociated") {
+      const association = await inspectUnassociatedPull(reader, pull);
+      if (association.blocked) throw archiveFailure(association.reason, association.changes.join(","));
+    }
     result = classified.skip ? { disposition: "skipped", reason: classified.skip, head: pull.head?.sha ?? null }
       : { disposition: "would-reconcile", head: pull.head.sha, change: classified.implementation.change };
   } else {

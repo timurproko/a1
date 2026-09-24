@@ -10,7 +10,7 @@ const base = "a".repeat(40), head = "b".repeat(40), merge = "c".repeat(40);
 const archive = "openspec/changes/archive/2026-09-15-example/";
 const scenarios = ["Manual integration preserves the implemented example behavior and synchronized specification."];
 
-function fixture(merged: boolean, provenance: "manual" | "automatic" = "manual") {
+function fixture(merged: boolean, provenance: "manual" | "automatic" = "manual", associationRepair: object | null = null) {
   const archiveFiles: Record<string, string> = {
     [`${archive}.openspec.yaml`]: "schema: spec-driven\ncreated: 2026-09-15\n",
     [`${archive}proposal.md`]: "proposal\n",
@@ -18,6 +18,7 @@ function fixture(merged: boolean, provenance: "manual" | "automatic" = "manual")
     [`${archive}tasks.md`]: "## 1. Work\n\n- [x] 1.1 Implement and verify.\n",
     [`${archive}specs/example/spec.md`]: "## MODIFIED Requirements\n\n### Requirement: Example\nThe system SHALL work.\n\n#### Scenario: Works\n- **WHEN** used\n- **THEN** it SHALL work\n",
     [`${archive}implementation-evidence.md`]: "# Evidence\n\nPassed.\n",
+    ...(associationRepair ? { [`${archive}association-repair.json`]: `${JSON.stringify(associationRepair, null, 2)}\n` } : {}),
   };
   const specFiles: Record<string, string> = {
     "openspec/config.yaml": "schema: spec-driven\n",
@@ -92,6 +93,13 @@ describe("version-3 GitHub delivery authority", () => {
     await expect(validateVersion3Candidate(f.reader, 42)).resolves.toMatchObject({ disposition: "ready-for-manual-merge" });
   });
 
+  it("accepts an exact active deletion plus archive addition when GitHub does not detect the move", async () => {
+    const f = fixture(false);
+    f.changed.push({ filename: "openspec/changes/example/implementation-evidence.md", status: "removed" });
+    f.pull.changed_files = f.changed.length;
+    await expect(validateVersion3Candidate(f.reader, 42)).resolves.toMatchObject({ disposition: "ready-for-manual-merge" });
+  });
+
   it("rejects the superseded phase-prefixed layout for an open candidate", async () => {
     const f = fixture(false);
     f.pull.body = `> Phase: Implementation\n\n${f.pull.body}`;
@@ -155,6 +163,51 @@ describe("version-3 GitHub delivery authority", () => {
       });
     await expect(verifyCleanupEvidence(fixture(true).reader, { sourcePr: 42, candidatePr: 42, change: "example",
       role: "archive", head, ref: null })).rejects.toThrow("candidate-head-association");
+  });
+
+  it("authorizes cleanup of an exact original unassociated worktree through the corrective archive", async () => {
+    const originalHead = "d".repeat(40), originalMerge = "e".repeat(40);
+    const repair = { schema: "a1-openspec-association-repair-v1", repository, change: "example", sourcePr: 573,
+      sourceHead: originalHead, sourceMerge: originalMerge, validationRunId: 98,
+      failureReason: "missing-openspec-implementation-metadata", correctivePr: 42 };
+    const f = fixture(true, "manual", repair);
+    const original = { number: 573, state: "closed", merged: true, draft: false, auto_merge: null, merged_at: "2026-09-15T11:00:00Z",
+      merge_commit_sha: originalMerge, merged_by: { login: "reviewer", type: "User" }, body: "ordinary body",
+      base: { ref: "develop", sha: base, repo: { full_name: repository } },
+      head: { ref: "fix/original", sha: originalHead, repo: { full_name: repository } } };
+    const reader = { repository, prefix: `/repos/${repository}`, ancestor: f.reader.ancestor,
+      async get(path: string) {
+        if (path === `/repos/${repository}/pulls/573`) return original;
+        if (path.startsWith(`/repos/${repository}/actions/workflows/ci.yml/runs?`) && path.includes(originalHead)) return { total_count: 1, workflow_runs: [{
+          id: 98, run_number: 9, run_attempt: 1, head_sha: originalHead, head_branch: "fix/original", event: "pull_request",
+          path: ".github/workflows/ci.yml", status: "completed", conclusion: "success", head_repository: { full_name: repository },
+          pull_requests: [{ number: 573, head: { sha: originalHead }, base: { sha: base } }],
+        }] };
+        if (path.startsWith(`/repos/${repository}/actions/runs/98/jobs?`)) return { total_count: 1, jobs: [{
+          name: "Development validation required", status: "completed", conclusion: "success", head_sha: originalHead,
+        }] };
+        if (path.includes("/git/ref/heads/fix%2Foriginal")) throw Object.assign(new Error("github-not-found"), { archiveCode: "github-not-found" });
+        return await f.reader.get(path);
+      },
+      async pages(path: string, limit?: number, field?: string) {
+        if (path === "/issues/573/timeline") return [{ event: "merged", actor: { login: "reviewer", type: "User" },
+          performed_via_github_app: null, commit_id: originalMerge, created_at: original.merged_at }];
+        if (path.startsWith("/actions/workflows/ci.yml/runs?") && path.includes(originalHead)) return [{
+          id: 98, run_number: 9, run_attempt: 1, head_sha: originalHead, head_branch: "fix/original", event: "pull_request",
+          path: ".github/workflows/ci.yml", status: "completed", conclusion: "success", head_repository: { full_name: repository },
+          pull_requests: [{ number: 573, head: { sha: originalHead }, base: { sha: base } }],
+        }];
+        if (path.startsWith("/actions/runs/98/jobs?")) return [{
+          name: "Development validation required", status: "completed", conclusion: "success", head_sha: originalHead,
+        }];
+        return await f.reader.pages(path, limit, field);
+      },
+    };
+    await expect(verifyCleanupEvidence(reader as never, { sourcePr: 573, candidatePr: 573, change: "example",
+      role: "implementation", head: originalHead, ref: "refs/heads/fix/original" })).resolves.toMatchObject({
+        disposition: "eligible", sourcePr: 573, archivePr: 42,
+        associationRepair: `${archive}association-repair.json`, refs: ["fix/original", "feature/example"],
+      });
   });
 
   it("reports invalid merge provenance without requesting publication", async () => {

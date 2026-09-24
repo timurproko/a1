@@ -200,6 +200,35 @@ describe("trusted finalization publication", () => {
     expect(classifyFinalizationCandidate({ state: "open", draft: false, body: body(), base, head }, "owner/repo")).toMatchObject({ implementation: { change: "example" } });
   });
 
+  it("fails closed when an unassociated ready head carries active delivery and code changes", async () => {
+    const f = await fixture();
+    f.state.body = "ordinary pull request";
+    const base = await git(f.root, ["--git-dir", f.remote, "rev-parse", "refs/heads/develop"]);
+    const head = await f.remoteHead();
+    const names = (await git(f.root, ["--git-dir", f.remote, "diff", "--name-only", base, head])).split("\n").filter(Boolean);
+    const tree = async (sha: string) => ({ truncated: false, tree: (await git(f.root, ["--git-dir", f.remote, "ls-tree", "-r", sha])).split("\n").filter(Boolean).map(line => {
+      const match = /^(\d+) (\w+) ([a-f0-9]{40})\t(.+)$/.exec(line)!;
+      return { mode: match[1], type: match[2], sha: match[3], path: match[4] };
+    }) });
+    const reader = { ...f.reader,
+      async pages(path: string) {
+        if (path === "/pulls/7/files") return names.map(filename => ({ filename, status: "modified" }));
+        throw new Error(path);
+      },
+      async get(path: string) {
+        if (path.endsWith("/pulls/7")) {
+          const pull = await f.reader.get(path);
+          return { ...pull, changed_files: names.length, base: { ...pull.base, sha: base } };
+        }
+        if (path.includes(`/git/trees/${base}`)) return await tree(base);
+        if (path.includes(`/git/trees/${head}`)) return await tree(head);
+        return await f.reader.get(path);
+      },
+    };
+    await expect(f.reconcile({ reader })).rejects.toThrow("missing-implementation-association");
+    expect(f.mutations).toHaveLength(0);
+  }, 60_000);
+
   it("fails closed on incomplete tasks without pushing", async () => {
     const f = await fixture();
     await commit(f.seed, "wip", { "openspec/changes/example/tasks.md": "## 1. Work\n\n- [ ] 1.1 Implement and verify example behavior.\n" });
