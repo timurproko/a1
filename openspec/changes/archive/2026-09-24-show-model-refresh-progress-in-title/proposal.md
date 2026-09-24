@@ -6,7 +6,7 @@ Opening the Models dialog currently consumes a body row with `Refreshing model c
 
 - Show a muted `(refreshing)` marker beside the Models title while the automatic catalog refresh runs in the background instead of rendering the full progress sentence in the body.
 - Keep `(refreshing)` visible for a one-second minimum so a fast refresh does not reduce real progress feedback to an unreadable flash.
-- After the real refresh settles and the minimum interval has elapsed, transition the title to the existing success-colored `(refreshed)` acknowledgement, then dismiss `(refreshed)` on its existing bounded timer.
+- After the real refresh settles and the minimum interval has elapsed, transition the title to the success-colored `(refreshed)` acknowledgement, keep it readable for two seconds, then dismiss it.
 - Compose refresh state with `(unsaved)` without clearing dirty scope state, and remove `(refreshing)` when a timeout or failure replaces it with actionable warning details in the body.
 - Keep model-catalog execution, timeout behavior, warning text, row reconciliation, and dialog-disposal safety unchanged.
 

@@ -47,7 +47,7 @@ export interface ModelsDialogCallbacks {
 const MAX_VISIBLE_ROWS = 10;
 const MODELS_TITLE = "Models";
 const REFRESHING_TITLE_MIN_DURATION_MS = 1_000;
-const REFRESHED_TITLE_DURATION_MS = 1_000;
+const REFRESHED_TITLE_DURATION_MS = 2_000;
 
 interface ModelsDialogRow {
   readonly fullId: string;

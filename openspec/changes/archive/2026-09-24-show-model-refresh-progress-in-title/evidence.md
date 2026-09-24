@@ -3,7 +3,7 @@
 ## Result
 
 - Opening `/models` starts the existing abortable catalog refresh immediately in the background and shows muted `(refreshing)` beside the Models title instead of a body sentence.
-- A completed refresh keeps `(refreshing)` readable for a one-second minimum, then success becomes the existing success-colored `(refreshed)` acknowledgement for one second before disappearing.
+- A completed refresh keeps `(refreshing)` readable for a one-second minimum, then success becomes the success-colored `(refreshed)` acknowledgement for two seconds before disappearing.
 - Dirty scope state composes as `Models (unsaved) (refreshing)` and then `Models (unsaved) (refreshed)` without being cleared by either transition.
 - Fast failures retain `(refreshing)` for the same minimum interval, then replace it with persistent actionable warning details in the body; timeout behavior remains bounded by the existing 15-second abort.
 - A restarted progress state supersedes a queued outcome, and dialog disposal clears both queued-outcome and dismissal timers so no closed surface requests a late render.
@@ -21,7 +21,7 @@
 
 ## Manual handoff
 
-Build with `npm run build`, launch with `./scripts/dev`, and open `/models`. Confirm `(refreshing)` appears beside `Models` for at least one second with no `Refreshing model catalogs…` body row, then changes to `(refreshed)` briefly and disappears. Edit scope during refresh to confirm `(unsaved)` remains visible. Timeout and failure details should replace the title marker with a readable warning in the body.
+Build with `npm run build`, launch with `./scripts/dev`, and open `/models`. Confirm `(refreshing)` appears beside `Models` for at least one second with no `Refreshing model catalogs…` body row, then changes to `(refreshed)` for two seconds and disappears. Edit scope during refresh to confirm `(unsaved)` remains visible. Timeout and failure details should replace the title marker with a readable warning in the body.
 
 ## Known gaps
 

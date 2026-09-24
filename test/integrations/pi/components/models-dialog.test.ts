@@ -270,7 +270,7 @@ describe("unified Models dialog", () => {
     }
   });
 
-  it("holds real refreshing state for one second, then replaces and dismisses outcomes without late rendering", async () => {
+  it("holds refreshing for one second and refreshed for two seconds without late rendering", async () => {
     vi.useFakeTimers();
     try {
       await withDialog(async (dialog, callbacks) => {
@@ -286,14 +286,14 @@ describe("unified Models dialog", () => {
 
         callbacks.requestRender.mockClear();
         dialog.handleInput(SPACE);
-        await vi.advanceTimersByTimeAsync(999);
+        await vi.advanceTimersByTimeAsync(1_999);
         expect(text(dialog)).toContain("Models (unsaved) (refreshed)");
         expect(callbacks.requestRender).not.toHaveBeenCalled();
         dialog.setRefreshStatus("Model catalogs refreshed.", "success");
         await vi.advanceTimersByTimeAsync(1);
         expect(text(dialog)).toContain("Models (unsaved) (refreshed)");
         expect(callbacks.requestRender).not.toHaveBeenCalled();
-        await vi.advanceTimersByTimeAsync(999);
+        await vi.advanceTimersByTimeAsync(1_999);
         expect(text(dialog)).toContain("Models (unsaved)");
         expect(text(dialog)).not.toContain("(refreshed)");
         expect(callbacks.requestRender).toHaveBeenCalledOnce();

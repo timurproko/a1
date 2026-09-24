@@ -282,7 +282,7 @@ describe("bare-A1 unified Models dialog", () => {
         expect(frame(shell)).toContain("Models (unsaved) (refreshing)");
         await vi.advanceTimersByTimeAsync(1);
         expect(frame(shell)).toContain("Models (unsaved) (refreshed)");
-        await vi.advanceTimersByTimeAsync(999);
+        await vi.advanceTimersByTimeAsync(1_999);
         expect(frame(shell)).toContain("Models (unsaved) (refreshed)");
         await vi.advanceTimersByTimeAsync(1);
         text = frame(shell);

@@ -2,6 +2,7 @@
 
 - [x] 1.1 Add focused controlled-timer component coverage for `Models (refreshing)`, `Models (unsaved) (refreshing)`, absence of the full body progress sentence, a one-second minimum-visible interval, transition to timed `(refreshed)`, retained warning details, replacement, and disposal without late rendering.
 - [x] 1.2 Map muted catalog-refresh status to title progress state and queue quick outcomes until the one-second minimum has elapsed while preserving success dismissal, warning-body presentation, title ordering, and dialog lifecycle cleanup.
+- [x] 1.3 Extend the successful `(refreshed)` acknowledgement from one second to two seconds and update controlled-timer component and shell assertions for the exact boundary.
 
 ## 2. Shell integration and handoff
 
