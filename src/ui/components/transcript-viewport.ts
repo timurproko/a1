@@ -79,6 +79,12 @@ export interface TranscriptViewportFrameInput {
     readonly columnStart: number;
     readonly columnEnd: number;
   }[];
+  /** Transient paint-only text that must not participate in frame allocation or copying. */
+  readonly frameOverlay?: {
+    /** One-based terminal row. */
+    readonly row: number;
+    readonly text: string;
+  };
   readonly now?: number;
   readonly theme?: TranscriptViewportTheme;
 }
@@ -148,6 +154,26 @@ const CONTROL_STYLE_RESET = "\u001b]8;;\u001b\\\u001b[0m";
 const GUTTER_DECORATION_RESET = "\u001b]8;;\u001b\\\u001b[22;23;24;25;27;28;29;39;54;55m";
 const IDENTITY_ROW = (row: string): string => row;
 
+type DocumentSelectionRowAnchor = {
+  readonly kind: "document";
+  readonly row: number;
+  readonly source: string;
+  readonly identity: string;
+};
+type SelectionRowAnchor =
+  | DocumentSelectionRowAnchor
+  | { readonly kind: "dock"; readonly fromBottom: number }
+  | { readonly kind: "screen"; readonly row: number; readonly source: string };
+
+function documentSelectionAnchor(row: number, source: string): DocumentSelectionRowAnchor {
+  return { kind: "document", row, source, identity: stripAnsi(source).trimEnd() };
+}
+
+interface SelectionAnchors {
+  readonly anchor: SelectionRowAnchor;
+  readonly head: SelectionRowAnchor;
+}
+
 const DEFAULT_CONFIG: TranscriptViewportConfig = {
   scrollbarAppearance: "auto",
   scrollbarStyle: "thin",
@@ -176,6 +202,7 @@ export class TranscriptViewport {
   #railDragging = false;
   #stickyHovered = false;
   #selection: TextSelection | undefined;
+  #selectionAnchors: SelectionAnchors | undefined;
   #selectionClick: TextSelectionClick | undefined;
   #selectionRevision = 0;
   #copyableSelection = false;
@@ -193,6 +220,8 @@ export class TranscriptViewport {
   #promptAnchors: readonly TranscriptPromptAnchor[] = [];
   #contentWidth = 0;
   #selectionWidth = 0;
+  #viewportHeight = 0;
+  #selectionRowAnchors: readonly (SelectionRowAnchor | undefined)[] = [];
   #frameId = 0;
   #frame: TranscriptViewportFrame | null = null;
 
@@ -246,10 +275,13 @@ export class TranscriptViewport {
       now,
     });
     this.#selection = pressed.selection;
+    const rowAnchor = this.#selectionAnchorAt(line);
+    this.#selectionAnchors = pressed.selection === undefined || rowAnchor === undefined
+      ? undefined
+      : { anchor: rowAnchor, head: rowAnchor };
     this.#selectionClick = pressed.click;
     this.#selectionRevision += 1;
     this.#updateCopyableSelection();
-    if (this.#copyableSelection) this.#followingEnd = false;
     return true;
   }
 
@@ -273,10 +305,15 @@ export class TranscriptViewport {
       : textSelectionPointAt(line, targetColumn, this.#selectionRows[line] ?? "");
     const next = extendTextSelection(selection, point);
     if (next !== selection) {
+      const headAnchor = this.#selectionAnchorAt(line);
+      if (headAnchor === undefined || this.#selectionAnchors === undefined) {
+        this.clearSelection();
+        return true;
+      }
       this.#selection = next;
+      this.#selectionAnchors = { ...this.#selectionAnchors, head: headAnchor };
       this.#selectionRevision += 1;
       this.#updateCopyableSelection();
-      if (this.#copyableSelection) this.#followingEnd = false;
     }
     return true;
   }
@@ -284,6 +321,7 @@ export class TranscriptViewport {
   releaseSelection(): boolean {
     if (this.#selection?.selecting !== true) return false;
     this.#selection = releaseTextSelection(this.#selection);
+    if (this.#selection === undefined) this.#selectionAnchors = undefined;
     this.#selectionRevision += 1;
     this.#updateCopyableSelection();
     return true;
@@ -292,13 +330,14 @@ export class TranscriptViewport {
   clearSelection(): boolean {
     if (this.#selection === undefined) return false;
     this.#selection = undefined;
+    this.#selectionAnchors = undefined;
     this.#copyableSelection = false;
     this.#selectionRevision += 1;
     return true;
   }
 
   selectedText(): string | null {
-    const selection = orderedTextSelection(this.#selection);
+    const selection = visibleTextSelection(orderedTextSelection(this.#selection), this.#selectionRows.length);
     if (selection === undefined) return null;
     const text = textSelectionText(selection, this.#selectionRows, line => usefulTextLineContent(this.#selectionRows[line] ?? ""));
     return text.length === 0 ? null : text;
@@ -389,8 +428,10 @@ export class TranscriptViewport {
     this.#newMessages = 0;
     if (this.#selection !== undefined) this.#selectionRevision += 1;
     this.#selection = undefined;
+    this.#selectionAnchors = undefined;
     this.#copyableSelection = false;
     this.#selectionRows = [];
+    this.#selectionRowAnchors = [];
     this.#selectionClick = undefined;
     this.#paintedRowCache.clear();
     this.#baseRowCache.clear();
@@ -402,6 +443,7 @@ export class TranscriptViewport {
     this.#promptAnchors = [];
     this.#contentWidth = 0;
     this.#selectionWidth = 0;
+    this.#viewportHeight = 0;
     this.clearTransient();
     this.#frame = null;
   }
@@ -470,6 +512,7 @@ export class TranscriptViewport {
     // Invariant: dock rows remain selectable at full width; scrollable source rows
     // use contentWidth and leave the gutter outside semantic selection.
     this.#selectionWidth = width;
+    this.#viewportHeight = viewportHeight;
     const paintDocumentRow = input.paintDocumentRow ?? IDENTITY_ROW;
     const cacheLimit = Math.max(32, viewportHeight * 6);
     trimCache(this.#paintedRowCache, cacheLimit);
@@ -514,6 +557,23 @@ export class TranscriptViewport {
       ...visibleSource.map(row => truncateToWidth(row, contentWidth)),
       ...dock,
     ].slice(0, height);
+    const visibleAnchors: SelectionRowAnchor[] = Array.from({ length: viewportHeight }, (_value, row) => {
+      const documentRow = this.#scrollTop + row;
+      return documentRow < documentRows.length
+        ? documentSelectionAnchor(documentRow, documentRows[documentRow] ?? "")
+        : { kind: "screen", row, source: this.#selectionRows[row] ?? "" };
+    });
+    if (stickyActive && governing !== null && visibleAnchors.length > 0) {
+      visibleAnchors[0] = documentSelectionAnchor(
+        governing.firstRow,
+        documentRows[governing.firstRow] ?? governing.sourceRow,
+      );
+    }
+    this.#selectionRowAnchors = [
+      ...visibleAnchors,
+      ...dock.map((_row, index): SelectionRowAnchor => ({ kind: "dock", fromBottom: dock.length - index - 1 })),
+    ].slice(0, height);
+    this.#projectSelection(documentRows, dock, height);
     const selectionPainterId = this.#functionId(theme.selection);
     // Concurrency: a painter may synchronously route input in tests or host integrations.
     // Label this frame with the exact selection snapshot it began composing.
@@ -604,23 +664,36 @@ export class TranscriptViewport {
         const glyph = thumb ? presentation.thumbGlyph : presentation.trackGlyph;
         railCell = thumb ? theme.thumb(glyph, this.#railHovered || this.#railDragging) : theme.track(glyph);
       }
+      const overlayLimit = row < viewportHeight ? contentWidth : width;
+      const overlayText = input.frameOverlay?.row === row + 1
+        ? truncateToWidth(input.frameOverlay.text, overlayLimit)
+        : "";
+      const overlayWidth = displayWidth(overlayText);
       const final = cachedString(
         this.#finalRowCache,
-        `${width}\u0000${railCell}\u0000${selected.value}`,
+        `${width}\u0000${railCell}\u0000${overlayText}\u0000${selected.value}`,
         cacheLimit,
-        () => railCell.length === 0 ? selected.value : overlaySpan(
-          selected.value,
-          width - 1,
-          width,
-          `${GUTTER_DECORATION_RESET}${railCell}`,
-          { inheritStartStyle: true },
-        ),
+        () => {
+          const withRail = railCell.length === 0 ? selected.value : overlaySpan(
+            selected.value,
+            width - 1,
+            width,
+            `${GUTTER_DECORATION_RESET}${railCell}`,
+            { inheritStartStyle: true },
+          );
+          return overlayWidth === 0 ? withRail : overlaySpan(
+            padRowPreservingBackground(withRail, width),
+            overlayLimit - overlayWidth,
+            overlayLimit,
+            `${CONTROL_STYLE_RESET}${overlayText}`,
+          );
+        },
       );
       rowRecomputed ||= !final.reused;
       frameRows[row] = final.value;
       (rowRecomputed ? recomputedRows : reusedRows).push(row + 1);
 
-      const state = `${width}\u0000${row}\u0000${painted}\u0000${rangeKey}\u0000${range === null ? "" : selectionPainterId}\u0000${railCell}`;
+      const state = `${width}\u0000${row}\u0000${painted}\u0000${rangeKey}\u0000${range === null ? "" : selectionPainterId}\u0000${railCell}\u0000${overlayText}`;
       visibleStates.push(state);
       if (this.#previousVisibleStates[row] !== state) selectionDamagedRows.push(row + 1);
     }
@@ -777,11 +850,96 @@ export class TranscriptViewport {
     return id;
   }
 
+  #selectionAnchorAt(line: number): SelectionRowAnchor | undefined {
+    if (line < 0 || line >= this.#selectionRows.length) return undefined;
+    if (line < this.#viewportHeight) {
+      const existing = this.#selectionRowAnchors[line];
+      if (this.#frame?.scrollTop === this.#scrollTop) return existing;
+      // Concurrency: selection edge auto-scroll updates scrollTop before the next frame is
+      // composed. Resolve ordinary viewport rows from that latest position instead of stale paint.
+      const documentRow = this.#scrollTop + line;
+      if (documentRow >= 0 && documentRow < this.#documentRows.length) {
+        return documentSelectionAnchor(documentRow, this.#documentRows[documentRow] ?? "");
+      }
+    }
+    return this.#selectionRowAnchors[line];
+  }
+
+  #projectSelection(documentRows: readonly string[], dockRows: readonly string[], height: number): void {
+    const selection = this.#selection;
+    const anchors = this.#selectionAnchors;
+    if (selection === undefined || anchors === undefined) return;
+    const project = (anchor: SelectionRowAnchor): { readonly line: number; readonly anchor: SelectionRowAnchor } | undefined => {
+      if (anchor.kind === "dock") {
+        const dockIndex = dockRows.length - anchor.fromBottom - 1;
+        return dockIndex < 0 || dockIndex >= dockRows.length
+          ? undefined
+          : { line: height - dockRows.length + dockIndex, anchor };
+      }
+      if (anchor.kind === "screen") {
+        return anchor.row < 0 || anchor.row >= this.#selectionRows.length
+          || this.#selectionRows[anchor.row] !== anchor.source
+          ? undefined
+          : { line: anchor.row, anchor };
+      }
+      if (anchor.row >= 0 && anchor.row < documentRows.length
+        && stripAnsi(documentRows[anchor.row] ?? "").trimEnd() === anchor.identity) {
+        const current = documentSelectionAnchor(anchor.row, documentRows[anchor.row] ?? "");
+        const visible = this.#selectionRowAnchors.findIndex(candidate => candidate?.kind === "document"
+          && candidate.row === current.row && candidate.identity === current.identity);
+        return { line: visible >= 0 ? visible : current.row - this.#scrollTop, anchor: current };
+      }
+      // Invariant: reflow may move a retained source row, but remapping is allowed only when
+      // that exact source has one visible identity. Ambiguous or off-screen replacement clears it.
+      const visibleMatches = this.#selectionRowAnchors
+        .map((candidate, line) => ({ candidate, line }))
+        .filter((entry): entry is { candidate: DocumentSelectionRowAnchor; line: number } =>
+          entry.candidate?.kind === "document" && entry.candidate.identity === anchor.identity);
+      return visibleMatches.length === 1
+        ? { line: visibleMatches[0]!.line, anchor: visibleMatches[0]!.candidate }
+        : undefined;
+    };
+    const projectedAnchor = project(anchors.anchor);
+    const projectedHead = project(anchors.head);
+    if (projectedAnchor === undefined || projectedHead === undefined) {
+      this.clearSelection();
+      return;
+    }
+    this.#selectionAnchors = { anchor: projectedAnchor.anchor, head: projectedHead.anchor };
+    if (selection.anchor.line === projectedAnchor.line && selection.head.line === projectedHead.line) return;
+    this.#selection = {
+      ...selection,
+      anchor: { ...selection.anchor, line: projectedAnchor.line },
+      head: { ...selection.head, line: projectedHead.line },
+    };
+  }
+
   #updateCopyableSelection(): void {
-    const selection = orderedTextSelection(this.#selection);
+    const selection = visibleTextSelection(orderedTextSelection(this.#selection), this.#selectionRows.length);
     this.#copyableSelection = selection !== undefined
       && textSelectionText(selection, this.#selectionRows, line => usefulTextLineContent(this.#selectionRows[line] ?? "")).length > 0;
   }
+}
+
+function visibleTextSelection(
+  selection: OrderedTextSelection | undefined,
+  rowCount: number,
+): OrderedTextSelection | undefined {
+  if (selection === undefined || rowCount <= 0 || selection.end.line < 0 || selection.start.line >= rowCount) return undefined;
+  const startLine = Math.max(0, selection.start.line);
+  const endLine = Math.min(rowCount - 1, selection.end.line);
+  return {
+    start: {
+      line: startLine,
+      column: selection.start.line < 0 ? 0 : selection.start.column,
+    },
+    end: {
+      line: endLine,
+      column: selection.end.line >= rowCount ? Number.MAX_SAFE_INTEGER : selection.end.column,
+    },
+    ...(selection.fullRow ? { fullRow: true } : {}),
+    ...(selection.throughFinalColumn ? { throughFinalColumn: true } : {}),
+  };
 }
 
 function selectionRangeForLine(

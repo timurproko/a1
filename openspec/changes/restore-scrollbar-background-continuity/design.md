@@ -51,8 +51,8 @@ Focused tests will decode the final content and gutter cells for default and col
 
 - Gutter composition now closes source links, foreground, reverse video, and emphasis before repainting the established full-row background; visible rail glyphs inherit only that prepared background.
 - Decoded terminal-cell coverage passes across default and colored rows, selected and excluded endpoints, links, wide and combining graphemes, thin/thick styles, `auto` idle/reveal/hover/expiry cycles, `always`, `hidden`, and repeated cache reuse.
-- Focused component, controller, and session-shell coverage passes: 240 tests across six suites. The five broader suites were run serially to avoid timer-test contention; 229 tests passed, and the dedicated gutter suite passed all 11 tests.
-- Build, source and bin typechecking, changed-file code-documentation governance, strict OpenSpec validation, and `git diff --check` pass against current `origin/develop` at `93f6928f`.
+- Focused component, controller, and session-shell coverage passes: 246 tests across six suites, run serially to avoid timer-test contention.
+- Build, source and bin typechecking, changed-file code-documentation governance, strict OpenSpec validation, and `git diff --check` pass after reconciling current `origin/develop` at `ac123a66`.
 - No implementation gaps are known. Physical Windows Terminal review of the exact candidate remains the user-controlled acceptance activity.
 
 ## Migration Plan
