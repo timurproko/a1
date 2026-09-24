@@ -3,11 +3,12 @@
  * packages/coding-agent/src/modes/interactive/components/thinking-selector.ts.
  * Modifications: Preserve the searchable thinking-level selector, current/default semantics,
  * selection, save, cancellation, and focus while accepting the active bare-A1 cycle-key label from the
- * shell, styling the title with the established bold semantic accent treatment, placing its muted hint
- * directly below it, deduplicating levels, and rendering aligned muted descriptions after adjacent
- * active and bracketed default markers. All list and border colors use the owned theme and its
- * explicit color mode, and the footer uses the shared bare-A1 modal shortcut row. The comparison
- * profile retains the public pinned component.
+ * shell, styling the title with the established bold semantic accent treatment, placing it directly
+ * below the top rule through the shared compact padded modal frame and its muted hint directly below
+ * it, deduplicating levels, and rendering aligned muted descriptions after adjacent active and
+ * bracketed default markers. All list and border colors use the owned theme and its explicit color
+ * mode, and the footer uses the shared bare-A1 modal shortcut row. The comparison profile retains the
+ * public pinned component.
  * Deviations: owned-modal-shortcut-hints, owned-level-cycle-shortcut, owned-thinking-selector-heading.
  */
 import {
@@ -23,6 +24,7 @@ import {
 	Text,
 } from "@earendil-works/pi-tui";
 import { DynamicBorder } from "@earendil-works/pi-coding-agent";
+import { addPiModalHeader, adoptPiModalFrame } from "../../modal-frame.js";
 import { piTheme, renderPiModalShortcutHints } from "../../theme.js";
 
 export type ThinkingSelectorLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
@@ -46,7 +48,7 @@ const LEVEL_DESCRIPTIONS: Record<ThinkingSelectorLevel, string> = {
 export class OwnedThinkingSelectorComponent extends Container implements Focusable {
 	private searchInput: Input;
 	private selectList: SelectList;
-	private selectListChildIndex: number;
+	private selectListContainer: Container;
 	private allItems: SelectItem[];
 	private onSelect: (level: ThinkingSelectorLevel) => void;
 	private onCancel: () => void;
@@ -86,9 +88,11 @@ export class OwnedThinkingSelectorComponent extends Container implements Focusab
 			description: LEVEL_DESCRIPTIONS[level],
 		}));
 
-		this.addChild(new DynamicBorder((text: string) => piTheme().fg("border", text)));
-		this.addChild(new Spacer(1));
-		this.addChild(new Text(piTheme().fg("accent", piTheme().bold("Thinking Level")), 0, 0));
+		const header = addPiModalHeader(
+			this,
+			new DynamicBorder((text: string) => piTheme().fg("border", text)),
+			new Text(piTheme().fg("accent", piTheme().bold("Thinking Level")), 0, 0),
+		);
 		this.addChild(new Text(piTheme().fg("muted", `${cycleKeyDisplay} cycles thinking levels in-session`), 0, 0));
 		this.addChild(new Spacer(1));
 
@@ -98,8 +102,9 @@ export class OwnedThinkingSelectorComponent extends Container implements Focusab
 		this.addChild(new Spacer(1));
 
 		this.selectList = this.buildSelectList(this.allItems, currentLevel);
-		this.selectListChildIndex = this.children.length;
-		this.addChild(this.selectList);
+		this.selectListContainer = new Container();
+		this.selectListContainer.addChild(this.selectList);
+		this.addChild(this.selectListContainer);
 		this.addChild(new Spacer(1));
 		this.addChild(new Text(renderPiModalShortcutHints([
 			{ key: this.keyDisplayText("tui.select.confirm"), action: "to select" },
@@ -107,6 +112,7 @@ export class OwnedThinkingSelectorComponent extends Container implements Focusab
 			{ key: this.keyDisplayText("tui.select.cancel"), action: "to cancel" },
 		]), 0, 0));
 		this.addChild(new DynamicBorder((text: string) => piTheme().fg("border", text)));
+		adoptPiModalFrame(this, { topIndex: 0, bottomIndex: this.children.length - 1, header });
 	}
 
 	private keyDisplayText(keybinding: Parameters<ReturnType<typeof getKeybindings>["getKeys"]>[0]): string {
@@ -156,7 +162,8 @@ export class OwnedThinkingSelectorComponent extends Container implements Focusab
 			: this.allItems;
 		const selectedValue = this.selectList.getSelectedItem()?.value as ThinkingSelectorLevel | undefined;
 		const newList = this.buildSelectList(filtered, selectedValue);
-		this.children[this.selectListChildIndex] = newList;
+		this.selectListContainer.clear();
+		this.selectListContainer.addChild(newList);
 		this.selectList = newList;
 	}
 

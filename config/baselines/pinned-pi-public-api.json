@@ -877,6 +877,7 @@
           "kind": "class",
           "hash": "28f38c59e96228d11c6f911c2af92d8163694cc860f21317b41efd6dcf1989cf",
           "consumers": [
+            "src/integrations/pi/components/models-dialog.ts",
             "src/integrations/pi/components/shell-presenters-info.ts",
             "src/integrations/pi/components/shell-presenters-transcript.ts",
             "src/integrations/pi/components/shell-selectors-dialogs.ts",
@@ -2901,6 +2902,7 @@
           "kind": "interface",
           "hash": "16dc395b19332671875a1d3d8241bf285e619038b50aa10c87d4d3a7f3f0820c",
           "consumers": [
+            "src/integrations/pi/components/modal-frame.ts",
             "src/integrations/pi/components/models-dialog.ts",
             "src/integrations/pi/components/shell-extension-ui.ts",
             "src/integrations/pi/components/shell-footer-status.ts",
@@ -2930,6 +2932,7 @@
           "kind": "class",
           "hash": "910c34b184d1808a7ca86679e78c41a5ab0eab94c6db3184b510636382f867d3",
           "consumers": [
+            "src/integrations/pi/components/modal-frame.ts",
             "src/integrations/pi/components/shell-presenters-info.ts",
             "src/integrations/pi/components/shell-presenters-transcript.ts",
             "src/integrations/pi/components/shell-selectors-dialogs.ts",
@@ -3665,6 +3668,7 @@
           "kind": "class",
           "hash": "f4da5befc73d33073373e2206cfd5fbaa99fbc121103b4e08452cf7d52789d69",
           "consumers": [
+            "src/integrations/pi/components/modal-frame.ts",
             "src/integrations/pi/components/shell-footer-status.ts",
             "src/integrations/pi/components/shell-presenters-info.ts",
             "src/integrations/pi/components/shell-presenters-transcript.ts",

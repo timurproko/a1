@@ -5,7 +5,7 @@
  * search, bulk/provider/reorder actions, dirty state, Ctrl+S persistence, refresh status,
  * cancellation, and focus while remapping theme and public helper imports; local key labels preserve
  * pinned platform formatting before layout without changing binding identities, and bare A1 uses the
- * shared semantic modal shortcut row.
+ * shared semantic modal shortcut row and compact padded modal frame.
  * Deviations: owned-modal-shortcut-hints.
  */
 interface ScopedModel {
@@ -26,6 +26,7 @@ import {
 } from "@earendil-works/pi-tui";
 import { DynamicBorder } from "@earendil-works/pi-coding-agent";
 import { getModelSearchText } from "../model-search.js";
+import { addPiModalHeader, adoptPiModalFrame } from "../../modal-frame.js";
 import { piTheme, renderPiModalShortcutHints } from "../../theme.js";
 
 // Rationale: upstream's capitalized hint formatter is private to the package; the same mapping lives here.
@@ -165,9 +166,7 @@ export class ScopedModelsSelectorComponent extends Container implements Focusabl
 		this.filteredItems = this.buildItems();
 
 		// Header
-		this.addChild(new DynamicBorder());
-		this.addChild(new Spacer(1));
-		this.addChild(new Text(theme.fg("accent", theme.bold("Model Configuration")), 0, 0));
+		const header = addPiModalHeader(this, new DynamicBorder(), new Text(theme.fg("accent", theme.bold("Model Configuration")), 0, 0));
 		const saveKey = keyDisplayText("app.models.save");
 		this.addChild(new Text(theme.fg("muted", "Session-only.")
 			+ (saveKey ? ` ${renderPiModalShortcutHints([{ key: saveKey, action: "to save to settings." }])}` : ""), 0, 0));
@@ -192,6 +191,7 @@ export class ScopedModelsSelectorComponent extends Container implements Focusabl
 		this.addChild(this.footerText);
 
 		this.addChild(new DynamicBorder());
+		adoptPiModalFrame(this, { topIndex: 0, bottomIndex: this.children.length - 1, header });
 		this.updateList();
 	}
 

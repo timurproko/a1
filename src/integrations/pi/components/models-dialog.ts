@@ -7,6 +7,8 @@ import {
   type Component,
   type Focusable,
 } from "@earendil-works/pi-tui";
+import { DynamicBorder } from "../startup-public.js";
+import { PiModalFrame } from "./modal-frame.js";
 import { piTheme, renderPiModalShortcutHints, type PiModalShortcutHint } from "./theme.js";
 
 export type ModelsDialogFilter = "all" | "scoped";
@@ -50,6 +52,14 @@ interface ModelsDialogRow {
   readonly model: ModelsDialogModel;
 }
 
+class ModalTitleLine implements Component {
+  #text = "";
+
+  setText(text: string): void { this.#text = text; }
+  invalidate(): void {}
+  render(width: number): string[] { return [truncateToWidth(this.#text, width)]; }
+}
+
 function fullModelId(model: ModelsDialogModel): string {
   return `${model.provider}/${model.id}`;
 }
@@ -78,6 +88,12 @@ function keyLabel(action: Parameters<ReturnType<typeof getKeybindings>["getKeys"
  */
 export class ModelsDialogComponent implements Component, Focusable {
   readonly #input = new Input();
+  readonly #title = new ModalTitleLine();
+  readonly #body: Component = {
+    invalidate: () => this.#input.invalidate(),
+    render: width => this.#renderBody(width),
+  };
+  readonly #frame = new PiModalFrame(new DynamicBorder(), [this.#title, this.#body], new DynamicBorder());
   readonly #callbacks: ModelsDialogCallbacks;
   #models: ModelsDialogModel[] = [];
   #activeModelId: string | null;
@@ -240,15 +256,17 @@ export class ModelsDialogComponent implements Component, Focusable {
 
   render(width: number): string[] {
     const theme = piTheme();
+    this.#title.setText(theme.fg("accent", theme.bold(MODELS_TITLE)) + (this.dirty ? theme.fg("warning", " (unsaved)") : ""));
+    return this.#frame.render(width);
+  }
+
+  #renderBody(width: number): string[] {
+    const theme = piTheme();
     const lines: string[] = [];
     const push = (line = ""): void => { lines.push(truncateToWidth(line, width)); };
-    const border = theme.fg("border", "─".repeat(Math.max(1, width)));
     const rows = this.#rows();
     this.#clampSelection(rows);
 
-    push(border);
-    push();
-    push(theme.fg("accent", theme.bold(MODELS_TITLE)) + (this.dirty ? theme.fg("warning", " (unsaved)") : ""));
     push(theme.fg("dim", "Filter: ")
       + theme.fg(this.#filter === "all" ? "accent" : "dim", "all")
       + theme.fg("dim", " | ")
@@ -285,7 +303,6 @@ export class ModelsDialogComponent implements Component, Focusable {
     push();
     if (this.#refreshStatus !== undefined) push(theme.fg(this.#refreshStatus.kind, `  ${this.#refreshStatus.message}`));
     push(renderPiModalShortcutHints(this.#hints()));
-    push(border);
     return lines;
   }
 

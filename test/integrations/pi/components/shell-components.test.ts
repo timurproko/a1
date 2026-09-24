@@ -16,6 +16,7 @@ import {
   createPiShellChangelog,
   createPiShellHotkeys,
   createPiShellLoadedResources,
+  createPiShellLoginDialog,
   createPiQueuedInputStatus,
   createPiShellSettingsSelector,
   createPiShellSelector,
@@ -765,9 +766,19 @@ describe("Pi shell public component adapters", () => {
       authType: "oauth",
       status: { type: "oauth", source: "stored" },
     }], selected, cancelled);
-    expect(stripTerminalSequences(auth.render(80).join("\n"))).toContain("OpenAI ✓ stored");
+    const authRows = auth.render(80).map(stripTerminalSequences);
+    expect(authRows[1]?.trimEnd()).toBe(" Select provider to configure:");
+    expect(authRows.join("\n")).toContain("OpenAI ✓ stored");
     auth.handleInput?.("\r");
     expect(selected).toHaveBeenCalledWith("oauth:openai");
+
+    const login = createPiShellLoginDialog(
+      { getColumns: () => 80, getRows: () => 24, requestRender: vi.fn() },
+      "openai",
+      vi.fn(),
+    );
+    const loginRows = login.render(80).map(stripTerminalSequences);
+    expect(loginRows[1]?.trimEnd()).toBe(" Login to openai");
 
     const unconfigured = createPiShellAuthProviderSelector("login", [{
       id: "api_key:anthropic",
