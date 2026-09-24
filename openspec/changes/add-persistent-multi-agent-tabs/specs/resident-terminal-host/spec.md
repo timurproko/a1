@@ -50,7 +50,7 @@ The server and every holder SHALL be started by the native terminal-host binary'
 - **THEN** that child SHALL remain in the instance containment and SHALL be terminated with it
 
 ### Requirement: The native binary owns the complete terminal data path
-Pseudoterminal output, child input, retained terminal state, input encoding, composition, and outer-terminal writes SHALL remain inside the native terminal-host binary's attach, server, and holder roles. Node SHALL NOT read, relay, parse, or render tab terminal bytes. The attach client SHALL answer no terminal queries on a child's behalf; the holder's model SHALL answer them. The attach client SHALL compose the strip row and the viewed tab's surface, SHALL offset mouse coordinates by the strip, SHALL forward clipboard writes, hyperlinks, cursor shape, and bells from the child, and SHALL restore every outer terminal mode it enabled when it detaches or fails.
+Pseudoterminal output, child input, retained terminal state, input encoding, composition, and outer-terminal writes SHALL remain inside the native terminal-host binary's attach, server, and holder roles. Node SHALL NOT read, relay, parse, or render tab terminal bytes. The attach client SHALL answer no terminal queries on a child's behalf; the holder's model SHALL answer them. The attach client SHALL compose the strip row and the viewed tab's surface, SHALL offset mouse coordinates by the strip, SHALL forward clipboard writes, hyperlinks, and cursor shape from the child, SHALL NOT forward bells, and SHALL restore every outer terminal mode it enabled when it detaches or fails.
 
 #### Scenario: Child enables enhanced keyboard reporting
 - **WHEN** an A1 tab enables an enhanced keyboard protocol and the outer terminal supports it

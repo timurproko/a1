@@ -16,13 +16,13 @@ References: the v2 prototype (`D:\Backups\pi\v2`) for UX and its child status br
 
 - Bare `a1` presents a one-row tab strip. Every tab is an independent terminal session running the full A1 owned UI with its own Pi agent, so every Pi extension, custom extension UI, and A1 feature behaves exactly as in single-agent A1 today.
 - Users can create, switch, jump to, reorder, rename, and close tabs by keyboard, mouse, and slash command. Rename is inline and becomes the Pi session name. Closing a busy tab asks for confirmation. A closed tab's session stays resumable.
-- Tab status (working, needs input, done-unseen, error, crashed, restoring) comes from a structured **tab bridge**: A1 running inside the tab reports engine state to the host. It is never scraped from the screen. Optional bell or terminal notifications signal background attention.
+- Tab status (working, needs input, done-unseen, error, crashed, restoring) comes from a structured **tab bridge**: A1 running inside the tab reports engine state to the host. It is never scraped from the screen. The icons are the only attention signal: a spinner while working, `✓` when finished, a red `✗` on failure, and a yellow `?` when the user is needed. There is no bell, sound, or notification.
 - The native terminal-host binary gains three roles:
   - **Resident server:** a per-user, per-profile daemon. It owns the tab registry, topology, and client fan-out.
   - **Session holder:** one small native process per tab. It owns that tab's pseudoterminal, child process tree, and retained terminal model, so a server crash never kills a tab.
   - **Attach client:** the foreground `a1` surface. It draws the tab strip and the active tab's retained screen, and routes input.
 - Terminal bytes, input, and rendering stay entirely in native code. Node never relays them.
-- Quitting `a1` (`/quit`, `Ctrl+C` twice, `Ctrl+D`, or `Alt+Q`) detaches, and every tab keeps running. Relaunching `a1` in any terminal reattaches from retained screen state, including output produced while detached.
+- Pressing `Ctrl+C` twice detaches from any tab, and so do `/quit` and `Ctrl+D` inside A1 tabs. Every tab keeps running. Relaunching `a1` in any terminal reattaches from retained screen state, including output produced while detached.
 - Robustness:
   - The resident processes are started detached on Windows, macOS, and Linux. This includes escaping kill-on-close jobs and the macOS GUI bootstrap namespace.
   - The endpoint bind acts as a single-instance lock, and the endpoint is owner-only and token-authenticated.

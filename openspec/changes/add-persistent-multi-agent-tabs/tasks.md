@@ -1,6 +1,6 @@
 ## 1. Planning reconciliation
 
-- [ ] 1.1 Record the maintainer's answers to the design's remaining open questions (`tabs.notify` default, `Alt+Q` detach key) in `design.md`, and reconcile proposal, deltas, and tasks before any code edit
+- [ ] 1.1 Before any code edit, confirm that proposal, design, deltas, and tasks reflect the recorded user decisions (terminal-session tabs, icon-only attention, `Ctrl+C` twice to leave, auto-naming on, idle suspension at 60 minutes, one tab set per profile, release-gating reliability)
 - [ ] 1.2 Before finalization, confirm that the superseded-scope note in `evolve-bare-a1-into-multi-agent-workspace` still matches this change's final scope, and verify `openspec validate --strict` passes for both changes
 
 ## 2. Native terminal-host roles
@@ -8,7 +8,7 @@
 - [ ] 2.1 Restructure `native/terminal-host` into one binary with `server`, `holder`, and `attach` roles over shared modules (model, encoder, composer, protocol), and remove the fixed 2×2 proof presentation from the shipping path; verify the existing retained-model, input, mouse, selection, and cleanup probes still pass per role
 - [ ] 2.2 Implement the holder: one PTY/ConPTY, child tree, libghostty-vt model with 10 MiB scrollback, continuous parsing, mode-aware input encoding, query answering, surface snapshot and patch generation, heartbeat, panic hook, and verified tree termination; verify with fixture children, including malformed and high-rate output
 - [ ] 2.3 Implement the server: endpoint derivation per user × profile with hermetic overrides, handshake-probed socket-as-lock, ownership marker, owner-only DACL/0600, token files, holder spawn and admission with start-identity verification, topology revisions, and client fan-out with bounded control lanes and single-slot render lanes; verify start races, stale reclaim, owned-only endpoint removal, pid-reuse refusal, and stalled-client isolation
-- [ ] 2.4 Implement the attach client: raw mode, alternate screen, outer mode negotiation (bracketed paste, focus, SGR mouse, kitty keyboard, synchronized output), strip-row composition with the damage-aware composer, mouse offset, OSC 52/OSC 8/cursor/bell forwarding, shortcut interception before encoding, exact mode restoration on detach, and fatal-path restoration; verify with the input and rendering harnesses and an owner-kill restoration test
+- [ ] 2.4 Implement the attach client: raw mode, alternate screen, outer mode negotiation (bracketed paste, focus, SGR mouse, kitty keyboard, synchronized output), strip-row composition with the damage-aware composer, mouse offset, OSC 52/OSC 8/cursor forwarding with bells never forwarded, shortcut interception before encoding, exact mode restoration on detach, and fatal-path restoration; verify with the input and rendering harnesses and an owner-kill restoration test
 - [ ] 2.5 Implement the generation-stable bounded binary protocol with frozen shape fixtures and digests, typed incompatibility outcomes, and prior-generation holder acceptance; verify with additive-compatibility and mismatch fixtures
 - [ ] 2.6 Implement the durable registry (temp file, fsync, rename, dir fsync, history generations, quarantine and last-good load, no secrets); verify kill-after-ack durability and corruption recovery
 
@@ -28,7 +28,7 @@
 ## 5. A1 tab mode
 
 - [ ] 5.1 Add the `ui.js --tab` entry: tab bridge connection with per-tab credentials (stripped from descendants), sequenced status from engine events, session file and name reports, interrupted-prompt metadata, and suppressed intro and outro; verify bridge status for working, needs-input, done, error, and compaction against real fixture sessions
-- [ ] 5.2 Route `/quit`, `Ctrl+C` twice, and `Ctrl+D` in tab mode to detach requests for the requesting client, with the bridge-unavailable fallback notice; verify the tab process keeps running
+- [ ] 5.2 Route `/quit` and empty-editor `Ctrl+D` in tab mode to detach requests for the requesting client, with a bridge-unavailable notice that `Ctrl+C` twice leaves; verify the tab process keeps running
 - [ ] 5.3 Implement `bridge.visibility` throttling of animations and progress frames while hidden, and `bridge.rename` to Pi session-name sync; verify CPU reduction for hidden tabs and name round-trips
 - [ ] 5.4 Implement `/new-tab`, `/close`, `/tabs`, `/quit-all`, and `/name` integration through the bridge, plus in-child auto-naming with bounded budget and deterministic fallback; verify that a user name always wins
 
@@ -36,17 +36,17 @@
 
 - [ ] 6.1 Add `ensureTerminalHost()` to the pre-guardian bootstrap and run the attach client as the bare-A1 UI root when `tabs.resident` is on, with direct single-agent fallback and one notice when the server cannot start; verify first paint and first input stay within the interactive budgets for cold start and reattach with 10 tabs
 - [ ] 6.2 Implement the strip: theme-role colors passed from Node, 20-column grapheme-clipped chips, glyphs from bridge status, the overflow menu, `+`, prewarmed standby creation, and the empty-strip state; verify rendering at narrow, wide, and overflow widths with CJK and emoji names
-- [ ] 6.3 Implement the keyboard shortcuts (`Alt+A`, `Alt+W`, `F2`, `Alt+1`…`Alt+0`, `Alt+.`/`Alt+,`, `Alt+>`/`Alt+<`, `Alt+Q`) with a configurable keybindings file, launch-time conflict checks against A1's registry, and a `/hotkeys` Tabs section; verify no default collides with A1 bindings or the CSI introducer
+- [ ] 6.3 Implement the keyboard shortcuts (`Alt+A`, `Alt+W`, `F2`, `Alt+1`…`Alt+0`, `Alt+.`/`Alt+,`, `Alt+>`/`Alt+<`) plus the `Ctrl+C` double-press detach (forward the first press, consume the second within the clear/exit interval) with a configurable keybindings file, launch-time conflict checks against A1's registry, and a `/hotkeys` Tabs section; verify that no default collides with A1 bindings or the CSI introducer, and that a tab receives exactly one `Ctrl+C` from the chord
 - [ ] 6.4 Implement strip mouse interactions (click, right-click menu, drag reorder with drop marker) and inline rename (validation, Enter/Esc/click-away); verify with the SGR mouse harness, including split reports
 - [ ] 6.5 Implement busy-close confirmation, graceful close with a bounded kill, session-lease focus for `a1 --session` and `/resume`, per-client viewed tab, and the input-driven PTY size owner; verify with two concurrent clients
-- [ ] 6.6 Implement the detach hints (`N tabs still running · run a1 to return`) and `tabs.notify` with one emission per transition and none for the viewed tab; verify a clean parent terminal after detach
+- [ ] 6.6 Implement the detach hints (`N tabs still running · run a1 to return`), and verify that status changes and program bells never produce a bell, sound, or notification, and that the parent terminal is clean after detach
 
 ## 7. Updates, retention, CLI, and settings
 
 - [ ] 7.1 Implement server endpoint handoff to a successor while holders reconnect, and idle, unviewed tab recycling onto the active release (`tabs.autoRecycle`); verify `a1 update` mid-turn never interrupts a tab
 - [ ] 7.2 Extend release retention to live verified server, holder, and tab-process releases, and run resident binaries only from immutable release directories; verify garbage collection keeps in-use releases
 - [ ] 7.3 Add `a1 tabs`, `a1 tabs stop <id>|--all`, and `a1 tabs host status|stop` to the CLI grammar and help; verify that no server starts only to report absence, and that invalid arguments fail concisely
-- [ ] 7.4 Add the `tabs.resident`, `tabs.max`, `tabs.maxConcurrentStarts`, `tabs.suspendIdleAfterMinutes`, `tabs.autoName`, `tabs.notify`, `tabs.prewarm`, `tabs.autoRecycle`, `tabs.unresponsiveRestartSeconds`, and `tabs.stallNoticeSeconds` settings to the owned settings screen and generated metadata; verify defaults and hard caps
+- [ ] 7.4 Add the `tabs.resident`, `tabs.max`, `tabs.maxConcurrentStarts`, `tabs.suspendIdleAfterMinutes`, `tabs.autoName`, `tabs.prewarm`, `tabs.autoRecycle`, `tabs.unresponsiveRestartSeconds`, and `tabs.stallNoticeSeconds` settings to the owned settings screen and generated metadata; verify defaults and hard caps
 
 ## 8. Packaging, governance, and evidence
 

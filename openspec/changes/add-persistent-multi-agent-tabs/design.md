@@ -172,7 +172,7 @@ The channels carry bounded, length-prefixed binary frames: a u32 length followed
   - Mouse rows are offset by the strip. Row 0 belongs to the client.
   - When the child has not requested mouse reporting, selection is host-owned and scoped to the pane, as in the proof.
 - **Passthrough and intercepts:**
-  - OSC 52 clipboard writes, OSC 8 hyperlinks as cell attributes, OSC 0/2 titles as tab metadata, cursor shape, and bells pass through as attention events.
+  - OSC 52 clipboard writes, OSC 8 hyperlinks as cell attributes, OSC 0/2 titles as tab metadata, and cursor shape pass through. A bell (BEL) from the child is never forwarded to the outer terminal; icons are the only attention signal (Decision 7).
   - Queries the child sends, such as DA and cursor position, are answered by the holder's model, never by the outer terminal.
   - Image protocols are not forwarded in this release; the terminal identity the child sees disables them.
 - **Detach.** On detach the client restores the outer terminal's keyboard and mouse modes exactly. Enhanced keyboard sequences must not leak into the parent shell (herdr CHANGELOG lesson).
@@ -186,7 +186,7 @@ Tab status is an A1-owned state machine fed by `bridge.status`:
 | `starting` / `restoring` | holder spawned, bridge not ready | dim progress frames |
 | `idle` | settled idle | none |
 | `working` | agent or turn start, tool execution, compaction | shared progress frames |
-| `needs-input` | an extension UI, trust, or permission request is pending | `●` warning |
+| `needs-input` | an extension UI, trust, or permission request is pending | yellow `?` (warning) |
 | `done-unseen` | the turn settled while no client viewed the tab | `✓` success |
 | `error` | the last turn's `stopReason` was error | `✗` error |
 | `crashed` / `restarting` / `failed` | holder or child exit | `✗` error plus a banner |
@@ -194,8 +194,9 @@ Tab status is an A1-owned state machine fed by `bridge.status`:
 
 - `seen` is tracked server-side, so viewing a tab in any client clears `✓` everywhere.
 - A tab with a broken bridge shows only process-level states.
-- Future CLI tabs will use process state, BEL, and OSC 9/777 for attention.
+- Future CLI tabs will derive status from process state, and may use BEL or OSC 9/777 from the program as an attention input.
 - The glyph set is the same in every client.
+- **Icons are the only attention signal (user decision).** There is no bell, sound, terminal notification, or OS notification. The status icon is the signal: spinner = working, `✓` = finished, red `✗` = failed, yellow `?` = needs you.
 
 ### 8. Durable state
 
@@ -259,11 +260,11 @@ Tab status is an A1-owned state machine fed by `bridge.status`:
   | `Alt+1`…`Alt+9`, `Alt+0` | jump to a tab |
   | `Alt+.` / `Alt+,` | next / previous, wrapping |
   | `Alt+>` / `Alt+<` | move the tab right / left |
-  | `Alt+Q` | detach |
+  | `Ctrl+C` `Ctrl+C` | detach (leave `a1`; tabs keep running) |
 
   - `Alt+[` and `Alt+]` are avoided because `ESC [` is the CSI introducer in legacy encodings.
   - `Alt+←` and `Alt+→` are avoided because A1 uses them for word motion.
-  - `Ctrl+C` is never intercepted by the client. It belongs to the child (v2 lesson).
+  - **`Ctrl+C` twice leaves, in every tab (user decision).** The client forwards the first `Ctrl+C` to the tab unchanged, so a single press still clears, copies, or interrupts. It consumes the second press within the existing clear/exit interval as the detach request and does not forward it. The tab therefore never receives a second `Ctrl+C` from the chord, which removes v2's bug where `Ctrl+C+C` killed the agent. The trade-off: a future CLI tab cannot receive two quick `Ctrl+C`s. Pressing them more slowly than the interval still reaches the program.
 - **Mouse on row 0:**
   - click activates a tab;
   - right-click opens `Rename`/`Close`;
@@ -282,7 +283,7 @@ Tab status is an A1-owned state machine fed by `bridge.status`:
   - Rename is inline in the chip: `Enter` commits, and `Esc` or a click elsewhere cancels. The name is trimmed, must not be empty, is at most 64 characters, and has control characters stripped.
 - **Close.** When a tab is `working` or `needs-input`, or its bridge reports queued input, the strip asks `Stop "<name>"? Enter stop · Esc cancel` before closing. Closing sends the child a graceful shutdown, waits a bounded time, terminates the tree, and removes the tab. Its session stays resumable. Closing the last tab leaves the strip with `+` and a hint.
 - **Detach.**
-  - Inside an A1 tab, `/quit`, `Ctrl+C` twice, and `Ctrl+D` send `bridge.request{detach}` for the client that sent the input. `Alt+Q` detaches from any tab.
+  - `Ctrl+C` twice detaches from any tab and is handled by the attach client, so it works even when the bridge is down. Inside an A1 tab, `/quit` and `Ctrl+D` on an empty editor send `bridge.request{detach}` for the client that sent the input.
   - The client restores the terminal. When tabs are still running, it prints `N tabs still running · run a1 to return`; otherwise it prints the resume hint.
   - `/quit-all` stops every tab, with confirmation if any is busy.
 - **Launch and reattach:**
@@ -293,7 +294,7 @@ Tab status is an A1-owned state machine fed by `bridge.status`:
   - A new tab's cwd is the client's launch cwd.
   - Prewarm (`tabs.prewarm`, default 1) keeps one hidden standby A1 tab ready, so `Alt+A` appears in tens of milliseconds, as v2 measured.
 - **Several terminals.** Each client has its own active tab. The server serializes input per tab. The PTY size follows the most recent client to send input.
-- **Background notification.** The `tabs.notify` setting (`off|bell|notification`, default `off`) controls it. A background tab entering `needs-input` or `done-unseen` rings the terminal bell or sends an OSC 9 notification once per transition, and never for the viewed tab.
+- **Background attention.** Only the chip icon changes. There is no bell, sound, or notification, and no setting for one.
 
 ### 12. Limits and resources
 
@@ -408,7 +409,16 @@ The v2 daemon was unreliable for structural reasons, and a forensic pass over it
 4. Flip `tabs.resident` to `true` per certified platform. `false` remains the rollback.
 5. Follow-up change: arbitrary CLI tabs (`tab.create{kind:"cli", argv}`), with process-level, BEL, and OSC attention and host scrollback UX. Split layouts stay held in `evolve-bare-a1-into-multi-agent-workspace`.
 
-## Open Questions
+## Recorded User Decisions
 
-1. `tabs.notify` default: `off` (current) or `bell`?
-2. Is `Alt+Q` acceptable as the universal detach key, alongside the A1-tab quit routes?
+The user made these decisions on 2026-09-24:
+
+- Every tab is a terminal session running the full A1 UI, so extensions stay native and CLI tabs can follow. This replaces the structured-worker design.
+- There is one tab set per profile.
+- LLM auto-naming is on by default.
+- Idle suspension is on after 60 minutes.
+- Icons are the only attention signal, with no bell, sound, or notification: spinner = working, `✓` = finished, red `✗` = failed, yellow `?` = needs the user.
+- `Ctrl+C` twice leaves `a1` from any tab while tabs keep running. There is no separate detach key.
+- Reliability is a first-class, release-gating requirement (Decision 16).
+
+There are no open questions.

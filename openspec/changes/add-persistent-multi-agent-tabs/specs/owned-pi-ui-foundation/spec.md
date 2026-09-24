@@ -1,7 +1,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Graceful user quit returns control to the parent shell
-The owned interactive UI SHALL treat `/quit` and the second `Ctrl+C` in the existing clear/exit chord as complete graceful-exit requests. Each route SHALL stop the agent session, dispose the owned presentation, restore all terminal modes and screen state owned by A1, terminate the interactive A1 process successfully, and return control to the invoking shell without requiring another signal or keystroke. When the owned UI runs inside a resident tab, these routes and `Ctrl+D` SHALL instead request, through the tab bridge, that the client which sent the input detach; the tab's agent session and A1 process SHALL keep running, and the attach client SHALL complete terminal restoration and parent-shell return. The built-in quit command's autocomplete description SHALL be exactly `Quit`.
+The owned interactive UI SHALL treat `/quit` and the second `Ctrl+C` in the existing clear/exit chord as complete graceful-exit requests. Each route SHALL stop the agent session, dispose the owned presentation, restore all terminal modes and screen state owned by A1, terminate the interactive A1 process successfully, and return control to the invoking shell without requiring another signal or keystroke. When the owned UI runs inside a resident tab, the attach client SHALL consume the second `Ctrl+C` of the chord as a detach request, and `/quit` and `Ctrl+D` SHALL request, through the tab bridge, that the client which sent the input detach; the tab's agent session and A1 process SHALL keep running, and the attach client SHALL complete terminal restoration and parent-shell return. The built-in quit command's autocomplete description SHALL be exactly `Quit`.
 
 #### Scenario: Quit with the slash command
 - **WHEN** the user submits `/quit` from an active owned interactive session
@@ -19,7 +19,7 @@ The owned interactive UI SHALL treat `/quit` and the second `Ctrl+C` in the exis
 
 #### Scenario: Resident tab bridge is unavailable
 - **WHEN** a quit route runs inside a resident tab whose bridge is unavailable
-- **THEN** A1 SHALL NOT exit the tab process and SHALL show a concise notice that `Alt+Q` detaches
+- **THEN** A1 SHALL NOT exit the tab process and SHALL show a concise notice that pressing `Ctrl+C` twice leaves
 
 #### Scenario: An extension retains an event-loop handle
 - **WHEN** owned UI cleanup has completed but a loaded extension leaves a server, timer, or comparable event-loop handle active

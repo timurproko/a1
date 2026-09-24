@@ -40,11 +40,11 @@ Each chip SHALL render one space, an optional status glyph and space, the displa
 - **THEN** the viewed chip SHALL remain visible, a `…` chip SHALL list the hidden tabs, and next, previous, and jump keys SHALL still reach hidden tabs
 
 ### Requirement: Tab status comes from the tab bridge, not the screen
-Each chip SHALL show a glyph from the tab's structured status: shared progress frames while working, `●` in the warning color while an extension, trust, or permission request awaits the user, `✓` in the success color when a turn settled while no client viewed the tab and it has not been viewed since, `✗` in the error color when the last turn errored or the tab crashed or failed, dim progress frames while starting or restoring, dim `◌` while suspended, and no glyph when idle. A1 tab status SHALL be derived from engine events reported by A1 inside the tab through the authenticated tab bridge. It SHALL NOT be derived from terminal output, rendered cells, titles, or timing. A tab whose bridge is unavailable SHALL show only process-level states. Viewing a tab in any client SHALL clear its `✓` in every client.
+Each chip SHALL show a glyph from the tab's structured status: shared progress frames while working, a yellow `?` in the warning color while an extension, trust, or permission request awaits the user, `✓` in the success color when a turn settled while no client viewed the tab and it has not been viewed since, `✗` in the error color when the last turn errored or the tab crashed or failed, dim progress frames while starting or restoring, dim `◌` while suspended, and no glyph when idle. A1 tab status SHALL be derived from engine events reported by A1 inside the tab through the authenticated tab bridge. It SHALL NOT be derived from terminal output, rendered cells, titles, or timing. A tab whose bridge is unavailable SHALL show only process-level states. Viewing a tab in any client SHALL clear its `✓` in every client.
 
 #### Scenario: Background tab needs input
 - **WHEN** an extension in a background tab requests confirmation
-- **THEN** that chip SHALL show `●` until the request is answered
+- **THEN** that chip SHALL show a yellow `?` until the request is answered
 
 #### Scenario: Background tab finishes
 - **WHEN** a background tab's agent completes a turn
@@ -54,12 +54,16 @@ Each chip SHALL show a glyph from the tab's structured status: shared progress f
 - **WHEN** a tab prints spinner characters, `✓`, or a title containing status words
 - **THEN** the chip status SHALL remain determined by the bridge only
 
-### Requirement: Background attention can notify the user
-When a background tab enters needs-input or done-unseen, A1 MAY emit one terminal bell or one terminal notification sequence according to `tabs.notify` (`off`, `bell`, or `notification`; default `off`). A1 SHALL NOT notify for the viewed tab and SHALL NOT notify more than once per transition.
+### Requirement: Tab status icons are the only attention signal
+Background attention SHALL be conveyed only by the tab status icons. A1 SHALL NOT emit a terminal bell, sound, terminal notification sequence, or operating-system notification for tab status changes, and SHALL NOT forward a bell character written by a tab's program to the outer terminal.
 
-#### Scenario: Bell enabled
-- **WHEN** `tabs.notify` is `bell` and a background tab enters needs-input
-- **THEN** A1 SHALL emit exactly one bell for that transition
+#### Scenario: Background tab needs the user
+- **WHEN** a background tab enters needs-input or finishes a turn
+- **THEN** only its chip icon SHALL change, and no bell, sound, or notification SHALL be produced
+
+#### Scenario: A tab's program rings the bell
+- **WHEN** a program running in a tab writes a bell character
+- **THEN** the outer terminal SHALL NOT receive it
 
 ### Requirement: Tabs are created, switched, and reordered from keyboard, mouse, and commands
 A1 SHALL create a new A1 tab in the client's launch cwd from `Alt+A`, the `+` chip, or `/new-tab [name]`, and SHALL view it. `Alt+.` and `Alt+,` SHALL view the next and previous tab with wrap-around; `Alt+1` through `Alt+9` SHALL view that tab and `Alt+0` the tenth; `Alt+>` and `Alt+<` SHALL move the viewed tab right and left. On the strip row, a left click SHALL view a chip, dragging a chip after 250 ms or pointer movement SHALL reorder it with a `│` drop marker, and a right click SHALL open a `Rename`/`Close` menu. `/tabs` SHALL open a picker listing every tab with name, status, and cwd. Reordering SHALL use expected registry revisions. When `tabs.max` is reached, creation affordances SHALL create nothing and SHALL state the limit. A prewarmed standby tab SHALL be used for creation when available.
@@ -99,7 +103,15 @@ A1 SHALL create a new A1 tab in the client's launch cwd from `Alt+A`, the `+` ch
 - **THEN** its transcript SHALL open in a tab with no lost committed entries
 
 ### Requirement: Quitting bare A1 detaches from resident tabs
-Inside an A1 tab, `/quit`, the second `Ctrl+C` of the clear/exit chord, and `Ctrl+D` SHALL detach the client that sent the input instead of ending the tab. `Alt+Q` SHALL detach from any tab. Detaching SHALL restore the outer terminal's screen and input modes and leave every tab running. When tabs remain running, the parent terminal SHALL show a dim `N tabs still running · run a1 to return`, singular for one. `/quit-all` SHALL stop every tab after confirmation when any is busy, then detach with the ordinary resume hint. The attach client SHALL NOT intercept `Ctrl+C`.
+Pressing `Ctrl+C` twice within the existing clear/exit interval SHALL detach the client from any tab. The attach client SHALL forward the first `Ctrl+C` to the viewed tab unchanged and SHALL consume a second `Ctrl+C` inside the interval as the detach request without forwarding it, so a single `Ctrl+C` keeps its ordinary meaning in the tab and a double press never ends the tab's process. Inside an A1 tab, `/quit` and `Ctrl+D` on an empty editor SHALL also detach the client that sent the input. Detaching SHALL restore the outer terminal's screen and input modes and leave every tab running. When tabs remain running, the parent terminal SHALL show a dim `N tabs still running · run a1 to return`, singular for one. `/quit-all` SHALL stop every tab after confirmation when any is busy, then detach with the ordinary resume hint.
+
+#### Scenario: Leave with Ctrl+C twice
+- **WHEN** the user presses `Ctrl+C` twice within the clear/exit interval in any tab
+- **THEN** the tab SHALL receive exactly one `Ctrl+C`, the client SHALL detach, and the tab's process SHALL keep running
+
+#### Scenario: Single Ctrl+C keeps its meaning
+- **WHEN** the user presses `Ctrl+C` once in an A1 tab
+- **THEN** A1 in the tab SHALL clear or copy exactly as in single-agent A1 and the client SHALL remain attached
 
 #### Scenario: Quit while a tab works
 - **WHEN** the user quits while a background tab streams
@@ -132,7 +144,7 @@ A crashed or failed tab SHALL show its reason in its own surface with `[r] retry
 - **THEN** it SHALL show failed with retry, fresh, and close actions and SHALL NOT restart automatically again
 
 ### Requirement: Tab shortcuts are declared, configurable, and conflict-checked
-Tab shortcuts SHALL be declared with action identities, SHALL be configurable through a keybindings file, SHALL be checked at launch against A1's shortcut registry and user keybindings with conflicts reported, and SHALL appear in `/hotkeys` inside A1 tabs. The attach client SHALL consume a matched tab shortcut before input encoding and SHALL forward every other input to the viewed tab. Defaults SHALL NOT use `Alt+[`, `Alt+]`, `Alt+Left`, `Alt+Right`, `Ctrl+C`, `Ctrl+L`, `Alt+Up`, or `Shift+Tab`.
+Tab shortcuts SHALL be declared with action identities, SHALL be configurable through a keybindings file, SHALL be checked at launch against A1's shortcut registry and user keybindings with conflicts reported, and SHALL appear in `/hotkeys` inside A1 tabs. The attach client SHALL consume a matched tab shortcut before input encoding and SHALL forward every other input to the viewed tab; the only `Ctrl+C` handling SHALL be the double-press detach. Defaults SHALL NOT use `Alt+[`, `Alt+]`, `Alt+Left`, `Alt+Right`, `Ctrl+L`, `Alt+Up`, or `Shift+Tab`.
 
 #### Scenario: Hotkeys listing
 - **WHEN** the user opens `/hotkeys` inside an A1 tab
