@@ -375,6 +375,78 @@ describe("transcript viewport", () => {
     expect(clipped.rows.every(row => !row.includes("\u001b[47m"))).toBe(true);
   });
 
+  describe("with a pinned sticky prompt", () => {
+    const SELECTED = "\u001b[45m";
+    const input = {
+      documentRows: ["❯ prompt", ...rows(11)],
+      promptAnchors: [{ id: "prompt", firstRow: 0, lastRow: 0, sourceRow: "❯ prompt" }],
+      dockRows: ["editor", "footer"],
+      width: 20,
+      height: 6,
+      theme: {
+        track: (text: string) => text,
+        thumb: (text: string) => text,
+        sticky: (text: string) => text,
+        quietSticky: (text: string) => text,
+        bottomControl: (text: string) => text,
+        selection: (line: string, from: number, to: number) => backgroundSgrSpan(line, from, to, SELECTED),
+      },
+    };
+    const pinned = () => {
+      const viewport = new TranscriptViewport();
+      viewport.compose(input);
+      viewport.scrollTo(3);
+      const frame = viewport.compose(input);
+      expect(frame.hits.sticky).not.toBeNull();
+      expect(stripAnsi(frame.rows[0] ?? "")).toContain("prompt");
+      return viewport;
+    };
+    const paintedRows = (frame: { readonly rows: readonly string[] }) =>
+      frame.rows.flatMap((row, index) => row.includes(SELECTED) ? [index] : []);
+
+    it("excludes the pinned alias while keeping the prompt selectable at its document row", () => {
+      const viewport = pinned();
+      expect(viewport.pressSelection(2, 1, 100)).toBe(false);
+      expect(viewport.hasSelection).toBe(false);
+
+      viewport.pressSelection(3, 3, 101);
+      viewport.extendSelection(4, 1, 102, false);
+      viewport.releaseSelection();
+      const crossed = viewport.compose(input);
+      expect(viewport.selectedText()).toBe("row 3\nrow");
+      expect(paintedRows(crossed)).toEqual([1, 2]);
+
+      viewport.clearSelection();
+      viewport.scrollTo(0);
+      viewport.compose(input);
+      viewport.pressSelection(1, 1, 1_000);
+      viewport.extendSelection(20, 1, 1_001, false);
+      viewport.releaseSelection();
+      expect(paintedRows(viewport.compose(input))).toEqual([0]);
+      expect(viewport.selectedText()).toBe("❯ prompt");
+    });
+
+    it.each(["above", "below"] as const)("lets a selection shrink and disappear as its source scrolls %s", direction => {
+      const viewport = pinned();
+      viewport.pressSelection(1, 2, 100);
+      viewport.extendSelection(20, 3, 101, false);
+      viewport.releaseSelection();
+      expect(paintedRows(viewport.compose(input))).toEqual([1, 2]);
+      expect(viewport.selectedText()).toBe("row 3\nrow 4");
+
+      viewport.scrollBy(direction === "above" ? 1 : -1);
+      const shrunk = viewport.compose(input);
+      expect(paintedRows(shrunk)).toEqual(direction === "above" ? [1] : [2, 3]);
+      expect(viewport.selectedText()).toBe(direction === "above" ? "row 4" : "row 3\nrow 4");
+
+      viewport.scrollBy(direction === "above" ? 1 : -3);
+      const gone = viewport.compose(input);
+      expect(viewport.hasSelection).toBe(true);
+      expect(viewport.selectedText()).toBeNull();
+      expect(paintedRows(gone)).toEqual([]);
+    });
+  });
+
   it("retains a unique document selection when resize changes only row padding", () => {
     const viewport = new TranscriptViewport();
     const input = {
@@ -799,7 +871,7 @@ describe("transcript viewport", () => {
     expect(viewport.selectedText()).toBeNull();
   });
 
-  it("copies the exact visible sticky prompt and bottom control text", () => {
+  it("copies the exact visible bottom control text and the prompt at its document row", () => {
     const viewport = new TranscriptViewport();
     viewport.setConfig(ALWAYS);
     const input = {

@@ -24,6 +24,6 @@
 
 ## 5. Keep selection attached to scrolling source
 
-- [ ] 5.1 Exclude the sticky prompt's complete replacement row from pointer anchoring, selection paint, and visible-frame copy while retaining normal prompt-row selection when unpinned.
-- [ ] 5.2 Prove a retained selection shrinks and disappears as its source rows scroll out instead of transferring to sticky prompt, jump/status, or dock rows.
-- [ ] 5.3 Re-run focused and governance validation, update evidence and acceptance wording, and prepare the final manual handoff.
+- [x] 5.1 Exclude the sticky prompt's complete replacement row from pointer anchoring, selection paint, and visible-frame copy while retaining normal prompt-row selection when unpinned.
+- [x] 5.2 Prove a retained selection shrinks and disappears as its source rows scroll out instead of transferring to sticky prompt, jump/status, or dock rows.
+- [x] 5.3 Re-run focused and governance validation, update evidence and acceptance wording, and prepare the final manual handoff.

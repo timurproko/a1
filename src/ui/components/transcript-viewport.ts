@@ -221,6 +221,7 @@ export class TranscriptViewport {
   #contentWidth = 0;
   #selectionWidth = 0;
   #viewportHeight = 0;
+  #firstSelectableRow = 0;
   #selectionRowAnchors: readonly (SelectionRowAnchor | undefined)[] = [];
   #frameId = 0;
   #frame: TranscriptViewportFrame | null = null;
@@ -263,7 +264,7 @@ export class TranscriptViewport {
     const selectionWidth = frameRow <= (this.#frame?.hits.viewportHeight ?? 0)
       ? this.#contentWidth
       : this.#selectionWidth;
-    if (frameRow < 1 || frameRow > frameHeight || column < 1 || column > selectionWidth) return false;
+    if (frameRow <= this.#firstSelectableRow || frameRow > frameHeight || column < 1 || column > selectionWidth) return false;
     const line = frameRow - 1;
     const pressed = pressTextSelection({
       line,
@@ -563,12 +564,8 @@ export class TranscriptViewport {
         ? documentSelectionAnchor(documentRow, documentRows[documentRow] ?? "")
         : { kind: "screen", row, source: this.#selectionRows[row] ?? "" };
     });
-    if (stickyActive && governing !== null && visibleAnchors.length > 0) {
-      visibleAnchors[0] = documentSelectionAnchor(
-        governing.firstRow,
-        documentRows[governing.firstRow] ?? governing.sourceRow,
-      );
-    }
+    // Invariant: a pinned prompt is chrome over its hidden source row, which clips like off-screen rows.
+    this.#firstSelectableRow = stickyActive && viewportHeight > 0 ? 1 : 0;
     this.#selectionRowAnchors = [
       ...visibleAnchors,
       ...dock.map((_row, index): SelectionRowAnchor => ({ kind: "dock", fromBottom: dock.length - index - 1 })),
@@ -923,7 +920,7 @@ export class TranscriptViewport {
 
   #visibleSelection() {
     const rows = this.#selectionAnchors?.anchor.kind === "document" ? this.#viewportHeight : this.#selectionRows.length;
-    return visibleTextSelection(orderedTextSelection(this.#selection), rows);
+    return visibleTextSelection(orderedTextSelection(this.#selection), rows, this.#firstSelectableRow);
   }
 
   #updateCopyableSelection(): void {
@@ -934,14 +931,15 @@ export class TranscriptViewport {
 function visibleTextSelection(
   selection: OrderedTextSelection | undefined,
   rowCount: number,
+  firstRow: number,
 ): OrderedTextSelection | undefined {
-  if (selection === undefined || rowCount <= 0 || selection.end.line < 0 || selection.start.line >= rowCount) return undefined;
-  const startLine = Math.max(0, selection.start.line);
+  if (selection === undefined || rowCount <= firstRow || selection.end.line < firstRow || selection.start.line >= rowCount) return undefined;
+  const startLine = Math.max(firstRow, selection.start.line);
   const endLine = Math.min(rowCount - 1, selection.end.line);
   return {
     start: {
       line: startLine,
-      column: selection.start.line < 0 ? 0 : selection.start.column,
+      column: selection.start.line < firstRow ? 0 : selection.start.column,
     },
     end: {
       line: endLine,
