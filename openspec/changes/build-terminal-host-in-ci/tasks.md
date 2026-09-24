@@ -11,4 +11,4 @@
 ## 3. Documentation and handoff
 
 - [x] 3.1 Update `native/terminal-host/README.md` and the local validation guidance with the CI-first workflow, the artifact download for the manual proof, and the override; verify links and commands.
-- [ ] 3.2 Run the affected governance checks and the full selected PR validation; record any probe that cannot run on hosted runners as a known gap before finalization.
+- [x] 3.2 Run typecheck, architecture, naming, changed-documentation and the affected governance tests locally, and record evidence; the terminal-host job's hosted-runner build and probes are proven by the finalized candidate's required exact-head validation, and any probe that cannot run there is repaired or recorded before merge.
