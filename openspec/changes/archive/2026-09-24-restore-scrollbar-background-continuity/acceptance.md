@@ -16,7 +16,7 @@ The manual merge accepts these scenarios:
   "archive": "openspec/changes/archive/2026-09-24-restore-scrollbar-background-continuity/",
   "acceptanceManifest": "openspec/changes/archive/2026-09-24-restore-scrollbar-background-continuity/acceptance.md",
   "finalizedDate": "2026-09-24",
-  "specBaseSha": "ac123a6604960e8ecbed86a544d2e3d17086d65c",
+  "specBaseSha": "126d5c23a3945e1a77aed127088d106b43c9b4d4",
   "acceptanceScenarios": [
     "In `auto` and `always` modes, idle, track, and thumb cells continue each message or tool row's background without a contrasting gutter stripe.",
     "Source glyphs, links, emphasis, selection, and copied text still end before the reserved gutter, including wide and combining right-edge graphemes.",
