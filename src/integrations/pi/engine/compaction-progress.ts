@@ -25,12 +25,8 @@ export interface CompactionProgressObserver {
 }
 
 /**
- * Observes the summarization stream of a compaction through the session agent's public stream
- * function and reports an estimated integer percent. Pi never iterates that stream itself (it
- * reads only its final result), so the observer iterates it in the background between
- * `begin()` and `end()` and returns the same stream object to Pi. Outside that window the
- * wrapper is a pass-through. Returns null when the agent exposes no callable stream function,
- * in which case compaction proceeds without progress.
+ * Observes summary-stream progress without changing the stream returned to Pi. Returns null
+ * when the session exposes no callable public stream function.
  */
 export function observeCompactionProgress(
   session: CompactionProgressSession,
