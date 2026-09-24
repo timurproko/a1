@@ -1925,7 +1925,7 @@ Space SHALL toggle the selected model's membership in the session's cycling scop
 
 The dialog SHALL compare its current scope and order with the last successfully saved scope. Whenever they differ, the title row SHALL read `Models (unsaved)`, with `(unsaved)` immediately after the title. Ctrl+S SHALL persist the current scope and order while leaving the dialog open; only a successful save SHALL clear `(unsaved)`. An empty explicit scope SHALL preserve the existing all-model cycling fallback.
 
-While catalog refresh is in progress, the dialog SHALL report that progress in its body. When catalog refresh succeeds, the dialog SHALL replace the body progress with a success-colored `(refreshed)` marker on the title row, SHALL NOT retain the full success sentence in the body, and SHALL remove the marker automatically after a short bounded interval. `(refreshed)` SHALL coexist with `(unsaved)` without hiding or clearing the dirty state. Timeout and failure outcomes SHALL remain visible as actionable warning details in the body rather than being reduced to the transient success marker.
+While a real catalog refresh runs in the background, the dialog SHALL show a muted `(refreshing)` marker on the title row, SHALL NOT render the full progress sentence in its body, and SHALL keep `(refreshing)` visible for at least one second so fast completion cannot reduce it to an unreadable flash. After both the refresh outcome and minimum-visible interval are satisfied, success SHALL replace `(refreshing)` with a success-colored `(refreshed)` marker on the title row and SHALL remove `(refreshed)` automatically after a short bounded interval. Refresh markers SHALL coexist with `(unsaved)` without hiding or clearing the dirty state. Timeout and failure outcomes SHALL remove the title refresh marker after the minimum-visible interval and remain visible as actionable warning details in the body.
 
 #### Scenario: Advertise the unified bare-A1 command
 - **WHEN** bare A1 builds its slash-command catalog
@@ -1966,16 +1966,19 @@ While catalog refresh is in progress, the dialog SHALL report that progress in i
 - **AND** the changed scope SHALL remain effective for the current session but SHALL not be written to settings
 
 #### Scenario: Refresh model catalogs
-- **WHEN** catalog refresh succeeds while the Models dialog is open
+- **WHEN** the Models dialog starts its real background catalog refresh
+- **THEN** the title SHALL show muted `(refreshing)`, including alongside `(unsaved)` when the scope is dirty
+- **AND** the full progress sentence SHALL not appear in the dialog body
+- **AND** quick completion SHALL leave `(refreshing)` visible until one second has elapsed from refresh start
+- **WHEN** catalog refresh then succeeds and the minimum-visible interval has elapsed
 - **THEN** the dialog SHALL preserve the user's query, selected row where still available, pending scope edits, and dirty state while updating the available rows
-- **AND** the title SHALL briefly show `(refreshed)` in the success color, including alongside `(unsaved)` when the scope is dirty
-- **AND** the full success sentence SHALL not remain in the dialog body
+- **AND** the title SHALL replace `(refreshing)` with success-colored `(refreshed)`
 - **AND** `(refreshed)` SHALL disappear automatically while the dialog remains open
 
 #### Scenario: Model catalog refresh fails or times out
 - **WHEN** catalog refresh fails or times out while the Models dialog is open
 - **THEN** the dialog SHALL preserve the user's query, selected row where still available, pending scope edits, and dirty state without broadening availability to unauthenticated providers
-- **AND** it SHALL report the bounded warning details in the dialog body without showing the successful `(refreshed)` marker
+- **AND** after the one-second minimum-visible interval it SHALL remove `(refreshing)` and report the bounded warning details in the dialog body without showing `(refreshed)`
 
 #### Scenario: Invoke an explicit model-selection binding
 - **WHEN** the user invokes an explicitly configured model-selection shortcut in bare A1
