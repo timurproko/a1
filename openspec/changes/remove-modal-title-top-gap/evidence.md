@@ -12,7 +12,7 @@
 
 - `npm run build` — passed.
 - `npm run typecheck` — passed.
-- `npm run check:architecture` — passed, including the intentionally re-pinned startup graph at 157 files / 1,498,823 source bytes and source-port provenance.
+- `npm run check:architecture` — passed, including the intentionally re-pinned startup graph at 157 files / 1,500,796 source bytes and source-port provenance.
 - `npm run check:code-documentation` — passed.
 - `npx vitest run test/integrations/pi/components` — 32 files and 309 tests passed.
 - Focused modal inventory, project-trust, session-workflow, and dialog-panel run — 4 files and 26 tests passed.

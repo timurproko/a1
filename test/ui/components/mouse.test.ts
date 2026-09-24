@@ -100,9 +100,11 @@ describe("tracking sequences", () => {
     expect(MOUSE_TRACKING_OFF.endsWith("l")).toBe(true);
   });
 
-  it("requests any-event reporting so hover is delivered", () => {
+  it("requests any-event, focus, and SGR reporting for the owned surface", () => {
     expect(MOUSE_TRACKING_ON).toContain("[?1003h");
+    expect(MOUSE_TRACKING_ON).toContain("[?1004h");
     expect(MOUSE_TRACKING_ON).toContain("[?1006h");
+    expect(MOUSE_TRACKING_OFF).toContain("[?1004l");
   });
 
   it("does not touch the alternate screen", () => {

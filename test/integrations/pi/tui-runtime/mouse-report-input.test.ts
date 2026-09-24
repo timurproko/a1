@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MouseReportInput } from "../../../../src/integrations/pi/tui-runtime/mouse-report-input.js";
+import { MouseReportInput, stripSgrMouseReports } from "../../../../src/integrations/pi/tui-runtime/mouse-report-input.js";
 
 const press = "\u001b[<0;12;3M";
 const release = "\u001b[<0;12;3m";
@@ -38,5 +38,11 @@ describe("ordered mouse report framing", () => {
     input.reset();
     input.accept("x");
     expect(inputs).toEqual(["\u001b", "\u001b[A", "x"]);
+  });
+
+  it("strips only complete reports outside opaque bracketed paste", () => {
+    const paste = `\u001b[200~text ${press} text\u001b[201~`;
+    expect(stripSgrMouseReports(`a${press}b${paste}c${release}d\u001b[<0;12;`))
+      .toBe(`ab${paste}cd\u001b[<0;12;`);
   });
 });

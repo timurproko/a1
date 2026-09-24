@@ -179,6 +179,8 @@ export interface PiTuiRuntimeAdapterOptions {
   };
   readonly hardwareCursor?: boolean;
   readonly mouse?: boolean;
+  /** Consume residual SGR mouse reports after every pre-input listener has run. */
+  readonly consumeUnhandledMouse?: boolean;
   readonly wheelScrollLines?: number;
   readonly openUrl?: (url: string) => void;
   readonly onRightClickPaste?: () => void;

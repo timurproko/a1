@@ -31,6 +31,52 @@ import type { OwnedUiPromptSuggestionGeneratorPort, OwnedUiViewportSettings, Own
 import { fixture, nextImmediate } from "./session-shell-fixture.js";
 
 describe("OwnedUiSessionShell transcript selection and scrolling", () => {
+  it("blocks Pi fallback selection after A1 routing while retaining owned selection", async () => {
+    const messages = Array.from({ length: 24 }, (_, index) => ({
+      role: "assistant",
+      content: [{ type: "text", text: `fallback-guard-${index}` }],
+      timestamp: index + 1,
+    }));
+    const { shell, terminal } = await fixture(messages, [], true);
+    try {
+      terminal.resize(60, 12);
+      shell.runtime.renderNow(true);
+      const controls = terminal.writes.join("");
+      expect(controls).toContain("\u001b[?1003h");
+      expect(controls).toContain("\u001b[?1004h");
+      expect(controls).not.toContain("\u001b[?1002h");
+
+      const press = "\u001b[<4;2;2M";
+      const motion = "\u001b[<36;12;4M";
+      const release = "\u001b[<4;12;4m";
+      const original = shell.root.handleViewportPreInput.bind(shell.root);
+      const residual = new Set([press, motion, release]);
+      const route = vi.spyOn(shell.root, "handleViewportPreInput").mockImplementation((data, ...rest) =>
+        residual.has(data) ? { data, consumed: false } : original(data, ...rest));
+      const beforeResidual = terminal.writes.length;
+      terminal.input(press);
+      terminal.input(motion);
+      terminal.input(release);
+      shell.runtime.renderNow();
+      expect(terminal.writes.slice(beforeResidual).join("")).not.toContain("\u001b[7m");
+      expect(shell.root.hasActiveSelection()).toBe(false);
+      route.mockRestore();
+
+      terminal.input("\u001b[1;2A");
+      terminal.input("\u001b[<64;5;3M");
+      shell.runtime.renderNow();
+      const frame = shell.root.render(60).map(row => stripTerminalSequences(row));
+      const row = frame.findIndex(value => value.includes("fallback-guard")) + 1;
+      expect(row).toBeGreaterThan(0);
+      terminal.input(`\u001b[<0;2;${row}M`);
+      terminal.input(`\u001b[<32;10;${row}M`);
+      terminal.input(`\u001b[<0;10;${row}m`);
+      shell.runtime.renderNow();
+      expect(shell.root.hasActiveSelection()).toBe(true);
+      expect(terminal.writes.slice(beforeResidual).join("")).toContain("\u001b[48;2;38;79;120m");
+    } finally { await shell.dispose(); }
+  });
+
   it("keeps nested settings and post-resize transcript hit regions independent", async () => {
     const { shell, terminal } = await fixture([{ role: "assistant", content: [{ type: "text", text: "alpha beta gamma\n\n".repeat(100) }] }], [], true);
     try {
