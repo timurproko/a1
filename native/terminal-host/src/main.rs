@@ -5,7 +5,7 @@ mod workspace;
 use std::collections::HashSet;
 use std::env;
 use std::fs;
-use std::io::Write;
+use std::io::{Read, Write};
 use std::process::ExitCode;
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -279,6 +279,17 @@ fn probe() -> Result<(), String> {
         .spawn_command(command)
         .map_err(|error| format!("spawn probe process: {error}"))?;
     drop(pair.slave);
+    let reader = pair
+        .master
+        .try_clone_reader()
+        .map_err(|error| format!("read probe PTY: {error}"))?;
+    let writer = pair
+        .master
+        .take_writer()
+        .map_err(|error| format!("write probe PTY: {error}"))?;
+    // Protocol: ConPTY created with inherited cursor asks for the cursor position and holds the
+    // child until it is answered, and it stalls when its output is not drained.
+    thread::spawn(move || drain_probe_pty(reader, writer));
     probe_trace("wait for PTY child");
     let status = child
         .wait()
@@ -292,6 +303,33 @@ fn probe() -> Result<(), String> {
         "{{\"probe\":\"passed\",\"pty\":\"started-and-cleaned\",\"terminalModel\":\"passed\"}}"
     );
     Ok(())
+}
+
+fn drain_probe_pty(mut reader: Box<dyn Read + Send>, mut writer: Box<dyn Write + Send>) {
+    const CURSOR_QUERY: &[u8] = b"\x1b[6n";
+    let mut buffer = [0_u8; 4096];
+    let mut tail = Vec::new();
+    while let Ok(read) = reader.read(&mut buffer) {
+        if read == 0 {
+            return;
+        }
+        tail.extend_from_slice(&buffer[..read]);
+        if tail
+            .windows(CURSOR_QUERY.len())
+            .any(|window| window == CURSOR_QUERY)
+        {
+            if writer
+                .write_all(b"\x1b[1;1R")
+                .and_then(|()| writer.flush())
+                .is_err()
+            {
+                return;
+            }
+            tail.clear();
+        } else if tail.len() >= CURSOR_QUERY.len() {
+            tail.drain(..tail.len() - (CURSOR_QUERY.len() - 1));
+        }
+    }
 }
 
 fn fixture_pane(argument: &str) -> Result<(), String> {
