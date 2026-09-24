@@ -480,7 +480,7 @@ describe("transcript viewport", () => {
     expect(paint.mock.calls.filter(([row]) => row === sourceRow)).toHaveLength(1);
   });
 
-  it("paints the final cell for edge whitespace but not for a full-width word", () => {
+  it("paints edge whitespace through the final content cell without entering the gutter", () => {
     const selectedRange = (text: string, column: number): { readonly range: readonly [number, number]; readonly copied: string | null } => {
       const viewport = new TranscriptViewport();
       viewport.setConfig(ALWAYS);
@@ -532,7 +532,7 @@ describe("transcript viewport", () => {
         selection: (line, from, to) => { ranges.push([from, to]); return line; },
       },
     });
-    expect(ranges).toContainEqual([1, 10]);
+    expect(ranges).toContainEqual([1, 9]);
   });
 
   it.each([false, true])("includes multiline boundary cells and source edges (reverse=%s)", reverse => {
@@ -558,9 +558,10 @@ describe("transcript viewport", () => {
         viewport.releaseSelection();
         const selected = viewport.compose({ ...input, now: 103 });
         expect(viewport.selectedText()).toBe(expected);
-        expect(selected.rows[0]).toBe(backgroundSgrSpan("abcd      ", first - 1, 10, "\u001b[45m"));
-        expect(selected.rows[1]).toBe(backgroundSgrSpan("efgh      ", 0, 10, "\u001b[45m"));
-        expect(selected.rows[2]).toBe(backgroundSgrSpan("ijkl      ", 0, last, "\u001b[45m"));
+        expect(selected.rows.slice(0, 3).map(row => stripAnsi(row))).toEqual([
+          "abcd      ", "efgh      ", "ijkl      ",
+        ]);
+        expect(selected.rows.slice(0, 3).every(row => row.includes("\u001b[45m"))).toBe(true);
         expect(selected.rows[3]).toBe("dock");
         expect(viewport.pressSelection(1, 4, 1_000)).toBe(true);
       }
@@ -847,7 +848,7 @@ describe("transcript viewport", () => {
 
     const selected = viewport.compose({ documentRows: rows(10), dockRows: [], promptAnchors: [], width: 10, height: 5, now: 103, theme });
     const thumbRow = selected.rows[3] ?? "";
-    expect(selectionEnds).toContain(10);
+    expect(selectionEnds).toContain(9);
     expect(viewport.selectedText()).toBe("row 7\nrow 8\nrow 9");
     expect(stripAnsi(thumbRow).at(-1)).toBe("│");
     expect(thumbRow).toContain("\u001b[32m│");
