@@ -26,7 +26,7 @@ Alternative: restore full-width source rows and the former overlay. Rejected bec
 
 ### 2. Carry background state explicitly rather than inheriting the boundary cell's complete style
 
-The gutter will retain only the row background role, including the equivalent reverse-video surface used by existing rows. OSC 8 links, foreground color, bold, italic, underline, and other source decoration will be terminated before the blank gutter cell. Selection remains a later semantic paint bounded by `contentWidth`, so selecting the final source cell does not convert the gutter into a selected or copyable cell.
+The gutter will retain only the row's explicit full-row background role. OSC 8 links, foreground color, reverse video, bold, italic, underline, and other source decoration will be terminated before the blank gutter cell. Selection remains a later semantic paint bounded by `contentWidth`, so selecting the final source cell does not convert the gutter into a selected or copyable cell.
 
 Alternative: let the overlay inherit all active ANSI/OSC state from the adjacent source cell. Rejected because boundary-local emphasis or hyperlinks could leak into scrollbar chrome and because the final source glyph's local style is not necessarily the row's background surface.
 
@@ -42,10 +42,18 @@ Focused tests will decode the final content and gutter cells for default and col
 
 ## Risks / Trade-offs
 
-- [ANSI rows can contain several local background transitions] → Reuse the viewport's established full-row background-padding semantics rather than copying the last glyph's complete style, and cover representative block and reverse-video rows in decoded-cell tests.
+- [ANSI rows can contain several local background transitions] → Reuse the viewport's established full-row background-padding semantics rather than copying the last glyph's complete style, and cover representative block rows in decoded-cell tests.
 - [Rail style reset can accidentally clear the continued background] → Decode track and thumb cells and assert their background matches the row surface in every visibility state.
 - [Selection paint can leak into the gutter while extending full rows] → Keep range geometry clamped to `contentWidth` and verify adjacent selected cells leave the gutter non-semantic and source-background-colored.
 - [Cached frames can preserve the old neutral gutter] → Exercise first render, reveal, hover, expiry, and repeated unchanged composition with terminal replay evidence.
+
+## Implementation Evidence
+
+- Gutter composition now closes source links, foreground, reverse video, and emphasis before repainting the established full-row background; visible rail glyphs inherit only that prepared background.
+- Decoded terminal-cell coverage passes across default and colored rows, selected and excluded endpoints, links, wide and combining graphemes, thin/thick styles, `auto` idle/reveal/hover/expiry cycles, `always`, `hidden`, and repeated cache reuse.
+- Focused component, controller, and session-shell coverage passes: 240 tests across six suites. The five broader suites were run serially to avoid timer-test contention; 229 tests passed, and the dedicated gutter suite passed all 11 tests.
+- Build, source and bin typechecking, changed-file code-documentation governance, strict OpenSpec validation, and `git diff --check` pass against current `origin/develop` at `93f6928f`.
+- No implementation gaps are known. Physical Windows Terminal review of the exact candidate remains the user-controlled acceptance activity.
 
 ## Migration Plan
 
