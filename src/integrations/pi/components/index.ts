@@ -124,7 +124,14 @@ export {
 export type { PiColorMode, PiTerminalTheme, PiTerminalThemeDetection, PiTerminalThemeDetector, PiThemeBackground, PiThemeResult } from "./theme.js";
 export { OwnedPiThemeController } from "./upstream/theme/theme-controller.js";
 export type { PiThemeRuntimePort, PiThemeSettingsPort } from "./upstream/theme/theme-controller.js";
-export { addPiModalHeader, adoptPiModalHeader, PiModalHeader } from "./modal-frame.js";
+export {
+  PI_MODAL_CONTENT_PADDING_X,
+  PiModalFrame,
+  PiModalHeader,
+  addPiModalHeader,
+  adoptPiModalFrame,
+  adoptPiModalHeader,
+} from "./modal-frame.js";
 export { ModelsDialogComponent } from "./models-dialog.js";
 export type { ModelsDialogCallbacks, ModelsDialogConfig, ModelsDialogFilter, ModelsDialogModel } from "./models-dialog.js";
 export { CountdownTimer } from "./upstream/components/countdown-timer.js";

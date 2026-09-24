@@ -47,6 +47,11 @@ export function dialogValueColumn(rows: readonly DialogRow[]): number {
 export function renderDialogPanel(state: DialogPanelState, width: number, theme: UiTheme): readonly string[] {
   const labelColumn = Math.min(LABEL_COLUMN_CAP, Math.max(0, ...state.rows.map(row => displayWidth(row.label))));
   const rule = theme.fg("border", "─".repeat(Math.max(0, width)));
+  const contentPadding = Math.min(1, Math.max(0, width));
+  const contentWidth = Math.max(0, width - contentPadding);
+  const inset = " ".repeat(contentPadding);
+  const contentRow = (painted: string, raw: string): string =>
+    `${inset}${pad(truncateToWidth(painted, contentWidth), contentWidth, raw)}`;
 
   const rows = state.rows.map((row, index) => {
     const selected = index === state.index;
@@ -58,21 +63,21 @@ export function renderDialogPanel(state: DialogPanelState, width: number, theme:
     const painted = selected
       ? `${theme.fg("accent", cursor)}${theme.fg("accent", padded)}  ${theme.fg("accent", row.value)}`
       : `${cursor}${padded}  ${theme.fg("muted", row.value)}`;
-    return pad(truncateToWidth(painted, width), width, raw);
+    return contentRow(painted, raw);
   });
 
   const description = state.rows[state.index]?.description ?? "";
   const hint = typeof state.hint === "string"
-    ? theme.fg("dim", ` ${state.hint}`)
-    : renderShortcutHints(state.hint, theme, 1);
-  const plainHint = typeof state.hint === "string" ? ` ${state.hint}` : shortcutHintsText(state.hint, 1);
+    ? theme.fg("dim", state.hint)
+    : renderShortcutHints(state.hint, theme, 0);
+  const plainHint = typeof state.hint === "string" ? state.hint : shortcutHintsText(state.hint, 0);
   return [
     rule,
     ...rows,
     "",
-    pad(truncateToWidth(theme.fg("dim", `  ${description}`), width), width, `  ${description}`),
+    contentRow(theme.fg("dim", `  ${description}`), `  ${description}`),
     "",
-    pad(truncateToWidth(hint, width), width, plainHint),
+    contentRow(hint, plainHint),
     rule,
   ];
 }

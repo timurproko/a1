@@ -4,7 +4,7 @@
  * Modifications: Mechanical port: remap pi-tui to the root public singleton, use owned
  * keybindings/theme and external-editor seams, preserve editor layout, hints, focus, submission,
  * cancellation, and external-editor lifecycle; bare A1 uses the shared semantic modal shortcut row and
- * compact modal header.
+ * compact padded modal frame.
  * Deviations: owned-modal-shortcut-hints.
  */
 import {
@@ -17,7 +17,7 @@ import {
 import { DynamicBorder, getSelectListTheme } from "@earendil-works/pi-coding-agent";
 import type { KeybindingsManager } from "../adjacent/core/keybindings.js";
 import { editInExternalEditor } from "../external-editor.js";
-import { addPiModalHeader } from "../../modal-frame.js";
+import { addPiModalHeader, adoptPiModalFrame } from "../../modal-frame.js";
 import { piTheme, renderPiModalShortcutHints } from "../../theme.js";
 
 export class ExtensionEditorComponent extends Container {
@@ -56,10 +56,10 @@ export class ExtensionEditorComponent extends Container {
       || process.env.EDITOR
       || (process.platform === "win32" ? "notepad" : "nano");
     const { description, ...editorOptions } = options ?? {};
-    addPiModalHeader(this, new DynamicBorder(), new Text(piTheme().fg("accent", title), 1, 0));
+    const header = addPiModalHeader(this, new DynamicBorder(), new Text(piTheme().fg("accent", title), 0, 0));
     if (description) {
       this.addChild(new Spacer(1));
-      this.addChild(new Text(piTheme().fg("text", description), 1, 0));
+      this.addChild(new Text(piTheme().fg("text", description), 0, 0));
     }
     this.addChild(new Spacer(1));
     this.#editor = new Editor(tui, {
@@ -76,9 +76,10 @@ export class ExtensionEditorComponent extends Container {
       { key: this.#keybindings.getKeys("tui.select.cancel").join("/"), action: "cancel" },
       { key: this.#keybindings.getKeys("app.editor.external").join("/"), action: "external editor" },
     ]);
-    this.addChild(new Text(hint, 1, 0));
+    this.addChild(new Text(hint, 0, 0));
     this.addChild(new Spacer(1));
     this.addChild(new DynamicBorder());
+    adoptPiModalFrame(this, { topIndex: 0, bottomIndex: this.children.length - 1, header });
   }
 
   handleInput(data: string): void {

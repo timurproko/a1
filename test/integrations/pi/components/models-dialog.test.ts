@@ -28,7 +28,7 @@ function text(dialog: ModelsDialogComponent, width = 200): string {
 }
 
 function rows(dialog: ModelsDialogComponent, width = 200): readonly string[] {
-  return dialog.render(width).map(stripTerminalSequences).filter(line => /^(?:→ |  )[●○] /u.test(line));
+  return dialog.render(width).map(stripTerminalSequences).filter(line => /^ (?:(?:→ |  )[●○] )/u.test(line));
 }
 
 /** Scope only synchronous presentation under owned bindings; native platform CI remains the independent authority. */
@@ -77,22 +77,22 @@ describe("unified Models dialog", () => {
     withDialog(dialog => {
       const lines = dialog.render(200);
       const stripped = lines.map(stripTerminalSequences);
-      expect(stripped[1]).toBe("Models");
-      expect(stripped[2]).toBe("Filter: all | scoped");
+      expect(stripped[1]).toBe(" Models");
+      expect(stripped[2]).toBe(" Filter: all | scoped");
       expect(rows(dialog)).toEqual([
-        "  ○ claude [anthropic]",
-        "→ ○ gpt-5 [openai] ✓",
-        "  ○ gpt-5-mini [openai]",
+        "   ○ claude [anthropic]",
+        " → ○ gpt-5 [openai] ✓",
+        "   ○ gpt-5-mini [openai]",
       ]);
-      const active = lines.find(line => stripTerminalSequences(line).startsWith("→ "))!;
+      const active = lines.find(line => stripTerminalSequences(line).startsWith(" → "))!;
       expect(active).toContain(`${piTheme().fg("muted", "[openai]")} ${piTheme().fg("success", "✓")}`);
       expect(active).toContain(piTheme().fg("dim", "○"));
       expect(active).toContain(piTheme().fg("accent", "gpt-5"));
-      expect(stripped).toContain("  Model Name: GPT-5");
-      expect(stripped.at(-2)).toBe("type to search  ↑↓ navigate  Tab filter  Enter switch  Space scope  Ctrl+S save  Esc close");
+      expect(stripped).toContain("   Model Name: GPT-5");
+      expect(stripped.at(-2)).toBe(" type to search  ↑↓ navigate  Tab filter  Enter switch  Space scope  Ctrl+S save  Esc close");
       const footer = lines.at(-2)!;
       expect(firstVisibleTextColumn(footer)).toBe(firstVisibleTextColumn(lines[1]!));
-      expect(firstVisibleTextColumn(stripped.find(line => line.includes("○ claude"))!)).toBe(2);
+      expect(firstVisibleTextColumn(stripped.find(line => line.includes("○ claude"))!)).toBe(3);
       expect(footer).toContain(piTheme().fg("dim", "↑↓"));
       expect(footer).toContain(piTheme().fg("muted", "navigate"));
       expect(footer).not.toMatch(/[·•]/u);
@@ -106,14 +106,14 @@ describe("unified Models dialog", () => {
       for (const width of [28, 12]) {
         for (const line of dialog.render(width)) expect(stripTerminalSequences(line).length).toBeLessThanOrEqual(width);
       }
-      expect(rows(dialog, 28)).toEqual(["  ○ claude [anthropic]", "→ ○ gpt-5 [openai] ✓", "  ○ gpt-5-mini [openai]"]);
+      expect(rows(dialog, 28)).toEqual(["   ○ claude [anthropic]", " → ○ gpt-5 [openai] ✓", "   ○ gpt-5-mini [openai]"]);
     });
   });
 
   it("filters by search while keeping catalog order and retains the selection where the row survives", () => {
     withDialog(dialog => {
       for (const character of "mini") dialog.handleInput(character);
-      expect(rows(dialog)).toEqual(["→ ○ gpt-5-mini [openai]"]);
+      expect(rows(dialog)).toEqual([" → ○ gpt-5-mini [openai]"]);
       expect(dialog.selectedModelId).toBe(ids.mini);
       for (let index = 0; index < 4; index += 1) dialog.handleInput("\u007f");
       expect(rows(dialog)).toHaveLength(3);
@@ -129,7 +129,7 @@ describe("unified Models dialog", () => {
   it("seeds the query from the initial argument and switches only on Enter", () => {
     withDialog((dialog, callbacks) => {
       expect(dialog.query).toBe("gpt");
-      expect(rows(dialog)).toEqual(["→ ○ gpt-5 [openai] ✓", "  ○ gpt-5-mini [openai]"]);
+      expect(rows(dialog)).toEqual([" → ○ gpt-5 [openai] ✓", "   ○ gpt-5-mini [openai]"]);
       expect(callbacks.onSelect).not.toHaveBeenCalled();
       dialog.handleInput(DOWN);
       dialog.handleInput(ENTER);
@@ -145,14 +145,14 @@ describe("unified Models dialog", () => {
       expect(callbacks.onScopeChange).toHaveBeenLastCalledWith([ids.gpt5]);
       expect(callbacks.onSave).not.toHaveBeenCalled();
       const lines = dialog.render(200);
-      expect(stripTerminalSequences(lines[1]!)).toBe("Models (unsaved)");
-      expect(lines[1]).toBe(`${piTheme().fg("accent", piTheme().bold("Models"))}${piTheme().fg("warning", " (unsaved)")}`);
-      expect(rows(dialog)[1]).toBe("→ ● gpt-5 [openai] ✓");
+      expect(stripTerminalSequences(lines[1]!)).toBe(" Models (unsaved)");
+      expect(lines[1]).toBe(` ${piTheme().fg("accent", piTheme().bold("Models"))}${piTheme().fg("warning", " (unsaved)")}`);
+      expect(rows(dialog)[1]).toBe(" → ● gpt-5 [openai] ✓");
       expect(text(dialog)).not.toMatch(/Esc close\n.*unsaved/u);
       dialog.handleInput(TAB);
       expect(dialog.filter).toBe("scoped");
-      expect(stripTerminalSequences(dialog.render(200)[2]!)).toBe("Filter: all | scoped");
-      expect(rows(dialog)).toEqual(["→ ● gpt-5 [openai] ✓"]);
+      expect(stripTerminalSequences(dialog.render(200)[2]!)).toBe(" Filter: all | scoped");
+      expect(rows(dialog)).toEqual([" → ● gpt-5 [openai] ✓"]);
       dialog.handleInput(SPACE);
       expect(callbacks.onScopeChange).toHaveBeenLastCalledWith([]);
       expect(dialog.dirty).toBe(false);
@@ -167,10 +167,10 @@ describe("unified Models dialog", () => {
     withDialog((dialog, callbacks) => {
       expect(dialog.dirty).toBe(false);
       dialog.handleInput(TAB);
-      expect(rows(dialog)).toEqual(["  ● claude [anthropic]", "→ ● gpt-5 [openai] ✓"]);
+      expect(rows(dialog)).toEqual(["   ● claude [anthropic]", " → ● gpt-5 [openai] ✓"]);
       dialog.handleInput(SPACE);
       expect(callbacks.onScopeChange).toHaveBeenLastCalledWith([ids.claude]);
-      expect(rows(dialog)).toEqual(["  ● claude [anthropic]", "→ ○ gpt-5 [openai] ✓"]);
+      expect(rows(dialog)).toEqual(["   ● claude [anthropic]", " → ○ gpt-5 [openai] ✓"]);
       expect(dialog.dirty).toBe(true);
       dialog.handleInput(SPACE);
       expect(callbacks.onScopeChange).toHaveBeenLastCalledWith([ids.claude, ids.gpt5]);
@@ -267,10 +267,10 @@ describe("unified Models dialog", () => {
       expect(callbacks.onScopeChange).toHaveBeenLastCalledWith([]);
       dialog.handleInput("\u0001");
       dialog.handleInput(TAB);
-      expect(rows(dialog)).toEqual(["  ● claude [anthropic]", "→ ● gpt-5 [openai] ✓", "  ● gpt-5-mini [openai]"]);
+      expect(rows(dialog)).toEqual(["   ● claude [anthropic]", " → ● gpt-5 [openai] ✓", "   ● gpt-5-mini [openai]"]);
       dialog.handleInput("\u001b[1;3A");
       expect(callbacks.onScopeChange).toHaveBeenLastCalledWith([ids.gpt5, ids.claude, ids.mini]);
-      expect(rows(dialog)).toEqual(["→ ● gpt-5 [openai] ✓", "  ● claude [anthropic]", "  ● gpt-5-mini [openai]"]);
+      expect(rows(dialog)).toEqual([" → ● gpt-5 [openai] ✓", "   ● claude [anthropic]", "   ● gpt-5-mini [openai]"]);
       dialog.handleInput("\u001b[1;3A");
       expect(callbacks.onScopeChange).toHaveBeenCalledTimes(6);
       dialog.handleInput("\u001b[1;3B");

@@ -2,13 +2,14 @@
  * Provenance: @earendil-works/pi-coding-agent 0.87.1 (MIT), commit f07218c4d4bbc12bef056a7058c3dd49dfe41abe,
  * packages/coding-agent/src/modes/interactive/components/extension-input.ts.
  * Modifications: Mechanical port: remap public imports, use ECMAScript private fields, and route the
- * bare-A1 instruction row and top chrome through the shared semantic shortcut and compact modal-header
- * components while preserving input, timeout, focus, submission, cancellation, and disposal behavior.
+ * bare-A1 instruction row and chrome through the shared semantic shortcut and compact padded
+ * modal-frame components while preserving input, timeout, focus, submission, cancellation, and
+ * disposal behavior.
  * Deviations: owned-modal-shortcut-hints.
  */
 import { DynamicBorder } from "@earendil-works/pi-coding-agent";
 import { Container, getKeybindings, Input, Spacer, Text, type TUI } from "@earendil-works/pi-tui";
-import { addPiModalHeader } from "../../modal-frame.js";
+import { addPiModalHeader, adoptPiModalFrame } from "../../modal-frame.js";
 import { piTheme, renderPiModalShortcutHints } from "../../theme.js";
 import { CountdownTimer } from "./countdown-timer.js";
 
@@ -41,11 +42,11 @@ export class ExtensionInputComponent extends Container {
     this.#onCancel = onCancel;
     this.#baseTitle = title;
     const theme = piTheme();
-    this.#titleText = new Text(theme.fg("accent", title), 1, 0);
-    addPiModalHeader(this, new DynamicBorder(), this.#titleText);
+    this.#titleText = new Text(theme.fg("accent", title), 0, 0);
+    const header = addPiModalHeader(this, new DynamicBorder(), this.#titleText);
     if (opts?.description) {
       this.addChild(new Spacer(1));
-      this.addChild(new Text(theme.fg("text", opts.description), 1, 0));
+      this.addChild(new Text(theme.fg("text", opts.description), 0, 0));
     }
     this.addChild(new Spacer(1));
     this.#countdown = opts?.timeout !== undefined && opts.timeout > 0 && opts.tui !== undefined
@@ -61,9 +62,10 @@ export class ExtensionInputComponent extends Container {
     this.addChild(new Text(renderPiModalShortcutHints([
       { key: keys.getKeys("tui.select.confirm").join("/"), action: "submit" },
       { key: keys.getKeys("tui.select.cancel").join("/"), action: "cancel" },
-    ]), 1, 0));
+    ]), 0, 0));
     this.addChild(new Spacer(1));
     this.addChild(new DynamicBorder());
+    adoptPiModalFrame(this, { topIndex: 0, bottomIndex: this.children.length - 1, header });
   }
 
   handleInput(keyData: string): void {

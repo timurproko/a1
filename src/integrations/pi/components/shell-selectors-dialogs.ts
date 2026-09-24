@@ -36,7 +36,7 @@ import type {
 import {
   ScopedModelsSelectorComponent,
 } from "./upstream/components/scoped-models-selector.js";
-import { adoptPiModalHeader } from "./modal-frame.js";
+import { adoptPiModalFrame, adoptPiModalHeader } from "./modal-frame.js";
 import {
   ModelsDialogComponent,
   type ModelsDialogCallbacks,
@@ -161,6 +161,7 @@ export function createPiShellModelSelector(options: PiShellModelSelectorOptions)
     options.onSelectAsDefault,
     options.defaultModel,
   );
+  adoptPiModalFrame(selector, { topIndex: 0, bottomIndex: selector.children.length - 1 });
   return componentPort(selector);
 }
 
@@ -319,6 +320,7 @@ export function createPiShellUserMessageSelector(
     initialSelectedId,
   );
   const list = selector.getMessageList();
+  adoptPiModalFrame(selector, { topIndex: 4, bottomIndex: selector.children.length - 1 });
   return componentPort(selector, data => list.handleInput(data));
 }
 
@@ -342,7 +344,14 @@ export function createPiShellLoginDialog(
 ): PiShellLoginDialogPort {
   ensureTheme();
   const dialog = new LoginDialogComponent(createTuiFacade(runtime), providerId, onComplete, providerName, title);
-  adoptPiModalHeader(dialog, 0, 1);
+  const preInsetTitle = dialog.children[1]!;
+  const header = adoptPiModalHeader(dialog, 0, 1);
+  adoptPiModalFrame(dialog, {
+    topIndex: 0,
+    bottomIndex: dialog.children.length - 1,
+    header,
+    preInsetContent: [preInsetTitle],
+  });
   return {
     ...componentPort(dialog),
     showAuth: (url, instructions) => dialog.showAuth(url, instructions),
@@ -385,6 +394,11 @@ export function createPiShellOperationLoader(
 ): PiShellOperationLoaderPort {
   ensureTheme();
   const loader = new BorderedLoader(createTuiFacade(runtime), piTheme(), message, { cancellable: true });
+  adoptPiModalFrame(loader, {
+    topIndex: 0,
+    bottomIndex: loader.children.length - 1,
+    preInsetContent: loader.children[3] === undefined ? [] : [loader.children[3]],
+  });
   return { ...componentPort(loader), signal: loader.signal };
 }
 
@@ -394,9 +408,10 @@ export function createPiShellReloadBox(): PiShellComponentPort {
   const borderColor = (text: string) => piTheme().fg("border", text);
   container.addChild(new DynamicBorder(borderColor));
   container.addChild(new Spacer(1));
-  container.addChild(new Text(piTheme().fg("muted", "Reloading keybindings, extensions, skills, prompts, themes, and context files..."), 1, 0));
+  container.addChild(new Text(piTheme().fg("muted", "Reloading keybindings, extensions, skills, prompts, themes, and context files..."), 0, 0));
   container.addChild(new Spacer(1));
   container.addChild(new DynamicBorder(borderColor));
+  adoptPiModalFrame(container, { topIndex: 0, bottomIndex: container.children.length - 1 });
   return componentPort(container);
 }
 
@@ -426,7 +441,14 @@ export function createPiShellAuthProviderSelector(
     const selected = providers.find(provider => provider.providerId === providerId && provider.authType === authType);
     if (selected) onSelect(selected.id);
   }, onCancel, initialSearchInput);
-  adoptPiModalHeader(selector, 0, 2);
+  const preInsetContent = [selector.children[2]!, selector.children[6]!];
+  const header = adoptPiModalHeader(selector, 0, 2);
+  adoptPiModalFrame(selector, {
+    topIndex: 0,
+    bottomIndex: selector.children.length - 1,
+    header,
+    preInsetContent,
+  });
   return componentPort(selector);
 }
 
@@ -437,7 +459,16 @@ export function createPiShellExtensionSelector(
   onCancel: () => void,
 ): PiShellComponentPort {
   ensureTheme();
-  return componentPort(new ExtensionSelectorComponent(title, [...options], onSelect, onCancel));
+  const selector = new ExtensionSelectorComponent(title, [...options], onSelect, onCancel);
+  const preInsetContent = [selector.children[2]!, selector.children[4]!, selector.children[6]!];
+  const header = adoptPiModalHeader(selector, 0, 2);
+  adoptPiModalFrame(selector, {
+    topIndex: 0,
+    bottomIndex: selector.children.length - 1,
+    header,
+    preInsetContent,
+  });
+  return componentPort(selector);
 }
 
 export function createPiShellThemeSelector(
@@ -449,6 +480,7 @@ export function createPiShellThemeSelector(
   ensureTheme();
   const selector = new ThemeSelectorComponent(currentTheme, onSelect, onCancel, onPreview);
   const list = selector.getSelectList();
+  adoptPiModalFrame(selector, { topIndex: 0, bottomIndex: selector.children.length - 1 });
   return componentPort(selector, data => list.handleInput(data));
 }
 
@@ -460,6 +492,7 @@ export function createPiShellShowImagesSelector(
   ensureTheme();
   const selector = new ShowImagesSelectorComponent(currentValue, onSelect, onCancel);
   const list = selector.getSelectList();
+  adoptPiModalFrame(selector, { topIndex: 0, bottomIndex: selector.children.length - 1 });
   return componentPort(selector, data => list.handleInput(data));
 }
 

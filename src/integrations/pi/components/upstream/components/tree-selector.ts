@@ -4,7 +4,7 @@
  * Modifications: Source-synchronized tree selector port: preserve filtering, folding, labels, copying,
  * tree navigation, key hints, focus, and viewport behavior while remapping public types/components
  * plus owned keybindings/theme helpers required to avoid the pinned package nested pi-tui singleton;
- * bare A1 uses the shared semantic modal shortcut row and compact modal header.
+ * bare A1 uses the shared semantic modal shortcut row and compact padded modal frame.
  * Deviations: owned-modal-shortcut-hints.
  */
 import {
@@ -22,7 +22,7 @@ import {
 } from "@earendil-works/pi-tui";
 import { DynamicBorder, type SessionTreeNode } from "@earendil-works/pi-coding-agent";
 import { KeybindingsManager } from "../adjacent/core/keybindings.js";
-import { addPiModalHeader } from "../../modal-frame.js";
+import { addPiModalHeader, adoptPiModalFrame } from "../../modal-frame.js";
 import { piTheme, renderPiModalShortcutHints, type PiModalShortcutHint } from "../../theme.js";
 
 const theme = new Proxy({} as ReturnType<typeof piTheme>, {
@@ -1227,8 +1227,8 @@ class TreeHelp implements Component {
 		});
 
 		const availableWidth = Math.max(1, width);
-		// Match the title's Text padding plus its two-cell authored inset.
-		const indent = "   ";
+		// The frame supplies the shared outer cell; help content needs no duplicate chrome inset.
+		const indent = "";
 		const separator = "  ";
 		const lines: string[] = [];
 		let currentLine = "";
@@ -1418,15 +1418,22 @@ export class TreeSelectorComponent extends Container implements Focusable {
 		this.labelInputContainer = new Container();
 
 		this.addChild(new Spacer(1));
-		addPiModalHeader(this, new DynamicBorder(), new Text(theme.bold("  Session Tree"), 1, 0));
+		const header = addPiModalHeader(this, new DynamicBorder(), new Text(theme.bold("Session Tree"), 0, 0));
 		this.addChild(new TreeHelp());
 		this.addChild(new SearchLine(this.treeList));
-		this.addChild(new DynamicBorder());
+		const separator = new DynamicBorder();
+		this.addChild(separator);
 		this.addChild(new Spacer(1));
 		this.addChild(this.treeContainer);
 		this.addChild(this.labelInputContainer);
 		this.addChild(new Spacer(1));
 		this.addChild(new DynamicBorder());
+		adoptPiModalFrame(this, {
+			topIndex: 1,
+			bottomIndex: this.children.length - 1,
+			header,
+			fullWidthContent: [separator],
+		});
 
 		if (tree.length === 0) {
 			setTimeout(() => onCancel(), 100);

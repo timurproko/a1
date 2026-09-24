@@ -201,15 +201,16 @@ describe("pinned Pi modal transition graph", () => {
     expect(settings).toContain("SETTINGS_SHORTCUTS.hintEntries(DIALOG_SCOPE)");
     expect(settings).toContain("SETTINGS_SHORTCUTS.hintEntries(SCOPE)");
     const dialogPanel = await readFile("src/ui/components/dialog-panel.ts", "utf8");
-    expect(dialogPanel).toContain("renderShortcutHints(state.hint, theme, 1)");
+    expect(dialogPanel).toContain("renderShortcutHints(state.hint, theme, 0)");
+    expect(dialogPanel).toContain("contentWidth = Math.max(0, width - contentPadding)");
     const reference = await readFile("src/features/owned-ui/reference-screen-app.ts", "utf8");
     expect(reference).toContain("REFERENCE_SCREEN_SHORTCUTS.hintEntries(SCOPE), theme, 1");
     expect(reference).not.toContain("HINT_SEPARATOR");
     const models = await readFile("src/integrations/pi/components/models-dialog.ts", "utf8");
     expect(models).toContain("renderPiModalShortcutHints(this.#hints())");
     const tree = await readFile("src/integrations/pi/components/upstream/components/tree-selector.ts", "utf8");
-    expect(tree).toContain('const indent = "   ";');
-    expect(tree).toContain('new Text(theme.bold("  Session Tree"), 1, 0)');
+    expect(tree).toContain('const indent = "";');
+    expect(tree).toContain('new Text(theme.bold("Session Tree"), 0, 0)');
     const startupTrust = await readFile("src/features/owned-ui/project-trust-prompt.ts", "utf8");
     expect(startupTrust).toContain("${DIM}↑/↓${MUTED} to navigate  ${DIM}Enter${MUTED} to select");
     expect(startupTrust).not.toContain("${DIM}  ↑/↓");
@@ -217,13 +218,17 @@ describe("pinned Pi modal transition graph", () => {
 
     const modalFrame = await readFile("src/integrations/pi/components/modal-frame.ts", "utf8");
     expect(modalFrame).toContain("export class PiModalHeader");
-    expect(modalFrame).toContain("...this.#rule.render(width), ...this.#title.render(width)");
+    expect(modalFrame).toContain("export class PiModalFrame");
+    expect(modalFrame).toContain("width - padding");
+    expect(modalFrame).toContain("component instanceof Spacer");
     for (const path of COMPACT_MODAL_HEADER_SOURCES) {
-      expect(await readFile(path, "utf8"), path).toContain("PiModalHeader");
+      expect(await readFile(path, "utf8"), path).toContain("PiModalFrame");
     }
     const selectorAdapters = await readFile("src/integrations/pi/components/shell-selectors-dialogs.ts", "utf8");
     expect(selectorAdapters).toContain("adoptPiModalHeader(dialog, 0, 1)");
     expect(selectorAdapters).toContain("adoptPiModalHeader(selector, 0, 2)");
+    expect(selectorAdapters).toContain("adoptPiModalFrame(dialog,");
+    expect(selectorAdapters).toContain("adoptPiModalFrame(selector,");
   });
 
   it("rejects omitted nodes/edges, missing presentation, generic controllers, stale parents, and missing acceptance", async () => {

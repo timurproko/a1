@@ -62,20 +62,25 @@ function verify(actual: Capture, expected: Capture): void {
   expect(actual.rows, actual.id).toEqual(missingExecutable ? expected.exceptionReferenceRows : expected.rows);
   expect(actual.progressRows, `${actual.id} before catalog completion`).toEqual(expected.progressRows);
   expect(actual.surfaceOpen, `${actual.id} input ownership`).toBe(expected.surfaceOpen);
-  if (/\/(tree|scoped-models|trust|resume|thinking|model)\//u.test(expected.id)) {
-    // Compatibility: bare A1 changes modal-hint styling, display casing, separators, and consequent wrapping; pinned text and behavior remain the oracle.
-    const plainSurfaceText = (rows: readonly string[]) => {
-      let text = rows.map(row => stripTerminalSequences(row).replace(/\s*·\s*/gu, " "))
-        .join("\n").replace(/\s+/gu, " ").trim()
+  if (/\/(tree|scoped-models|trust|resume|thinking|model|login)\//u.test(expected.id)) {
+    // Compatibility: bare A1 changes modal chrome/padding, hint styling, display casing, separators, and consequent wrapping; pinned text and behavior remain the oracle.
+    const surfaceWidth = Number(expected.id.split("/").at(-1));
+    const plainSurfaceText = (rows: readonly string[], reduceContentWidth = false) => {
+      let text = rows.map(row => {
+        const plain = stripTerminalSequences(row);
+        const reduced = reduceContentWidth && plain.length >= surfaceWidth && !/^─+$/u.test(plain.trim()) ? plain.slice(0, -1) : plain;
+        return reduced.replace(/\s*·\s*/gu, " ");
+      }).join("\n").replace(/\s+/gu, " ").trim()
         .replace(/\b(?:Alt|Backspace|Cmd|Ctrl|Delete|Down|End|Enter|Esc|Escape|Home|Insert|Left|Meta|Option|PageDown|PageUp|PgDn|PgUp|Return|Right|Shift|Space|Tab|Up)\b/gu, key => key.toLowerCase())
         .replace(/(?<=[+/])[A-Z](?=[/+\s]|$)/gu, key => key.toLowerCase());
       if (expected.id.includes("/scoped-models/unbound-hints/")) {
         text = text.replace("Session-only. to save to settings.", "Session-only.")
           .replace("provider /shift+ctrl+down reorder save all enabled", "provider shift+ctrl+down reorder all enabled");
       }
-      return text;
+      return text.replace(/\s+/gu, "");
     };
-    expect(plainSurfaceText(actual.surfaceRows), `${actual.id} selector messages`).toBe(plainSurfaceText(expected.surfaceRows));
+    expect(plainSurfaceText(actual.surfaceRows), `${actual.id} selector messages`)
+      .toBe(plainSurfaceText(expected.surfaceRows, expected.id.includes("/tree/")));
   } else {
     expect(actual.surfaceRows, `${actual.id} selector messages`).toEqual(expected.surfaceRows);
   }

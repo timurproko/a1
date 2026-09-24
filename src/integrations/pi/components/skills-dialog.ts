@@ -1,6 +1,6 @@
 import { DynamicBorder } from "../startup-public.js";
 import { Container, getKeybindings, Input, Spacer, Text } from "@earendil-works/pi-tui";
-import { addPiModalHeader } from "./modal-frame.js";
+import { addPiModalHeader, adoptPiModalFrame } from "./modal-frame.js";
 import { PINNED_PI_LAYOUT, piTheme, renderPiModalShortcutHints } from "./theme.js";
 import { componentPort, ensureTheme, piShellTruncateToWidth, piShellVisibleWidth, type PiShellComponentPort } from "./shell-shared-facade.js";
 import { SKILL_COMMAND_PREFIX, skillMatchesQuery, type PiShellSkillSummary } from "./skills-command.js";
@@ -47,7 +47,7 @@ class SkillsSelectorComponent extends Container {
     this.#onSelect = options.onSelect;
     this.#onCancel = options.onCancel;
     this.#searchInput.onSubmit = () => this.#selectCurrent();
-    addPiModalHeader(this, new DynamicBorder(), new Text(piTheme().fg("accent", piTheme().bold("Skills")), 0, 0));
+    const header = addPiModalHeader(this, new DynamicBorder(), new Text(piTheme().fg("accent", piTheme().bold("Skills")), 0, 0));
     this.addChild(new Spacer(1));
     this.addChild(this.#searchInput);
     this.addChild(new Spacer(1));
@@ -60,6 +60,7 @@ class SkillsSelectorComponent extends Container {
       { key: bindings.getKeys("tui.select.cancel").join("/"), action: "cancel" },
     ]), 0, 0));
     this.addChild(new DynamicBorder());
+    adoptPiModalFrame(this, { topIndex: 0, bottomIndex: this.children.length - 1, header });
     this.#updateList();
   }
 
