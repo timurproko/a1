@@ -898,11 +898,15 @@ describe("Pi engine adapter", () => {
     await adapter.flushEvents();
     expect(adapter.view().status.workingProgress).toBe(99);
     streams[1]!.end();
+    await vi.waitFor(async () => {
+      await adapter.flushEvents();
+      expect(adapter.view().status.workingProgress).toBe(100);
+    });
 
     session.emit({ type: "compaction_end", reason: "manual", aborted: false, willRetry: false });
     await adapter.flushEvents();
     expect(adapter.view().status).toMatchObject({ workingMessage: null, workingProgress: null });
-    expect(progress().filter(entry => entry.startsWith("Compacting:"))).toEqual(["Compacting:-", "Compacting:0", "Compacting:25", "Compacting:50", "Compacting:99"]);
+    expect(progress().filter(entry => entry.startsWith("Compacting:"))).toEqual(["Compacting:-", "Compacting:0", "Compacting:25", "Compacting:50", "Compacting:99", "Compacting:100"]);
 
     // Invariant: a stream after compaction ended reports nothing, and unbinding restores the original.
     await agent.streamFunction({}, {}, {});

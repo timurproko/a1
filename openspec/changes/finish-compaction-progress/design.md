@@ -39,3 +39,12 @@ Owned status validation will accept integer progress through 100, and focused re
 ## Migration Plan
 
 No data migration is required. Reverting the observer terminal report, validation bound, spec delta, and focused tests restores the previous 99%-until-end presentation.
+
+## Implementation Evidence
+
+- The observer keeps character estimates capped at 99, emits 100 only after normal iterator exhaustion, and ignores failed, stale, ended, or disposed observations.
+- Owned status validation accepts 100 while rejecting 101, and the shell presenter renders `Compacting(100%)…` in bare A1.
+- The pinned `AgentSession` integration holds the summary result after stream exhaustion, observes `Compacting(100%)…` while compaction remains unsettled, then verifies the real end event clears progress.
+- Five focused contract, engine, lifecycle, and component files passed all 101 tests serially; an initial parallel run's Windows temporary-directory cleanup lock passed when isolated and in the serial focused run.
+- `npm run typecheck`, `npm run build`, changed-code documentation governance, documentation governance, strict OpenSpec validation, and `git diff --check` passed.
+- No known implementation or acceptance gap remains.

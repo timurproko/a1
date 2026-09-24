@@ -358,7 +358,7 @@ export function assertOwnedUiStatusView(status: OwnedUiStatusView): void {
   assertBoundedText(status.title, "owned-UI status title", MAX_LABEL_LENGTH);
   assertOptionalText(status.workingMessage, "owned-UI working message", MAX_MESSAGE_LENGTH);
   if (status.workingProgress !== undefined && status.workingProgress !== null) {
-    assertIntegerInRange(status.workingProgress, 0, 99, "owned-UI working progress");
+    assertIntegerInRange(status.workingProgress, 0, 100, "owned-UI working progress");
   }
   assertCollection(status.diagnostics, "owned-UI status diagnostics", MAX_STATUS_DIAGNOSTICS);
   for (const diagnostic of status.diagnostics) {
