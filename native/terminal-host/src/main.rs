@@ -261,6 +261,7 @@ fn probe() -> Result<(), String> {
         return Err("terminal scrollback probe did not expose earlier content".to_owned());
     }
 
+    probe_trace("open PTY");
     let pty_system = NativePtySystem::default();
     let pair = pty_system
         .openpty(PtySize {
@@ -272,11 +273,13 @@ fn probe() -> Result<(), String> {
         .map_err(|error| format!("open probe PTY: {error}"))?;
     let mut command = CommandBuilder::new("cmd.exe");
     command.args(["/d", "/q", "/c", "exit 0"]);
+    probe_trace("spawn PTY child");
     let mut child = pair
         .slave
         .spawn_command(command)
         .map_err(|error| format!("spawn probe process: {error}"))?;
     drop(pair.slave);
+    probe_trace("wait for PTY child");
     let status = child
         .wait()
         .map_err(|error| format!("wait for probe process: {error}"))?;
