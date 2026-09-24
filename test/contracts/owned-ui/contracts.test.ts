@@ -136,6 +136,15 @@ describe("owned UI command, event, and snapshot contracts", () => {
     expect(() => assertOwnedUiSnapshot(snapshot())).not.toThrow();
   });
 
+  it("accepts terminal working progress and rejects values beyond completion", () => {
+    expect(() => assertOwnedUiSessionViewModel(view({
+      status: { ...view().status, workingMessage: "Compacting", workingProgress: 100 },
+    }))).not.toThrow();
+    expect(() => assertOwnedUiSessionViewModel(view({
+      status: { ...view().status, workingMessage: "Compacting", workingProgress: 101 },
+    }))).toThrow(/working progress/);
+  });
+
   it("validates settled-run and prompt-suggestion identities and bounds", () => {
     const identity = {
       sessionId: "session-1",

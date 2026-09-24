@@ -157,8 +157,9 @@ describe("pinned AgentSession compaction progress", () => {
       });
 
       let compacting: ReturnType<typeof session.compact> | undefined;
+      let compactionSettled = false;
       try {
-        compacting = session.compact();
+        compacting = session.compact().finally(() => { compactionSettled = true; });
         await authStarted.promise;
         await adapter.flushEvents();
         expect(streamFunction).not.toHaveBeenCalled();
@@ -173,10 +174,17 @@ describe("pinned AgentSession compaction progress", () => {
         });
 
         summaryStream.end();
+        await vi.waitFor(async () => {
+          await adapter.flushEvents();
+          expect(adapter.view().status).toMatchObject({ workingMessage: "Compacting", workingProgress: 100 });
+        });
+        expect(compactionSettled).toBe(false);
+
         summaryResult.resolve(completedSummary);
         await compacting;
         await adapter.flushEvents();
 
+        expect(compactionSettled).toBe(true);
         expect(adapter.view().status).toMatchObject({ workingMessage: null, workingProgress: null });
         expect(sessionManager.getBranch().at(-1)).toMatchObject({ type: "compaction", summary: "Completed summary" });
       } finally {

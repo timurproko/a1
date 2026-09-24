@@ -871,6 +871,8 @@ describe("Pi shell public component adapters", () => {
       expect(status.renderLive(80)).toHaveLength(live.length);
       status.update(busy(99));
       expect(stripTerminalSequences(status.renderLive(80).join("\n"))).toContain("Compacting(99%)…");
+      status.update(busy(100));
+      expect(stripTerminalSequences(status.renderLive(80).join("\n"))).toContain("Compacting(100%)…");
       status.update(busy(37, "Working"));
       expect(stripTerminalSequences(status.renderLive(80).join("\n"))).toContain("Working(37%)…");
       status.update(busy(null));
