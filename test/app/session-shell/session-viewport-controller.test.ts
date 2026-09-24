@@ -276,6 +276,92 @@ describe("session viewport interaction controller", () => {
     } finally { target.clearPointerState(); normal.target.clearPointerState(); vi.useRealTimers(); }
   });
 
+  it("keeps the last content row selectable and edge-scrolls only content-originated selection", () => {
+    vi.useFakeTimers();
+    const target = new SessionViewportController({ enabled: true, editor: editor(), requestRender() {} });
+    const input = {
+      documentRows: Array.from({ length: 20 }, (_row, index) => `row-${index}`),
+      dockRows: ["editor", "footer"],
+      promptAnchors: [],
+      width: 20,
+      height: 6,
+    };
+    try {
+      target.compose(input);
+      target.handlePreInput("\u001b[<64;2;2M".repeat(6), true, 100);
+      expect(target.compose(input).scrollTop).toBe(0);
+      target.handlePreInput("\u001b[<0;2;2M\u001b[<32;4;4M", true, 200);
+      vi.advanceTimersByTime(90);
+      expect(target.compose(input).scrollTop).toBe(0);
+
+      target.handlePreInput("\u001b[<32;4;5M", true, 300);
+      vi.advanceTimersByTime(30);
+      expect(target.compose(input).scrollTop).toBe(1);
+      vi.advanceTimersByTime(30);
+      expect(target.compose(input).scrollTop).toBe(2);
+      target.handlePreInput("\u001b[<0;4;5m", true, 400);
+
+      target.compose(input);
+      target.handlePreInput("\u001b[<0;2;6M\u001b[<32;5;6M\u001b[<32;8;5M", true, 500);
+      vi.advanceTimersByTime(90);
+      const dockOriginated = target.compose(input);
+      expect(target.hasSelection).toBe(true);
+      expect(dockOriginated.scrollTop).toBe(2);
+      target.handlePreInput("\u001b[<0;8;5m", true, 600);
+      expect(target.compose(input).scrollTop).toBe(2);
+    } finally { target.clearPointerState(); vi.useRealTimers(); }
+  });
+
+  it("keeps a transcript-originated selection out of dock rows after direct and edge-held crossing", () => {
+    vi.useFakeTimers();
+    const target = new SessionViewportController({ enabled: true, editor: editor(), requestRender() {} });
+    target.setCopyOnSelect(false);
+    const input = {
+      documentRows: Array.from({ length: 20 }, (_row, index) => `row-${index}`),
+      dockRows: ["editor", "footer"],
+      promptAnchors: [],
+      width: 20,
+      height: 6,
+      theme: {
+        track: (text: string) => text,
+        thumb: (text: string) => text,
+        sticky: (text: string) => text,
+        quietSticky: (text: string) => text,
+        bottomControl: (text: string) => text,
+        selection: (line: string, from: number, to: number) => backgroundSgrSpan(line, from, to, "\u001b[45m"),
+      },
+    };
+    try {
+      target.compose(input);
+      target.handlePreInput("\u001b[<0;2;4M\u001b[<32;4;1M", true, 100);
+      vi.advanceTimersByTime(30);
+      target.compose(input);
+      vi.advanceTimersByTime(30);
+      const scrolled = target.compose(input);
+      expect(scrolled.rows.slice(0, scrolled.hits.viewportHeight).some(row => row.includes("\u001b[45m"))).toBe(true);
+      expect(scrolled.rows.slice(scrolled.hits.viewportHeight).every(row => !row.includes("\u001b[45m"))).toBe(true);
+      const transcriptCopy = copiedText(target.handlePreInput("\u0003"));
+      expect(transcriptCopy).not.toMatch(/editor|footer/u);
+
+      target.compose(input);
+      target.handlePreInput("\u001b[<0;2;4M\u001b[<32;4;5M\u001b[<0;4;5m", true, 200);
+      const bounded = target.compose(input);
+      expect(bounded.rows[3]).toContain("\u001b[45m");
+      expect(bounded.rows.slice(bounded.hits.viewportHeight).every(row => !row.includes("\u001b[45m"))).toBe(true);
+      expect(copiedText(target.handlePreInput("\u0003"))).not.toMatch(/editor|footer/u);
+
+      target.compose(input);
+      target.handlePreInput("\u001b[<0;2;5M\u001b[<32;4;4M\u001b[<0;4;4m", true, 300);
+      const dockOriginated = target.compose(input);
+      expect(dockOriginated.rows[3]).toContain("\u001b[45m");
+      expect(dockOriginated.rows[4]).toContain("\u001b[45m");
+      expect(copiedText(target.handlePreInput("\u0003"))).toContain("ed");
+    } finally {
+      target.clearPointerState();
+      vi.useRealTimers();
+    }
+  });
+
   it("ignores horizontal touchpad reports without reversing vertical transcript scrolling", () => {
     const { target, compose, renders } = hoverFixture();
     try {
