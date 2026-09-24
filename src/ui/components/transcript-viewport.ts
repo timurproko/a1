@@ -337,7 +337,7 @@ export class TranscriptViewport {
   }
 
   selectedText(): string | null {
-    const selection = visibleTextSelection(orderedTextSelection(this.#selection), this.#selectionRows.length);
+    const selection = this.#visibleSelection();
     if (selection === undefined) return null;
     const text = textSelectionText(selection, this.#selectionRows, line => usefulTextLineContent(this.#selectionRows[line] ?? ""));
     return text.length === 0 ? null : text;
@@ -578,7 +578,7 @@ export class TranscriptViewport {
     // Concurrency: a painter may synchronously route input in tests or host integrations.
     // Label this frame with the exact selection snapshot it began composing.
     const composingSelectionRevision = this.#selectionRevision;
-    const orderedSelection = orderedTextSelection(this.#selection);
+    const orderedSelection = this.#visibleSelection();
     const recomputedRows: number[] = [];
     const reusedRows: number[] = [];
     const selectionDamagedRows: number[] = [];
@@ -914,8 +914,20 @@ export class TranscriptViewport {
     };
   }
 
+  #visibleSelection(): OrderedTextSelection | undefined {
+    const selection = orderedTextSelection(this.#selection);
+    const anchors = this.#selectionAnchors;
+    // Invariant: scrolling can project a retained document endpoint beyond the
+    // transcript rectangle. Its numeric line must not become a pinned dock row;
+    // only explicit pointer motion that creates a dock anchor may cross that edge.
+    const rowCount = anchors?.anchor.kind === "document" && anchors.head.kind === "document"
+      ? this.#viewportHeight
+      : this.#selectionRows.length;
+    return visibleTextSelection(selection, rowCount);
+  }
+
   #updateCopyableSelection(): void {
-    const selection = visibleTextSelection(orderedTextSelection(this.#selection), this.#selectionRows.length);
+    const selection = this.#visibleSelection();
     this.#copyableSelection = selection !== undefined
       && textSelectionText(selection, this.#selectionRows, line => usefulTextLineContent(this.#selectionRows[line] ?? "")).length > 0;
   }

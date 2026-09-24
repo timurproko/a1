@@ -982,8 +982,16 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
     const whileHeld = firstVisible();
     expect(whileHeld).toBeLessThan(afterMotion);
     const normalDistance = afterMotion - whileHeld;
-
     terminal.input("\u001b[<0;5;1m");
+    shell.runtime.renderNow();
+    const transcript = shell.root.viewportFrameDescriptor()!.transcript!;
+    const heldCells = await replayTerminalBackgroundCells(
+      terminal.writes.map((data, atMs) => ({ data, atMs })),
+      { columns: 60, rows: 12 },
+    );
+    expect(heldCells.filter(cell => cell.mode === "rgb" && cell.color === 0x264f78)
+      .every(cell => cell.row >= transcript.rowStart && cell.row <= transcript.rowEnd)).toBe(true);
+
     await new Promise(resolve => setTimeout(resolve, 130));
     expect(firstVisible()).toBe(whileHeld);
     terminal.input("\u0003");

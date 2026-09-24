@@ -287,6 +287,77 @@ describe("transcript viewport", () => {
     expect(mixed.rows[5]).toContain("\u001b[47mfoot");
   });
 
+  it.each(["up", "down"] as const)("keeps a document-only selection inside the transcript while scrolling %s", direction => {
+    const viewport = new TranscriptViewport();
+    const theme = {
+      track: (text: string) => text,
+      thumb: (text: string) => text,
+      sticky: (text: string) => text,
+      quietSticky: (text: string) => text,
+      bottomControl: (text: string) => text,
+      selection: (line: string, from: number, to: number) => backgroundSgrSpan(line, from, to, "\u001b[45m"),
+    };
+    const input = {
+      documentRows: rows(12),
+      dockRows: ["editor", "footer"],
+      promptAnchors: [],
+      width: 20,
+      height: 6,
+      theme,
+    };
+    viewport.compose(input);
+    if (direction === "down") {
+      viewport.scrollTo(0);
+      viewport.compose(input);
+    }
+    const anchorRow = direction === "up" ? 4 : 1;
+    const edgeRow = direction === "up" ? 1 : 4;
+    viewport.pressSelection(2, anchorRow, 100);
+    viewport.extendSelection(4, edgeRow, 101, false);
+
+    for (let tick = 0; tick < 2; tick += 1) {
+      viewport.scrollBy(direction === "up" ? -1 : 1, 102 + tick);
+      viewport.extendSelection(4, edgeRow, 104 + tick, false);
+      const selected = viewport.compose(input);
+      expect(viewport.selectedText()).not.toMatch(/editor|footer/u);
+      expect(selected.rows.slice(0, selected.hits.viewportHeight).some(row => row.includes("\u001b[45m"))).toBe(true);
+      expect(selected.rows.slice(selected.hits.viewportHeight).every(row => !row.includes("\u001b[45m"))).toBe(true);
+    }
+
+    const resizedDock = viewport.compose({ ...input, dockRows: ["notice", "editor", "footer"] });
+    expect(resizedDock.rows.slice(resizedDock.hits.viewportHeight).every(row => !row.includes("\u001b[45m"))).toBe(true);
+    expect(viewport.selectedText()).not.toMatch(/notice|editor|footer/u);
+  });
+
+  it.each([false, true])("still selects across the transcript and dock after an explicit boundary crossing (reverse=%s)", reverse => {
+    const viewport = new TranscriptViewport();
+    const input = {
+      documentRows: rows(12),
+      dockRows: ["editor", "footer"],
+      promptAnchors: [],
+      width: 20,
+      height: 6,
+      theme: {
+        track: (text: string) => text,
+        thumb: (text: string) => text,
+        sticky: (text: string) => text,
+        quietSticky: (text: string) => text,
+        bottomControl: (text: string) => text,
+        selection: (line: string, from: number, to: number) => backgroundSgrSpan(line, from, to, "\u001b[45m"),
+      },
+    };
+    viewport.compose(input);
+    viewport.pressSelection(2, reverse ? 5 : 4, 100);
+    viewport.extendSelection(4, reverse ? 4 : 5, 101, false);
+    viewport.releaseSelection();
+
+    const selected = viewport.compose(input);
+    expect(viewport.selectedText()).toContain("ed");
+    expect(selected.rows[3]).toContain("\u001b[45m");
+    expect(selected.rows[4]).toContain("\u001b[45m");
+    expect(selected.rows[5]).not.toContain("\u001b[45m");
+  });
+
   it("clips a retained document selection after its source scrolls off screen", () => {
     const viewport = new TranscriptViewport();
     const input = { documentRows: rows(8), dockRows: ["editor"], promptAnchors: [], width: 20, height: 5 };
