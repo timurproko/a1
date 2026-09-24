@@ -390,6 +390,8 @@ describe("OwnedUiSessionShell lifecycle, quit, and restoration", () => {
     terminal.input("\r");
     await new Promise(resolve => setTimeout(resolve, 0));
     expect(terminal.writes.some(write => write.includes("[?1003h"))).toBe(true);
+    expect(terminal.writes.some(write => write.includes("[?1004h"))).toBe(true);
+    expect(terminal.writes.some(write => write.includes("[?1002h"))).toBe(false);
     expect(terminal.writes.some(write => write.includes("[?1003l"))).toBe(false);
     terminal.input("\u001b[<0;20;4M");
     terminal.input("\u001b[<35;21;4M");
@@ -399,6 +401,7 @@ describe("OwnedUiSessionShell lifecycle, quit, and restoration", () => {
     // Invariant: the screen is still up: ending the session has to restore the terminal anyway.
     await shell.dispose();
     expect(terminal.writes.some(write => write.includes("[?1003l"))).toBe(true);
+    expect(terminal.writes.some(write => write.includes("[?1004l"))).toBe(true);
     expect(terminal.writes.some(write => write.includes("[?1006l"))).toBe(true);
   });
 
