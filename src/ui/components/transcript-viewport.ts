@@ -922,9 +922,7 @@ export class TranscriptViewport {
   }
 
   #visibleSelection() {
-    const rows = this.#selectionAnchors?.anchor.kind === "document" && this.#selectionAnchors.head.kind === "document"
-      ? this.#viewportHeight
-      : this.#selectionRows.length;
+    const rows = this.#selectionAnchors?.anchor.kind === "document" ? this.#viewportHeight : this.#selectionRows.length;
     return visibleTextSelection(orderedTextSelection(this.#selection), rows);
   }
 

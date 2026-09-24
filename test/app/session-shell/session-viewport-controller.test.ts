@@ -276,7 +276,7 @@ describe("session viewport interaction controller", () => {
     } finally { target.clearPointerState(); normal.target.clearPointerState(); vi.useRealTimers(); }
   });
 
-  it("keeps edge-scrolled transcript selection out of dock rows until the pointer crosses explicitly", () => {
+  it("keeps a transcript-originated selection out of dock rows after direct and edge-held crossing", () => {
     vi.useFakeTimers();
     const target = new SessionViewportController({ enabled: true, editor: editor(), requestRender() {} });
     target.setCopyOnSelect(false);
@@ -309,9 +309,17 @@ describe("session viewport interaction controller", () => {
 
       target.compose(input);
       target.handlePreInput("\u001b[<0;2;4M\u001b[<32;4;5M\u001b[<0;4;5m", true, 200);
-      const crossed = target.compose(input);
-      expect(crossed.rows[4]).toContain("\u001b[45m");
-      expect(copiedText(target.handlePreInput("\u0003"))).toContain("edit");
+      const bounded = target.compose(input);
+      expect(bounded.rows[3]).toContain("\u001b[45m");
+      expect(bounded.rows.slice(bounded.hits.viewportHeight).every(row => !row.includes("\u001b[45m"))).toBe(true);
+      expect(copiedText(target.handlePreInput("\u0003"))).not.toMatch(/editor|footer/u);
+
+      target.compose(input);
+      target.handlePreInput("\u001b[<0;2;5M\u001b[<32;4;4M\u001b[<0;4;4m", true, 300);
+      const dockOriginated = target.compose(input);
+      expect(dockOriginated.rows[3]).toContain("\u001b[45m");
+      expect(dockOriginated.rows[4]).toContain("\u001b[45m");
+      expect(copiedText(target.handlePreInput("\u0003"))).toContain("ed");
     } finally {
       target.clearPointerState();
       vi.useRealTimers();

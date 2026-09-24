@@ -1025,21 +1025,33 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
     await shell.dispose();
   });
 
-  it("selects across status, input, footer, and transcript rows", async () => {
-    const { terminal, shell } = await fixture([], [], true);
+  it("keeps transcript-originated selection above the dock while preserving dock-origin crossing", async () => {
+    const messages = [{ role: "assistant", content: [{ type: "text", text: "content boundary" }], timestamp: Date.now() }];
+    const { terminal, shell } = await fixture(messages, [], true);
     terminal.resize(60, 12);
-    shell.root.render(60);
+    shell.root.setFullscreenCopyOnSelect(false);
+    const plain = shell.root.render(60).map(stripTerminalSequences);
+    const contentRow = plain.findIndex(row => row.includes("content boundary")) + 1;
+    const descriptor = shell.root.viewportFrameDescriptor()!;
+    const dock = descriptor.dock!;
 
-    const press = shell.root.handleViewportPreInput("\u001b[<0;20;12M");
-    const motion = shell.root.handleViewportPreInput("\u001b[<35;20;2M");
-    const release = shell.root.handleViewportPreInput("\u001b[<0;20;2m");
-    const copy = shell.root.handleViewportPreInput("\u0003");
+    expect(shell.root.handleViewportPreInput(`\u001b[<0;2;${contentRow}M`)).toMatchObject({ data: "", consumed: true });
+    expect(shell.root.handleViewportPreInput(`\u001b[<35;20;${dock.rowEnd}M`)).toMatchObject({ data: "", consumed: true });
+    expect(shell.root.handleViewportPreInput(`\u001b[<0;20;${dock.rowEnd}m`)).toMatchObject({ data: "", consumed: true });
+    const bounded = shell.root.render(60);
+    expect(bounded.slice(descriptor.transcript!.rowStart - 1, descriptor.transcript!.rowEnd)
+      .some(row => row.includes("\u001b[48;2;38;79;120m"))).toBe(true);
+    expect(bounded.slice(dock.rowStart - 1, dock.rowEnd)
+      .every(row => !row.includes("\u001b[48;2;38;79;120m"))).toBe(true);
+    expect(shell.root.handleViewportPreInput("\u0003")).toMatchObject({ data: "", consumed: true });
 
-    expect(press).toMatchObject({ data: "", consumed: true });
-    expect(motion).toMatchObject({ data: "", consumed: true });
-    expect(release).toMatchObject({ data: "", consumed: true });
-    expect(release.copySelection?.sourceUnits).toBeGreaterThan(0);
-    expect(copy).toMatchObject({ data: "", consumed: true });
+    shell.root.handleViewportPreInput(`\u001b[<0;20;${dock.rowEnd}M`);
+    shell.root.handleViewportPreInput(`\u001b[<35;20;${contentRow}M`);
+    shell.root.handleViewportPreInput(`\u001b[<0;20;${contentRow}m`);
+    const dockOriginated = shell.root.render(60);
+    expect(dockOriginated[contentRow - 1]).toContain("\u001b[48;2;38;79;120m");
+    expect(dockOriginated.slice(dock.rowStart - 1, dock.rowEnd)
+      .some(row => row.includes("\u001b[48;2;38;79;120m"))).toBe(true);
     await shell.dispose();
   });
 

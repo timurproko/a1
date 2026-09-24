@@ -18,6 +18,6 @@
 
 ## 4. Refine gesture-origin ownership
 
-- [ ] 4.1 Bound direct transcript-to-dock pointer crossing by the fixed transcript anchor while retaining dock-originated selection.
-- [ ] 4.2 Replace explicit-crossing expectations with viewport, controller, and shell evidence that transcript-originated paint and copy stop at the content edge even at the scroll limit.
-- [ ] 4.3 Re-run focused and governance validation, update implementation evidence and acceptance wording, then prepare the refined handoff.
+- [x] 4.1 Bound direct transcript-to-dock pointer crossing by the fixed transcript anchor while retaining dock-originated selection.
+- [x] 4.2 Replace explicit-crossing expectations with viewport, controller, and shell evidence that transcript-originated paint and copy stop at the content edge even at the scroll limit.
+- [x] 4.3 Re-run focused and governance validation, update implementation evidence and acceptance wording, then prepare the refined handoff.
