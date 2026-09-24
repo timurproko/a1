@@ -47,6 +47,7 @@ describe("impact-aware validation workflows", () => {
     expect(detector.run).toContain("PHASE_FREE_VERSION3_BODY_POLICY = true");
     expect(detector.run).toContain("scripts/governance/openspec-acceptance-checklist.mjs");
     expect(detector.run).toContain("ACTIVE_TO_ARCHIVE_RENAME_POLICY = true");
+    expect(detector.run).toContain("ASSOCIATION_REPAIR_POLICY = true");
     expect(detector.run).toContain("scripts/governance/openspec-archive-github.mjs");
     const bootstrap = workflow.jobs.delivery.steps.find((step: { name: string }) => step.name === "Check out exact implementation policy for bootstrap");
     expect(bootstrap.if).toBe("steps.version.outputs.version == '3' && steps.policy.outputs.installed != 'true'");
@@ -144,13 +145,9 @@ describe("impact-aware validation workflows", () => {
     expect(workflow.jobs.readiness.steps.find((step: any) => step.name === "Check out trusted readiness policy").with.ref)
       .toBe("${{ github.event.pull_request.base.sha || github.sha }}");
     const classifier = workflow.jobs.readiness.steps.find((step: any) => step.id === "readiness");
-    expect(classifier.env).toMatchObject({
-      EVENT_HEAD: "${{ github.event.pull_request.head.sha || '' }}",
-      PULL_NUMBER: "${{ github.event.pull_request.number || 0 }}",
-      GITHUB_TOKEN: "${{ github.token }}",
-    });
     expect(classifier.run).toContain("scripts/release/development-validation-readiness.mjs");
     expect(classifier.run).toContain("reason=policy-bootstrap");
+    expect(classifier.env).toMatchObject({ PULL_NUMBER: "${{ github.event.pull_request.number || '' }}", EXPECTED_HEAD: "${{ github.event.pull_request.head.sha || '' }}", EXPECTED_BASE: "${{ github.event.pull_request.base.sha || '' }}", GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}" });
     expect(JSON.stringify(workflow.jobs.readiness)).not.toMatch(/npm ci|npm install|pull_request_target|contents: write/);
     expect(workflow.jobs.changes.needs).toBe("readiness");
     expect(workflow.jobs.changes.if).toBe("needs.readiness.outputs.validate == 'true'");

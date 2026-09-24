@@ -1,0 +1,11 @@
+{
+  "schema": "a1-openspec-association-repair-v1",
+  "repository": "timurproko/a1",
+  "change": "remove-modal-title-top-gap",
+  "sourcePr": 573,
+  "sourceHead": "8aa3a7d9e2a4f2f9e2d06a6fbbe950f7e063531f",
+  "sourceMerge": "93f6928f55c35ae2e1d9c7b21deb5377557fdb65",
+  "validationRunId": 35967533362,
+  "failureReason": "missing-openspec-implementation-metadata",
+  "correctivePr": 580
+}

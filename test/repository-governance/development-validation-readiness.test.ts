@@ -1,10 +1,9 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
+  classifyCurrentDevelopmentValidationReadiness,
   classifyDevelopmentValidationReadiness,
-  resolveDevelopmentValidationReadiness,
+  classifyDevelopmentValidationReadinessFromRepository,
 } from "../../scripts/release/development-validation-readiness.mjs";
-
-const EVENT_HEAD = "a".repeat(40);
 
 function implementation(value: object): string {
   return `\`\`\`openspec-implementation\n${JSON.stringify(value)}\n\`\`\``;
@@ -43,45 +42,44 @@ describe("development validation readiness", () => {
       .toEqual({ validate: false, reason: "malformed-implementation-metadata", errorCode: "metadata-unclosed" });
   });
 
-  it("uses current finalized metadata when a same-head synchronize event carries the active body", async () => {
+  it("uses the current finalized body when a same-head event carries active metadata", async () => {
+    const head = "a".repeat(40), base = "b".repeat(40);
     const archive = "openspec/changes/archive/2026-09-24-example-change/";
-    const reader = vi.fn(async () => ({
+    expect(classifyDevelopmentValidationReadiness({
+      eventName: "pull_request",
+      body: implementation({ version: 3, change: "example-change" }),
+    })).toEqual({ validate: false, reason: "awaiting-finalization" });
+    const pull = {
       number: 581,
-      state: "open",
       draft: false,
       body: implementation({ version: 3, change: "example-change", archive, acceptanceManifest: `${archive}acceptance.md` }),
-      head: { sha: EVENT_HEAD },
-      base: { ref: "develop" },
-    }));
-    await expect(resolveDevelopmentValidationReadiness({
-      eventName: "pull_request",
-      eventHead: EVENT_HEAD,
-      repository: "owner/repository",
-      pullNumber: 581,
-      token: "token",
-    }, reader)).resolves.toEqual({ validate: true, reason: "finalized-version-3" });
-    expect(reader).toHaveBeenCalledWith("owner/repository", 581, "token");
+      head: { sha: head },
+      base: { sha: base },
+    };
+    await expect(classifyCurrentDevelopmentValidationReadiness({
+      eventName: "pull_request", pull, reader: {}, expectedNumber: 581, expectedHead: head, expectedBase: base,
+    })).resolves.toEqual({ validate: true, reason: "finalized-version-3" });
+    await expect(classifyCurrentDevelopmentValidationReadiness({
+      eventName: "pull_request", pull, reader: {}, expectedNumber: 581, expectedHead: "c".repeat(40), expectedBase: base,
+    })).rejects.toMatchObject({ archiveCode: "association-event-drift" });
   });
 
-  it("defers a superseded head and fails closed when current metadata is unavailable", async () => {
-    const current = vi.fn(async () => ({
-      number: 581,
-      state: "open",
-      draft: false,
-      body: "ordinary",
-      head: { sha: "b".repeat(40) },
-      base: { ref: "develop" },
-    }));
-    await expect(resolveDevelopmentValidationReadiness({
-      eventName: "pull_request", eventHead: EVENT_HEAD, repository: "owner/repository", pullNumber: 581, token: "token",
-    }, current)).resolves.toEqual({ validate: false, reason: "stale-pull-request-event" });
-    await expect(resolveDevelopmentValidationReadiness({
-      eventName: "pull_request", eventHead: EVENT_HEAD, repository: "owner/repository", pullNumber: 581, token: "token",
-    }, async () => { throw new Error("unavailable"); })).resolves.toEqual({
-      validate: false,
-      reason: "pull-metadata-unavailable",
-      errorCode: "pull-metadata-unavailable",
-    });
+  it("fails closed when immutable evidence shows mixed code and active-change edits without association", async () => {
+    const baseSha = "a".repeat(40), headSha = "b".repeat(40), blobSha = "c".repeat(40);
+    const active = "openspec/changes/example-change/proposal.md";
+    const pull = { number: 7, changed_files: 2, draft: false, body: "ordinary", base: { sha: baseSha }, head: { sha: headSha } };
+    const reader = {
+      repository: "owner/repo", prefix: "/repos/owner/repo",
+      async pages() { return [{ filename: active, status: "modified" }, { filename: "src/app.ts", status: "modified" }]; },
+      async get(path: string) {
+        if (path.includes(`/git/trees/${baseSha}`) || path.includes(`/git/trees/${headSha}`)) {
+          return { truncated: false, tree: [{ path: active, sha: blobSha, type: "blob", mode: "100644" }] };
+        }
+        throw new Error(path);
+      },
+    };
+    await expect(classifyDevelopmentValidationReadinessFromRepository({ eventName: "pull_request", pull, reader }))
+      .resolves.toEqual({ validate: false, reason: "missing-implementation-association", errorCode: "missing-implementation-association", changes: ["example-change"] });
   });
 
   it("preserves non-pull-request dispatch", () => {
