@@ -16,7 +16,7 @@ The manual merge accepts these scenarios:
   "archive": "openspec/changes/archive/2026-09-24-fix-nightly-regression-2026-09-24/",
   "acceptanceManifest": "openspec/changes/archive/2026-09-24-fix-nightly-regression-2026-09-24/acceptance.md",
   "finalizedDate": "2026-09-24",
-  "specBaseSha": "126d5c23a3945e1a77aed127088d106b43c9b4d4",
+  "specBaseSha": "7a8e039e02f35b9e1f8c6919927b8b2deac37374",
   "acceptanceScenarios": [
     "Stream frame counting is unaffected by independently scheduled lifecycle status rendering.",
     "Burst updates remain bounded to one cadence frame, immediate input leaves no stale stream frame, and final content flushes exactly one frame.",
