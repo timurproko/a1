@@ -76,8 +76,13 @@ export function evaluateRenderingBudgets(matrix: RenderingMatrixResult): Renderi
       violations.push(`${matrix.workloadId}: missing bare-A1 fullscreen checkpoints`);
     }
     const final = bare?.checkpoints.at(-1);
+    // Invariant: the final transcript cell is presentation-only scrollbar chrome.
+    // Ignore its rail glyph when joining wrapped source rows for semantic freshness.
+    const settledText = final?.cellFrame.rows
+      .map(row => row.replace(/[│┃]$/u, ""))
+      .join(" ").replace(/\s+/gu, " ");
     if (final === undefined || !final.name.endsWith("-settled")
-      || !final.cellFrame.rows.join(" ").replace(/\s+/gu, " ").includes(FINAL_VISIBLE_MARKERS[matrix.workloadId]!)) {
+      || !settledText?.includes(FINAL_VISIBLE_MARKERS[matrix.workloadId]!)) {
       violations.push(`${matrix.workloadId}: stale or missing settled content`);
     }
     for (const checkpoint of bare?.checkpoints ?? []) {

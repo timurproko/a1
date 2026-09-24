@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { backgroundSgrSpan, displayWidth, hyperlinkTargetAtColumn, TranscriptViewport } from "../../../src/ui/components/index.js";
 import { classifyTerminalPaint, type TimedTerminalWrite } from "../../support/rendering/terminal-paint-evidence.js";
 
-// Compatibility: mirror the shell's background-preserving rail reset, not an SGR 0 test theme.
+// Compatibility: mirror the production rail theme; gutter neutrality belongs to the viewport.
 const RAIL_RESET = "\u001b[22;23;24;25;27;28;29;39;54;55m";
 const SELECTED = (38 << 16) | (79 << 8) | 120;
 const SOURCE = (11 << 16) | (22 << 8) | 33;
@@ -19,29 +19,30 @@ const theme = {
 function fixture(width: number, appearance: "auto" | "always" | "hidden", style: "thin" | "thick", suffix = "Z", styled = true) {
   const viewport = new TranscriptViewport();
   viewport.setConfig({ scrollbarAppearance: appearance, scrollbarStyle: style });
-  const plain = "a".repeat(width - displayWidth(suffix)) + suffix;
-  // Rationale: boundary-local styling and OSC 8 expose inherited-state leaks that preceding styles alone miss.
+  const contentWidth = appearance === "hidden" ? width : Math.max(1, width - 1);
+  const plain = "a".repeat(Math.max(0, contentWidth - displayWidth(suffix))) + suffix;
+  // Rationale: boundary-local styling and OSC 8 expose state leaks into the neighboring gutter.
   const row = styled ? `\u001b[48;2;11;22;33m${plain.slice(0, -suffix.length)}\u001b[1;3;4m\u001b]8;;https://example.com\u001b\\${suffix}\u001b]8;;\u001b\\\u001b[0m` : plain;
   const input = { documentRows: Array.from({ length: 12 }, () => row), dockRows: [], promptAnchors: [], width, height: 5, theme };
   const compose = (now = 100) => viewport.compose({ ...input, now });
   compose();
-  return { viewport, compose, plain };
+  return { viewport, compose, plain, contentWidth };
 }
 
-describe("truthful selection at the scrollbar edge", () => {
-  it.each(["auto", "always", "hidden"] as const)("reaches the endpoint source cell with %s rails", appearance => {
-    const { viewport, compose, plain } = fixture(12, appearance, "thin");
+describe("truthful selection beside the scrollbar gutter", () => {
+  it.each(["auto", "always", "hidden"] as const)("reaches the final content cell with %s rails", appearance => {
+    const { viewport, compose, plain, contentWidth } = fixture(12, appearance, "thin");
     viewport.pressSelection(1, 2, 100);
-    viewport.extendSelection(12, 4, 101, false);
+    viewport.extendSelection(contentWidth, 4, 101, false);
     viewport.releaseSelection();
     compose();
     expect(viewport.selectedText()).toBe([plain, plain, plain].join("\n"));
   });
 
   it.each(["auto", "always", "hidden"] as const)("preserves reverse and whole-row endpoints with %s rails", appearance => {
-    const { viewport, compose, plain } = fixture(12, appearance, "thick");
+    const { viewport, compose, plain, contentWidth } = fixture(12, appearance, "thick");
     viewport.pressSelection(1, 4, 100);
-    viewport.extendSelection(12, 2, 101, false);
+    viewport.extendSelection(contentWidth, 2, 101, false);
     viewport.releaseSelection();
     expect(viewport.selectedText()).toBe(`Z\n${plain}\na`);
     viewport.clearSelection();
@@ -49,21 +50,22 @@ describe("truthful selection at the scrollbar edge", () => {
       viewport.pressSelection(2, 4, time);
       if (time < 1002) viewport.releaseSelection();
     }
-    viewport.extendSelection(12, 2, 1003, false);
+    viewport.extendSelection(contentWidth, 2, 1003, false);
     viewport.releaseSelection();
     compose();
     expect(viewport.selectedText()).toBe([plain, plain, plain].join("\n"));
   });
 
-  it.each([3, 12, 192])("keeps first-transition and cached terminal cells truthful at width %i", async width => {
+  it.each([4, 12, 192])("keeps content and gutter cells truthful at width %i", async width => {
     for (const appearance of ["auto", "always", "hidden"] as const) {
       for (const style of ["thin", "thick"] as const) {
         for (const suffix of ["Z", "e\u0301", "界"]) {
           for (const included of [false, true]) {
             for (const styled of [false, true]) {
-              const { viewport, compose, plain } = fixture(width, appearance, style, suffix, styled);
+              const { viewport, compose, plain, contentWidth } = fixture(width, appearance, style, suffix, styled);
+              const suffixWidth = displayWidth(suffix);
               viewport.pressSelection(1, 2, 100);
-              viewport.extendSelection(included ? width : width - displayWidth(suffix), 4, 101, false);
+              viewport.extendSelection(included ? contentWidth : contentWidth - suffixWidth, 4, 101, false);
               viewport.releaseSelection();
               const copy = [plain, plain, included ? plain : plain.slice(0, -suffix.length)].join("\n");
               expect(viewport.selectedText()).toBe(copy);
@@ -92,19 +94,20 @@ describe("truthful selection at the scrollbar edge", () => {
                       previous = result.rows;
                       const visible = appearance === "always" || (appearance === "auto" && state !== "hidden");
                       for (const row of [1, 2, 3]) {
-                        // Protocol: wide glyphs have a continuation cell; inspect their leading cell on hide.
-                        const column = visible ? width - 1 : width - displayWidth(suffix);
-                        const cell = terminal.buffer.active.getLine(row)!.getCell(column)!;
+                        const sourceColumn = contentWidth - suffixWidth;
+                        const sourceCell = terminal.buffer.active.getLine(row)!.getCell(sourceColumn)!;
                         const selected = row < 3 || included;
-                        expect(cell.isBgDefault()).toBe(!selected && !styled);
-                        if (selected || styled) expect(cell.getBgColor()).toBe(selected ? SELECTED : SOURCE);
-                        if (visible) {
-                          expect(style === "thick" ? ["┃"] : ["│", "┃"]).toContain(cell.getChars());
-                          expect(cell.isBold()).toBe(0);
-                          expect(cell.isItalic()).toBe(0);
-                          expect(cell.isUnderline()).toBe(0);
+                        expect(sourceCell.isBgDefault()).toBe(!selected && !styled);
+                        if (selected || styled) expect(sourceCell.getBgColor()).toBe(selected ? SELECTED : SOURCE);
+                        if (appearance !== "hidden") {
+                          const gutter = terminal.buffer.active.getLine(row)!.getCell(width - 1)!;
+                          expect(gutter.isBgDefault()).toBe(true);
+                          expect(visible ? (style === "thick" ? ["┃"] : ["│", "┃"]) : [" "]).toContain(gutter.getChars() || " ");
+                          expect(gutter.isBold()).toBe(0);
+                          expect(gutter.isItalic()).toBe(0);
+                          expect(gutter.isUnderline()).toBe(0);
                           expect(hyperlinkTargetAtColumn(result.rows[row]!, width - 1)).toBeUndefined();
-                        } else expect(cell.getChars()).toBe(suffix);
+                        }
                       }
                     }
                   }
@@ -120,26 +123,19 @@ describe("truthful selection at the scrollbar edge", () => {
     }
   }, 30_000);
 
-  it.each([false, true])("paints the replaced background when final-cell membership is %s", async included => {
-    const { viewport, compose } = fixture(12, "auto", "thin");
-    // Rationale: full-row selection isolates composition from the ordinary drag-clamp defect.
+  it.each([false, true])("keeps the gutter neutral when adjacent content selection is %s", async included => {
+    const { viewport, compose, contentWidth } = fixture(12, "always", "thin");
     viewport.pressSelection(1, 2, 100);
-    if (included) {
-      viewport.releaseSelection();
-      viewport.pressSelection(1, 2, 101);
-      viewport.releaseSelection();
-      viewport.pressSelection(1, 2, 102);
-    } else viewport.extendSelection(11, 2, 101, false);
+    viewport.extendSelection(included ? contentWidth : contentWidth - 1, 2, 101, false);
     viewport.releaseSelection();
-    viewport.setRailHovered(true);
     const terminal = new HeadlessXterm.Terminal({ cols: 12, rows: 5, allowProposedApi: true });
     try {
       await new Promise<void>(resolve => terminal.write(compose().rows.map((row, index) => `\u001b[${index + 1};1H\u001b[0m${row}`).join(""), resolve));
-      const cell = terminal.buffer.active.getLine(1)!.getCell(11)!;
-      expect(cell.getBgColor()).toBe(included ? SELECTED : SOURCE);
-      expect(cell.isBold()).toBe(0);
-      expect(cell.isItalic()).toBe(0);
-      expect(cell.isUnderline()).toBe(0);
+      const content = terminal.buffer.active.getLine(1)!.getCell(contentWidth - 1)!;
+      const gutter = terminal.buffer.active.getLine(1)!.getCell(11)!;
+      expect(content.getBgColor()).toBe(included ? SELECTED : SOURCE);
+      expect(gutter.isBgDefault()).toBe(true);
+      expect(gutter.getChars()).toBe("│");
       expect(hyperlinkTargetAtColumn(compose().rows[1]!, 11)).toBeUndefined();
     } finally { terminal.dispose(); }
   });
