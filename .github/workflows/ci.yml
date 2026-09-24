@@ -347,7 +347,8 @@ jobs:
         shell: bash
         run: |
           if grep -q 'PHASE_FREE_VERSION3_BODY_POLICY = true' scripts/governance/openspec-acceptance-checklist.mjs \
-            && grep -q 'ACTIVE_TO_ARCHIVE_RENAME_POLICY = true' scripts/governance/openspec-archive-github.mjs; then
+            && grep -q 'ACTIVE_TO_ARCHIVE_RENAME_POLICY = true' scripts/governance/openspec-archive-github.mjs \
+            && grep -q 'ASSOCIATION_REPAIR_POLICY = true' scripts/governance/openspec-archive-github.mjs; then
             echo 'installed=true' >> "$GITHUB_OUTPUT"
           else
             echo 'The complete finalized-delivery policy is not deployed on the base; validating this bootstrap candidate with its full authority-changing head.' >> "$GITHUB_STEP_SUMMARY"

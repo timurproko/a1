@@ -47,6 +47,7 @@ describe("impact-aware validation workflows", () => {
     expect(detector.run).toContain("PHASE_FREE_VERSION3_BODY_POLICY = true");
     expect(detector.run).toContain("scripts/governance/openspec-acceptance-checklist.mjs");
     expect(detector.run).toContain("ACTIVE_TO_ARCHIVE_RENAME_POLICY = true");
+    expect(detector.run).toContain("ASSOCIATION_REPAIR_POLICY = true");
     expect(detector.run).toContain("scripts/governance/openspec-archive-github.mjs");
     const bootstrap = workflow.jobs.delivery.steps.find((step: { name: string }) => step.name === "Check out exact implementation policy for bootstrap");
     expect(bootstrap.if).toBe("steps.version.outputs.version == '3' && steps.policy.outputs.installed != 'true'");

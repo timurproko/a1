@@ -1,4 +1,5 @@
 export const ACTIVE_TO_ARCHIVE_RENAME_POLICY: true;
+export const ASSOCIATION_REPAIR_POLICY: true;
 
 export interface ArchiveReader {
   repository: string;

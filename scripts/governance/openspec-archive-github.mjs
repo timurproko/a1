@@ -7,6 +7,7 @@ import { parseAssociationRepair } from "./openspec-association-repair.mjs";
 import { parseConditionalAcceptance, verifyConditionalAcceptance } from "./openspec-delivery-policy.mjs";
 
 export const ACTIVE_TO_ARCHIVE_RENAME_POLICY = true;
+export const ASSOCIATION_REPAIR_POLICY = true;
 
 export function createArchiveReader({ repository, token, fetchImpl = fetch, apiUrl = "https://api.github.com", deadline = Infinity }) {
   if (!/^[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+$/.test(repository)) throw archiveFailure("repository-identity");
