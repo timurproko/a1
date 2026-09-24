@@ -271,10 +271,16 @@ describe("bare-A1 unified Models dialog", () => {
         finishRefresh({ aborted: false, errors: new Map() });
         await vi.advanceTimersByTimeAsync(0);
         let text = frame(shell);
-        expect(text).toContain("  Model catalogs refreshed.");
-        expect(text).toContain("Models (unsaved)");
+        expect(text).toContain("Models (unsaved) (refreshed)");
+        expect(text).not.toContain("Model catalogs refreshed.");
         expect(text).toContain("→ ● gpt-5 [openai] ✓");
         expect(text).not.toContain("gemini");
+        await vi.advanceTimersByTimeAsync(999);
+        expect(frame(shell)).toContain("Models (unsaved) (refreshed)");
+        await vi.advanceTimersByTimeAsync(1);
+        text = frame(shell);
+        expect(text).toContain("Models (unsaved)");
+        expect(text).not.toContain("(refreshed)");
         for (let index = 0; index < 3; index += 1) shell.root.handleInput("\u007f");
         expect(frame(shell)).toContain("  ○ gemini [google]");
         shell.root.handleInput(ESCAPE);
