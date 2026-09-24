@@ -545,7 +545,7 @@ describe("OwnedUiSessionShell viewport and streaming", () => {
     shell.runtime.renderNow();
     terminal.writes.length = 0;
 
-    // The stream cadence is the subject here; lifecycle Working frames have their own animation tests.
+    // Rationale: The stream cadence is the subject here; lifecycle Working frames have their own animation tests.
     // Let the startup presentation interval elapse before the first content event so every counted
     // terminal frame is caused by streamed content rather than an independently scheduled status tick.
     advancePresentation(33);
