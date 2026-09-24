@@ -227,6 +227,21 @@ describe("development validation impact", () => {
     expect(integration.selection.owners.filter(owner => owner.selected)).toEqual([]);
   });
 
+  it("selects the CI-only terminal-host owner for terminal-host changes alone", async () => {
+    const authority = await loadValidationOwnership();
+    const owners = await loadIntegrationOwners();
+    const select = (changes: { status: string; path: string }[]) => {
+      const prCore = selectValidationOwnership({ authority, changes });
+      const integration = selectIntegrationImpact({ baseId: "a".repeat(40), headId: "b".repeat(40), changes, owners, coreSelection: prCore });
+      return integration.selection.owners.find(owner => owner.owner === "terminal-host")!;
+    };
+    const selected = select([{ status: "M", path: "native/terminal-host/src/main.rs" }]);
+    expect(selected.selected).toBe(true);
+    expect(selected.reasons).toContainEqual({ code: "shared-support", paths: ["native/terminal-host/src/main.rs"] });
+    expect(select([{ status: "M", path: "scripts/development/run-terminal-host-probe.mjs" }]).selected).toBe(true);
+    expect(select([{ status: "M", path: "native/process-guardian/src/windows.rs" }]).selected).toBe(false);
+  });
+
   it("validates bounded selection evidence", async () => {
     const { repository, base } = await fixtureRepository();
     const value = await selectValidationImpact({ repository, base, head: base });

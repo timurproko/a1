@@ -17,7 +17,7 @@ None.
 
 ### Modified Capabilities
 
-- `continuous-integration`: Add a requirement that the native terminal host is validated by an impact-selected Windows CI job rather than by local builds.
+- `continuous-integration`: Add a requirement that the native terminal host is validated by an impact-selected Windows CI job rather than by local builds. Modify the complete-suite requirement to permit exactly one declared `full-release` exclusion, for that Windows-only scope.
 
 ## Impact
 

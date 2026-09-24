@@ -30,9 +30,19 @@ It is wired as its own validation owner rather than folded into the existing `co
 
 Alternative considered: a path-filtered standalone workflow. Rejected because the repository requires every PR scope to come from the deterministic impact classifier and to feed the one protected check.
 
+The owner selects through its `support` paths rather than a coarse owner. `native/` already belongs to the `native-containment` coarse owner, and process-guardian changes must not build the terminal host.
+
+### Keep the scope out of complete regression for now
+
+Full regression and release gates expand `full-release` on Windows Node 22 and 24, Linux and macOS lanes, with no per-platform filtering. The crate builds only for Windows MSVC, and none of those lanes installs Zig. Including it would fail the Linux and macOS lanes and add a Zig build to every publication. The scope therefore declares `fullReleaseExclusion`, and the suite-policy test permits exactly that one exclusion. The `continuous-integration` "complete suite" requirement is modified to say so.
+
+The cost is that toolchain drift, such as a new Rust stable or an unavailable Zig download, surfaces on the next terminal-host PR instead of nightly. The exclusion ends when `add-persistent-multi-agent-tabs` task 8.1 makes the crate build on every lane.
+
+Alternative considered: include it with a non-Windows skip. Rejected because a lane that silently skips a declared scope weakens the complete-regression evidence and still puts Zig on the publication path.
+
 ### Guard local builds in `build.rs`
 
-`build.rs` fails before invoking Zig when the build host is Windows, `CI` is unset, and `A1_LOCAL_TERMINAL_HOST_BUILD` is not `1`. The message names the CI job and the override. The guard lives in `build.rs`, not only in the npm script, because agents commonly run `cargo test` directly. Cargo's existing `rerun-if-env-changed` declarations cover both variables.
+`build.rs` fails before invoking Zig when the build host is Windows, `CI` is unset, and `TERMINAL_HOST_LOCAL_BUILD` is not `1`. The message names the CI job and the override. The guard lives in `build.rs`, not only in the npm script, because agents commonly run `cargo test` directly. Cargo's existing `rerun-if-env-changed` declarations cover both variables.
 
 Alternative considered: documentation only. Rejected because the incident was caused by an agent following ordinary validation habits.
 

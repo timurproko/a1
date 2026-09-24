@@ -370,6 +370,20 @@
         "test/foundation/release/restart-certification.test.ts",
         "test/foundation/release/release-gc.test.ts"
       ]
+    },
+    "terminal-host": {
+      "kind": "commands",
+      "fullReleaseExclusion": "Windows-only native build that complete-regression lanes cannot run; its pull-request owner validates every change to its paths.",
+      "commands": [
+        {
+          "id": "terminal-host-build-and-probes",
+          "executable": "npm",
+          "arguments": [
+            "run",
+            "test:terminal-host"
+          ]
+        }
+      ]
     }
   },
   "fullReleaseSupersedes": {

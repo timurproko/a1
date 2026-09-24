@@ -258,6 +258,14 @@
       "semantics": "Cleanup worker run identity"
     },
     {
+      "role": "terminalHostLocalBuild",
+      "key": "TERMINAL_HOST_LOCAL_BUILD",
+      "exposure": "private",
+      "owner": "native/terminal-host/build.rs",
+      "evidence": "native/terminal-host/README.md",
+      "semantics": "Developer opt-in (exactly 1) to build the terminal host on a Windows workstation outside CI"
+    },
+    {
       "role": "portRoot",
       "key": "SOURCE_LEDGER_PORT_ROOT",
       "exposure": "automation",
