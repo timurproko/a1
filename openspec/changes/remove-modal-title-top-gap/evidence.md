@@ -12,11 +12,11 @@
 
 - `npm run build` — passed.
 - `npm run typecheck` — passed.
-- `npm run check:architecture` — passed, including the intentionally re-pinned startup graph at 156 files / 1,491,085 source bytes and source-port provenance.
+- `npm run check:architecture` — passed, including the intentionally re-pinned startup graph at 157 files / 1,497,645 source bytes and source-port provenance.
 - `npm run check:code-documentation` — passed.
-- `npx vitest run test/integrations/pi/components` — 32 files and 306 tests passed.
+- `npx vitest run test/integrations/pi/components` — 32 files and 309 tests passed.
 - Focused modal inventory, project-trust, session-workflow, and dialog-panel run — 4 files and 26 tests passed.
-- Focused owned-settings presentation and interaction run — 4 files and 61 tests passed.
+- Focused owned-settings presentation and interaction run — 4 files and 59 tests passed.
 - `npx vitest run test/app/session-shell/command-outcome-parity.test.ts` — 1 file and 4 tests passed in truecolor and 256-color modes.
 - `npx vitest run test/repository-governance/pinned-pi-public-api.test.ts` — 1 file and 5 tests passed; the consumer baseline is current.
 - `npx openspec validate remove-modal-title-top-gap --strict` — passed.

@@ -505,6 +505,74 @@ describe("Pi shell public component adapters", () => {
     expect(bareText).toContain("Image hidden: image/png");
   });
 
+  it("moves every fitting prompt-chip family intact to a submitted-prompt continuation row", () => {
+    const composer = { layout: submittedPromptLayout, compose: composeSubmittedPromptRows };
+    const prefix = "123456789012345678901234567890";
+    const chips = [
+      "[paste #1 1001 chars]",
+      "[📷 screenshot-0123456789]",
+      "[📁 C:/repo]",
+      "[📄 C:/repo/file.txt]",
+      "[🖼  Clipboard.png]",
+      "[🔗 https://x.dev]",
+    ];
+    for (const chip of chips) {
+      const source = block("user", `${prefix} ${chip}`);
+      const component = createPiShellTranscriptComponent(source, process.cwd(), undefined, composer,
+        1, false, "off", false, 40, { resolve: () => null });
+      const rawRows = component.render(40);
+      const rows = rawRows.map(row => stripTerminalSequences(row).trimEnd());
+      expect(rows.filter(row => row.includes(chip)), chip).toHaveLength(1);
+      expect(rows.find(row => row.includes(chip)), chip).toBe(`  ${chip}`);
+      expect(rawRows.every(row => visibleWidth(row) <= 40), chip).toBe(true);
+      expect(source.text).toBe(`${prefix} ${chip}`);
+    }
+  });
+
+  it("keeps adjacent chips independently whole and preserves URL links and pinned rendering", () => {
+    const composer = { layout: submittedPromptLayout, compose: composeSubmittedPromptRows };
+    const folder = "[📁 C:/one]", file = "[📄 C:/two]";
+    const adjacent = createPiShellTranscriptComponent(block("user", `${folder}${file}`), process.cwd(), undefined, composer,
+      1, false, "off", false, 20, { resolve: () => null });
+    const adjacentRows = adjacent.render(20).map(row => stripTerminalSequences(row).trimEnd());
+    expect(adjacentRows.filter(row => row.includes(folder))).toHaveLength(1);
+    expect(adjacentRows.filter(row => row.includes(file))).toHaveLength(1);
+
+    const chip = "[🔗 https://x.dev]";
+    const linkedBlock = block("user", `123456789012345 ${chip}`, { timestamp: 1_000 });
+    const linked = createPiShellTranscriptComponent(linkedBlock,
+      process.cwd(), undefined, composer, 1, false, "off", false, 32, { resolve: () => null }).render(32);
+    const pinnedLinked = renderPiShellTranscriptBlock(linkedBlock, 32, process.cwd());
+    const linkOpen = "\u001b]8;;https://x.dev";
+    expect(linked.some(row => stripTerminalSequences(row).includes(chip))).toBe(true);
+    expect(linked.join("\n").includes(linkOpen)).toBe(pinnedLinked.join("\n").includes(linkOpen));
+
+    const screenshot = "[📷 screenshot-0123456789]";
+    const source = block("user", `${"1".repeat(30)} ${screenshot}`);
+    const bareRows = createPiShellTranscriptComponent(source, process.cwd(), undefined, composer,
+      1, false, "off", false, 40, { resolve: () => null }).render(40).map(stripTerminalSequences);
+    const pinnedRows = renderPiShellTranscriptBlock(source, 40, process.cwd()).map(stripTerminalSequences);
+    expect(bareRows.some(row => row.includes(screenshot))).toBe(true);
+    expect(pinnedRows.some(row => row.includes(screenshot))).toBe(false);
+
+    const ordinary = "[ordinary words]";
+    const ordinaryRows = createPiShellTranscriptComponent(block("user", `${"1".repeat(24)} ${ordinary}`),
+      process.cwd(), undefined, composer, 1, false, "off", false, 40, { resolve: () => null })
+      .render(40).map(row => stripTerminalSequences(row));
+    expect(ordinaryRows.some(row => row.includes(ordinary))).toBe(false);
+  });
+
+  it("keeps oversized chips complete in source while every fallback row remains width-bounded", () => {
+    const composer = { layout: submittedPromptLayout, compose: composeSubmittedPromptRows };
+    const chip = "[📷 screenshot-0123456789-extra-long-label]";
+    const source = block("user", chip);
+    const rows = createPiShellTranscriptComponent(source, process.cwd(), undefined, composer,
+      1, false, "off", false, 14, { resolve: () => null }).render(14);
+    expect(rows.length).toBeGreaterThan(1);
+    expect(rows.every(row => visibleWidth(row) <= 14)).toBe(true);
+    expect(source.text).toBe(chip);
+  });
+
   it("renders safe transcript-image placeholders for hidden and unavailable assets", () => {
     const imageBlock = {
       ...block("user", "image prompt"),

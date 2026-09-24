@@ -101,6 +101,8 @@ export {
   assertPromptImages,
 } from "./image-attachments.js";
 export { CONTEXTUAL_PROMPT_SUGGESTION_INSTRUCTION, normalizePromptSuggestionCandidate } from "./prompt-suggestions.js";
+export { canonicalPromptChipMatches, protectPromptChipWrapping, replaceCanonicalPromptChips } from "./prompt-chips.js";
+export type { PromptChipTextMatch, PromptChipWrapProtection } from "./prompt-chips.js";
 export { SUGGESTION_DECISION_REASONS, SUGGESTION_DIAGNOSTIC_EVENTS } from "./suggestion-diagnostics.js";
 export type {
   SuggestionDecision,
