@@ -1,0 +1,59 @@
+## Context
+
+See `proposal.md` for motivation. Bare A1 stores frame-selection endpoints in visible-row coordinates plus semantic row anchors. Document anchors project back into the frame as `documentRow - scrollTop`; dock anchors instead stay pinned by their distance from the bottom.
+
+During edge-held scrolling, a document anchor can project beyond the transcript viewport. Direct pointer motion can also replace the moving endpoint with a dock anchor. Selection normalization then operates over the combined transcript-plus-dock row array, so ordinary multiline completion rules paint the editor, footer, and their full-width padding even though the gesture began in transcript content.
+
+The reference implementation in `D:/Git/claude-code-source` separates the scroll box from fixed shell surfaces. Its drag-scroll path obtains the scroll viewport bounds, captures rows leaving that viewport, shifts the content anchor only within those bounds, and leaves the pointer focus at the edge. A1 does not need to copy that screen-buffer accumulator design: it already retains semantic row anchors. It needs the same gesture-origin region invariant at projection and painting time.
+
+## Goals / Non-Goals
+
+**Goals:**
+- Keep every transcript-originated selection visually and textually bounded to visible transcript rows for its full gesture.
+- Preserve editor-originated selection without allowing a content gesture to flood pinned rows.
+- Handle forward/reverse selection, direct boundary crossing, and both scrolling directions without endpoint teleportation or stale dock paint.
+- Preserve bounded visible-row selection composition and existing semantic anchors.
+
+**Non-Goals:**
+- Replacing A1's document-anchor model with Claude Code's screen-buffer selection accumulator.
+- Adding off-screen selection-copy retention or changing the accepted visible-frame copy payload.
+- Removing editor-originated or other dock-originated selection.
+- Changing scrollbar gutters, edge-scroll cadence/speed, source wrapping, editor-local selection, controls, modal routing, or `a1 pi`.
+
+## Decisions
+
+### 1. Derive the visual selection region from the gesture origin
+
+Selection composition will distinguish a transcript-originated range from a dock-originated range using the retained anchor endpoint. When the fixed anchor is a document anchor, its visible range will be clipped to the transcript rectangle for the complete gesture, even if the moving endpoint enters a dock row. An endpoint above or below that rectangle will contribute the corresponding transcript edge rather than a pinned row.
+
+Alternative: derive ownership from both current endpoint kinds. Rejected because pointer motion into the dock would immediately discard transcript ownership and reproduce the reported fixed-surface flood.
+
+### 2. Preserve dock-originated selection independently
+
+Pointer presses already resolve through `#selectionAnchorAt`, so a gesture that starts on a dock row retains a dock anchor as its fixed endpoint. The transcript-origin rule will not disable editor-local handling or reclassify a dock-originated gesture as transcript-owned.
+
+Alternative: disable every mixed document/dock range. Rejected because the requested correction is specifically for content-originated expansion, while editor-originated interaction remains outside the change.
+
+### 3. Share one bounded range between paint and visible-frame copy
+
+Painting, `selectedText`, copyability checks, and immutable frame-copy capture will consume the same region-aware visible selection. This prevents a content-originated highlight from disagreeing with copied visible text and ensures dock rows are neither painted nor copied when its moving endpoint crosses the boundary. Dock-originated copy remains unchanged.
+
+Alternative: mask dock paint only. Rejected because the UI would claim a narrower selection than the visible-frame copy payload.
+
+### 4. Keep anchor persistence and damage accounting unchanged
+
+Semantic document/dock anchors remain the source of truth across scroll, reflow, and dock updates. Region clipping is a visible-frame projection, not a mutation of document identity. Selection cache keys and damaged-row evidence will naturally represent the clipped per-row ranges; focused tests will assert dock rows are invalidated when accidental paint disappears and are reused afterward.
+
+Alternative: rewrite an off-screen document anchor into a screen-edge anchor during every scroll tick. Rejected because that loses source identity, complicates reversal, and can turn a temporary clipping decision into a persistent endpoint change.
+
+## Risks / Trade-offs
+
+- [Clipping could suppress editor-originated selection] -> Select region ownership from the fixed gesture anchor; only a document origin enforces the transcript rectangle.
+- [Paint and copy could diverge] -> Route selection paint, selected text, copyability, and snapshot capture through one region-aware visible-range helper.
+- [Reverse drags could choose the wrong edge] -> Cover both anchor orders and both scroll directions with source identities above and below the viewport.
+- [Dock geometry changes could leave stale selection] -> Exercise added/removed dock rows and assert selection-damage rows clear obsolete backgrounds.
+- [Concurrent scrollbar work changes adjacent composition] -> Keep the rule independent of content width/gutter projection and reconcile the current target before implementation finalization.
+
+## Migration Plan
+
+No data or settings migration is required. Implement the bounded projection in the existing transcript viewport selection path and retain all stored interaction state. Rollback restores the current combined-frame projection behavior without changing persisted sessions or configuration.
