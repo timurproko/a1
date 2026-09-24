@@ -20,6 +20,10 @@
 
 `npm run test:fast` completed its build, typecheck, documentation checks, and 341 test files, but its highly parallel Vitest remainder reported unrelated wall-clock timeouts and Windows temporary-directory cleanup locks. The timed-out suites passed on focused reruns; for example, `test/ui/components/transcript-viewport.test.ts --testTimeout=60000` passed 40 tests and `test/foundation/lifecycle/session-repository-context.test.ts --testTimeout=60000` passed 3 tests. All change-focused suites passed at their ordinary configured timeouts.
 
-## Remaining acceptance check
+## Windows Terminal check
 
-Task 3.2 remains open pending a physical Windows Terminal check of the exact pushed candidate. The maintainer check must cover Shift-modified arrows, wheel scrolling, streaming updates, A1 frame selection, overlays, and replacement surfaces, and distinguish host-native terminal selection from the removed Pi viewport-anchored reverse-video selection.
+The maintainer tested pushed implementation commit `ea65b95621e2a1c57765d97570bcb51ce6b2a502` in Windows Terminal on 2026-09-24 and confirmed that no white selection appeared. The exercised check covered the planned Shift-modified navigation, wheel scrolling, streaming updates, A1 frame selection, overlays, and replacement surfaces. A terminal-native selection explicitly invoked through the host remains host-owned and distinct from the removed Pi viewport-anchored reverse-video selection.
+
+## Known gaps
+
+No known implementation gap remains.

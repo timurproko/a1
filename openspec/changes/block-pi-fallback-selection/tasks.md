@@ -13,4 +13,4 @@
 ## 3. Validation and evidence
 
 - [x] 3.1 Run focused adapter, shell selection, viewport, lifecycle, and conformance tests plus typechecking, and record the exact passing commands and outcomes in `evidence.md`.
-- [ ] 3.2 Build the candidate and record a Windows Terminal manual check covering Shift-modified arrows, wheel scrolling, streaming updates, frame selection, overlays, and replacement surfaces, confirming no white viewport-anchored Pi selection appears and documenting any host-native terminal-selection distinction.
+- [x] 3.2 Build the candidate and record a Windows Terminal manual check covering Shift-modified arrows, wheel scrolling, streaming updates, frame selection, overlays, and replacement surfaces, confirming no white viewport-anchored Pi selection appears and documenting any host-native terminal-selection distinction.
