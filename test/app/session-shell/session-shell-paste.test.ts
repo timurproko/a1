@@ -430,7 +430,7 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
       const copies = [...output.matchAll(/\u001b\]52;c;([^\u0007]*)\u0007/g)];
       expect(copies).toHaveLength(1);
       expect(Buffer.from(copies[0]![1]!, "base64").toString()).not.toContain("\u001b");
-      expect(output).toContain("Copied 6 characters to clipboard");
+      expect(output).toContain("copied 6 chars to clipboard");
       expect(shell.root.usesDefaultInputSurface()).toBe(false);
       expect(engine.session.calls).toEqual(calls);
       terminal.input("\u001b");
