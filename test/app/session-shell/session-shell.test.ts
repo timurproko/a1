@@ -456,6 +456,24 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
     }
   });
 
+  it("moves a fitting screenshot chip whole to the next submitted-prompt row", async () => {
+    const { engine, adapter, shell, terminal } = await fixture([], [], true);
+    const marker = "[📷 screenshot-0123456789]";
+    try {
+      terminal.resize(50, 20);
+      engine.session.emit({ type: "message_start", message: {
+        role: "user",
+        content: [{ type: "text", text: `${"1".repeat(30)} ${marker}` }],
+        timestamp: 1_000,
+      } });
+      await adapter.flushEvents();
+      const rows = shell.root.render(50).map(row => stripTerminalSequences(row).trimEnd());
+      const chipRows = rows.filter(row => row.includes("[📷") || row.includes("screenshot-0123456789"));
+      expect(chipRows).toHaveLength(1);
+      expect(chipRows[0]).toContain(marker);
+    } finally { await shell.dispose(); }
+  });
+
   it("keeps the screenshot chip but hides resize guidance from a submitted prompt", async () => {
     const { engine, adapter, shell } = await fixture([], [], true);
     const marker = "[📷 screenshot-0123456789]";
