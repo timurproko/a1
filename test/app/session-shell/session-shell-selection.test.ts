@@ -282,11 +282,77 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
       await vi.waitFor(() => expect(terminal.writes.slice(start).join("")).toContain("\u001b]52;c;CgoK\u0007"));
       shell.runtime.renderNow();
       const output = terminal.writes.slice(start).join("");
-      expect(output).toContain("Copied 3 characters to clipboard");
+      expect(output).not.toContain("chars to clipboard");
       expect(output).toContain("\u001b[48;2;38;79;120m");
       terminal.input("still usable");
       await nextImmediate();
       expect(shell.root.editor.getText()).toBe("still usable");
+    } finally { await shell.dispose(); }
+  });
+
+  it("shows one transient right-aligned accent copy acknowledgement immediately above the editor", async () => {
+    vi.useFakeTimers();
+    const { shell, terminal } = await fixture([], [], true);
+    try {
+      terminal.resize(60, 12);
+      shell.root.showCopyAcknowledgement("copied 5 chars to clipboard");
+      shell.root.showCopyAcknowledgement("copied 12 chars to clipboard");
+      const rows = shell.root.render(60);
+      const plain = rows.map(stripTerminalSequences);
+      const matches = plain.filter(row => row.includes("chars to clipboard"));
+      expect(matches).toEqual([expect.stringMatching(/copied 12 chars to clipboard$/u)]);
+      const row = plain.findIndex(value => value.includes("copied 12 chars to clipboard"));
+      expect(stripTerminalSequences(rows[row + 1] ?? "").trim()).toMatch(/^─+$/u);
+      expect(rows[row]).toContain(piTheme().fg("accent", "copied 12 chars to clipboard"));
+      expect(rows[row]).not.toContain("\u001b[7m");
+      const narrow = shell.root.render(10).map(stripTerminalSequences).find(value => value.includes("copied"));
+      expect(narrow).toBeDefined();
+      expect(narrow!.length).toBeLessThanOrEqual(10);
+      await vi.advanceTimersByTimeAsync(999);
+      expect(shell.root.render(60).map(stripTerminalSequences).join("\n")).toContain("copied 12 chars to clipboard");
+      await vi.advanceTimersByTimeAsync(1);
+      expect(shell.root.render(60).map(stripTerminalSequences).join("\n")).not.toContain("chars to clipboard");
+    } finally {
+      await shell.dispose();
+      vi.useRealTimers();
+    }
+  });
+
+  it("suppresses stale success and latest failure acknowledgements for rapid copy intents", async () => {
+    type Result = { readonly outcome: "submitted-unverified" } | { readonly outcome: "failed"; readonly failure: "transport" };
+    const captured: number[] = [];
+    const settle: Array<(result: Result) => void> = [];
+    const value = await fixture(
+      [{ role: "assistant", content: [{ type: "text", text: "abcdefgh" }] }], [], true,
+      undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+      { execute: (snapshot, phase) => {
+        captured.push(snapshot.sourceUnits);
+        phase("submitting", snapshot.sourceUnits, "injected");
+        let resolve!: (result: Result) => void;
+        const result = new Promise<Result>(done => { resolve = done; });
+        settle.push(resolve);
+        return { result, stopped: result.then(() => {}), cancel() {} };
+      } },
+    );
+    const { shell, terminal } = value;
+    try {
+      terminal.resize(50, 14);
+      shell.runtime.renderNow();
+      const row = shell.root.render(50).map(stripTerminalSequences).findIndex(line => line.includes("abcdefgh")) + 1;
+      expect(row).toBeGreaterThan(0);
+      terminal.input(`\u001b[<0;3;${row}M\u001b[<32;5;${row}M\u001b[<0;5;${row}m`);
+      await nextImmediate();
+      expect(captured).toEqual([3]);
+      terminal.input(`\u001b[<0;3;${row}M\u001b[<32;8;${row}M\u001b[<0;8;${row}m`);
+      await nextImmediate();
+      settle[0]!({ outcome: "submitted-unverified" });
+      await nextImmediate();
+      await nextImmediate();
+      expect(captured).toEqual([3, 7]);
+      expect(shell.root.render(50).map(stripTerminalSequences).join("\n")).not.toContain("chars to clipboard");
+      settle[1]!({ outcome: "failed", failure: "transport" });
+      await nextImmediate();
+      expect(shell.root.render(50).map(stripTerminalSequences).join("\n")).not.toContain("chars to clipboard");
     } finally { await shell.dispose(); }
   });
 
@@ -815,6 +881,9 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
     await new Promise(resolve => setTimeout(resolve, 130));
     expect(firstVisible()).toBe(whileHeld);
     terminal.input("\u0003");
+    await nextImmediate();
+    await nextImmediate();
+    shell.root.resetWorkflowPresentation();
 
     // Rationale: leave enough room below for the faster direction to demonstrate its
     // greater distance rather than immediately hitting the document end.

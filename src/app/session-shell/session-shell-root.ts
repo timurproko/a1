@@ -305,6 +305,8 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   #lastWorkflowStatusId: string | undefined;
   // Invariant: the notice is dock chrome, never transcript content; the custom viewport alone uses it.
   #dockNotice: { readonly kind: "status" | "warning" | "error"; readonly message: string } | undefined;
+  #copyAcknowledgement: string | undefined;
+  #copyAcknowledgementTimer: ReturnType<typeof setTimeout> | undefined;
   #inputSurface: PiShellComponentPort;
   #inputSurfaceCoordination: PiTuiInputSurfaceKind = "editor";
   readonly #dockInputReuseEnabled: boolean;
@@ -842,6 +844,26 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     if (this.#viewportController.setConfig(config)) this.#documentLayouts.clear();
   }
 
+  setFullscreenCopyOnSelect(enabled: boolean): void {
+    this.#viewportController.setCopyOnSelect(enabled);
+  }
+
+  showCopyAcknowledgement(message: string): void {
+    this.#clearCopyAcknowledgement(false);
+    this.#copyAcknowledgement = message;
+    const timer = setTimeout(() => {
+      if (this.#copyAcknowledgementTimer !== timer) return;
+      this.#copyAcknowledgementTimer = undefined;
+      this.#copyAcknowledgement = undefined;
+      this.#invalidateChrome();
+      this.#componentRuntime.requestRender();
+    }, COPY_ACKNOWLEDGEMENT_DURATION_MS);
+    timer.unref?.();
+    this.#copyAcknowledgementTimer = timer;
+    this.#invalidateChrome();
+    this.#componentRuntime.requestRender();
+  }
+
   resumeViewportFollowing(): void {
     this.#viewportController.resumeFollowing();
   }
@@ -894,17 +916,33 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     const statusRows = this.#customViewport ? this.#status.renderDock(width) : this.#renderStatus(width);
     const transientRows = [...queued, ...statusRows, ...this.#renderDockNotice(width)];
     const aboveWidgets = this.#renderWidgets("aboveEditor", width);
+    const copyAcknowledgement = this.#renderCopyAcknowledgement(width);
     const input = this.#inputSurface.render(width);
     // Invariant: pointer rows describe the body, not the autocomplete block now preceding it.
     const body = this.usesDefaultInputSurface() ? this.editor.bodyGeometry?.() : undefined;
     const belowWidgets = this.#renderWidgets("belowEditor", width);
     const footer = this.#renderFooter(width);
-    const rowsWithoutTransient = [...aboveWidgets, ...input, ...belowWidgets, ...footer];
+    const rowsWithoutTransient = [...aboveWidgets, ...copyAcknowledgement, ...input, ...belowWidgets, ...footer];
     return {
       rows: [...transientRows, ...rowsWithoutTransient],
-      editorOffset: transientRows.length + aboveWidgets.length + (body?.rowOffset ?? 0),
+      editorOffset: transientRows.length + aboveWidgets.length + copyAcknowledgement.length + (body?.rowOffset ?? 0),
       inputRows: body?.rowCount ?? input.length,
     };
+  }
+
+  #renderCopyAcknowledgement(width: number): readonly string[] {
+    if (this.#copyAcknowledgement === undefined || width <= 0) return [];
+    const text = piShellTruncateToWidth(this.#copyAcknowledgement, width);
+    return [`${" ".repeat(Math.max(0, width - piShellVisibleWidth(text)))}${piTheme().fg("accent", text)}`];
+  }
+
+  #clearCopyAcknowledgement(requestRender: boolean): void {
+    if (this.#copyAcknowledgementTimer !== undefined) clearTimeout(this.#copyAcknowledgementTimer);
+    this.#copyAcknowledgementTimer = undefined;
+    if (this.#copyAcknowledgement === undefined) return;
+    this.#copyAcknowledgement = undefined;
+    this.#invalidateChrome();
+    if (requestRender) this.#componentRuntime.requestRender();
   }
 
   #renderDockNotice(width: number): readonly string[] {
@@ -1286,6 +1324,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
 
   resetWorkflowPresentation(): void {
     this.#dockNotice = undefined;
+    this.#clearCopyAcknowledgement(false);
     for (const id of this.#workflowStatusAnchors.keys()) {
       this.#transcript.get(id)?.dispose?.();
       this.#transcript.delete(id);
@@ -1407,6 +1446,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   }
 
   dispose(): void {
+    this.#clearCopyAcknowledgement(false);
     this.clearViewportPointerState();
     this.#themeUnsubscribe();
     this.header.dispose?.();
@@ -1555,6 +1595,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   }
 }
 
+const COPY_ACKNOWLEDGEMENT_DURATION_MS = 1_000;
 const SCROLLBAR_CELL_RESET = "\u001b[22;23;24;25;27;28;29;39;54;55m";
 const KITTY_IMAGE_CONTROL = /\u001b_G[\s\S]*?\u001b\\/g;
 const ITERM_IMAGE_CONTROL = /\u001b]1337;File=[^\u0007]*(?:\u0007|\u001b\\)/g;

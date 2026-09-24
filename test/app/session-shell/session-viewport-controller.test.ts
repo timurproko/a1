@@ -73,6 +73,24 @@ function hoverFixture() {
 }
 
 describe("session viewport interaction controller", () => {
+  it("gates release-time copying live while preserving explicit Ctrl+C", () => {
+    const { target, compose } = hoverFixture();
+    try {
+      compose();
+      target.setCopyOnSelect(false);
+      const disabled = target.handlePreInput("\u001b[<0;1;2M\u001b[<32;4;2M\u001b[<0;4;2m");
+      expect(disabled.copySelection).toBeUndefined();
+      expect(target.hasSelection).toBe(true);
+      expect(copiedText(target.handlePreInput("\u0003"))).toBe("row-");
+      expect(target.hasSelection).toBe(false);
+
+      target.setCopyOnSelect(true);
+      const enabled = target.handlePreInput("\u001b[<0;1;2M\u001b[<32;4;2M\u001b[<0;4;2m");
+      expect(copiedText(enabled)).toBe("row-");
+      expect(target.hasSelection).toBe(true);
+    } finally { target.clearPointerState(); }
+  });
+
   it.each(["auto", "always"] as const)("keeps drag-into-rail selection distinct from rail-origin navigation (%s)", appearance => {
     const { target, input } = hoverFixture();
     try {

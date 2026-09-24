@@ -228,7 +228,7 @@ export class PiEngineSettings {
       tuiMode: setting(settings?.getTuiMode, "regular"),
       fullscreenExitOutput: setting(settings?.getFullscreenExitOutput, "transcript"),
       fullscreenScrollbar: setting(settings?.getFullscreenScrollbar, "auto"),
-      fullscreenCopyOnSelect: setting(settings?.getFullscreenCopyOnSelect, false),
+      fullscreenCopyOnSelect: setting(settings?.getFullscreenCopyOnSelect, true),
       warnings: setting(settings?.getWarnings, { anthropicExtraUsage: true }),
     };
   }
