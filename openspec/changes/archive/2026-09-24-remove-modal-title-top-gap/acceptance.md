@@ -16,7 +16,7 @@ The manual merge accepts these scenarios:
   "archive": "openspec/changes/archive/2026-09-24-remove-modal-title-top-gap/",
   "acceptanceManifest": "openspec/changes/archive/2026-09-24-remove-modal-title-top-gap/acceptance.md",
   "finalizedDate": "2026-09-24",
-  "specBaseSha": "93f6928f55c35ae2e1d9c7b21deb5377557fdb65",
+  "specBaseSha": "ac123a6604960e8ecbed86a544d2e3d17086d65c",
   "acceptanceScenarios": [
     "A ready PR without implementation metadata is rejected when immutable base/head evidence shows a new or restored active change, or active-change edits mixed with code or operational paths.",
     "Ordinary code PRs, active-change removal, and documentation-only revisions to an existing active change retain their established validation routes.",
