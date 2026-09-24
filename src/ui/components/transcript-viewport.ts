@@ -634,7 +634,14 @@ export class TranscriptViewport {
       const painted = frameRows[row] ?? "";
       const rowSelectionWidth = row < viewportHeight ? contentWidth : width;
       const range = selectionRangeForLine(orderedSelection, row, this.#selectionRows.length, rowSelectionWidth);
-      const padded = row < viewportHeight || range !== null;
+      // Invariant: the reserved rail gutter is not a semantic selection or copy cell,
+      // but a range that reaches the content boundary paints through it so the rail
+      // floats above one continuous selection surface.
+      const paintRange = range !== null && row < viewportHeight
+        && contentWidth < width && range.to === contentWidth
+        ? { from: range.from, to: width }
+        : range;
+      const padded = row < viewportHeight || paintRange !== null;
       const base = cachedString(
         this.#baseRowCache,
         `${width}\u0000${contentWidth}\u0000${row < viewportHeight}\u0000${padded}\u0000${painted}`,
@@ -644,14 +651,14 @@ export class TranscriptViewport {
           : padded ? padRowPreservingBackground(painted, width) : painted,
       );
       let rowRecomputed = row < viewportHeight && paintRecomputedRows.has(row) || !base.reused;
-      const rangeKey = range === null ? "-" : `${range.from}:${range.to}`;
-      const selected = range === null
+      const rangeKey = paintRange === null ? "-" : `${paintRange.from}:${paintRange.to}`;
+      const selected = paintRange === null
         ? { value: base.value, reused: true }
         : cachedString(
             this.#selectedRowCache,
             `${selectionPainterId}\u0000${rangeKey}\u0000${base.value}`,
             cacheLimit,
-            () => theme.selection(base.value, range.from, range.to),
+            () => theme.selection(base.value, paintRange.from, paintRange.to),
           );
       rowRecomputed ||= !selected.reused;
 

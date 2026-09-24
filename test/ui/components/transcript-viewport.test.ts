@@ -683,7 +683,7 @@ describe("transcript viewport", () => {
     expect(paint.mock.calls.filter(([row]) => row === sourceRow)).toHaveLength(1);
   });
 
-  it("paints edge whitespace through the final content cell without entering the gutter", () => {
+  it("paints boundary-reaching selection through the scrollbar gutter without copying it", () => {
     const selectedRange = (text: string, column: number): { readonly range: readonly [number, number]; readonly copied: string | null } => {
       const viewport = new TranscriptViewport();
       viewport.setConfig(ALWAYS);
@@ -711,8 +711,8 @@ describe("transcript viewport", () => {
       return { range, copied };
     };
 
-    expect(selectedRange("abc      ", 5)).toEqual({ range: [3, 9], copied: null });
-    expect(selectedRange("abcdefghi", 5)).toEqual({ range: [0, 9], copied: "abcdefghi" });
+    expect(selectedRange("abc      ", 5)).toEqual({ range: [3, 10], copied: null });
+    expect(selectedRange("abcdefghi", 5)).toEqual({ range: [0, 10], copied: "abcdefghi" });
 
     const viewport = new TranscriptViewport();
     viewport.setConfig(ALWAYS);
@@ -735,7 +735,7 @@ describe("transcript viewport", () => {
         selection: (line, from, to) => { ranges.push([from, to]); return line; },
       },
     });
-    expect(ranges).toContainEqual([1, 9]);
+    expect(ranges).toContainEqual([1, 10]);
   });
 
   it.each([false, true])("includes multiline boundary cells and source edges (reverse=%s)", reverse => {
@@ -1051,7 +1051,7 @@ describe("transcript viewport", () => {
 
     const selected = viewport.compose({ documentRows: rows(10), dockRows: [], promptAnchors: [], width: 10, height: 5, now: 103, theme });
     const thumbRow = selected.rows[3] ?? "";
-    expect(selectionEnds).toContain(9);
+    expect(selectionEnds).toContain(10);
     expect(viewport.selectedText()).toBe("row 7\nrow 8\nrow 9");
     expect(stripAnsi(thumbRow).at(-1)).toBe("│");
     expect(thumbRow).toContain("\u001b[32m│");
