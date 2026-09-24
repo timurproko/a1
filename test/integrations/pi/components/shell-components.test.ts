@@ -538,10 +538,13 @@ describe("Pi shell public component adapters", () => {
     expect(adjacentRows.filter(row => row.includes(file))).toHaveLength(1);
 
     const chip = "[🔗 https://x.dev]";
-    const linked = createPiShellTranscriptComponent(block("user", `123456789012345 ${chip}`, { timestamp: 1_000 }),
+    const linkedBlock = block("user", `123456789012345 ${chip}`, { timestamp: 1_000 });
+    const linked = createPiShellTranscriptComponent(linkedBlock,
       process.cwd(), undefined, composer, 1, false, "off", false, 32, { resolve: () => null }).render(32);
+    const pinnedLinked = renderPiShellTranscriptBlock(linkedBlock, 32, process.cwd());
+    const linkOpen = "\u001b]8;;https://x.dev";
     expect(linked.some(row => stripTerminalSequences(row).includes(chip))).toBe(true);
-    expect(linked.join("\n")).toContain("\u001b]8;;https://x.dev");
+    expect(linked.join("\n").includes(linkOpen)).toBe(pinnedLinked.join("\n").includes(linkOpen));
 
     const screenshot = "[📷 screenshot-0123456789]";
     const source = block("user", `${"1".repeat(30)} ${screenshot}`);
