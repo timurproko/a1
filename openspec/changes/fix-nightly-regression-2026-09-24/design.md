@@ -1,0 +1,80 @@
+## Context
+
+Opened by the nightly regression triage from the failed run's evidence artifacts and logs; the triage re-ran nothing and edited nothing on `develop`. Every later failure with the same failed scope set appends its run below while this change is open.
+
+## Decisions
+
+- To be written by the maintainer once the cause is known: what failed, why, and the smallest change that fixes it without reducing validation.
+
+## Evidence
+
+- Run [Full regression #39](https://github.com/timurproko/a1/actions/runs/35971693488) (attempt 1, schedule) on `93f6928` at 2026-09-24T07:49:09Z:
+  - `vitest-full-without-isolated` (`architecture`, `dependency-policy`, `dist-integration`, `documentation-full`, `fast-remainder`, `fast-resource-sensitive`, `history-compatibility`, `image-compatibility`, `launch-integration`, `naming-full`, `package-contracts`, `package-smoke`, `package-startup`, `pi-engine-conformance`, `release-update`, `rendering-stability`, `typecheck`, `unix-containment`, `update-performance`, `update-predecessor`) failed on windows-2025-node22 with exit 1.
+    - Command: `npx vitest run --exclude test/foundation/release/package-surface.test.ts --exclude test/foundation/release/session-resume.integration.test.ts --exclude test/foundation/release/package-install.integ...`
+    - Log excerpt:
+
+      ```text
+       ^[[31m❯^[[39m test/app/session-shell/session-shell-viewport.test.ts ^[[2m(^[[22m^[[2m26 tests^[[22m^[[2m | ^[[22m^[[31m1 failed^[[39m^[[2m)^[[22m^[[33m 5415^[[2mms^[[22m^[[39m
+         ^[[33m^[[2m✓^[[22m^[[39m OwnedUiSessionShell viewport and streaming^[[2m > ^[[22mquietly recovers combined history contention and a 16,384-update assistant/tool burst with interactive input ^[[33m 3666^[[2mms^[[22m^[[39m
+         ^[[32m✓^[[39m OwnedUiSessionShell viewport and streaming^[[2m > ^[[22mrenders large text as one chip through shortcut and records the full prompt^[[32m 88^[[2mms^[[22m^[[39m
+         ^[[32m✓^[[39m OwnedUiSessionShell viewport and streaming^[[2m > ^[[22mrenders large text as one chip through terminal and records the full prompt^[[32m 81^[[2mms^[[22m^[[39m
+         ^[[32m✓^[[39m OwnedUiSessionShell viewport and streaming^[[2m > ^[[22mrenders large text as one chip through right-click and records the full prompt^[[32m 89^[[2mms^[[22m^[[39m
+      ^[[31m     → expected 2 to be 1 // Object.is equality^[[39m
+         ^[[32m✓^[[39m OwnedUiSessionShell viewport and streaming^[[2m > ^[[22mreuses a finalized block's rows until its revision, the width, the theme, or expansion changes^[[32m 14^[[2mms^[[22m^[[39m
+       ^[[32m✓^[[39m test/repository-governance/validation-tier.test.ts ^[[2m(^[[22m^[[2m23 tests^[[22m^[[2m)^[[22m^[[33m 311^[[2mms^[[22m^[[39m
+       ^[[32m✓^[[39m test/app/session-shell/transcript-content-retention.test.ts ^[[2m(^[[22m^[[2m31 tests^[[22m^[[2m)^[[22m^[[33m 3283^[[2mms^[[22m^[[39m
+         ^[[33m^[[2m✓^[[22m^[[39m transcript content retention across renderer boundaries^[[2m > ^[[22msettles tool execution state when protected overload recovery finalizes the transcript (cancelled=true) ^[[33m 860^[[2mms^[[22m^[[39m
+         ^[[33m^[[2m✓^[[22m^[[39m large screenshot preparation^[[2m > ^[[22madmits the real over-8-MiB source that previously failed before preparation ^[[33m 1219^[[2mms^[[22m^[[39m
+      ... 45 more lines in the run log
+      ```
+
+  - Lane Full regression / Complete regression required failed in job `Full regression / Complete regression required` before producing owner outcomes (orchestration failure).
+    - Log excerpt:
+
+      ```text
+        if (jobsResult !== "success" || records.length !== FULL_LANES.length) throw new Error("complete-regression jobs or evidence are incomplete");
+                                                                                    ^
+      Error: complete-regression jobs or evidence are incomplete
+          at requireFullLanes (file:///home/runner/work/a1/a1/scripts/release/full-regression-evidence.mjs:44:79)
+          at file:///home/runner/work/a1/a1/scripts/release/full-regression-evidence.mjs:67:20
+          at ModuleJob.run (node:internal/modules/esm/module_job:561:25)
+          at async node:internal/modules/esm/loader:647:26
+      ##[error]Process completed with exit code 1.
+      Post job cleanup.
+      [command]/usr/bin/git version
+      git version 2.55.0
+      Temporarily overriding HOME='/home/runner/work/_temp/149a7e5a-ac8a-44db-976b-1803389b15c2' before making global git config changes
+      ```
+
+  - Last successful Full regression run: [#30](https://github.com/timurproko/a1/actions/runs/35576685488) on `95216f1`; 51 `develop` commits since:
+    - `93f6928` fix(ui): compact and inset modal content (#573)
+    - `00532de` fix(ui): block Pi fallback selection (#578)
+    - `02d3b56` fix(ui): finish compaction progress (#577)
+    - `66d91a0` fix(ui): separate scrollbar from transcript content (#576)
+    - `69c1959` fix(ui): align copy feedback (#575)
+    - `70b9ebd` fix(ui): keep prompt chips unbroken (#574)
+    - `4bb30e1` fix(ui): show compaction progress immediately (#572)
+    - `2e73283` ci: defer pull request validation until ready (#571)
+    - `c66d6d1` fix(regression): repair the 2026-09-23 full regression failure (#559)
+    - `0ad1ef8` feature(ui): select the complete session frame (#569)
+    - `374c946` fix(ui): retain merged PR link in footer (#570)
+    - `0ed21fb` style(status): animate progress labels (#568)
+    - `718e2e4` feature(cli): simplify command spelling (#567)
+    - `4735177` fix(ui): restore steering Alt+Up (#566)
+    - `2fd59d4` fix: classify exited Windows guardian processes (#565)
+    - `e019d94` docs(openspec): close stale clipboard and streaming changes (#564)
+    - `d5b5dd7` fix(launch): make current release startup quiet and reliable (#563)
+    - `d369a27` fix(ui): make changelog notice transient (#562)
+    - `dd3680c` chore(pi): upgrade pinned Pi to 0.87.1 (#560)
+    - `464f994` feat(workflow): require delivery worktree context (#558)
+    - `9f5c347` fix(ui): simplify thinking and login descriptions (#555)
+    - `ff361bf` fix(update): wait out transient package locks before replacing the tree (#557)
+    - `e904bb3` style(dialogs): left-align shortcut hints (#556)
+    - `c37f420` style(modals): unify shortcut hint presentation (#546)
+    - `99b7eb8` fix(ui): link session delivery PR in footer (#552)
+    - `8653fa4` fix(ui): align steering above live status (#554)
+    - `9d2074c` fix(ui): hide image resize guidance from prompts (#549)
+    - `9ecb438` fix(ui): place command errors above prompt (#548)
+    - `39b8df5` fix(ui): place thinking default after checkmark (#547)
+    - `65f7e7c` fix(session-ui): restore prompt suggestion after draft deletion (#550)
+    - ... 21 more
