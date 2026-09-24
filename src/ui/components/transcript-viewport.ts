@@ -583,6 +583,7 @@ export class TranscriptViewport {
     const frameRows = [...visible, ...dock].slice(0, height);
     const selectionRows = [...this.#selectionRows];
     let bottomHit: TranscriptViewportHitRegions["bottom"] = null;
+    let control: { readonly row: number; readonly left: number; readonly text: string } | undefined;
     if (this.#maxScroll > 0 && !this.#followingEnd && frameRows.length > 0) {
       const genericLabel = " Jump to bottom (Ctrl+End) ↓ ";
       const countedLabel = this.#newMessages > 0
@@ -599,17 +600,14 @@ export class TranscriptViewport {
         const pointer = input.pointerPosition;
         const bottomHovered = pointer !== undefined && pointer.row === bottomHit.row
           && pointer.column >= bottomHit.columnStart && pointer.column <= bottomHit.columnEnd;
-        frameRows[row] = overlaySpan(
-          padRowPreservingBackground(frameRows[row] ?? "", width),
-          left,
-          left + labelWidth,
-          `${CONTROL_STYLE_RESET}${theme.bottomControl(label, bottomHovered)}`,
-        );
+        control = { row, left, text: `${CONTROL_STYLE_RESET}${theme.bottomControl(label, bottomHovered)}` };
+        frameRows[row] = overlaySpan(padRowPreservingBackground(frameRows[row] ?? "", width), left, left + labelWidth, control.text);
+        // Invariant: the control floats above selection; its cells are never selected or copied.
         selectionRows[row] = overlaySpan(
           padRowPreservingBackground(selectionRows[row] ?? "", width),
           left,
           left + labelWidth,
-          label,
+          " ".repeat(labelWidth),
         );
       }
     }
@@ -694,7 +692,9 @@ export class TranscriptViewport {
         },
       );
       rowRecomputed ||= !final.reused;
-      frameRows[row] = final.value;
+      frameRows[row] = control?.row === row && paintRange !== null && bottomHit !== null
+        ? overlaySpan(final.value, control.left, bottomHit.columnEnd, control.text)
+        : final.value;
       (rowRecomputed ? recomputedRows : reusedRows).push(row + 1);
 
       const state = `${width}\u0000${row}\u0000${painted}\u0000${rangeKey}\u0000${range === null ? "" : selectionPainterId}\u0000${railCell}\u0000${overlayText}`;

@@ -27,3 +27,9 @@
 - [x] 5.1 Exclude the sticky prompt's complete replacement row from pointer anchoring, selection paint, and visible-frame copy while retaining normal prompt-row selection when unpinned.
 - [x] 5.2 Prove a retained selection shrinks and disappears as its source rows scroll out instead of transferring to sticky prompt, jump/status, or dock rows.
 - [x] 5.3 Re-run focused and governance validation, update evidence and acceptance wording, and prepare the final manual handoff.
+
+## 6. Refine selection feel
+
+- [x] 6.1 Paint the scroll-to-bottom control above selection and remove its cells from visible-frame copy.
+- [x] 6.2 Keep the final content row selectable by starting downward auto-scroll only below it, and align per-tick edge distance with the declared one, two, or three rows.
+- [x] 6.3 Re-run focused and governance validation, repin the startup graph baseline for the reviewed growth, and update evidence and the manual handoff.

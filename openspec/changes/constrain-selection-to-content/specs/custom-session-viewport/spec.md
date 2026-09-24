@@ -54,6 +54,17 @@ A selection that originates in the dock SHALL retain its existing dock/editor in
 - **THEN** the selection paint and visible-frame copy SHALL disappear
 - **AND** no endpoint SHALL transfer to a sticky prompt, jump/status control, editor, or footer row
 
+#### Scenario: Float the scroll-to-bottom control above selection
+- **WHEN** a transcript selection covers the row on which the scroll-to-bottom control is drawn
+- **THEN** the control SHALL be painted above the selection with its ordinary presentation
+- **AND** its cells SHALL contribute no text to visible-frame copy
+- **AND** transcript cells on either side of the control SHALL remain selected
+
+#### Scenario: Select the final content row without auto-scroll
+- **WHEN** an active transcript selection's pointer rests on the final visible transcript row while dock rows exist below it
+- **THEN** the transcript SHALL NOT auto-scroll
+- **AND** auto-scroll SHALL begin only when the pointer moves below that row, or onto the first row, and SHALL use the declared per-speed distance of one, two, or three rows per 30-millisecond tick
+
 #### Scenario: Preserve semantic response copying
 - **WHEN** a response-only or command-driven copy route requests semantic agent content rather than a visible frame range
 - **THEN** the existing transcript chrome exclusions SHALL remain in force

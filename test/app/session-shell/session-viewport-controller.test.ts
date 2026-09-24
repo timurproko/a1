@@ -276,6 +276,33 @@ describe("session viewport interaction controller", () => {
     } finally { target.clearPointerState(); normal.target.clearPointerState(); vi.useRealTimers(); }
   });
 
+  it("keeps the last content row selectable and edge-scrolls one row per tick below it", () => {
+    vi.useFakeTimers();
+    const target = new SessionViewportController({ enabled: true, editor: editor(), requestRender() {} });
+    const input = {
+      documentRows: Array.from({ length: 20 }, (_row, index) => `row-${index}`),
+      dockRows: ["editor", "footer"],
+      promptAnchors: [],
+      width: 20,
+      height: 6,
+    };
+    try {
+      target.compose(input);
+      target.handlePreInput("\u001b[<64;2;2M".repeat(6), true, 100);
+      expect(target.compose(input).scrollTop).toBe(0);
+      target.handlePreInput("\u001b[<0;2;2M\u001b[<32;4;4M", true, 200);
+      vi.advanceTimersByTime(90);
+      expect(target.compose(input).scrollTop).toBe(0);
+
+      target.handlePreInput("\u001b[<32;4;5M", true, 300);
+      vi.advanceTimersByTime(30);
+      expect(target.compose(input).scrollTop).toBe(1);
+      vi.advanceTimersByTime(30);
+      expect(target.compose(input).scrollTop).toBe(2);
+      target.handlePreInput("\u001b[<0;4;5m", true, 400);
+    } finally { target.clearPointerState(); vi.useRealTimers(); }
+  });
+
   it("keeps a transcript-originated selection out of dock rows after direct and edge-held crossing", () => {
     vi.useFakeTimers();
     const target = new SessionViewportController({ enabled: true, editor: editor(), requestRender() {} });

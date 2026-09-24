@@ -20,7 +20,7 @@ The reference implementation in `D:/Git/claude-code-source` separates the scroll
 - Replacing A1's document-anchor model with Claude Code's screen-buffer selection accumulator.
 - Adding off-screen selection-copy retention or changing the accepted visible-frame copy payload.
 - Removing editor-originated or other dock-originated selection.
-- Changing scrollbar gutters, edge-scroll cadence/speed, source wrapping, editor-local selection, controls, modal routing, or `a1 pi`.
+- Changing scrollbar gutters, the declared 30-millisecond edge-scroll cadence or per-speed distance, source wrapping, editor-local selection, control hit targets, modal routing, or `a1 pi`.
 
 ## Decisions
 
@@ -53,6 +53,18 @@ Alternative: pin a selected prompt endpoint to the sticky row. Rejected because 
 Semantic document/dock anchors remain the source of truth across scroll, reflow, and dock updates. Region clipping is a visible-frame projection, not a mutation of document identity. Selection cache keys and damaged-row evidence will naturally represent the clipped per-row ranges; focused tests will assert dock rows are invalidated when accidental paint disappears and are reused afterward.
 
 Alternative: rewrite an off-screen document anchor into a screen-edge anchor during every scroll tick. Rejected because that loses source identity, complicates reversal, and can turn a temporary clipping decision into a persistent endpoint change.
+
+### 6. Float the scroll-to-bottom control above selection
+
+The control keeps its hit target and base-frame placement. Its label cells are blanked in the selection source rows, as covered overlay cells already are, and the label is repainted over a selected row after selection paint. The row's damage state already includes the control's presentation, so no new cache key is needed.
+
+Alternative: split each selection range around the control. Rejected because every painter would need a multi-span contract for one floating label.
+
+### 7. Pace edge auto-scroll by the declared row distance
+
+The accepted edge-hold scenario declares one, two, or three rows every 30 milliseconds, but the implementation reused the wheel distance of three, six, or nine rows. That tripled the jumps and made held selection feel coarse. Downward auto-scroll also began while the pointer rested on the final content row, which made that row hard to select. Auto-scroll now begins below the final content row, unless no row exists below it, and on the first row, where nothing lies above.
+
+Alternative: add distance-based acceleration. Deferred because it would change the accepted cadence contract rather than restore it.
 
 ## Risks / Trade-offs
 

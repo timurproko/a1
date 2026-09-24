@@ -871,7 +871,7 @@ describe("transcript viewport", () => {
     expect(viewport.selectedText()).toBeNull();
   });
 
-  it("copies the exact visible bottom control text and the prompt at its document row", () => {
+  it("excludes the bottom control from copy and keeps the prompt selectable at its document row", () => {
     const viewport = new TranscriptViewport();
     viewport.setConfig(ALWAYS);
     const input = {
@@ -889,7 +889,24 @@ describe("transcript viewport", () => {
     viewport.pressSelection(1, 2, 103);
     viewport.extendSelection(40, 4, 104, false);
     viewport.releaseSelection();
-    expect(viewport.selectedText()).toBe("row 2\nrow 3\nrow 4 Jump to bottom (Ctrl+End) ↓");
+    expect(viewport.selectedText()).toBe("row 2\nrow 3\nrow 4");
+    const label = " Jump to bottom (Ctrl+End) ↓ ";
+    const selected = viewport.compose({
+      ...input,
+      now: 104,
+      theme: {
+        track: (text: string) => text,
+        thumb: (text: string) => text,
+        sticky: (text: string) => text,
+        quietSticky: (text: string) => text,
+        bottomControl: (text: string) => `\u001b[7m${text}\u001b[27m`,
+        selection: (line: string, from: number, to: number) => backgroundSgrSpan(line, from, to, "\u001b[45m"),
+      },
+    });
+    const controlRow = selected.rows[3] ?? "";
+    expect(controlRow).toContain("\u001b[45m");
+    // Invariant: one uninterrupted control span means no selection background reaches its cells.
+    expect(controlRow).toContain(`\u001b[0m\u001b[7m${label}\u001b[27m`);
 
     viewport.clearSelection();
     viewport.scrollTo(0, 105);
