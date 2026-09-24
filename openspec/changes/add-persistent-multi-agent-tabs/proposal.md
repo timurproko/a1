@@ -1,42 +1,70 @@
 ## Why
 
-Bare `a1` runs exactly one agent, and that agent dies with the terminal window that launched it. Users who want several agents working at once must juggle terminal windows, and closing a window, losing an SSH session, or an A1 crash loses the running turn and forces a manual `a1 --session` to find the work again.
+Bare `a1` runs exactly one agent, and that agent dies with the terminal window that launched it. To run several agents at once, users have to juggle terminal windows. Closing a window, losing an SSH session, or an A1 crash loses the running turn, and the user then has to find the work again with `a1 --session`.
 
-The user has explicitly authorized the multi-agent structured-tab scope that `evolve-bare-a1-into-multi-agent-workspace` held, and has added a requirement that held change never specified: agents must keep running in the background when the terminal closes, and relaunching `a1` must show them again. This change carries that scope as a focused, independently deliverable plan. The composed-terminal, PTY-pane, split-layout, and terminal-host proof scope of the held change remains on hold and is not touched.
+The user has authorized multi-agent tabs with three requirements:
 
-The UX reference is the v2 prototype (`D:\Backups\pi\v2`: tab strip, status glyphs, inline rename, overflow menu, detach-on-quit). The process-architecture reference is herdr (`D:\Git\herdr`: one detached per-user server, socket-as-lock single instance, snapshot-then-delta reattach, stable endpoint generation across upgrades, Windows job-object escape). Neither is a dependency.
+- agents keep running in the background when the terminal closes, and relaunching `a1` shows them again;
+- extensions keep working exactly as they do natively;
+- the same tab system must later host any interactive CLI.
+
+A structured, message-based design would satisfy none of the last two. It needs a second system for CLI tabs, and it can never carry an extension's own in-process UI. This change therefore makes every tab a real terminal session: a pseudoterminal that runs the complete, unmodified A1 UI. The session is held by A1's native terminal host, which extends the existing `native/terminal-host` proof (libghostty-vt, portable-pty/ConPTY, crossterm).
+
+References: the v2 prototype (`D:\Backups\pi\v2`) for UX and its child status bridge, and herdr (`D:\Git\herdr`) for resident terminal-server architecture. Neither is a dependency.
 
 ## What Changes
 
-- Bare `a1` presents a one-row tab strip above the existing custom viewport. Each tab is one independent Pi agent session with its own transcript, editor draft, queue, model, thinking level, working state, and cwd.
-- Users can create, switch, jump to, reorder, rename, and close tabs from the keyboard, mouse, and slash commands. Rename is inline and becomes the Pi session name; close asks for confirmation when the agent is busy and stops only that agent, leaving its session resumable.
-- Background tabs show structured status (working, needs input, done-unseen, error, crashed, restoring) derived from engine events, never from screen text. Needs-input and done transitions can optionally ring or emit a terminal notification.
-- A new per-user, per-profile **resident agent host** owns every tabbed agent. It is started detached from the terminal on Windows, macOS, and Linux (including escape from kill-on-close job objects and the macOS GUI bootstrap namespace), holds a single-instance named-pipe/socket lock, and persists a durable agent registry.
-- Each agent runs in its own **agent worker** process that hosts one Pi `AgentSessionRuntime` through the existing public-SDK `PiEngineAdapter` and speaks a versioned structured protocol to the host. A crashing agent cannot take down its siblings, the host, or the UI.
-- The foreground `a1` becomes a thin **client** of the host. It renders through the existing owned UI pipeline using a remote engine adapter fed by an authoritative snapshot followed by sequenced events. Quitting `a1` (`/quit`, `Ctrl+C` twice, `Ctrl+D`) detaches; agents keep running. Relaunching `a1`, in the same or another terminal, reattaches and shows every running agent.
-- Robustness contract: bounded restart with backoff for crashed workers, host self-healing after its own crash while workers keep running, restore-from-session after reboot, no replay of interrupted tool calls, bounded queues and backpressure, per-agent and global limits, rotated diagnostics, and a stable host protocol generation so `a1 update` never kills running agents.
-- New CLI maintenance forms: `a1 agents` (list), `a1 agents stop <id>|--all`, and `a1 agents host status|stop`.
+- Bare `a1` presents a one-row tab strip. Every tab is an independent terminal session running the full A1 owned UI with its own Pi agent, so every Pi extension, custom extension UI, and A1 feature behaves exactly as in single-agent A1 today.
+- Users can create, switch, jump to, reorder, rename, and close tabs by keyboard, mouse, and slash command. Rename is inline and becomes the Pi session name. Closing a busy tab asks for confirmation. A closed tab's session stays resumable.
+- Tab status (working, needs input, done-unseen, error, crashed, restoring) comes from a structured **tab bridge**: A1 running inside the tab reports engine state to the host. It is never scraped from the screen. Optional bell or terminal notifications signal background attention.
+- The native terminal-host binary gains three roles:
+  - **Resident server:** a per-user, per-profile daemon. It owns the tab registry, topology, and client fan-out.
+  - **Session holder:** one small native process per tab. It owns that tab's pseudoterminal, child process tree, and retained terminal model, so a server crash never kills a tab.
+  - **Attach client:** the foreground `a1` surface. It draws the tab strip and the active tab's retained screen, and routes input.
+- Terminal bytes, input, and rendering stay entirely in native code. Node never relays them.
+- Quitting `a1` (`/quit`, `Ctrl+C` twice, `Ctrl+D`, or `Alt+Q`) detaches, and every tab keeps running. Relaunching `a1` in any terminal reattaches from retained screen state, including output produced while detached.
+- Robustness:
+  - The resident processes are started detached on Windows, macOS, and Linux. This includes escaping kill-on-close jobs and the macOS GUI bootstrap namespace.
+  - The endpoint bind acts as a single-instance lock, and the endpoint is owner-only and token-authenticated.
+  - The registry is durable and fsynced.
+  - The server self-heals while holders keep running. Crashed tabs restart within a bounded budget from their Pi session.
+  - After a reboot, tabs are restored from their sessions. Interrupted prompts are never resent.
+  - Protocol generations are stable, so `a1 update` never kills tabs.
+  - Limits and rotated diagnostics are bounded.
+- New CLI maintenance forms: `a1 tabs` (list), `a1 tabs stop <id>|--all`, and `a1 tabs host status|stop`.
+- The architecture is tab-kind neutral. Arbitrary CLI tabs become a small follow-up change, without redesign.
 
 ## Capabilities
 
 ### New Capabilities
 
-- `multi-agent-tabs`: the bare-A1 tab strip, tab lifecycle and naming, status and attention presentation, input routing between tabs, shortcuts, commands, detach-on-quit, and reattach presentation.
-- `resident-agent-host`: the detached host, agent workers, host/worker/client protocols, durable registry, single-instance and ownership rules, crash, reboot, and update recovery, limits, diagnostics, and platform detachment.
+- `multi-agent-tabs`: the bare-A1 tab strip, tab lifecycle and naming, bridge-derived status and attention, input routing and shortcuts, commands, detach-on-quit, and reattach presentation.
+- `resident-terminal-host`: the native resident server, per-tab session holders, and attach client. It also covers their protocols, the tab bridge, the durable registry, ownership and authentication, platform detachment, crash, reboot, and update recovery, limits, diagnostics, and certification.
 
 ### Modified Capabilities
 
-- `a1-shell`: the bare-A1 launch instance owns the foreground UI client only; tabbed agents belong to the explicit resident capability.
-- `launch-instance-lifecycle`: names the resident agent host as the separately specified resident capability that survives instance closure, and lets bare `a1` reattach instead of starting fresh.
-- `cli-session-resume`: bare `a1` reattaches to resident agents (or starts one fresh tab when none exist); `--session` opens or focuses that session as a tab.
-- `owned-pi-ui-foundation`: graceful quit in bare A1 detaches from resident agents instead of stopping them; `a1 pi` keeps stopping its single agent.
-- `launch-profiles`: concurrent bare-A1 invocations of one profile share that profile's resident host while their foreground instances stay independent.
-- `agent-supervision`: cohort updates and release retention account for resident hosts and workers instead of terminating them.
+- `a1-shell`: bare `a1` becomes the native attach client over resident A1 tabs, while `a1 pi` keeps the direct owned pipeline. The bare-A1 launch instance owns only the foreground client.
+- `launch-instance-lifecycle`: names the resident terminal host as the separately specified resident capability. Bare `a1` reattaches instead of starting fresh.
+- `cli-session-resume`: bare `a1` reattaches, or starts one fresh tab when none exist. `--session` opens or focuses that session as a tab.
+- `owned-pi-ui-foundation`: graceful quit inside a resident tab detaches the client instead of stopping the agent. `a1 pi` is unchanged.
+- `launch-profiles`: concurrent bare-A1 invocations of one profile share that profile's resident host.
+- `agent-supervision`: cohort updates and release retention account for resident host, holder, and tab processes.
 
 ## Impact
 
-- **Code:** new `src/foundation/agent-host/` (host process, registry, protocol, worker supervision), `src/integrations/pi/engine/` worker entry and remote engine adapter, `src/features/multi-agent-tabs/` (tab model, reducer, strip component, commands), launch routing in `src/cli/` and `src/features/launch/`, new `bin/agent-host.js` and `bin/agent-worker.js`, a `--spawn-resident` mode in `native/process-guardian`, and a per-profile `agent-host.sqlite3` registry kept separate from `control.sqlite3`, so a newer release's migrations never break a running older host.
-- **Specs:** two new capabilities and six modified ones, listed above. `evolve-bare-a1-into-multi-agent-workspace` keeps its composed-terminal scope on hold. Its structured-tab and reconnection requirements are superseded by this change and are noted as such there.
-- **Governance:** `check-architecture.mjs` gains an agent-host boundary. There is still no PTY, `node-pty`, `@xterm`, or terminal-byte relay in production. A new `agent-host` integration-test owner is added.
-- **Unchanged:** `a1 pi` stays a single non-detachable instance. Pi packages are not patched. The owned rendering pipeline stays the only renderer.
-- **Rollback:** the setting `agents.resident` set to `false` restores today's in-process single-agent bare A1. Persisted records remain readable.
+- **Native:**
+  - `native/terminal-host` grows from a 2×2 proof into `server`, `holder`, and `attach` roles in one binary. The fixed 2×2 proof layout is removed.
+  - It is packaged per platform with hash verification and provenance, like `process-guardian`.
+  - `process-guardian` job limits allow only explicit resident breakaway.
+- **Node:**
+  - Launch routing (`src/cli`, `src/features/launch`) starts the resident host from the pre-guardian bootstrap and runs the attach client as the bare-A1 UI root.
+  - A new tab-mode entry for `bin/ui.js` adds the tab bridge (status, session identity, name, detach, new-tab, and visibility messages).
+  - Tab settings are added.
+- **Specs:** two new capabilities and six modified ones.
+  - `evolve-bare-a1-into-multi-agent-workspace` is superseded for structured tabs and for single-pane composed terminal tabs. Only split layouts and the multiplexer presentation remain held there.
+- **Governance:**
+  - The terminal-host boundary becomes production code: PTY, VT, and input authority are native-only.
+  - Node still carries no PTY, `node-pty`, `@xterm`, or byte relay.
+  - A new `terminal-host` integration-test owner is added.
+- **Unchanged:** `a1 pi`, Pi packages (unpatched), and the owned UI as the only A1 renderer inside every tab.
+- **Rollback:** `tabs.resident: false` restores today's direct single-agent bare A1. Records are kept.

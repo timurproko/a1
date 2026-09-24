@@ -1,329 +1,348 @@
 ## Context
 
-Today bare `a1` is a chain of four processes: `bin/cli.js`, then the detached per-release **supervisor**, then the foreground **launch guardian**, then the native **process-guardian**, which runs `bin/ui.js`. The UI process hosts exactly one Pi `AgentSessionRuntime` in-process behind `PiEngineAdapter`, and renders it through the owned session shell. The process-guardian puts the UI in a kill-on-close containment (a Windows job object, or a POSIX process group), so closing the terminal kills the agent by design. `launch-instance-lifecycle` requires that behavior and explicitly reserves "a separately specified explicit resident capability" for anything that must survive. This change specifies that capability.
+Today bare `a1` runs as a chain: `bin/cli.js`, then a detached per-release **supervisor**, then the foreground **launch guardian**, then the native **process-guardian**, then `bin/ui.js`. That last process hosts one in-process Pi `AgentSessionRuntime` behind the owned UI. The process-guardian puts the UI in kill-on-close containment, so closing the terminal kills the agent. `launch-instance-lifecycle` requires that behavior and reserves "a separately specified explicit resident capability" for anything that must survive. This change defines that capability.
 
-Three references informed this design:
+The user set three product constraints:
 
-- **v2 prototype** (`D:\Backups\pi\v2`). This is the UX source.
-  - A one-row tab strip with 20-column chips and a braille spinner, plus `✓`/`✗` glyphs.
-  - Inline F2 rename, an overflow `…` menu and a `+` chip.
+1. Agents survive terminal closure, and relaunching reattaches.
+2. Extensions work as natively as possible, including extensions that render their own in-process UI.
+3. The same tab system must next host arbitrary interactive CLIs.
+
+A structured, message-based agent protocol cannot meet (2), because an extension's custom UI component is code running inside the agent process. It also forces a second, unrelated system for (3). Every tab is therefore a **terminal session**: a pseudoterminal running the complete, unmodified A1 owned UI in "tab mode".
+
+Existing assets:
+
+- **`native/terminal-host`** (about 3.3k lines of Rust on `develop`) is a working in-terminal host. It uses `libghostty-vt` pinned at `c5a21edf`, `portable-pty` 0.9.0 with ConPTY, crossterm 0.29, and an A1-owned damage-aware frame composer. It already has per-pane retained models, focused-input isolation, libghostty mouse and key encoding, host-owned selection with OSC 52 copy, resize, and verified cleanup. Today it is only a fixed 2×2 proof with no resident mode.
+- **The supervisor, process-guardian, and launch guardian** provide the patterns for detached spawn, verified process identity (`--inspect-pid`), an endpoint probe with join-the-winner, and atomic metadata.
+
+References:
+
+- **v2 prototype** (UX, and the child status bridge):
+  - A detached daemon owns a PTY per agent and a headless emulator.
+  - An in-child bridge reports sequenced work status, session file, and name, and enforces session leases.
   - Quit detaches.
-  - A detached user-wide daemon over a named pipe, with a JSON state file and resume from Pi session files.
-  - It ran each agent as a full Pi CLI under a PTY, with a headless xterm in the daemon, and pushed rendered frames to the tab.
-  - Lessons it recorded: restore without a gate spawned duplicates, painting background frames stalled the foreground, `Ctrl+C` forwarding killed agents, there was no needs-input state, and there was no close confirmation.
-- **herdr** (`D:\Git\herdr`). This is the process-architecture source.
-  - One detached server per user session, where the socket bind is the single-instance lock.
-  - An ownership marker and an owner-only DACL.
-  - Detachment through `DETACHED_PROCESS`, plus a WMI launch to escape SSH kill-on-close jobs (#2008) and the macOS per-user bootstrap port (#4100).
-  - Snapshot then delta on reattach.
+  - Lessons: restore without a gate duplicated agents; painting background frames stalled the foreground; forwarding `Ctrl+C` to the child made `Ctrl+C+C` kill the agent; there was no needs-input state; there was no close confirmation; `ConPTY` dies with the process that created it.
+- **herdr** (resident architecture):
+  - A single Rust binary with client and server roles.
+  - The socket bind is the lock, backed by an ownership marker and an owner-only DACL.
+  - `DETACHED_PROCESS` plus a WMI launch to escape SSH kill-on-close jobs (#2008). A macOS per-user bootstrap port (#4100).
+  - Server-side libghostty-vt models. Reattach sends a full surface, then patches.
   - A one-slot render lane for slow clients.
-  - A stable *endpoint generation*, separate from the private protocol version, so updates don't kill agents.
-  - A persisted layout plus agent session IDs, relaunched with `--resume` after a crash or reboot.
-  - Its documented weakness: the server is a single point of failure for every pane (#453, #276).
-- **The held change** `evolve-bare-a1-into-multi-agent-workspace`, together with the archived workspace branch (`origin/archive/multi-agent-workspace`). This is the requirements source.
-  - Structured SDK tabs, durable identities, capability negotiation, correlated commands, bounded backpressure, and reconnection with an ownership proof.
-  - No PTY for structured tabs.
-  - None of it was wired to a real process, and there was never a resident daemon.
+  - A stable endpoint generation, so updates keep the server running.
+  - A persisted layout, with agents resumed after a crash.
+  - Its documented weakness is that one server crash kills every pane (#453, #276).
 
 ## Goals / Non-Goals
 
 **Goals:**
 
-- Several independent Pi agents in bare `a1`, presented as tabs that the user can create, switch, rename, reorder and close.
-- Agents keep working when the terminal closes, SSH drops, or the A1 UI crashes. Relaunching `a1` from any terminal shows every agent again, with its transcript, live streaming state, pending prompts, queue and draft.
-- A failure in one agent never affects another agent, the host, or the UI. A host failure never kills running agents. A reboot never loses a session.
-- `a1 update` never kills agents.
-- Presentation and input stay in the single owned rendering pipeline. There is no second renderer, no terminal-byte relay, and no screen scraping.
-- The design is testable in hermetic instances, including crash, kill, and reattach.
+- Several independent A1 agents in bare `a1` as tabs, each running the full A1 UI with its extensions. The user can create, switch, rename, reorder, and close them.
+- Tabs keep running through terminal closure, SSH drops, attach-client crashes, and resident-server crashes. Relaunching from any terminal reattaches with exact screen state. A reboot never loses a session.
+- One tab's failure never affects another tab, the server, or the client. `a1 update` never kills tabs.
+- Status comes from structured engine events, not screen text.
+- Terminal bytes, input, and rendering stay native. Node never relays them.
+- The tab model is kind-neutral, so arbitrary CLI tabs are a follow-up without redesign.
+- The work is testable hermetically, including kill, crash, and reattach.
 
 **Non-Goals:**
 
-- Arbitrary CLI panes, PTYs, split layouts, and the terminal-host proof. These stay held in `evolve-bare-a1-into-multi-agent-workspace`.
-- Workspaces or sidebar grouping as in v2. All agents of a profile appear as one tab set. Grouping is a later change.
-- Surviving a reboot *with processes alive*. After a reboot, agents are restored from their sessions, not resurrected mid-turn.
-- Remote attach over the network, or multi-user sharing.
-- Changing `a1 pi`, which stays one non-detachable agent.
-- Replaying an interrupted turn automatically. Tool side effects are never re-executed on the user's behalf.
+- Arbitrary CLI tabs in this change (a follow-up), split panes or layouts, and v2-style per-folder workspaces or sidebar.
+- Resurrecting processes across reboot. Tabs restore from their Pi sessions.
+- Network or remote attach, and multi-user sharing.
+- Changing `a1 pi`.
+- Automatically replaying an interrupted turn.
+- Inline terminal image protocols (kitty graphics, sixel) inside tabs in the first release. Children see a host terminal identity without image support, and Pi's text fallback applies.
 
 ## Decisions
 
-### 1. Structured agent processes, not PTY frame relay
+### 1. Tabs are terminal sessions running the unmodified A1 UI
 
-Each agent runs in its own **agent worker** process. The worker hosts one Pi `AgentSessionRuntime` through the existing public-SDK `PiEngineAdapter` and exchanges typed commands, events, and snapshots. The foreground UI renders those through a **remote engine adapter** that satisfies the same A1-owned engine contract the in-process adapter satisfies today.
+Each tab runs `node bin/ui.js --tab` under a pseudoterminal. That child is today's owned UI with its in-process Pi runtime, extensions, and custom extension components, so there is no engine split, no remote adapter, and no extension bridge. Tab mode changes only three things:
 
-The alternatives, and why they were rejected:
+- it connects the tab bridge (Decision 7);
+- quit routes request a client detach instead of exiting (Decision 11);
+- the first-run intro and quit outro are suppressed, because the attach client owns the outer surface.
 
-- **PTY per agent with a headless terminal emulator, shipping frames (v2, herdr).**
-  - It gives instant visual parity, because the child is the full UI.
-  - But it puts a second renderer and a terminal-byte relay into production. `launch-instance-lifecycle` ("Terminal behavior remains owned by the shared UI runtime"), `terminal-agent-runtime`, and `check-architecture.mjs` all forbid that.
-  - It makes status detection a screen-scraping problem (herdr's manifests).
-  - v2 recorded that it stalled the foreground when painting background frames.
-- **Many runtimes inside one process.** The Pi and pi-tui process globals make this unsafe: keybindings, theme, undici dispatcher, `PI_CODING_AGENT_DIR`, clipboard singletons. It would also let one agent's crash or event-loop stall take down all of them.
-- **Worker = the stock `pi --mode rpc` CLI.** The pinned package exports `runRpcMode`, `RpcClient`, and `RpcExtensionUIRequest`, and those are the reference for the command and extension-UI vocabulary. But A1 needs A1-owned engine behavior that stock RPC mode does not carry: A1 profile roots, trust flow, compaction progress, the history and suggestion additions, and repository footer context. So the worker runs A1's own adapter and reuses Pi's public RPC *types* wherever they fit.
+Alternatives considered:
 
-**Consequence:** `PiEngineAdapter` must be split. The part consumed by the shell becomes a transport-neutral contract of commands, events, snapshots and view models. That contract then gets two implementations: the in-process one (for `a1 pi` and the rollback path) and the remote one. This is the largest implementation risk, and it is phased first (tasks 2.x).
+- **Structured workers with a remote engine adapter.** Rejected by user direction:
+  - an extension's in-process custom UI can never cross a process boundary;
+  - it doubles the architecture when CLI tabs arrive;
+  - it requires splitting the entire shell/engine contract.
+- **Node host with `node-pty` and `@xterm/headless`, as in v2.** Rejected:
+  - it puts PTY and byte relay into Node, which governance forbids;
+  - it duplicates a terminal core that already exists natively;
+  - v2 recorded stalls from exactly this design.
 
-### 2. Topology
-
-```text
- terminal A                terminal B                 (detached, per OS user × profile)
-┌───────────────┐         ┌───────────────┐          ┌────────────────────────────────┐
-│ a1 (client)   │◀──pipe─▶│               │          │ agent host                     │
-│ owned UI      │         │ a1 (client)   │◀──pipe──▶│  registry (sqlite, WAL, FULL)  │
-│ tab strip     │         │ owned UI      │          │  client sessions / fan-out     │
-│ remote engine │         └───────────────┘          │  worker supervisor             │
-└──────┬────────┘                                    └──────┬─────────┬─────────┬─────┘
-       │ launch-instance (kill-on-close)                    │pipe     │pipe     │pipe
-       ▼                                                    ▼         ▼         ▼
-  guardian + UI only                                   worker 1   worker 2   worker N
-                                                       Pi runtime Pi runtime Pi runtime
-                                                       session.jsonl (durable transcript)
-```
-
-- The **client** is today's UI process with a remote engine. It stays inside its launch instance and dies with its terminal, which is harmless.
-- The **host** is resident. It owns the registry, fans events out to clients, and supervises workers. It holds no Pi runtime, so it has no Pi globals and no extension code, and it stays small and boring.
-- **Workers** are resident. Each one owns one runtime and its session file. They are started detached, *not* as kill-on-exit children of the host, so a host crash does not take them down.
-
-### 3. Host scope, identity, and endpoint
-
-- There is **one host per OS user and per A1 profile root**, and the endpoint is derived from the canonical profile home and runtime dir:
-  - Windows: `\\.\pipe\a1-agents-<sha256(profileHome\0runtimeDir)[0:20]>`
-  - POSIX: `<runtimeDir>/a1-agents-<token>.sock`, with the existing short `/tmp` fallback on Darwin.
-- The host is deliberately **not per release cohort**, unlike the supervisor. Agents must outlive release changes, and the supervisor's own requirements forbid it to retain runtime processes. The host is a sibling of the supervisor, not a child of it.
-- **Hermeticity:** `A1_AGENT_HOST_ENDPOINT` and the existing `A1_*_DIR` overrides isolate tests, following the `resolveCohortEndpoint` pattern.
-- **Registry location:** `<dataDir>/agents/<profile-token>/agent-host.sqlite3`. This is separate from `control.sqlite3`, for two reasons:
-  - A newer release's control-store migration can never break a running older host.
-  - The host is the registry's single writer.
-
-### 4. Single instance, ownership, and authentication
-
-- **The bind is the lock** (herdr). Before binding, the host probes the endpoint:
-  - If a live host answers the handshake, the new process exits with `already-running`, and the caller joins the winner. This is the existing `ensureSupervisor` rule for `EADDRINUSE`.
-  - If the endpoint refuses, is missing, or times out, it is stale and gets reclaimed.
-- The host atomically writes an **ownership marker**: `{hostId, pid, startIdentity, bootNonce, generation, build, endpoint}`. It removes the endpoint on exit only if the marker is still its own, so an exiting old host never deletes a newer host's socket.
-- **Access control:**
-  - The Windows pipe gets the owner-only SDDL `D:P(A;;GA;;;SY)(A;;GA;;;OW)`.
-  - The POSIX socket is created in a 0700 directory and chmodded to 0600.
-- **Authentication:**
-  - Clients authenticate with a random 32-byte token read from an owner-only file.
-  - Each worker gets its own per-agent token at spawn time, and has to present it together with its `agentId`, pid, and native `startIdentity`.
-  - Identity is verified with `process-guardian --inspect-pid`, which is safe against pid reuse. The host adopts no process it cannot prove it owns.
-
-### 5. Detached start on every platform
-
-The host and workers must be started **outside** the guardian's kill-on-close containment, and outside any containment inherited from the terminal or SSH session.
-
-- **Who starts the host.** The pre-guardian bootstrap (`runBootstrap`) calls `ensureAgentHost()` beside `ensureSupervisor()`. It is never started from inside the UI's job.
-- **Windows.**
-  - `native/process-guardian --spawn-resident -- <exe args>` starts the child with `DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW`.
-  - If the caller is in a job with `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` (Windows OpenSSH, some IDE terminals), it first tries `CREATE_BREAKAWAY_FROM_JOB` when the job permits breakaway. Otherwise it launches through WMI `Win32_Process.Create` with an explicit environment block and cwd (herdr #2008).
-  - The mode it used (`console-detached`, `breakaway`, `wmi`, or `contained`) is reported in the host status.
-- **macOS.**
-  - `setsid`, and before exec, adopt the per-user bootstrap namespace. That is `bootstrap_look_up_per_user` followed by `task_set_special_port`, the same APIs tmux uses (herdr #4100). Without it, a daemon started from a GUI terminal loses DNS and user lookup after logout.
-- **Linux.**
-  - `setsid`, with stdio set to `/dev/null`.
-  - If systemd-logind `KillUserProcesses=yes` applies, survival past logout is not possible without `loginctl enable-linger`. The host detects this and reports the status `degraded: logout-kills-user-processes`, with that hint.
-- **When detachment cannot be proven** (`contained`), agents still run, but the tab strip shows a one-time notice that agents will stop when this session ends. The product never claims a survival it cannot deliver.
-- **Workers** are started by the host through the same `--spawn-resident` path. The host is already detached, so this is only about avoiding console windows and parent-death coupling.
-
-### 6. Protocols
-
-There are three logical channels. They share the existing NDJSON `LineFrameDecoder` (4 MiB frame cap) and the feature-negotiation pattern in `src/foundation/protocol/messages.ts`.
-
-- **Handshake, on every connection:** `hello{role, generation, build, features[], token}` → `welcome{hostId, generation, build, features[], limits}`.
-  - `generation` is the stable compatibility number (herdr's endpoint generation). Within one generation, fields and methods are only ever added: new fields are optional, enums carry an `unknown` fallback, and a method the peer lacks disables only that action.
-  - `build` is informational.
-  - A mismatched generation fails the handshake with a typed `incompatible-generation` outcome. It never degrades silently.
-- **Client ↔ host**
-  - **Registry.**
-    - `registry.subscribe` returns `registry.snapshot{revision, agents[]}` and then `registry.changed{revision, …}`.
-    - Mutations: `agent.create{cwd, name?, session?, env}`, `agent.rename`, `agent.reorder{expectedRevision}`, `agent.close{mode: stop}`, `agent.retry`, `agent.fresh`, and `agents.stopAll`.
-    - A stale revision is rejected; there is no partial apply.
-  - **Agent view.**
-    - `agent.attach{agentId, fromSeq?}` returns either the events after `fromSeq`, if they are still in the bounded replay window, or `agent.snapshot{seq, state}` followed by `agent.event{seq, …}`.
-    - `agent.detach` ends the view.
-  - **Commands.** Every command is correlated: `agent.command{agentId, correlationId, kind, payload}` for prompt, steer, follow-up, abort, dequeue, model, thinking, compact, new, switch, fork, and similar. It gets exactly one terminal outcome: `accepted|rejected|completed|failed|timed-out|cancelled`.
-  - **Extension UI.** `agent.uiRequest` / `agent.uiResponse` follow the vocabulary of Pi's public `RpcExtensionUIRequest` and `RpcExtensionUIResponse`. The first client to answer wins, and the other clients receive `uiRequest.resolved`.
-  - **Draft.** `agent.draft.put` / `agent.draft.get` persist the editor draft per agent, so a reattach restores it.
-- **Worker ↔ host:** `worker.ready{agentId, token, pid, startIdentity, release, sessionFile}`, `worker.event{seq}`, `worker.status`, `worker.heartbeat`, and `worker.exit{reason}`. The host forwards commands and UI responses as-is.
-- **Backpressure** (from herdr, and from the owned UI's existing bounded-delivery rules):
-  - Every client connection has a reliable, bounded control lane.
-  - Streaming deltas are *replaceable*: a newer delta for the same message supersedes one that is still queued.
-  - A client that exceeds its window gets `agent.resync-required` and a fresh snapshot, instead of an unbounded queue.
-  - The host never blocks a worker on a slow client.
-  - Workers keep a bounded outbound buffer of unacknowledged events. On overflow they mark themselves `snapshot-only` until the next attach.
-- **Snapshots are authoritative.** A snapshot contains:
-  - the committed transcript entries, read from the session through the Pi `SessionManager` and never from the screen;
-  - the in-flight assistant or tool state;
-  - queue, model, thinking level, and compaction state;
-  - any pending UI request;
-  - status, and the draft.
-  Logs are never used to reconstruct state.
-
-### 7. Durable state
-
-- **Pi's session JSONL** is the authoritative transcript. It is already appended per entry by `SessionManager`, and nothing else persists transcript content.
-- **The registry** (`agent-host.sqlite3`, WAL, `synchronous=FULL`, single writer, `BEGIN IMMEDIATE`, conditional updates) holds:
-
-  | column | purpose |
-  |---|---|
-  | `agent_id` (uuid), `created_at` | durable identity |
-  | `display_name`, `name_source` (`default\|auto\|user`) | tab label; a user name is never overwritten by auto-naming |
-  | `tab_order`, `registry_revision` | ordering with expected-revision mutation |
-  | `cwd`, `session_file`, `session_dir` | where to resume from |
-  | `desired_state` (`running\|stopped`) | what recovery should converge to |
-  | `lifecycle`, `status`, `attention_seq`, `seen_seq` | presentation and done-unseen |
-  | `worker_pid`, `worker_start_identity`, `worker_release`, `worker_token_hash` | verified ownership |
-  | `restart_count`, `restart_window_start`, `last_exit` | restart budget and diagnostics |
-  | `draft` (bounded, 64 KiB) | editor draft restored on reattach |
-
-- Before any other effect, the registry is **written on every mutation** (create, rename, reorder, close, lifecycle transition). A registry that cannot be read is moved aside as `agent-host.sqlite3.corrupt-<ts>`. The host then starts empty and shows a notice naming that path; the sessions are still reachable through `/resume`.
-- **Environment and secrets:**
-  - Neither the environment nor credentials are ever persisted. A worker inherits the environment that the creating client sends with `agent.create`, and keeps it in memory only.
-  - An agent restored after a reboot uses the environment of the client that triggers the restore. Its tab says so once.
-  - Authentication stays in the profile's normal Pi auth storage.
-- **Session lease:** one live worker per session file, enforced in the registry. `a1 --session X`, or `/resume X` onto a file held by a live agent, focuses that tab and does not open the file twice. v2 offered a fork option in that case; here the fork is `/fork`.
-
-### 8. Agent lifecycle and status
+### 2. One native binary, three roles, plus the A1 child
 
 ```text
-            create/restore
-                 │
-                 ▼
-  ┌────────▶ starting ──ready──▶ idle ◀──────── turn end ───────┐
-  │              │                 │ prompt                     │
-  │         spawn fails            ▼                            │
-  │              │              working ──ui request──▶ needs-input
-  │              ▼                 │  ▲                      │
-  │           crashed ◀──exit/hang─┘  └────── ui response ◀──┘
-  │              │ budget left: restarting (backoff)            
-  └──────────────┘ budget spent: failed ──[retry|fresh|close]  
-  close / stopAll: stopping ──▶ stopped (record removed; session stays resumable)
-  idle suspension (optional): idle ──▶ suspended ──focus/prompt──▶ starting
+ terminal                         (detached, per OS user × profile)
+┌──────────────────────────┐     ┌─────────────────────────────────────┐
+│ a1  →  guardian  →       │     │ a1-terminal-host server             │
+│ a1-terminal-host attach  │◀───▶│  registry (atomic JSON, fsync)      │
+│  tab strip + active tab  │ pipe│  topology, client fan-out, restore  │
+│  outer terminal I/O      │     └───┬──────────────┬──────────────┬───┘
+└──────────────────────────┘         │pipe          │pipe          │pipe
+   (launch instance, dies with       ▼              ▼              ▼
+    the terminal: harmless)     holder: tab 1   holder: tab 2   holder: tab N
+                                PTY/ConPTY      PTY/ConPTY      PTY/ConPTY
+                                ghostty model   ghostty model   ghostty model
+                                   │                │
+                                node ui.js --tab node ui.js --tab …
+                                (full A1 UI + Pi + extensions)
+                                   └── tab bridge ──▶ server (status, session, name, detach)
 ```
 
-- **Where status comes from.** Status comes only from engine events: `agent_start`, `turn_start`, `tool_execution_start`, a settled idle state, `stopReason`, extension UI requests, and compaction. There is no screen text, no timing heuristic, and no scraping.
-- **Needs-input** is set when a worker has an unanswered extension UI request (confirm, select, input, editor), or a trust or permission prompt. This is the state v2 lacked.
-- **Done-unseen.** A finished turn (`attention_seq` advances) on an agent that no client is currently viewing shows `✓` until a client views the tab. `seen_seq` is shared across clients: seeing it in any terminal clears it everywhere.
+- **attach** is the foreground `a1` surface. It runs inside the bare-A1 launch instance and dies with the terminal, which is harmless.
+  - It owns raw mode, the alternate screen, outer terminal mode negotiation, the tab strip, composition of the active tab's retained surface, input arbitration, and shortcut interception.
+- **server** is resident. It owns:
+  - the registry and topology revisions;
+  - the list of holders and client sessions;
+  - fan-out of the active tab's surface to each client;
+  - tab-bridge termination, and restore and restart policy.
+  It runs no A1 or Pi code and holds no PTY. That keeps it small and hardens it against the herdr single-point-of-failure problem.
+- **holder** is resident, one per tab. It owns:
+  - exactly one PTY (ConPTY on Windows) and its child process tree;
+  - one libghostty-vt retained model with bounded scrollback;
+  - input encoding and the per-tab damage state.
+  Because ConPTY dies with its creating process, each tab has its own creator. A server crash therefore cannot kill a tab, and a holder crash kills only its own tab.
+- **Why the server relays surfaces instead of clients connecting to holders directly.** It gives one authenticated endpoint per client, one ordering domain for focus and topology, and simpler multi-client arbitration. The extra local pipe hop costs well under a millisecond. The server forwards encoded patches and does not re-render them.
 
-### 9. Failure and recovery matrix
+### 3. Host scope, endpoints, and single instance
+
+- There is **one server per OS user × canonical A1 profile root**, independent of the release cohort. Tabs must outlive release changes, and the supervisor is forbidden from retaining runtime processes.
+  - Windows endpoint: `\\.\pipe\a1-tabs-<sha256(profileHome\0runtimeDir)[0:20]>`
+  - POSIX endpoint: `<runtimeDir>/a1-tabs-<token>.sock`, with the existing Darwin short-path fallback
+  - Holders use `…-h-<tabId>`, authenticated the same way
+  - Hermetic override: `A1_TABS_ENDPOINT`, together with the `A1_*_DIR` overrides
+- **The bind is the lock.** A starting server probes with a real handshake:
+  - if a live server answers, it exits as `already-running` and the caller joins the winner;
+  - if the endpoint refuses, is missing, or times out, it is stale and gets reclaimed.
+  An ownership marker `{serverId, pid, startIdentity, bootNonce, generation, build}` is written atomically, and the server removes the endpoint only while that marker is still its own.
+- **Access and authentication:**
+  - The pipe gets the owner-only SDDL `D:P(A;;GA;;;SY)(A;;GA;;;OW)`, and the socket gets a 0700 directory and mode 0600.
+  - Clients present a 32-byte token from an owner-only file.
+  - Holders and tab bridges present per-tab tokens, and their pid and native start identity are verified before adoption. Nothing unverifiable is adopted or signalled.
+
+### 4. Detached start on every platform
+
+- **Server start.** The server is started from the Node pre-guardian bootstrap (`ensureTerminalHost()` beside `ensureSupervisor()`), through `a1-terminal-host server --detach`.
+- **Breakaway from the guardian's job.** The attach client runs inside the guardian's job. When it, or a holder, must restart a lost server, it uses the same `--detach` path. `process-guardian` adds `JOB_OBJECT_LIMIT_BREAKAWAY_OK` to its job. Ordinary descendants remain contained; only an explicit `CREATE_BREAKAWAY_FROM_JOB` request from the terminal-host binary escapes. This keeps `launch-instance-lifecycle`'s "no implicit detachment" rule intact.
+- **Windows:**
+  - Start with `DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW`.
+  - If the caller is inside a foreign kill-on-close job that denies breakaway (Windows OpenSSH, some IDE terminals), launch through WMI `Win32_Process.Create` with an explicit environment block and cwd (herdr #2008).
+  - The mode used (`console-detached`, `breakaway`, `wmi`, or `contained`) is recorded.
+- **macOS:** `setsid`, then adopt the per-user bootstrap namespace (`bootstrap_look_up_per_user` and `task_set_special_port`) before any threads start (herdr #4100).
+- **Linux:** `setsid` with null stdio. Detect systemd-logind `KillUserProcesses=yes` without linger, and report `degraded: logout-kills-user-processes` with the `loginctl enable-linger` hint.
+- **Holders** are spawned by the server through the same routine.
+- **`contained`** means survival cannot be proven. A one-time notice says tabs stop when this session ends. The product never claims survival it cannot deliver.
+
+### 5. Protocols
+
+The channels carry bounded, length-prefixed binary frames: a u32 length followed by a typed payload. There is a 2 MiB cap per frame, 1 MiB per input message, and a 4 s handshake timeout.
+
+- **Handshake:** `hello{role, generation, build, features[], token}` → `welcome{…, limits}`.
+  - `generation` is the stable compatibility number. Within a generation, messages change only additively: new fields are optional, enums carry an `unknown` fallback, and a missing method disables only that action.
+  - A mismatched generation yields a typed `incompatible-generation` outcome.
+  - Frozen fixtures and digests guard each generation's shapes (herdr pattern).
+- **Client ↔ server:**
+  - **Topology.** `tabs.subscribe` returns a snapshot with a revision, followed by changes. Mutations are `tab.create{kind:"a1", cwd, env, session?}`, `tab.rename`, `tab.reorder{expectedRevision}`, `tab.close`, `tab.retry`, `tab.fresh`, and `tabs.stopAll`. A stale revision is rejected atomically.
+  - **Surface.** `tab.view{tabId, size}` returns a full retained surface (cells, attributes, hyperlinks, cursor, modes), then patches against its revision. `tab.unview` ends it. Only the tab a client is viewing streams surfaces to that client (v2 lesson).
+  - **Input.** `tab.input{tabId, bytes|keyEvent|mouseEvent|paste|focus}` is encoded by the holder with libghostty-vt against the child's current modes.
+  - **Resize.** `tab.resize{tabId, cols, rows}`. When several clients view one tab, the PTY size follows the client that most recently sent input to it (herdr).
+  - **Attention.** Status and attention events arrive for all tabs, even unviewed ones.
+- **Server ↔ holder:** `holder.ready{tabId, token, pid, startIdentity, childPid, childStartIdentity, release}`, then surface patches, `holder.exit{code, signal}`, and heartbeats. The server forwards input and resizes.
+- **Tab bridge (A1 child ↔ server):**
+  - The child receives `A1_TAB_ID`, `A1_TAB_TOKEN`, and the endpoint in its environment. Holders never pass these on to grandchildren.
+  - The child sends `bridge.status{seq, state}` derived from engine events: `agent_start`, `turn_start`, tool execution, settled idle, `stopReason`, pending extension UI or trust requests, and compaction.
+  - It also sends `bridge.session{file, name}`, `bridge.request{detach|newTab|close|rename}`, and `bridge.prompt{interrupted?}` metadata. Prompt text is never sent.
+  - The server sends `bridge.visibility{visible}`, so a hidden A1 throttles animation, and `bridge.rename`, so a strip rename sets the Pi session name.
+  - The bridge is advisory. A missing or broken bridge degrades that tab to process-level status and never breaks the tab.
+- **Backpressure:**
+  - Each client connection has a reliable, bounded control lane and a **single-slot render lane**. A newer patch set replaces an unsent one. A client that falls behind is re-sent a full surface once it drains.
+  - The server never blocks a holder, another client, or registry writes on a slow client.
+  - Holders parse their PTY continuously, whether or not the tab is viewed, so a PTY is never throttled and a child never blocks on output.
+
+### 6. Rendering, input, and outer-terminal fidelity
+
+- **Composition.** The attach client composes row 0 (the strip) and rows `1..N` (the viewed tab's surface). The tab PTY is sized `cols × (rows − 1)`. Composition reuses the proof's damage-aware composer and synchronized-output support, and falls back to a full repaint only when the layout changes.
+- **Outer modes.** The client negotiates the outer terminal's modes: raw mode, alternate screen, bracketed paste, focus events, SGR mouse, kitty keyboard protocol where available, and synchronized output.
+  - Child-requested modes are tracked in the holder's model. Input is re-encoded per child mode by libghostty-vt, which the proof already does.
+  - Mouse rows are offset by the strip. Row 0 belongs to the client.
+  - When the child has not requested mouse reporting, selection is host-owned and scoped to the pane, as in the proof.
+- **Passthrough and intercepts:**
+  - OSC 52 clipboard writes, OSC 8 hyperlinks as cell attributes, OSC 0/2 titles as tab metadata, cursor shape, and bells pass through as attention events.
+  - Queries the child sends, such as DA and cursor position, are answered by the holder's model, never by the outer terminal.
+  - Image protocols are not forwarded in this release; the terminal identity the child sees disables them.
+- **Detach.** On detach the client restores the outer terminal's keyboard and mouse modes exactly. Enhanced keyboard sequences must not leak into the parent shell (herdr CHANGELOG lesson).
+
+### 7. Status and attention come from the tab bridge
+
+Tab status is an A1-owned state machine fed by `bridge.status`:
+
+| Status | Source | Glyph |
+|---|---|---|
+| `starting` / `restoring` | holder spawned, bridge not ready | dim progress frames |
+| `idle` | settled idle | none |
+| `working` | agent or turn start, tool execution, compaction | shared progress frames |
+| `needs-input` | an extension UI, trust, or permission request is pending | `●` warning |
+| `done-unseen` | the turn settled while no client viewed the tab | `✓` success |
+| `error` | the last turn's `stopReason` was error | `✗` error |
+| `crashed` / `restarting` / `failed` | holder or child exit | `✗` error plus a banner |
+| `suspended` | idle suspension | dim `◌` |
+
+- `seen` is tracked server-side, so viewing a tab in any client clears `✓` everywhere.
+- A tab with a broken bridge shows only process-level states.
+- Future CLI tabs will use process state, BEL, and OSC 9/777 for attention.
+- The glyph set is the same in every client.
+
+### 8. Durable state
+
+- **Pi's session JSONL**, written by the child, is the authoritative transcript.
+- **The registry** is `<dataDir>/tabs/<profile-token>/registry.json`:
+  - It is written by the server only: to a temporary file, then `fsync(file)`, rename, and `fsync(dir)`, on every mutation, before the mutation is acknowledged.
+  - Up to 20 rotated generations are kept in `registry-history/`, at most one per 15 minutes.
+  - An unparseable file is quarantined as `registry.corrupt-<ts>.json`, and the last good history generation is loaded. A notice names both.
+  - JSON with fsync was chosen over sqlite to keep the native server dependency-light, and it is stronger than herdr's non-fsynced writes.
+- **Per-tab fields:**
+  - identity: `tabId`, `kind`, `createdAt`
+  - naming: `displayName`, `nameSource` (`default|auto|user`)
+  - placement: `order`, `cwd`
+  - session: `sessionFile`, `sessionDir`
+  - lifecycle: `desired` (`running|stopped`), `lifecycle`, `status`, `attentionSeq`, `seenSeq`
+  - holder: `holderPid`, `holderStartIdentity`, `release`
+  - restarts: `restarts`, `restartWindowStart`, `lastExit`
+  - `registryRevision` and `bootNonce`
+- **No secrets are persisted.** The environment sent with `tab.create` is kept in holder memory only. A restore after reboot uses the restoring client's environment and notes that once in the tab.
+- **Session lease.** At most one live tab per session file. `a1 --session X` or `/resume X` on a held file focuses that tab.
+
+### 9. Failure and recovery
 
 | Failure | Detection | Outcome |
 |---|---|---|
-| Worker crash (exit, OOM, uncaught error) | Child exit, or pipe EOF plus an identity check | The agent becomes `crashed`. It is restarted with `session_file` resumed, backing off 1 s, 5 s, 30 s. After 3 restarts within 10 min it becomes `failed`, and the pane shows `✗ <reason> — [r] retry · [f] start fresh · [alt+w] close`. The interrupted user prompt is offered back into the editor, and nothing is re-sent automatically. |
-| Worker hang | Heartbeat every 5 s; missing 3 means hung | The host kills the verified worker tree with a bounded graceful-then-forced sequence, then follows the crash path. |
-| Host crash | Clients: pipe EOF plus a failed handshake. Workers: pipe EOF. | Workers keep running their turns and buffer events up to the bound. Clients show a non-blocking `reconnecting…` in the strip. Any client, **or any worker**, calls `ensureAgentHost()`. The new host loads the registry, and workers re-register with token, pid, and `startIdentity`. Verified workers are adopted. A record whose worker is dead goes down the crash path. A process that cannot be verified is left alone and reported. |
-| Host repeatedly failing | 3 host starts within 60 s | The client shows `✗ Agent host stopped — [r] restart · [q] quit to single-agent mode` and writes host diagnostics. Workers stay alive until they can reconnect or the user stops them. |
-| Client crash or terminal close | Pipe EOF | Nothing changes for the agents. Pending UI requests stay `needs-input`. |
-| Reboot or logout | Registry `bootNonce` differs from the current boot | Every `desired_state=running` agent is restored as `restoring`, then resumed from its session at no more than `maxConcurrentStarts` at a time. No turn is resumed. A turn that was interrupted (the last entry is a user prompt with no settled reply) gets a notice, and the prompt is offered back into the editor. |
-| Missing cwd on restore | stat fails | The tab stays, in `failed(cwd-missing)`, with the path shown. It is never silently moved to the home directory (herdr lesson). |
-| Session file missing or corrupt | `SessionManager` open fails | `failed(session-unreadable)`, offering `[f] start fresh` in the same cwd. The damaged file is never overwritten. |
-| Registry corrupt | Open or integrity check fails | The file is moved aside, the host starts empty, and a notice points to the moved file and to `/resume`. |
-| Duplicate spawn race | Registry conditional update on `lifecycle` | Only one `starting` transition wins. Restore runs under a host-wide `restoring` gate (v2 lesson: restore without a gate duplicated agents). |
-| PID reuse | `startIdentity` mismatch | The process is never adopted or killed. The record is treated as having a dead worker. |
-| Disk full | Write fails | The registry transaction fails and the mutation is rejected with a visible reason. Running agents continue. |
+| Tab child exits or crashes | holder sees the child exit | If the exit was not requested: `crashed`. The holder respawns `ui.js --tab --session <file>` with backoff 1 s, 5 s, 30 s. After 3 restarts in 10 min: `failed`, with a banner `✗ <reason> — [r] retry · [f] start fresh · [alt+w] close`. An interrupted prompt (reported via the bridge, or detected as a trailing user entry) is offered back into the editor and never resent. The child's stderr is teed to a rotated log, because the alternate screen hides it. |
+| Holder crash | server sees the pipe EOF and an identity check fails | The PTY and child died with it. The server spawns a new holder and resumes the session with the same budget. |
+| Holder or child hang | heartbeat every 5 s, 3 missed | The verified tree is terminated gracefully, then forcibly, and follows the crash path. |
+| Server crash | clients and holders see the pipe EOF | Holders keep running: their PTYs, children, and models are untouched. Clients show a non-blocking `reconnecting…` on the strip. Any client or holder runs `server --detach`. The new server loads the registry and re-admits verified holders; a dead holder follows the crash path. After 3 server starts in 60 s, clients show `✗ tab host stopped — [r] restart · [q] quit`. |
+| Attach client crash or terminal close | the server sees the pipe EOF | Nothing happens to tabs. Pending requests stay `needs-input`. |
+| Reboot or logout | `bootNonce` differs and no verified holders exist | Every `desired=running` tab restores under one restore gate, which prevents the duplicate-spawn bug v2 hit, at most `maxConcurrentStarts` at a time: `restoring`, then resumed from its session, idle, with no turn resumed. |
+| Missing cwd or session on restore | stat or open fails | The tab is `failed` with the reason and path. It is never moved elsewhere, and the file is never overwritten. |
+| Registry corrupt | parse or validation fails | The file is quarantined, the last good generation is loaded, and a notice is shown. |
+| PID reuse | start-identity mismatch | The process is never adopted or killed, and the record is treated as having a dead holder. |
+| Disk full | write fails | The mutation is rejected with its reason, and running tabs are unaffected. |
+| libghostty or parser panic in a holder | the Rust panic hook | The holder logs, exits, and follows the holder-crash path. Other tabs are unaffected; the per-tab processes exist for exactly this (the herdr #453 lesson). |
 
 ### 10. Updates and version skew
 
-- **Client newer than host, same generation.** The client attaches normally, and features the host lacks are disabled per method.
-- **Generation mismatch.** The client never kills agents on its own. If every agent is idle and has no pending UI, it offers `restart agent host` (and restarts automatically when `agents.autoUpgradeHost` is on). Workers then re-register with the new host, which is the same path as host-crash recovery. While any agent is busy, the client runs in a clearly labelled compatibility state that uses only the generation-independent `registry.snapshot` and `agent.stop`, and the host upgrades at the next all-idle boundary.
-- **Host self-upgrade.** A host whose `build` is older than the active release drains at an all-idle boundary. It starts its successor via `--spawn-resident`, hands the endpoint over (the successor binds only after the old host releases it, retrying within 10 s), and exits. Workers reconnect to the successor.
-- **Worker recycling.** A worker running an older release is recycled at its next idle boundary: stop gracefully, then resume the session on the active release. It is never recycled mid-turn or while a UI request is pending.
-- **Release retention.** `agent-supervision` retention counts the host's and each worker's `release` as live ownership. A release in use is never collected.
-- **Windows file locks.** Hosts and workers always run from their immutable release directory, never from the mutable npm prefix. An update therefore never has to overwrite a running executable (herdr lesson).
+- **Binaries.** The server and holders run from immutable release directories, never from the mutable npm prefix, so no running binary is ever overwritten.
+- **Retention.** Release retention treats the server's, each holder's, and each tab child's `release` as live ownership.
+- **Same generation, newer client.** The client attaches normally, and features the server lacks are disabled per method.
+- **Server upgrade.** A server older than the active release hands off when the registry is quiescent. It starts its successor detached, releases the endpoint, and the successor binds it with retries for 10 s. Holders reconnect, so tabs keep running throughout. On a generation mismatch the client never kills tabs: it waits for that handoff and shows `tab host upgrading…`.
+- **Holder upgrade.** A holder cannot hand off its ConPTY. Old holders therefore keep serving until their tab is next recycled. They speak the older generation, and the server keeps accepting it for one prior generation.
+- **Tab child upgrade.** With `tabs.autoRecycle` (default on), a tab running an older A1 release is restarted at an idle boundary, with no request pending and no client viewing it: `ui.js --tab --session <file>` runs on the active release. The transcript is restored from the session, and only ephemeral UI state such as the scroll position resets. A tab is never recycled mid-turn.
 
-### 11. Limits and resource policy
+### 11. Foreground UX
 
-The defaults are settings in the owned settings screen. Each has a hard cap.
+- **Strip.** Row 0, drawn by the attach client:
+  - Chips are at most 20 columns, clipped with `…` by grapheme width (fixing v2's UTF-16 bug), with no separators.
+  - A `…` overflow menu holds tabs that do not fit, and `+` is always reserved.
+  - Theme roles are resolved by Node at launch from A1 settings and passed to the client, so the colors follow the A1 theme.
+- **Keys.** These are intercepted by the attach client before input encoding. They are configurable through a keybindings file and conflict-checked against A1's registry at launch.
 
-- `agents.max` defaults to 10, with a hard cap of 50. When full, `+` and `Alt+A` are disabled and explain why.
-- `agents.maxConcurrentStarts` defaults to 2.
-- `agents.suspendIdleAfterMinutes` defaults to `0` (off). When enabled, an agent that has been idle, with no pending UI, no queued input, and no viewing client, for that many minutes stops its worker and becomes `suspended`. Focusing the tab or prompting it resumes the session transparently. Extensions that hold in-memory state lose it, which is why it is off by default.
-- Per-client queue: 1 MiB control lane and one replaceable delta slot per streaming message. Per-agent replay window: 2,048 events or 8 MiB.
-- The host has no idle-exit while any agent is `desired_state=running`. With zero agents and zero clients it exits after 10 minutes.
-- Logs are `<dataDir>/logs/agent-host.log` and `agent-worker-<id>.log`, rotated at 5 MiB with three kept, and they contain no prompt content. Worker stderr is teed into the worker log, because the alternate screen loses it (v2 lesson).
+  | Key | Action |
+  |---|---|
+  | `Alt+A` | new tab |
+  | `Alt+W` | close |
+  | `F2` | rename |
+  | `Alt+1`…`Alt+9`, `Alt+0` | jump to a tab |
+  | `Alt+.` / `Alt+,` | next / previous, wrapping |
+  | `Alt+>` / `Alt+<` | move the tab right / left |
+  | `Alt+Q` | detach |
 
-### 12. Foreground presentation
-
-- **Tab strip.** One row at the top of the fixed fullscreen surface. The custom viewport and the dock keep their current contracts inside the remaining rows. Chip layout and overflow follow v2: at most 20 columns per chip, `…` clipping measured with grapheme width (fixing v2's UTF-16 bug), no separators, a `…` overflow menu for tabs that don't fit, and a trailing `+`. Colors come from existing theme tokens, not literal RGB.
-- **Glyphs:**
-  - working: the shared progress-indicator frames
-  - needs input: `●` in the warning color
-  - done-unseen: `✓` in success
-  - error or failed: `✗` in error
-  - restoring or starting: dim progress frames
-  - suspended: dim `◌`
-  - idle: no glyph
-- **Keys.** Declared through the `ShortcutRegistry` and conflict-checked, so they show up in `/hotkeys`.
-  - `Alt+A` new tab
-  - `Alt+W` close
-  - `F2` rename
-  - `Alt+1`…`Alt+9` jump to that tab, `Alt+0` jump to the 10th
-  - `Alt+]` / `Alt+[` next and previous, wrapping
-  - `Alt+}` / `Alt+{` move the tab right or left
-  - v2's `Alt+←`/`Alt+→` are not reused, because A1 binds them to word motion.
-- **Mouse.** Click activates. Right-click opens `Rename`/`Close`. Dragging reorders, with a `│` drop marker; a drag starts after 250 ms or after the pointer moves. `+` opens a new tab. The strip claims its pointer region from the single selection owner.
-- **Commands:**
+  - `Alt+[` and `Alt+]` are avoided because `ESC [` is the CSI introducer in legacy encodings.
+  - `Alt+←` and `Alt+→` are avoided because A1 uses them for word motion.
+  - `Ctrl+C` is never intercepted by the client. It belongs to the child (v2 lesson).
+- **Mouse on row 0:**
+  - click activates a tab;
+  - right-click opens `Rename`/`Close`;
+  - dragging reorders, with a `│` drop marker, after 250 ms or once the pointer moves;
+  - `+` creates a tab.
+- **Commands inside A1 tabs** travel through the bridge:
   - `/new-tab [name]`
   - `/close`
-  - `/name <name>`, the existing Pi command, which now also renames the tab
-  - `/agents`, a picker listing every agent with its status and cwd
-  - `/quit-all`, which stops every agent and quits
-- **Naming.**
-  - A new tab is `agent`, or `agent 2`, `agent 3` and so on while the base name is taken.
-  - Auto-naming is controlled by `tabs.autoName` (default on). After the first prompt settles, the tab's own model is asked for a lowercase hyphenated name of two words or at most 16 characters, with a small budget and one retry. If that fails, the name is derived from the first prompt's words.
-  - Rename and `/name` set `name_source=user`. Auto-naming never overrides that.
-  - Rename is inline in the chip: `Enter` commits, `Esc` cancels, and clicking elsewhere cancels. The name is trimmed, must not be empty, is at most 64 characters, and has control characters stripped.
-- **Close.** When the agent is `working`, `needs-input`, or has queued input, the dock asks `Stop agent "<name>"? Enter stop · Esc cancel`. Otherwise the tab closes immediately. Closing stops the worker gracefully (abort, flush, exit) and removes the tab. The session stays in `/resume`.
-- **Quit = detach.** `/quit`, `Ctrl+C` twice, and `Ctrl+D` play the existing outro and restore the terminal. If agents are still running, the resume hint is replaced by a dim `N agents still running · run a1 to return`. `Ctrl+C` is never forwarded to an agent (v2 lesson); `Esc` remains the interrupt.
-- **Launch and reattach.**
-  - Bare `a1` ensures the host, then attaches.
-  - With zero agents, it creates one fresh agent in the launch cwd, which looks exactly like today's startup.
-  - Otherwise every agent is shown, and the last active tab is selected. That tab's snapshot is fetched first and rendered within the existing first-paint budgets. The other tabs fill in lazily.
-  - `a1 --session X` opens X as a new tab, or focuses the tab that holds it.
+  - `/name <name>` (existing; it also renames the tab)
+  - `/tabs` (a picker with status and cwd)
+  - `/quit-all`
+- **Naming:**
+  - Default names are `agent` or `agent N`.
+  - When `tabs.autoName` is on (the default, by user decision), the tab's model proposes a hyphenated lowercase name of at most 16 characters after the first settled turn. It uses a small budget and one retry, with a fallback derived from the first prompt, and it runs inside the child.
+  - A user rename sets `nameSource=user`, and auto-naming never overrides it.
+  - Rename is inline in the chip: `Enter` commits, and `Esc` or a click elsewhere cancels. The name is trimmed, must not be empty, is at most 64 characters, and has control characters stripped.
+- **Close.** When a tab is `working` or `needs-input`, or its bridge reports queued input, the strip asks `Stop "<name>"? Enter stop · Esc cancel` before closing. Closing sends the child a graceful shutdown, waits a bounded time, terminates the tree, and removes the tab. Its session stays resumable. Closing the last tab leaves the strip with `+` and a hint.
+- **Detach.**
+  - Inside an A1 tab, `/quit`, `Ctrl+C` twice, and `Ctrl+D` send `bridge.request{detach}` for the client that sent the input. `Alt+Q` detaches from any tab.
+  - The client restores the terminal. When tabs are still running, it prints `N tabs still running · run a1 to return`; otherwise it prints the resume hint.
+  - `/quit-all` stops every tab, with confirmation if any is busy.
+- **Launch and reattach:**
+  - Bare `a1` ensures the server and attaches.
+  - With zero tabs, it creates one A1 tab in the launch cwd.
+  - Otherwise it views the last active tab from its retained surface, which is instant because the holder has the state. Status for the rest arrives immediately.
+  - `a1 --session X` opens X in a new tab, or focuses the tab holding it.
   - A new tab's cwd is the client's launch cwd.
-- **Several terminals.** Each client has its own active tab. Input from any client is serialized by the host per agent. Drafts are synced when the user switches tabs or detaches, not on every keystroke: last writer wins.
+  - Prewarm (`tabs.prewarm`, default 1) keeps one hidden standby A1 tab ready, so `Alt+A` appears in tens of milliseconds, as v2 measured.
+- **Several terminals.** Each client has its own active tab. The server serializes input per tab. The PTY size follows the most recent client to send input.
+- **Background notification.** The `tabs.notify` setting (`off|bell|notification`, default `off`) controls it. A background tab entering `needs-input` or `done-unseen` rings the terminal bell or sends an OSC 9 notification once per transition, and never for the viewed tab.
 
-### 13. Security
+### 12. Limits and resources
 
-- Endpoints are owner-only, and connections use token authentication.
-- Workers verify the host token before executing any command.
-- The protocol never carries shell strings: `agent.create` carries a cwd and an environment map, never argv from the client.
-- The registry and logs contain no prompt text beyond the bounded draft, which lives in an owner-only directory, and no credentials.
-- The host and workers run as the invoking user with no elevation.
+The settings live in the owned settings screen, each with a hard cap.
 
-### 14. Rollback
+- `tabs.max` defaults to 10, with a hard cap of 50. `tabs.maxConcurrentStarts` defaults to 2.
+- `tabs.suspendIdleAfterMinutes` defaults to 60, by user decision. An idle tab with no pending request, no queued input, and no viewer stops its child after that interval and shows `◌`. Focusing or prompting it resumes the session. Extension in-memory state is lost, which the settings text says.
+- Scrollback is capped at 10 MiB per holder, and the replay after a server restart is the retained model itself.
+- The server exits after 10 minutes with no running tabs and no clients.
+- Logs are `terminal-host-server.log`, `terminal-host-holder-<tab>.log`, and `tab-<id>.stderr.log`, rotated at 5 MiB with three kept. They contain no terminal content and no prompt text.
+- `a1 tabs host status` prints the server id, build, generation, detachment mode, tab count, and log paths.
 
-The setting `agents.resident` controls the feature:
+### 13. Packaging and certification
 
-- **`true`** (the default once accepted): the architecture described above.
-- **`false`**: today's in-process single-agent bare A1. The host is not started. Registry records are kept, and are offered through `/resume`.
-- The in-process engine adapter stays a first-class implementation behind the same contract.
-- If the host cannot start at all, bare A1 falls back to in-process single-agent mode with a one-line notice, rather than failing to launch.
+- `a1-terminal-host` is built for win32-x64, darwin-arm64, darwin-x64, linux-x64, and linux-arm64 (Rust with Zig 0.15.2 for libghostty-vt). It ships in `dist/native/<plat>-<arch>/` with the artifact manifest, hash verification, pinned-source provenance, licenses, and notices. `check-terminal-host-provenance.mjs` and the existing artifact checks are extended accordingly.
+- Before the `tabs.resident` default flips to `true` on a platform, that platform needs exact-package hermetic suites plus a manual or isolated-worker physical acceptance record. The record covers terminal close, SSH drop, logout, reboot, input fidelity, and render smoothness.
+
+### 14. Security
+
+- Endpoints are owner-only and token-authenticated.
+- Tab creation takes a cwd and an environment map. The child argv is fixed by A1, and clients never supply command lines.
+- Bridge tokens are per tab and are stripped from grandchild environments.
+- The registry and logs contain no credentials, environment values, prompt text, or terminal content.
+- Everything runs as the invoking user.
+
+### 15. Rollback
+
+- `tabs.resident: false` restores today's direct bare-A1 launch. The server is not started, and the registry is preserved.
+- If the server cannot start, bare A1 falls back to the direct single-agent launch with one notice, instead of failing.
 
 ## Risks / Trade-offs
 
-- **[Remote engine parity is large]** Everything the shell reads from `AgentSession` today must cross a process boundary. → Split the contract first (tasks 2.x). Run the existing shell test suites against both adapters. Gate the cutover on the full owned-UI regression passing in remote mode.
-- **[Extension custom TUI components cannot cross processes]** A `ctx.ui.custom()` component renders in-process. → Proxy the typed dialog vocabulary (confirm, select, input, editor, notify, status, widgets expressed as text). An extension that needs a live custom component gets a bounded explicit notice that the surface is unavailable in resident tabs, with a suggestion to run `a1 --session <id>` with `agents.resident=false`. This is recorded as a known gap and an open question.
-- **[Memory: one Node process per agent]** Roughly 100–250 MB per idle agent. → `agents.max`, optional idle suspension, and lazy restore.
-- **[Detachment is platform-fragile]** Job objects, bootstrap namespaces, logind. → The native helper owns detection. The detachment mode is reported, never assumed. When survival is impossible, it is reported as degraded.
-- **[The host is a new single point of coordination]** → The host carries no Pi or extension code, workers survive its death, self-healing re-registration is covered by automated kill tests, and the protocol is generation-stable.
-- **[Stale or duplicate workers after races]** → Conditional registry transitions, a restore gate, and adoption only after identity verification.
-- **[Auto-naming spends tokens]** → Small budget, a setting to turn it off, and a deterministic fallback.
-- **[Physical terminal-close and reboot cannot be tested hermetically]** → Owner-tree kill tests stand in for terminal close. Reboot and logout get exact-artifact manual or isolated-worker verification, never automation on the active workstation.
+- **[A server crash interrupts the display for everyone]** → Holders keep processes and screens alive. The server holds no VT, Pi, or extension code. It is auto-respawned by any client or holder, and reattach restores exact surfaces.
+- **[Terminal fidelity in a composed surface]** (keyboard protocols, mouse, paste, IME, Unicode width, hyperlinks) → Reuse libghostty-vt encoding and the proof's input work, and add fidelity suites. Physical acceptance per platform comes before the default flip.
+- **[Memory: one holder of about 5 MB plus one A1 child of about 150 MB per tab]** → `tabs.max`, idle suspension on by default, and throttled rendering while hidden via `bridge.visibility`.
+- **[Platform detachment is fragile]** → Detection and escape live in the native binary. The mode is reported, never assumed, and degraded survival is announced.
+- **[The Zig and libghostty toolchain in CI and release]** → It is pinned already. Extend the CI build matrix and provenance checks before integration.
+- **[No image protocol in tabs at first]** → Pi's text fallback applies and the gap is documented. Forwarding is a follow-up.
+- **[Stale or duplicate processes after races]** → A single restore gate, conditional registry revisions, and adoption only after identity verification.
+- **[Physical close, logout, and reboot cannot be tested hermetically]** → Owner-tree kills stand in for terminal close. Exact-artifact manual or isolated-worker records are required, and nothing is automated on an active workstation.
 
 ## Migration Plan
 
-1. Ship the contract split and the in-process adapter refactor with no behavior change.
-2. Ship the host, workers, registry, and the native `--spawn-resident` mode behind `agents.resident=false`, with hermetic crash and reattach suites.
-3. Ship the remote adapter and the tab UI behind the flag, and publish uncertified `-dev.N` previews under `next` for manual acceptance.
-4. Flip the default to `true` once the acceptance list passes. `agents.resident=false` remains the rollback.
-5. `evolve-bare-a1-into-multi-agent-workspace` keeps only its composed-terminal scope on hold. A future composed-terminal change will build on this host rather than on a separate daemon.
+1. Evolve `native/terminal-host` into the `server`, `holder`, and `attach` roles, with the protocol, registry, detachment, and hermetic kill and reattach suites, behind `tabs.resident=false`. Remove the fixed 2×2 proof presentation.
+2. Add A1 tab mode (bridge, detach routing, visibility throttling) and bare-A1 launch routing behind the flag. Publish uncertified `-dev.N` previews under `next`.
+3. Add the tab UX, the CLI maintenance commands, settings, updates, and retention. Record per-platform physical acceptance.
+4. Flip `tabs.resident` to `true` per certified platform. `false` remains the rollback.
+5. Follow-up change: arbitrary CLI tabs (`tab.create{kind:"cli", argv}`), with process-level, BEL, and OSC attention and host scrollback UX. Split layouts stay held in `evolve-bare-a1-into-multi-agent-workspace`.
 
 ## Open Questions
 
-1. **Structured workers rather than PTY frames.** This design deliberately departs from v2 and herdr (Decision 1). Confirm before implementation.
-2. **Idle suspension default:** off (the current choice, safest for extensions) or on after 60 min (lower memory)?
-3. **LLM auto-naming:** keep it on by default?
-4. **Extension custom components** in resident tabs: accept the known gap for now, or block the cutover until an A1 bridge exists?
-5. **Grouping:** one tab set per profile (this design), or v2-style per-cwd workspaces as part of this change?
+1. `tabs.notify` default: `off` (current) or `bell`?
+2. Is `Alt+Q` acceptable as the universal detach key, alongside the A1-tab quit routes?
