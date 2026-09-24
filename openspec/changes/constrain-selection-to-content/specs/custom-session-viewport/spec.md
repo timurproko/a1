@@ -6,6 +6,8 @@ Bare A1 SHALL distinguish a surface's semantic ownership from whether its curren
 
 A selection whose fixed gesture anchor begins on transcript content SHALL remain visually and textually clipped to the current transcript viewport rectangle for the complete gesture. Edge-held scrolling, another viewport-position change, or pointer motion into pinned rows SHALL NOT expand that content-originated selection into the editor, widgets, notices, footer, or their padding. The corresponding transcript edge SHALL represent continuation beyond the rectangle until the moving endpoint returns to transcript content or the gesture ends.
 
+A sticky prompt that replaces the first visible source row SHALL be treated as non-selectable pinned chrome: its complete screen row SHALL be excluded from transcript selection paint, pointer anchoring, and visible-frame copy. The same prompt SHALL remain normally selectable when it appears at its ordinary scrolling document position. Retained selection endpoints SHALL continue to project from their document rows so the visible selection shrinks and disappears as those rows scroll outside the content frame rather than transferring to sticky prompt, status, or dock rows.
+
 A selection that originates in the dock SHALL retain its existing dock/editor interaction. Explicit controls, modals, overlays, and replacement surfaces SHALL retain their declared gesture ownership, and `a1 pi` SHALL remain unchanged.
 
 #### Scenario: Keep upward scrolling selection in content
@@ -36,6 +38,21 @@ A selection that originates in the dock SHALL retain its existing dock/editor in
 - **THEN** selection SHALL retain its existing continuous complete-frame behavior
 - **AND** transcript-origin clipping SHALL NOT reclassify the gesture as content-originated
 - **AND** transcript scrolling and dock pinning SHALL retain their existing allocation and order
+
+#### Scenario: Exclude a pinned prompt alias
+- **WHEN** a submitted prompt is rendered as the sticky first row because its ordinary document row has scrolled away
+- **THEN** the complete pinned row SHALL retain its ordinary presentation when a transcript selection crosses it
+- **AND** the pinned row SHALL contribute no text to visible-frame copy
+- **AND** a pointer press on the pinned alias SHALL NOT create a transcript selection anchor
+
+#### Scenario: Select the prompt at its document position
+- **WHEN** scrolling places that submitted prompt at its ordinary document row without sticky replacement
+- **THEN** the prompt row SHALL participate in transcript selection and visible-frame copy normally
+
+#### Scenario: Scroll selected source rows out of the frame
+- **WHEN** viewport scrolling moves every retained source row of a transcript selection above or below the visible content rectangle
+- **THEN** the selection paint and visible-frame copy SHALL disappear
+- **AND** no endpoint SHALL transfer to a sticky prompt, jump/status control, editor, or footer row
 
 #### Scenario: Preserve semantic response copying
 - **WHEN** a response-only or command-driven copy route requests semantic agent content rather than a visible frame range

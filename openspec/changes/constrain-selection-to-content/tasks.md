@@ -21,3 +21,9 @@
 - [x] 4.1 Bound direct transcript-to-dock pointer crossing by the fixed transcript anchor while retaining dock-originated selection.
 - [x] 4.2 Replace explicit-crossing expectations with viewport, controller, and shell evidence that transcript-originated paint and copy stop at the content edge even at the scroll limit.
 - [x] 4.3 Re-run focused and governance validation, update implementation evidence and acceptance wording, then prepare the refined handoff.
+
+## 5. Keep selection attached to scrolling source
+
+- [ ] 5.1 Exclude the sticky prompt's complete replacement row from pointer anchoring, selection paint, and visible-frame copy while retaining normal prompt-row selection when unpinned.
+- [ ] 5.2 Prove a retained selection shrinks and disappears as its source rows scroll out instead of transferring to sticky prompt, jump/status, or dock rows.
+- [ ] 5.3 Re-run focused and governance validation, update evidence and acceptance wording, and prepare the final manual handoff.

@@ -9,7 +9,9 @@ The reference implementation in `D:/Git/claude-code-source` separates the scroll
 ## Goals / Non-Goals
 
 **Goals:**
-- Keep every transcript-originated selection visually and textually bounded to visible transcript rows for its full gesture.
+- Keep every transcript-originated selection visually and textually bounded to visible scrolling source rows for its full gesture.
+- Exclude a pinned prompt row as chrome while preserving selection of the same prompt at its normal document position.
+- Let selection shrink and disappear as its source rows leave the viewport instead of transferring it to sticky, status, or dock rows.
 - Preserve editor-originated selection without allowing a content gesture to flood pinned rows.
 - Handle forward/reverse selection, direct boundary crossing, and both scrolling directions without endpoint teleportation or stale dock paint.
 - Preserve bounded visible-row selection composition and existing semantic anchors.
@@ -40,7 +42,13 @@ Painting, `selectedText`, copyability checks, and immutable frame-copy capture w
 
 Alternative: mask dock paint only. Rejected because the UI would claim a narrower selection than the visible-frame copy payload.
 
-### 4. Keep anchor persistence and damage accounting unchanged
+### 4. Keep pinned prompt presentation outside selection projection
+
+A sticky prompt may visually replace the viewport's first source row, but it will not replace that row's semantic selection anchor. The pinned row is excluded from paint, pointer selection, and visible-frame copy; when scrolling reveals the prompt at its ordinary document row, that source row remains selectable normally. Selection endpoints continue projecting from their retained source rows, so ranges naturally shrink and disappear as those rows leave the viewport.
+
+Alternative: pin a selected prompt endpoint to the sticky row. Rejected because this transfers selection from scrolling content into chrome and makes the range appear attached to the status area.
+
+### 5. Keep anchor persistence and damage accounting unchanged
 
 Semantic document/dock anchors remain the source of truth across scroll, reflow, and dock updates. Region clipping is a visible-frame projection, not a mutation of document identity. Selection cache keys and damaged-row evidence will naturally represent the clipped per-row ranges; focused tests will assert dock rows are invalidated when accidental paint disappears and are reused afterward.
 
@@ -51,6 +59,8 @@ Alternative: rewrite an off-screen document anchor into a screen-edge anchor dur
 - [Clipping could suppress editor-originated selection] -> Select region ownership from the fixed gesture anchor; only a document origin enforces the transcript rectangle.
 - [Paint and copy could diverge] -> Route selection paint, selected text, copyability, and snapshot capture through one region-aware visible-range helper.
 - [Reverse drags could choose the wrong edge] -> Cover both anchor orders and both scroll directions with source identities above and below the viewport.
+- [Sticky exclusion could hide the prompt everywhere] -> Assert the pinned alias is skipped while the same source remains selectable at its ordinary document position.
+- [Selection could remain attached to viewport edges] -> Scroll both retained source endpoints beyond the frame and assert paint/copy disappear rather than move to chrome.
 - [Dock geometry changes could leave stale selection] -> Exercise added/removed dock rows and assert selection-damage rows clear obsolete backgrounds.
 - [Concurrent scrollbar work changes adjacent composition] -> Keep the rule independent of content width/gutter projection and reconcile the current target before implementation finalization.
 

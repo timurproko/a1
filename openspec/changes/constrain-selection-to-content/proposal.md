@@ -6,8 +6,10 @@ When a selection begins in transcript content and is expanded toward the bottom 
 
 - Give a selection started on transcript content transcript-region ownership for the full gesture, clipping paint and visible-frame copy to the current content rectangle.
 - Keep that boundary when the pointer moves or is held over the pinned editor/footer, including during edge auto-scroll and at the document limit.
+- Treat a sticky prompt as non-selectable chrome while pinned, but keep the prompt selectable at its ordinary document position.
+- Keep selection attached to source rows so it shrinks and disappears as those rows scroll out rather than transferring to pinned prompt or status surfaces.
 - Preserve editor-originated selection, scrollbar gutter behavior, controls, modal ownership, and `a1 pi` behavior outside this region rule.
-- Add deterministic viewport and shell coverage for upward/downward auto-scroll, direct boundary crossing, reverse drags, and dock stability.
+- Add deterministic viewport and shell coverage for upward/downward scrolling, direct boundary crossing, sticky prompts, reverse drags, and dock stability.
 
 ## Capabilities
 
@@ -17,7 +19,7 @@ None.
 
 ### Modified Capabilities
 
-- `custom-session-viewport`: Keep a transcript-originated selection owned by the transcript rectangle for its complete gesture.
+- `custom-session-viewport`: Keep transcript selection owned by visible scrolling source rows, excluding pinned prompt and dock/status chrome.
 
 ## Impact
 
