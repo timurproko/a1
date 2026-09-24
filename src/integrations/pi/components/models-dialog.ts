@@ -46,6 +46,7 @@ export interface ModelsDialogCallbacks {
 
 const MAX_VISIBLE_ROWS = 10;
 const MODELS_TITLE = "Models";
+const REFRESHED_TITLE_DURATION_MS = 1_000;
 
 interface ModelsDialogRow {
   readonly fullId: string;
@@ -103,6 +104,8 @@ export class ModelsDialogComponent implements Component, Focusable {
   #selectedIndex = 0;
   #preferredId: string | undefined;
   #refreshStatus: { readonly message: string; readonly kind: "muted" | "success" | "warning" } | undefined;
+  #refreshed = false;
+  #refreshDismissalTimer: ReturnType<typeof setTimeout> | undefined;
   #disposed = false;
   #focused = false;
 
@@ -158,11 +161,30 @@ export class ModelsDialogComponent implements Component, Focusable {
   }
 
   setRefreshStatus(message: string, kind: "muted" | "success" | "warning"): void {
-    this.#refreshStatus = { message, kind };
+    if (this.#disposed) return;
+    this.#clearRefreshDismissal();
+    if (kind !== "success") {
+      this.#refreshed = false;
+      this.#refreshStatus = { message, kind };
+      return;
+    }
+    this.#refreshStatus = undefined;
+    this.#refreshed = true;
+    const timer = setTimeout(() => {
+      if (this.#refreshDismissalTimer !== timer) return;
+      this.#refreshDismissalTimer = undefined;
+      if (this.#disposed) return;
+      this.#refreshed = false;
+      this.#callbacks.requestRender();
+    }, REFRESHED_TITLE_DURATION_MS);
+    timer.unref?.();
+    this.#refreshDismissalTimer = timer;
   }
 
   dispose(): void {
     this.#disposed = true;
+    this.#clearRefreshDismissal();
+    this.#refreshed = false;
   }
 
   invalidate(): void {
@@ -256,8 +278,16 @@ export class ModelsDialogComponent implements Component, Focusable {
 
   render(width: number): string[] {
     const theme = piTheme();
-    this.#title.setText(theme.fg("accent", theme.bold(MODELS_TITLE)) + (this.dirty ? theme.fg("warning", " (unsaved)") : ""));
+    this.#title.setText(theme.fg("accent", theme.bold(MODELS_TITLE))
+      + (this.dirty ? theme.fg("warning", " (unsaved)") : "")
+      + (this.#refreshed ? theme.fg("success", " (refreshed)") : ""));
     return this.#frame.render(width);
+  }
+
+  #clearRefreshDismissal(): void {
+    if (this.#refreshDismissalTimer === undefined) return;
+    clearTimeout(this.#refreshDismissalTimer);
+    this.#refreshDismissalTimer = undefined;
   }
 
   #renderBody(width: number): string[] {
