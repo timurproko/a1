@@ -19,3 +19,11 @@
 - [x] 3.2 Update representative top-level, nested, startup, authentication, extension-hosted, narrow-width, and resized modal snapshots to assert the global content inset, full-width rules, no blank row above titles, and no unrelated vertical-row removal.
 - [x] 3.3 Verify navigation, search/editing, completion, cancellation, nesting, focus restoration, pointer routing, resize, and disposal remain unchanged.
 - [x] 3.4 Run focused component/integration tests, source typechecking, architecture and startup-graph checks, strict OpenSpec validation, and applicable terminal presentation checks; record exact results and any explicit environment limitation.
+
+## 4. Repair delivery association and archival
+
+- [ ] 4.1 Add an exact machine-readable repair record for PR #573 that distinguishes its merged implementation/CI provenance from the corrective delivery's association and archive acceptance.
+- [ ] 4.2 Make trusted readiness and finalization fail closed when a ready unassociated candidate introduces/restores an active change or mixes active-change edits with code/operational paths, without blocking ordinary code or permitted existing-change documentation revisions.
+- [ ] 4.3 Add governance fixtures for missing, malformed, removed, valid, documentation-only, mixed-code, and immutable-tree association cases across both trusted entry points.
+- [ ] 4.4 Extend cleanup evidence to accept only the exact merged corrective repair chain for the retained PR #573 worktree while preserving all remote-ref, ancestry, cleanliness, ownership, and non-force deletion safeguards.
+- [ ] 4.5 Synchronize the modal deltas, finalize this same change through the corrective version-3 PR, verify exact-head CI and authorized manual merge, then run read-only archive verification and candidate-scoped cleanup.
