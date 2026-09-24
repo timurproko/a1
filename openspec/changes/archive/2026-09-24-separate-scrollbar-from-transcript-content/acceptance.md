@@ -16,7 +16,7 @@ The manual merge accepts these scenarios:
   "archive": "openspec/changes/archive/2026-09-24-separate-scrollbar-from-transcript-content/",
   "acceptanceManifest": "openspec/changes/archive/2026-09-24-separate-scrollbar-from-transcript-content/acceptance.md",
   "finalizedDate": "2026-09-24",
-  "specBaseSha": "70b9ebd2329cba5e75176a43abc7d732aaf187cd",
+  "specBaseSha": "69c1959a5f5447da0dd2e0ac6dd772a49be4737b",
   "acceptanceScenarios": [
     "With `auto` or `always` selected, mixed transcript and tool blocks end in a rectangular content edge before a neutral, uninterrupted scrollbar gutter during scrolling, hover, and auto-hide expiry.",
     "The final content grapheme remains selectable and copyable in both drag directions, while source background, emphasis, links, and selection never enter the gutter.",
