@@ -16,7 +16,7 @@ The manual merge accepts these scenarios:
   "archive": "openspec/changes/archive/2026-09-24-build-terminal-host-in-ci/",
   "acceptanceManifest": "openspec/changes/archive/2026-09-24-build-terminal-host-in-ci/acceptance.md",
   "finalizedDate": "2026-09-24",
-  "specBaseSha": "ace560033b5bd0dda5218e9a6b6842a510103383",
+  "specBaseSha": "02c486e59b97b19bbb53d3b8e3dbf595ceeb708e",
   "acceptanceScenarios": [
     "A pull request that changes `native/terminal-host/` or its run scripts runs the Native terminal host (Windows) job, which builds, unit-tests and probes the crate and uploads `terminal-host.exe`; unrelated changes do not run it.",
     "Running `cargo test`, `cargo build` or `npm run test:terminal-host` on a Windows workstation outside CI stops before Zig runs, naming the CI job and the `TERMINAL_HOST_LOCAL_BUILD=1` override.",
