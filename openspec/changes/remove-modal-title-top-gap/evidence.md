@@ -12,7 +12,7 @@
 
 - `npm run build` — passed.
 - `npm run typecheck` — passed.
-- `npm run check:architecture` — passed, including the intentionally re-pinned startup graph at 157 files / 1,498,898 source bytes and source-port provenance.
+- `npm run check:architecture` — passed, including the intentionally re-pinned startup graph at 157 files / 1,498,823 source bytes and source-port provenance.
 - `npm run check:code-documentation` — passed.
 - `npx vitest run test/integrations/pi/components` — 32 files and 309 tests passed.
 - Focused modal inventory, project-trust, session-workflow, and dialog-panel run — 4 files and 26 tests passed.
@@ -21,6 +21,7 @@
 - `npx vitest run test/repository-governance/pinned-pi-public-api.test.ts` — 1 file and 5 tests passed; the consumer baseline is current.
 - `npx openspec validate remove-modal-title-top-gap --strict` — passed.
 - `git diff --check` — passed.
+- `RUN_PROCESS_CONTAINMENT_INTEGRATION=1 STARTUP_BUDGET_ENFORCEMENT=record npm run test:scope -- package-startup` — environment-limited before launch measurement because Windows Defender real-time protection is disabled; the current `develop` candidate passed the required CI lane.
 
 ## Known gaps
 
