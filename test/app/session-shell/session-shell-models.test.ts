@@ -261,9 +261,12 @@ describe("bare-A1 unified Models dialog", () => {
       try {
         type RefreshResult = Awaited<ReturnType<typeof engine.services.modelRuntime.refresh>>;
         let finishRefresh!: (value: RefreshResult) => void;
-        engine.services.modelRuntime.refresh = () => new Promise<RefreshResult>(resolve => { finishRefresh = resolve; });
+        const refresh = vi.fn(() => new Promise<RefreshResult>(resolve => { finishRefresh = resolve; }));
+        engine.services.modelRuntime.refresh = refresh;
         await shell.submit("/models");
-        expect(frame(shell)).toContain("  Refreshing model catalogs…");
+        expect(refresh).toHaveBeenCalledOnce();
+        expect(frame(shell)).toContain("Models (refreshing)");
+        expect(frame(shell)).not.toContain("Refreshing model catalogs…");
         for (const character of "gpt") shell.root.handleInput(character);
         shell.root.handleInput(SPACE);
         engine.availableModels.push({ provider: "google", id: "gemini", name: "Gemini" });
@@ -271,15 +274,20 @@ describe("bare-A1 unified Models dialog", () => {
         finishRefresh({ aborted: false, errors: new Map() });
         await vi.advanceTimersByTimeAsync(0);
         let text = frame(shell);
-        expect(text).toContain("Models (unsaved) (refreshed)");
+        expect(text).toContain("Models (unsaved) (refreshing)");
         expect(text).not.toContain("Model catalogs refreshed.");
         expect(text).toContain("→ ● gpt-5 [openai] ✓");
         expect(text).not.toContain("gemini");
         await vi.advanceTimersByTimeAsync(999);
+        expect(frame(shell)).toContain("Models (unsaved) (refreshing)");
+        await vi.advanceTimersByTimeAsync(1);
+        expect(frame(shell)).toContain("Models (unsaved) (refreshed)");
+        await vi.advanceTimersByTimeAsync(1_999);
         expect(frame(shell)).toContain("Models (unsaved) (refreshed)");
         await vi.advanceTimersByTimeAsync(1);
         text = frame(shell);
         expect(text).toContain("Models (unsaved)");
+        expect(text).not.toContain("(refreshing)");
         expect(text).not.toContain("(refreshed)");
         for (let index = 0; index < 3; index += 1) shell.root.handleInput("\u007f");
         expect(frame(shell)).toContain("  ○ gemini [google]");
@@ -288,13 +296,21 @@ describe("bare-A1 unified Models dialog", () => {
         engine.services.modelRuntime.refresh = async () => ({ aborted: false, errors: new Map([["openai", new Error("offline")]]) });
         await shell.submit("/models");
         await vi.advanceTimersByTimeAsync(0);
+        expect(frame(shell)).toContain("(refreshing)");
+        expect(frame(shell)).not.toContain("Could not refresh openai");
+        await vi.advanceTimersByTimeAsync(1_000);
         expect(frame(shell)).toContain("  Could not refresh openai; showing cached models.");
+        expect(frame(shell)).not.toContain("(refreshing)");
         shell.root.handleInput(ESCAPE);
 
         engine.services.modelRuntime.refresh = async () => { throw new Error("network down"); };
         await shell.submit("/models");
         await vi.advanceTimersByTimeAsync(0);
+        expect(frame(shell)).toContain("(refreshing)");
+        expect(frame(shell)).not.toContain("network down");
+        await vi.advanceTimersByTimeAsync(1_000);
         expect(frame(shell)).toContain("  Could not refresh model catalogs: network down");
+        expect(frame(shell)).not.toContain("(refreshing)");
         shell.root.handleInput(ESCAPE);
 
         (engine.services.modelRuntime as { refresh: (options: { signal: AbortSignal }) => Promise<RefreshResult> }).refresh = ({ signal }) => new Promise<RefreshResult>((_resolve, reject) => {
