@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { backgroundSgrSpan, displayWidth, hyperlinkTargetAtColumn, TranscriptViewport } from "../../../src/ui/components/index.js";
 import { classifyTerminalPaint, type TimedTerminalWrite } from "../../support/rendering/terminal-paint-evidence.js";
 
-// Compatibility: mirror the production rail theme; gutter neutrality belongs to the viewport.
+// Compatibility: mirror the production rail theme; the viewport supplies the row background beneath it.
 const RAIL_RESET = "\u001b[22;23;24;25;27;28;29;39;54;55m";
 const SELECTED = (38 << 16) | (79 << 8) | 120;
 const SOURCE = (11 << 16) | (22 << 8) | 33;
@@ -101,7 +101,8 @@ describe("truthful selection beside the scrollbar gutter", () => {
                         if (selected || styled) expect(sourceCell.getBgColor()).toBe(selected ? SELECTED : SOURCE);
                         if (appearance !== "hidden") {
                           const gutter = terminal.buffer.active.getLine(row)!.getCell(width - 1)!;
-                          expect(gutter.isBgDefault()).toBe(true);
+                          expect(gutter.isBgDefault()).toBe(!styled);
+                          if (styled) expect(gutter.getBgColor()).toBe(SOURCE);
                           expect(visible ? (style === "thick" ? ["┃"] : ["│", "┃"]) : [" "]).toContain(gutter.getChars() || " ");
                           expect(gutter.isBold()).toBe(0);
                           expect(gutter.isItalic()).toBe(0);
@@ -123,7 +124,7 @@ describe("truthful selection beside the scrollbar gutter", () => {
     }
   }, 30_000);
 
-  it.each([false, true])("keeps the gutter neutral when adjacent content selection is %s", async included => {
+  it.each([false, true])("continues the source background without extending adjacent selection (included=%s)", async included => {
     const { viewport, compose, contentWidth } = fixture(12, "always", "thin");
     viewport.pressSelection(1, 2, 100);
     viewport.extendSelection(included ? contentWidth : contentWidth - 1, 2, 101, false);
@@ -134,7 +135,7 @@ describe("truthful selection beside the scrollbar gutter", () => {
       const content = terminal.buffer.active.getLine(1)!.getCell(contentWidth - 1)!;
       const gutter = terminal.buffer.active.getLine(1)!.getCell(11)!;
       expect(content.getBgColor()).toBe(included ? SELECTED : SOURCE);
-      expect(gutter.isBgDefault()).toBe(true);
+      expect(gutter.getBgColor()).toBe(SOURCE);
       expect(gutter.getChars()).toBe("│");
       expect(hyperlinkTargetAtColumn(compose().rows[1]!, 11)).toBeUndefined();
     } finally { terminal.dispose(); }
