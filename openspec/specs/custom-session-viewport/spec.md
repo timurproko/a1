@@ -280,24 +280,24 @@ The viewport SHALL claim wheel events addressed to exposed transcript content an
 - **WHEN** transcript text is selected
 - **THEN** selection SHALL add the declared dark-blue background only
 - **AND** every source foreground color, link, bold, italic, and underline attribute SHALL remain unchanged
-- **AND** whole and interior selected rows SHALL paint through the final terminal column while any visible scrollbar glyph remains above the selection background
+- **AND** whole and interior selected rows SHALL paint through the final transcript content column while the dedicated scrollbar gutter remains outside the selection
 
 #### Scenario: Render ordinary content through the rail overlay column
 - **WHEN** an ordinary transcript row reaches the right edge in `always` or `auto` scrollbar mode
-- **THEN** its wrapping width SHALL include the final terminal column
-- **AND** a visible scrollbar SHALL overlay that column rather than permanently removing one content cell
-- **AND** submitted prompt rows SHALL retain their intentional blank rail cell after a fitting timestamp
+- **THEN** its wrapping width and full-row background SHALL end immediately before the final-column rail gutter
+- **AND** source text, hyperlinks, block backgrounds, and selection paint SHALL NOT be hidden beneath or cut by a visible scrollbar
+- **AND** revealing or hiding an automatic rail SHALL NOT change that content width or reflow the row
 
 #### Scenario: Double-click at the final reserved cell
 - **WHEN** a double-click selects trailing whitespace that reaches the transcript content edge
-- **THEN** the selection background SHALL continue through the final terminal column, including the reserved scrollbar cell
-- **AND** copied text SHALL remain the semantic selected content without appended padding
-- **AND** any visible scrollbar glyph SHALL remain painted above that background
+- **THEN** the selection background SHALL continue through the final content column and SHALL NOT enter the scrollbar gutter
+- **AND** copied text SHALL remain the semantic selected content without appended padding or a scrollbar glyph
+- **AND** any visible scrollbar glyph SHALL remain independently painted in the gutter
 
 #### Scenario: Double-click a full-width content run
-- **WHEN** a double-click selects a word or other non-whitespace run that ends beside the final empty cell
-- **THEN** the selection background SHALL end with the content and SHALL NOT include that empty cell
-- **AND** if the selection subsequently continues onto another row, every completed interior row SHALL paint through the final terminal column
+- **WHEN** a double-click selects a word or other non-whitespace run that ends in the final content cell
+- **THEN** the complete source run SHALL be selected without selecting the gutter
+- **AND** if the selection subsequently continues onto another row, every completed interior row SHALL paint through the final content column only
 
 #### Scenario: Hold an active selection beyond a viewport edge
 - **WHEN** the pointer remains above or below the transcript viewport during an active selection
@@ -567,43 +567,43 @@ Pending steering and working rows SHALL contribute to overflow, scrollbar geomet
 - **AND** wheel input over those rows SHALL retain ordinary viewport scrolling
 
 ### Requirement: Right-edge selection remains truthful across scrollbar presentation
-Bare A1 SHALL allow a transcript selection begun outside viewport controls to extend through the final rendered source grapheme, including source text occupying the scrollbar overlay column. Whole-row selections and completed interior rows of a multiline selection SHALL include their final source graphemes in highlighting and copied text. A partial endpoint that excludes the final source grapheme SHALL leave that grapheme unselected.
+Bare A1 SHALL allow a transcript selection begun outside viewport controls to extend through the final rendered source grapheme in the content area immediately before the dedicated scrollbar gutter. Whole-row selections and completed interior rows of a multiline selection SHALL include their final source graphemes in highlighting and copied text. A partial endpoint that excludes the final source grapheme SHALL leave that grapheme unselected. The gutter SHALL contain no source grapheme or semantic selection cell.
 
-With document content, geometry, viewport position, and selection endpoints unchanged, scrollbar hover, reveal, style changes, and hide SHALL NOT change selection membership or copied text. The scrollbar overlay cell SHALL retain the selected background exactly when that cell is covered by the normalized visual selection range, including the existing whole-row and trailing-whitespace padding rules; otherwise it SHALL retain the underlying unselected background. The scrollbar glyph SHALL remain visible above that background and SHALL NOT enter copied text. Hiding the overlay SHALL restore the underlying source grapheme with its correct selection state.
+With document content, geometry, viewport position, and selection endpoints unchanged, scrollbar hover, reveal, style changes, and hide SHALL NOT change selection membership, copied text, content wrapping, or block extent. The scrollbar gutter SHALL retain a neutral background independent of adjacent source or selection styling. A visible glyph SHALL remain confined to that gutter and SHALL NOT enter copied text; hiding an automatic rail SHALL leave the same neutral blank gutter without exposing source content.
 
 #### Scenario: Complete several lines through the right edge
-- **WHEN** a transcript drag selects complete lines including rows with source text in the final terminal column and ends through the last source grapheme of its endpoint row
+- **WHEN** a transcript drag selects complete lines and ends through the last source grapheme immediately before the scrollbar gutter
 - **THEN** every included final grapheme SHALL be selected and copied without needing a scrollbar hover
 - **AND** equivalent forward and reverse ranges SHALL highlight and copy the same source text
-- **AND** neither a reserved control width nor overlay visibility SHALL truncate the selected source range
+- **AND** neither rail visibility nor gutter reservation SHALL truncate the final source grapheme
 
 #### Scenario: Hover with the last character selected
 - **WHEN** a released selection includes the final source grapheme and the pointer enters and leaves the scrollbar without pressing or scrolling
-- **THEN** the selected background SHALL remain under the rail while it is visible
-- **AND** the last source grapheme SHALL reappear selected when the rail hides
+- **THEN** the final content cell SHALL remain selected while the neighboring gutter remains neutral
+- **AND** the scrollbar glyph SHALL reveal and hide without replacing any source character
 - **AND** selection endpoints and copied text SHALL remain unchanged throughout
 
 #### Scenario: Hover with the last character deliberately excluded
 - **WHEN** a released partial selection ends immediately before the final source grapheme and the pointer enters and leaves the scrollbar without pressing or scrolling
-- **THEN** the final cell SHALL NOT gain selection background from its selected neighbor
-- **AND** the last source grapheme SHALL reappear unselected when the rail hides
+- **THEN** neither that final source cell nor the scrollbar gutter SHALL gain selection background from the selected neighbor
+- **AND** rail visibility SHALL NOT change the final source cell
 - **AND** copied text SHALL exclude that grapheme before, during, and after hover
 
 #### Scenario: Change rail presentation without changing the selection
 - **WHEN** the rail reveals from activity, changes between normal and hovered presentation, or hides after activity expires while the source range remains fixed
-- **THEN** the first frame of each transition SHALL paint the final cell according to the same selection range, without stale or transient false highlighting
-- **AND** this behavior SHALL hold for thin and thick rails in auto and always modes, and selection in hidden mode SHALL reach the same source text
+- **THEN** the first frame of each transition SHALL preserve the same final content cell and neutral gutter without stale or transient styling
+- **AND** this behavior SHALL hold for thin and thick rails in auto and always modes, while hidden mode SHALL return the gutter column to content and recompute the source layout
 
 #### Scenario: Preserve styled and wide right-edge content
-- **WHEN** selected or unselected right-edge content contains a wide grapheme, a combining sequence, source background styling, or a hyperlink
-- **THEN** selection and copy SHALL preserve whole source graphemes and existing source-selection styling rules
-- **AND** the rail SHALL use the correct underlying cell background without inheriting source hyperlink or emphasis decoration
-- **AND** no overlay glyph, visual padding, or partial grapheme SHALL be added to copied text
+- **WHEN** selected or unselected boundary content contains a wide grapheme, a combining sequence, source background styling, or a hyperlink
+- **THEN** selection and copy SHALL preserve whole source graphemes and existing source-selection styling rules within the content area
+- **AND** source background, hyperlink, and emphasis decoration SHALL terminate before the neutral gutter
+- **AND** no scrollbar glyph, visual padding, or partial grapheme SHALL be added to copied text
 
 #### Scenario: Continue selection into the rail without stealing a new rail gesture
-- **WHEN** a selection drag begun on ordinary transcript content reaches the final terminal column
-- **THEN** the active selection SHALL extend through the source grapheme at that column rather than starting scrollbar navigation
-- **AND** a separate press beginning on the existing scrollbar hit region SHALL retain its established scrollbar ownership
+- **WHEN** a selection drag begun on ordinary transcript content reaches the final content column
+- **THEN** the active selection SHALL extend through the source grapheme in that column without entering the scrollbar gutter
+- **AND** a separate press beginning on the scrollbar gutter SHALL retain its established scrollbar ownership
 
 ### Requirement: Viewport presentation keeps current agent content stable
 Each eligible viewport presentation SHALL contain the newest eligible content of every displayable surface within the current visible range, under existing visibility, expansion, scrolling, and session policies. Streaming, completion, renderer refresh, and input preemption SHALL NOT expose an artificial blank frame, temporarily remove retained content, or restore superseded rows. Legitimate source changes, Markdown reflow, navigation, modal coverage, and authoritative session replacement SHALL remain supported and distinguishable from content loss.

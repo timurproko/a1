@@ -116,6 +116,11 @@ describe("code-streaming rendering budgets", () => {
     expect(evaluateRenderingBudgets(codeMatrix({ cellFrame: { rows: ["old partial"], cursor: { row: 1, column: 1 } } })).violations)
       .toContain("streamed-code-block: stale or missing settled content");
   });
+
+  it("ignores the dedicated gutter rail when checking wrapped settled content", () => {
+    const rows = ["That reads config.json                           │", "once.                                            │"];
+    expect(evaluateRenderingBudgets(codeMatrix({ cellFrame: { rows, cursor: { row: 2, column: 6 } } })).passed).toBe(true);
+  });
 });
 
 describe("long-transcript-follow rendering budget", () => {
