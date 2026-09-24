@@ -143,6 +143,9 @@ export interface TranscriptViewportFrame {
 }
 
 const CONTROL_STYLE_RESET = "\u001b]8;;\u001b\\\u001b[0m";
+// Invariant: the scrollbar gutter is presentation chrome: no source link, emphasis,
+// selection, or background may cross from the content cell beside it.
+const GUTTER_STYLE_RESET = CONTROL_STYLE_RESET;
 const IDENTITY_ROW = (row: string): string => row;
 
 const DEFAULT_CONFIG: TranscriptViewportConfig = {
@@ -228,12 +231,15 @@ export class TranscriptViewport {
 
   pressSelection(column: number, frameRow: number, now = Date.now()): boolean {
     const frameHeight = this.#frame?.rows.length ?? 0;
-    if (frameRow < 1 || frameRow > frameHeight || column < 1 || column > this.#selectionWidth) return false;
+    const selectionWidth = frameRow <= (this.#frame?.hits.viewportHeight ?? 0)
+      ? this.#contentWidth
+      : this.#selectionWidth;
+    if (frameRow < 1 || frameRow > frameHeight || column < 1 || column > selectionWidth) return false;
     const line = frameRow - 1;
     const pressed = pressTextSelection({
       line,
       column,
-      contentWidth: this.#selectionWidth,
+      contentWidth: selectionWidth,
       lineText: this.#selectionRows[line] ?? "",
       lineContent: usefulTextLineContent(this.#selectionRows[line] ?? ""),
       ...(this.#selectionClick === undefined ? {} : { previousClick: this.#selectionClick }),
@@ -256,9 +262,12 @@ export class TranscriptViewport {
     if (autoScroll && frameRow > frameHeight) this.scrollBy(1, now);
     else if (autoScroll && frameRow <= 1 && this.#scrollTop > 0) this.scrollBy(-1, now);
     const line = clamp(frameRow - 1, 0, this.#selectionRows.length - 1);
+    const selectionWidth = line < (this.#frame?.hits.viewportHeight ?? 0)
+      ? this.#contentWidth
+      : this.#selectionWidth;
     const targetColumn = selection.fullRow
-      ? textSelectionLineExtendColumn(selection, line, this.#selectionWidth)
-      : clamp(column, 1, this.#selectionWidth);
+      ? textSelectionLineExtendColumn(selection, line, selectionWidth)
+      : clamp(column, 1, selectionWidth);
     const point = selection.fullRow
       ? { line, column: targetColumn }
       : textSelectionPointAt(line, targetColumn, this.#selectionRows[line] ?? "");
@@ -458,8 +467,8 @@ export class TranscriptViewport {
     );
     this.#promptAnchors = input.promptAnchors;
     this.#contentWidth = contentWidth;
-    // Invariant: controls reserve the rail column, but source text beneath it
-    // remains reachable by a drag already owned by transcript selection.
+    // Invariant: dock rows remain selectable at full width; scrollable source rows
+    // use contentWidth and leave the gutter outside semantic selection.
     this.#selectionWidth = width;
     const paintDocumentRow = input.paintDocumentRow ?? IDENTITY_ROW;
     const cacheLimit = Math.max(32, viewportHeight * 6);
@@ -499,8 +508,12 @@ export class TranscriptViewport {
       visibleSource[0] = sourceRow;
     }
 
-    // Invariant: selection uses exact visible source rows; paint-only hyperlink guards stay rendered-only.
-    this.#selectionRows = [...visibleSource, ...dock].slice(0, height);
+    // Invariant: selection uses exact visible source rows within the rendered
+    // content boundary; paint-only guards and the rail gutter stay presentation-only.
+    this.#selectionRows = [
+      ...visibleSource.map(row => truncateToWidth(row, contentWidth)),
+      ...dock,
+    ].slice(0, height);
     const selectionPainterId = this.#functionId(theme.selection);
     // Concurrency: a painter may synchronously route input in tests or host integrations.
     // Label this frame with the exact selection snapshot it began composing.
@@ -559,13 +572,16 @@ export class TranscriptViewport {
     this.#updateCopyableSelection();
     for (let row = 0; row < frameRows.length; row += 1) {
       const painted = frameRows[row] ?? "";
-      const range = selectionRangeForLine(orderedSelection, row, this.#selectionRows.length, width);
+      const rowSelectionWidth = row < viewportHeight ? contentWidth : width;
+      const range = selectionRangeForLine(orderedSelection, row, this.#selectionRows.length, rowSelectionWidth);
       const padded = row < viewportHeight || range !== null;
       const base = cachedString(
         this.#baseRowCache,
-        `${width}\u0000${padded}\u0000${painted}`,
+        `${width}\u0000${contentWidth}\u0000${row < viewportHeight}\u0000${padded}\u0000${painted}`,
         cacheLimit,
-        () => padded ? padRowPreservingBackground(painted, width) : painted,
+        () => row < viewportHeight
+          ? padViewportRowWithGutter(painted, contentWidth, width)
+          : padded ? padRowPreservingBackground(painted, width) : painted,
       );
       let rowRecomputed = row < viewportHeight && paintRecomputedRows.has(row) || !base.reused;
       const rangeKey = range === null ? "-" : `${range.from}:${range.to}`;
@@ -579,8 +595,8 @@ export class TranscriptViewport {
           );
       rowRecomputed ||= !selected.reused;
 
-      // Invariant: paint the rail after selection. Full-row selection reaches the terminal
-      // edge, while the foreground thumb/track remains visible above that background.
+      // Invariant: paint the rail after selection, inside its neutral gutter.
+      // Source and full-row selection end at the preceding content cell.
       let railCell = "";
       if (row < viewportHeight && presentation.visible && geometry !== null && row > 0) {
         const trackRow = row - 1;
@@ -593,7 +609,7 @@ export class TranscriptViewport {
         `${width}\u0000${railCell}\u0000${selected.value}`,
         cacheLimit,
         () => railCell.length === 0 ? selected.value : overlaySpan(
-          selected.value, width - 1, width, railCell, { inheritStartStyle: true },
+          selected.value, width - 1, width, `${GUTTER_STYLE_RESET}${railCell}`,
         ),
       );
       rowRecomputed ||= !final.reused;
@@ -834,6 +850,13 @@ function governingPrompt(anchors: readonly TranscriptPromptAnchor[], scrollTop: 
     result = anchor;
   }
   return result;
+}
+
+function padViewportRowWithGutter(line: string, contentWidth: number, frameWidth: number): string {
+  const boundedContentWidth = Math.min(Math.max(1, contentWidth), frameWidth);
+  const content = padRowPreservingBackground(line, boundedContentWidth);
+  const gutterWidth = frameWidth - boundedContentWidth;
+  return gutterWidth === 0 ? content : `${content}${GUTTER_STYLE_RESET}${" ".repeat(gutterWidth)}`;
 }
 
 function padRowPreservingBackground(line: string, width: number): string {

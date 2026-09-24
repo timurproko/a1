@@ -77,7 +77,7 @@ describe("session viewport interaction controller", () => {
     const { target, input } = hoverFixture();
     try {
       target.setConfig({ scrollbarAppearance: appearance, scrollbarStyle: "thin", scrollbarSpeed: "normal" });
-      const plain = "a".repeat(191) + "Z";
+      const plain = "a".repeat(190) + "Z";
       const source = { ...input, width: 192, documentRows: Array.from({ length: 30 }, () => plain) };
       const initial = target.compose(source);
       const scrollTop = initial.scrollTop;
@@ -860,7 +860,8 @@ describe("session viewport interaction controller", () => {
       expect(target.handlePreInput(`\u001b[<35;${column};1M`, true, 1_001).consumed).toBe(true);
       const selected = target.compose(input);
       expect(target.hasSelection).toBe(true);
-      expect(selected.rows[0]).toBe(backgroundSgrSpan("abcde     ", from, to));
+      expect(stripAnsi(selected.rows[0] ?? "")).toBe("abcde     ");
+      expect(selected.rows[0]).toContain(`\u001b[47m${"abcde".slice(from, to)}\u001b[49m`);
     }
     target.handlePreInput("\u001b[<0;3;1m", true, 1_002);
     expect(target.hasSelection).toBe(true);

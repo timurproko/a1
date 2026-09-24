@@ -715,13 +715,14 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
 
     const height = Math.max(0, this.#componentRuntime.getRows());
     const dock = this.#renderDockLayout(width);
-    // Invariant: ordinary transcript content uses the full terminal width. The rail is an
-    // overlay, not a lost wrapping cell. Submitted prompts alone retain the
-    // intentional final gutter after their right-aligned timestamp.
-    const documentWidth = width;
+    // Invariant: auto/always own one stable final-column gutter. Every scrollable
+    // surface ends before it; the dock remains full-width and hidden mode returns it.
+    const documentWidth = this.#viewportController.config.scrollbarAppearance === "hidden"
+      ? width
+      : Math.max(1, width - 1);
     const document = this.#renderDocumentLayout(documentWidth);
-    const steeringRows = this.#renderQueued(width);
-    const statusRows = this.#renderStatus(width);
+    const steeringRows = this.#renderQueued(documentWidth);
+    const statusRows = this.#renderStatus(documentWidth);
     const transientSignature = transientRowsSignature(steeringRows, statusRows);
     const snapshot = this.#visibleViewportSnapshot;
     const dockInputCandidate = this.#dockInputCandidate;
@@ -1011,12 +1012,9 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       if (!this.#thinkingVisible && block?.kind === "thinking") continue;
       const promptLike = block !== undefined
         && (block.kind === "user" || this.#customViewport && isPiPromptStyleCompaction(block));
-      const blockWidth = this.#customViewport
-        && promptLike
-        && this.#viewportController.config.scrollbarAppearance !== "hidden"
-        && width > 1
-        ? width - 1
-        : width;
+      // Invariant: the custom viewport has already removed its rail gutter from this width.
+      // Prompt-like and ordinary blocks therefore share one right content edge.
+      const blockWidth = width;
       const blockRows = this.#blockRows(id, block, blockWidth);
       if (promptLike) {
         // Compatibility: the first natural prompt gets one breathing row at the document top.

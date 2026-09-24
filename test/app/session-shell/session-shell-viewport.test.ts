@@ -231,16 +231,22 @@ describe("OwnedUiSessionShell viewport and streaming", () => {
     } finally { await shell.dispose(); }
   });
 
-  it("wraps ordinary transcript content through the rail overlay column", async () => {
+  it("wraps ordinary transcript content before a stable rail gutter and returns it in hidden mode", async () => {
     const word = "x".repeat(60);
     const { terminal, shell } = await fixture([
       { role: "assistant", content: [{ type: "text", text: word }], timestamp: Date.now() },
     ], [], true);
-    terminal.resize(60, 12);
-    const frame = shell.root.render(60).map(row => stripTerminalSequences(row));
-    expect(frame.some(row => row.trim() === "x".repeat(58))).toBe(true);
-    expect(frame.every(row => row.trim() !== "x".repeat(57))).toBe(true);
-    await shell.dispose();
+    try {
+      terminal.resize(60, 12);
+      const reserved = shell.root.render(60).map(row => stripTerminalSequences(row));
+      expect(reserved.some(row => row.trim() === "x".repeat(57))).toBe(true);
+      expect(reserved.every(row => row.trim() !== "x".repeat(58))).toBe(true);
+
+      shell.root.setViewportConfig({ scrollbarAppearance: "hidden", scrollbarStyle: "thin", scrollbarSpeed: "normal" });
+      const hidden = shell.root.render(60).map(row => stripTerminalSequences(row));
+      expect(hidden.some(row => row.trim() === "x".repeat(58))).toBe(true);
+      expect(hidden.every(row => row.trim() !== "x".repeat(57))).toBe(true);
+    } finally { await shell.dispose(); }
   });
 
   it("keeps an overflowing Working status in the scrollable tail while transcript text scrolls", async () => {
