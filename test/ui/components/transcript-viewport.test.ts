@@ -301,6 +301,29 @@ describe("transcript viewport", () => {
     expect(clipped.rows.every(row => !row.includes("\u001b[47m"))).toBe(true);
   });
 
+  it("retains a unique document selection when resize changes only row padding", () => {
+    const viewport = new TranscriptViewport();
+    const input = {
+      documentRows: ["alpha              ", "target text        ", "omega              "],
+      dockRows: ["editor"],
+      promptAnchors: [],
+      width: 20,
+      height: 4,
+    };
+    viewport.compose(input);
+    viewport.pressSelection(1, 2, 100);
+    viewport.extendSelection(7, 2, 101, false);
+    viewport.releaseSelection();
+
+    viewport.compose({
+      ...input,
+      documentRows: ["alpha    ", "target text", "omega    "],
+      width: 10,
+    });
+    expect(viewport.hasSelection).toBe(true);
+    expect(viewport.selectedText()).toBe("target");
+  });
+
   it("clears a document selection rather than transferring it after source replacement", () => {
     const viewport = new TranscriptViewport();
     const input = { documentRows: rows(8), dockRows: ["editor"], promptAnchors: [], width: 20, height: 5 };

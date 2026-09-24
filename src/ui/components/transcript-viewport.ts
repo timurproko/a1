@@ -154,10 +154,20 @@ const CONTROL_STYLE_RESET = "\u001b]8;;\u001b\\\u001b[0m";
 const GUTTER_STYLE_RESET = CONTROL_STYLE_RESET;
 const IDENTITY_ROW = (row: string): string => row;
 
+type DocumentSelectionRowAnchor = {
+  readonly kind: "document";
+  readonly row: number;
+  readonly source: string;
+  readonly identity: string;
+};
 type SelectionRowAnchor =
-  | { readonly kind: "document"; readonly row: number; readonly source: string }
+  | DocumentSelectionRowAnchor
   | { readonly kind: "dock"; readonly fromBottom: number }
   | { readonly kind: "screen"; readonly row: number; readonly source: string };
+
+function documentSelectionAnchor(row: number, source: string): DocumentSelectionRowAnchor {
+  return { kind: "document", row, source, identity: stripAnsi(source).trimEnd() };
+}
 
 interface SelectionAnchors {
   readonly anchor: SelectionRowAnchor;
@@ -550,15 +560,14 @@ export class TranscriptViewport {
     const visibleAnchors: SelectionRowAnchor[] = Array.from({ length: viewportHeight }, (_value, row) => {
       const documentRow = this.#scrollTop + row;
       return documentRow < documentRows.length
-        ? { kind: "document", row: documentRow, source: documentRows[documentRow] ?? "" }
+        ? documentSelectionAnchor(documentRow, documentRows[documentRow] ?? "")
         : { kind: "screen", row, source: this.#selectionRows[row] ?? "" };
     });
     if (stickyActive && governing !== null && visibleAnchors.length > 0) {
-      visibleAnchors[0] = {
-        kind: "document",
-        row: governing.firstRow,
-        source: documentRows[governing.firstRow] ?? governing.sourceRow,
-      };
+      visibleAnchors[0] = documentSelectionAnchor(
+        governing.firstRow,
+        documentRows[governing.firstRow] ?? governing.sourceRow,
+      );
     }
     this.#selectionRowAnchors = [
       ...visibleAnchors,
@@ -846,7 +855,7 @@ export class TranscriptViewport {
       // composed. Resolve ordinary viewport rows from that latest position instead of stale paint.
       const documentRow = this.#scrollTop + line;
       if (documentRow >= 0 && documentRow < this.#documentRows.length) {
-        return { kind: "document", row: documentRow, source: this.#documentRows[documentRow] ?? "" };
+        return documentSelectionAnchor(documentRow, this.#documentRows[documentRow] ?? "");
       }
     }
     return this.#selectionRowAnchors[line];
@@ -856,35 +865,48 @@ export class TranscriptViewport {
     const selection = this.#selection;
     const anchors = this.#selectionAnchors;
     if (selection === undefined || anchors === undefined) return;
-    const project = (anchor: SelectionRowAnchor): number | undefined => {
+    const project = (anchor: SelectionRowAnchor): { readonly line: number; readonly anchor: SelectionRowAnchor } | undefined => {
       if (anchor.kind === "dock") {
         const dockIndex = dockRows.length - anchor.fromBottom - 1;
         return dockIndex < 0 || dockIndex >= dockRows.length
           ? undefined
-          : height - dockRows.length + dockIndex;
+          : { line: height - dockRows.length + dockIndex, anchor };
       }
       if (anchor.kind === "screen") {
         return anchor.row < 0 || anchor.row >= this.#selectionRows.length
           || this.#selectionRows[anchor.row] !== anchor.source
           ? undefined
-          : anchor.row;
+          : { line: anchor.row, anchor };
       }
-      if (anchor.row < 0 || anchor.row >= documentRows.length || documentRows[anchor.row] !== anchor.source) return undefined;
-      const visible = this.#selectionRowAnchors.findIndex(candidate => candidate?.kind === "document"
-        && candidate.row === anchor.row && candidate.source === anchor.source);
-      return visible >= 0 ? visible : anchor.row - this.#scrollTop;
+      if (anchor.row >= 0 && anchor.row < documentRows.length
+        && stripAnsi(documentRows[anchor.row] ?? "").trimEnd() === anchor.identity) {
+        const current = documentSelectionAnchor(anchor.row, documentRows[anchor.row] ?? "");
+        const visible = this.#selectionRowAnchors.findIndex(candidate => candidate?.kind === "document"
+          && candidate.row === current.row && candidate.identity === current.identity);
+        return { line: visible >= 0 ? visible : current.row - this.#scrollTop, anchor: current };
+      }
+      // Invariant: reflow may move a retained source row, but remapping is allowed only when
+      // that exact source has one visible identity. Ambiguous or off-screen replacement clears it.
+      const visibleMatches = this.#selectionRowAnchors
+        .map((candidate, line) => ({ candidate, line }))
+        .filter((entry): entry is { candidate: DocumentSelectionRowAnchor; line: number } =>
+          entry.candidate?.kind === "document" && entry.candidate.identity === anchor.identity);
+      return visibleMatches.length === 1
+        ? { line: visibleMatches[0]!.line, anchor: visibleMatches[0]!.candidate }
+        : undefined;
     };
-    const anchorLine = project(anchors.anchor);
-    const headLine = project(anchors.head);
-    if (anchorLine === undefined || headLine === undefined) {
+    const projectedAnchor = project(anchors.anchor);
+    const projectedHead = project(anchors.head);
+    if (projectedAnchor === undefined || projectedHead === undefined) {
       this.clearSelection();
       return;
     }
-    if (selection.anchor.line === anchorLine && selection.head.line === headLine) return;
+    this.#selectionAnchors = { anchor: projectedAnchor.anchor, head: projectedHead.anchor };
+    if (selection.anchor.line === projectedAnchor.line && selection.head.line === projectedHead.line) return;
     this.#selection = {
       ...selection,
-      anchor: { ...selection.anchor, line: anchorLine },
-      head: { ...selection.head, line: headLine },
+      anchor: { ...selection.anchor, line: projectedAnchor.line },
+      head: { ...selection.head, line: projectedHead.line },
     };
   }
 
