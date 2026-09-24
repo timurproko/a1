@@ -17,3 +17,11 @@ export function classifyDevelopmentValidationReadinessFromRepository(input: {
   pull: any;
   reader: any;
 }): Promise<DevelopmentValidationReadinessDecision>;
+export function classifyCurrentDevelopmentValidationReadiness(input: {
+  eventName: string;
+  pull: any;
+  reader: any;
+  expectedNumber: number;
+  expectedHead: string;
+  expectedBase: string;
+}): Promise<DevelopmentValidationReadinessDecision>;

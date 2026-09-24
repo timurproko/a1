@@ -1039,7 +1039,7 @@ The worker bound SHALL NOT remove or reclassify tests, suppress output, add retr
 ### Requirement: Pull-request validation waits for a reviewable candidate
 Development validation SHALL schedule no test suite while a pull request is draft. When an ordinary pull request becomes ready for review, one readiness decision SHALL permit its existing impact-selected validation. When a version-3 implementation-bound pull request becomes ready while its OpenSpec change is still active, base-controlled policy SHALL defer test selection until trusted finalization has updated the pull-request metadata with the archive and acceptance-manifest paths. The finalized exact head SHALL then receive every existing selected validation scope and the stable protected aggregate.
 
-The readiness decision SHALL execute without pull-request-head code or dependency installation, SHALL report an explicit reason, and SHALL fail closed for malformed lifecycle metadata. Draft and pre-finalization runs SHALL NOT emit a misleading successful `Development validation required` aggregate. The absence of that exact-head aggregate SHALL keep the candidate ineligible for integration. Conversion back to draft and later ready-head changes SHALL continue to cancel superseded PR validation; no prior-head result SHALL be reused.
+The readiness decision SHALL execute without pull-request-head code or dependency installation, SHALL report an explicit reason, and SHALL fail closed for malformed lifecycle metadata. For pull-request events, readiness SHALL read current mutable body and draft metadata through trusted read-only GitHub authority and SHALL use it only when the current pull-request number, head, and base still equal the immutable event identity. Drifted, unavailable, or invalid current metadata SHALL fail visibly. Draft and pre-finalization runs SHALL NOT emit a misleading successful `Development validation required` aggregate. The absence of that exact-head aggregate SHALL keep the candidate ineligible for integration. Conversion back to draft and later ready-head changes SHALL continue to cancel superseded PR validation; no prior-head result SHALL be reused.
 
 Manual Development dispatch, scheduled/manual Full regression, release validation, publication gates, OpenSpec finalization, and post-merge verification SHALL retain their independent triggers and authority. Once readiness permits Development validation, owner selection, native lanes, assertions, coverage, retries, timeouts, permissions, evidence binding, and failure semantics SHALL remain unchanged.
 
@@ -1063,6 +1063,11 @@ Manual Development dispatch, scheduled/manual Full regression, release validatio
 - **THEN** the existing pull-request event SHALL start Development validation for that exact head
 - **AND** every selected job and protected aggregate SHALL retain its prior requirements
 
+#### Scenario: Finalization events arrive out of order
+- **WHEN** a same-head pull-request event carries pre-finalization body metadata after trusted finalization has recorded the finalized paths on the current pull request
+- **THEN** readiness SHALL classify the current body bound to that unchanged event head
+- **AND** event ordering SHALL NOT leave the finalized candidate deferred without selected validation
+
 #### Scenario: Ready work is superseded
 - **WHEN** a ready pull request receives another head or body change or is converted back to draft
 - **THEN** stale in-progress Development validation MAY be cancelled
@@ -1072,3 +1077,8 @@ Manual Development dispatch, scheduled/manual Full regression, release validatio
 - **WHEN** a ready pull request contains malformed or contradictory implementation metadata
 - **THEN** base-controlled readiness SHALL fail visibly without executing pull-request test suites
 - **AND** the protected aggregate SHALL remain unavailable rather than treating the candidate as ordinary or finalized
+
+#### Scenario: Current readiness metadata is unavailable
+- **WHEN** trusted readiness cannot read valid current pull-request metadata for the event head
+- **THEN** readiness SHALL fail visibly without executing pull-request test suites
+- **AND** the protected aggregate SHALL remain unavailable rather than trusting stale event metadata

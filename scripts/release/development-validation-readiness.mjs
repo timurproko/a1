@@ -43,6 +43,24 @@ export async function classifyDevelopmentValidationReadinessFromRepository({ eve
   return { validate: false, reason: association.reason, errorCode: association.reason, changes: association.changes };
 }
 
+/** Bind current mutable readiness metadata to the immutable pull-request event identity. */
+export async function classifyCurrentDevelopmentValidationReadiness({
+  eventName,
+  pull,
+  reader,
+  expectedNumber,
+  expectedHead,
+  expectedBase,
+}) {
+  if (!Number.isSafeInteger(expectedNumber) || expectedNumber < 1 || !SHA.test(expectedHead ?? "") || !SHA.test(expectedBase ?? "")) {
+    throw archiveFailure("association-event-identity");
+  }
+  if (pull?.number !== expectedNumber || pull.head?.sha !== expectedHead || pull.base?.sha !== expectedBase) {
+    throw archiveFailure("association-event-drift");
+  }
+  return classifyDevelopmentValidationReadinessFromRepository({ eventName, pull, reader });
+}
+
 async function main() {
   const eventName = process.env.EVENT_NAME ?? "";
   let decision = classifyDevelopmentValidationReadiness({
@@ -60,8 +78,14 @@ async function main() {
     const repository = process.env.GITHUB_REPOSITORY ?? "";
     const reader = createArchiveReader({ repository, token: process.env.GITHUB_TOKEN });
     const pull = await reader.get(`${reader.prefix}/pulls/${number}`);
-    if (pull.number !== number || pull.head?.sha !== expectedHead || pull.base?.sha !== expectedBase) throw archiveFailure("association-event-drift");
-    decision = await classifyDevelopmentValidationReadinessFromRepository({ eventName, pull, reader });
+    decision = await classifyCurrentDevelopmentValidationReadiness({
+      eventName,
+      pull,
+      reader,
+      expectedNumber: number,
+      expectedHead,
+      expectedBase,
+    });
   }
   const output = process.env.GITHUB_OUTPUT;
   if (output) {
