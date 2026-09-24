@@ -47,6 +47,13 @@ Focused tests will verify render widths and wrapping at the shell boundary, sema
 - [Changing appearance to or from `hidden` leaves rows rendered for the old width] → Keep appearance changes as layout invalidations and verify immediate reflow in both directions.
 - [Dock rows are accidentally narrowed with transcript rows] → Keep gutter composition scoped to viewport-owned scrollable rows and assert editor/footer width and placement remain unchanged.
 
+## Implementation Evidence
+
+- Reconciled implementation with `origin/develop` at `70b9ebd2` before final validation.
+- Focused component, controller, shell, link, selection, compaction, and terminal-cell coverage passed: 279 tests across eight suites, run serially so timer-based selection evidence was not distorted by concurrent suite load.
+- `npm run build`, `npm run typecheck`, changed-file code-documentation governance, strict OpenSpec validation, and `git diff --check` passed.
+- No implementation gaps are known. User-controlled Windows Terminal review of the exact candidate remains an acceptance activity rather than a waived behavior gap.
+
 ## Migration Plan
 
 No persisted data or settings migration is required. After approval, implement and validate the behavior in this same branch and draft PR. Rollback is a code revert plus restoration of the prior custom-session viewport requirements before finalization.
