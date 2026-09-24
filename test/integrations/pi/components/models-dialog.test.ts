@@ -231,74 +231,96 @@ describe("unified Models dialog", () => {
     });
   });
 
-  it("keeps query, selection, scope edits, and dirty state across catalog refresh and reports the bounded outcome", () => {
-    withDialog((dialog, callbacks) => {
-      for (const character of "gpt") dialog.handleInput(character);
-      dialog.handleInput(DOWN);
-      dialog.handleInput(SPACE);
-      expect(dialog.selectedModelId).toBe(ids.mini);
-      expect(text(dialog)).toContain("  Refreshing model catalogs…");
-      dialog.updateModels([...models, { provider: "google", id: "gemini", name: "Gemini" }]);
-      dialog.setRefreshStatus("Model catalogs refreshed.", "success");
-      expect(dialog.query).toBe("gpt");
-      expect(dialog.selectedModelId).toBe(ids.mini);
-      expect(dialog.scopeIds).toEqual([ids.mini]);
-      expect(dialog.dirty).toBe(true);
-      const refreshedLines = dialog.render(200);
-      expect(stripTerminalSequences(refreshedLines[1]!)).toBe(" Models (unsaved) (refreshed)");
-      expect(refreshedLines[1]).toContain(piTheme().fg("success", " (refreshed)"));
-      expect(text(dialog)).not.toContain("Model catalogs refreshed.");
-      dialog.updateModels([models[0]!]);
-      dialog.setRefreshStatus("Model refresh timed out; showing cached models.", "warning");
-      expect(dialog.selectedModelId).toBe(ids.gpt5);
-      expect(dialog.scopeIds).toEqual([ids.mini]);
-      expect(dialog.dirty).toBe(true);
-      expect(dialog.render(200).some(line => line.includes(piTheme().fg("warning", "  Model refresh timed out; showing cached models.")))).toBe(true);
-      expect(text(dialog)).not.toContain("(refreshed)");
-      expect(callbacks.onSelect).not.toHaveBeenCalled();
-    }, { refreshStatus: "Refreshing model catalogs…" });
-  });
-
-  it("dismisses and replaces the refreshed title timer without rendering after warning or disposal", async () => {
+  it("keeps query, selection, scope edits, and dirty state across catalog refresh and reports the bounded outcome", async () => {
     vi.useFakeTimers();
     try {
       await withDialog(async (dialog, callbacks) => {
-        dialog.setRefreshStatus("Model catalogs refreshed.", "success");
-        expect(stripTerminalSequences(dialog.render(200)[1]!)).toBe(" Models (refreshed)");
-        dialog.setRefreshStatus("Refreshing model catalogs…", "muted");
-        expect(text(dialog)).toContain("  Refreshing model catalogs…");
-        expect(text(dialog)).not.toContain("(refreshed)");
-
+        for (const character of "gpt") dialog.handleInput(character);
+        dialog.handleInput(DOWN);
         dialog.handleInput(SPACE);
+        expect(dialog.selectedModelId).toBe(ids.mini);
+        const refreshingLines = dialog.render(200);
+        expect(stripTerminalSequences(refreshingLines[1]!)).toBe(" Models (unsaved) (refreshing)");
+        expect(refreshingLines[1]).toContain(piTheme().fg("muted", " (refreshing)"));
+        expect(text(dialog)).not.toContain("Refreshing model catalogs…");
+        dialog.updateModels([...models, { provider: "google", id: "gemini", name: "Gemini" }]);
         dialog.setRefreshStatus("Model catalogs refreshed.", "success");
-        expect(stripTerminalSequences(dialog.render(200)[1]!)).toBe(" Models (unsaved) (refreshed)");
+        expect(dialog.query).toBe("gpt");
+        expect(dialog.selectedModelId).toBe(ids.mini);
+        expect(dialog.scopeIds).toEqual([ids.mini]);
+        expect(dialog.dirty).toBe(true);
+        expect(text(dialog)).toContain("Models (unsaved) (refreshing)");
+        await vi.advanceTimersByTimeAsync(1_000);
+        const refreshedLines = dialog.render(200);
+        expect(stripTerminalSequences(refreshedLines[1]!)).toBe(" Models (unsaved) (refreshed)");
+        expect(refreshedLines[1]).toContain(piTheme().fg("success", " (refreshed)"));
         expect(text(dialog)).not.toContain("Model catalogs refreshed.");
+        dialog.updateModels([models[0]!]);
+        dialog.setRefreshStatus("Model refresh timed out; showing cached models.", "warning");
+        expect(dialog.selectedModelId).toBe(ids.gpt5);
+        expect(dialog.scopeIds).toEqual([ids.mini]);
+        expect(dialog.dirty).toBe(true);
+        expect(dialog.render(200).some(line => line.includes(piTheme().fg("warning", "  Model refresh timed out; showing cached models.")))).toBe(true);
+        expect(text(dialog)).not.toContain("(refreshing)");
+        expect(text(dialog)).not.toContain("(refreshed)");
+        expect(callbacks.onSelect).not.toHaveBeenCalled();
+      }, { refreshStatus: "Refreshing model catalogs…" });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 
+  it("holds refreshing for one second and refreshed for two seconds without late rendering", async () => {
+    vi.useFakeTimers();
+    try {
+      await withDialog(async (dialog, callbacks) => {
+        expect(stripTerminalSequences(dialog.render(200)[1]!)).toBe(" Models (refreshing)");
+        expect(text(dialog)).not.toContain("Refreshing model catalogs…");
+        dialog.setRefreshStatus("Model catalogs refreshed.", "success");
         await vi.advanceTimersByTimeAsync(999);
+        expect(stripTerminalSequences(dialog.render(200)[1]!)).toBe(" Models (refreshing)");
+        expect(callbacks.requestRender).not.toHaveBeenCalled();
+        await vi.advanceTimersByTimeAsync(1);
+        expect(stripTerminalSequences(dialog.render(200)[1]!)).toBe(" Models (refreshed)");
+        expect(callbacks.requestRender).toHaveBeenCalledOnce();
+
+        callbacks.requestRender.mockClear();
+        dialog.handleInput(SPACE);
+        await vi.advanceTimersByTimeAsync(1_999);
         expect(text(dialog)).toContain("Models (unsaved) (refreshed)");
         expect(callbacks.requestRender).not.toHaveBeenCalled();
         dialog.setRefreshStatus("Model catalogs refreshed.", "success");
         await vi.advanceTimersByTimeAsync(1);
         expect(text(dialog)).toContain("Models (unsaved) (refreshed)");
         expect(callbacks.requestRender).not.toHaveBeenCalled();
-        await vi.advanceTimersByTimeAsync(999);
+        await vi.advanceTimersByTimeAsync(1_999);
         expect(text(dialog)).toContain("Models (unsaved)");
         expect(text(dialog)).not.toContain("(refreshed)");
         expect(callbacks.requestRender).toHaveBeenCalledOnce();
 
         callbacks.requestRender.mockClear();
-        dialog.setRefreshStatus("Model catalogs refreshed.", "success");
+        dialog.setRefreshStatus("Refreshing model catalogs…", "muted");
+        await vi.advanceTimersByTimeAsync(500);
         dialog.setRefreshStatus("Could not refresh model catalogs: offline", "warning");
-        await vi.advanceTimersByTimeAsync(1_000);
-        expect(text(dialog)).toContain("  Could not refresh model catalogs: offline");
-        expect(text(dialog)).not.toContain("(refreshed)");
+        await vi.advanceTimersByTimeAsync(499);
+        expect(text(dialog)).toContain("Models (unsaved) (refreshing)");
+        expect(text(dialog)).not.toContain("Could not refresh model catalogs");
         expect(callbacks.requestRender).not.toHaveBeenCalled();
+        await vi.advanceTimersByTimeAsync(1);
+        expect(text(dialog)).toContain("  Could not refresh model catalogs: offline");
+        expect(text(dialog)).not.toContain("(refreshing)");
+        expect(text(dialog)).not.toContain("(refreshed)");
+        expect(callbacks.requestRender).toHaveBeenCalledOnce();
 
+        callbacks.requestRender.mockClear();
+        dialog.setRefreshStatus("Refreshing model catalogs…", "muted");
         dialog.setRefreshStatus("Model catalogs refreshed.", "success");
         dialog.dispose();
         await vi.advanceTimersByTimeAsync(1_000);
         expect(callbacks.requestRender).not.toHaveBeenCalled();
-      });
+        expect(text(dialog)).not.toContain("(refreshing)");
+        expect(text(dialog)).not.toContain("(refreshed)");
+      }, { refreshStatus: "Refreshing model catalogs…" });
     } finally {
       vi.useRealTimers();
     }
