@@ -50,6 +50,13 @@ Alternative: retain only the semantic range in paint caches. Rejected because fu
 - [Partial right-edge selections could overpaint the gutter] → Extend only when the normalized semantic range reaches `contentWidth`, with explicit excluded-final-grapheme coverage.
 - [Cached rows could retain ordinary gutter background] → Key reuse by effective paint extent and exercise first-frame plus repeated rail transitions.
 
+## Implementation Evidence
+
+- Viewport composition now projects only a boundary-reaching semantic selection through the reserved gutter during paint; selection endpoints, selected text, copy snapshots, wrapping, and scrollbar hit ownership remain unchanged.
+- Decoded terminal-cell and shell coverage verifies selected and deliberately excluded gutter backgrounds across forward/reverse ranges, source backgrounds, links, wide and combining graphemes, thin/thick rails, `auto` transitions, `always`, `hidden`, repeated frames, and 192x54 multiline selection.
+- Focused viewport, frame-selection, shell, and controller coverage passes: 190 tests across four suites. Build, source/bin typechecking, changed-code documentation governance, strict OpenSpec validation, and `git diff --check` pass.
+- No implementation gaps are known. Physical Windows Terminal review of the exact candidate remains the user-controlled acceptance activity.
+
 ## Migration Plan
 
 No data or settings migration is required. Implement the paint-only projection in the existing viewport row-composition path and retain all geometry and input routing. Rollback restores the ordinary row background in selected gutter cells without changing persisted state or selection/copy data.

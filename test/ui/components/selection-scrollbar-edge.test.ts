@@ -101,8 +101,8 @@ describe("truthful selection beside the scrollbar gutter", () => {
                         if (selected || styled) expect(sourceCell.getBgColor()).toBe(selected ? SELECTED : SOURCE);
                         if (appearance !== "hidden") {
                           const gutter = terminal.buffer.active.getLine(row)!.getCell(width - 1)!;
-                          expect(gutter.isBgDefault()).toBe(!styled);
-                          if (styled) expect(gutter.getBgColor()).toBe(SOURCE);
+                          expect(gutter.isBgDefault()).toBe(!selected && !styled);
+                          if (selected || styled) expect(gutter.getBgColor()).toBe(selected ? SELECTED : SOURCE);
                           expect(visible ? (style === "thick" ? ["┃"] : ["│", "┃"]) : [" "]).toContain(gutter.getChars() || " ");
                           expect(gutter.isBold()).toBe(0);
                           expect(gutter.isItalic()).toBe(0);
@@ -124,7 +124,7 @@ describe("truthful selection beside the scrollbar gutter", () => {
     }
   }, 30_000);
 
-  it.each([false, true])("continues the source background without extending adjacent selection (included=%s)", async included => {
+  it.each([false, true])("extends only boundary-reaching selection beneath the rail (included=%s)", async included => {
     const { viewport, compose, contentWidth } = fixture(12, "always", "thin");
     viewport.pressSelection(1, 2, 100);
     viewport.extendSelection(included ? contentWidth : contentWidth - 1, 2, 101, false);
@@ -135,8 +135,9 @@ describe("truthful selection beside the scrollbar gutter", () => {
       const content = terminal.buffer.active.getLine(1)!.getCell(contentWidth - 1)!;
       const gutter = terminal.buffer.active.getLine(1)!.getCell(11)!;
       expect(content.getBgColor()).toBe(included ? SELECTED : SOURCE);
-      expect(gutter.getBgColor()).toBe(SOURCE);
+      expect(gutter.getBgColor()).toBe(included ? SELECTED : SOURCE);
       expect(gutter.getChars()).toBe("│");
+      expect(viewport.selectedText()).toBe(included ? "aaaaaaaaaaZ" : "aaaaaaaaaa");
       expect(hyperlinkTargetAtColumn(compose().rows[1]!, 11)).toBeUndefined();
     } finally { terminal.dispose(); }
   });
