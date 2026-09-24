@@ -4,8 +4,8 @@ The Full regression run of 2026-09-24 failed on `develop` at `93f6928` (https://
 
 ## What Changes
 
-- Reproduce the failure on the failed lane from the listed tests or commands and identify the introducing change among the suspect commits.
-- Fix the cause without weakening assertions, budgets, timeouts, or coverage, and add regression evidence where the failure exposed a gap.
+- Isolate the streamed-content frame-count test from independently scheduled lifecycle status rendering that can race on slower Windows lanes.
+- Preserve the exact stream-frame bounds, strengthen the post-input and final-frame assertions, and record repeated focused evidence without changing product behavior.
 
 ## Capabilities
 

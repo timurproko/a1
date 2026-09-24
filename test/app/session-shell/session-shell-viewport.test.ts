@@ -545,7 +545,10 @@ describe("OwnedUiSessionShell viewport and streaming", () => {
     shell.runtime.renderNow();
     terminal.writes.length = 0;
 
-    engine.session.emit({ type: "agent_start" });
+    // The stream cadence is the subject here; lifecycle Working frames have their own animation tests.
+    // Let the startup presentation interval elapse before the first content event so every counted
+    // terminal frame is caused by streamed content rather than an independently scheduled status tick.
+    advancePresentation(33);
     engine.session.emit({ type: "message_start", message: assistant("one") });
     await adapter.flushEvents();
     await new Promise(resolve => setTimeout(resolve, 25));
@@ -590,7 +593,7 @@ describe("OwnedUiSessionShell viewport and streaming", () => {
     expect(immediateFrames).toBeGreaterThanOrEqual(selectionFrames);
     advancePresentation(33);
     await new Promise(resolve => setTimeout(resolve, 25));
-    expect(presentedFrames()).toBeLessThanOrEqual(immediateFrames + 1); // Concurrency: Working animation may tick independently.
+    expect(presentedFrames()).toBe(immediateFrames);
     expect(shell.root.render(80).join("\n")).toContain("one two three four five");
     expect(shell.root.editor.getText()).toBe("x");
     terminal.writes.length = 0;
@@ -599,10 +602,7 @@ describe("OwnedUiSessionShell viewport and streaming", () => {
     await adapter.flushEvents();
     await new Promise(resolve => setTimeout(resolve, 25));
     const finalFrames = presentedFrames();
-    // Concurrency: final content contributes one immediate frame; a due Working animation
-    // may contribute one independent status frame after the longer selection interaction.
-    expect(finalFrames).toBeGreaterThanOrEqual(1);
-    expect(finalFrames).toBeLessThanOrEqual(2);
+    expect(finalFrames).toBe(1);
     expect(terminal.writes.some(write => stripTerminalSequences(write).includes("final"))).toBe(true);
     expect(shell.root.render(80).join("\n")).toContain("final");
     await shell.dispose();

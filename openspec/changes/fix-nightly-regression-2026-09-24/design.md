@@ -4,9 +4,18 @@ Opened by the nightly regression triage from the failed run's evidence artifacts
 
 ## Decisions
 
-- To be written by the maintainer once the cause is known: what failed, why, and the smallest change that fixes it without reducing validation.
+- The failed assertion counted every synchronized terminal frame while combining streamed-content cadence with an `agent_start` lifecycle transition. The lifecycle transition constructs the independently animated Working status and requests its own render, so Windows/Node 22 scheduling could produce a second valid status frame inside the test's wall-clock wait. No product regression or introducing product commit was identified; the failed lane exposed latent environmental coupling in the test.
+- Keep production behavior unchanged. The integration test now advances its injected stream clock past startup and begins with the streaming content event, while dedicated status-animation tests continue to cover lifecycle rendering independently.
+- Preserve the exact one-frame initial stream bound and strengthen the later checks: immediate input leaves no deferred stream frame, and final content contributes exactly one immediate frame. No timeout, budget, assertion, or coverage is relaxed.
+- This test-only correction changes no capability requirement, so the change retains `skip_specs: true`.
 
 ## Evidence
+
+- The failed Windows 2025/Node 22 lane identified `bounds custom-viewport terminal frames for a burst and flushes final content immediately` at `session-shell-viewport.test.ts:552`: one synchronized frame was expected and two were observed. The other three native lanes passed, and the aggregate failure was downstream missing-lane evidence.
+- Repeated focused validation on Windows/Node 24 passed 20 of 20 independent process runs of the corrected test, each retaining the exact initial and final frame assertions.
+- `npx vitest run test/app/session-shell/session-shell-viewport.test.ts test/app/session-shell/stream-presentation-coalescer.test.ts` passed both files and all 31 tests.
+- `npm run typecheck` passed.
+- Pre-finalization observation: the generated draft correctly deferred Development validation. The selected exact-head PR Full regression and `Development validation required` remain pending trusted finalization; no implementation gap is known. Numbered-package nightly recovery is independent and not claimed by this test correction.
 
 - Run [Full regression #39](https://github.com/timurproko/a1/actions/runs/35971693488) (attempt 1, schedule) on `93f6928` at 2026-09-24T07:49:09Z:
   - `vitest-full-without-isolated` (`architecture`, `dependency-policy`, `dist-integration`, `documentation-full`, `fast-remainder`, `fast-resource-sensitive`, `history-compatibility`, `image-compatibility`, `launch-integration`, `naming-full`, `package-contracts`, `package-smoke`, `package-startup`, `pi-engine-conformance`, `release-update`, `rendering-stability`, `typecheck`, `unix-containment`, `update-performance`, `update-predecessor`) failed on windows-2025-node22 with exit 1.
