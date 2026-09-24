@@ -24,7 +24,7 @@ The manual merge accepts these scenarios:
     "Mixed selections project each endpoint by surface, clip off-screen content, and clear ambiguous replaced sources instead of selecting unrelated cells.",
     "Automatic and explicit copy, detached navigation, edge auto-scroll, modal ownership, and the comparison profile retain their established behavior."
   ],
-  "archiveDigest": "67fffd60413632130091b53ddd8a2ed156f3907b7725b5fa43d1c5f4fb95149d",
+  "archiveDigest": "a42ad93c5fa173fa8bfb3d9af0a4d2fe7b4c9d85808db6bcfe30b8cb5f82dd6f",
   "specDigest": "5824c01cca1b86f87b87ef7864fe5b27e1a4ae26d3954fbc3e608678d80bbcec",
   "tasksDigest": "a42818458b213320097861bf35664936988a98549e1cb927b9a242675cd5ea6c",
   "evidenceDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
