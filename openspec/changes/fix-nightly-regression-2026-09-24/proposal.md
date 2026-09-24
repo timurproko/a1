@@ -6,6 +6,7 @@ The Full regression run of 2026-09-24 failed on `develop` at `93f6928` (https://
 
 - Isolate the streamed-content frame-count test from independently scheduled lifecycle status rendering that can race on slower Windows lanes.
 - Preserve the exact stream-frame bounds, strengthen the post-input and final-frame assertions, and record repeated focused evidence without changing product behavior.
+- Bind readiness to current pull-request metadata for the event head so finalization push/body event reordering cannot leave the finalized candidate deferred.
 
 ## Capabilities
 
@@ -15,7 +16,7 @@ None.
 
 ### Modified Capabilities
 
-None identified yet. When the cause is known and the fix changes a requirement, add the delta under `specs/<capability>/spec.md` and remove `skip_specs: true` from `.openspec.yaml`; when the fix changes no requirement, leave both as scaffolded.
+- `continuous-integration`: Resolve mutable readiness metadata from the current pull request while retaining exact-head freshness and fail-closed behavior.
 
 ## Impact
 

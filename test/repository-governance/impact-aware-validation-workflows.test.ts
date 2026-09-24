@@ -140,10 +140,15 @@ describe("impact-aware validation workflows", () => {
     expect(workflow.on.pull_request.types).toEqual(expect.arrayContaining(["edited", "ready_for_review", "synchronize", "converted_to_draft"]));
     expect(workflow.on).toHaveProperty("workflow_dispatch");
     expect(workflow.jobs.readiness.if).toBe("github.event_name != 'pull_request' || github.event.pull_request.draft == false");
-    expect(workflow.jobs.readiness.permissions).toEqual({ contents: "read" });
+    expect(workflow.jobs.readiness.permissions).toEqual({ contents: "read", "pull-requests": "read" });
     expect(workflow.jobs.readiness.steps.find((step: any) => step.name === "Check out trusted readiness policy").with.ref)
       .toBe("${{ github.event.pull_request.base.sha || github.sha }}");
     const classifier = workflow.jobs.readiness.steps.find((step: any) => step.id === "readiness");
+    expect(classifier.env).toMatchObject({
+      EVENT_HEAD: "${{ github.event.pull_request.head.sha || '' }}",
+      PULL_NUMBER: "${{ github.event.pull_request.number || 0 }}",
+      GITHUB_TOKEN: "${{ github.token }}",
+    });
     expect(classifier.run).toContain("scripts/release/development-validation-readiness.mjs");
     expect(classifier.run).toContain("reason=policy-bootstrap");
     expect(JSON.stringify(workflow.jobs.readiness)).not.toMatch(/npm ci|npm install|pull_request_target|contents: write/);
