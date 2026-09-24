@@ -5,8 +5,8 @@ import type { PaneMouseEvent } from "./pane.js";
  * terminal to send reports; nothing else in A1 turns this on, and the sequences
  * are paired so the terminal is always left as it was found.
  */
-export const MOUSE_TRACKING_ON = "\u001b[?1006h\u001b[?1000h\u001b[?1003h";
-export const MOUSE_TRACKING_OFF = "\u001b[?1003l\u001b[?1000l\u001b[?1006l";
+export const MOUSE_TRACKING_ON = "\u001b[?1006h\u001b[?1000h\u001b[?1003h\u001b[?1004h";
+export const MOUSE_TRACKING_OFF = "\u001b[?1004l\u001b[?1003l\u001b[?1000l\u001b[?1006l";
 
 const SGR_PATTERN = /\u001b\[<(\d+);(\d+);(\d+)([Mm])/g;
 

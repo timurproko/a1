@@ -265,6 +265,56 @@ describe("PiTuiRuntimeAdapter", () => {
     await runtime.stop();
   });
 
+  it("gives pre-input owners first refusal and drains residual mouse reports before Pi selection", async () => {
+    const terminal = new TestTerminal();
+    const root = new TestComponent(["selectable root row"]);
+    const runtime = new PiTuiRuntimeAdapter({
+      root,
+      terminal,
+      mode: "fullscreen",
+      mouse: false,
+      consumeUnhandledMouse: true,
+    });
+    const observed: string[] = [];
+    runtime.addPreInputListener(data => {
+      observed.push(data);
+      return data.includes("claimed") ? { data: data.replace("claimed", "owned") } : undefined;
+    });
+    runtime.start();
+    runtime.renderNow(true);
+    const before = terminal.writes.length;
+    const press = "\u001b[<0;1;1M";
+    const motion = "\u001b[<36;4;1M";
+    const release = "\u001b[<0;4;1m";
+    terminal.input(`a${press}bclaimed${motion}c${release}d`);
+    terminal.input("\u001b[1;2A");
+    const paste = `\u001b[200~text ${press} text\u001b[201~`;
+    terminal.input(paste);
+    runtime.renderNow();
+
+    expect(observed).toEqual([`a${press}bclaimed${motion}c${release}d`, "\u001b[1;2A", paste]);
+    expect(root.inputs).toEqual(["abownedcd", "\u001b[1;2A", paste]);
+    expect(terminal.writes.slice(before).join("")).not.toContain("\u001b[7m");
+    await runtime.stop({ drainInput: false, preserveScreen: true });
+
+    const comparisonTerminal = new TestTerminal();
+    const comparison = new PiTuiRuntimeAdapter({
+      root: new TestComponent(["selectable root row"]),
+      terminal: comparisonTerminal,
+      mode: "fullscreen",
+      mouse: false,
+    });
+    comparison.start();
+    comparison.renderNow(true);
+    const comparisonBefore = comparisonTerminal.writes.length;
+    comparisonTerminal.input(press);
+    comparisonTerminal.input("\u001b[<32;4;1M");
+    comparisonTerminal.input(release);
+    comparison.renderNow();
+    expect(comparisonTerminal.writes.slice(comparisonBefore).join("")).toContain("\u001b[7m");
+    await comparison.stop({ drainInput: false, preserveScreen: true });
+  });
+
   it("coordinates safe custom-viewport input into one current-state immediate render with phase evidence", async () => {
     const terminal = new TestTerminal();
     const root = new TestComponent(["root"], true);

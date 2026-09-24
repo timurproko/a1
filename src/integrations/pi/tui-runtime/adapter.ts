@@ -13,7 +13,7 @@ import {
   type TuiAltScreenOptions,
   visibleWidth,
 } from "@earendil-works/pi-tui";
-import { MouseReportInput } from "./mouse-report-input.js";
+import { MouseReportInput, stripSgrMouseReports } from "./mouse-report-input.js";
 import { GeometryObservedAltScreen, OverlayGeometryTracker } from "./overlay-geometry.js";
 import { boundedCleanup, EMERGENCY_TERMINAL_RESET } from "../../../foundation/terminal-cleanup/terminal-reset.js";
 import {
@@ -163,6 +163,7 @@ export class PiTuiRuntimeAdapter {
   readonly #overlayInputCoordination = new Map<ComponentBridge, "owned" | "opaque">();
   readonly #inputListeners = new Map<PiTuiInputListener, () => void>();
   readonly #preInputListeners = new Set<PiTuiPreInputListener>();
+  readonly #consumeUnhandledMouse: boolean;
   readonly #inputCoordinator: InputPresentationCoordinator | undefined;
   readonly #inputDiagnostics: PiTuiRuntimeAdapterOptions["inputDiagnostics"];
   readonly #diagnosticNow: () => number;
@@ -177,6 +178,7 @@ export class PiTuiRuntimeAdapter {
     this.#root = options.root;
     this.#overlayGeometry = options.onOverlayGeometry === undefined ? undefined : new OverlayGeometryTracker(options.onOverlayGeometry);
     this.#terminal = options.terminal ?? new ProcessTerminal();
+    this.#consumeUnhandledMouse = options.consumeUnhandledMouse ?? false;
     this.#inputDiagnostics = options.inputDiagnostics;
     this.#diagnosticNow = options.inputDiagnostics?.now ?? (() => performance.now());
     // Invariant: the pinned renderer's frames pass through this gate, while writeControl and
@@ -547,7 +549,9 @@ export class PiTuiRuntimeAdapter {
       if (result?.data !== undefined) current = result.data;
       else if (result?.consume === true) current = "";
     }
-    return current;
+    // Invariant: bare A1 owns every fullscreen pointer path. Listeners keep first
+    // refusal, then this boundary prevents Pi's reverse-video fallback selection.
+    return this.#consumeUnhandledMouse ? stripSgrMouseReports(current) : current;
   }
 
   #focusedOverlayInputCoordination(): "owned" | "opaque" | undefined {

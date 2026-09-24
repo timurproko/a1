@@ -347,6 +347,10 @@ export class OwnedUiSessionShell {
       root: this.root,
       mode: tuiMode,
       ...(this.#customViewport ? {
+        // Invariant: the owned shell enables and routes mouse reports itself. Pi's
+        // enclosing fullscreen renderer must never establish a competing white selection.
+        mouse: false,
+        consumeUnhandledMouse: true,
         onOverlayGeometry: surfaces => this.root.setViewportOverlaySurfaces(surfaces),
         decorateTerminal: (terminal: PiTuiTerminalPort) => {
           damageTerminal = new DamageAwareTerminalAdapter(terminal, {
