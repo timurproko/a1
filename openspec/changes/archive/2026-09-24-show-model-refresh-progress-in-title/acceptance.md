@@ -22,9 +22,9 @@ The manual merge accepts these scenarios:
     "Successful refresh preserves query, selection, scope, and dirty state, transitions `(refreshing)` to timed `(refreshed)`, and then removes the refresh suffix without clearing `(unsaved)`.",
     "Failure or timeout replaces the title progress with actionable body details, while a replaced or disposed timer produces no stale status or late render."
   ],
-  "archiveDigest": "8b32120ce82d8f796b1fa888fe418bb82889021bb30ac5f45260016c34b6df60",
-  "specDigest": "53c7c0ae83a0cae6f8c256d340e71354423910599246e5558d66151a46e69742",
-  "tasksDigest": "7caca3d08c5f080cd5b5d5b4c1bc3df5937c464a5075437f93d1a4ff81ddae82",
+  "archiveDigest": "95aeb9b2e06540529ac3eb0e8e88a0e6fc1e7027afbe844c77c4e7b53d16a149",
+  "specDigest": "cdf0d16125a90d4d638747cb1bb338e3461fa81116fd7ced478efe3c8f8d0747",
+  "tasksDigest": "8175b0786effc602cb1880ff7ddbc310f179ea34851d7726d2b87c396ca46eee",
   "evidenceDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
   "knownGaps": []
 }
