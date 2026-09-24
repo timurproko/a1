@@ -6,8 +6,14 @@ export interface DevelopmentValidationReadinessInput {
 
 export interface DevelopmentValidationReadinessDecision {
   validate: boolean;
-  reason: "non-pull-request" | "draft" | "awaiting-finalization" | "malformed-implementation-metadata" | "finalized-version-3" | "legacy-implementation" | "ready";
+  reason: "non-pull-request" | "draft" | "awaiting-finalization" | "malformed-implementation-metadata" | "missing-implementation-association" | "finalized-version-3" | "legacy-implementation" | "ready";
   errorCode?: string;
+  changes?: readonly string[];
 }
 
 export function classifyDevelopmentValidationReadiness(input: DevelopmentValidationReadinessInput): DevelopmentValidationReadinessDecision;
+export function classifyDevelopmentValidationReadinessFromRepository(input: {
+  eventName: string;
+  pull: any;
+  reader: any;
+}): Promise<DevelopmentValidationReadinessDecision>;

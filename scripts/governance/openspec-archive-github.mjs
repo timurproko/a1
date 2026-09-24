@@ -3,9 +3,11 @@ import { snapshotOpenSpec } from "./openspec-archive-staging.mjs";
 import { archiveFailure, assertMergedImplementation, inspectTasks, parseImplementation, parseAcceptance, selectAcceptance, SHA } from "./openspec-archive-policy.mjs";
 import { parseImplementationAcceptanceScenarios } from "./openspec-acceptance-checklist.mjs";
 import { assertManualAcceptanceMerge, digest, requireAcceptance } from "./openspec-acceptance-policy.mjs";
+import { parseAssociationRepair } from "./openspec-association-repair.mjs";
 import { parseConditionalAcceptance, verifyConditionalAcceptance } from "./openspec-delivery-policy.mjs";
 
 export const ACTIVE_TO_ARCHIVE_RENAME_POLICY = true;
+export const ASSOCIATION_REPAIR_POLICY = true;
 
 export function createArchiveReader({ repository, token, fetchImpl = fetch, apiUrl = "https://api.github.com", deadline = Infinity }) {
   if (!/^[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+$/.test(repository)) throw archiveFailure("repository-identity");
@@ -91,7 +93,35 @@ export async function inspectVersion3DeliverySnapshot(reader, pull, implementati
   const scenarios = parseImplementationAcceptanceScenarios(pull.body ?? "", 3, { allowLegacyVersion3Phase });
   const verified = verifyConditionalAcceptance(manifest, { implementation, repository: reader.repository, sourcePr: pull.number,
     archiveEntries, specEntries, evidenceEntries, tasksBytes, scenarios, knownGaps: manifest.knownGaps });
-  return { snapshot, manifest, archiveEntries, specEntries, evidenceEntries, tasksBytes, scenarios, ...verified };
+  const repairBytes = await snapshot.blob(`${implementation.archive}association-repair.json`);
+  const associationRepair = repairBytes ? parseAssociationRepair(repairBytes.toString()) : null;
+  requireAcceptance(!associationRepair || associationRepair.repository === reader.repository
+    && associationRepair.change === implementation.change && associationRepair.correctivePr === pull.number,
+  "association-repair-corrective");
+  return { snapshot, manifest, archiveEntries, specEntries, evidenceEntries, tasksBytes, scenarios, associationRepair, ...verified };
+}
+
+async function verifyAssociationRepairSource(reader, correctivePull, record) {
+  if (!record) return;
+  const source = await reader.get(`${reader.prefix}/pulls/${record.sourcePr}`);
+  let implementation;
+  try { implementation = parseImplementation(source.body ?? ""); }
+  catch { throw archiveFailure("association-repair-source-metadata"); }
+  requireAcceptance(!implementation && source.number === record.sourcePr && source.merged === true && source.state === "closed"
+    && source.draft === false && source.base?.ref === "develop" && source.base?.repo?.full_name === reader.repository
+    && source.head?.repo?.full_name === reader.repository && source.head?.sha === record.sourceHead
+    && source.merge_commit_sha === record.sourceMerge && source.number !== correctivePull.number,
+  "association-repair-source");
+  const validation = await findImplementationValidation(reader, source);
+  requireAcceptance(validation.runId === record.validationRunId, "association-repair-validation");
+  const actor = source.merged_by?.login;
+  requireAcceptance(/^[a-zA-Z0-9-]{1,39}$/.test(actor ?? ""), "association-repair-merge-authority");
+  const [permission, events] = await Promise.all([
+    reader.get(`${reader.prefix}/collaborators/${actor}/permission`),
+    reader.pages(`/issues/${source.number}/timeline`, 1000),
+  ]);
+  try { assertManualAcceptanceMerge(source, permission.permission, events); }
+  catch { throw archiveFailure("association-repair-merge-authority"); }
 }
 
 export async function validateVersion3Candidate(reader, number) {
@@ -108,18 +138,21 @@ export async function validateVersion3Candidate(reader, number) {
   requireAcceptance(target.object?.sha === pull.base.sha, "delivery-target-stale");
   await reader.ancestor(pull.base.sha, pull.head.sha);
   const value = await inspectVersion3DeliverySnapshot(reader, pull, implementation, pull.head.sha);
+  await verifyAssociationRepairSource(reader, pull, value.associationRepair);
   const changed = new Set(files.flatMap(file => [file.filename, ...(file.status === "renamed" ? [file.previous_filename] : [])]));
   requireAcceptance(value.archiveEntries.every(([path]) => changed.has(path)) && changed.has(implementation.acceptanceManifest),
     "delivery-diff-incomplete");
   const specPaths = new Set(value.specEntries.map(([path]) => path));
   const activePrefix = `openspec/changes/${implementation.change}/`;
-  const archivedRenameSources = new Set(files.flatMap(file => {
-    if (file.status !== "renamed" || typeof file.previous_filename !== "string" || !file.previous_filename.startsWith(activePrefix)) return [];
-    const expected = `${implementation.archive}${file.previous_filename.slice(activePrefix.length)}`;
-    return file.filename === expected ? [file.previous_filename] : [];
+  const deliveredArchivePaths = new Set([...value.archiveEntries.map(([path]) => path), implementation.acceptanceManifest]);
+  const archivedSources = new Set(files.flatMap(file => {
+    const source = file.status === "renamed" ? file.previous_filename : file.status === "removed" ? file.filename : null;
+    if (typeof source !== "string" || !source.startsWith(activePrefix)) return [];
+    const expected = `${implementation.archive}${source.slice(activePrefix.length)}`;
+    return deliveredArchivePaths.has(expected) && (file.status === "removed" || file.filename === expected) ? [source] : [];
   }));
   for (const path of changed) {
-    if (path.startsWith("openspec/changes/") && !path.startsWith(implementation.archive) && !archivedRenameSources.has(path)) {
+    if (path.startsWith("openspec/changes/") && !path.startsWith(implementation.archive) && !archivedSources.has(path)) {
       throw archiveFailure("delivery-unexpected-openspec-path", path);
     }
     if (path.startsWith("openspec/specs/") && !specPaths.has(path)) throw archiveFailure("delivery-unexpected-openspec-path", path);
@@ -185,6 +218,7 @@ export async function loadVersion3Acceptance(reader, source) {
   const events = await reader.pages(`/issues/${pull.number}/timeline`, 1000);
   assertManualAcceptanceMerge(pull, permission.permission, events);
   const delivery = await inspectVersion3DeliverySnapshot(reader, pull, implementation, pull.head.sha, { allowLegacyVersion3Phase: true });
+  await verifyAssociationRepairSource(reader, pull, delivery.associationRepair);
   const validation = await findImplementationValidation(reader, pull);
   await reader.ancestor(pull.merge_commit_sha, source.targetSha);
   const target = await snapshotOpenSpec(reader, source.targetSha);

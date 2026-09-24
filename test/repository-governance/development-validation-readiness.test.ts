@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classifyDevelopmentValidationReadiness } from "../../scripts/release/development-validation-readiness.mjs";
+import { classifyDevelopmentValidationReadiness, classifyDevelopmentValidationReadinessFromRepository } from "../../scripts/release/development-validation-readiness.mjs";
 
 function implementation(value: object): string {
   return `\`\`\`openspec-implementation\n${JSON.stringify(value)}\n\`\`\``;
@@ -36,6 +36,24 @@ describe("development validation readiness", () => {
   it("fails closed with a bounded reason for malformed lifecycle metadata", () => {
     expect(classifyDevelopmentValidationReadiness({ eventName: "pull_request", body: "```openspec-implementation\n{" }))
       .toEqual({ validate: false, reason: "malformed-implementation-metadata", errorCode: "metadata-unclosed" });
+  });
+
+  it("fails closed when immutable evidence shows mixed code and active-change edits without association", async () => {
+    const baseSha = "a".repeat(40), headSha = "b".repeat(40), blobSha = "c".repeat(40);
+    const active = "openspec/changes/example-change/proposal.md";
+    const pull = { number: 7, changed_files: 2, draft: false, body: "ordinary", base: { sha: baseSha }, head: { sha: headSha } };
+    const reader = {
+      repository: "owner/repo", prefix: "/repos/owner/repo",
+      async pages() { return [{ filename: active, status: "modified" }, { filename: "src/app.ts", status: "modified" }]; },
+      async get(path: string) {
+        if (path.includes(`/git/trees/${baseSha}`) || path.includes(`/git/trees/${headSha}`)) {
+          return { truncated: false, tree: [{ path: active, sha: blobSha, type: "blob", mode: "100644" }] };
+        }
+        throw new Error(path);
+      },
+    };
+    await expect(classifyDevelopmentValidationReadinessFromRepository({ eventName: "pull_request", pull, reader }))
+      .resolves.toEqual({ validate: false, reason: "missing-implementation-association", errorCode: "missing-implementation-association", changes: ["example-change"] });
   });
 
   it("preserves non-pull-request dispatch", () => {
