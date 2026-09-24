@@ -221,6 +221,7 @@ export class TranscriptViewport {
   #contentWidth = 0;
   #selectionWidth = 0;
   #viewportHeight = 0;
+  #firstSelectableRow = 0;
   #selectionRowAnchors: readonly (SelectionRowAnchor | undefined)[] = [];
   #frameId = 0;
   #frame: TranscriptViewportFrame | null = null;
@@ -257,13 +258,15 @@ export class TranscriptViewport {
 
   get selectionActive(): boolean { return this.#selection?.selecting === true; }
   get hasSelection(): boolean { return orderedTextSelection(this.#selection) !== undefined; }
+  /** True when the active gesture began on transcript rows rather than the dock. */
+  get selectionFromContent(): boolean { return this.#selectionAnchors !== undefined && this.#selectionAnchors.anchor.kind !== "dock"; }
 
   pressSelection(column: number, frameRow: number, now = Date.now()): boolean {
     const frameHeight = this.#frame?.rows.length ?? 0;
     const selectionWidth = frameRow <= (this.#frame?.hits.viewportHeight ?? 0)
       ? this.#contentWidth
       : this.#selectionWidth;
-    if (frameRow < 1 || frameRow > frameHeight || column < 1 || column > selectionWidth) return false;
+    if (frameRow <= this.#firstSelectableRow || frameRow > frameHeight || column < 1 || column > selectionWidth) return false;
     const line = frameRow - 1;
     const pressed = pressTextSelection({
       line,
@@ -337,7 +340,7 @@ export class TranscriptViewport {
   }
 
   selectedText(): string | null {
-    const selection = visibleTextSelection(orderedTextSelection(this.#selection), this.#selectionRows.length);
+    const selection = this.#visibleSelection();
     if (selection === undefined) return null;
     const text = textSelectionText(selection, this.#selectionRows, line => usefulTextLineContent(this.#selectionRows[line] ?? ""));
     return text.length === 0 ? null : text;
@@ -563,12 +566,8 @@ export class TranscriptViewport {
         ? documentSelectionAnchor(documentRow, documentRows[documentRow] ?? "")
         : { kind: "screen", row, source: this.#selectionRows[row] ?? "" };
     });
-    if (stickyActive && governing !== null && visibleAnchors.length > 0) {
-      visibleAnchors[0] = documentSelectionAnchor(
-        governing.firstRow,
-        documentRows[governing.firstRow] ?? governing.sourceRow,
-      );
-    }
+    // Invariant: a pinned prompt is chrome over its hidden source row, which clips like off-screen rows.
+    this.#firstSelectableRow = stickyActive && viewportHeight > 0 ? 1 : 0;
     this.#selectionRowAnchors = [
       ...visibleAnchors,
       ...dock.map((_row, index): SelectionRowAnchor => ({ kind: "dock", fromBottom: dock.length - index - 1 })),
@@ -578,7 +577,7 @@ export class TranscriptViewport {
     // Concurrency: a painter may synchronously route input in tests or host integrations.
     // Label this frame with the exact selection snapshot it began composing.
     const composingSelectionRevision = this.#selectionRevision;
-    const orderedSelection = orderedTextSelection(this.#selection);
+    const orderedSelection = this.#visibleSelection();
     const recomputedRows: number[] = [];
     const reusedRows: number[] = [];
     const selectionDamagedRows: number[] = [];
@@ -586,6 +585,7 @@ export class TranscriptViewport {
     const frameRows = [...visible, ...dock].slice(0, height);
     const selectionRows = [...this.#selectionRows];
     let bottomHit: TranscriptViewportHitRegions["bottom"] = null;
+    let control: { readonly row: number; readonly left: number; readonly text: string } | undefined;
     if (this.#maxScroll > 0 && !this.#followingEnd && frameRows.length > 0) {
       const genericLabel = " Jump to bottom (Ctrl+End) ↓ ";
       const countedLabel = this.#newMessages > 0
@@ -602,17 +602,14 @@ export class TranscriptViewport {
         const pointer = input.pointerPosition;
         const bottomHovered = pointer !== undefined && pointer.row === bottomHit.row
           && pointer.column >= bottomHit.columnStart && pointer.column <= bottomHit.columnEnd;
-        frameRows[row] = overlaySpan(
-          padRowPreservingBackground(frameRows[row] ?? "", width),
-          left,
-          left + labelWidth,
-          `${CONTROL_STYLE_RESET}${theme.bottomControl(label, bottomHovered)}`,
-        );
+        control = { row, left, text: `${CONTROL_STYLE_RESET}${theme.bottomControl(label, bottomHovered)}` };
+        frameRows[row] = overlaySpan(padRowPreservingBackground(frameRows[row] ?? "", width), left, left + labelWidth, control.text);
+        // Invariant: the control floats above selection; its cells are never selected or copied.
         selectionRows[row] = overlaySpan(
           padRowPreservingBackground(selectionRows[row] ?? "", width),
           left,
           left + labelWidth,
-          label,
+          " ".repeat(labelWidth),
         );
       }
     }
@@ -697,7 +694,9 @@ export class TranscriptViewport {
         },
       );
       rowRecomputed ||= !final.reused;
-      frameRows[row] = final.value;
+      frameRows[row] = control?.row === row && paintRange !== null && bottomHit !== null
+        ? overlaySpan(final.value, control.left, bottomHit.columnEnd, control.text)
+        : final.value;
       (rowRecomputed ? recomputedRows : reusedRows).push(row + 1);
 
       const state = `${width}\u0000${row}\u0000${painted}\u0000${rangeKey}\u0000${range === null ? "" : selectionPainterId}\u0000${railCell}\u0000${overlayText}`;
@@ -921,24 +920,28 @@ export class TranscriptViewport {
     };
   }
 
+  #visibleSelection() {
+    const rows = this.#selectionAnchors?.anchor.kind === "document" ? this.#viewportHeight : this.#selectionRows.length;
+    return visibleTextSelection(orderedTextSelection(this.#selection), rows, this.#firstSelectableRow);
+  }
+
   #updateCopyableSelection(): void {
-    const selection = visibleTextSelection(orderedTextSelection(this.#selection), this.#selectionRows.length);
-    this.#copyableSelection = selection !== undefined
-      && textSelectionText(selection, this.#selectionRows, line => usefulTextLineContent(this.#selectionRows[line] ?? "")).length > 0;
+    this.#copyableSelection = this.selectedText() !== null;
   }
 }
 
 function visibleTextSelection(
   selection: OrderedTextSelection | undefined,
   rowCount: number,
+  firstRow: number,
 ): OrderedTextSelection | undefined {
-  if (selection === undefined || rowCount <= 0 || selection.end.line < 0 || selection.start.line >= rowCount) return undefined;
-  const startLine = Math.max(0, selection.start.line);
+  if (selection === undefined || rowCount <= firstRow || selection.end.line < firstRow || selection.start.line >= rowCount) return undefined;
+  const startLine = Math.max(firstRow, selection.start.line);
   const endLine = Math.min(rowCount - 1, selection.end.line);
   return {
     start: {
       line: startLine,
-      column: selection.start.line < 0 ? 0 : selection.start.column,
+      column: selection.start.line < firstRow ? 0 : selection.start.column,
     },
     end: {
       line: endLine,

@@ -239,7 +239,7 @@ describe("transcript viewport", () => {
     }
   });
 
-  it("moves document selection with followed output while pinned and mixed endpoints keep their surfaces", () => {
+  it("moves document selection with followed output while gesture origins keep their surfaces", () => {
     const selection = (line: string, from: number, to: number) => backgroundSgrSpan(line, from, to);
     const viewport = new TranscriptViewport();
     const input = {
@@ -284,7 +284,81 @@ describe("transcript viewport", () => {
     const mixed = viewport.compose({ ...input, documentRows: rows(11) });
     expect(stripAnsi(mixed.rows[1] ?? "").trimEnd()).toBe("row 8");
     expect(mixed.rows[1]).toContain("\u001b[47m");
-    expect(mixed.rows[5]).toContain("\u001b[47mfoot");
+    expect(mixed.rows[3]).toContain("\u001b[47m");
+    expect(mixed.rows.slice(mixed.hits.viewportHeight).every(row => !row.includes("\u001b[47m"))).toBe(true);
+    expect(viewport.selectedText()).not.toMatch(/editor|footer/u);
+  });
+
+  it.each(["up", "down"] as const)("keeps a document-only selection inside the transcript while scrolling %s", direction => {
+    const viewport = new TranscriptViewport();
+    const theme = {
+      track: (text: string) => text,
+      thumb: (text: string) => text,
+      sticky: (text: string) => text,
+      quietSticky: (text: string) => text,
+      bottomControl: (text: string) => text,
+      selection: (line: string, from: number, to: number) => backgroundSgrSpan(line, from, to, "\u001b[45m"),
+    };
+    const input = {
+      documentRows: rows(12),
+      dockRows: ["editor", "footer"],
+      promptAnchors: [],
+      width: 20,
+      height: 6,
+      theme,
+    };
+    viewport.compose(input);
+    if (direction === "down") {
+      viewport.scrollTo(0);
+      viewport.compose(input);
+    }
+    const anchorRow = direction === "up" ? 4 : 1;
+    const edgeRow = direction === "up" ? 1 : 4;
+    viewport.pressSelection(2, anchorRow, 100);
+    viewport.extendSelection(4, edgeRow, 101, false);
+
+    for (let tick = 0; tick < 2; tick += 1) {
+      viewport.scrollBy(direction === "up" ? -1 : 1, 102 + tick);
+      viewport.extendSelection(4, edgeRow, 104 + tick, false);
+      const selected = viewport.compose(input);
+      expect(viewport.selectedText()).not.toMatch(/editor|footer/u);
+      expect(selected.rows.slice(0, selected.hits.viewportHeight).some(row => row.includes("\u001b[45m"))).toBe(true);
+      expect(selected.rows.slice(selected.hits.viewportHeight).every(row => !row.includes("\u001b[45m"))).toBe(true);
+    }
+
+    const resizedDock = viewport.compose({ ...input, dockRows: ["notice", "editor", "footer"] });
+    expect(resizedDock.rows.slice(resizedDock.hits.viewportHeight).every(row => !row.includes("\u001b[45m"))).toBe(true);
+    expect(viewport.selectedText()).not.toMatch(/notice|editor|footer/u);
+  });
+
+  it.each([false, true])("keeps boundary crossing owned by its gesture origin (dockOrigin=%s)", dockOrigin => {
+    const viewport = new TranscriptViewport();
+    const input = {
+      documentRows: rows(12),
+      dockRows: ["editor", "footer"],
+      promptAnchors: [],
+      width: 20,
+      height: 6,
+      theme: {
+        track: (text: string) => text,
+        thumb: (text: string) => text,
+        sticky: (text: string) => text,
+        quietSticky: (text: string) => text,
+        bottomControl: (text: string) => text,
+        selection: (line: string, from: number, to: number) => backgroundSgrSpan(line, from, to, "\u001b[45m"),
+      },
+    };
+    viewport.compose(input);
+    viewport.pressSelection(2, dockOrigin ? 5 : 4, 100);
+    viewport.extendSelection(4, dockOrigin ? 4 : 5, 101, false);
+    viewport.releaseSelection();
+
+    const selected = viewport.compose(input);
+    expect(selected.rows[3]).toContain("\u001b[45m");
+    expect((selected.rows[4] ?? "").includes("\u001b[45m")).toBe(dockOrigin);
+    expect(selected.rows[5]).not.toContain("\u001b[45m");
+    if (dockOrigin) expect(viewport.selectedText()).toContain("ed");
+    else expect(viewport.selectedText()).not.toMatch(/editor|footer/u);
   });
 
   it("clips a retained document selection after its source scrolls off screen", () => {
@@ -299,6 +373,78 @@ describe("transcript viewport", () => {
     expect(viewport.hasSelection).toBe(true);
     expect(viewport.selectedText()).toBeNull();
     expect(clipped.rows.every(row => !row.includes("\u001b[47m"))).toBe(true);
+  });
+
+  describe("with a pinned sticky prompt", () => {
+    const SELECTED = "\u001b[45m";
+    const input = {
+      documentRows: ["❯ prompt", ...rows(11)],
+      promptAnchors: [{ id: "prompt", firstRow: 0, lastRow: 0, sourceRow: "❯ prompt" }],
+      dockRows: ["editor", "footer"],
+      width: 20,
+      height: 6,
+      theme: {
+        track: (text: string) => text,
+        thumb: (text: string) => text,
+        sticky: (text: string) => text,
+        quietSticky: (text: string) => text,
+        bottomControl: (text: string) => text,
+        selection: (line: string, from: number, to: number) => backgroundSgrSpan(line, from, to, SELECTED),
+      },
+    };
+    const pinned = () => {
+      const viewport = new TranscriptViewport();
+      viewport.compose(input);
+      viewport.scrollTo(3);
+      const frame = viewport.compose(input);
+      expect(frame.hits.sticky).not.toBeNull();
+      expect(stripAnsi(frame.rows[0] ?? "")).toContain("prompt");
+      return viewport;
+    };
+    const paintedRows = (frame: { readonly rows: readonly string[] }) =>
+      frame.rows.flatMap((row, index) => row.includes(SELECTED) ? [index] : []);
+
+    it("excludes the pinned alias while keeping the prompt selectable at its document row", () => {
+      const viewport = pinned();
+      expect(viewport.pressSelection(2, 1, 100)).toBe(false);
+      expect(viewport.hasSelection).toBe(false);
+
+      viewport.pressSelection(3, 3, 101);
+      viewport.extendSelection(4, 1, 102, false);
+      viewport.releaseSelection();
+      const crossed = viewport.compose(input);
+      expect(viewport.selectedText()).toBe("row 3\nrow");
+      expect(paintedRows(crossed)).toEqual([1, 2]);
+
+      viewport.clearSelection();
+      viewport.scrollTo(0);
+      viewport.compose(input);
+      viewport.pressSelection(1, 1, 1_000);
+      viewport.extendSelection(20, 1, 1_001, false);
+      viewport.releaseSelection();
+      expect(paintedRows(viewport.compose(input))).toEqual([0]);
+      expect(viewport.selectedText()).toBe("❯ prompt");
+    });
+
+    it.each(["above", "below"] as const)("lets a selection shrink and disappear as its source scrolls %s", direction => {
+      const viewport = pinned();
+      viewport.pressSelection(1, 2, 100);
+      viewport.extendSelection(20, 3, 101, false);
+      viewport.releaseSelection();
+      expect(paintedRows(viewport.compose(input))).toEqual([1, 2]);
+      expect(viewport.selectedText()).toBe("row 3\nrow 4");
+
+      viewport.scrollBy(direction === "above" ? 1 : -1);
+      const shrunk = viewport.compose(input);
+      expect(paintedRows(shrunk)).toEqual(direction === "above" ? [1] : [2, 3]);
+      expect(viewport.selectedText()).toBe(direction === "above" ? "row 4" : "row 3\nrow 4");
+
+      viewport.scrollBy(direction === "above" ? 1 : -3);
+      const gone = viewport.compose(input);
+      expect(viewport.hasSelection).toBe(true);
+      expect(viewport.selectedText()).toBeNull();
+      expect(paintedRows(gone)).toEqual([]);
+    });
   });
 
   it("retains a unique document selection when resize changes only row padding", () => {
@@ -725,7 +871,7 @@ describe("transcript viewport", () => {
     expect(viewport.selectedText()).toBeNull();
   });
 
-  it("copies the exact visible sticky prompt and bottom control text", () => {
+  it("excludes the bottom control from copy and keeps the prompt selectable at its document row", () => {
     const viewport = new TranscriptViewport();
     viewport.setConfig(ALWAYS);
     const input = {
@@ -743,7 +889,24 @@ describe("transcript viewport", () => {
     viewport.pressSelection(1, 2, 103);
     viewport.extendSelection(40, 4, 104, false);
     viewport.releaseSelection();
-    expect(viewport.selectedText()).toBe("row 2\nrow 3\nrow 4 Jump to bottom (Ctrl+End) ↓");
+    expect(viewport.selectedText()).toBe("row 2\nrow 3\nrow 4");
+    const label = " Jump to bottom (Ctrl+End) ↓ ";
+    const selected = viewport.compose({
+      ...input,
+      now: 104,
+      theme: {
+        track: (text: string) => text,
+        thumb: (text: string) => text,
+        sticky: (text: string) => text,
+        quietSticky: (text: string) => text,
+        bottomControl: (text: string) => `\u001b[7m${text}\u001b[27m`,
+        selection: (line: string, from: number, to: number) => backgroundSgrSpan(line, from, to, "\u001b[45m"),
+      },
+    });
+    const controlRow = selected.rows[3] ?? "";
+    expect(controlRow).toContain("\u001b[45m");
+    // Invariant: one uninterrupted control span means no selection background reaches its cells.
+    expect(controlRow).toContain(`\u001b[0m\u001b[7m${label}\u001b[27m`);
 
     viewport.clearSelection();
     viewport.scrollTo(0, 105);
@@ -754,7 +917,7 @@ describe("transcript viewport", () => {
     expect(viewport.selectedText()).toBe("prompt                     11:45");
   });
 
-  it.each([false, true])("captures one immutable literal range across transcript, transient, prompt, and footer rows (reverse=%s)", reverse => {
+  it.each([false, true])("captures one immutable literal range according to gesture origin (dockOrigin=%s)", dockOrigin => {
     const viewport = new TranscriptViewport();
     const input = {
       documentRows: ["transcript", "⠋ Working..."],
@@ -766,15 +929,16 @@ describe("transcript viewport", () => {
       now: 100,
     };
     viewport.compose(input);
-    viewport.pressSelection(reverse ? 7 : 2, reverse ? 4 : 1, 101);
-    viewport.extendSelection(reverse ? 2 : 7, reverse ? 1 : 4, 102, false);
+    viewport.pressSelection(dockOrigin ? 7 : 2, dockOrigin ? 4 : 1, 101);
+    viewport.extendSelection(dockOrigin ? 2 : 7, dockOrigin ? 1 : 4, 102, false);
     viewport.releaseSelection();
 
+    const expected = dockOrigin ? "ranscript\n⠋ Working...\n❯ prompt\nbranch" : "ranscript\n⠋ Working...";
     const snapshot = viewport.captureSelectedText();
-    expect(viewport.selectedText()).toBe("ranscript\n⠋ Working...\n❯ prompt\nbranch");
-    expect(snapshot).toMatchObject({ literal: true, sourceUnits: 38 });
+    expect(viewport.selectedText()).toBe(expected);
+    expect(snapshot).toMatchObject({ literal: true, sourceUnits: expected.length });
     viewport.compose({ ...input, documentRows: ["changed"], dockRows: ["new prompt", "new footer"], now: 103 });
-    expect(snapshot?.rows[0]?.text).toBe("ranscript\n⠋ Working...\n❯ prompt\nbranch");
+    expect(snapshot?.rows[0]?.text).toBe(expected);
   });
 
   it("excludes base-frame cells covered by an owning overlay", () => {

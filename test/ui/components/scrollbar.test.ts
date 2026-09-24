@@ -21,11 +21,10 @@ function geometry(scroll: number, contentLength = 100, viewportHeight = 20) {
 }
 
 describe("scrollbar geometry", () => {
-  it("uses the same baseline, double, and combined rates for wheel and selection scrolling", () => {
+  it("uses baseline, double, and combined rates for wheel and one-row-based selection scrolling", () => {
     const speeds = ["normal", "fast", "high"] as const;
-    const wheelRows = speeds.map(scrollbarWheelRows);
-    expect(wheelRows).toEqual([3, 6, 9]);
-    expect(speeds.map(scrollbarSelectionRows)).toEqual(wheelRows);
+    expect(speeds.map(scrollbarWheelRows)).toEqual([3, 6, 9]);
+    expect(speeds.map(scrollbarSelectionRows)).toEqual([1, 2, 3]);
   });
 
   it("draws nothing and reserves nothing when the content fits", () => {
