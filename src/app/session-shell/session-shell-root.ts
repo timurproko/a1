@@ -717,6 +717,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
 
     const height = Math.max(0, this.#componentRuntime.getRows());
     const dock = this.#renderDockLayout(width);
+    const copyAcknowledgement = this.#renderCopyAcknowledgement(width);
     // Invariant: auto/always own one stable final-column gutter. Every scrollable
     // surface ends before it; the dock remains full-width and hidden mode returns it.
     const documentWidth = this.#viewportController.config.scrollbarAppearance === "hidden"
@@ -727,7 +728,9 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     const statusRows = this.#renderStatus(documentWidth);
     const transientSignature = transientRowsSignature(steeringRows, statusRows);
     const snapshot = this.#visibleViewportSnapshot;
-    const dockInputCandidate = this.#dockInputCandidate;
+    // Invariant: paint-only feedback may cover either viewport or dock cells, so
+    // ordinary dock-only reuse cannot safely omit its overlay composition.
+    const dockInputCandidate = this.#dockInputCandidate && copyAcknowledgement === undefined;
     // Concurrency: input may change after a keyboard receipt but before its paint.
     // Capture only the live inputs this composition will actually represent.
     const inputSurface = this.#inputSurface;
@@ -785,6 +788,12 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
         // Invariant: the control belongs immediately above the complete dock and
         // floats over transient viewport content rather than consuming a dock row.
         bottomControlRow: Math.max(0, height - Math.min(height, dockRows.length) - 1),
+        ...(copyAcknowledgement === undefined || height <= 0 ? {} : {
+          frameOverlay: {
+            row: Math.max(1, Math.min(height, dockStartRow + dock.inputOffset - 1)),
+            text: copyAcknowledgement,
+          },
+        }),
         theme: this.#viewportTheme,
       });
       this.#fullViewportCompositions += 1;
@@ -909,6 +918,8 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
 
   #renderDockLayout(width: number): {
     readonly rows: readonly string[];
+    /** Offset of the complete input component, before its body-specific row offset. */
+    readonly inputOffset: number;
     readonly editorOffset: number;
     readonly inputRows: number;
   } {
@@ -916,24 +927,24 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     const statusRows = this.#customViewport ? this.#status.renderDock(width) : this.#renderStatus(width);
     const transientRows = [...queued, ...statusRows, ...this.#renderDockNotice(width)];
     const aboveWidgets = this.#renderWidgets("aboveEditor", width);
-    const copyAcknowledgement = this.#renderCopyAcknowledgement(width);
     const input = this.#inputSurface.render(width);
     // Invariant: pointer rows describe the body, not the autocomplete block now preceding it.
     const body = this.usesDefaultInputSurface() ? this.editor.bodyGeometry?.() : undefined;
     const belowWidgets = this.#renderWidgets("belowEditor", width);
     const footer = this.#renderFooter(width);
-    const rowsWithoutTransient = [...aboveWidgets, ...copyAcknowledgement, ...input, ...belowWidgets, ...footer];
+    const rowsWithoutTransient = [...aboveWidgets, ...input, ...belowWidgets, ...footer];
+    const inputOffset = transientRows.length + aboveWidgets.length;
     return {
       rows: [...transientRows, ...rowsWithoutTransient],
-      editorOffset: transientRows.length + aboveWidgets.length + copyAcknowledgement.length + (body?.rowOffset ?? 0),
+      inputOffset,
+      editorOffset: inputOffset + (body?.rowOffset ?? 0),
       inputRows: body?.rowCount ?? input.length,
     };
   }
 
-  #renderCopyAcknowledgement(width: number): readonly string[] {
-    if (this.#copyAcknowledgement === undefined || width <= 0) return [];
-    const text = piShellTruncateToWidth(this.#copyAcknowledgement, width);
-    return [`${" ".repeat(Math.max(0, width - piShellVisibleWidth(text)))}${piTheme().fg("accent", text)}`];
+  #renderCopyAcknowledgement(width: number): string | undefined {
+    if (this.#copyAcknowledgement === undefined || width <= 0) return undefined;
+    return piTheme().fg("accent", piShellTruncateToWidth(this.#copyAcknowledgement, width));
   }
 
   #clearCopyAcknowledgement(requestRender: boolean): void {
