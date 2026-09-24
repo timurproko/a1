@@ -91,6 +91,15 @@ its own `core` facade layer; A1 is a product, so the port adapts imports and kee
   as styling callbacks rather than imports or literal colours. Engine producers remain semantic;
   pinned presentation keeps its three periods; and the source-synchronized Pi status indicators,
   installed packages, `a1 pi`, and vanilla Pi remain untouched.
+- **Surface-relative frame selection and layout-neutral copy feedback.** Bare A1's complete-frame
+  selection extends the reference transcript selector across scrollable document and pinned dock
+  surfaces. Selection endpoints retain those surface identities: followed agent output carries its
+  highlight with the source row, while footer, status, prompt, widget, and notice selection remains
+  pinned. The copied-character acknowledgement is final-frame paint over the existing row above the
+  input, not a dock child, so appearing, replacement, and expiry do not reallocate the viewport or
+  move editor, footer, controls, or selection. Bounded row provenance clears ambiguous reflow rather
+  than transferring selection to unrelated terminal cells. The comparison profile retains pinned Pi
+  selection and notification behavior.
 - **Keyboard presentation scheduling.** Pinned components, semantic key handling, and the
   comparison profiles stay unchanged. Bare A1 adds one A1-owned event-loop-turn coordinator
   before its fullscreen root and may omit only superseded visual states after every delivery
