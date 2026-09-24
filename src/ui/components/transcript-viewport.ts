@@ -921,22 +921,15 @@ export class TranscriptViewport {
     };
   }
 
-  #visibleSelection(): OrderedTextSelection | undefined {
-    const selection = orderedTextSelection(this.#selection);
-    const anchors = this.#selectionAnchors;
-    // Invariant: scrolling can project a retained document endpoint beyond the
-    // transcript rectangle. Its numeric line must not become a pinned dock row;
-    // only explicit pointer motion that creates a dock anchor may cross that edge.
-    const rowCount = anchors?.anchor.kind === "document" && anchors.head.kind === "document"
+  #visibleSelection() {
+    const rows = this.#selectionAnchors?.anchor.kind === "document" && this.#selectionAnchors.head.kind === "document"
       ? this.#viewportHeight
       : this.#selectionRows.length;
-    return visibleTextSelection(selection, rowCount);
+    return visibleTextSelection(orderedTextSelection(this.#selection), rows);
   }
 
   #updateCopyableSelection(): void {
-    const selection = this.#visibleSelection();
-    this.#copyableSelection = selection !== undefined
-      && textSelectionText(selection, this.#selectionRows, line => usefulTextLineContent(this.#selectionRows[line] ?? "")).length > 0;
+    this.#copyableSelection = this.selectedText() !== null;
   }
 }
 
