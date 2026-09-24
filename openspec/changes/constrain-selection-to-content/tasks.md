@@ -32,4 +32,5 @@
 
 - [x] 6.1 Paint the scroll-to-bottom control above selection and remove its cells from visible-frame copy.
 - [x] 6.2 Keep the final content row selectable by starting downward auto-scroll only below it, and align per-tick edge distance with the declared one, two, or three rows.
-- [x] 6.3 Re-run focused and governance validation, repin the startup graph baseline for the reviewed growth, and update evidence and the manual handoff.
+- [x] 6.3 Start edge auto-scroll only for a transcript-originated selection, so dock selection never moves the transcript.
+- [x] 6.4 Re-run focused and governance validation, repin the startup graph baseline for the reviewed growth, and update evidence and the manual handoff.

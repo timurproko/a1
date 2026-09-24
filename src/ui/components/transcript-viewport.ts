@@ -258,6 +258,8 @@ export class TranscriptViewport {
 
   get selectionActive(): boolean { return this.#selection?.selecting === true; }
   get hasSelection(): boolean { return orderedTextSelection(this.#selection) !== undefined; }
+  /** True when the active gesture began on transcript rows rather than the dock. */
+  get selectionFromContent(): boolean { return this.#selectionAnchors !== undefined && this.#selectionAnchors.anchor.kind !== "dock"; }
 
   pressSelection(column: number, frameRow: number, now = Date.now()): boolean {
     const frameHeight = this.#frame?.rows.length ?? 0;

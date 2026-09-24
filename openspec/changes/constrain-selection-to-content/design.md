@@ -62,7 +62,7 @@ Alternative: split each selection range around the control. Rejected because eve
 
 ### 7. Pace edge auto-scroll by the declared row distance
 
-The accepted edge-hold scenario declares one, two, or three rows every 30 milliseconds, but the implementation reused the wheel distance of three, six, or nine rows. That tripled the jumps and made held selection feel coarse. Downward auto-scroll also began while the pointer rested on the final content row, which made that row hard to select. Auto-scroll now begins below the final content row, unless no row exists below it, and on the first row, where nothing lies above.
+A gesture that begins on the dock never auto-scrolls the transcript, because the pointer is already below the content edge and the scrolling would move content the user is not selecting. The accepted edge-hold scenario declares one, two, or three rows every 30 milliseconds, but the implementation reused the wheel distance of three, six, or nine rows. That tripled the jumps and made held selection feel coarse. Downward auto-scroll also began while the pointer rested on the final content row, which made that row hard to select. Auto-scroll now begins below the final content row, unless no row exists below it, and on the first row, where nothing lies above.
 
 Alternative: add distance-based acceleration. Deferred because it would change the accepted cadence contract rather than restore it.
 

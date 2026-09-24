@@ -65,6 +65,11 @@ A selection that originates in the dock SHALL retain its existing dock/editor in
 - **THEN** the transcript SHALL NOT auto-scroll
 - **AND** auto-scroll SHALL begin only when the pointer moves below that row, or onto the first row, and SHALL use the declared per-speed distance of one, two, or three rows per 30-millisecond tick
 
+#### Scenario: Keep the transcript still during dock selection
+- **WHEN** a selection gesture begins on the editor, footer, or another dock row and its pointer moves within the dock or onto the final transcript row
+- **THEN** the transcript SHALL NOT auto-scroll
+- **AND** a click on a dock row SHALL leave the transcript position unchanged
+
 #### Scenario: Preserve semantic response copying
 - **WHEN** a response-only or command-driven copy route requests semantic agent content rather than a visible frame range
 - **THEN** the existing transcript chrome exclusions SHALL remain in force

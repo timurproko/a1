@@ -276,7 +276,7 @@ describe("session viewport interaction controller", () => {
     } finally { target.clearPointerState(); normal.target.clearPointerState(); vi.useRealTimers(); }
   });
 
-  it("keeps the last content row selectable and edge-scrolls one row per tick below it", () => {
+  it("keeps the last content row selectable and edge-scrolls only content-originated selection", () => {
     vi.useFakeTimers();
     const target = new SessionViewportController({ enabled: true, editor: editor(), requestRender() {} });
     const input = {
@@ -300,6 +300,15 @@ describe("session viewport interaction controller", () => {
       vi.advanceTimersByTime(30);
       expect(target.compose(input).scrollTop).toBe(2);
       target.handlePreInput("\u001b[<0;4;5m", true, 400);
+
+      target.compose(input);
+      target.handlePreInput("\u001b[<0;2;6M\u001b[<32;5;6M\u001b[<32;8;5M", true, 500);
+      vi.advanceTimersByTime(90);
+      const dockOriginated = target.compose(input);
+      expect(target.hasSelection).toBe(true);
+      expect(dockOriginated.scrollTop).toBe(2);
+      target.handlePreInput("\u001b[<0;8;5m", true, 600);
+      expect(target.compose(input).scrollTop).toBe(2);
     } finally { target.clearPointerState(); vi.useRealTimers(); }
   });
 

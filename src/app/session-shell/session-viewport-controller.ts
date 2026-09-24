@@ -577,8 +577,10 @@ export class SessionViewportController {
 
   #updateSelectionAutoScroll(column: number, row: number, viewportHeight: number, frameHeight: number): void {
     // Invariant: the last content row stays selectable; only the pointer below it scrolls,
-    // unless no row exists below. The top row scrolls because nothing lies above it.
-    const beyondEdge = row <= 1 || row > viewportHeight || row >= frameHeight;
+    // unless no row exists below. The top row scrolls because nothing lies above it. A
+    // dock-originated gesture never moves the transcript behind the fixed dock.
+    const beyondEdge = this.#viewport.selectionFromContent
+      && (row <= 1 || row > viewportHeight || row >= frameHeight);
     if (!beyondEdge) {
       this.#stopSelectionAutoScroll();
       return;
