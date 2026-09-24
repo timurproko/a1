@@ -39,6 +39,15 @@ References: the v2 prototype (`D:\Backups\pi\v2`) for UX and its child status br
 ### New Capabilities
 
 - `multi-agent-tabs`: the bare-A1 tab strip, tab lifecycle and naming, bridge-derived status and attention, input routing and shortcuts, commands, detach-on-quit, and reattach presentation.
+- `resident-tab-reliability`: the reliability contract. It covers:
+  - one process per failure domain, crash-only fail-fast processes, and control loops that never block;
+  - flow-controlled, never-silently-lossy terminal I/O;
+  - supervision of liveness separate from progress, with unresponsive and stalled states;
+  - level-triggered reconciliation, and epoch fencing of stale servers;
+  - per-class durability guarantees: a fsynced prompt journal, fsync of settled turns, session identity recorded before input, a last-screen snapshot, and OS-enforced session leases;
+  - diagnostics that survive the failures they describe;
+  - release-gating simulation, crash-point, fuzz, and 24-hour chaos-soak verification against latency objectives.
+  Each requirement answers a failure mode found in the v2 prototype.
 - `resident-terminal-host`: the native resident server, per-tab session holders, and attach client. It also covers their protocols, the tab bridge, the durable registry, ownership and authentication, platform detachment, crash, reboot, and update recovery, limits, diagnostics, and certification.
 
 ### Modified Capabilities

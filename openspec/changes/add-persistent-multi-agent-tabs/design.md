@@ -210,12 +210,13 @@ Tab status is an A1-owned state machine fed by `bridge.status`:
   - naming: `displayName`, `nameSource` (`default|auto|user`)
   - placement: `order`, `cwd`
   - session: `sessionFile`, `sessionDir`
-  - lifecycle: `desired` (`running|stopped`), `lifecycle`, `status`, `attentionSeq`, `seenSeq`
+  - lifecycle: `desired` (`running|stopped`), `lifecycle`, `attentionSeq`, `seenSeq` (volatile status is rebuilt from the bridge and is never persisted)
   - holder: `holderPid`, `holderStartIdentity`, `release`
   - restarts: `restarts`, `restartWindowStart`, `lastExit`
-  - `registryRevision` and `bootNonce`
+  - `registryRevision`, `epoch`, and `bootId`
 - **No secrets are persisted.** The environment sent with `tab.create` is kept in holder memory only. A restore after reboot uses the restoring client's environment and notes that once in the tab.
-- **Session lease.** At most one live tab per session file. `a1 --session X` or `/resume X` on a held file focuses that tab.
+- **Session lease.** At most one live tab per session file, enforced by an operating-system exclusive lock on a lease file, which the holder takes before spawning (Decision 16). `a1 --session X` or `/resume X` on a held file focuses that tab.
+- **Prompt journal.** `<dataDir>/tabs/<profile-token>/<tabId>/journal.jsonl` is owner-only and holds the pending prompt plus a debounced draft snapshot. It is fsynced before a prompt is dispatched, and an entry is cleared once Pi commits the matching session entry (Decision 16).
 
 ### 9. Failure and recovery
 
@@ -322,6 +323,71 @@ The settings live in the owned settings screen, each with a hard cap.
 
 - `tabs.resident: false` restores today's direct bare-A1 launch. The server is not started, and the registry is preserved.
 - If the server cannot start, bare A1 falls back to the direct single-agent launch with one notice, instead of failing.
+
+### 16. Reliability engineering
+
+The v2 daemon was unreliable for structural reasons, and a forensic pass over its source established them. This design treats reliability as architecture rather than as patches, and proves it with release-gating tests. The full normative contract is the `resident-tab-reliability` capability.
+
+**Principles:**
+
+1. **Failure domains are processes.** The client, the server, one holder per tab, and one A1 process per tab are separate processes. Nothing shares an event loop across tabs.
+2. **Crash-only.** Every resident process may be killed at any instruction, and its startup path is its recovery path. Internal invariant violations fail fast: that process crashes with a record, instead of being swallowed. Because the failure domains are small, failing fast is cheap.
+3. **The control loop never blocks.** Each Rust role keeps its state machine I/O-free, a "sans-IO core". A thin shell runs blocking work (spawn, ConPTY creation, kill, identity inspection, fsync) on workers with deadlines. A missed deadline becomes a typed event, never a stall.
+4. **Level-triggered reconciliation.** Desired state (lifecycle, holder presence, size) is continuously reconciled against observed state. Every process incarnation carries an ID, and stale events are dropped.
+5. **Fencing.** A registry epoch is incremented on every server start. Holders and bridges obey only the highest epoch they have seen.
+6. **Explicit durability per data class.** There is no "best effort". Each class of data has a stated guarantee, and each guarantee has a test.
+7. **Evidence survives failure.** Logs rotate but are never truncated at startup. Each crash produces its own record.
+8. **Prove it.** Deterministic simulation, crash-point injection, fuzzing, and a 24-hour cross-platform chaos soak gate the release, against declared latency objectives.
+
+**How each v2 failure is closed:**
+
+| v2 failure (forensic finding) | Root cause | Countermeasure here |
+|---|---|---|
+| A ConPTY spawn blocked forever, the hung daemon kept the pipe, and every window lost its agents | Synchronous `pty.spawn` on the shared loop | The PTY is created only inside that tab's holder, and the server kills that holder after a deadline and retries. Other tabs and the server are unaffected. |
+| The watchdog SIGKILLed the daemon after a 60 s stall, and every agent died | Agents were children of the daemon | Holders and children survive a server death. The watchdog kills only the stalled process. |
+| Synchronous `taskkill` loops blocked the daemon for 30–60 s | Blocking kills on the event loop | Kills run asynchronously and concurrently, with deadlines. The loop keeps answering heartbeats. |
+| Blocked ConPTY writes stalled the loop, and keystrokes or pastes were silently dropped ("newest wins") | No flow control | A dedicated writer per holder with a bounded queue. A full queue is rejected visibly, never partially delivered or dropped silently. |
+| Terminal queries (DA/DSR/CPR) were answered by the busy shared emulator, so children stalled | One emulator loop for all agents | Each holder answers its own tab's queries from its own model. |
+| Repaints arrived in fragments ("ghost frames"), patched with timing heuristics and two screen sources | Emulation reconciled with bridge surfaces by timers | One source of truth, the holder model. Frames are published at synchronized-output boundaries, with a bounded coalescing window. |
+| A late exit event poisoned the replacement child | Events were not tied to an incarnation | Incarnation IDs on every event. Stale events are discarded. |
+| Resizes were lost in transit | Edge-triggered resize | Size is desired state, reconciled until observed. |
+| Restore spawned duplicate agents | No restore gate | A single restore gate, at most one start in flight per tab, and conditional revisions. The duplicate-start invariant is checked in simulation. |
+| A fresh agent whose session file was never reported could not be recovered | Session identity was learned after spawn | Session identity is committed to the registry before the tab accepts input. The prompt journal covers Pi's no-file-until-first-reply behavior. |
+| A corrupt state file was treated as a fresh boot and wiped every record | Parse failure fell through to an empty state | Quarantine, then load the last good history generation, with a notice. The server never starts empty over existing data. |
+| A failed persist plus a hot-swap re-read old state from disk and killed live agents as orphans | Rebuilding from disk over newer memory; the persist result was ignored | Memory stays authoritative on write failure: retry with backoff and report degraded health. There is no hot-swap, and processes are never killed because a registry read came back short. |
+| fsync was probably a no-op on Windows (file opened read-only), and the directory was never synced | Wrong handle access | Files are synced with write access and the directory is synced too. A test asserts the platform flush calls. |
+| Two processes appended to one session JSONL | Leases lived only in daemon memory | An operating-system exclusive lock on a lease file, held by the holder and released by the kernel on death. |
+| Boot-identity rounding misclassified a crash as a reboot | `now − uptime` rounded to minutes | The boot identity comes from the OS boot session ID (Windows boot sequence or `LastBootUpTime`, Linux `/proc/sys/kernel/random/boot_id`, macOS `kern.bootsessionuuid`), and process identity is always verified. |
+| A persist storm: a synchronous pretty-printed JSON write on every status change | Status was persisted with lifecycle | Only lifecycle and identity mutations are persisted. Status is volatile and rebuilt from the bridge. Writes run off-loop. |
+| Hot-swapping the logic bundle caused generation bugs, lost deferred callbacks, and memory growth; kernel updates never applied | In-process code replacement, needed because restarts killed agents | No hot-swap. The server upgrades by process replacement, which is cheap because tabs survive it. Tabs recycle at idle boundaries. |
+| Crash evidence was deleted: the log was removed at boot, crash logs truncated on respawn, a 256-line queue dropped lines | Log handling | Size-rotated generations that are never truncated at boot. A distinct crash record per incident with a backtrace. `a1 tabs doctor` produces a redacted bundle. |
+| Crash text was wiped by the alternate-screen clear | The child cleared the screen before printing | The holder freezes the last screen as a read-only snapshot and writes a recovery file. stderr goes to a per-incident log. |
+| Concurrent starts hit the `auth.json` lock ("No models available"), and `taskkill /F` left stale locks | Start storms and forced kills | Starts are capped and spaced. Graceful stop comes before force, so Pi releases its locks. A ten-tab restore test asserts models are available. |
+| A mid-edit extension reload crashed children | Children loaded a tree that was being edited | This is handled like any other crash: the bounded restart budget, the prompt journal, and the last-screen snapshot. The restart is visible and never silent. |
+| The v1 daemon churned: slow replies were read as an outdated build | Timing used as a version signal | The version is carried by the explicit handshake generation, never inferred from timing. |
+
+**Agents that stop making progress.** Liveness and progress are separate signals:
+
+- Holder heartbeat: a Rust main-loop tick seen by the server.
+- A1 heartbeat: the child's Node event loop, seen through the bridge. After 30 s it shows `unresponsive`; after `tabs.unresponsiveRestartSeconds` (default 120) the tab restarts from its session with its journal and last screen preserved.
+- Agent progress: model or tool events. After `tabs.stallNoticeSeconds` (default 300) it shows `stalled` with interrupt and restart actions. It is never auto-killed, because a legitimate tool can run for a long time.
+
+**Data-loss envelope.** With every process killed at once:
+
+- Committed session entries: never lost (Pi appends synchronously per entry).
+- Settled turns: survive power loss (fsync at settle).
+- Submitted prompts: never lost (journal fsynced before dispatch).
+- Drafts: at most one second of typing lost.
+- A streaming reply at the moment of a tab crash: readable from the last-screen snapshot and recovery file, but not resumable as a model turn. That is Pi's semantics.
+- The only unrecoverable case is a streaming reply when the holder *and* its child die together, for example a machine crash, because it was never persisted.
+
+**Verification program.** It gates release (tasks section 9):
+
+- Deterministic simulation and property tests of the sans-IO server core, over arbitrary interleavings of death, loss, reordering, and churn. Invariants: no lost committed mutation, never two live incarnations per tab or session, convergence to running or failed.
+- Failure points at every persistence and IPC step, with kill-at-each-point crash tests.
+- `cargo-fuzz` on the protocol decoder and the surface patch encoder.
+- A 24-hour chaos soak on Windows, macOS, and Linux: ten tabs of high-rate fake agents plus one real Pi on a stub provider, with random kills of every role, resizes, and attach churn. It must show zero lost prompts or entries, zero orphans, zero duplicates, and bounded memory and handles. Latency objectives: reattach p95 under 300 ms, tab restart under 3 s, server recovery under 2 s.
+- Windows fault injection for a ConPTY creation hang, a blocked write, antivirus-style rename denial, and a kill-on-close job.
 
 ## Risks / Trade-offs
 
