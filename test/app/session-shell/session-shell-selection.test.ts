@@ -650,7 +650,7 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
       )).filter(cell => cell.mode === "rgb" && cell.color === 0x264f78)
         .map(cell => ({ row: cell.row, column: cell.column }));
       expect(cells).toEqual([
-        ...Array.from({ length: 192 - firstColumn }, (_, index) => ({ row: firstRow, column: firstColumn + index })),
+        ...Array.from({ length: 193 - firstColumn }, (_, index) => ({ row: firstRow, column: firstColumn + index })),
         ...Array.from({ length: lastColumn }, (_, index) => ({ row: lastRow, column: index + 1 })),
       ]);
       terminal.input("\u0003");

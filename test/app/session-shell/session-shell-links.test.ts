@@ -738,9 +738,11 @@ describe("OwnedUiSessionShell prompt bar, links, and hover", () => {
             for (const row of sourceRows.slice(0, 3)) {
               const contentCell = screen.buffer.active.getLine(row)!.getCell(contentWidth - 1)!;
               const gutterCell = screen.buffer.active.getLine(row)!.getCell(width - 1)!;
-              expect(contentCell.isBgRGB() && contentCell.getBgColor() === 0x264f78).toBe(row < last || included);
+              const selected = row < last || included;
+              expect(contentCell.isBgRGB() && contentCell.getBgColor() === 0x264f78).toBe(selected);
               expect(contentCell.getChars()).toBe("Z");
-              expect(gutterCell.isBgDefault()).toBe(true);
+              expect(gutterCell.isBgDefault()).toBe(!selected);
+              if (selected) expect(gutterCell.isBgRGB() && gutterCell.getBgColor() === 0x264f78).toBe(true);
               expect(hovered ? ["│", "┃"] : [" "]).toContain(gutterCell.getChars() || " ");
             }
           }
