@@ -61,7 +61,7 @@ Double-click SHALL select the visible word at the pointed cell and triple-click 
 
 When automatic fullscreen copy is enabled, completing a nonempty frame drag SHALL capture and submit the selected visible text for clipboard delivery without requiring a second keypress. When automatic fullscreen copy is disabled, release SHALL retain the nonempty selection without submitting it, and the existing explicit selection-copy action SHALL remain available. Copy output SHALL include selected visible glyphs from every participating surface, including prompt prefixes and timestamps, steering and working text, notices, widgets, autocomplete text, and footer/status values. It SHALL preserve visual row boundaries as newlines while excluding ANSI and OSC controls, unselected right padding, cursor markers, scrollbar glyphs, and content covered by modal or overlay presentation.
 
-The selected background SHALL remain visible after release. Successful automatic or explicit frame-selection delivery of payload containing non-whitespace text SHALL produce exactly one transient acknowledgement reading `copied N chars to clipboard`, where `N` is the character count of the exact copied plain-text payload. The acknowledgement SHALL be right-aligned in the active theme's accent role on one row immediately above the editor, without reverse-video or panel background styling. A newer acknowledgement SHALL replace the prior acknowledgement and restart its transient lifetime rather than stacking another row. Successful delivery of a payload containing only whitespace SHALL show no acknowledgement. Failed or timed-out delivery SHALL use the existing recoverable copy-failure presentation. Clipboard preparation and delivery SHALL remain bounded and asynchronous and SHALL NOT block input, streaming, scrolling, animation, rendering, or shutdown. `Ctrl+C` with a retained frame selection SHALL remain available as explicit re-copy-and-clear behavior.
+The selected background SHALL remain visible after release. Successful automatic or explicit frame-selection delivery of payload containing non-whitespace text SHALL produce exactly one transient acknowledgement reading `copied N chars to clipboard`, where `N` is the character count of the exact copied plain-text payload. The acknowledgement SHALL be right-aligned in the active theme's accent role immediately above the editor, without reverse-video or panel background styling. It SHALL be painted over the existing frame without allocating a row, changing dock or viewport height, moving transcript content, changing the visible document range, moving the editor or footer, or changing pointer hit regions. A newer acknowledgement SHALL replace the prior acknowledgement and restart its transient lifetime rather than stacking or allocating another row. Successful delivery of a payload containing only whitespace SHALL show no acknowledgement. Failed or timed-out delivery SHALL use the existing recoverable copy-failure presentation. Clipboard preparation and delivery SHALL remain bounded and asynchronous and SHALL NOT block input, streaming, scrolling, animation, rendering, or shutdown. `Ctrl+C` with a retained frame selection SHALL remain available as explicit re-copy-and-clear behavior.
 
 #### Scenario: Release a cross-frame selection
 - **WHEN** automatic fullscreen copy is enabled and the reader releases a nonempty selection spanning transcript text, blank rows, a prompt, and footer/status content
@@ -81,13 +81,18 @@ The selected background SHALL remain visible after release. Successful automatic
 
 #### Scenario: Acknowledge copied text beside the editor
 - **WHEN** a frame-selection payload containing non-whitespace text is delivered
-- **THEN** one right-aligned accent row immediately above the editor SHALL read `copied N chars to clipboard` using the exact payload's character count
-- **AND** no reverse-video box, panel background, or top-right flash SHALL be shown
+- **THEN** one right-aligned accent message immediately above the editor SHALL read `copied N chars to clipboard` using the exact payload's character count
+- **AND** no reverse-video box, panel background, top-right flash, added row, transcript jump, dock movement, editor movement, or hit-region movement SHALL occur
 
 #### Scenario: Replace rapid copy acknowledgements
 - **WHEN** another frame-selection copy succeeds before the current acknowledgement expires
-- **THEN** the newest count SHALL replace the existing acknowledgement in the same row and restart its transient lifetime
-- **AND** copy acknowledgements SHALL NOT accumulate into multiple rows
+- **THEN** the newest count SHALL replace the existing acknowledgement in the same frame location and restart its transient lifetime
+- **AND** copy acknowledgements SHALL NOT accumulate into multiple rows or alter frame allocation
+
+#### Scenario: Expire copied acknowledgement
+- **WHEN** the active copied acknowledgement reaches the end of its transient lifetime
+- **THEN** its cells SHALL be removed without changing viewport position, dock allocation, editor/footer position, or the selected source
+- **AND** the underlying current frame SHALL be restored without stale acknowledgement text
 
 #### Scenario: Copy only whitespace
 - **WHEN** the delivered frame-selection payload contains only spaces, tabs, newlines, or other whitespace
@@ -149,7 +154,9 @@ For the ordinary editor, a click without accepted drag movement SHALL retain car
 
 Selection motion SHALL use the immediate input presentation path and retain at most the newest unpublished endpoint. With unchanged frame content and geometry, composition SHALL recompute only visible rows whose normalized selected range changed and SHALL reuse every other row. Selection lookup and per-motion work SHALL be bounded by visible frame height rather than complete transcript length.
 
-A content, viewport-position, dock-allocation, terminal-size, theme, hyperlink, control, input-surface, modal/overlay-geometry, or session-lifecycle change SHALL invalidate affected reuse and present a selection consistent with one current frame revision. Starting a frame drag SHALL keep the visible transcript position stable for the gesture. Reset, session replacement, focus loss, surface handoff, and disposal SHALL clear pending pointer ownership and frame selection without stale paint or later copy.
+Each selection endpoint SHALL remain attached to the surface row from which it originated. An endpoint over scrollable agent-stream content SHALL move on screen by the same row delta as that source content when followed output or navigation changes the visible document range. An endpoint over pinned status, footer, prompt, widget, notice, or other non-scrolling frame content SHALL remain attached to that pinned content and SHALL NOT inherit transcript scroll movement. A selection crossing the viewport/dock boundary SHALL project each endpoint independently while remaining one ordered range. Off-screen selected document content SHALL be clipped from paint rather than transferred to unrelated visible cells.
+
+Creating or retaining a selection SHALL NOT by itself detach a viewport that was following the transcript end. Explicit reader navigation SHALL retain its existing follow/detached behavior. A content, viewport-position, dock-allocation, terminal-size, theme, hyperlink, control, input-surface, modal/overlay-geometry, or session-lifecycle change SHALL reproject valid endpoint anchors and invalidate affected reuse. If the selected source can no longer be identified safely after reflow, replacement, or removal, A1 SHALL clear the uncertain selection rather than paint or copy unrelated text. Reset, session replacement, focus loss, surface handoff, and disposal SHALL clear pending pointer ownership and frame selection without stale paint or later copy.
 
 #### Scenario: Move across frame regions
 - **WHEN** successive motion reports extend a selection from viewport rows through dock rows with unchanged geometry
@@ -161,6 +168,26 @@ A content, viewport-position, dock-allocation, terminal-size, theme, hyperlink, 
 - **THEN** the next presentation SHALL combine the latest endpoint with the newest frame content
 - **AND** no later frame SHALL restore an obsolete endpoint or overwrite newer selection feedback
 
+#### Scenario: Follow selected agent output
+- **WHEN** the viewport is following the end, a retained selection points to agent-stream document rows, and appended output advances those rows upward
+- **THEN** the selection SHALL advance upward by the same terminal-row distance as its selected source
+- **AND** the highlight SHALL NOT remain on unrelated text that takes over the former terminal cells
+
+#### Scenario: Keep selected pinned text stationary
+- **WHEN** a retained selection points to status, footer, prompt, widget, notice, or other pinned text while transcript output advances
+- **THEN** the selection SHALL stay with that pinned source rather than moving by the transcript row delta
+- **AND** the transcript SHALL retain its existing follow behavior
+
+#### Scenario: Preserve a mixed viewport-to-dock selection
+- **WHEN** one retained selection endpoint belongs to scrolling agent output and the other belongs to pinned frame content
+- **THEN** each endpoint SHALL follow its own surface while the result remains one ordered selection
+- **AND** clipping one endpoint at a frame edge SHALL NOT remap either endpoint onto another surface
+
+#### Scenario: Preserve explicit detached navigation
+- **WHEN** the reader explicitly scrolls away from the end before or after selecting content
+- **THEN** subsequent output SHALL retain the established detached reading position
+- **AND** valid selected document and pinned rows SHALL remain attached to their respective surfaces within that frame
+
 #### Scenario: Select in a long session
 - **WHEN** visible geometry and pointer movement are equivalent in short and very long transcripts
 - **THEN** frame-selection lookup and per-motion composition work SHALL remain equivalent
@@ -170,6 +197,11 @@ A content, viewport-position, dock-allocation, terminal-size, theme, hyperlink, 
 - **WHEN** terminal size or dock allocation changes while a selection is active or retained
 - **THEN** A1 SHALL recompute the affected visible-frame mapping before painting or copying
 - **AND** no stale highlight, hidden row, control glyph, or out-of-bounds cell SHALL remain selected
+
+#### Scenario: Selected source becomes ambiguous
+- **WHEN** reflow, replacement, or removal prevents A1 from proving that a selection endpoint still refers to its original source row
+- **THEN** A1 SHALL clear the uncertain selection instead of transferring it to text at the old terminal coordinate
+- **AND** no stale selection SHALL be copied later
 
 #### Scenario: Replace or close the session during a gesture
 - **WHEN** the session resets, is replaced, loses focus, or is disposed during a pending or active selection
