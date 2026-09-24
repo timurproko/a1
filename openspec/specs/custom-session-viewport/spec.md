@@ -284,9 +284,10 @@ The viewport SHALL claim wheel events addressed to exposed transcript content an
 
 #### Scenario: Render ordinary content through the rail overlay column
 - **WHEN** an ordinary transcript row reaches the right edge in `always` or `auto` scrollbar mode
-- **THEN** its wrapping width and full-row background SHALL end immediately before the final-column rail gutter
-- **AND** source text, hyperlinks, block backgrounds, and selection paint SHALL NOT be hidden beneath or cut by a visible scrollbar
-- **AND** revealing or hiding an automatic rail SHALL NOT change that content width or reflow the row
+- **THEN** its wrapping width and source glyphs SHALL end immediately before the final-column rail gutter
+- **AND** its full-row content background SHALL continue through the gutter while source text, hyperlinks, emphasis, and selection paint remain outside it
+- **AND** a visible scrollbar SHALL overlay that continued background rather than replace a source cell
+- **AND** revealing or hiding an automatic rail SHALL NOT change content width, background continuity, or row reflow
 
 #### Scenario: Double-click at the final reserved cell
 - **WHEN** a double-click selects trailing whitespace that reaches the transcript content edge
@@ -567,9 +568,9 @@ Pending steering and working rows SHALL contribute to overflow, scrollbar geomet
 - **AND** wheel input over those rows SHALL retain ordinary viewport scrolling
 
 ### Requirement: Right-edge selection remains truthful across scrollbar presentation
-Bare A1 SHALL allow a transcript selection begun outside viewport controls to extend through the final rendered source grapheme in the content area immediately before the dedicated scrollbar gutter. Whole-row selections and completed interior rows of a multiline selection SHALL include their final source graphemes in highlighting and copied text. A partial endpoint that excludes the final source grapheme SHALL leave that grapheme unselected. The gutter SHALL contain no source grapheme or semantic selection cell.
+Bare A1 SHALL allow a transcript selection begun outside viewport controls to extend through the final rendered source grapheme in the content area immediately before the dedicated scrollbar gutter. Whole-row selections and completed interior rows of a multiline selection SHALL include their final source graphemes in highlighting and copied text. A partial endpoint that excludes the final source grapheme SHALL leave that grapheme unselected. The gutter SHALL contain no source glyph, hyperlink, emphasis decoration, or semantic selection cell, but SHALL visually continue the row's underlying content background.
 
-With document content, geometry, viewport position, and selection endpoints unchanged, scrollbar hover, reveal, style changes, and hide SHALL NOT change selection membership, copied text, content wrapping, or block extent. The scrollbar gutter SHALL retain a neutral background independent of adjacent source or selection styling. A visible glyph SHALL remain confined to that gutter and SHALL NOT enter copied text; hiding an automatic rail SHALL leave the same neutral blank gutter without exposing source content.
+With document content, geometry, viewport position, and selection endpoints unchanged, scrollbar hover, reveal, style changes, and hide SHALL NOT change selection membership, copied text, content wrapping, block extent, or gutter background. A visible glyph SHALL remain confined to the gutter and SHALL be drawn over its continued row background without entering copied text; hiding an automatic rail SHALL leave a blank gutter with that same background without exposing source content. Selection paint SHALL remain bounded to the content area and SHALL NOT replace the gutter's underlying row background.
 
 #### Scenario: Complete several lines through the right edge
 - **WHEN** a transcript drag selects complete lines and ends through the last source grapheme immediately before the scrollbar gutter
@@ -579,25 +580,25 @@ With document content, geometry, viewport position, and selection endpoints unch
 
 #### Scenario: Hover with the last character selected
 - **WHEN** a released selection includes the final source grapheme and the pointer enters and leaves the scrollbar without pressing or scrolling
-- **THEN** the final content cell SHALL remain selected while the neighboring gutter remains neutral
-- **AND** the scrollbar glyph SHALL reveal and hide without replacing any source character
+- **THEN** the final content cell SHALL remain selected while the neighboring gutter retains the row's underlying content background
+- **AND** the scrollbar glyph SHALL reveal and hide over that background without replacing any source character
 - **AND** selection endpoints and copied text SHALL remain unchanged throughout
 
 #### Scenario: Hover with the last character deliberately excluded
 - **WHEN** a released partial selection ends immediately before the final source grapheme and the pointer enters and leaves the scrollbar without pressing or scrolling
 - **THEN** neither that final source cell nor the scrollbar gutter SHALL gain selection background from the selected neighbor
-- **AND** rail visibility SHALL NOT change the final source cell
+- **AND** rail visibility SHALL NOT change the final source cell or the gutter's continued row background
 - **AND** copied text SHALL exclude that grapheme before, during, and after hover
 
 #### Scenario: Change rail presentation without changing the selection
 - **WHEN** the rail reveals from activity, changes between normal and hovered presentation, or hides after activity expires while the source range remains fixed
-- **THEN** the first frame of each transition SHALL preserve the same final content cell and neutral gutter without stale or transient styling
+- **THEN** the first frame of each transition SHALL preserve the same final content cell and continued gutter background without stale or transient styling
 - **AND** this behavior SHALL hold for thin and thick rails in auto and always modes, while hidden mode SHALL return the gutter column to content and recompute the source layout
 
 #### Scenario: Preserve styled and wide right-edge content
 - **WHEN** selected or unselected boundary content contains a wide grapheme, a combining sequence, source background styling, or a hyperlink
 - **THEN** selection and copy SHALL preserve whole source graphemes and existing source-selection styling rules within the content area
-- **AND** source background, hyperlink, and emphasis decoration SHALL terminate before the neutral gutter
+- **AND** the row's underlying content background SHALL continue through the gutter while source hyperlinks, foregrounds, and emphasis decoration terminate before it
 - **AND** no scrollbar glyph, visual padding, or partial grapheme SHALL be added to copied text
 
 #### Scenario: Continue selection into the rail without stealing a new rail gesture

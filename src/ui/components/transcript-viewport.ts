@@ -149,9 +149,9 @@ export interface TranscriptViewportFrame {
 }
 
 const CONTROL_STYLE_RESET = "\u001b]8;;\u001b\\\u001b[0m";
-// Invariant: the scrollbar gutter is presentation chrome: no source link, emphasis,
-// selection, or background may cross from the content cell beside it.
-const GUTTER_STYLE_RESET = CONTROL_STYLE_RESET;
+// Invariant: scrollbar chrome closes source links and decoration without clearing
+// the row surface painted beneath its dedicated, non-semantic gutter.
+const GUTTER_DECORATION_RESET = "\u001b]8;;\u001b\\\u001b[22;23;24;25;27;28;29;39;54;55m";
 const IDENTITY_ROW = (row: string): string => row;
 
 type DocumentSelectionRowAnchor = {
@@ -655,8 +655,8 @@ export class TranscriptViewport {
           );
       rowRecomputed ||= !selected.reused;
 
-      // Invariant: paint the rail after selection, inside its neutral gutter.
-      // Source and full-row selection end at the preceding content cell.
+      // Invariant: paint the rail after selection over the gutter's continued row
+      // background. Source content and selection still end at the preceding cell.
       let railCell = "";
       if (row < viewportHeight && presentation.visible && geometry !== null && row > 0) {
         const trackRow = row - 1;
@@ -675,7 +675,11 @@ export class TranscriptViewport {
         cacheLimit,
         () => {
           const withRail = railCell.length === 0 ? selected.value : overlaySpan(
-            selected.value, width - 1, width, `${GUTTER_STYLE_RESET}${railCell}`,
+            selected.value,
+            width - 1,
+            width,
+            `${GUTTER_DECORATION_RESET}${railCell}`,
+            { inheritStartStyle: true },
           );
           return overlayWidth === 0 ? withRail : overlaySpan(
             padRowPreservingBackground(withRail, width),
@@ -1014,18 +1018,33 @@ function padViewportRowWithGutter(line: string, contentWidth: number, frameWidth
   const boundedContentWidth = Math.min(Math.max(1, contentWidth), frameWidth);
   const content = padRowPreservingBackground(line, boundedContentWidth);
   const gutterWidth = frameWidth - boundedContentWidth;
-  return gutterWidth === 0 ? content : `${content}${GUTTER_STYLE_RESET}${" ".repeat(gutterWidth)}`;
+  if (gutterWidth === 0) return content;
+  // Invariant: render no source glyph beyond contentWidth, but reuse the established
+  // row-padding background before stripping source foreground, links, and emphasis.
+  const gutterStyle = explicitBackgroundPaddingStyle(line);
+  return `${content}${GUTTER_DECORATION_RESET}${gutterStyle?.on ?? ""}${" ".repeat(gutterWidth)}${gutterStyle?.off ?? ""}`;
+}
+
+function explicitBackgroundPaddingStyle(line: string): { readonly on: string; readonly off: string } | null {
+  const background = /\u001b\[(?:4[0-8]|10[0-7]|48;(?:2;\d+;\d+;\d+|5;\d+))m/.exec(line)?.[0];
+  return background === undefined ? null : { on: background, off: "\u001b[49m" };
+}
+
+function rowPaddingStyle(line: string): { readonly on: string; readonly off: string } | null {
+  const background = explicitBackgroundPaddingStyle(line);
+  if (background !== null) return background;
+  const reverse = /\u001b\[(?:7(?:;[0-9]+)*|[0-9;]*;7(?:;[0-9]+)*)m/.exec(line)?.[0];
+  return reverse === undefined ? null : { on: reverse, off: "\u001b[27m" };
 }
 
 function padRowPreservingBackground(line: string, width: number): string {
   const shown = displayWidth(line) > width ? truncateToWidth(line, width) : line;
   const padding = Math.max(0, width - displayWidth(shown));
   if (padding === 0) return shown;
-  const background = /\u001b\[(?:4[0-8]|10[0-7]|48;(?:2;\d+;\d+;\d+|5;\d+))m/.exec(line)?.[0];
-  const reverse = /\u001b\[(?:7(?:;[0-9]+)*|[0-9;]*;7(?:;[0-9]+)*)m/.exec(line)?.[0];
-  if (background) return `${shown}${background}${" ".repeat(padding)}\u001b[49m`;
-  if (reverse) return `${shown}${reverse}${" ".repeat(padding)}\u001b[27m`;
-  return shown + " ".repeat(padding);
+  const style = rowPaddingStyle(line);
+  return style === null
+    ? shown + " ".repeat(padding)
+    : `${shown}${style.on}${" ".repeat(padding)}${style.off}`;
 }
 
 export function assertTranscriptViewportFrameDescriptor(descriptor: TranscriptViewportFrameDescriptor): void {
