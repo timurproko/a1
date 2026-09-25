@@ -1,4 +1,5 @@
 import type { Readable, Writable } from "node:stream";
+import { EMERGENCY_TERMINAL_RESET } from "../../foundation/terminal-cleanup/terminal-reset.js";
 
 export interface OwnedProjectTrustPromptRequest {
   readonly cwd: string;
@@ -20,9 +21,7 @@ export interface ConsoleProjectTrustPromptOptions {
 }
 
 const ENTER_ALTERNATE_SCREEN = "\u001b[?1049h";
-const LEAVE_ALTERNATE_SCREEN = "\u001b[?1049l";
 const HIDE_CURSOR = "\u001b[?25l";
-const SHOW_CURSOR = "\u001b[?25h";
 const CLEAR_HOME = "\u001b[2J\u001b[H";
 const ACCENT = "\u001b[38;2;138;190;183m";
 const MUTED = "\u001b[38;2;128;128;128m";
@@ -30,6 +29,16 @@ const DIM = "\u001b[38;2;102;102;102m";
 const RESET_FG = "\u001b[39m";
 const BOLD = "\u001b[1m";
 const RESET_BOLD = "\u001b[22m";
+const PROJECT_TRUST_EXIT = "ProjectTrustPromptExitError";
+
+class ProjectTrustPromptExitError extends Error {
+  readonly exitCode: 0 | 130;
+  constructor(exitCode: 0 | 130) {
+    super("Project trust prompt exited");
+    this.name = PROJECT_TRUST_EXIT;
+    this.exitCode = exitCode;
+  }
+}
 
 /** Fixed pre-resource selector; no project resource is available. */
 export function createConsoleProjectTrustPrompt(
@@ -41,7 +50,8 @@ export function createConsoleProjectTrustPrompt(
     if (input.isTTY !== true || output.isTTY !== true) {
       throw new Error("an interactive terminal is unavailable");
     }
-    const renderBareDialog = options.presentation === "comparison"
+    const comparison = options.presentation === "comparison";
+    const renderBareDialog = comparison
       ? undefined : (await import("./project-trust-dialog.js")).renderProjectTrustDialog;
 
     const wasRaw = input.isRaw === true;
@@ -51,7 +61,7 @@ export function createConsoleProjectTrustPrompt(
       if (restored) return;
       restored = true;
       input.setRawMode?.(wasRaw);
-      output.write(`${CLEAR_HOME}${SHOW_CURSOR}${LEAVE_ALTERNATE_SCREEN}`);
+      output.write(`${CLEAR_HOME}${EMERGENCY_TERMINAL_RESET}`);
     };
     const render = (): void => {
       const width = Math.max(renderBareDialog ? 1 : 20, output.columns ?? 80);
@@ -89,6 +99,8 @@ export function createConsoleProjectTrustPrompt(
           settled = true;
           cleanup();
           restore();
+          // Ownership: after alternate-screen restoration, only the parent shell may paint
+          // its normal buffer or prompt. Exit control carries no parent-screen output.
           reject(error);
         };
         const onData = (chunk: Buffer | string): void => {
@@ -112,8 +124,14 @@ export function createConsoleProjectTrustPrompt(
               finish(selected === 0);
               return;
             }
-            if (key === "\u001b" || key === "\u0003") {
-              finish(null);
+            if (key === "\u001b") {
+              if (comparison) finish(null);
+              else fail(new ProjectTrustPromptExitError(0));
+              return;
+            }
+            if (key === "\u0003") {
+              if (comparison) finish(null);
+              else fail(new ProjectTrustPromptExitError(130));
               return;
             }
             // Compatibility: retain y/n aliases for terminals or automation that cannot send

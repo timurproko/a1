@@ -101,6 +101,17 @@ describe("project trust preflight", () => {
     expect(unavailable.diagnostic).toMatch(/requires interaction/);
   });
 
+  it("propagates an explicit startup exit without creating a trust decision", async () => {
+    const exit = Object.assign(new Error("Project trust prompt exited"), {
+      name: "ProjectTrustPromptExitError",
+      exitCode: 0,
+    });
+    await expect(resolvePiProjectTrustPreflight(options({
+      prompt: async () => { throw exit; },
+    }))).rejects.toBe(exit);
+    expect(new ProjectTrustStore(agentDir).get(cwd)).toBeNull();
+  });
+
   it("uses an in-session saved decision only on the next launch", async () => {
     writeFileSync(join(agentDir, "settings.json"), JSON.stringify({ defaultProjectTrust: "always" }));
     const current = await resolvePiProjectTrustPreflight(options());

@@ -1,6 +1,7 @@
 import { Readable, Writable } from "node:stream";
 import { describe, expect, it } from "vitest";
 import { createConsoleProjectTrustPrompt } from "../../../src/features/owned-ui/index.js";
+import { EMERGENCY_TERMINAL_RESET } from "../../../src/foundation/terminal-cleanup/index.js";
 import { firstVisibleTextColumn } from "../../support/dialog-alignment.js";
 
 class TtyInput extends Readable {
@@ -45,8 +46,6 @@ describe("bounded project trust terminal preflight", () => {
     ["\u001b[B\r", false],
     ["y", true],
     ["n", false],
-    ["\u001b", null],
-    ["\u0003", null],
   ] as const)("maps selector keys %j to %s", async (keys, expected) => {
     const input = new TtyInput(keys);
     const output = new TtyOutput();
@@ -60,6 +59,8 @@ describe("bounded project trust terminal preflight", () => {
     expect(output.text).toContain("→ Trust");
     expect(output.text).toContain("Do not trust");
     expect(output.text).toContain("\u001b[38;2;102;102;102m↑/↓\u001b[38;2;128;128;128m to navigate  \u001b[38;2;102;102;102mEnter\u001b[38;2;128;128;128m to select");
+    expect(output.text).toContain("Esc\u001b[38;2;128;128;128m to exit");
+    expect(output.text).not.toContain("Ctrl+C\u001b[38;2;128;128;128m to exit");
     expect(output.text).not.toMatch(/[·•]/u);
     const lastFrame = output.text.split("\u001b[2J\u001b[H").reverse()
       .find(frame => frame.includes("Trust project folder?"))!.split("\n");
@@ -75,9 +76,27 @@ describe("bounded project trust terminal preflight", () => {
     expect(input.rawTransitions).toEqual([true, false]);
   });
 
+  it.each([
+    ["Escape", "\u001b", 0],
+    ["Ctrl+C", "\u0003", 130],
+  ] as const)("exits startup on %s after restoring the terminal", async (_name, key, exitCode) => {
+    const input = new TtyInput(key);
+    const output = new TtyOutput();
+    const prompt = createConsoleProjectTrustPrompt({ input, output });
+    await expect(prompt({ cwd: "D:/work", defaultDecision: "ask" })).rejects.toMatchObject({
+      name: "ProjectTrustPromptExitError",
+      exitCode,
+    });
+    expect(input.rawTransitions).toEqual([true, false]);
+    expect(output.text.endsWith(`\u001b[2J\u001b[H${EMERGENCY_TERMINAL_RESET}`)).toBe(true);
+    expect(output.text).not.toMatch(/\r\n|\u001b\[2K/u);
+    expect(output.text.lastIndexOf("\u001b[?1049l")).toBeLessThan(output.text.lastIndexOf("\u001b[?25h"));
+    expect(output.text).toContain("\u001b[?2004l");
+  });
+
   it("keeps decisions and controls visible in a short narrow terminal", async () => {
     const output = new TtyOutput(30, 5);
-    const prompt = createConsoleProjectTrustPrompt({ input: new TtyInput("\u001b"), output });
+    const prompt = createConsoleProjectTrustPrompt({ input: new TtyInput("n"), output });
     await prompt({ cwd: "D:/work", defaultDecision: "ask" });
     const frame = output.text.split("\u001b[2J\u001b[H").find(part => part.includes("Trust project folder?"))!;
     expect(frame.split("\n")).toHaveLength(5);
@@ -89,7 +108,7 @@ describe("bounded project trust terminal preflight", () => {
 
   it("does not replay control bytes from the working directory", async () => {
     const output = new TtyOutput();
-    const prompt = createConsoleProjectTrustPrompt({ input: new TtyInput("\u001b"), output });
+    const prompt = createConsoleProjectTrustPrompt({ input: new TtyInput("n"), output });
     await prompt({ cwd: "D:/bad\u001b]52;clipboard\u0007", defaultDecision: "ask" });
     expect(output.text).not.toContain("\u001b]52;clipboard");
     expect(output.text).toContain("D:/bad�]52;clipboard�");
@@ -112,7 +131,8 @@ describe("bounded project trust terminal preflight", () => {
     await prompt({ cwd: "D:/work", defaultDecision: "ask" });
     expect(output.text.indexOf("\u001b[?1049h")).toBeLessThan(output.text.indexOf("Trust project folder?"));
     expect(output.text.lastIndexOf("\u001b[2J\u001b[H")).toBeLessThan(output.text.lastIndexOf("\u001b[?1049l"));
-    expect(output.text.endsWith("\u001b[2J\u001b[H\u001b[?25h\u001b[?1049l")).toBe(true);
+    expect(output.text.endsWith(`\u001b[2J\u001b[H${EMERGENCY_TERMINAL_RESET}`)).toBe(true);
+    expect(output.text.lastIndexOf("\u001b[?1049l")).toBeLessThan(output.text.lastIndexOf("\u001b[?25h"));
   });
 
   it("reports unavailable interaction instead of inventing trust or writing a frame", async () => {
