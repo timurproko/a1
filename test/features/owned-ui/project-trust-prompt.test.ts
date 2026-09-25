@@ -87,7 +87,7 @@ describe("bounded project trust terminal preflight", () => {
       exitCode: 130,
     });
     expect(input.rawTransitions).toEqual([true, false]);
-    expect(output.text.endsWith("\u001b[2J\u001b[H\u001b[?25h\u001b[?1049l")).toBe(true);
+    expect(output.text.endsWith("\u001b[2J\u001b[H\u001b[?25h\u001b[?1049l\r\n")).toBe(true);
   });
 
   it("keeps decisions and controls visible in a short narrow terminal", async () => {

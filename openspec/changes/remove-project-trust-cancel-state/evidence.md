@@ -3,19 +3,18 @@
 ## Result
 
 - Bare A1 now exposes Trust, Do not trust, or exit without decision; Escape restores the terminal and exits instead of opening a temporarily untrusted shell.
-- Escape and the conventional Ctrl+C interruption alias abort startup silently through the bounded process terminator with exit code 130 before project settings, resources, or the owned shell are constructed; resumed stdin cannot leave the command hanging after restoration.
+- Escape and the conventional Ctrl+C interruption alias finish the restored command row and abort startup silently through the bounded process terminator with exit code 130 before project settings, resources, or the owned shell are constructed; resumed stdin cannot leave the command hanging and the parent prompt cannot overwrite the launch command.
 - The bare-A1 hint advertises `Esc to exit`; `a1 pi` retains its pinned Escape/Ctrl+C cancellation behavior.
 - Exceptional fail-closed trust warnings carry a dedicated `project-trust` code, appear once in bare A1's warning dock above the editor, and remain outside transcript semantics.
-- The accepted interaction and presentation changes keep startup reachability at 157 files / 1,516,794 source bytes.
+- The accepted interaction and presentation changes keep startup reachability at 157 files / 1,517,062 source bytes.
 
 ## Validation
 
-- `npx vitest run test/features/owned-ui/project-trust-prompt.test.ts test/integrations/pi/engine/project-trust-preflight.test.ts test/integrations/pi/engine/runtime-integration.test.ts test/app/session-shell/session-shell.test.ts test/repository-governance/startup-descriptor.test.ts test/repository-governance/startup-graph-policy.test.ts` — 6 files and 66 tests passed.
-- `npx vitest run test/foundation/release/bootstrap-boundary.test.ts` — passed, including the required trust-interruption route through `terminateOwnedUiProcess`.
+- `npx vitest run test/features/owned-ui/project-trust-prompt.test.ts test/integrations/pi/engine/project-trust-preflight.test.ts test/integrations/pi/engine/runtime-integration.test.ts test/app/session-shell/session-shell.test.ts test/foundation/release/bootstrap-boundary.test.ts test/repository-governance/startup-descriptor.test.ts test/repository-governance/startup-graph-policy.test.ts` — 7 files and 76 tests passed, including interruption row termination and the required route through `terminateOwnedUiProcess`.
 - `npm run typecheck` — passed for source and bin projects.
 - `npx openspec validate remove-project-trust-cancel-state --strict --no-interactive` — passed.
 - `node scripts/governance/check-architecture.mjs` — passed.
-- `node scripts/pi/update-startup-graph-baseline.mjs --check` — passed at 157 files / 1,516,794 bytes.
+- `node scripts/pi/update-startup-graph-baseline.mjs --check` — passed at 157 files / 1,517,062 bytes.
 - `git diff --check` — passed.
 
 ## Environment limitation
@@ -24,7 +23,7 @@
 
 ## Manual handoff
 
-From an uncovered folder under `defaultProjectTrust: ask`, start the development checkout. Press Escape and confirm A1 returns directly to a live parent shell prompt without hanging on a blinking cursor, starting the owned shell, printing a crash, or flashing an intermediate restricted session. Relaunch, choose Do not trust, and confirm A1 starts normally without a warning.
+From an uncovered folder under `defaultProjectTrust: ask`, start the development checkout. Press Escape and confirm A1 returns directly to a live parent shell prompt on the line after the launch command, without hanging or flashing a cursor inside that command, starting the owned shell, printing a crash, or flashing an intermediate restricted session. Relaunch, choose Do not trust, and confirm A1 starts normally without a warning.
 
 ## Known gaps
 

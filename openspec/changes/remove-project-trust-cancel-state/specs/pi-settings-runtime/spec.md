@@ -40,7 +40,7 @@ A1 SHALL resolve saved project trust and `defaultProjectTrust` for every launch 
 
 #### Scenario: Exit bare-A1 trust preflight
 - **WHEN** Escape is pressed in the bare-A1 startup trust selector
-- **THEN** A1 SHALL restore the terminal, preserve the undecided trust state, and terminate startup with the conventional interruption outcome
+- **THEN** A1 SHALL restore the terminal, finish the restored launch-command row, preserve the undecided trust state, and terminate startup with the conventional interruption outcome
 - **AND** it SHALL NOT construct project settings, resources, or the owned shell
 
 #### Scenario: Interrupt bare-A1 trust preflight

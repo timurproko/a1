@@ -50,8 +50,8 @@ The dialog SHALL remain readable at supported terminal sizes, SHALL prioritize t
 - **WHEN** the user navigates, confirms, exits, interrupts, or the input stream ends or fails
 - **THEN** arrows and Tab SHALL move selection and Enter SHALL confirm one of the two visible decisions
 - **AND** Escape SHALL be advertised as the exit action while Ctrl+C remains a conventional interruption alias
-- **AND** either exit path SHALL restore the terminal exactly once and abort startup without constructing the owned shell
-- **AND** A1 SHALL restore raw mode, cursor visibility, and the parent terminal without leaving dialog rows or a blank alternate surface behind
+- **AND** either exit path SHALL restore the terminal exactly once, finish the restored launch-command row, and abort startup without constructing the owned shell
+- **AND** A1 SHALL restore raw mode, cursor visibility, and the parent terminal without leaving dialog rows, a blank alternate surface, or the next shell prompt inside the launch command
 
 #### Scenario: Use the comparison profile
 - **WHEN** the same launch runs through `a1 pi`
