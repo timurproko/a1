@@ -253,8 +253,9 @@ describe("owned level and model keybindings", () => {
     expect(cellStyle(selectedRow, "✓")).toEqual(cellStyle(piTheme().fg("success", "✓"), "✓"));
     expect(cellStyle(selectedRow, "[")).toEqual(cellStyle(piTheme().fg("muted", "["), "["));
     expect(rows.filter(row => stripTerminalSequences(row).includes("Moderate reasoning"))).toHaveLength(1);
-    const controls = rows.find(row => stripTerminalSequences(row).includes("to select"))!;
-    expect(stripTerminalSequences(controls)).toContain("Enter to select  Ctrl+S to set as default  Escape/Ctrl+C to cancel");
+    const controls = rows.find(row => stripTerminalSequences(row).includes("Enter select"))!;
+    expect(stripTerminalSequences(controls).trim()).toBe("Enter select  Space default  Ctrl+S save  Esc close");
+    expect(stripTerminalSequences(controls)).not.toContain("Escape/Ctrl+C");
     expect(firstVisibleTextColumn(controls)).toBe(firstVisibleTextColumn(heading));
     expect(controls).not.toMatch(/[·•]/u);
     expect(cellStyle(controls, "E")).toEqual(cellStyle(piTheme().fg("dim", "E"), "E"));
@@ -262,15 +263,23 @@ describe("owned level and model keybindings", () => {
     for (const width of [24, 32, 40]) expect(selector.render(width).every(row => visibleWidth(row) <= width)).toBe(true);
 
     selector.handleInput?.("low");
+    selector.handleInput?.(" ");
+    expect(saved).not.toHaveBeenCalled();
+    const stagedLowRow = selector.render(100).map(stripTerminalSequences)
+      .find(row => row.includes("Light reasoning"))!;
+    expect(stagedLowRow.replace(/\s+/g, " ")).toContain("low [default] Light reasoning (~2k tokens)");
+    selector.handleInput?.("\x13");
+    expect(saved).toHaveBeenCalledWith("low");
     selector.handleInput?.("\r");
     expect(selected).toHaveBeenCalledWith("low");
 
+    const customSaved = vi.fn();
     const custom = createPiShellThinkingSelector(
       "high",
       ["low", "high"],
       selected,
       canceled,
-      saved,
+      customSaved,
       "low",
       { profile: "bare", cycleBinding: "alt+r" },
     );
@@ -284,8 +293,17 @@ describe("owned level and model keybindings", () => {
     expect(customDefaultRow.replace(/\s+/g, " ")).toContain("low [default] Light reasoning (~2k tokens)");
     expect(customDefaultRow).not.toContain("✓");
     expect(customActiveRow.indexOf("Deep reasoning")).toBe(customDefaultRow.indexOf("Light reasoning"));
+    custom.handleInput?.(" ");
+    expect(customSaved).not.toHaveBeenCalled();
+    const stagedRows = custom.render(100).map(stripTerminalSequences);
+    expect(stagedRows.find(row => row.includes("Deep reasoning"))!.replace(/\s+/g, " "))
+      .toContain("→ high ✓ [default] Deep reasoning (~16k tokens)");
+    expect(stagedRows.find(row => row.includes("Light reasoning"))).not.toContain("[default]");
+    custom.handleInput?.("low");
     custom.handleInput?.("\x13");
-    expect(saved).toHaveBeenCalledWith("high");
+    expect(customSaved).toHaveBeenCalledWith("high");
+    custom.handleInput?.("\x03");
+    expect(canceled).not.toHaveBeenCalled();
     custom.handleInput?.("\x1b");
     expect(canceled).toHaveBeenCalledOnce();
   });
