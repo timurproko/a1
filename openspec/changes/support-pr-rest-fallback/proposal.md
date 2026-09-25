@@ -22,6 +22,6 @@ None.
 
 ## Impact
 
-Implementation is expected to affect the repository PR probe and its focused tests only. It will not change footer rendering, polling cadence, stored settings, Git/GitHub state, or the pinned `a1 pi` profile.
+Implementation is expected to affect the repository PR probe, a lazily loaded REST collaborator, the reviewed startup-graph baseline that declares that collaborator optional, and focused tests. It will not change footer rendering, polling cadence, stored settings, Git/GitHub state, or the pinned `a1 pi` profile.
 
 This change contains planning artifacts only, not implementation.

@@ -22,9 +22,9 @@ GitHub's pull-request list endpoint supports an exact `owner:branch` head filter
 
 ### 1. Retain `gh` first and use REST only as a fallback
 
-Run the existing non-shell `gh pr view` probe first. If it yields a valid exact-branch open-or-merged identity, return it without a network fallback. Otherwise read the selected worktree's `origin` URL and attempt the REST path.
+Run the existing non-shell `gh pr view` probe first. If it yields a valid exact-branch open-or-merged identity, return it without a network fallback. Otherwise dynamically load the REST collaborator, read the selected worktree's `origin` URL, and attempt the REST path. Declare that collaborator in the reviewed startup-graph optional-module baseline so REST parsing and transport do not enter the eager startup graph.
 
-This preserves existing authenticated/private-repository behavior and avoids an extra API request for environments where `gh` already works. A failed fallback still resolves to silent absence.
+This preserves existing authenticated/private-repository behavior, avoids an extra API request for environments where `gh` already works, and keeps fallback-only code out of the normal startup path. A failed fallback still resolves to silent absence.
 
 ### 2. Derive one bounded GitHub repository identity from `origin`
 
@@ -48,6 +48,7 @@ Use the existing probe abort signal plus a short request deadline. Abort remote 
 - **[Fork PRs may use a different head owner]** -> Deliberately query only the selected repository's parsed origin owner; avoiding remote scans prevents incorrect cross-repository association. Fork-specific discovery remains out of scope.
 - **[A crafted remote or API payload produces an unsafe link]** -> Strictly parse GitHub remotes and validate canonical GitHub PR URLs, exact head refs, state, and repository identity.
 - **[Network work survives disposal]** -> Compose the runtime signal with a request timeout and ignore aborted or late results under the existing generation checks.
+- **[Fallback code expands eager startup]** -> Load the REST collaborator dynamically, record it as an optional startup module, and enforce the updated measured baseline.
 - **[Private repository credentials leak]** -> Read standard token variables only for the Authorization header and never expose them through diagnostics, URLs, return values, or tests.
 
 ## Migration Plan
