@@ -57,3 +57,12 @@ Render four semantic hint entries in this order: `Enter select`, `Space default`
 2. Route Ctrl+S to the staged value and make Escape the selector's only close key.
 3. Replace the footer hints and add focused behavior/presentation coverage.
 4. Roll back the component and tests if needed; no stored-setting migration is required.
+
+## Implementation Evidence
+
+- `npm exec vitest -- run test/integrations/pi/components/prompt-input-ux.test.ts test/app/session-shell/session-shell-workflows.test.ts` passes all 35 focused tests, including immediate marker movement, staged-value persistence routing, Ctrl+C retention, Escape close, compact hint text, and comparison-profile isolation.
+- `npm run typecheck` passes after the repository's TypeScript build and startup-public generation stages prepare the emitted declarations.
+- `node scripts/governance/check-pinned-pi-source-ledger.mjs` verifies all 118 source-port records and the new owned thinking-selector control deviation against LF-normalized source bytes.
+- `npx --yes @fission-ai/openspec@1.11.0 validate fix-thinking-selector-shortcuts --strict` passes.
+- `npm run build` is locally blocked by the environment prerequisite check because Cargo and Rust are unavailable; the TypeScript compiler, settings-metadata generator, startup-public generator, and subsequent typecheck pass independently. Exact terminal appearance and the complete native build remain for CI and maintainer review through `./scripts/dev`.
+- No known implementation gaps remain.

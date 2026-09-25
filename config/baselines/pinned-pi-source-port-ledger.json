@@ -2426,9 +2426,9 @@
       "localDestination": "src/integrations/pi/components/upstream/components/thinking-selector.ts",
       "implementationStatus": "ported",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Preserve the searchable thinking-level selector, current/default semantics, selection, save, cancellation, and focus while accepting the active bare-A1 cycle-key label from the shell, styling the title with the established bold semantic accent treatment, placing it directly below the top rule through the shared compact padded modal frame and its muted hint directly below it, deduplicating levels, and rendering aligned muted descriptions after adjacent active and bracketed default markers. All list and border colors use the owned theme and its explicit color mode, and the footer uses the shared bare-A1 modal shortcut row. The comparison profile retains the public pinned component.",
+      "modifications": "Preserve the searchable thinking-level selector, current/default semantics, selection, and focus while accepting the active bare-A1 cycle-key label from the shell, styling the title with the established bold semantic accent treatment, placing it directly below the top rule through the shared compact padded modal frame and its muted hint directly below it, deduplicating levels, and rendering aligned muted descriptions after adjacent active and bracketed default markers. Bare A1 stages defaults on Space, saves them on Ctrl+S, closes only on Escape, and uses the shared compact semantic shortcut row. All list and border colors use the owned theme and its explicit color mode. The comparison profile retains the public pinned component.",
       "upgradeStrategy": "three-way",
-      "localSha256": "68b7a8865ae4ca0ee1c95834d8bf0a72ed56f8777f99beaebca292371b8f0320",
+      "localSha256": "5157beaea67f799590a03884cdbb51fec24082e2ff0280a21be6667beedd963c",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -2445,8 +2445,14 @@
         {
           "id": "owned-thinking-selector-heading",
           "reason": "The accepted bare-A1 presentation uses the same bold semantic accent heading and compact row treatment as its Models configuration surface, including an adjacent muted hint, unique level rows, aligned muted descriptions, one adjacent success-colored active marker, and an adjacent bracketed default marker.",
-          "upstreamBehavior": "Selector geometry, search, navigation, selection, persistence, cancellation, and focus remain source-equivalent; duplicate footer level presentation is suppressed only while the selector is open.",
+          "upstreamBehavior": "The comparison profile retains the pinned selector presentation; duplicate footer level presentation is suppressed only while the bare selector is open.",
           "acceptanceTest": "test/app/session-shell/session-shell-workflows.test.ts"
+        },
+        {
+          "id": "owned-thinking-selector-controls",
+          "reason": "Bare A1 follows its Models-dialog grammar by staging the highlighted default on Space, saving it on Ctrl+S, closing only on Escape, and presenting compact semantic hints.",
+          "upstreamBehavior": "The pinned comparison selector keeps immediate Ctrl+S default selection and its shared Escape/Ctrl+C cancellation behavior.",
+          "acceptanceTest": "test/integrations/pi/components/prompt-input-ux.test.ts"
         }
       ],
       "behaviorCategories": [
