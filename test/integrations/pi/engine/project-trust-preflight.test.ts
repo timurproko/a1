@@ -1,7 +1,7 @@
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ProjectTrustStore, SettingsManager } from "@earendil-works/pi-coding-agent";
 import {
   createPiRuntimeServicesAfterTrust,
@@ -25,13 +25,17 @@ beforeEach(() => {
 afterEach(() => rmSync(root, { recursive: true, force: true }));
 
 function options(extra: Partial<Parameters<typeof resolvePiProjectTrustPreflight>[0]> = {}) {
-  return { cwd, agentDir, hasProjectResources: () => true, ...extra };
+  return { cwd, agentDir, ...extra };
 }
 
 describe("project trust preflight", () => {
-  it("needs no decision when no project-scoped source exists", async () => {
-    await expect(resolvePiProjectTrustPreflight({ cwd, agentDir, hasProjectResources: () => false }))
-      .resolves.toEqual({ trusted: true, source: "no-project-resources", diagnostic: null });
+  it("asks for an uncovered directory even when it has no project-scoped source", async () => {
+    rmSync(join(cwd, ".pi"), { recursive: true, force: true });
+    const prompt = vi.fn(async () => true);
+    await expect(resolvePiProjectTrustPreflight(options({ prompt })))
+      .resolves.toEqual({ trusted: true, source: "interactive", diagnostic: null });
+    expect(prompt).toHaveBeenCalledWith({ cwd, defaultDecision: "ask" });
+    expect(new ProjectTrustStore(agentDir).get(cwd)).toBe(true);
   });
 
   it("uses the nearest saved path decision before the global default", async () => {
@@ -41,6 +45,19 @@ describe("project trust preflight", () => {
     expect(await resolvePiProjectTrustPreflight(options())).toMatchObject({ trusted: true, source: "saved" });
     store.set(cwd, false);
     expect(await resolvePiProjectTrustPreflight(options())).toMatchObject({ trusted: false, source: "saved" });
+  });
+
+  it("does not let an exact decision cover an unrelated sibling", async () => {
+    const store = new ProjectTrustStore(agentDir);
+    store.set(cwd, true);
+    const sibling = join(root, "project", "sibling");
+    mkdirSync(sibling, { recursive: true });
+    const prompt = vi.fn(async () => false);
+    await expect(resolvePiProjectTrustPreflight({ cwd: sibling, agentDir, prompt }))
+      .resolves.toEqual({ trusted: false, source: "interactive", diagnostic: null });
+    expect(prompt).toHaveBeenCalledOnce();
+    expect(store.get(cwd)).toBe(true);
+    expect(store.get(sibling)).toBe(false);
   });
 
   it("honors always and never defaults for an undecided path", async () => {
