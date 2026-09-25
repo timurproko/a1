@@ -77,15 +77,15 @@ describe("bounded project trust terminal preflight", () => {
   });
 
   it.each([
-    ["Escape", "\u001b"],
-    ["Ctrl+C", "\u0003"],
-  ])("aborts startup on %s after restoring the terminal", async (_name, key) => {
+    ["Escape", "\u001b", 0],
+    ["Ctrl+C", "\u0003", 130],
+  ] as const)("exits startup on %s after restoring the terminal", async (_name, key, exitCode) => {
     const input = new TtyInput(key);
     const output = new TtyOutput();
     const prompt = createConsoleProjectTrustPrompt({ input, output });
     await expect(prompt({ cwd: "D:/work", defaultDecision: "ask" })).rejects.toMatchObject({
-      name: "ProjectTrustPromptInterruptedError",
-      exitCode: 130,
+      name: "ProjectTrustPromptExitError",
+      exitCode,
     });
     expect(input.rawTransitions).toEqual([true, false]);
     expect(output.text.endsWith(`\u001b[2J\u001b[H${EMERGENCY_TERMINAL_RESET}\r\n`)).toBe(true);

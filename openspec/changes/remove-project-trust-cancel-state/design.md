@@ -29,7 +29,7 @@ Treating Escape as Do not trust was rejected because it would persist a decision
 
 ### 2. Escape aborts before runtime construction
 
-On Escape or Ctrl+C, the prompt restores raw mode and applies A1's shared emergency terminal reset, then rejects with a bounded interruption carrying exit code 130. The reset disables bracketed paste, mouse/focus tracking, synchronized output, and enhanced keyboard modes before leaving the alternate screen, then restores wraparound and cursor visibility again on the parent screen. Trust preflight propagates the interruption instead of converting it into a restricted launch. The UI entry point treats it as an expected silent termination rather than a fatal crash and invokes the bounded process terminator instead of only assigning `process.exitCode`.
+On Escape or Ctrl+C, the prompt restores raw mode and applies A1's shared emergency terminal reset, then returns bounded exit control carrying status 0 for the visible Escape action or conventional status 130 for Ctrl+C. The reset disables bracketed paste, mouse/focus tracking, synchronized output, and enhanced keyboard modes before leaving the alternate screen, then restores wraparound and cursor visibility again on the parent screen. Trust preflight propagates that control instead of converting it into a restricted launch. The UI entry point treats it as an expected silent termination rather than a fatal crash and invokes the bounded process terminator instead of only assigning `process.exitCode`. Escape's successful status also prevents the development launcher from applying its nonzero-child emergency reset a second time, matching the normal owned-UI exit path.
 
 This prevents project-aware services and the owned shell from being created after interruption, eliminates the cancel-to-shell transition, and ensures the prompt's resumed stdin handle cannot keep the process alive after terminal restoration. After leaving the alternate screen, the interruption writes one `CRLF` so the parent shell paints its next prompt after the restored command row rather than into it; accepted trust decisions do not add that parent-shell line break because they continue into A1.
 
@@ -44,7 +44,7 @@ The `a1 pi` presentation retains Escape/Ctrl+C cancellation and renders any resu
 ## Risks / Trade-offs
 
 - **[Exit could be mistaken for Do not trust]** → Save no decision and return directly to the parent terminal; the next launch asks again.
-- **[An interruption could be mistaken for a failure]** → Exit silently with conventional code 130 and no crash report.
+- **[The visible exit could be mistaken for a failure]** → Escape exits successfully with status 0 and no crash report; only the conventional Ctrl+C alias retains status 130.
 - **[Resumed stdin could retain the process after restoration]** → Route the expected interruption through the same bounded output-flushing process terminator used by ordinary owned-UI completion.
 - **[The parent prompt could overwrite the restored command row]** → Emit one `CRLF` only for the exit path after alternate-screen restoration and before bounded termination.
 - **[The restored shell could inherit a hidden cursor or bracketed-paste mode]** → Use the shared idempotent emergency reset, including a parent-screen cursor show after alternate-screen leave, rather than the prompt's former minimal sequence.

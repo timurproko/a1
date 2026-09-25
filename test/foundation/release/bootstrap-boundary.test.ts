@@ -25,7 +25,7 @@ describe("mutable bootstrap boundary", () => {
     expect(ui).toContain("runSelectedInteractiveRuntime");
     expect(ui).toContain("runOwnedUi");
     expect(ui).toContain("terminateOwnedUiProcess");
-    expect(ui).toContain("if (trustInterrupted) return terminateOwnedUiProcess(error.exitCode);");
+    expect(ui).toContain("if (trustExit) return terminateOwnedUiProcess(error.exitCode);");
     expect(`${bin}\n${guardian}\n${ui}`).not.toMatch(/node-pty|pi-tui|@xterm|host-terminal-renderer|terminal-input/);
     expect(`${bin}\n${guardian}\n${ui}`).not.toMatch(/Start-Process|wt\.exe|SendInput|SetForegroundWindow/);
   });

@@ -63,9 +63,9 @@ export async function resolvePiProjectTrustPreflight(
     trustStore.set(options.cwd, decision);
     return { trusted: decision, source: "interactive", diagnostic: null };
   } catch (error) {
-    // Protocol: Ctrl+C aborts bare-A1 startup after the prompt restores the terminal;
+    // Protocol: an explicit bare-A1 exit propagates after the prompt restores the terminal;
     // ordinary prompt failures still continue through the fail-closed restricted shell.
-    if (error instanceof Error && error.name === "ProjectTrustPromptInterruptedError") throw error;
+    if (error instanceof Error && error.name === "ProjectTrustPromptExitError") throw error;
     return {
       trusted: false,
       source: "fail-closed",

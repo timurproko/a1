@@ -29,13 +29,14 @@ const DIM = "\u001b[38;2;102;102;102m";
 const RESET_FG = "\u001b[39m";
 const BOLD = "\u001b[1m";
 const RESET_BOLD = "\u001b[22m";
-const PROJECT_TRUST_INTERRUPTED = "ProjectTrustPromptInterruptedError";
+const PROJECT_TRUST_EXIT = "ProjectTrustPromptExitError";
 
-class ProjectTrustPromptInterruptedError extends Error {
-  readonly exitCode = 130;
-  constructor() {
-    super("Project trust selection interrupted");
-    this.name = PROJECT_TRUST_INTERRUPTED;
+class ProjectTrustPromptExitError extends Error {
+  readonly exitCode: 0 | 130;
+  constructor(exitCode: 0 | 130) {
+    super("Project trust prompt exited");
+    this.name = PROJECT_TRUST_EXIT;
+    this.exitCode = exitCode;
   }
 }
 
@@ -100,7 +101,7 @@ export function createConsoleProjectTrustPrompt(
           restore();
           // Terminal handoff: an expected exit must finish the restored command row before
           // the parent shell paints its next prompt; other failures continue into A1.
-          if (error instanceof ProjectTrustPromptInterruptedError) output.write("\r\n");
+          if (error instanceof ProjectTrustPromptExitError) output.write("\r\n");
           reject(error);
         };
         const onData = (chunk: Buffer | string): void => {
@@ -126,12 +127,12 @@ export function createConsoleProjectTrustPrompt(
             }
             if (key === "\u001b") {
               if (comparison) finish(null);
-              else fail(new ProjectTrustPromptInterruptedError());
+              else fail(new ProjectTrustPromptExitError(0));
               return;
             }
             if (key === "\u0003") {
               if (comparison) finish(null);
-              else fail(new ProjectTrustPromptInterruptedError());
+              else fail(new ProjectTrustPromptExitError(130));
               return;
             }
             // Compatibility: retain y/n aliases for terminals or automation that cannot send

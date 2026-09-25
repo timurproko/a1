@@ -68,10 +68,10 @@ Promise.resolve().then(() => {
   },
   error => {
     const sessionSelectionError = error?.name === "PiSessionSelectionError";
-    const trustInterrupted = error?.name === "ProjectTrustPromptInterruptedError";
-    if (fatal && !sessionSelectionError && !trustInterrupted) { fatal.fail(error); return; }
+    const trustExit = error?.name === "ProjectTrustPromptExitError";
+    if (fatal && !sessionSelectionError && !trustExit) { fatal.fail(error); return; }
     fatal?.remove();
-    if (trustInterrupted) return terminateOwnedUiProcess(error.exitCode);
+    if (trustExit) return terminateOwnedUiProcess(error.exitCode);
     console.error(error instanceof Error ? error.message : String(error));
     process.exitCode = sessionSelectionError ? error.exitCode : 1;
   },
