@@ -152,7 +152,7 @@ export async function createPiRuntimeIntegration(options: PiRuntimeIntegrationOp
       ...created,
       services,
       diagnostics: [
-        ...(trust.diagnostic === null ? [] : [{ type: "warning" as const, message: trust.diagnostic }]),
+        ...(trust.diagnostic === null ? [] : [{ type: "warning" as const, code: "project-trust", message: trust.diagnostic }]),
         ...modelScope.diagnostics,
       ],
     };
