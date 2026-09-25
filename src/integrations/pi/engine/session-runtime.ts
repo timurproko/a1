@@ -257,10 +257,7 @@ export class PiEngineRuntime {
     this.#sessionBindingGeneration += 1;
     this.#session = session;
     this.#sessionCommands = new PiSessionCommandIntegration(session);
-    this.#compactionProgress?.dispose();
-    this.#compactionProgress = observeCompactionProgress(session, percent => {
-      if (this.#session === session && !this.#ports.disposed()) this.#ports.compactionProgress(percent);
-    });
+    this.#attachCompactionProgress(session);
     // Invariant: the subscription is live before the adapter rebuilds its state so the extension
     // rebind that finishes the rebuild cannot emit an event nobody is listening to.
     this.#subscribe();
@@ -278,7 +275,13 @@ export class PiEngineRuntime {
 
   /** Forward the current session's events again under the current generation. */
   resume(): void {
-    if (this.#session === undefined) return;
+    const session = this.#session;
+    if (session === undefined) return;
+    // Invariant: resumed events cannot enter before observation is restored, and repeated resume
+    // owns only one subscription and one stream-function wrapper.
+    this.#unsubscribe?.();
+    this.#unsubscribe = undefined;
+    this.#attachCompactionProgress(session);
     this.#subscribe();
   }
 
@@ -414,6 +417,13 @@ export class PiEngineRuntime {
       this.#startRepositoryRefresh();
     }, this.#repositoryContextPollMs);
     this.#repositoryRefreshTimer.unref?.();
+  }
+
+  #attachCompactionProgress(session: AgentSession): void {
+    this.#compactionProgress?.dispose();
+    this.#compactionProgress = observeCompactionProgress(session, percent => {
+      if (this.#session === session && !this.#ports.disposed()) this.#ports.compactionProgress(percent);
+    });
   }
 
   #subscribe(): void {

@@ -41,3 +41,12 @@ A focused adapter or integration case will retain the existing assertions that p
 ## Migration Plan
 
 No data migration is required. Reverting the centralized attachment and resume call restores the current lifecycle behavior.
+
+## Implementation Evidence
+
+- `PiEngineRuntime` now uses one attachment operation for initial binding and same-session resume. Resume removes any live subscription, restores observation, and then installs one current-generation subscription.
+- The runtime lifecycle fixture proves suspension restores the configured stream function, repeated resume owns one listener and a non-nested wrapper, resumed compaction reports `0`, `50`, and `100`, and disposal restores the configured function.
+- Focused compaction, runtime, adapter, integration, and shell-status validation passed: 5 files and 95 tests.
+- Typechecking and strict OpenSpec validation passed. A direct TypeScript production build also passed after generating the startup public artifacts.
+- The full repository build preflight could not run because this machine has no Cargo/Rust toolchain. Architecture policy passes through the changed startup graph after repinning its reviewed source-byte total from 1,514,851 to 1,515,244, then reaches the pre-existing stale pinned `src/core/keybindings` destination hash.
+- Known gaps: none in the implemented behavior; exact full-build and stale-ledger checks remain CI/environment-owned rather than being weakened or bypassed.
