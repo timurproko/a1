@@ -1,14 +1,14 @@
 ## ADDED Requirements
 
 ### Requirement: Exact-package gates prove silent installation behavior
-Release validation SHALL exercise the exact packed installer artifact against the exact packed A1 candidate in isolated global prefixes without reading or mutating the runner's ordinary A1 profile, release store, sessions, credentials, npm prefix, or npm configuration. Evidence SHALL cover Windows Node 22/24, Linux Node 24, and macOS Node 24 and SHALL verify package surface, fixed npm arguments, exact target pinning, child-stream isolation, progress conformance, platform launchers, activation completion, existing-install delegation, failure, cancellation, and retry.
+Release validation SHALL exercise the exact packed installer artifact against the exact packed A1 candidate in isolated global prefixes without reading or mutating the runner's ordinary A1 profile, release store, sessions, credentials, npm prefix, or npm configuration. Evidence SHALL cover Windows Node 22/24, Linux Node 24, and macOS Node 24 and SHALL verify package surface, fixed npm arguments, exact target pinning, child-stream isolation, safe phase classification, progress/terminal cleanup, platform launchers, command resolution, activation completion, existing-install delegation, failure, cancellation, and retry.
 
-A successful-warning fixture SHALL emit representative npm deprecation, funding, lifecycle-policy, package-count, and npm-version text from the child while completing installation. Interactive capture SHALL observe only the installer progress row and exact success line; redirected capture SHALL observe only the exact success line. Negative controls SHALL fail if child stdio is inherited, a moving tag reaches the mutating install command, activation is skipped, or success is printed before launcher/active-target verification.
+A successful-warning fixture SHALL emit representative npm deprecation, funding, lifecycle-policy, package-count, and npm-version text from the child while completing installation. Interactive capture SHALL observe only the installer progress row with at most one allowlisted phase and the exact success line; redirected capture SHALL observe only the exact success line. Neither SHALL expose the destination, prefix, package/launcher/user path, target version, dependency identity, or count. Negative controls SHALL fail if child stdio is inherited, arbitrary verbose text becomes a phase, a moving tag reaches the mutating install command, activation is skipped, terminal state remains modified, or success is printed before launcher/active-target/command-resolution verification.
 
 #### Scenario: The exact candidate installs successfully with noisy npm output
 - **WHEN** the packed installer drives a successful child that emits representative warnings and notices while installing the exact packed A1 candidate
-- **THEN** terminal evidence SHALL contain one conforming progress row followed by exactly `a1 successfully installed`
-- **AND** package identity, launcher forms, activation, active version, and clean subsequent launch SHALL be verified from the isolated prefix/state
+- **THEN** terminal evidence SHALL contain one conforming progress row with at most one allowlisted phase followed by exactly `a1 successfully installed`, without an installation destination or dependency transcript
+- **AND** package identity, launcher forms, command resolution, activation, active version, terminal restoration, and clean subsequent launch SHALL be verified from the isolated prefix/state
 
 #### Scenario: Installation output is redirected
 - **WHEN** the same exact installation succeeds with non-interactive stdout
