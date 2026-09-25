@@ -1,6 +1,7 @@
 import { Readable, Writable } from "node:stream";
 import { describe, expect, it } from "vitest";
 import { createConsoleProjectTrustPrompt } from "../../../src/features/owned-ui/index.js";
+import { EMERGENCY_TERMINAL_RESET } from "../../../src/foundation/terminal-cleanup/index.js";
 import { firstVisibleTextColumn } from "../../support/dialog-alignment.js";
 
 class TtyInput extends Readable {
@@ -87,7 +88,9 @@ describe("bounded project trust terminal preflight", () => {
       exitCode: 130,
     });
     expect(input.rawTransitions).toEqual([true, false]);
-    expect(output.text.endsWith("\u001b[2J\u001b[H\u001b[?25h\u001b[?1049l\r\n")).toBe(true);
+    expect(output.text.endsWith(`\u001b[2J\u001b[H${EMERGENCY_TERMINAL_RESET}\r\n`)).toBe(true);
+    expect(output.text.lastIndexOf("\u001b[?1049l")).toBeLessThan(output.text.lastIndexOf("\u001b[?25h"));
+    expect(output.text).toContain("\u001b[?2004l");
   });
 
   it("keeps decisions and controls visible in a short narrow terminal", async () => {
@@ -127,7 +130,8 @@ describe("bounded project trust terminal preflight", () => {
     await prompt({ cwd: "D:/work", defaultDecision: "ask" });
     expect(output.text.indexOf("\u001b[?1049h")).toBeLessThan(output.text.indexOf("Trust project folder?"));
     expect(output.text.lastIndexOf("\u001b[2J\u001b[H")).toBeLessThan(output.text.lastIndexOf("\u001b[?1049l"));
-    expect(output.text.endsWith("\u001b[2J\u001b[H\u001b[?25h\u001b[?1049l")).toBe(true);
+    expect(output.text.endsWith(`\u001b[2J\u001b[H${EMERGENCY_TERMINAL_RESET}`)).toBe(true);
+    expect(output.text.lastIndexOf("\u001b[?1049l")).toBeLessThan(output.text.lastIndexOf("\u001b[?25h"));
   });
 
   it("reports unavailable interaction instead of inventing trust or writing a frame", async () => {

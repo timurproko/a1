@@ -51,7 +51,7 @@ The dialog SHALL remain readable at supported terminal sizes, SHALL prioritize t
 - **THEN** arrows and Tab SHALL move selection and Enter SHALL confirm one of the two visible decisions
 - **AND** Escape SHALL be advertised as the exit action while Ctrl+C remains a conventional interruption alias
 - **AND** either exit path SHALL restore the terminal exactly once, finish the restored launch-command row, and abort startup without constructing the owned shell
-- **AND** A1 SHALL restore raw mode, cursor visibility, and the parent terminal without leaving dialog rows, a blank alternate surface, or the next shell prompt inside the launch command
+- **AND** A1 SHALL restore raw mode, disable child-owned input/presentation modes, show the cursor on the parent screen, and leave no dialog rows, blank alternate surface, bracketed-paste bytes, or next shell prompt inside the launch command
 
 #### Scenario: Use the comparison profile
 - **WHEN** the same launch runs through `a1 pi`

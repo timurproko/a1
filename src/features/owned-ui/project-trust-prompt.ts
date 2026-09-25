@@ -1,4 +1,5 @@
 import type { Readable, Writable } from "node:stream";
+import { EMERGENCY_TERMINAL_RESET } from "../../foundation/terminal-cleanup/terminal-reset.js";
 
 export interface OwnedProjectTrustPromptRequest {
   readonly cwd: string;
@@ -20,9 +21,7 @@ export interface ConsoleProjectTrustPromptOptions {
 }
 
 const ENTER_ALTERNATE_SCREEN = "\u001b[?1049h";
-const LEAVE_ALTERNATE_SCREEN = "\u001b[?1049l";
 const HIDE_CURSOR = "\u001b[?25l";
-const SHOW_CURSOR = "\u001b[?25h";
 const CLEAR_HOME = "\u001b[2J\u001b[H";
 const ACCENT = "\u001b[38;2;138;190;183m";
 const MUTED = "\u001b[38;2;128;128;128m";
@@ -61,7 +60,7 @@ export function createConsoleProjectTrustPrompt(
       if (restored) return;
       restored = true;
       input.setRawMode?.(wasRaw);
-      output.write(`${CLEAR_HOME}${SHOW_CURSOR}${LEAVE_ALTERNATE_SCREEN}`);
+      output.write(`${CLEAR_HOME}${EMERGENCY_TERMINAL_RESET}`);
     };
     const render = (): void => {
       const width = Math.max(renderBareDialog ? 1 : 20, output.columns ?? 80);
