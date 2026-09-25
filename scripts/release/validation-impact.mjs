@@ -233,8 +233,9 @@ async function isCommitishAvailable(repository, value) {
 }
 
 async function isVersionOnlyChange(repository, base, head, changes, includeWorktree) {
-  if (includeWorktree || changes.length === 0 || changes.some(change => !["package.json", "package-lock.json"].includes(change.path))) return false;
-  const { stdout } = await git(repository, ["diff", "--unified=0", base, head, "--", "package.json", "package-lock.json"], "utf8");
+  const versionFiles = ["package.json", "package-lock.json", "packages/a1-install/package.json"];
+  if (includeWorktree || changes.length === 0 || changes.some(change => !versionFiles.includes(change.path))) return false;
+  const { stdout } = await git(repository, ["diff", "--unified=0", base, head, "--", ...versionFiles], "utf8");
   const changedLines = stdout.split(/\r?\n/u)
     .filter(line => /^[+-]/u.test(line) && !/^(?:\+\+\+|---)/u.test(line));
   return changedLines.length > 0 && changedLines.every(line => /^[+-]\s*"version":\s*"[^"]+",?\s*$/u.test(line));

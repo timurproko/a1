@@ -54,8 +54,11 @@ export async function releaseFixture(version = "0.1.8-dev", trace?: NativeRegres
     "": { name: manifest.name, version, dependencies: { unchanged: version } },
     "node_modules/unchanged": { version, integrity: "fixture-only" },
   } };
+  const installer = { name: "@fixture/bootstrap", version, bin: { bootstrap: "bin/bootstrap.js" } };
+  await mkdir(join(cwd, "packages", "a1-install"), { recursive: true });
   await writeFile(join(cwd, "package.json"), `${JSON.stringify(manifest, null, 2)}\n`);
   await writeFile(join(cwd, "package-lock.json"), `${JSON.stringify(lock, null, 2)}\n`);
+  await writeFile(join(cwd, "packages", "a1-install", "package.json"), `${JSON.stringify(installer, null, 2)}\n`);
   await writeFile(join(cwd, ".gitignore"), ".worktrees/\n");
   await writeFile(join(cwd, "unrelated.txt"), "keep this\n");
   git(["add", "."]); git(["commit", "-m", "fixture initial"]); git(["push", "-u", "origin", "develop"]);
@@ -127,7 +130,7 @@ export async function releaseFixture(version = "0.1.8-dev", trace?: NativeRegres
     pollMs: 1, waitMs: 3,
   });
   return {
-    directory, cwd, remote, git, runtime, initialHead, manifest, lock, logs, errors, events, gitCalls, ghCalls,
+    directory, cwd, remote, git, runtime, initialHead, manifest, lock, installer, logs, errors, events, gitCalls, ghCalls,
     pulls, publications, phaseDirectories, manualMerge,
     setRegistry(fn: typeof registry) { registry = fn; }, setPublish(fn: typeof publish) { publish = fn; },
     setWait(fn: typeof wait) { wait = fn; }, setCreate(fn: typeof onCreate) { onCreate = fn; }, setQuery(fn: typeof onQuery) { onQuery = fn; },

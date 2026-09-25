@@ -35,6 +35,7 @@ describe("code documentation source roles", () => {
     ["test/feature.test.ts", "first-party-tooling"],
     ["scripts/check.mjs", "first-party-tooling"],
     ["bin/cli.js", "first-party-tooling"],
+    ["packages/a1-install/bin/a1-install.js", "first-party-tooling"],
     ["vitest.config.ts", "first-party-tooling"],
     ["native/process-guardian/src/main.rs", "first-party-native"],
     ["src/integrations/pi/components/upstream/component.ts", "synchronized"],
