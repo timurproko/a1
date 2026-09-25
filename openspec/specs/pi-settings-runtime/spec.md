@@ -106,11 +106,26 @@ A1 SHALL preserve validated image attachments from user messages and tool result
 - **THEN** A1 SHALL reject or replace that attachment with a safe diagnostic and SHALL NOT emit malformed terminal control data
 
 ### Requirement: Project trust is decided before project resources load
-A1 SHALL resolve saved project trust and `defaultProjectTrust` before Pi loads project settings, context files, skills, prompts, extensions, themes, or other project-scoped executable resources. `ask` SHALL obtain an explicit decision when interaction is available, `trusted` SHALL allow project resources, and `untrusted` SHALL withhold them. A saved path decision SHALL override the default exactly as pinned Pi specifies. A1 SHALL fail closed when a required decision cannot be obtained. Interactive preflight SHALL use a bounded pinned-style startup selector constructed without project-derived resources and SHALL preserve pinned focus, selection, cancellation, clearing, and terminal-restoration semantics rather than using a plain line-oriented prompt.
+A1 SHALL resolve saved project trust and `defaultProjectTrust` for every launch working directory before Pi loads project settings, context files, skills, prompts, extensions, themes, or other project-scoped executable resources. A saved exact or ancestor path decision SHALL override the default exactly as pinned Pi specifies. Under `ask`, an uncovered working directory SHALL require an explicit decision when interaction is available even when no trust-requiring project resource is currently discoverable; current resource absence SHALL NOT grant implicit trust. `always` SHALL allow project resources and `never` SHALL withhold them without interaction. A1 SHALL fail closed when a required decision cannot be obtained. Interactive preflight SHALL use a bounded startup-safe selector constructed without project-derived resources and SHALL preserve focus, selection, cancellation, clearing, and terminal-restoration semantics rather than using a plain line-oriented prompt.
 
 #### Scenario: Ask for an undecided project
-- **WHEN** the default is `ask` and no saved decision covers the working directory
-- **THEN** A1 SHALL obtain a trust decision before loading any project-scoped resource
+- **WHEN** the default is `ask` and no saved exact or ancestor decision covers the working directory
+- **THEN** A1 SHALL obtain a trust decision before constructing the project-aware runtime
+- **AND** it SHALL do so whether or not a trust-requiring project resource is currently discoverable
+
+#### Scenario: Keep unrelated folders independent
+- **WHEN** one working directory has an exact saved decision and another directory is neither that path nor its descendant
+- **THEN** the saved decision SHALL NOT cover the unrelated directory
+- **AND** the unrelated directory SHALL follow its own saved/default policy
+
+#### Scenario: Inherit an explicit ancestor decision
+- **WHEN** the nearest saved decision belongs to an ancestor of the working directory
+- **THEN** A1 SHALL apply that ancestor decision without prompting again
+- **AND** an exact child decision SHALL override the ancestor decision
+
+#### Scenario: Honor a configured default
+- **WHEN** an uncovered working directory resolves `defaultProjectTrust` to `always` or `never`
+- **THEN** A1 SHALL apply the configured decision without interaction
 
 #### Scenario: Start an untrusted project
 - **WHEN** the effective trust decision is untrusted
@@ -125,8 +140,8 @@ A1 SHALL resolve saved project trust and `defaultProjectTrust` before Pi loads p
 - **THEN** A1 SHALL treat the project as untrusted and report the reason
 
 #### Scenario: Present interactive trust preflight
-- **WHEN** an undecided interactive launch can request trust
-- **THEN** the preflight frame, options, selected state, footer hints, key handling, and terminal cleanup SHALL match pinned Pi's startup-selector semantics with declared product wording substitutions only
+- **WHEN** an undecided interactive launch requests trust
+- **THEN** the preflight frame, options, selected state, footer hints, key handling, and terminal cleanup SHALL follow the owned startup-selector contract
 
 #### Scenario: Cancel or fail trust preflight
 - **WHEN** the selector is cancelled, interrupted, or fails
