@@ -15,7 +15,8 @@ interface RawTtyInput extends Readable {
 
 export interface ConsoleProjectTrustPromptOptions {
   readonly input?: RawTtyInput;
-  readonly output?: Writable & { readonly isTTY?: boolean; readonly columns?: number };
+  readonly output?: Writable & { readonly isTTY?: boolean; readonly columns?: number; readonly rows?: number };
+  readonly presentation?: "bare" | "comparison";
 }
 
 const ENTER_ALTERNATE_SCREEN = "\u001b[?1049h";
@@ -30,11 +31,7 @@ const RESET_FG = "\u001b[39m";
 const BOLD = "\u001b[1m";
 const RESET_BOLD = "\u001b[22m";
 
-/**
- * Pre-resource startup selector. It uses only fixed product wording and terminal
- * controls: no project setting, theme, extension, prompt, package, or skill is
- * consulted before the trust result exists.
- */
+/** Fixed pre-resource selector; no project resource is available. */
 export function createConsoleProjectTrustPrompt(
   options: ConsoleProjectTrustPromptOptions = {},
 ): OwnedProjectTrustPrompt {
@@ -44,6 +41,8 @@ export function createConsoleProjectTrustPrompt(
     if (input.isTTY !== true || output.isTTY !== true) {
       throw new Error("an interactive terminal is unavailable");
     }
+    const renderBareDialog = options.presentation === "comparison"
+      ? undefined : (await import("./project-trust-dialog.js")).renderProjectTrustDialog;
 
     const wasRaw = input.isRaw === true;
     let selected = 0;
@@ -55,8 +54,9 @@ export function createConsoleProjectTrustPrompt(
       output.write(`${CLEAR_HOME}${SHOW_CURSOR}${LEAVE_ALTERNATE_SCREEN}`);
     };
     const render = (): void => {
-      const width = Math.max(20, output.columns ?? 80);
-      const lines = [
+      const width = Math.max(renderBareDialog ? 1 : 20, output.columns ?? 80);
+      const rows = Math.max(1, output.rows ?? 24);
+      const lines = (renderBareDialog?.(cwd, selected, width, rows) ?? [
         `${BOLD}${ACCENT}Trust project folder?${RESET_FG}${RESET_BOLD}`,
         cwd,
         "",
@@ -66,8 +66,9 @@ export function createConsoleProjectTrustPrompt(
         optionRow("Do not trust", selected === 1),
         "",
         `${DIM}↑/↓${MUTED} to navigate  ${DIM}Enter${MUTED} to select  ${DIM}Esc${MUTED} to cancel${RESET_FG}`,
-      ];
-      output.write(`${CLEAR_HOME}${lines.map(line => clipAnsiSafe(line, width)).join("\n")}`);
+      ]).map(line => clipAnsiSafe(line, width));
+      const padding = renderBareDialog === undefined ? "" : "\n".repeat(Math.max(0, rows - lines.length));
+      output.write(`${CLEAR_HOME}${padding}${lines.join("\n")}`);
     };
 
     try {

@@ -2189,7 +2189,7 @@ The association operation SHALL validate active session identity, canonical work
 
 When the selected repository context has an open or merged pull request, bare A1 SHALL render only `#<number>` directly after the footer's path and branch. The complete `#<number>` badge SHALL use the established web-link color and carry the pull request's canonical HTTPS URL as a terminal-native hyperlink. The path, branch, separator, ellipsis, and session name SHALL remain outside the hyperlink. Width allocation SHALL preserve a complete valid PR badge at ordinary constrained widths by truncating path/branch text first; widths too small for the complete badge SHALL truncate safely without leaking hyperlink or foreground state.
 
-Discovery SHALL reread associated context and branch, and SHALL remain asynchronous, bounded, serialized, optional, and lifecycle-owned. Missing GitHub CLI or authentication, no open or merged PR, a closed-unmerged PR, mismatched branch, malformed or unsafe output, command failure, and timeout SHALL leave the footer without a badge and SHALL NOT block startup or fail the session. Association, branch, and PR changes SHALL refresh while the session runs, unchanged normalized observations SHALL NOT emit redundant views, and disposal SHALL release timers and active work. A transition of the same exact PR from open to merged SHALL retain the same normalized badge identity.
+Discovery SHALL reread associated context and branch, and SHALL remain asynchronous, bounded, serialized, optional, and lifecycle-owned. A1 SHALL prefer bounded GitHub CLI discovery and, when it yields no eligible identity, MAY query GitHub's read-only REST API using a strictly validated GitHub `origin` repository and exact selected head branch. The REST fallback SHALL work without credentials for public repositories and MAY use a caller-provided standard GitHub environment token for private repositories without persisting or exposing it. Missing GitHub CLI or authentication, an absent or invalid GitHub remote, no open or merged PR, a closed-unmerged PR, mismatched or ambiguous results, malformed or unsafe output, rate limiting, command or request failure, and timeout SHALL leave the footer without a badge and SHALL NOT block startup or fail the session. Association, branch, and PR changes SHALL refresh while the session runs, unchanged normalized observations SHALL NOT emit redundant views, and disposal SHALL release timers and active work. A transition of the same exact PR from open to merged SHALL retain the same normalized badge identity.
 
 The badge and association are declared bare-A1 behavior. The `a1 pi` comparison profile SHALL retain its pinned footer bytes and SHALL NOT render the badge or consume the association.
 
@@ -2256,6 +2256,27 @@ The badge and association are declared bare-A1 behavior. The `a1 pi` comparison 
 - **THEN** A1 SHALL preserve startup-working-tree discovery
 - **AND** SHALL NOT scan or guess among other local worktrees or pull requests
 
+#### Scenario: Fall back to REST without GitHub CLI
+
+- **GIVEN** the selected context has a valid GitHub `origin` and exact branch with an eligible pull request
+- **AND** GitHub CLI is absent or yields no eligible identity
+- **WHEN** the bounded GitHub REST fallback returns that exact open or merged pull request
+- **THEN** bare A1 SHALL normalize and render the same linked `#<number>` identity
+- **AND** a public-repository request SHALL require no credential
+- **AND** discovery SHALL remain read-only and SHALL NOT mutate Git or GitHub
+
+#### Scenario: Prefer successful GitHub CLI discovery
+
+- **WHEN** bounded GitHub CLI discovery returns a valid exact-branch pull request identity
+- **THEN** A1 SHALL use that identity without issuing the REST fallback request
+
+#### Scenario: Reject invalid REST discovery
+
+- **WHEN** the selected remote is not an exact supported GitHub repository or the REST result is non-successful, ambiguous, mismatched, closed without merge, malformed, unsafe, rate-limited, or timed out
+- **THEN** the footer SHALL remain without a PR badge
+- **AND** startup and the running session SHALL continue without a PR-discovery diagnostic
+- **AND** no credential value SHALL appear in output, persisted state, or a request URL
+
 #### Scenario: Show an open branch pull request
 
 - **WHEN** bare A1's selected repository context has a current branch with open or merged pull request 567 at `https://github.com/example/project/pull/567`
@@ -2271,7 +2292,7 @@ The badge and association are declared bare-A1 behavior. The `a1 pi` comparison 
 
 #### Scenario: No open pull request is available
 
-- **WHEN** the selected context is not a Git repository, its head is detached, no open or merged PR matches its branch, the matching PR is closed without merge, or GitHub CLI discovery fails, times out, or returns invalid data
+- **WHEN** the selected context is not a Git repository, its head is detached, no open or merged PR matches its branch, the matching PR is closed without merge, or both GitHub CLI and REST discovery fail, time out, or return invalid data
 - **THEN** the footer SHALL retain the selected safe path, branch, and session-name presentation without a PR badge
 - **AND** startup and the running agent session SHALL continue without a PR-discovery diagnostic
 
@@ -2285,7 +2306,7 @@ The badge and association are declared bare-A1 behavior. The `a1 pi` comparison 
 #### Scenario: Dispose while discovery is pending
 
 - **WHEN** the session is disposed with a refresh timer or repository discovery process pending
-- **THEN** the timer and process SHALL be cancelled or released
+- **THEN** the timer, command, and request SHALL be cancelled or released
 - **AND** a late result SHALL NOT update or render the disposed session
 
 #### Scenario: Render a narrow footer
@@ -2475,3 +2496,38 @@ Top, bottom, and declared separator rules SHALL remain full width. The change SH
 - **WHEN** source or inventory coverage discovers a new A1-authored titled modal producer
 - **THEN** validation SHALL require it to use the shared compact padded frame
 - **AND** a producer that independently restores a top-title spacer or outer content inset SHALL fail the coverage gate
+
+### Requirement: Pre-resource project trust uses a compact bottom dialog
+Bare A1 SHALL present an interactive pre-resource trust decision as a vertically compact, ruled dialog anchored to the bottom of the bounded startup surface. Its top and bottom rules SHALL use the fixed dark-theme border blue and span the full available terminal width. The explanation SHALL read exactly `This allows to load project settings and resources, install missing project packages, and execute project extensions.` and SHALL NOT insert the product name. The dialog SHALL use the established bare-A1 modal hierarchy for its title, working-directory context, explanation, selected and unselected option rows, and semantic shortcut hints while remaining implemented only from fixed startup-safe wording, ANSI roles, terminal dimensions, and bounded rendering helpers. It SHALL NOT load or consult project settings, themes, extensions, prompts, packages, skills, or post-trust components.
+
+The dialog SHALL remain readable at supported terminal sizes, SHALL prioritize the title, path, choices, and actionable controls when height is constrained, and SHALL clip or wrap without replaying untrusted terminal control content. Completion, cancellation, interruption, input end, and errors SHALL clear the owned startup frame and restore raw mode, cursor state, and the parent terminal exactly once.
+
+#### Scenario: Present trust at the bottom
+- **WHEN** an interactive launch needs a project-trust decision in a terminal with sufficient rows
+- **THEN** A1 SHALL render one vertically compact ruled trust dialog against the bottom of the startup surface
+- **AND** its blue top and bottom rules SHALL span the full available terminal width
+- **AND** it SHALL not render the trust content as a loose page at the top-left
+
+#### Scenario: Match ordinary selector hierarchy
+- **WHEN** the trust dialog is visible
+- **THEN** its title, path context, option list, selected arrow, and key/action hints SHALL use the same visual hierarchy as the bare-A1 Models and Thinking dialog family
+- **AND** its explanation SHALL use the exact product-neutral wording without `a1`
+- **AND** its shortcut hint SHALL align with its local heading
+
+#### Scenario: Constrain a small terminal
+- **WHEN** the available rows or columns cannot show the preferred dialog geometry
+- **THEN** A1 SHALL use a deterministic bounded fallback that retains the decision choices and controls
+- **AND** clipping or wrapping SHALL remain ANSI-safe
+
+#### Scenario: Keep the trust dialog startup-safe
+- **WHEN** the dialog renders before a trust decision exists
+- **THEN** no project setting, theme, extension, prompt, package, skill, or post-trust component SHALL be loaded or consulted
+
+#### Scenario: Operate and restore the dialog
+- **WHEN** the user navigates, confirms, cancels, interrupts, or the input stream ends or fails
+- **THEN** arrows and Tab SHALL move selection, Enter SHALL confirm, and Escape/Ctrl+C SHALL cancel
+- **AND** A1 SHALL restore raw mode, cursor visibility, and the parent terminal exactly once without leaving dialog rows or a blank alternate surface behind
+
+#### Scenario: Use the comparison profile
+- **WHEN** the same launch runs through `a1 pi`
+- **THEN** its pinned comparison presentation SHALL remain unchanged by the bare-A1 trust-dialog customization

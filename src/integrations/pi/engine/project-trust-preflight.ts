@@ -1,5 +1,4 @@
 import {
-  hasTrustRequiringProjectResources,
   ProjectTrustStore,
   SettingsManager,
 } from "../startup-public.js";
@@ -15,7 +14,7 @@ export type PiProjectTrustPreflightPrompt = (
 
 export interface PiProjectTrustPreflightResult {
   readonly trusted: boolean;
-  readonly source: "no-project-resources" | "saved" | "default" | "interactive" | "fail-closed";
+  readonly source: "saved" | "default" | "interactive" | "fail-closed";
   readonly diagnostic: string | null;
 }
 
@@ -23,7 +22,6 @@ export interface ResolvePiProjectTrustPreflightOptions {
   readonly cwd: string;
   readonly agentDir: string;
   readonly prompt?: PiProjectTrustPreflightPrompt;
-  readonly hasProjectResources?: (cwd: string) => boolean;
 }
 
 /**
@@ -34,11 +32,6 @@ export interface ResolvePiProjectTrustPreflightOptions {
 export async function resolvePiProjectTrustPreflight(
   options: ResolvePiProjectTrustPreflightOptions,
 ): Promise<PiProjectTrustPreflightResult> {
-  const hasProjectResources = options.hasProjectResources ?? hasTrustRequiringProjectResources;
-  if (!hasProjectResources(options.cwd)) {
-    return { trusted: true, source: "no-project-resources", diagnostic: null };
-  }
-
   const trustStore = new ProjectTrustStore(options.agentDir);
   const saved = trustStore.get(options.cwd);
   if (saved !== null) return { trusted: saved, source: "saved", diagnostic: null };

@@ -53,7 +53,7 @@ Promise.resolve().then(() => {
         cwd: process.cwd(),
         profileId,
         ownedSurfaces,
-        projectTrustPrompt: createConsoleProjectTrustPrompt(),
+        projectTrustPrompt: createConsoleProjectTrustPrompt({ presentation: profile === "a1" ? "bare" : "comparison" }),
         sessionForkPrompt: createConsoleSessionForkPrompt(),
         ...(sessionSelection === undefined ? {} : { sessionSelection }),
       });
