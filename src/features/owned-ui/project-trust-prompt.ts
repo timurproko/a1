@@ -99,9 +99,9 @@ export function createConsoleProjectTrustPrompt(
           settled = true;
           cleanup();
           restore();
-          // Terminal handoff: an expected exit must finish the restored command row before
-          // the parent shell paints its next prompt; other failures continue into A1.
-          if (error instanceof ProjectTrustPromptExitError) output.write("\r\n");
+          // Terminal handoff: erase the restored stale launch row before the parent shell
+          // paints its empty prompt; other failures continue into A1.
+          if (error instanceof ProjectTrustPromptExitError) output.write("\r\u001b[2K\r\n");
           reject(error);
         };
         const onData = (chunk: Buffer | string): void => {
