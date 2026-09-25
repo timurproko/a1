@@ -54,6 +54,9 @@ describe("bounded project trust terminal preflight", () => {
     await expect(prompt({ cwd: "D:/work", defaultDecision: "ask" })).resolves.toBe(expected);
     expect(output.text).toContain("Trust project folder?");
     expect(output.text).toContain("D:/work");
+    const visible = output.text.replace(/\u001b\[[0-9;?]*[A-Za-z]/gu, "").replace(/\s+/gu, " ");
+    expect(visible).toContain("This allows to load project settings and resources, install missing project packages, and execute project extensions.");
+    expect(visible).not.toContain("This allows a1 to load");
     expect(output.text).toContain("→ Trust");
     expect(output.text).toContain("Do not trust");
     expect(output.text).toContain("\u001b[38;2;102;102;102m↑/↓\u001b[38;2;128;128;128m to navigate  \u001b[38;2;102;102;102mEnter\u001b[38;2;128;128;128m to select");

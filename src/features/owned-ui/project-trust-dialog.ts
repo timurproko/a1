@@ -5,7 +5,7 @@ const DIM = "\u001b[38;2;102;102;102m";
 const RESET_FG = "\u001b[39m";
 const BOLD = "\u001b[1m";
 const RESET_BOLD = "\u001b[22m";
-const EXPLANATION = "This allows a1 to load project settings and resources, install missing project packages, and execute project extensions.";
+const EXPLANATION = "This allows to load project settings and resources, install missing project packages, and execute project extensions.";
 
 /** Fixed startup-safe rendering only; project-derived presentation is forbidden before trust resolves. */
 export function renderProjectTrustDialog(

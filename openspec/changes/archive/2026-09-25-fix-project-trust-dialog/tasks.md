@@ -7,7 +7,7 @@
 ## 2. Present a compact bottom trust dialog
 
 - [x] 2.1 Add renderer coverage for vertically compact geometry, bottom anchoring, full-width blue rules, title/path/options/hint styling, selected-row changes, and narrow or short terminals.
-- [x] 2.2 Implement the startup-safe bottom dialog using fixed wording and ANSI roles only, without importing project settings, themes, extensions, prompts, packages, skills, or post-trust components.
+- [x] 2.2 Implement the startup-safe bottom dialog using the exact product-neutral explanation and fixed ANSI roles only, without importing project settings, themes, extensions, prompts, packages, skills, or post-trust components.
 - [x] 2.3 Preserve arrows, Tab, Enter, Escape/Ctrl+C, compatibility `y`/`n`, raw-mode transitions, clear/redraw behavior, cursor state, and exactly-once terminal restoration across success, cancellation, end, and error.
 
 ## 3. Validate startup safety and handoff

@@ -6,7 +6,7 @@ Project trust currently appears global even with the default `ask` policy. A1 re
 
 - Resolve project trust for every launch working directory under the configured saved/default policy, rather than silently granting trust to an undecided directory because no project resource is currently visible.
 - Keep saved decisions canonical and path-scoped: an exact or explicitly trusted ancestor may cover a directory, while an unrelated directory under `ask` requires its own decision.
-- Replace the top-left startup page with a vertically compact, bottom-anchored trust dialog whose blue rules span the terminal width and whose title, option list, selected row, and shortcut hints follow the established presentation.
+- Replace the top-left startup page with a vertically compact, bottom-anchored trust dialog whose blue rules span the terminal width, whose title, option list, selected row, and shortcut hints follow the established presentation, and whose explanation does not insert the product name.
 - Keep the preflight isolated from project settings, themes, extensions, packages, prompts, and skills, and preserve fail-closed cancellation plus complete terminal restoration.
 - Add focused coverage for unrelated and descendant paths, resource-free directories, default decisions, dialog geometry, narrow terminals, key handling, and cleanup.
 

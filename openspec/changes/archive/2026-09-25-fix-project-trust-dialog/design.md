@@ -9,7 +9,7 @@ The prompt runs before A1 may construct project-trusted settings or load project
 **Goals:**
 - Make an undecided working directory under `ask` require an explicit decision on every first launch, whether or not project resources are currently discoverable.
 - Preserve exact and ancestor path decisions, configured `always`/`never` defaults, and fail-closed noninteractive behavior.
-- Render trust as a vertically compact bottom input dialog with the full-width blue rules used by bare-A1 Models and Thinking selectors.
+- Render trust as a vertically compact bottom input dialog with the full-width blue rules used by bare-A1 Models and Thinking selectors and product-neutral explanatory wording.
 - Keep the renderer dependency-bounded and prove no project source can influence it before trust resolves.
 - Preserve key handling, raw-mode ownership, cancellation, clearing, and terminal restoration.
 
@@ -38,7 +38,7 @@ Replacing ancestor inheritance with exact-only lookup was rejected because paren
 
 Keep the pre-resource renderer self-contained, but compose its visible rows like the ordinary selector family: a full-terminal-width blue rule, inset bold accent title, muted path and explanation, selected option rows, aligned semantic shortcut hints, and a matching closing rule. Position that vertically compact block against the bottom of the available terminal rows instead of at the top-left of an empty surface.
 
-The renderer will use only fixed product wording, reviewed fixed ANSI roles, terminal dimensions, and bounded string/geometry helpers in the startup-safe module. It will not import the post-trust theme or component graph. Building the full session shell before trust was rejected because the engine adapter and project-aware services intentionally require a completed trust preflight.
+The renderer will use only the fixed product-neutral sentence `This allows to load project settings and resources, install missing project packages, and execute project extensions.`, reviewed fixed ANSI roles, terminal dimensions, and bounded string/geometry helpers in the startup-safe module. It will not import the post-trust theme or component graph. Building the full session shell before trust was rejected because the engine adapter and project-aware services intentionally require a completed trust preflight.
 
 ### 4. Bound geometry and preserve terminal ownership
 
