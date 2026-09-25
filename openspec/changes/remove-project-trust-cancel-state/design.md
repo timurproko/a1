@@ -29,9 +29,9 @@ Treating Escape as Do not trust was rejected because it would persist a decision
 
 ### 2. Escape aborts before runtime construction
 
-On Escape or Ctrl+C, the prompt restores raw mode, cursor state, and the parent terminal, then rejects with a bounded interruption carrying exit code 130. Trust preflight propagates that interruption instead of converting it into a restricted launch. The UI entry point treats it as an expected silent termination rather than a fatal crash.
+On Escape or Ctrl+C, the prompt restores raw mode, cursor state, and the parent terminal, then rejects with a bounded interruption carrying exit code 130. Trust preflight propagates that interruption instead of converting it into a restricted launch. The UI entry point treats it as an expected silent termination rather than a fatal crash and invokes the bounded process terminator instead of only assigning `process.exitCode`.
 
-This prevents project-aware services and the owned shell from being created after interruption, eliminating the cancel-to-shell transition.
+This prevents project-aware services and the owned shell from being created after interruption, eliminates the cancel-to-shell transition, and ensures the prompt's resumed stdin handle cannot keep the process alive after terminal restoration.
 
 ### 3. Exceptional trust warnings remain prompt-adjacent
 
@@ -45,6 +45,7 @@ The `a1 pi` presentation retains Escape/Ctrl+C cancellation and renders any resu
 
 - **[Exit could be mistaken for Do not trust]** → Save no decision and return directly to the parent terminal; the next launch asks again.
 - **[An interruption could be mistaken for a failure]** → Exit silently with conventional code 130 and no crash report.
+- **[Resumed stdin could retain the process after restoration]** → Route the expected interruption through the same bounded output-flushing process terminator used by ordinary owned-UI completion.
 - **[A trust warning could be duplicated]** → Exclude `project-trust` from bare A1's document diagnostics and guard dock translation once per shell.
 - **[Comparison behavior could drift]** → Cover both bare and comparison input/presentation paths.
 
