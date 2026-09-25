@@ -1359,7 +1359,6 @@
           "kind": "function",
           "hash": "1d79a87790391a739790cd8289a16eceb18ff7fd05ac96bc2238239822c0c1cf",
           "consumers": [
-            "src/integrations/pi/engine/project-trust-preflight.ts",
             "src/integrations/pi/startup-public.ts"
           ]
         },

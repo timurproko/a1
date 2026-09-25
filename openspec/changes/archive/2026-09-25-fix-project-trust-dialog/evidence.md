@@ -7,6 +7,7 @@
 - Bare A1 renders project trust as a vertically compact dialog at the bottom of the startup surface, with full-terminal-width blue rules, the exact product-neutral `This allows to load…` explanation, compact short-terminal fallback, ANSI-safe working-directory text, unchanged navigation/accept/cancel behavior, and exactly-once restoration.
 - `a1 pi` retains the former top-left comparison presentation; the launch entry selects the presentation explicitly by profile.
 - The bare renderer is loaded through a narrow startup-safe dynamic boundary, keeping the eager startup graph within its existing 157-file / 1,513,661-byte budget at 1,513,644 bytes.
+- The pinned public-API consumer inventory no longer lists the removed `hasTrustRequiringProjectResources` preflight import; the export remains available through the startup-public boundary.
 
 ## Local validation
 
@@ -15,6 +16,8 @@
 - `npx vitest run test/features/owned-ui/project-trust-prompt.test.ts test/integrations/pi/engine/project-trust-preflight.test.ts test/repository-governance/pi-modal-surface-inventory.test.ts test/foundation/release/warmup.test.ts test/repository-governance/startup-descriptor.test.ts` — 5 files and 28 tests passed, including exact product-neutral wording, full-width border length, and fixed blue ANSI coverage.
 - `node scripts/governance/check-architecture.mjs` — passed at 157 files / 1,513,644 startup source bytes.
 - `npx openspec validate fix-project-trust-dialog --strict` — passed.
+- `npx vitest run test/repository-governance/pinned-pi-public-api.test.ts` — 5 tests passed after refreshing the exact consumer inventory.
+- `npx vitest run test/ui/components/selection-scrollbar-edge.test.ts --testTimeout=30000` — 11 tests passed; the unrelated CI timeout did not reproduce locally.
 - `./scripts/dev --print-environment` — passed through the built development launch path and selected the bare-A1 profile.
 - `git diff --check` — passed.
 

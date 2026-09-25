@@ -12,5 +12,5 @@
 
 ## 3. Validate startup safety and handoff
 
-- [x] 3.1 Run focused project-trust engine and renderer tests plus source typechecking, startup-graph, architecture, and strict OpenSpec checks; record implementation evidence and any explicit known gap.
+- [x] 3.1 Run focused project-trust engine and renderer tests plus source typechecking, public-API consumer inventory, startup-graph, architecture, and strict OpenSpec checks; record implementation evidence and any explicit known gap.
 - [x] 3.2 Build and prepare a color-preserving manual launch handoff from two unrelated folders and one covered descendant, verifying per-path decisions, full-width blue-rule appearance, cancellation, and parent-terminal restoration.
