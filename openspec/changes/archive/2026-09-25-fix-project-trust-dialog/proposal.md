@@ -6,7 +6,7 @@ Project trust currently appears global even with the default `ask` policy. A1 re
 
 - Resolve project trust for every launch working directory under the configured saved/default policy, rather than silently granting trust to an undecided directory because no project resource is currently visible.
 - Keep saved decisions canonical and path-scoped: an exact or explicitly trusted ancestor may cover a directory, while an unrelated directory under `ask` requires its own decision.
-- Replace the top-left startup page with a compact, bottom-anchored trust dialog using the established ruled title, option-list, selected-row, and shortcut-hint presentation.
+- Replace the top-left startup page with a vertically compact, bottom-anchored trust dialog whose blue rules span the terminal width and whose title, option list, selected row, and shortcut hints follow the established presentation.
 - Keep the preflight isolated from project settings, themes, extensions, packages, prompts, and skills, and preserve fail-closed cancellation plus complete terminal restoration.
 - Add focused coverage for unrelated and descendant paths, resource-free directories, default decisions, dialog geometry, narrow terminals, key handling, and cleanup.
 
@@ -19,7 +19,7 @@ None.
 ### Modified Capabilities
 
 - `pi-settings-runtime`: Make `ask` a real per-path launch decision even before trust-requiring resources are discovered, while retaining saved ancestor and configured default semantics.
-- `owned-pi-ui-foundation`: Present the pre-resource trust selector as an isolated compact dialog at the bottom of the startup surface rather than a top-left full-screen page.
+- `owned-pi-ui-foundation`: Present the pre-resource trust selector as an isolated bottom dialog with full-width blue rules rather than a top-left full-screen page.
 
 ## Impact
 

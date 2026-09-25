@@ -9,7 +9,7 @@ The prompt runs before A1 may construct project-trusted settings or load project
 **Goals:**
 - Make an undecided working directory under `ask` require an explicit decision on every first launch, whether or not project resources are currently discoverable.
 - Preserve exact and ancestor path decisions, configured `always`/`never` defaults, and fail-closed noninteractive behavior.
-- Render trust as a compact bottom input dialog visually consistent with bare-A1 Models and Thinking selectors.
+- Render trust as a vertically compact bottom input dialog with the full-width blue rules used by bare-A1 Models and Thinking selectors.
 - Keep the renderer dependency-bounded and prove no project source can influence it before trust resolves.
 - Preserve key handling, raw-mode ownership, cancellation, clearing, and terminal restoration.
 
@@ -36,19 +36,19 @@ Replacing ancestor inheritance with exact-only lookup was rejected because paren
 
 ### 3. Render an isolated bottom-anchored startup dialog
 
-Keep the pre-resource renderer self-contained, but compose its visible rows like the ordinary selector family: a full-width rule, inset bold accent title, muted path and explanation, selected option rows, aligned semantic shortcut hints, and a closing rule. Position that compact block against the bottom of the available terminal rows instead of at the top-left of an empty surface.
+Keep the pre-resource renderer self-contained, but compose its visible rows like the ordinary selector family: a full-terminal-width blue rule, inset bold accent title, muted path and explanation, selected option rows, aligned semantic shortcut hints, and a matching closing rule. Position that vertically compact block against the bottom of the available terminal rows instead of at the top-left of an empty surface.
 
 The renderer will use only fixed product wording, reviewed fixed ANSI roles, terminal dimensions, and bounded string/geometry helpers in the startup-safe module. It will not import the post-trust theme or component graph. Building the full session shell before trust was rejected because the engine adapter and project-aware services intentionally require a completed trust preflight.
 
 ### 4. Bound geometry and preserve terminal ownership
 
-Add terminal-row awareness alongside the existing column bound. Wide terminals keep a compact readable dialog width rather than stretching explanatory text across the full screen; narrow or short terminals clip/wrap within explicit bounds while retaining the title, options, and actionable keys. Rendering clears and redraws one owned startup frame, and completion, cancellation, stream end, or error restores raw mode, cursor visibility, and the parent screen exactly once.
+Add terminal-row awareness alongside the existing column bound. On supported terminals the top and bottom rules span every available column in the fixed dark-theme border blue, while the body remains inset and vertically compact. Narrow or short terminals clip/wrap within explicit bounds while retaining the title, options, and actionable keys. Rendering clears and redraws one owned startup frame, and completion, cancellation, stream end, or error restores raw mode, cursor visibility, and the parent screen exactly once.
 
 The dialog remains keyboard-first: arrows and Tab move selection, Enter confirms, Escape/Ctrl+C cancels, and the compatibility `y`/`n` aliases remain available without being advertised as the primary interaction.
 
 ### 5. Verify policy and presentation separately
 
-Engine tests will cover saved exact, saved ancestor, unrelated sibling, `ask` with and without currently discoverable resources, `always`, `never`, noninteractive failure, acceptance, denial, and later launches. Renderer tests will normalize ANSI output and assert bottom placement, ruled compact geometry, title/hint alignment, selected-row changes, narrow/short fallback, raw-mode transitions, and restoration ordering.
+Engine tests will cover saved exact, saved ancestor, unrelated sibling, `ask` with and without currently discoverable resources, `always`, `never`, noninteractive failure, acceptance, denial, and later launches. Renderer tests will normalize ANSI output and assert bottom placement, full-width blue rules, vertically compact geometry, title/hint alignment, selected-row changes, narrow/short fallback, raw-mode transitions, and restoration ordering.
 
 Startup-graph and architecture checks remain the guard that the trust prompt cannot acquire project-derived imports.
 

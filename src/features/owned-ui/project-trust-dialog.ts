@@ -1,4 +1,5 @@
 const ACCENT = "\u001b[38;2;138;190;183m";
+const BORDER = "\u001b[38;2;95;135;255m";
 const MUTED = "\u001b[38;2;128;128;128m";
 const DIM = "\u001b[38;2;102;102;102m";
 const RESET_FG = "\u001b[39m";
@@ -13,8 +14,8 @@ export function renderProjectTrustDialog(
   terminalWidth: number,
   terminalRows: number,
 ): readonly string[] {
-  const width = Math.min(96, terminalWidth);
-  const rule = `${MUTED}${"─".repeat(width)}${RESET_FG}`;
+  const width = Math.max(1, terminalWidth);
+  const rule = `${BORDER}${"─".repeat(width)}${RESET_FG}`;
   const title = ` ${BOLD}${ACCENT}Trust project folder?${RESET_FG}${RESET_BOLD}`;
   const path = ` ${MUTED}${sanitize(cwd)}${RESET_FG}`;
   const choices = [choice("Trust", selected === 0), choice("Do not trust", selected === 1)];

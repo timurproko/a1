@@ -65,6 +65,10 @@ describe("bounded project trust terminal preflight", () => {
     expect(firstVisibleTextColumn(hint)).toBe(firstVisibleTextColumn(heading));
     expect(lastFrame.findIndex(line => line.includes("─"))).toBe(6);
     expect(lastFrame.findLastIndex(line => line.includes("─"))).toBe(17);
+    const rules = lastFrame.filter(line => line.includes("─"));
+    expect(rules).toHaveLength(2);
+    expect(rules.every(line => line.startsWith("\u001b[38;2;95;135;255m"))).toBe(true);
+    expect(rules.every(line => line.replace(/\u001b\[[0-9;:]*m/gu, "").length === output.columns)).toBe(true);
     expect(input.rawTransitions).toEqual([true, false]);
   });
 
