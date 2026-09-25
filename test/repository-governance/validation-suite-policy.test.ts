@@ -16,6 +16,7 @@ interface SuiteDefinition {
   includeRoot?: string;
   resourceSensitiveTests?: string[];
   requiresBuild?: boolean;
+  fullReleaseExclusion?: string;
 }
 
 interface SuiteManifest {
@@ -87,7 +88,14 @@ describe("validation suite ownership", () => {
       expect(included.has(owner)).toBe(true);
       return values;
     }));
-    expect(Object.keys(suites.scopes).filter(scope => !included.has(scope) && !superseded.has(scope))).toEqual([]);
+    const excluded = Object.entries(suites.scopes).filter(([, definition]) => definition.fullReleaseExclusion !== undefined);
+    expect(excluded.map(([scope]) => scope)).toEqual(["terminal-host"]);
+    for (const [scope, definition] of excluded) {
+      expect(definition.fullReleaseExclusion).toMatch(/\S{8,}/u);
+      expect(included.has(scope)).toBe(false);
+    }
+    expect(Object.keys(suites.scopes).filter(scope => !included.has(scope) && !superseded.has(scope)
+      && suites.scopes[scope]!.fullReleaseExclusion === undefined)).toEqual([]);
   });
 
   it("keeps planning and invariant commands separate from test owners", async () => {

@@ -532,7 +532,8 @@ jobs:
       # scripts/release/validation-matrix.mjs, and the in-job resolver remains the second check.
       matrix: ${{ fromJSON(needs.changes.outputs.modular-matrix) }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
+    # A cold terminal-host build compiles libghostty-vt with Zig before the Rust crate.
+    timeout-minutes: ${{ matrix.terminalHost && 45 || 20 }}
     steps:
       - name: Start job timing
         shell: bash
@@ -599,6 +600,23 @@ jobs:
           cargo test --locked --manifest-path native/process-guardian/Cargo.toml
           cargo build --locked --manifest-path native/process-guardian/Cargo.toml
           echo "A1_PROCESS_GUARDIAN_PATH=${{ github.workspace }}/native/process-guardian/target/debug/${{ matrix.binary }}" >> "$GITHUB_ENV"
+      # Platform: the terminal host builds only here. Its Zig fetch unpacks upstream test data
+      # that workstation antivirus quarantines, so build.rs refuses local Windows builds.
+      - name: Prepare terminal host Rust toolchain
+        if: steps.job-selection.outputs.active == 'true' && matrix.terminalHost
+        shell: bash
+        run: bash scripts/development/prepare-ci-rust.sh
+      - name: Set up Zig for terminal host
+        if: steps.job-selection.outputs.active == 'true' && matrix.terminalHost
+        uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+        with:
+          version: 0.15.2
+      - name: Cache terminal host build
+        if: steps.job-selection.outputs.active == 'true' && matrix.terminalHost
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          key: terminal-host
+          workspaces: native/terminal-host
       - name: Run exact selected scopes
         if: steps.job-selection.outputs.active == 'true'
         shell: bash
@@ -626,6 +644,14 @@ jobs:
           STARTUP_BUDGET_ENFORCEMENT: record
           STARTUP_PERFORMANCE_RESULT: .artifacts/validation/startup-node${{ matrix.node }}-performance.json
         run: node scripts/release/run-validation-tier.mjs --result .artifacts/validation/outcome-${{ matrix.group }}-${{ matrix.platform }}-node${{ matrix.node }}-attempt-${{ github.run_attempt }}.json
+      - name: Upload terminal host executable for manual proof
+        if: steps.job-selection.outputs.active == 'true' && matrix.terminalHost
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: terminal-host-${{ matrix.platform }}-${{ matrix.architecture }}-attempt-${{ github.run_attempt }}
+          path: native/terminal-host/target/debug/terminal-host.exe
+          if-no-files-found: error
+          retention-days: 1
       - name: Add modular timing summary
         if: always() && steps.job-selection.outputs.active == 'true'
         shell: bash

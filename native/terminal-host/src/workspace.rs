@@ -302,6 +302,7 @@ impl Pane {
                     self.terminal.write(&bytes);
                     self.hot_path.counters.terminal_model_writes += 1;
                     self.hot_path.counters.terminal_model_bytes += bytes.len() as u64;
+                    self.answer_terminal_queries();
                     observed.extend_from_slice(&bytes);
                 }
                 Err(TryRecvError::Empty) => break,
@@ -309,6 +310,20 @@ impl Pane {
             }
         }
         observed
+    }
+
+    // Protocol: query responses are terminal output, not user input, so they bypass the input
+    // counters. A failed write means the child is closing, which inspect_child reports.
+    fn answer_terminal_queries(&mut self) {
+        let responses = self.terminal.take_responses();
+        if responses.is_empty() {
+            return;
+        }
+        if let Some(writer) = self.writer.as_ref() {
+            if let Ok(mut writer) = writer.lock() {
+                let _ = writer.write_all(&responses).and_then(|()| writer.flush());
+            }
+        }
     }
 
     fn inspect_child(&mut self) -> Result<(), String> {

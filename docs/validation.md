@@ -32,6 +32,8 @@ Conservative Development retains every pull-request owner but does not schedule 
 node scripts/release/generate-validation-ownership-ledger.mjs --output .artifacts/validation/ownership-ledger.json
 ```
 
+The `terminal-host` owner is CI-only. A change under `native/terminal-host/` or to its run scripts selects the Windows x64 **Native terminal host (Windows)** job, which builds the crate with pinned Rust and Zig 0.15.2, runs `npm run test:terminal-host`, and uploads the debug executable. Local Windows builds fail in `build.rs` unless `TERMINAL_HOST_LOCAL_BUILD=1` is set, because Zig's package fetch unpacks test data that workstation antivirus quarantines along with the installed process guardian. See [`native/terminal-host/README.md`](../native/terminal-host/README.md).
+
 ## Failed-job reruns and attempt evidence
 
 Every modular outcome, content-free job envelope, and uploaded artifact name is qualified by `github.run_attempt`. Authority remains bound to the workflow run ID, exact head, complete selection identity, logical job, and platform/runtime target.

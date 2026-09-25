@@ -137,7 +137,7 @@
       "authority": ["Development validation required", "acceptance-only-routing", "acceptance-record-validation", "single-pr-finalization-validation", "archive-merge-result-validation", "complete-regression"],
       "concurrency": "development-validation-",
       "environments": [],
-      "artifactRetentionDays": [14]
+      "artifactRetentionDays": [1, 14]
     },
     {
       "name": "Documentation auto-merge",

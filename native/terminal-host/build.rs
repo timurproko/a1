@@ -4,8 +4,12 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 const GHOSTTY_COMMIT: &str = "c5a21edfcbc2d5b46540ad91b7980aca31f5f1f3";
+const LOCAL_BUILD_OVERRIDE: &str = "TERMINAL_HOST_LOCAL_BUILD";
 
 fn main() {
+    println!("cargo:rerun-if-env-changed=CI");
+    println!("cargo:rerun-if-env-changed={LOCAL_BUILD_OVERRIDE}");
+    refuse_local_windows_build();
     println!("cargo:rerun-if-env-changed=ZIG");
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=vendor/libghostty-vt/build.zig");
@@ -51,6 +55,21 @@ fn main() {
     let lib_dir = work.join("zig-out/lib");
     println!("cargo:rustc-link-search=native={}", lib_dir.display());
     println!("cargo:rustc-link-lib=static=ghostty-vt-static");
+}
+
+// Platform: Zig's package fetch unpacks upstream test data, including a malformed JPEG that
+// workstation antivirus quarantines along with the processes above it, which on a machine
+// running A1 includes the installed process guardian. The build therefore runs in CI.
+fn refuse_local_windows_build() {
+    let set = |name: &str| env::var(name).is_ok_and(|value| !value.is_empty());
+    if !cfg!(windows) || set("CI") || env::var(LOCAL_BUILD_OVERRIDE).as_deref() == Ok("1") {
+        return;
+    }
+    eprintln!(
+        "terminal-host builds run in GitHub CI (\"Native terminal host (Windows)\" job).\n\
+         Push the branch and read the job result, or set {LOCAL_BUILD_OVERRIDE}=1 to build locally anyway."
+    );
+    std::process::exit(1);
 }
 
 fn copy_dir(source: &Path, target: &Path) {
