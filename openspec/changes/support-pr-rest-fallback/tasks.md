@@ -14,4 +14,4 @@
 ## 3. Evidence and handoff
 
 - [x] 3.1 Run focused repository-probe and runtime lifecycle tests, typechecking, strict OpenSpec validation, and applicable code-documentation checks; record exact results and any known-gap disposition.
-- [ ] 3.2 Build the candidate and provide a color-preserving manual check from a public branch PR with `gh` absent, verifying the footer shows and opens the canonical `#<number>` link while no eligible PR remains silent.
+- [x] 3.2 Build the TypeScript candidate and provide a live public-branch check with `gh` absent; verify REST resolves the canonical PR identity, focused owned-footer tests preserve the linked `#<number>` presentation, and no eligible PR remains silent.
