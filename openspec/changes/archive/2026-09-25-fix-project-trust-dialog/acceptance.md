@@ -5,7 +5,7 @@ Verdict: accepted only when the containing exact pull-request head is manually m
 The manual merge accepts these scenarios:
 - Uncovered `ask` paths request trust even when no project resource is currently discoverable.
 - Exact folder decisions do not cover unrelated siblings, while explicit ancestor and configured-default decisions retain their established scope.
-- Bare A1 shows a bounded bottom trust dialog with deterministic short-terminal fallback, while `a1 pi` retains its comparison presentation.
+- Bare A1 shows a bottom trust dialog with full-width blue rules and deterministic short-terminal fallback, while `a1 pi` retains its comparison presentation.
 - Trust input and path rendering remain startup-safe, and every completion or cancellation path restores the terminal exactly once.
 
 ```openspec-delivery
@@ -21,12 +21,12 @@ The manual merge accepts these scenarios:
   "acceptanceScenarios": [
     "Uncovered `ask` paths request trust even when no project resource is currently discoverable.",
     "Exact folder decisions do not cover unrelated siblings, while explicit ancestor and configured-default decisions retain their established scope.",
-    "Bare A1 shows a bounded bottom trust dialog with deterministic short-terminal fallback, while `a1 pi` retains its comparison presentation.",
+    "Bare A1 shows a bottom trust dialog with full-width blue rules and deterministic short-terminal fallback, while `a1 pi` retains its comparison presentation.",
     "Trust input and path rendering remain startup-safe, and every completion or cancellation path restores the terminal exactly once."
   ],
-  "archiveDigest": "4212a4bfebc79d456fd15a513fc74dda7eab19d27eb056d71652372eadd91140",
-  "specDigest": "c05ef20c72b2da5bbac05c536a327429c5ec3ee83e16cc958aff2052d3593bf5",
-  "tasksDigest": "df002a7f0aefe50e92240601de4628ecd68351cb51e7994720b8f191370cbd71",
+  "archiveDigest": "20ede933105580cd70239f7b89276c23d393595ecc19043e07c70d9ad1b452e7",
+  "specDigest": "3e30ef816cacb6e4b7e5c94091668e2927d7467f39e84a0489dd21d5a7be1dd9",
+  "tasksDigest": "7e20c52fa8ea701cc13543cdcdfc61c25b2333d91a961ed81a396bf589926f07",
   "evidenceDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
   "knownGaps": []
 }

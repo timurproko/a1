@@ -2477,13 +2477,14 @@ Top, bottom, and declared separator rules SHALL remain full width. The change SH
 - **AND** a producer that independently restores a top-title spacer or outer content inset SHALL fail the coverage gate
 
 ### Requirement: Pre-resource project trust uses a compact bottom dialog
-Bare A1 SHALL present an interactive pre-resource trust decision as a compact, ruled dialog anchored to the bottom of the bounded startup surface. The dialog SHALL use the established bare-A1 modal hierarchy for its title, working-directory context, explanation, selected and unselected option rows, and semantic shortcut hints while remaining implemented only from fixed startup-safe wording, ANSI roles, terminal dimensions, and bounded rendering helpers. It SHALL NOT load or consult project settings, themes, extensions, prompts, packages, skills, or post-trust components.
+Bare A1 SHALL present an interactive pre-resource trust decision as a vertically compact, ruled dialog anchored to the bottom of the bounded startup surface. Its top and bottom rules SHALL use the fixed dark-theme border blue and span the full available terminal width. The dialog SHALL use the established bare-A1 modal hierarchy for its title, working-directory context, explanation, selected and unselected option rows, and semantic shortcut hints while remaining implemented only from fixed startup-safe wording, ANSI roles, terminal dimensions, and bounded rendering helpers. It SHALL NOT load or consult project settings, themes, extensions, prompts, packages, skills, or post-trust components.
 
 The dialog SHALL remain readable at supported terminal sizes, SHALL prioritize the title, path, choices, and actionable controls when height is constrained, and SHALL clip or wrap without replaying untrusted terminal control content. Completion, cancellation, interruption, input end, and errors SHALL clear the owned startup frame and restore raw mode, cursor state, and the parent terminal exactly once.
 
 #### Scenario: Present trust at the bottom
 - **WHEN** an interactive launch needs a project-trust decision in a terminal with sufficient rows
-- **THEN** A1 SHALL render one compact ruled trust dialog against the bottom of the startup surface
+- **THEN** A1 SHALL render one vertically compact ruled trust dialog against the bottom of the startup surface
+- **AND** its blue top and bottom rules SHALL span the full available terminal width
 - **AND** it SHALL not render the trust content as a loose page at the top-left
 
 #### Scenario: Match ordinary selector hierarchy
