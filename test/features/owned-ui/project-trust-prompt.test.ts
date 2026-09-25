@@ -45,8 +45,6 @@ describe("bounded project trust terminal preflight", () => {
     ["\u001b[B\r", false],
     ["y", true],
     ["n", false],
-    ["\u001b", null],
-    ["\u0003", null],
   ] as const)("maps selector keys %j to %s", async (keys, expected) => {
     const input = new TtyInput(keys);
     const output = new TtyOutput();
@@ -60,6 +58,8 @@ describe("bounded project trust terminal preflight", () => {
     expect(output.text).toContain("→ Trust");
     expect(output.text).toContain("Do not trust");
     expect(output.text).toContain("\u001b[38;2;102;102;102m↑/↓\u001b[38;2;128;128;128m to navigate  \u001b[38;2;102;102;102mEnter\u001b[38;2;128;128;128m to select");
+    expect(output.text).toContain("Ctrl+C\u001b[38;2;128;128;128m to exit");
+    expect(output.text).not.toContain("Esc\u001b[38;2;128;128;128m to cancel");
     expect(output.text).not.toMatch(/[·•]/u);
     const lastFrame = output.text.split("\u001b[2J\u001b[H").reverse()
       .find(frame => frame.includes("Trust project folder?"))!.split("\n");
@@ -75,9 +75,29 @@ describe("bounded project trust terminal preflight", () => {
     expect(input.rawTransitions).toEqual([true, false]);
   });
 
+  it("requires a decision when Escape is pressed", async () => {
+    const input = new TtyInput("\u001b\u001b[B\r");
+    const output = new TtyOutput();
+    const prompt = createConsoleProjectTrustPrompt({ input, output });
+    await expect(prompt({ cwd: "D:/work", defaultDecision: "ask" })).resolves.toBe(false);
+    expect(input.rawTransitions).toEqual([true, false]);
+  });
+
+  it("aborts startup on Ctrl+C after restoring the terminal", async () => {
+    const input = new TtyInput("\u0003");
+    const output = new TtyOutput();
+    const prompt = createConsoleProjectTrustPrompt({ input, output });
+    await expect(prompt({ cwd: "D:/work", defaultDecision: "ask" })).rejects.toMatchObject({
+      name: "ProjectTrustPromptInterruptedError",
+      exitCode: 130,
+    });
+    expect(input.rawTransitions).toEqual([true, false]);
+    expect(output.text.endsWith("\u001b[2J\u001b[H\u001b[?25h\u001b[?1049l")).toBe(true);
+  });
+
   it("keeps decisions and controls visible in a short narrow terminal", async () => {
     const output = new TtyOutput(30, 5);
-    const prompt = createConsoleProjectTrustPrompt({ input: new TtyInput("\u001b"), output });
+    const prompt = createConsoleProjectTrustPrompt({ input: new TtyInput("n"), output });
     await prompt({ cwd: "D:/work", defaultDecision: "ask" });
     const frame = output.text.split("\u001b[2J\u001b[H").find(part => part.includes("Trust project folder?"))!;
     expect(frame.split("\n")).toHaveLength(5);
@@ -89,7 +109,7 @@ describe("bounded project trust terminal preflight", () => {
 
   it("does not replay control bytes from the working directory", async () => {
     const output = new TtyOutput();
-    const prompt = createConsoleProjectTrustPrompt({ input: new TtyInput("\u001b"), output });
+    const prompt = createConsoleProjectTrustPrompt({ input: new TtyInput("n"), output });
     await prompt({ cwd: "D:/bad\u001b]52;clipboard\u0007", defaultDecision: "ask" });
     expect(output.text).not.toContain("\u001b]52;clipboard");
     expect(output.text).toContain("D:/bad�]52;clipboard�");

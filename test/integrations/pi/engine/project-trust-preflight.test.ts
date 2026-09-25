@@ -101,6 +101,17 @@ describe("project trust preflight", () => {
     expect(unavailable.diagnostic).toMatch(/requires interaction/);
   });
 
+  it("propagates an explicit startup interruption without creating a trust decision", async () => {
+    const interruption = Object.assign(new Error("Project trust selection interrupted"), {
+      name: "ProjectTrustPromptInterruptedError",
+      exitCode: 130,
+    });
+    await expect(resolvePiProjectTrustPreflight(options({
+      prompt: async () => { throw interruption; },
+    }))).rejects.toBe(interruption);
+    expect(new ProjectTrustStore(agentDir).get(cwd)).toBeNull();
+  });
+
   it("uses an in-session saved decision only on the next launch", async () => {
     writeFileSync(join(agentDir, "settings.json"), JSON.stringify({ defaultProjectTrust: "always" }));
     const current = await resolvePiProjectTrustPreflight(options());

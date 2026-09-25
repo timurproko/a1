@@ -30,6 +30,15 @@ const DIM = "\u001b[38;2;102;102;102m";
 const RESET_FG = "\u001b[39m";
 const BOLD = "\u001b[1m";
 const RESET_BOLD = "\u001b[22m";
+const PROJECT_TRUST_INTERRUPTED = "ProjectTrustPromptInterruptedError";
+
+class ProjectTrustPromptInterruptedError extends Error {
+  readonly exitCode = 130;
+  constructor() {
+    super("Project trust selection interrupted");
+    this.name = PROJECT_TRUST_INTERRUPTED;
+  }
+}
 
 /** Fixed pre-resource selector; no project resource is available. */
 export function createConsoleProjectTrustPrompt(
@@ -41,7 +50,8 @@ export function createConsoleProjectTrustPrompt(
     if (input.isTTY !== true || output.isTTY !== true) {
       throw new Error("an interactive terminal is unavailable");
     }
-    const renderBareDialog = options.presentation === "comparison"
+    const comparison = options.presentation === "comparison";
+    const renderBareDialog = comparison
       ? undefined : (await import("./project-trust-dialog.js")).renderProjectTrustDialog;
 
     const wasRaw = input.isRaw === true;
@@ -112,8 +122,16 @@ export function createConsoleProjectTrustPrompt(
               finish(selected === 0);
               return;
             }
-            if (key === "\u001b" || key === "\u0003") {
-              finish(null);
+            if (key === "\u001b") {
+              if (comparison) {
+                finish(null);
+                return;
+              }
+              continue;
+            }
+            if (key === "\u0003") {
+              if (comparison) finish(null);
+              else fail(new ProjectTrustPromptInterruptedError());
               return;
             }
             // Compatibility: retain y/n aliases for terminals or automation that cannot send

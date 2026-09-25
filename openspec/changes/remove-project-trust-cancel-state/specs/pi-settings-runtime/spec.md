@@ -1,7 +1,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Project trust is decided before project resources load
-A1 SHALL resolve saved project trust and `defaultProjectTrust` for every launch working directory before Pi loads project settings, context files, skills, prompts, extensions, themes, or other project-scoped executable resources. A saved exact or ancestor path decision SHALL override the default exactly as pinned Pi specifies. Under `ask`, an uncovered working directory SHALL require an explicit decision when interaction is available even when no trust-requiring project resource is currently discoverable; current resource absence SHALL NOT grant implicit trust. `always` SHALL allow project resources and `never` SHALL withhold them without interaction. A1 SHALL fail closed when a required decision cannot be obtained. Interactive preflight SHALL use a bounded startup-safe selector constructed without project-derived resources and SHALL preserve focus, selection, cancellation, clearing, and terminal-restoration semantics rather than using a plain line-oriented prompt.
+A1 SHALL resolve saved project trust and `defaultProjectTrust` for every launch working directory before Pi loads project settings, context files, skills, prompts, extensions, themes, or other project-scoped executable resources. A saved exact or ancestor path decision SHALL override the default exactly as pinned Pi specifies. Under `ask`, an uncovered working directory SHALL require an explicit decision when interaction is available even when no trust-requiring project resource is currently discoverable; current resource absence SHALL NOT grant implicit trust. `always` SHALL allow project resources and `never` SHALL withhold them without interaction. A1 SHALL fail closed when a required decision cannot be obtained. Interactive preflight SHALL use a bounded startup-safe selector constructed without project-derived resources and SHALL preserve focus, mandatory selection, interruption, clearing, and terminal-restoration semantics rather than using a plain line-oriented prompt.
 
 #### Scenario: Ask for an undecided project
 - **WHEN** the default is `ask` and no saved exact or ancestor decision covers the working directory
@@ -38,8 +38,22 @@ A1 SHALL resolve saved project trust and `defaultProjectTrust` for every launch 
 - **WHEN** an undecided interactive launch requests trust
 - **THEN** the preflight frame, options, selected state, footer hints, key handling, and terminal cleanup SHALL follow the owned startup-selector contract
 
-#### Scenario: Cancel or fail trust preflight
-- **WHEN** the selector is cancelled, interrupted, or fails
+#### Scenario: Ignore Escape in bare A1
+- **WHEN** Escape is pressed in the bare-A1 startup trust selector
+- **THEN** A1 SHALL remain in the selector without resolving or persisting trust
+- **AND** no project-aware runtime or resource SHALL be constructed
+
+#### Scenario: Interrupt bare-A1 trust preflight
+- **WHEN** Ctrl+C is pressed in the bare-A1 startup trust selector
+- **THEN** A1 SHALL restore the terminal, preserve the undecided trust state, and terminate startup with the conventional interruption outcome
+- **AND** it SHALL NOT construct project settings, resources, or the owned shell
+
+#### Scenario: Fail bare-A1 trust preflight
+- **WHEN** interaction is unavailable, input ends, or ordinary trust resolution fails
 - **THEN** project resources SHALL remain withheld
-- **AND** the selector SHALL clear and restore the terminal before one bounded diagnostic is emitted
-- **AND** bare A1 SHALL present that diagnostic through its prompt-adjacent warning notice rather than at the top of an otherwise empty transcript viewport
+- **AND** bare A1 SHALL present one bounded diagnostic through its prompt-adjacent warning notice rather than at the top of an otherwise empty transcript viewport
+
+#### Scenario: Cancel or fail trust preflight
+- **WHEN** the selector is cancelled through `a1 pi`, or ordinary trust preflight fails in either profile
+- **THEN** project resources SHALL remain withheld
+- **AND** bare A1 SHALL place an applicable failure diagnostic in its prompt-adjacent notice while `a1 pi` retains its pinned cancellation and startup-diagnostic behavior

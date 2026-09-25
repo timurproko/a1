@@ -67,9 +67,11 @@ Promise.resolve().then(() => {
     return terminateOwnedUiProcess(code);
   },
   error => {
-    if (fatal && error?.name !== "PiSessionSelectionError") { fatal.fail(error); return; }
+    const sessionSelectionError = error?.name === "PiSessionSelectionError";
+    const trustInterrupted = error?.name === "ProjectTrustPromptInterruptedError";
+    if (fatal && !sessionSelectionError && !trustInterrupted) { fatal.fail(error); return; }
     fatal?.remove();
-    console.error(error instanceof Error ? error.message : String(error));
-    process.exitCode = error?.name === "PiSessionSelectionError" ? error.exitCode : 1;
+    if (!trustInterrupted) console.error(error instanceof Error ? error.message : String(error));
+    process.exitCode = sessionSelectionError || trustInterrupted ? error.exitCode : 1;
   },
 );
