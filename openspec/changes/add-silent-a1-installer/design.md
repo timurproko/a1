@@ -62,11 +62,11 @@ Alternative: pipe a GitHub-hosted shell or PowerShell script into a shell. Rejec
 
 The installer accepts exactly three target forms: no selector resolves the stable `latest` tag, `--develop` resolves the development `next` tag, and `--version <exact-version>` verifies an immutable published numbered development version such as `0.1.8-dev.107`. It asks the active npm executable for the selected target, validates the returned version and authoritative package identity, then installs `@timurproko/a1@<exact-version>` globally. It never passes a moving tag to the mutating command. Registry, proxy, credentials, certificates, and prefix continue to come from the user's active npm configuration.
 
-Every npm child receives fixed arguments including `--global`, `--loglevel=error`, `--no-fund`, and `--no-audit`; no shell command string is constructed. Both stdout and stderr are piped. The installer never runs `npm config set`, edits npmrc files, or changes persistent log-level/funding/audit settings. Missing version values, malformed versions, duplicate selectors, and combinations of `--develop` with `--version` fail before registry or installation work.
+Every mutating npm child receives fixed arguments including `--global`, captured `--loglevel=verbose`, `--ignore-scripts`, `--no-fund`, and `--no-audit`; no shell command string is constructed. Both stdout and stderr are piped. The installer never runs `npm config set`, edits npmrc files, or changes persistent log-level/funding/audit settings. Missing version values, malformed versions, duplicate selectors, and combinations of `--develop` with `--version` fail before registry or installation work.
 
 ### 3. Own the complete terminal after bootstrap acquisition
 
-In an interactive terminal, the installer draws one carriage-return progress row using the existing A1 update bar's exact 40-cell geometry, glyphs, blue/teal `#8abeb7` completed segment, grey muted track, grey percentage, and style reset. A shared pure renderer or conformance fixture prevents the installer artifact and self-update from drifting while keeping the installer runtime independent.
+In an interactive terminal, the installer draws one carriage-return progress row using the existing update bar's exact 40-cell geometry, glyphs, blue/teal `#8abeb7` completed segment, grey muted track, grey percentage, and style reset. A pure conformance fixture prevents the dependency-free installer artifact and self-update from drifting.
 
 The bar advances monotonically across declared spans:
 
@@ -76,7 +76,7 @@ The bar advances monotonically across declared spans:
 4. installed-tree materialization, driven by activation file-count events;
 5. certification, warmup, active-reference commit, launcher/package verification, and completion.
 
-The npm phase does not claim measured byte or package progress. As in Pi's installer, verbose child events may drive one allowlisted bounded phase label, but arbitrary log text, package identities, paths, versions, and counts never become presentation. In redirected/non-interactive output, the animated row is omitted; the final result contract remains. On success the completed row is cleared/replaced and stdout contains exactly:
+The npm phase does not claim measured byte or package progress. Recognized child events may drive one bounded phase label from `Preparing`, `Resolving version`, `Resolving packages`, `Downloading packages`, `Installing`, `Activating`, or `Verifying`, but arbitrary log text, package identities, paths, versions, and counts never become presentation. In redirected/non-interactive output, the animated row is omitted; the final result contract remains. On success the completed row is cleared/replaced and stdout contains exactly:
 
 ```text
 a1 successfully installed
@@ -102,13 +102,13 @@ This is deliberately narrower than the postponed stable-launcher change. The ins
 
 ### 6. Make default failure concise without losing evidence
 
-The installer keeps bounded tails from each child and classifies common startup, network, registry, permission, package-integrity, activation, launcher, and cancellation failures. Progress parsing reads only an installer-owned temporary log, maps allowlisted events, and removes that log after use. Every success, failure, exception, and cancellation path stops timers/workers, contains owned children, clears the progress row, restores the cursor and foreground style, and emits at most the applicable result. A failure writes no success text, exits nonzero, and emits one default stderr line:
+The installer keeps bounded private tails from each child and classifies common startup, network, registry, permission, package-integrity, activation, launcher, and cancellation failures. Progress parsing reads only those installer-owned buffers and maps recognized records to allowlisted phases; no arbitrary child line becomes terminal text. Every success, failure, exception, and cancellation path stops timers/workers, contains owned children, clears the progress row, restores the cursor and foreground style, and emits at most the applicable result. A failure writes no success text, exits nonzero, and emits one default stderr line:
 
 ```text
-a1 installation failed: <concise reason>
+installation failed: <concise reason>
 ```
 
-Cancellation may use the exact reason `a1 installation cancelled` with the conventional unsuccessful status. A default failure never dumps raw npm warnings, stack traces, progress fragments, credentials, request headers, or an npm log wall. Unknown failures remain truthful (`unexpected installer failure`) rather than guessing success or a cause.
+Cancellation uses the exact result `installation cancelled` with status `130`. Default failure reasons come from a fixed concise vocabulary covering the Node/npm prerequisite, selected-release resolution, network/authentication/permission failures, npm installation, package identity/version/completeness, launcher and command resolution, activation, existing-install ownership/update capability, invalid arguments, and an unexpected-failure fallback. A default failure never dumps raw npm warnings, stack traces, progress fragments, credentials, request headers, or an npm log wall. Unknown failures remain truthful (`unexpected installer failure`) rather than guessing success or a cause.
 
 An explicit `--verbose` troubleshooting mode may append the bounded captured diagnostic after failure only. It remains terminal-sanitized and redacts registry credentials/tokens. Success stays minimal even in ordinary mode. Full npm logs remain npm-owned; the installer does not promise to collect files outside its process streams.
 
@@ -120,7 +120,7 @@ The release workflow stamps the selected A1 version into an installer package ge
 
 Development publication uses `next` for the matching installer build; stable publication uses `latest`. The public command omits a package tag and therefore resolves `@timurproko/a1-install@latest`; development publication cannot silently replace the stable bootstrap. Existing immutable versions are verified rather than republished, and a byte mismatch fails closed.
 
-Exact-package evidence covers the installer package surface, zero dependency/lifecycle script contract, output bytes, fixed npm argv, target pinning, activation events, launcher verification, failure/cancellation, existing-install delegation, and Windows/Linux/macOS path forms. A post-publication isolated-prefix smoke test may exercise the exact registry pair; it supplements rather than replaces pre-publication exact-byte validation.
+Exact-package evidence covers the installer package surface, zero dependency/lifecycle script contract, output bytes, fixed npm argv, target pinning, activation events, launcher verification, failure/cancellation, existing-install delegation, and Windows/Linux/macOS path forms. Post-publication isolated-prefix smoke tests exercise the exact registry pair on every release lane and record registry identity/integrity, the minimal transcript, installed version, launcher verdict, and activation verdict before stable release records are written; they supplement rather than replace pre-publication exact-byte validation.
 
 ## Validation Matrix
 

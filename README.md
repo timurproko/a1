@@ -3,20 +3,26 @@
 ## Install
 
 ```sh
-npm install --global @timurproko/a1@latest
+# stable release
+npx -y @timurproko/a1-install
+
+# development channel
+npx -y @timurproko/a1-install --develop
+
+# exact development version
+npx -y @timurproko/a1-install --version 0.1.8-dev.107
 ```
 
-Any channel can also be installed or updated directly with npm, without the
-`a1 update` commands:
+The installer keeps npm's dependency transcript out of the normal terminal output,
+shows one progress row, activates the installed release, and verifies the command
+before reporting success. The shorter `npx @timurproko/a1-install` form also works,
+but npm may ask for first-use confirmation; `-y` avoids that prompt.
+
+Direct npm installation remains available as a fallback or manual recovery path:
 
 ```sh
-# dev channel (next tag)
-npm install -g @timurproko/a1@next
-
-# stable release
 npm install -g @timurproko/a1@latest
-
-# exact version
+npm install -g @timurproko/a1@next
 npm install -g @timurproko/a1@0.1.8-dev.107
 ```
 
