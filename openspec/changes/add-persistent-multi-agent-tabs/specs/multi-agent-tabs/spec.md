@@ -21,8 +21,9 @@ When resident tabs are enabled, bare `a1` SHALL present a one-row tab strip at t
 - **THEN** only the viewed surface and input target SHALL change, and both agents SHALL continue without pause or restart
 
 #### Scenario: Extension custom UI in a tab
-- **WHEN** an extension that renders its own custom interactive component runs in a tab
-- **THEN** the component SHALL behave as it does in single-agent bare A1
+- **WHEN** an extension renders a custom interactive component using the certified text-terminal contract
+- **THEN** keyboard, mouse, paste, selection, clipboard, hyperlinks, cursor, Unicode, and alternate-screen behavior SHALL match direct single-agent bare A1
+- **AND** an inline-image request SHALL use the existing text fallback rather than imply unsupported image-protocol parity
 
 #### Scenario: Pi comparison profile
 - **WHEN** the user runs `a1 pi`
@@ -102,8 +103,19 @@ A1 SHALL create a new A1 tab in the client's launch cwd from `Alt+A`, the `+` ch
 - **WHEN** a closed tab's session is selected with `/resume` or `a1 --session`
 - **THEN** its transcript SHALL open in a tab with no lost committed entries
 
+### Requirement: Concurrent clients use one attributable input controller
+Each tab SHALL have at most one input-controller client and a monotonic controller revision. Before terminal input from a new controller is accepted, the holder SHALL deliver an owner marker containing that client and revision to the A1 child through the semantic bridge and receive acknowledgement. Input and PTY resize messages SHALL carry the current controller revision; stale or read-only clients SHALL be rejected without delivering bytes. A client-scoped bridge request SHALL carry the child-acknowledged controller identity and SHALL apply only while that revision remains current. Terminal bytes and prompt content SHALL NOT enter the bridge.
+
+#### Scenario: A second terminal takes control
+- **WHEN** a second client atomically claims a tab currently controlled by another client
+- **THEN** its owner marker SHALL be acknowledged before its first terminal input is delivered, the prior client SHALL become read-only, and input from the two clients SHALL NOT interleave
+
+#### Scenario: Stale detach request arrives
+- **WHEN** a bridge detach request names a controller revision that has been superseded
+- **THEN** the server SHALL reject it and SHALL NOT detach either client
+
 ### Requirement: Quitting bare A1 detaches from resident tabs
-Pressing `Ctrl+C` twice within the existing clear/exit interval SHALL detach the client from any tab. The attach client SHALL forward the first `Ctrl+C` to the viewed tab unchanged and SHALL consume a second `Ctrl+C` inside the interval as the detach request without forwarding it, so a single `Ctrl+C` keeps its ordinary meaning in the tab and a double press never ends the tab's process. Inside an A1 tab, `/quit` and `Ctrl+D` on an empty editor SHALL also detach the client that sent the input. Detaching SHALL restore the outer terminal's screen and input modes and leave every tab running. When tabs remain running, the parent terminal SHALL show a dim `N tabs still running · run a1 to return`, singular for one. `/quit-all` SHALL stop every tab after confirmation when any is busy, then detach with the ordinary resume hint.
+Pressing `Ctrl+C` twice within the existing clear/exit interval SHALL detach the local attach client from any tab. The attach client SHALL forward the first `Ctrl+C` to the viewed tab unchanged and SHALL consume a second `Ctrl+C` inside the interval as the detach request without forwarding it, so a single `Ctrl+C` keeps its ordinary meaning in the tab and a double press never ends the tab's process. Inside an A1 tab, `/quit` and `Ctrl+D` on an empty editor SHALL detach only the client identified by the current child-acknowledged controller revision. When the bridge or attribution is unavailable, the child SHALL remain running and SHALL direct the user to `Ctrl+C` twice. Detaching SHALL restore the outer terminal's screen and input modes and leave every tab running. When tabs remain running, the parent terminal SHALL show a dim `N tabs still running · run a1 to return`, singular for one. `/quit-all` SHALL stop every tab after confirmation when any is busy, then detach with the ordinary resume hint.
 
 #### Scenario: Leave with Ctrl+C twice
 - **WHEN** the user presses `Ctrl+C` twice within the clear/exit interval in any tab
@@ -130,7 +142,8 @@ Bare `a1` SHALL connect to the profile's resident server, show every tab, and vi
 
 #### Scenario: Two terminals at once
 - **WHEN** bare `a1` runs in two terminals of one profile
-- **THEN** both SHALL show the same tabs, each SHALL keep its own viewed tab, and input from either SHALL reach only its viewed tab
+- **THEN** both SHALL show the same tabs and each SHALL keep its own viewed tab
+- **AND** only the current input controller of a tab SHALL send input or resize its PTY while the other client remains a read-only viewer until it claims control
 
 ### Requirement: Tab failure is presented and recoverable per tab
 A crashed or failed tab SHALL show its reason in its own surface with `[r] retry`, `[f] start fresh`, and `[alt+w] close`. When a restarted tab's last user prompt had no settled reply, A1 SHALL offer that prompt back into the editor and SHALL NOT resend it. Other tabs SHALL remain fully operable.

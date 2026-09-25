@@ -66,12 +66,16 @@ The server SHALL converge each tab's actual state toward its durable desired sta
 - **WHEN** a resize message is lost or reordered
 - **THEN** the holder's size SHALL still converge to the latest desired size
 
-### Requirement: Stale servers are fenced out
-Each server start SHALL durably increment a registry epoch before it acts. Holders and bridges SHALL accept commands only from the highest epoch they have observed and SHALL reject commands from a lower epoch. A server that observes a higher epoch SHALL stop acting and exit.
+### Requirement: Stale servers and registry writers are fenced out
+Exactly one server SHALL hold the owner-only operating-system registry-writer lease. A failed endpoint handshake SHALL NOT by itself authorize replacement: the starter SHALL verify the recorded owner's native process identity, terminate that owner, and acquire the released lease, or fail closed when verification or acquisition is unavailable. Each server start SHALL durably increment the registry epoch while holding the lease before it acts. Every registry mutation SHALL verify that the lease is still held and the durable epoch is current. Holders and bridges SHALL accept commands only from the highest epoch they have observed and SHALL reject lower epochs.
 
 #### Scenario: A hung server resumes after replacement
-- **WHEN** a server that was suspended resumes after a replacement server has started
-- **THEN** holders SHALL reject its commands and it SHALL exit without mutating the registry
+- **WHEN** a verified hung server was terminated, its lease was acquired by a replacement, and stale work from the old incarnation is later delivered
+- **THEN** holders and bridges SHALL reject its epoch and no stale registry mutation SHALL commit
+
+#### Scenario: Timed-out owner cannot be verified
+- **WHEN** the endpoint does not answer but the recorded owner cannot be proven and terminated by native identity
+- **THEN** A1 SHALL report host recovery blocked and SHALL NOT start a second registry writer
 
 ### Requirement: Durable data is guaranteed per class
 A1 SHALL uphold these guarantees across forced termination of any process, including all resident processes at once:
@@ -119,12 +123,18 @@ Resident logs SHALL rotate by size into bounded retained generations and SHALL n
 - **WHEN** a tab crashes, restarts, and crashes again
 - **THEN** both crash records SHALL be preserved and distinguishable
 
-### Requirement: Reliability is proven before release
-The server state machine SHALL be implemented independently of I/O and SHALL be exercised by deterministic simulation and property tests that inject arbitrary interleavings of process death, message loss, reordering, delay, client churn, and mutations, asserting that no committed mutation is lost, no session gains two live tabs, and every desired-running tab converges to running or failed. Every persistence and IPC step SHALL expose a failure-injection point exercised by crash-point tests. Protocol decoders and surface encoders SHALL be fuzzed. A soak of at least 24 hours with ten tabs under high-rate output and random termination of servers, holders, tab processes, and clients, random resizes, and attach churn SHALL run on Windows, macOS, and Linux before each release that changes resident code, and SHALL assert zero lost journaled prompts, zero lost committed entries, zero orphaned processes, zero duplicate tabs, bounded memory and handle growth, and the declared latency objectives: reattach first paint at the 95th percentile under 300 ms, tab restart after crash under 3 s, and server recovery under 2 s. A failed objective SHALL block release of resident changes.
+### Requirement: Reliability evidence matches the enablement stage
+The server state machine SHALL be implemented independently of I/O and SHALL be exercised by deterministic simulation and property tests that inject arbitrary interleavings of process death, message loss, reordering, delay, stale epochs, controller transfer, client churn, and mutations, asserting that no committed mutation is lost, only one registry writer exists, no session gains two live tabs, client-scoped requests remain attributable, and every desired-running tab converges to running or failed. Every persistence and IPC step SHALL expose a failure-injection point exercised by crash-point tests. Protocol decoders and surface encoders SHALL be fuzzed, and bounded Windows chaos/fault-injection suites SHALL gate the opt-in slice.
 
-#### Scenario: Soak detects a leak
-- **WHEN** the soak observes handle or memory growth beyond the declared bound
-- **THEN** the release of resident changes SHALL be blocked until the growth is fixed or the bound is explicitly re-justified
+Before resident tabs may default on for Windows, a separately authorized isolated-worker soak of at least 24 hours SHALL exercise ten tabs under high-rate output and random termination of servers, holders, tab processes, and clients, controller and resize churn, blocked writes, ConPTY creation hangs, and rename denial. It SHALL assert zero lost journaled prompts, zero lost committed entries, zero orphaned processes, zero duplicate tabs, bounded memory and handle growth, reattach p95 under 300 ms, tab restart under 3 s, and server recovery under 2 s. Each later platform SHALL earn equivalent implementation and exact-package evidence before enablement; evidence SHALL NOT be inferred across platforms.
+
+#### Scenario: Opt-in preview changes resident code
+- **WHEN** the Windows preview remains disabled by default
+- **THEN** deterministic, crash-point, fuzz, bounded chaos, and exact-package physical evidence SHALL be required without claiming that the later 24-hour default-on gate has passed
+
+#### Scenario: Default-on soak detects a leak
+- **WHEN** the authorized 24-hour soak observes handle or memory growth beyond the declared bound
+- **THEN** default enablement SHALL remain blocked until the growth is fixed or the bound is explicitly re-justified in a later approved plan
 
 #### Scenario: Simulation finds a duplicate start
 - **WHEN** a simulated interleaving produces two live incarnations for one tab

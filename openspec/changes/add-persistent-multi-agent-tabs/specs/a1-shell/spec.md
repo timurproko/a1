@@ -1,7 +1,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Interactive launch forms use the owned Pi UI pipeline
-Bare `a1` SHALL launch the A1-owned product surface directly. Explicit prerelease `a1 pi` SHALL use the same owned rendering and input pipeline with A1-specific surfaces withheld and Pi's ordinary user profile selected. Profile selection SHALL NOT introduce transparent child attachment, a PTY, a terminal parser, a byte relay, or a second rendering path. The redundant `a1 ui` route SHALL NOT be exposed. When resident tabs are enabled, bare `a1` SHALL instead run the native terminal-host attach client over resident tabs, each of which SHALL run the same owned product UI in its own holder-owned pseudoterminal; pseudoterminals, terminal models, and composition SHALL exist only inside the resident terminal-host capability, and `a1 pi` SHALL remain unchanged.
+Bare `a1` SHALL launch the A1-owned product surface directly. Explicit prerelease `a1 pi` SHALL use the same owned rendering and input pipeline with A1-specific surfaces withheld and Pi's ordinary user profile selected. Profile selection SHALL NOT introduce transparent child attachment, a PTY, a terminal parser, a byte relay, or a second rendering path. The redundant `a1 ui` route SHALL NOT be exposed. On Windows x64 only, when the opt-in `tabs.resident` setting is enabled, bare `a1` SHALL instead run the native terminal-host attach client over resident tabs, each of which SHALL run the same owned product UI in its own holder-owned pseudoterminal; pseudoterminals, terminal models, and composition SHALL exist only inside the resident terminal-host capability, and `a1 pi` SHALL remain unchanged. This change SHALL leave `tabs.resident` disabled by default and SHALL leave unsupported platforms on the direct owned path.
 
 #### Scenario: Launch bare A1
 - **WHEN** the user runs `a1`
@@ -13,8 +13,12 @@ Bare `a1` SHALL launch the A1-owned product surface directly. Explicit prereleas
 - **AND** with resident tabs enabled A1 SHALL reattach to the running tabs and present their current retained surfaces
 
 #### Scenario: Launch bare A1 with resident tabs
-- **WHEN** the user runs `a1` with resident tabs enabled
+- **WHEN** the user runs `a1` on Windows x64 with resident tabs explicitly enabled
 - **THEN** every tab SHALL run the owned product UI, and Node SHALL NOT read, relay, or render tab terminal bytes
+
+#### Scenario: Resident tabs are not enabled
+- **WHEN** the setting remains at its default or the platform is unsupported
+- **THEN** bare A1 SHALL use the direct single-agent owned path and SHALL NOT start the resident host
 
 #### Scenario: Launch the Pi comparison
 - **WHEN** the user runs prerelease `a1 pi`
