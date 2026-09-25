@@ -5,7 +5,7 @@
 ## 2. Implement input and interruption semantics
 
 - [x] 2.1 Make Escape the visible bare-A1 exit action and update the selector controls.
-- [x] 2.2 Reset terminal input/presentation modes, restore the parent-screen cursor, erase the stale restored launch row, and propagate Escape as a successful bounded exit while retaining status 130 for Ctrl+C.
+- [x] 2.2 Reset terminal input/presentation modes, restore the parent-screen cursor without writing parent-buffer rows, and propagate Escape as a successful bounded exit while retaining status 130 for Ctrl+C.
 - [x] 2.3 Keep unavailable/error paths fail-closed and route their warning through bare A1's prompt-adjacent notice dock.
 - [x] 2.4 Preserve pinned `a1 pi` cancellation and warning placement.
 
