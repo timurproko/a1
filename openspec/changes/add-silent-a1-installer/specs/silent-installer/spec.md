@@ -1,14 +1,24 @@
 ## ADDED Requirements
 
 ### Requirement: The official installer bootstrap is quiet before custom installation begins
-The preferred stable installation command SHALL acquire and run `@timurproko/a1-installer@latest` through `npx` with non-interactive confirmation, error-level logging, funding output disabled, and audit output disabled. The installer package SHALL expose exactly one `a1-installer` executable, SHALL use only supported Node built-ins at runtime, and SHALL declare no production, optional, peer, or runtime-required development dependency and no npm installation lifecycle script.
+The preferred stable, development-channel, and exact-development-version installation commands SHALL acquire and run `@timurproko/a1-installer@latest` through `npx` with non-interactive confirmation, error-level logging, funding output disabled, and audit output disabled. The stable form SHALL pass no installer selector, the development form SHALL pass `--develop`, and the exact form SHALL pass `--version <exact-development-version>` after the installer package argument. The installer package SHALL expose exactly one `a1-installer` executable, SHALL use only supported Node built-ins at runtime, and SHALL declare no production, optional, peer, or runtime-required development dependency and no npm installation lifecycle script.
 
-The documented bootstrap SHALL preserve npm acquisition errors that occur before installer execution while suppressing bootstrap warnings, notices, funding text, audits, and confirmation prompts. The direct global npm installation command MAY remain documented as an explicit manual or recovery fallback but SHALL NOT be presented as the preferred quiet path after installer availability is accepted.
+The documented bootstrap SHALL preserve npm acquisition errors that occur before installer execution while suppressing bootstrap warnings, notices, funding text, audits, and confirmation prompts. The corresponding direct global npm commands for `@latest`, `@next`, and an exact numbered development version MAY remain documented as explicit manual or recovery fallbacks but SHALL NOT be presented as the preferred quiet paths after installer availability is accepted.
 
 #### Scenario: A user starts the preferred installation
 - **WHEN** the user runs `npx --yes --loglevel=error --no-fund --no-audit @timurproko/a1-installer@latest`
 - **THEN** npm SHALL acquire the dependency-free installer without a confirmation prompt or warning/notice/funding/audit transcript
 - **AND** the installer SHALL own subsequent terminal presentation
+
+#### Scenario: A user selects the development channel
+- **WHEN** the user appends `--develop` after `@timurproko/a1-installer@latest`
+- **THEN** `npx` SHALL forward the selector to the installer
+- **AND** the installer SHALL resolve A1's `next` channel rather than changing the installer package channel
+
+#### Scenario: A user selects an exact development version
+- **WHEN** the user appends `--version 0.1.8-dev.107` after `@timurproko/a1-installer@latest`
+- **THEN** `npx` SHALL forward both values to the installer
+- **AND** the installer SHALL select only that immutable published A1 version
 
 #### Scenario: Installer acquisition fails
 - **WHEN** npm cannot acquire the installer package and its executable never starts
@@ -21,9 +31,9 @@ The documented bootstrap SHALL preserve npm acquisition errors that occur before
 - **AND** its manifest SHALL contain no install lifecycle script or runtime dependency graph capable of producing transitive warning output
 
 ### Requirement: Successful installation shows only progress and one success message
-In an interactive terminal, the installer SHALL display one carriage-return progress row conforming to A1 self-update's bar width, glyphs, completed/remaining colors, percentage treatment, and style reset. Progress SHALL be non-decreasing, SHALL use measured activation progress where available, and MAY creep toward but SHALL NOT render an unreached milestone during opaque npm work.
+In an interactive terminal, the installer SHALL display one carriage-return progress row conforming exactly to A1 self-update's 40-cell bar width, glyphs, blue/teal `#8abeb7` completed segment, grey remaining track, grey percentage treatment, and style reset. Progress SHALL be non-decreasing, SHALL use measured activation progress where available, and MAY creep toward but SHALL NOT render an unreached milestone during opaque npm work.
 
-Every child process SHALL have stdout and stderr captured rather than inherit the terminal. Output from a successful child SHALL be discarded, including deprecation warnings, funding text, audit summaries, lifecycle-script policy warnings, package counts, and npm version notices. After all installation and verification work succeeds, the progress row SHALL be completed and removed or replaced, and stdout SHALL contain exactly `a1 successfully installed` followed by one newline with no phase text, version, path, count, warning, notice, or extra blank line.
+Every child process SHALL have stdout and stderr captured rather than inherit the terminal. Output from a successful child SHALL be discarded, including deprecation warnings, funding text, audit summaries, lifecycle-script policy warnings, package counts, and npm version notices. After all installation and verification work succeeds, the progress row SHALL be completed and removed or replaced, and stdout SHALL contain exactly `a1 successfully installed` followed by one newline in the terminal's unstyled default foreground, matching update success and appearing white under the maintainer's current terminal theme. It SHALL NOT use green or another fixed success color and SHALL include no phase text, version, path, count, warning, notice, or extra blank line.
 
 When output is not interactive, the animated row SHALL be omitted and the same final success line SHALL remain.
 
@@ -43,7 +53,7 @@ When output is not interactive, the animated row SHALL be omitted and the same f
 - **AND** SHALL contain no carriage-return progress frames or ANSI styling
 
 ### Requirement: Installation resolves and verifies one exact target
-The installer SHALL use the active npm executable and configuration to resolve the stable A1 channel, SHALL validate the authoritative `@timurproko/a1` identity and one exact semantic version, and SHALL pass that exact version rather than a moving tag to the global mutating command. It SHALL use cross-platform fixed argument arrays, SHALL NOT construct an interpolated shell command, and SHALL NOT persistently change npm configuration.
+The installer SHALL use the active npm executable and configuration to resolve the stable `latest` channel by default, the development `next` channel for `--develop`, or one immutable published numbered development version for `--version <exact-development-version>`. It SHALL validate the authoritative `@timurproko/a1` identity and one exact semantic version and SHALL pass that exact version rather than a moving tag to the global mutating command. It SHALL use cross-platform fixed argument arrays, SHALL NOT construct an interpolated shell command, and SHALL NOT persistently change npm configuration. Missing values, stable versions supplied to `--version`, zero-numbered or malformed previews, duplicate selectors, and `--develop` combined with `--version` SHALL fail before registry or installation work.
 
 A fresh installation SHALL report success only after npm exits successfully, the canonical global package path identifies the exact target and expected package role, the complete platform launcher set targets that package, the installed tree's declared activation contract reports completion, and the exact release is active. A later ordinary launch SHALL not need to print installation or activation output.
 
@@ -51,6 +61,19 @@ A fresh installation SHALL report success only after npm exits successfully, the
 - **WHEN** active npm reports a valid latest A1 version
 - **THEN** the installer SHALL globally install `@timurproko/a1@<that-exact-version>` with fixed arguments and captured streams
 - **AND** SHALL NOT mutate npmrc or global/user npm settings
+
+#### Scenario: The development channel is resolved
+- **WHEN** the installer receives `--develop` and active npm reports a valid A1 `next` version
+- **THEN** the installer SHALL globally install that exact resolved development version with fixed arguments and captured streams
+
+#### Scenario: An exact development version is selected
+- **WHEN** the installer receives `--version 0.1.8-dev.107` and npm confirms that exact publication
+- **THEN** the global mutating command SHALL name exactly `@timurproko/a1@0.1.8-dev.107`
+- **AND** SHALL perform no moving-channel selection
+
+#### Scenario: Target selectors conflict
+- **WHEN** `--develop` and `--version`, duplicate selectors, a missing version, or an unusable exact version is supplied
+- **THEN** the installer SHALL fail before registry discovery or installation
 
 #### Scenario: npm exits zero but the target is incomplete
 - **WHEN** package identity, version, role, launcher ownership, activation verdict, or active release does not match the resolved target
@@ -62,7 +85,7 @@ A fresh installation SHALL report success only after npm exits successfully, the
 - **AND** the next `a1` invocation SHALL use the already active release without installation diagnostics
 
 ### Requirement: Existing installations retain cancellation-safe replacement
-Before starting direct global installation, the installer SHALL distinguish an absent A1 package from a canonical valid existing installation. It MAY directly install only when no existing global A1 package owns the target location. When a valid supported A1 installation and complete launcher set already exist, the installer SHALL delegate replacement or current-version verification to that installation's cancellation-safe updater while capturing its streams behind the installer presentation.
+Before starting direct global installation, the installer SHALL distinguish an absent A1 package from a canonical valid existing installation. It MAY directly install only when no existing global A1 package owns the target location. When a valid supported A1 installation and complete launcher set already exist, the installer SHALL map stable, development-channel, and exact-development-version selection to that installation's cancellation-safe update forms while capturing its streams behind the installer presentation.
 
 A linked, foreign, malformed, partial, unsupported, mismatched, or ambiguously owned existing package or launcher set SHALL be refused before mutation. The installer SHALL NOT delete, rename, adopt, or directly overwrite such a tree.
 
@@ -74,6 +97,10 @@ A linked, foreign, malformed, partial, unsupported, mismatched, or ambiguously o
 - **WHEN** a supported canonical A1 package and complete launcher set are present
 - **THEN** the installer SHALL use the installed cancellation-safe update path rather than an unguarded direct overwrite
 - **AND** successful child output SHALL remain hidden behind the installer transcript
+
+#### Scenario: An existing installation receives an exact target
+- **WHEN** a supported existing installation is valid and the installer selected `0.1.8-dev.107`
+- **THEN** the installer SHALL delegate through the installed updater's exact development-preview form rather than directly overwrite the package
 
 #### Scenario: Existing ownership is ambiguous
 - **WHEN** the package path or launcher set is linked, foreign, partial, mismatched, unsupported, or cannot be verified

@@ -4,9 +4,9 @@ A first installation currently exposes npm's complete transcript, including tran
 
 ## What Changes
 
-- Publish a small dependency-free `@timurproko/a1-installer` bootstrap whose only executable is `a1-installer` and document one quiet `npx` command as the preferred stable installation path.
-- Make the installer resolve one exact A1 target, capture every child process stream, and render only the same single-row progress presentation used by self-update while successful work is running.
-- Print exactly `a1 successfully installed` after the exact package, public launcher set, immutable activation, and installed version are verified.
+- Publish a small dependency-free `@timurproko/a1-installer` bootstrap whose only executable is `a1-installer` and document quiet `npx` forms for stable, development-channel, and exact-version installation.
+- Make the installer resolve one exact A1 target from `latest`, `next`, or an explicitly supplied version, capture every child process stream, and render only the same blue/teal-and-grey single-row progress presentation used by self-update while successful work is running.
+- Print exactly `a1 successfully installed` in the same unstyled default terminal foreground as update success after the exact package, public launcher set, immutable activation, and installed version are verified.
 - On failure or cancellation, clear the progress row, return a nonzero status, and print one concise A1-owned result instead of replaying npm's warning wall. Retain bounded captured diagnostics for explicit troubleshooting without exposing them during successful installation.
 - Preserve npm as the package manager and dependency resolver. Use fixed argument arrays and explicit quiet/funding/audit flags without mutating user or global npm configuration.
 - Detect an existing valid global A1 installation and delegate replacement to its cancellation-safe self-updater rather than performing an unguarded global overwrite. Refuse ambiguous, foreign, or unverifiable existing roots.
@@ -28,4 +28,4 @@ A first installation currently exposes npm's complete transcript, including tran
 - Adds a separately published npm package, `@timurproko/a1-installer`, with its own minimal manifest and tarball but no application runtime dependency graph.
 - Affects release packaging/publication, install documentation, package-identity governance, progress rendering conformance, and exact-package validation.
 - Does not replace npm, modify npm configuration, remove the existing direct `npm install --global` fallback, resume the postponed stable-launcher design, or change ordinary `a1 update` behavior.
-- The canonical preferred command becomes `npx --yes --loglevel=error --no-fund --no-audit @timurproko/a1-installer@latest`; npm bootstrap acquisition errors may still be emitted at error level before the installer can start, but warnings and notices are suppressed.
+- The canonical preferred stable command becomes `npx --yes --loglevel=error --no-fund --no-audit @timurproko/a1-installer@latest`; `--develop` selects `next`, and `--version <exact-version>` selects an immutable publication. npm bootstrap acquisition errors may still be emitted at error level before the installer can start, but warnings and notices are suppressed.

@@ -31,13 +31,20 @@ Self-update already establishes the desired presentation and safety principles: 
 
 Create `@timurproko/a1-installer` with exactly one npm executable, `a1-installer`, implemented with supported Node built-ins. Its packed manifest has no production, optional, peer, or development dependency needed at runtime and no `preinstall`, `install`, `postinstall`, or `prepare` lifecycle script. The repository may use its existing root development tooling to test and pack it; those tools do not enter the installer tarball.
 
-The preferred stable command is:
+The preferred command forms are:
 
 ```sh
+# stable channel
 npx --yes --loglevel=error --no-fund --no-audit @timurproko/a1-installer@latest
+
+# development channel
+npx --yes --loglevel=error --no-fund --no-audit @timurproko/a1-installer@latest --develop
+
+# exact published development version
+npx --yes --loglevel=error --no-fund --no-audit @timurproko/a1-installer@latest --version 0.1.8-dev.107
 ```
 
-The explicit `npx` flags are part of the public UX contract. They prevent bootstrap acquisition from printing warnings, funding text, audits, and confirmation prompts before installer code owns the terminal. `loglevel=error`, rather than `silent`, retains an actionable npm error if acquisition itself fails.
+The explicit `npx` flags are part of the public UX contract. They prevent bootstrap acquisition from printing warnings, funding text, audits, and confirmation prompts before installer code owns the terminal. `loglevel=error`, rather than `silent`, retains an actionable npm error if acquisition itself fails. Because `--develop` and `--version` follow the installer package argument, `npx` forwards them to `a1-installer` rather than interpreting them as bootstrap options.
 
 Alternative: add a postinstall hook to `@timurproko/a1`. Rejected because it cannot suppress npm's preceding output and adds side effects to direct installs.
 
@@ -47,15 +54,13 @@ Alternative: pipe a GitHub-hosted shell or PowerShell script into a shell. Rejec
 
 ### 2. Resolve once, install exactly, and never mutate npm configuration
 
-The installer asks the active npm executable for the target selected by A1's stable channel, validates the returned semantic version and package identity, then installs `@timurproko/a1@<exact-version>` globally. It does not pass a moving tag to the mutating command. Registry, proxy, credentials, certificates, and prefix continue to come from the user's active npm configuration.
+The installer accepts exactly three target forms: no selector resolves the stable `latest` tag, `--develop` resolves the development `next` tag, and `--version <exact-version>` verifies an immutable published numbered development version such as `0.1.8-dev.107`. It asks the active npm executable for the selected target, validates the returned version and authoritative package identity, then installs `@timurproko/a1@<exact-version>` globally. It never passes a moving tag to the mutating command. Registry, proxy, credentials, certificates, and prefix continue to come from the user's active npm configuration.
 
-Every npm child receives fixed arguments including `--global`, `--loglevel=error`, `--no-fund`, and `--no-audit`; no shell command string is constructed. Both stdout and stderr are piped. The installer never runs `npm config set`, edits npmrc files, or changes persistent log-level/funding/audit settings.
-
-The initial implementation supports the stable `latest` channel. Development and exact-version installer selectors may be added only with explicit grammar and equivalent publication tests; users retain direct npm and installed `a1 update --develop` paths meanwhile.
+Every npm child receives fixed arguments including `--global`, `--loglevel=error`, `--no-fund`, and `--no-audit`; no shell command string is constructed. Both stdout and stderr are piped. The installer never runs `npm config set`, edits npmrc files, or changes persistent log-level/funding/audit settings. Missing version values, malformed versions, duplicate selectors, and combinations of `--develop` with `--version` fail before registry or installation work.
 
 ### 3. Own the complete terminal after bootstrap acquisition
 
-In an interactive terminal, the installer draws one carriage-return progress row using the existing A1 update bar's 40-cell geometry, glyphs, teal completed segment, muted track, neutral percentage, and style reset. A shared pure renderer or conformance fixture prevents the installer artifact and self-update from drifting while keeping the installer runtime independent.
+In an interactive terminal, the installer draws one carriage-return progress row using the existing A1 update bar's exact 40-cell geometry, glyphs, blue/teal `#8abeb7` completed segment, grey muted track, grey percentage, and style reset. A shared pure renderer or conformance fixture prevents the installer artifact and self-update from drifting while keeping the installer runtime independent.
 
 The bar advances monotonically across declared spans:
 
@@ -71,7 +76,7 @@ The npm phase does not claim measured byte or package progress. In redirected/no
 a1 successfully installed
 ```
 
-Successful npm stdout/stderr, deprecation warnings, funding text, audit summaries, install-script policy warnings, package counts, and npm update notices are discarded. The installer does not print phase labels, target versions, paths, counts, or extra blank lines by default.
+The success line uses the terminal's unstyled default foreground, matching self-update success (white in the maintainer's current terminal), rather than a fixed green or success accent. Successful npm stdout/stderr, deprecation warnings, funding text, audit summaries, install-script policy warnings, package counts, and npm update notices are discarded. The installer does not print phase labels, target versions, paths, counts, or extra blank lines by default.
 
 ### 4. Verify and activate before success
 
@@ -83,7 +88,7 @@ If the target predates a supported activation contract, the installer fails with
 
 ### 5. Preserve safe replacement for an existing installation
 
-Before direct global mutation, the installer checks the canonical global root for `@timurproko/a1`. If no package exists, it uses the fresh-install path. If a valid installed package and launcher set exist, the installer invokes that installed package's supported cancellation-safe update command with captured streams and keeps the outer installer progress/result transcript. It does not run a second unguarded `npm install --global` over a working installation.
+Before direct global mutation, the installer checks the canonical global root for `@timurproko/a1`. If no package exists, it uses the fresh-install path. If a valid installed package and launcher set exist, the installer maps stable, development, and exact-preview selection to that package's supported `a1 update`, `a1 update --develop`, or `a1 update --develop <exact-version>` cancellation-safe command, captures its streams, and keeps the outer installer progress/result transcript. It does not run a second unguarded `npm install --global` over a working installation.
 
 If an existing target is already current, verification still completes and the installer returns the same installation success line. If the existing package root, identity, launcher ownership, or update capability is ambiguous, foreign, partial, or unverifiable, the installer stops before mutation with one concise failure and directs explicit recovery through diagnostics; it does not delete, rename, or adopt the tree.
 
@@ -115,7 +120,7 @@ Exact-package evidence covers the installer package surface, zero dependency/lif
 
 | Layer | Evidence |
 | --- | --- |
-| Parser/domain | Accepted empty/default invocation and explicit troubleshooting flag; unknown/conflicting options fail before npm work |
+| Parser/domain | Stable default, `--develop`, `--version <exact-version>`, and explicit troubleshooting flag; missing/malformed/duplicate/conflicting selectors fail before npm work |
 | Progress | Exact frame conformance with update renderer; monotonic values; opaque-phase creep below milestones; one-row cleanup at success/failure/cancel |
 | Child isolation | No inherited child stdout/stderr; successful warning fixtures disappear; bounded failure classification; no shell interpolation |
 | Fresh install | Exact target resolution, global fixed argv, canonical package identity/version, complete platform launchers, activation completion, exact success transcript |
@@ -140,7 +145,7 @@ Exact-package evidence covers the installer package surface, zero dependency/lif
 1. Add the installer artifact, deterministic package builder, focused behavior tests, and local exact-tarball fixtures without changing the preferred README command.
 2. Extend release validation/publication to produce, validate, provenance-publish, and registry-verify the installer package alongside A1.
 3. Publish and verify a development installer/application pair, then exercise a clean isolated-prefix installation on Windows, Linux, and macOS.
-4. After the registry package and stable publication path are proven, make the quiet `npx` command the preferred README installation path while retaining direct npm installation as the manual fallback.
+4. After the registry package and stable publication path are proven, make the quiet stable, development, and exact-version `npx` forms the preferred README installation paths while retaining direct npm installation as the manual fallback.
 5. Validate a stable pair and confirm the default terminal contains only the progress row followed by `a1 successfully installed`.
 
 Rollback restores the direct npm command as preferred documentation and stops moving installer tags. Already published installer versions remain immutable; they resolve only registry A1 targets and do not alter existing installations without the declared identity/safety checks.

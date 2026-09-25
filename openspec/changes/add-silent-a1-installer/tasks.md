@@ -1,20 +1,20 @@
 ## 1. Installer package and command contract
 
 - [ ] 1.1 Add the independently packed `@timurproko/a1-installer` manifest and single `a1-installer` executable using only supported Node built-ins; verify the exact tarball contains no runtime/optional dependencies, lifecycle scripts, extra bins, development files, source maps, or undeclared payload.
-- [ ] 1.2 Implement strict default and troubleshooting argument parsing and npm executable/environment discovery; verify unknown or conflicting input fails before registry, package, launcher, activation, or user-state work.
+- [ ] 1.2 Implement strict stable-default, `--develop`, `--version <exact-development-version>`, and troubleshooting argument parsing plus npm executable/environment discovery; verify missing, malformed, stable, zero-numbered, duplicate, unknown, or conflicting exact selectors fail before registry, package, launcher, activation, or user-state work.
 - [ ] 1.3 Add package identity and architecture governance for the installer without weakening the sole `a1` executable contract of `@timurproko/a1`; verify obsolete, swapped, malformed, or unexpected package roles fail closed.
 
 ## 2. Silent installation workflow
 
-- [ ] 2.1 Resolve the stable channel through active npm configuration, validate one exact semantic version, and execute global installation through fixed argument arrays with explicit error-level/funding/audit controls; verify the mutating command names an exact `@timurproko/a1@<version>` and never changes npm configuration.
+- [ ] 2.1 Resolve `latest`, `next`, or an explicitly supplied immutable numbered development version through active npm configuration, validate one exact semantic version, and execute global installation through fixed argument arrays with explicit error-level/funding/audit controls; verify every mutating command names an exact `@timurproko/a1@<version>` and never changes npm configuration.
 - [ ] 2.2 Capture every child stream and implement bounded diagnostic classification; verify successful deprecation, funding, audit, lifecycle-policy, package-count, and npm-version fixtures produce no terminal text while network, registry, permission, startup, and integrity failures produce one concise result and nonzero status.
-- [ ] 2.3 Implement the single-row update-conformant progress controller with monotonic phase spans, below-milestone opaque creep, event-driven activation progress, and reliable cleanup; verify exact frame/color/geometry parity and no stale row after success, failure, cancellation, or redirected output.
-- [ ] 2.4 Verify the canonical installed package name/version/role and complete platform launcher set, invoke only its declared activation contract, and require completed activation plus active-target verification before printing exactly `a1 successfully installed`.
+- [ ] 2.3 Implement the single-row update-conformant progress controller with monotonic phase spans, below-milestone opaque creep, event-driven activation progress, and reliable cleanup; verify exact blue/teal completed segment, grey track/percentage, frame geometry, and no stale row after success, failure, cancellation, or redirected output.
+- [ ] 2.4 Verify the canonical installed package name/version/role and complete platform launcher set, invoke only its declared activation contract, and require completed activation plus active-target verification before printing exactly `a1 successfully installed` in the unstyled default terminal foreground rather than green.
 - [ ] 2.5 Handle cancellation without false success, raw child output, or unsafe global-tree deletion; verify an idempotent retry can converge after a controlled interrupted fresh install and installer-owned temporary evidence is bounded.
 
 ## 3. Existing-install safety and diagnostics
 
-- [ ] 3.1 Detect absence versus a canonical valid existing global A1 installation; verify the former selects fresh installation and the latter delegates to the installed cancellation-safe updater with all child output captured behind the installer progress row.
+- [ ] 3.1 Detect absence versus a canonical valid existing global A1 installation; verify the former selects fresh installation and the latter maps stable, development, and exact-preview selection to the installed cancellation-safe updater with all child output captured behind the installer progress row.
 - [ ] 3.2 Refuse foreign, linked, partial, mismatched, unsupported, or ambiguously owned package/launcher roots before mutation; verify the installer does not rename, delete, adopt, or overwrite them.
 - [ ] 3.3 Add explicit bounded `--verbose` failure diagnostics with terminal sanitization and credential/token redaction; verify default success and failure transcripts retain their minimal contracts and verbose mode never changes the verdict.
 
@@ -30,4 +30,4 @@
 - [ ] 5.1 Generate and pack the installer exactly once for the selected release version, bind its source/version/digest to publication evidence, and transfer the immutable tarball without rebuilding; verify package and installer byte mismatches independently block npm contact.
 - [ ] 5.2 Extend serialized development/stable publication to upload and registry-verify the installer with provenance and the matching channel before release completion; verify stable tag, GitHub Release, and `master` movement require both validated artifacts while partial failure leaves no false completion record.
 - [ ] 5.3 Add isolated post-publication evidence for an exact development installer/application pair and record registry identities, integrity, output transcript, installed version, launcher verification, and activation result on supported platforms.
-- [ ] 5.4 After installer registry availability is proven, update installation documentation to prefer `npx --yes --loglevel=error --no-fund --no-audit @timurproko/a1-installer@latest`, retain direct npm as an explicit fallback, and verify copied commands and described output match executable behavior.
+- [ ] 5.4 After installer registry availability is proven, update installation documentation with the quiet stable command plus its `--develop` and `--version <exact-version>` forms, retain all three direct npm forms as explicit fallbacks, and verify copied commands and described output match executable behavior.
