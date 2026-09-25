@@ -2189,7 +2189,7 @@ The association operation SHALL validate active session identity, canonical work
 
 When the selected repository context has an open or merged pull request, bare A1 SHALL render only `#<number>` directly after the footer's path and branch. The complete `#<number>` badge SHALL use the established web-link color and carry the pull request's canonical HTTPS URL as a terminal-native hyperlink. The path, branch, separator, ellipsis, and session name SHALL remain outside the hyperlink. Width allocation SHALL preserve a complete valid PR badge at ordinary constrained widths by truncating path/branch text first; widths too small for the complete badge SHALL truncate safely without leaking hyperlink or foreground state.
 
-Discovery SHALL reread associated context and branch, and SHALL remain asynchronous, bounded, serialized, optional, and lifecycle-owned. Missing GitHub CLI or authentication, no open or merged PR, a closed-unmerged PR, mismatched branch, malformed or unsafe output, command failure, and timeout SHALL leave the footer without a badge and SHALL NOT block startup or fail the session. Association, branch, and PR changes SHALL refresh while the session runs, unchanged normalized observations SHALL NOT emit redundant views, and disposal SHALL release timers and active work. A transition of the same exact PR from open to merged SHALL retain the same normalized badge identity.
+Discovery SHALL reread associated context and branch, and SHALL remain asynchronous, bounded, serialized, optional, and lifecycle-owned. A1 SHALL prefer bounded GitHub CLI discovery and, when it yields no eligible identity, MAY query GitHub's read-only REST API using a strictly validated GitHub `origin` repository and exact selected head branch. The REST fallback SHALL work without credentials for public repositories and MAY use a caller-provided standard GitHub environment token for private repositories without persisting or exposing it. Missing GitHub CLI or authentication, an absent or invalid GitHub remote, no open or merged PR, a closed-unmerged PR, mismatched or ambiguous results, malformed or unsafe output, rate limiting, command or request failure, and timeout SHALL leave the footer without a badge and SHALL NOT block startup or fail the session. Association, branch, and PR changes SHALL refresh while the session runs, unchanged normalized observations SHALL NOT emit redundant views, and disposal SHALL release timers and active work. A transition of the same exact PR from open to merged SHALL retain the same normalized badge identity.
 
 The badge and association are declared bare-A1 behavior. The `a1 pi` comparison profile SHALL retain its pinned footer bytes and SHALL NOT render the badge or consume the association.
 
@@ -2256,6 +2256,27 @@ The badge and association are declared bare-A1 behavior. The `a1 pi` comparison 
 - **THEN** A1 SHALL preserve startup-working-tree discovery
 - **AND** SHALL NOT scan or guess among other local worktrees or pull requests
 
+#### Scenario: Fall back to REST without GitHub CLI
+
+- **GIVEN** the selected context has a valid GitHub `origin` and exact branch with an eligible pull request
+- **AND** GitHub CLI is absent or yields no eligible identity
+- **WHEN** the bounded GitHub REST fallback returns that exact open or merged pull request
+- **THEN** bare A1 SHALL normalize and render the same linked `#<number>` identity
+- **AND** a public-repository request SHALL require no credential
+- **AND** discovery SHALL remain read-only and SHALL NOT mutate Git or GitHub
+
+#### Scenario: Prefer successful GitHub CLI discovery
+
+- **WHEN** bounded GitHub CLI discovery returns a valid exact-branch pull request identity
+- **THEN** A1 SHALL use that identity without issuing the REST fallback request
+
+#### Scenario: Reject invalid REST discovery
+
+- **WHEN** the selected remote is not an exact supported GitHub repository or the REST result is non-successful, ambiguous, mismatched, closed without merge, malformed, unsafe, rate-limited, or timed out
+- **THEN** the footer SHALL remain without a PR badge
+- **AND** startup and the running session SHALL continue without a PR-discovery diagnostic
+- **AND** no credential value SHALL appear in output, persisted state, or a request URL
+
 #### Scenario: Show an open branch pull request
 
 - **WHEN** bare A1's selected repository context has a current branch with open or merged pull request 567 at `https://github.com/example/project/pull/567`
@@ -2271,7 +2292,7 @@ The badge and association are declared bare-A1 behavior. The `a1 pi` comparison 
 
 #### Scenario: No open pull request is available
 
-- **WHEN** the selected context is not a Git repository, its head is detached, no open or merged PR matches its branch, the matching PR is closed without merge, or GitHub CLI discovery fails, times out, or returns invalid data
+- **WHEN** the selected context is not a Git repository, its head is detached, no open or merged PR matches its branch, the matching PR is closed without merge, or both GitHub CLI and REST discovery fail, time out, or return invalid data
 - **THEN** the footer SHALL retain the selected safe path, branch, and session-name presentation without a PR badge
 - **AND** startup and the running agent session SHALL continue without a PR-discovery diagnostic
 
@@ -2285,7 +2306,7 @@ The badge and association are declared bare-A1 behavior. The `a1 pi` comparison 
 #### Scenario: Dispose while discovery is pending
 
 - **WHEN** the session is disposed with a refresh timer or repository discovery process pending
-- **THEN** the timer and process SHALL be cancelled or released
+- **THEN** the timer, command, and request SHALL be cancelled or released
 - **AND** a late result SHALL NOT update or render the disposed session
 
 #### Scenario: Render a narrow footer
