@@ -8,8 +8,8 @@ A trust-preflight warning also currently enters the runtime's generic diagnostic
 
 **Goals:**
 - Require one of the two visible trust decisions before bare A1 continues.
-- Keep Escape from changing state or transitioning out of the selector.
-- Let Ctrl+C abort startup cleanly after exactly-once terminal restoration.
+- Make Escape the visible clean-exit action after exactly-once terminal restoration.
+- Retain Ctrl+C only as the conventional interruption alias.
 - Put exceptional fail-closed trust warnings where the user will next type.
 - Preserve pinned `a1 pi` behavior.
 
@@ -21,15 +21,15 @@ A trust-preflight warning also currently enters the runtime's generic diagnostic
 
 ## Decisions
 
-### 1. Bare A1 has two normal trust outcomes
+### 1. Bare A1 has two trust outcomes and one explicit exit
 
-A lone Escape byte is ignored in the bare-A1 startup selector. Navigation, Enter, and compatibility `y`/`n` continue selecting one of the two visible decisions. The hint removes Escape and advertises Ctrl+C as an exit action.
+Escape exits the bare-A1 startup selector without selecting or persisting trust. Navigation, Enter, and compatibility `y`/`n` continue selecting one of the two visible decisions. The hint advertises `Esc to exit`; Ctrl+C remains an unadvertised conventional interruption alias.
 
-Treating Escape as Do not trust was rejected because it would persist a decision the user did not select. Continuing with a temporary untrusted state was rejected because it preserves the confusing third state.
+Treating Escape as Do not trust was rejected because it would persist a decision the user did not select. Continuing with a temporary untrusted state was rejected because it preserves the confusing third trust state.
 
-### 2. Ctrl+C aborts before runtime construction
+### 2. Escape aborts before runtime construction
 
-The prompt restores raw mode, cursor state, and the parent terminal, then rejects with a bounded interruption carrying exit code 130. Trust preflight propagates that interruption instead of converting it into a restricted launch. The UI entry point treats it as an expected silent termination rather than a fatal crash.
+On Escape or Ctrl+C, the prompt restores raw mode, cursor state, and the parent terminal, then rejects with a bounded interruption carrying exit code 130. Trust preflight propagates that interruption instead of converting it into a restricted launch. The UI entry point treats it as an expected silent termination rather than a fatal crash.
 
 This prevents project-aware services and the owned shell from being created after interruption, eliminating the cancel-to-shell transition.
 
@@ -43,8 +43,8 @@ The `a1 pi` presentation retains Escape/Ctrl+C cancellation and renders any resu
 
 ## Risks / Trade-offs
 
-- **[Users expect Escape to close every modal]** → Startup trust is a mandatory pre-resource decision, not an in-session modal; the visible hint advertises only valid actions.
-- **[Ctrl+C could be mistaken for a failure]** → Exit silently with conventional code 130 and no crash report.
+- **[Exit could be mistaken for Do not trust]** → Save no decision and return directly to the parent terminal; the next launch asks again.
+- **[An interruption could be mistaken for a failure]** → Exit silently with conventional code 130 and no crash report.
 - **[A trust warning could be duplicated]** → Exclude `project-trust` from bare A1's document diagnostics and guard dock translation once per shell.
 - **[Comparison behavior could drift]** → Cover both bare and comparison input/presentation paths.
 

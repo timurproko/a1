@@ -123,11 +123,9 @@ export function createConsoleProjectTrustPrompt(
               return;
             }
             if (key === "\u001b") {
-              if (comparison) {
-                finish(null);
-                return;
-              }
-              continue;
+              if (comparison) finish(null);
+              else fail(new ProjectTrustPromptInterruptedError());
+              return;
             }
             if (key === "\u0003") {
               if (comparison) finish(null);

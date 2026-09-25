@@ -19,7 +19,7 @@ export function renderProjectTrustDialog(
   const title = ` ${BOLD}${ACCENT}Trust project folder?${RESET_FG}${RESET_BOLD}`;
   const path = ` ${MUTED}${sanitize(cwd)}${RESET_FG}`;
   const choices = [choice("Trust", selected === 0), choice("Do not trust", selected === 1)];
-  const hint = ` ${DIM}↑/↓${MUTED} to navigate  ${DIM}Enter${MUTED} to select  ${DIM}Ctrl+C${MUTED} to exit${RESET_FG}`;
+  const hint = ` ${DIM}↑/↓${MUTED} to navigate  ${DIM}Enter${MUTED} to select  ${DIM}Esc${MUTED} to exit${RESET_FG}`;
   const explanation = wrap(EXPLANATION, Math.max(1, width - 2)).map(line => ` ${line}`);
   const preferred = [rule, title, path, "", ...explanation, "", ...choices, "", hint, rule];
   if (preferred.length <= terminalRows) return preferred;

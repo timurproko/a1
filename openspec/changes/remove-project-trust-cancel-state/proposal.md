@@ -6,9 +6,9 @@ The startup trust selector currently exposes a third normal outcome through Esca
 
 ## What Changes
 
-- Make Escape inert in the bare-A1 startup trust selector so it cannot create a third decision state.
-- Make Ctrl+C restore the terminal and abort startup cleanly instead of opening a restricted shell.
-- Update the bare-A1 hint to advertise `Ctrl+C to exit` and only the two selectable trust decisions.
+- Make Escape restore the terminal and exit bare A1 instead of creating a third decision state or opening a restricted shell.
+- Update the bare-A1 hint to advertise `Esc to exit` alongside the two selectable trust decisions.
+- Keep Ctrl+C as the conventional unadvertised interruption alias for the same clean exit.
 - Keep exceptional unavailable/error paths fail-closed and place any resulting warning in the existing notice dock above the prompt.
 - Preserve the pinned `a1 pi` comparison behavior, including Escape/Ctrl+C cancellation and startup-diagnostic placement.
 
