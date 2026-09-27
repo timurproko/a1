@@ -64,6 +64,28 @@ describe("official Pi runtime integration", () => {
     await disposePiRuntimeIntegration(runtime);
   });
 
+  it("classifies a cancelled trust decision separately from ordinary startup diagnostics", async () => {
+    const root = await mkdtemp(resolve(tmpdir(), "a1-pi-runtime-trust-"));
+    roots.push(root);
+    const cwd = resolve(root, "work");
+    const agentDir = resolve(root, "agent");
+    await Promise.all([mkdir(cwd), mkdir(agentDir)]);
+    await writeFile(resolve(agentDir, "settings.json"), JSON.stringify({ defaultProjectTrust: "ask" }), "utf8");
+    const runtime = await createPiRuntimeIntegration({
+      cwd,
+      agentDir,
+      sessionDir: resolve(root, "sessions"),
+      projectTrustPrompt: async () => null,
+    });
+
+    expect(runtime.diagnostics).toContainEqual({
+      type: "warning",
+      code: "project-trust",
+      message: `Project resources in ${cwd} were withheld because trust selection was cancelled`,
+    });
+    await disposePiRuntimeIntegration(runtime);
+  });
+
   it("surfaces pinned Pi's model-scope warnings for unmatched patterns in the enabledModels setting", async () => {
     const root = await mkdtemp(resolve(tmpdir(), "a1-pi-runtime-"));
     roots.push(root);

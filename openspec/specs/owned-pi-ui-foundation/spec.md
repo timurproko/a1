@@ -2537,7 +2537,7 @@ Top, bottom, and declared separator rules SHALL remain full width. The change SH
 ### Requirement: Pre-resource project trust uses a compact bottom dialog
 Bare A1 SHALL present an interactive pre-resource trust decision as a vertically compact, ruled dialog anchored to the bottom of the bounded startup surface. Its top and bottom rules SHALL use the fixed dark-theme border blue and span the full available terminal width. The explanation SHALL read exactly `This allows to load project settings and resources, install missing project packages, and execute project extensions.` and SHALL NOT insert the product name. The dialog SHALL use the established bare-A1 modal hierarchy for its title, working-directory context, explanation, selected and unselected option rows, and semantic shortcut hints while remaining implemented only from fixed startup-safe wording, ANSI roles, terminal dimensions, and bounded rendering helpers. It SHALL NOT load or consult project settings, themes, extensions, prompts, packages, skills, or post-trust components.
 
-The dialog SHALL remain readable at supported terminal sizes, SHALL prioritize the title, path, choices, and actionable controls when height is constrained, and SHALL clip or wrap without replaying untrusted terminal control content. Completion, cancellation, interruption, input end, and errors SHALL clear the owned startup frame and restore raw mode, cursor state, and the parent terminal exactly once.
+The dialog SHALL remain readable at supported terminal sizes, SHALL prioritize the title, path, choices, and actionable controls when height is constrained, and SHALL clip or wrap without replaying untrusted terminal control content. Completion, interruption, input end, and errors SHALL clear the owned startup frame and restore raw mode, cursor state, and the parent terminal exactly once.
 
 #### Scenario: Present trust at the bottom
 - **WHEN** an interactive launch needs a project-trust decision in a terminal with sufficient rows
@@ -2560,11 +2560,34 @@ The dialog SHALL remain readable at supported terminal sizes, SHALL prioritize t
 - **WHEN** the dialog renders before a trust decision exists
 - **THEN** no project setting, theme, extension, prompt, package, skill, or post-trust component SHALL be loaded or consulted
 
+#### Scenario: Exit without a trust decision
+- **WHEN** the user presses Escape while the bare-A1 trust dialog is active
+- **THEN** A1 SHALL restore the parent terminal and terminate startup without constructing the owned shell
+- **AND** A1 SHALL NOT infer, persist, or activate any trust outcome
+
 #### Scenario: Operate and restore the dialog
-- **WHEN** the user navigates, confirms, cancels, interrupts, or the input stream ends or fails
-- **THEN** arrows and Tab SHALL move selection, Enter SHALL confirm, and Escape/Ctrl+C SHALL cancel
-- **AND** A1 SHALL restore raw mode, cursor visibility, and the parent terminal exactly once without leaving dialog rows or a blank alternate surface behind
+- **WHEN** the user navigates, confirms, exits, interrupts, or the input stream ends or fails
+- **THEN** arrows and Tab SHALL move selection and Enter SHALL confirm one of the five pinned Pi trust outcomes
+- **AND** those outcomes SHALL be Trust, Trust parent folder, Trust for this session only, Do not trust, and Do not trust for this session only
+- **AND** Escape SHALL be advertised as the only bare-A1 exit action while Ctrl+C SHALL NOT dismiss the selector
+- **AND** Escape SHALL restore the terminal exactly once and abort startup without constructing the owned shell
+- **AND** A1 SHALL restore raw mode, disable child-owned input/presentation modes, and show the cursor after leaving the alternate screen
+- **AND** A1 SHALL preserve the restored parent cursor across the parent-screen margin reset and write no parent-buffer content, allowing the shell to preserve prior rows and paint its next empty prompt
 
 #### Scenario: Use the comparison profile
 - **WHEN** the same launch runs through `a1 pi`
-- **THEN** its pinned comparison presentation SHALL remain unchanged by the bare-A1 trust-dialog customization
+- **THEN** it SHALL offer the same pinned Pi trust outcomes
+- **AND** its top-left comparison presentation and Escape/Ctrl+C cancellation SHALL remain unchanged by the bare-A1 trust-dialog customization
+
+### Requirement: Project-trust startup warnings use the prompt-adjacent notice
+Bare A1 SHALL classify a bounded warning produced by unavailable interaction, input end, or failed startup trust resolution separately from ordinary engine startup diagnostics. After the trust selector restores the terminal and the restricted shell starts, the warning SHALL appear through the existing warning-colored transient dock notice immediately above the editor group. It SHALL remain outside transcript content, scrolling, selection, copy, prompt navigation, and persisted session content, and SHALL follow the existing dock-notice replacement and dismissal lifecycle. The pinned `a1 pi` route SHALL retain its startup-diagnostic placement.
+
+#### Scenario: Fail to obtain a trust decision
+- **WHEN** startup cannot obtain a required trust decision because interaction is unavailable, input ends, or trust resolution fails
+- **THEN** bare A1 SHALL continue with project resources withheld
+- **AND** one `Warning:` notice explaining the fail-closed result SHALL appear in the dock above the editor
+- **AND** the warning SHALL not appear at the top of the empty transcript viewport
+
+#### Scenario: Preserve comparison placement
+- **WHEN** the same project-trust startup warning is presented through `a1 pi`
+- **THEN** it SHALL retain the pinned startup-diagnostic placement instead of using bare A1's notice dock

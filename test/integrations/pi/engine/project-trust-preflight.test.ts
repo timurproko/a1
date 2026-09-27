@@ -1,6 +1,6 @@
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ProjectTrustStore, SettingsManager } from "@earendil-works/pi-coding-agent";
 import {
@@ -31,10 +31,20 @@ function options(extra: Partial<Parameters<typeof resolvePiProjectTrustPreflight
 describe("project trust preflight", () => {
   it("asks for an uncovered directory even when it has no project-scoped source", async () => {
     rmSync(join(cwd, ".pi"), { recursive: true, force: true });
-    const prompt = vi.fn(async () => true);
+    const prompt = vi.fn(async () => "trust" as const);
     await expect(resolvePiProjectTrustPreflight(options({ prompt })))
       .resolves.toEqual({ trusted: true, source: "interactive", diagnostic: null });
-    expect(prompt).toHaveBeenCalledWith({ cwd, defaultDecision: "ask" });
+    expect(prompt).toHaveBeenCalledWith({
+      cwd,
+      defaultDecision: "ask",
+      choices: [
+        { id: "trust", label: "Trust" },
+        { id: "trust-parent", label: `Trust parent folder (${dirname(cwd)})` },
+        { id: "trust-session", label: "Trust (this session only)" },
+        { id: "deny", label: "Do not trust" },
+        { id: "deny-session", label: "Do not trust (this session only)" },
+      ],
+    });
     expect(new ProjectTrustStore(agentDir).get(cwd)).toBe(true);
   });
 
@@ -52,7 +62,7 @@ describe("project trust preflight", () => {
     store.set(cwd, true);
     const sibling = join(root, "project", "sibling");
     mkdirSync(sibling, { recursive: true });
-    const prompt = vi.fn(async () => false);
+    const prompt = vi.fn(async () => "deny" as const);
     await expect(resolvePiProjectTrustPreflight({ cwd: sibling, agentDir, prompt }))
       .resolves.toEqual({ trusted: false, source: "interactive", diagnostic: null });
     expect(prompt).toHaveBeenCalledOnce();
@@ -78,14 +88,29 @@ describe("project trust preflight", () => {
   });
 
   it("persists explicit accept and reject decisions before activation", async () => {
-    const accepted = await resolvePiProjectTrustPreflight(options({ prompt: async () => true }));
+    const accepted = await resolvePiProjectTrustPreflight(options({ prompt: async () => "trust" }));
     expect(accepted).toEqual({ trusted: true, source: "interactive", diagnostic: null });
     expect(new ProjectTrustStore(agentDir).get(cwd)).toBe(true);
 
     new ProjectTrustStore(agentDir).set(cwd, null);
-    const rejected = await resolvePiProjectTrustPreflight(options({ prompt: async () => false }));
+    const rejected = await resolvePiProjectTrustPreflight(options({ prompt: async () => "deny" }));
     expect(rejected).toEqual({ trusted: false, source: "interactive", diagnostic: null });
     expect(new ProjectTrustStore(agentDir).get(cwd)).toBe(false);
+  });
+
+  it("supports parent-scoped and session-only Pi trust outcomes", async () => {
+    const parentTrusted = await resolvePiProjectTrustPreflight(options({ prompt: async () => "trust-parent" }));
+    expect(parentTrusted).toEqual({ trusted: true, source: "interactive", diagnostic: null });
+    expect(new ProjectTrustStore(agentDir).getEntry(cwd)).toEqual({ path: dirname(cwd), decision: true });
+
+    new ProjectTrustStore(agentDir).set(dirname(cwd), null);
+    const sessionTrusted = await resolvePiProjectTrustPreflight(options({ prompt: async () => "trust-session" }));
+    expect(sessionTrusted).toEqual({ trusted: true, source: "interactive", diagnostic: null });
+    expect(new ProjectTrustStore(agentDir).get(cwd)).toBeNull();
+
+    const sessionDenied = await resolvePiProjectTrustPreflight(options({ prompt: async () => "deny-session" }));
+    expect(sessionDenied).toEqual({ trusted: false, source: "interactive", diagnostic: null });
+    expect(new ProjectTrustStore(agentDir).get(cwd)).toBeNull();
   });
 
   it("fails closed for cancel, error, and unavailable interaction", async () => {
@@ -99,6 +124,17 @@ describe("project trust preflight", () => {
     const unavailable = await resolvePiProjectTrustPreflight(options());
     expect(unavailable).toMatchObject({ trusted: false, source: "fail-closed" });
     expect(unavailable.diagnostic).toMatch(/requires interaction/);
+  });
+
+  it("propagates an explicit startup exit without creating a trust decision", async () => {
+    const exit = Object.assign(new Error("Project trust prompt exited"), {
+      name: "ProjectTrustPromptExitError",
+      exitCode: 0,
+    });
+    await expect(resolvePiProjectTrustPreflight(options({
+      prompt: async () => { throw exit; },
+    }))).rejects.toBe(exit);
+    expect(new ProjectTrustStore(agentDir).get(cwd)).toBeNull();
   });
 
   it("uses an in-session saved decision only on the next launch", async () => {

@@ -1,16 +1,33 @@
+import { realpathSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 import {
   ProjectTrustStore,
   SettingsManager,
 } from "../startup-public.js";
 
+export type PiProjectTrustChoiceId =
+  | "trust"
+  | "trust-parent"
+  | "trust-session"
+  | "deny"
+  | "deny-session";
+
+interface PiProjectTrustChoice {
+  readonly id: PiProjectTrustChoiceId;
+  readonly label: string;
+  readonly trusted: boolean;
+  readonly updates: readonly { readonly path: string; readonly decision: boolean | null }[];
+}
+
 export interface PiProjectTrustPreflightRequest {
   readonly cwd: string;
   readonly defaultDecision: "ask" | "always" | "never";
+  readonly choices: readonly { readonly id: PiProjectTrustChoiceId; readonly label: string }[];
 }
 
 export type PiProjectTrustPreflightPrompt = (
   request: PiProjectTrustPreflightRequest,
-) => Promise<boolean | null>;
+) => Promise<PiProjectTrustChoiceId | null>;
 
 export interface PiProjectTrustPreflightResult {
   readonly trusted: boolean;
@@ -52,7 +69,12 @@ export async function resolvePiProjectTrustPreflight(
   }
 
   try {
-    const decision = await options.prompt({ cwd: options.cwd, defaultDecision: fallback });
+    const choices = projectTrustChoices(options.cwd);
+    const decision = await options.prompt({
+      cwd: options.cwd,
+      defaultDecision: fallback,
+      choices: choices.map(({ id, label }) => ({ id, label })),
+    });
     if (decision === null) {
       return {
         trusted: false,
@@ -60,13 +82,39 @@ export async function resolvePiProjectTrustPreflight(
         diagnostic: `Project resources in ${options.cwd} were withheld because trust selection was cancelled`,
       };
     }
-    trustStore.set(options.cwd, decision);
-    return { trusted: decision, source: "interactive", diagnostic: null };
+    const selected = choices.find(choice => choice.id === decision);
+    if (selected === undefined) throw new Error(`unknown trust selection: ${decision}`);
+    if (selected.updates.length > 0) trustStore.setMany([...selected.updates]);
+    return { trusted: selected.trusted, source: "interactive", diagnostic: null };
   } catch (error) {
+    // Protocol: an explicit bare-A1 exit propagates after the prompt restores the terminal;
+    // ordinary prompt failures still continue through the fail-closed restricted shell.
+    if (error instanceof Error && error.name === "ProjectTrustPromptExitError") throw error;
     return {
       trusted: false,
       source: "fail-closed",
       diagnostic: `Project resources in ${options.cwd} were withheld because trust resolution failed: ${error instanceof Error ? error.message : String(error)}`,
     };
   }
+}
+
+/** Pinned Pi's five startup outcomes, with canonical parent scope resolved before project resources load. */
+function projectTrustChoices(cwd: string): readonly PiProjectTrustChoice[] {
+  let trustPath = resolve(cwd);
+  try { trustPath = realpathSync(trustPath); } catch {
+    // Compatibility: pinned Pi keeps the resolved path when real-path lookup fails.
+  }
+  const parent = dirname(trustPath);
+  return [
+    { id: "trust", label: "Trust", trusted: true, updates: [{ path: trustPath, decision: true }] },
+    ...(parent === trustPath ? [] : [{
+      id: "trust-parent" as const,
+      label: `Trust parent folder (${parent})`,
+      trusted: true,
+      updates: [{ path: parent, decision: true }, { path: trustPath, decision: null }],
+    }]),
+    { id: "trust-session", label: "Trust (this session only)", trusted: true, updates: [] },
+    { id: "deny", label: "Do not trust", trusted: false, updates: [{ path: trustPath, decision: false }] },
+    { id: "deny-session", label: "Do not trust (this session only)", trusted: false, updates: [] },
+  ];
 }

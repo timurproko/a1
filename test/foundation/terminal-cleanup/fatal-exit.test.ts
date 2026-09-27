@@ -85,10 +85,12 @@ describe("owned terminal failure cleanup", () => {
     const terminal = new Terminal({ cols: 40, rows: 10, allowProposedApi: true });
     const write = (text: string) => new Promise<void>(done => terminal.write(text, done));
     try {
-      await write("SHELL\x1b[?1049h\x1b[?1003h\x1b[?2004h\x1b[?7l\x1b[?25l");
+      await write("SHELL\x1b[5;7H\x1b[?1049h\x1b[?1003h\x1b[?2004h\x1b[?7l\x1b[?25l");
       await write(EMERGENCY_TERMINAL_RESET.repeat(2));
       expect(terminal.buffer.active.type).toBe("normal");
       expect(terminal.buffer.active.getLine(0)?.translateToString(true)).toBe("SHELL");
+      expect(terminal.buffer.active.cursorX).toBe(6);
+      expect(terminal.buffer.active.cursorY).toBe(4);
       expect(terminal.modes.mouseTrackingMode).toBe("none");
       expect(terminal.modes.bracketedPasteMode).toBe(false);
       expect(terminal.modes.wraparoundMode).toBe(true);
