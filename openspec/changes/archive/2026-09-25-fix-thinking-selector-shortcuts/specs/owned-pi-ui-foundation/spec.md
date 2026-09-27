@@ -9,7 +9,7 @@ The bare-A1 thinking selector SHALL render `Thinking Level` in bold semantic acc
 - **AND** every heading cell SHALL use the active theme's accent color and bold emphasis
 - **AND** the resolved cycle hint SHALL use semantic muted grey on the row directly below the heading
 
-#### Scenario: Render fixed level-state columns
+#### Scenario: Render level rows
 - **WHEN** the selector displays selected and unselected level rows
 - **THEN** repeated available-level values SHALL render exactly once
 - **AND** each level SHALL occupy the same widest-name region
@@ -25,7 +25,7 @@ The bare-A1 thinking selector SHALL render `Thinking Level` in bold semantic acc
 - **THEN** the selector SHALL retain its specified interaction and restoration outcomes
 - **AND** heading and row styling SHALL NOT alter list geometry, focus, or instruction placement
 
-#### Scenario: Change and persist the default immediately
+#### Scenario: Stage and save a default level
 - **WHEN** the user highlights a level and presses Space
 - **THEN** the `[default]` marker SHALL move to that level immediately
 - **AND** that level SHALL be persisted as the global default immediately
