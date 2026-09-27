@@ -21,6 +21,7 @@ const PHASES = new Set([
 ]);
 const STABLE_VERSION_PATTERN = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/u;
 const DEVELOPMENT_VERSION_PATTERN = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)-dev\.[1-9]\d*$/u;
+const PREVIEW_NUMBER_PATTERN = /^[1-9]\d*$/u;
 const VERSION_PATTERN = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-dev\.[1-9]\d*)?$/u;
 
 class InstallationFailure extends Error {
@@ -59,23 +60,15 @@ export function parseArguments(argv) {
       continue;
     }
     if (value === "--develop") {
-      if (target.kind === "version") throw new InstallationFailure("--develop cannot be combined with --version", "", 2);
       if (target.kind !== "stable") throw new InstallationFailure("--develop was supplied more than once", "", 2);
-      target = { kind: "develop" };
-      continue;
-    }
-    if (value === "--version") {
-      const version = argv[index + 1];
-      if (version === undefined || version.startsWith("-")) {
-        throw new InstallationFailure("--version requires an exact development version", "", 2);
-      }
-      if (!DEVELOPMENT_VERSION_PATTERN.test(version)) {
-        throw new InstallationFailure("--version requires an exact development version", "", 2);
-      }
-      if (target.kind === "develop") throw new InstallationFailure("--develop cannot be combined with --version", "", 2);
-      if (target.kind !== "stable") throw new InstallationFailure("--version was supplied more than once", "", 2);
-      target = { kind: "version", version };
-      index += 1;
+      const requested = argv[index + 1];
+      if (requested !== undefined && !requested.startsWith("-")) {
+        if (!PREVIEW_NUMBER_PATTERN.test(requested) && !DEVELOPMENT_VERSION_PATTERN.test(requested)) {
+          throw new InstallationFailure("unexpected argument", requested, 2);
+        }
+        target = { kind: "preview", requested };
+        index += 1;
+      } else target = { kind: "develop" };
       continue;
     }
     if (value?.startsWith("-")) throw new InstallationFailure("unsupported option", "", 2);
@@ -91,7 +84,7 @@ export function installerHelp() {
   return [
     "a1-install",
     "a1-install --develop",
-    "a1-install --version <x.y.z-dev.n>",
+    "a1-install --develop <preview-or-version>",
     "a1-install --verbose",
     "",
   ].join("\n");
@@ -152,17 +145,15 @@ class ProgressDisplay {
     this.interval = options.interval ?? 200;
     this.current = 0;
     this.shown = -1;
-    this.label = "Preparing";
     this.timer = null;
     this.visible = false;
-    this.maxWidth = PROGRESS_WIDTH + 6 + 1 + 64;
+    this.maxWidth = PROGRESS_WIDTH + 6;
   }
 
-  set(percent, label, creepTo = percent) {
+  set(percent, _label, creepTo = percent) {
     if (!this.enabled) return;
     this.stop();
     this.current = Math.max(this.current, percent);
-    if (PHASES.has(label)) this.label = label;
     this.shown = -1;
     this.draw();
     if (creepTo <= this.current) return;
@@ -179,7 +170,7 @@ class ProgressDisplay {
     this.shown = rounded;
     if (!this.visible) this.output.write("\u001b[?25l");
     this.visible = true;
-    this.output.write(`\r${renderProgressBar(rounded)} ${this.label}`);
+    this.output.write(`\r${renderProgressBar(rounded)}\u001b[K`);
   }
 
   finish() {
@@ -278,13 +269,19 @@ async function runChild(command, args, options) {
 
 function targetSpec(target) {
   if (target.kind === "develop") return `${APPLICATION_PACKAGE}@next`;
-  if (target.kind === "version") return `${APPLICATION_PACKAGE}@${target.version}`;
   return `${APPLICATION_PACKAGE}@latest`;
 }
 
-function updateArguments(target) {
+function resolutionArguments(target) {
+  if (target.kind === "preview") {
+    return ["view", APPLICATION_PACKAGE, "versions", "--json", "--loglevel=verbose", "--no-fund", "--no-audit"];
+  }
+  return ["view", targetSpec(target), "version", "--json", "--loglevel=verbose", "--no-fund", "--no-audit"];
+}
+
+function updateArguments(target, targetVersion) {
   if (target.kind === "develop") return ["update", "--develop"];
-  if (target.kind === "version") return ["update", "--develop", target.version];
+  if (target.kind === "preview") return ["update", "--develop", targetVersion];
   return ["update"];
 }
 
@@ -302,8 +299,26 @@ function parseResolvedVersion(stdout, target) {
   if (!VERSION_PATTERN.test(value)) throw new InstallationFailure("could not resolve the selected release", text);
   if (target.kind === "stable" && !STABLE_VERSION_PATTERN.test(value)) throw new InstallationFailure("could not resolve the selected release", text);
   if (target.kind === "develop" && !DEVELOPMENT_VERSION_PATTERN.test(value)) throw new InstallationFailure("could not resolve the selected release", text);
-  if (target.kind === "version" && value !== target.version) throw new InstallationFailure("the selected release was not found", text);
+  if (target.kind === "preview" && value !== target.requested) throw new InstallationFailure("the selected release was not found", text);
   return value;
+}
+
+export function resolvePublishedPreview(stdout, requested) {
+  let published;
+  try { published = JSON.parse(String(stdout).trim() || "[]"); }
+  catch { throw new InstallationFailure("could not resolve the selected release", String(stdout)); }
+  const versions = (Array.isArray(published) ? published : [published])
+    .filter(value => typeof value === "string" && DEVELOPMENT_VERSION_PATTERN.test(value));
+  if (DEVELOPMENT_VERSION_PATTERN.test(requested)) {
+    if (versions.includes(requested)) return requested;
+    throw new InstallationFailure("the selected release was not found", `published no preview ${requested}`);
+  }
+  const matches = versions.filter(version => version.endsWith(`-dev.${requested}`));
+  if (matches.length === 1) return matches[0];
+  const detail = matches.length === 0
+    ? `published no preview for ${requested}`
+    : `found more than one preview for ${requested}: ${matches.join(", ")}`;
+  throw new InstallationFailure("the selected release was not found", detail);
 }
 
 function packageRootFor(globalRoot) {
@@ -507,16 +522,16 @@ export async function runInstaller(argv, options = {}) {
   try {
     progress.set(3, "Preparing", 10);
     let phase = "Resolving version";
-    const resolveResult = await runner.npm([
-      "view", targetSpec(parsed.target), "version", "--json", "--loglevel=verbose", "--no-fund", "--no-audit",
-    ], {
+    const resolveResult = await runner.npm(resolutionArguments(parsed.target), {
       onChild: setActiveChild,
       onStderrLine: line => { phase = classifyProgressLine(line, phase); progress.set(10, phase, 18); },
     });
     setActiveChild(null);
     if (cancelled) throw new InstallationCancelled();
     if (resolveResult.code !== 0) throw new InstallationFailure(conciseFailure("resolve", resolveResult.stderr), resolveResult.stderr);
-    const targetVersion = parseResolvedVersion(resolveResult.stdout, parsed.target);
+    const targetVersion = parsed.target.kind === "preview"
+      ? resolvePublishedPreview(resolveResult.stdout, parsed.target.requested)
+      : parseResolvedVersion(resolveResult.stdout, parsed.target);
     progress.set(18, "Resolving packages", 24);
 
     const rootResult = await runner.npm(["root", "--global", "--loglevel=error", "--no-fund", "--no-audit"], { onChild: setActiveChild });
@@ -543,7 +558,7 @@ export async function runInstaller(argv, options = {}) {
         throw new InstallationFailure("existing installation ownership could not be verified", error instanceof Error ? error.message : String(error));
       }
       progress.set(24, "Installing", 90);
-      const updateResult = await runner.node(cli, updateArguments(parsed.target), { onChild: setActiveChild });
+      const updateResult = await runner.node(cli, updateArguments(parsed.target, targetVersion), { onChild: setActiveChild });
       setActiveChild(null);
       if (cancelled) throw new InstallationCancelled();
       if (updateResult.code !== 0) {

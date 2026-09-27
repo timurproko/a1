@@ -3,14 +3,17 @@
 ## Install
 
 ```sh
-# stable release
+# release
 npx -y @timurproko/a1-install
 
-# development channel
+# develop
 npx -y @timurproko/a1-install --develop
 
-# exact development version
-npx -y @timurproko/a1-install --version 0.1.8-dev.107
+# preview number
+npx -y @timurproko/a1-install --develop 107
+
+# exact preview
+npx -y @timurproko/a1-install --develop 0.1.8-dev.107
 ```
 
 The installer keeps npm's dependency transcript out of the normal terminal output,
@@ -18,12 +21,13 @@ shows one progress row, activates the installed release, and verifies the comman
 before reporting success. The shorter `npx @timurproko/a1-install` form also works,
 but npm may ask for first-use confirmation; `-y` avoids that prompt.
 
-Direct npm installation remains available as a fallback or manual recovery path:
+Direct npm installation remains available as a fallback or manual recovery path.
+npm's `latest` tag carries the release and `next` carries develop:
 
 ```sh
-npm install -g @timurproko/a1@latest
-npm install -g @timurproko/a1@next
-npm install -g @timurproko/a1@0.1.8-dev.107
+npm install -g @timurproko/a1@latest          # release
+npm install -g @timurproko/a1@next            # develop
+npm install -g @timurproko/a1@0.1.8-dev.107   # exact preview
 ```
 
 ## Use
@@ -32,19 +36,19 @@ npm install -g @timurproko/a1@0.1.8-dev.107
 a1                                      # launch A1 (profile: ~/.a1/agent)
 a1 help                                 # show all commands
 a1 version                              # show the version
-a1 update                               # install the newest stable release
-a1 update --develop                     # install the current development preview
-a1 update --develop 107                 # install numbered preview 107
+a1 update                               # install the release
+a1 update --develop                     # install develop
+a1 update --develop 107                 # install preview 107
 a1 update --develop 0.1.8-dev.107       # install that exact preview
 a1 update --models                      # refresh A1's model catalogs
 a1 update --extensions                  # update every installed package
 a1 update npm:pi-mcp-adapter            # update one package
 ```
 
-Stable builds print only their installed version. Development builds also show the
-current development and stable channel versions.
+Release builds print only their installed version. Develop builds also show the
+current develop and release channel versions.
 
-Development previews add the Pi comparison profile; release builds do not carry it.
+Develop previews add the Pi comparison profile; release builds do not carry it.
 
 ```sh
 a1 pi                                   # vanilla Pi oracle: ~/.pi/agent
@@ -88,8 +92,8 @@ fails by name instead of inside a resolver or Cargo.
 npm run doctor          # report Node, npm, git, Rust, and dependency readiness
 npm ci                  # install exact locked dependencies
 npm run build           # compile TypeScript and the process guardian into dist
-npm start               # build and launch a development `a1`
-npm run start:pi        # build and launch a development `a1 pi`
+npm start               # build and launch a source `a1`
+npm run start:pi        # build and launch a source `a1 pi`
 npm run test:fast       # typecheck + fast suite (alias: npm test)
 npm run test:full       # complete non-physical suite
 ```
@@ -104,7 +108,7 @@ Create every task worktree at `{working-dir}/.worktrees/<task-id>`, where
 Two channels, both published by CI from the exact bytes it validated — never from
 a workstation.
 
-### Development previews
+### Develop previews
 
 A preview is `<major.minor.patch>-dev.<pull-request number>`, e.g. `0.1.8-dev.107`.
 The nightly run (`03:17 UTC`) verifies current `origin/develop` and publishes only
@@ -125,7 +129,7 @@ a1 update --develop 107                 # install preview 107
 a1 update --develop 0.1.8-dev.107       # install that exact full preview version
 ```
 
-### Stable
+### Release
 
 ```sh
 npm run release -- patch     # 0.1.8-dev -> 0.1.8
