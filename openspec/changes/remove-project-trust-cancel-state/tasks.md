@@ -14,4 +14,4 @@
 
 - [x] 3.1 Cover all five trust outcomes, parent/session persistence, mandatory bare-A1 selection, interruption restoration/propagation, runtime warning classification, dock exclusion, and comparison behavior.
 - [x] 3.2 Run focused tests, typechecking, startup-graph validation, architecture boundaries, and strict OpenSpec validation.
-- [ ] 3.3 Manually confirm Escape preserves every prior parent row and returns directly to a new empty shell prompt without starting the shell or flashing an intermediate restricted session.
+- [x] 3.3 Manually confirm Escape preserves every prior parent row and returns directly to a new empty shell prompt without starting the shell or flashing an intermediate restricted session.

@@ -22,10 +22,10 @@
 
 - The earlier `npm ci` dependency setup stopped during its `prepare` build because this shell has no `gh`, `cargo`, or `rustc` on `PATH`. TypeScript build artifacts, typecheck, focused tests, and affected architecture checks pass independently; exact-head CI retains authority for the complete build.
 
-## Manual handoff
+## Manual validation
 
-From an uncovered folder under `defaultProjectTrust: ask`, start the development checkout. Confirm all five trust outcomes are listed and Ctrl+C leaves the bare selector active. Press Escape and confirm Bash preserves every prior row and paints a new empty live prompt with a visible cursor, without A1 erasing or rewriting messages, hanging, leaking `^[[200~` bracketed-paste bytes, starting the owned shell, printing a crash, or flashing an intermediate restricted session. Relaunch, choose a session-only outcome, and confirm A1 starts accordingly without writing a saved decision.
+- The maintainer confirmed the uncovered-folder selector in Windows Terminal with Git Bash and accepted the final behavior: Ctrl+C leaves the bare selector active, while Escape preserves prior terminal rows and returns to a new empty shell prompt without starting the owned shell or flashing an intermediate restricted session.
 
 ## Known gaps
 
-None. Physical terminal confirmation of the Escape exit and flash removal is the prepared maintainer handoff.
+None.
