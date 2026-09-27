@@ -58,6 +58,13 @@ describe("deliberate publication pipeline", () => {
     expect(result).toContain('test "$COMPLETE" = success');
   });
 
+  it("uses one established immutable checkout pin throughout the release workflow", async () => {
+    const source = await workflow();
+    const checkoutReferences = [...source.matchAll(/uses: actions\/checkout@([^\s]+)/gu)].map(match => match[1]);
+    expect(checkoutReferences.length).toBeGreaterThan(0);
+    expect(new Set(checkoutReferences)).toEqual(new Set(["fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09"]));
+  });
+
   it("serializes registry publication without cancellation", async () => {
     const source = await workflow();
     expect(source).toContain("group: a1-registry-publication");
