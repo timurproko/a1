@@ -1,14 +1,14 @@
 ## Why
 
-The bare-A1 `/thinking` selector currently advertises `Ctrl+S to set as default` and `Escape/Ctrl+C to cancel`, so saving is an immediate combined action and the footer does not match the concise interaction grammar of the Models dialog. The selector should let the user stage a default with Space, save it explicitly with Ctrl+S, and reserve closing for Escape.
+The bare-A1 `/thinking` selector now separates default selection from saving, but the `[default]` marker and description column still move horizontally depending on which level owns the marker. The default is a simple setting and should instead persist immediately when Space changes it, without an unsaved state or redundant Ctrl+S step.
 
 ## What Changes
 
-- Make Space stage the highlighted thinking level as the desired default and immediately move the `[default]` marker without closing the selector.
-- Make Ctrl+S persist the staged default through the existing thinking workflow; Enter continues selecting a session level.
-- Stop treating Ctrl+C as cancel for this selector so only Escape closes it.
-- Replace the verbose footer with the compact hints `Enter select  Space default  Ctrl+S save  Esc close`.
-- Keep filtering, navigation, active/default marker independence, aligned descriptions, footer restoration, and the `a1 pi` comparison selector unchanged.
+- Place every level name in a fixed-width region based on the widest available name, reserve the active-marker slot, and render `[default]` at one stable column for every level.
+- Keep every description at one stable column after the reserved default-marker region regardless of which level is active or default.
+- Make Space persist the highlighted level as the global default immediately without closing the selector or changing the active session level.
+- Remove the redundant Ctrl+S save action and render the compact hints `Enter select  Space default  Esc close`.
+- Keep Escape-only close behavior, filtering, navigation, active/default independence, footer restoration, and the `a1 pi` comparison selector unchanged.
 
 ## Capabilities
 
@@ -18,9 +18,9 @@ None.
 
 ### Modified Capabilities
 
-- `owned-pi-ui-foundation`: Define the bare-A1 thinking selector's staged default interaction, explicit save action, Escape-only close behavior, and compact shortcut footer.
+- `owned-pi-ui-foundation`: Define fixed thinking-state columns, immediate default persistence on Space, no unsaved state, and the reduced compact shortcut footer.
 
 ## Impact
 
-- Affects the owned bare-A1 thinking selector and its focused component and shell-workflow tests.
-- Does not change available thinking levels, cycle order, persisted settings format, keybinding configuration, dependencies, or the `a1 pi` comparison profile.
+- Affects the owned bare-A1 thinking selector, the shell-to-settings persistence boundary, and focused component, shell-workflow, and engine tests.
+- Does not change available thinking levels, cycle order, persisted settings format, active session selection semantics, dependencies, or the `a1 pi` comparison profile.

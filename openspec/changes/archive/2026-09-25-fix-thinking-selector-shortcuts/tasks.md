@@ -1,15 +1,16 @@
-## 1. Thinking-selector interaction
+## 1. Fixed thinking-state geometry
 
-- [x] 1.1 Stage the highlighted level as the desired default on Space and rebuild rows without closing or persisting; verify the `[default]` marker moves while active-level state and selection remain independent.
-- [x] 1.2 Save the staged default on Ctrl+S through the existing persistence callback; verify navigation after staging does not change the value being saved.
-- [x] 1.3 Close the bare selector only on Escape and prevent Ctrl+C from invoking cancellation; verify filtering, Enter selection, focus, and restoration remain intact.
+- [ ] 1.1 Pad every level through the widest available name and reserve fixed active/default marker slots; verify `[default]` and every description remain at stable columns for each possible default level.
+- [ ] 1.2 Preserve active/default independence, filtering selection, semantic marker colors, and narrow-width safety with the fixed grid.
 
-## 2. Compact shortcut presentation
+## 2. Immediate default persistence
 
-- [x] 2.1 Render the exact semantic footer `Enter select  Space default  Ctrl+S save  Esc close`; verify ordering, concise wording, styling, width safety, and absence of `Escape/Ctrl+C`.
-- [x] 2.2 Preserve the pinned `a1 pi` comparison selector and update the source-port ledger for the new owned-control deviation.
+- [ ] 2.1 Add a settings-only engine boundary that persists the global default without changing the active session level.
+- [ ] 2.2 Make Space move and persist the default immediately while leaving the selector open; verify no staged or unsaved state remains.
+- [ ] 2.3 Remove Ctrl+S handling and render the exact semantic footer `Enter select  Space default  Esc close`; preserve Ctrl+C retention and Escape close.
+- [ ] 2.4 Preserve the pinned `a1 pi` selector and update source-port evidence for the refined owned controls.
 
 ## 3. Regression validation and handoff
 
-- [x] 3.1 Run typechecking, the focused thinking-selector and shell-workflow tests, source-port governance checks, strict OpenSpec validation, and the available TypeScript build stages; record the local native-build environment blocker and dispose implementation gaps.
-- [x] 3.2 Prepare manual `/thinking` review through `./scripts/dev`; focused component and shell assertions cover Space staging, Ctrl+S persistence routing, Ctrl+C staying open, Escape closing, and the compact Models-style footer before terminal review.
+- [ ] 3.1 Run typechecking, focused component, shell-workflow, and engine tests, source-port governance checks, strict OpenSpec validation, and the available build stages; record evidence and dispose implementation gaps.
+- [ ] 3.2 Prepare manual `/thinking` review through `./scripts/dev`, verifying stable marker/description columns, immediate persistence without active-level change, no unsaved state, and the reduced footer.

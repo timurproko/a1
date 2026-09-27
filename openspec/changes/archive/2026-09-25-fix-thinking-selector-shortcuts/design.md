@@ -1,68 +1,60 @@
 ## Context
 
-The owned thinking selector currently sends the highlighted level directly to `onSelectAsDefault` when `app.thinking.save` is pressed. In the shell that callback closes the selector and runs the existing persisted thinking workflow. Its footer derives cancel text from the shared `tui.select.cancel` binding, which displays and dispatches both Escape and Ctrl+C.
+The first implementation keeps a staged default inside the owned selector: Space moves `[default]`, while Ctrl+S passes the staged value through the existing persisted-thinking workflow. Row width is calculated from each level plus only the markers present on that row. Consequently, moving `[default]` between short and long names changes both the marker and description columns.
 
-The Models dialog already establishes the requested compact grammar: Space edits desired state, Ctrl+S saves, and `Esc close` names the sole close action. The thinking selector can adopt that interaction without changing engine persistence or comparison-profile behavior.
+The refined interaction treats the global default as an immediately persisted setting. It must not alter the active session level, close the selector, or create an `(unsaved)` state. The pinned settings manager already exposes `setDefaultThinkingLevel`, so the owned adapter can persist only that setting instead of reusing the workflow that also changes the session level.
 
 ## Goals / Non-Goals
 
 **Goals:**
 
-- Let Space stage the highlighted row as the desired default and update the `[default]` marker immediately.
-- Persist the staged default only when Ctrl+S is pressed, using the existing callback and workflow.
-- Close on Escape but never invoke cancellation for Ctrl+C.
-- Render the exact compact footer `Enter select  Space default  Ctrl+S save  Esc close` with existing semantic hint styling.
-- Preserve Enter selection, filtering, navigation, active-level state, layout, footer restoration, and comparison-profile isolation.
+- Render `[default]` at one fixed column derived from the widest available level name plus the reserved active-marker slot.
+- Keep every description at one fixed column after a reserved default-marker slot.
+- Persist the highlighted default immediately on Space while leaving the selector open and the active level unchanged.
+- Show no unsaved label or staged state.
+- Render the exact compact footer `Enter select  Space default  Esc close`.
+- Preserve Enter selection, filtering, navigation, Escape-only close behavior, footer restoration, and comparison-profile isolation.
 
 **Non-Goals:**
 
 - Changing the global `tui.select.cancel` binding or other dialogs.
 - Changing thinking levels, cycle bindings, persistence format, or the meaning of Enter.
+- Applying the selected default to the active session.
 - Replacing the pinned selector used by `a1 pi`.
 
 ## Decisions
 
-### 1. Keep a staged default inside the owned selector
+### 1. Render rows through fixed state columns
 
-Initialize a desired-default field from the persisted default passed to the component. Space copies the currently highlighted level into that field and rebuilds the visible rows around the same selection so `[default]` moves immediately, including after filtering. Space does not call persistence and does not close the selector.
+Calculate the widest available level name once. Pad every level to that width, reserve the same two-cell active-marker slot on every row, then render the default marker in a ten-cell slot. `[default]` therefore starts at the same maximum-left legal position after the widest name and active slot, and descriptions begin one separator after the complete fixed state region.
 
-A direct Space callback was rejected because it would merely move the current immediate-save behavior to another key and would not provide the requested explicit Ctrl+S save step.
+Per-row width calculation was rejected because it makes the marker and descriptions jump horizontally when the default moves between differently sized names or coincides with the active level.
 
-### 2. Save the staged value through the existing boundary
+### 2. Persist the global default directly on Space
 
-Ctrl+S calls the existing `onSelectAsDefault` boundary with the staged default. The shell's established persisted-thinking workflow remains authoritative and retains its current successful save/close outcome; no settings API or workflow contract is added.
+Space updates the selector's default field, rebuilds the rows around the same highlighted value, and calls the shell callback immediately. The shell delegates to a small engine-adapter settings method that validates the level and invokes the pinned settings manager's `setDefaultThinkingLevel`. This does not call `session.setThinkingLevel`, so the active checkmark and active session remain unchanged.
 
-Making the component write settings directly was rejected because the shell workflow owns engine mutation, view updates, and restoration.
+Reusing the existing `thinking` workflow with `persist: true` was rejected because that workflow intentionally changes both the active session and the persisted default. Keeping staged state was rejected because the refined interaction explicitly requires automatic persistence and no unsaved state.
 
-### 3. Make close handling local and explicit
+### 3. Remove the redundant save control
 
-The bare selector recognizes Escape as its close action instead of forwarding the shared multi-key `tui.select.cancel` action to the list. Ctrl+C must not invoke `onCancel`; when passed to the search input it retains input-level behavior without closing the selector. This exception remains local to `/thinking`, leaving all shared and comparison-profile keybindings intact.
-
-Changing the global cancel declaration was rejected because it would unintentionally alter every selector and extension surface.
-
-### 4. Use the Models dialog's compact hint language
-
-Render four semantic hint entries in this order: `Enter select`, `Space default`, `Ctrl+S save`, and `Esc close`. Enter and Ctrl+S continue using their resolved display labels, while Space and Escape are shown with the same concise labels used by Models. Remove `to` wording and the `Escape/Ctrl+C` label.
+The owned selector no longer handles `app.thinking.save` and its footer contains only `Enter select`, `Space default`, and `Esc close`. Ctrl+C remains non-canceling and Escape remains the only close key. The comparison profile continues using the pinned selector and retains its original Ctrl+S behavior.
 
 ## Risks / Trade-offs
 
-- **[Risk] Rebuilding rows after Space can lose the highlighted row.** → Preserve the selected value and cover staging before and after filtering.
-- **[Risk] Ctrl+S can persist the wrong row if navigation occurs after staging.** → Save the staged field, not the currently highlighted row, and test that distinction.
-- **[Risk] Ctrl+C can still be consumed by the search input.** → Assert only the required invariant: it never closes or invokes cancellation; Escape still does.
+- **[Risk] Fixed marker slots can consume more horizontal space.** → Retain narrow-width truncation coverage and verify all rows remain within the render width.
+- **[Risk] Immediate persistence can accidentally change the active level.** → Give default persistence its own adapter method and assert session thinking state is untouched.
+- **[Risk] Rebuilding rows after Space can lose the highlighted row.** → Preserve the selected value and cover changes before and after filtering.
 - **[Risk] Owned behavior can leak into comparison mode.** → Keep routing unchanged and retain comparison-profile coverage.
 
 ## Migration Plan
 
-1. Add staged-default state and Space handling to the owned selector.
-2. Route Ctrl+S to the staged value and make Escape the selector's only close key.
-3. Replace the footer hints and add focused behavior/presentation coverage.
-4. Roll back the component and tests if needed; no stored-setting migration is required.
+1. Replace per-row marker width with fixed name, active, and default columns.
+2. Add the settings-only default persistence boundary and call it from Space without closing.
+3. Remove Ctrl+S handling and shorten the footer hints.
+4. Update focused tests, source-port evidence, and the finalized OpenSpec record.
+5. Roll back the component, adapter boundary, and tests if needed; no stored-setting migration is required.
 
 ## Implementation Evidence
 
-- `npm exec vitest -- run test/integrations/pi/components/prompt-input-ux.test.ts test/app/session-shell/session-shell-workflows.test.ts` passes all 35 focused tests, including immediate marker movement, staged-value persistence routing, Ctrl+C retention, Escape close, compact hint text, and comparison-profile isolation.
-- `npm run typecheck` passes after the repository's TypeScript build and startup-public generation stages prepare the emitted declarations.
-- `node scripts/governance/check-pinned-pi-source-ledger.mjs` verifies all 118 source-port records and the new owned thinking-selector control deviation against LF-normalized source bytes.
-- `npx --yes @fission-ai/openspec@1.11.0 validate fix-thinking-selector-shortcuts --strict` passes.
-- `npm run build` is locally blocked by the environment prerequisite check because Cargo and Rust are unavailable; the TypeScript compiler, settings-metadata generator, startup-public generator, and subsequent typecheck pass independently. Exact terminal appearance and the complete native build remain for CI and maintainer review through `./scripts/dev`.
-- No known implementation gaps remain.
+Implementation evidence will be refreshed after the refinement is complete.
