@@ -41,12 +41,18 @@ try {
   const expectedHelp = [
     "a1-install",
     "a1-install --develop",
-    "a1-install --version <x.y.z-dev.n>",
+    "a1-install --develop <preview-or-version>",
     "a1-install --verbose",
     "",
   ].join("\n");
   if (invoked.stdout.replace(/\r\n/gu, "\n") !== expectedHelp || invoked.stderr !== "") {
     throw new Error("installer executable help contract is invalid");
+  }
+  for (const removed of ["--version", "--latest", "--next"]) {
+    const rejected = crossSpawn.sync(launcher, [removed], { cwd: root, encoding: "utf8", env: process.env, windowsHide: true });
+    if (rejected.status !== 2 || rejected.stdout !== "" || rejected.stderr.replace(/\r\n/gu, "\n") !== "installation failed: unsupported option\n") {
+      throw new Error(`installer executable accepted removed option ${removed}`);
+    }
   }
   process.stdout.write(`Validated installer package ${manifest.name}@${manifest.version}\n`);
 } finally {

@@ -187,7 +187,8 @@ Users install previews with public `develop` terminology:
 
 ```sh
 npx -y @timurproko/a1-install --develop
-npx -y @timurproko/a1-install --version 0.1.8-dev.107
+npx -y @timurproko/a1-install --develop 107
+npx -y @timurproko/a1-install --develop 0.1.8-dev.107
 a1 update --develop                     # update an existing installation
 a1 update --develop 107                 # numbered preview
 a1 update --develop 0.1.8-dev.107       # exact full preview version

@@ -87,11 +87,11 @@ Examples:
       return header + `${namespace === "direct" ? "Update A1, installed packages, or model catalogs." : "Update installed packages or model catalogs."}
 
 Options:
-${namespace === "direct" ? "  --develop [target]     Update to the development channel or one preview\n" : ""}  --extensions            Update installed packages only
+${namespace === "direct" ? "  --develop [target]     Update to develop or one preview\n" : ""}  --extensions            Update installed packages only
   --models                Refresh model catalogs only
 
 Short forms:
-${namespace === "direct" ? `  ${command} update                Update A1 to the stable release\n  ${command} update --develop      Update A1 to the development preview\n` : ""}  ${command} update --extensions   Update installed packages only
+${namespace === "direct" ? `  ${command} update                Update A1 to the release\n  ${command} update --develop      Update A1 to develop\n` : ""}  ${command} update --extensions   Update installed packages only
   ${command} update --models       Refresh model catalogs only
   ${command} update <source>       Update one package
 

@@ -11,16 +11,17 @@ import {
   installerHelp,
   parseArguments,
   renderProgressBar,
+  resolvePublishedPreview,
   runInstaller,
   sanitizeDiagnostic,
 } from "../../../packages/a1-install/bin/a1-install.js";
 
 const roots: string[] = [];
-const exactTarget = ["--version", "0.2.1-dev.591"];
+const exactTarget = ["--develop", "0.2.1-dev.591"];
 const expectedInstallerHelp = [
   "a1-install",
   "a1-install --develop",
-  "a1-install --version <x.y.z-dev.n>",
+  "a1-install --develop <preview-or-version>",
   "a1-install --verbose",
   "",
 ].join("\n");
@@ -59,14 +60,26 @@ async function fixture(version = "0.2.1-dev.591") {
 }
 
 describe("installer command contract", () => {
-  it("accepts stable, development, and exact development targets", () => {
+  it("accepts the same release, develop, and preview targets as self-update", () => {
     expect(parseArguments([]).target).toEqual({ kind: "stable" });
     expect(parseArguments(["--develop"]).target).toEqual({ kind: "develop" });
-    expect(parseArguments(["--version", "0.1.8-dev.107"]).target).toEqual({ kind: "version", version: "0.1.8-dev.107" });
-    expect(() => parseArguments(["--develop", "--version", "0.1.8-dev.107"])).toThrow(/cannot be combined/u);
-    expect(() => parseArguments(["--version", "latest"])).toThrow(/exact development version/u);
-    expect(() => parseArguments(["--version", "01.1.8-dev.1"])).toThrow(/exact development version/u);
-    expect(() => parseArguments(["--version", "0.1.8-dev.0"])).toThrow(/exact development version/u);
+    expect(parseArguments(["--develop", "107"]).target).toEqual({ kind: "preview", requested: "107" });
+    expect(parseArguments(["--develop", "0.1.8-dev.107"]).target).toEqual({ kind: "preview", requested: "0.1.8-dev.107" });
+    for (const arguments_ of [
+      ["--version", "0.1.8-dev.107"], ["--latest"], ["--next"],
+      ["--develop", "0"], ["--develop", "01"], ["--develop", "0.1.8"],
+      ["--develop", "0.1.8-dev.0"], ["--develop", "107", "extra"],
+    ]) expect(() => parseArguments(arguments_)).toThrow(/unsupported option|unexpected argument/u);
+    expect(() => parseArguments(["--develop", "--develop"])).toThrow(/more than once/u);
+  });
+
+  it("resolves a numeric preview only when one published version matches", () => {
+    expect(resolvePublishedPreview('["0.1.8-dev.107","0.1.8-dev.108"]', "107")).toBe("0.1.8-dev.107");
+    expect(resolvePublishedPreview('["0.1.8-dev.107","0.1.8-dev.108"]', "0.1.8-dev.107")).toBe("0.1.8-dev.107");
+    expect(() => resolvePublishedPreview('["0.1.8-dev.108"]', "0.1.8-dev.107")).toThrow(/selected release was not found/u);
+    expect(() => resolvePublishedPreview('["0.1.8-dev.107","0.2.0-dev.107"]', "107")).toThrow(/selected release was not found/u);
+    expect(() => resolvePublishedPreview('["0.1.8-dev.108"]', "107")).toThrow(/selected release was not found/u);
+    expect(() => resolvePublishedPreview("not json", "107")).toThrow(/could not resolve/u);
   });
 
   it("keeps help intentionally small", () => {
@@ -104,10 +117,11 @@ describe("installer command contract", () => {
     expect(invoked.stderr).toBe("");
   });
 
-  it("renders the update palette and only allowlisted phases", () => {
+  it("renders the update palette while classifying phases internally", () => {
     const rendered = renderProgressBar(31);
     expect(rendered).toContain("\u001b[38;2;138;190;183m");
     expect(rendered).toContain("\u001b[38;2;128;128;128m 31%");
+    expect(rendered).not.toMatch(/Preparing|Resolving|Downloading|Installing|Activating|Verifying/u);
     expect(classifyProgressLine("npm http fetch GET 200 package.tgz")).toBe("Downloading packages");
     expect(classifyProgressLine("arbitrary package output", "Resolving packages")).toBe("Resolving packages");
   });
@@ -235,6 +249,36 @@ describe("installer orchestration", () => {
     expect(stdout.read()).toBe("a1 successfully installed\n");
   });
 
+  it("resolves a numbered preview and delegates its full published version", async () => {
+    const setup = await fixture();
+    await setup.materialize();
+    const stdout = capture();
+    const stderr = capture();
+    const npmCalls: string[][] = [];
+    const nodeCalls: Array<{ entry: string; args: string[] }> = [];
+    const runner = {
+      async npm(args: string[]) {
+        npmCalls.push(args);
+        return args[0] === "view" && args[2] === "versions"
+          ? { code: 0, signal: null, stdout: '["0.2.1-dev.590","0.2.1-dev.591"]', stderr: "" }
+          : { code: 0, signal: null, stdout: setup.globalRoot, stderr: "" };
+      },
+      async node(entry: string, args: string[]) {
+        nodeCalls.push({ entry, args });
+        return { code: 0, signal: null, stdout: "", stderr: "" };
+      },
+    };
+    const code = await runInstaller(["--develop", "591"], {
+      stdout: stdout.stream, stderr: stderr.stream, runner, platform: process.platform,
+      environment: { PATH: `${setup.launcherDirectory}${delimiter}${process.env.PATH ?? ""}` }, handleSignals: false,
+    });
+    expect(code).toBe(0);
+    expect(npmCalls[0]).toContain("versions");
+    expect(nodeCalls).toEqual([{ entry: resolve(setup.packageRoot, "bin", "cli.js"), args: ["update", "--develop", "0.2.1-dev.591"] }]);
+    expect(stdout.read()).toBe("a1 successfully installed\n");
+    expect(stderr.read()).toBe("");
+  });
+
   it.skipIf(process.platform === "win32")("verifies Unix launchers through canonical prefix aliases", async () => {
     const setup = await fixture();
     await setup.materialize();
@@ -349,7 +393,9 @@ describe("installer orchestration", () => {
     expect(code).toBe(130);
     expect(stderr.read()).toBe("installation cancelled\n");
     expect(stdout.read()).toContain("\u001b[38;2;138;190;183m");
+    expect(stdout.read()).toContain("\u001b[K");
     expect(stdout.read()).toContain("\u001b[?25h");
+    expect(stdout.read()).not.toMatch(/Preparing|Resolving|Downloading|Installing|Activating|Verifying/u);
     expect(stdout.read()).not.toContain("npm progress");
     expect(stdout.read()).not.toContain("successfully installed");
 
