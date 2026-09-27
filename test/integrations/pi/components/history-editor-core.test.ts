@@ -78,10 +78,16 @@ describe("typed persistent recall transitions", () => {
     const editor = new HistoryEditorCore(tui(), theme, { persistentHistory: true, styleHistoryLabel: text => `<${neutral}>${text}</${neutral}>` });
     editor.replaceHistoryEntries(["line\n".repeat(12).trim()]);
     editor.handleInput(older);
-    expect(editor.render(80)[0]).toContain("<dim>1/1 · ↑ 5 more </dim>");
+    const dimmed = editor.render(80)[0]!;
+    expect(dimmed).toContain("<dim>1/1 </dim>");
+    expect(dimmed).toContain(" ↑ 5 more ");
+    expect(dimmed).not.toContain("·");
+    expect(dimmed.indexOf("</dim>")).toBeLessThan(dimmed.indexOf("↑"));
     neutral = "updated";
     editor.invalidate();
-    expect(editor.render(80)[0]).toContain("<updated>1/1 · ↑ 5 more </updated>");
+    const updated = editor.render(80)[0]!;
+    expect(updated).toContain("<updated>1/1 </updated>");
+    expect(updated).toContain(" ↑ 5 more ");
 
     const plain = create();
     plain.handleInput(older);
@@ -91,6 +97,32 @@ describe("typed persistent recall transitions", () => {
       expect(stripTerminalSequences(row)).not.toContain("undefined");
       expect(stripTerminalSequences(row)).not.toContain("History");
     }
+  });
+
+  it("separates centered overflow from left history and restores it after narrow collisions", () => {
+    const editor = new HistoryEditorCore(tui(), theme, { persistentHistory: true, styleHistoryLabel: text => `<dim>${text}</dim>` });
+    editor.replaceHistoryEntries(["line\n".repeat(20).trim()]);
+    editor.handleInput(older);
+    editor.render(80);
+    editor.interaction.setCursor(10, 0);
+    const rows = editor.render(80);
+    const top = rows[0]!;
+    const bottom = rows.at(-1)!;
+    expect(top).toContain("<dim>1/1 </dim>");
+    expect(top).not.toContain("·");
+    const plain = (row: string) => stripTerminalSequences(row).replaceAll("<dim>", "").replaceAll("</dim>", "");
+    expect(plain(top)).toBe("─── 1/1 " + "─".repeat(26) + " ↑ 10 more " + "─".repeat(35));
+    expect(plain(bottom)).toBe("─".repeat(35) + " ↓ 3 more " + "─".repeat(35));
+    expect(visibleWidth(plain(top))).toBe(80);
+    expect(visibleWidth(plain(bottom))).toBe(80);
+
+    const collision = editor.render(24)[0]!;
+    expect(plain(collision)).toBe("────── ↑ 10 more ───────");
+    expect(collision).not.toContain("1/1");
+    const recovered = editor.render(28)[0]!;
+    expect(recovered).toContain("<dim>1/1 </dim>");
+    expect(plain(recovered)).toContain(" ↑ 10 more ");
+    expect(visibleWidth(plain(recovered))).toBe(28);
   });
 
   it("shows a compact 1/100 counter and restores the draft without a title", () => {

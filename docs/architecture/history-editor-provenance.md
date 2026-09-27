@@ -41,11 +41,16 @@ The editor renders position/overflow in its existing border. The position label
 uses an injected neutral status-text style (`dim`), while the surrounding rules
 retain the active input-border color, as clarified during manual review. The approved
 `show-autocomplete-above-prompt` review refinement omits the literal `History` title:
-`─── 1/100 ─…` keeps the same four-cell inset, count calculation, dim color, optional
-scroll-overflow suffix, and clipping. Core and shell regressions verify numbering,
-100-entry recall, draft restoration, and the absence of the title. Recall temporarily
-separates the draft's live paste backing from recalled literal text, restoring it
-on return; ordinary pinned mode remains source-equivalent.
+`─── 1/100 ─…` keeps the same four-cell inset, count calculation, dim color, and
+clipping. When recalled input has hidden lines above, the approved
+`separate-history-scroll-label` refinement keeps that count left-aligned without a
+separator and independently centers `↑ N more` in the active border color, matching
+the lower cue; at collision widths the complete overflow cue temporarily takes
+precedence over the history count. Core and shell regressions verify numbering,
+100-entry recall, separated styling and placement, narrow-width recovery, draft
+restoration, and the absence of the title. Recall temporarily separates the draft's
+live paste backing from recalled literal text, restoring it on return; ordinary
+pinned mode remains source-equivalent.
 
 The integration inventory is:
 
