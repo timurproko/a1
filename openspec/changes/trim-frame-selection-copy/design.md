@@ -51,3 +51,12 @@ Component tests will cover spaces, tabs, newlines, Unicode whitespace, multiline
 ## Migration Plan
 
 No migration is required. Implement focused failing tests, normalize complete-frame snapshots, allow bounded empty-payload delivery, then run focused component/session-shell/transport tests, typechecking, build, architecture/documentation checks, and strict OpenSpec validation. Rollback restores exact outer-whitespace copying without affecting settings or stored data.
+
+## Implementation Evidence
+
+- Focused selection, viewport-controller, shell, and response-copy transport validation passed: 4 files and 178 tests.
+- Cold packaged clipboard validation passed after build: 1 file and 8 tests, including the emitted response-copy helper route.
+- `npm run build`, post-build `npm run typecheck`, changed-code documentation governance, strict OpenSpec validation, and diff whitespace validation passed.
+- Architecture boundaries and both product-identity checks passed. The remaining pinned-source-ledger subcheck reports the existing raw-byte hash mismatch for `pi-coding-agent:src/core/keybindings` on this Windows checkout because the tracked owned copy has CRLF bytes; the same command fails identically on untouched primary `develop`. This change does not modify that file or its ledger, so required clean-checkout CI remains the authoritative architecture result.
+
+There are no known implementation or behavior gaps. Physical clipboard interaction remains the intended manual acceptance step. Build the exact candidate, run `./scripts/dev`, select an indented command, paste it, and verify only outer whitespace is removed while multiline interior indentation remains intact. Run `./scripts/dev pi` to confirm comparison-profile selection remains unchanged.

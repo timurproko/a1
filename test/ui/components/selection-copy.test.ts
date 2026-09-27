@@ -40,6 +40,31 @@ describe("selected visible-frame snapshots", () => {
     }
   });
 
+  it.each([false, true])("trims only complete-payload boundaries while retaining exact visual text (reverse=%s)", reverse => {
+    const viewport = new TranscriptViewport();
+    viewport.compose({
+      documentRows: [" \t\u00a0alpha", "   beta", "", "  gamma\u2003"],
+      dockRows: [], promptAnchors: [], width: 30, height: 4,
+    });
+    viewport.pressSelection(reverse ? 8 : 1, reverse ? 4 : 1, 0);
+    viewport.extendSelection(reverse ? 1 : 8, reverse ? 1 : 4, 1, false);
+    viewport.releaseSelection();
+    expect(viewport.selectedText()).toBe(" \t\u00a0alpha\n   beta\n\n  gamma");
+    const snapshot = viewport.captureSelectedText()!;
+    expect(snapshot.rows).toEqual([{ text: "alpha\n   beta\n\n  gamma" }]);
+    expect(snapshot.sourceUnits).toBe("alpha\n   beta\n\n  gamma".length);
+  });
+
+  it("captures a multirow whitespace selection as an empty clipboard payload", () => {
+    const viewport = new TranscriptViewport();
+    viewport.compose({ documentRows: ["", "   ", ""], dockRows: [], promptAnchors: [], width: 20, height: 3 });
+    viewport.pressSelection(1, 1, 0);
+    viewport.extendSelection(1, 3, 1, false);
+    viewport.releaseSelection();
+    expect(viewport.selectedText()).toBe("\n\n");
+    expect(viewport.captureSelectedText()).toMatchObject({ literal: true, rows: [{ text: "" }], sourceUnits: 0 });
+  });
+
   it("does not turn empty clicks or whitespace-only single-row ranges into copy actions", () => {
     const viewport = new TranscriptViewport();
     viewport.compose({ documentRows: ["     "], dockRows: [], promptAnchors: [], width: 20, height: 1 });
