@@ -107,8 +107,9 @@ export function createConsoleProjectTrustPrompt(
           settled = true;
           cleanup();
           restore();
-          // Ownership: after alternate-screen restoration, only the parent shell may paint
-          // its normal buffer or prompt. Exit control carries no parent-screen output.
+          // Terminal handoff: finish the restored launch row so the parent shell paints
+          // its next prompt below the command without erasing or replaying parent content.
+          if (error instanceof ProjectTrustPromptExitError) output.write("\r\n");
           reject(error);
         };
         const onData = (chunk: Buffer | string): void => {
