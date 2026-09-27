@@ -360,11 +360,13 @@ async function verifyLaunchers(globalRoot, platform) {
   const paths = launcherPaths(globalRoot, platform);
   const entry = resolve(packageRootFor(globalRoot), "bin", "cli.js");
   const expectedSuffix = `${APPLICATION_PACKAGE}/bin/cli.js`;
+  let canonicalEntry = null;
   for (const path of paths) {
     try {
       const metadata = await lstat(path);
       if (metadata.isSymbolicLink()) {
-        if (normalizePath(await realpath(path), platform) !== normalizePath(entry, platform)) throw new Error("launcher target differs");
+        if (canonicalEntry === null) canonicalEntry = normalizePath(await realpath(entry), platform);
+        if (normalizePath(await realpath(path), platform) !== canonicalEntry) throw new Error("launcher target differs");
       } else if (metadata.isFile()) {
         const content = await readFile(path, "utf8");
         if (content.length > 32_768 || !content.replaceAll("\\", "/").includes(expectedSuffix)) throw new Error("launcher content differs");

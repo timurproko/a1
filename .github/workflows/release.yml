@@ -729,7 +729,7 @@ jobs:
           NODE
 
   post_publish:
-    name: Published pair / ${{ matrix.label }}
+    name: Published pair ${{ matrix.platform }} / Node ${{ matrix.node }}
     needs: [plan, package, publish]
     if: always() && needs.plan.result == 'success' && needs.plan.outputs.work == 'true' && (needs.plan.outputs.build == 'true' || needs.plan.outputs.installer_build == 'true') && needs.package.result == 'success' && needs.publish.result == 'success'
     strategy:

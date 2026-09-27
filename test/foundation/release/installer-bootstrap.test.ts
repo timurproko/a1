@@ -235,6 +235,50 @@ describe("installer orchestration", () => {
     expect(stdout.read()).toBe("a1 successfully installed\n");
   });
 
+  it.skipIf(process.platform === "win32")("verifies Unix launchers through canonical prefix aliases", async () => {
+    const setup = await fixture();
+    await setup.materialize();
+    await rm(setup.launchers[0]!);
+    await symlink(resolve(setup.packageRoot, "bin", "cli.js"), setup.launchers[0]!, "file");
+    const aliasPrefix = resolve(setup.root, "prefix-alias");
+    const aliasGlobalRoot = resolve(aliasPrefix, "lib", "node_modules");
+    const aliasLauncherDirectory = resolve(aliasPrefix, "bin");
+    await symlink(setup.prefix, aliasPrefix, "dir");
+
+    const runner = {
+      async npm(args: string[]) {
+        return args[0] === "view"
+          ? { code: 0, signal: null, stdout: '"0.2.1-dev.591"', stderr: "" }
+          : { code: 0, signal: null, stdout: aliasGlobalRoot, stderr: "" };
+      },
+      async node() { return { code: 0, signal: null, stdout: "", stderr: "" }; },
+    };
+    const stdout = capture();
+    const stderr = capture();
+    const code = await runInstaller(exactTarget, {
+      stdout: stdout.stream, stderr: stderr.stream, runner, platform: process.platform,
+      environment: { PATH: `${aliasLauncherDirectory}${delimiter}${process.env.PATH ?? ""}` }, handleSignals: false,
+    });
+    expect(code).toBe(0);
+    expect(stdout.read()).toBe("a1 successfully installed\n");
+    expect(stderr.read()).toBe("");
+
+    const foreignEntry = resolve(setup.root, "foreign", "cli.js");
+    await mkdir(resolve(foreignEntry, ".."), { recursive: true });
+    await writeFile(foreignEntry, "// foreign cli\n");
+    await rm(setup.launchers[0]!);
+    await symlink(foreignEntry, setup.launchers[0]!, "file");
+    const rejectedStdout = capture();
+    const rejectedStderr = capture();
+    const rejectedCode = await runInstaller(exactTarget, {
+      stdout: rejectedStdout.stream, stderr: rejectedStderr.stream, runner, platform: process.platform,
+      environment: { PATH: `${aliasLauncherDirectory}${delimiter}${process.env.PATH ?? ""}` }, handleSignals: false,
+    });
+    expect(rejectedCode).toBe(1);
+    expect(rejectedStdout.read()).toBe("");
+    expect(rejectedStderr.read()).toBe("installation failed: existing installation ownership could not be verified\n");
+  });
+
   it("refuses a linked existing package before mutation", async () => {
     const setup = await fixture();
     const foreign = resolve(setup.root, "foreign-package");
