@@ -38,7 +38,7 @@ try {
     A1_RUNTIME_DIR: resolve(root, "runtime"),
     PATH: [applicationBin, bootstrapBin, process.env.PATH ?? ""].join(delimiter),
   };
-  const args = channel === "next" ? ["--version", version] : [];
+  const args = channel === "next" ? ["--develop", version] : [];
   const installed = crossSpawn.sync(installerLauncher, args, { cwd: root, encoding: "utf8", env: environment, windowsHide: true, timeout: 10 * 60_000 });
   if (installed.status !== 0) throw new Error(installed.stderr || `published installer failed with ${installed.status}`);
   if (installed.stdout.replace(/\r\n/gu, "\n") !== "a1 successfully installed\n" || installed.stderr !== "") {
