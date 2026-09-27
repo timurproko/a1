@@ -505,6 +505,11 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
     return this.#settings.configuredTheme();
   }
 
+  /** Persist the global thinking default without changing the live session level. */
+  setDefaultThinkingLevel(level: PiPinnedSettingsSnapshot["defaultThinkingLevel"]): void {
+    this.#settings.setDefaultThinkingLevel(level);
+  }
+
   /** Settings port for the live runtime, or null before the runtime is available. */
   settingsPort(): PiSettingsBridge | null {
     return this.#settings.settingsPort();
