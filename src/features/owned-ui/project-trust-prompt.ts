@@ -106,7 +106,7 @@ export function createConsoleProjectTrustPrompt(
           settled = true;
           cleanup();
           restore();
-          // Ownership: restoration preserves the parent cursor; only the shell paints there.
+          // Protocol: restoration preserves the parent cursor; only the shell paints there.
           reject(error);
         };
         const onData = (chunk: Buffer | string): void => {
