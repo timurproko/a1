@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { spawnSync } from "node:child_process";
+import { chmod, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { delimiter, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import {
   classifyProgressLine,
   conciseFailure,
@@ -14,6 +16,13 @@ import {
 
 const roots: string[] = [];
 const exactTarget = ["--version", "0.2.1-dev.591"];
+const expectedInstallerHelp = [
+  "a1-install",
+  "a1-install --develop",
+  "a1-install --version <x.y.z-dev.n>",
+  "a1-install --verbose",
+  "",
+].join("\n");
 afterEach(async () => {
   await Promise.all(roots.splice(0).map(async root => await rm(root, { recursive: true, force: true })));
 });
@@ -60,13 +69,38 @@ describe("installer command contract", () => {
   });
 
   it("keeps help intentionally small", () => {
-    expect(installerHelp()).toBe([
-      "a1-install",
-      "a1-install --develop",
-      "a1-install --version <x.y.z-dev.n>",
-      "a1-install --verbose",
-      "",
-    ].join("\n"));
+    expect(installerHelp()).toBe(expectedInstallerHelp);
+  });
+
+  it("does not execute the installer when its helpers are imported", async () => {
+    const root = await mkdtemp(resolve(tmpdir(), "a1-installer-import-"));
+    roots.push(root);
+    const moduleUrl = pathToFileURL(resolve("packages/a1-install/bin/a1-install.js")).href;
+    const importer = resolve(root, "import-installer.mjs");
+    await writeFile(importer, `await import(${JSON.stringify(moduleUrl)}); process.stdout.write("imported\\n");\n`);
+    const imported = spawnSync(process.execPath, [importer], { encoding: "utf8" });
+    expect(imported.error).toBeUndefined();
+    expect(imported.status).toBe(0);
+    expect(imported.stdout).toBe("imported\n");
+    expect(imported.stderr).toBe("");
+  });
+
+  it.skipIf(process.platform === "win32")("executes through an npm-shaped Unix bin symlink", async () => {
+    const root = await mkdtemp(resolve(tmpdir(), "a1-installer-launcher-"));
+    roots.push(root);
+    const executable = resolve(root, "package", "bin", "a1-install.js");
+    const launcher = resolve(root, "bin", "a1-install");
+    await mkdir(resolve(executable, ".."), { recursive: true });
+    await mkdir(resolve(launcher, ".."), { recursive: true });
+    await writeFile(executable, await readFile(resolve("packages/a1-install/bin/a1-install.js")));
+    await chmod(executable, 0o755);
+    await symlink(executable, launcher, "file");
+
+    const invoked = spawnSync(launcher, ["--help"], { encoding: "utf8" });
+    expect(invoked.error).toBeUndefined();
+    expect(invoked.status).toBe(0);
+    expect(invoked.stdout).toBe(expectedInstallerHelp);
+    expect(invoked.stderr).toBe("");
   });
 
   it("renders the update palette and only allowlisted phases", () => {

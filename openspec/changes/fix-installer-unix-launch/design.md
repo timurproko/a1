@@ -30,7 +30,7 @@ Determine direct invocation by canonicalizing both the argv entry path and the c
 
 If canonicalization fails, retain only the existing lexical direct-file comparison as a bounded fallback. A missing argv entry remains an import/non-entry case. Do not infer direct execution from the basename `a1-install`, package location, environment variables, or command-line options; those signals can produce false positives during import.
 
-The helper remains local to the dependency-free executable and uses only already supported Node built-ins. Top-level ESM await is acceptable under the package's Node `>=22.19.0 <25` contract.
+The helper remains local to the dependency-free executable and uses only already supported Node built-ins. Synchronous canonicalization is limited to this one-time entrypoint decision before installer work begins and avoids adding another asynchronous module-evaluation boundary.
 
 ### 2. Preserve inert imports as an independent assertion
 

@@ -2,7 +2,7 @@
 
 import { spawn } from "node:child_process";
 import { access, lstat, readFile, realpath } from "node:fs/promises";
-import { existsSync } from "node:fs";
+import { existsSync, realpathSync } from "node:fs";
 import { delimiter, dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -615,5 +615,15 @@ export async function main(argv = process.argv.slice(2)) {
   }
 }
 
-const invoked = process.argv[1] ? pathToFileURL(resolve(process.argv[1])).href : null;
-if (invoked === import.meta.url) process.exitCode = await main();
+/** Return whether Node entered through this module or a symlink to it. */
+function isDirectInvocation(entry, moduleUrl) {
+  if (!entry) return false;
+  const entryPath = resolve(entry);
+  try {
+    return realpathSync(entryPath) === realpathSync(fileURLToPath(moduleUrl));
+  } catch {
+    return pathToFileURL(entryPath).href === moduleUrl;
+  }
+}
+
+if (isDirectInvocation(process.argv[1], import.meta.url)) process.exitCode = await main();
