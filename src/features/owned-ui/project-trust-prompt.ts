@@ -107,9 +107,9 @@ export function createConsoleProjectTrustPrompt(
           settled = true;
           cleanup();
           restore();
-          // Terminal handoff: finish the restored launch row so the parent shell paints
-          // its next prompt below the command without erasing or replaying parent content.
-          if (error instanceof ProjectTrustPromptExitError) output.write("\r\n");
+          // Terminal handoff: clear the restored stale launch row before the parent shell
+          // paints its next prompt; never replay dialog or command content.
+          if (error instanceof ProjectTrustPromptExitError) output.write("\r\u001b[2K\r\n");
           reject(error);
         };
         const onData = (chunk: Buffer | string): void => {

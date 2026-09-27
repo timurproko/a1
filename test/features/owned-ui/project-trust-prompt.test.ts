@@ -106,11 +106,11 @@ describe("bounded project trust terminal preflight", () => {
       exitCode,
     });
     expect(input.rawTransitions).toEqual([true, false]);
-    expect(output.text.endsWith(`\u001b[2J\u001b[H${EMERGENCY_TERMINAL_RESET}\r\n`)).toBe(true);
+    expect(output.text.endsWith(`\u001b[2J\u001b[H${EMERGENCY_TERMINAL_RESET}\r\u001b[2K\r\n`)).toBe(true);
     expect(output.text.match(/\r\n/gu)).toHaveLength(1);
-    expect(output.text).not.toContain("\u001b[2K");
+    expect(output.text.match(/\u001b\[2K/gu)).toHaveLength(1);
     expect(output.text.lastIndexOf("\u001b[?1049l")).toBeLessThan(output.text.lastIndexOf("\u001b[?25h"));
-    expect(output.text.lastIndexOf("\u001b[?25h")).toBeLessThan(output.text.lastIndexOf("\r\n"));
+    expect(output.text.lastIndexOf("\u001b[?25h")).toBeLessThan(output.text.lastIndexOf("\r\u001b[2K\r\n"));
     expect(output.text).toContain("\u001b[?2004l");
   });
 

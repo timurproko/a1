@@ -53,7 +53,7 @@ The dialog SHALL remain readable at supported terminal sizes, SHALL prioritize t
 - **AND** Escape SHALL be advertised as the exit action while Ctrl+C remains a conventional interruption alias
 - **AND** either exit path SHALL restore the terminal exactly once and abort startup without constructing the owned shell
 - **AND** A1 SHALL restore raw mode, disable child-owned input/presentation modes, and show the cursor after leaving the alternate screen
-- **AND** after that leave A1 SHALL write exactly one carriage-return/line-feed pair to finish the restored launch row, without erasure, prompt content, dialog rows, or bracketed-paste bytes; the parent shell SHALL own its redraw on the following row
+- **AND** after that leave A1 SHALL clear only the restored stale launch row and write one line ending, without replaying prompt content, dialog rows, command text, or bracketed-paste bytes; the parent shell SHALL own its redraw on the clean following row
 
 #### Scenario: Use the comparison profile
 - **WHEN** the same launch runs through `a1 pi`
