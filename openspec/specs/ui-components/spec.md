@@ -453,7 +453,7 @@ A selectable viewport component SHALL retain a bounded reusable representation o
 ### Requirement: Spinner-backed progress text has one canonical marker
 The component layer SHALL provide one presentation rule for text rendered beside an animated progress spinner on an A1-owned surface. It SHALL render exactly one Unicode ellipsis (`…`) as the terminal progress marker, SHALL replace an existing terminal Unicode ellipsis or terminal run of ASCII periods rather than duplicating it, and SHALL apply the same rule regardless of which built-in or extension producer supplied the semantic message. Producers SHALL NOT need to add or choose progress punctuation.
 
-The semantic label before the ellipsis SHALL use a restrained animation in which a compact accent-coloured highlight moves across otherwise muted text. The highlight SHALL use the same theme accent role as the spinner, SHALL advance more slowly than the spinner by deriving its phase from existing spinner updates, and SHALL include a pause between passes. The ellipsis SHALL remain muted and stationary. Every phase SHALL have identical plain text, display width, and grapheme content; animation SHALL NOT add a timer, alter spinner cadence, move characters, cycle punctuation, or introduce a literal terminal colour.
+The semantic label before the ellipsis SHALL use a restrained animation in which a compact neutral-white highlight moves across otherwise muted text. The highlight SHALL use the theme's ordinary text role independently of the spinner's accent role, SHALL advance more slowly than the spinner by deriving its phase from existing spinner updates, and SHALL include a pause between passes. The spinner SHALL retain its existing accent role. The ellipsis SHALL remain muted and stationary. Every phase SHALL have identical plain text, display width, and grapheme content; animation SHALL NOT add a timer, alter spinner cadence, move characters, cycle punctuation, or introduce a literal terminal colour.
 
 #### Scenario: Present semantic progress text
 - **WHEN** a spinner-backed A1 progress component receives `Working`
@@ -470,7 +470,8 @@ The semantic label before the ellipsis SHALL use a restrained animation in which
 
 #### Scenario: Animate a progress label
 - **WHEN** successive spinner updates render a spinner-backed A1 progress label
-- **THEN** a compact highlight using the spinner's accent role SHALL move across the semantic label at a slower cadence and pause between passes
+- **THEN** a compact highlight using the theme's neutral white text role SHALL move across the semantic label at a slower cadence and pause between passes
+- **AND** the spinner SHALL remain in its existing accent role while the non-highlighted label and ellipsis remain muted
 - **AND** stripping terminal styling from every phase SHALL produce the same label and one Unicode ellipsis at the same display width
 
 #### Scenario: Render an extension label with grapheme clusters
