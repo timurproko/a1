@@ -4,12 +4,15 @@ Run `36335398692` selected merged source `329522874ace9cb90b7949ecf25b9c3d89ab8a
 
 The isolated smoke prefix is rooted in macOS's temporary directory. macOS exposes `/var` as a lexical alias whose canonical filesystem path is `/private/var`. npm creates the Unix `a1` launcher as a symlink. `verifyLaunchers` canonicalizes that launcher with `realpath` but compares it to the lexical package entry derived from `npm root --global`. Thus a valid launcher target under `/private/var/...` differs textually from the expected `/var/...` entry even though both identify the same file.
 
+The three matrix jobs also appeared as `Published pair /` because the job name references nonexistent `matrix.label`; the authoritative matrix provides `platform` and `node`. Runner labels identify the failed job after API inspection, but the ordinary Actions view does not.
+
 ## Goals / Non-Goals
 
 **Goals:**
 
 - Accept an npm launcher only when its canonical target is the canonical installed `bin/cli.js` entry.
 - Cover lexical parent aliases deterministically without depending on macOS runner state.
+- Make each published-pair job name identify its platform and Node runtime from authoritative matrix fields.
 - Keep foreign, missing, partial, or malformed launchers fail-closed.
 - Prove a new OIDC-published candidate installs and launches through Windows, Linux, and macOS published-pair lanes.
 
@@ -35,7 +38,11 @@ Windows npm launchers remain regular command shims validated by bounded content 
 
 Add a platform-conditional regression that materializes a valid Unix package and launcher beneath a real prefix, accesses them through a symlinked parent alias, and exercises installer verification with the aliased global root. The corrected implementation must accept the canonical identity match. A companion assertion points the launcher to another entry and requires failure, preventing the regression from becoming a broad alias bypass.
 
-### 4. Require another numbered publication
+### 4. Use authoritative matrix fields in job names
+
+Replace the nonexistent `matrix.label` interpolation with the matrix's existing `platform` and `node` values. This changes only display identity; runner selection, matrix breadth, artifact identity, and aggregate requirements remain unchanged. Add focused workflow-policy coverage so future matrix/name drift fails review.
+
+### 5. Require another numbered publication
 
 `.602` proves both OIDC publications, exact registry-byte verification, and successful Linux/Windows installation, but not macOS installation or release completion. Its aggregate remains failed. After this correction merges, `npm run develop` must create a new candidate and pass both publications, registry verification, all three published-pair jobs, completion, and the aggregate.
 
@@ -46,6 +53,7 @@ Add a platform-conditional regression that materializes a valid Unix package and
 | Canonical alias | A lexical prefix alias and its resolved package entry are accepted as one launcher identity |
 | Foreign ownership | A launcher resolving outside the expected package entry remains rejected |
 | Existing contracts | Focused installer orchestration retains silent success, strict ownership, activation, and command-resolution behavior |
+| Matrix diagnostics | Each published-pair job name includes its selected platform and Node runtime |
 | PR | Exact-head selected CI validates implementation, package behavior, governance, and OpenSpec delivery |
 | Post-merge | A new candidate publishes through OIDC and passes Windows, Linux, and macOS published-pair installation plus completion/aggregate |
 
@@ -54,12 +62,13 @@ Add a platform-conditional regression that materializes a valid Unix package and
 - **Canonicalization performs one additional filesystem lookup.** Launcher verification is already filesystem-bound and runs only during installation, so the cost is negligible.
 - **Canonical paths may differ in case or aliases.** Platform-aware normalization remains in place; equality still requires both names to resolve to the same exact target.
 - **The regression needs symlink support.** It is platform-conditional like the existing Unix npm-launcher test and runs on Linux/macOS CI, where npm uses this launcher form.
+- **Changing the job label does not affect execution.** It consumes existing matrix values only; focused policy coverage binds the display contract to those values.
 - **Another preview is required.** Only a newly packed installer can prove the fix on the native macOS publication lane without mutating `.602`.
 
 ## Migration Plan
 
 1. After explicit plan approval and implementation request, continue in this worktree, branch, and draft PR.
-2. Add the focused alias/foreign-target regression and canonicalize the expected Unix entry.
+2. Add the focused alias/foreign-target regression, canonicalize the expected Unix entry, and repair published-pair job names.
 3. Complete implementation evidence, finalization, and exact-head PR validation before authorized manual merge.
 4. After merge, publish one newly numbered development candidate and require all publication and native installation gates to succeed.
 

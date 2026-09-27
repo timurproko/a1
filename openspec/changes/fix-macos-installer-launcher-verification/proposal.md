@@ -8,6 +8,7 @@ The installer resolves the npm launcher symlink to its canonical target but comp
 
 - Compare a Unix npm launcher and its expected application entry by canonical filesystem identity, preserving exact ownership checks.
 - Add a deterministic regression in which a lexical prefix alias and its canonical target identify the same installed entry, while a genuinely foreign target remains rejected.
+- Name each published-pair matrix job from fields the release matrix actually provides, so native failures identify their platform and runtime.
 - Preserve `.602` as immutable publication and partial native-smoke evidence, and require a newly numbered development candidate to pass publication, all native published-pair lanes, completion, and the aggregate.
 
 ## Capabilities
@@ -19,9 +20,10 @@ None.
 ### Modified Capabilities
 
 - `silent-installer`: Launcher ownership verification accepts lexical path aliases only when both paths canonically resolve to the same installed application entry.
+- `continuous-integration`: Published-pair jobs expose their selected platform and Node runtime in the job name.
 
 ## Impact
 
-- Changes `packages/a1-install/bin/a1-install.js` and focused installer tests.
+- Changes `packages/a1-install/bin/a1-install.js`, `.github/workflows/release.yml`, and focused installer/workflow-policy tests.
 - Does not weaken package identity, version, launcher completeness, command precedence, activation, OIDC, registry-byte, matrix, or stable-release checks.
 - `@timurproko/a1@0.2.1-dev.602` and `@timurproko/a1-install@0.2.1-dev.602` remain immutable OIDC-published packages under `next`; the failed run remains incomplete release evidence.
