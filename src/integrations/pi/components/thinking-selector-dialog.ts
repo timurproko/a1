@@ -19,9 +19,9 @@ function displayKeybinding(binding: string | readonly string[]): string {
 export function createPiShellThinkingSelector(
   currentLevel: ThinkingSelectorLevel,
   availableLevels: readonly ThinkingSelectorLevel[],
-  onSelect: (level: string) => void,
+  onSelect: (level: ThinkingSelectorLevel) => void,
   onCancel: () => void,
-  onSelectAsDefault?: (level: string) => void,
+  onSelectAsDefault?: (level: ThinkingSelectorLevel) => void,
   defaultLevel?: ThinkingSelectorLevel,
   presentation?: PiShellThinkingSelectorPresentation,
 ): PiShellComponentPort {

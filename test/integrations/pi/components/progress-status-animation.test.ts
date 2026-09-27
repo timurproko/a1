@@ -33,7 +33,7 @@ function busyView(message = "ABCDEFG"): OwnedUiSessionViewModel {
 afterEach(() => vi.useRealTimers());
 
 describe("bare-A1 progress status animation", () => {
-  it("advances the accent band from the existing spinner timer and disposes that timer", async () => {
+  it("advances a white text highlight from the accent spinner timer and disposes that timer", async () => {
     vi.useFakeTimers();
     const requestRender = vi.fn();
     const status = createPiShellStatus(busyView(), presentation, {
@@ -44,23 +44,28 @@ describe("bare-A1 progress status animation", () => {
     status.setProgressPresentation("custom-viewport");
     const row = () => status.renderLive(80).join("\n");
     const accent = cellStyle(piTheme().fg("accent", "A"), "A").foreground;
+    const highlight = cellStyle(piTheme().fg("text", "A"), "A").foreground;
     const muted = cellStyle(piTheme().fg("muted", "A"), "A").foreground;
 
     try {
-      expect(stripTerminalSequences(row())).toContain("ABCDEFG…");
-      expect(cellStyle(row(), "A").foreground).toBe(accent);
-      expect(cellStyle(row(), "B").foreground).toBe(accent);
+      const plain = stripTerminalSequences(row());
+      const spinner = plain.trimStart()[0]!;
+      expect(plain).toContain("ABCDEFG…");
+      expect(highlight).not.toBe(accent);
+      expect(cellStyle(row(), spinner).foreground).toBe(accent);
+      expect(cellStyle(row(), "A").foreground).toBe(highlight);
+      expect(cellStyle(row(), "B").foreground).toBe(highlight);
       expect(cellStyle(row(), "C").foreground).toBe(muted);
       expect(cellStyle(row(), "…").foreground).toBe(muted);
 
       await vi.advanceTimersByTimeAsync(160);
-      expect(cellStyle(row(), "A").foreground).toBe(accent);
+      expect(cellStyle(row(), "A").foreground).toBe(highlight);
       expect(cellStyle(row(), "C").foreground).toBe(muted);
 
       await vi.advanceTimersByTimeAsync(80);
       expect(cellStyle(row(), "A").foreground).toBe(muted);
-      expect(cellStyle(row(), "B").foreground).toBe(accent);
-      expect(cellStyle(row(), "C").foreground).toBe(accent);
+      expect(cellStyle(row(), "B").foreground).toBe(highlight);
+      expect(cellStyle(row(), "C").foreground).toBe(highlight);
       expect(requestRender).toHaveBeenCalled();
     } finally {
       status.dispose?.();

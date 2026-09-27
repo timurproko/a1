@@ -3269,7 +3269,8 @@
           "hash": "847a96b66a8fb66c38b648e4d33dd711165320f56e5f5dc3a9c4fcb2cbcecf1c",
           "consumers": [
             "src/integrations/pi/components/models-dialog.ts",
-            "src/integrations/pi/components/upstream/components/scoped-models-selector.ts"
+            "src/integrations/pi/components/upstream/components/scoped-models-selector.ts",
+            "src/integrations/pi/components/upstream/components/thinking-selector.ts"
           ]
         },
         {
@@ -3396,6 +3397,7 @@
             "src/integrations/pi/components/models-dialog.ts",
             "src/integrations/pi/components/shell-editor-autocomplete.ts",
             "src/integrations/pi/components/upstream/components/scoped-models-selector.ts",
+            "src/integrations/pi/components/upstream/components/thinking-selector.ts",
             "src/integrations/pi/components/upstream/history/editor-core.ts"
           ]
         },

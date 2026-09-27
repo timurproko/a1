@@ -973,17 +973,17 @@ export class OwnedUiSessionShell {
       this.root.setInputSurface(null);
       this.runtime.requestRender();
     };
-    const select = (level: string, persist: boolean) => {
+    const select = (level: string) => {
       close();
-      void this.runWorkflow({ command: "thinking", argument: "", selection: level, ...(persist ? { persist: true } : {}) });
+      void this.runWorkflow({ command: "thinking", argument: "", selection: level });
     };
     const { createPiShellThinkingSelector } = await import("../../integrations/pi/components/thinking-selector-dialog.js");
     const component = createPiShellThinkingSelector(
       snapshot.thinkingLevel,
       snapshot.availableThinkingLevels,
-      level => select(level, false),
+      select,
       close,
-      level => select(level, true),
+      level => this.backend.setDefaultThinkingLevel(level),
       snapshot.defaultThinkingLevel,
       this.#customViewport ? {
         profile: "bare",

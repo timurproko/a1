@@ -60,7 +60,7 @@ export function classifyCodeDocumentationSource(rawPath) {
   const extension = extname(path);
   if (path.startsWith("native/") && NATIVE_EXTENSIONS.has(extension)) return "first-party-native";
   if (path.startsWith("src/") && SCRIPT_EXTENSIONS.has(extension)) return "first-party-production";
-  if ((path.startsWith("test/") || path.startsWith("scripts/") || path.startsWith("bin/")) && SCRIPT_EXTENSIONS.has(extension)) {
+  if ((path.startsWith("test/") || path.startsWith("scripts/") || path.startsWith("bin/") || path.startsWith("packages/a1-install/")) && SCRIPT_EXTENSIONS.has(extension)) {
     return "first-party-tooling";
   }
   if (!path.includes("/") && SCRIPT_EXTENSIONS.has(extension)) return "first-party-tooling";

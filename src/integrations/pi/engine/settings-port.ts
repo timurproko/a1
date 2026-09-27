@@ -56,6 +56,15 @@ export class PiEngineSettings {
     return this.#ports.runtime()?.services.settingsManager.getThemeSetting();
   }
 
+  /** Persist the global thinking default without changing the live session level. */
+  setDefaultThinkingLevel(level: PiPinnedSettingsSnapshot["defaultThinkingLevel"]): void {
+    if (!isThinkingLevel(level)) throw new TypeError("Thinking level is invalid");
+    const settings = this.#ports.runtime()?.services.settingsManager;
+    if (!settings) throw new Error("Settings are unavailable");
+    settings.setDefaultThinkingLevel(level);
+    this.#ports.emitView();
+  }
+
   /** Settings port for the live runtime, or null before the runtime is available. */
   settingsPort(): PiSettingsBridge | null {
     const settings = this.#ports.runtime()?.services.settingsManager;

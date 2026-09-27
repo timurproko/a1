@@ -1,0 +1,26 @@
+{
+  "name": "@timurproko/a1-install",
+  "version": "0.2.1-dev",
+  "description": "Dependency-free installer for a1",
+  "type": "module",
+  "bin": {
+    "a1-install": "bin/a1-install.js"
+  },
+  "files": [
+    "bin/a1-install.js",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=22.19.0 <25"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/timurproko/a1"
+  },
+  "author": "Timur Prokopiev",
+  "license": "MIT"
+}

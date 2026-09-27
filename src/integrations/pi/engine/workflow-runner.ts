@@ -516,8 +516,6 @@ export class PiWorkflowRunner {
             request.command,
             "failed",
             error instanceof Error ? error.message : String(error),
-            undefined,
-            "silent",
           );
         }
       }

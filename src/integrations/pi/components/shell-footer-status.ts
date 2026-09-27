@@ -234,7 +234,7 @@ class OwnedWorkingStatusIndicator extends StatusIndicator {
       },
       text => frame(text, phase, {
         muted: value => piTheme().fg("muted", value),
-        accent: value => piTheme().fg("accent", value),
+        highlight: value => piTheme().fg("text", value),
       }),
       message,
     );

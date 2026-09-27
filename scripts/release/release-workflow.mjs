@@ -5,7 +5,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { dispatchPublication, registryVersion, run } from "./publication-client.mjs";
 import { parseReleaseArguments, resolveReleasePlan } from "./release-target.mjs";
 
-const VERSION_FILES = ["package-lock.json", "package.json"];
+const VERSION_FILES = ["package-lock.json", "package.json", "packages/a1-install/package.json"];
 const SHA = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
 const OPEN_DEVELOPMENT = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)-dev$/u;
 const PR_FIELDS = "number,url,state,headRefName,headRefOid,baseRefName,isCrossRepository,mergeCommit,autoMergeRequest";
@@ -110,6 +110,7 @@ async function readLocalVersions(directory) {
   return {
     manifest: JSON.parse(await readFile(join(directory, "package.json"), "utf8")),
     lock: JSON.parse(await readFile(join(directory, "package-lock.json"), "utf8")),
+    installer: JSON.parse(await readFile(join(directory, "packages", "a1-install", "package.json"), "utf8")),
   };
 }
 function readVersionsAt(r, source) {
@@ -117,11 +118,12 @@ function readVersionsAt(r, source) {
   return {
     manifest: JSON.parse(r.git(["show", `${source}:package.json`])),
     lock: JSON.parse(r.git(["show", `${source}:package-lock.json`])),
+    installer: JSON.parse(r.git(["show", `${source}:packages/a1-install/package.json`])),
   };
 }
 function assertVersions(snapshot, version, name = snapshot.manifest.name) {
   if (typeof name !== "string" || !name || snapshot.manifest.name !== name || snapshot.manifest.version !== version
-    || snapshot.lock.version !== version || snapshot.lock.packages?.[""]?.version !== version) {
+    || snapshot.lock.version !== version || snapshot.lock.packages?.[""]?.version !== version || snapshot.installer?.version !== version) {
     throw new Error(`manifest and root lockfile must consistently declare ${name}@${version}`);
   }
 }
@@ -129,11 +131,12 @@ function assertSameSnapshot(actual, expected, message) {
   if (!isDeepStrictEqual(actual, expected)) throw new Error(message);
 }
 function withVersion(snapshot, version) {
-  const { manifest, lock } = structuredClone(snapshot);
+  const { manifest, lock, installer } = structuredClone(snapshot);
   manifest.version = version;
   lock.version = version;
   lock.packages[""].version = version;
-  return { manifest, lock };
+  installer.version = version;
+  return { manifest, lock, installer };
 }
 function assertAuthoritative(r, source, version, name) {
   if (fetchDevelop(r) !== source) throw new Error(`authoritative develop no longer matches selected source ${source}; refusing to substitute another commit`);
@@ -197,6 +200,7 @@ async function prepareVersion(r, base, snapshot, version, subject) {
       checkCanceled(r);
       await writeFile(join(directory, "package.json"), `${JSON.stringify(expected.manifest, null, 2)}\n`, "utf8");
       await writeFile(join(directory, "package-lock.json"), `${JSON.stringify(expected.lock, null, 2)}\n`, "utf8");
+      await writeFile(join(directory, "packages", "a1-install", "package.json"), `${JSON.stringify(expected.installer, null, 2)}\n`, "utf8");
       checkCanceled(r);
       r.git(["add", "--", ...VERSION_FILES], directory);
       r.git(["commit", "-m", subject], directory);
@@ -231,7 +235,7 @@ function assertVersionCommit(r, base, head, expected) {
   if (parents.length !== 2 || parents[1] !== base || !isDeepStrictEqual(paths, VERSION_FILES)) {
     throw new Error("existing release branch is not a single version-only commit on the selected develop source");
   }
-  assertSameSnapshot(readVersionsAt(r, head), expected, "existing release PR changes more than this package's root version");
+  assertSameSnapshot(readVersionsAt(r, head), expected, "existing release PR changes more than the synchronized package versions");
 }
 async function waitForManualMerge(r, initial, branch, head) {
   const deadline = r.now() + r.waitMs;

@@ -73,6 +73,21 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
     await shell.dispose();
   });
 
+  it("renders failed manual compaction while keeping successful completion silent", async () => {
+    const failed = await fixture();
+    vi.spyOn(failed.engine.session, "compact").mockRejectedValueOnce(new Error("Nothing to compact (session too small)"));
+    await failed.shell.submit("/compact");
+    expect(stripTerminalSequences(failed.shell.root.render(80).join("\n"))).toContain("Error: Nothing to compact (session too small)");
+    await failed.shell.dispose();
+
+    const completed = await fixture();
+    await completed.shell.submit("/compact");
+    const frame = stripTerminalSequences(completed.shell.root.render(80).join("\n"));
+    expect(frame).not.toContain("Compaction requested");
+    expect(frame).not.toContain("Error:");
+    await completed.shell.dispose();
+  });
+
   it("routes the complete command manifest, hidden routes, prompt resources, bash modes, and streaming queues", async () => {
     const { engine, adapter, shell } = await fixture();
     const workflow = vi.spyOn(adapter, "executeWorkflow").mockImplementation(async request => ({
