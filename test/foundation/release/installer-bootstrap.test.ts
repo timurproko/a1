@@ -7,6 +7,7 @@ import { pathToFileURL } from "node:url";
 import {
   classifyProgressLine,
   conciseFailure,
+  consumeProcessLines,
   installerHelp,
   parseArguments,
   renderProgressBar,
@@ -115,6 +116,24 @@ describe("installer command contract", () => {
     expect(conciseFailure("install", "npm ERR! code EACCES")).toBe("permission was denied");
     expect(conciseFailure("resolve", "npm ERR! code ETARGET")).toBe("the selected release was not found");
     expect(sanitizeDiagnostic("authorization: secret\nhttps://user:pass@example.test/a?token=secret")).toBe("https://[redacted]@example.test/a?token=[redacted]");
+  });
+
+  it("frames complete activation events before bounding a partial line", () => {
+    const events = Array.from({ length: 400 }, (_, completed) => JSON.stringify({ event: "materializing", completed, total: 400 }));
+    const delivered: string[] = [];
+    let pending = consumeProcessLines("", `${events.join("\n")}\n{"event":"com`, line => delivered.push(line));
+    expect(delivered).toEqual(events);
+    expect(events.join("\n").length).toBeGreaterThan(8_000);
+    expect(pending).toBe('{"event":"com');
+
+    pending = consumeProcessLines(pending, 'pleted"}\r\n', line => delivered.push(line));
+    expect(delivered.at(-1)).toBe('{"event":"completed"}');
+    expect(pending).toBe("");
+
+    const oversized = consumeProcessLines("", "x".repeat(9_000), line => delivered.push(line));
+    expect(oversized).toHaveLength(8_000);
+    consumeProcessLines(oversized, "\n", line => delivered.push(line));
+    expect(delivered.at(-1)).toBe("x".repeat(8_000));
   });
 });
 

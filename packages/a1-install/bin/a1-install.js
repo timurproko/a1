@@ -231,6 +231,13 @@ function createDefaultProcessRunner(environment, platform) {
   }
 }
 
+export function consumeProcessLines(pending, chunk, callback) {
+  const lines = `${pending}${chunk}`.split(/\r?\n/u);
+  const trailing = lines.pop() ?? "";
+  for (const line of lines) callback?.(line);
+  return trailing.slice(-DIAGNOSTIC_LIMIT);
+}
+
 async function runChild(command, args, options) {
   return await new Promise((resolvePromise, rejectPromise) => {
     const child = spawn(command, args, {
@@ -243,22 +250,15 @@ async function runChild(command, args, options) {
     let stderr = "";
     let stdoutPending = "";
     let stderrPending = "";
-    const consume = (stream, chunk, callback) => {
-      const combined = `${stream}${chunk}`.slice(-DIAGNOSTIC_LIMIT);
-      const lines = combined.split(/\r?\n/u);
-      const pending = lines.pop() ?? "";
-      for (const line of lines) callback?.(line);
-      return pending;
-    };
     child.stdout?.setEncoding("utf8");
     child.stderr?.setEncoding("utf8");
     child.stdout?.on("data", chunk => {
       stdout = `${stdout}${chunk}`.slice(-DIAGNOSTIC_LIMIT);
-      stdoutPending = consume(stdoutPending, chunk, options.onStdoutLine);
+      stdoutPending = consumeProcessLines(stdoutPending, chunk, options.onStdoutLine);
     });
     child.stderr?.on("data", chunk => {
       stderr = `${stderr}${chunk}`.slice(-DIAGNOSTIC_LIMIT);
-      stderrPending = consume(stderrPending, chunk, options.onStderrLine);
+      stderrPending = consumeProcessLines(stderrPending, chunk, options.onStderrLine);
     });
     let settled = false;
     child.once("error", error => {

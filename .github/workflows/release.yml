@@ -739,7 +739,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Check out the validated source
-        uses: actions/checkout@de0fac2e4500dabe0009ef9f129fbe2d3a1f872d # v6
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           ref: ${{ needs.plan.outputs.source }}
           fetch-depth: 1
