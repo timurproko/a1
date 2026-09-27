@@ -17,7 +17,7 @@ The manual merge accepts these scenarios:
   "archive": "openspec/changes/archive/2026-09-27-fix-published-installer-smoke/",
   "acceptanceManifest": "openspec/changes/archive/2026-09-27-fix-published-installer-smoke/acceptance.md",
   "finalizedDate": "2026-09-27",
-  "specBaseSha": "f83c501794763b2f3ab2b2235fd4baac10dcdd01",
+  "specBaseSha": "8769bba4e8e90183d0a93606b39ad57b043d6697",
   "acceptanceScenarios": [
     "Every release checkout uses the established resolvable immutable action commit, allowing each selected published-pair job to reach its installation steps.",
     "Activation output containing more than 8 KiB of complete JSON events is delivered intact and the installer completes with one silent success result.",
