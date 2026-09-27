@@ -2448,16 +2448,18 @@ Bare A1 SHALL present the built-in `thinking` command with the description `Set 
 - **AND** `login` SHALL retain its pinned `<provider>` argument hint
 
 ### Requirement: Bare A1 progress labels share one quiet animated presentation
-Every built-in or extension working message rendered by bare A1's spinner-backed status surface SHALL use the shared A1 progress presentation. This SHALL include ordinary working, retry, compaction, measured compaction progress, and extension override labels. Changing the presentation SHALL NOT change semantic work-state transitions, spinner glyphs, status placement, replacement behavior, extension lifecycle, cancellation, teardown, or the pinned comparison profile.
+Every built-in or extension working message rendered by bare A1's spinner-backed status surface SHALL use the shared A1 progress presentation. This SHALL include ordinary working, retry, compaction, measured compaction progress, and extension override labels. The moving text highlight SHALL use the theme's neutral white text role while the spinner retains its existing accent role. Changing the presentation SHALL NOT change semantic work-state transitions, spinner glyphs, status placement, replacement behavior, extension lifecycle, cancellation, teardown, or the pinned comparison profile.
 
 #### Scenario: Show each built-in work state
 - **WHEN** bare A1 displays working, retry, compaction, or measured compaction progress beside its spinner
-- **THEN** the label SHALL end in one Unicode ellipsis and use the same restrained accent animation
+- **THEN** the label SHALL end in one Unicode ellipsis and use the same restrained neutral-white highlight animation
+- **AND** its spinner SHALL retain its existing accent colour
 - **AND** its spinner and semantic wording SHALL retain their existing behavior
 
 #### Scenario: Show extension-provided work
 - **WHEN** an extension supplies or replaces the active working message
 - **THEN** bare A1 SHALL normalize and animate that label through the same shared progress presentation
+- **AND** the moving label highlight SHALL use the neutral white text role rather than the spinner's accent role
 - **AND** clearing or replacing the extension state SHALL retain the existing lifecycle behavior
 
 #### Scenario: Use the pinned comparison profile
