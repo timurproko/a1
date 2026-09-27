@@ -72,6 +72,12 @@ describe("deliberate publication pipeline", () => {
     expect(postPublish).not.toContain("matrix.label");
   });
 
+  it("uses the accepted installer target grammar for published-pair smoke", async () => {
+    const source = await readFile("scripts/release/smoke-published-installer.mjs", "utf8");
+    expect(source).toContain('const args = channel === "next" ? ["--develop", version] : [];');
+    expect(source).not.toMatch(/\["--(?:version|latest|next)"(?:,\s*version)?\]/u);
+  });
+
   it("serializes registry publication without cancellation", async () => {
     const source = await workflow();
     expect(source).toContain("group: a1-registry-publication");
