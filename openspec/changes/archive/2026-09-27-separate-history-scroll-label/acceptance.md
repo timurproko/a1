@@ -5,7 +5,7 @@ Verdict: accepted only when the containing exact pull-request head is manually m
 The manual merge accepts these scenarios:
 - Recalled-history position remains dim at the left inset without a trailing dot or joined overflow text.
 - Hidden lines above appear as a centered `↑ N more` cue in the same border color and placement policy as the lower cue.
-- Narrow collision widths retain a complete overflow cue and restore the history position when enough width returns.
+- Narrow widths keep history visible, shifting a complete overflow cue right when it fits and omitting only the cue when both labels cannot fit.
 - The pinned `a1 pi` comparison keeps its existing editor overflow rendering.
 
 ```openspec-delivery
@@ -21,13 +21,13 @@ The manual merge accepts these scenarios:
   "acceptanceScenarios": [
     "Recalled-history position remains dim at the left inset without a trailing dot or joined overflow text.",
     "Hidden lines above appear as a centered `↑ N more` cue in the same border color and placement policy as the lower cue.",
-    "Narrow collision widths retain a complete overflow cue and restore the history position when enough width returns.",
+    "Narrow widths keep history visible, shifting a complete overflow cue right when it fits and omitting only the cue when both labels cannot fit.",
     "The pinned `a1 pi` comparison keeps its existing editor overflow rendering."
   ],
-  "archiveDigest": "157bbe6a5675930d6fb740e1e880e267cff16aae7b9f2bdfb76099ccf2fe2d55",
-  "specDigest": "a382816af24ff87657b75b567fcd9ca9707bd7ab79052ad3b8f149c596a8201d",
-  "tasksDigest": "6bee1e6b1b57b563d6639cedd192506d9c5996ff329e711563010d76e988b7ac",
-  "evidenceDigest": "0b7b8f652b16b68017393be5ec42a64b1234a0b321b277cae635958d3f9dcbe6",
+  "archiveDigest": "9bc9af0c4d8ec077995b42467da001c9a9c49eceb9897f360f86608f75b3c759",
+  "specDigest": "c77c93e01a73e9a15d2ce228a50c79338590e6485fbde7748a94092efe0f00d6",
+  "tasksDigest": "c0895c9e920a08a61fdb3b34fb7424d9a7238b0df44823f5fa91869eefb8b0a0",
+  "evidenceDigest": "20e2c606fbaec2a333d1e27cfc4b53f278a1031851199cbf48a698663c1a9461",
   "knownGaps": []
 }
 ```
