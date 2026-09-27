@@ -19,7 +19,7 @@ The manual merge accepts these scenarios:
   "archive": "openspec/changes/archive/2026-09-27-separate-history-scroll-label/",
   "acceptanceManifest": "openspec/changes/archive/2026-09-27-separate-history-scroll-label/acceptance.md",
   "finalizedDate": "2026-09-27",
-  "specBaseSha": "fee508512099cc722167cf0744e231ab9c342501",
+  "specBaseSha": "4e2d6abb1a45b9c2b2d6eaf42bf6b1463b05e7f9",
   "acceptanceScenarios": [
     "Recalled-history position remains dim at the left inset without a trailing dot or joined overflow text.",
     "Moving or placing the cursor within a recalled multiline prompt keeps its history position/total visible.",
