@@ -31,7 +31,7 @@ describe("deliberate publication pipeline", () => {
 
   it("separates manual early no-op from complete nightly registry verification", async () => {
     const source = await workflow();
-    expect(source).toContain('const work = process.env.MODE === "nightly" || !exists');
+    expect(source).toContain('const work = process.env.MODE === "nightly" || !exists || !installerExists;');
     expect(source).toContain("Download the immutable registry package");
     expect(source).toContain("registry tarball integrity differs from registry metadata");
     expect(source).toContain('selected=\'["package-smoke","package-install"]\'');
@@ -42,9 +42,14 @@ describe("deliberate publication pipeline", () => {
 
   it("evaluates publication after an allowed prerequisite skip without weakening required outcomes", async () => {
     const source = await workflow();
-    const publish = source.slice(source.indexOf("\n  publish:"), source.indexOf("\n  result:"));
-    const condition = publish.match(/^    if: (.+)$/m)?.[1];
-    expect(condition).toBe("always() && (needs.plan.outputs.build == 'true' || needs.plan.outputs.installer_build == 'true') && needs.package.result == 'success' && (needs.documentation.result == 'success' || needs.documentation.result == 'skipped') && needs.validate.result == 'success'");
+    const publish = source.slice(source.indexOf("\n  publish:"), source.indexOf("\n  post_publish:"));
+    expect(publish.match(/^    if: (.+)$/m)?.[1]).toBe("always() && (needs.plan.outputs.build == 'true' || needs.plan.outputs.installer_build == 'true') && needs.package.result == 'success' && (needs.documentation.result == 'success' || needs.documentation.result == 'skipped') && needs.validate.result == 'success'");
+
+    const postPublish = source.slice(source.indexOf("\n  post_publish:"), source.indexOf("\n  complete:"));
+    expect(postPublish.match(/^    if: (.+)$/m)?.[1]).toBe("always() && needs.plan.result == 'success' && needs.plan.outputs.work == 'true' && (needs.plan.outputs.build == 'true' || needs.plan.outputs.installer_build == 'true') && needs.package.result == 'success' && needs.publish.result == 'success'");
+
+    const complete = source.slice(source.indexOf("\n  complete:"), source.indexOf("\n  result:"));
+    expect(complete.match(/^    if: (.+)$/m)?.[1]).toBe("always() && needs.plan.result == 'success' && needs.plan.outputs.work == 'true' && (needs.plan.outputs.build == 'true' || needs.plan.outputs.installer_build == 'true') && needs.package.result == 'success' && needs.publish.result == 'success' && needs.post_publish.result == 'success'");
 
     const result = source.slice(source.indexOf("\n  result:"));
     expect(result).toContain('if [ "$WORK" != true ]; then');
@@ -103,7 +108,7 @@ describe("deliberate publication pipeline", () => {
 
   it("stamps the requested stable version on the open development source at pack time", async () => {
     const source = await workflow();
-    expect(source).toContain("      version:\n        description: Stable version to stamp on the open development source (stable channel only)");
+    expect(source).toMatch(/      version:\r?\n        description: Stable version to stamp on the open development source \(stable channel only\)/);
     expect(source).toContain('if [ "$mode" = "stable" ]; then');
     expect(source).toContain("stable publication requires an explicit final version");
     expect(source).toContain("a development publication derives its own version; do not pass one");

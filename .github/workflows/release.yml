@@ -731,7 +731,7 @@ jobs:
   post_publish:
     name: Published pair / ${{ matrix.label }}
     needs: [plan, package, publish]
-    if: needs.plan.outputs.work == 'true' && (needs.plan.outputs.build == 'true' || needs.plan.outputs.installer_build == 'true')
+    if: always() && needs.plan.result == 'success' && needs.plan.outputs.work == 'true' && (needs.plan.outputs.build == 'true' || needs.plan.outputs.installer_build == 'true') && needs.package.result == 'success' && needs.publish.result == 'success'
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.plan.outputs.validate_matrix) }}
@@ -773,7 +773,7 @@ jobs:
   complete:
     name: Complete release records
     needs: [plan, package, publish, post_publish]
-    if: needs.plan.outputs.work == 'true' && (needs.plan.outputs.build == 'true' || needs.plan.outputs.installer_build == 'true')
+    if: always() && needs.plan.result == 'success' && needs.plan.outputs.work == 'true' && (needs.plan.outputs.build == 'true' || needs.plan.outputs.installer_build == 'true') && needs.package.result == 'success' && needs.publish.result == 'success' && needs.post_publish.result == 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
