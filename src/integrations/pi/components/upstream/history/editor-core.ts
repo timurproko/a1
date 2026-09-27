@@ -267,40 +267,27 @@ function buildDebouncePattern(triggerCharacters: string[]): RegExp {
 	);
 }
 
-interface ScrollBorderLayout {
-	text: string;
-	/** Plain-cell range occupied by the overflow cue, before ANSI styling. */
-	cue: { start: number; end: number };
-}
-
-function createScrollBorder(direction: "↑" | "↓", hiddenLineCount: number, width: number): ScrollBorderLayout {
+function createScrollBorder(direction: "↑" | "↓", hiddenLineCount: number, width: number, minimumCueStart = 0): string {
 	const availableWidth = Math.max(0, width);
 	const label = ` ${direction} ${hiddenLineCount} more `;
 	const labelWidth = visibleWidth(label);
 	if (labelWidth + 2 <= availableWidth) {
-		const leftWidth = Math.floor((availableWidth - labelWidth) / 2);
-		return {
-			text: "─".repeat(leftWidth) + label + "─".repeat(availableWidth - leftWidth - labelWidth),
-			cue: { start: leftWidth, end: leftWidth + labelWidth },
-		};
+		const centeredStart = Math.floor((availableWidth - labelWidth) / 2);
+		const cueStart = Math.max(centeredStart, minimumCueStart);
+		if (cueStart + labelWidth <= availableWidth) {
+			return "─".repeat(cueStart) + label + "─".repeat(availableWidth - cueStart - labelWidth);
+		}
 	}
+	if (minimumCueStart > 0) return "─".repeat(availableWidth);
 
 	const indicator = `─── ${direction} ${hiddenLineCount} more `;
 	const indicatorWidth = visibleWidth(indicator);
 	const remaining = availableWidth - indicatorWidth;
-	if (remaining >= 0) {
-		return {
-			text: indicator + "─".repeat(remaining),
-			cue: { start: 3, end: indicatorWidth },
-		};
-	}
+	if (remaining >= 0) return indicator + "─".repeat(remaining);
 
 	const ellipsis = "...".slice(0, availableWidth);
 	const visibleIndicatorWidth = availableWidth - visibleWidth(ellipsis);
-	return {
-		text: sliceByColumn(indicator, 0, visibleIndicatorWidth, true) + ellipsis,
-		cue: { start: 0, end: availableWidth },
-	};
+	return sliceByColumn(indicator, 0, visibleIndicatorWidth, true) + ellipsis;
 }
 
 export class HistoryEditorCore implements Component, Focusable {
@@ -610,27 +597,27 @@ export class HistoryEditorCore implements Component, Focusable {
 		if (this.persistentHistory && this.historyIndex >= 0) {
 			const history = `${this.history.length - this.historyIndex}/${this.history.length} `;
 			if (hiddenLineCount > 0) {
-				const border = createScrollBorder("↑", hiddenLineCount, width);
 				const historyStart = 4;
 				const historyEnd = historyStart + visibleWidth(history);
 				const historyAnchorStart = historyStart - 1;
-				const overlapsCue = historyAnchorStart < border.cue.end && historyEnd > border.cue.start;
-				if (historyEnd > width || overlapsCue) return this.borderColor(border.text);
-				return this.borderColor(border.text.slice(0, historyAnchorStart) + " ")
-					+ this.styleHistoryLabel(history)
-					+ this.borderColor(border.text.slice(historyEnd));
+				if (historyEnd <= width) {
+					const border = createScrollBorder("↑", hiddenLineCount, width, historyEnd);
+					return this.borderColor(border.slice(0, historyAnchorStart) + " ")
+						+ this.styleHistoryLabel(history)
+						+ this.borderColor(border.slice(historyEnd));
+				}
 			}
 			const label = `─── ${history}`;
 			const shown = truncateToWidth(label, width);
 			const remaining = Math.max(0, width - visibleWidth(shown));
 			return this.borderColor(shown.slice(0, 4)) + this.styleHistoryLabel(shown.slice(4)) + this.borderColor("─".repeat(remaining));
 		}
-		const border = hiddenLineCount > 0 ? createScrollBorder("↑", hiddenLineCount, width).text : "─".repeat(width);
+		const border = hiddenLineCount > 0 ? createScrollBorder("↑", hiddenLineCount, width) : "─".repeat(width);
 		return this.borderColor(border);
 	}
 
 	protected renderBottomBorder(width: number, hiddenLineCount: number): string {
-		const border = hiddenLineCount > 0 ? createScrollBorder("↓", hiddenLineCount, width).text : "─".repeat(width);
+		const border = hiddenLineCount > 0 ? createScrollBorder("↓", hiddenLineCount, width) : "─".repeat(width);
 		return this.borderColor(border);
 	}
 

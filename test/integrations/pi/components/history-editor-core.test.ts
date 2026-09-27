@@ -99,7 +99,7 @@ describe("typed persistent recall transitions", () => {
     }
   });
 
-  it("separates centered overflow from left history and restores it after narrow collisions", () => {
+  it("keeps left history while shifting or omitting overflow at narrow widths", () => {
     const editor = new HistoryEditorCore(tui(), theme, { persistentHistory: true, styleHistoryLabel: text => `<dim>${text}</dim>` });
     editor.replaceHistoryEntries(["line\n".repeat(20).trim()]);
     editor.handleInput(older);
@@ -117,12 +117,17 @@ describe("typed persistent recall transitions", () => {
     expect(visibleWidth(plain(bottom))).toBe(80);
 
     const collision = editor.render(24)[0]!;
-    expect(plain(collision)).toBe("────── ↑ 10 more ───────");
-    expect(collision).not.toContain("1/1");
-    const recovered = editor.render(28)[0]!;
+    expect(collision).toContain("<dim>1/1 </dim>");
+    expect(plain(collision)).toBe("─── 1/1  ↑ 10 more ─────");
+    expect(plain(collision).indexOf(" ↑ 10 more ")).toBe(8);
+    const omitted = editor.render(18)[0]!;
+    expect(omitted).toContain("<dim>1/1 </dim>");
+    expect(plain(omitted)).toBe("─── 1/1 " + "─".repeat(10));
+    expect(omitted).not.toContain("↑");
+    const recovered = editor.render(80)[0]!;
     expect(recovered).toContain("<dim>1/1 </dim>");
     expect(plain(recovered)).toContain(" ↑ 10 more ");
-    expect(visibleWidth(plain(recovered))).toBe(28);
+    expect(visibleWidth(plain(recovered))).toBe(80);
   });
 
   it("shows a compact 1/100 counter and restores the draft without a title", () => {

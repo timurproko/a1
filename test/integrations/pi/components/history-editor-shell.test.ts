@@ -66,6 +66,13 @@ describe("history editor component boundary", () => {
       expect(bottomPlain.indexOf(" ↓ 3 more ") * 2 + " ↓ 3 more ".length).toBe(78);
       expect(cellStyle(top, "↑")).toEqual(cellStyle(bottom, "↓"));
       expect(cellStyle(top, "1")).not.toEqual(cellStyle(top, "↑"));
+      const shifted = editor.render(24)[0]!;
+      expect(shifted).toContain(piTheme().fg("dim", "1/1 "));
+      expect(stripTerminalSequences(shifted)).toBe("─── 1/1  ↑ 10 more ─────");
+      const historyOnly = editor.render(20)[0]!;
+      expect(historyOnly).toContain(piTheme().fg("dim", "1/1 "));
+      expect(stripTerminalSequences(historyOnly)).toBe("─── 1/1 " + "─".repeat(12));
+      expect(historyOnly).not.toContain("↑");
 
       const comparison = createPiShellEditor({ ...options, keybindingProfile: "pi" });
       comparison.setText("line\n".repeat(20).trim());

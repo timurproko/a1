@@ -4,7 +4,7 @@
 
 - Recalled-history position remains dim at the four-cell left inset with no dot or joined overflow suffix.
 - Hidden lines above use the editor's existing centered `↑ N more` border geometry and active border color, matching the lower cue without changing row count.
-- Collision widths retain the complete width-safe overflow cue and restore the history position after resize.
+- History position remains visible at collision widths; a complete overflow cue shifts right when it fits and is omitted only when the border is too narrow for both complete labels.
 - The pinned comparison profile retains its existing centered upper and lower overflow borders.
 
 ## Focused validation
@@ -14,7 +14,9 @@
 - `npm run typecheck` — passed after the required build generated `dist/` declarations used by the bin project.
 - `npx openspec validate separate-history-scroll-label --strict` — passed.
 - `node scripts/governance/check-code-documentation.mjs --mode full` — passed.
-- The changed history-editor provenance header and SHA-256 were checked directly against its updated source-ledger record — passed (`b9ae36c90e162d6019476929f12dc177cdd16716455e3e819eb59e766698295f`).
+- After the history-visibility refinement, the same focused Vitest command passed again with 3 files and 33 tests; `npm run build`, `npm run typecheck`, and full code-documentation governance also passed again.
+- `npx openspec validate --archived --strict` reported `✓ change/2026-09-27-separate-history-scroll-label`; the aggregate command remains nonzero because 68 unrelated historical archives retain incomplete legacy acceptance tasks.
+- The changed history-editor provenance header and SHA-256 were checked directly against its updated source-ledger record — passed (`1d034e175e37456d115ead3b876f008fda215a2f8af799d9089361e62db4f2a5`).
 
 ## Validation environment disposition
 

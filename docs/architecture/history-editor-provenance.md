@@ -45,9 +45,10 @@ retain the active input-border color, as clarified during manual review. The app
 clipping. When recalled input has hidden lines above, the approved
 `separate-history-scroll-label` refinement keeps that count left-aligned without a
 separator and independently centers `↑ N more` in the active border color, matching
-the lower cue; at collision widths the complete overflow cue temporarily takes
-precedence over the history count. Core and shell regressions verify numbering,
-100-entry recall, separated styling and placement, narrow-width recovery, draft
+the lower cue. At collision widths the history count remains visible while a complete
+cue shifts right only as needed, or is omitted when both labels cannot fit. Core and
+shell regressions verify numbering, 100-entry recall, separated styling and placement,
+narrow-width history continuity and recovery, draft
 restoration, and the absence of the title. Recall temporarily separates the draft's
 live paste backing from recalled literal text, restoring it on return; ordinary
 pinned mode remains source-equivalent.
