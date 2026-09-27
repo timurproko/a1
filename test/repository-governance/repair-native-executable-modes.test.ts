@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { gunzipSync, gzipSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
 import { guardianBinaryReference, readPackedEntries } from "../../scripts/governance/candidate-evidence.mjs";
-import { repairNativeExecutableModes } from "../../scripts/release/repair-native-executable-modes.mjs";
+import { repairNativeExecutableModes, repairPackedExecutableModes } from "../../scripts/release/repair-native-executable-modes.mjs";
 
 const guardianContent = Buffer.from("guardian-binary-bytes");
 const guardianDigest = createHash("sha256").update(guardianContent).digest("hex");
@@ -13,6 +13,26 @@ const guardianManifest = JSON.stringify({
   architecture: "x64",
   capability: "supported",
   artifact: { filename: "process-guardian", sha256: guardianDigest, size: guardianContent.length },
+});
+
+describe("repairPackedExecutableModes", () => {
+  it("repairs an explicitly declared package executable without changing its bytes", () => {
+    const path = "package/bin/bootstrap.js";
+    const content = Buffer.from("#!/usr/bin/env node\n");
+    const tarball = gzipSync(Buffer.concat([tarEntry(path, content, 0o644), Buffer.alloc(1024)]));
+    const { bytes, repaired } = repairPackedExecutableModes(tarball, [path]);
+    expect(repaired).toEqual([path]);
+    const [entry] = readPackedEntries(bytes);
+    expect(entry?.path).toBe(path);
+    expect(entry?.mode).toBe(0o755);
+    expect(entry?.content.equals(content)).toBe(true);
+  });
+
+  it("rejects missing and unsafe executable paths", () => {
+    const tarball = createTarball(0o644);
+    expect(() => repairPackedExecutableModes(tarball, ["package/bin/missing.js"])).toThrow("missing");
+    expect(() => repairPackedExecutableModes(tarball, ["package/../escape"])).toThrow("paths are invalid");
+  });
 });
 
 describe("repairNativeExecutableModes", () => {

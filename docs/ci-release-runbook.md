@@ -166,14 +166,17 @@ The command fetches authoritative `origin/develop`, resolves the unique merged p
 request associated with that exact commit through GitHub, and derives
 `<major.minor.patch>-dev.<pull-request number>`. Thus GitHub's `develop (#107)`
 source produces `0.1.8-dev.107`. It first checks npm; if the immutable version
-already exists it reports that version without dispatching package work. Otherwise
-it dispatches GitHub Actions, waits, and reports the published version. It never
+already exists for both the application and installer packages it reports that
+version without dispatching package work. If either immutable artifact is missing,
+it dispatches GitHub Actions, waits, and verifies both published versions. It never
 builds or uploads npm bytes from the workstation.
 
 Nightly resolves the same current `origin/develop` source. It runs one platform-independent full documentation review before the platform matrix, and the matrix records that prerequisite instead of repeating the scan four times. It always runs complete verification even if source has not changed. For a new number it packs once and
 runs the suite against that final-version tarball before publication. For an
-existing number it downloads the exact npm tarball and runs package/update gates
-against those registry bytes; publication is then a successful no-op.
+existing number it downloads both exact npm tarballs and runs package/update and
+installer gates against those registry bytes; publication is then a successful
+no-op. A new or missing installer artifact is dependency-free, packed once, and
+validated on every publication platform before the publish job receives it.
 
 Manual and nightly runs share one non-cancelling concurrency group. Their final
 registry check is serialized, so overlapping requests can produce only one publish
@@ -183,7 +186,9 @@ internal `next` dist-tag and never moves `latest`.
 Users install previews with public `develop` terminology:
 
 ```sh
-a1 update --develop                     # current development channel
+npx -y @timurproko/a1-install --develop
+npx -y @timurproko/a1-install --version 0.1.8-dev.107
+a1 update --develop                     # update an existing installation
 a1 update --develop 107                 # numbered preview
 a1 update --develop 0.1.8-dev.107       # exact full preview version
 ```
@@ -214,13 +219,13 @@ touching anything, and the stable version is never committed to `develop`.
    publication for that exact source with the stable version in the request. A changed source is
    an error, not permission to substitute a newer commit.
 2. The workflow stamps the requested version on the checked-out source
-   (`npm version <x.y.z> --no-git-tag-version`) before packing, so the tarball
-   declares `0.1.8` while the tagged commit still declares `0.1.8-dev`. Everything
-   else about the package is byte-identical to that commit's tree; `git checkout
-   v0.1.8 && npm version 0.1.8 --no-git-tag-version && npm pack` reproduces it.
-3. Only after verified publication of `0.1.8` does the helper commit `0.1.9-dev`
-   in an owned detached worktree beneath `.worktrees/` (only this package's manifest
-   and root lockfile version change), open the one version PR, and wait for you to
+   (`npm version <x.y.z> --no-git-tag-version`) before packing the application and
+   stages the same exact version into the dependency-free installer before packing
+   it. Both tarballs therefore declare `0.1.8` while the tagged commit still
+   declares `0.1.8-dev`; their recorded digests bind them to the same source tree.
+3. Only after verified publication of both `0.1.8` packages does the helper commit
+   `0.1.9-dev` in an owned detached worktree beneath `.worktrees/` (the application
+   manifest, root lockfile, and installer manifest versions change), open the one version PR, and wait for you to
    **merge it manually** with a bounded 30-minute poll. The helper never merges
    PRs or enables auto-merge. Until that merge the helper reports development
    reopening as incomplete, and previews cannot be published from a `develop`
@@ -236,11 +241,22 @@ only when its branch, original HEAD, and cleanliness remain unchanged. Otherwise
 preserve local work and synchronize manually with the reported remote state.
 
 Stable publication builds the process guardian on all supported platforms, stamps
-the version, packs once, runs the complete suite against those exact bytes on
-Windows, Linux, and macOS, publishes to npm `latest` with provenance from the
-`npm-publish` environment, and then writes `vx.y.z` on the source commit, records
-the GitHub Release, and fast-forwards `master`. A push of the stable version does
+the version, packs each package once, runs the complete suite and installer package
+check against those exact bytes on Windows, Linux, and macOS, publishes both to npm
+`latest` with provenance from the `npm-publish` environment, and exercises the exact
+published installer/application pair in isolated prefixes on every release lane.
+Only after those post-publication checks pass does it write `vx.y.z` on the source commit, record
+the GitHub Release, and fast-forward `master`. A push of the stable version does
 not publish it, and no automation ever pushes one.
+
+The installer package does not yet exist on npm, so its first publication needs a
+one-time granular token in the `npm-publish` environment secret
+`NPM_BOOTSTRAP_TOKEN`; the workflow still publishes the exact validated tarball
+with provenance. Immediately after that first successful publication, configure
+`.github/workflows/release.yml` and environment `npm-publish` as the package's npm
+trusted publisher, delete the bootstrap secret, and let npm 11 authenticate future
+publications through GitHub OIDC. The application package continues using its
+existing trusted-publisher configuration throughout.
 
 Rules that do not bend:
 
@@ -264,7 +280,7 @@ Rules that do not bend:
 - **A Pi upgrade proposal needs a re-run:** the sync never force-pushes over `chore/pi-<version>` once it carries a commit the bot did not author; a scheduled re-run posts its fresh verdicts as a comment headed with the version and date and rewrites only the report between the `<!-- pi-upgrade-report -->` markers of the description. To re-run the derived steps and gates on the reviewer's head, dispatch the workflow with `refresh` and the `version`; it checks out the proposal branch, skips bump, evaluation, install, and merge, and reports without pushing. A branch whose commits are all the bot's is recreated from `develop` as before.
 - **A Pi version should not be adopted:** close its proposal pull request with the `pi-upgrade-skipped` label (declared in `config/github-repository-governance.json`) and say why in the closing comment; the next run proposes the newest unskipped version newer than the pin, or nothing, and names the skipped versions in its log. A proposal closed without the label is proposed again the next night. Dispatching the workflow with a `version` ignores skips, which is how a skipped version is reconsidered. To silence the schedule through a release window, set the repository variable `PI_UPGRADE_FREEZE_UNTIL` to a date (`2026-10-01`); scheduled runs exit before proposing until it passes, manual dispatches still run.
 - **Nightly documentation review fails:** inspect the reported paths and rules, identify the introducing merge from the nightly interval, and repair the invariant before unrelated work proceeds.
-- **Development publication fails:** fix the cause and rerun `npm run develop`; an npm version that already exists is never overwritten.
+- **Development publication fails:** inspect both package versions and digests, fix the cause, and rerun `npm run develop`; an npm version that already exists is verified and never overwritten.
 - **Registry verification times out:** a `has not propagated` failure after a successful `npm publish` means npm is still ingesting the upload; it warns that a provenance-signed package "may take a few minutes" and the publisher polls for ten minutes. Confirm the version and its shasum on `https://registry.npmjs.org/<name>/<version>`, then rerun the failed jobs: the final registry check finds the exact bytes, skips `npm publish`, and verification passes. A digest or tag mismatch is not a timeout and is never repaired by rerunning.
 - **Stable publication fails or is uncertain:** no reopening PR was prepared and `develop` still declares the open `-dev` version. Inspect the workflow run, npm, and the `v<version>` tag. When nothing was published, fix the cause and rerun the same target; the registry and tag guards refuse a version that already exists.
 - **Stable is published but reopening stopped:** the helper reports the reopening PR or retained worktree. Merge the pending `chore/release-<x.y.z>-dev` PR by hand once its CI passes, or repair the branch and open the PR yourself; never rerun the release for the published version.

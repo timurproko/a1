@@ -276,7 +276,7 @@ async function inspectRepositoryStructure() {
   for (const path of paths) {
     if (genericSourceSegments.test(path)) errors.push(`${path}: generic source dumping-ground directory is forbidden`);
     if (path.startsWith("src/") && generatedSegments.test(path)) errors.push(`${path}: generated or runtime state is forbidden in production source`);
-    if (nestedAuthority.test(path) && !["package.json", "package-lock.json"].includes(path)) errors.push(`${path}: nested package manifest or lockfile is forbidden`);
+    if (nestedAuthority.test(path) && !["package.json", "package-lock.json", "packages/a1-install/package.json"].includes(path)) errors.push(`${path}: nested package manifest or lockfile is forbidden`);
     if (path.startsWith("test/") && /\.test\.ts$/.test(path) && !testOwnerForPath(path)) errors.push(`${path}: test has no declared owner`);
   }
 

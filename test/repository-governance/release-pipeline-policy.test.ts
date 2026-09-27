@@ -44,11 +44,13 @@ describe("deliberate publication pipeline", () => {
     const source = await workflow();
     const publish = source.slice(source.indexOf("\n  publish:"), source.indexOf("\n  result:"));
     const condition = publish.match(/^    if: (.+)$/m)?.[1];
-    expect(condition).toBe("always() && needs.plan.outputs.build == 'true' && needs.package.result == 'success' && (needs.documentation.result == 'success' || needs.documentation.result == 'skipped') && needs.validate.result == 'success'");
+    expect(condition).toBe("always() && (needs.plan.outputs.build == 'true' || needs.plan.outputs.installer_build == 'true') && needs.package.result == 'success' && (needs.documentation.result == 'success' || needs.documentation.result == 'skipped') && needs.validate.result == 'success'");
 
     const result = source.slice(source.indexOf("\n  result:"));
     expect(result).toContain('if [ "$WORK" != true ]; then');
-    expect(result).toContain('if [ "$BUILD" = true ]; then test "$PUBLISH" = success; fi');
+    expect(result).toContain('test "$PUBLISH" = success');
+    expect(result).toContain('test "$POST_PUBLISH" = success');
+    expect(result).toContain('test "$COMPLETE" = success');
   });
 
   it("serializes registry publication without cancellation", async () => {
@@ -56,7 +58,8 @@ describe("deliberate publication pipeline", () => {
     expect(source).toContain("group: a1-registry-publication");
     expect(source).toContain("cancel-in-progress: false");
     expect(source).toContain("Serialize the final registry check");
-    expect(source).toContain("existing registry bytes differ from the validated candidate");
+    expect(source).toContain("registry bytes differ from the validated candidate");
+    expect(source).toContain("installer registry bytes differ from the validated package");
   });
 
   it("binds source, pull request, final version, and tarball digests", async () => {
@@ -70,15 +73,19 @@ describe("deliberate publication pipeline", () => {
   it("packs new candidates once and validates exact bytes on each platform", async () => {
     const source = await workflow();
     expect(source.match(/node scripts\/release\/prepare-validation-package\.mjs/g)).toHaveLength(1);
+    expect(source.match(/node scripts\/release\/prepare-installer-package\.mjs/g)).toHaveLength(1);
+    expect(source).toContain("node scripts/release/validate-installer-package.mjs");
     expect(source).toContain("matrix: ${{ fromJson(needs.plan.outputs.validate_matrix) }}");
     for (const platform of ["win32", "linux", "darwin"]) {
       expect(publicationValidationMatrix("develop").include.some(lane => lane.platform.startsWith(platform))).toBe(true);
     }
     expect(source).toContain("VALIDATION_CANDIDATE_TARBALL:");
     expect(source).toContain('npm publish "$release_tarball"');
+    expect(source).toContain('npm publish "$installer_tarball"');
     expect(source).toContain("--provenance");
     const publish = source.slice(source.indexOf("\n  publish:"));
-    expect(publish).not.toMatch(/npm ci|npm run build|prepare-validation-package/);
+    expect(publish.slice(0, publish.indexOf("\n  post_publish:"))).not.toMatch(/npm ci|npm run build|prepare-validation-package/);
+    expect(source.indexOf("Exercise the exact published pair")).toBeLessThan(source.indexOf("Tag the published commit"));
   });
 
   it("packs native process guardians with host-independent executability", async () => {
@@ -157,9 +164,11 @@ describe("maintainer publication commands", () => {
     expect(script).not.toContain('"--hard"');
   });
 
-  it("moves only this package's version", async () => {
+  it("moves only the synchronized package versions", async () => {
     const script = await readFile("scripts/release/release-workflow.mjs", "utf8");
     expect(script).not.toContain("replaceAll");
     expect(script).toContain('lock.packages[""].version = version');
+    expect(script).toContain("installer.version = version");
+    expect(script).toContain('"packages/a1-install/package.json"');
   });
 });
