@@ -40,11 +40,10 @@ const RESET_BOLD = "\u001b[22m";
 const PROJECT_TRUST_EXIT = "ProjectTrustPromptExitError";
 
 class ProjectTrustPromptExitError extends Error {
-  readonly exitCode: 0 | 130;
-  constructor(exitCode: 0 | 130) {
+  readonly exitCode = 0;
+  constructor() {
     super("Project trust prompt exited");
     this.name = PROJECT_TRUST_EXIT;
-    this.exitCode = exitCode;
   }
 }
 
@@ -107,9 +106,7 @@ export function createConsoleProjectTrustPrompt(
           settled = true;
           cleanup();
           restore();
-          // Terminal handoff: clear the restored stale launch row before the parent shell
-          // paints its next prompt; never replay dialog or command content.
-          if (error instanceof ProjectTrustPromptExitError) output.write("\r\u001b[2K\r\n");
+          // Ownership: restoration preserves the parent cursor; only the shell paints there.
           reject(error);
         };
         const onData = (chunk: Buffer | string): void => {
@@ -135,13 +132,15 @@ export function createConsoleProjectTrustPrompt(
             }
             if (key === "\u001b") {
               if (comparison) finish(null);
-              else fail(new ProjectTrustPromptExitError(0));
+              else fail(new ProjectTrustPromptExitError());
               return;
             }
             if (key === "\u0003") {
-              if (comparison) finish(null);
-              else fail(new ProjectTrustPromptExitError(130));
-              return;
+              if (comparison) {
+                finish(null);
+                return;
+              }
+              continue;
             }
             // Compatibility: retain y/n aliases for terminals or automation that cannot send
             // navigation keys; the visible interaction remains selector-first.

@@ -46,13 +46,13 @@ A1 SHALL resolve saved project trust and `defaultProjectTrust` for every launch 
 
 #### Scenario: Exit bare-A1 trust preflight
 - **WHEN** Escape is pressed in the bare-A1 startup trust selector
-- **THEN** A1 SHALL restore the terminal, clear only the restored stale launch row without replaying parent content, preserve the undecided trust state, and terminate startup successfully
+- **THEN** A1 SHALL restore the terminal while preserving its parent-screen cursor and prior rows, preserve the undecided trust state, and terminate startup successfully
 - **AND** it SHALL NOT construct project settings, resources, or the owned shell
 
-#### Scenario: Interrupt bare-A1 trust preflight
+#### Scenario: Ignore Ctrl+C in bare-A1 trust preflight
 - **WHEN** Ctrl+C is pressed in the bare-A1 startup trust selector
-- **THEN** A1 SHALL follow the same clean terminal-restoration path with the conventional interrupted outcome, without replacing Escape as the visible exit action
-- **AND** it SHALL NOT construct project settings, resources, or the owned shell
+- **THEN** A1 SHALL keep the selector active without choosing trust or terminating startup
+- **AND** Escape SHALL remain its only exit action
 
 #### Scenario: Fail bare-A1 trust preflight
 - **WHEN** interaction is unavailable, input ends, or ordinary trust resolution fails

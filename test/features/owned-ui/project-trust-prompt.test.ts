@@ -94,24 +94,27 @@ describe("bounded project trust terminal preflight", () => {
     expect(input.rawTransitions).toEqual([true, false]);
   });
 
-  it.each([
-    ["Escape", "\u001b", 0],
-    ["Ctrl+C", "\u0003", 130],
-  ] as const)("exits startup on %s after restoring the terminal", async (_name, key, exitCode) => {
-    const input = new TtyInput(key);
+  it("exits startup on Escape after restoring the terminal", async () => {
+    const input = new TtyInput("\u001b");
     const output = new TtyOutput();
     const prompt = createConsoleProjectTrustPrompt({ input, output });
     await expect(prompt(request())).rejects.toMatchObject({
       name: "ProjectTrustPromptExitError",
-      exitCode,
+      exitCode: 0,
     });
     expect(input.rawTransitions).toEqual([true, false]);
-    expect(output.text.endsWith(`\u001b[2J\u001b[H${EMERGENCY_TERMINAL_RESET}\r\u001b[2K\r\n`)).toBe(true);
-    expect(output.text.match(/\r\n/gu)).toHaveLength(1);
-    expect(output.text.match(/\u001b\[2K/gu)).toHaveLength(1);
+    expect(output.text.endsWith(`\u001b[2J\u001b[H${EMERGENCY_TERMINAL_RESET}`)).toBe(true);
+    expect(output.text).not.toMatch(/\r\n|\u001b\[2K/u);
     expect(output.text.lastIndexOf("\u001b[?1049l")).toBeLessThan(output.text.lastIndexOf("\u001b[?25h"));
-    expect(output.text.lastIndexOf("\u001b[?25h")).toBeLessThan(output.text.lastIndexOf("\r\u001b[2K\r\n"));
     expect(output.text).toContain("\u001b[?2004l");
+  });
+
+  it("ignores Ctrl+C in the bare selector", async () => {
+    const input = new TtyInput("\u0003\r");
+    const output = new TtyOutput();
+    const prompt = createConsoleProjectTrustPrompt({ input, output });
+    await expect(prompt(request())).resolves.toBe("trust");
+    expect(input.rawTransitions).toEqual([true, false]);
   });
 
   it("keeps decisions and controls visible in a short narrow terminal", async () => {

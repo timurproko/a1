@@ -50,10 +50,10 @@ The dialog SHALL remain readable at supported terminal sizes, SHALL prioritize t
 - **WHEN** the user navigates, confirms, exits, interrupts, or the input stream ends or fails
 - **THEN** arrows and Tab SHALL move selection and Enter SHALL confirm one of the five pinned Pi trust outcomes
 - **AND** those outcomes SHALL be Trust, Trust parent folder, Trust for this session only, Do not trust, and Do not trust for this session only
-- **AND** Escape SHALL be advertised as the exit action while Ctrl+C remains a conventional interruption alias
-- **AND** either exit path SHALL restore the terminal exactly once and abort startup without constructing the owned shell
+- **AND** Escape SHALL be advertised as the only bare-A1 exit action while Ctrl+C SHALL NOT dismiss the selector
+- **AND** Escape SHALL restore the terminal exactly once and abort startup without constructing the owned shell
 - **AND** A1 SHALL restore raw mode, disable child-owned input/presentation modes, and show the cursor after leaving the alternate screen
-- **AND** after that leave A1 SHALL clear only the restored stale launch row and write one line ending, without replaying prompt content, dialog rows, command text, or bracketed-paste bytes; the parent shell SHALL own its redraw on the clean following row
+- **AND** A1 SHALL preserve the restored parent cursor across the parent-screen margin reset and write no parent-buffer content, allowing the shell to preserve prior rows and paint its next empty prompt
 
 #### Scenario: Use the comparison profile
 - **WHEN** the same launch runs through `a1 pi`

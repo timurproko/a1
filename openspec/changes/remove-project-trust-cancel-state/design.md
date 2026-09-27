@@ -10,7 +10,7 @@ A trust-preflight warning also currently enters the runtime's generic diagnostic
 - Offer the same five current-folder, parent-folder, and session-only trust outcomes as pinned Pi.
 - Require one visible trust outcome before bare A1 continues.
 - Make Escape the visible clean-exit action after exactly-once terminal restoration.
-- Retain Ctrl+C only as the conventional interruption alias.
+- Make Escape the only bare-A1 trust-selector exit; Ctrl+C does not dismiss it.
 - Put exceptional fail-closed trust warnings where the user will next type.
 - Preserve pinned `a1 pi` behavior.
 
@@ -24,15 +24,15 @@ A trust-preflight warning also currently enters the runtime's generic diagnostic
 
 ### 1. Bare A1 exposes pinned Pi's five trust outcomes and one explicit exit
 
-The selector offers Trust, Trust parent folder, Trust for this session only, Do not trust, and Do not trust for this session only. Parent-folder trust persists the ancestor and clears a narrower current-folder entry; session-only choices affect only the current launch. Escape exits without selecting or persisting trust. Navigation and Enter select any visible outcome; compatibility `y`/`n` select persisted Trust or Do not trust. The hint advertises `Esc to exit`; Ctrl+C remains an unadvertised conventional interruption alias.
+The selector offers Trust, Trust parent folder, Trust for this session only, Do not trust, and Do not trust for this session only. Parent-folder trust persists the ancestor and clears a narrower current-folder entry; session-only choices affect only the current launch. Escape exits without selecting or persisting trust. Navigation and Enter select any visible outcome; compatibility `y`/`n` select persisted Trust or Do not trust. The hint advertises `Esc to exit`; Ctrl+C is ignored by the bare selector rather than acting as a second exit.
 
 Treating Escape as Do not trust was rejected because it would persist a decision the user did not select. Continuing with a temporary untrusted state was rejected because it preserves the confusing third trust state.
 
 ### 2. Escape aborts before runtime construction
 
-On Escape or Ctrl+C, the prompt restores raw mode and applies A1's shared emergency terminal reset, then returns bounded exit control carrying status 0 for the visible Escape action or conventional status 130 for Ctrl+C. The reset disables bracketed paste, mouse/focus tracking, synchronized output, and enhanced keyboard modes before leaving the alternate screen, then restores wraparound and cursor visibility again on the parent screen. Trust preflight propagates that control instead of converting it into a restricted launch. The UI entry point treats it as an expected silent termination rather than a fatal crash and invokes the bounded process terminator instead of only assigning `process.exitCode`. Escape's successful status also prevents the development launcher from applying its nonzero-child emergency reset a second time, matching the normal owned-UI exit path.
+On Escape, the prompt restores raw mode and applies A1's shared emergency terminal reset, then returns bounded exit control carrying status 0. The reset disables bracketed paste, mouse/focus tracking, synchronized output, and enhanced keyboard modes before leaving the alternate screen, then preserves the restored parent cursor while resetting parent-screen margins and restoring wraparound and cursor visibility. Trust preflight propagates that control instead of converting it into a restricted launch. The UI entry point treats it as an expected silent termination rather than a fatal crash and invokes the bounded process terminator instead of only assigning `process.exitCode`. Escape's successful status also prevents the development launcher from applying its nonzero-child emergency reset a second time, matching the normal owned-UI exit path.
 
-This prevents project-aware services and the owned shell from being created after interruption, eliminates the cancel-to-shell transition, and ensures the prompt's resumed stdin handle cannot keep the process alive after terminal restoration. After leaving the alternate screen, A1 clears only the restored stale launch row and emits one line ending, allowing the parent shell to paint its next prompt on a clean row without replaying dialog or command content.
+This prevents project-aware services and the owned shell from being created after Escape, eliminates the cancel-to-shell transition, and ensures the prompt's resumed stdin handle cannot keep the process alive after terminal restoration. A1 writes nothing into the restored parent buffer; with the cursor position preserved across the margin reset, the parent shell retains every prior row and paints its next empty prompt normally.
 
 ### 3. Exceptional trust warnings remain prompt-adjacent
 
@@ -40,14 +40,14 @@ The runtime integration tags only a non-null fail-closed trust diagnostic as `pr
 
 ### 4. Comparison presentation and cancellation remain pinned
 
-The `a1 pi` presentation uses the same five trust outcomes while retaining its top-left profile, Escape/Ctrl+C cancellation, and pinned startup-diagnostic presenter above the banner.
+The `a1 pi` presentation uses the same five trust outcomes while retaining its top-left profile, pinned Escape/Ctrl+C cancellation, and startup-diagnostic presenter above the banner.
 
 ## Risks / Trade-offs
 
 - **[Exit could be mistaken for Do not trust]** → Save no decision and return directly to the parent terminal; the next launch asks again.
-- **[The visible exit could be mistaken for a failure]** → Escape exits successfully with status 0 and no crash report; only the conventional Ctrl+C alias retains status 130.
-- **[Resumed stdin could retain the process after restoration]** → Route the expected interruption through the same bounded output-flushing process terminator used by ordinary owned-UI completion.
-- **[The restored cursor could leave stale command text beside the next shell prompt]** → Clear only the restored launch row and emit one line ending after leaving the alternate screen, so the parent shell redraws on a clean row.
+- **[The visible exit could be mistaken for a failure]** → Escape exits successfully with status 0 and no crash report; Ctrl+C does not dismiss the bare selector.
+- **[Resumed stdin could retain the process after restoration]** → Route the expected Escape through the same bounded output-flushing process terminator used by ordinary owned-UI completion.
+- **[Resetting parent-screen margins could move the cursor and overwrite prior rows]** → Save and restore the parent cursor around the margin reset, then emit no parent-buffer content so the shell owns its next prompt.
 - **[The restored shell could inherit a hidden cursor or bracketed-paste mode]** → Use the shared idempotent emergency reset, including a parent-screen cursor show after alternate-screen leave, rather than the prompt's former minimal sequence.
 - **[A trust warning could be duplicated]** → Exclude `project-trust` from bare A1's document diagnostics and guard dock translation once per shell.
 - **[Comparison behavior could drift]** → Cover both bare and comparison input/presentation paths.
