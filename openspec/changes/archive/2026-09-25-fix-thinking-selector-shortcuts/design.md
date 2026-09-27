@@ -57,4 +57,9 @@ The owned selector no longer handles `app.thinking.save` and its footer contains
 
 ## Implementation Evidence
 
-Implementation evidence will be refreshed after the refinement is complete.
+- `npm exec vitest -- run test/integrations/pi/components/prompt-input-ux.test.ts test/app/session-shell/session-shell-workflows.test.ts test/integrations/pi/engine/engine-collaborators.test.ts` passes all 41 focused tests, including fixed marker/description columns, immediate settings-only persistence, active-level independence, reduced footer controls, Escape-only close behavior, and comparison-profile isolation.
+- `npm run typecheck` passes for the application and binary TypeScript projects.
+- `node scripts/governance/check-pinned-pi-source-ledger.mjs` verifies all 118 source-port records and the refined thinking-selector deviation against the regenerated local source hash.
+- `npm run build` passes, including TypeScript emission, settings metadata, startup-public generation, process-guardian build, and runtime payload inventory generation; the environment check reports only that GitHub CLI is unavailable locally.
+- `npx --yes @fission-ai/openspec@1.11.0 validate --specs --strict --no-interactive` passes all 29 canonical specifications; archived strict validation reports `2026-09-25-fix-thinking-selector-shortcuts` complete, while the repository-wide archived command retains its existing nonzero result for 68 unrelated historical archives with intentionally incomplete legacy tasks.
+- No known implementation gaps remain; exact terminal appearance remains for maintainer review through `./scripts/dev`.

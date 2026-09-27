@@ -24,7 +24,7 @@ import { firstVisibleTextColumn } from "../../support/dialog-alignment.js";
 import { Session, fixture, nextImmediate } from "./session-shell-fixture.js";
 
 describe("OwnedUiSessionShell dialogs and workflows", () => {
-  it("uses the owned thinking presentation and staged default controls without changing comparison mode", async () => {
+  it("persists thinking defaults immediately without changing the active level or comparison mode", async () => {
     const bare = await fixture([], [], true);
     await bare.shell.submit("/thinking");
     const rows = bare.shell.root.render(100);
@@ -35,7 +35,8 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     expect(plain).not.toContain("· default");
     expect(plain.match(/Moderate reasoning/g)).toHaveLength(1);
     expect(plain.match(/\bmedium\b/g)).toHaveLength(1);
-    expect(plain).toContain("Enter select  Space default  Ctrl+S save  Esc close");
+    expect(plain).toContain("Enter select  Space default  Esc close");
+    expect(plain).not.toContain("Ctrl+S");
     expect(plain).not.toContain("Escape/Ctrl+C");
     const heading = rows.find(row => stripTerminalSequences(row).includes("Thinking Level"))!;
     expect(cellStyle(heading, "T")).toEqual(cellStyle(piTheme().fg("accent", piTheme().bold("T")), "T"));
@@ -45,20 +46,24 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
 
     bare.shell.root.handleInput("low");
     bare.shell.root.handleInput(" ");
-    const staged = bare.shell.root.render(100).map(stripTerminalSequences).join("\n");
-    expect(staged.replace(/\s+/g, " ")).toContain("low [default] Light reasoning (~2k tokens)");
+    const persisted = bare.shell.root.render(100).map(stripTerminalSequences).join("\n");
+    expect(persisted.replace(/\s+/g, " ")).toContain("low [default] Light reasoning (~2k tokens)");
+    expect(persisted).not.toContain("unsaved");
+    expect(bare.engine.calls).toContain("default-thinking:low");
+    expect(bare.engine.defaultThinkingLevel).toBe("low");
+    expect(bare.engine.session.thinkingLevel).toBe("medium");
     expect(bare.engine.session.calls).not.toContain("thinking:low");
-    const workflow = vi.spyOn(bare.shell, "runWorkflow");
-    bare.shell.root.handleInput("\x13");
-    expect(workflow).toHaveBeenCalledWith({ command: "thinking", argument: "", selection: "low", persist: true });
-    expect(bare.shell.root.usesDefaultInputSurface()).toBe(true);
-
-    await bare.shell.submit("/thinking");
+    expect(bare.shell.root.usesDefaultInputSurface()).toBe(false);
     bare.shell.root.handleInput("\x03");
     expect(bare.shell.root.usesDefaultInputSurface()).toBe(false);
     bare.shell.root.handleInput("\x1b");
     expect(bare.shell.root.usesDefaultInputSurface()).toBe(true);
-    expect(bare.shell.root.render(100).map(stripTerminalSequences).join("\n").match(/\blow\b/g)).toHaveLength(1);
+
+    await bare.shell.submit("/thinking");
+    const reopened = bare.shell.root.render(100).map(stripTerminalSequences).join("\n");
+    expect(reopened.replace(/\s+/g, " ")).toContain("low [default] Light reasoning (~2k tokens)");
+    expect(reopened.replace(/\s+/g, " ")).toContain("medium ✓ Moderate reasoning (~8k tokens)");
+    bare.shell.root.handleInput("\x1b");
     await bare.shell.dispose();
 
     const comparison = await fixture();

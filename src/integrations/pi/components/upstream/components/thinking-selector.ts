@@ -5,10 +5,10 @@
  * selection, and focus while accepting the active bare-A1 cycle-key label from the shell, styling the
  * title with the established bold semantic accent treatment, placing it directly below the top rule
  * through the shared compact padded modal frame and its muted hint directly below it, deduplicating
- * levels, and rendering aligned muted descriptions after adjacent active and bracketed default
- * markers. Bare A1 stages defaults on Space, saves them on Ctrl+S, closes only on Escape, and uses the
- * shared compact semantic shortcut row. All list and border colors use the owned theme and its
- * explicit color mode. The comparison profile retains the public pinned component.
+ * levels, and rendering aligned muted descriptions after fixed active and bracketed default columns.
+ * Bare A1 persists defaults immediately on Space, closes only on Escape, and uses the shared compact
+ * semantic shortcut row. All list and border colors use the owned theme and its explicit color mode.
+ * The comparison profile retains the public pinned component.
  * Deviations: owned-modal-shortcut-hints, owned-level-cycle-shortcut, owned-thinking-selector-heading,
  * owned-thinking-selector-controls.
  */
@@ -57,7 +57,7 @@ export class OwnedThinkingSelectorComponent extends Container implements Focusab
 	private onCancel: () => void;
 	private onSelectAsDefault: ((level: ThinkingSelectorLevel) => void) | undefined;
 	private currentLevel: ThinkingSelectorLevel;
-	private desiredDefaultThinkingLevel: ThinkingSelectorLevel | undefined;
+	private defaultThinkingLevel: ThinkingSelectorLevel | undefined;
 	private _focused = false;
 
 	get focused(): boolean {
@@ -83,7 +83,7 @@ export class OwnedThinkingSelectorComponent extends Container implements Focusab
 		this.onCancel = onCancel;
 		this.onSelectAsDefault = onSelectAsDefault;
 		this.currentLevel = currentLevel;
-		this.desiredDefaultThinkingLevel = defaultThinkingLevel;
+		this.defaultThinkingLevel = defaultThinkingLevel;
 
 		this.allItems = [...new Set(availableLevels)].map((level) => ({
 			value: level,
@@ -112,7 +112,6 @@ export class OwnedThinkingSelectorComponent extends Container implements Focusab
 		this.addChild(new Text(renderPiModalShortcutHints([
 			{ key: this.keyDisplayText("tui.select.confirm"), action: "select" },
 			{ key: "Space", action: "default" },
-			{ key: this.keyDisplayText("app.thinking.save"), action: "save" },
 			{ key: "Esc", action: "close" },
 		]), 0, 0));
 		this.addChild(new DynamicBorder((text: string) => piTheme().fg("border", text)));
@@ -129,21 +128,15 @@ export class OwnedThinkingSelectorComponent extends Container implements Focusab
 	}
 
 	private buildSelectList(items: SelectItem[], preselect?: ThinkingSelectorLevel): SelectList {
-		const markerWidth = (item: SelectItem): number =>
-			(item.value === this.currentLevel ? 2 : 0) + (item.value === this.desiredDefaultThinkingLevel ? 10 : 0);
-		const primaryWidth = this.allItems.reduce((widest, item) => {
-			const level = item.label ?? item.value;
-			return Math.max(widest, level.length + markerWidth(item));
-		}, 0);
+		const levelWidth = this.allItems.reduce((widest, item) => Math.max(widest, (item.label ?? item.value).length), 0);
 		const themedItems = items.map((item) => {
-			const level = item.label ?? item.value;
-			const currentMarker = item.value === this.currentLevel ? ` ${piTheme().fg("success", "✓")}` : "";
-			const defaultMarker = item.value === this.desiredDefaultThinkingLevel
+			const level = (item.label ?? item.value).padEnd(levelWidth);
+			const currentMarker = item.value === this.currentLevel ? ` ${piTheme().fg("success", "✓")}` : "  ";
+			const defaultMarker = item.value === this.defaultThinkingLevel
 				? ` ${piTheme().fg("muted", "[default]")}`
-				: "";
-			const separator = " ".repeat(Math.max(1, primaryWidth - level.length - markerWidth(item) + 1));
+				: "          ";
 			const description = item.description ? piTheme().fg("muted", item.description) : "";
-			return { value: item.value, label: `${level}${currentMarker}${defaultMarker}${separator}${description}` };
+			return { value: item.value, label: `${level}${currentMarker}${defaultMarker} ${description}` };
 		});
 		// Invariant: the bare selector uses the owned theme's explicit color mode, not upstream's host detection.
 		const list = new SelectList(themedItems, Math.max(1, themedItems.length), {
@@ -175,13 +168,10 @@ export class OwnedThinkingSelectorComponent extends Container implements Focusab
 		if (keyData === " ") {
 			const item = this.selectList.getSelectedItem();
 			if (item) {
-				this.desiredDefaultThinkingLevel = item.value as ThinkingSelectorLevel;
+				this.defaultThinkingLevel = item.value as ThinkingSelectorLevel;
 				this.applyFilter(this.searchInput.getValue());
+				this.onSelectAsDefault?.(this.defaultThinkingLevel);
 			}
-			return;
-		}
-		if (kb.matches(keyData, "app.thinking.save") && this.onSelectAsDefault) {
-			if (this.desiredDefaultThinkingLevel) this.onSelectAsDefault(this.desiredDefaultThinkingLevel);
 			return;
 		}
 		if (matchesKey(keyData, Key.escape)) {
