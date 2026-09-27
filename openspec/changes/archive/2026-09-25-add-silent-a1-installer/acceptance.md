@@ -18,7 +18,7 @@ The manual merge accepts these scenarios:
   "archive": "openspec/changes/archive/2026-09-25-add-silent-a1-installer/",
   "acceptanceManifest": "openspec/changes/archive/2026-09-25-add-silent-a1-installer/acceptance.md",
   "finalizedDate": "2026-09-25",
-  "specBaseSha": "92e3ed375ce7d16e52dbb8b0a9d64ac829701bff",
+  "specBaseSha": "176463f73bc0ca25b32865ee6c9a9be818b19d5c",
   "acceptanceScenarios": [
     "The exact installer tarball is dependency-free, payload-minimal, executable after Windows packing, and runnable from an isolated global prefix.",
     "Stable, development, exact-version, cancellation, retry, existing-install, launcher-ownership, warning-capture, redaction, and terminal-restoration contracts are covered by deterministic tests.",
