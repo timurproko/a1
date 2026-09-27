@@ -11,6 +11,7 @@ class FakeSession {
   isStreaming = false;
   isCompacting = false;
   exportFails = false;
+  compactError: Error | null = null;
   readonly calls: string[] = [];
   readonly sessionManager = {
     getSessionName: () => this.name,
@@ -38,6 +39,10 @@ class FakeSession {
     return { output: "ok", exitCode: 0, cancelled: false, truncated: false };
   }
   abortBash(): void { this.calls.push("abortBash"); }
+  async compact(instructions?: string): Promise<void> {
+    this.calls.push(`compact:${instructions ?? ""}`);
+    if (this.compactError) throw this.compactError;
+  }
 }
 
 class FakeRuntime {
@@ -181,6 +186,18 @@ describe("PiWorkflowRunner", () => {
     expect(session.calls).toEqual(["name:Renamed", "bash:ls:true", "abortBash"]);
     session.isStreaming = true;
     expect(runner.reloadBlockedResult()).toMatchObject({ command: "reload", outcome: "failed", messageKind: "warning" });
+  });
+
+  it("keeps successful manual compaction silent and exposes its failure text", async () => {
+    const { runner, session } = harness();
+    expect(await runner.executeWorkflow({ command: "compact", argument: "focus" })).toEqual({
+      command: "compact", outcome: "completed", message: "Compaction requested", messageKind: "silent",
+    });
+    session.compactError = new Error("Nothing to compact (session too small)");
+    expect(await runner.executeWorkflow({ command: "compact", argument: "" })).toEqual({
+      command: "compact", outcome: "failed", message: "Nothing to compact (session too small)",
+    });
+    expect(session.calls).toEqual(["compact:focus", "compact:"]);
   });
 
   it("cycles the model through the session and publishes the new model and thinking level", async () => {

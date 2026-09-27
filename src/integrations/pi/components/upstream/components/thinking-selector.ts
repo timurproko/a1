@@ -2,14 +2,15 @@
  * Provenance: @earendil-works/pi-coding-agent 0.87.1 (MIT), commit f07218c4d4bbc12bef056a7058c3dd49dfe41abe,
  * packages/coding-agent/src/modes/interactive/components/thinking-selector.ts.
  * Modifications: Preserve the searchable thinking-level selector, current/default semantics,
- * selection, save, cancellation, and focus while accepting the active bare-A1 cycle-key label from the
- * shell, styling the title with the established bold semantic accent treatment, placing it directly
- * below the top rule through the shared compact padded modal frame and its muted hint directly below
- * it, deduplicating levels, and rendering aligned muted descriptions after adjacent active and
- * bracketed default markers. All list and border colors use the owned theme and its explicit color
- * mode, and the footer uses the shared bare-A1 modal shortcut row. The comparison profile retains the
- * public pinned component.
- * Deviations: owned-modal-shortcut-hints, owned-level-cycle-shortcut, owned-thinking-selector-heading.
+ * selection, and focus while accepting the active bare-A1 cycle-key label from the shell, styling the
+ * title with the established bold semantic accent treatment, placing it directly below the top rule
+ * through the shared compact padded modal frame and its muted hint directly below it, deduplicating
+ * levels, and rendering aligned muted descriptions after fixed active and bracketed default columns.
+ * Bare A1 persists defaults immediately on Space, closes only on Escape, and uses the shared compact
+ * semantic shortcut row. All list and border colors use the owned theme and its explicit color mode.
+ * The comparison profile retains the public pinned component.
+ * Deviations: owned-modal-shortcut-hints, owned-level-cycle-shortcut, owned-thinking-selector-heading,
+ * owned-thinking-selector-controls.
  */
 import {
 	Container,
@@ -17,6 +18,8 @@ import {
 	fuzzyFilter,
 	getKeybindings,
 	Input,
+	Key,
+	matchesKey,
 	type SelectItem,
 	SelectList,
 	type SelectListLayoutOptions,
@@ -107,9 +110,9 @@ export class OwnedThinkingSelectorComponent extends Container implements Focusab
 		this.addChild(this.selectListContainer);
 		this.addChild(new Spacer(1));
 		this.addChild(new Text(renderPiModalShortcutHints([
-			{ key: this.keyDisplayText("tui.select.confirm"), action: "to select" },
-			{ key: this.keyDisplayText("app.thinking.save"), action: "to set as default" },
-			{ key: this.keyDisplayText("tui.select.cancel"), action: "to cancel" },
+			{ key: this.keyDisplayText("tui.select.confirm"), action: "select" },
+			{ key: "Space", action: "default" },
+			{ key: "Esc", action: "close" },
 		]), 0, 0));
 		this.addChild(new DynamicBorder((text: string) => piTheme().fg("border", text)));
 		adoptPiModalFrame(this, { topIndex: 0, bottomIndex: this.children.length - 1, header });
@@ -125,21 +128,15 @@ export class OwnedThinkingSelectorComponent extends Container implements Focusab
 	}
 
 	private buildSelectList(items: SelectItem[], preselect?: ThinkingSelectorLevel): SelectList {
-		const markerWidth = (item: SelectItem): number =>
-			(item.value === this.currentLevel ? 2 : 0) + (item.value === this.defaultThinkingLevel ? 10 : 0);
-		const primaryWidth = this.allItems.reduce((widest, item) => {
-			const level = item.label ?? item.value;
-			return Math.max(widest, level.length + markerWidth(item));
-		}, 0);
+		const levelWidth = this.allItems.reduce((widest, item) => Math.max(widest, (item.label ?? item.value).length), 0);
 		const themedItems = items.map((item) => {
-			const level = item.label ?? item.value;
-			const currentMarker = item.value === this.currentLevel ? ` ${piTheme().fg("success", "✓")}` : "";
+			const level = (item.label ?? item.value).padEnd(levelWidth);
+			const currentMarker = item.value === this.currentLevel ? ` ${piTheme().fg("success", "✓")}` : "  ";
 			const defaultMarker = item.value === this.defaultThinkingLevel
 				? ` ${piTheme().fg("muted", "[default]")}`
-				: "";
-			const separator = " ".repeat(Math.max(1, primaryWidth - level.length - markerWidth(item) + 1));
+				: "          ";
 			const description = item.description ? piTheme().fg("muted", item.description) : "";
-			return { value: item.value, label: `${level}${currentMarker}${defaultMarker}${separator}${description}` };
+			return { value: item.value, label: `${level}${currentMarker}${defaultMarker} ${description}` };
 		});
 		// Invariant: the bare selector uses the owned theme's explicit color mode, not upstream's host detection.
 		const list = new SelectList(themedItems, Math.max(1, themedItems.length), {
@@ -152,7 +149,6 @@ export class OwnedThinkingSelectorComponent extends Container implements Focusab
 		const currentIndex = themedItems.findIndex((item) => item.value === preselect);
 		if (currentIndex !== -1) list.setSelectedIndex(currentIndex);
 		list.onSelect = (item) => this.onSelect(item.value as ThinkingSelectorLevel);
-		list.onCancel = () => this.onCancel();
 		return list;
 	}
 
@@ -169,17 +165,24 @@ export class OwnedThinkingSelectorComponent extends Container implements Focusab
 
 	handleInput(keyData: string): void {
 		const kb = getKeybindings();
-		if (kb.matches(keyData, "app.thinking.save") && this.onSelectAsDefault) {
+		if (keyData === " ") {
 			const item = this.selectList.getSelectedItem();
-			if (item) this.onSelectAsDefault(item.value as ThinkingSelectorLevel);
+			if (item) {
+				this.defaultThinkingLevel = item.value as ThinkingSelectorLevel;
+				this.applyFilter(this.searchInput.getValue());
+				this.onSelectAsDefault?.(this.defaultThinkingLevel);
+			}
+			return;
+		}
+		if (matchesKey(keyData, Key.escape)) {
+			this.onCancel();
 			return;
 		}
 
 		const isNav =
 			kb.matches(keyData, "tui.select.up") ||
 			kb.matches(keyData, "tui.select.down") ||
-			kb.matches(keyData, "tui.select.confirm") ||
-			kb.matches(keyData, "tui.select.cancel");
+			kb.matches(keyData, "tui.select.confirm");
 		if (isNav) {
 			this.selectList.handleInput(keyData);
 			return;

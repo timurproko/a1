@@ -117,9 +117,13 @@ describe("PiEngineSettings", () => {
     });
     expect(settings.settingsPort()).toBeNull();
     expect(settings.productMode).toBe("bare");
+    expect(() => settings.setDefaultThinkingLevel("low")).toThrow("Settings are unavailable");
     const engine = runtime();
     current = engine;
     expect(settings.configuredTheme()).toBe("dark");
+    settings.setDefaultThinkingLevel("low");
+    expect(engine.calls).toContain("setDefaultThinkingLevel:low");
+    expect(() => settings.setDefaultThinkingLevel("invalid" as never)).toThrow("Thinking level is invalid");
     const snapshot = settings.pinnedSettingsSnapshot();
     expect(snapshot).toMatchObject({ autoCompact: false, showImages: true, thinkingLevel: "medium", availableThinkingLevels: ["off", "low", "high"], availableThemes: ["dark"], imageWidthCells: 40 });
     expect(await settings.applyPinnedSetting("onNoSuchCallback")).toMatchObject({ outcome: "failed", message: "Unknown setting callback: onNoSuchCallback" });

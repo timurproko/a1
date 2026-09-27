@@ -269,12 +269,17 @@ for (const theme of ["dark", "light"]) {
             }
           }
           let exceptionReferenceRows;
-          if (producer === "pinned" && entry.id === "share/missing") {
-            // Compatibility: preserve the actual pinned output above; separately render the
-            // one spec-approved A1 diagnostic through Pi's unchanged error presenter.
+          if (producer === "pinned" && ["share/missing", "compact/failure"].includes(entry.id)) {
+            // Compatibility: preserve the actual pinned output above; separately render each
+            // spec-approved A1 diagnostic through Pi's unchanged error presenter.
             const previous = owner.chatContainer;
             owner.chatContainer = new tui.Container();
-            owner.showError("GitHub CLI (gh) is not installed. Install it from https://cli.github.com/");
+            if (entry.id === "share/missing") {
+              owner.showError("GitHub CLI (gh) is not installed. Install it from https://cli.github.com/");
+            } else {
+              const error = state.failure();
+              owner.showError(error instanceof Error ? error.message : String(error));
+            }
             exceptionReferenceRows = owner.chatContainer.render(width);
             owner.chatContainer = previous;
           }
