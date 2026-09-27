@@ -91,6 +91,25 @@ describe("session viewport interaction controller", () => {
     } finally { target.clearPointerState(); }
   });
 
+  it("normalizes automatic and explicit complete-frame copies at the same boundary", () => {
+    const target = new SessionViewportController({ enabled: true, editor: editor(), requestRender() {} });
+    const compose = () => target.compose({
+      documentRows: ["   npm run develop   "], dockRows: [], promptAnchors: [], width: 30, height: 1,
+    });
+    try {
+      compose();
+      const gesture = "\u001b[<0;1;1M\u001b[<32;22;1M\u001b[<0;22;1m";
+      expect(copiedText(target.handlePreInput(gesture))).toBe("npm run develop");
+      expect(target.hasSelection).toBe(true);
+
+      target.setCopyOnSelect(false);
+      compose();
+      expect(target.handlePreInput(gesture).copySelection).toBeUndefined();
+      expect(copiedText(target.handlePreInput("\u0003"))).toBe("npm run develop");
+      expect(target.hasSelection).toBe(false);
+    } finally { target.clearPointerState(); }
+  });
+
   it.each(["auto", "always"] as const)("keeps drag-into-rail selection distinct from rail-origin navigation (%s)", appearance => {
     const { target, input } = hoverFixture();
     try {
@@ -425,7 +444,7 @@ describe("session viewport interaction controller", () => {
       target.reset();
       frame(target, 0);
       expect(target.handlePreInput("\u001b[<0;4;2M\u001b[<32;15;3M\u001b[<0;15;3m").consumed).toBe(true);
-      expect(copiedText(target.handlePreInput("\u0003"))).toBe("\n");
+      expect(copiedText(target.handlePreInput("\u0003"))).toBe("");
     } finally { target.clearPointerState(); }
   });
 

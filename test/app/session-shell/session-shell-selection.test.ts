@@ -317,7 +317,7 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
     expect(terminal.writes).toHaveLength(count);
   });
 
-  it("paints and copies blank rows in the complete session frame", async () => {
+  it("paints blank rows and copies their normalized empty payload", async () => {
     const { shell, terminal } = await fixture([], [], true);
     try {
       const start = terminal.writes.length;
@@ -325,7 +325,7 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
       terminal.input("\u001b[<32;20;5M");
       shell.runtime.renderNow();
       terminal.input("\u001b[<0;20;5m");
-      await vi.waitFor(() => expect(terminal.writes.slice(start).join("")).toContain("\u001b]52;c;CgoK\u0007"));
+      await vi.waitFor(() => expect(terminal.writes.slice(start).join("")).toContain("\u001b]52;c;\u0007"));
       shell.runtime.renderNow();
       const output = terminal.writes.slice(start).join("");
       expect(output).not.toContain("chars to clipboard");
@@ -514,7 +514,9 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
     await vi.waitFor(() => expect(terminal.writes.flatMap(write => {
       const match = /^\u001b\]52;c;([^\u0007]+)\u0007$/u.exec(write);
       return match?.[1] === undefined ? [] : [Buffer.from(match[1], "base64").toString()];
-    })).toEqual(["assistant", " Selectable assistant words"]));
+    })).toEqual(["assistant", "Selectable assistant words"]));
+    await vi.waitFor(() => expect(shell.root.render(60).map(stripTerminalSequences).join("\n"))
+      .toContain(`copied ${"Selectable assistant words".length} chars to clipboard`));
   });
 
   it("moves retained agent-stream selection with followed output while footer selection stays pinned", async () => {
@@ -576,7 +578,7 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
     const selected = shell.root.render(192)[rowIndex] ?? "";
     expect(selected).toContain("\u001b[48;2;38;79;120m");
     terminal.input("\u0003");
-    await vi.waitFor(() => expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from(direction === 1 ? "ch" : " c").toString("base64")}\u0007`));
+    await vi.waitFor(() => expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from(direction === 1 ? "ch" : "c").toString("base64")}\u0007`));
     await shell.dispose();
   });
 
