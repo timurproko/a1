@@ -19,7 +19,7 @@ The manual merge accepts these scenarios:
   "archive": "openspec/changes/archive/2026-09-27-remove-project-trust-cancel-state/",
   "acceptanceManifest": "openspec/changes/archive/2026-09-27-remove-project-trust-cancel-state/acceptance.md",
   "finalizedDate": "2026-09-27",
-  "specBaseSha": "4fbeff681ae2198e04d02a08040530e88a9f48d8",
+  "specBaseSha": "fee508512099cc722167cf0744e231ab9c342501",
   "acceptanceScenarios": [
     "The trust selector presents Trust, Trust parent folder, Trust for this session only, Do not trust, and Do not trust for this session only, with arrow/Tab navigation and Enter selection.",
     "Current-folder trust or denial persists that decision; parent-folder trust persists the ancestor and clears a narrower current-folder entry; session-only outcomes affect only the current launch without changing the trust store.",
