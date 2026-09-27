@@ -99,6 +99,23 @@ describe("typed persistent recall transitions", () => {
     }
   });
 
+  it("keeps the history count while positioning the cursor within recalled multiline text", () => {
+    const editor = create();
+    editor.handleInput(older);
+    editor.handleInput(older);
+    expect(editor.getText()).toBe("middle\nsecond line");
+    expect(editor.render(80)[0]).toContain("─── 2/3 ");
+
+    editor.handleMouse({
+      type: "click", button: "left", x: 0, y: 1, screenX: 0, screenY: 1,
+      width: 80, height: 4, shift: false, alt: false, ctrl: false,
+    });
+
+    expect(editor.getHistoryPosition()).toEqual({ index: 1, total: 3 });
+    expect(editor.getCursor()).toEqual({ line: 0, col: 0 });
+    expect(editor.render(80)[0]).toContain("─── 2/3 ");
+  });
+
   it("keeps left history while shifting or omitting overflow at narrow widths", () => {
     const editor = new HistoryEditorCore(tui(), theme, { persistentHistory: true, styleHistoryLabel: text => `<dim>${text}</dim>` });
     editor.replaceHistoryEntries(["line\n".repeat(20).trim()]);

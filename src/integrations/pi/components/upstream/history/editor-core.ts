@@ -2,11 +2,12 @@
  * Provenance: @earendil-works/pi-tui 0.87.1 (MIT), commit f07218c4d4bbc12bef056a7058c3dd49dfe41abe,
  * packages/tui/src/components/editor.ts.
  * Modifications: Owned editor core or minimal editor-local helper subset; public imports, strict
- * types, typed persistent-history hooks, and semantic border state with the user-approved numeric-only
- * history label and separate centered history-overflow cue. Public terminal runtime/exports remain
- * shared and unchanged. See docs/architecture/history-editor-provenance.md.
+ * types, typed persistent-history hooks, semantic border state with the user-approved numeric-only
+ * history label and separate centered history-overflow cue, and history-count retention during cursor
+ * placement within recalled multiline text. Public terminal runtime/exports remain shared and unchanged.
+ * See docs/architecture/history-editor-provenance.md.
  * Deviations: compact-history-counter-label, history-overflow-cue-separation,
- * persistent-history-owned-editor-boundary.
+ * history-recall-cursor-retention, persistent-history-owned-editor-boundary.
  */
 import { getKeybindings, matchesKey, CURSOR_MARKER, sliceByColumn, truncateToWidth, visibleWidth, SelectList, type AutocompleteProvider, type AutocompleteSuggestions, type Component, type Focusable, type TUI, type TuiMouseEvent, type TuiMouseEventResult, type SelectListLayoutOptions, type SelectListTheme } from "@earendil-works/pi-tui";
 import { decodePrintableKey } from "./printable-key.js";
@@ -791,7 +792,8 @@ export class HistoryEditorCore implements Component, Focusable {
 		this.state.cursorLine = visualLine.logicalLine;
 		this.setCursorCol(visualLine.startCol + targetIndex);
 		this.lastAction = null;
-		this.exitHistoryBrowsing();
+		// Cursor placement within recalled multiline text does not leave browsing:
+		// keep its position/total border visible until content changes or recall exits.
 		if (this.autocompleteState) this.updateAutocomplete();
 		return { handled: true, focus: true };
 	}

@@ -12,6 +12,7 @@ While bare A1 is recalling saved prompt history, the existing history border lab
 #### Scenario: Scroll within a recalled multiline prompt
 - **WHEN** recalled input has hidden lines above the visible editor body and the border is wide enough for both annotations
 - **THEN** the compact history position SHALL remain at its left inset
+- **AND** moving or placing the cursor within the recalled multiline text SHALL retain the active history position and counter
 - **AND** `↑ N more` SHALL be centered independently in the top border using the border color, matching the lower overflow cue's placement and wording
 - **AND** neither annotation SHALL be appended to or styled as part of the other
 

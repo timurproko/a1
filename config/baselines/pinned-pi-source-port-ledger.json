@@ -3494,9 +3494,9 @@
       "localDestination": "src/integrations/pi/components/upstream/history/editor-core.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Owned editor core or minimal editor-local helper subset; public imports, strict types, typed persistent-history hooks, and semantic border state with the user-approved numeric-only history label and separate centered history-overflow cue. Public terminal runtime/exports remain shared and unchanged. See docs/architecture/history-editor-provenance.md.",
+      "modifications": "Owned editor core or minimal editor-local helper subset; public imports, strict types, typed persistent-history hooks, semantic border state with the user-approved numeric-only history label and separate centered history-overflow cue, and history-count retention during cursor placement within recalled multiline text. Public terminal runtime/exports remain shared and unchanged. See docs/architecture/history-editor-provenance.md.",
       "upgradeStrategy": "three-way",
-      "localSha256": "1d034e175e37456d115ead3b876f008fda215a2f8af799d9089361e62db4f2a5",
+      "localSha256": "42aef9bf406e8de3a52ca2cad2f7a78fafbe3da11e949953293a51702a3b590f",
       "approvedDeviations": [
         {
           "id": "compact-history-counter-label",
@@ -3509,6 +3509,12 @@
           "reason": "The approved separate-history-scroll-label refinement keeps recalled-history position left-aligned while presenting hidden lines above with the same centered cue as the lower editor border.",
           "upstreamBehavior": "Persistent recall separates count and overflow styling, preserves fixed border geometry, and keeps history visible while shifting or omitting the overflow cue at collision widths; pinned comparison rendering remains unchanged.",
           "acceptanceTest": "test/integrations/pi/components/history-editor-shell.test.ts"
+        },
+        {
+          "id": "history-recall-cursor-retention",
+          "reason": "Cursor movement or pointer placement within a recalled multiline prompt keeps the active history count visible until the content changes or recall exits.",
+          "upstreamBehavior": "Persistent recall retains its browse index during cursor-only interaction; pinned comparison behavior remains unchanged.",
+          "acceptanceTest": "test/integrations/pi/components/history-editor-core.test.ts"
         },
         {
           "id": "persistent-history-owned-editor-boundary",
