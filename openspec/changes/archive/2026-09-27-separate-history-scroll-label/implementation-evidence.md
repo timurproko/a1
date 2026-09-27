@@ -6,6 +6,7 @@
 - Hidden lines above use the editor's existing centered `↑ N more` border geometry and active border color, matching the lower cue without changing row count.
 - History position remains visible at collision widths; a complete overflow cue shifts right when it fits and is omitted only when the border is too narrow for both complete labels.
 - Cursor movement and pointer placement within a recalled multiline prompt retain the active history count; content edits and leaving recall retain their existing exit behavior.
+- Multiline recall displays the authored lines directly instead of replacing the complete prompt with a `[paste #N +M lines]` chip; submission content remains unchanged.
 - The pinned comparison profile retains its existing centered upper and lower overflow borders.
 
 ## Focused validation
@@ -17,6 +18,7 @@
 - `node scripts/governance/check-code-documentation.mjs --mode full` — passed.
 - After the history-visibility refinement, the same focused Vitest command passed again with 3 files and 33 tests; `npm run build`, `npm run typecheck`, and full code-documentation governance also passed again.
 - The multiline cursor-placement repair adds a core regression proving a recalled two-line item retains its position/total after pointer placement; the focused command passed with 3 files and 34 tests.
+- Prompt-chip and fresh durable-history integration regressions verify multiline recall remains expanded, retains the history counter, and resubmits the exact authored payload.
 - `npx openspec validate --archived --strict` reported `✓ change/2026-09-27-separate-history-scroll-label`; the aggregate command remains nonzero because 68 unrelated historical archives retain incomplete legacy acceptance tasks.
 - The changed history-editor provenance header and SHA-256 were checked directly against its updated source-ledger record — passed (`42aef9bf406e8de3a52ca2cad2f7a78fafbe3da11e949953293a51702a3b590f`).
 

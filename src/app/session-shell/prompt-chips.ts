@@ -351,9 +351,11 @@ export class PromptChipStore {
 
   /**
    * Rehydrate a durable recall value into an editor-ready draft: image chip tags are looked up
-   * against a caller-supplied sidecar resolver, and detectable URL / file / folder / large text
-   * substrings are re-registered as atomic chips through the same identity rules the paste path
-   * uses. Image chips whose sidecar returns null are silently stripped without a placeholder.
+   * against a caller-supplied sidecar resolver, and detectable URL / file / folder substrings
+   * are re-registered as atomic chips through the same identity rules the paste path uses.
+   * Multiline recall remains expanded so history navigation shows its authored content instead
+   * of replacing it with a large-text paste chip. Image chips whose sidecar returns null are
+   * silently stripped without a placeholder.
    *
    * Every chip returned is registered in the session `#chips` map so atomic-range,
    * hyperlink-range, and submission-expansion paths behave identically to a freshly typed draft.
@@ -373,6 +375,7 @@ export class PromptChipStore {
       this.#chips.set(match.text, { kind: "image", tag: match.text, image: attachment });
       return match.text;
     });
+    const preserveMultiline = resolvedImages.includes("\n");
     // Rationale: split around any surviving image tags so paste-time classification runs on the
     // intervening prose exactly as it would on a fresh clipboard payload, plus a substring URL
     // scan so embedded links become atomic chips even in the middle of surrounding text.
@@ -393,11 +396,11 @@ export class PromptChipStore {
       const body = segment.slice(leading.length, segment.length - trailing.length);
       if (body.length === 0) return segment;
       // Rationale: substring URL rehydration reuses paste-time URL classification and identity
-      // rules, producing a URL chip whenever a bare http(s) URL appears in the prose. Whole-text
-      // classification runs afterwards to catch path / large-paste candidates that consume the
-      // entire remaining body.
+      // rules, producing a URL chip whenever a bare http(s) URL appears in the prose. Keep
+      // multiline history expanded so the user can inspect and navigate its content; whole-text
+      // classification remains available for single-line path and large-paste candidates.
       const withUrlChips = this.#rehydrateUrlSubstrings(body);
-      if (withUrlChips !== body) return `${leading}${withUrlChips}${trailing}`;
+      if (withUrlChips !== body || preserveMultiline) return `${leading}${withUrlChips}${trailing}`;
       const classified = this.transformPastedContent({ kind: "text", text: body });
       return `${leading}${classified}${trailing}`;
     }).join("");

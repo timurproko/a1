@@ -12,6 +12,7 @@ The editor already owns semantic top-border rendering before the shared prompt p
 - Compose history position and editor overflow as independent semantic spans on one fixed-width border.
 - Reuse the upper/lower overflow layout policy so their arrow/count wording, preferred centering, and border color stay aligned while history remains visible.
 - Keep ANSI-aware width, prompt-prefix geometry, cursor layout, and editor body height unchanged.
+- Keep recalled multiline prompt content expanded so its lines remain visible during history navigation.
 
 **Non-Goals:**
 - Change history numbering, navigation, storage, caret placement, or draft restoration.
@@ -38,12 +39,19 @@ The history position is the browsing state indicator and remains at its establis
 
 Truncating one label into the other is rejected because it recreates the combined-label problem. Omitting history is rejected because user review showed that returning to a long previous prompt must continue to display its history position.
 
+### 4. Keep multiline recall expanded
+
+History rehydration continues to restore image and URL semantics plus single-line path semantics, but it does not classify a multiline recall value as a compact text-paste chip. The editor receives the authored lines directly, preserving whitespace and submission content while making the prompt readable and scrollable during history navigation.
+
+Reusing the paste-time large-text threshold for multiline recall is rejected because it hides the content the user is trying to inspect. Storage remains unchanged: only recall presentation differs.
+
 ## Risks / Trade-offs
 
 - **[Very narrow recalled editors can temporarily omit overflow context]** → Keep the complete history position, restore the cue deterministically as soon as it fits, and cover shifted and omitted-cue boundaries in focused tests.
 - **[Mixed styling can leak dim color into the overflow cue or following rule]** → Compose explicit spans and assert effective style boundaries, not only stripped text.
 - **[Refactoring shared border geometry can alter ordinary or lower borders]** → Retain existing no-history and bottom-border fixtures and add paired top/bottom placement checks at wide and narrow widths.
 - **[Prompt prefix changes visual centering]** → Continue centering within the editor's existing rendered border width, as the lower cue does, and verify through the shell-level prompt composition test.
+- **[Expanded multiline recall occupies more editor rows]** → Retain the editor's existing bounded scrolling and overflow cues, and verify the recalled text and submitted payload remain identical.
 
 ## Migration Plan
 
