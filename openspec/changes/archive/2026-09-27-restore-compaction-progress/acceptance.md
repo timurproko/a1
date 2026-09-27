@@ -22,9 +22,9 @@ The manual merge accepts these scenarios:
     "Repeated resume keeps one event listener and one stream wrapper, and disposal restores the configured stream function.",
     "Failed manual compaction shows Pi's actionable error while successful completion remains silent."
   ],
-  "archiveDigest": "8c64c3af6bc291554b18d55b902967d04c4d444764a9d735bf7788baec717bf0",
+  "archiveDigest": "654ace056b64695e57cbc67c8f32cad3b8f09df9e94e092d2849f1010a7b94c8",
   "specDigest": "b14bb142765c8f3ff29ab0a67a4867ad0fc90e940cec8f6b50c9806160f10ebe",
-  "tasksDigest": "7e994252a18d2b653c6f8b40814bdd574c43c5008ee11d9a02a7cac7bf6808e4",
+  "tasksDigest": "dd90ffad9b6f43cffee545ba9bc49da36e0904192de6f92270b3d4f9281b6545",
   "evidenceDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
   "knownGaps": []
 }
