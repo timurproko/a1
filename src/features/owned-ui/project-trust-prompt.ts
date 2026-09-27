@@ -1,12 +1,20 @@
 import type { Readable, Writable } from "node:stream";
 import { EMERGENCY_TERMINAL_RESET } from "../../foundation/terminal-cleanup/terminal-reset.js";
 
+export type OwnedProjectTrustChoiceId =
+  | "trust"
+  | "trust-parent"
+  | "trust-session"
+  | "deny"
+  | "deny-session";
+
 export interface OwnedProjectTrustPromptRequest {
   readonly cwd: string;
   readonly defaultDecision: "ask" | "always" | "never";
+  readonly choices: readonly { readonly id: OwnedProjectTrustChoiceId; readonly label: string }[];
 }
 
-export type OwnedProjectTrustPrompt = (request: OwnedProjectTrustPromptRequest) => Promise<boolean | null>;
+export type OwnedProjectTrustPrompt = (request: OwnedProjectTrustPromptRequest) => Promise<OwnedProjectTrustChoiceId | null>;
 
 interface RawTtyInput extends Readable {
   readonly isTTY?: boolean;
@@ -46,10 +54,11 @@ export function createConsoleProjectTrustPrompt(
 ): OwnedProjectTrustPrompt {
   const input = options.input ?? process.stdin;
   const output = options.output ?? process.stdout;
-  return async ({ cwd }) => {
+  return async ({ cwd, choices }) => {
     if (input.isTTY !== true || output.isTTY !== true) {
       throw new Error("an interactive terminal is unavailable");
     }
+    if (choices.length === 0) throw new Error("project trust choices are unavailable");
     const comparison = options.presentation === "comparison";
     const renderBareDialog = comparison
       ? undefined : (await import("./project-trust-dialog.js")).renderProjectTrustDialog;
@@ -66,14 +75,13 @@ export function createConsoleProjectTrustPrompt(
     const render = (): void => {
       const width = Math.max(renderBareDialog ? 1 : 20, output.columns ?? 80);
       const rows = Math.max(1, output.rows ?? 24);
-      const lines = (renderBareDialog?.(cwd, selected, width, rows) ?? [
+      const lines = (renderBareDialog?.(cwd, choices.map(choice => choice.label), selected, width, rows) ?? [
         `${BOLD}${ACCENT}Trust project folder?${RESET_FG}${RESET_BOLD}`,
         cwd,
         "",
         "This allows a1 to load project settings and resources, install missing project packages, and execute project extensions.",
         "",
-        optionRow("Trust", selected === 0),
-        optionRow("Do not trust", selected === 1),
+        ...choices.map((choice, index) => optionRow(choice.label, selected === index)),
         "",
         `${DIM}↑/↓${MUTED} to navigate  ${DIM}Enter${MUTED} to select  ${DIM}Esc${MUTED} to cancel${RESET_FG}`,
       ]).map(line => clipAnsiSafe(line, width));
@@ -85,9 +93,9 @@ export function createConsoleProjectTrustPrompt(
       output.write(`${ENTER_ALTERNATE_SCREEN}${HIDE_CURSOR}`);
       input.setRawMode?.(true);
       render();
-      return await new Promise<boolean | null>((resolve, reject) => {
+      return await new Promise<OwnedProjectTrustChoiceId | null>((resolve, reject) => {
         let settled = false;
-        const finish = (value: boolean | null): void => {
+        const finish = (value: OwnedProjectTrustChoiceId | null): void => {
           if (settled) return;
           settled = true;
           cleanup();
@@ -107,13 +115,13 @@ export function createConsoleProjectTrustPrompt(
           const data = chunk.toString();
           for (let index = 0; index < data.length;) {
             if (data.startsWith("\u001b[A", index)) {
-              selected = 0;
+              selected = (selected - 1 + choices.length) % choices.length;
               index += 3;
               render();
               continue;
             }
             if (data.startsWith("\u001b[B", index) || data[index] === "\t") {
-              selected = selected === 0 ? 1 : 0;
+              selected = (selected + 1) % choices.length;
               index += data[index] === "\t" ? 1 : 3;
               render();
               continue;
@@ -121,7 +129,7 @@ export function createConsoleProjectTrustPrompt(
             const key = data[index] ?? "";
             index += 1;
             if (key === "\r" || key === "\n") {
-              finish(selected === 0);
+              finish(choices[selected]?.id ?? null);
               return;
             }
             if (key === "\u001b") {
@@ -137,11 +145,11 @@ export function createConsoleProjectTrustPrompt(
             // Compatibility: retain y/n aliases for terminals or automation that cannot send
             // navigation keys; the visible interaction remains selector-first.
             if (key === "y" || key === "Y") {
-              finish(true);
+              finish(choices.find(choice => choice.id === "trust")?.id ?? null);
               return;
             }
             if (key === "n" || key === "N") {
-              finish(false);
+              finish(choices.find(choice => choice.id === "deny")?.id ?? null);
               return;
             }
           }

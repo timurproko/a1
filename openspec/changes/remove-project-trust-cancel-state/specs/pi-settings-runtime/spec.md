@@ -8,6 +8,12 @@ A1 SHALL resolve saved project trust and `defaultProjectTrust` for every launch 
 - **THEN** A1 SHALL obtain a trust decision before constructing the project-aware runtime
 - **AND** it SHALL do so whether or not a trust-requiring project resource is currently discoverable
 
+#### Scenario: Offer pinned Pi trust scopes
+- **WHEN** an undecided interactive launch requests trust below a filesystem root
+- **THEN** A1 SHALL offer persisted current-folder trust, persisted parent-folder trust, session-only trust, persisted current-folder denial, and session-only denial
+- **AND** parent-folder trust SHALL persist the parent decision while clearing a narrower current-folder entry
+- **AND** either session-only outcome SHALL affect the current launch without changing the trust store
+
 #### Scenario: Keep unrelated folders independent
 - **WHEN** one working directory has an exact saved decision and another directory is neither that path nor its descendant
 - **THEN** the saved decision SHALL NOT cover the unrelated directory

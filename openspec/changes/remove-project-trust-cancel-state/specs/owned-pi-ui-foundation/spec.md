@@ -44,11 +44,12 @@ The dialog SHALL remain readable at supported terminal sizes, SHALL prioritize t
 #### Scenario: Exit without a trust decision
 - **WHEN** the user presses Escape while the bare-A1 trust dialog is active
 - **THEN** A1 SHALL restore the parent terminal and terminate startup without constructing the owned shell
-- **AND** A1 SHALL NOT infer, persist, or activate either trust decision
+- **AND** A1 SHALL NOT infer, persist, or activate any trust outcome
 
 #### Scenario: Operate and restore the dialog
 - **WHEN** the user navigates, confirms, exits, interrupts, or the input stream ends or fails
-- **THEN** arrows and Tab SHALL move selection and Enter SHALL confirm one of the two visible decisions
+- **THEN** arrows and Tab SHALL move selection and Enter SHALL confirm one of the five pinned Pi trust outcomes
+- **AND** those outcomes SHALL be Trust, Trust parent folder, Trust for this session only, Do not trust, and Do not trust for this session only
 - **AND** Escape SHALL be advertised as the exit action while Ctrl+C remains a conventional interruption alias
 - **AND** either exit path SHALL restore the terminal exactly once and abort startup without constructing the owned shell
 - **AND** A1 SHALL restore raw mode, disable child-owned input/presentation modes, and show the cursor after leaving the alternate screen
@@ -56,4 +57,5 @@ The dialog SHALL remain readable at supported terminal sizes, SHALL prioritize t
 
 #### Scenario: Use the comparison profile
 - **WHEN** the same launch runs through `a1 pi`
-- **THEN** its pinned comparison presentation, including Escape/Ctrl+C cancellation, SHALL remain unchanged by the bare-A1 trust-dialog customization
+- **THEN** it SHALL offer the same pinned Pi trust outcomes
+- **AND** its top-left comparison presentation and Escape/Ctrl+C cancellation SHALL remain unchanged by the bare-A1 trust-dialog customization

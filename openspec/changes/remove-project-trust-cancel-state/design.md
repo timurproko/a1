@@ -1,29 +1,30 @@
 ## Context
 
-Bare A1 asks for project trust before constructing project-aware services. Its two visible choices persist Trust or Do not trust, but Escape currently returns `null`; preflight interprets that as a temporary fail-closed launch, then starts the shell with a warning. This creates an unadvertised third trust state and requires an alternate-screen handoff that can briefly reveal terminal content.
+Bare A1 asks for project trust before constructing project-aware services. It currently exposes only persisted Trust or Do not trust, despite pinned Pi also offering parent-folder and session-only choices. Escape returns `null`; preflight interprets that as a temporary fail-closed launch, then starts the shell with a warning. This creates an unadvertised trust state and requires an alternate-screen handoff that can briefly reveal terminal content.
 
 A trust-preflight warning also currently enters the runtime's generic diagnostic list as `engine-startup`, which places it at the top of an otherwise empty transcript viewport. Bare A1 already owns a severity-aware transient notice dock immediately above the editor.
 
 ## Goals / Non-Goals
 
 **Goals:**
-- Require one of the two visible trust decisions before bare A1 continues.
+- Offer the same five current-folder, parent-folder, and session-only trust outcomes as pinned Pi.
+- Require one visible trust outcome before bare A1 continues.
 - Make Escape the visible clean-exit action after exactly-once terminal restoration.
 - Retain Ctrl+C only as the conventional interruption alias.
 - Put exceptional fail-closed trust warnings where the user will next type.
 - Preserve pinned `a1 pi` behavior.
 
 **Non-Goals:**
-- Changing trust persistence, defaults, ancestor inheritance, or resource loading.
+- Changing pinned Pi's persistence updates, defaults, ancestor inheritance, or resource loading.
 - Removing fail-closed handling for unavailable input, stream end, or prompt errors.
 - Moving ordinary model-scope or service startup diagnostics.
 - Changing ordinary in-session modal Escape behavior.
 
 ## Decisions
 
-### 1. Bare A1 has two trust outcomes and one explicit exit
+### 1. Bare A1 exposes pinned Pi's five trust outcomes and one explicit exit
 
-Escape exits the bare-A1 startup selector without selecting or persisting trust. Navigation, Enter, and compatibility `y`/`n` continue selecting one of the two visible decisions. The hint advertises `Esc to exit`; Ctrl+C remains an unadvertised conventional interruption alias.
+The selector offers Trust, Trust parent folder, Trust for this session only, Do not trust, and Do not trust for this session only. Parent-folder trust persists the ancestor and clears a narrower current-folder entry; session-only choices affect only the current launch. Escape exits without selecting or persisting trust. Navigation and Enter select any visible outcome; compatibility `y`/`n` select persisted Trust or Do not trust. The hint advertises `Esc to exit`; Ctrl+C remains an unadvertised conventional interruption alias.
 
 Treating Escape as Do not trust was rejected because it would persist a decision the user did not select. Continuing with a temporary untrusted state was rejected because it preserves the confusing third trust state.
 
@@ -37,9 +38,9 @@ This prevents project-aware services and the owned shell from being created afte
 
 The runtime integration tags only a non-null fail-closed trust diagnostic as `project-trust`. Bare A1 excludes that code from the transcript document and translates it once into the existing warning dock. Unavailable input, stream end, or ordinary prompt failure therefore remains transparent without placing a warning at the top of an empty viewport.
 
-### 4. Comparison behavior remains pinned
+### 4. Comparison presentation and cancellation remain pinned
 
-The `a1 pi` presentation retains Escape/Ctrl+C cancellation and renders any resulting trust warning through the pinned startup-diagnostic presenter above the banner.
+The `a1 pi` presentation uses the same five trust outcomes while retaining its top-left profile, Escape/Ctrl+C cancellation, and pinned startup-diagnostic presenter above the banner.
 
 ## Risks / Trade-offs
 
