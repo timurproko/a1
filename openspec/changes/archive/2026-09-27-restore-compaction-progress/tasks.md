@@ -11,7 +11,7 @@
 ## 3. Preserve manual-compaction feedback
 
 - [x] 3.1 Return failed manual-compaction workflow results as visible errors while keeping successful completion silent.
-- [x] 3.2 Add focused workflow and shell coverage for the too-small-session error and unchanged silent success.
+- [x] 3.2 Add focused workflow, shell, and independent command-outcome parity coverage for the too-small-session error and unchanged silent success.
 
 ## 4. Validate
 

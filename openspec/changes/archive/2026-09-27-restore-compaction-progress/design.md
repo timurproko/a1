@@ -39,7 +39,7 @@ A focused adapter or integration case will retain the existing assertions that p
 
 The workflow runner will continue returning a silent completed result after successful `/compact`, because compaction lifecycle status already presents the operation. A thrown manual-compaction error will instead return an ordinary failed result with the original error text. The shell's existing failed-result renderer will then apply pinned error styling and wording rather than suppressing the result.
 
-Focused workflow and shell presentation coverage will distinguish silent success from visible failure, including the real too-small-session wording.
+Focused workflow and shell presentation coverage will distinguish silent success from visible failure, including the real too-small-session wording. The independent command-outcome oracle will model visible manual-compaction failure as one named exception to pinned direct output, render its expected rows through Pi's unchanged error presenter, and continue requiring successful compaction to remain silent.
 
 ## Risks / Trade-offs
 
@@ -59,5 +59,6 @@ No data migration is required. Reverting the centralized attachment and resume c
 - `PiEngineRuntime` now uses one attachment operation for initial binding and same-session resume. Resume removes any live subscription, restores observation, and then installs one current-generation subscription.
 - The runtime lifecycle fixture proves suspension restores the configured stream function, repeated resume owns one listener and a non-nested wrapper, resumed compaction reports `0`, `50`, and `100`, and disposal restores the configured function.
 - Focused compaction, runtime, adapter, workflow, integration, and shell-status validation passed: 7 files and 120 tests, including visible too-small-session failure and unchanged silent success.
+- The independent command-outcome parity oracle covers the intentional failed-compaction visibility difference across themes, padding, widths, and color modes through Pi's unchanged error presenter, while retaining exact silent-success parity and a negative suppression check.
 - Typechecking, the production build, and strict OpenSpec validation passed.
 - Known gaps: none.
