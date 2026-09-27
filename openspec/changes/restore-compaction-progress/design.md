@@ -2,7 +2,9 @@
 
 `PiEngineRuntime.bindSession()` installs `observeCompactionProgress()` around the current session agent's public `streamFunction`. Runtime suspension deliberately unsubscribes session events and disposes that observer so the original stream function is restored. `resume()` currently restores only the session-event subscription. The runtime therefore remains usable after a recoverable delivery suspension, but its `#compactionProgress` field stays null and `compactionStarted()` has nothing to begin. Bare A1 then renders the valid fallback `Compacting…` instead of the percentage shown before suspension.
 
-The defect is lifecycle-specific: direct observer tests and first-bind integration tests pass because neither exercises observer disposal followed by same-session resume.
+The progress defect is lifecycle-specific: direct observer tests and first-bind integration tests pass because neither exercises observer disposal followed by same-session resume.
+
+Manual compaction has a second presentation defect. `PiWorkflowRunner` correctly catches `session.compact()` failures, but labels the failed workflow result `silent`. `SessionShellRoot` intentionally suppresses every silent result before considering severity, so pinned Pi's actionable `Nothing to compact (session too small)` error never reaches the transcript.
 
 ## Goals / Non-Goals
 
@@ -10,12 +12,14 @@ The defect is lifecycle-specific: direct observer tests and first-bind integrati
 - Reattach compaction observation before resumed session events can start another compaction.
 - Keep observer ownership scoped to the currently bound session and avoid nested stream wrappers.
 - Prove progress remains visible through the real runtime suspend/resume boundary.
+- Preserve pinned Pi's visible error when manual compaction cannot start.
 
 **Non-Goals:**
 - Change the character-based estimator, denominator, 99% clamp, or 100% completion rule.
 - Infer progress when Pi exposes no callable public stream function.
 - Change delivery-overload admission, cancellation, or reconciliation behavior.
 - Add percentage presentation to `a1 pi`.
+- Add a success acknowledgment after manual compaction; successful completion remains silent.
 
 ## Decisions
 
@@ -31,16 +35,24 @@ The runtime fixture will expose a callable fake agent stream function and branch
 
 A focused adapter or integration case will retain the existing assertions that progress clears on the real compaction-end event. This separates runtime attachment correctness from estimator correctness while covering the user-visible regression path.
 
+### 3. Keep failed manual compaction visible
+
+The workflow runner will continue returning a silent completed result after successful `/compact`, because compaction lifecycle status already presents the operation. A thrown manual-compaction error will instead return an ordinary failed result with the original error text. The shell's existing failed-result renderer will then apply pinned error styling and wording rather than suppressing the result.
+
+Focused workflow and shell presentation coverage will distinguish silent success from visible failure, including the real too-small-session wording.
+
 ## Risks / Trade-offs
 
 - [Repeated resume nests wrappers] → Central attachment disposes the currently owned observer first and tests function identity across repeated transitions.
 - [A stale observer reports into a replacement session] → Keep the existing current-session and disposed guards in the progress callback.
 - [Resume receives an event before observation exists] → Reattach before session subscription.
 - [A session has no callable stream function] → Preserve the null observer and plain `Compacting…` fallback.
+- [Compaction success gains a redundant command row] → Keep only the completed result silent; assert success remains absent while failure is rendered.
+- [Failure text is double-prefixed] → Return the original thrown text and let the existing shell error component add its standard `Error:` presentation.
 
 ## Migration Plan
 
-No data migration is required. Reverting the centralized attachment and resume call restores the current lifecycle behavior.
+No data migration is required. Reverting the centralized attachment and resume call restores the current progress lifecycle behavior; reverting the failed-result visibility change restores the current silent failure.
 
 ## Implementation Evidence
 

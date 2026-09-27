@@ -8,6 +8,11 @@
 - [x] 2.1 Extend runtime lifecycle coverage with a callable stream function and assert suspend removes observation while resume restores zero and streamed progress.
 - [x] 2.2 Retain focused adapter/integration coverage for progress completion, compaction-end cleanup, unobservable fallback, and pinned presentation isolation.
 
-## 3. Validate
+## 3. Preserve manual-compaction feedback
 
-- [x] 3.1 Run focused runtime, compaction observer, adapter, integration, and shell status tests plus typechecking, build, and strict OpenSpec validation; record implementation evidence and known-gap disposition.
+- [ ] 3.1 Return failed manual-compaction workflow results as visible errors while keeping successful completion silent.
+- [ ] 3.2 Add focused workflow and shell coverage for the too-small-session error and unchanged silent success.
+
+## 4. Validate
+
+- [ ] 4.1 Run focused runtime, compaction observer, adapter, workflow, integration, and shell status tests plus typechecking, build, and strict OpenSpec validation; record implementation evidence and known-gap disposition.
