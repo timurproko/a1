@@ -10,6 +10,7 @@ const EXPLANATION = "This allows to load project settings and resources, install
 /** Fixed startup-safe rendering only; project-derived presentation is forbidden before trust resolves. */
 export function renderProjectTrustDialog(
   cwd: string,
+  options: readonly string[],
   selected: number,
   terminalWidth: number,
   terminalRows: number,
@@ -18,8 +19,8 @@ export function renderProjectTrustDialog(
   const rule = `${BORDER}${"─".repeat(width)}${RESET_FG}`;
   const title = ` ${BOLD}${ACCENT}Trust project folder?${RESET_FG}${RESET_BOLD}`;
   const path = ` ${MUTED}${sanitize(cwd)}${RESET_FG}`;
-  const choices = [choice("Trust", selected === 0), choice("Do not trust", selected === 1)];
-  const hint = ` ${DIM}↑/↓${MUTED} to navigate  ${DIM}Enter${MUTED} to select  ${DIM}Esc${MUTED} to cancel${RESET_FG}`;
+  const choices = options.map((label, index) => choice(label, selected === index));
+  const hint = ` ${DIM}↑/↓${MUTED} to navigate  ${DIM}Enter${MUTED} to select  ${DIM}Esc${MUTED} to exit${RESET_FG}`;
   const explanation = wrap(EXPLANATION, Math.max(1, width - 2)).map(line => ` ${line}`);
   const preferred = [rule, title, path, "", ...explanation, "", ...choices, "", hint, rule];
   if (preferred.length <= terminalRows) return preferred;
@@ -29,13 +30,18 @@ export function renderProjectTrustDialog(
   if (compact.length <= terminalRows) return compact;
   const essential = [title, ...choices, hint];
   if (essential.length <= terminalRows) return essential;
-  if (terminalRows >= 3) return [...choices, hint];
-  if (terminalRows === 2) return choices;
+  if (terminalRows >= 3) return [title, ...choiceWindow(choices, selected, terminalRows - 2), hint];
+  if (terminalRows === 2) return choiceWindow(choices, selected, 2);
   return [choices[selected] ?? choices[0] ?? ""];
 }
 
 function choice(label: string, selected: boolean): string {
   return selected ? ` ${ACCENT}→ ${label}${RESET_FG}` : `   ${label}`;
+}
+
+function choiceWindow(choices: readonly string[], selected: number, capacity: number): readonly string[] {
+  const start = Math.min(Math.max(0, selected - Math.floor(capacity / 2)), Math.max(0, choices.length - capacity));
+  return choices.slice(start, start + capacity);
 }
 
 function wrap(text: string, width: number): readonly string[] {

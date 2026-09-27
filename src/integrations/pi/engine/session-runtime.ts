@@ -194,9 +194,12 @@ export class PiEngineRuntime {
       this.#ports.rebound();
     });
     for (const diagnostic of [...runtime.diagnostics, ...runtime.services.diagnostics]) {
+      const code = "code" in diagnostic && diagnostic.code === "project-trust"
+        ? "project-trust"
+        : "engine-startup";
       this.#ports.diagnostic(
         diagnostic.type === "error" ? "error" : diagnostic.type === "warning" ? "warning" : "info",
-        "engine-startup",
+        code,
         diagnostic.message,
         diagnostic.type !== "error",
       );
