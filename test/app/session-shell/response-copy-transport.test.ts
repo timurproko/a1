@@ -62,6 +62,19 @@ describe("response-copy transport isolation", () => {
     expect(submit).not.toHaveBeenCalled();
   });
 
+  it("delivers an empty normalized frame payload through injected and terminal routes", async () => {
+    const writeText = vi.fn(async () => {});
+    const prepared = createResponseCopyExecutor({ writeText })({ ...source(""), literal: true }, () => {});
+    await expect(prepared.result).resolves.toEqual({ outcome: "delivered" });
+    expect(writeText).toHaveBeenCalledWith("", expect.any(AbortSignal));
+
+    const submit = vi.fn(async () => {});
+    const terminal = createResponseCopyExecutor({ destination: "terminal", terminal: { submit } })(
+      { ...source(""), literal: true }, () => {});
+    await expect(terminal.result).resolves.toEqual({ outcome: "submitted-unverified" });
+    expect(submit).toHaveBeenCalledWith("\u001b]52;c;\u0007", expect.any(AbortSignal));
+  });
+
   it("backpressures prepared literal fragments and preserves surrogate pairs at IPC boundaries", async () => {
     const text = "x".repeat(16_383) + "👩‍💻" + "界".repeat(30_000);
     const writeText = vi.fn(async () => {});

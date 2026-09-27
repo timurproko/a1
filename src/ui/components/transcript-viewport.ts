@@ -346,12 +346,13 @@ export class TranscriptViewport {
     return text.length === 0 ? null : text;
   }
 
-  /** Captures only the selected visible frame text, never off-screen transcript history. */
+  /** Captures visible selected text, not off-screen history. */
   captureSelectedText(): SelectionCopySnapshot | null {
     if (!this.#copyableSelection) return null;
     const started = performance.now();
-    const text = this.selectedText();
+    let text = this.selectedText();
     if (text === null) return null;
+    text = text.trim();
     const normalized = {
       start: { line: 0, column: 0 },
       end: { line: 0, column: Number.MAX_SAFE_INTEGER },
