@@ -14,5 +14,5 @@
 
 - [x] 3.1 Run focused progress component, shell animation, pinned parity, presentation-boundary, and timer-cleanup tests. Evidence: the focused Vitest run passed 53 tests across five files.
 - [x] 3.2 Run typecheck, build, applicable architecture/governance checks, strict OpenSpec validation, and diff hygiene. Evidence: build, typecheck, architecture boundaries, product identity, terminal-host provenance, customization readiness, changed-code documentation, strict OpenSpec validation, and diff hygiene passed. The aggregate architecture command also reports the unchanged `develop` pinned-ledger baseline as stale for `src/core/keybindings`; the same command fails identically in the primary checkout.
-- [ ] 3.3 Physically verify through `./scripts/dev` that the text band is white, the spinner remains cyan/accent, motion remains restrained, and work settlement removes the row cleanly.
-- [ ] 3.4 Compare `./scripts/dev pi` and confirm pinned spinner text, styling, cadence, and geometry remain unchanged.
+- [x] 3.3 Physically verify through `./scripts/dev` that the text band is white, the spinner remains cyan/accent, motion remains restrained, and work settlement removes the row cleanly. Evidence: the maintainer approved the exact pushed candidate after the build-first manual handoff.
+- [x] 3.4 Compare `./scripts/dev pi` and confirm pinned spinner text, styling, cadence, and geometry remain unchanged. Evidence: the maintainer approved the exact pushed candidate after the paired bare-A1 and pinned-Pi handoff.
