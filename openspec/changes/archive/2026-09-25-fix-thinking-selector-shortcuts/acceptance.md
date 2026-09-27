@@ -24,7 +24,7 @@ The manual merge accepts these scenarios:
     "Changing the default leaves the active session level and checkmark unchanged, while Enter still selects the active level.",
     "The footer reads `Enter select  Space default  Esc close`; Ctrl+C stays open, Escape closes, and `a1 pi` retains pinned behavior."
   ],
-  "archiveDigest": "ed70142bd0e40e58ff30d73d9fbcdeebbb4150247c39c20cc242b3b713983066",
+  "archiveDigest": "92be4a1873e2835a478bdcadf3f310dcfc9a9451515860e733f5143f7f9165dd",
   "specDigest": "216ba52848c0f910016d2b554d8c70e95cdb79c6114ad600466a1f6fbe87ba38",
   "tasksDigest": "f2a5c6333af2c8b51b1035346383b49b3d7c83da88575934f48618c249a5afef",
   "evidenceDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
