@@ -10,9 +10,9 @@
 
 ## 3. Preserve manual-compaction feedback
 
-- [ ] 3.1 Return failed manual-compaction workflow results as visible errors while keeping successful completion silent.
-- [ ] 3.2 Add focused workflow and shell coverage for the too-small-session error and unchanged silent success.
+- [x] 3.1 Return failed manual-compaction workflow results as visible errors while keeping successful completion silent.
+- [x] 3.2 Add focused workflow and shell coverage for the too-small-session error and unchanged silent success.
 
 ## 4. Validate
 
-- [ ] 4.1 Run focused runtime, compaction observer, adapter, workflow, integration, and shell status tests plus typechecking, build, and strict OpenSpec validation; record implementation evidence and known-gap disposition.
+- [x] 4.1 Run focused runtime, compaction observer, adapter, workflow, integration, and shell status tests plus typechecking, build, and strict OpenSpec validation; record implementation evidence and known-gap disposition.
