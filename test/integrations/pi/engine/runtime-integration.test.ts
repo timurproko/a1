@@ -13,7 +13,12 @@ import {
 } from "../../../../src/integrations/pi/engine/index.js";
 
 const roots: string[] = [];
-afterEach(async () => Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))));
+afterEach(async () => Promise.all(roots.splice(0).map(root => rm(root, {
+  recursive: true,
+  force: true,
+  maxRetries: 5,
+  retryDelay: 100,
+}))));
 
 describe("official Pi runtime integration", () => {
   it("creates, rebinds, replaces, and disposes an isolated public runtime", async () => {

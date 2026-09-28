@@ -4,10 +4,16 @@ Opened by the nightly regression triage from the failed run's evidence artifacts
 
 ## Decisions
 
-- To be written by the maintainer once the cause is known: what failed, why, and the smallest change that fixes it without reducing validation.
+- The failed product assertion completed, then the suite's one-shot fixture cleanup received `EBUSY` while removing `a1-pi-resume-hint-*` on Windows/Node 24. The same exact package and suite passed on Windows/Node 22, none of the three suspect commits changed this cleanup or runtime disposal path, and repeated focused runs with unchanged one-shot cleanup passed locally on Windows/Node 24. The failure is a transient Windows filesystem-release race rather than a product regression or an introducing commit in the suspect range.
+- Keep runtime disposal, product assertions, test deadlines, and coverage unchanged. Give only this suite's recursive temporary-directory removal the documented `fs.rm` handling for transient `EBUSY`/`EPERM`/`ENOTEMPTY` failures: five retries with 100 ms linear backoff, consistent with other Pi integration cleanup.
+- No implementation gap is known. The selected exact-head PR Full regression and `Development validation required` remain pending trusted finalization; numbered-package nightly recovery remains independent and is not claimed by this repair.
 
 ## Evidence
 
+- Release #167 reached 3,932 passing tests before the Windows/Node 24 lane reported its sole failure from `afterEach`: `EBUSY: resource busy or locked, rmdir '...\\a1-pi-resume-hint-*'`. Windows/Node 22 and both non-Windows Node 24 lanes passed.
+- Before the fix, the same test file with unchanged one-shot cleanup passed 60 focused Windows/Node 24 runs, confirming the recorded failure is intermittent rather than a reproducible product assertion failure.
+- With retry-bounded cleanup, 20 focused Windows/Node 24 runs passed under four concurrent stress loops; all nine runtime-integration tests remained unchanged.
+- `npm run build` and `npm run typecheck` passed.
 - Run [Release #167](https://github.com/timurproko/a1/actions/runs/36230472475) (attempt 1, schedule) on `92e3ed3` at 2026-09-26T08:40:16Z:
   - `vitest-full-without-isolated` (`architecture`, `dependency-policy`, `dist-integration`, `documentation-full`, `fast-remainder`, `fast-resource-sensitive`, `history-compatibility`, `image-compatibility`, `launch-integration`, `naming-full`, `package-contracts`, `package-smoke`, `package-startup`, `pi-engine-conformance`, `release-update`, `rendering-stability`, `typecheck`, `unix-containment`, `update-performance`, `update-predecessor`) failed on win32-node24 with exit 1.
     - Command: `npx vitest run --exclude test/foundation/release/package-surface.test.ts --exclude test/foundation/release/session-resume.integration.test.ts --exclude test/foundation/release/package-install.integ...`
