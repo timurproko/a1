@@ -90,11 +90,12 @@ A1 SHALL persist at most one history update per nonempty, successfully prepared 
 - **AND** assistant/tool output and initial automated input SHALL NOT enter durable recall
 
 ### Requirement: Recalled text is reusable without the originating process
-The durable recall value SHALL be the user-authored text before template or extension expansion, with outer whitespace trimmed and internal text preserved. Text-paste content SHALL survive independently of ephemeral chip identifiers. Only this typed recall value and bounded submission provenance SHALL be retained; transformed engine prompts, image bytes, credential stores, arbitrary environment values, and terminal content SHALL NOT be copied into history.
+The durable recall value SHALL be the user-authored text before template or extension expansion, with outer whitespace trimmed and internal text preserved. Text-paste content SHALL survive independently of ephemeral chip identifiers. Recalled multiline text SHALL remain expanded in the editor so the user can see and navigate its content rather than having the complete value replaced by a compact text-paste chip. Only this typed recall value and bounded submission provenance SHALL be retained; transformed engine prompts, image bytes, credential stores, arbitrary environment values, and terminal content SHALL NOT be copied into history.
 
 #### Scenario: Recall a pasted multiline prompt after restart
 - **WHEN** the user submits a prompt containing a text-paste chip and starts a fresh process
 - **THEN** recall SHALL restore its actual text content with internal whitespace, line breaks, and Unicode intact
+- **AND** the editor SHALL display that multiline content expanded rather than replacing it with a text-paste chip
 - **AND** its reusable value SHALL NOT depend on the old chip ID or a process-local paste cache
 
 #### Scenario: Recall a template invocation

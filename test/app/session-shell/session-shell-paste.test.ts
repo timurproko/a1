@@ -511,7 +511,7 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
   it("recalls expanded large pasted text using a fresh durable history worker and chip store", async () => {
     const dataDir = await mkdtemp(join(tmpdir(), "text-paste-history-"));
     const options = { dataDir, profileRoot: join(dataDir, "profile"), limit: 100 };
-    const payload = "日本語 👩‍💻 [📷 literal] [paste #999 1001 chars]\n  indented\n".repeat(12).trim();
+    const payload = "日本語 👩‍💻 authored history line\n  indented continuation\n".repeat(12).trim();
     const firstSnapshot = (store: PromptHistoryService) => new Promise<void>(resolvePromise => {
       let unsubscribe = () => {};
       unsubscribe = store.onSnapshot(() => { unsubscribe(); resolvePromise(); });
@@ -531,6 +531,8 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
       expect(shell.root.editor.recall?.position().total).toBe(1);
       second.terminal.input("\x1b[A");
       await vi.waitFor(() => expect(shell!.root.editor.getText()).toBe(payload));
+      expect(shell.root.editor.getText()).not.toContain("[paste #");
+      expect(shell.root.editor.render(80)[0]).toContain("1/1 ");
       await shell.submit(shell.root.editor.getText());
       expect(second.engine.session.calls.filter(call => call.startsWith("prompt:"))).toEqual([`prompt:${payload}`]);
     } finally { await shell?.dispose(); await rm(dataDir, { recursive: true, force: true }); }
