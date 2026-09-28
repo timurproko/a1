@@ -28,10 +28,10 @@ The manual merge accepts these scenarios:
     "Narrow widths keep history visible, shifting a complete overflow cue right when it fits and omitting only the cue when both labels cannot fit.",
     "The pinned `a1 pi` comparison keeps its existing editor overflow rendering."
   ],
-  "archiveDigest": "3a81d6e2e9123f297517cec32d2654c3cfcd681a922588be6d889f92546e4213",
+  "archiveDigest": "c0e0ed20fd06f23e184077ac6053d5ab505e49daf07ddfd925023944cca85ea6",
   "specDigest": "b00aca8db173b12fa122f05badbe96ddf061da30473f71bf1c5523f6efd63c43",
   "tasksDigest": "5106917041e261e39546f80cc3cec6c1048e01d1e328bb5eddad0824879aa7b3",
-  "evidenceDigest": "cea10c80668d5fe7ed8bacb613f0cef720ae305046d4e1c808d0b75ea41e19b3",
+  "evidenceDigest": "aa09b264f58fc89ee7fa70bed1af053fa3be2e637e1a367da403b91b934f90f0",
   "knownGaps": []
 }
 ```
