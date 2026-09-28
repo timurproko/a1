@@ -22,10 +22,10 @@ Update:
 
 ```sh
 a1 update                               # install the release
-a1 update --models                      # refresh A1's model catalogs
 a1 update --develop                     # install develop
 a1 update --develop 107                 # install preview 107
 a1 update --develop 0.1.8-dev.107       # install that exact preview
+a1 update --models                      # refresh A1's model catalogs
 ```
 
 ## Extensions
@@ -46,13 +46,13 @@ a1 update npm:pi-mcp-adapter           # update one
 ## Develop
 
 ```sh
-npm run doctor                          # report Node, npm, git, Rust, and dependency readiness
 npm ci                                  # install exact locked dependencies
 npm run build                           # compile TypeScript and the process guardian into dist
 npm start                               # build and launch a source `a1`
 npm run start:pi                        # build and launch a source `a1 pi`
 npm run test:fast                       # typecheck + fast suite (alias: npm test)
 npm run test:full                       # complete non-physical suite
+npm run doctor                          # report Node, npm, git, Rust, and dependency readiness
 ```
 
 ## Publish
