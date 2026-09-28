@@ -7,6 +7,7 @@ import { stripTerminalSequences } from "@earendil-works/pi-tui";
 import { createPiShellEditor, loadHistoryEditor, piTheme, type PiShellEditorOptions } from "../../../../src/integrations/pi/components/index.js";
 
 import { promptRuleText } from "../../../../src/ui/components/index.js";
+import { cellStyle } from "../../../support/ansi-cell-style.js";
 
 describe("history editor component boundary", () => {
   it.each(["ordinary prompt", "!echo test"])("uses neutral status grey for history while preserving the input bars for %s", async text => {
@@ -34,6 +35,52 @@ describe("history editor component boundary", () => {
       }
       editor.handleInput?.("\x1b[B");
       expect(stripTerminalSequences(editor.render(80)[0]!)).toBe("─".repeat(80));
+    } finally { await rm(root, { recursive: true, force: true }); }
+  });
+
+  it("centers recalled overflow like the lower cue without changing the pinned comparison", async () => {
+    const root = await mkdtemp(join(tmpdir(), "history-overflow-label-"));
+    try {
+      const options = {
+        agentDir: root, cwd: root, getColumns: () => 80, getRows: () => 24,
+        requestRender() {}, onSubmit() {},
+      };
+      const editor = createPiShellEditor({
+        ...options, keybindingProfile: "a1", persistentHistory: true, historyEditor: await loadHistoryEditor(),
+        promptPresentation: promptInputPresentation(),
+      });
+      editor.recall!.replace(["line\n".repeat(20).trim()]);
+      editor.handleInput?.("\x1b[A");
+      editor.render(80);
+      for (let index = 0; index < 9; index++) editor.handleInput?.("\x1b[A");
+      const rows = editor.render(80);
+      const top = rows[0]!;
+      const bottom = rows.at(-1)!;
+      const topPlain = stripTerminalSequences(top);
+      const bottomPlain = stripTerminalSequences(bottom);
+      expect(top).toContain(piTheme().fg("dim", "1/1 "));
+      expect(topPlain).not.toContain("·");
+      expect(topPlain).toBe("─── 1/1 " + "─".repeat(25) + " ↑ 10 more " + "─".repeat(36));
+      expect(bottomPlain).toBe("─".repeat(34) + " ↓ 3 more " + "─".repeat(36));
+      expect(Math.abs(topPlain.indexOf(" ↑ 10 more ") * 2 + " ↑ 10 more ".length - 78)).toBeLessThanOrEqual(1);
+      expect(bottomPlain.indexOf(" ↓ 3 more ") * 2 + " ↓ 3 more ".length).toBe(78);
+      expect(cellStyle(top, "↑")).toEqual(cellStyle(bottom, "↓"));
+      expect(cellStyle(top, "1")).not.toEqual(cellStyle(top, "↑"));
+      const shifted = editor.render(24)[0]!;
+      expect(shifted).toContain(piTheme().fg("dim", "1/1 "));
+      expect(stripTerminalSequences(shifted)).toBe("─── 1/1  ↑ 10 more ─────");
+      const historyOnly = editor.render(20)[0]!;
+      expect(historyOnly).toContain(piTheme().fg("dim", "1/1 "));
+      expect(stripTerminalSequences(historyOnly)).toBe("─── 1/1 " + "─".repeat(12));
+      expect(historyOnly).not.toContain("↑");
+
+      const comparison = createPiShellEditor({ ...options, keybindingProfile: "pi" });
+      comparison.setText("line\n".repeat(20).trim());
+      comparison.render(80);
+      for (let index = 0; index < 9; index++) comparison.handleInput?.("\x1b[A");
+      const comparisonRows = comparison.render(80).map(stripTerminalSequences);
+      expect(comparisonRows[0]).toBe("─".repeat(34) + " ↑ 10 more " + "─".repeat(35));
+      expect(comparisonRows.at(-1)).toBe("─".repeat(35) + " ↓ 3 more " + "─".repeat(35));
     } finally { await rm(root, { recursive: true, force: true }); }
   });
 

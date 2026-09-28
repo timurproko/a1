@@ -2,10 +2,12 @@
  * Provenance: @earendil-works/pi-tui 0.87.1 (MIT), commit f07218c4d4bbc12bef056a7058c3dd49dfe41abe,
  * packages/tui/src/components/editor.ts.
  * Modifications: Owned editor core or minimal editor-local helper subset; public imports, strict
- * types, typed persistent-history hooks, and semantic border state with the user-approved numeric-only
- * history label. Public terminal runtime/exports remain shared and unchanged. See
- * docs/architecture/history-editor-provenance.md.
- * Deviations: compact-history-counter-label, persistent-history-owned-editor-boundary.
+ * types, typed persistent-history hooks, semantic border state with the user-approved numeric-only
+ * history label and separate centered history-overflow cue, and history-count retention during cursor
+ * placement within recalled multiline text. Public terminal runtime/exports remain shared and
+ * unchanged. See docs/architecture/history-editor-provenance.md.
+ * Deviations: compact-history-counter-label, history-overflow-cue-separation,
+ * history-recall-cursor-retention, persistent-history-owned-editor-boundary.
  */
 import { getKeybindings, matchesKey, CURSOR_MARKER, sliceByColumn, truncateToWidth, visibleWidth, SelectList, type AutocompleteProvider, type AutocompleteSuggestions, type Component, type Focusable, type TUI, type TuiMouseEvent, type TuiMouseEventResult, type SelectListLayoutOptions, type SelectListTheme } from "@earendil-works/pi-tui";
 import { decodePrintableKey } from "./printable-key.js";
@@ -266,22 +268,27 @@ function buildDebouncePattern(triggerCharacters: string[]): RegExp {
 	);
 }
 
-function createScrollBorder(direction: "↑" | "↓", hiddenLineCount: number, width: number): string {
+function createScrollBorder(direction: "↑" | "↓", hiddenLineCount: number, width: number, minimumCueStart = 0): string {
 	const availableWidth = Math.max(0, width);
 	const label = ` ${direction} ${hiddenLineCount} more `;
 	const labelWidth = visibleWidth(label);
 	if (labelWidth + 2 <= availableWidth) {
-		const leftWidth = Math.floor((availableWidth - labelWidth) / 2);
-		return "─".repeat(leftWidth) + label + "─".repeat(availableWidth - leftWidth - labelWidth);
+		const centeredStart = Math.floor((availableWidth - labelWidth) / 2);
+		const cueStart = Math.max(centeredStart, minimumCueStart);
+		if (cueStart + labelWidth <= availableWidth) {
+			return "─".repeat(cueStart) + label + "─".repeat(availableWidth - cueStart - labelWidth);
+		}
 	}
+	if (minimumCueStart > 0) return "─".repeat(availableWidth);
 
 	const indicator = `─── ${direction} ${hiddenLineCount} more `;
-	const remaining = availableWidth - visibleWidth(indicator);
+	const indicatorWidth = visibleWidth(indicator);
+	const remaining = availableWidth - indicatorWidth;
 	if (remaining >= 0) return indicator + "─".repeat(remaining);
 
 	const ellipsis = "...".slice(0, availableWidth);
-	const indicatorWidth = availableWidth - visibleWidth(ellipsis);
-	return sliceByColumn(indicator, 0, indicatorWidth, true) + ellipsis;
+	const visibleIndicatorWidth = availableWidth - visibleWidth(ellipsis);
+	return sliceByColumn(indicator, 0, visibleIndicatorWidth, true) + ellipsis;
 }
 
 export class HistoryEditorCore implements Component, Focusable {
@@ -589,8 +596,19 @@ export class HistoryEditorCore implements Component, Focusable {
 
 	protected renderTopBorder(width: number, hiddenLineCount: number): string {
 		if (this.persistentHistory && this.historyIndex >= 0) {
-			const overflow = hiddenLineCount > 0 ? ` · ↑ ${hiddenLineCount} more` : "";
-			const label = `─── ${this.history.length - this.historyIndex}/${this.history.length}${overflow} `;
+			const history = `${this.history.length - this.historyIndex}/${this.history.length} `;
+			if (hiddenLineCount > 0) {
+				const historyStart = 4;
+				const historyEnd = historyStart + visibleWidth(history);
+				const historyAnchorStart = historyStart - 1;
+				if (historyEnd <= width) {
+					const border = createScrollBorder("↑", hiddenLineCount, width, historyEnd);
+					return this.borderColor(border.slice(0, historyAnchorStart) + " ")
+						+ this.styleHistoryLabel(history)
+						+ this.borderColor(border.slice(historyEnd));
+				}
+			}
+			const label = `─── ${history}`;
 			const shown = truncateToWidth(label, width);
 			const remaining = Math.max(0, width - visibleWidth(shown));
 			return this.borderColor(shown.slice(0, 4)) + this.styleHistoryLabel(shown.slice(4)) + this.borderColor("─".repeat(remaining));
@@ -774,7 +792,8 @@ export class HistoryEditorCore implements Component, Focusable {
 		this.state.cursorLine = visualLine.logicalLine;
 		this.setCursorCol(visualLine.startCol + targetIndex);
 		this.lastAction = null;
-		this.exitHistoryBrowsing();
+		// Cursor placement within recalled multiline text does not leave browsing:
+		// keep its position/total border visible until content changes or recall exits.
 		if (this.autocompleteState) this.updateAutocomplete();
 		return { handled: true, focus: true };
 	}
