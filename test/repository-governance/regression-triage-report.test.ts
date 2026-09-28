@@ -55,11 +55,12 @@ describe("nightly regression triage report", () => {
     expect(changeId("2026-09-19-412")).toBe("fix-nightly-regression-2026-09-19-412");
   });
 
-  it("triages failed Full regression runs and scheduled Release runs on develop only", () => {
+  it("triages failed Full regression runs and scheduled Publish runs on develop only", () => {
     const develop = { headBranch: "develop" };
     expect(triageDecision({ id: 1, workflowName: "Full regression", conclusion: "failure", event: "workflow_dispatch", ...develop })).toMatchObject({ triage: true, workflow: { file: "full-regression.yml" } });
+    expect(triageDecision({ id: 1, workflowName: "Publish", conclusion: "failure", event: "schedule", ...develop })).toMatchObject({ triage: true, workflow: { file: "publish.yml", scheduledOnly: true } });
+    expect(triageDecision({ id: 1, workflowName: "Publish", conclusion: "failure", event: "workflow_dispatch", ...develop })).toMatchObject({ triage: false, reason: expect.stringContaining("scheduled runs only") });
     expect(triageDecision({ id: 1, workflowName: "Release", conclusion: "failure", event: "schedule", ...develop })).toMatchObject({ triage: true, workflow: { file: "release.yml", scheduledOnly: true } });
-    expect(triageDecision({ id: 1, workflowName: "Release", conclusion: "failure", event: "workflow_dispatch", ...develop })).toMatchObject({ triage: false, reason: expect.stringContaining("scheduled runs only") });
     expect(triageDecision({ id: 1, workflowName: "Full regression", conclusion: "cancelled", event: "schedule", ...develop })).toMatchObject({ triage: false, reason: "run 1 concluded cancelled, not failure or success" });
     expect(triageDecision({ id: 1, workflowName: "Development validation", conclusion: "failure", event: "pull_request", ...develop })).toMatchObject({ triage: false });
     expect(triageDecision({ id: 1, workflowName: "Full regression", conclusion: "failure", event: "workflow_dispatch", headBranch: "fix/nightly-regression-2026-09-19" }))
@@ -83,7 +84,7 @@ describe("nightly regression triage report", () => {
     const key = triageKey(workflow.file, summary);
     expect(key).toBe("full-regression.yml:fast-remainder,package-startup,orchestration");
     expect(triageKey(workflow.file, summarizeLanes(lanes().slice(0, 3)))).toBe("full-regression.yml:fast-remainder,package-startup");
-    expect(triageKey("release.yml", { failures: [{ id: "typecheck", command: "npm run typecheck", scopes: [], tests: [], lanes: [], preparation: null }], orchestration: [] })).toBe("release.yml:typecheck");
+    expect(triageKey("publish.yml", { failures: [{ id: "typecheck", command: "npm run typecheck", scopes: [], tests: [], lanes: [], preparation: null }], orchestration: [] })).toBe("publish.yml:typecheck");
     const body = renderTriageBody({ ...evidence(), date: "2026-09-19", key });
     expect(parseTriageKey(body)).toBe(key);
     expect(parseTriageKey("## Proposal\n\nNothing.\n")).toBeNull();

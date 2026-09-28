@@ -1,6 +1,6 @@
 name: Nightly regression triage
 
-# Turns a failed Full regression run, or a failed scheduled Release validation, into a draft fix
+# Turns a failed Full regression run, or a failed scheduled Publish validation, into a draft fix
 # pull request: the proposal script reads the failed run's lane artifacts and logs, lists the failed
 # commands, their tests, a bounded log excerpt, and the develop commits since the last green run,
 # scaffolds the OpenSpec change, and opens `fix/nightly-regression-<date>` or refreshes the open
@@ -11,7 +11,7 @@ name: Nightly regression triage
 
 on:
   workflow_run:
-    workflows: ["Full regression", "Release"]
+    workflows: ["Full regression", "Publish"]
     types: [completed]
   workflow_dispatch:
     inputs:

@@ -83,7 +83,7 @@ describe("declarative GitHub repository governance", () => {
     expect(inspected.find(workflow => workflow.name === "Nightly regression triage")).toMatchObject({
       triggers: ["workflow_dispatch", "workflow_run"], trustedSource: "default-branch", permissions: ["actions: read", "contents: write", "pull-requests: write"], authority: ["nightly-regression-triage"], artifactRetentionDays: [30],
     });
-    expect(inspected.find(workflow => workflow.name === "Release")).toMatchObject({
+    expect(inspected.find(workflow => workflow.name === "Publish")).toMatchObject({
       triggers: ["schedule", "workflow_dispatch"], trustedSource: "authoritative-develop", environments: ["npm-publish"], artifactRetentionDays: [1, 30],
     });
   });

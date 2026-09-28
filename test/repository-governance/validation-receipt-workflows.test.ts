@@ -48,7 +48,7 @@ describe("workflow prerequisite receipts", () => {
   });
 
   it("retains release package authority while creating validation-job-local receipts", async () => {
-    const workflow = parse(await readFile(".github/workflows/release.yml", "utf8"));
+    const workflow = parse(await readFile(".github/workflows/publish.yml", "utf8"));
     const packageJob = workflow.jobs.package;
     expect(step(packageJob, "Record verified candidate build").index).toBeLessThan(step(packageJob, "Pack the candidate exactly once").index);
     expect(step(packageJob, "Record downloaded registry candidate prerequisite").value.if).toBe("needs.plan.outputs.build != 'true'");
@@ -68,7 +68,7 @@ describe("workflow prerequisite receipts", () => {
   });
 
   it("never treats receipt or download caches as publication authority", async () => {
-    const sources = await Promise.all([".github/workflows/ci.yml", ".github/workflows/full-regression-shared.yml", ".github/workflows/release.yml", ".github/workflows/full-regression.yml"].map(path => readFile(path, "utf8")));
+    const sources = await Promise.all([".github/workflows/ci.yml", ".github/workflows/full-regression-shared.yml", ".github/workflows/publish.yml", ".github/workflows/full-regression.yml"].map(path => readFile(path, "utf8")));
     for (const source of sources) {
       expect(source).not.toMatch(/node_modules[\s\S]{0,80}(?:cache|restore)|certification-[^\s]*[\s\S]{0,80}(?:cache|restore)/i);
       expect(source).not.toMatch(/startup-node[^\s]*performance[^\n]*(?:cache|restore)/i);

@@ -172,7 +172,7 @@ describe("nightly regression fix proposal", () => {
   it("proposes nothing for a cancelled run or a manual publication and records why", async () => {
     for (const [view, reason] of [
       [runView({ conclusion: "cancelled" }), "run 9001 concluded cancelled, not failure or success"],
-      [runView({ workflowName: "Release", event: "workflow_dispatch" }), "Release triages scheduled runs only; this run was workflow_dispatch"],
+      [runView({ workflowName: "Publish", event: "workflow_dispatch" }), "Publish triages scheduled runs only; this run was workflow_dispatch"],
       [runView({ headBranch: "fix/nightly-regression-2026-09-18" }), 'run 9001 ran on "fix/nightly-regression-2026-09-18", not develop; its evidence belongs to that branch\'s own pull request'],
     ] as const) {
       const gh = recorder(ghAnswers({ view }));
