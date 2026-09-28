@@ -71,9 +71,3 @@ npm run release -- minor               # 0.1.8-dev -> 0.2.0
 npm run release -- major               # 0.1.8-dev -> 1.0.0
 npm run release -- 0.4.0               # an exact stable version
 ```
-
-Stable release waits for a maintainer to edit and manually merge the generated
-`docs/releases/<version>.md` review PR before any immutable publication. That
-reviewed Markdown ships in the package, supplies the GitHub Release body, opens
-once after the matching stable version first starts, and remains available in bare
-A1 through `/changelog`. `a1 pi` retains Pi's pinned changelog.
