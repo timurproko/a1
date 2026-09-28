@@ -108,7 +108,7 @@ describe("PR whole-file naming validation", () => {
   });
 
   it("keeps the full naming audit on the nightly publication gate", async () => {
-    const workflowText = await readFile(".github/workflows/release.yml", "utf8");
+    const workflowText = await readFile(".github/workflows/publish.yml", "utf8");
     const workflow = parse(workflowText);
     expect(workflow.on.schedule).toEqual(expect.arrayContaining([expect.objectContaining({ cron: expect.any(String) })]));
     const selector = workflow.jobs.validate.steps.find((step: { name?: string }) => step.name === "Select validation scope");

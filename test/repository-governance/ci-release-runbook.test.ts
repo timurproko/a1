@@ -52,6 +52,15 @@ describe("CI and release operations runbook", () => {
     expect(runbook).toContain("Never move a release tag");
   });
 
+  it("requires both npm trusted publishers to follow the workflow rename before publication", async () => {
+    const runbook = await readFile("docs/ci-release-runbook.md", "utf8");
+    expect(runbook).toContain("npm trusted publishing binds authorization to the exact workflow filename");
+    expect(runbook).toContain("`@timurproko/a1`");
+    expect(runbook).toContain("`@timurproko/a1-install`");
+    expect(runbook).toContain("do not dispatch a");
+    expect(runbook).toContain("until both npm package settings name `publish.yml`");
+  });
+
   it("says how each channel is published", async () => {
     const runbook = await readFile("docs/ci-release-runbook.md", "utf8");
     expect(runbook).toContain("npm run develop");
@@ -64,7 +73,7 @@ describe("CI and release operations runbook", () => {
 
   it("records startup budgets on every scheduled and preview channel and enforces them on stable publication only", async () => {
     const [release, regression, development] = await Promise.all([
-      readFile(".github/workflows/release.yml", "utf8"),
+      readFile(".github/workflows/publish.yml", "utf8"),
       readFile(".github/workflows/full-regression-shared.yml", "utf8"),
       readFile(".github/workflows/ci.yml", "utf8"),
     ]);
@@ -82,7 +91,7 @@ describe("CI and release operations runbook", () => {
   });
 
   it("enables Defender after installation and before accepted Windows exact-package startup gates", async () => {
-    for (const path of [".github/workflows/release.yml", ".github/workflows/full-regression-shared.yml"]) {
+    for (const path of [".github/workflows/publish.yml", ".github/workflows/full-regression-shared.yml"]) {
       const workflow = await readFile(path, "utf8");
       expect(workflow).toContain("Set-MpPreference -DisableRealtimeMonitoring $false");
       expect(workflow).toContain("Get-MpComputerStatus).RealTimeProtectionEnabled");

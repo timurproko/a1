@@ -294,7 +294,7 @@
       "key": "RELEASE_RUNNER_LABEL",
       "exposure": "automation",
       "owner": "scripts/release/run-release-gates.mjs",
-      "evidence": ".github/workflows/release.yml",
+      "evidence": ".github/workflows/publish.yml",
       "semantics": "Certification runner provenance label"
     },
     {

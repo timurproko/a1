@@ -10,7 +10,7 @@ export interface PullIdentity {
   author: { login: string; id: number; type: string }; bodyDigest: string;
 }
 export interface RegressionSource {
-  workflowName: "Full regression" | "Release"; workflowFile: "full-regression.yml" | "release.yml";
+  workflowName: "Full regression" | "Publish" | "Release"; workflowFile: "full-regression.yml" | "publish.yml" | "release.yml";
   runId: number; runNumber: number; attempt: number; event: "schedule" | "workflow_dispatch";
   conclusion: "failure" | "success"; headBranch: "develop"; headSha: string; url: string; createdAt: string;
 }

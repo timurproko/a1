@@ -12,7 +12,7 @@ const execFileAsync = promisify(execFile);
 const FULL_EXACT = new Set([
   ".github/workflows/ci.yml",
   ".github/workflows/full-regression.yml",
-  ".github/workflows/release.yml",
+  ".github/workflows/publish.yml",
   "config/validation-suites.json",
   "package-lock.json",
   "package.json",

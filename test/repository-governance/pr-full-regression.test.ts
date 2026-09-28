@@ -30,7 +30,7 @@ function result(): FullTierResult {
 const context = () => fullContext({ FULL_SOURCE: head, FULL_BASE: base, FULL_PR: "543", FULL_SELECTION: "c".repeat(64), GITHUB_RUN_ID: "1234", GITHUB_RUN_ATTEMPT: "1" });
 
 describe("trusted complete-regression selection", () => {
-  it.each([".github/workflows/release.yml", ".github/workflows/ci.yml", ".github/workflows/full-regression.yml", ".github/workflows/full-regression-shared.yml",
+  it.each([".github/workflows/publish.yml", ".github/workflows/ci.yml", ".github/workflows/full-regression.yml", ".github/workflows/full-regression-shared.yml",
     "scripts/release/require-development-validation.mjs", "src/foundation/release/update.ts", "test/foundation/release/update-predecessor.integration.test.ts",
     "scripts/development/environment-probe.mjs", "scripts/development/prepare-ci-rust.sh", "package.json", "package-lock.json", "bin/cli.js", "native/process-guardian/Cargo.lock",
     "config/integration-owners.json", "config/validation-ownership.json", "config/validation-suites.json", "tsconfig.build.json", "vitest.config.ts",
@@ -46,7 +46,8 @@ describe("trusted complete-regression selection", () => {
     expect(select(["src/features/example.ts"], { ...repair(), body: repairLink.replace("2026-09-22", "2026-09-23") }, { provenance: provenance() }).selected).toBe(false);
   });
 
-  it("rejects Release, successful Full regression, and mismatched App provenance as complete-suite authority", () => {
+  it("rejects publication, successful Full regression, and mismatched App provenance as complete-suite authority", () => {
+    expect(select(["src/features/example.ts"], repair(), { provenance: provenance({ workflowName: "Publish", workflowFile: "publish.yml" }) }).selected).toBe(false);
     expect(select(["src/features/example.ts"], repair(), { provenance: provenance({ workflowName: "Release", workflowFile: "release.yml" }) }).selected).toBe(false);
     expect(select(["src/features/example.ts"], repair(), { provenance: provenance({ conclusion: "success" }) }).selected).toBe(false);
     expect(select(["src/features/example.ts"], { ...repair(), user: { ...bot, id: 1 } }, { provenance: provenance() }).selected).toBe(false);
@@ -86,6 +87,8 @@ describe("trusted complete-regression selection", () => {
       repairLink.replace('"version":3', '"version":3,"version":3'), repairLink.replace('"version":3', '"version":3,"unexpected":true')]) expect(() => select(["docs/a.md"], { body })).toThrow();
     expect(() => select(["src/a.ts"], repair(), { provenance: { ...provenance(), extra: true } as unknown as RegressionProvenance })).toThrow(/provenance/);
     expect(() => select(["src/a.ts"], repair(), { provenance: provenance({ url: "https://example.test/run/9001" }) })).toThrow(/source/);
+    expect(() => select(["src/a.ts"], repair(), { provenance: provenance({ workflowName: "Publish", workflowFile: "release.yml" }) })).toThrow(/source/);
+    expect(() => select(["src/a.ts"], repair(), { provenance: provenance({ workflowName: "Release", workflowFile: "publish.yml" }) })).toThrow(/source/);
     for (const patch of [{ state: "closed" }, { head: { sha: "short", ref: "feature/a" } }, { base: { sha: base, ref: "master" } }, { user: { login: "x", id: 0.5, type: "User" } }]) expect(() => select(["src/features/example.ts"], patch)).toThrow();
     expect(() => select([])).toThrow(/incomplete/);
   });
@@ -100,6 +103,7 @@ describe("trusted complete-regression selection", () => {
     expect(request).toHaveBeenCalledWith("https://api.github.com/repos/timurproko/a1/actions/runs/9001", expect.objectContaining({ headers: expect.objectContaining({ authorization: "Bearer read-token" }) }));
     const mismatched = vi.fn(async () => new Response(JSON.stringify({ ...run, conclusion: "success" }), { status: 200 })) as unknown as typeof fetch;
     await expect(verifyFailedRegressionSource("timurproko/a1", provenance(), "read-token", mismatched)).rejects.toThrow(/does not match GitHub/);
+    await expect(verifyFailedRegressionSource("timurproko/a1", provenance({ workflowName: "Publish", workflowFile: "publish.yml" }), "read-token", request)).rejects.toThrow(/no failed Full regression/);
     await expect(verifyFailedRegressionSource("timurproko/a1", provenance({ workflowName: "Release", workflowFile: "release.yml" }), "read-token", request)).rejects.toThrow(/no failed Full regression/);
   });
 
