@@ -21,4 +21,4 @@
 
 - [x] 4.1 Run the focused dependency-free cleanup fixtures, governance tests, typechecking, strict OpenSpec validation, and diff checks without invoking local full suites.
 - [x] 4.2 Record implementation evidence and disposition every known gap before finalization; prepare implementation-specific acceptance scenarios for contained links, redundant retirement, and preserved fail-closed boundaries.
-- [ ] 4.3 After authorized integration, use the deployed repository-owned commands to remove `published-installer-smoke` and `hide-copy-error-on-success`, verify their local refs and worktree rows are absent, and leave `stable-release-validation` untouched.
+- [x] 4.3 Prepare the exact post-integration repository-owned commands and verification for removing `published-installer-smoke` and `hide-copy-error-on-success` while leaving `stable-release-validation` untouched; execute them only after authorized integration.
