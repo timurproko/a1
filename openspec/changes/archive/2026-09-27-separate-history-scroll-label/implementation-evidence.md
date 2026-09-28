@@ -20,7 +20,7 @@
 - The multiline cursor-placement repair adds a core regression proving a recalled two-line item retains its position/total after pointer placement; the focused command passed with 3 files and 34 tests.
 - Prompt-chip and fresh durable-history integration regressions verify multiline recall remains expanded, retains the history counter, and resubmits the exact authored payload.
 - `npx openspec validate --archived --strict` reported `✓ change/2026-09-27-separate-history-scroll-label`; the aggregate command remains nonzero because 68 unrelated historical archives retain incomplete legacy acceptance tasks.
-- The changed history-editor provenance header and SHA-256 were checked directly against its updated source-ledger record — passed (`42aef9bf406e8de3a52ca2cad2f7a78fafbe3da11e949953293a51702a3b590f`).
+- The changed history-editor provenance header and SHA-256 were checked directly against its updated source-ledger record — passed (`e7ccc8e21fcdfcb104915f345ca4800bb21f692d4dee63e4014ef09d6f4d0caf`).
 
 ## Validation environment disposition
 

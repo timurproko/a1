@@ -4,8 +4,8 @@
  * Modifications: Owned editor core or minimal editor-local helper subset; public imports, strict
  * types, typed persistent-history hooks, semantic border state with the user-approved numeric-only
  * history label and separate centered history-overflow cue, and history-count retention during cursor
- * placement within recalled multiline text. Public terminal runtime/exports remain shared and unchanged.
- * See docs/architecture/history-editor-provenance.md.
+ * placement within recalled multiline text. Public terminal runtime/exports remain shared and
+ * unchanged. See docs/architecture/history-editor-provenance.md.
  * Deviations: compact-history-counter-label, history-overflow-cue-separation,
  * history-recall-cursor-retention, persistent-history-owned-editor-boundary.
  */
