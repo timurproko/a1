@@ -48,7 +48,7 @@ export async function reconcileLocalCleanup({ identity, store, reader, preview =
     const selectedIds = entryIds === null ? null : new Set(entryIds);
     if (selectedIds && (selectedIds.size !== entryIds.length || entryIds.some(id => typeof id !== "string"))) fail("candidate-selection");
     const selected = entry => selectedIds === null || selectedIds.has(entry.id);
-    const entries = state.entries.filter(entry => entry.state !== "done" && entry.role !== "discard" && selected(entry));
+    const entries = state.entries.filter(entry => entry.state !== "done" && !["discard", "redundant"].includes(entry.role) && selected(entry));
     if (selectedIds && !state.entries.some(selected)) fail("candidate-selection");
     report.coverage.total = entries.length;
     const start = entries.length ? state.cursor % entries.length : 0;
@@ -109,7 +109,7 @@ export async function reconcileLocalCleanup({ identity, store, reader, preview =
           const content = await inspect(identity, entry, { git, cwd, deadline, now, accepted });
           if (!content.clean) { Object.assign(row, content, { disposition: "blocked" }); continue; }
           // Invariant: generated roots go first with bounded retries, so a held handle blocks before any journaled intent.
-          await enabled(); await purge(entry, { deadline, now }); await enabled();
+          await enabled(); await purge(entry, { deadline, now, containedLinks: content.containedLinks }); await enabled();
           // Provenance: journal the accepted live HEAD so residue verification and ref deletion compare against the tree Git removes.
           if (content.head !== entry.head) { entry.head = content.head; row.head = content.head; }
           entry.state = "deleting"; entry.step = "remove-intent"; await save(state);
@@ -143,7 +143,7 @@ export async function reconcileLocalCleanup({ identity, store, reader, preview =
       }
     }
     report.coverage.complete = report.coverage.visited === entries.length;
-    const completed = state.entries.filter(item => item.state === "done" && item.role !== "discard" && selected(item)
+    const completed = state.entries.filter(item => item.state === "done" && !["discard", "redundant"].includes(item.role) && selected(item)
       && !report.results.some(row => row.id === item.id));
     const completedBudget = Math.max(0, 100 - report.coverage.visited);
     for (const entry of completed.slice(0, completedBudget)) {
