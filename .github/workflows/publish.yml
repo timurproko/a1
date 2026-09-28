@@ -23,6 +23,14 @@ on:
         description: Stable version to stamp on the open development source (stable channel only)
         required: false
         type: string
+      release_id:
+        description: Approved draft GitHub Release database ID (stable channel only)
+        required: false
+        type: string
+      release_notes_sha256:
+        description: SHA-256 of the normalized approved draft body (stable channel only)
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -43,6 +51,8 @@ jobs:
       sha: ${{ steps.source.outputs.sha }}
       mode: ${{ steps.source.outputs.mode }}
       requested_version: ${{ steps.source.outputs.requested_version }}
+      release_id: ${{ steps.source.outputs.release_id }}
+      release_notes_sha256: ${{ steps.source.outputs.release_notes_sha256 }}
     steps:
       - name: Resolve current origin/develop
         id: source
@@ -53,10 +63,14 @@ jobs:
           REQUESTED_CHANNEL: ${{ inputs.channel }}
           REQUESTED_SHA: ${{ inputs.source_sha }}
           REQUESTED_VERSION: ${{ inputs.version }}
+          REQUESTED_RELEASE_ID: ${{ inputs.release_id }}
+          REQUESTED_RELEASE_NOTES_SHA256: ${{ inputs.release_notes_sha256 }}
         run: |
           set -euo pipefail
           authoritative="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/develop" --jq .object.sha)"
           requested_version=""
+          release_id=""
+          release_notes_sha256=""
           if [ "$EVENT_NAME" = "schedule" ]; then
             mode=nightly
             source="$authoritative"
@@ -73,8 +87,14 @@ jobs:
                 echo "::error::stable publication requires an explicit final version, not '$requested_version'" >&2
                 exit 1
               fi
-            elif [ -n "$REQUESTED_VERSION" ]; then
-              echo "::error::a development publication derives its own version; do not pass one" >&2
+              release_id="$REQUESTED_RELEASE_ID"
+              release_notes_sha256="$REQUESTED_RELEASE_NOTES_SHA256"
+              if [[ ! "$release_id" =~ ^[1-9][0-9]*$ ]] || [[ ! "$release_notes_sha256" =~ ^[0-9a-f]{64}$ ]]; then
+                echo "::error::stable publication requires an approved draft Release ID and note digest" >&2
+                exit 1
+              fi
+            elif [ -n "$REQUESTED_VERSION" ] || [ -n "$REQUESTED_RELEASE_ID" ] || [ -n "$REQUESTED_RELEASE_NOTES_SHA256" ]; then
+              echo "::error::a development publication derives its own version and has no draft Release inputs" >&2
               exit 1
             fi
           fi
@@ -82,11 +102,80 @@ jobs:
             echo "::error::source is not a full commit: $source" >&2
             exit 1
           fi
-          printf 'sha=%s\nmode=%s\nrequested_version=%s\n' "$source" "$mode" "$requested_version" >> "$GITHUB_OUTPUT"
+          printf 'sha=%s\nmode=%s\nrequested_version=%s\nrelease_id=%s\nrelease_notes_sha256=%s\n' "$source" "$mode" "$requested_version" "$release_id" "$release_notes_sha256" >> "$GITHUB_OUTPUT"
+
+  approval:
+    name: Snapshot approved draft Release
+    needs: source
+    if: needs.source.outputs.mode == 'stable'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      release_id: ${{ steps.approval.outputs.release_id }}
+      release_notes_sha256: ${{ steps.approval.outputs.release_notes_sha256 }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ needs.source.outputs.sha }}
+          persist-credentials: false
+      - name: Read and validate the approved draft
+        id: approval
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ACTOR: ${{ github.actor }}
+          RELEASE_ID: ${{ needs.source.outputs.release_id }}
+          RELEASE_NOTES_SHA256: ${{ needs.source.outputs.release_notes_sha256 }}
+          RELEASE_VERSION: ${{ needs.source.outputs.requested_version }}
+          SOURCE_SHA: ${{ needs.source.outputs.sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p .artifacts/release-note
+          gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" > .artifacts/release-note/draft.json
+          gh api "users/$ACTOR" > .artifacts/release-note/actor.json
+          gh api "repos/$GITHUB_REPOSITORY/collaborators/$ACTOR/permission" > .artifacts/release-note/permission.json
+          node --input-type=module <<'NODE' >> "$GITHUB_OUTPUT"
+          import { createHash } from "node:crypto";
+          import { readFile, writeFile } from "node:fs/promises";
+          import { parseReleaseNote } from "./scripts/release/release-notes.mjs";
+          const release = JSON.parse(await readFile(".artifacts/release-note/draft.json", "utf8"));
+          const actor = JSON.parse(await readFile(".artifacts/release-note/actor.json", "utf8"));
+          const permission = JSON.parse(await readFile(".artifacts/release-note/permission.json", "utf8"));
+          const id = Number(process.env.RELEASE_ID);
+          const version = process.env.RELEASE_VERSION;
+          const source = process.env.SOURCE_SHA;
+          if (!Number.isSafeInteger(id) || id < 1 || release.id !== id || release.tag_name !== `v${version}`
+            || release.name !== `v${version}` || release.target_commitish !== source || release.draft !== true
+            || release.prerelease !== false || typeof release.body !== "string") {
+            throw new Error("stable approval does not identify the expected source-bound draft Release");
+          }
+          if (actor.login !== process.env.ACTOR || actor.type !== "User"
+            || !["admin", "maintain", "write"].includes(permission.permission)) {
+            throw new Error("stable approval actor is not an authorized human repository user");
+          }
+          const note = parseReleaseNote(release.body, version);
+          const sha256 = createHash("sha256").update(note.markdown, "utf8").digest("hex");
+          if (sha256 !== process.env.RELEASE_NOTES_SHA256) throw new Error("draft Release body differs from the explicitly approved digest");
+          await writeFile(".artifacts/release-note/approved-note.md", note.markdown, "utf8");
+          await writeFile(".artifacts/release-note/approval.json", `${JSON.stringify({
+            schema: "a1-approved-release-note-v1", releaseId: id, version, source, sha256,
+            actor: actor.login, releaseUpdatedAt: release.updated_at,
+          }, null, 2)}\n`, "utf8");
+          console.log(`release_id=${id}`);
+          console.log(`release_notes_sha256=${sha256}`);
+          NODE
+      - name: Preserve the immutable approved snapshot
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: approved-release-note-${{ github.run_id }}
+          path: .artifacts/release-note
+          if-no-files-found: error
+          retention-days: 30
 
   plan:
     name: Resolve numbered publication
-    needs: source
+    needs: [source, approval]
+    if: always() && needs.source.result == 'success' && (needs.source.outputs.mode != 'stable' || needs.approval.result == 'success')
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     outputs:
@@ -106,6 +195,8 @@ jobs:
       installer_registry_integrity: ${{ steps.plan.outputs.installer_registry_integrity }}
       installer_registry_shasum: ${{ steps.plan.outputs.installer_registry_shasum }}
       installer_registry_tarball: ${{ steps.plan.outputs.installer_registry_tarball }}
+      release_id: ${{ needs.approval.outputs.release_id }}
+      release_notes_sha256: ${{ needs.approval.outputs.release_notes_sha256 }}
       validate_matrix: ${{ steps.lanes.outputs.validate_matrix }}
     steps:
       - name: Check out the selected source
@@ -134,9 +225,7 @@ jobs:
         run: |
           set -euo pipefail
           node --input-type=module <<'NODE' >> "$GITHUB_OUTPUT"
-          import { execFileSync } from "node:child_process";
           import { readFile } from "node:fs/promises";
-          import { parseReleaseNote } from "./scripts/release/release-notes.mjs";
           const manifest = JSON.parse(await readFile("package.json", "utf8"));
           const installerManifest = JSON.parse(await readFile("packages/a1-install/package.json", "utf8"));
           const declared = manifest.version;
@@ -159,16 +248,8 @@ jobs:
             version = process.env.REQUESTED_VERSION;
             if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error(`stable publication requires an explicit final version, not ${version}`);
             if (!notBelow(core(version), core(base))) throw new Error(`stable version ${version} is below the open development version ${declared}`);
-            const reviewBranch = new RegExp(`^chore/release-${version.replaceAll(".", "\\.")}(?:-[a-f0-9]{12})?$`, "u");
-            if (matches.length !== 1 || !reviewBranch.test(matches[0]?.head?.ref ?? "") || matches[0]?.head?.repo?.full_name !== process.env.GITHUB_REPOSITORY
-              || matches[0]?.auto_merge !== null || matches[0]?.merged_by?.type !== "User") {
-              throw new Error("stable source is not an authorized manually merged release-review PR");
-            }
-            const notePath = `docs/releases/${version}.md`;
-            const parent = execFileSync("git", ["rev-parse", `${process.env.SOURCE_SHA}^`], { encoding: "utf8" }).trim();
-            const changed = execFileSync("git", ["diff", "--name-only", parent, process.env.SOURCE_SHA], { encoding: "utf8" }).trim().split("\n").filter(Boolean);
-            if (changed.length !== 1 || changed[0] !== notePath) throw new Error("stable release-review merge changed unsupported paths");
-            parseReleaseNote(await readFile(notePath, "utf8"), version);
+            // Stable note authority is the independently validated approval artifact,
+            // not a pull request association or mutable source-tree document.
             channel = "latest";
           } else {
             if (matches.length !== 1 || !Number.isInteger(matches[0]?.number) || matches[0].number < 1) {
@@ -330,6 +411,25 @@ jobs:
           node-version: 24
           cache: npm
 
+      - name: Download the approved release-note snapshot
+        if: needs.plan.outputs.mode == 'stable'
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: approved-release-note-${{ github.run_id }}
+          path: .artifacts/release-note
+      - name: Assemble the approved note with committed history
+        if: needs.plan.outputs.mode == 'stable'
+        shell: bash
+        env:
+          RELEASE_VERSION: ${{ needs.plan.outputs.version }}
+          RELEASE_NOTES_SHA256: ${{ needs.plan.outputs.release_notes_sha256 }}
+        run: |
+          set -euo pipefail
+          mkdir -p docs/releases
+          cp .artifacts/release-note/approved-note.md "docs/releases/${RELEASE_VERSION}.md"
+          actual="$(node --input-type=module -e 'import { createHash } from "node:crypto"; import { readFileSync } from "node:fs"; process.stdout.write(createHash("sha256").update(readFileSync(process.argv[1])).digest("hex"))' "docs/releases/${RELEASE_VERSION}.md")"
+          test "$actual" = "$RELEASE_NOTES_SHA256"
+
       - name: Prepare Rust toolchain
         if: needs.plan.outputs.build == 'true'
         shell: bash
@@ -409,6 +509,7 @@ jobs:
         shell: bash
         env:
           RELEASE_VERSION: ${{ needs.plan.outputs.version }}
+          RELEASE_NOTES_SHA256: ${{ needs.plan.outputs.release_notes_sha256 }}
           SOURCE_SHA: ${{ needs.plan.outputs.source }}
           PULL_REQUEST: ${{ needs.plan.outputs.pull_request }}
           EXPECTED_REGISTRY_INTEGRITY: ${{ needs.plan.outputs.registry_integrity }}
@@ -436,7 +537,12 @@ jobs:
           const tree = execFileSync("git", ["rev-parse", `${process.env.SOURCE_SHA}^{tree}`], { encoding: "utf8" }).trim();
           await writeFile(".artifacts/validation/package/candidate-identity.json", `${JSON.stringify({
             schema: "a1-packed-candidate-v1",
-            source: { commit: process.env.SOURCE_SHA, tree, pullRequest: process.env.PULL_REQUEST ? Number(process.env.PULL_REQUEST) : null },
+            source: {
+              commit: process.env.SOURCE_SHA,
+              tree,
+              pullRequest: process.env.PULL_REQUEST ? Number(process.env.PULL_REQUEST) : null,
+              releaseNoteSha256: process.env.RELEASE_NOTES_SHA256 || null,
+            },
             package: { name: manifest.name, version: manifest.version, integrity, shasum },
           }, null, 2)}\n`);
           const installerPath = ".artifacts/validation/package/installer.tgz";
@@ -647,6 +753,27 @@ jobs:
           name: release-package-${{ needs.plan.outputs.version }}
           path: .artifacts/release
 
+      - name: Require the approved Release to remain a draft
+        if: needs.plan.outputs.mode == 'stable'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ needs.plan.outputs.release_id }}
+          RELEASE_VERSION: ${{ needs.plan.outputs.version }}
+          SOURCE_SHA: ${{ needs.plan.outputs.source }}
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" > "$RUNNER_TEMP/pre-publish-release.json"
+          node --input-type=module <<'NODE'
+          import { readFile } from "node:fs/promises";
+          const release = JSON.parse(await readFile(process.env.RUNNER_TEMP + "/pre-publish-release.json", "utf8"));
+          if (release.id !== Number(process.env.RELEASE_ID) || release.tag_name !== `v${process.env.RELEASE_VERSION}`
+            || release.name !== `v${process.env.RELEASE_VERSION}` || release.target_commitish !== process.env.SOURCE_SHA
+            || release.draft !== true || release.prerelease !== false) {
+            throw new Error("approved GitHub Release was published or changed before npm publication");
+          }
+          NODE
+
       - name: Serialize the final registry check
         id: final
         shell: bash
@@ -790,7 +917,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Check out the published source for reviewed release notes
+      - name: Check out the published source
         if: needs.plan.outputs.channel == 'latest'
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
@@ -802,6 +929,32 @@ jobs:
         with:
           name: release-package-${{ needs.plan.outputs.version }}
           path: package
+      - name: Download the approved release-note snapshot
+        if: needs.plan.outputs.channel == 'latest'
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: approved-release-note-${{ github.run_id }}
+          path: .artifacts/release-note
+      - name: Require the approved Release to remain unpublished
+        if: needs.plan.outputs.channel == 'latest'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ needs.plan.outputs.release_id }}
+          RELEASE_VERSION: ${{ needs.plan.outputs.version }}
+          SOURCE_SHA: ${{ needs.plan.outputs.source }}
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" > .artifacts/release-note/pre-completion.json
+          node --input-type=module <<'NODE'
+          import { readFile } from "node:fs/promises";
+          const release = JSON.parse(await readFile(".artifacts/release-note/pre-completion.json", "utf8"));
+          if (release.id !== Number(process.env.RELEASE_ID) || release.tag_name !== `v${process.env.RELEASE_VERSION}`
+            || release.name !== `v${process.env.RELEASE_VERSION}` || release.target_commitish !== process.env.SOURCE_SHA
+            || release.draft !== true || release.prerelease !== false) {
+            throw new Error("approved GitHub Release was published or changed before stable completion");
+          }
+          NODE
       - name: Locate the immutable application artifact
         if: needs.plan.outputs.channel == 'latest'
         shell: bash
@@ -825,15 +978,6 @@ jobs:
               echo "::error::could not create ${tag} at ${SOURCE_SHA}: ${response}" >&2; exit 1
             fi
           fi
-      - name: Record the GitHub Release
-        if: needs.plan.outputs.channel == 'latest'
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_VERSION: ${{ needs.plan.outputs.version }}
-        run: |
-          tag="v${RELEASE_VERSION}"
-          gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || gh release create "$tag" --repo "$GITHUB_REPOSITORY" --verify-tag --latest --title "$tag" --notes-file "docs/releases/${RELEASE_VERSION}.md" "$release_tarball"
       - name: Move master to the published release
         if: needs.plan.outputs.channel == 'latest'
         shell: bash
@@ -844,6 +988,49 @@ jobs:
           if ! response="$(gh api -X PATCH "repos/$GITHUB_REPOSITORY/git/refs/heads/master" -f "sha=$SOURCE_SHA" -F force=false 2>&1)"; then
             echo "::error::could not fast-forward master to ${SOURCE_SHA}: ${response}" >&2; exit 1
           fi
+      - name: Publish the approved draft GitHub Release
+        if: needs.plan.outputs.channel == 'latest'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ needs.plan.outputs.release_id }}
+          RELEASE_NOTES_SHA256: ${{ needs.plan.outputs.release_notes_sha256 }}
+          RELEASE_VERSION: ${{ needs.plan.outputs.version }}
+          SOURCE_SHA: ${{ needs.plan.outputs.source }}
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import { createHash } from "node:crypto";
+          import { readFile, writeFile } from "node:fs/promises";
+          const body = await readFile(".artifacts/release-note/approved-note.md", "utf8");
+          const sha256 = createHash("sha256").update(body, "utf8").digest("hex");
+          if (sha256 !== process.env.RELEASE_NOTES_SHA256) throw new Error("approved release-note artifact digest changed");
+          await writeFile(".artifacts/release-note/publish.json", JSON.stringify({
+            tag_name: `v${process.env.RELEASE_VERSION}`,
+            target_commitish: process.env.SOURCE_SHA,
+            name: `v${process.env.RELEASE_VERSION}`,
+            body,
+            draft: false,
+            prerelease: false,
+            make_latest: "true",
+          }));
+          NODE
+          gh release upload "v${RELEASE_VERSION}" "$release_tarball" --repo "$GITHUB_REPOSITORY" --clobber
+          gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" --input .artifacts/release-note/publish.json > .artifacts/release-note/published.json
+          node --input-type=module <<'NODE'
+          import { createHash } from "node:crypto";
+          import { readFile } from "node:fs/promises";
+          const release = JSON.parse(await readFile(".artifacts/release-note/published.json", "utf8"));
+          const body = await readFile(".artifacts/release-note/approved-note.md", "utf8");
+          const sha256 = typeof release.body === "string"
+            ? createHash("sha256").update(release.body, "utf8").digest("hex") : "";
+          if (release.id !== Number(process.env.RELEASE_ID) || release.draft !== false || release.prerelease !== false
+            || release.name !== `v${process.env.RELEASE_VERSION}` || release.tag_name !== `v${process.env.RELEASE_VERSION}`
+            || release.target_commitish !== process.env.SOURCE_SHA || release.body !== body
+            || sha256 !== process.env.RELEASE_NOTES_SHA256) {
+            throw new Error("GitHub did not publish the approved draft with the expected identity and exact body");
+          }
+          NODE
 
   result:
     name: Publication result

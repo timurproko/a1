@@ -4,9 +4,10 @@ import semver from "semver";
 
 export const RELEASE_NOTES_SCHEMA = "a1-release-notes-v1";
 export const MAX_RELEASE_NOTE_BYTES = 128 * 1024;
+export const MAX_RELEASE_NOTES_RESOURCE_BYTES = 1024 * 1024;
 const MAX_TITLE_LENGTH = 240;
 const STABLE = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/u;
-const HEADING = /^# A1 (0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)\r?\n/u;
+const RELEASE_HEADING = /^# A1 \d+\.\d+\.\d+$/gmu;
 
 export function releaseNotePath(version) {
   assertStableVersion(version);
@@ -14,18 +15,15 @@ export function releaseNotePath(version) {
 }
 
 export function parseReleaseNote(markdown, expectedVersion) {
+  assertStableVersion(expectedVersion);
   if (typeof markdown !== "string" || Buffer.byteLength(markdown, "utf8") > MAX_RELEASE_NOTE_BYTES || markdown.includes("\0")) {
     throw new Error("release note is missing or exceeds its bounded text format");
   }
-  const match = HEADING.exec(markdown);
-  if (!match) throw new Error("release note must start with '# A1 x.y.z'");
-  const version = `${match[1]}.${match[2]}.${match[3]}`;
-  assertStableVersion(version);
-  if (expectedVersion !== undefined && version !== expectedVersion) throw new Error(`release note declares ${version}, expected ${expectedVersion}`);
+  const version = expectedVersion;
   const normalized = markdown.replaceAll("\r\n", "\n").trimEnd() + "\n";
   if (/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u.test(normalized)) throw new Error("release note contains unsafe control characters");
-  if ([...normalized.matchAll(/^# A1 \d+\.\d+\.\d+$/gmu)].length !== 1) throw new Error("release note must declare exactly one release identity");
-  if (normalized.split("\n").slice(1).every(line => line.trim() === "")) throw new Error("release note has no content");
+  if ([...normalized.matchAll(RELEASE_HEADING)].length !== 0) throw new Error("release note body must not repeat its release identity");
+  if (normalized.trim() === "") throw new Error("release note has no content");
   for (const link of normalized.matchAll(/\[[^\]]*\]\(([^)\s]+)(?:\s+[^)]*)?\)/gu)) validateLink(link[1] ?? "");
   for (const link of normalized.matchAll(/<([^>\s]+:[^>]*)>/gu)) validateLink(link[1] ?? "");
   if (/<\/?[A-Za-z][A-Za-z0-9-]*(?:\s[^>]*)?\/?>|\b(?:href|src)\s*=/iu.test(normalized)) {
@@ -64,7 +62,7 @@ export function renderReleaseNoteDraft(version, changes) {
   const sections = [];
   for (const [heading, entries] of groups) if (entries.length > 0) sections.push(`## ${heading}\n\n${entries.join("\n")}`);
   if (sections.length === 0) sections.push("## Other changes\n\n- Maintenance and release readiness updates.");
-  return `# A1 ${version}\n\n${sections.join("\n\n")}\n`;
+  return `${sections.join("\n\n")}\n`;
 }
 
 export async function buildReleaseNotesResource(directory) {

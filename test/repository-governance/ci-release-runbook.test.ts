@@ -66,7 +66,8 @@ describe("CI and release operations runbook", () => {
     expect(runbook).toContain("npm run develop");
     expect(runbook).toContain("03:17 UTC");
     expect(runbook).toContain("npm run release --");
-    expect(runbook).toContain("explicitly dispatches");
+    expect(runbook).toContain("npm run release -- patch --approve");
+    expect(runbook).toContain("draft GitHub Release");
     expect(runbook).toContain("A push of the stable version does\nnot publish");
     expect(runbook).toContain("the stable version is never committed to `develop`");
   });

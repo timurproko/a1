@@ -94,7 +94,8 @@ export function inspectWorkflowSource(path, source) {
   if (source.includes('channel = "next"')) authority.push("npm-next");
   if (source.includes('channel = "latest"')) authority.push("npm-latest");
   if (source.includes("ref=refs/tags/")) authority.push("release-tag");
-  if (source.includes("gh release create")) authority.push("github-release");
+  if (source.includes("gh release create")
+    || (source.includes('releases/$RELEASE_ID') && source.includes("draft: false"))) authority.push("github-release");
   if (source.includes("git/refs/heads/master")) authority.push("master-fast-forward");
   if (source.includes("propose-pi-upgrade.mjs") && source.includes("--draft")) authority.push("pi-upgrade-proposal");
   if (source.includes("propose-regression-fix.mjs")) authority.push("nightly-regression-triage");

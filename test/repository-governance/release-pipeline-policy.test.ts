@@ -131,7 +131,7 @@ describe("deliberate publication pipeline", () => {
     expect(source).toMatch(/      version:\r?\n        description: Stable version to stamp on the open development source \(stable channel only\)/);
     expect(source).toContain('if [ "$mode" = "stable" ]; then');
     expect(source).toContain("stable publication requires an explicit final version");
-    expect(source).toContain("a development publication derives its own version; do not pass one");
+    expect(source).toContain("a development publication derives its own version and has no draft Release inputs");
     expect(source).toContain("const base = /^(\\d+\\.\\d+\\.\\d+)-dev$/.exec(declared)?.[1];");
     expect(source).toContain("version = process.env.REQUESTED_VERSION;");
     expect(source).toContain("is below the open development version");
@@ -140,17 +140,31 @@ describe("deliberate publication pipeline", () => {
     expect(stamp).toContain("if: needs.plan.outputs.build == 'true'");
     expect(stamp).toContain('npm version "$RELEASE_VERSION" --no-git-tag-version --allow-same-version');
     const client = await readFile("scripts/release/publication-client.mjs", "utf8");
-    expect(client).toContain('...(channel === "stable" ? ["-f", `version=${version}`] : [])');
+    expect(client).toContain('"-f", `version=${version}`');
+    expect(client).toContain('"-f", `release_id=${options.draftReleaseId}`');
+    expect(client).toContain('"-f", `release_notes_sha256=${options.releaseNoteSha256}`');
   });
 
-  it("binds stable publication and GitHub Release text to the reviewed note merge", async () => {
+  it("binds stable publication and GitHub Release text to an authorized draft snapshot", async () => {
     const source = await workflow();
-    expect(source).toContain("stable source is not an authorized manually merged release-review PR");
-    expect(source).toContain("stable release-review merge changed unsupported paths");
-    expect(source).toContain("parseReleaseNote(await readFile(notePath, \"utf8\"), version)");
-    expect(source).toContain('--notes-file "docs/releases/${RELEASE_VERSION}.md"');
+    expect(source).toContain("Snapshot approved draft Release");
+    expect(source).toContain("stable approval actor is not an authorized human repository user");
+    expect(source).toContain("draft Release body differs from the explicitly approved digest");
+    expect(source).toContain("approved-release-note-${{ github.run_id }}");
+    expect(source).toContain("Assemble the approved note with committed history");
+    expect(source).toContain("Require the approved Release to remain a draft");
+    expect(source).toContain("approved GitHub Release was published or changed before npm publication");
+    expect(source).toContain("Require the approved Release to remain unpublished");
+    expect(source).toContain("approved GitHub Release was published or changed before stable completion");
+    expect(source).toContain("Publish the approved draft GitHub Release");
+    expect(source).toContain('gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID"');
+    expect(source).toContain("GitHub did not publish the approved draft with the expected identity and exact body");
+    expect(source).toContain("release.body !== body");
+    expect(source.indexOf('gh release upload "v${RELEASE_VERSION}"')).toBeLessThan(source.indexOf('gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID"'));
+    expect(source.indexOf('git/refs/heads/master')).toBeLessThan(source.indexOf('gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID"'));
     expect(source).toContain("ref: ${{ needs.plan.outputs.source }}");
-    expect(source).not.toContain('--notes "Published to npm latest');
+    expect(source).not.toContain("release-review PR");
+    expect(source).not.toContain('--notes-file "docs/releases/${RELEASE_VERSION}.md"');
   });
 
   it("keeps preview and stable registry effects separate", async () => {
@@ -160,7 +174,7 @@ describe("deliberate publication pipeline", () => {
     expect(source).toContain("needs.plan.outputs.channel == 'latest'");
     expect(source).toContain("git/refs/heads/master");
     expect(source).toContain("-F force=false");
-    expect(source).toContain("--verify-tag");
+    expect(source).toContain('draft: false');
   });
 });
 
@@ -181,31 +195,38 @@ describe("maintainer publication commands", () => {
     expect(script).not.toMatch(/npm publish|npm pack/);
   });
 
-  it("reviews release notes before publishing stable, then reopens develop through one version PR", async () => {
+  it("prepares a draft before explicit approval, then reopens develop through one note-and-version PR", async () => {
     const entry = await readFile("scripts/release/release.mjs", "utf8");
     const script = await readFile("scripts/release/release-workflow.mjs", "utf8");
     expect(entry).toContain("./release-workflow.mjs");
-    const reviewed = script.indexOf("source = await prepareReleaseReview(r, source, plan.version)");
-    const dispatched = script.indexOf("await r.publish(source, plan.version)");
+    const prepared = script.indexOf("const draft = await prepareDraftRelease");
+    const approved = script.indexOf("const approval = approvedSnapshot");
+    const dispatched = script.indexOf("await r.publish(source, plan.version, approval)");
     const reopened = script.indexOf("const reopened = await prepareVersion(");
-    expect(reviewed).toBeGreaterThan(0);
-    expect(dispatched).toBeGreaterThan(reviewed);
+    expect(prepared).toBeGreaterThan(0);
+    expect(approved).toBeGreaterThan(prepared);
+    expect(dispatched).toBeGreaterThan(approved);
     expect(reopened).toBeGreaterThan(dispatched);
     expect(script.match(/await prepareVersion\(/g)).toHaveLength(1);
     expect(script).toContain("OPEN_DEVELOPMENT.test(plan.current)");
-    expect(script).toContain('dispatchPublication("stable", source, version)');
+    expect(script).toContain('dispatchPublication("stable", source, version, {');
+    expect(script).toContain("assertAuthenticatedApprover");
+    expect(script).toContain("stable approval requires an authenticated human GitHub user");
     expect(script).not.toMatch(/npm publish|npm pack/);
     expect(script).not.toMatch(/git\(\["tag"/);
     expect(script).not.toContain('"--auto"');
     expect(script).not.toContain('["pr", "merge"');
     expect(script).not.toContain('"--hard"');
+    expect(script).not.toContain("prepareReleaseReview");
   });
 
-  it("moves only the synchronized package versions", async () => {
+  it("moves synchronized package versions with the exact approved note", async () => {
     const script = await readFile("scripts/release/release-workflow.mjs", "utf8");
     expect(script).not.toContain("replaceAll");
     expect(script).toContain('lock.packages[""].version = version');
     expect(script).toContain("installer.version = version");
     expect(script).toContain('"packages/a1-install/package.json"');
+    expect(script).toContain("approval.markdown");
+    expect(script).toContain("existing reopening PR release note differs from the approved snapshot");
   });
 });

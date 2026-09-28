@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, lstat, readFile, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { isDeepStrictEqual } from "node:util";
@@ -27,7 +28,10 @@ export function createReleaseRuntime(options = {}) {
     gh,
     releaseChanges: (base, source) => collectReleaseChanges(git, gh, base, source),
     registry: (name, version) => registryVersion(name, version, (url, init) => fetch(url, { ...init, signal: options.signal })),
-    publish: (source, version) => dispatchPublication("stable", source, version),
+    publish: (source, version, approval) => dispatchPublication("stable", source, version, {
+      draftReleaseId: approval.id,
+      releaseNoteSha256: approval.sha256,
+    }),
     sleep: ms => sleep(ms, undefined, { signal: options.signal }),
     now: Date.now,
     pollMs: 20_000,
@@ -39,12 +43,9 @@ export function createReleaseRuntime(options = {}) {
   };
 }
 
-/**
- * Reviews one generated stable note through manual PR integration, publishes that exact
- * open-development source, then reopens development through a second manual version PR.
- */
+/** Prepares or explicitly approves a source-bound draft GitHub Release. */
 export async function runRelease(args, runtime) {
-  parseReleaseArguments(args);
+  const parsed = parseReleaseArguments(args);
   const r = runtime;
   const root = resolve(r.cwd);
   const local = await readLocalVersions(root);
@@ -56,30 +57,37 @@ export async function runRelease(args, runtime) {
   if (!Number.isFinite(r.waitMs) || r.waitMs <= 0 || !Number.isFinite(r.pollMs) || r.pollMs <= 0) {
     throw new Error("release wait and poll intervals must be positive");
   }
-  r.log(`source ${plan.current}; stable target ${plan.version}; next development ${plan.opening}`);
+  r.log(`source ${plan.current}; stable target ${plan.version}; next development ${plan.opening}; mode ${parsed.approve ? "approve" : "prepare"}`);
   checkCanceled(r);
   if (r.git(["rev-parse", "--show-prefix"]) !== "" || r.git(["rev-parse", "--abbrev-ref", "HEAD"]) !== "develop") {
     throw new Error("release runs from the repository root on develop");
   }
   if (!isClean(r, root)) throw new Error("commit or preserve local changes before releasing; checkout must be clean");
   const originalHead = r.git(["rev-parse", "HEAD"]);
-  let source = fetchDevelop(r);
+  const source = fetchDevelop(r);
   if (source !== originalHead) throw new Error("develop is not at the origin tip; synchronize it safely before releasing");
   assertSameSnapshot(readVersionsAt(r, source), local, "caller manifest differs from authoritative develop");
   let published = false;
   let publicationAttempted = false;
-  let phase = "release-note review";
+  let phase = "draft release preparation";
   try {
     await assertUnpublished(r, local.manifest.name, plan.version);
-    // Invariant: the registry guard is asynchronous, so the source is re-verified after it.
     assertAuthoritative(r, source, plan.current, local.manifest.name);
-    source = await prepareReleaseReview(r, source, plan.version);
+    const draft = await prepareDraftRelease(r, source, plan.version, parsed.approve);
+    if (!parsed.approve) {
+      r.log(`Draft release ready for editing: ${draft.url}`);
+      r.log(`After review, run: npm run release -- ${args[0]} --approve`);
+      return { ...plan, source, draft, reopened: null };
+    }
+    const approval = approvedSnapshot(draft, plan.version);
+    const approver = assertAuthenticatedApprover(r, repositoryName(r));
+    r.log(`explicit approval by ${approver} binds draft ${approval.id} and note ${approval.sha256}`);
     assertAuthoritative(r, source, plan.current, local.manifest.name);
     checkCanceled(r);
     phase = "stable publication";
-    r.log(`dispatching stable publication of ${plan.version} for reviewed source ${source}`);
+    r.log(`dispatching stable publication of ${plan.version} for source ${source} and approved note ${approval.sha256}`);
     publicationAttempted = true;
-    await r.publish(source, plan.version);
+    await r.publish(source, plan.version, approval);
     published = true;
     r.log(`${plan.version} is published; development reopening is not yet complete`);
     checkCanceled(r);
@@ -87,18 +95,19 @@ export async function runRelease(args, runtime) {
     const openingBase = fetchDevelop(r);
     const open = readVersionsAt(r, openingBase);
     assertVersions(open, plan.current, local.manifest.name);
-    const reopened = await prepareVersion(r, openingBase, open, plan.opening, `chore(release): open ${plan.opening}`);
-    assertAuthoritative(r, reopened, plan.opening, local.manifest.name);
+    const reopened = await prepareVersion(r, openingBase, open, plan.opening,
+      `chore(release): open ${plan.opening}`, approval);
+    assertReopenedSource(r, reopened, plan.opening, local.manifest.name, approval);
     synchronizeCaller(r, originalHead, reopened);
     r.log(`${plan.version} is published and remote develop is open at ${plan.opening}; previews still require nightly or npm run develop`);
-    return { ...plan, source, reopened };
+    return { ...plan, source, draft, reopened };
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     const outcome = published
       ? `${plan.version} is published, but reopening ${plan.opening} is incomplete. Inspect the reopening PR; do not republish ${plan.version}.`
       : publicationAttempted
         ? `Publication of ${plan.version} failed or is uncertain. Inspect the workflow, npm and release records before retrying; no reopening was prepared.`
-        : `Publication of ${plan.version} was not dispatched. Inspect the registry and tag state; never republish an existing stable version.`;
+        : `Publication of ${plan.version} was not dispatched. Inspect the draft, registry and tag state; never republish an existing stable version.`;
     throw new Error(`${phase} stopped: ${detail}\n${outcome}`, { cause: error });
   }
 }
@@ -158,133 +167,84 @@ async function assertUnpublished(r, name, version) {
   }
 }
 
-async function prepareReleaseReview(r, base, version) {
+async function prepareDraftRelease(r, source, version, approving) {
   checkCanceled(r);
-  assertAuthoritative(r, base, readVersionsAt(r, base).manifest.version, readVersionsAt(r, base).manifest.name);
-  const primaryBranch = `chore/release-${version}`;
-  let branch = primaryBranch;
-  let pulls = listPulls(r, branch, "release-review");
-  if (pulls.length === 1) {
-    const prior = assertPull(pulls[0], branch);
-    if (prior.state === "MERGED" && prior.mergeCommit?.oid === base) {
-      if (prior.mergedBy?.__typename !== "User" || typeof prior.mergedBy.login !== "string" || prior.mergedBy.login.length === 0) {
-        throw new Error(`${prior.url} lacks an authorized manual human merge`);
-      }
-      const parents = r.git(["rev-list", "--parents", "-n", "1", base]).split(/\s+/u);
-      if (parents.length < 2 || !SHA.test(parents[1] ?? "")) throw new Error(`${prior.url} has no verifiable review base`);
-      assertReleaseReviewDiff(r, parents[1], base, version);
-      r.log(`reusing release notes already reviewed on current develop by ${prior.mergedBy.login}: ${prior.url}`);
-      return base;
-    }
-    if (prior.state !== "OPEN" || !reviewHeadUsesBase(r, prior, base)) {
-      branch = `${primaryBranch}-${base.slice(0, 12)}`;
-      pulls = listPulls(r, branch, "release-review retry");
-    }
+  assertAuthoritative(r, source, readVersionsAt(r, source).manifest.version, readVersionsAt(r, source).manifest.name);
+  const repository = repositoryName(r);
+  const matches = listVersionReleases(r, repository, version);
+  if (matches.length > 1) throw new Error(`ambiguous GitHub Releases for v${version}`);
+  if (matches.length === 1) {
+    const draft = assertDraftRelease(matches[0], source, version);
+    r.log(`existing draft release: ${draft.url}`);
+    return draft;
   }
+  if (approving) throw new Error(`no editable draft exists for v${version}; run preparation without --approve first`);
+
   r.git(["fetch", "origin", "--tags"]);
-  const tag = r.git(["describe", "--first-parent", "--tags", "--abbrev=0", "--match", "v[0-9]*", base]);
+  const tag = r.git(["describe", "--first-parent", "--tags", "--abbrev=0", "--match", "v[0-9]*", source]);
   const previousVersion = tag.startsWith("v") ? tag.slice(1) : "";
   if (semver.valid(previousVersion) !== previousVersion || semver.prerelease(previousVersion) !== null) {
     throw new Error(`latest release baseline ${tag} is not an exact stable tag`);
   }
   const previous = r.git(["rev-parse", `${tag}^{commit}`]);
-  r.git(["merge-base", "--is-ancestor", previous, base]);
-  const changes = await r.releaseChanges(previous, base);
-  const markdown = renderReleaseNoteDraft(version, changes);
-  parseReleaseNote(markdown, version);
-  const notePath = releaseNotePath(version);
-  const subject = `chore(release): review ${version}`;
-  let pull;
-  let directory;
-  try {
-    if (pulls.length === 1) {
-      pull = assertPull(pulls[0], branch);
-      r.log(`existing release-review PR: ${pull.url}`);
-    } else {
-      if (r.git(["ls-remote", "--heads", "origin", `refs/heads/${branch}`]) !== "") {
-        throw new Error(`${branch} already exists without a matching PR; inspect it rather than overwrite it`);
-      }
-      const parent = join(r.cwd, ".worktrees");
-      await mkdir(parent, { recursive: true });
-      if ((await lstat(parent)).isSymbolicLink()) throw new Error("release worktree parent must not be a symlink");
-      directory = await mkdtemp(join(parent, `release-review-${version}-`));
-      r.log(`preparing release-note review for ${version} in ${directory}; branch ${branch}`);
-      r.git(["worktree", "add", "--detach", directory, base]);
-      await mkdir(join(directory, "docs", "releases"), { recursive: true });
-      await writeFile(join(directory, ...notePath.split("/")), markdown, "utf8");
-      r.git(["add", "--", notePath], directory);
-      r.git(["commit", "-m", subject], directory);
-      const head = r.git(["rev-parse", "HEAD"], directory);
-      assertReleaseReviewDiff(r, base, head, version);
-      r.git(["push", "origin", `--force-with-lease=refs/heads/${branch}:`, `HEAD:refs/heads/${branch}`], directory);
-      const body = `Review and edit \`${notePath}\` for stable target ${version}, covering ${tag} through ${base}. Its committed Markdown will be packaged and used for the GitHub Release. Required CI must pass, then merge manually; this PR must not auto-merge.`;
-      const url = r.gh(["pr", "create", "--base", "develop", "--head", branch, "--title", subject, "--body", body]);
-      r.log(`release-review PR: ${url}`);
-      const number = /\/(\d+)\s*$/u.exec(url)?.[1];
-      if (!number) throw new Error(`cannot read release-review PR number from ${url}`);
-      pull = readPull(r, Number(number), branch, head);
-    }
-    r.log(`Manual action required: edit and validate ${pull.url}, then merge it manually. CI success alone will not publish ${version}.`);
-    const merged = await waitForReleaseReview(r, pull, branch, base, version);
-    if (directory) cleanupOwnedPhase(r, directory, pull.number, branch, r.git(["rev-parse", "HEAD"], directory));
-    r.log(`${version} release notes reviewed on remote develop at ${merged}`);
-    return merged;
-  } catch (error) {
-    throw new Error(`${version} release-note review: ${error instanceof Error ? error.message : String(error)}; inspect ${pull?.url ?? branch}${directory ? `; retained worktree ${directory}` : ""}`, { cause: error });
+  r.git(["merge-base", "--is-ancestor", previous, source]);
+  const markdown = parseReleaseNote(renderReleaseNoteDraft(version, await r.releaseChanges(previous, source)), version).markdown;
+  const created = JSON.parse(r.gh([
+    "api", "-X", "POST", `repos/${repository}/releases`,
+    "-f", `tag_name=v${version}`, "-f", `target_commitish=${source}`,
+    "-f", `name=v${version}`, "-f", `body=${markdown}`,
+    "-F", "draft=true", "-F", "prerelease=false",
+  ]));
+  const draft = assertDraftRelease(created, source, version);
+  r.log(`created draft release: ${draft.url}`);
+  return draft;
+}
+
+function repositoryName(r) {
+  const repository = r.gh(["repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"]);
+  if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u.test(repository)) throw new Error("GitHub repository identity is invalid");
+  return repository;
+}
+
+function assertAuthenticatedApprover(r, repository) {
+  const actor = JSON.parse(r.gh(["api", "user"]));
+  if (!actor || typeof actor.login !== "string" || !/^[A-Za-z0-9-]+$/u.test(actor.login) || actor.type !== "User") {
+    throw new Error("stable approval requires an authenticated human GitHub user");
   }
-}
-
-function listPulls(r, branch, label) {
-  const pulls = JSON.parse(r.gh(["pr", "list", "--state", "all", "--base", "develop", "--head", branch, "--json", PR_FIELDS]));
-  if (!Array.isArray(pulls) || pulls.length > 1) throw new Error(`ambiguous ${label} PRs for ${branch}`);
-  return pulls;
-}
-
-function reviewHeadUsesBase(r, pull, base) {
-  try {
-    r.git(["fetch", "origin", `refs/heads/${pull.headRefName}`]);
-    const head = r.git(["rev-parse", "FETCH_HEAD"]);
-    assertPull(pull, pull.headRefName, head);
-    return r.git(["merge-base", base, head]) === base;
-  } catch {
-    return false;
+  const permission = JSON.parse(r.gh(["api", `repos/${repository}/collaborators/${actor.login}/permission`]));
+  if (!permission || !["admin", "maintain", "write"].includes(permission.permission)) {
+    throw new Error(`${actor.login} is not authorized to approve a stable release`);
   }
+  return actor.login;
 }
 
-function assertReleaseReviewDiff(r, base, head, version) {
-  if (!SHA.test(head)) throw new Error("release-review head is invalid");
-  r.git(["merge-base", "--is-ancestor", base, head]);
-  const notePath = releaseNotePath(version);
-  const paths = r.git(["diff", "--name-only", base, head]).split("\n").filter(Boolean);
-  if (!isDeepStrictEqual(paths, [notePath])) throw new Error("release-review PR must change only its target note");
-  parseReleaseNote(r.git(["show", `${head}:${notePath}`]) + "\n", version);
+function listVersionReleases(r, repository, version) {
+  const releases = JSON.parse(r.gh(["api", `repos/${repository}/releases?per_page=100`]));
+  if (!Array.isArray(releases) || releases.length >= 100) throw new Error("GitHub release response is invalid or exceeds its bounded page");
+  return releases.filter(release => release?.tag_name === `v${version}`);
 }
 
-async function waitForReleaseReview(r, initial, branch, base, version) {
-  const deadline = r.now() + r.waitMs;
-  while (true) {
-    checkCanceled(r);
-    const pull = readPull(r, initial.number, branch);
-    if (pull.state === "MERGED") {
-      const merged = pull.mergeCommit?.oid;
-      if (!SHA.test(merged ?? "") || pull.mergedBy?.__typename !== "User" || typeof pull.mergedBy?.login !== "string"
-        || pull.mergedBy.login.length === 0) {
-        throw new Error(`${pull.url} lacks an authorized manual human merge`);
-      }
-      const current = fetchDevelop(r);
-      if (current !== merged) throw new Error(`authoritative develop advanced beyond reviewed merge ${merged}`);
-      assertReleaseReviewDiff(r, base, merged, version);
-      return merged;
-    }
-    if (pull.state === "CLOSED") throw new Error(`${pull.url} closed without merging`);
-    if (fetchDevelop(r) !== base) throw new Error("authoritative develop advanced while release notes awaited review");
-    r.git(["fetch", "origin", `refs/heads/${branch}`]);
-    const head = r.git(["rev-parse", "FETCH_HEAD"]);
-    assertPull(pull, branch, head);
-    assertReleaseReviewDiff(r, base, head, version);
-    if (r.now() >= deadline) throw new Error(`timed out waiting for manual merge of ${pull.url}; PR remains pending`);
-    await r.sleep(Math.min(r.pollMs, deadline - r.now()));
+function assertDraftRelease(value, source, version) {
+  if (!value || !Number.isSafeInteger(value.id) || value.id < 1 || value.tag_name !== `v${version}`
+    || value.target_commitish !== source || value.name !== `v${version}` || value.draft !== true
+    || value.prerelease !== false || typeof value.body !== "string" || typeof value.html_url !== "string"
+    || !value.html_url.startsWith("https://")) {
+    throw new Error(`v${version} GitHub Release is not the expected editable draft for source ${source}`);
   }
+  const note = parseReleaseNote(value.body, version);
+  return Object.freeze({ id: value.id, url: value.html_url, version, source, markdown: note.markdown });
+}
+
+function approvedSnapshot(draft, version) {
+  const note = parseReleaseNote(draft.markdown, version);
+  return Object.freeze({
+    id: draft.id,
+    url: draft.url,
+    version,
+    source: draft.source,
+    markdown: note.markdown,
+    sha256: createHash("sha256").update(note.markdown, "utf8").digest("hex"),
+  });
 }
 
 function assertPull(pull, branch, expectedHead) {
@@ -301,11 +261,13 @@ function readPull(r, number, branch, head) {
   return assertPull(JSON.parse(r.gh(["pr", "view", String(number), "--json", PR_FIELDS])), branch, head);
 }
 
-async function prepareVersion(r, base, snapshot, version, subject) {
+async function prepareVersion(r, base, snapshot, version, subject, approval) {
   checkCanceled(r);
   assertAuthoritative(r, base, snapshot.manifest.version, snapshot.manifest.name);
   const branch = `chore/release-${version}`;
   const expected = withVersion(snapshot, version);
+  const notePath = releaseNotePath(approval.version);
+  if (pathExistsAt(r, base, notePath)) throw new Error(`${notePath} already exists on the selected reopening base`);
   const pulls = JSON.parse(r.gh(["pr", "list", "--state", "all", "--base", "develop", "--head", branch, "--json", PR_FIELDS]));
   if (!Array.isArray(pulls) || pulls.length > 1) throw new Error(`ambiguous release PRs for ${branch}`);
   let pull;
@@ -319,7 +281,7 @@ async function prepareVersion(r, base, snapshot, version, subject) {
       r.git(["fetch", "origin", `refs/heads/${branch}`]);
       head = r.git(["rev-parse", "FETCH_HEAD"]);
       assertPull(pull, branch, head);
-      assertVersionCommit(r, base, head, expected);
+      assertReopeningCommit(r, base, head, expected, approval);
     } else {
       if (r.git(["ls-remote", "--heads", "origin", `refs/heads/${branch}`]) !== "") {
         throw new Error(`${branch} already exists without a matching PR; inspect it rather than overwrite it`);
@@ -337,18 +299,20 @@ async function prepareVersion(r, base, snapshot, version, subject) {
       await writeFile(join(directory, "package.json"), `${JSON.stringify(expected.manifest, null, 2)}\n`, "utf8");
       await writeFile(join(directory, "package-lock.json"), `${JSON.stringify(expected.lock, null, 2)}\n`, "utf8");
       await writeFile(join(directory, "packages", "a1-install", "package.json"), `${JSON.stringify(expected.installer, null, 2)}\n`, "utf8");
+      await mkdir(join(directory, "docs", "releases"), { recursive: true });
+      await writeFile(join(directory, ...notePath.split("/")), approval.markdown, "utf8");
       checkCanceled(r);
-      r.git(["add", "--", ...VERSION_FILES], directory);
+      r.git(["add", "--", ...VERSION_FILES, notePath], directory);
       r.git(["commit", "-m", subject], directory);
       head = r.git(["rev-parse", "HEAD"], directory);
-      assertVersionCommit(r, base, head, expected);
+      assertReopeningCommit(r, base, head, expected, approval);
       checkCanceled(r);
       // Concurrency: the branch must still be absent. An empty lease prevents a racing
       // release from being replaced even when its commit happens to be an ancestor.
       r.git(["push", "origin", `--force-with-lease=refs/heads/${branch}:`, `HEAD:refs/heads/${branch}`], directory);
       checkCanceled(r);
       const url = r.gh(["pr", "create", "--base", "develop", "--head", branch, "--title", subject,
-        "--body", `Reopens development at ${version} after the stable publication. Required CI must pass, then merge manually. This PR must not auto-merge.`]);
+        "--body", `Reopens development at ${version} and records the exact approved ${approval.version} release notes after stable publication. Required CI must pass, then merge manually. This PR must not auto-merge.`]);
       r.log(`version PR: ${url}`);
       const number = /\/(\d+)\s*$/u.exec(url)?.[1];
       if (!number) throw new Error(`cannot read version PR number from ${url}`);
@@ -356,7 +320,7 @@ async function prepareVersion(r, base, snapshot, version, subject) {
     }
     r.log(`Manual action required: validate ${pull.url}, record local acceptance, then merge it manually. CI success alone will not advance this release.`);
     const merged = await waitForManualMerge(r, pull, branch, head);
-    assertAuthoritative(r, merged, version, snapshot.manifest.name);
+    assertReopenedSource(r, merged, version, snapshot.manifest.name, approval);
     if (directory) cleanupOwnedPhase(r, directory, pull.number, branch, head);
     r.log(`${version} verified on remote develop at ${merged}`);
     return merged;
@@ -365,13 +329,32 @@ async function prepareVersion(r, base, snapshot, version, subject) {
   }
 }
 
-function assertVersionCommit(r, base, head, expected) {
+function assertReopeningCommit(r, base, head, expected, approval) {
   const parents = r.git(["rev-list", "--parents", "-n", "1", head]).split(/\s+/u);
   const paths = r.git(["diff", "--name-only", base, head]).split("\n").filter(Boolean).sort();
-  if (parents.length !== 2 || parents[1] !== base || !isDeepStrictEqual(paths, VERSION_FILES)) {
-    throw new Error("existing release branch is not a single version-only commit on the selected develop source");
+  const notePath = releaseNotePath(approval.version);
+  const expectedPaths = [...VERSION_FILES, notePath].sort();
+  if (parents.length !== 2 || parents[1] !== base || !isDeepStrictEqual(paths, expectedPaths)) {
+    throw new Error("existing reopening branch is not one exact version-and-release-note commit on the selected develop source");
   }
-  assertSameSnapshot(readVersionsAt(r, head), expected, "existing release PR changes more than the synchronized package versions");
+  assertSameSnapshot(readVersionsAt(r, head), expected, "existing reopening PR changes more than the synchronized package versions");
+  const note = parseReleaseNote(r.git(["show", `${head}:${notePath}`]) + "\n", approval.version);
+  if (createHash("sha256").update(note.markdown, "utf8").digest("hex") !== approval.sha256) {
+    throw new Error("existing reopening PR release note differs from the approved snapshot");
+  }
+}
+
+function assertReopenedSource(r, source, version, name, approval) {
+  assertAuthoritative(r, source, version, name);
+  const note = parseReleaseNote(r.git(["show", `${source}:${releaseNotePath(approval.version)}`]) + "\n", approval.version);
+  if (createHash("sha256").update(note.markdown, "utf8").digest("hex") !== approval.sha256) {
+    throw new Error("reopened develop release note differs from the approved snapshot");
+  }
+}
+
+function pathExistsAt(r, source, path) {
+  try { r.git(["cat-file", "-e", `${source}:${path}`]); return true; }
+  catch { return false; }
 }
 async function waitForManualMerge(r, initial, branch, head) {
   const deadline = r.now() + r.waitMs;

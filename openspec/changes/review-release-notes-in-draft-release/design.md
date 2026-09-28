@@ -55,7 +55,7 @@ The invalid `docs/releases/0.2.2.md` from PR #615 is removed by this implementat
 
 ### 4. Stable completion publishes the reviewed draft only after npm
 
-The stable workflow retains exact-byte packing, platform validation, npm provenance, serialized registry guards, published-pair smoke tests, and post-publication verification. It does not create a tag or public Release during review or package validation. Only after both packages are served with the expected bytes does completion create the immutable `v<version>` tag at the approved source, attach the application tarball, set the approved snapshot as the body, publish the existing draft Release as latest, and fast-forward `master`.
+The stable workflow retains exact-byte packing, platform validation, npm provenance, serialized registry guards, published-pair smoke tests, and post-publication verification. It does not create a tag or public Release during review or package validation. Only after both packages are served with the expected bytes does completion create the immutable `v<version>` tag at the approved source, attach the application tarball, fast-forward `master`, set the approved snapshot as the body, and publish the existing draft Release as latest. Publishing the Release is the final mutating operation so an earlier completion failure leaves the approved draft retryable rather than a partial public record.
 
 The native GitHub Publish action is not part of the protocol. If a draft is published manually, its tag appears early, its state no longer matches the approved input, and the stable workflow refuses it. Failed or uncertain publication retains explicit draft/snapshot/run evidence and never substitutes regenerated text or a newer source.
 
@@ -76,6 +76,15 @@ Other ordinary `docs/**`, `openspec/**`, and root `README.md` changes retain the
 Focused fixtures cover draft creation/reuse, maintainer body edits, actor authorization, stale sources, draft mutation, native publication, duplicate/conflicting drafts, unsafe content, snapshot digest propagation, exact-package inclusion, final Release publication, and reopening persistence. Workflow policy tests independently prove that no stable build can use current mutable draft text after the approval snapshot.
 
 The live `0.2.2` recovery starts only after this corrective implementation is manually merged. The operator synchronizes `develop`, prepares a fresh source-bound `0.2.2` draft, edits it in Releases, explicitly approves it, and later manually merges the reopening PR. PR #615 remains historical evidence of a refused automatic merge, not release authorization.
+
+## Evidence Boundary
+
+The corrective candidate must not mutate the production `0.2.2` Release state before
+it is manually merged. Its local fixtures and exact-package checks prove the protocol;
+the first post-merge `0.2.2` preparation, approval, stable install, and reopening PR
+supply the live acceptance exercise described in `implementation-evidence.md`. The
+Defender-dependent stable startup gate likewise remains Windows CI evidence rather
+than a bypassed local prerequisite.
 
 ## Alternatives
 
