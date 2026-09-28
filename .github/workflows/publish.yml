@@ -1,4 +1,4 @@
-name: Release
+name: Publish
 run-name: ${{ github.event_name == 'schedule' && 'Nightly development publication' || format('{0} publication {1}', inputs.channel, inputs.request_id) }}
 
 on:

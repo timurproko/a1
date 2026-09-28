@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { lstat, realpath, readdir, readFile, rm, rmdir } from "node:fs/promises";
+import { lstat, realpath, readdir, readFile, rm, rmdir, unlink } from "node:fs/promises";
 import { resolve, relative, isAbsolute, join } from "node:path";
 import { fail, safeRef } from "./local-cleanup-state.mjs";
 
@@ -40,6 +40,23 @@ async function removeTree(path, code, reported, { deadline = Infinity, now = Dat
   }
   if (await exists(path)) fail(code, { paths: [reported] });
 }
+/** Remove a link entry without recursively traversing its target; Windows directory junctions require rmdir. */
+async function removeLinkEntry(path, reported, { deadline = Infinity, now = Date.now } = {}) {
+  for (let attempt = 1; ; attempt++) {
+    try { await unlink(path); break; }
+    catch (error) {
+      if (["EPERM", "EISDIR"].includes(error.code)) {
+        try { await rmdir(path); break; } catch (directoryError) { error = directoryError; }
+      }
+      const wait = REMOVAL_BACKOFF_MS * attempt;
+      if (!TRANSIENT_REMOVAL.has(error.code) || attempt >= REMOVAL_ATTEMPTS || now() + wait >= deadline) fail("disposable-link-locked", { paths: [reported] });
+      await new Promise(resolve => setTimeout(resolve, wait));
+    }
+  }
+  if (await exists(path)) fail("disposable-link-locked", { paths: [reported] });
+}
+const topDisposableRoots = disposable => disposable.filter(root => !disposable.some(other => other !== root && (root === other || root.startsWith(`${other}/`))));
+const disposableRootFor = (path, disposable) => topDisposableRoots(disposable).find(root => path === root || path.startsWith(`${root}/`)) ?? null;
 const ORDINARY_CONTENT_ENTRY_LIMIT = 20_000;
 const GENERATED_CONTENT_ENTRY_LIMIT = 100_000;
 /**
@@ -162,7 +179,8 @@ export async function inspectWorktree(identity, entry, {
   if (blockers.length) return { clean: false, reason: "worktree-content", paths: blockers.slice(0, 100), truncated: blockers.length > 100 };
   if (![ordinaryEntryLimit, generatedEntryLimit].every(value => Number.isSafeInteger(value) && value > 0)) fail("content-inspection-budget");
   let ordinaryVisited = 0, generatedVisited = 0;
-  const generated = path => entry.disposable.some(root => path === root || path.startsWith(`${root}/`));
+  const generated = path => disposableRootFor(path, entry.disposable) !== null;
+  const containedLinks = [];
   const visit = path => {
     if (generated(path)) {
       if (++generatedVisited > generatedEntryLimit) fail("content-inspection-budget");
@@ -176,23 +194,60 @@ export async function inspectWorktree(identity, entry, {
       const path = prefix + item.name;
       visit(path);
       if (item.name === ".git") fail("nested-repository");
-      if (item.isSymbolicLink()) fail("content-link");
+      if (item.isSymbolicLink()) {
+        const root = disposableRootFor(path, entry.disposable);
+        if (root === null || path === root) fail("content-link", { paths: [path] });
+        const linkPath = join(entry.path, path), rootPath = join(entry.path, root);
+        let target;
+        try { target = await canonical(linkPath); } catch { fail("content-link", { paths: [path] }); }
+        if (!inside(await canonical(rootPath), target)) fail("content-link", { paths: [path] });
+        if (inside(target, linkPath)) fail("content-link-cycle", { paths: [path] });
+        containedLinks.push({ path, root, filesystem: fingerprint(await lstat(linkPath)), target });
+        continue;
+      }
       if (item.isDirectory()) await walk(join(directory, item.name), `${path}/`);
       else if (!item.isFile()) fail("content-special-file");
     }
   }
   await walk(entry.path);
-  return { clean: true, head: actual.head };
+  return { clean: true, head: actual.head, containedLinks };
 }
 
 /** Remove only the entry's declared disposable roots or files, after inspection has bounded them, so Git deletes tracked content alone. */
 export async function purgeDisposable(entry, timing = {}) {
-  for (const root of entry.disposable) {
+  const links = timing.containedLinks ?? [];
+  if (!Array.isArray(links)) fail("content-link-drift");
+  const seen = new Set();
+  for (const link of [...links].sort((a, b) => b.path.length - a.path.length)) {
+    if (!link || typeof link.path !== "string" || typeof link.root !== "string" || typeof link.filesystem !== "string"
+      || typeof link.target !== "string" || seen.has(link.path) || disposableRootFor(link.path, entry.disposable) !== link.root
+      || link.path === link.root) fail("content-link-drift");
+    seen.add(link.path);
+    const linkPath = join(entry.path, link.path), rootPath = join(entry.path, link.root);
+    let stat, target, root;
+    try { stat = await lstat(linkPath); target = await canonical(linkPath); root = await canonical(rootPath); }
+    catch { fail("content-link-drift", { paths: [link.path] }); }
+    if (!stat.isSymbolicLink() || fingerprint(stat) !== link.filesystem || target !== link.target
+      || !inside(root, target) || inside(target, linkPath)) fail("content-link-drift", { paths: [link.path] });
+    await removeLinkEntry(linkPath, link.path, timing);
+  }
+  let verifiedEntries = 0;
+  async function requireNoUnrecordedLinks(directory, prefix) {
+    if ((timing.now ?? Date.now)() >= (timing.deadline ?? Infinity)) fail("content-inspection-budget");
+    for (const item of await readdir(directory, { withFileTypes: true })) {
+      const path = `${prefix}/${item.name}`;
+      if (++verifiedEntries > GENERATED_CONTENT_ENTRY_LIMIT) fail("content-inspection-budget");
+      if (item.isSymbolicLink()) fail("content-link-drift", { paths: [path] });
+      if (item.isDirectory()) await requireNoUnrecordedLinks(join(directory, item.name), path);
+    }
+  }
+  for (const root of topDisposableRoots(entry.disposable)) {
     const target = join(entry.path, root);
     let stat;
     try { stat = await lstat(target); } catch (error) { if (error.code === "ENOENT") continue; throw error; }
-    if (stat.isSymbolicLink()) fail("content-link");
+    if (stat.isSymbolicLink()) fail("content-link", { paths: [root] });
     if (!stat.isDirectory() && !stat.isFile()) fail("content-special-file");
+    if (stat.isDirectory()) await requireNoUnrecordedLinks(target, root);
     await removeTree(target, "disposable-path-locked", root, timing);
   }
 }
@@ -252,7 +307,7 @@ export async function inspectResidue(identity, entry, {
   if (snapshot) {
     if (["path", "filesystem", "head", "ref"].some(key => snapshot[key] !== entry[key])) fail("residual-or-reused-path");
     const content = await inspect(identity, entry, { git, cwd, deadline, now, ordinaryEntryLimit, generatedEntryLimit });
-    return content.clean ? { clean: true, shape: "worktree" } : content;
+    return content.clean ? { ...content, shape: "worktree" } : content;
   }
   if (rows.some(row => row.prunable === undefined) || await exists(join(entry.path, ".git"))) fail("residual-or-reused-path");
   if (!/^[a-f0-9]{40}$/.test(entry.head)) fail("worktree-head-mismatch");
@@ -295,7 +350,7 @@ export async function repairResidue(identity, entry, { git = gitRunner(), remove
   if (!residue.clean) return residue;
   const timing = { deadline: options.deadline, now: options.now };
   if (residue.shape === "worktree") {
-    await purge(entry, timing);
+    await purge(entry, { ...timing, containedLinks: residue.containedLinks });
     await remove(identity, entry, git);
     return { clean: true, step: "worktree-removed" };
   }

@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { publicationValidationMatrix } from "../../scripts/release/publication-validation-matrix.mjs";
 
 async function workflow(): Promise<string> {
-  return await readFile(".github/workflows/release.yml", "utf8");
+  return await readFile(".github/workflows/publish.yml", "utf8");
 }
 
 describe("deliberate publication pipeline", () => {
@@ -12,7 +12,7 @@ describe("deliberate publication pipeline", () => {
     for (const name of await readdir(".github/workflows")) {
       if ((await readFile(`.github/workflows/${name}`, "utf8")).includes("npm publish")) publishers.push(name);
     }
-    expect(publishers).toEqual(["release.yml"]);
+    expect(publishers).toEqual(["publish.yml"]);
     const source = await workflow();
     expect(source).toContain("workflow_dispatch:");
     expect(source).toContain('cron: "17 3 * * *"');
@@ -58,7 +58,7 @@ describe("deliberate publication pipeline", () => {
     expect(result).toContain('test "$COMPLETE" = success');
   });
 
-  it("uses one established immutable checkout pin throughout the release workflow", async () => {
+  it("uses one established immutable checkout pin throughout the publication workflow", async () => {
     const source = await workflow();
     const checkoutReferences = [...source.matchAll(/uses: actions\/checkout@([^\s]+)/gu)].map(match => match[1]);
     expect(checkoutReferences.length).toBeGreaterThan(0);

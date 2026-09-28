@@ -3,7 +3,7 @@ import { extname } from "node:path";
 export const NAMING_POLICY_PATH = "config/internal-naming-policy.json";
 export const SCRIPT_EXTENSIONS = new Set([".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"]);
 const GENERATED = new Set(["src/integrations/pi/components/resources/builtin-themes.ts", "package-lock.json", "config/product-identity-legacy-allowlist.json", "config/product-identity-legacy-inventory.json"]);
-const INVALIDATORS = new Set([NAMING_POLICY_PATH, "package.json", "package-lock.json", "src/product-identity.json", "src/product-identity.ts", "config/validation-suites.json", "scripts/release/validation-impact.mjs", "scripts/release/select-validation-impact.mjs", "scripts/release/require-development-validation.mjs", "scripts/governance/project-structure-policy.mjs", "scripts/governance/code-documentation-policy.mjs", ".github/workflows/ci.yml", ".github/workflows/release.yml", ".github/workflows/full-regression.yml", "docs/architecture/toolchain.md", "docs/architecture/internal-naming.md"]);
+const INVALIDATORS = new Set([NAMING_POLICY_PATH, "package.json", "package-lock.json", "src/product-identity.json", "src/product-identity.ts", "config/validation-suites.json", "scripts/release/validation-impact.mjs", "scripts/release/select-validation-impact.mjs", "scripts/release/require-development-validation.mjs", "scripts/governance/project-structure-policy.mjs", "scripts/governance/code-documentation-policy.mjs", ".github/workflows/ci.yml", ".github/workflows/publish.yml", ".github/workflows/full-regression.yml", "docs/architecture/toolchain.md", "docs/architecture/internal-naming.md"]);
 
 /** Classify tracked paths independently of file contents, including unsupported owned inputs. */
 export function namingSourceRole(path) {

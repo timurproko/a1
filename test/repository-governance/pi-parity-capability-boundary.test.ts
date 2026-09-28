@@ -32,8 +32,8 @@ describe("Pi parity capability boundary", () => {
     }
   });
 
-  it("does not force a color mode in the release workflow", async () => {
-    const workflow = await readFile(".github/workflows/release.yml", "utf8");
+  it("does not force a color mode in the publication workflow", async () => {
+    const workflow = await readFile(".github/workflows/publish.yml", "utf8");
     expect(workflow).not.toMatch(/COLORTERM|FORCE_COLOR/u);
   });
 });

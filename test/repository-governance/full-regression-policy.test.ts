@@ -8,7 +8,7 @@ describe("complete regression automation", () => {
   it("runs on its own nightly schedule and on explicit demand, apart from publication", async () => {
     const [regression, release] = await Promise.all([
       readFile(".github/workflows/full-regression.yml", "utf8"),
-      readFile(".github/workflows/release.yml", "utf8"),
+      readFile(".github/workflows/publish.yml", "utf8"),
     ]);
     expect(regression).toContain("workflow_dispatch:");
     expect(regression).toContain("cron: '47 2 * * *'");
@@ -31,7 +31,7 @@ describe("complete regression automation", () => {
   });
 
   it("retains both Windows runtimes outside development previews, Defender, and exact-package gates outside PR startup", async () => {
-    const release = parse(await readFile(".github/workflows/release.yml", "utf8"));
+    const release = parse(await readFile(".github/workflows/publish.yml", "utf8"));
     const regression = parse(await readFile(".github/workflows/full-regression-shared.yml", "utf8"));
     const wrapper = parse(await readFile(".github/workflows/full-regression.yml", "utf8"));
     const releaseJob = release.jobs.validate;

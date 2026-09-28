@@ -165,7 +165,7 @@ describe("impact-aware validation workflows", () => {
   });
 
   it("runs one full documentation review outside release platform matrices", async () => {
-    const [release, regression] = await Promise.all([readFile(".github/workflows/release.yml", "utf8"), readFile(".github/workflows/full-regression-shared.yml", "utf8")]);
+    const [release, regression] = await Promise.all([readFile(".github/workflows/publish.yml", "utf8"), readFile(".github/workflows/full-regression-shared.yml", "utf8")]);
     expect(release.slice(release.indexOf("\n  documentation:"), release.indexOf("\n  guardians:")).match(/check-code-documentation\.mjs --mode full/g)).toHaveLength(1);
     expect(release.slice(release.indexOf("\n  validate:"), release.indexOf("\n  publish:"))).not.toContain("check-code-documentation.mjs");
     expect(regression.match(/check-code-documentation\.mjs --mode full/g)).toHaveLength(1);

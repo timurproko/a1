@@ -88,7 +88,7 @@ describe("publication failure reporting", () => {
     })).resolves.toBe(44);
     const dispatch = calls.find(call => call.args[0] === "workflow" && call.args[1] === "run")!;
     expect(dispatch.args).toEqual([
-      "workflow", "run", "release.yml", "--ref", "develop",
+      "workflow", "run", "publish.yml", "--ref", "develop",
       "-f", `channel=${channel}`, "-f", `source_sha=${"a".repeat(40)}`, "-f", "request_id=fixture-request", ...extra,
     ]);
   });
@@ -107,7 +107,7 @@ describe("publication failure reporting", () => {
   });
 
   it("summarizes a failed publication in the result job before the unchanged outcome requirement", async () => {
-    const workflow = parse(await readFile(".github/workflows/release.yml", "utf8"));
+    const workflow = parse(await readFile(".github/workflows/publish.yml", "utf8"));
     const steps = workflow.jobs.result.steps as { name: string; if?: string; uses?: string; with?: Record<string, string>; run?: string }[];
     expect(steps.map(step => step.name)).toEqual(["Download validation evidence for the failure summary", "Summarize the failed outcome", "Require the selected outcome"]);
     const [download, summary, require] = steps as [typeof steps[number], typeof steps[number], typeof steps[number]];

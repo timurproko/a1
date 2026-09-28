@@ -11,7 +11,7 @@
   "invalidators": [
     ".github/workflows/ci.yml",
     ".github/workflows/full-regression.yml",
-    ".github/workflows/release.yml",
+    ".github/workflows/publish.yml",
     "config/validation-ownership.json",
     "config/validation-suites.json",
     "config/integration-owners.json",

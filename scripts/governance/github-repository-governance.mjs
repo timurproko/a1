@@ -71,7 +71,7 @@ export function inspectWorkflowSource(path, source) {
   else if (path.endsWith("ci.yml") && source.includes("github.event.pull_request.head.sha") && permissions.every(value => value.endsWith("read"))) trustedSource = "pull-request-head-read-only";
   else if (path.endsWith("full-regression.yml") && source.includes("source: ${{ github.sha }}") && source.includes("uses: ./.github/workflows/full-regression-shared.yml")) trustedSource = "dispatch-commit";
   else if (path.endsWith("full-regression-shared.yml") && source.includes("ref: ${{ inputs.source }}") && permissions.every(value => value.endsWith("read"))) trustedSource = "explicit-source-read-only";
-  else if (path.endsWith("release.yml") && source.includes("git/ref/heads/develop") && source.includes("ref: ${{ needs.source.outputs.sha }}")) trustedSource = "authoritative-develop";
+  else if (path.endsWith("publish.yml") && source.includes("git/ref/heads/develop") && source.includes("ref: ${{ needs.source.outputs.sha }}")) trustedSource = "authoritative-develop";
 
   const authority = [];
   if (source.includes("Development validation required")) authority.push("Development validation required");
