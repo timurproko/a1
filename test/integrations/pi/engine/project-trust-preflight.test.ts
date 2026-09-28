@@ -1,4 +1,4 @@
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -12,6 +12,7 @@ import {
 let root: string;
 let agentDir: string;
 let cwd: string;
+let canonicalCwd: string;
 
 beforeEach(() => {
   root = mkdtempSync(join(tmpdir(), "a1-project-trust-"));
@@ -19,6 +20,7 @@ beforeEach(() => {
   cwd = join(root, "project", "child");
   mkdirSync(agentDir, { recursive: true });
   mkdirSync(join(cwd, ".pi"), { recursive: true });
+  canonicalCwd = realpathSync(cwd);
   writeFileSync(join(cwd, ".pi", "settings.json"), "{}\n");
 });
 
@@ -39,7 +41,7 @@ describe("project trust preflight", () => {
       defaultDecision: "ask",
       choices: [
         { id: "trust", label: "Trust" },
-        { id: "trust-parent", label: `Trust parent folder (${dirname(cwd)})` },
+        { id: "trust-parent", label: `Trust parent folder (${dirname(canonicalCwd)})` },
         { id: "trust-session", label: "Trust (this session only)" },
         { id: "deny", label: "Do not trust" },
         { id: "deny-session", label: "Do not trust (this session only)" },
@@ -101,9 +103,9 @@ describe("project trust preflight", () => {
   it("supports parent-scoped and session-only Pi trust outcomes", async () => {
     const parentTrusted = await resolvePiProjectTrustPreflight(options({ prompt: async () => "trust-parent" }));
     expect(parentTrusted).toEqual({ trusted: true, source: "interactive", diagnostic: null });
-    expect(new ProjectTrustStore(agentDir).getEntry(cwd)).toEqual({ path: dirname(cwd), decision: true });
+    expect(new ProjectTrustStore(agentDir).getEntry(cwd)).toEqual({ path: dirname(canonicalCwd), decision: true });
 
-    new ProjectTrustStore(agentDir).set(dirname(cwd), null);
+    new ProjectTrustStore(agentDir).set(dirname(canonicalCwd), null);
     const sessionTrusted = await resolvePiProjectTrustPreflight(options({ prompt: async () => "trust-session" }));
     expect(sessionTrusted).toEqual({ trusted: true, source: "interactive", diagnostic: null });
     expect(new ProjectTrustStore(agentDir).get(cwd)).toBeNull();
