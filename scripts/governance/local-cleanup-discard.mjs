@@ -88,7 +88,7 @@ export async function discardLocalCleanup({ identity, store, reader, path, chang
         if (evidence.disposition !== "eligible" || evidence.remoteRefPresent) fail("remote-ref-recreated");
         const content = await inspect(identity, entry, { git, cwd, deadline, now });
         if (!content.clean) { Object.assign(row, content, { disposition: "partial" }); return; }
-        await purge(entry, { deadline, now });
+        await purge(entry, { deadline, now, containedLinks: content.containedLinks });
         entry.step = "remove-intent"; await save(state);
         await remove(identity, entry, git); row.steps.push("worktree-removed");
         entry.step = "worktree-removed"; await save(state);

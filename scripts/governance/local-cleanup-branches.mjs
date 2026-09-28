@@ -6,17 +6,18 @@ const BRANCH_LIMIT = 100;
 const retained = (ref, tip, reason, extra = {}) => ({ ref, tip, disposition: "retained", reason, ...extra });
 
 /** Pull requests of this repository whose head ref is exactly `name`, split by state. */
-async function pullRequestsFor(reader, name) {
+export async function pullRequestsFor(reader, name, { target = "develop" } = {}) {
   const owner = reader.repository.split("/")[0];
-  const pulls = await reader.pages(`/pulls?state=all&base=develop&head=${encodeURIComponent(`${owner}:${name}`)}`, 300);
+  const base = target === null ? "" : `&base=${encodeURIComponent(target)}`;
+  const pulls = await reader.pages(`/pulls?state=all${base}&head=${encodeURIComponent(`${owner}:${name}`)}`, 300);
   const same = pulls.filter(pull => pull.head?.ref === name && pull.head.repo?.full_name === reader.repository
-    && pull.base?.ref === "develop" && pull.base.repo?.full_name === reader.repository);
+    && (target === null || pull.base?.ref === target) && pull.base?.repo?.full_name === reader.repository);
   const merged = same.filter(pull => typeof pull.merged_at === "string" && SHA.test(pull.head.sha ?? ""))
     .sort((a, b) => Date.parse(b.merged_at) - Date.parse(a.merged_at));
   return { open: same.filter(pull => pull.state === "open"), merged, any: same.length > 0 };
 }
 
-async function remotePresent(reader, name) {
+export async function remotePresent(reader, name) {
   try { await reader.get(`${reader.prefix}/git/ref/heads/${encodeURIComponent(name)}`); return true; }
   catch (error) { if (error.archiveCode === "github-not-found") return false; throw error; }
 }
