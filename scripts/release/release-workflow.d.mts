@@ -3,6 +3,7 @@ export interface ReleaseRuntime {
   readonly cwd: string;
   git(args: readonly string[], directory?: string): string;
   gh(args: readonly string[]): string;
+  releaseChanges(base: string, source: string): Promise<readonly { number: number; title: string; url: string }[]>;
   registry(name: string, version: string): Promise<unknown | null>;
   publish(source: string, version: string): Promise<unknown>;
   sleep(ms: number): Promise<unknown>;
@@ -17,5 +18,11 @@ export interface ReleaseResult extends ReleasePlan {
   readonly source: string;
   readonly reopened: string;
 }
+export function collectReleaseChanges(
+  git: (args: readonly string[]) => string,
+  gh: (args: readonly string[]) => string,
+  base: string,
+  source: string,
+): Promise<readonly { number: number; title: string; url: string }[]>;
 export function createReleaseRuntime(options?: Partial<ReleaseRuntime>): ReleaseRuntime;
 export function runRelease(args: readonly string[], runtime: ReleaseRuntime): Promise<ReleaseResult>;

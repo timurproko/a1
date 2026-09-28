@@ -51,6 +51,7 @@ class FakeRuntime {
 function harness(overrides: Partial<PiEngineRuntimePorts> = {}, options: {
   updates?: readonly string[];
   changelog?: string;
+  announceStartupChangelog?: boolean;
   branch?: string | null;
   pullRequestProbe?: PiPullRequestProbe;
   pullRequestRefreshMs?: number;
@@ -66,6 +67,7 @@ function harness(overrides: Partial<PiEngineRuntimePorts> = {}, options: {
     cwd: "D:/work", agentDir: "D:/agent", sessionId: "owned-1", sessionPath: undefined, sessionSelection: undefined,
     sessionForkPrompt: undefined, projectTrustPrompt: undefined, createRuntime: async () => runtime as unknown as AgentSessionRuntime,
     checkPackageUpdates: options.updates === undefined ? undefined : async () => options.updates!,
+    ...(options.announceStartupChangelog === undefined ? {} : { announceStartupChangelog: options.announceStartupChangelog }),
     ...(options.gitBranchReader !== undefined
       ? { gitBranchReader: options.gitBranchReader }
       : options.branch === undefined ? {} : { gitBranchReader: async () => options.branch! }),
@@ -103,6 +105,13 @@ describe("PiEngineRuntime", () => {
     expect(calls).toEqual(["started", "warning:engine-startup:runtime warning", "error:engine-startup:service error", "replacing", "replaced:D:/sessions/one.jsonl", "info:changelog-collapsed:## New"]);
     expect(runtime.lastChangelog).not.toBe("0.0.1");
     expect(engine.currentSessionFile()).toBe("D:/sessions/one.jsonl");
+  });
+
+  it("lets bare A1 disable pinned Pi startup changelog bookkeeping", async () => {
+    const { engine, runtime, calls } = harness({}, { changelog: "## New", announceStartupChangelog: false });
+    await engine.start();
+    expect(calls.some(call => call.includes("changelog"))).toBe(false);
+    expect(runtime.lastChangelog).toBe("0.0.1");
   });
 
   it("forwards events for the current generation only, and a runtime rebind replaces the session unless blocked", async () => {

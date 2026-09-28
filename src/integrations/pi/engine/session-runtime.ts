@@ -52,6 +52,7 @@ export interface PiEngineRuntimeOptions {
   readonly projectTrustPrompt: PiProjectTrustPreflightPrompt | undefined;
   readonly createRuntime: PiEngineRuntimeFactory | undefined;
   readonly checkPackageUpdates: PiEnginePackageUpdateProbe | undefined;
+  readonly announceStartupChangelog?: boolean;
   readonly pullRequestProbe?: PiPullRequestProbe;
   readonly pullRequestRefreshMs?: number;
   readonly repositoryContextPollMs?: number;
@@ -205,7 +206,7 @@ export class PiEngineRuntime {
       );
     }
     this.bindSession(runtime.session);
-    await this.#announceChangelog(runtime.services.settingsManager);
+    if (this.#options.announceStartupChangelog !== false) await this.#announceChangelog(runtime.services.settingsManager);
     this.#repositoryRefreshEnabled = true;
     this.#startRepositoryRefresh();
     return runtime;

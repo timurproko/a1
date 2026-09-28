@@ -143,6 +143,16 @@ describe("deliberate publication pipeline", () => {
     expect(client).toContain('...(channel === "stable" ? ["-f", `version=${version}`] : [])');
   });
 
+  it("binds stable publication and GitHub Release text to the reviewed note merge", async () => {
+    const source = await workflow();
+    expect(source).toContain("stable source is not an authorized manually merged release-review PR");
+    expect(source).toContain("stable release-review merge changed unsupported paths");
+    expect(source).toContain("parseReleaseNote(await readFile(notePath, \"utf8\"), version)");
+    expect(source).toContain('--notes-file "docs/releases/${RELEASE_VERSION}.md"');
+    expect(source).toContain("ref: ${{ needs.plan.outputs.source }}");
+    expect(source).not.toContain('--notes "Published to npm latest');
+  });
+
   it("keeps preview and stable registry effects separate", async () => {
     const source = await workflow();
     expect(source).toContain('channel = "next"');
@@ -171,13 +181,15 @@ describe("maintainer publication commands", () => {
     expect(script).not.toMatch(/npm publish|npm pack/);
   });
 
-  it("publishes stable from the open development source, then reopens develop through one version PR", async () => {
+  it("reviews release notes before publishing stable, then reopens develop through one version PR", async () => {
     const entry = await readFile("scripts/release/release.mjs", "utf8");
     const script = await readFile("scripts/release/release-workflow.mjs", "utf8");
     expect(entry).toContain("./release-workflow.mjs");
+    const reviewed = script.indexOf("source = await prepareReleaseReview(r, source, plan.version)");
     const dispatched = script.indexOf("await r.publish(source, plan.version)");
     const reopened = script.indexOf("const reopened = await prepareVersion(");
-    expect(dispatched).toBeGreaterThan(0);
+    expect(reviewed).toBeGreaterThan(0);
+    expect(dispatched).toBeGreaterThan(reviewed);
     expect(reopened).toBeGreaterThan(dispatched);
     expect(script.match(/await prepareVersion\(/g)).toHaveLength(1);
     expect(script).toContain("OPEN_DEVELOPMENT.test(plan.current)");
