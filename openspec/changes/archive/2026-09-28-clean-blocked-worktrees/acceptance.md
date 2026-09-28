@@ -16,7 +16,7 @@ The manual merge accepts these scenarios:
   "archive": "openspec/changes/archive/2026-09-28-clean-blocked-worktrees/",
   "acceptanceManifest": "openspec/changes/archive/2026-09-28-clean-blocked-worktrees/acceptance.md",
   "finalizedDate": "2026-09-28",
-  "specBaseSha": "51e8492c2aac79f120c157bb8db36a29819a136e",
+  "specBaseSha": "eeece4fc0e900940eba218c624198f3cf7134794",
   "acceptanceScenarios": [
     "Contained generated symlinks and Windows junctions are removed without target traversal, while escapes, cycles, target drift, and late links retain their targets and block cleanup.",
     "Exact confirmed redundant retirement removes only a clean no-PR/no-remote checkout already contained by fresh `origin/develop`, resumes interrupted non-force removal, and is idempotent.",
