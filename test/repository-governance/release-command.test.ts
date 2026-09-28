@@ -30,9 +30,11 @@ function commitVersionOnRemoteBranch(f: Awaited<ReturnType<typeof fixture>>, bra
   f.git(["worktree", "add", "--detach", work, f.initialHead]);
   const manifest = { ...f.manifest, version };
   const lock = { ...f.lock, version, packages: { ...f.lock.packages, "": { ...f.lock.packages[""], version } } };
+  const installer = { ...f.installer, version };
   return (async () => {
     await writeFile(join(work, "package.json"), `${JSON.stringify(manifest, null, 2)}\n`);
     await writeFile(join(work, "package-lock.json"), `${JSON.stringify(lock, null, 2)}\n`);
+    await writeFile(join(work, "packages", "a1-install", "package.json"), `${JSON.stringify(installer, null, 2)}\n`);
     if (extra) await writeFile(join(work, "unrelated.txt"), extra);
     f.git(["add", "."], work);
     f.git(["commit", "-m", `prepared ${version}`], work);
@@ -60,8 +62,10 @@ describe("release command with real temporary Git and fake publication services"
       expect(pull.headRefName).toBe(`chore/release-${opening}`);
       const manifest = JSON.parse(f.git(["show", `${pull.headRefOid}:package.json`], f.remote));
       const lock = JSON.parse(f.git(["show", `${pull.headRefOid}:package-lock.json`], f.remote));
+      const installer = JSON.parse(f.git(["show", `${pull.headRefOid}:packages/a1-install/package.json`], f.remote));
       expect(manifest).toEqual({ ...f.manifest, version: opening });
       expect(lock).toEqual({ ...f.lock, version: opening, packages: { ...f.lock.packages, "": { ...f.lock.packages[""], version: opening } } });
+      expect(installer).toEqual({ ...f.installer, version: opening });
       expect(f.git(["rev-parse", "--abbrev-ref", "HEAD"], f.phaseDirectories.at(-1)!)).toBe("HEAD");
       expect(f.publications).toEqual([{ source: f.initialHead, version: stable }]);
       f.manualMerge(pull);

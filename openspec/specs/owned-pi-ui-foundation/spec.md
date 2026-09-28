@@ -1859,7 +1859,7 @@ Bare A1 SHALL declare Escape on a sole top-level slash-command search as an inpu
 - **THEN** the menu SHALL close and `/mod` SHALL remain in the editor exactly as in pinned Pi
 
 ### Requirement: Compaction progress is estimated in the working status
-While a compaction is shown, bare A1 SHALL estimate its progress from the summarization stream and present it in the working status as `Compacting(n%)` beside the spinner, where `n` is an integer percent. The engine adapter SHALL observe the stream through the session agent's public stream function only between the compaction's start and end, SHALL count streamed summary text against an expected summary size taken from the previous compaction summary on the current branch or a fixed default when there is none, and SHALL publish the percent as engine status data separate from the semantic `Compacting` word. When the bound session exposes a callable stream function, the percent SHALL start at 0 immediately when compaction starts, including while summary preparation and provider authentication are pending; it SHALL never decrease within one compaction; estimated text progress SHALL NOT exceed 99 while the summary stream is active; and the progress SHALL reach 100 only when that stream completes normally. Stream completion SHALL NOT end, abort, or otherwise control the compaction. The progress SHALL be removed together with the compacting state when the real compaction-end lifecycle event arrives. When the stream cannot be observed the status SHALL remain `Compacting`. This SHALL be a declared bare-A1 presentation difference; the `a1 pi` comparison route SHALL keep its existing `Compacting` label.
+While a compaction is shown, bare A1 SHALL estimate its progress from the summarization stream and present it in the working status as `Compacting(n%)` beside the spinner, where `n` is an integer percent. The engine adapter SHALL observe the stream through the session agent's public stream function only between the compaction's start and end, SHALL count streamed summary text against an expected summary size taken from the previous compaction summary on the current branch or a fixed default when there is none, and SHALL publish the percent as engine status data separate from the semantic `Compacting` word. When the bound session exposes a callable stream function, the percent SHALL start at 0 immediately when compaction starts, including while summary preparation and provider authentication are pending; it SHALL never decrease within one compaction; estimated text progress SHALL NOT exceed 99 while the summary stream is active; and the progress SHALL reach 100 only when that stream completes normally. Stream completion SHALL NOT end, abort, or otherwise control the compaction. The progress SHALL be removed together with the compacting state when the real compaction-end lifecycle event arrives. Temporarily suspending and resuming event delivery for the same bound session SHALL restore observation before resumed session events are accepted and SHALL NOT leave later observable compactions on the no-progress fallback. When the stream cannot be observed the status SHALL remain `Compacting`. A manual compaction that fails before summary streaming starts SHALL preserve pinned Pi's visible error rather than treating the failed command result as silent, while successful manual-compaction completion SHALL remain silent. This SHALL be a declared bare-A1 progress presentation difference; the `a1 pi` comparison route SHALL keep its existing `Compacting` label.
 
 #### Scenario: Enter observable compaction before streaming
 - **WHEN** bare A1 receives `compaction_start` from a bound session with a callable public stream function and summary preparation or provider authentication is still pending
@@ -1883,6 +1883,16 @@ While a compaction is shown, bare A1 SHALL estimate its progress from the summar
 #### Scenario: First compaction without a previous summary
 - **WHEN** the branch holds no previous compaction summary
 - **THEN** the percent SHALL be measured against the fixed default size and estimated text progress SHALL still be clamped below 100 until the stream completes normally
+
+#### Scenario: Resume an observable session
+- **WHEN** the engine suspends and then resumes delivery for the same bound session with a callable public stream function
+- **THEN** a later compaction SHALL immediately show `Compacting(0%)...` and advance from streamed summary text
+- **AND** repeated resume SHALL NOT install nested observers or report stale progress
+
+#### Scenario: Manual compaction has nothing to summarize
+- **WHEN** `/compact` fails before summary streaming because the session is too small
+- **THEN** bare A1 SHALL visibly show `Nothing to compact (session too small)` with pinned error presentation
+- **AND** successful manual-compaction completion SHALL remain silent after its lifecycle status clears
 
 #### Scenario: Stream is not observable
 - **WHEN** the session agent exposes no callable stream function
@@ -2145,7 +2155,7 @@ Bare A1 SHALL keep the pinned changelog startup lifecycle: the engine's new-entr
 - **THEN** the pinned expanded or collapsed transcript block SHALL be rendered in the feed exactly as before and no screen SHALL open
 
 ### Requirement: The bare-A1 thinking selector uses the established selector treatment
-The bare-A1 thinking selector SHALL render `Thinking Level` in bold semantic accent color, matching the heading treatment used by the Models configuration surface. Its resolved cycle hint SHALL render in semantic muted grey on the immediately following row. Repeated available-level values SHALL collapse to one row. Each level SHALL render its description inline in semantic muted grey regardless of cursor selection, with every description aligned to the same column one separator after the widest rendered level-name and marker region. The active session level SHALL have exactly one semantic success-green checkmark immediately after its level name. The configured default level SHALL render the literal `[default]` marker in semantic muted grey within the primary label region immediately after that optional active checkmark and before the aligned description; when active and default differ, each marker SHALL remain on the row for its own state. While the selector is open, the footer SHALL omit its thinking-level suffix so the active level is not duplicated below the selector, then restore that suffix when the selector closes. The presentation change SHALL preserve the selector's borders, search input, navigation, selection, default persistence, cancellation, focus, and restoration behavior.
+The bare-A1 thinking selector SHALL render `Thinking Level` in bold semantic accent color, matching the heading treatment used by the Models configuration surface. Its resolved cycle hint SHALL render in semantic muted grey on the immediately following row. Repeated available-level values SHALL collapse to one row. Every level SHALL occupy a name region sized to the widest available level name, followed by a fixed-width active-marker slot and a fixed-width default-marker slot. The active session level SHALL have exactly one semantic success-green checkmark in the active slot. The configured default level SHALL render the literal `[default]` marker in semantic muted grey at the same fixed column regardless of which level is configured or whether it is active. Every description SHALL render inline in semantic muted grey and begin one separator after the complete fixed state region, so marker and description columns SHALL NOT move when the default changes. Space SHALL immediately persist the highlighted level as the configured global default without closing the selector, changing the active session level, or creating an unsaved state. Enter SHALL continue selecting the highlighted session level, and only Escape SHALL close the selector. Ctrl+C SHALL NOT close the selector or invoke cancellation. The shortcut footer SHALL use semantic hint styling and read `Enter select  Space default  Esc close`. While the selector is open, the shell footer SHALL omit its thinking-level suffix so the active level is not duplicated below the selector, then restore that suffix when the selector closes. The interaction change SHALL preserve the selector's borders, search input, navigation, filtering, focus, restoration behavior, and comparison-profile isolation.
 
 #### Scenario: Render the thinking selector heading
 - **WHEN** the user opens the bare-A1 thinking selector
@@ -2156,18 +2166,43 @@ The bare-A1 thinking selector SHALL render `Thinking Level` in bold semantic acc
 #### Scenario: Render level rows
 - **WHEN** the selector displays selected and unselected level rows
 - **THEN** repeated available-level values SHALL render exactly once
-- **AND** each description SHALL use semantic muted grey and begin in the same aligned column
-- **AND** only the active session level SHALL place one semantic success-green checkmark immediately after its name
-- **AND** the configured default level SHALL place a semantic muted-grey `[default]` after its optional active checkmark and before its description
-- **AND** a level that is both active and configured as default SHALL render its primary state as `<level> ✓ [default]`
-- **AND** differing active and configured-default levels SHALL display only their respective markers
-- **AND** the footer SHALL omit its thinking-level suffix until the selector closes
-- **AND** closing the selector SHALL restore the footer's current thinking-level suffix
+- **AND** each level SHALL occupy the same widest-name region
+- **AND** only the active session level SHALL place one semantic success-green checkmark in the fixed active slot
+- **AND** only the configured default level SHALL place a semantic muted-grey `[default]` in the fixed default slot
+- **AND** `[default]` SHALL begin at the same column for every possible configured level
+- **AND** every description SHALL use semantic muted grey and begin at the same column regardless of active/default placement
+- **AND** the shell footer SHALL omit its thinking-level suffix until the selector closes
+- **AND** closing the selector SHALL restore the shell footer's current thinking-level suffix
 
 #### Scenario: Interact with the styled selector
-- **WHEN** the user filters or navigates levels, selects a session level, saves a default level, or cancels the selector
-- **THEN** the selector SHALL retain its existing interaction and restoration outcomes
+- **WHEN** the user filters or navigates levels, selects a session level, changes the default level, or closes the selector
+- **THEN** the selector SHALL retain its specified interaction and restoration outcomes
 - **AND** heading and row styling SHALL NOT alter list geometry, focus, or instruction placement
+
+#### Scenario: Stage and save a default level
+- **WHEN** the user highlights a level and presses Space
+- **THEN** the `[default]` marker SHALL move to that level immediately
+- **AND** that level SHALL be persisted as the global default immediately
+- **AND** the selector SHALL remain open
+- **AND** the active session level and its checkmark SHALL remain unchanged
+- **AND** no unsaved label or staged state SHALL appear
+
+#### Scenario: Select or close
+- **WHEN** the user presses Enter on a highlighted level
+- **THEN** that level SHALL be selected for the session through the existing selection workflow
+- **WHEN** the user presses Escape
+- **THEN** the selector SHALL close and restore its parent surface
+- **WHEN** the user presses Ctrl+C
+- **THEN** the selector SHALL remain open and SHALL NOT invoke cancellation
+
+#### Scenario: Render compact controls
+- **WHEN** the bare-A1 thinking selector is open
+- **THEN** its semantic shortcut footer SHALL read `Enter select  Space default  Esc close` in that order
+- **AND** it SHALL NOT advertise Ctrl+S, `Escape/Ctrl+C`, or the verbose `to select`, `to set as default`, or `to cancel` wording
+
+#### Scenario: Preserve comparison behavior
+- **WHEN** the user opens the thinking selector through `a1 pi`
+- **THEN** the pinned comparison selector SHALL retain its existing interactions and presentation
 
 ### Requirement: Bare A1 keeps model and thinking commands adjacent
 Bare A1 SHALL present `thinking` immediately after its unified `models` command in the advertised workflow catalog and slash-command autocomplete. All other owned built-in commands SHALL retain their relative order. The pinned `a1 pi` comparison profile SHALL retain its upstream command order unchanged.
@@ -2413,16 +2448,18 @@ Bare A1 SHALL present the built-in `thinking` command with the description `Set 
 - **AND** `login` SHALL retain its pinned `<provider>` argument hint
 
 ### Requirement: Bare A1 progress labels share one quiet animated presentation
-Every built-in or extension working message rendered by bare A1's spinner-backed status surface SHALL use the shared A1 progress presentation. This SHALL include ordinary working, retry, compaction, measured compaction progress, and extension override labels. Changing the presentation SHALL NOT change semantic work-state transitions, spinner glyphs, status placement, replacement behavior, extension lifecycle, cancellation, teardown, or the pinned comparison profile.
+Every built-in or extension working message rendered by bare A1's spinner-backed status surface SHALL use the shared A1 progress presentation. This SHALL include ordinary working, retry, compaction, measured compaction progress, and extension override labels. The moving text highlight SHALL use the theme's neutral white text role while the spinner retains its existing accent role. Changing the presentation SHALL NOT change semantic work-state transitions, spinner glyphs, status placement, replacement behavior, extension lifecycle, cancellation, teardown, or the pinned comparison profile.
 
 #### Scenario: Show each built-in work state
 - **WHEN** bare A1 displays working, retry, compaction, or measured compaction progress beside its spinner
-- **THEN** the label SHALL end in one Unicode ellipsis and use the same restrained accent animation
+- **THEN** the label SHALL end in one Unicode ellipsis and use the same restrained neutral-white highlight animation
+- **AND** its spinner SHALL retain its existing accent colour
 - **AND** its spinner and semantic wording SHALL retain their existing behavior
 
 #### Scenario: Show extension-provided work
 - **WHEN** an extension supplies or replaces the active working message
 - **THEN** bare A1 SHALL normalize and animate that label through the same shared progress presentation
+- **AND** the moving label highlight SHALL use the neutral white text role rather than the spinner's accent role
 - **AND** clearing or replacing the extension state SHALL retain the existing lifecycle behavior
 
 #### Scenario: Use the pinned comparison profile
@@ -2500,7 +2537,7 @@ Top, bottom, and declared separator rules SHALL remain full width. The change SH
 ### Requirement: Pre-resource project trust uses a compact bottom dialog
 Bare A1 SHALL present an interactive pre-resource trust decision as a vertically compact, ruled dialog anchored to the bottom of the bounded startup surface. Its top and bottom rules SHALL use the fixed dark-theme border blue and span the full available terminal width. The explanation SHALL read exactly `This allows to load project settings and resources, install missing project packages, and execute project extensions.` and SHALL NOT insert the product name. The dialog SHALL use the established bare-A1 modal hierarchy for its title, working-directory context, explanation, selected and unselected option rows, and semantic shortcut hints while remaining implemented only from fixed startup-safe wording, ANSI roles, terminal dimensions, and bounded rendering helpers. It SHALL NOT load or consult project settings, themes, extensions, prompts, packages, skills, or post-trust components.
 
-The dialog SHALL remain readable at supported terminal sizes, SHALL prioritize the title, path, choices, and actionable controls when height is constrained, and SHALL clip or wrap without replaying untrusted terminal control content. Completion, cancellation, interruption, input end, and errors SHALL clear the owned startup frame and restore raw mode, cursor state, and the parent terminal exactly once.
+The dialog SHALL remain readable at supported terminal sizes, SHALL prioritize the title, path, choices, and actionable controls when height is constrained, and SHALL clip or wrap without replaying untrusted terminal control content. Completion, interruption, input end, and errors SHALL clear the owned startup frame and restore raw mode, cursor state, and the parent terminal exactly once.
 
 #### Scenario: Present trust at the bottom
 - **WHEN** an interactive launch needs a project-trust decision in a terminal with sufficient rows
@@ -2523,11 +2560,34 @@ The dialog SHALL remain readable at supported terminal sizes, SHALL prioritize t
 - **WHEN** the dialog renders before a trust decision exists
 - **THEN** no project setting, theme, extension, prompt, package, skill, or post-trust component SHALL be loaded or consulted
 
+#### Scenario: Exit without a trust decision
+- **WHEN** the user presses Escape while the bare-A1 trust dialog is active
+- **THEN** A1 SHALL restore the parent terminal and terminate startup without constructing the owned shell
+- **AND** A1 SHALL NOT infer, persist, or activate any trust outcome
+
 #### Scenario: Operate and restore the dialog
-- **WHEN** the user navigates, confirms, cancels, interrupts, or the input stream ends or fails
-- **THEN** arrows and Tab SHALL move selection, Enter SHALL confirm, and Escape/Ctrl+C SHALL cancel
-- **AND** A1 SHALL restore raw mode, cursor visibility, and the parent terminal exactly once without leaving dialog rows or a blank alternate surface behind
+- **WHEN** the user navigates, confirms, exits, interrupts, or the input stream ends or fails
+- **THEN** arrows and Tab SHALL move selection and Enter SHALL confirm one of the five pinned Pi trust outcomes
+- **AND** those outcomes SHALL be Trust, Trust parent folder, Trust for this session only, Do not trust, and Do not trust for this session only
+- **AND** Escape SHALL be advertised as the only bare-A1 exit action while Ctrl+C SHALL NOT dismiss the selector
+- **AND** Escape SHALL restore the terminal exactly once and abort startup without constructing the owned shell
+- **AND** A1 SHALL restore raw mode, disable child-owned input/presentation modes, and show the cursor after leaving the alternate screen
+- **AND** A1 SHALL preserve the restored parent cursor across the parent-screen margin reset and write no parent-buffer content, allowing the shell to preserve prior rows and paint its next empty prompt
 
 #### Scenario: Use the comparison profile
 - **WHEN** the same launch runs through `a1 pi`
-- **THEN** its pinned comparison presentation SHALL remain unchanged by the bare-A1 trust-dialog customization
+- **THEN** it SHALL offer the same pinned Pi trust outcomes
+- **AND** its top-left comparison presentation and Escape/Ctrl+C cancellation SHALL remain unchanged by the bare-A1 trust-dialog customization
+
+### Requirement: Project-trust startup warnings use the prompt-adjacent notice
+Bare A1 SHALL classify a bounded warning produced by unavailable interaction, input end, or failed startup trust resolution separately from ordinary engine startup diagnostics. After the trust selector restores the terminal and the restricted shell starts, the warning SHALL appear through the existing warning-colored transient dock notice immediately above the editor group. It SHALL remain outside transcript content, scrolling, selection, copy, prompt navigation, and persisted session content, and SHALL follow the existing dock-notice replacement and dismissal lifecycle. The pinned `a1 pi` route SHALL retain its startup-diagnostic placement.
+
+#### Scenario: Fail to obtain a trust decision
+- **WHEN** startup cannot obtain a required trust decision because interaction is unavailable, input ends, or trust resolution fails
+- **THEN** bare A1 SHALL continue with project resources withheld
+- **AND** one `Warning:` notice explaining the fail-closed result SHALL appear in the dock above the editor
+- **AND** the warning SHALL not appear at the top of the empty transcript viewport
+
+#### Scenario: Preserve comparison placement
+- **WHEN** the same project-trust startup warning is presented through `a1 pi`
+- **THEN** it SHALL retain the pinned startup-diagnostic placement instead of using bare A1's notice dock

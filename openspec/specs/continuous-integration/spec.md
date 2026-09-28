@@ -173,18 +173,28 @@ change.
 - **THEN** GitHub SHALL refuse it
 
 ### Requirement: Preview and stable artifacts are published from verified bytes
-A published package SHALL be packed once for its final version, validated in that
-exact form, and uploaded without rebuilding. The publisher SHALL verify the package
-digest before uploading it, and SHALL verify that what it uploads is what the
-validation ran against.
+Every npm artifact required by a release, including `@timurproko/a1` and `@timurproko/a1-install`, SHALL be packed once for its final version, validated in that exact form, and uploaded without rebuilding. The publisher SHALL independently verify each package digest before upload and SHALL verify that registry bytes are the bytes validated for that package identity.
+
+The installer artifact SHALL be built from the same authoritative source and selected version as the corresponding application publication but SHALL retain its distinct package identity and minimal package surface. Development publication SHALL place matching installer builds under `next`; stable publication SHALL place the stable installer under `latest`. Stable release tags, GitHub Releases, and `master` movement SHALL wait until every required artifact has been registry-verified.
 
 #### Scenario: Published input differs
-- **WHEN** the tarball offered for publication differs by digest from the package that was validated
-- **THEN** publication SHALL fail before contacting npm
+- **WHEN** either tarball offered for publication differs by digest from its validated artifact
+- **THEN** publication SHALL fail before contacting npm for that artifact
+- **AND** SHALL NOT record release completion
 
 #### Scenario: The publisher is inspected
 - **WHEN** the publishing job is read
-- **THEN** it SHALL contain no dependency installation, build, or packing step
+- **THEN** it SHALL contain no dependency installation, build, or packing step for either artifact
+
+#### Scenario: A stable pair is published
+- **WHEN** stable application and installer artifacts have passed exact-byte validation
+- **THEN** each SHALL be provenance-published and registry-verified under its own package identity
+- **AND** stable release records SHALL be written only after both required registry results succeed
+
+#### Scenario: Installer publication fails after an application artifact exists
+- **WHEN** one immutable package upload succeeds but the required pair is not completely verified
+- **THEN** the workflow SHALL fail without writing a stable tag, GitHub Release, or `master` movement
+- **AND** a retry SHALL verify existing immutable bytes rather than republish or rebuild them
 
 ### Requirement: The complete suite remains available on demand
 The complete non-physical automated suite SHALL remain runnable locally (`npm run test:full`) and through manual workflow dispatch, so a maintainer can widen validation when a change feels risky, and SHALL run on a nightly schedule against the current `develop` tip so exhaustive owners and enforced budgets are exercised every day independent of publication. Routine development SHALL NOT require it.
@@ -1114,3 +1124,56 @@ The crate's build script SHALL refuse to build on a Windows host outside CI unle
 #### Scenario: A developer explicitly overrides the guard
 - **WHEN** the same build runs with `TERMINAL_HOST_LOCAL_BUILD=1`
 - **THEN** the build SHALL proceed as it does in CI
+
+### Requirement: Allowed prerequisite skips do not suppress required publication outcomes
+A publication job that intentionally permits an upstream prerequisite to be skipped SHALL evaluate every subsequent required job explicitly. Post-publication smoke SHALL run only when its selected work requires publication and its direct plan, package, and publish dependencies all succeeded. Release completion SHALL run only when its direct plan, package, publish, and post-publication dependencies all succeeded. Both jobs SHALL evaluate their explicit predicates despite allowed transitive skips and SHALL remain ineligible after a failed, cancelled, or skipped direct prerequisite. The aggregate SHALL continue to reject missing or skipped post-publication smoke and completion whenever publication work was required.
+
+#### Scenario: Development documentation review is intentionally skipped
+- **WHEN** development publication skips its stable/nightly-only documentation review but package validation and registry publication succeed
+- **THEN** the selected Windows, Linux, and macOS published-pair smoke lanes SHALL execute
+- **AND** completion and the publication aggregate SHALL require those lanes to succeed
+
+#### Scenario: A direct publication dependency fails
+- **WHEN** package acquisition, publication, or required published-pair smoke fails, is cancelled, or is skipped unexpectedly
+- **THEN** the next dependent publication job SHALL remain ineligible
+- **AND** the aggregate SHALL fail rather than reinterpret the missing outcome as an allowed skip
+
+### Requirement: Published-pair jobs use a repository-standard resolvable action pin
+Every checkout in the release workflow SHALL use the same repository-established immutable action commit unless a separately reviewed coordinated upgrade changes all intended release references. A published-pair job SHALL fail policy validation before merge when it introduces a one-off checkout reference, even if that reference has the syntactic shape of a commit hash.
+
+#### Scenario: A post-publication checkout contains a nonexistent one-off commit
+- **WHEN** the published-pair job references a forty-character commit that differs from the established release-workflow checkout pin
+- **THEN** focused workflow policy SHALL reject the candidate before publication
+- **AND** no native installation lane SHALL depend on that unverified reference
+
+#### Scenario: Published-pair installation begins
+- **WHEN** publication and registry verification succeed for a newly numbered candidate
+- **THEN** each selected native published-pair job SHALL resolve its immutable checkout action and execute the installation smoke steps
+
+### Requirement: Published-pair lanes expose their native identity
+Every post-publication native installation job SHALL display the selected platform and Node runtime from fields provided by the authoritative release matrix. A missing or invented matrix field SHALL NOT reduce the job name to an ambiguous empty label. Display identity SHALL NOT change runner selection, matrix breadth, artifact identity, or aggregate requirements.
+
+#### Scenario: A native published-pair lane is inspected
+- **WHEN** the release matrix expands a post-publication installation job
+- **THEN** its Actions job name SHALL identify the selected platform and Node runtime
+- **AND** a failure SHALL be attributable to its native lane without inspecting runner metadata through the API
+
+### Requirement: Published-pair smoke uses the accepted installer target grammar
+
+Post-publication native installation smoke SHALL invoke the published installer through the public target grammar accepted by that same package. A develop candidate SHALL use `--develop <exact-preview-version>` so the immutable registry-verified application version remains explicit. A release candidate SHALL use bare invocation. The harness SHALL NOT use removed `--version`, `--latest`, or `--next` target options, and focused pull-request policy SHALL reject those stale forms before another candidate is published.
+
+#### Scenario: A develop published pair is exercised
+
+- **WHEN** the registry serves a verified develop application/installer pair at `0.2.1-dev.605`
+- **THEN** every selected native smoke lane SHALL invoke the installer with `--develop 0.2.1-dev.605`
+- **AND** the installed manifest SHALL still be required to equal that exact version
+
+#### Scenario: A release published pair is exercised
+
+- **WHEN** the registry serves a verified release application/installer pair
+- **THEN** every selected native smoke lane SHALL invoke the installer without a target selector
+
+#### Scenario: Release smoke drifts to a removed target option
+
+- **WHEN** the published-installer harness uses `--version`, `--latest`, or `--next` as an application target option
+- **THEN** focused repository policy SHALL reject the candidate before publication

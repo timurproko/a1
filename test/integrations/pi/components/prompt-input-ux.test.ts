@@ -213,7 +213,7 @@ describe("owned level and model keybindings", () => {
     applyPiTheme("dark", false, "truecolor");
   });
 
-  it("renders the bare thinking selector with the resolved cycle key and bold accent heading", async () => {
+  it("renders fixed thinking-state columns and persists defaults immediately", async () => {
     const { input } = await editor();
     const selected = vi.fn();
     const saved = vi.fn();
@@ -247,14 +247,30 @@ describe("owned level and model keybindings", () => {
     const descriptionColumns = ["No reasoning", "Very brief reasoning", "Light reasoning", "Moderate reasoning", "Deep reasoning"]
       .map(description => rows.map(stripTerminalSequences).find(row => row.includes(description))!.indexOf(description));
     expect(new Set(descriptionColumns).size).toBe(1);
+    const defaultMarkerColumns = (["off", "minimal", "low", "medium", "high"] as const).map(defaultLevel => {
+      const candidate = createPiShellThinkingSelector(
+        "medium",
+        ["off", "minimal", "low", "medium", "high"],
+        vi.fn(),
+        vi.fn(),
+        vi.fn(),
+        defaultLevel,
+        { profile: "bare", cycleBinding },
+      );
+      const defaultRow = candidate.render(100).map(stripTerminalSequences).find(row => row.includes("[default]"))!;
+      return defaultRow.indexOf("[default]");
+    });
+    expect(new Set(defaultMarkerColumns).size).toBe(1);
     expect(cellStyle(selectedRow, "m")).toEqual(cellStyle(piTheme().fg("accent", "m"), "m"));
     expect(cellStyle(selectedRow, "M")).toEqual(cellStyle(piTheme().fg("muted", "M"), "M"));
     expect(cellStyle(unselectedRow, "L")).toEqual(cellStyle(piTheme().fg("muted", "L"), "L"));
     expect(cellStyle(selectedRow, "✓")).toEqual(cellStyle(piTheme().fg("success", "✓"), "✓"));
     expect(cellStyle(selectedRow, "[")).toEqual(cellStyle(piTheme().fg("muted", "["), "["));
     expect(rows.filter(row => stripTerminalSequences(row).includes("Moderate reasoning"))).toHaveLength(1);
-    const controls = rows.find(row => stripTerminalSequences(row).includes("to select"))!;
-    expect(stripTerminalSequences(controls)).toContain("Enter to select  Ctrl+S to set as default  Escape/Ctrl+C to cancel");
+    const controls = rows.find(row => stripTerminalSequences(row).includes("Enter select"))!;
+    expect(stripTerminalSequences(controls).trim()).toBe("Enter select  Space default  Esc close");
+    expect(stripTerminalSequences(controls)).not.toContain("Ctrl+S");
+    expect(stripTerminalSequences(controls)).not.toContain("Escape/Ctrl+C");
     expect(firstVisibleTextColumn(controls)).toBe(firstVisibleTextColumn(heading));
     expect(controls).not.toMatch(/[·•]/u);
     expect(cellStyle(controls, "E")).toEqual(cellStyle(piTheme().fg("dim", "E"), "E"));
@@ -262,15 +278,24 @@ describe("owned level and model keybindings", () => {
     for (const width of [24, 32, 40]) expect(selector.render(width).every(row => visibleWidth(row) <= width)).toBe(true);
 
     selector.handleInput?.("low");
+    selector.handleInput?.(" ");
+    expect(saved).toHaveBeenCalledOnce();
+    expect(saved).toHaveBeenCalledWith("low");
+    const persistedLowRow = selector.render(100).map(stripTerminalSequences)
+      .find(row => row.includes("Light reasoning"))!;
+    expect(persistedLowRow.replace(/\s+/g, " ")).toContain("low [default] Light reasoning (~2k tokens)");
+    expect(persistedLowRow).not.toContain("✓");
+    expect(selector.render(100).map(stripTerminalSequences).join("\n")).not.toContain("unsaved");
     selector.handleInput?.("\r");
     expect(selected).toHaveBeenCalledWith("low");
 
+    const customSaved = vi.fn();
     const custom = createPiShellThinkingSelector(
       "high",
       ["low", "high"],
       selected,
       canceled,
-      saved,
+      customSaved,
       "low",
       { profile: "bare", cycleBinding: "alt+r" },
     );
@@ -284,8 +309,20 @@ describe("owned level and model keybindings", () => {
     expect(customDefaultRow.replace(/\s+/g, " ")).toContain("low [default] Light reasoning (~2k tokens)");
     expect(customDefaultRow).not.toContain("✓");
     expect(customActiveRow.indexOf("Deep reasoning")).toBe(customDefaultRow.indexOf("Light reasoning"));
+    const initialDefaultColumn = customDefaultRow.indexOf("[default]");
+    custom.handleInput?.(" ");
+    expect(customSaved).toHaveBeenCalledOnce();
+    expect(customSaved).toHaveBeenCalledWith("high");
+    const persistedRows = custom.render(100).map(stripTerminalSequences);
+    const persistedDefaultRow = persistedRows.find(row => row.includes("Deep reasoning"))!;
+    expect(persistedDefaultRow.replace(/\s+/g, " "))
+      .toContain("→ high ✓ [default] Deep reasoning (~16k tokens)");
+    expect(persistedDefaultRow.indexOf("[default]")).toBe(initialDefaultColumn);
+    expect(persistedRows.find(row => row.includes("Light reasoning"))).not.toContain("[default]");
     custom.handleInput?.("\x13");
-    expect(saved).toHaveBeenCalledWith("high");
+    expect(customSaved).toHaveBeenCalledOnce();
+    custom.handleInput?.("\x03");
+    expect(canceled).not.toHaveBeenCalled();
     custom.handleInput?.("\x1b");
     expect(canceled).toHaveBeenCalledOnce();
   });

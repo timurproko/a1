@@ -59,6 +59,13 @@ describe("terminal-core architecture policy", () => {
     expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
   });
 
+  it("allows only the declared installer package authority", async () => {
+    const installerManifest = ["packages", "a1-install", "package.json"].join("/");
+    const root = await fixture({ [installerManifest]: "{}" });
+    const result = runPolicy(root);
+    expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
+  });
+
   it.each([
     ["src/orphan.ts", "export {};", "production source has no declared owner"],
     ["src/utils/helper.ts", "export {};", "generic source dumping-ground directory"],

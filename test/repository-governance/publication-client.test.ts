@@ -124,6 +124,9 @@ describe("publication failure reporting", () => {
     expect(summary.run).toContain("budgetViolations");
     expect(require.if).toBeUndefined();
     expect(require.run).toContain('test "$VALIDATE" = success');
-    expect(require.run).toContain('if [ "$BUILD" = true ]; then test "$PUBLISH" = success; fi');
+    expect(require.run).toContain('if [ "$BUILD" = true ] || [ "$INSTALLER_BUILD" = true ]; then');
+    expect(require.run).toContain('test "$PUBLISH" = success');
+    expect(require.run).toContain('test "$POST_PUBLISH" = success');
+    expect(require.run).toContain('test "$COMPLETE" = success');
   });
 });

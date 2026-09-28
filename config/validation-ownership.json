@@ -126,6 +126,7 @@
       "paths": [
         "src/foundation/release/",
         "scripts/release/",
+        "packages/a1-install/",
         "config/"
       ],
       "testPaths": [

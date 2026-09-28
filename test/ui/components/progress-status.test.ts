@@ -4,7 +4,7 @@ import { progressStatusFrame, progressStatusText } from "../../../src/ui/compone
 
 const styles = {
   muted: (text: string) => `\u001b[90m${text}\u001b[39m`,
-  accent: (text: string) => `\u001b[36m${text}\u001b[39m`,
+  highlight: (text: string) => `\u001b[37m${text}\u001b[39m`,
 };
 
 describe("progress status presentation", () => {
@@ -27,27 +27,27 @@ describe("progress status presentation", () => {
     expect(progressStatusText("Working…", "...")).toBe("Working...");
   });
 
-  it("moves a two-grapheme accent band every third update and pauses for one pass", () => {
-    const accent = vi.fn(styles.accent);
-    const frame = (phase: number) => progressStatusFrame("ABCDEFG…", phase, { ...styles, accent });
+  it("moves a two-grapheme highlight every third update and pauses for one pass", () => {
+    const highlight = vi.fn(styles.highlight);
+    const frame = (phase: number) => progressStatusFrame("ABCDEFG…", phase, { ...styles, highlight });
 
     expect(stripTerminalSequences(frame(0))).toBe("ABCDEFG…");
-    expect(accent).toHaveBeenLastCalledWith("AB");
+    expect(highlight).toHaveBeenLastCalledWith("AB");
     frame(2);
-    expect(accent).toHaveBeenLastCalledWith("AB");
+    expect(highlight).toHaveBeenLastCalledWith("AB");
     frame(3);
-    expect(accent).toHaveBeenLastCalledWith("BC");
+    expect(highlight).toHaveBeenLastCalledWith("BC");
     frame(18);
-    expect(accent).toHaveBeenLastCalledWith("G");
+    expect(highlight).toHaveBeenLastCalledWith("G");
 
-    accent.mockClear();
+    highlight.mockClear();
     for (const phase of [21, 24, 39]) {
       const paused = frame(phase);
       expect(stripTerminalSequences(paused)).toBe("ABCDEFG…");
-      expect(accent).not.toHaveBeenCalled();
+      expect(highlight).not.toHaveBeenCalled();
     }
     frame(42);
-    expect(accent).toHaveBeenLastCalledWith("AB");
+    expect(highlight).toHaveBeenLastCalledWith("AB");
   });
 
   it("keeps the ellipsis muted and every frame text- and width-stable", () => {
@@ -65,9 +65,9 @@ describe("progress status presentation", () => {
     ["Ae\u0301B…", "e\u0301"],
     ["A👩‍💻B…", "👩‍💻"],
   ])("styles complete graphemes in %j", (message, expectedGrapheme) => {
-    const accent = vi.fn((text: string) => text);
-    const rendered = progressStatusFrame(message, 3, { muted: text => text, accent });
+    const highlight = vi.fn((text: string) => text);
+    const rendered = progressStatusFrame(message, 3, { muted: text => text, highlight });
     expect(rendered).toBe(message);
-    expect(accent.mock.calls[0]?.[0]).toContain(expectedGrapheme);
+    expect(highlight.mock.calls[0]?.[0]).toContain(expectedGrapheme);
   });
 });

@@ -222,11 +222,12 @@ describe("PromptChipStore", () => {
     expect(store.prepareSubmission(output).images).toEqual([]);
   });
 
-  it("re-chips a large single-block recall as a paste chip using the same paste-time threshold", () => {
+  it("keeps recalled multiline content expanded instead of replacing it with a paste chip", () => {
     const store = new PromptChipStore();
     const body = Array.from({ length: 12 }, (_, index) => `line-${index}`).join("\n");
     const rehydrated = store.rehydrateHistoryText(body, () => null);
-    expect(rehydrated).toMatch(/^\[paste #\d+ \+12 lines\]$/u);
+    expect(rehydrated).toBe(body);
+    expect(rehydrated).not.toContain("[paste #");
     expect(store.prepareSubmission(rehydrated).text).toBe(body);
   });
 

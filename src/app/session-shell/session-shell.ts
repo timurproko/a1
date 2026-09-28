@@ -178,8 +178,9 @@ export class OwnedUiSessionShell {
   #shutdownPromise: Promise<AdapterCommandResult> | undefined;
   #disposePromise: Promise<void> | undefined;
   #pointerReporting = false;
-  // Invariant: the startup release-note diagnostic creates at most one dock notice per shell.
+  // Invariant: translated startup diagnostics create at most one dock notice per kind per shell.
   #startupChangelogHandled = false;
+  #startupTrustHandled = false;
   readonly #customViewport: boolean;
   readonly #responseCopy: ResponseCopyCoordinator | null;
   // Rationale: only an executor this shell created owns a spare copy helper worth warming and disposing.
@@ -972,17 +973,17 @@ export class OwnedUiSessionShell {
       this.root.setInputSurface(null);
       this.runtime.requestRender();
     };
-    const select = (level: string, persist: boolean) => {
+    const select = (level: string) => {
       close();
-      void this.runWorkflow({ command: "thinking", argument: "", selection: level, ...(persist ? { persist: true } : {}) });
+      void this.runWorkflow({ command: "thinking", argument: "", selection: level });
     };
     const { createPiShellThinkingSelector } = await import("../../integrations/pi/components/thinking-selector-dialog.js");
     const component = createPiShellThinkingSelector(
       snapshot.thinkingLevel,
       snapshot.availableThinkingLevels,
-      level => select(level, false),
+      select,
       close,
-      level => select(level, true),
+      level => this.backend.setDefaultThinkingLevel(level),
       snapshot.defaultThinkingLevel,
       this.#customViewport ? {
         profile: "bare",
@@ -1819,6 +1820,7 @@ export class OwnedUiSessionShell {
     this.root.update(view);
     this.#syncDialog(view.dialog);
     this.#presentStartupChangelog(view);
+    this.#presentStartupTrustWarning(view);
     this.runtime.requestRender();
     for (const listener of this.#listeners) listener(view);
     return view;
@@ -1834,6 +1836,16 @@ export class OwnedUiSessionShell {
     if (diagnostic === undefined || !this.runtime.active) return;
     this.#startupChangelogHandled = true;
     this.root.appendWorkflowStatus(STARTUP_CHANGELOG_NOTICE);
+  }
+
+  // Rationale: a cancelled or failed trust choice explains the restricted session where the
+  // user will next type, rather than leaving a lone warning at the top of an empty viewport.
+  #presentStartupTrustWarning(view: OwnedUiSessionViewModel): void {
+    if (this.#startupTrustHandled || !this.#customViewport) return;
+    const diagnostic = view.diagnostics.find(candidate => candidate.code === "project-trust");
+    if (diagnostic === undefined || !this.runtime.active) return;
+    this.#startupTrustHandled = true;
+    this.root.appendWorkflowMessage({ kind: "warning", message: diagnostic.message });
   }
 
   #openOwnedRoute(route: string, input?: UiRouteInput): AdapterCommandResult {

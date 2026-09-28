@@ -166,6 +166,7 @@ export class Runtime {
   completeSuggestion: () => Promise<unknown> = async () => ({ content: [{ type: "text", text: "archive it" }] });
   enabledModels: readonly string[] | undefined;
   doubleEscapeAction: "fork" | "tree" | "none" = "tree";
+  defaultThinkingLevel = "medium";
   loginPromptKind: "select" | "optional-text" = "select";
   completeLogin: (() => void) | undefined;
   readonly availableModels = [
@@ -237,6 +238,8 @@ export class Runtime {
       getEnabledModels: () => this.enabledModels,
       setEnabledModels: (patterns: readonly string[] | undefined) => { this.enabledModels = patterns; },
       getDoubleEscapeAction: () => this.doubleEscapeAction,
+      getDefaultThinkingLevel: () => this.defaultThinkingLevel,
+      setDefaultThinkingLevel: (level: string) => { this.defaultThinkingLevel = level; this.calls.push(`default-thinking:${level}`); },
     },
     diagnostics: [],
   };

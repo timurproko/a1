@@ -58,8 +58,7 @@ function verify(actual: Capture, expected: Capture): void {
       expect(actual.trust?.after).toEqual(actual.trust?.before);
     }
   }
-  const missingExecutable = expected.id.includes("/share/missing/");
-  expect(actual.rows, actual.id).toEqual(missingExecutable ? expected.exceptionReferenceRows : expected.rows);
+  expect(actual.rows, actual.id).toEqual(expected.exceptionReferenceRows ?? expected.rows);
   expect(actual.progressRows, `${actual.id} before catalog completion`).toEqual(expected.progressRows);
   expect(actual.surfaceOpen, `${actual.id} input ownership`).toBe(expected.surfaceOpen);
   if (/\/(tree|scoped-models|trust|resume|thinking|model|login)\//u.test(expected.id)) {
@@ -103,6 +102,17 @@ describe("independent command outcome parity", () => {
     const mismatches = expected.filter((frame, index) => JSON.stringify(actual[index]?.rows) !== JSON.stringify(frame.exceptionReferenceRows ?? frame.rows)).map(frame => frame.id);
     expect(mismatches, "command message differences").toEqual([]);
     for (const [index, frame] of expected.entries()) verify(actual[index]!, frame);
+    const compactFailures = [...expected.entries()].filter(([, frame]) => frame.id.includes("/compact/failure/"));
+    expect(compactFailures).toHaveLength(8);
+    for (const [index, reference] of compactFailures) {
+      expect(reference.rows, `${reference.id} pinned direct output`).toEqual([]);
+      expect(reference.exceptionReferenceRows, `${reference.id} visible failure reference`).toEqual(actual[index]!.rows);
+      expect(() => verify({ ...actual[index]!, rows: reference.rows }, reference)).toThrow();
+    }
+    for (const [index, reference] of [...expected.entries()].filter(([, frame]) => frame.id.includes("/compact/success/"))) {
+      expect(reference.exceptionReferenceRows, `${reference.id} success exception`).toBeUndefined();
+      expect(actual[index]!.rows, `${reference.id} silent success`).toEqual(reference.rows);
+    }
     const scopedIndex = expected.findIndex(frame => frame.id === "dark/0/scoped-models/open/80");
     expect(scopedIndex).toBeGreaterThanOrEqual(0);
     const scoped = actual[scopedIndex]!;
