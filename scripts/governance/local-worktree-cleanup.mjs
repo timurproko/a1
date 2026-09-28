@@ -10,10 +10,11 @@ import { reconcileLocalCleanup } from "./local-cleanup-reconcile.mjs";
 import { watchLocalCleanup } from "./local-cleanup-watch.mjs";
 import { completeLocalCleanup, handoffLocalCleanup, COMPLETION_DISPOSABLE_PATHS } from "./local-cleanup-complete.mjs";
 import { discardLocalCleanup } from "./local-cleanup-discard.mjs";
+import { retireRedundantWorktree } from "./local-cleanup-redundant.mjs";
 
 const help = `Local worktree cleanup (disabled until explicitly enabled)
 Usage: node scripts/governance/local-worktree-cleanup.mjs COMMAND --repo PRIMARY [options]
-Commands: preview (default), status, handoff, sweep, complete, discard, forget, enable, disable, once, watch, register, claim, release, recover
+Commands: preview (default), status, handoff, sweep, complete, discard, retire-redundant, forget, enable, disable, once, watch, register, claim, release, recover
 Forget: --id ID --confirm-nothing-left
   Marks a released entry whose worktree, Git row, and local ref are all already absent as forgotten; reads nothing remote, deletes nothing.
 Handoff: --path PATH --change NAME --pr N
@@ -25,6 +26,8 @@ Complete: --path PATH --change NAME --pr N [--role implementation|archive|accept
   Runs one exact-candidate post-merge cleanup with repository-owned generated paths: ${COMPLETION_DISPOSABLE_PATHS.join(", ")}.
 Discard: --path PATH --change NAME --pr N --confirm-closed-unmerged
   Deletes only one verified closed-unmerged PR's unchanged remote ref, worktree, and local ref.
+Retire redundant: --path PATH --confirm-redundant
+  Removes one exact clean unregistered no-PR/no-remote worktree whose tip is already contained by fresh origin/develop.
 Registration: --path PATH --change NAME --source-pr N --candidate-pr N --role implementation|archive|acceptance
 Optional low-level registration: --disposable node_modules (repeat for each explicitly disposable generated path)
 Ownership: --id ID --generation GENERATION; LOCAL_CLEANUP_OWNER_TOKEN must contain at least 32 characters.
@@ -60,14 +63,16 @@ export async function main(args = process.argv.slice(2)) {
   const { values, positionals } = parseArgs({ args, allowPositionals: true, strict: true, options: {
     repo: { type: "string" }, path: { type: "string" }, change: { type: "string" }, pr: { type: "string" }, "source-pr": { type: "string" }, "candidate-pr": { type: "string" },
     role: { type: "string" }, disposable: { type: "string", multiple: true }, id: { type: "string" }, generation: { type: "string" },
-    "confirm-stopped": { type: "boolean" }, "confirm-closed-unmerged": { type: "boolean" }, "confirm-nothing-left": { type: "boolean" }, help: { type: "boolean" },
+    "confirm-stopped": { type: "boolean" }, "confirm-closed-unmerged": { type: "boolean" }, "confirm-redundant": { type: "boolean" },
+    "confirm-nothing-left": { type: "boolean" }, help: { type: "boolean" },
   } });
   if (values.help) { console.log(help); return; }
   if (positionals.length > 1) fail("command-count");
   const command = positionals[0] ?? "preview";
-  if (!["preview", "status", "handoff", "sweep", "complete", "discard", "forget", "enable", "disable", "once", "watch", "register", "claim", "release", "recover"].includes(command)) fail("unknown-command");
+  if (!["preview", "status", "handoff", "sweep", "complete", "discard", "retire-redundant", "forget", "enable", "disable", "once", "watch", "register", "claim", "release", "recover"].includes(command)) fail("unknown-command");
   const identity = await discoverRepository(values.repo ?? process.cwd());
   const store = createStateStore(identity);
+  if (command !== "retire-redundant" && values["confirm-redundant"] !== undefined) fail("redundant-arguments");
   if (command === "status") { console.log(JSON.stringify({ ...summary(await store.read()), stopped: await store.disabled() }, null, 2)); return; }
   if (command === "forget") {
     if (!values.id || values["confirm-nothing-left"] !== true) fail("forget-arguments");
@@ -111,7 +116,7 @@ export async function main(args = process.argv.slice(2)) {
     });
     return;
   }
-  if (["complete", "discard", "sweep", "once", "watch"].includes(command) && inside(identity.root, await canonical(fileURLToPath(import.meta.url)))) fail("worker-code-inside-removable-root");
+  if (["complete", "discard", "retire-redundant", "sweep", "once", "watch"].includes(command) && inside(identity.root, await canonical(fileURLToPath(import.meta.url)))) fail("worker-code-inside-removable-root");
   let nextAllowed = 0;
   async function authorizedReader(deadline) {
     let token = process.env.GH_TOKEN ?? process.env.GITHUB_TOKEN;
@@ -120,6 +125,17 @@ export async function main(args = process.argv.slice(2)) {
       catch { /* Security: private-repository evidence fails closed without authentication. */ }
     }
     return cleanupReader({ repository: identity.repository, token, deadline, onBackoff: time => { nextAllowed = Math.max(nextAllowed, time); } });
+  }
+  if (command === "retire-redundant") {
+    if (!values.path || values["confirm-redundant"] !== true || values.change !== undefined || values.pr !== undefined
+      || values["source-pr"] !== undefined || values["candidate-pr"] !== undefined || values.role !== undefined || values.disposable !== undefined
+      || values["confirm-closed-unmerged"] !== undefined || values["confirm-nothing-left"] !== undefined
+      || values["confirm-stopped"] !== undefined) fail("redundant-arguments");
+    const deadline = Date.now() + 60000;
+    const report = await retireRedundantWorktree({ identity, store, reader: await authorizedReader(deadline), path: values.path,
+      confirmed: true, cwd: process.cwd(), deadline });
+    console.log(JSON.stringify(report, null, 2));
+    return;
   }
   if (command === "discard") {
     const sourcePr = Number(values.pr);
