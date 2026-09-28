@@ -6,7 +6,9 @@ The complete logs isolate three causes:
 
 1. Linux, macOS, Windows Node 22, and Windows Node 24 all failed `release-target.test.ts`. PRs #607 and #608 intentionally reduced the root README to concise commands, but the test and canonical requirement still demand detailed reopening prose such as `0.1.9-dev`, target-error explanation, and manual merge wording in both README and runbook. The runbook still contains all of that operator guidance.
 2. macOS additionally failed two `project-trust-preflight.test.ts` assertions because `mkdtemp` returned lexical `/var/...` while production correctly canonicalized the trust identity to `/private/var/...`. The canonical trust requirement explicitly covers native macOS temporary aliases; the test expected lexical labels/persistence paths while the prompt heading correctly remained lexical.
-3. Windows Node 22 additionally passed the assertions in `does not advertise a persistent-but-unwritten new session as resumable`, then failed suite teardown while recursively removing its temporary root with `EBUSY`. Windows Node 24 passed the same runtime test. The previous #597 NUL-cleanup scenario passed on both Windows lanes; #597 therefore does not supply the current correction.
+3. Windows Node 22 additionally passed the assertions in `does not advertise a persistent-but-unwritten new session as resumable`, then failed suite teardown while recursively removing its temporary root with `EBUSY`. Windows Node 24 passed the same runtime test. The previous #597 NUL-cleanup scenario passed on both Windows lanes.
+
+During implementation, the independently reviewed and finalized PR #597 merged as `af4db315`. Its bounded five-attempt, 100 ms recursive-removal retry is also the required correction for the newer teardown failure, so this branch rebases onto and verifies that fix instead of introducing a competing retry policy.
 
 Registry and release inspection confirms neither package has `0.2.1`, `latest` did not move, and no `v0.2.1` tag or GitHub Release exists.
 
@@ -27,7 +29,7 @@ Registry and release inspection confirms neither package has `0.2.1`, `latest` d
 - No weakening or removal of release target parsing, manual reopening, recovery, immutable-version, or stable mutation guards.
 - No change to project-trust production canonicalization, decisions, labels, persistence semantics, or fail-closed behavior.
 - No test retry, assertion retry, timeout increase, ignored cleanup failure, matrix reduction, or local full/release run.
-- No merge, rewrite, or silent closure of PR #597.
+- No duplicate or rewrite of PR #597's independently merged cleanup fix.
 
 ## Decisions
 
@@ -49,11 +51,11 @@ Resolve the fixture project directory after creation and derive expected trust p
 
 Changing production back to lexical paths is rejected because it would violate pinned-Pi parity and allow aliases to represent one directory as different trust identities. A platform-specific `/private` string replacement is rejected in favor of `realpath`.
 
-### 4. Retry only disposable fixture removal after disposal
+### 4. Preserve and verify the independently merged bounded fixture removal
 
-Keep runtime and adapter disposal awaited exactly as today. Change the shared `afterEach` removal of runtime-integration temporary roots to use Node's bounded recursive-removal retry controls for transient `EBUSY`/`EPERM`/`ENOTEMPTY` release races. Exhausting the bound remains a failed test and preserves the offending path. Test bodies, assertions, application timeouts, and process lifecycle are not retried.
+Keep runtime and adapter disposal awaited exactly as today. PR #597 now configures the shared `afterEach` removal of runtime-integration temporary roots to use Node's bounded recursive-removal retry controls for transient `EBUSY`/`EPERM`/`ENOTEMPTY` release races. This delivery preserves its fixed five-attempt, 100 ms policy and verifies both the newer persistent-unwritten-session scenario and #597's NUL-cleanup scenario on the reconciled head. Exhausting the bound remains a failed test. Test bodies, assertions, application timeouts, and process lifecycle are not retried.
 
-Ignoring cleanup errors or globally extending test timeouts is rejected. Folding this work into #597 is rejected because its recorded failing scenario now passes and its generated provenance names a different source/run.
+Ignoring cleanup errors, globally extending test timeouts, or replacing the merged policy with a competing bound is rejected.
 
 ### 5. Repeat the stable attempt only after merge
 
@@ -81,7 +83,7 @@ The failed run remains immutable evidence. Because no package or stable record w
 ## Migration Plan
 
 1. After explicit approval and implementation request, continue in this worktree, branch, and draft PR.
-2. Implement the semantic documentation split/checker, canonical trust expectations, and bounded fixture cleanup with focused regressions.
+2. Implement the semantic documentation split/checker and canonical trust expectations; rebase onto and verify PR #597's independently merged bounded fixture cleanup.
 3. Complete evidence, gap disposition, finalization, and exact-head PR validation before authorized manual merge.
 4. After merge, rerun `npm run release -- patch` from clean current `develop` and require all stable gates plus manual reopening completion.
 

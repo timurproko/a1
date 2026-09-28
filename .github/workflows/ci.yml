@@ -412,6 +412,10 @@ jobs:
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: 24
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: development-validation-impact
+          path: .artifacts/validation
       - name: Install pinned archive validation tooling
         if: needs.changes.outputs.openspec-touched == 'true'
         shell: bash
@@ -425,6 +429,8 @@ jobs:
         run: node scripts/governance/reconcile-openspec-archive.mjs --validate-candidate --pr "$ARCHIVE_PR_NUMBER" --tool-root "$RUNNER_TEMP/openspec-archive-tools/node_modules/@fission-ai/openspec"
       - name: Verify docs-sensitive generated governance
         run: node scripts/governance/check-docs-governance.mjs
+      - name: Verify release documentation semantics
+        run: node scripts/release/check-release-documentation.mjs --selection .artifacts/validation/impact.json
       - name: Validate OpenSpec artifacts strictly
         if: needs.changes.outputs.openspec-touched == 'true'
         run: npx --yes @fission-ai/openspec@1.8.0 validate --all --strict --no-interactive
@@ -502,6 +508,8 @@ jobs:
           path: .artifacts/validation
       - name: Check modified and new documentation inputs
         run: node scripts/governance/check-code-documentation.mjs --mode changed --selection .artifacts/validation/impact.json --result .artifacts/validation/code-documentation.json
+      - name: Verify release documentation semantics
+        run: node scripts/release/check-release-documentation.mjs --selection .artifacts/validation/impact.json
       - name: Report changed-file documentation evidence
         if: always()
         shell: bash
