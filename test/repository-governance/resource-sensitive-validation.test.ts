@@ -16,12 +16,13 @@ const originalResourceSensitiveTests = [
 ];
 
 // Provenance: archived incident evidence keeps its original partition, including the archived workspace
-// tests; new storage and isolated-producer workloads join only the active partition.
+// tests; new storage, Git-worktree, runtime-cleanup, and isolated-producer workloads join only the active partition.
 const resourceSensitiveTests = [
   ...originalResourceSensitiveTests.slice(0, 1),
   "test/repository-governance/naming-selection.test.ts",
   "test/repository-governance/pr-full-regression-history.test.ts",
   "test/foundation/launch-context/cutover.test.ts",
+  "test/foundation/lifecycle/session-repository-context.test.ts",
   "test/foundation/supervision/foreground-terminal-lease.test.ts",
   ...originalResourceSensitiveTests.slice(1, 2),
   "test/repository-governance/local-cleanup.test.ts",
@@ -37,6 +38,7 @@ const resourceSensitiveTests = [
   "test/app/session-shell/clipboard-executor-lifecycle.test.ts",
   "test/app/session-shell/clipboard-packaged.test.ts",
   "test/integrations/pi/components/editor-text-paste.test.ts",
+  "test/integrations/pi/engine/compaction-progress.integration.test.ts",
   "test/app/session-shell/prompt-history-controller.test.ts",
   "test/foundation/release/update-activation.test.ts",
 ];

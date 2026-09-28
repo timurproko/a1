@@ -38,7 +38,7 @@ describe("integration owner registry", () => {
     const owners = await loadIntegrationOwners();
     expect(owners.map(owner => owner.id)).toEqual([
       "pi-release-resume", "package-contracts", "startup", "image-compatibility", "history-compatibility", "unix-containment",
-      "launch-integration", "update-performance", "update-predecessor",
+      "launch-integration", "update-performance", "update-predecessor", "terminal-host",
     ]);
     const targets = Object.fromEntries(owners.map(owner => [owner.id, owner.targets.map(target => `${target.platform}-${target.architecture}-node${target.node}`)]));
     expect(targets).toEqual({
@@ -51,6 +51,7 @@ describe("integration owner registry", () => {
       "launch-integration": ["win32-x64-node24"],
       "update-performance": ["win32-x64-node24"],
       "update-predecessor": ["win32-x64-node24"],
+      "terminal-host": ["win32-x64-node24"],
     });
     expect(owners.filter(owner => owner.cadence === "exhaustive").map(owner => owner.id)).toEqual(["update-performance", "update-predecessor"]);
     expect(owners.filter(owner => owner.cadence === "pull-request").map(owner => owner.id)).toEqual(owners.map(owner => owner.id).filter(id => !["update-performance", "update-predecessor"].includes(id)));
@@ -105,7 +106,7 @@ describe("integration owner registry", () => {
     const allLanes = ["macos-15:node24", "ubuntu-24.04:node24", "windows-2025:node22", "windows-2025:node24"];
     const regression = parse(await readFile(".github/workflows/full-regression-shared.yml", "utf8"));
     expect(lanes(regression.jobs["full-regression"].strategy.matrix)).toEqual(allLanes);
-    const release = parse(await readFile(".github/workflows/release.yml", "utf8"));
+    const release = parse(await readFile(".github/workflows/publish.yml", "utf8"));
     expect(release.jobs.validate.strategy.matrix).toBe("${{ fromJson(needs.plan.outputs.validate_matrix) }}");
     for (const mode of ["nightly", "stable"]) expect(lanes(publicationValidationMatrix(mode))).toEqual(allLanes);
   });

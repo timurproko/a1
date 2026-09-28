@@ -115,6 +115,7 @@
         "test/repository-governance/naming-selection.test.ts",
         "test/repository-governance/pr-full-regression-history.test.ts",
         "test/foundation/launch-context/cutover.test.ts",
+        "test/foundation/lifecycle/session-repository-context.test.ts",
         "test/foundation/supervision/foreground-terminal-lease.test.ts",
         "test/repository-governance/code-documentation.test.ts",
         "test/repository-governance/local-cleanup.test.ts",
@@ -131,6 +132,7 @@
         "test/app/session-shell/clipboard-executor-lifecycle.test.ts",
         "test/app/session-shell/clipboard-packaged.test.ts",
         "test/integrations/pi/components/editor-text-paste.test.ts",
+        "test/integrations/pi/engine/compaction-progress.integration.test.ts",
         "test/app/session-shell/prompt-history-controller.test.ts",
         "test/foundation/release/update-activation.test.ts"
       ]
@@ -369,6 +371,20 @@
         "test/foundation/release/dependency-layer.test.ts",
         "test/foundation/release/restart-certification.test.ts",
         "test/foundation/release/release-gc.test.ts"
+      ]
+    },
+    "terminal-host": {
+      "kind": "commands",
+      "fullReleaseExclusion": "Windows-only native build that complete-regression lanes cannot run; its pull-request owner validates every change to its paths.",
+      "commands": [
+        {
+          "id": "terminal-host-build-and-probes",
+          "executable": "npm",
+          "arguments": [
+            "run",
+            "test:terminal-host"
+          ]
+        }
       ]
     }
   },

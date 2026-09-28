@@ -8,9 +8,17 @@ GitHub Actions is the only automation platform. Three refs are protected:
 | `master` | cannot be deleted or force-updated | stable publication |
 | `refs/tags/v*` | cannot be deleted or moved | stable publication |
 
-`.github/workflows/release.yml` is the only publisher. A push publishes neither
+`.github/workflows/publish.yml` is the only publisher. A push publishes neither
 channel. The workflow starts at `03:17 UTC` for nightly development verification,
 or by explicit dispatch from `npm run develop` or `npm run release`.
+
+npm trusted publishing binds authorization to the exact workflow filename. When
+this workflow path changes, merge with enough time before the next schedule, then
+update the trusted-publisher workflow setting for both `@timurproko/a1` and
+`@timurproko/a1-install` while preserving this repository and the `npm-publish`
+environment. For the `release.yml` to `publish.yml` migration, do not dispatch a
+development or stable publication and do not allow the nightly publication to start
+until both npm package settings name `publish.yml`.
 
 `.github/workflows/documentation-auto-merge.yml` is the only pull-request
 auto-merge authority. It runs trusted policy from `develop`; it never checks out or
@@ -49,10 +57,10 @@ effect of stable publication, not a trigger.
 | Pull request into `develop` | Bounded PR-cadence validation; changed/new source documentation is checked once, rendering runs as `none`, `smoke`, or `full`, exhaustive owners are reported as deferred, and only a trusted-CI-created failed-Full-regression repair adds PR-attached complete regression |
 | `npm run develop` | Preview package gates on Windows, Linux, and macOS; an existing numbered preview is an early successful no-op |
 | Nightly at `03:17 UTC` | One full documentation review plus the complete non-physical suite on Windows, Linux, and macOS, every night |
-| `npm run release -- ...` | Stamps the requested stable version on the open `develop` source, runs the complete exact-byte stable gates, then npm `latest`, tag, GitHub Release, and `master`; one reopening PR follows |
+| `npm run release -- ...` | Generates an editable release-note PR, waits for its authorized manual merge, then stamps and publishes that exact reviewed source through the complete stable gates; one separately reviewed reopening PR follows |
 | `.github/workflows/full-regression.yml` | Additional on-demand complete regression without publication authority |
 | `.github/workflows/pi-upstream-sync.yml` | Nightly at `03:23 UTC`: when npm publishes a newer Pi than the pin that no closed proposal skipped, proposes the upgrade as a draft pull request with the vendored copies that follow upstream merged, the kept copies reported with their upstream delta, the ledger, headers, inventories, public API and feature baselines, startup graph, and parity evidence regenerated, and every gate verdict (passed, failed, or blocked by conflict markers) and review item in the body; never merges and never replaces a proposal a human has continued |
-| `.github/workflows/nightly-regression-triage.yml` | After every completed `Full regression` run on `develop` or scheduled `Release` validation: judges the startup budget across the three most recent runs and, after a failure or a persistent overrun, opens `fix/nightly-regression-<date>` as a draft pull request carrying the failed commands per lane, their tests, a bounded log excerpt, the `develop` commits since the last green run, and an OpenSpec fix scaffold, or refreshes the open candidate with the same failed scope set; re-runs nothing, never writes `develop`, never merges |
+| `.github/workflows/nightly-regression-triage.yml` | After every completed `Full regression` run on `develop` or scheduled `Publish` validation: judges the startup budget across the three most recent runs and, after a failure or a persistent overrun, opens `fix/nightly-regression-<date>` as a draft pull request carrying the failed commands per lane, their tests, a bounded log excerpt, the `develop` commits since the last green run, and an OpenSpec fix scaffold, or refreshes the open candidate with the same failed scope set; re-runs nothing, never writes `develop`, never merges |
 
 ## Impact-aware development validation
 
@@ -60,7 +68,7 @@ effect of stable publication, not a trigger.
 
 Ordinary type, architecture, unit/contract, and dist checks always run for code changes. Changed-file documentation and rendering run as independent parallel jobs. Rendered shell/component changes select `smoke`; viewport, scheduler, terminal adapter, evidence harness, package identity, and selector changes select `full`; unrelated changes select `none`. The aggregate accepts a skipped modular job only when the current selector requested the skip.
 
-Integration owners declare one cadence in `config/integration-owners.json`. Impact mode selects affected `pull-request` owners: a changed production path selects its coarse owner, a changed test selects its owner, and a changed file under `test/support/` or `test/fixtures/` selects the owners of the retained tests that import it directly or through other support files (the selection lists those tests as its `shared-support` reason). A support file that no retained test imports, or a test tree the scanner cannot read, falls back to every owner the shared rule declares and records `shared-support-declared`; an invalidator, unknown operational path, or manual Development dispatch selects every `pull-request` owner. An implementation-bound PR body does not force conservative selection; it only removes the documentation-only and version-only shortcuts. The modular matrix itself is derived from the selection by `scripts/release/validation-matrix.mjs`, so inactive jobs are not scheduled at all rather than checking out and exiting early. `exhaustive` owners are never silently skipped or reported as passed: impact and aggregate evidence list them as cadence-deferred, and malformed cadence blocks selection. Full regression and nightly/stable release still execute both cadence classes. PR-attached Full regression is selected only when base policy verifies an `openspec-ci` App-authored candidate, its generated repair identity, and every qualifying failed Full regression source field in `regression-provenance.json` against GitHub's read-only workflow-run record. Release/publishing, shared-support, prerequisite, build, validation-authority, unknown-path, label, Release-only repair, and successful-run persistent-overrun changes retain bounded ordinary validation. Planning-only generated repair drafts remain exempt; eligible implementation drafts receive native lane feedback without integration authority.
+Integration owners declare one cadence in `config/integration-owners.json`. Impact mode selects affected `pull-request` owners: a changed production path selects its coarse owner, a changed test selects its owner, and a changed file under `test/support/` or `test/fixtures/` selects the owners of the retained tests that import it directly or through other support files (the selection lists those tests as its `shared-support` reason). A support file that no retained test imports, or a test tree the scanner cannot read, falls back to every owner the shared rule declares and records `shared-support-declared`; an invalidator, unknown operational path, or manual Development dispatch selects every `pull-request` owner. An implementation-bound PR body does not force conservative selection; it only removes the documentation-only and version-only shortcuts. The modular matrix itself is derived from the selection by `scripts/release/validation-matrix.mjs`, so inactive jobs are not scheduled at all rather than checking out and exiting early. `exhaustive` owners are never silently skipped or reported as passed: impact and aggregate evidence list them as cadence-deferred, and malformed cadence blocks selection. Full regression and nightly/stable release still execute both cadence classes. PR-attached Full regression is selected only when base policy verifies an `openspec-ci` App-authored candidate, its generated repair identity, and every qualifying failed Full regression source field in `regression-provenance.json` against GitHub's read-only workflow-run record. Release/publishing, shared-support, prerequisite, build, validation-authority, unknown-path, label, Publish-only repair, and successful-run persistent-overrun changes retain bounded ordinary validation. Planning-only generated repair drafts remain exempt; eligible implementation drafts receive native lane feedback without integration authority.
 
 The real three-release `update-predecessor` scenario is exhaustive because four fresh npm installations dominated recent PR critical paths, and `update-performance` is exhaustive because its assertion is wall-clock timing on a shared runner; the update path's deterministic contracts stay on pull requests through `pi-release-resume` and `package-contracts`. PR validation retains deterministic predecessor command, lifecycle, fault, fixture, materialization, warmup, package, and update contracts. This permits a real published-history incompatibility or update slowdown to reach `develop` before the next exhaustive run detects it. `.github/workflows/full-regression.yml` runs every night at `02:47 UTC` against the `develop` tip with every owner and enforced budgets, independent of publication, so such a regression shows as a failed Full regression run the next morning; nightly publication's own complete validation still blocks publication. For diagnosis on any other candidate, dispatch standalone Full regression; labels and high-risk release/update impact do not add it to PR checks or change owner cadence.
 
@@ -166,14 +174,17 @@ The command fetches authoritative `origin/develop`, resolves the unique merged p
 request associated with that exact commit through GitHub, and derives
 `<major.minor.patch>-dev.<pull-request number>`. Thus GitHub's `develop (#107)`
 source produces `0.1.8-dev.107`. It first checks npm; if the immutable version
-already exists it reports that version without dispatching package work. Otherwise
-it dispatches GitHub Actions, waits, and reports the published version. It never
+already exists for both the application and installer packages it reports that
+version without dispatching package work. If either immutable artifact is missing,
+it dispatches GitHub Actions, waits, and verifies both published versions. It never
 builds or uploads npm bytes from the workstation.
 
 Nightly resolves the same current `origin/develop` source. It runs one platform-independent full documentation review before the platform matrix, and the matrix records that prerequisite instead of repeating the scan four times. It always runs complete verification even if source has not changed. For a new number it packs once and
 runs the suite against that final-version tarball before publication. For an
-existing number it downloads the exact npm tarball and runs package/update gates
-against those registry bytes; publication is then a successful no-op.
+existing number it downloads both exact npm tarballs and runs package/update and
+installer gates against those registry bytes; publication is then a successful
+no-op. A new or missing installer artifact is dependency-free, packed once, and
+validated on every publication platform before the publish job receives it.
 
 Manual and nightly runs share one non-cancelling concurrency group. Their final
 registry check is serialized, so overlapping requests can produce only one publish
@@ -183,7 +194,10 @@ internal `next` dist-tag and never moves `latest`.
 Users install previews with public `develop` terminology:
 
 ```sh
-a1 update --develop                     # current development channel
+npx -y @timurproko/a1-install --develop
+npx -y @timurproko/a1-install --develop 107
+npx -y @timurproko/a1-install --develop 0.1.8-dev.107
+a1 update --develop                     # update an existing installation
 a1 update --develop 107                 # numbered preview
 a1 update --develop 0.1.8-dev.107       # exact full preview version
 ```
@@ -210,21 +224,36 @@ The command reports its source, stable target, and prospective reopening before
 touching anything, and the stable version is never committed to `develop`.
 
 1. The helper checks that the registry and `v<version>` tag do not already hold the
-   target, re-reads authoritative `develop`, and explicitly dispatches stable
-   publication for that exact source with the stable version in the request. A changed source is
-   an error, not permission to substitute a newer commit.
-2. The workflow stamps the requested version on the checked-out source
-   (`npm version <x.y.z> --no-git-tag-version`) before packing, so the tarball
-   declares `0.1.8` while the tagged commit still declares `0.1.8-dev`. Everything
-   else about the package is byte-identical to that commit's tree; `git checkout
-   v0.1.8 && npm version 0.1.8 --no-git-tag-version && npm pack` reproduces it.
-3. Only after verified publication of `0.1.8` does the helper commit `0.1.9-dev`
-   in an owned detached worktree beneath `.worktrees/` (only this package's manifest
-   and root lockfile version change), open the one version PR, and wait for you to
-   **merge it manually** with a bounded 30-minute poll. The helper never merges
-   PRs or enables auto-merge. Until that merge the helper reports development
-   reopening as incomplete, and previews cannot be published from a `develop`
-   whose `-dev` version sorts below the stable release.
+   target, resolves the latest stable tag ancestor, and maps every first-parent
+   commit through a unique merged GitHub pull request. It groups user-facing changes
+   into deterministic draft Markdown at `docs/releases/<version>.md`; ambiguous or
+   missing PR evidence, a non-stable baseline, or a non-ancestor baseline stops
+   without creating publication state.
+2. The helper opens `chore/release-<version>` (or a source-suffixed retry branch)
+   with only that note. Edit the committed Markdown in the PR, let ordinary CI pass,
+   and **manually merge it**. Auto-merge, forks, changed target/base/branch, malformed
+   notes, unsupported paths, bot merges, closure, timeout, or a moving `develop`
+   are rejected. CI success or PR creation alone never authorizes publication.
+3. The helper binds the exact current `develop` merge commit, checks it again, and
+   explicitly dispatches stable publication. The workflow independently proves that source is
+   the manually merged release-review PR and that its matching note is valid. It
+   stamps the requested version (`npm version <x.y.z> --no-git-tag-version`), builds
+   the deterministic note resource, and packs both application and installer once.
+   The tarballs declare `0.1.8` while the tagged commit still declares `0.1.8-dev`;
+   the GitHub Release body is the reviewed Markdown.
+4. Only after verified publication of both `0.1.8` packages does the helper commit
+   `0.1.9-dev` in an owned detached worktree beneath `.worktrees/` (the application
+   manifest, root lockfile, and installer manifest versions change), open the one
+   version PR, and wait for you to **merge it manually** with a bounded 30-minute
+   poll. The helper never merges PRs or enables auto-merge. Until that merge the
+   helper reports development reopening as incomplete.
+
+On first interactive launch of the matching stable package, bare A1 opens the
+reviewed note once in its full-screen `What's New` route after higher-priority
+startup prompts. Closing a successfully rendered screen acknowledges it per profile;
+previews, downgrades, load/render failures, and exits before close do not. The full
+packaged history remains available with `/changelog`. Installation and `a1 update`
+remain non-interactive, and `a1 pi` retains Pi's pinned changelog and settings.
 
 Closed PRs, timeout, cancellation, and query failures retain identifiable phase
 work for inspection. Conflicting existing branches/PRs are not overwritten;
@@ -236,11 +265,22 @@ only when its branch, original HEAD, and cleanliness remain unchanged. Otherwise
 preserve local work and synchronize manually with the reported remote state.
 
 Stable publication builds the process guardian on all supported platforms, stamps
-the version, packs once, runs the complete suite against those exact bytes on
-Windows, Linux, and macOS, publishes to npm `latest` with provenance from the
-`npm-publish` environment, and then writes `vx.y.z` on the source commit, records
-the GitHub Release, and fast-forwards `master`. A push of the stable version does
+the version, packs each package once, runs the complete suite and installer package
+check against those exact bytes on Windows, Linux, and macOS, publishes both to npm
+`latest` with provenance from the `npm-publish` environment, and exercises the exact
+published installer/application pair in isolated prefixes on every release lane.
+Only after those post-publication checks pass does it write `vx.y.z` on the source commit, record
+the GitHub Release, and fast-forward `master`. A push of the stable version does
 not publish it, and no automation ever pushes one.
+
+The installer package does not yet exist on npm, so its first publication needs a
+one-time granular token in the `npm-publish` environment secret
+`NPM_BOOTSTRAP_TOKEN`; the workflow still publishes the exact validated tarball
+with provenance. Immediately after that first successful publication, configure
+`.github/workflows/publish.yml` and environment `npm-publish` as the package's npm
+trusted publisher, delete the bootstrap secret, and let npm 11 authenticate future
+publications through GitHub OIDC. Both packages must name the current
+`publish.yml` path in their trusted-publisher settings.
 
 Rules that do not bend:
 
@@ -252,7 +292,7 @@ Rules that do not bend:
 
 - **PR validation fails:** fix the code and push; do not mark a failed PR-cadence tier optional. If real predecessor history is needed, run Full regression rather than changing the exhaustive result into PR success.
 - **Nightly startup budget overruns:** a single overrun on Full regression or nightly publication is a warning in the run summary, not a failure; the triage judges the key across the three most recent `develop` runs and opens a `package-startup` candidate only when all three overran. Stable publication still fails on one overrun; rerun it with the measured phases in hand.
-- **Nightly regression fails:** the triage workflow opens or refreshes a draft `fix/nightly-regression-<date>` pull request whose body and change carry the evidence and whose `regression-provenance.json` binds the source run; start the fix there. A failed Full regression source created by `openspec-ci` selects PR-attached Full regression, while a Release-only failure or successful-run persistent overrun retains ordinary PR validation. Reproduce from the listed tests or commands on the failed lane and fix without weakening assertions, budgets, timeouts, or coverage. Record focused implementation evidence and pre-finalization observations in the change, then require `Development validation required` and, when selected, PR-attached Full regression on the finalized exact head. Put final run/head/selection in Actions and handoff rather than making another evidence-recording commit. Standalone dispatch remains diagnostic; numbered-package nightly recovery is independent. A day whose failed scope set differs from every open candidate opens a new one. A Full regression dispatched on a candidate's own branch is that candidate's proof but never selected PR authority; its failures never open another candidate. A failure with no candidate means the triage workflow itself failed; read its run summary and dispatch it with the failed run id and `dry_run` off.
+- **Nightly regression fails:** the triage workflow opens or refreshes a draft `fix/nightly-regression-<date>` pull request whose body and change carry the evidence and whose `regression-provenance.json` binds the source run; start the fix there. A failed Full regression source created by `openspec-ci` selects PR-attached Full regression, while a Publish-only failure or successful-run persistent overrun retains ordinary PR validation. Reproduce from the listed tests or commands on the failed lane and fix without weakening assertions, budgets, timeouts, or coverage. Record focused implementation evidence and pre-finalization observations in the change, then require `Development validation required` and, when selected, PR-attached Full regression on the finalized exact head. Put final run/head/selection in Actions and handoff rather than making another evidence-recording commit. Standalone dispatch remains diagnostic; numbered-package nightly recovery is independent. A day whose failed scope set differs from every open candidate opens a new one. A Full regression dispatched on a candidate's own branch is that candidate's proof but never selected PR authority; its failures never open another candidate. A failure with no candidate means the triage workflow itself failed; read its run summary and dispatch it with the failed run id and `dry_run` off.
 - **Nightly exhaustive predecessor validation fails:** treat the focused PR result as insufficient, keep publication blocked, and repair the incompatibility without reducing predecessor count, timeouts, or exact-package isolation.
 - **Documentation auto-merge fails:** leave the pull request open, inspect its exact
   changed-file classification, docs-sensitive inventory, and workflow permissions,
@@ -264,12 +304,11 @@ Rules that do not bend:
 - **A Pi upgrade proposal needs a re-run:** the sync never force-pushes over `chore/pi-<version>` once it carries a commit the bot did not author; a scheduled re-run posts its fresh verdicts as a comment headed with the version and date and rewrites only the report between the `<!-- pi-upgrade-report -->` markers of the description. To re-run the derived steps and gates on the reviewer's head, dispatch the workflow with `refresh` and the `version`; it checks out the proposal branch, skips bump, evaluation, install, and merge, and reports without pushing. A branch whose commits are all the bot's is recreated from `develop` as before.
 - **A Pi version should not be adopted:** close its proposal pull request with the `pi-upgrade-skipped` label (declared in `config/github-repository-governance.json`) and say why in the closing comment; the next run proposes the newest unskipped version newer than the pin, or nothing, and names the skipped versions in its log. A proposal closed without the label is proposed again the next night. Dispatching the workflow with a `version` ignores skips, which is how a skipped version is reconsidered. To silence the schedule through a release window, set the repository variable `PI_UPGRADE_FREEZE_UNTIL` to a date (`2026-10-01`); scheduled runs exit before proposing until it passes, manual dispatches still run.
 - **Nightly documentation review fails:** inspect the reported paths and rules, identify the introducing merge from the nightly interval, and repair the invariant before unrelated work proceeds.
-- **Development publication fails:** fix the cause and rerun `npm run develop`; an npm version that already exists is never overwritten.
+- **Development publication fails:** inspect both package versions and digests, fix the cause, and rerun `npm run develop`; an npm version that already exists is verified and never overwritten.
 - **Registry verification times out:** a `has not propagated` failure after a successful `npm publish` means npm is still ingesting the upload; it warns that a provenance-signed package "may take a few minutes" and the publisher polls for ten minutes. Confirm the version and its shasum on `https://registry.npmjs.org/<name>/<version>`, then rerun the failed jobs: the final registry check finds the exact bytes, skips `npm publish`, and verification passes. A digest or tag mismatch is not a timeout and is never repaired by rerunning.
-- **Stable publication fails or is uncertain:** no reopening PR was prepared and `develop` still declares the open `-dev` version. Inspect the workflow run, npm, and the `v<version>` tag. When nothing was published, fix the cause and rerun the same target; the registry and tag guards refuse a version that already exists.
-- **Stable is published but reopening stopped:** the helper reports the reopening PR or retained worktree. Merge the pending `chore/release-<x.y.z>-dev` PR by hand once its CI passes, or repair the branch and open the PR yourself; never rerun the release for the published version.
-- **Stable publication fails or is uncertain:** inspect the workflow, registry version/digest, tag, and release before choosing recovery. No reopening PR is prepared. Never republish immutable bytes or move a release tag.
-- **Stable publication succeeded but reopening stops:** the stable version is already published. Inspect and finish the reported next-development PR manually; do not repeat stable publication. If no reopening PR was created, prepare the next-development version through a separately validated manual PR after inspecting remote state.
+- **Release-note review stops before publication:** inspect the reported PR and retained owned worktree. Correct only `docs/releases/<version>.md`, keep auto-merge disabled, and merge as an authorized human. If `develop` advanced, rerun from its synchronized clean tip; the helper creates a source-bound fresh review candidate rather than publishing stale notes.
+- **Stable publication fails or is uncertain:** the reviewed note remains on `develop`, no reopening PR was prepared, and `develop` still declares the open `-dev` version. Inspect the workflow run, npm, GitHub Release, and `v<version>` tag. When nothing was published, synchronize the checkout and rerun the same target; the helper safely reuses notes already reviewed on the exact current source. Registry and tag guards refuse a version that already exists.
+- **Stable is published but reopening stopped:** the helper reports the reopening PR or retained worktree. Merge the pending `chore/release-<x.y.z>-dev` PR by hand once its CI passes, or prepare the next-development version through a separately validated manual PR after inspecting remote state. Never republish immutable bytes, and never rerun the release for the published version.
 
 ## Safe release-command validation
 

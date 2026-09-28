@@ -1,6 +1,10 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
-import { parseReleaseArguments, ReleaseUsageError, resolveReleasePlan } from "../../scripts/release/release-target.mjs";
+import {
+  releaseDocumentationChanged,
+  releaseDocumentationFindings,
+} from "../../scripts/release/check-release-documentation.mjs";
+import { parseReleaseArguments, RELEASE_USAGE, ReleaseUsageError, resolveReleasePlan } from "../../scripts/release/release-target.mjs";
 
 describe("explicit prerelease-aware release targets", () => {
   it.each([
@@ -28,15 +32,45 @@ describe("explicit prerelease-aware release targets", () => {
     expect(() => resolveReleasePlan(current, ["patch"])).toThrow(ReleaseUsageError);
   });
 
-  it.each(["README.md", "docs/ci-release-runbook.md"])("keeps the %s examples aligned with the resolver and manual gates", async path => {
-    const text = await readFile(path, "utf8");
-    const examples = [...text.matchAll(/^npm run release -- (\S+) +# (\S+) -> ([^\s;]+)/gmu)];
-    expect(examples).toHaveLength(3);
-    for (const match of examples) expect(resolveReleasePlan(match[2], [match[1]!]).version).toBe(match[3]);
-    expect(text).not.toContain("already-stable");
-    expect(text).toContain("0.1.9-dev");
-    expect(text).toMatch(/[Aa] target is required/);
-    expect(text).toMatch(/merge (?:it )?manually/u);
-    expect(text).not.toMatch(/self-merging|merge themselves/u);
+  it("keeps concise README commands and detailed runbook gates aligned with release behavior", async () => {
+    const [readme, runbook] = await Promise.all([
+      readFile("README.md", "utf8"),
+      readFile("docs/ci-release-runbook.md", "utf8"),
+    ]);
+    expect(releaseDocumentationFindings(readme, runbook)).toEqual([]);
+    expect(RELEASE_USAGE).toContain("A target is required");
+  });
+
+  it("rejects inaccurate command examples and missing operator safeguards", async () => {
+    const [readme, runbook] = await Promise.all([
+      readFile("README.md", "utf8"),
+      readFile("docs/ci-release-runbook.md", "utf8"),
+    ]);
+    expect(releaseDocumentationFindings(readme.replace("0.1.8-dev -> 0.1.8", "0.1.8-dev -> 0.1.9"), runbook))
+      .toContain("README.md: inaccurate patch release example");
+    const missing = releaseDocumentationFindings(readme, runbook
+      .replace("A target is required", "A release target must be supplied")
+      .replaceAll("0.1.9-dev", "next-development")
+      .replace("Only after verified publication", "Before verified publication")
+      .replace("merge it manually", "merge the reopening pull request")
+      .replace("Never republish immutable bytes", "Do not publish casually"));
+    expect(missing).toEqual(expect.arrayContaining([
+      "docs/ci-release-runbook.md: missing target-required guidance",
+      "docs/ci-release-runbook.md: missing next-development reopening example",
+      "docs/ci-release-runbook.md: missing publication-before-reopening guidance",
+      "docs/ci-release-runbook.md: missing manual reopening merge guidance",
+      "docs/ci-release-runbook.md: missing immutable publication recovery guidance",
+    ]));
+  });
+
+  it("selects semantic release checks only for the two release documents", async () => {
+    expect(releaseDocumentationChanged([{ status: "M", path: "README.md" }])).toBe(true);
+    expect(releaseDocumentationChanged([{ status: "R", oldPath: "README.md", path: "docs/old-readme.md" }])).toBe(true);
+    expect(releaseDocumentationChanged([{ status: "M", path: "docs/ci-release-runbook.md" }])).toBe(true);
+    expect(releaseDocumentationChanged([{ status: "M", path: "docs/validation.md" }])).toBe(false);
+    expect(await readFile("scripts/release/run-changed-documentation.mjs", "utf8"))
+      .toContain("releaseDocumentationChanged(selection.changes)");
+    expect((await readFile(".github/workflows/ci.yml", "utf8")).match(/check-release-documentation\.mjs --selection/gmu))
+      .toHaveLength(2);
   });
 });

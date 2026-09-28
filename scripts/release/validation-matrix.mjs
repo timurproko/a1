@@ -16,6 +16,7 @@ export const DEVELOPMENT_VALIDATION_MATRIX = Object.freeze([
   { group: "compatibility", label: "Image and history compatibility", ...WINDOWS, node: 22, build: true, guardian: false, defender: false },
   { group: "containment", label: "Unix integration (Linux)", os: "ubuntu-24.04", platform: "linux", architecture: "x64", node: 24, build: true, guardian: true, defender: false, binary: "process-guardian" },
   { group: "containment", label: "Unix integration (macOS)", os: "macos-15", platform: "darwin", architecture: "arm64", node: 24, build: true, guardian: true, defender: false, binary: "process-guardian" },
+  { group: "terminal-host", label: "Native terminal host (Windows)", ...WINDOWS, node: 24, build: true, guardian: false, defender: false, terminalHost: true },
 ].map(entry => Object.freeze(entry)));
 
 /** Map an integration owner to the modular job that executes it on a platform. */
@@ -26,6 +27,7 @@ export function validationJobGroup(owner, platform) {
   if (owner === "startup") return "startup";
   if (["image-compatibility", "history-compatibility"].includes(owner)) return platform === "win32" ? "compatibility" : "containment";
   if (owner === "unix-containment") return "containment";
+  if (owner === "terminal-host") return "terminal-host";
   throw new Error(`unknown validation owner: ${owner}`);
 }
 

@@ -9,12 +9,13 @@ import { execFile, execFileSync, spawn } from "node:child_process";
 import { once } from "node:events";
 import { promisify } from "node:util";
 import { atomicJson, createStateStore, registerEntry, transitionEntry, validateState, digest } from "../../scripts/governance/local-cleanup-state.mjs";
-import { canonical, captureWorktree, discoverRepository, inspectWorktree, exists, gitRunner, removeLocalRef, removeRemoteRef, removeWorktree } from "../../scripts/governance/local-cleanup-git.mjs";
+import { canonical, captureWorktree, discoverRepository, inspectWorktree, exists, gitRunner, purgeDisposable, removeLocalRef, removeRemoteRef, removeWorktree } from "../../scripts/governance/local-cleanup-git.mjs";
 import { reconcileLocalCleanup } from "../../scripts/governance/local-cleanup-reconcile.mjs";
 import { completeLocalCleanup, handoffLocalCleanup, COMPLETION_DISPOSABLE_PATHS } from "../../scripts/governance/local-cleanup-complete.mjs";
 import { pruneMergedBranches } from "../../scripts/governance/local-cleanup-branches.mjs";
 import { sweepLines } from "../../scripts/governance/local-worktree-cleanup.mjs";
 import { discardLocalCleanup } from "../../scripts/governance/local-cleanup-discard.mjs";
+import { retireRedundantWorktree, verifyRedundantWorktree } from "../../scripts/governance/local-cleanup-redundant.mjs";
 
 const owner = "fixture-owner-token-at-least-32-characters";
 const execFileAsync = promisify(execFile);
@@ -96,6 +97,7 @@ test("CLI registration, ownership, recovery, preview and enable controls use the
     cwd: f.primary, env: { ...process.env, LOCAL_CLEANUP_OWNER_TOKEN: owner, GH_TOKEN: "fixture-unused-token" }, encoding: "utf8",
   });
   const help = invoke("--help"); assert.match(help, /complete/); assert.match(help, /discard/); assert.match(help, /confirm-closed-unmerged/);
+  assert.match(help, /retire-redundant/); assert.match(help, /confirm-redundant/);
   assert.match(help, /\.artifacts,/); assert.match(help, /native\/process-guardian\/target/);
   assert.match(help, /native\/terminal-host\/target/); assert.match(help, /src\/integrations\/pi\/engine\/pi-settings-metadata\.json/);
   assert.equal(COMPLETION_DISPOSABLE_PATHS.includes(".artifacts"), true);
@@ -116,6 +118,8 @@ test("CLI registration, ownership, recovery, preview and enable controls use the
   assert.throws(() => invoke("complete", "--path", other, "--change", "example"), /completion-arguments/);
   assert.throws(() => invoke("complete", "--path", other, "--change", "example", "--pr", "20", "--source-pr", "21"), /completion-arguments/);
   assert.throws(() => invoke("discard", "--path", other, "--change", "example", "--pr", "20"), /discard-arguments/);
+  assert.throws(() => invoke("retire-redundant", "--path", other), /redundant-arguments/);
+  assert.throws(() => invoke("complete", "--path", other, "--change", "example", "--pr", "20", "--confirm-redundant"), /redundant-arguments/);
   assert.throws(() => invoke("register", "--path", other, "--change", "example", "--source-pr", "20", "--candidate-pr", "20", "--role", "discard"), /registration-role/);
   assert.equal(JSON.parse(invoke("watch")).error, "cleanup-disabled");
   assert.equal(invoke("status").includes(digest(owner)), false);
@@ -222,6 +226,45 @@ test("complete blocks near-match artifact roots and boundary crossings inside th
     change: "example", sourcePr: 20, cwd: f.primary, reconcileOptions: { verify: f.verify, git: f.boundedGit } });
   assert.equal(linked.results[0].reason, "content-link", JSON.stringify(linked));
   assert.equal(await readFile(join(f.path, ".artifacts", "run.log"), "utf8"), "keep");
+});
+
+test("complete removes generated links contained by the same artifact root without admitting escapes", async t => {
+  const f = await fixture(t, false, false);
+  const target = join(f.path, ".artifacts", "layers", "shared"), link = join(f.path, ".artifacts", "release", "node_modules");
+  await mkdir(target, { recursive: true }); await mkdir(join(f.path, ".artifacts", "release"), { recursive: true });
+  await writeFile(join(target, "package.json"), "{}\n");
+  await symlink(target, link, process.platform === "win32" ? "junction" : "dir");
+  const report = await completeLocalCleanup({ identity: f.identity, store: f.store, reader: {}, path: f.path,
+    change: "example", sourcePr: 20, cwd: f.primary, reconcileOptions: { verify: f.verify, git: f.boundedGit } });
+  assert.equal(report.results[0].disposition, "removed", JSON.stringify(report));
+  assert.equal(await exists(f.path), false);
+
+  const g = await fixture(t, false, false), outside = join(g.temporary, "outside-sentinel");
+  const insideTarget = join(g.path, ".artifacts", "inside"), driftingLink = join(g.path, ".artifacts", "linked");
+  await mkdir(insideTarget, { recursive: true }); await mkdir(outside); await writeFile(join(outside, "preserve.txt"), "preserve\n");
+  await symlink(insideTarget, driftingLink, process.platform === "win32" ? "junction" : "dir");
+  const entry = { ...g.snapshot, disposable: [".artifacts"] };
+  const inspected = await inspectWorktree(g.identity, entry, { cwd: g.primary });
+  await rm(driftingLink, { recursive: true, force: true });
+  await symlink(outside, driftingLink, process.platform === "win32" ? "junction" : "dir");
+  await assert.rejects(purgeDisposable(entry, { containedLinks: inspected.containedLinks }), /content-link-drift/);
+  assert.equal(await readFile(join(outside, "preserve.txt"), "utf8"), "preserve\n");
+
+  await rm(driftingLink, { recursive: true, force: true });
+  const cleanAgain = await inspectWorktree(g.identity, entry, { cwd: g.primary });
+  await symlink(outside, join(g.path, ".artifacts", "late-link"), process.platform === "win32" ? "junction" : "dir");
+  await assert.rejects(purgeDisposable(entry, { containedLinks: cleanAgain.containedLinks }), /content-link-drift/);
+  assert.equal(await readFile(join(outside, "preserve.txt"), "utf8"), "preserve\n");
+
+  const h = await fixture(t, true, false), cyclic = join(h.path, ".artifacts", "cyclic");
+  await mkdir(cyclic, { recursive: true });
+  await symlink(cyclic, join(cyclic, "loop"), process.platform === "win32" ? "junction" : "dir");
+  await assert.rejects(inspectWorktree(h.identity, { ...h.snapshot, disposable: [".artifacts"] }, { cwd: h.primary }), /content-link-cycle/);
+
+  const i = await fixture(t, true, false), linkedTarget = join(i.path, ".artifacts", "linked-target");
+  await mkdir(join(linkedTarget, ".git"), { recursive: true });
+  await symlink(linkedTarget, join(i.path, ".artifacts", "alias"), process.platform === "win32" ? "junction" : "dir");
+  await assert.rejects(inspectWorktree(i.identity, { ...i.snapshot, disposable: [".artifacts"] }, { cwd: i.primary }), /nested-repository/);
 });
 
 test("legacy artifact subroot registrations are widened to the artifact root", async t => {
@@ -385,6 +428,114 @@ test("discard confirmation, ownership, current worktree and mutation lock fail c
       change: "example", sourcePr: 20, confirmed: true, cwd: f.primary, git: f.boundedGit, verify: d.verify, removeRemote: d.removeRemote });
     assert.equal(busy.results[0].reason, "mutation-busy");
   });
+});
+
+const redundantEvidence = async (_identity, _reader, entry) => ({ targetSha: entry.head,
+  ref: entry.ref.slice("refs/heads/".length), remoteRefPresent: false, pullRequestPresent: false });
+
+test("retire-redundant removes one exact integrated no-PR worktree and is idempotent", async t => {
+  const f = await fixture(t, true, false), unrelated = join(f.identity.root, "unrelated");
+  await git(f.primary, "worktree", "add", "-b", "fix/unrelated", unrelated);
+  const report = await retireRedundantWorktree({ identity: f.identity, store: f.store, reader: {}, path: f.path,
+    confirmed: true, cwd: f.primary, git: f.boundedGit, verify: redundantEvidence });
+  assert.equal(report.results[0].disposition, "retired", JSON.stringify(report));
+  assert.deepEqual(report.results[0].steps, ["worktree-removed", "local-ref-removed"]);
+  assert.equal(await exists(f.path), false); assert.equal(await exists(unrelated), true);
+  assert.equal(await git(f.primary, "for-each-ref", "refs/heads/feature/example"), "");
+  const entry = (await f.store.read()).entries.find(item => item.role === "redundant");
+  assert.equal(entry.state, "done"); assert.equal(entry.sourcePr, 0); assert.equal(entry.candidatePr, 0);
+  const repeated = await retireRedundantWorktree({ identity: f.identity, store: f.store, reader: {}, path: f.path,
+    confirmed: true, cwd: f.primary, git: f.boundedGit, verify: redundantEvidence });
+  assert.equal(repeated.results[0].disposition, "already-retired", JSON.stringify(repeated));
+});
+
+test("retire-redundant retains unconfirmed, dirty, current, registered, and newly ineligible worktrees", async t => {
+  let f = await fixture(t, true, false);
+  let report = await retireRedundantWorktree({ identity: f.identity, store: f.store, reader: {}, path: f.path,
+    confirmed: false, cwd: f.primary, git: f.boundedGit, verify: redundantEvidence });
+  assert.equal(report.results[0].reason, "redundant-confirmation-required"); assert.equal(await exists(f.path), true);
+
+  f = await fixture(t, true, false); await writeFile(join(f.path, "unpublished.txt"), "keep\n");
+  report = await retireRedundantWorktree({ identity: f.identity, store: f.store, reader: {}, path: f.path,
+    confirmed: true, cwd: f.primary, git: f.boundedGit, verify: redundantEvidence });
+  assert.equal(report.results[0].reason, "worktree-content"); assert.equal(await readFile(join(f.path, "unpublished.txt"), "utf8"), "keep\n");
+
+  f = await fixture(t, true, false); await writeFile(join(f.path, "secret.txt"), "ignored but retained\n");
+  report = await retireRedundantWorktree({ identity: f.identity, store: f.store, reader: {}, path: f.path,
+    confirmed: true, cwd: f.primary, git: f.boundedGit, verify: redundantEvidence });
+  assert.equal(report.results[0].reason, "worktree-content"); assert.equal(await exists(f.path), true);
+
+  f = await fixture(t, true, false); await git(f.path, "update-index", "--assume-unchanged", "tracked.txt");
+  await writeFile(join(f.path, "tracked.txt"), "hidden local work\n");
+  report = await retireRedundantWorktree({ identity: f.identity, store: f.store, reader: {}, path: f.path,
+    confirmed: true, cwd: f.primary, git: f.boundedGit, verify: redundantEvidence });
+  assert.equal(report.results[0].reason, "hidden-index-content"); assert.equal(await exists(f.path), true);
+
+  f = await fixture(t, true, false);
+  report = await retireRedundantWorktree({ identity: f.identity, store: f.store, reader: {}, path: f.path,
+    confirmed: true, cwd: f.path, git: f.boundedGit, verify: redundantEvidence });
+  assert.equal(report.results[0].reason, "current-worktree"); assert.equal(await exists(f.path), true);
+
+  f = await fixture(t, true, false); await git(f.primary, "worktree", "lock", f.path);
+  report = await retireRedundantWorktree({ identity: f.identity, store: f.store, reader: {}, path: f.path,
+    confirmed: true, cwd: f.primary, git: f.boundedGit, verify: redundantEvidence });
+  assert.equal(report.results[0].reason, "worktree-locked-or-unknown"); assert.equal(await exists(f.path), true);
+
+  f = await fixture(t, true);
+  report = await retireRedundantWorktree({ identity: f.identity, store: f.store, reader: {}, path: f.path,
+    confirmed: true, cwd: f.primary, git: f.boundedGit, verify: redundantEvidence });
+  assert.equal(report.results[0].reason, "redundant-registration-conflict"); assert.equal(await exists(f.path), true);
+
+  for (const blocker of ["redundant-pull-request", "redundant-remote-ref", "redundant-unintegrated-head"]) {
+    f = await fixture(t, true, false);
+    report = await retireRedundantWorktree({ identity: f.identity, store: f.store, reader: {}, path: f.path,
+      confirmed: true, cwd: f.primary, git: f.boundedGit,
+      verify: async () => { throw Object.assign(Error(blocker), { cleanupCode: blocker }); } });
+    assert.equal(report.results[0].reason, blocker); assert.equal(await exists(f.path), true);
+  }
+
+  f = await fixture(t, true, false); let checks = 0;
+  report = await retireRedundantWorktree({ identity: f.identity, store: f.store, reader: {}, path: f.path,
+    confirmed: true, cwd: f.primary, git: f.boundedGit,
+    verify: async (...args) => ++checks === 1 ? redundantEvidence(...args)
+      : Promise.reject(Object.assign(Error("remote appeared"), { cleanupCode: "redundant-remote-ref" })) });
+  assert.equal(report.results[0].reason, "redundant-remote-ref"); assert.equal(await exists(f.path), true);
+  assert.equal((await f.store.read()).entries.find(item => item.role === "redundant").state, "released");
+});
+
+test("retire-redundant journals a failed non-force removal and safely resumes", async t => {
+  const f = await fixture(t, true, false);
+  let report = await retireRedundantWorktree({ identity: f.identity, store: f.store, reader: {}, path: f.path,
+    confirmed: true, cwd: f.primary, git: f.boundedGit, verify: redundantEvidence,
+    remove: async () => { throw Error("simulated removal interruption"); } });
+  assert.equal(report.results[0].disposition, "partial", JSON.stringify(report));
+  assert.equal((await f.store.read()).entries.find(item => item.role === "redundant").step, "remove-intent");
+  report = await retireRedundantWorktree({ identity: f.identity, store: f.store, reader: {}, path: f.path,
+    confirmed: true, cwd: f.primary, git: f.boundedGit, verify: redundantEvidence });
+  assert.equal(report.results[0].disposition, "retired", JSON.stringify(report));
+  assert.equal(await exists(f.path), false);
+});
+
+test("redundant evidence requires no pull request, no remote ref, and no commit beyond fresh develop", async () => {
+  const entry = { ref: "refs/heads/fix/redundant", head: "a".repeat(40) };
+  const identity = { primary: "C:/repo" };
+  const notFound = Object.assign(Error("not found"), { archiveCode: "github-not-found" });
+  const reader = { repository: "owner/repo", prefix: "/repos/owner/repo", pages: async () => [], get: async () => { throw notFound; } };
+  const calls = [];
+  const cleanGit = async (_cwd, args) => {
+    calls.push(args);
+    if (args[0] === "fetch") return "";
+    if (args[0] === "rev-parse") return `${"b".repeat(40)}\n`;
+    if (args[0] === "rev-list") return "0\n";
+    throw Error(`unexpected ${args.join(" ")}`);
+  };
+  const evidence = await verifyRedundantWorktree(identity, reader, entry, cleanGit);
+  assert.equal(evidence.targetSha, "b".repeat(40)); assert.equal(evidence.remoteRefPresent, false);
+  assert.deepEqual(calls.map(args => args[0]), ["fetch", "rev-parse", "rev-list"]);
+  await assert.rejects(verifyRedundantWorktree(identity, { ...reader, pages: async () => [{ state: "closed", merged_at: null,
+    head: { ref: "fix/redundant", repo: { full_name: "owner/repo" } }, base: { ref: "release", repo: { full_name: "owner/repo" } } }] }, entry, cleanGit), /redundant-pull-request/);
+  await assert.rejects(verifyRedundantWorktree(identity, { ...reader, get: async () => ({}) }, entry, cleanGit), /redundant-remote-ref/);
+  await assert.rejects(verifyRedundantWorktree(identity, reader, entry, async (cwd, args) => args[0] === "rev-list" ? "1\n" : cleanGit(cwd, args)), /redundant-unintegrated-head/);
 });
 
 test("complete rejects primary, current, and cross-root candidates", async t => {

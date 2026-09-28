@@ -106,11 +106,32 @@ A1 SHALL preserve validated image attachments from user messages and tool result
 - **THEN** A1 SHALL reject or replace that attachment with a safe diagnostic and SHALL NOT emit malformed terminal control data
 
 ### Requirement: Project trust is decided before project resources load
-A1 SHALL resolve saved project trust and `defaultProjectTrust` before Pi loads project settings, context files, skills, prompts, extensions, themes, or other project-scoped executable resources. `ask` SHALL obtain an explicit decision when interaction is available, `trusted` SHALL allow project resources, and `untrusted` SHALL withhold them. A saved path decision SHALL override the default exactly as pinned Pi specifies. A1 SHALL fail closed when a required decision cannot be obtained. Interactive preflight SHALL use a bounded pinned-style startup selector constructed without project-derived resources and SHALL preserve pinned focus, selection, cancellation, clearing, and terminal-restoration semantics rather than using a plain line-oriented prompt.
+A1 SHALL resolve saved project trust and `defaultProjectTrust` for every launch working directory before Pi loads project settings, context files, skills, prompts, extensions, themes, or other project-scoped executable resources. A saved exact or ancestor path decision SHALL override the default exactly as pinned Pi specifies. Under `ask`, an uncovered working directory SHALL require an explicit decision when interaction is available even when no trust-requiring project resource is currently discoverable; current resource absence SHALL NOT grant implicit trust. `always` SHALL allow project resources and `never` SHALL withhold them without interaction. A1 SHALL fail closed when a required decision cannot be obtained. Interactive preflight SHALL use a bounded startup-safe selector constructed without project-derived resources and SHALL preserve focus, explicit exit, interruption, clearing, and terminal-restoration semantics rather than using a plain line-oriented prompt.
 
 #### Scenario: Ask for an undecided project
-- **WHEN** the default is `ask` and no saved decision covers the working directory
-- **THEN** A1 SHALL obtain a trust decision before loading any project-scoped resource
+- **WHEN** the default is `ask` and no saved exact or ancestor decision covers the working directory
+- **THEN** A1 SHALL obtain a trust decision before constructing the project-aware runtime
+- **AND** it SHALL do so whether or not a trust-requiring project resource is currently discoverable
+
+#### Scenario: Offer pinned Pi trust scopes
+- **WHEN** an undecided interactive launch requests trust below a filesystem root
+- **THEN** A1 SHALL offer persisted current-folder trust, persisted parent-folder trust, session-only trust, persisted current-folder denial, and session-only denial
+- **AND** parent-folder trust SHALL persist the parent decision while clearing a narrower current-folder entry
+- **AND** either session-only outcome SHALL affect the current launch without changing the trust store
+
+#### Scenario: Keep unrelated folders independent
+- **WHEN** one working directory has an exact saved decision and another directory is neither that path nor its descendant
+- **THEN** the saved decision SHALL NOT cover the unrelated directory
+- **AND** the unrelated directory SHALL follow its own saved/default policy
+
+#### Scenario: Inherit an explicit ancestor decision
+- **WHEN** the nearest saved decision belongs to an ancestor of the working directory
+- **THEN** A1 SHALL apply that ancestor decision without prompting again
+- **AND** an exact child decision SHALL override the ancestor decision
+
+#### Scenario: Honor a configured default
+- **WHEN** an uncovered working directory resolves `defaultProjectTrust` to `always` or `never`
+- **THEN** A1 SHALL apply the configured decision without interaction
 
 #### Scenario: Start an untrusted project
 - **WHEN** the effective trust decision is untrusted
@@ -125,13 +146,28 @@ A1 SHALL resolve saved project trust and `defaultProjectTrust` before Pi loads p
 - **THEN** A1 SHALL treat the project as untrusted and report the reason
 
 #### Scenario: Present interactive trust preflight
-- **WHEN** an undecided interactive launch can request trust
-- **THEN** the preflight frame, options, selected state, footer hints, key handling, and terminal cleanup SHALL match pinned Pi's startup-selector semantics with declared product wording substitutions only
+- **WHEN** an undecided interactive launch requests trust
+- **THEN** the preflight frame, options, selected state, footer hints, key handling, and terminal cleanup SHALL follow the owned startup-selector contract
+
+#### Scenario: Exit bare-A1 trust preflight
+- **WHEN** Escape is pressed in the bare-A1 startup trust selector
+- **THEN** A1 SHALL restore the terminal while preserving its parent-screen cursor and prior rows, preserve the undecided trust state, and terminate startup successfully
+- **AND** it SHALL NOT construct project settings, resources, or the owned shell
+
+#### Scenario: Ignore Ctrl+C in bare-A1 trust preflight
+- **WHEN** Ctrl+C is pressed in the bare-A1 startup trust selector
+- **THEN** A1 SHALL keep the selector active without choosing trust or terminating startup
+- **AND** Escape SHALL remain its only exit action
+
+#### Scenario: Fail bare-A1 trust preflight
+- **WHEN** interaction is unavailable, input ends, or ordinary trust resolution fails
+- **THEN** project resources SHALL remain withheld
+- **AND** bare A1 SHALL present one bounded diagnostic through its prompt-adjacent warning notice rather than at the top of an otherwise empty transcript viewport
 
 #### Scenario: Cancel or fail trust preflight
-- **WHEN** the selector is cancelled, interrupted, or fails
+- **WHEN** the selector is cancelled through `a1 pi`, or ordinary trust preflight fails in either profile
 - **THEN** project resources SHALL remain withheld
-- **AND** the selector SHALL clear and restore the terminal before one bounded diagnostic is emitted, without leaving a warning above a blank fullscreen frame
+- **AND** bare A1 SHALL place an applicable failure diagnostic in its prompt-adjacent notice while `a1 pi` retains its pinned cancellation and startup-diagnostic behavior
 
 ### Requirement: Fullscreen exit output is emitted after terminal restoration
 When the pinned `a1 pi` comparison profile uses a fullscreen alternate surface, `fullscreenExitOutput` SHALL govern output produced after that surface is restored. `transcript` SHALL print the final conversation transcript with the same semantic ANSI styles, spacing, wrapping, and block order that pinned Pi emits when preserving its transcript, followed by an actionable resume hint. `resume-hint` SHALL print only the actionable hint.

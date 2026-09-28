@@ -424,7 +424,7 @@ export class SessionViewportController {
             && (event.column !== this.#pendingEditorClick.column || event.row !== this.#pendingEditorClick.row)) {
             this.#pendingEditorClick = undefined;
           }
-          this.#updateSelectionAutoScroll(event.column, event.row, hits.viewportHeight);
+          this.#updateSelectionAutoScroll(event.column, event.row, hits.viewportHeight, frame.rows.length);
           activity = true;
           return true;
         }
@@ -575,8 +575,12 @@ export class SessionViewportController {
     return range === undefined ? undefined : JSON.stringify([row, range]);
   }
 
-  #updateSelectionAutoScroll(column: number, row: number, frameHeight: number): void {
-    const beyondEdge = row <= 1 || row >= frameHeight;
+  #updateSelectionAutoScroll(column: number, row: number, viewportHeight: number, frameHeight: number): void {
+    // Invariant: the last content row stays selectable; only the pointer below it scrolls,
+    // unless no row exists below. The top row scrolls because nothing lies above it. A
+    // dock-originated gesture never moves the transcript behind the fixed dock.
+    const beyondEdge = this.#viewport.selectionFromContent
+      && (row <= 1 || row > viewportHeight || row >= frameHeight);
     if (!beyondEdge) {
       this.#stopSelectionAutoScroll();
       return;

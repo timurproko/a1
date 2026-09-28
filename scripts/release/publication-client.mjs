@@ -100,7 +100,7 @@ export async function dispatchPublication(channel, source, version, options = {}
   // Rationale: a development preview derives its number in the workflow; only a stable
   // publication names the version it stamps on the open development source.
   execute("gh", [
-    "workflow", "run", "release.yml", "--ref", "develop",
+    "workflow", "run", "publish.yml", "--ref", "develop",
     "-f", `channel=${channel}`,
     "-f", `source_sha=${source}`,
     "-f", `request_id=${requestId}`,
@@ -111,7 +111,7 @@ export async function dispatchPublication(channel, source, version, options = {}
   let runId;
   while (Date.now() < deadline) {
     const runs = JSON.parse(execute("gh", [
-      "run", "list", "--workflow", "release.yml", "--event", "workflow_dispatch",
+      "run", "list", "--workflow", "publish.yml", "--event", "workflow_dispatch",
       "--json", "databaseId,displayTitle", "--limit", "50",
     ]));
     runId = runs.find(entry => entry.displayTitle?.includes(requestId))?.databaseId;

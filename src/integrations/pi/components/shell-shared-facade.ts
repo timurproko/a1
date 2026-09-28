@@ -113,7 +113,7 @@ export interface PiShellProgressStatusPresentation {
   readonly frame: (
     message: string,
     phase: number,
-    styles: { readonly muted: (text: string) => string; readonly accent: (text: string) => string },
+    styles: { readonly muted: (text: string) => string; readonly highlight: (text: string) => string },
   ) => string;
 }
 

@@ -317,7 +317,7 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
     expect(terminal.writes).toHaveLength(count);
   });
 
-  it("paints and copies blank rows in the complete session frame", async () => {
+  it("paints blank rows and copies their normalized empty payload", async () => {
     const { shell, terminal } = await fixture([], [], true);
     try {
       const start = terminal.writes.length;
@@ -325,7 +325,7 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
       terminal.input("\u001b[<32;20;5M");
       shell.runtime.renderNow();
       terminal.input("\u001b[<0;20;5m");
-      await vi.waitFor(() => expect(terminal.writes.slice(start).join("")).toContain("\u001b]52;c;CgoK\u0007"));
+      await vi.waitFor(() => expect(terminal.writes.slice(start).join("")).toContain("\u001b]52;c;\u0007"));
       shell.runtime.renderNow();
       const output = terminal.writes.slice(start).join("");
       expect(output).not.toContain("chars to clipboard");
@@ -514,7 +514,9 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
     await vi.waitFor(() => expect(terminal.writes.flatMap(write => {
       const match = /^\u001b\]52;c;([^\u0007]+)\u0007$/u.exec(write);
       return match?.[1] === undefined ? [] : [Buffer.from(match[1], "base64").toString()];
-    })).toEqual(["assistant", " Selectable assistant words"]));
+    })).toEqual(["assistant", "Selectable assistant words"]));
+    await vi.waitFor(() => expect(shell.root.render(60).map(stripTerminalSequences).join("\n"))
+      .toContain(`copied ${"Selectable assistant words".length} chars to clipboard`));
   });
 
   it("moves retained agent-stream selection with followed output while footer selection stays pinned", async () => {
@@ -576,7 +578,7 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
     const selected = shell.root.render(192)[rowIndex] ?? "";
     expect(selected).toContain("\u001b[48;2;38;79;120m");
     terminal.input("\u0003");
-    await vi.waitFor(() => expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from(direction === 1 ? "ch" : " c").toString("base64")}\u0007`));
+    await vi.waitFor(() => expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from(direction === 1 ? "ch" : "c").toString("base64")}\u0007`));
     await shell.dispose();
   });
 
@@ -982,8 +984,16 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
     const whileHeld = firstVisible();
     expect(whileHeld).toBeLessThan(afterMotion);
     const normalDistance = afterMotion - whileHeld;
-
     terminal.input("\u001b[<0;5;1m");
+    shell.runtime.renderNow();
+    const transcript = shell.root.viewportFrameDescriptor()!.transcript!;
+    const heldCells = await replayTerminalBackgroundCells(
+      terminal.writes.map((data, atMs) => ({ data, atMs })),
+      { columns: 60, rows: 12 },
+    );
+    expect(heldCells.filter(cell => cell.mode === "rgb" && cell.color === 0x264f78)
+      .every(cell => cell.row >= transcript.rowStart && cell.row <= transcript.rowEnd)).toBe(true);
+
     await new Promise(resolve => setTimeout(resolve, 130));
     expect(firstVisible()).toBe(whileHeld);
     terminal.input("\u0003");
@@ -1017,21 +1027,33 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
     await shell.dispose();
   });
 
-  it("selects across status, input, footer, and transcript rows", async () => {
-    const { terminal, shell } = await fixture([], [], true);
+  it("keeps transcript-originated selection above the dock while preserving dock-origin crossing", async () => {
+    const messages = [{ role: "assistant", content: [{ type: "text", text: "content boundary" }], timestamp: Date.now() }];
+    const { terminal, shell } = await fixture(messages, [], true);
     terminal.resize(60, 12);
-    shell.root.render(60);
+    shell.root.setFullscreenCopyOnSelect(false);
+    const plain = shell.root.render(60).map(stripTerminalSequences);
+    const contentRow = plain.findIndex(row => row.includes("content boundary")) + 1;
+    const descriptor = shell.root.viewportFrameDescriptor()!;
+    const dock = descriptor.dock!;
 
-    const press = shell.root.handleViewportPreInput("\u001b[<0;20;12M");
-    const motion = shell.root.handleViewportPreInput("\u001b[<35;20;2M");
-    const release = shell.root.handleViewportPreInput("\u001b[<0;20;2m");
-    const copy = shell.root.handleViewportPreInput("\u0003");
+    expect(shell.root.handleViewportPreInput(`\u001b[<0;2;${contentRow}M`)).toMatchObject({ data: "", consumed: true });
+    expect(shell.root.handleViewportPreInput(`\u001b[<35;20;${dock.rowEnd}M`)).toMatchObject({ data: "", consumed: true });
+    expect(shell.root.handleViewportPreInput(`\u001b[<0;20;${dock.rowEnd}m`)).toMatchObject({ data: "", consumed: true });
+    const bounded = shell.root.render(60);
+    expect(bounded.slice(descriptor.transcript!.rowStart - 1, descriptor.transcript!.rowEnd)
+      .some(row => row.includes("\u001b[48;2;38;79;120m"))).toBe(true);
+    expect(bounded.slice(dock.rowStart - 1, dock.rowEnd)
+      .every(row => !row.includes("\u001b[48;2;38;79;120m"))).toBe(true);
+    expect(shell.root.handleViewportPreInput("\u0003")).toMatchObject({ data: "", consumed: true });
 
-    expect(press).toMatchObject({ data: "", consumed: true });
-    expect(motion).toMatchObject({ data: "", consumed: true });
-    expect(release).toMatchObject({ data: "", consumed: true });
-    expect(release.copySelection?.sourceUnits).toBeGreaterThan(0);
-    expect(copy).toMatchObject({ data: "", consumed: true });
+    shell.root.handleViewportPreInput(`\u001b[<0;20;${dock.rowEnd}M`);
+    shell.root.handleViewportPreInput(`\u001b[<35;20;${contentRow}M`);
+    shell.root.handleViewportPreInput(`\u001b[<0;20;${contentRow}m`);
+    const dockOriginated = shell.root.render(60);
+    expect(dockOriginated[contentRow - 1]).toContain("\u001b[48;2;38;79;120m");
+    expect(dockOriginated.slice(dock.rowStart - 1, dock.rowEnd)
+      .some(row => row.includes("\u001b[48;2;38;79;120m"))).toBe(true);
     await shell.dispose();
   });
 

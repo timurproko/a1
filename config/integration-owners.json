@@ -286,6 +286,30 @@
         "test/support/predecessor-fixture.ts"
       ],
       "cadence": "exhaustive"
+    },
+    {
+      "id": "terminal-host",
+      "scopes": [
+        "terminal-host"
+      ],
+      "targets": [
+        {
+          "platform": "win32",
+          "architecture": "x64",
+          "node": 24
+        }
+      ],
+      "entries": [
+        "scripts/development/run-terminal-host-probe.mjs"
+      ],
+      "tests": [],
+      "support": [
+        "native/terminal-host/",
+        "scripts/development/run-terminal-host-probe.mjs",
+        "scripts/development/run-terminal-host.mjs",
+        "scripts/governance/check-terminal-host-provenance.mjs"
+      ],
+      "cadence": "pull-request"
     }
   ]
 }

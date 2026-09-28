@@ -26,6 +26,8 @@ const ROW_OPTION_DIRTY: i32 = 0;
 const CELLS_DATA_STYLE: i32 = 2;
 const CELLS_DATA_SELECTED: i32 = 7;
 const CELLS_DATA_GRAPHEMES_UTF8: i32 = 9;
+const TERMINAL_OPT_USERDATA: i32 = 0;
+const TERMINAL_OPT_WRITE_PTY: i32 = 1;
 const TERMINAL_OPT_SELECTION: i32 = 21;
 
 pub const KEY_UNIDENTIFIED: i32 = 0;
@@ -435,6 +437,24 @@ struct ActiveStyle {
 pub struct GhosttyTerminal {
     raw: GhosttyTerminalRaw,
     render: GhosttyRenderStateRaw,
+    // Invariant: boxed so the userdata address given to libghostty stays fixed when the
+    // terminal moves; it is freed only after the terminal in Drop.
+    responses: Box<Vec<u8>>,
+}
+
+// Protocol: libghostty calls this synchronously inside ghostty_terminal_vt_write with query
+// responses (for example the ConPTY cursor-position request) that belong to the child PTY.
+unsafe extern "C" fn collect_pty_response(
+    _terminal: GhosttyTerminalRaw,
+    userdata: *mut c_void,
+    data: *const u8,
+    len: usize,
+) {
+    if userdata.is_null() || data.is_null() || len == 0 {
+        return;
+    }
+    let responses = unsafe { &mut *userdata.cast::<Vec<u8>>() };
+    responses.extend_from_slice(unsafe { std::slice::from_raw_parts(data, len) });
 }
 
 impl GhosttyTerminal {
@@ -458,11 +478,32 @@ impl GhosttyTerminal {
             unsafe { ghostty_terminal_free(raw) };
             return Err(error);
         }
-        Ok(Self { raw, render })
+        let mut terminal = Self {
+            raw,
+            render,
+            responses: Box::new(Vec::new()),
+        };
+        let userdata = ptr::from_mut::<Vec<u8>>(terminal.responses.as_mut()).cast::<c_void>();
+        check(
+            unsafe { ghostty_terminal_set(raw, TERMINAL_OPT_USERDATA, userdata) },
+            "set terminal userdata",
+        )?;
+        let callback: unsafe extern "C" fn(GhosttyTerminalRaw, *mut c_void, *const u8, usize) =
+            collect_pty_response;
+        check(
+            unsafe { ghostty_terminal_set(raw, TERMINAL_OPT_WRITE_PTY, callback as *const c_void) },
+            "set terminal pty responses",
+        )?;
+        Ok(terminal)
     }
 
     pub fn write(&mut self, bytes: &[u8]) {
         unsafe { ghostty_terminal_vt_write(self.raw, bytes.as_ptr(), bytes.len()) };
+    }
+
+    /// Returns and clears query responses the terminal produced for its child PTY.
+    pub fn take_responses(&mut self) -> Vec<u8> {
+        std::mem::take(self.responses.as_mut())
     }
 
     pub fn resize(&mut self, cols: u16, rows: u16) -> Result<(), String> {

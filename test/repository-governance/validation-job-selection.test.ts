@@ -55,7 +55,7 @@ describe("Development validation job resolution", () => {
     const matrix = selectDevelopmentValidationMatrix({ impact, registry });
     expect(matrix.include).toEqual([...DEVELOPMENT_VALIDATION_MATRIX]);
     expect(matrix.inactive).toEqual([]);
-    expect(DEVELOPMENT_VALIDATION_MATRIX).toHaveLength(9);
+    expect(DEVELOPMENT_VALIDATION_MATRIX).toHaveLength(10);
     for (const owner of owners) for (const target of owner.targets) {
       expect(DEVELOPMENT_VALIDATION_MATRIX.some(entry => entry.group === validationJobGroup(owner.id, target.platform)
         && entry.platform === target.platform && entry.architecture === target.architecture && entry.node === target.node), `${owner.id} ${target.platform}`).toBe(true);
@@ -71,7 +71,7 @@ describe("Development validation job resolution", () => {
     const impact = { base, head, selectionId, prCore: { tests: [], resourceTests: [] }, integration };
     const matrix = selectDevelopmentValidationMatrix({ impact, registry });
     expect(matrix.include.map(entry => entry.group)).toEqual(["core"]);
-    expect(matrix.inactive.map(entry => entry.group)).toEqual(["resource", "pi", "promoted", "package", "startup", "compatibility", "containment", "containment"]);
+    expect(matrix.inactive.map(entry => entry.group)).toEqual(["resource", "pi", "promoted", "package", "startup", "compatibility", "containment", "containment", "terminal-host"]);
     const withResource = selectDevelopmentValidationMatrix({ impact: { ...impact, prCore: { tests: [], resourceTests: ["test/resource.test.ts"] } }, registry });
     expect(withResource.include.map(entry => entry.group)).toEqual(["core", "resource"]);
     const exempt = selectDevelopmentValidationMatrix({ impact: { ...impact, integration: exemptIntegrationImpact({ base, head, owners, exemption: "docs-only" }) }, registry });

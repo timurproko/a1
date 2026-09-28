@@ -51,8 +51,17 @@ describe("exact packed npm command surface", () => {
     expect(paths).toEqual(expect.arrayContaining([
       "dist/integrations/pi/engine/changelog.js",
       "dist/integrations/pi/engine/resources/changelog.json",
+      "dist/features/owned-ui/resources/release-notes.json",
       "dist/integrations/pi/components/upstream/assets/earendil-image.json",
     ]));
+  });
+
+  it("packages the deterministic A1 release-note resource", async () => {
+    const resource = JSON.parse(await readFile(resolve(extracted.packageRoot, "dist", "features", "owned-ui", "resources", "release-notes.json"), "utf8")) as {
+      schema?: unknown; releases?: unknown;
+    };
+    expect(resource.schema).toBe("a1-release-notes-v1");
+    expect(Array.isArray(resource.releases)).toBe(true);
   });
 
   it("records every packed native process guardian as executable", () => {

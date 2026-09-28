@@ -12,24 +12,44 @@ export type PiPullRequestProbe = (
   signal: AbortSignal,
 ) => Promise<PiPullRequestIdentity | null>;
 
+type PiCommandReader = (cwd: string, signal: AbortSignal) => Promise<string | null>;
+type PiPullRequestRestProbe = (
+  cwd: string,
+  branch: string,
+  signal: AbortSignal,
+  environment: NodeJS.ProcessEnv,
+) => Promise<PiPullRequestIdentity | null>;
+
+export interface PiPullRequestDiscoveryDependencies {
+  readonly executeGh?: PiCommandReader;
+  readonly restProbe?: PiPullRequestRestProbe;
+}
+
 const GH_TIMEOUT_MS = 5_000;
 const GH_MAX_BUFFER_BYTES = 64 * 1024;
 
-/** Read an exact branch's open or merged PR. */
+/** Read an exact branch's open or merged PR, preferring GitHub CLI before the REST fallback. */
 export async function readPullRequest(
   cwd: string,
   branch: string,
   signal: AbortSignal,
   environment: NodeJS.ProcessEnv = process.env,
+  dependencies: PiPullRequestDiscoveryDependencies = {},
 ): Promise<PiPullRequestIdentity | null> {
   if (branch.length === 0 || signal.aborted) return null;
   const preview = environment[PRODUCT_IDENTITY.environment.prFooterPreview];
   if (preview !== undefined) return parsePullRequest(preview, branch);
-  const stdout = await executeGh(cwd, signal);
-  if (stdout === null) return null;
-  return parsePullRequest(stdout, branch);
+
+  const stdout = await (dependencies.executeGh ?? executeGh)(cwd, signal);
+  if (stdout !== null) {
+    const pullRequest = parsePullRequest(stdout, branch);
+    if (pullRequest !== null) return pullRequest;
+  }
+  if (signal.aborted) return null;
+  return (dependencies.restProbe ?? readPullRequestFromRest)(cwd, branch, signal, environment);
 }
 
+/** Parse and validate the normalized payload emitted by `gh pr view`. */
 export function parsePullRequest(stdout: string, branch: string): PiPullRequestIdentity | null {
   let value: unknown;
   try {
@@ -56,6 +76,21 @@ export function parsePullRequest(stdout: string, branch: string): PiPullRequestI
       || url.hash !== ""
       || !new RegExp(`^/[^/]+/[^/]+/pull/${number}/?$`, "u").test(url.pathname)) return null;
     return { number, url: url.href.replace(/\/$/u, "") };
+  } catch {
+    return null;
+  }
+}
+
+async function readPullRequestFromRest(
+  cwd: string,
+  branch: string,
+  signal: AbortSignal,
+  environment: NodeJS.ProcessEnv,
+): Promise<PiPullRequestIdentity | null> {
+  try {
+    const fallback = await import("./repository-pr-rest.js");
+    if (signal.aborted) return null;
+    return fallback.readPullRequestFromGitHub(cwd, branch, signal, environment);
   } catch {
     return null;
   }

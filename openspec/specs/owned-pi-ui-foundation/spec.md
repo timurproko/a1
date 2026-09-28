@@ -1859,7 +1859,7 @@ Bare A1 SHALL declare Escape on a sole top-level slash-command search as an inpu
 - **THEN** the menu SHALL close and `/mod` SHALL remain in the editor exactly as in pinned Pi
 
 ### Requirement: Compaction progress is estimated in the working status
-While a compaction is shown, bare A1 SHALL estimate its progress from the summarization stream and present it in the working status as `Compacting(n%)` beside the spinner, where `n` is an integer percent. The engine adapter SHALL observe the stream through the session agent's public stream function only between the compaction's start and end, SHALL count streamed summary text against an expected summary size taken from the previous compaction summary on the current branch or a fixed default when there is none, and SHALL publish the percent as engine status data separate from the semantic `Compacting` word. When the bound session exposes a callable stream function, the percent SHALL start at 0 immediately when compaction starts, including while summary preparation and provider authentication are pending; it SHALL never decrease within one compaction; estimated text progress SHALL NOT exceed 99 while the summary stream is active; and the progress SHALL reach 100 only when that stream completes normally. Stream completion SHALL NOT end, abort, or otherwise control the compaction. The progress SHALL be removed together with the compacting state when the real compaction-end lifecycle event arrives. When the stream cannot be observed the status SHALL remain `Compacting`. This SHALL be a declared bare-A1 presentation difference; the `a1 pi` comparison route SHALL keep its existing `Compacting` label.
+While a compaction is shown, bare A1 SHALL estimate its progress from the summarization stream and present it in the working status as `Compacting(n%)` beside the spinner, where `n` is an integer percent. The engine adapter SHALL observe the stream through the session agent's public stream function only between the compaction's start and end, SHALL count streamed summary text against an expected summary size taken from the previous compaction summary on the current branch or a fixed default when there is none, and SHALL publish the percent as engine status data separate from the semantic `Compacting` word. When the bound session exposes a callable stream function, the percent SHALL start at 0 immediately when compaction starts, including while summary preparation and provider authentication are pending; it SHALL never decrease within one compaction; estimated text progress SHALL NOT exceed 99 while the summary stream is active; and the progress SHALL reach 100 only when that stream completes normally. Stream completion SHALL NOT end, abort, or otherwise control the compaction. The progress SHALL be removed together with the compacting state when the real compaction-end lifecycle event arrives. Temporarily suspending and resuming event delivery for the same bound session SHALL restore observation before resumed session events are accepted and SHALL NOT leave later observable compactions on the no-progress fallback. When the stream cannot be observed the status SHALL remain `Compacting`. A manual compaction that fails before summary streaming starts SHALL preserve pinned Pi's visible error rather than treating the failed command result as silent, while successful manual-compaction completion SHALL remain silent. This SHALL be a declared bare-A1 progress presentation difference; the `a1 pi` comparison route SHALL keep its existing `Compacting` label.
 
 #### Scenario: Enter observable compaction before streaming
 - **WHEN** bare A1 receives `compaction_start` from a bound session with a callable public stream function and summary preparation or provider authentication is still pending
@@ -1883,6 +1883,16 @@ While a compaction is shown, bare A1 SHALL estimate its progress from the summar
 #### Scenario: First compaction without a previous summary
 - **WHEN** the branch holds no previous compaction summary
 - **THEN** the percent SHALL be measured against the fixed default size and estimated text progress SHALL still be clamped below 100 until the stream completes normally
+
+#### Scenario: Resume an observable session
+- **WHEN** the engine suspends and then resumes delivery for the same bound session with a callable public stream function
+- **THEN** a later compaction SHALL immediately show `Compacting(0%)...` and advance from streamed summary text
+- **AND** repeated resume SHALL NOT install nested observers or report stale progress
+
+#### Scenario: Manual compaction has nothing to summarize
+- **WHEN** `/compact` fails before summary streaming because the session is too small
+- **THEN** bare A1 SHALL visibly show `Nothing to compact (session too small)` with pinned error presentation
+- **AND** successful manual-compaction completion SHALL remain silent after its lifecycle status clears
 
 #### Scenario: Stream is not observable
 - **WHEN** the session agent exposes no callable stream function
@@ -2089,23 +2099,43 @@ When the command menu is open on a sole top-level slash search whose selected ro
 - **THEN** no tunnel rows SHALL appear and the text SHALL be treated as pinned Pi treats it
 
 ### Requirement: The changelog and hotkeys commands open reference screens in bare A1
-Bare A1 SHALL declare `/changelog` and `/hotkeys` as A1-owned replacements for the pinned in-feed changelog and keyboard-shortcut documents. The owned route host SHALL claim both routes ahead of the pinned workflow table, so invoking either in bare A1 opens the A1-owned reference screen full screen over the session and appends no document, status, checkmark, or error row to the feed. `/changelog` SHALL open the screen titled `What's New` with the complete pinned changelog Markdown in the same order and with the same link rewriting the pinned `/changelog` workflow produces. `/hotkeys` SHALL open the screen titled `Keyboard Shortcuts` with the bare-A1 keybinding-derived tables the in-feed presenter produced for the `a1` profile, including the current editor keybinding configuration and extension shortcut descriptions gathered when the screen opens. Bare A1 SHALL carry those tables as structured sections into the reference screen rather than recognizing labels from rendered text. Every section SHALL use the same shared header component, bold yellow Markdown-heading role, one-cell left inset, content adjacency, inter-section spacing, and active-section pinning as owned Settings. One blank row SHALL separate the main screen title from the first section. The changelog document SHALL retain its flat settings-aware Markdown presentation, and the hotkeys refinement SHALL NOT alter table content, wrapping, section order, or the pinned comparison presentation. Both screens SHALL omit the spacer, border, and heading rows that were feed chrome.
+Bare A1 SHALL declare `/changelog` and `/hotkeys` as A1-owned replacements for the
+pinned in-feed changelog and keyboard-shortcut documents. The owned route host SHALL
+claim both routes ahead of the pinned workflow table, so invoking either in bare A1
+opens the A1-owned reference screen full screen over the session and appends no
+document, status, checkmark, or error row to the feed.
 
-The screen SHALL be presented through the same owned route path as `/settings`: full-size top-left overlay with owned input coordination, pointer reporting enabled for its lifetime and disabled when it closes, mouse reports routed to the screen before any other surface, and the interrupt chord watched on raw input. The commands SHALL remain listed in the slash-command menu with their pinned descriptions. The `a1 pi` comparison profile and untouched pinned Pi SHALL retain the pinned in-feed documents; without the owned route host the commands remain pinned workflow routes. A1 SHALL NOT mutate installed Pi packages, their exported constructors, or their prototypes to implement the replacement.
+`/changelog` SHALL open the screen titled `What's New` with the packaged, manually
+reviewed A1 release-note history newest first. It SHALL read only the deterministic
+local package resource and SHALL NOT query GitHub, npm, or another network service.
+`/hotkeys` SHALL open the screen titled `Keyboard Shortcuts` with the bare-A1
+keybinding-derived tables the in-feed presenter produced for the `a1` profile,
+including the current editor keybinding configuration and extension shortcut
+descriptions gathered when the screen opens. Bare A1 SHALL carry those tables as
+structured sections into the reference screen rather than recognizing labels from
+rendered text. Every section SHALL use the same shared header component, bold yellow
+Markdown-heading role, one-cell left inset, content adjacency, inter-section spacing,
+and active-section pinning as owned Settings. One blank row SHALL separate the main
+screen title from the first section. The changelog document SHALL retain its flat
+settings-aware Markdown presentation, and the hotkeys refinement SHALL NOT alter
+table content, wrapping, section order, or the pinned comparison presentation. Both
+screens SHALL omit the spacer, border, and heading rows that were feed chrome.
+
+The `a1 pi` comparison profile SHALL keep the pinned Pi `/changelog` workflow,
+complete pinned Pi changelog, and in-feed presentation. It SHALL NOT read A1's
+release-note acknowledgement or substitute A1 release notes for Pi's.
 
 #### Scenario: Invoke the changelog command in bare A1
 - **WHEN** the user submits `/changelog` in bare A1
-- **THEN** the `What's New` reference screen SHALL open with the complete pinned changelog, the editor SHALL be cleared, and the feed SHALL gain no rows
-- **AND** pressing `Esc` SHALL close it and restore the session with its transcript position unchanged
+- **THEN** the `What's New` reference screen SHALL open with the complete packaged A1 release-note history in newest-first order, the editor SHALL be cleared, and the feed SHALL gain no rows
+
+#### Scenario: Use changelog without network access
+- **WHEN** the user opens `/changelog` while GitHub and npm are unavailable
+- **THEN** the reviewed packaged notes SHALL remain available without a network request
 
 #### Scenario: Invoke the hotkeys command in bare A1
 - **WHEN** the user submits `/hotkeys` in bare A1
-- **THEN** the `Keyboard Shortcuts` reference screen SHALL open with the bare-A1 Navigation, Editing, Other, Models dialog, and, when any exist, Extensions tables and the feed SHALL gain no rows
-- **AND** each section label SHALL use the Settings bold yellow heading role, align with the main title's one-cell left inset, and begin after one blank row below that title
-- **AND** each section table SHALL begin on the row immediately following its label with no blank spacer
-- **AND** scrolling within a section SHALL pin that section label as the first document row until the next section takes over
-- **AND** adding another structured section SHALL require only section data, not a label-specific styling or pinning branch
-- **AND** a keybinding configuration reloaded before the next invocation SHALL be reflected the next time the screen opens
+- **THEN** the `Keyboard Shortcuts` reference screen SHALL open with structured keybinding-derived sections, the editor SHALL be cleared, and the feed SHALL gain no rows
 
 #### Scenario: Scroll and close a reference command screen
 - **WHEN** the changelog or hotkeys screen is open above an overflowing document
@@ -2113,39 +2143,79 @@ The screen SHALL be presented through the same owned route path as `/settings`: 
 
 #### Scenario: Invoke either command in the comparison profile
 - **WHEN** the user submits `/changelog` or `/hotkeys` in `a1 pi`
-- **THEN** the pinned workflow SHALL run and the pinned in-feed document with its spacer, borders, heading, Markdown, and chronological placement SHALL be appended exactly as before
+- **THEN** the pinned workflow SHALL retain its pinned Pi content and in-feed presentation and SHALL open no A1-owned reference screen
 
 ### Requirement: Startup release notes open as a reference screen in bare A1
-Bare A1 SHALL keep the pinned changelog startup lifecycle: the engine's new-entries-since-last-version reading, the `collapseChangelog` decision, the expanded or collapsed diagnostic, and the stored acknowledged version SHALL be unchanged. In the custom viewport, either diagnostic SHALL produce one transient informational dock notice containing exactly `Run /changelog to view the full release notes.` The notice SHALL use the same placement and lifetime as other bare-A1 informational workflow statuses: it remains outside the transcript document and its scrolling, selection, and copy surfaces; it is replaced by a newer dock notice; and the next user prompt or shell command dismisses it. Bare A1 SHALL NOT render the startup diagnostic as a bordered or persistent feed block, SHALL NOT include a `What's New` heading in the notice, SHALL NOT render changelog entries in the feed, and SHALL NOT automatically open the `What's New` reference screen. `/changelog` SHALL continue to open the complete changelog on request. The pinned layout SHALL keep rendering the expanded or collapsed transcript block and SHALL open no screen.
+A stable bare-A1 package SHALL carry one reviewed note whose exact stable semantic
+version matches the package version. On the first interactive bare-A1 launch for
+which that note is not durably acknowledged, A1 SHALL render its first input-ready
+frame and then automatically open that exact note in the existing full-screen
+`What's New` reference screen. Non-interactive installation and update commands
+SHALL NOT launch a UI. A development preview, a stable package without a valid
+matching resource, and `a1 pi` SHALL NOT automatically open A1 release notes.
+
+The automatic screen SHALL use the ordinary owned-route lifecycle and SHALL append no
+release-note rows, status, or notice to the transcript. A project-trust prompt or
+another startup/safety modal SHALL keep priority; the pending note SHALL open in the
+next available owned-route slot after that modal closes rather than replacing it or
+being discarded. A1 SHALL mark the exact stable version acknowledged only after the
+screen rendered successfully and the user closed it. Load/render failure or process
+exit before close SHALL leave it pending. The versioned acknowledgement SHALL be
+bounded, atomic, product-owned, scoped to the A1 profile, monotonic across downgrades,
+and independent of Pi's `LastChangelogVersion` and `collapseChangelog` settings. A
+bounded claim SHALL prevent concurrent launches of the same profile from presenting
+the same pending note simultaneously and SHALL recover a stale claim.
+
+Bare A1 SHALL not turn pinned Pi startup changelog diagnostics into its release-note
+notice or screen. The `a1 pi` comparison profile SHALL preserve Pi's pinned expanded
+or collapsed startup changelog behavior and acknowledgement unchanged.
 
 #### Scenario: Start bare A1 after an upgrade with the changelog expanded
-- **WHEN** bare A1 starts an empty session, the stored last changelog version is older than the pinned version, and `collapseChangelog` is off
-- **THEN** one transient dock notice SHALL show exactly `Run /changelog to view the full release notes.`, no startup reference screen SHALL open, and the stored version SHALL advance as pinned Pi specifies
-- **AND** the notice SHALL contribute no transcript rows or changelog-entry content
+- **WHEN** bare A1 starts from stable `0.2.2`, the package carries reviewed note `0.2.2`, that version is not acknowledged, and Pi's `collapseChangelog` setting is off
+- **THEN** A1 SHALL paint an input-ready shell frame and then open the `0.2.2` note full screen without adding transcript content or showing the former transient notice
 
 #### Scenario: Start bare A1 with the changelog collapsed
-- **WHEN** the same launch has `collapseChangelog` on
-- **THEN** the same one-line transient dock notice SHALL be shown and no screen SHALL open
+- **WHEN** the same stable note is pending and Pi's `collapseChangelog` setting is on
+- **THEN** A1 SHALL open the same reviewed A1 note full screen because Pi's collapse preference does not control product release notes
+
+#### Scenario: Close the automatic release note
+- **WHEN** the matching automatic note rendered successfully and the user closes it
+- **THEN** A1 SHALL atomically acknowledge `0.2.2`, restore the session surface, and SHALL not auto-open that note on later launches of the same profile
 
 #### Scenario: A modal is already presented
-- **WHEN** either startup changelog diagnostic arrives while a dialog, selector, or owned route is presented
-- **THEN** no release-notes screen SHALL open, the dock notice SHALL remain available when the modal closes, and `/changelog` SHALL still open the complete changelog on request
+- **WHEN** the matching note is pending while project trust or another startup/safety modal is presented
+- **THEN** A1 SHALL leave that modal in place and SHALL open the note in the next safe owned-route slot after the modal closes
 
 #### Scenario: Continue working after the startup notice
-- **WHEN** assistant or tool content is added while the startup notice is visible
-- **THEN** the notice SHALL remain at the informational dock position rather than moving with that content or becoming selectable transcript content
-- **AND** a newer dock notice SHALL replace it, while the next user prompt or shell command SHALL dismiss it
+- **WHEN** assistant or tool content is added while the automatic full-screen note is open
+- **THEN** that content SHALL remain ordinary transcript content behind the owned route, the note SHALL remain outside the transcript, and closing the note SHALL restore the current session surface without inserting a notice
+
+#### Scenario: Presentation does not complete
+- **WHEN** the note cannot load or render, its process exits before close, or its presentation claim becomes stale
+- **THEN** A1 SHALL not record a false acknowledgement, SHALL bound any diagnostic, and SHALL allow a later launch to retry safely
+
+#### Scenario: Two sessions start concurrently
+- **WHEN** two bare-A1 launches of the same profile observe the same pending stable note
+- **THEN** at most one live launch SHALL claim its automatic presentation, and an abandoned bounded claim SHALL not suppress the note permanently
+
+#### Scenario: Launch a development preview
+- **WHEN** bare A1 starts from `0.2.3-dev.612` while the package carries reviewed stable history
+- **THEN** no A1 release note SHALL auto-open and no stable acknowledgement SHALL be consumed or created
+
+#### Scenario: Launch an older stable version
+- **WHEN** a user temporarily launches a stable version older than the acknowledged release
+- **THEN** A1 SHALL not move the acknowledgement backwards or repeatedly reopen the older note
 
 #### Scenario: Open release notes on request
-- **WHEN** the user invokes `/changelog` after seeing or dismissing the startup notice
-- **THEN** the `What's New` reference screen SHALL open with the complete changelog and the feed SHALL gain no rows
+- **WHEN** the user invokes `/changelog` before or after the automatic note is acknowledged
+- **THEN** the `What's New` reference screen SHALL open with complete packaged A1 release-note history and the feed SHALL gain no rows
 
 #### Scenario: Start the comparison profile after an upgrade
-- **WHEN** `a1 pi` starts under the same conditions
-- **THEN** the pinned expanded or collapsed transcript block SHALL be rendered in the feed exactly as before and no screen SHALL open
+- **WHEN** `a1 pi` starts under conditions that would make bare A1's current stable note pending
+- **THEN** no A1 note or acknowledgement SHALL be used, and Pi's pinned expanded or collapsed startup changelog behavior SHALL remain unchanged
 
 ### Requirement: The bare-A1 thinking selector uses the established selector treatment
-The bare-A1 thinking selector SHALL render `Thinking Level` in bold semantic accent color, matching the heading treatment used by the Models configuration surface. Its resolved cycle hint SHALL render in semantic muted grey on the immediately following row. Repeated available-level values SHALL collapse to one row. Each level SHALL render its description inline in semantic muted grey regardless of cursor selection, with every description aligned to the same column one separator after the widest rendered level-name and marker region. The active session level SHALL have exactly one semantic success-green checkmark immediately after its level name. The configured default level SHALL render the literal `[default]` marker in semantic muted grey within the primary label region immediately after that optional active checkmark and before the aligned description; when active and default differ, each marker SHALL remain on the row for its own state. While the selector is open, the footer SHALL omit its thinking-level suffix so the active level is not duplicated below the selector, then restore that suffix when the selector closes. The presentation change SHALL preserve the selector's borders, search input, navigation, selection, default persistence, cancellation, focus, and restoration behavior.
+The bare-A1 thinking selector SHALL render `Thinking Level` in bold semantic accent color, matching the heading treatment used by the Models configuration surface. Its resolved cycle hint SHALL render in semantic muted grey on the immediately following row. Repeated available-level values SHALL collapse to one row. Every level SHALL occupy a name region sized to the widest available level name, followed by a fixed-width active-marker slot and a fixed-width default-marker slot. The active session level SHALL have exactly one semantic success-green checkmark in the active slot. The configured default level SHALL render the literal `[default]` marker in semantic muted grey at the same fixed column regardless of which level is configured or whether it is active. Every description SHALL render inline in semantic muted grey and begin one separator after the complete fixed state region, so marker and description columns SHALL NOT move when the default changes. Space SHALL immediately persist the highlighted level as the configured global default without closing the selector, changing the active session level, or creating an unsaved state. Enter SHALL continue selecting the highlighted session level, and only Escape SHALL close the selector. Ctrl+C SHALL NOT close the selector or invoke cancellation. The shortcut footer SHALL use semantic hint styling and read `Enter select  Space default  Esc close`. While the selector is open, the shell footer SHALL omit its thinking-level suffix so the active level is not duplicated below the selector, then restore that suffix when the selector closes. The interaction change SHALL preserve the selector's borders, search input, navigation, filtering, focus, restoration behavior, and comparison-profile isolation.
 
 #### Scenario: Render the thinking selector heading
 - **WHEN** the user opens the bare-A1 thinking selector
@@ -2156,18 +2226,43 @@ The bare-A1 thinking selector SHALL render `Thinking Level` in bold semantic acc
 #### Scenario: Render level rows
 - **WHEN** the selector displays selected and unselected level rows
 - **THEN** repeated available-level values SHALL render exactly once
-- **AND** each description SHALL use semantic muted grey and begin in the same aligned column
-- **AND** only the active session level SHALL place one semantic success-green checkmark immediately after its name
-- **AND** the configured default level SHALL place a semantic muted-grey `[default]` after its optional active checkmark and before its description
-- **AND** a level that is both active and configured as default SHALL render its primary state as `<level> ✓ [default]`
-- **AND** differing active and configured-default levels SHALL display only their respective markers
-- **AND** the footer SHALL omit its thinking-level suffix until the selector closes
-- **AND** closing the selector SHALL restore the footer's current thinking-level suffix
+- **AND** each level SHALL occupy the same widest-name region
+- **AND** only the active session level SHALL place one semantic success-green checkmark in the fixed active slot
+- **AND** only the configured default level SHALL place a semantic muted-grey `[default]` in the fixed default slot
+- **AND** `[default]` SHALL begin at the same column for every possible configured level
+- **AND** every description SHALL use semantic muted grey and begin at the same column regardless of active/default placement
+- **AND** the shell footer SHALL omit its thinking-level suffix until the selector closes
+- **AND** closing the selector SHALL restore the shell footer's current thinking-level suffix
 
 #### Scenario: Interact with the styled selector
-- **WHEN** the user filters or navigates levels, selects a session level, saves a default level, or cancels the selector
-- **THEN** the selector SHALL retain its existing interaction and restoration outcomes
+- **WHEN** the user filters or navigates levels, selects a session level, changes the default level, or closes the selector
+- **THEN** the selector SHALL retain its specified interaction and restoration outcomes
 - **AND** heading and row styling SHALL NOT alter list geometry, focus, or instruction placement
+
+#### Scenario: Stage and save a default level
+- **WHEN** the user highlights a level and presses Space
+- **THEN** the `[default]` marker SHALL move to that level immediately
+- **AND** that level SHALL be persisted as the global default immediately
+- **AND** the selector SHALL remain open
+- **AND** the active session level and its checkmark SHALL remain unchanged
+- **AND** no unsaved label or staged state SHALL appear
+
+#### Scenario: Select or close
+- **WHEN** the user presses Enter on a highlighted level
+- **THEN** that level SHALL be selected for the session through the existing selection workflow
+- **WHEN** the user presses Escape
+- **THEN** the selector SHALL close and restore its parent surface
+- **WHEN** the user presses Ctrl+C
+- **THEN** the selector SHALL remain open and SHALL NOT invoke cancellation
+
+#### Scenario: Render compact controls
+- **WHEN** the bare-A1 thinking selector is open
+- **THEN** its semantic shortcut footer SHALL read `Enter select  Space default  Esc close` in that order
+- **AND** it SHALL NOT advertise Ctrl+S, `Escape/Ctrl+C`, or the verbose `to select`, `to set as default`, or `to cancel` wording
+
+#### Scenario: Preserve comparison behavior
+- **WHEN** the user opens the thinking selector through `a1 pi`
+- **THEN** the pinned comparison selector SHALL retain its existing interactions and presentation
 
 ### Requirement: Bare A1 keeps model and thinking commands adjacent
 Bare A1 SHALL present `thinking` immediately after its unified `models` command in the advertised workflow catalog and slash-command autocomplete. All other owned built-in commands SHALL retain their relative order. The pinned `a1 pi` comparison profile SHALL retain its upstream command order unchanged.
@@ -2189,7 +2284,7 @@ The association operation SHALL validate active session identity, canonical work
 
 When the selected repository context has an open or merged pull request, bare A1 SHALL render only `#<number>` directly after the footer's path and branch. The complete `#<number>` badge SHALL use the established web-link color and carry the pull request's canonical HTTPS URL as a terminal-native hyperlink. The path, branch, separator, ellipsis, and session name SHALL remain outside the hyperlink. Width allocation SHALL preserve a complete valid PR badge at ordinary constrained widths by truncating path/branch text first; widths too small for the complete badge SHALL truncate safely without leaking hyperlink or foreground state.
 
-Discovery SHALL reread associated context and branch, and SHALL remain asynchronous, bounded, serialized, optional, and lifecycle-owned. Missing GitHub CLI or authentication, no open or merged PR, a closed-unmerged PR, mismatched branch, malformed or unsafe output, command failure, and timeout SHALL leave the footer without a badge and SHALL NOT block startup or fail the session. Association, branch, and PR changes SHALL refresh while the session runs, unchanged normalized observations SHALL NOT emit redundant views, and disposal SHALL release timers and active work. A transition of the same exact PR from open to merged SHALL retain the same normalized badge identity.
+Discovery SHALL reread associated context and branch, and SHALL remain asynchronous, bounded, serialized, optional, and lifecycle-owned. A1 SHALL prefer bounded GitHub CLI discovery and, when it yields no eligible identity, MAY query GitHub's read-only REST API using a strictly validated GitHub `origin` repository and exact selected head branch. The REST fallback SHALL work without credentials for public repositories and MAY use a caller-provided standard GitHub environment token for private repositories without persisting or exposing it. Missing GitHub CLI or authentication, an absent or invalid GitHub remote, no open or merged PR, a closed-unmerged PR, mismatched or ambiguous results, malformed or unsafe output, rate limiting, command or request failure, and timeout SHALL leave the footer without a badge and SHALL NOT block startup or fail the session. Association, branch, and PR changes SHALL refresh while the session runs, unchanged normalized observations SHALL NOT emit redundant views, and disposal SHALL release timers and active work. A transition of the same exact PR from open to merged SHALL retain the same normalized badge identity.
 
 The badge and association are declared bare-A1 behavior. The `a1 pi` comparison profile SHALL retain its pinned footer bytes and SHALL NOT render the badge or consume the association.
 
@@ -2256,6 +2351,27 @@ The badge and association are declared bare-A1 behavior. The `a1 pi` comparison 
 - **THEN** A1 SHALL preserve startup-working-tree discovery
 - **AND** SHALL NOT scan or guess among other local worktrees or pull requests
 
+#### Scenario: Fall back to REST without GitHub CLI
+
+- **GIVEN** the selected context has a valid GitHub `origin` and exact branch with an eligible pull request
+- **AND** GitHub CLI is absent or yields no eligible identity
+- **WHEN** the bounded GitHub REST fallback returns that exact open or merged pull request
+- **THEN** bare A1 SHALL normalize and render the same linked `#<number>` identity
+- **AND** a public-repository request SHALL require no credential
+- **AND** discovery SHALL remain read-only and SHALL NOT mutate Git or GitHub
+
+#### Scenario: Prefer successful GitHub CLI discovery
+
+- **WHEN** bounded GitHub CLI discovery returns a valid exact-branch pull request identity
+- **THEN** A1 SHALL use that identity without issuing the REST fallback request
+
+#### Scenario: Reject invalid REST discovery
+
+- **WHEN** the selected remote is not an exact supported GitHub repository or the REST result is non-successful, ambiguous, mismatched, closed without merge, malformed, unsafe, rate-limited, or timed out
+- **THEN** the footer SHALL remain without a PR badge
+- **AND** startup and the running session SHALL continue without a PR-discovery diagnostic
+- **AND** no credential value SHALL appear in output, persisted state, or a request URL
+
 #### Scenario: Show an open branch pull request
 
 - **WHEN** bare A1's selected repository context has a current branch with open or merged pull request 567 at `https://github.com/example/project/pull/567`
@@ -2271,7 +2387,7 @@ The badge and association are declared bare-A1 behavior. The `a1 pi` comparison 
 
 #### Scenario: No open pull request is available
 
-- **WHEN** the selected context is not a Git repository, its head is detached, no open or merged PR matches its branch, the matching PR is closed without merge, or GitHub CLI discovery fails, times out, or returns invalid data
+- **WHEN** the selected context is not a Git repository, its head is detached, no open or merged PR matches its branch, the matching PR is closed without merge, or both GitHub CLI and REST discovery fail, time out, or return invalid data
 - **THEN** the footer SHALL retain the selected safe path, branch, and session-name presentation without a PR badge
 - **AND** startup and the running agent session SHALL continue without a PR-discovery diagnostic
 
@@ -2285,7 +2401,7 @@ The badge and association are declared bare-A1 behavior. The `a1 pi` comparison 
 #### Scenario: Dispose while discovery is pending
 
 - **WHEN** the session is disposed with a refresh timer or repository discovery process pending
-- **THEN** the timer and process SHALL be cancelled or released
+- **THEN** the timer, command, and request SHALL be cancelled or released
 - **AND** a late result SHALL NOT update or render the disposed session
 
 #### Scenario: Render a narrow footer
@@ -2392,16 +2508,18 @@ Bare A1 SHALL present the built-in `thinking` command with the description `Set 
 - **AND** `login` SHALL retain its pinned `<provider>` argument hint
 
 ### Requirement: Bare A1 progress labels share one quiet animated presentation
-Every built-in or extension working message rendered by bare A1's spinner-backed status surface SHALL use the shared A1 progress presentation. This SHALL include ordinary working, retry, compaction, measured compaction progress, and extension override labels. Changing the presentation SHALL NOT change semantic work-state transitions, spinner glyphs, status placement, replacement behavior, extension lifecycle, cancellation, teardown, or the pinned comparison profile.
+Every built-in or extension working message rendered by bare A1's spinner-backed status surface SHALL use the shared A1 progress presentation. This SHALL include ordinary working, retry, compaction, measured compaction progress, and extension override labels. The moving text highlight SHALL use the theme's neutral white text role while the spinner retains its existing accent role. Changing the presentation SHALL NOT change semantic work-state transitions, spinner glyphs, status placement, replacement behavior, extension lifecycle, cancellation, teardown, or the pinned comparison profile.
 
 #### Scenario: Show each built-in work state
 - **WHEN** bare A1 displays working, retry, compaction, or measured compaction progress beside its spinner
-- **THEN** the label SHALL end in one Unicode ellipsis and use the same restrained accent animation
+- **THEN** the label SHALL end in one Unicode ellipsis and use the same restrained neutral-white highlight animation
+- **AND** its spinner SHALL retain its existing accent colour
 - **AND** its spinner and semantic wording SHALL retain their existing behavior
 
 #### Scenario: Show extension-provided work
 - **WHEN** an extension supplies or replaces the active working message
 - **THEN** bare A1 SHALL normalize and animate that label through the same shared progress presentation
+- **AND** the moving label highlight SHALL use the neutral white text role rather than the spinner's accent role
 - **AND** clearing or replacing the extension state SHALL retain the existing lifecycle behavior
 
 #### Scenario: Use the pinned comparison profile
@@ -2475,3 +2593,61 @@ Top, bottom, and declared separator rules SHALL remain full width. The change SH
 - **WHEN** source or inventory coverage discovers a new A1-authored titled modal producer
 - **THEN** validation SHALL require it to use the shared compact padded frame
 - **AND** a producer that independently restores a top-title spacer or outer content inset SHALL fail the coverage gate
+
+### Requirement: Pre-resource project trust uses a compact bottom dialog
+Bare A1 SHALL present an interactive pre-resource trust decision as a vertically compact, ruled dialog anchored to the bottom of the bounded startup surface. Its top and bottom rules SHALL use the fixed dark-theme border blue and span the full available terminal width. The explanation SHALL read exactly `This allows to load project settings and resources, install missing project packages, and execute project extensions.` and SHALL NOT insert the product name. The dialog SHALL use the established bare-A1 modal hierarchy for its title, working-directory context, explanation, selected and unselected option rows, and semantic shortcut hints while remaining implemented only from fixed startup-safe wording, ANSI roles, terminal dimensions, and bounded rendering helpers. It SHALL NOT load or consult project settings, themes, extensions, prompts, packages, skills, or post-trust components.
+
+The dialog SHALL remain readable at supported terminal sizes, SHALL prioritize the title, path, choices, and actionable controls when height is constrained, and SHALL clip or wrap without replaying untrusted terminal control content. Completion, interruption, input end, and errors SHALL clear the owned startup frame and restore raw mode, cursor state, and the parent terminal exactly once.
+
+#### Scenario: Present trust at the bottom
+- **WHEN** an interactive launch needs a project-trust decision in a terminal with sufficient rows
+- **THEN** A1 SHALL render one vertically compact ruled trust dialog against the bottom of the startup surface
+- **AND** its blue top and bottom rules SHALL span the full available terminal width
+- **AND** it SHALL not render the trust content as a loose page at the top-left
+
+#### Scenario: Match ordinary selector hierarchy
+- **WHEN** the trust dialog is visible
+- **THEN** its title, path context, option list, selected arrow, and key/action hints SHALL use the same visual hierarchy as the bare-A1 Models and Thinking dialog family
+- **AND** its explanation SHALL use the exact product-neutral wording without `a1`
+- **AND** its shortcut hint SHALL align with its local heading
+
+#### Scenario: Constrain a small terminal
+- **WHEN** the available rows or columns cannot show the preferred dialog geometry
+- **THEN** A1 SHALL use a deterministic bounded fallback that retains the decision choices and controls
+- **AND** clipping or wrapping SHALL remain ANSI-safe
+
+#### Scenario: Keep the trust dialog startup-safe
+- **WHEN** the dialog renders before a trust decision exists
+- **THEN** no project setting, theme, extension, prompt, package, skill, or post-trust component SHALL be loaded or consulted
+
+#### Scenario: Exit without a trust decision
+- **WHEN** the user presses Escape while the bare-A1 trust dialog is active
+- **THEN** A1 SHALL restore the parent terminal and terminate startup without constructing the owned shell
+- **AND** A1 SHALL NOT infer, persist, or activate any trust outcome
+
+#### Scenario: Operate and restore the dialog
+- **WHEN** the user navigates, confirms, exits, interrupts, or the input stream ends or fails
+- **THEN** arrows and Tab SHALL move selection and Enter SHALL confirm one of the five pinned Pi trust outcomes
+- **AND** those outcomes SHALL be Trust, Trust parent folder, Trust for this session only, Do not trust, and Do not trust for this session only
+- **AND** Escape SHALL be advertised as the only bare-A1 exit action while Ctrl+C SHALL NOT dismiss the selector
+- **AND** Escape SHALL restore the terminal exactly once and abort startup without constructing the owned shell
+- **AND** A1 SHALL restore raw mode, disable child-owned input/presentation modes, and show the cursor after leaving the alternate screen
+- **AND** A1 SHALL preserve the restored parent cursor across the parent-screen margin reset and write no parent-buffer content, allowing the shell to preserve prior rows and paint its next empty prompt
+
+#### Scenario: Use the comparison profile
+- **WHEN** the same launch runs through `a1 pi`
+- **THEN** it SHALL offer the same pinned Pi trust outcomes
+- **AND** its top-left comparison presentation and Escape/Ctrl+C cancellation SHALL remain unchanged by the bare-A1 trust-dialog customization
+
+### Requirement: Project-trust startup warnings use the prompt-adjacent notice
+Bare A1 SHALL classify a bounded warning produced by unavailable interaction, input end, or failed startup trust resolution separately from ordinary engine startup diagnostics. After the trust selector restores the terminal and the restricted shell starts, the warning SHALL appear through the existing warning-colored transient dock notice immediately above the editor group. It SHALL remain outside transcript content, scrolling, selection, copy, prompt navigation, and persisted session content, and SHALL follow the existing dock-notice replacement and dismissal lifecycle. The pinned `a1 pi` route SHALL retain its startup-diagnostic placement.
+
+#### Scenario: Fail to obtain a trust decision
+- **WHEN** startup cannot obtain a required trust decision because interaction is unavailable, input ends, or trust resolution fails
+- **THEN** bare A1 SHALL continue with project resources withheld
+- **AND** one `Warning:` notice explaining the fail-closed result SHALL appear in the dock above the editor
+- **AND** the warning SHALL not appear at the top of the empty transcript viewport
+
+#### Scenario: Preserve comparison placement
+- **WHEN** the same project-trust startup warning is presented through `a1 pi`
+- **THEN** it SHALL retain the pinned startup-diagnostic placement instead of using bare A1's notice dock

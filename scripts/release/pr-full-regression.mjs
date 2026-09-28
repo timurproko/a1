@@ -57,9 +57,10 @@ export function parseRepairProvenance(value) {
   if (!Array.isArray(value.sources) || value.sources.length < 1 || value.sources.length > 32) throw new Error("invalid regression-triage sources");
   const sources = value.sources.map(source => {
     exactKeys(source, ["workflowName", "workflowFile", "runId", "runNumber", "attempt", "event", "conclusion", "headBranch", "headSha", "url", "createdAt"], "regression-triage source");
-    if (!["Full regression", "Release"].includes(source.workflowName) || !["full-regression.yml", "release.yml"].includes(source.workflowFile)
-      || (source.workflowName === "Full regression") !== (source.workflowFile === "full-regression.yml")
-      || !Number.isSafeInteger(source.runId) || source.runId < 1 || !Number.isSafeInteger(source.runNumber) || source.runNumber < 1
+    const supportedWorkflow = (source.workflowName === "Full regression" && source.workflowFile === "full-regression.yml")
+      || (source.workflowName === "Publish" && source.workflowFile === "publish.yml")
+      || (source.workflowName === "Release" && source.workflowFile === "release.yml");
+    if (!supportedWorkflow || !Number.isSafeInteger(source.runId) || source.runId < 1 || !Number.isSafeInteger(source.runNumber) || source.runNumber < 1
       || !Number.isSafeInteger(source.attempt) || source.attempt < 1 || !["schedule", "workflow_dispatch"].includes(source.event)
       || !["failure", "success"].includes(source.conclusion) || source.headBranch !== "develop" || !SHA.test(source.headSha)
       || !/^https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/actions\/runs\/\d+$/u.test(source.url)

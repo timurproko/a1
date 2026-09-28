@@ -137,7 +137,7 @@
       "authority": ["Development validation required", "acceptance-only-routing", "acceptance-record-validation", "single-pr-finalization-validation", "archive-merge-result-validation", "complete-regression"],
       "concurrency": "development-validation-",
       "environments": [],
-      "artifactRetentionDays": [14]
+      "artifactRetentionDays": [1, 14]
     },
     {
       "name": "Documentation auto-merge",
@@ -236,8 +236,8 @@
       "artifactRetentionDays": [30]
     },
     {
-      "name": "Release",
-      "path": ".github/workflows/release.yml",
+      "name": "Publish",
+      "path": ".github/workflows/publish.yml",
       "state": "active",
       "triggers": ["schedule", "workflow_dispatch"],
       "permissions": ["contents: read", "contents: write", "id-token: write"],

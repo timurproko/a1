@@ -95,6 +95,8 @@ export interface PiEngineAdapterOptions {
    * mode. Returns display names of packages with updates available.
    */
   readonly checkPackageUpdates?: PiEnginePackageUpdateProbe;
+  /** Comparison profiles preserve Pi's startup changelog; bare A1 owns release-note startup. */
+  readonly announceStartupChangelog?: boolean;
   readonly repositoryContextReader?: PiRepositoryContextReader;
 }
 
@@ -212,6 +214,7 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
       projectTrustPrompt: options.projectTrustPrompt,
       createRuntime: options.createRuntime,
       checkPackageUpdates: options.checkPackageUpdates,
+      ...(options.announceStartupChangelog === undefined ? {} : { announceStartupChangelog: options.announceStartupChangelog }),
       ...(options.repositoryContextReader === undefined ? {} : { repositoryContextReader: options.repositoryContextReader }),
       host: this.#workflowHost,
     }, {
@@ -503,6 +506,11 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
    */
   configuredTheme(): string | undefined {
     return this.#settings.configuredTheme();
+  }
+
+  /** Persist the global thinking default without changing the live session level. */
+  setDefaultThinkingLevel(level: PiPinnedSettingsSnapshot["defaultThinkingLevel"]): void {
+    this.#settings.setDefaultThinkingLevel(level);
   }
 
   /** Settings port for the live runtime, or null before the runtime is available. */

@@ -16,6 +16,7 @@ interface SuiteDefinition {
   includeRoot?: string;
   resourceSensitiveTests?: string[];
   requiresBuild?: boolean;
+  fullReleaseExclusion?: string;
 }
 
 interface SuiteManifest {
@@ -87,7 +88,14 @@ describe("validation suite ownership", () => {
       expect(included.has(owner)).toBe(true);
       return values;
     }));
-    expect(Object.keys(suites.scopes).filter(scope => !included.has(scope) && !superseded.has(scope))).toEqual([]);
+    const excluded = Object.entries(suites.scopes).filter(([, definition]) => definition.fullReleaseExclusion !== undefined);
+    expect(excluded.map(([scope]) => scope)).toEqual(["terminal-host"]);
+    for (const [scope, definition] of excluded) {
+      expect(definition.fullReleaseExclusion).toMatch(/\S{8,}/u);
+      expect(included.has(scope)).toBe(false);
+    }
+    expect(Object.keys(suites.scopes).filter(scope => !included.has(scope) && !superseded.has(scope)
+      && suites.scopes[scope]!.fullReleaseExclusion === undefined)).toEqual([]);
   });
 
   it("keeps planning and invariant commands separate from test owners", async () => {
@@ -112,6 +120,7 @@ describe("validation suite ownership", () => {
       "test/repository-governance/naming-selection.test.ts",
       "test/repository-governance/pr-full-regression-history.test.ts",
       "test/foundation/launch-context/cutover.test.ts",
+      "test/foundation/lifecycle/session-repository-context.test.ts",
       "test/foundation/supervision/foreground-terminal-lease.test.ts",
       "test/repository-governance/code-documentation.test.ts",
       "test/repository-governance/local-cleanup.test.ts",
@@ -128,6 +137,7 @@ describe("validation suite ownership", () => {
       "test/app/session-shell/clipboard-executor-lifecycle.test.ts",
       "test/app/session-shell/clipboard-packaged.test.ts",
       "test/integrations/pi/components/editor-text-paste.test.ts",
+      "test/integrations/pi/engine/compaction-progress.integration.test.ts",
       "test/app/session-shell/prompt-history-controller.test.ts",
       "test/foundation/release/update-activation.test.ts",
     ]);

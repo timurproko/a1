@@ -53,7 +53,6 @@ async function receive(message: CopyHelperInput): Promise<void> {
     send({ kind: "phase", phase: "extracted", bytes });
     const text = parts.join("\n");
     parts = [];
-    if (text.length === 0) { finish({ outcome: "failed", failure: "size" }); return; }
     if (header.mode === "prepare") {
       // Protocol: this success acknowledges prepared IPC only; the owner must still await its injected writer.
       output = text; nextOutput(); return;

@@ -73,6 +73,21 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
     await shell.dispose();
   });
 
+  it("renders failed manual compaction while keeping successful completion silent", async () => {
+    const failed = await fixture();
+    vi.spyOn(failed.engine.session, "compact").mockRejectedValueOnce(new Error("Nothing to compact (session too small)"));
+    await failed.shell.submit("/compact");
+    expect(stripTerminalSequences(failed.shell.root.render(80).join("\n"))).toContain("Error: Nothing to compact (session too small)");
+    await failed.shell.dispose();
+
+    const completed = await fixture();
+    await completed.shell.submit("/compact");
+    const frame = stripTerminalSequences(completed.shell.root.render(80).join("\n"));
+    expect(frame).not.toContain("Compaction requested");
+    expect(frame).not.toContain("Error:");
+    await completed.shell.dispose();
+  });
+
   it("routes the complete command manifest, hidden routes, prompt resources, bash modes, and streaming queues", async () => {
     const { engine, adapter, shell } = await fixture();
     const workflow = vi.spyOn(adapter, "executeWorkflow").mockImplementation(async request => ({
@@ -495,6 +510,73 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
       expect(frame).not.toContain("Image attached");
       expect(frame).toContain("Image hidden: image/png");
     } finally { await shell.dispose(); }
+  });
+
+  it("shows a cancelled project-trust warning in the bare-A1 notice dock above the editor", async () => {
+    const engine = new Runtime();
+    const message = "Project resources in D:/work were withheld because trust selection was cancelled";
+    (engine.diagnostics as { type: string; code: string; message: string }[]).push({
+      type: "warning",
+      code: "project-trust",
+      message,
+    });
+    const adapter = await createPiEngineAdapter({
+      cwd: "D:/work",
+      sessionId: "owned-shell",
+      createRuntime: async () => engine as unknown as AgentSessionRuntime,
+    });
+    const terminal = new TestPresentationTerminal();
+    const shell = new OwnedUiSessionShell({
+      engine: { backend: adapter, cwd: "D:/work", sessionLayout: "custom-viewport" },
+      presentation: { terminal },
+    });
+    try {
+      shell.start();
+      shell.runtime.renderNow();
+      terminal.resize(100, 20);
+      const rawRows = shell.root.render(100);
+      const rows = rawRows.map(row => stripTerminalSequences(row).trimEnd());
+      const notice = rows.findIndex(row => row.includes(`Warning: ${message}`));
+      const border = rows.findIndex((row, index) => index > notice && /^─+$/.test(row));
+      expect(notice).toBeGreaterThan(0);
+      expect(rows.slice(0, notice - 1).every(row => row === "")).toBe(true);
+      expect(border).toBe(notice + 2);
+      expect(rawRows[notice]).toContain(piTheme().fg("warning", `Warning: ${message}`));
+      expect(rows.filter(row => row.includes(message))).toHaveLength(1);
+      expect(shell.root.viewportFrameDescriptor()?.nextDocumentRange.end).toBe(0);
+    } finally {
+      await shell.dispose();
+    }
+  });
+
+  it("keeps a project-trust warning in the pinned startup position", async () => {
+    const engine = new Runtime();
+    const message = "Project resources in D:/work were withheld because trust selection was cancelled";
+    (engine.diagnostics as { type: string; code: string; message: string }[]).push({
+      type: "warning",
+      code: "project-trust",
+      message,
+    });
+    const adapter = await createPiEngineAdapter({
+      cwd: "D:/work",
+      sessionId: "owned-shell",
+      createRuntime: async () => engine as unknown as AgentSessionRuntime,
+    });
+    const shell = new OwnedUiSessionShell({
+      engine: { backend: adapter, cwd: "D:/work" },
+      presentation: { terminal: new TestPresentationTerminal() },
+    });
+    try {
+      shell.start();
+      const rows = shell.root.render(100).map(row => stripTerminalSequences(row));
+      const warning = rows.findIndex(row => row.includes(`Warning: ${message}`));
+      const banner = rows.findIndex(row => row.includes(`v${VERSION}`));
+      expect(warning).toBeGreaterThanOrEqual(0);
+      expect(warning).toBeLessThan(banner);
+      expect(rows[warning]!.startsWith("Warning:")).toBe(true);
+    } finally {
+      await shell.dispose();
+    }
   });
 
   it("shows bare-A1 command errors and warnings as the transient dock notice above the editor", async () => {

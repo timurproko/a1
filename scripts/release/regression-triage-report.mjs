@@ -9,6 +9,8 @@
 // Invariant: only these workflows propose a fix, keyed by the name GitHub reports for the run.
 export const TRIAGE_WORKFLOWS = Object.freeze({
   "Full regression": Object.freeze({ file: "full-regression.yml", scheduledOnly: false }),
+  Publish: Object.freeze({ file: "publish.yml", scheduledOnly: true }),
+  // Compatibility: historical run IDs and persisted provenance keep their original identity readable.
   Release: Object.freeze({ file: "release.yml", scheduledOnly: true }),
 });
 

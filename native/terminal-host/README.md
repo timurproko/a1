@@ -11,11 +11,17 @@ This crate is the proof host for composed terminal panes. It is a console proces
 
 ## Build and non-interactive probe
 
-From the repository root, with Rust and Zig 0.15.2 available:
+The crate builds in GitHub CI, not on workstations. Zig's package fetch for `libghostty-vt` unpacks upstream test data, including a deliberately malformed JPEG. Managed Windows antivirus quarantines it together with the processes above it, and on a machine running A1 that includes the installed `process-guardian.exe`. So `build.rs` refuses to build on a Windows host outside CI.
+
+A pull request that changes this crate or its run scripts selects the **Native terminal host (Windows)** job. It installs pinned Rust and Zig 0.15.2 and runs:
 
 ```powershell
 npm run test:terminal-host
 ```
+
+Push the branch and read the result with `gh run watch` or `gh run view --log-failed`. The job uploads the debug `terminal-host.exe` as the `terminal-host-win32-x64-attempt-<n>` artifact for one day; download it with `gh run download <run-id> -n terminal-host-win32-x64-attempt-1` for the manual proof below.
+
+On a machine without restrictive antivirus, set `TERMINAL_HOST_LOCAL_BUILD=1` to build locally anyway.
 
 The non-interactive gate runs Rust layout/topology tests, retained-model/one-PTY, selection, native key/text/mouse/clipboard, and four-PTY integration probes. The 2×2 probe verifies durable pane/session mappings, exact argv, per-pane environment and cwd, distinct process identities, focused-input isolation, all-pane resize, and cleanup. It also emits bounded `a1-terminal-host-hot-path-v1` metadata proving four distinct native stream, input, terminal-model, render-damage, key-encoder, mouse-encoder, and selection identities. Raw PTY bytes, child input, and rendered cells remain in Rust and are not exported in the metadata. The gate does not enter alternate-screen mode.
 

@@ -9,7 +9,18 @@ afterEach(() => { vi.useRealTimers(); });
 class FakeSession {
   readonly listeners = new Set<(event: unknown) => void>();
   readonly messages: unknown[] = [];
-  readonly sessionManager = { getSessionFile: () => this.file, getSessionId: () => this.id };
+  readonly branchEntries: unknown[] = [];
+  readonly sessionManager = {
+    getSessionFile: () => this.file,
+    getSessionId: () => this.id,
+    getBranch: () => this.branchEntries,
+  };
+  readonly agent = {
+    streamFunction: async (..._args: unknown[]): Promise<unknown> => ({
+      result: async () => ({}),
+      async *[Symbol.asyncIterator]() {},
+    }),
+  };
   readonly file: string | undefined;
   readonly id: string;
   constructor(file: string | undefined = undefined, id = "session-one") { this.file = file; this.id = id; }
@@ -40,6 +51,7 @@ class FakeRuntime {
 function harness(overrides: Partial<PiEngineRuntimePorts> = {}, options: {
   updates?: readonly string[];
   changelog?: string;
+  announceStartupChangelog?: boolean;
   branch?: string | null;
   pullRequestProbe?: PiPullRequestProbe;
   pullRequestRefreshMs?: number;
@@ -55,6 +67,7 @@ function harness(overrides: Partial<PiEngineRuntimePorts> = {}, options: {
     cwd: "D:/work", agentDir: "D:/agent", sessionId: "owned-1", sessionPath: undefined, sessionSelection: undefined,
     sessionForkPrompt: undefined, projectTrustPrompt: undefined, createRuntime: async () => runtime as unknown as AgentSessionRuntime,
     checkPackageUpdates: options.updates === undefined ? undefined : async () => options.updates!,
+    ...(options.announceStartupChangelog === undefined ? {} : { announceStartupChangelog: options.announceStartupChangelog }),
     ...(options.gitBranchReader !== undefined
       ? { gitBranchReader: options.gitBranchReader }
       : options.branch === undefined ? {} : { gitBranchReader: async () => options.branch! }),
@@ -94,6 +107,13 @@ describe("PiEngineRuntime", () => {
     expect(engine.currentSessionFile()).toBe("D:/sessions/one.jsonl");
   });
 
+  it("lets bare A1 disable pinned Pi startup changelog bookkeeping", async () => {
+    const { engine, runtime, calls } = harness({}, { changelog: "## New", announceStartupChangelog: false });
+    await engine.start();
+    expect(calls.some(call => call.includes("changelog"))).toBe(false);
+    expect(runtime.lastChangelog).toBe("0.0.1");
+  });
+
   it("forwards events for the current generation only, and a runtime rebind replaces the session unless blocked", async () => {
     const { engine, runtime, calls, state } = harness();
     await engine.start();
@@ -112,18 +132,46 @@ describe("PiEngineRuntime", () => {
     expect(runtime.session.listeners.size).toBe(0);
   });
 
-  it("suspends and resumes the subscription across an overload without replacing the session", async () => {
-    const { engine, runtime, calls } = harness();
+  it("restores event and compaction observation when the same session resumes after overload", async () => {
+    const progress: number[] = [];
+    const { engine, runtime, calls } = harness({ compactionProgress: percent => { progress.push(percent); } });
+    const session = runtime.session;
+    session.branchEntries.push({ type: "compaction", summary: "xxxx" });
+    session.agent.streamFunction = vi.fn(async () => ({
+      result: async () => ({}),
+      async *[Symbol.asyncIterator]() { yield { type: "text_delta", delta: "xx" }; },
+    }));
+    const configuredStreamFunction = session.agent.streamFunction;
+
     await engine.start();
+    const initialWrapper = session.agent.streamFunction;
+    expect(initialWrapper).not.toBe(configuredStreamFunction);
     calls.length = 0;
+
     engine.suspend();
     expect([engine.generation, engine.bindingGeneration]).toEqual([2, 1]);
+    expect(session.agent.streamFunction).toBe(configuredStreamFunction);
     runtime.session.emit({ type: "dropped" });
+
     engine.resume();
+    const resumedWrapper = session.agent.streamFunction;
+    expect(resumedWrapper).not.toBe(configuredStreamFunction);
+    expect(resumedWrapper).not.toBe(initialWrapper);
+    engine.resume();
+    expect(session.listeners.size).toBe(1);
+    expect(session.agent.streamFunction).not.toBe(resumedWrapper);
+
     runtime.session.emit({ type: "kept" });
+    engine.compactionStarted();
+    expect(progress).toEqual([0]);
+    await session.agent.streamFunction({}, {}, {});
+    await vi.waitFor(() => { expect(progress).toEqual([0, 50, 100]); });
+    engine.compactionEnded();
     expect(calls).toEqual(["event:kept"]);
+
     await engine.dispose();
     expect(runtime.disposed).toBe(true);
+    expect(session.agent.streamFunction).toBe(configuredStreamFunction);
     runtime.session.emit({ type: "after-dispose" });
     expect(calls).toEqual(["event:kept"]);
     expect(engine.session).toBeDefined();

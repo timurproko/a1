@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { publicationValidationMatrix } from "../../scripts/release/publication-validation-matrix.mjs";
 
 async function workflow(): Promise<string> {
-  return await readFile(".github/workflows/release.yml", "utf8");
+  return await readFile(".github/workflows/publish.yml", "utf8");
 }
 
 describe("deliberate publication pipeline", () => {
@@ -12,7 +12,7 @@ describe("deliberate publication pipeline", () => {
     for (const name of await readdir(".github/workflows")) {
       if ((await readFile(`.github/workflows/${name}`, "utf8")).includes("npm publish")) publishers.push(name);
     }
-    expect(publishers).toEqual(["release.yml"]);
+    expect(publishers).toEqual(["publish.yml"]);
     const source = await workflow();
     expect(source).toContain("workflow_dispatch:");
     expect(source).toContain('cron: "17 3 * * *"');
@@ -31,7 +31,7 @@ describe("deliberate publication pipeline", () => {
 
   it("separates manual early no-op from complete nightly registry verification", async () => {
     const source = await workflow();
-    expect(source).toContain('const work = process.env.MODE === "nightly" || !exists');
+    expect(source).toContain('const work = process.env.MODE === "nightly" || !exists || !installerExists;');
     expect(source).toContain("Download the immutable registry package");
     expect(source).toContain("registry tarball integrity differs from registry metadata");
     expect(source).toContain('selected=\'["package-smoke","package-install"]\'');
@@ -42,13 +42,40 @@ describe("deliberate publication pipeline", () => {
 
   it("evaluates publication after an allowed prerequisite skip without weakening required outcomes", async () => {
     const source = await workflow();
-    const publish = source.slice(source.indexOf("\n  publish:"), source.indexOf("\n  result:"));
-    const condition = publish.match(/^    if: (.+)$/m)?.[1];
-    expect(condition).toBe("always() && needs.plan.outputs.build == 'true' && needs.package.result == 'success' && (needs.documentation.result == 'success' || needs.documentation.result == 'skipped') && needs.validate.result == 'success'");
+    const publish = source.slice(source.indexOf("\n  publish:"), source.indexOf("\n  post_publish:"));
+    expect(publish.match(/^    if: (.+)$/m)?.[1]).toBe("always() && (needs.plan.outputs.build == 'true' || needs.plan.outputs.installer_build == 'true') && needs.package.result == 'success' && (needs.documentation.result == 'success' || needs.documentation.result == 'skipped') && needs.validate.result == 'success'");
+
+    const postPublish = source.slice(source.indexOf("\n  post_publish:"), source.indexOf("\n  complete:"));
+    expect(postPublish.match(/^    if: (.+)$/m)?.[1]).toBe("always() && needs.plan.result == 'success' && needs.plan.outputs.work == 'true' && (needs.plan.outputs.build == 'true' || needs.plan.outputs.installer_build == 'true') && needs.package.result == 'success' && needs.publish.result == 'success'");
+
+    const complete = source.slice(source.indexOf("\n  complete:"), source.indexOf("\n  result:"));
+    expect(complete.match(/^    if: (.+)$/m)?.[1]).toBe("always() && needs.plan.result == 'success' && needs.plan.outputs.work == 'true' && (needs.plan.outputs.build == 'true' || needs.plan.outputs.installer_build == 'true') && needs.package.result == 'success' && needs.publish.result == 'success' && needs.post_publish.result == 'success'");
 
     const result = source.slice(source.indexOf("\n  result:"));
     expect(result).toContain('if [ "$WORK" != true ]; then');
-    expect(result).toContain('if [ "$BUILD" = true ]; then test "$PUBLISH" = success; fi');
+    expect(result).toContain('test "$PUBLISH" = success');
+    expect(result).toContain('test "$POST_PUBLISH" = success');
+    expect(result).toContain('test "$COMPLETE" = success');
+  });
+
+  it("uses one established immutable checkout pin throughout the publication workflow", async () => {
+    const source = await workflow();
+    const checkoutReferences = [...source.matchAll(/uses: actions\/checkout@([^\s]+)/gu)].map(match => match[1]);
+    expect(checkoutReferences.length).toBeGreaterThan(0);
+    expect(new Set(checkoutReferences)).toEqual(new Set(["fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09"]));
+  });
+
+  it("names published-pair jobs from authoritative matrix fields", async () => {
+    const source = await workflow();
+    const postPublish = source.slice(source.indexOf("\n  post_publish:"), source.indexOf("\n  complete:"));
+    expect(postPublish).toContain("name: Published pair ${{ matrix.platform }} / Node ${{ matrix.node }}");
+    expect(postPublish).not.toContain("matrix.label");
+  });
+
+  it("uses the accepted installer target grammar for published-pair smoke", async () => {
+    const source = await readFile("scripts/release/smoke-published-installer.mjs", "utf8");
+    expect(source).toContain('const args = channel === "next" ? ["--develop", version] : [];');
+    expect(source).not.toMatch(/\["--(?:version|latest|next)"(?:,\s*version)?\]/u);
   });
 
   it("serializes registry publication without cancellation", async () => {
@@ -56,7 +83,8 @@ describe("deliberate publication pipeline", () => {
     expect(source).toContain("group: a1-registry-publication");
     expect(source).toContain("cancel-in-progress: false");
     expect(source).toContain("Serialize the final registry check");
-    expect(source).toContain("existing registry bytes differ from the validated candidate");
+    expect(source).toContain("registry bytes differ from the validated candidate");
+    expect(source).toContain("installer registry bytes differ from the validated package");
   });
 
   it("binds source, pull request, final version, and tarball digests", async () => {
@@ -70,15 +98,19 @@ describe("deliberate publication pipeline", () => {
   it("packs new candidates once and validates exact bytes on each platform", async () => {
     const source = await workflow();
     expect(source.match(/node scripts\/release\/prepare-validation-package\.mjs/g)).toHaveLength(1);
+    expect(source.match(/node scripts\/release\/prepare-installer-package\.mjs/g)).toHaveLength(1);
+    expect(source).toContain("node scripts/release/validate-installer-package.mjs");
     expect(source).toContain("matrix: ${{ fromJson(needs.plan.outputs.validate_matrix) }}");
     for (const platform of ["win32", "linux", "darwin"]) {
       expect(publicationValidationMatrix("develop").include.some(lane => lane.platform.startsWith(platform))).toBe(true);
     }
     expect(source).toContain("VALIDATION_CANDIDATE_TARBALL:");
     expect(source).toContain('npm publish "$release_tarball"');
+    expect(source).toContain('npm publish "$installer_tarball"');
     expect(source).toContain("--provenance");
     const publish = source.slice(source.indexOf("\n  publish:"));
-    expect(publish).not.toMatch(/npm ci|npm run build|prepare-validation-package/);
+    expect(publish.slice(0, publish.indexOf("\n  post_publish:"))).not.toMatch(/npm ci|npm run build|prepare-validation-package/);
+    expect(source.indexOf("Exercise the exact published pair")).toBeLessThan(source.indexOf("Tag the published commit"));
   });
 
   it("packs native process guardians with host-independent executability", async () => {
@@ -96,7 +128,7 @@ describe("deliberate publication pipeline", () => {
 
   it("stamps the requested stable version on the open development source at pack time", async () => {
     const source = await workflow();
-    expect(source).toContain("      version:\n        description: Stable version to stamp on the open development source (stable channel only)");
+    expect(source).toMatch(/      version:\r?\n        description: Stable version to stamp on the open development source \(stable channel only\)/);
     expect(source).toContain('if [ "$mode" = "stable" ]; then');
     expect(source).toContain("stable publication requires an explicit final version");
     expect(source).toContain("a development publication derives its own version; do not pass one");
@@ -109,6 +141,16 @@ describe("deliberate publication pipeline", () => {
     expect(stamp).toContain('npm version "$RELEASE_VERSION" --no-git-tag-version --allow-same-version');
     const client = await readFile("scripts/release/publication-client.mjs", "utf8");
     expect(client).toContain('...(channel === "stable" ? ["-f", `version=${version}`] : [])');
+  });
+
+  it("binds stable publication and GitHub Release text to the reviewed note merge", async () => {
+    const source = await workflow();
+    expect(source).toContain("stable source is not an authorized manually merged release-review PR");
+    expect(source).toContain("stable release-review merge changed unsupported paths");
+    expect(source).toContain("parseReleaseNote(await readFile(notePath, \"utf8\"), version)");
+    expect(source).toContain('--notes-file "docs/releases/${RELEASE_VERSION}.md"');
+    expect(source).toContain("ref: ${{ needs.plan.outputs.source }}");
+    expect(source).not.toContain('--notes "Published to npm latest');
   });
 
   it("keeps preview and stable registry effects separate", async () => {
@@ -139,13 +181,15 @@ describe("maintainer publication commands", () => {
     expect(script).not.toMatch(/npm publish|npm pack/);
   });
 
-  it("publishes stable from the open development source, then reopens develop through one version PR", async () => {
+  it("reviews release notes before publishing stable, then reopens develop through one version PR", async () => {
     const entry = await readFile("scripts/release/release.mjs", "utf8");
     const script = await readFile("scripts/release/release-workflow.mjs", "utf8");
     expect(entry).toContain("./release-workflow.mjs");
+    const reviewed = script.indexOf("source = await prepareReleaseReview(r, source, plan.version)");
     const dispatched = script.indexOf("await r.publish(source, plan.version)");
     const reopened = script.indexOf("const reopened = await prepareVersion(");
-    expect(dispatched).toBeGreaterThan(0);
+    expect(reviewed).toBeGreaterThan(0);
+    expect(dispatched).toBeGreaterThan(reviewed);
     expect(reopened).toBeGreaterThan(dispatched);
     expect(script.match(/await prepareVersion\(/g)).toHaveLength(1);
     expect(script).toContain("OPEN_DEVELOPMENT.test(plan.current)");
@@ -157,9 +201,11 @@ describe("maintainer publication commands", () => {
     expect(script).not.toContain('"--hard"');
   });
 
-  it("moves only this package's version", async () => {
+  it("moves only the synchronized package versions", async () => {
     const script = await readFile("scripts/release/release-workflow.mjs", "utf8");
     expect(script).not.toContain("replaceAll");
     expect(script).toContain('lock.packages[""].version = version');
+    expect(script).toContain("installer.version = version");
+    expect(script).toContain('"packages/a1-install/package.json"');
   });
 });

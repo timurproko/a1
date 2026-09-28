@@ -412,6 +412,10 @@ jobs:
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: 24
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: development-validation-impact
+          path: .artifacts/validation
       - name: Install pinned archive validation tooling
         if: needs.changes.outputs.openspec-touched == 'true'
         shell: bash
@@ -425,6 +429,8 @@ jobs:
         run: node scripts/governance/reconcile-openspec-archive.mjs --validate-candidate --pr "$ARCHIVE_PR_NUMBER" --tool-root "$RUNNER_TEMP/openspec-archive-tools/node_modules/@fission-ai/openspec"
       - name: Verify docs-sensitive generated governance
         run: node scripts/governance/check-docs-governance.mjs
+      - name: Verify release documentation semantics
+        run: node scripts/release/check-release-documentation.mjs --selection .artifacts/validation/impact.json
       - name: Validate OpenSpec artifacts strictly
         if: needs.changes.outputs.openspec-touched == 'true'
         run: npx --yes @fission-ai/openspec@1.8.0 validate --all --strict --no-interactive
@@ -502,6 +508,8 @@ jobs:
           path: .artifacts/validation
       - name: Check modified and new documentation inputs
         run: node scripts/governance/check-code-documentation.mjs --mode changed --selection .artifacts/validation/impact.json --result .artifacts/validation/code-documentation.json
+      - name: Verify release documentation semantics
+        run: node scripts/release/check-release-documentation.mjs --selection .artifacts/validation/impact.json
       - name: Report changed-file documentation evidence
         if: always()
         shell: bash
@@ -532,7 +540,8 @@ jobs:
       # scripts/release/validation-matrix.mjs, and the in-job resolver remains the second check.
       matrix: ${{ fromJSON(needs.changes.outputs.modular-matrix) }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
+    # A cold terminal-host build compiles libghostty-vt with Zig before the Rust crate.
+    timeout-minutes: ${{ matrix.terminalHost && 45 || 20 }}
     steps:
       - name: Start job timing
         shell: bash
@@ -599,6 +608,23 @@ jobs:
           cargo test --locked --manifest-path native/process-guardian/Cargo.toml
           cargo build --locked --manifest-path native/process-guardian/Cargo.toml
           echo "A1_PROCESS_GUARDIAN_PATH=${{ github.workspace }}/native/process-guardian/target/debug/${{ matrix.binary }}" >> "$GITHUB_ENV"
+      # Platform: the terminal host builds only here. Its Zig fetch unpacks upstream test data
+      # that workstation antivirus quarantines, so build.rs refuses local Windows builds.
+      - name: Prepare terminal host Rust toolchain
+        if: steps.job-selection.outputs.active == 'true' && matrix.terminalHost
+        shell: bash
+        run: bash scripts/development/prepare-ci-rust.sh
+      - name: Set up Zig for terminal host
+        if: steps.job-selection.outputs.active == 'true' && matrix.terminalHost
+        uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+        with:
+          version: 0.15.2
+      - name: Cache terminal host build
+        if: steps.job-selection.outputs.active == 'true' && matrix.terminalHost
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          key: terminal-host
+          workspaces: native/terminal-host
       - name: Run exact selected scopes
         if: steps.job-selection.outputs.active == 'true'
         shell: bash
@@ -626,6 +652,14 @@ jobs:
           STARTUP_BUDGET_ENFORCEMENT: record
           STARTUP_PERFORMANCE_RESULT: .artifacts/validation/startup-node${{ matrix.node }}-performance.json
         run: node scripts/release/run-validation-tier.mjs --result .artifacts/validation/outcome-${{ matrix.group }}-${{ matrix.platform }}-node${{ matrix.node }}-attempt-${{ github.run_attempt }}.json
+      - name: Upload terminal host executable for manual proof
+        if: steps.job-selection.outputs.active == 'true' && matrix.terminalHost
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: terminal-host-${{ matrix.platform }}-${{ matrix.architecture }}-attempt-${{ github.run_attempt }}
+          path: native/terminal-host/target/debug/terminal-host.exe
+          if-no-files-found: error
+          retention-days: 1
       - name: Add modular timing summary
         if: always() && steps.job-selection.outputs.active == 'true'
         shell: bash

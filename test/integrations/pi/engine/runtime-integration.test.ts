@@ -13,7 +13,12 @@ import {
 } from "../../../../src/integrations/pi/engine/index.js";
 
 const roots: string[] = [];
-afterEach(async () => Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))));
+afterEach(async () => Promise.all(roots.splice(0).map(root => rm(root, {
+  recursive: true,
+  force: true,
+  maxRetries: 5,
+  retryDelay: 100,
+}))));
 
 describe("official Pi runtime integration", () => {
   it("creates, rebinds, replaces, and disposes an isolated public runtime", async () => {
@@ -61,6 +66,28 @@ describe("official Pi runtime integration", () => {
       ...expectedInlinePaths,
     ]));
     expect(await readdir(extensionsDir)).toEqual(["user-extension.ts"]);
+    await disposePiRuntimeIntegration(runtime);
+  });
+
+  it("classifies a cancelled trust decision separately from ordinary startup diagnostics", async () => {
+    const root = await mkdtemp(resolve(tmpdir(), "a1-pi-runtime-trust-"));
+    roots.push(root);
+    const cwd = resolve(root, "work");
+    const agentDir = resolve(root, "agent");
+    await Promise.all([mkdir(cwd), mkdir(agentDir)]);
+    await writeFile(resolve(agentDir, "settings.json"), JSON.stringify({ defaultProjectTrust: "ask" }), "utf8");
+    const runtime = await createPiRuntimeIntegration({
+      cwd,
+      agentDir,
+      sessionDir: resolve(root, "sessions"),
+      projectTrustPrompt: async () => null,
+    });
+
+    expect(runtime.diagnostics).toContainEqual({
+      type: "warning",
+      code: "project-trust",
+      message: `Project resources in ${cwd} were withheld because trust selection was cancelled`,
+    });
     await disposePiRuntimeIntegration(runtime);
   });
 

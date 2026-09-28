@@ -173,58 +173,86 @@ change.
 - **THEN** GitHub SHALL refuse it
 
 ### Requirement: Preview and stable artifacts are published from verified bytes
-A published package SHALL be packed once for its final version, validated in that
-exact form, and uploaded without rebuilding. The publisher SHALL verify the package
-digest before uploading it, and SHALL verify that what it uploads is what the
-validation ran against.
+Every npm artifact required by a release, including `@timurproko/a1` and `@timurproko/a1-install`, SHALL be packed once for its final version, validated in that exact form, and uploaded without rebuilding. The publisher SHALL independently verify each package digest before upload and SHALL verify that registry bytes are the bytes validated for that package identity.
+
+The installer artifact SHALL be built from the same authoritative source and selected version as the corresponding application publication but SHALL retain its distinct package identity and minimal package surface. Development publication SHALL place matching installer builds under `next`; stable publication SHALL place the stable installer under `latest`. Stable release tags, GitHub Releases, and `master` movement SHALL wait until every required artifact has been registry-verified.
 
 #### Scenario: Published input differs
-- **WHEN** the tarball offered for publication differs by digest from the package that was validated
-- **THEN** publication SHALL fail before contacting npm
+- **WHEN** either tarball offered for publication differs by digest from its validated artifact
+- **THEN** publication SHALL fail before contacting npm for that artifact
+- **AND** SHALL NOT record release completion
 
 #### Scenario: The publisher is inspected
 - **WHEN** the publishing job is read
-- **THEN** it SHALL contain no dependency installation, build, or packing step
+- **THEN** it SHALL contain no dependency installation, build, or packing step for either artifact
+
+#### Scenario: A stable pair is published
+- **WHEN** stable application and installer artifacts have passed exact-byte validation
+- **THEN** each SHALL be provenance-published and registry-verified under its own package identity
+- **AND** stable release records SHALL be written only after both required registry results succeed
+
+#### Scenario: Installer publication fails after an application artifact exists
+- **WHEN** one immutable package upload succeeds but the required pair is not completely verified
+- **THEN** the workflow SHALL fail without writing a stable tag, GitHub Release, or `master` movement
+- **AND** a retry SHALL verify existing immutable bytes rather than republish or rebuild them
 
 ### Requirement: The complete suite remains available on demand
 The complete non-physical automated suite SHALL remain runnable locally (`npm run test:full`) and through manual workflow dispatch, so a maintainer can widen validation when a change feels risky, and SHALL run on a nightly schedule against the current `develop` tip so exhaustive owners and enforced budgets are exercised every day independent of publication. Routine development SHALL NOT require it.
 
+A scope that the complete-regression lanes cannot run MAY be excluded from the `full-release` plan only through an explicit `fullReleaseExclusion` reason on its definition in `config/validation-suites.json`. The only permitted exclusion is the Windows-only `terminal-host` scope, whose pull-request owner validates every change to its paths. Adding another exclusion SHALL require a reviewed change to this requirement.
+
 #### Scenario: Maintainer requests full validation
 - **WHEN** the maintainer dispatches the full-regression workflow or runs the full tier locally
-- **THEN** every non-physical scope SHALL execute and report per-scope timing and outcomes
+- **THEN** every non-physical scope without a declared `fullReleaseExclusion` SHALL execute and report per-scope timing and outcomes
 
 #### Scenario: Nightly schedule fires
 - **WHEN** the scheduled Full regression runs
-- **THEN** it SHALL validate the current `develop` tip with every pull-request and exhaustive owner and enforced startup budgets
+- **THEN** it SHALL validate the current `develop` tip with every pull-request and exhaustive owner whose scopes are not declared `fullReleaseExclusion`, and with enforced startup budgets
 - **AND** its failure SHALL be visible as a workflow failure without changing publication authority
+
+#### Scenario: A scope is excluded from complete regression
+- **WHEN** a scope definition declares `fullReleaseExclusion`
+- **THEN** it SHALL carry a non-empty reason, SHALL NOT be included by `full-release`, and SHALL be `terminal-host`
 
 ### Requirement: Publication follows from what was pushed
 Publication SHALL use one workflow whose source is the exact current `origin/develop`
-commit. It SHALL start nightly or by explicit dispatch; a push or tag alone SHALL NOT
-publish. A manual request SHALL provide the intended channel and exact source SHA and
-SHALL fail if that SHA is no longer authoritative `develop`.
+commit. It SHALL start nightly or by explicit dispatch; a push, pull-request merge,
+or tag alone SHALL NOT publish. A manual request SHALL provide the intended channel
+and exact source SHA and SHALL fail if that SHA is no longer authoritative `develop`.
 
 Nightly and explicit development publication SHALL derive one immutable preview
 version from the unique merged pull request associated with the selected source and
 publish or verify npm `next`. Stable publication SHALL require explicit stable
 dispatch naming a final `x.y.z` version that is not below the open development
-version the source declares, and SHALL stamp that version on the source before
-packing. No channel SHALL accept a source that does not declare exactly one open
-`x.y.z-dev` version. No other workflow SHALL publish.
+version the source declares. Its exact source SHALL contain the matching reviewed
+release-note document from an authorized manually merged release-review PR, and the
+workflow SHALL stamp the stable version on that source before packing. No channel
+SHALL accept a source that does not declare exactly one open `x.y.z-dev` version. No
+other workflow SHALL publish.
 
 Every record of a stable release — its tag, GitHub Release, and `master` — SHALL be
 written only after the registry serves the verified package, and SHALL name the open
-development commit the package was built from. A release tag SHALL NOT be deleted or
-moved. An existing development version MAY be a manual no-op or a nightly
-exact-registry verification; an existing stable version SHALL be refused.
+development commit the package was built from. The GitHub Release SHALL present the
+same reviewed Markdown packaged for that stable version rather than generic or
+regenerated notes. A release tag SHALL NOT be deleted or moved. An existing
+development version MAY be a manual no-op or a nightly exact-registry verification;
+an existing stable version SHALL be refused.
 
 #### Scenario: Work lands on develop
 - **WHEN** a commit declaring a prerelease version is pushed to `develop`
 - **THEN** no publication SHALL start solely from that push, and the next nightly or explicit development request MAY select it only while it remains authoritative
 
+#### Scenario: A release-review PR is manually merged
+- **WHEN** an authorized human manually merges a valid release-review PR into `develop`
+- **THEN** no publication SHALL start from the merge event itself, and the waiting maintainer command MAY explicitly dispatch that exact merge only while it remains authoritative
+
 #### Scenario: A stable version is requested
-- **WHEN** the maintainer command dispatches the stable channel for the current `develop` commit declaring `0.1.8-dev` with version `0.1.8`
-- **THEN** the workflow SHALL stamp `0.1.8` on that source, pack it once, validate the exact bytes, publish to `latest`, and write `v0.1.8`, the GitHub Release, and `master` at that same commit only after npm verification
+- **WHEN** the maintainer command dispatches the stable channel for the current reviewed `develop` commit declaring `0.1.8-dev`, carrying `docs/releases/0.1.8.md`, and naming version `0.1.8`
+- **THEN** the workflow SHALL stamp `0.1.8` on that source, pack the reviewed note with the exact candidate, validate the bytes, publish to `latest`, and write `v0.1.8`, the reviewed GitHub Release, and `master` at that same commit only after npm verification
+
+#### Scenario: A stable request lacks reviewed notes
+- **WHEN** a stable dispatch names a source without the matching valid reviewed note and verified manually merged release-review provenance
+- **THEN** the workflow SHALL fail before building or publishing anything
 
 #### Scenario: A stable request names an unacceptable version
 - **WHEN** a stable dispatch omits the version, names a prerelease, or names a version below the open development version's core
@@ -250,22 +278,28 @@ exact-registry verification; an existing stable version SHALL be refused.
 A preview version SHALL be derived at publish time from the open base version and the
 unique merged pull-request number associated with the exact selected `develop`
 commit. A stable version SHALL be named by its explicit dispatch and stamped at
-publish time on the same kind of open source. Neither SHALL be committed. Between
-releases the repository SHALL declare one open prerelease version, and the only
-version commit a release costs is the one that reopens the next prerelease after the
-stable package is verified on the registry. Merging commits SHALL NOT itself promise
-or trigger one preview per commit.
+publish time on the same kind of open source. Neither version SHALL be committed.
+Between releases the repository SHALL declare one open prerelease version. A stable
+release SHALL add one reviewed release-note commit before publication and one
+version-only commit that reopens the next prerelease after the stable package is
+verified on the registry; it SHALL NOT add a commit that declares the stable package
+version. Merging ordinary commits SHALL NOT itself promise or trigger one preview per
+commit.
 
 #### Scenario: Several commits land in a row
 - **WHEN** three commits are pushed to `develop`
 - **THEN** no publication SHALL start from the pushes alone, and a later development request SHALL derive one preview from the then-authoritative source's merged pull request without a version commit
 
+#### Scenario: A release is prepared for review
+- **WHEN** `develop` declares `0.1.8-dev` and stable `0.1.8` is selected
+- **THEN** release preparation SHALL add the reviewable `0.1.8` note without committing `0.1.8` as the package version
+
 #### Scenario: A release is prepared but not yet tagged
-- **WHEN** `develop` declares a stable version, a state no release automation produces any more
+- **WHEN** `develop` declares a stable version, a state release automation does not produce
 - **THEN** development and stable publication SHALL both refuse it until a version-only pull request restores an open prerelease
 
 #### Scenario: A release reopens development
-- **WHEN** stable `0.1.8` is verified on the registry from a `develop` declaring `0.1.8-dev`
+- **WHEN** stable `0.1.8` is verified on the registry from a reviewed `develop` source declaring `0.1.8-dev`
 - **THEN** the maintainer command SHALL prepare one version-only pull request declaring `0.1.9-dev` from the then-current `develop`, which SHALL still declare `0.1.8-dev`, and SHALL report development reopened only after a human merges it
 
 ### Requirement: A stable release is not visible until npm has it
@@ -598,18 +632,29 @@ For released `x.y.z`, the reopening target SHALL be `x.y.(z+1)-dev`. Reopening S
 - **AND** it SHALL not republish `0.1.8`, move its tag, or falsely report develop at `0.1.9-dev`
 
 ### Requirement: Maintainer release documentation matches the command
-The README release section, release runbook, and command help SHALL document `npm run release -- patch` with distinct prerelease and already-stable examples, retain accurate minor/major/exact-version examples, and explain both manual version-PR gates. They SHALL state that a target is required and SHALL NOT advertise a no-argument release mode. They SHALL state that `0.1.9-dev` follows confirmed `0.1.8` publication and manual reopening, not initial invocation. They SHALL not describe version PRs as self-merging. These documentation changes SHALL accompany the implemented behavior.
+
+The root README release section SHALL present concise, accurate `npm run release -- patch`, `minor`, `major`, and exact-version command examples and SHALL NOT be required to duplicate internal publication lifecycle or recovery prose. The release runbook and applicable command help SHALL explain the target-required rule, prerelease promotion, publication-before-reopening order, next-development version, manual version-PR gate, and safe recovery. They SHALL NOT advertise a no-argument release mode or describe version PRs as self-merging.
+
+A dependency-free semantic governance check SHALL validate the applicable contract whenever the root README or release runbook changes, including documentation-only pull requests eligible for automatic integration. It SHALL reject malformed or resolver-inaccurate command examples and missing runbook safety gates before stable publication. Unrelated documentation changes SHALL not gain product builds or broad product tests solely for this contract.
 
 #### Scenario: Follow the README example
-- **WHEN** a maintainer reads the release instructions for a checkout declaring `0.1.8-dev`
-- **THEN** the primary example SHALL be `npm run release -- patch` selecting stable `0.1.8`
-- **AND** a separate example SHALL show the same command selecting `0.1.9` only when its input is already-stable `0.1.8`
-- **AND** the instructions SHALL identify manual merge requirements and publication-before-reopening order
+
+- **WHEN** a maintainer reads the root README release section
+- **THEN** `patch`, `minor`, `major`, and exact-version examples SHALL resolve to the documented stable targets
+- **AND** the README MAY omit internal reopening and recovery prose
 
 #### Scenario: Read recovery guidance
-- **WHEN** a release stops before publication or after publication but before reopening
-- **THEN** the runbook SHALL distinguish those phases and their safe inspection/recovery steps
+
+- **WHEN** a maintainer needs target, publication, reopening, or recovery behavior
+- **THEN** the runbook and applicable command help SHALL state that a target is required and distinguish prerelease promotion from an already-stable input
+- **AND** the runbook SHALL state that next-development reopening follows confirmed publication and requires manual merge
 - **AND** it SHALL not recommend republishing an existing stable version or using `patch` from stable develop to retry the same release
+
+#### Scenario: Documentation-only release commands drift
+
+- **WHEN** a documentation-only pull request changes the root release examples or release runbook
+- **THEN** lightweight semantic governance SHALL validate the changed contract before automatic integration
+- **AND** inaccurate examples or missing operator safety gates SHALL fail without scheduling broad product tests
 
 ### Requirement: Independent development partitions do not serialize feedback
 Development validation SHALL schedule the mandatory PR core and each selected integration partition independently after its actual prerequisites. Resource-sensitive files selected by ownership SHALL remain non-file-parallel on an isolated runner, with the same authoritative membership and the same explicit hang bound used by complete validation. No selected test SHALL be duplicated between partitions on the same platform/runtime merely because job boundaries changed. Cross-platform and cross-runtime executions SHALL remain distinct evidence where selected.
@@ -896,9 +941,9 @@ The publication workflow final result job SHALL, when the selected outcome was n
 - **THEN** the command output and result summary SHALL be unchanged apart from the earlier run URL line
 
 ### Requirement: A failed nightly regression proposes its fix
-When a `Full regression` run on `develop` or a scheduled `Release` validation completes with a failure, one trusted workflow SHALL open or refresh a draft pull request against `develop` whose body carries the failure evidence: the failed owners per platform and Node lane, the test files those owners retain, a bounded excerpt of the failing test output, the `develop` commits since the last successful run of the same workflow, and a link to the failed run. The pull request SHALL start from the failed head, SHALL contain only an OpenSpec change scaffold for the fix, and SHALL follow the ordinary implementation-bound delivery rules from there. The generated scaffold SHALL include bounded machine-readable source provenance naming the workflow, run, event, conclusion, source head, and candidate identity.
+When a `Full regression` run on `develop` or a scheduled `Publish` validation completes with a failure, one trusted workflow SHALL open or refresh a draft pull request against `develop` whose body carries the failure evidence: the failed owners per platform and Node lane, the test files those owners retain, a bounded excerpt of the failing test output, the `develop` commits since the last successful run of the same workflow, and a link to the failed run. The pull request SHALL start from the failed head, SHALL contain only an OpenSpec change scaffold for the fix, and SHALL follow the ordinary implementation-bound delivery rules from there. The generated scaffold SHALL include bounded machine-readable source provenance naming the workflow, run, event, conclusion, source head, and candidate identity.
 
-After implementation, a repair candidate created from a failed Full regression SHALL receive complete regression inside its PR workflow and SHALL be handed off only after that complete suite and the other required checks succeed on the final candidate head. A repair created only from a scheduled Release failure SHALL retain ordinary selected PR validation and the release pipeline's independent complete validation, but SHALL NOT select PR-attached Full regression solely because it is a triage candidate. A separate manual dispatch SHALL NOT be required in addition to successful selected PR-attached complete regression. Pre-finalization investigation evidence MAY remain in design.md, while final-head run identity and outcomes SHALL be bound through PR checks, Actions artifacts, and the handoff without a self-invalidating evidence-only commit.
+After implementation, a repair candidate created from a failed Full regression SHALL receive complete regression inside its PR workflow and SHALL be handed off only after that complete suite and the other required checks succeed on the final candidate head. A repair created only from a scheduled Publish failure SHALL retain ordinary selected PR validation and the publication pipeline's independent complete validation, but SHALL NOT select PR-attached Full regression solely because it is a triage candidate. A separate manual dispatch SHALL NOT be required in addition to successful selected PR-attached complete regression. Pre-finalization investigation evidence MAY remain in design.md, while final-head run identity and outcomes SHALL be bound through PR checks, Actions artifacts, and the handoff without a self-invalidating evidence-only commit.
 
 A run on any other branch, including manually dispatched or PR-attached Full regression on a fix candidate, SHALL open or refresh nothing. The same trusted triage workflow SHALL continue to evaluate every eligible completed `develop` run, failed or not, for a persistent startup-budget overrun from that run and the two previous completed runs of the same workflow; a persistent overrun SHALL be proposed as a failure of `package-startup` with the three measurements per lane, profile, and launch kind under its own candidate key, while a single overrun SHALL be recorded in the triage report and summary only. The proposal SHALL NOT re-run validation, edit `develop`, mark the pull request ready, merge, or change the nightly failure's own visibility or publication authority.
 
@@ -916,11 +961,11 @@ A run on any other branch, including manually dispatched or PR-attached Full reg
 - **THEN** the evidence SHALL name the failed job and its bounded final log lines and SHALL record the owner set as an orchestration failure
 
 #### Scenario: Scheduled publication fails
-- **WHEN** a scheduled Release run creates a repair candidate
+- **WHEN** a scheduled Publish run creates a repair candidate
 - **THEN** that candidate SHALL retain ordinary selected PR validation without PR-attached Full regression unless valid failed-Full-regression provenance is later added by trusted triage
 
 #### Scenario: Manual publication fails
-- **WHEN** a manually dispatched Release run fails
+- **WHEN** a manually dispatched Publish run fails
 - **THEN** no triage pull request SHALL be opened or refreshed
 
 #### Scenario: The fix is proven before hand-off
@@ -1082,3 +1127,151 @@ Manual Development dispatch, scheduled/manual Full regression, release validatio
 - **WHEN** trusted readiness cannot read valid current pull-request metadata for the event head
 - **THEN** readiness SHALL fail visibly without executing pull-request test suites
 - **AND** the protected aggregate SHALL remain unavailable rather than trusting stale event metadata
+
+### Requirement: The native terminal host is validated in CI rather than on workstations
+Development validation SHALL own `native/terminal-host/**`, its run scripts and its provenance check through a deterministic pull-request-cadence validation owner. When the impact classifier selects that owner, CI SHALL build the crate on Windows x64 with pinned Rust and Zig toolchains, run its unit tests and non-interactive probes, and upload the built debug executable as a short-lived artifact. The owner's result SHALL participate in the protected development check. Changes that touch none of the owned paths SHALL NOT run the job. Until the crate builds on every complete-regression lane, its scope SHALL be excluded from `full-release`, so nightly Full regression and release gates SHALL NOT build it.
+
+The crate's build script SHALL refuse to build on a Windows host outside CI unless the explicit `TERMINAL_HOST_LOCAL_BUILD=1` override is set. It SHALL fail before invoking Zig or fetching Zig packages, with a concise message naming the CI job and the override.
+
+#### Scenario: A pull request changes the terminal host
+- **WHEN** a pull request changes a file under `native/terminal-host/`
+- **THEN** impact classification SHALL select the terminal-host owner
+- **AND** CI SHALL build, unit-test and probe the crate on Windows x64
+- **AND** the built executable SHALL be available as a workflow artifact
+- **AND** a build, test or probe failure SHALL fail the protected development check
+
+#### Scenario: A pull request does not touch the terminal host
+- **WHEN** a pull request changes no terminal-host-owned path
+- **THEN** the terminal-host job SHALL be reported as not selected and SHALL NOT build the crate
+
+#### Scenario: A developer builds the crate locally on Windows
+- **WHEN** `cargo test`, `cargo build` or `npm run test:terminal-host` runs on a Windows host without `CI` and without `TERMINAL_HOST_LOCAL_BUILD=1`
+- **THEN** the build SHALL fail before invoking Zig
+- **AND** the message SHALL name the CI job and the override
+- **AND** no Zig package-cache entries SHALL be created by that attempt
+
+#### Scenario: A developer explicitly overrides the guard
+- **WHEN** the same build runs with `TERMINAL_HOST_LOCAL_BUILD=1`
+- **THEN** the build SHALL proceed as it does in CI
+
+### Requirement: Allowed prerequisite skips do not suppress required publication outcomes
+A publication job that intentionally permits an upstream prerequisite to be skipped SHALL evaluate every subsequent required job explicitly. Post-publication smoke SHALL run only when its selected work requires publication and its direct plan, package, and publish dependencies all succeeded. Release completion SHALL run only when its direct plan, package, publish, and post-publication dependencies all succeeded. Both jobs SHALL evaluate their explicit predicates despite allowed transitive skips and SHALL remain ineligible after a failed, cancelled, or skipped direct prerequisite. The aggregate SHALL continue to reject missing or skipped post-publication smoke and completion whenever publication work was required.
+
+#### Scenario: Development documentation review is intentionally skipped
+- **WHEN** development publication skips its stable/nightly-only documentation review but package validation and registry publication succeed
+- **THEN** the selected Windows, Linux, and macOS published-pair smoke lanes SHALL execute
+- **AND** completion and the publication aggregate SHALL require those lanes to succeed
+
+#### Scenario: A direct publication dependency fails
+- **WHEN** package acquisition, publication, or required published-pair smoke fails, is cancelled, or is skipped unexpectedly
+- **THEN** the next dependent publication job SHALL remain ineligible
+- **AND** the aggregate SHALL fail rather than reinterpret the missing outcome as an allowed skip
+
+### Requirement: Published-pair jobs use a repository-standard resolvable action pin
+Every checkout in the release workflow SHALL use the same repository-established immutable action commit unless a separately reviewed coordinated upgrade changes all intended release references. A published-pair job SHALL fail policy validation before merge when it introduces a one-off checkout reference, even if that reference has the syntactic shape of a commit hash.
+
+#### Scenario: A post-publication checkout contains a nonexistent one-off commit
+- **WHEN** the published-pair job references a forty-character commit that differs from the established release-workflow checkout pin
+- **THEN** focused workflow policy SHALL reject the candidate before publication
+- **AND** no native installation lane SHALL depend on that unverified reference
+
+#### Scenario: Published-pair installation begins
+- **WHEN** publication and registry verification succeed for a newly numbered candidate
+- **THEN** each selected native published-pair job SHALL resolve its immutable checkout action and execute the installation smoke steps
+
+### Requirement: Published-pair lanes expose their native identity
+Every post-publication native installation job SHALL display the selected platform and Node runtime from fields provided by the authoritative release matrix. A missing or invented matrix field SHALL NOT reduce the job name to an ambiguous empty label. Display identity SHALL NOT change runner selection, matrix breadth, artifact identity, or aggregate requirements.
+
+#### Scenario: A native published-pair lane is inspected
+- **WHEN** the release matrix expands a post-publication installation job
+- **THEN** its Actions job name SHALL identify the selected platform and Node runtime
+- **AND** a failure SHALL be attributable to its native lane without inspecting runner metadata through the API
+
+### Requirement: Published-pair smoke uses the accepted installer target grammar
+
+Post-publication native installation smoke SHALL invoke the published installer through the public target grammar accepted by that same package. A develop candidate SHALL use `--develop <exact-preview-version>` so the immutable registry-verified application version remains explicit. A release candidate SHALL use bare invocation. The harness SHALL NOT use removed `--version`, `--latest`, or `--next` target options, and focused pull-request policy SHALL reject those stale forms before another candidate is published.
+
+#### Scenario: A develop published pair is exercised
+
+- **WHEN** the registry serves a verified develop application/installer pair at `0.2.1-dev.605`
+- **THEN** every selected native smoke lane SHALL invoke the installer with `--develop 0.2.1-dev.605`
+- **AND** the installed manifest SHALL still be required to equal that exact version
+
+#### Scenario: A release published pair is exercised
+
+- **WHEN** the registry serves a verified release application/installer pair
+- **THEN** every selected native smoke lane SHALL invoke the installer without a target selector
+
+#### Scenario: Release smoke drifts to a removed target option
+
+- **WHEN** the published-installer harness uses `--version`, `--latest`, or `--next` as an application target option
+- **THEN** focused repository policy SHALL reject the candidate before publication
+
+### Requirement: Complete native validation distinguishes semantic failure from bounded fixture release
+
+Native complete-validation fixtures SHALL derive expected filesystem identities through the same platform filesystem semantics as the production contract when canonical identity is behaviorally required. A lexical session path MAY remain distinct where the product intentionally presents it, but tests SHALL NOT treat native aliases such as macOS `/var` and `/private/var` as different trust identities.
+
+After a fixture has awaited all owned runtime and adapter disposal, test-only removal MAY retry operating-system transient `EBUSY`, `EPERM`, or equivalent recursive-removal release conditions within a fixed bound. It SHALL NOT retry the test body, semantic assertions, application operation, or process lifecycle. Exhausting the cleanup bound SHALL remain a failed test with the fixture path available in the error.
+
+#### Scenario: macOS exposes a temporary-directory alias
+
+- **WHEN** a trust fixture receives lexical `/var` but the filesystem resolves the project under `/private/var`
+- **THEN** expected trust options and persisted identities SHALL use the canonical project and parent paths
+- **AND** an intentionally lexical prompt heading SHALL remain lexical
+
+#### Scenario: Windows briefly retains a disposed fixture path
+
+- **WHEN** all runtime owners have completed disposal but recursive temporary-root removal receives a transient filesystem lock
+- **THEN** test-only cleanup MAY retry removal within its fixed bound
+- **AND** a persistent lock after the bound SHALL fail validation
+
+#### Scenario: A semantic runtime assertion fails
+
+- **WHEN** session resumability, extension preservation, disposal, or another runtime assertion fails
+- **THEN** cleanup retry behavior SHALL NOT rerun or convert that assertion into success
+
+### Requirement: Stable release notes are generated, editable, and manually accepted before publication
+The release command SHALL resolve the previous verified stable release as an ancestor
+of current authoritative `origin/develop`, enumerate the uniquely associated merged
+pull requests in that range, and deterministically generate one user-facing draft at
+`docs/releases/<target>.md`. The draft SHALL identify the exact stable target and
+SHALL render escaped linked pull-request titles in stable order under user-facing
+feature, fix, other-change, and breaking-change groups as applicable. Release
+housekeeping SHALL not be presented as a product change. Missing, ambiguous, stale,
+or non-ancestral evidence SHALL stop before branch, pull-request, or publication
+mutation.
+
+The command SHALL publish that draft in one same-repository release-review pull
+request targeting `develop`. The note SHALL be ordinary committed Markdown that a
+maintainer may revise before merge. While waiting, the command SHALL follow the live
+PR head and SHALL continuously require the expected repository, base, release
+identity, allowed changed paths, valid note, absence of auto-merge, and an open or
+verified merged state. PR creation and CI success SHALL grant no publication
+authority. Only an authorized human's manual merge of the valid candidate SHALL
+permit the explicit stable dispatch, and the exact merge SHALL still be current
+`origin/develop`. A changed source SHALL require a fresh review candidate rather than
+silently publishing additional work.
+
+#### Scenario: Prepare a stable release
+- **WHEN** the maintainer selects stable `0.1.8` from current reviewed history after the previous stable ancestor
+- **THEN** the command SHALL open a release-review PR containing generated `docs/releases/0.1.8.md` and SHALL stop publication at the manual-review gate
+
+#### Scenario: Edit generated wording
+- **WHEN** the maintainer changes headings or prose in the committed target note while the PR retains its valid identity and allowed diff
+- **THEN** the command SHALL revalidate the live head and SHALL use the merged edited Markdown as the package and GitHub Release content
+
+#### Scenario: CI succeeds without manual merge
+- **WHEN** the release-review PR is green but remains open, is auto-merged, or is closed without an authorized human manual merge
+- **THEN** stable publication SHALL remain forbidden and the command SHALL report the incomplete or invalid gate
+
+#### Scenario: The candidate changes outside release-note paths
+- **WHEN** the release-review PR adds an unsupported file, changes its target identity, points at another base, comes from a fork, or arms auto-merge
+- **THEN** the command SHALL reject it without overwriting the branch or dispatching publication
+
+#### Scenario: Develop advances after review
+- **WHEN** another change becomes authoritative `develop` before the reviewed merge can be dispatched
+- **THEN** the command SHALL refuse to publish the newer source under the prior review and SHALL require a fresh candidate that covers the new range
+
+#### Scenario: Publication succeeds
+- **WHEN** the manually reviewed merge is still authoritative and exact stable publication succeeds
+- **THEN** the package and GitHub Release SHALL contain its reviewed target note, and the command SHALL proceed to the separate manually merged next-development PR
