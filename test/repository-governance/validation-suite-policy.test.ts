@@ -120,6 +120,7 @@ describe("validation suite ownership", () => {
       "test/repository-governance/naming-selection.test.ts",
       "test/repository-governance/pr-full-regression-history.test.ts",
       "test/foundation/launch-context/cutover.test.ts",
+      "test/foundation/lifecycle/session-repository-context.test.ts",
       "test/foundation/supervision/foreground-terminal-lease.test.ts",
       "test/repository-governance/code-documentation.test.ts",
       "test/repository-governance/local-cleanup.test.ts",
@@ -136,6 +137,7 @@ describe("validation suite ownership", () => {
       "test/app/session-shell/clipboard-executor-lifecycle.test.ts",
       "test/app/session-shell/clipboard-packaged.test.ts",
       "test/integrations/pi/components/editor-text-paste.test.ts",
+      "test/integrations/pi/engine/compaction-progress.integration.test.ts",
       "test/app/session-shell/prompt-history-controller.test.ts",
       "test/foundation/release/update-activation.test.ts",
     ]);

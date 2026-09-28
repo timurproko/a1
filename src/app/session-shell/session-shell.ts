@@ -170,6 +170,8 @@ export class OwnedUiSessionShell {
   #dialogId: string | undefined;
   #dialogSource: "route" | "local" | "backend" | undefined;
   readonly #routeHost: UiRouteHost | null;
+  #startupRoute: NonNullable<OwnedUiSessionShellOptions["engine"]["startupRoute"]> | undefined;
+  #startupRouteTimer: ReturnType<typeof setTimeout> | undefined;
   #dialogHandle: PiTuiOverlayHandle | undefined;
   #sequence = 0;
   #editorRevision = 0;
@@ -179,7 +181,6 @@ export class OwnedUiSessionShell {
   #disposePromise: Promise<void> | undefined;
   #pointerReporting = false;
   // Invariant: translated startup diagnostics create at most one dock notice per kind per shell.
-  #startupChangelogHandled = false;
   #startupTrustHandled = false;
   readonly #customViewport: boolean;
   readonly #responseCopy: ResponseCopyCoordinator | null;
@@ -219,6 +220,7 @@ export class OwnedUiSessionShell {
     this.#suggestionModelKey = modelKey(this.backend.view());
     this.#cwd = cwd;
     this.#routeHost = routeHost ?? null;
+    this.#startupRoute = options.engine.startupRoute;
     this.#customViewport = sessionLayout === "custom-viewport";
     this.#stopped = new Promise(resolve => {
       this.#resolveStopped = resolve;
@@ -682,6 +684,7 @@ export class OwnedUiSessionShell {
     // Performance: the spare clipboard helpers fork after the first frame is out, so startup never waits on them.
     setImmediate(() => {
       if (this.#disposed || !this.#customViewport) return;
+      this.#presentStartupRoute();
       this.root.warmPastePreparation();
       this.#copyExecutor?.warm();
     });
@@ -1675,6 +1678,10 @@ export class OwnedUiSessionShell {
     attempt(() => this.#setPointerReporting(false, true));
     attempt(() => this.#removeViewportPreInput());
     attempt(() => this.#streamPresentation.dispose());
+    attempt(() => {
+      if (this.#startupRouteTimer !== undefined) clearTimeout(this.#startupRouteTimer);
+      this.#startupRouteTimer = undefined;
+    });
     attempt(() => this.#promptSuggestions?.dispose());
     attempt(() => this.#unsubscribePromptSuggestions());
     attempt(() => this.#unsubscribeSkills());
@@ -1819,23 +1826,10 @@ export class OwnedUiSessionShell {
     }
     this.root.update(view);
     this.#syncDialog(view.dialog);
-    this.#presentStartupChangelog(view);
     this.#presentStartupTrustWarning(view);
     this.runtime.requestRender();
     for (const listener of this.#listeners) listener(view);
     return view;
-  }
-
-  // Rationale: release details stay one explicit command away; startup needs only the same quiet,
-  // non-transcript acknowledgement that bare A1 uses for model and thinking changes.
-  #presentStartupChangelog(view: OwnedUiSessionViewModel): void {
-    if (this.#startupChangelogHandled || !this.#customViewport) return;
-    const diagnostic = view.diagnostics.find(candidate =>
-      candidate.code === "changelog-collapsed" || candidate.code === "changelog-expanded");
-    // Invariant: a view synchronized before the runtime starts is not the moment of arrival; start() replays it.
-    if (diagnostic === undefined || !this.runtime.active) return;
-    this.#startupChangelogHandled = true;
-    this.root.appendWorkflowStatus(STARTUP_CHANGELOG_NOTICE);
   }
 
   // Rationale: a cancelled or failed trust choice explains the restricted session where the
@@ -1848,7 +1842,22 @@ export class OwnedUiSessionShell {
     this.root.appendWorkflowMessage({ kind: "warning", message: diagnostic.message });
   }
 
-  #openOwnedRoute(route: string, input?: UiRouteInput): AdapterCommandResult {
+  #presentStartupRoute(): void {
+    const pending = this.#startupRoute;
+    if (pending === undefined || this.#disposed || !this.runtime.active) return;
+    if (this.runtime.hasOverlay() || !this.root.usesDefaultInputSurface()) {
+      this.#startupRouteTimer = setTimeout(() => {
+        this.#startupRouteTimer = undefined;
+        this.#presentStartupRoute();
+      }, 25);
+      this.#startupRouteTimer.unref?.();
+      return;
+    }
+    this.#startupRoute = undefined;
+    this.#openOwnedRoute(pending.route, pending.input, pending.onClosed);
+  }
+
+  #openOwnedRoute(route: string, input?: UiRouteInput, onClosed?: () => void | Promise<void>): AdapterCommandResult {
     const surface = this.#routeHost?.open(route, input) ?? null;
     if (surface === null) return { outcome: "failed", diagnostic: `route is unavailable: ${route}` };
     if (!this.runtime.active) return { outcome: "failed", diagnostic: "runtime is not active" };
@@ -1878,7 +1887,11 @@ export class OwnedUiSessionShell {
       return { consume: true };
     });
     let removeSurfacePreInput = () => {};
+    let rendered = false;
+    let closed = false;
     const closeSurface = () => {
+      if (closed) return;
+      closed = true;
       removeSurfacePreInput();
       removeInterruptWatch();
       this.#setPointerReporting(false);
@@ -1886,6 +1899,9 @@ export class OwnedUiSessionShell {
       this.#dialogHandle = undefined;
       this.#dialogId = undefined;
       this.#dialogSource = undefined;
+      if (rendered) {
+        try { void onClosed?.()?.catch(() => undefined); } catch { /* Rationale: a failed acknowledgement stays pending. */ }
+      }
     };
     // Compatibility: fullscreen Pi owns a fallback text-selection layer before focused overlay
     // components see pointer input. Route every mouse report to the owned screen
@@ -1901,7 +1917,11 @@ export class OwnedUiSessionShell {
     });
     const rows = () => Math.max(1, this.runtime.viewport().rows);
     const component: PiShellComponentPort = {
-      render: (width: number) => [...surface.render(Math.max(1, width), rows())],
+      render: (width: number) => {
+        const frame = [...surface.render(Math.max(1, width), rows())];
+        rendered = true;
+        return frame;
+      },
       handleInput: (data: string) => {
         const { events, rest } = parseMouseInput(data);
         for (const event of events) surface.handleMouse(event);
@@ -2264,7 +2284,6 @@ function workflowAdapterResult(result: PiWorkflowResult): AdapterCommandResult {
 const INTERRUPT = "\u0003";
 const INTERRUPT_CHORD_MS = 1_500;
 const RELOAD_SURFACE_MIN_VISIBLE_MS = 400;
-const STARTUP_CHANGELOG_NOTICE = "Run /changelog to view the full release notes.";
 // Rationale: the outro is not configurable; the switch only decides whether this plan plays.
 const QUIT_OUTRO_EFFECT: QuitOutroEffect = "fall";
 const QUIT_OUTRO_DURATION_MS = 800;

@@ -23,6 +23,8 @@ Budgets are minimum defaults, not promises of capacity. An implementation may lo
 | Scrollback per pane | Host-defined, always bounded | Compact from oldest data first without cross-pane mutation |
 | Proof evidence file | 16 MiB | Reject and request summarized evidence |
 | Diagnostic payload | 256 KiB | Redact, truncate, and retain enough evidence for the failed operation |
+| Packaged release-note resource | 1 MiB total; 128 KiB per note | Reject the damaged resource and retain the note as unacknowledged |
+| Release-note acknowledgement/claim | 4 KiB per profile; one claim; one-hour stale bound | Ignore malformed acknowledgement, recover stale claim, and never acknowledge implicitly |
 
 Every asynchronous consumer must implement a finite queue or window. Backpressure must isolate the offending agent/pane and must not block unrelated identities.
 
@@ -31,6 +33,7 @@ Every asynchronous consumer must implement a finite queue or window. Backpressur
 | Class | Examples | Storage policy |
 |---|---|---|
 | Workspace metadata | IDs, names, lifecycle, capability versions, topology revisions, recovery references | May persist in the control store |
+| Release-note state | Last acknowledged stable A1 version and opaque bounded claim token/time | May persist atomically in profile-isolated A1 configuration; never stores note text or Pi settings |
 | Structured payloads | Messages, tool calls, snapshots, attachments | Bound and process; arbitrary payload persistence remains unsupported |
 | User-authored prompt recall | Canonical interactive input and bounded provenance | May persist only through the profile-isolated prompt-history policy below, never in the control store |
 | Terminal content | PTY bytes, scrollback, selection, rendered cells | Never persist in A1's control store or diagnostics |

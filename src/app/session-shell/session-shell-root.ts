@@ -12,7 +12,7 @@ import type {
   SuggestionDiagnosticObserver,
 } from "../../contracts/owned-ui/index.js";
 import type { PiTuiPointerSurface } from "../../integrations/pi/tui-runtime/contracts.js";
-import type { UiRouteHost } from "../../ui/apps/contracts.js";
+import type { UiRouteHost, UiRouteInput } from "../../ui/apps/contracts.js";
 import { caretCell } from "../../ui/components/line-input.js";
 import { PromptInput, promptArrow } from "../../ui/components/prompt-input.js";
 import {
@@ -161,6 +161,12 @@ export interface OwnedUiShellEngineOptions {
    * every other route continues to the pinned workflow table unchanged.
    */
   readonly routeHost?: UiRouteHost;
+  /** One product-owned route presented after the first usable frame and any startup modal. */
+  readonly startupRoute?: {
+    readonly route: string;
+    readonly input?: UiRouteInput;
+    readonly onClosed?: () => void | Promise<void>;
+  };
   /** Bare A1 selects the owned bounded viewport; comparison profiles stay pinned. */
   readonly sessionLayout?: "pinned" | "custom-viewport";
 }

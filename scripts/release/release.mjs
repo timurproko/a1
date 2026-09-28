@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /**
  * Cut an explicitly selected stable release from the open development source.
  * npm run release -- patch promotes 0.1.8-dev to 0.1.8 without committing that version.

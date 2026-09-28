@@ -116,7 +116,6 @@ jobs:
           persist-credentials: false
 
       - name: Resolve the merged pull request through GitHub
-        if: needs.source.outputs.mode != 'stable'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -135,7 +134,9 @@ jobs:
         run: |
           set -euo pipefail
           node --input-type=module <<'NODE' >> "$GITHUB_OUTPUT"
+          import { execFileSync } from "node:child_process";
           import { readFile } from "node:fs/promises";
+          import { parseReleaseNote } from "./scripts/release/release-notes.mjs";
           const manifest = JSON.parse(await readFile("package.json", "utf8"));
           const installerManifest = JSON.parse(await readFile("packages/a1-install/package.json", "utf8"));
           const declared = manifest.version;
@@ -150,16 +151,26 @@ jobs:
           let version;
           let pullRequest = "";
           let channel;
+          const pulls = JSON.parse(await readFile(process.env.PULLS_PATH, "utf8"));
+          const matches = pulls.filter(pull => pull?.merged_at && pull?.base?.ref === "develop" && pull?.merge_commit_sha === process.env.SOURCE_SHA);
           if (process.env.MODE === "stable") {
             // Rationale: the stable version is stamped on the open development source at pack
             // time rather than committed, so the request names it and it must not go backwards.
             version = process.env.REQUESTED_VERSION;
             if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error(`stable publication requires an explicit final version, not ${version}`);
             if (!notBelow(core(version), core(base))) throw new Error(`stable version ${version} is below the open development version ${declared}`);
+            const reviewBranch = new RegExp(`^chore/release-${version.replaceAll(".", "\\.")}(?:-[a-f0-9]{12})?$`, "u");
+            if (matches.length !== 1 || !reviewBranch.test(matches[0]?.head?.ref ?? "") || matches[0]?.head?.repo?.full_name !== process.env.GITHUB_REPOSITORY
+              || matches[0]?.auto_merge !== null || matches[0]?.merged_by?.type !== "User") {
+              throw new Error("stable source is not an authorized manually merged release-review PR");
+            }
+            const notePath = `docs/releases/${version}.md`;
+            const parent = execFileSync("git", ["rev-parse", `${process.env.SOURCE_SHA}^`], { encoding: "utf8" }).trim();
+            const changed = execFileSync("git", ["diff", "--name-only", parent, process.env.SOURCE_SHA], { encoding: "utf8" }).trim().split("\n").filter(Boolean);
+            if (changed.length !== 1 || changed[0] !== notePath) throw new Error("stable release-review merge changed unsupported paths");
+            parseReleaseNote(await readFile(notePath, "utf8"), version);
             channel = "latest";
           } else {
-            const pulls = JSON.parse(await readFile(process.env.PULLS_PATH, "utf8"));
-            const matches = pulls.filter(pull => pull?.merged_at && pull?.base?.ref === "develop" && pull?.merge_commit_sha === process.env.SOURCE_SHA);
             if (matches.length !== 1 || !Number.isInteger(matches[0]?.number) || matches[0].number < 1) {
               throw new Error(`selected develop commit has ${matches.length} unique merged pull request associations; expected exactly one`);
             }
@@ -779,6 +790,12 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: Check out the published source for reviewed release notes
+        if: needs.plan.outputs.channel == 'latest'
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ needs.plan.outputs.source }}
+          persist-credentials: false
       - name: Download the immutable application artifact
         if: needs.plan.outputs.channel == 'latest'
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
@@ -816,7 +833,7 @@ jobs:
           RELEASE_VERSION: ${{ needs.plan.outputs.version }}
         run: |
           tag="v${RELEASE_VERSION}"
-          gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || gh release create "$tag" --repo "$GITHUB_REPOSITORY" --verify-tag --latest --title "$tag" --notes "Published to npm latest from ${{ needs.plan.outputs.source }}." "$release_tarball"
+          gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || gh release create "$tag" --repo "$GITHUB_REPOSITORY" --verify-tag --latest --title "$tag" --notes-file "docs/releases/${RELEASE_VERSION}.md" "$release_tarball"
       - name: Move master to the published release
         if: needs.plan.outputs.channel == 'latest'
         shell: bash

@@ -14,6 +14,7 @@ export interface FakeReleasePull {
   baseRefName: string;
   isCrossRepository: boolean;
   mergeCommit: { oid: string } | null;
+  mergedBy: { login: string; __typename: "User" | "Bot" } | null;
   autoMergeRequest: unknown;
 }
 
@@ -63,6 +64,8 @@ export async function releaseFixture(version = "0.1.8-dev", trace?: NativeRegres
   await writeFile(join(cwd, "unrelated.txt"), "keep this\n");
   git(["add", "."]); git(["commit", "-m", "fixture initial"]); git(["push", "-u", "origin", "develop"]);
   const initialHead = git(["rev-parse", "HEAD"]);
+  git(["tag", "v0.1.7", initialHead]);
+  git(["push", "origin", "refs/tags/v0.1.7"]);
   role = "assertion";
   const logs: string[] = [];
   const errors: string[] = [];
@@ -73,13 +76,14 @@ export async function releaseFixture(version = "0.1.8-dev", trace?: NativeRegres
   const phaseDirectories: string[] = [];
   const publications: Array<{ source: string; version: string }> = [];
   let clock = 0;
+  let releaseChanges: (base: string, source: string) => Promise<readonly { number: number; title: string; url: string }[]> = async () => [];
   let registry: (name: string, version: string) => unknown | Promise<unknown> = () => null;
   let publish: (source: string, version: string) => unknown | Promise<unknown> = () => undefined;
   let wait: () => void | Promise<void> = () => { manualMerge(); };
   let onCreate: (pull: FakeReleasePull) => void = () => {};
   let onQuery: (pull: FakeReleasePull) => void = () => {};
 
-  function manualMerge(pull = pulls.find(candidate => candidate.state === "OPEN")) {
+  function manualMerge(pull = pulls.findLast(candidate => candidate.state === "OPEN")) {
     if (!pull) throw new Error("fixture has no open PR");
     return withRole("manual", () => {
     const base = git(["rev-parse", "refs/heads/develop"], remote);
@@ -88,6 +92,7 @@ export async function releaseFixture(version = "0.1.8-dev", trace?: NativeRegres
     git(["update-ref", "refs/heads/develop", sha, base], remote);
     pull.state = "MERGED";
     pull.mergeCommit = { oid: sha };
+    pull.mergedBy = { login: "release-fixture", __typename: "User" };
     events.push(`manual-merge:${pull.headRefName}`);
     return sha;
     });
@@ -108,7 +113,7 @@ export async function releaseFixture(version = "0.1.8-dev", trace?: NativeRegres
         const branch = args[args.indexOf("--head") + 1]!;
         const pull: FakeReleasePull = { number: pulls.length + 1, url: `https://example.test/pull/${pulls.length + 1}`,
           state: "OPEN", headRefName: branch, headRefOid: git(["rev-parse", `refs/heads/${branch}`], remote),
-          baseRefName: "develop", isCrossRepository: false, mergeCommit: null, autoMergeRequest: null };
+          baseRefName: "develop", isCrossRepository: false, mergeCommit: null, mergedBy: null, autoMergeRequest: null };
         pulls.push(pull); events.push(`pr-create:${branch}`); onCreate(pull);
         return pull.url;
       }
@@ -120,6 +125,7 @@ export async function releaseFixture(version = "0.1.8-dev", trace?: NativeRegres
       }
       throw new Error(`forbidden GitHub operation: ${args.join(" ")}`);
     },
+    releaseChanges: (base, source) => releaseChanges(base, source),
     registry: async (name, requested) => { events.push(`registry:${requested}`); return registry(name, requested); },
     publish: async (source, requested) => {
       events.push(`publish:${requested}`); publications.push({ source, version: requested });
@@ -132,11 +138,12 @@ export async function releaseFixture(version = "0.1.8-dev", trace?: NativeRegres
   return {
     directory, cwd, remote, git, runtime, initialHead, manifest, lock, installer, logs, errors, events, gitCalls, ghCalls,
     pulls, publications, phaseDirectories, manualMerge,
+    setReleaseChanges(fn: typeof releaseChanges) { releaseChanges = fn; },
     setRegistry(fn: typeof registry) { registry = fn; }, setPublish(fn: typeof publish) { publish = fn; },
     setWait(fn: typeof wait) { wait = fn; }, setCreate(fn: typeof onCreate) { onCreate = fn; }, setQuery(fn: typeof onQuery) { onQuery = fn; },
     addPull(branch: string, head: string): FakeReleasePull {
       const pull: FakeReleasePull = { number: pulls.length + 1, url: `https://example.test/pull/${pulls.length + 1}`,
-        state: "OPEN", headRefName: branch, headRefOid: head, baseRefName: "develop", isCrossRepository: false, mergeCommit: null, autoMergeRequest: null };
+        state: "OPEN", headRefName: branch, headRefOid: head, baseRefName: "develop", isCrossRepository: false, mergeCommit: null, mergedBy: null, autoMergeRequest: null };
       pulls.push(pull);
       return pull;
     },

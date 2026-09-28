@@ -1,15 +1,13 @@
-import { VERSION, type AgentSessionRuntime } from "@earendil-works/pi-coding-agent";
+import type { AgentSessionRuntime } from "@earendil-works/pi-coding-agent";
 import { stripTerminalSequences } from "@earendil-works/pi-tui";
 import { describe, expect, it, vi } from "vitest";
 import { OwnedUiSessionShell } from "../../../src/app/session-shell/index.js";
-import type { OwnedUiSessionViewModel } from "../../../src/contracts/owned-ui/index.js";
 import { createPiEngineAdapter, type PiWorkflowHost } from "../../../src/integrations/pi/engine/index.js";
 import type { UiRouteHost, UiRouteInput, UiRouteSurface } from "../../../src/ui/apps/index.js";
 import { TestPresentationTerminal } from "../../features/owned-ui/neutral-port-doubles.js";
 import { Runtime } from "./session-shell-fixture.js";
 
 const ESC = "\u001b";
-const CHANGELOG_NOTICE = "Run /changelog to view the full release notes.";
 const NEW_ENTRIES = "## 0.85.1\n\n- **Reference screens** for the release notes";
 
 /** A route host that records every open and hands back a surface the test can close. */
@@ -69,6 +67,7 @@ async function shellFixture(options: {
   readonly lastVersion?: string;
   readonly collapsed?: boolean;
   readonly readChangelog?: PiWorkflowHost["readChangelog"];
+  readonly startupRoute?: { readonly route: string; readonly input?: UiRouteInput; readonly onClosed?: () => void | Promise<void> };
 }) {
   const engine = new Runtime([]);
   const stored = options.lastVersion === undefined ? null : withChangelog(engine, options.lastVersion, options.collapsed ?? false);
@@ -86,6 +85,7 @@ async function shellFixture(options: {
       backend: adapter,
       cwd: "D:/work",
       ...(routes === null ? {} : { routeHost: routes.host }),
+      ...(options.startupRoute === undefined ? {} : { startupRoute: options.startupRoute }),
       ...(options.customViewport ? { sessionLayout: "custom-viewport" as const } : {}),
     },
     presentation: { terminal, reload: { minVisibleMs: 0 } },
@@ -160,88 +160,53 @@ describe("bare A1 reference command screens", () => {
 });
 
 describe("bare A1 startup release notes", () => {
-  it("shows expanded release notes once as a transient dock notice without opening a screen", async () => {
-    const { shell, routes, stored, readChangelog, adapter, engine } = await shellFixture({ customViewport: true, lastVersion: "0.84.0" });
-    expect(readChangelog).toHaveBeenCalledWith("0.84.0");
-    expect(adapter.view().diagnostics).toContainEqual(expect.objectContaining({ code: "changelog-expanded", message: NEW_ENTRIES }));
-    expect(stored!.version).toBe(VERSION);
+  it("opens the packaged current note after the first frame and acknowledges only after a rendered close", async () => {
+    const closed = vi.fn();
+    const input = { document: "# A1 1.2.3\n\n- reviewed note\n" };
+    const { shell, routes, terminal } = await shellFixture({
+      customViewport: true,
+      startupRoute: { route: "changelog", input, onClosed: closed },
+    });
     shell.start();
     expect(routes!.opens).toEqual([]);
+    await new Promise(resolve => setTimeout(resolve, 10));
+    expect(routes!.opens).toEqual([{ route: "changelog", input }]);
+    expect(shell.runtime.hasOverlay()).toBe(true);
+    expect(closed).not.toHaveBeenCalled();
+    shell.runtime.renderNow();
+    terminal.input(ESC);
+    expect(closed).toHaveBeenCalledTimes(1);
     expect(shell.runtime.hasOverlay()).toBe(false);
-    let plain = feed(shell);
-    expect(plain).toContain(CHANGELOG_NOTICE);
-    expect(plain).not.toContain("What's New");
-    expect(plain).not.toContain("Reference screens");
-    expect(shell.root.exitTranscript(100)).toBe("");
-    expect(shell.root.viewportFrameDescriptor()?.nextDocumentRange.end).toBe(0);
-
-    const streamed = { role: "assistant", timestamp: 10, content: [{ type: "text", text: "streamed after startup" }] };
-    engine.session.emit({ type: "agent_start" });
-    engine.session.emit({ type: "message_start", message: streamed });
-    await adapter.flushEvents();
-    plain = feed(shell);
-    expect(plain.indexOf(CHANGELOG_NOTICE)).toBeGreaterThan(plain.indexOf("streamed after startup"));
-    expect(shell.root.exitTranscript(100)).not.toContain(CHANGELOG_NOTICE);
-
-    // Invariant: a retained diagnostic cannot recreate the changelog notice after a newer status replaces it.
-    shell.root.appendWorkflowStatus("Newer informational notice");
-    engine.session.emit({ type: "agent_end", messages: [streamed] });
-    await adapter.flushEvents();
-    plain = feed(shell);
-    expect(plain).toContain("Newer informational notice");
-    expect(plain).not.toContain(CHANGELOG_NOTICE);
-    expect(routes!.opens).toEqual([]);
-
-    engine.session.emit({ type: "message_start", message: { role: "user", timestamp: 11, content: [{ type: "text", text: "next prompt" }] } });
-    await adapter.flushEvents();
-    plain = feed(shell);
-    expect(plain).toContain("next prompt");
-    expect(plain).not.toContain("Newer informational notice");
-    expect(plain).not.toContain(CHANGELOG_NOTICE);
-    expect(stored!.version).toBe(VERSION);
+    expect(feed(shell)).not.toContain("Run /changelog to view the full release notes.");
     await shell.dispose();
   });
 
-  it("shows the same one-line transient notice when the changelog is collapsed", async () => {
-    const { shell, routes, adapter } = await shellFixture({ customViewport: true, lastVersion: "0.84.0", collapsed: true });
-    expect(adapter.view().diagnostics).toContainEqual(expect.objectContaining({ code: "changelog-collapsed" }));
-    shell.start();
-    expect(routes!.opens).toEqual([]);
-    expect(shell.runtime.hasOverlay()).toBe(false);
-    const plain = feed(shell);
-    expect(plain).toContain(CHANGELOG_NOTICE);
-    expect(plain).not.toContain("What's New");
-    expect(plain).not.toContain("Reference screens");
-    expect(shell.root.exitTranscript(100)).toBe("");
-    await shell.dispose();
-  });
-
-  it("keeps the transient notice behind an existing modal and leaves the full changelog on demand", async () => {
-    const { shell, routes, adapter, engine, terminal } = await shellFixture({ customViewport: true });
+  it("defers the startup note behind an existing safety modal", async () => {
+    const closed = vi.fn();
+    const { shell, routes, terminal } = await shellFixture({
+      customViewport: true,
+      startupRoute: { route: "changelog", onClosed: closed },
+    });
     shell.start();
     shell.showSelector("Choose", [{ id: "one", label: "One" }], () => {});
-    expect(shell.runtime.hasOverlay()).toBe(true);
-    const original = adapter.view.bind(adapter);
-    vi.spyOn(adapter, "view").mockImplementation((): OwnedUiSessionViewModel => {
-      const view = original();
-      return { ...view, diagnostics: [...view.diagnostics, { sequence: 900, code: "changelog-expanded", severity: "info", message: NEW_ENTRIES, recoverable: true }] };
-    });
-    engine.session.emit({ type: "agent_start" });
-    engine.session.emit({ type: "agent_end" });
-    await adapter.flushEvents();
+    await new Promise(resolve => setTimeout(resolve, 40));
     expect(routes!.opens).toEqual([]);
-    expect(feed(shell)).toContain(CHANGELOG_NOTICE);
-
     terminal.input(ESC);
-    expect(shell.runtime.hasOverlay()).toBe(false);
-    engine.session.emit({ type: "agent_start" });
-    engine.session.emit({ type: "agent_end" });
-    await adapter.flushEvents();
-    expect(routes!.opens).toEqual([]);
-    expect(feed(shell)).toContain(CHANGELOG_NOTICE);
-    // Rationale: the complete changelog remains one command away.
-    await shell.submit("/changelog");
+    await new Promise(resolve => setTimeout(resolve, 40));
     expect(routes!.opens).toEqual([{ route: "changelog", input: undefined }]);
+    shell.runtime.renderNow();
+    terminal.input(ESC);
+    expect(closed).toHaveBeenCalledTimes(1);
+    await shell.dispose();
+  });
+
+  it("does not acknowledge when the startup route cannot render", async () => {
+    const closed = vi.fn();
+    const { shell } = await shellFixture({ customViewport: true, routes: null, startupRoute: { route: "changelog", onClosed: closed } });
+    shell.start();
+    await new Promise(resolve => setTimeout(resolve, 10));
+    expect(closed).not.toHaveBeenCalled();
+    expect(shell.runtime.hasOverlay()).toBe(false);
     await shell.dispose();
   });
 

@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { SuggestionDiagnosticCapture } from "../features/prompt-suggestions/diagnostics.js";
 import { PRODUCT_IDENTITY } from "../product-identity.js";
 import { PromptHistoryService } from "../features/prompt-history/service.js";
@@ -20,7 +21,7 @@ import type { OwnedUiApplicationPort, PresentationTerminalPort } from "../contra
 import type { OwnedUiQuitOutroSettings, OwnedUiViewportSettings, OwnedUiViewportSettingsPort } from "../contracts/owned-ui/index.js";
 import { createOwnedRouteHost, type OwnedReferenceProviders } from "./settings-route-host.js";
 import { renderPiShellChangelogLines } from "../integrations/pi/components/shell-presenters-info.js";
-import { readPinnedCommandChangelog } from "../integrations/pi/engine/changelog.js";
+import type { ReleaseNoteCatalog } from "../features/owned-ui/release-notes.js";
 
 export interface OwnedUiCompositionOptions {
   readonly cwd?: string;
@@ -45,6 +46,9 @@ export interface OwnedUiCompositionOptions {
   readonly suggestionDiagnosticsPath?: string;
   /** Optional local metadata-only clipboard diagnostics; never enabled in comparison profiles. */
   readonly clipboardDiagnosticsPath?: string;
+  /** Deterministic release-note seams for composition tests. */
+  readonly packageVersion?: string;
+  readonly releaseNotes?: ReleaseNoteCatalog;
 }
 
 export interface OwnedUiComposition {
@@ -66,6 +70,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
       cwd,
       availableThemes: () => getAvailablePiThemes().map(theme => theme.name),
       settingsProductMode: ownedSurfaces ? "bare" : "comparison",
+      announceStartupChangelog: !ownedSurfaces,
       ...(ownedSurfaces ? {
         repositoryContextReader: async (sessionId: string, sessionFile: string, signal: AbortSignal) =>
           await readSessionRepositoryContext({ sessionId, sessionFile }, { signal }),
@@ -75,6 +80,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
       ...(options.sessionForkPrompt === undefined ? {} : { sessionForkPrompt: options.sessionForkPrompt }),
       ...(options.projectTrustPrompt === undefined ? {} : { projectTrustPrompt: options.projectTrustPrompt }),
     });
+  const productPaths = resolveProductPaths();
   const settings = options.profileId === undefined
     ? null
     : new OwnedSettingsManager({
@@ -82,6 +88,23 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
       profileId: options.profileId,
       agentProvider: () => adapter.settingsPort(),
     });
+  let releaseNotes: ReleaseNoteCatalog | null = null;
+  let releaseNotesFailure: unknown;
+  if (ownedSurfaces) {
+    try {
+      releaseNotes = options.releaseNotes
+        ?? await import("../features/owned-ui/release-notes.js").then(module => module.readPackagedReleaseNotes());
+    } catch (error) { releaseNotesFailure = error; }
+  }
+  const packageVersion = ownedSurfaces
+    ? options.packageVersion ?? await readPackageVersion()
+    : null;
+  const currentReleaseNote = packageVersion === null ? null : releaseNotes?.current(packageVersion) ?? null;
+  const releaseNoteClaim = currentReleaseNote === null || options.profileId === undefined
+    ? null
+    : await import("../features/owned-ui/release-note-state.js").then(module => module.claimReleaseNote({
+      configDir: productPaths.configDir, profileId: options.profileId!, version: currentReleaseNote.version,
+    }));
   // Compatibility: bare A1 intentionally ships one visual target while its UI is being completed:
   // dark, regardless of terminal detection or a previously stored Pi theme. The
   // comparison profile keeps Pi's configured theme behavior and settings surface.
@@ -91,7 +114,8 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
   // cannot open before the shell exists, so the closure is settled by the time it runs.
   const references: OwnedReferenceProviders = {
     changelog: async input => {
-      const markdown = input?.document ?? await readPinnedCommandChangelog();
+      if (input?.document === undefined && releaseNotesFailure !== undefined) throw releaseNotesFailure;
+      const markdown = input?.document ?? releaseNotes?.completeMarkdown ?? "No A1 release notes found.";
       return { rows: width => renderPiShellChangelogLines(markdown, width) };
     },
     hotkeys: async () => {
@@ -136,12 +160,23 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
   const clipboardDiagnostics = settings !== null && ownedSurfaces && clipboardDestination?.trim()
     ? new ClipboardDiagnosticCapture(clipboardDestination) : null;
   let shell: OwnedUiSessionShell;
+  let releaseNoteAcknowledgement: Promise<void> | null = null;
   try {
     shell = new OwnedUiSessionShell({
       engine: {
         backend: adapter,
         cwd: adapter.cwd,
         ...(routeHost === null ? {} : { routeHost }),
+        ...(currentReleaseNote === null || releaseNoteClaim === null ? {} : {
+          startupRoute: {
+            route: "changelog",
+            input: { document: currentReleaseNote.markdown },
+            onClosed: () => {
+              releaseNoteAcknowledgement ??= releaseNoteClaim.acknowledge();
+              return releaseNoteAcknowledgement;
+            },
+          },
+        }),
         ...(ownedSurfaces ? { sessionLayout: "custom-viewport" as const } : {}),
       },
       presentation: {
@@ -164,6 +199,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
       } }),
     });
   } catch (error) {
+    await releaseNoteClaim?.release();
     clipboardDiagnostics?.dispose(); suggestionDiagnostics?.dispose();
     throw error;
   }
@@ -173,10 +209,23 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     flush: () => adapter.flushEvents(),
     waitUntilStopped: () => shell.waitUntilStopped(),
     dispose: async () => {
-      try { await shell.dispose(); } finally { suggestionDiagnostics?.dispose(); clipboardDiagnostics?.dispose(); }
+      try {
+        await shell.dispose();
+        await releaseNoteAcknowledgement?.catch(() => undefined);
+      } finally {
+        await releaseNoteClaim?.release();
+        suggestionDiagnostics?.dispose(); clipboardDiagnostics?.dispose();
+      }
     },
   };
   return { application, settings };
+}
+
+async function readPackageVersion(): Promise<string> {
+  const manifest: unknown = JSON.parse(await readFile(new URL("../../package.json", import.meta.url), "utf8"));
+  const version = (manifest as { version?: unknown })?.version;
+  if (typeof version !== "string") throw new Error("A1 package version is unavailable");
+  return version;
 }
 
 function quitOutroSettingsSnapshot(settings: OwnedSettingsManager): OwnedUiQuitOutroSettings {

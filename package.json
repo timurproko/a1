@@ -23,7 +23,7 @@
   },
   "scripts": {
     "clean": "node scripts/clean.mjs",
-    "build": "node scripts/development/check-environment.mjs && npm run clean && tsc -p tsconfig.build.json && node scripts/pi/build-pi-settings-metadata.mjs && node scripts/pi/build-startup-public.mjs && node scripts/development/build-process-guardian.mjs && node scripts/release/generate-runtime-payload-inventory.mjs",
+    "build": "node scripts/development/check-environment.mjs && npm run clean && tsc -p tsconfig.build.json && node scripts/release/generate-release-notes-resource.mjs && node scripts/pi/build-pi-settings-metadata.mjs && node scripts/pi/build-startup-public.mjs && node scripts/development/build-process-guardian.mjs && node scripts/release/generate-runtime-payload-inventory.mjs",
     "build:process-guardian": "node scripts/development/build-process-guardian.mjs",
     "typecheck": "tsgo -p tsconfig.json --noEmit && tsgo -p tsconfig.bin.json",
     "check:architecture": "node scripts/governance/check-architecture.mjs && node scripts/governance/check-product-identity-boundaries.mjs && node scripts/governance/check-package-identity.mjs && node scripts/governance/check-pinned-pi-source-ledger.mjs && node scripts/governance/check-terminal-host-provenance.mjs",
@@ -58,7 +58,7 @@
     "proof:terminal-host": "node scripts/development/run-terminal-host.mjs",
     "start": "npm run build && node scripts/development/dev-launch.mjs",
     "start:pi": "npm run build && node scripts/development/dev-launch.mjs pi",
-    "prepack": "node scripts/release/prepack-gate.mjs",
+    "prepack": "node scripts/release/validate-packaged-release-note.mjs && node scripts/release/prepack-gate.mjs",
     "prepublishOnly": "npm run test:release",
     "prepare": "npm run build",
     "typecheck:bin": "tsgo -p tsconfig.bin.json"

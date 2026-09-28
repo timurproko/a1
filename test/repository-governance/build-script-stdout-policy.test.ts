@@ -10,6 +10,7 @@ describe("build script stdout discipline", () => {
     const chain = [...String(manifest.scripts.build).matchAll(/node (scripts\/[^\s&]+\.mjs)/gu)].map(match => match[1] ?? "");
     expect(chain).toEqual([
       "scripts/development/check-environment.mjs",
+      "scripts/release/generate-release-notes-resource.mjs",
       "scripts/pi/build-pi-settings-metadata.mjs",
       "scripts/pi/build-startup-public.mjs",
       "scripts/development/build-process-guardian.mjs",
