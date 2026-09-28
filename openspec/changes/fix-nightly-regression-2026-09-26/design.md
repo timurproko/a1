@@ -12,7 +12,7 @@ Opened by the nightly regression triage from the failed run's evidence artifacts
 
 - Release #167 reached 3,932 passing tests before the Windows/Node 24 lane reported its sole failure from `afterEach`: `EBUSY: resource busy or locked, rmdir '...\\a1-pi-resume-hint-*'`. Windows/Node 22 and both non-Windows Node 24 lanes passed.
 - Before the fix, the same test file with unchanged one-shot cleanup passed 60 focused Windows/Node 24 runs, confirming the recorded failure is intermittent rather than a reproducible product assertion failure.
-- With retry-bounded cleanup, 20 focused Windows/Node 24 runs passed under four concurrent stress loops; all nine runtime-integration tests remained unchanged.
+- With retry-bounded cleanup, 20 focused Windows/Node 24 runs passed under four concurrent stress loops; every runtime-integration assertion body remained unchanged.
 - `npm run build` and `npm run typecheck` passed.
 - Run [Release #167](https://github.com/timurproko/a1/actions/runs/36230472475) (attempt 1, schedule) on `92e3ed3` at 2026-09-26T08:40:16Z:
   - `vitest-full-without-isolated` (`architecture`, `dependency-policy`, `dist-integration`, `documentation-full`, `fast-remainder`, `fast-resource-sensitive`, `history-compatibility`, `image-compatibility`, `launch-integration`, `naming-full`, `package-contracts`, `package-smoke`, `package-startup`, `pi-engine-conformance`, `release-update`, `rendering-stability`, `typecheck`, `unix-containment`, `update-performance`, `update-predecessor`) failed on win32-node24 with exit 1.
