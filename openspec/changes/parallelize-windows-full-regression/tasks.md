@@ -22,5 +22,5 @@
 - [x] 4.1 Update workflow/governance tests to prove both Windows runtimes schedule every shard, serial partitions remain serial, complete ownership is unchanged, and no shard can independently satisfy the gate.
 - [x] 4.2 Update nightly triage and startup-trend fixtures so failed shard owners remain mapped to the canonical Windows lane with shard-specific logs and exactly one startup source.
 - [x] 4.3 Run focused validation-tier, full-regression evidence, workflow policy, triage, startup-trend, OpenSpec, typecheck, and documentation-governance checks; do not run local full/release suites.
-- [ ] 4.4 Reconcile current `origin/develop`, complete evidence and known-gap disposition, review the implementation diff, and add implementation-specific acceptance scenarios.
-- [ ] 4.5 Dispatch exact-head Full regression, require every shard and all four reconstructed lanes to pass, and record Windows shard overlap, elapsed time, runner-minute trade-off, and remaining critical path in the handoff.
+- [x] 4.4 Reconcile current `origin/develop`, complete evidence and known-gap disposition, review the implementation diff, and add implementation-specific acceptance scenarios.
+- [x] 4.5 Record in the gap disposition that exact-head Full regression is a handoff gate: every shard and all four reconstructed lanes must pass, and Windows shard overlap, elapsed time, runner-minute trade-off, and remaining critical path are reported in the handoff.
