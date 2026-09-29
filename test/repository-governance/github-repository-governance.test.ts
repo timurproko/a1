@@ -80,6 +80,10 @@ describe("declarative GitHub repository governance", () => {
     expect(inspected.find(workflow => workflow.name === "Merged branch cleanup")).toMatchObject({
       triggers: ["pull_request_target:closed"], trustedSource: "default-branch", permissions: ["contents: write"],
     });
+    expect(inspected.find(workflow => workflow.name === "Ready pull-request refresh")).toMatchObject({
+      triggers: ["pull_request_target:closed", "workflow_run"], trustedSource: "default-branch", permissions: ["contents: read"],
+      authority: ["ready-pull-request-branch-refresh"], concurrency: "ready-pull-request-refresh",
+    });
     expect(inspected.find(workflow => workflow.name === "Nightly regression triage")).toMatchObject({
       triggers: ["workflow_dispatch", "workflow_run"], trustedSource: "default-branch", permissions: ["actions: read", "contents: write", "pull-requests: write"], authority: ["nightly-regression-triage"], artifactRetentionDays: [30],
     });
