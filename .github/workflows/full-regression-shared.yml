@@ -47,26 +47,21 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: node scripts/governance/check-code-documentation.mjs --mode full --result .artifacts/validation/code-documentation-full.json
 
-  full-regression:
+  # Concurrency: each Windows runtime runs its canonical full plan as four independently prepared
+  # hosted-runner shards. Serial contracts stay inside their shard; no workspace or package state is shared.
+  windows-shard:
     needs: documentation
-    name: Complete non-physical regression (${{ matrix.os }}, node ${{ matrix.node }})
+    name: Complete non-physical regression (${{ matrix.os }}, node ${{ matrix.node }}, ${{ matrix.shard }})
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - os: windows-2025
-            node: 24
-          - os: ubuntu-24.04
-            node: 24
-          - os: macos-15
-            node: 24
-          - os: windows-2025
-            node: 22
+        os: [windows-2025]
+        node: [24, 22]
+        shard: [core, resource, rendering, package]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 40
     steps:
       - name: Preserve repository bytes during checkout
-        if: runner.os == 'Windows'
         shell: bash
         run: git config --global core.autocrlf false
 
@@ -105,11 +100,13 @@ jobs:
         run: node scripts/release/record-validation-prerequisite.mjs build
 
       - name: Pack exact regression candidate once
+        if: matrix.shard == 'package'
         env:
           VALIDATION_BUILD_RECEIPT: ${{ github.workspace }}/.artifacts/validation/receipts/build.json
         run: node scripts/release/prepare-validation-package.mjs
 
       - name: Prepare the exact package
+        if: matrix.shard == 'package'
         shell: bash
         env:
           VALIDATION_SELECTION_JSON: '["full-release"]'
@@ -123,7 +120,7 @@ jobs:
           --handoff .artifacts/validation/exact-package-handoff.json
 
       - name: Enable Defender real-time protection for startup acceptance
-        if: runner.os == 'Windows'
+        if: matrix.shard == 'package'
         shell: powershell
         run: |
           $ErrorActionPreference = "Stop"
@@ -136,7 +133,7 @@ jobs:
           } while ((Get-Date) -lt $deadline)
           if (-not $enabled) { throw "Windows Defender real-time protection could not be enabled" }
 
-      - name: Run complete non-physical validation
+      - name: Run complete non-physical validation shard
         shell: bash
         env:
           VALIDATION_SELECTION_JSON: '["full-release"]'
@@ -145,7 +142,7 @@ jobs:
           VALIDATION_DOCUMENTATION_FULL_READY: "1"
           VALIDATION_CANDIDATE_TARBALL: ${{ github.workspace }}/.artifacts/validation/package/candidate.tgz
           VALIDATION_PACKAGE_RECEIPT: ${{ github.workspace }}/.artifacts/validation/package/candidate.receipt.json
-          RELEASE_RUNNER_LABEL: github-${{ matrix.os }}-node${{ matrix.node }}-full-regression
+          RELEASE_RUNNER_LABEL: github-${{ matrix.os }}-node${{ matrix.node }}-full-regression-${{ matrix.shard }}
           A1_CONFIG_DIR: ${{ runner.temp }}/a1-full-config
           A1_DATA_DIR: ${{ runner.temp }}/a1-full-data
           A1_RUNTIME_DIR: ${{ runner.temp }}/a1-full-runtime
@@ -153,13 +150,15 @@ jobs:
           # persistent overrun across three consecutive develop runs from the uploaded evidence.
           STARTUP_BUDGET_ENFORCEMENT: record
           STARTUP_PERFORMANCE_RESULT: .artifacts/validation/startup-${{ matrix.os }}-node${{ matrix.node }}.json
-        run: >-
-          node scripts/release/run-validation-tier.mjs
-          --exact-package-handoff .artifacts/validation/exact-package-handoff.json
-          --result .artifacts/validation/full-regression.json
+          FULL_SHARD: ${{ matrix.shard }}
+        run: |
+          args=(--full-shard "$FULL_SHARD" --result .artifacts/validation/full-regression.json)
+          # Invariant: only the package shard owns the startup and contract consumers of the shared installation.
+          if [ "$FULL_SHARD" = package ]; then args+=(--exact-package-handoff .artifacts/validation/exact-package-handoff.json); fi
+          node scripts/release/run-validation-tier.mjs "${args[@]}"
 
       - name: Summarize first-attempt startup measurements
-        if: always() && runner.os == 'Windows'
+        if: always() && matrix.shard == 'package'
         shell: bash
         env:
           STARTUP_PERFORMANCE_RESULT: .artifacts/validation/startup-${{ matrix.os }}-node${{ matrix.node }}.json
@@ -185,6 +184,187 @@ jobs:
             console.log(`| ${measurement.profileId} | ${measurement.launchKind} | ${Math.round(measurement.elapsedMs)}ms | ${measurement.budgetMs}ms | ${status} |`);
           }
           NODE
+
+      - name: Bind shard evidence
+        if: always() && hashFiles('.artifacts/validation/full-regression.json') != ''
+        env:
+          FULL_LANE: ${{ matrix.os }}-node${{ matrix.node }}
+          FULL_SHARD: ${{ matrix.shard }}
+        run: node scripts/release/full-regression-evidence.mjs --record-shard
+
+      - name: Report gate ownership and timing
+        if: always()
+        shell: bash
+        run: |
+          if [ -f .artifacts/validation/full-regression.json ]; then
+            node --input-type=module <<'NODE' >> "$GITHUB_STEP_SUMMARY"
+          import { readFile } from "node:fs/promises";
+          const result = JSON.parse(await readFile(".artifacts/validation/full-regression.json", "utf8"));
+          console.log(`## Complete regression outcomes (${result.fullShard.id} shard)\n`);
+          console.log(`Canonical plan: \`${result.fullShard.planDigest}\`\n`);
+          console.log(`Total: **${((result.completedAt - result.startedAt) / 1000).toFixed(2)}s**\n`);
+          console.log("| Owned gate | Seconds | Result |\n| --- | ---: | --- |");
+          for (const outcome of result.outcomes) console.log(`| ${outcome.id} | ${(outcome.durationMs / 1000).toFixed(2)} | ${outcome.exitCode === 0 ? outcome.skipped ?? "passed" : "failed"} |`);
+          NODE
+          else
+            echo "## Complete regression outcomes" >> "$GITHUB_STEP_SUMMARY"
+            echo "Validation orchestration failed before producing owned outcomes." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload complete regression shard evidence
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: full-regression-${{ inputs.source }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.os }}-node${{ matrix.node }}-${{ matrix.shard }}
+          path: |
+            .artifacts/validation/full-regression.json
+            .artifacts/validation/full-shards/*.json
+            .artifacts/validation/startup-*.json
+            .artifacts/validation/package/npm-pack-result.json
+            .artifacts/validation/package/*.receipt.json
+            .artifacts/validation/receipts/*.json
+            .artifacts/validation/phases/*.jsonl
+            .artifacts/release-verdicts/*.json
+          if-no-files-found: warn
+          retention-days: 30
+
+  # Invariant: a Windows lane envelope exists only when all four current-run shards reconstruct the
+  # canonical plan; a shard alone never satisfies the four-lane aggregate.
+  windows-lane:
+    needs: windows-shard
+    if: always()
+    name: Complete non-physical regression (${{ matrix.os }}, node ${{ matrix.node }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2025]
+        node: [24, 22]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ inputs.source }}
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          pattern: full-regression-${{ inputs.source }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.os }}-node${{ matrix.node }}-*
+          path: .artifacts/full-regression-downloads
+      - name: Collect unique shard evidence
+        shell: bash
+        run: |
+          mkdir -p .artifacts/validation/full-shards
+          if [ -d .artifacts/full-regression-downloads ]; then
+            while IFS= read -r -d '' path; do
+              target=".artifacts/validation/full-shards/$(basename "$path")"
+              test ! -e "$target"
+              cp "$path" "$target"
+            done < <(find .artifacts/full-regression-downloads -type f -path '*/full-shards/*.json' -print0)
+          fi
+      - name: Reconstruct the Windows lane from every shard
+        env:
+          FULL_LANE: ${{ matrix.os }}-node${{ matrix.node }}
+        run: node scripts/release/full-regression-evidence.mjs --merge-shards
+      - name: Bind complete lane evidence
+        env:
+          FULL_LANE: ${{ matrix.os }}-node${{ matrix.node }}
+        run: node scripts/release/full-regression-evidence.mjs --record
+      - name: Upload complete regression evidence
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: full-regression-${{ inputs.source }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.os }}-node${{ matrix.node }}
+          path: .artifacts/validation/full-lanes/*.json
+          if-no-files-found: warn
+          retention-days: 30
+
+  full-regression:
+    needs: documentation
+    name: Complete non-physical regression (${{ matrix.os }}, node ${{ matrix.node }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            node: 24
+          - os: macos-15
+            node: 24
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    steps:
+      - name: Check out exact regression source
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ inputs.source }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - name: Use the pinned npm for packing
+        shell: bash
+        run: |
+          pinned=$(node -p "require('./package.json').packageManager.split('@')[1]")
+          current=$(npm --version)
+          if [ "$current" != "$pinned" ]; then npm install -g "npm@$pinned"; fi
+          npm --version
+
+      - name: Prepare Rust toolchain
+        shell: bash
+        run: bash scripts/development/prepare-ci-rust.sh
+
+      - name: Install dependencies and build once
+        run: npm ci
+
+      - name: Record verified install-time build
+        run: node scripts/release/record-validation-prerequisite.mjs build
+
+      - name: Pack exact regression candidate once
+        env:
+          VALIDATION_BUILD_RECEIPT: ${{ github.workspace }}/.artifacts/validation/receipts/build.json
+        run: node scripts/release/prepare-validation-package.mjs
+
+      - name: Prepare the exact package
+        shell: bash
+        env:
+          VALIDATION_SELECTION_JSON: '["full-release"]'
+          VALIDATION_BUILD_READY: "1"
+          VALIDATION_BUILD_RECEIPT: ${{ github.workspace }}/.artifacts/validation/receipts/build.json
+          VALIDATION_CANDIDATE_TARBALL: ${{ github.workspace }}/.artifacts/validation/package/candidate.tgz
+          VALIDATION_PACKAGE_RECEIPT: ${{ github.workspace }}/.artifacts/validation/package/candidate.receipt.json
+        run: >-
+          node scripts/release/run-validation-tier.mjs
+          --prepare-exact-package
+          --handoff .artifacts/validation/exact-package-handoff.json
+
+      - name: Run complete non-physical validation
+        shell: bash
+        env:
+          VALIDATION_SELECTION_JSON: '["full-release"]'
+          VALIDATION_BUILD_READY: "1"
+          VALIDATION_BUILD_RECEIPT: ${{ github.workspace }}/.artifacts/validation/receipts/build.json
+          VALIDATION_DOCUMENTATION_FULL_READY: "1"
+          VALIDATION_CANDIDATE_TARBALL: ${{ github.workspace }}/.artifacts/validation/package/candidate.tgz
+          VALIDATION_PACKAGE_RECEIPT: ${{ github.workspace }}/.artifacts/validation/package/candidate.receipt.json
+          RELEASE_RUNNER_LABEL: github-${{ matrix.os }}-node${{ matrix.node }}-full-regression
+          A1_CONFIG_DIR: ${{ runner.temp }}/a1-full-config
+          A1_DATA_DIR: ${{ runner.temp }}/a1-full-data
+          A1_RUNTIME_DIR: ${{ runner.temp }}/a1-full-runtime
+          STARTUP_BUDGET_ENFORCEMENT: record
+          STARTUP_PERFORMANCE_RESULT: .artifacts/validation/startup-${{ matrix.os }}-node${{ matrix.node }}.json
+        run: >-
+          node scripts/release/run-validation-tier.mjs
+          --exact-package-handoff .artifacts/validation/exact-package-handoff.json
+          --result .artifacts/validation/full-regression.json
 
       - name: Bind complete lane evidence
         env:
@@ -230,7 +410,7 @@ jobs:
   required:
     name: Complete regression required
     if: always()
-    needs: [documentation, full-regression]
+    needs: [documentation, windows-shard, windows-lane, full-regression]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -256,7 +436,7 @@ jobs:
           done < <(find .artifacts/full-regression-downloads -type f -path '*/full-lanes/*.json' -print0)
       - name: Require every exact-run native lane
         env:
-          FULL_JOBS_RESULT: ${{ needs.documentation.result == 'success' && needs.full-regression.result || 'failure' }}
+          FULL_JOBS_RESULT: ${{ needs.documentation.result == 'success' && needs.windows-shard.result == 'success' && needs.windows-lane.result == 'success' && needs.full-regression.result || 'failure' }}
         run: node scripts/release/full-regression-evidence.mjs --require
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
