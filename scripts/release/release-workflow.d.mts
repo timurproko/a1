@@ -5,6 +5,10 @@ export interface ReleaseRuntime {
   gh(args: readonly string[]): string;
   releaseChanges(base: string, source: string): Promise<readonly { number: number; title: string; url: string }[]>;
   registry(name: string, version: string): Promise<unknown | null>;
+  wait(milliseconds: number): Promise<unknown>;
+  readonly reviewPollIntervalMs: number;
+  now(): number;
+  dispatchStable(candidate: { repository: string; releaseId: number; source: string; version: string; reviewedUpdatedAt: string }): Promise<number>;
   log(message: string): void;
   error(message: string): void;
   readonly signal?: AbortSignal;
@@ -16,10 +20,12 @@ export interface DraftReleaseNote {
   readonly version: string;
   readonly source: string;
   readonly markdown: string;
+  readonly updatedAt: string;
 }
 export interface ReleaseResult extends ReleasePlan {
   readonly source: string;
   readonly draft: DraftReleaseNote;
+  readonly stagingRunId: number;
   readonly reopened: null;
 }
 export function collectReleaseChanges(

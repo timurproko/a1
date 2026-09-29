@@ -9,6 +9,7 @@ export function validateStableApproval(input: {
   version: string;
   source: string;
   releases: readonly unknown[];
+  expectedReleaseId?: number;
   application: JsonObject;
   lock: JsonObject;
   installer: JsonObject;

@@ -24,7 +24,7 @@ describe("explicit prerelease-aware release targets", () => {
   });
 
   it("rejects retired local approval authority", () => {
-    expect(() => parseReleaseArguments(["patch", "--approve"])).toThrow(/Approve stable release workflow in GitHub Actions/);
+    expect(() => parseReleaseArguments(["patch", "--approve"])).toThrow(/waits for Save draft/);
   });
 
   it.each([[], [""], ["--patch"], ["prepatch"], ["latest"], ["0.4"], ["v0.4.0"], ["00.4.0"],

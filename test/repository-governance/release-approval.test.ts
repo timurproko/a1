@@ -10,7 +10,7 @@ const application = { name: "@fixture/a1", version: "1.2.3-dev" };
 const lock = { version: "1.2.3-dev", packages: { "": { version: "1.2.3-dev" } } };
 const installer = { name: "@fixture/a1-install", version: "1.2.3-dev" };
 const valid = () => ({
-  version, source, releases: [release], application, lock, installer,
+  version, source, releases: [release], expectedReleaseId: 17, application, lock, installer,
   existingApplication: null, existingInstaller: null,
 });
 
@@ -38,6 +38,7 @@ describe("trusted stable approval validation", () => {
     ["missing", { releases: [] }],
     ["duplicate", { releases: [release, { ...release, id: 18 }] }],
     ["published", { releases: [{ ...release, draft: false }] }],
+    ["wrong selected release", { expectedReleaseId: 18 }],
     ["stale source", { releases: [{ ...release, target_commitish: "b".repeat(40) }] }],
     ["unsafe body", { releases: [{ ...release, body: "<script>bad</script>" }] }],
     ["bad package versions", { installer: { ...installer, version: "1.2.2-dev" } }],
