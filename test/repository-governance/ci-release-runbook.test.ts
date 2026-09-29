@@ -84,9 +84,13 @@ describe("CI and release operations runbook", () => {
     expect(runbook).toContain("npm run develop");
     expect(runbook).toContain("03:17 UTC");
     expect(runbook).toContain("npm run release --");
-    expect(runbook).toContain("npm run release -- patch --approve");
+    expect(runbook).toContain("Approve stable release");
+    expect(runbook).toMatch(/enter only the\s+stable version/u);
+    expect(runbook).not.toContain("npm run release -- patch --approve");
     expect(runbook).toContain("draft GitHub Release");
-    expect(runbook).toContain("A push of the stable version does\nnot publish");
+    expect(runbook).toContain("## [version] - YYYY-MM-DD");
+    expect(runbook).toContain("A pushed tag does not publish npm packages");
+    expect(runbook).toMatch(/failed\s+pre-publication run needs no manual tag removal/u);
     expect(runbook).toContain("the stable version is never committed to `develop`");
   });
 

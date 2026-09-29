@@ -74,30 +74,25 @@ describe("publication failure reporting", () => {
     expect(calls.some(call => call.args[0] === "run" && call.args[1] === "watch" && call.args.includes("--exit-status"))).toBe(true);
   });
 
-  it.each([
-    ["develop", "0.1.8-dev.10", {}, []],
-    ["stable", "0.1.8", { draftReleaseId: 17, releaseNoteSha256: "b".repeat(64) }, [
-      "-f", "version=0.1.8", "-f", "release_id=17", "-f", `release_notes_sha256=${"b".repeat(64)}`,
-    ]],
-  ] as const)("names approved draft evidence to the workflow only for a %s publication", async (channel, version, approval, extra) => {
+  it("dispatches development publication only through the dedicated wrapper", async () => {
     const { run, calls } = fakeRunner(({ args }) => {
-      if (args[0] === "run" && args[1] === "list") return JSON.stringify([{ databaseId: 44, displayTitle: `${channel} publication fixture-request` }]);
+      if (args[0] === "run" && args[1] === "list") return JSON.stringify([{ databaseId: 44, displayTitle: "develop publication fixture-request" }]);
       if (args[0] === "run" && args[1] === "view") return "https://github.com/owner/app/actions/runs/44";
       return "";
     });
-    await expect(dispatchPublication(channel, "a".repeat(40), version, {
-      run, repository: "owner/app", requestId: "fixture-request", write: () => {}, sleep: async () => {}, ...approval,
+    await expect(dispatchPublication("develop", "a".repeat(40), "0.1.8-dev.10", {
+      run, repository: "owner/app", requestId: "fixture-request", write: () => {}, sleep: async () => {},
     })).resolves.toBe(44);
     const dispatch = calls.find(call => call.args[0] === "workflow" && call.args[1] === "run")!;
     expect(dispatch.args).toEqual([
-      "workflow", "run", "publish.yml", "--ref", "develop",
-      "-f", `channel=${channel}`, "-f", `source_sha=${"a".repeat(40)}`, "-f", "request_id=fixture-request", ...extra,
+      "workflow", "run", "develop.yml", "--ref", "develop",
+      "-f", `source_sha=${"a".repeat(40)}`, "-f", "request_id=fixture-request",
     ]);
   });
 
-  it("refuses stable dispatch without an approved draft identity", async () => {
-    await expect(dispatchPublication("stable", "a".repeat(40), "0.1.8", { run: () => "" }))
-      .rejects.toThrow(/approved draft Release identity/i);
+  it("refuses every local stable dispatch", async () => {
+    await expect(dispatchPublication("stable" as never, "a".repeat(40), "0.1.8", { run: () => "" }))
+      .rejects.toThrow(/only.*Approve stable release.*GitHub Actions/i);
   });
 
   it("returns the run identifier unchanged when the watch succeeds", async () => {
@@ -135,5 +130,6 @@ describe("publication failure reporting", () => {
     expect(require.run).toContain('test "$PUBLISH" = success');
     expect(require.run).toContain('test "$POST_PUBLISH" = success');
     expect(require.run).toContain('test "$COMPLETE" = success');
+    expect(require.run).toContain('if [ "$MODE" = stable ]; then test "$REOPEN" = success; fi');
   });
 });
