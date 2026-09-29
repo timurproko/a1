@@ -17,7 +17,7 @@ The manual merge accepts these scenarios:
   "archive": "openspec/changes/archive/2026-09-29-fix-pinned-pi-runtime-root/",
   "acceptanceManifest": "openspec/changes/archive/2026-09-29-fix-pinned-pi-runtime-root/acceptance.md",
   "finalizedDate": "2026-09-29",
-  "specBaseSha": "f11d40df1ab428d54fd8a0acbb0e374fd584ca23",
+  "specBaseSha": "bd9f3e5baadfe2dca77e7158fc8f03cabec4cb11",
   "acceptanceScenarios": [
     "Screenshot attachments submit without the pinned-package configuration error after startup environment mutation.",
     "Lazy image modules continue resolving from the package identity validated at startup rather than an altered environment path.",
