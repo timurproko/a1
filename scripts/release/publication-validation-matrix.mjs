@@ -1,7 +1,7 @@
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 
-export const PUBLICATION_MODES = Object.freeze(["develop", "nightly", "stable"]);
+export const PUBLICATION_MODES = Object.freeze(["develop", "nightly", "candidate", "stable"]);
 
 export const PUBLICATION_VALIDATION_LANES = Object.freeze([
   Object.freeze({ platform: "win32-node24", os: "windows-2025", node: 24 }),

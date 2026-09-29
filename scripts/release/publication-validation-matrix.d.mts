@@ -1,4 +1,4 @@
-export type PublicationMode = "develop" | "nightly" | "stable";
+export type PublicationMode = "develop" | "nightly" | "candidate" | "stable";
 
 export interface PublicationValidationLane {
   platform: "win32-node24" | "linux-node24" | "darwin-node24" | "win32-node22";

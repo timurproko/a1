@@ -1,24 +1,69 @@
-name: Finalize stable release
-run-name: Verify native publication ${{ github.event.release.tag_name }}
+name: Publish stable release
+run-name: Publish stable release ${{ github.event.release.tag_name }}
 
+# Choosing native Publish release on the prepared draft is the only stable npm trigger.
+# GitHub creates the tag at the draft's bound source and runs this file from that tag;
+# the trusted publisher re-derives and verifies every identity from develop code.
 on:
   release:
     types: [published]
 
 permissions:
   actions: read
-  contents: read
+  contents: write
+  id-token: write
 
 jobs:
-  verify:
-    name: Verify exact staged publication
+  identify:
+    name: Identify the published stable Release
+    if: github.event.release.prerelease == false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.identify.outputs.version }}
+      release_id: ${{ steps.identify.outputs.release_id }}
+    steps:
+      - name: Derive the version from the published tag
+        id: identify
+        shell: bash
+        env:
+          TAG_NAME: ${{ github.event.release.tag_name }}
+          RELEASE_ID: ${{ github.event.release.id }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$TAG_NAME" =~ ^v((0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*))$ ]] || [[ ! "$RELEASE_ID" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::published Release $RELEASE_ID tag '$TAG_NAME' is not a stable vX.Y.Z tag" >&2
+            exit 1
+          fi
+          printf 'version=%s\nrelease_id=%s\n' "${BASH_REMATCH[1]}" "$RELEASE_ID" >> "$GITHUB_OUTPUT"
+
+  publish:
+    name: Publish the exact stable release
+    needs: identify
+    uses: timurproko/a1/.github/workflows/publish.yml@develop
+    with:
+      channel: stable
+      version: ${{ needs.identify.outputs.version }}
+      release_id: ${{ needs.identify.outputs.release_id }}
+    secrets: inherit
+
+  rollback:
+    name: Return an unpublished Release to draft
+    needs: [identify, publish]
+    if: always() && needs.identify.result == 'success' && needs.publish.result != 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
-    outputs:
-      version: ${{ steps.verify.outputs.version }}
-      source: ${{ steps.verify.outputs.source }}
-      release_notes_sha256: ${{ steps.verify.outputs.release_notes_sha256 }}
+    permissions:
+      actions: read
+      contents: write
     steps:
+      - name: Mint the tag-rollback identity
+        id: app
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.OPENSPEC_ARCHIVE_APP_ID }}
+          private-key: ${{ secrets.OPENSPEC_ARCHIVE_APP_PRIVATE_KEY }}
+          permission-contents: write
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           ref: develop
@@ -26,81 +71,17 @@ jobs:
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: 24
-          cache: npm
-      - run: npm ci --ignore-scripts
-      - name: Verify publication against immutable staging evidence
-        id: verify
-        shell: bash
+      - name: Return to draft and delete the unconsumed tag only while npm is untouched
         env:
           GH_TOKEN: ${{ github.token }}
-          PUBLISHER: ${{ github.actor }}
-          EVENT_RELEASE_ID: ${{ github.event.release.id }}
-        run: |
-          set -euo pipefail
-          mkdir -p .artifacts/release-finalization
-          node --input-type=module <<'NODE' >> "$GITHUB_OUTPUT"
-          import { createHash } from "node:crypto";
-          import { writeFile } from "node:fs/promises";
-          import { assertAuthorizedApprovalActor } from "./scripts/release/release-approval.mjs";
-          import { RECEIPT_ASSET, validateStableStagingReceipt } from "./scripts/release/staging-receipt.mjs";
-          const token = process.env.GH_TOKEN;
-          const repository = process.env.GITHUB_REPOSITORY;
-          const releaseId = Number(process.env.EVENT_RELEASE_ID);
-          const headers = { accept: "application/vnd.github+json", authorization: `Bearer ${token}`, "x-github-api-version": "2022-11-28" };
-          const response = async (url, init = {}) => {
-            const result = await fetch(url, { ...init, headers: { ...headers, ...(init.headers ?? {}) } });
-            if (!result.ok) throw new Error(`${url} returned HTTP ${result.status}`);
-            return result;
-          };
-          const api = async path => await (await response(`https://api.github.com/${path}`)).json();
-          const npm = async (name, specifier) => {
-            const result = await fetch(`https://registry.npmjs.org/${encodeURIComponent(name)}/${specifier}`, {
-              headers: { accept: "application/json", "cache-control": "no-cache" },
-            });
-            if (!result.ok) throw new Error(`npm registry ${name}@${specifier} returned HTTP ${result.status}`);
-            return await result.json();
-          };
-          const [publisher, publisherPermission, release] = await Promise.all([
-            api(`users/${process.env.PUBLISHER}`), api(`repos/${repository}/collaborators/${process.env.PUBLISHER}/permission`),
-            api(`repos/${repository}/releases/${releaseId}`),
-          ]);
-          assertAuthorizedApprovalActor(publisher, publisherPermission, process.env.PUBLISHER);
-          const receiptAssets = Array.isArray(release.assets) ? release.assets.filter(asset => asset?.name === RECEIPT_ASSET) : [];
-          if (receiptAssets.length !== 1 || !Number.isSafeInteger(receiptAssets[0]?.id)) throw new Error("published Release has no unique staging receipt");
-          const receipt = await (await response(`https://api.github.com/repos/${repository}/releases/assets/${receiptAssets[0].id}`, {
-            headers: { accept: "application/octet-stream" },
-          })).json();
-          const stageActorName = receipt.actor;
-          const [stageActor, stagePermission, workflowRun, tag, master, application, installer, applicationLatest, installerLatest] = await Promise.all([
-            api(`users/${stageActorName}`), api(`repos/${repository}/collaborators/${stageActorName}/permission`),
-            api(`repos/${repository}/actions/runs/${receipt.runId}`), api(`repos/${repository}/git/ref/tags/v${receipt.version}`),
-            api(`repos/${repository}/git/ref/heads/master`), npm(receipt.application?.name, receipt.version),
-            npm(receipt.installer?.name, receipt.version), npm(receipt.application?.name, "latest"), npm(receipt.installer?.name, "latest"),
-          ]);
-          assertAuthorizedApprovalActor(stageActor, stagePermission, stageActorName);
-          const applicationAssets = Array.isArray(release.assets) ? release.assets.filter(asset => asset?.name === receipt.asset?.name) : [];
-          if (applicationAssets.length !== 1 || !Number.isSafeInteger(applicationAssets[0]?.id)) throw new Error("published Release has no unique staged package asset");
-          const assetBytes = new Uint8Array(await (await response(`https://api.github.com/repos/${repository}/releases/assets/${applicationAssets[0].id}`, {
-            headers: { accept: "application/octet-stream" },
-          })).arrayBuffer());
-          const verified = validateStableStagingReceipt({ repository, receipt, release, workflowRun, tag, master, application, installer,
-            applicationLatest, installerLatest, assetSha256: createHash("sha256").update(assetBytes).digest("hex") });
-          await writeFile(".artifacts/release-finalization/approved-note.md", verified.note, "utf8");
-          console.log(`version=${verified.version}`);
-          console.log(`source=${verified.source}`);
-          console.log(`release_notes_sha256=${verified.releaseNotesSha256}`);
-          NODE
-      - name: Preserve verified publication note
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
-        with:
-          name: verified-release-note-${{ github.run_id }}
-          path: .artifacts/release-finalization/approved-note.md
-          if-no-files-found: error
-          retention-days: 30
+          TAG_TOKEN: ${{ steps.app.outputs.token }}
+          RELEASE_ID: ${{ needs.identify.outputs.release_id }}
+          RELEASE_VERSION: ${{ needs.identify.outputs.version }}
+        run: node scripts/release/rollback-publication.mjs
 
   reopen:
     name: Prepare manual development reopening
-    needs: verify
+    needs: publish
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -127,16 +108,16 @@ jobs:
       - run: npm ci --ignore-scripts
       - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
-          name: verified-release-note-${{ github.run_id }}
+          name: approved-release-note-${{ github.run_id }}
           path: .artifacts/release-finalization
       - name: Create or verify the exact reopening pull request
         id: reopen
         shell: bash
         env:
           GH_TOKEN: ${{ steps.proposal-token.outputs.token }}
-          RELEASE_VERSION: ${{ needs.verify.outputs.version }}
-          SOURCE_SHA: ${{ needs.verify.outputs.source }}
-          RELEASE_NOTES_SHA256: ${{ needs.verify.outputs.release_notes_sha256 }}
+          RELEASE_VERSION: ${{ needs.publish.outputs.version }}
+          SOURCE_SHA: ${{ needs.publish.outputs.source }}
+          RELEASE_NOTES_SHA256: ${{ needs.publish.outputs.release_notes_sha256 }}
           APPROVED_NOTE_PATH: .artifacts/release-finalization/approved-note.md
         run: |
           git config user.name "github-actions[bot]"
@@ -146,4 +127,4 @@ jobs:
         shell: bash
         env:
           PR_URL: ${{ steps.reopen.outputs.url }}
-        run: echo "Native publication is verified. Required CI must pass on $PR_URL, then an authorized human must merge it manually." >> "$GITHUB_STEP_SUMMARY"
+        run: echo "Stable publication is complete. Required CI must pass on $PR_URL, then an authorized human must merge it manually." >> "$GITHUB_STEP_SUMMARY"
