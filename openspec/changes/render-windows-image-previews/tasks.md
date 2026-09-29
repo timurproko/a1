@@ -26,4 +26,4 @@
 
 - Automated on Windows: 234 related tests passed; focused worker, bundled-package, presenter, terminal-composition, clipping safety, attachment, viewport, native-path, tool-image, and pinned-path suites are included.
 - `npm run build`, `npm run typecheck`, `npm run check:architecture`, changed-code documentation governance, strict OpenSpec validation, and `git diff --check` pass.
-- Manual Windows Terminal review rejected the initial 1×2 half-block preview as too coarse for text-heavy screenshots. Bundled Sixel now replaces it on Windows Terminal and WezTerm; renewed physical review remains pending, so task 3.3 stays open.
+- Manual Windows Terminal review rejected the initial 1×2 half-block preview as too coarse, then confirmed Sixel raster placement but exposed an all-black device background fill. The encoder now composites alpha itself and requests transparent Sixel background handling; renewed physical review remains pending, so task 3.3 stays open.

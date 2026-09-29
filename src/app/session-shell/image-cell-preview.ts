@@ -72,7 +72,7 @@ export async function createImageCellPreview(
       const { image2sixel } = await import("sixel/lib/SixelEncoder.js").catch(() => {
         throw new ImageAttachmentError("image-codec");
       });
-      const sequence = image2sixel(pixels, pixelWidth, pixelHeight, 256, 2).replace(/\r?\n/gu, "");
+      const sequence = image2sixel(pixels, pixelWidth, pixelHeight, 256, 1).replace(/\r?\n/gu, "");
       if (!validSixelSequence(sequence) || Buffer.byteLength(sequence, "utf8") > IMAGE_SIXEL_PREVIEW_MAX_TERMINAL_BYTES) {
         throw new ImageAttachmentError("image-output");
       }

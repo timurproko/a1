@@ -66,7 +66,7 @@ describe("Windows submitted-image preview", () => {
     expect(result.pixelWidth).toBe(540);
     expect(result.pixelHeight).toBe(360);
     expect(result.cellRows).toBe(20);
-    expect(result.sequence).toMatch(/^\u001bP[0-9;]*q/u);
+    expect(result.sequence).toMatch(/^\u001bP0;1;q/u);
     expect(result.sequence.endsWith("\u001b\\")).toBe(true);
     expect(Buffer.byteLength(result.sequence, "utf8")).toBeLessThanOrEqual(IMAGE_SIXEL_PREVIEW_MAX_TERMINAL_BYTES);
     expect(result.sequence).not.toContain(source(1200, 800).data.slice(0, 40));

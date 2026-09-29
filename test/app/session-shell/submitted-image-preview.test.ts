@@ -1,4 +1,5 @@
 import { getCapabilities, setCapabilities, stripTerminalSequences } from "@earendil-works/pi-tui";
+import { decode } from "sixel";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { screenshotPng } from "../../fixtures/image-sources.js";
 import { transcriptLifecycleFixture } from "../../support/rendering/transcript-lifecycle-fixture.js";
@@ -34,6 +35,10 @@ describe.runIf(process.platform === "win32")("submitted image preview compositio
       const writes = value.terminal.writes.map(write => write.data).join("");
       expect(writes).toMatch(/\u001bP[0-9;]*q/u);
       expect(writes).not.toMatch(/\u001b_Ga=(?:T|p)|\u001b\]1337;File=|iVBOR/u);
+      const sixelStart = writes.indexOf("\u001bP");
+      const sixelEnd = writes.indexOf("\u001b\\", sixelStart + 2);
+      const decoded = decode(writes.slice(sixelStart, sixelEnd + 2));
+      expect(new Set(decoded.data8).size).toBeGreaterThan(2);
     } finally { await value.dispose(); }
   }, 20_000);
 });
