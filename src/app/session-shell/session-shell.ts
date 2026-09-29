@@ -2213,7 +2213,9 @@ export class OwnedUiSessionShell {
     // Concurrency: never overwrite input typed (even typed and cleared) after this submission.
     if (revision === this.#editorRevision && this.root.editor.getText().length === 0) this.root.editor.setText(draft);
     const message = error instanceof ImageAttachmentError ? error.message : "Submission rejected. Check the prompt and attachments.";
-    this.#reportSubmissionError(error, `${message} Press Up to recover the draft.`);
+    this.#reportSubmissionError(error, error instanceof ImageAttachmentError && error.code === "image-count"
+      ? message
+      : `${message} Press Up to recover the draft.`);
     return rejected(message);
   }
 

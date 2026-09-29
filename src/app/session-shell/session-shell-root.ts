@@ -1231,7 +1231,11 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       return;
     }
     if (this.#customViewport && (message.kind === "warning" || message.kind === "error")) {
-      this.#dockNotice = { kind: message.kind, message: message.message, ...(errorCode === undefined ? {} : { errorCode }) };
+      this.#dockNotice = {
+        kind: errorCode === "image-count" ? "warning" : message.kind,
+        message: message.message,
+        ...(errorCode === undefined ? {} : { errorCode }),
+      };
       this.#invalidateChrome();
       return;
     }

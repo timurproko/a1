@@ -109,7 +109,7 @@ describe("PromptChipStore", () => {
       const ninth = store.beginPaste(draft, read, error => errors.push(error));
       await ninth.result;
       expect(errors.at(-1)).toMatchObject({ code: "image-count" });
-      expect(() => store.prepareSubmission(draft + ninth.marker)).toThrow("at most 8 images");
+      expect(() => store.prepareSubmission(draft + ninth.marker)).toThrow("limited to 8 images");
       expect(store.prepareSubmission(draft).images).toHaveLength(8);
     } finally { store.dispose(); }
   });

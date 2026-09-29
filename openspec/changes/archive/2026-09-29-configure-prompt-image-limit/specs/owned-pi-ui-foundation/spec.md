@@ -2,7 +2,12 @@
 
 ### Requirement: Corrected attachment-count feedback retires with its cause
 
-When bare A1 presents an attachment-count error for the current prompt, it SHALL associate that prompt-adjacent notice with the typed count failure. The notice SHALL be reconciled after editor changes and live prompt-image-limit changes. It SHALL clear without requiring submission when the current draft is within the effective limit and references no failed image-count marker. Reconciliation SHALL NOT clear a newer or unrelated status, warning, or error and SHALL NOT retry, revive, promote, or silently remove a failed image.
+When bare A1 presents an attachment-count warning for the current prompt, it SHALL associate that prompt-adjacent notice with the typed count failure. The warning SHALL explain that the prompt is limited to the effective image count and direct the user to remove an attachment or change the limit in `/settings`; it SHALL NOT present the count rejection as an error. The notice SHALL be reconciled after editor changes and live prompt-image-limit changes. It SHALL clear without requiring submission when the current draft is within the effective limit and references no failed image-count marker. Reconciliation SHALL NOT clear a newer or unrelated status, warning, or error and SHALL NOT retry, revive, promote, or silently remove a failed image.
+
+#### Scenario: Present count rejection as a corrective warning
+- **WHEN** paste or submission exceeds the effective prompt-image limit
+- **THEN** bare A1 SHALL present `A prompt is limited to <limit> image(s). Remove an attachment or change the limit in /settings.` with correct singular/plural grammar as warning feedback
+- **AND** it SHALL NOT label that feedback as an error or append an unrelated recovery instruction
 
 #### Scenario: Remove the rejected overflow image
 - **WHEN** an image paste is rejected for exceeding the effective prompt-image limit and the user removes its failed overflow marker from an otherwise compliant draft
@@ -30,7 +35,7 @@ When bare A1 presents an attachment-count error for the current prompt, it SHALL
 
 ### Requirement: Attachment admission and submission share finite limits
 
-The owned UI SHALL distinguish source-image intake limits from prepared-attachment limits. Bare A1 SHALL use the effective profile-local `promptImageLimit`, an integer from 1 through 16 with default 8, for current-draft paste admission and final shell submission validation. Settings-free and `a1 pi` input SHALL use 8. The neutral owned-command contract SHALL retain an absolute maximum of 16 prompt attachments independently of the interactive preference. The same effective limit SHALL govern ordinary prompts, steering, follow-ups, restored/deferred drafts, and submissions queued during compaction, and attachment-count feedback SHALL identify the effective numeric limit.
+The owned UI SHALL distinguish source-image intake limits from prepared-attachment limits. Bare A1 SHALL use the effective profile-local `promptImageLimit`, an integer from 1 through 16 with default 8, for current-draft paste admission and final shell submission validation. Settings-free and `a1 pi` input SHALL use 8. The neutral owned-command contract SHALL retain an absolute maximum of 16 prompt attachments independently of the interactive preference. The same effective limit SHALL govern ordinary prompts, steering, follow-ups, restored/deferred drafts, and submissions queued during compaction, and attachment-count feedback SHALL identify the effective numeric limit as a corrective warning that points to `/settings`, not as an error.
 
 The owned UI SHALL retain 8 MiB (8,388,608 bytes) of canonical base64 text per final attachment; this encoded-data limit SHALL NOT be described as an 8 MiB decoded-image limit. Source images of up to 20 MiB of compressed image bytes SHALL be eligible for preparation subject to supported format and bounded decoded-pixel safeguards, even when their original base64 exceeds the final limit. A1 SHALL attempt automatic resizing/recompression before rejecting an otherwise eligible source for final output size. Known downstream byte/dimension and attachment-count limits SHALL also constrain prepared output; local validity SHALL NOT imply universal provider acceptance. Malformed clipboard image data SHALL preserve the existing text-fallback or unchanged-prompt behavior and SHALL never be submitted as image data.
 

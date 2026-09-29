@@ -887,25 +887,32 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
       await vi.waitFor(() => expect(imageTags()).toHaveLength(count));
     };
     const notifyLimit = (next: number) => { limit = next; for (const listener of listeners) listener(); };
+    const countMessage = "A prompt is limited to 2 images.";
     try {
       await pasteReady(1);
       await pasteReady(2);
       terminal.input("\u0016");
-      await vi.waitFor(() => expect(stripTerminalSequences(shell.root.render(80).join("\n"))).toContain("at most 2 images"));
+      await vi.waitFor(() => {
+        const frame = stripTerminalSequences(shell.root.render(80).join("\n"));
+        expect(frame).toContain("Warning:");
+        expect(frame).toContain(countMessage);
+        expect(frame).toContain("limit in /settings.");
+        expect(frame).not.toContain("Error:");
+      });
       expect(shell.root.editor.getText()).toMatch(/\[📷 failed-/u);
 
       shell.root.editor.setText(shell.root.editor.getText().replace(/\[📷 failed-[^\]]+\]/u, ""));
-      await vi.waitFor(() => expect(stripTerminalSequences(shell.root.render(80).join("\n"))).not.toContain("at most 2 images"));
+      await vi.waitFor(() => expect(stripTerminalSequences(shell.root.render(80).join("\n"))).not.toContain(countMessage));
 
       notifyLimit(3);
       await pasteReady(3);
       const overLimitDraft = shell.root.editor.getText();
       notifyLimit(2);
       expect((await shell.submit(overLimitDraft)).outcome).toBe("rejected");
-      expect(stripTerminalSequences(shell.root.render(80).join("\n"))).toContain("at most 2 images");
+      expect(stripTerminalSequences(shell.root.render(80).join("\n"))).toContain(countMessage);
+      expect(stripTerminalSequences(shell.root.render(80).join("\n"))).not.toContain("Press Up to recover the draft.");
       notifyLimit(3);
-      await vi.waitFor(() => expect(stripTerminalSequences(shell.root.render(80).join("\n"))).not.toContain("at most 2 images"));
-
+      await vi.waitFor(() => expect(stripTerminalSequences(shell.root.render(80).join("\n"))).not.toContain(countMessage));
     } finally { await shell.dispose(); }
   });
 
@@ -921,7 +928,7 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
       terminal.input("\u0016");
       await vi.waitFor(() => expect(shell.root.editor.getText()).toMatch(/\[📷 screenshot-/u));
       terminal.input("\u0016");
-      await vi.waitFor(() => expect(stripTerminalSequences(shell.root.render(80).join("\n"))).toContain("at most 1 image"));
+      await vi.waitFor(() => expect(stripTerminalSequences(shell.root.render(80).join("\n"))).toContain("A prompt is limited to 1 image"));
       shell.root.appendWorkflowResult({ command: "debug", outcome: "failed", message: "newer unrelated error" });
       shell.root.editor.setText(shell.root.editor.getText().replace(/\[📷 failed-[^\]]+\]/u, ""));
       await nextImmediate();

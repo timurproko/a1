@@ -37,13 +37,13 @@ The setting therefore controls interactive prompt policy while the contract rema
 
 ### 3. Use one parameterized count assertion across admission and submission
 
-Replace literal count checks with one bounded helper that accepts the effective limit, validates it against the absolute ceiling, and emits an `image-count` error whose message names that limit. Use it for synchronous paste transformation, asynchronous image identification before preparation work starts, ordinary prompt submission, steering, follow-up, compaction-queued submission, and restored/deferred shell drafts. Keep unique attachment semantics: repeated references to one live image chip remain one attachment, while pending and failed image chips continue occupying draft slots.
+Replace literal count checks with one bounded helper that accepts the effective limit, validates it against the absolute ceiling, and emits a typed `image-count` rejection whose message names that limit. Present that rejection in bare A1 as a corrective warning—`A prompt is limited to <limit> image(s). Remove an attachment or change the limit in /settings.`—rather than as an error, while retaining the typed failure for admission control and notice ownership. Use it for synchronous paste transformation, asynchronous image identification before preparation work starts, ordinary prompt submission, steering, follow-up, compaction-queued submission, and restored/deferred shell drafts. Keep unique attachment semantics: repeated references to one live image chip remain one attachment, while pending and failed image chips continue occupying draft slots.
 
 Changing only the paste checks was rejected because final command validation would still reject a configured value above eight. Raising only the command constant was rejected because the settings value would not govern early work admission or provide consistent diagnostics.
 
 ### 4. Track attachment-count feedback as an owned, correctable notice
 
-Associate the prompt-adjacent notice produced by `image-count` with that typed failure rather than relying on message text. On editor changes and live limit changes, inspect the current draft through the prompt-chip store. Clear that notice only when the draft is within the effective limit and no referenced failed image-count marker remains. Removing the rejected overflow marker from an otherwise full valid draft therefore clears the notice immediately; removing ready images from a draft that became over-limit after lowering the setting also clears it when compliant.
+Associate the prompt-adjacent warning produced by `image-count` with that typed failure rather than relying on message text. On editor changes and live limit changes, inspect the current draft through the prompt-chip store. Clear that notice only when the draft is within the effective limit and no referenced failed image-count marker remains. Removing the rejected overflow marker from an otherwise full valid draft therefore clears the notice immediately; removing ready images from a draft that became over-limit after lowering the setting also clears it when compliant.
 
 Do not clear a newer status, warning, or error that replaced the count notice, and do not clear size, codec, pending, or delivery-uncertain failures merely because image count changed. Failed overflow chips remain failed and are never promoted or retried when the limit increases; users remove and paste them again if desired.
 
@@ -57,7 +57,7 @@ Settings tests will cover default resolution, version migration, Agent-section o
 
 - **[Sixteen large final attachments can increase request memory substantially]** → Keep the existing 8 MiB per-attachment cap, retain 16 as a hard ceiling, reject before dispatch, and make no provider-acceptance claim.
 - **[Live setting and asynchronous paste completion can race]** → Resolve the limit at the admission/validation point, not when paste intent is first created; the current effective value owns that decision.
-- **[A stale error could clear a newer notice]** → Carry typed notice identity and clear only the still-current `image-count` notice.
+- **[A stale count warning could clear a newer notice]** → Carry typed notice identity and clear only the still-current `image-count` notice.
 - **[A failed overflow marker looks count-compliant after another image is deleted]** → Treat referenced failed count markers as unresolved until removed; never silently convert them into ready attachments.
 - **[Comparison behavior could drift]** → Supply the setting port only in bare A1 and assert the settings-free fallback remains eight.
 
