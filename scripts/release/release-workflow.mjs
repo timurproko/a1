@@ -190,8 +190,8 @@ function assertDraftRelease(value, source, version) {
   return Object.freeze({ id: value.id, url, version, source, markdown: note.markdown, updatedAt: value.updated_at });
 }
 async function armReviewSaveWindow(r, draft) {
-  // GitHub Release timestamps have one-second precision. Do not expose the editing URL
-  // until a subsequent unchanged-body save can be distinguished from preparation.
+  // Protocol: GitHub Release timestamps have one-second precision, so the editing URL
+  // stays hidden until a subsequent unchanged-body save can be distinguished from preparation.
   const remaining = Date.parse(draft.updatedAt) + 1_001 - r.now();
   if (remaining > 0) await r.wait(remaining);
 }
