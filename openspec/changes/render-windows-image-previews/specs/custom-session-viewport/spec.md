@@ -21,6 +21,7 @@ This fallback SHALL apply only to the bare-A1 submitted-user-image surface on Wi
 - **WHEN** a user submits an available screenshot in bare A1 running through Windows Terminal where Pi reports no native image protocol
 - **THEN** the transcript SHALL show a bounded high-fidelity Sixel preview rather than only `[Image: …]` metadata
 - **AND** Sixel encoding SHALL run in A1's bounded worker without requiring an external renderer, PowerShell, or machine-installed conversion module
+- **AND** Pi row-width calculation SHALL receive only a bounded lifecycle marker, while the complete validated DCS including color-plane data SHALL be expanded after row composition immediately before terminal output
 
 #### Scenario: Fall back on an unknown Windows host
 
@@ -44,7 +45,7 @@ This fallback SHALL apply only to the bare-A1 submitted-user-image surface on Wi
 
 - **WHEN** transcript image visibility is disabled before or during preview preparation
 - **THEN** bare A1 SHALL show the existing bounded hidden-image text and SHALL start no new preview conversion while hidden
-- **AND** a late completion SHALL NOT repaint the hidden or replaced surface
+- **AND** a late completion or stale/disposed terminal marker SHALL NOT repaint the hidden or replaced surface
 
 #### Scenario: Preview generation is unavailable
 

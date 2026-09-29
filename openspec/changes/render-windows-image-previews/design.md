@@ -6,6 +6,8 @@ Pi TUI 0.87.1 detects WezTerm as Kitty-capable and Windows Terminal as having no
 
 The user-provided `pi-imgcat` package is useful evidence but is not a drop-in solution. Its command/tool emit ordinary Pi image content on native paths; on Windows it uses Sixel through an optional external PowerShell module and then falls back to ANSI half-block art. Installing that package would not replace bare A1's submitted-user-image presenter, and requiring its machine-level module would make core behavior depend on unowned software. Its late-row Sixel composition demonstrates that raw DCS survives Windows ConPTY and can coexist with Pi's row model. A1 will own that presentation path and use a bundled in-process encoder instead of invoking the module.
 
+Physical Windows Terminal review then exposed a separate composition defect: Pi TUI counts the printable Sixel body toward row width and truncates it before terminal output. With solid-background selection, Windows Terminal received only the raster header and displayed a black rectangle; with transparent-background selection, the same header-only stream displayed nothing. The encoded color planes never reached the host. This means encoder/background tuning cannot repair the issue; the complete validated DCS must remain outside Pi's width-counted row text until the final terminal boundary.
+
 ## Goals / Non-Goals
 
 **Goals:**
@@ -17,7 +19,7 @@ The user-provided `pi-imgcat` package is useful evidence but is not a drop-in so
 
 **Non-Goals:**
 - Install, vendor, or execute `pi-imgcat`, the PowerShell `Sixel` module, or another external renderer.
-- Add Sixel encoding to A1 in this change.
+- Add generic Sixel passthrough for tool output, extensions, or `a1 pi`.
 - Change tool-result image rendering, extension-owned custom renderers, prompt chips, image preparation quality, or provider payloads.
 - Repair upstream Pi globally, patch installed package files, or change the explicit `a1 pi` comparison profile.
 - Promise photographic fidelity equal to a terminal-native pixel protocol.
@@ -42,9 +44,11 @@ Main-thread decoding was rejected because screenshot conversion can suspend inpu
 
 ### 3. Compose Sixel after its reserved rows
 
-For a Sixel result, reserve a bounded number of transcript rows and carry the DCS sequence on the final reserved row, moving the cursor back to the preview origin immediately before transmission. This follows the proven `pi-imgcat` row-order technique: ordinary clears and placeholders paint first, then the image paints over them. Source alpha is composited in the worker and the DCS requests transparent background handling so Windows Terminal does not apply its device-dependent solid background fill over the encoded palette. The sequence is produced and size-checked in the worker, validated again at the adapter boundary, and never interpreted as model or transcript text. Later settled rendering, scrolling, resizing, hiding, or remounting either retains or regenerates the lifecycle-owned result.
+For a Sixel result, reserve a bounded number of transcript rows and place only a short lifecycle-owned, zero-width marker on the final reserved row. The complete validated DCS remains in an A1-owned registry outside component text. After Pi has completed width calculation, truncation, row clearing, and damage-frame composition, the terminal adapter replaces surviving markers with an upward cursor move and the complete DCS immediately before forwarding bytes to the terminal. Ordinary clears therefore paint first, while Pi can neither count nor truncate the Sixel body. Unknown, stale, disposed, or clipped markers expand to nothing.
 
-Directly returning Sixel on the first reserved row was rejected because subsequent row clears can erase the just-painted pixels. A machine-installed encoder and subprocess were rejected because core preview behavior must ship with A1.
+The worker still composites source alpha, requests transparent Sixel background handling, validates framing, and enforces encoded-byte limits. The presenter owns marker registration alongside its cache entry and releases it on invalidation, replacement, hiding, or disposal. The terminal adapter expands only registered markers and never accepts arbitrary DCS from transcript or model text. Later settled rendering, scrolling, resizing, hiding, or remounting either retains or regenerates the lifecycle-owned result.
+
+Directly embedding Sixel in a component row was rejected after physical evidence proved Pi truncates the printable DCS body to terminal width. Returning Sixel on the first reserved row was already rejected because subsequent row clears can erase the just-painted pixels. A machine-installed encoder and subprocess remain rejected because core preview behavior must ship with A1.
 
 ### 4. Tie preview work to mounted attachment identity and lifecycle
 
@@ -62,13 +66,14 @@ The fallback is presentation-only. It does not claim a new attachment was create
 
 ### 6. Prove both semantic output and terminal behavior
 
-Focused worker tests will cover Sixel framing/size, aspect preservation, cell fallback color pairing, transparency, malformed input, width/height/output limits, cancellation, and payload-free failures. Presenter tests will cover host selection, pending/ready/unavailable/hidden states, width changes, stale completion, disposal, and original-attachment identity. Terminal evidence will assert known Windows hosts receive one bounded Sixel DCS after reserved rows, unknown Windows hosts receive bounded ordinary cells, neither path emits Kitty image transmission/placement, iTerm OSC 1337 image, or base64 payload, and reliable native and `a1 pi` fixtures remain unchanged.
+Focused worker tests will cover Sixel framing/size, aspect preservation, cell fallback color pairing, transparency, malformed input, width/height/output limits, cancellation, and payload-free failures. Presenter tests will cover host selection, pending/ready/unavailable/hidden states, width changes, stale completion, disposal, marker registration, and original-attachment identity. Terminal evidence will assert component rows contain only bounded markers, the final forwarded write contains one complete non-truncated Sixel DCS with actual color planes after reserved rows, stale or clipped markers emit no DCS, unknown Windows hosts receive bounded ordinary cells, neither path emits Kitty image transmission/placement, iTerm OSC 1337 image, or base64 payload, and reliable native and `a1 pi` fixtures remain unchanged.
 
 Automated evidence cannot establish actual host colors or readability. Acceptance therefore includes the exact built candidate in current Windows WezTerm and Windows Terminal, checking initial paint, later status/assistant updates, scrolling away/back, resize, hidden-image mode, and continued input responsiveness.
 
 ## Risks / Trade-offs
 
 - **[ANSI previews have lower fidelity than native pixels]** → Prefer bounded Sixel on accepted Windows Terminal and WezTerm hosts; retain two-color 2×2 quadrant samples only for unknown Windows hosts. Manual Windows Terminal evidence rejected the initial 1×2 half-block output as too coarse for text-heavy screenshots.
+- **[Pi row layout truncates protocol payloads]** → Keep the DCS outside width-counted component text and expand only a short registered marker after final damage-frame composition; assert the terminal receives color-plane bytes beyond the row width.
 - **[Large screenshots can consume CPU or terminal bytes]** → Decode in the existing bounded worker infrastructure and cap input, decoded pixels, cells, rows, output bytes, concurrency, and deadline.
 - **[The synchronous mounted lifecycle adds startup code]** → Accept one small adapter module in the startup graph while keeping codecs and conversion logic worker-only.
 - **[Theme or transparency can make content unreadable]** → Define deterministic transparent-pixel handling and regenerate theme-dependent rows when required.
@@ -80,7 +85,8 @@ Automated evidence cannot establish actual host colors or readability. Acceptanc
 
 1. Add the platform/route/capability presentation policy and the bounded worker request/result contract.
 2. Add the lifecycle-owned submitted-image presenter and integrate it where bare A1 currently appends user transcript images.
-3. Add focused conversion, presenter, protocol, comparison, and terminal-paint evidence.
-4. Build and physically review the exact candidate through `./scripts/dev` in Windows WezTerm and Windows Terminal.
+3. Add the lifecycle-owned marker registry and final terminal-adapter expansion so Pi never width-truncates the DCS.
+4. Add focused conversion, presenter, protocol, comparison, and terminal-paint evidence.
+5. Build and physically review the exact candidate through `./scripts/dev` in Windows WezTerm and Windows Terminal.
 
 Rollback removes the Windows fallback selection and derived preview worker path; original transcript attachments and persisted sessions require no migration.

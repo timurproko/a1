@@ -23,6 +23,6 @@ None.
 
 ## Impact
 
-Implementation will affect the bare-A1 transcript image presenter, an off-thread preview conversion boundary, presentation lifetime/caching, fullscreen image-row composition, one bundled JavaScript Sixel encoder dependency, and focused rendering evidence. It will not install `pi-imgcat`, require PowerShell or a machine-installed Sixel module, change provider payloads, alter source-image preparation, modify installed Pi packages, or change `a1 pi`.
+Implementation will affect the bare-A1 transcript image presenter, an off-thread preview conversion boundary, presentation lifetime/caching, a lifecycle-owned short-marker registry, final terminal-adapter expansion after Pi row layout, fullscreen image-row composition, one bundled JavaScript Sixel encoder dependency, and focused rendering evidence. It will not install `pi-imgcat`, require PowerShell or a machine-installed Sixel module, change provider payloads, alter source-image preparation, modify installed Pi packages, or change `a1 pi`.
 
 This change contains planning artifacts only, not implementation.
