@@ -5,7 +5,8 @@ Verdict: accepted only when the containing exact pull-request head is manually m
 The manual merge accepts these scenarios:
 - The Agent settings screen persists a live prompt image limit from 1 through 16 and defaults existing profiles to 8.
 - Paste admission and ordinary or queued submission preparation enforce the current limit, while the command contract rejects more than 16 attachments.
-- Correcting an over-limit draft retires only its active image-count notice and never retries failed overflow images.
+- Count feedback names the effective image limit, directs users to `/settings`, and renders as a warning rather than an error.
+- Correcting an over-limit draft retires only its active image-count warning and never retries failed overflow images.
 - Settings-free and `a1 pi` comparison sessions retain the fixed eight-image behavior.
 
 ```openspec-delivery
@@ -21,7 +22,8 @@ The manual merge accepts these scenarios:
   "acceptanceScenarios": [
     "The Agent settings screen persists a live prompt image limit from 1 through 16 and defaults existing profiles to 8.",
     "Paste admission and ordinary or queued submission preparation enforce the current limit, while the command contract rejects more than 16 attachments.",
-    "Correcting an over-limit draft retires only its active image-count notice and never retries failed overflow images.",
+    "Count feedback names the effective image limit, directs users to `/settings`, and renders as a warning rather than an error.",
+    "Correcting an over-limit draft retires only its active image-count warning and never retries failed overflow images.",
     "Settings-free and `a1 pi` comparison sessions retain the fixed eight-image behavior."
   ],
   "archiveDigest": "372cde98bd1816e66fa4cf43e45e6664f4c391292e447b048556734697b3b99d",
