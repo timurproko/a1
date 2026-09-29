@@ -27,7 +27,12 @@ export function validateRulesetDefinition(definition) {
     if (typeof ruleset.name !== "string" || names.has(ruleset.name)) throw new Error("ruleset names must be unique non-empty strings");
     names.add(ruleset.name);
     if (ruleset.enforcement !== "active") throw new Error(`${ruleset.name} must be actively enforced`);
-    if (!Array.isArray(ruleset.bypass_actors) || ruleset.bypass_actors.length !== 0) throw new Error(`${ruleset.name} must not permit direct-push bypass actors`);
+    if (!Array.isArray(ruleset.bypass_actors)) throw new Error(`${ruleset.name} must declare bypass actors`);
+    // Security: a failed stable publication deletes its unconsumed tag, so the tag ruleset admits
+    // exactly one GitHub App bypass; no branch ruleset and no person or team may bypass.
+    if (ruleset.target === "tag" ? !isReleaseAutomationBypass(ruleset.bypass_actors) : ruleset.bypass_actors.length !== 0) {
+      throw new Error(`${ruleset.name} must not permit bypass actors other than the single release-automation App`);
+    }
     const include = ruleset.conditions?.ref_name?.include;
     if (!Array.isArray(include) || include.length !== 1) throw new Error(`${ruleset.name} must target exactly one ref pattern`);
     if (!Array.isArray(ruleset.conditions?.ref_name?.exclude)) throw new Error(`${ruleset.name} must declare excluded ref patterns`);
@@ -103,6 +108,13 @@ export function planRulesetChanges(definition, liveRulesets) {
 export function normalizeRuleset(ruleset) {
   const kept = Object.fromEntries(Object.entries(ruleset).filter(([key]) => !RULESET_SERVER_FIELDS.has(key)));
   return canonical(kept, "ruleset");
+}
+
+function isReleaseAutomationBypass(actors) {
+  if (actors.length !== 1) return false;
+  const [actor] = actors;
+  return JSON.stringify(Object.keys(actor ?? {}).sort()) === JSON.stringify(["actor_id", "actor_type", "bypass_mode"])
+    && Number.isSafeInteger(actor.actor_id) && actor.actor_id > 0 && actor.actor_type === "Integration" && actor.bypass_mode === "always";
 }
 
 function requireExactKeys(value, expected, path) {

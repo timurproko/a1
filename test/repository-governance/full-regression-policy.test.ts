@@ -95,7 +95,7 @@ describe("complete regression automation", () => {
     expect(fullStep.env.VALIDATION_CANDIDATE_TARBALL).toBe("${{ github.workspace }}/.artifacts/validation/package/candidate.tgz");
     expect(fullStep.env.STARTUP_BUDGET_ENFORCEMENT).toBe("record");
     expect(fullStep.env.STARTUP_PERFORMANCE_RESULT).toBe(".artifacts/validation/startup-${{ matrix.os }}-node${{ matrix.node }}.json");
-    expect(packageStep.env.STARTUP_BUDGET_ENFORCEMENT).toBe("${{ needs.plan.outputs.mode == 'stable' && 'fail' || 'record' }}");
+    expect(packageStep.env.STARTUP_BUDGET_ENFORCEMENT).toBe("${{ needs.plan.outputs.channel == 'latest' && 'fail' || 'record' }}");
   });
 
   it("keeps every deferred startup, image, and history test in the actual full plan exactly once", async () => {

@@ -52,39 +52,35 @@ describe("release preparation with real temporary Git and fake external services
     expect(f.logs[0]).toBe(`source ${current}; stable target ${stable}; next development ${opening}; mode prepare`);
     const output = f.logs.join("\n");
     expect(count(output, editUrl(draft))).toBe(1);
-    expect(output).toContain("choose Save draft");
-    expect(output).toContain("npm staging succeeded in run 42");
+    expect(output).toContain("https://github.com/fixture/a1/actions/runs/42");
     expect(output).toContain("choose Publish release");
-    expect(output).not.toContain("/actions/workflows/");
+    expect(output).not.toContain("Save draft");
     expect(output).not.toContain("--approve");
-    expect(f.events).toContain(`stable-dispatch:1:${stable}`);
+    expect(f.events).toContain(`validation-dispatch:${f.initialHead}:${stable}`);
+    expect(f.events.indexOf(`draft-create:v${stable}`)).toBeLessThan(f.events.indexOf(`validation-dispatch:${f.initialHead}:${stable}`));
     expect(f.ghCalls.some(args => args[0] === "pr")).toBe(false);
   }, INTEGRATION_TIMEOUT);
 
-  it("reuses an edited draft without overwriting it and requires another fresh save", async () => {
+  it("reuses an edited draft without overwriting it and reports the reused validation", async () => {
     const f = await fixture();
     const draft = await prepare(f);
     draft.body = "## Fixes\n\n- Reviewed edit.\n";
+    f.setDispatchValidation(() => ({ runId: 42, url: "https://github.com/fixture/a1/actions/runs/42", reused: true }));
     const before = f.logs.length;
     expect(await main(["patch"], f.runtime)).toBe(0);
     expect(f.drafts).toHaveLength(1);
     expect(f.drafts[0]!.body).toBe("## Fixes\n\n- Reviewed edit.\n");
     const output = f.logs.slice(before).join("\n");
     expect(count(output, editUrl(draft))).toBe(1);
-    expect(output).toContain("choose Save draft");
-    expect(output).not.toContain("actions/workflows");
+    expect(output).toContain("Reusing validation");
   }, INTEGRATION_TIMEOUT);
 
-  it("recognizes exact successful staging without dispatching or republishing", async () => {
+  it("reports a validation dispatch failure after keeping the prepared draft", async () => {
     const f = await fixture();
-    const draft = await prepare(f);
-    f.recordCompletedStaging(73);
-    f.setDispatchStable(() => { throw new Error("must not dispatch"); });
-    const before = f.logs.length;
-    expect(await main(["patch"], f.runtime)).toBe(0);
+    f.setDispatchValidation(() => { throw new Error("dispatch unavailable"); });
+    expect(await main(["patch"], f.runtime)).toBe(1);
     expect(f.drafts).toHaveLength(1);
-    expect(f.logs.slice(before).join("\n")).toContain("npm staging was already verified in run 73");
-    expect(f.logs.slice(before).join("\n")).toContain(editUrl(draft));
+    expect(f.errors.join("\n")).toContain("dispatch unavailable");
   }, INTEGRATION_TIMEOUT);
 
   it("rejects the retired local approval form before GitHub or registry mutation", async () => {
@@ -92,7 +88,7 @@ describe("release preparation with real temporary Git and fake external services
     expect(await main(["patch", "--approve"], f.runtime)).toBe(2);
     expect(f.drafts).toEqual([]);
     expect(f.events).toEqual([]);
-    expect(f.errors.join("\n")).toContain("waits for Save draft");
+    expect(f.errors.join("\n")).toContain("choosing Publish release on that draft publishes npm");
   }, INTEGRATION_TIMEOUT);
 
   it.each(["not-semver"])("rejects invalid current version %s", async version => {
@@ -113,12 +109,12 @@ describe("release preparation with real temporary Git and fake external services
     expect(f.drafts).toEqual([]);
   }, INTEGRATION_TIMEOUT);
 
-  it.each(["both"])("refuses an existing stable npm identity: %s", async present => {
+  it.each(["both", "application", "installer"])("refuses an existing stable npm identity: %s", async present => {
     const f = await fixture();
-    f.setRegistry(() => present === "both" ? { version: "0.1.8" } : null);
+    f.setRegistry(name => present === "both" || (present === "application") === (name === f.manifest.name) ? { version: "0.1.8" } : null);
     expect(await main(["patch"], f.runtime)).toBe(1);
     expect(f.drafts).toEqual([]);
-    expect(f.errors.join("\n")).toContain("without one exact staged draft Release");
+    expect(f.errors.join("\n")).toContain("stable versions are never republished");
   }, INTEGRATION_TIMEOUT);
 
   it.each(["dirty", "branch", "behind"])("checks preflight before draft mutation: %s", async failure => {
@@ -134,30 +130,17 @@ describe("release preparation with real temporary Git and fake external services
     expect(f.drafts).toEqual([]);
   }, INTEGRATION_TIMEOUT);
 
-  it("cancels a waiting review without dispatching or changing the draft", async () => {
+  it("refuses validation when develop advances while the draft is being prepared", async () => {
     const f = await fixture();
-    const controller = new AbortController();
-    Object.defineProperty(f.runtime, "signal", { value: controller.signal });
-    f.setAutoSave(false);
-    f.runtime.wait = async () => { controller.abort(); };
-    f.setDispatchStable(() => { throw new Error("must not dispatch"); });
-    expect(await main(["patch"], f.runtime)).toBe(130);
-    expect(f.drafts).toHaveLength(1);
-    expect(f.drafts[0]).toMatchObject({ draft: true, body: expect.stringContaining("## [0.1.8]") });
-  }, INTEGRATION_TIMEOUT);
-
-  it("refuses dispatch when develop advances while the draft is being reviewed", async () => {
-    const f = await fixture();
-    let advanced = false;
-    f.runtime.wait = async () => {
-      if (advanced) return;
-      advanced = true;
+    f.setReleaseChanges(async () => {
       const tree = f.git(["rev-parse", `${f.initialHead}^{tree}`], f.remote);
-      const tip = f.git(["commit-tree", tree, "-p", f.initialHead, "-m", "advance during review"], f.remote);
+      const tip = f.git(["commit-tree", tree, "-p", f.initialHead, "-m", "advance during preparation"], f.remote);
       f.git(["update-ref", "refs/heads/develop", tip, f.initialHead], f.remote);
-    };
-    f.setDispatchStable(() => { throw new Error("must not dispatch"); });
+      return [];
+    });
+    f.setDispatchValidation(() => { throw new Error("must not dispatch"); });
     expect(await main(["patch"], f.runtime)).toBe(1);
+    expect(f.drafts).toEqual([]);
     expect(f.errors.join("\n")).toContain("refusing to substitute another commit");
   }, INTEGRATION_TIMEOUT);
 

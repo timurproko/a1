@@ -19,7 +19,8 @@ None.
 ### Modified Capabilities
 
 - `continuous-integration`: Stable publication starts from native Release publication instead of a saved draft; a stable Release and tag may briefly precede npm, with automatic return to draft when publication fails before npm.
+- `github-repository-governance`: The `v*` tag ruleset admits exactly one release-automation App bypass so rollback can delete an unconsumed tag; every other protected-ref bypass remains forbidden.
 
 ## Impact
 
-This changes the release command lifecycle, the stable publication trigger and ordering, the tag policy for unconsumed tags, the `publish.yml`/`finalize-release.yml`/`approve-release.yml` workflows, release tests, repository governance declarations, and the CI release runbook. Nightly development publication and `npm run develop` are unchanged.
+This changes the release command lifecycle, the stable publication trigger and ordering, the tag policy for unconsumed tags and the `a1-protect-release-tags` ruleset bypass, the `publish.yml`/`finalize-release.yml`/`approve-release.yml` workflows plus a new `release-candidate.yml`, release tests, repository governance declarations, and the CI release runbook. Nightly development publication and `npm run develop` are unchanged.

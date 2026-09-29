@@ -43,9 +43,12 @@ export function releaseDocumentationFindings(readme, runbook) {
   if (!/merge (?:it )?manually/u.test(runbook)) findings.push("docs/ci-release-runbook.md: missing manual reopening merge guidance");
   if (/self-merging|merge themselves/u.test(runbook)) findings.push("docs/ci-release-runbook.md: version pull requests cannot self-merge");
   if (readme.includes("--approve") || runbook.includes("npm run release -- patch --approve")) findings.push("release documentation: retired local --approve command remains");
-  if (!runbook.includes("Save draft") || !runbook.includes("never opens Actions or re-enters the version")
-    || !runbook.includes("reports npm ready") || !runbook.includes("native **Publish release**")) {
-    findings.push("docs/ci-release-runbook.md: missing release-page staging handoff guidance");
+  if (!runbook.includes("never opens Actions or re-enters the version") || !runbook.includes("native **Publish release**")
+    || !runbook.includes("release-candidate.yml") || !/Release returns to draft|returns the Release to draft/u.test(runbook)) {
+    findings.push("docs/ci-release-runbook.md: missing native-publication release guidance");
+  }
+  if (/reports npm ready|wait for `?npm ready`?/iu.test(`${readme}\n${runbook}`)) {
+    findings.push("release documentation: retired Save-draft staging handoff remains");
   }
   if (!readme.includes("## [version] - YYYY-MM-DD") || !runbook.includes("## [version] - YYYY-MM-DD")) {
     findings.push("release documentation: missing Pi-style generated changelog format");
