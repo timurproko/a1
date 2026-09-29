@@ -3,7 +3,8 @@
 Verdict: accepted only when the containing exact pull-request head is manually merged by an authorized human after required current-head validation.
 
 The manual merge accepts these scenarios:
-- The queued chip wrapping test asserts a one-row dequeue hint on macOS, Linux, and Windows while platform key labels stay covered by the live-binding test.
+- The queued chip wrapping test asserts the exact dequeue hint rows for each platform, including the wrapped Option+Up hint on macOS.
+- Every width and rail appearance of the scrollbar gutter selection replay runs as its own case with its original deadline and combinations.
 - The pinned Pi public API baseline matches the installed packages on the merged develop head.
 
 ```openspec-delivery
@@ -17,10 +18,11 @@ The manual merge accepts these scenarios:
   "finalizedDate": "2026-09-29",
   "specBaseSha": "fadd03c2f2f4d2ae9ce1987d78d87b165a2666dd",
   "acceptanceScenarios": [
-    "The queued chip wrapping test asserts a one-row dequeue hint on macOS, Linux, and Windows while platform key labels stay covered by the live-binding test.",
+    "The queued chip wrapping test asserts the exact dequeue hint rows for each platform, including the wrapped Option+Up hint on macOS.",
+    "Every width and rail appearance of the scrollbar gutter selection replay runs as its own case with its original deadline and combinations.",
     "The pinned Pi public API baseline matches the installed packages on the merged develop head."
   ],
-  "archiveDigest": "4a578b5922617e1d6d5baca46846ba7441d63d74a586d05301a44a1dd65dc92c",
+  "archiveDigest": "1dff7684067673ecf47ae5d0c850f778f065725755b55f9acb107a4fab53c636",
   "specDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
   "tasksDigest": "dacb79ced8b85e6c12ef4b817ebfed7ec3341c9366b58a915451322ae24039fd",
   "evidenceDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
