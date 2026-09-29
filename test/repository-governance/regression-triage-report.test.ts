@@ -194,5 +194,8 @@ describe("nightly regression triage report", () => {
     const design = appendRunToDesign(files["openspec/changes/fix-nightly-regression-2026-09-19/design.md"]!, evidence({ run: { ...run, number: 413 } }));
     expect(design).toContain("## Evidence\n\n- Run [Full regression #412]");
     expect(design.trimEnd().split("\n").some(line => line.startsWith("- Run [Full regression #413]"))).toBe(true);
+
+    const sameDay = renderTriageChange({ ...evidence(), date: "2026-09-19-1" });
+    expect(sameDay["openspec/changes/fix-nightly-regression-2026-09-19-1/.openspec.yaml"]).toBe("schema: spec-driven\ncreated: 2026-09-19\nskip_specs: true\n");
   });
 });
