@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { describe, expect, it, vi } from "vitest";
 import { parse } from "yaml";
 import { changedPaths, readCurrentPull, requireFullRegressionSelection, selectFullRegression, verifyFailedRegressionSource, type RegressionProvenance, type RegressionPull } from "../../scripts/release/pr-full-regression.mjs";
-import { bindFullLane, fullContext, FULL_LANES, requireFullLanes, type FullTierResult } from "../../scripts/release/full-regression-evidence.mjs";
+import { bindFullLane, fullContext, FULL_LANES, requireFullLanes, SHARDED_FULL_LANES, type FullTierResult } from "../../scripts/release/full-regression-evidence.mjs";
 import { triageDecision } from "../../scripts/release/regression-triage-report.mjs";
 
 const head = "a".repeat(40);
@@ -165,9 +165,11 @@ describe("PR-native caller, security, and lifecycle contracts", () => {
     expect(ci.jobs.required.if).toContain("needs.readiness.outputs.validate == 'true'");
     expect(ci.on.pull_request.types).toEqual(expect.arrayContaining(["edited", "synchronize", "ready_for_review", "converted_to_draft"]));
     expect(ci.on.pull_request.types).not.toEqual(expect.arrayContaining(["labeled", "unlabeled"]));
-    expect(shared.jobs["full-regression"].strategy.matrix.include.map((lane: any) => `${lane.os}-node${lane.node}`).sort()).toEqual([...FULL_LANES].sort());
+    const windows = shared.jobs["windows-lane"].strategy.matrix.node.map((node: number) => `windows-2025-node${node}`);
+    expect([...shared.jobs["full-regression"].strategy.matrix.include.map((lane: any) => `${lane.os}-node${lane.node}`), ...windows].sort()).toEqual([...FULL_LANES].sort());
+    expect([...windows].sort()).toEqual([...SHARDED_FULL_LANES].sort());
     expect(shared.jobs.required.if).toBe("always()");
-    expect(shared.jobs.required.needs).toEqual(["documentation", "full-regression"]);
+    expect(shared.jobs.required.needs).toEqual(["documentation", "windows-shard", "windows-lane", "full-regression"]);
     expect(shared.jobs["full-regression"]["timeout-minutes"]).toBe(40);
     expect(shared.jobs["full-regression"].strategy["fail-fast"]).toBe(false);
     expect(shared.concurrency).toBeUndefined();

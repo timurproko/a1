@@ -1,4 +1,5 @@
 import crossSpawn from "cross-spawn";
+import { createHash } from "node:crypto";
 import { readFile, stat } from "node:fs/promises";
 import { resolve } from "node:path";
 import { recordBuildReceipt, verifyBuildReceipt, verifyPackageReceipt } from "./validation-receipt.mjs";
@@ -18,6 +19,25 @@ const maximumPortableCommandCharacters = 6_000;
 export const RESOURCE_SENSITIVE_TIMEOUT_MS = 30_000;
 /** Bounds the complete ordinary partition below hosted-runner process and memory capacity. */
 export const FULL_REGRESSION_MAX_WORKERS = 2;
+/** Stable Windows complete-regression shard identities, in canonical merge order. */
+export const FULL_REGRESSION_SHARDS = Object.freeze(["core", "resource", "rendering", "package"]);
+export const FULL_REGRESSION_SHARD_SCHEMA = "a1-full-regression-shard-v1";
+// Invariant: the build is a per-runner prerequisite every shard authenticates for itself; it is not owned work.
+const FULL_REGRESSION_SHARD_PREREQUISITES = Object.freeze(["candidate-build"]);
+// Invariant: every canonical command and invocation matches exactly one entry; an unassigned or doubly
+// assigned owner rejects the partition instead of silently joining a shard.
+const FULL_REGRESSION_SHARD_ASSIGNMENT = Object.freeze({
+  core: {
+    commands: ["typecheck", "architecture", "code-documentation-full", "internal-naming-full", "candidate-engine-conformance-report", "deprecated-dependencies"],
+    invocations: [/^vitest-full-without-isolated$/u],
+  },
+  resource: { commands: [], invocations: [/^vitest-fast-resource-sensitive(?:-\d+)?$/u] },
+  rendering: { commands: [], invocations: [/^vitest-isolated-suites$/u] },
+  package: {
+    commands: ["candidate-pack"],
+    invocations: [/^vitest-isolated-timing$/u, /^vitest-package-smoke-\d+$/u, /^vitest-package-startup$/u, /^vitest-package-contracts$/u, /^vitest-update-predecessor$/u],
+  },
+});
 
 export async function loadValidationSuites(repository = process.cwd()) {
   const suites = JSON.parse(await readFile(resolve(repository, "config", "validation-suites.json"), "utf8"));
@@ -109,6 +129,7 @@ export async function createTierPlan(requested, repository = process.cwd(), opti
   const isolatedTests = new Set(Object.values(suites.scopes)
     .filter(definition => definition.kind === "vitest-isolated")
     .flatMap(definition => definition.tests ?? []));
+  const predecessorTests = suites.scopes["update-predecessor"]?.tests ?? [];
   const packageTests = new Set([...packageSmokeTests, ...packageContractTests, ...packageStartupTests]);
   const independentlyTimedTests = new Set([...performanceTests, ...isolatedTests]);
   const regularExplicitTests = explicitTests.filter(entry => !packageTests.has(entry.test) && !independentlyTimedTests.has(entry.test));
@@ -170,7 +191,7 @@ export async function createTierPlan(requested, repository = process.cwd(), opti
             scopes: atomic,
             arguments: [
               "vitest", "run",
-              ...[...packageTests, ...independentlyTimedTests, ...resourceSensitiveTests.map(entry => entry.test)].flatMap(path => ["--exclude", path]),
+              ...[...packageTests, ...independentlyTimedTests, ...resourceSensitiveTests.map(entry => entry.test), ...predecessorTests].flatMap(path => ["--exclude", path]),
               `--maxWorkers=${FULL_REGRESSION_MAX_WORKERS}`,
               "--testTimeout=30000",
             ],
@@ -190,6 +211,9 @@ export async function createTierPlan(requested, repository = process.cwd(), opti
           { id: "vitest-isolated-suites", scopes: ["rendering-stability"], arguments: ["vitest", "run", ...isolatedTests, "--no-file-parallelism", "--testTimeout=600000"] },
           { id: "vitest-package-startup", scopes: ["package-startup"], arguments: ["vitest", "run", ...packageStartupTests, "--no-file-parallelism", "--testTimeout=600000"] },
           { id: "vitest-package-contracts", scopes: ["package-contracts"], arguments: ["vitest", "run", ...packageContractTests, "--no-file-parallelism", "--testTimeout=600000"] },
+          // Rationale: the exhaustive published-predecessor owner runs as its own invocation with the ordinary
+          // explicit bound so a shard can own it; its oracle, count, and phase limits live in the test.
+          ...(predecessorTests.length > 0 ? [{ id: "vitest-update-predecessor", scopes: ["update-predecessor"], arguments: ["vitest", "run", ...predecessorTests, "--testTimeout=30000"] }] : []),
         ],
       }
     : regularInvocations.length > 0
@@ -208,6 +232,75 @@ export async function createTierPlan(requested, repository = process.cwd(), opti
     commands,
     vitest,
     releaseContracts: full ? suites.releaseContracts : undefined,
+  };
+}
+
+/** Digest of the platform-independent canonical plan; every shard and the lane merger must agree on it. */
+export function fullRegressionPlanDigest(plan) {
+  const canonical = {
+    requested: plan.requested,
+    selected: plan.selected,
+    structuralEvidence: plan.structuralEvidence ?? {},
+    exactPackagePreparation: plan.exactPackagePreparation ?? null,
+    commands: plan.commands.map(command => ({ id: command.id, executable: command.executable, arguments: command.arguments, owners: command.owners })),
+    invocations: (plan.vitest?.invocations ?? []).map(invocation => ({ id: invocation.id, scopes: invocation.scopes, arguments: invocation.arguments, evidence: invocation.evidence ?? null })),
+  };
+  return createHash("sha256").update(JSON.stringify(canonical)).digest("hex");
+}
+
+/** Assign every canonical full-release command and invocation to exactly one reviewed shard. */
+export function partitionFullRegressionPlan(plan) {
+  if (JSON.stringify(plan?.requested) !== '["full-release"]' || plan.vitest?.mode !== "full-deduplicated") {
+    throw new Error("only the canonical full-release plan can be sharded");
+  }
+  const invocations = plan.vitest.invocations;
+  const ids = [...plan.commands.map(command => command.id), ...invocations.map(invocation => invocation.id)];
+  const duplicates = ids.filter((id, index) => ids.indexOf(id) !== index);
+  if (duplicates.length > 0) throw new Error(`duplicate complete-regression work: ${[...new Set(duplicates)].join(", ")}`);
+  const shards = Object.fromEntries(FULL_REGRESSION_SHARDS.map(id => [id, { commands: [], preparation: [], invocations: [] }]));
+  const prerequisites = [];
+  const owner = (id, kind) => {
+    const owners = FULL_REGRESSION_SHARDS.filter(shard => kind === "command"
+      ? FULL_REGRESSION_SHARD_ASSIGNMENT[shard].commands.includes(id)
+      : FULL_REGRESSION_SHARD_ASSIGNMENT[shard].invocations.some(pattern => pattern.test(id)));
+    if (owners.length !== 1) throw new Error(`complete-regression ${kind} ${id} has ${owners.length === 0 ? "no" : "more than one"} shard`);
+    return owners[0];
+  };
+  for (const command of plan.commands) {
+    if (FULL_REGRESSION_SHARD_PREREQUISITES.includes(command.id)) prerequisites.push(command.id);
+    else shards[owner(command.id, "command")].commands.push(command.id);
+  }
+  if (plan.exactPackagePreparation) shards.package.preparation.push(plan.exactPackagePreparation.id);
+  for (const invocation of invocations) shards[owner(invocation.id, "invocation")].invocations.push(invocation.id);
+  const empty = FULL_REGRESSION_SHARDS.filter(shard => shards[shard].invocations.length === 0);
+  if (empty.length > 0) throw new Error(`complete-regression shards own no invocation: ${empty.join(", ")}`);
+  return {
+    schema: "a1-full-regression-partition-v1",
+    planDigest: fullRegressionPlanDigest(plan),
+    selected: plan.selected,
+    structuralEvidence: plan.structuralEvidence ?? {},
+    prerequisites,
+    order: [
+      ...plan.commands.map(command => command.id),
+      ...(plan.exactPackagePreparation ? [plan.exactPackagePreparation.id] : []),
+      ...invocations.map(invocation => invocation.id),
+    ],
+    shards,
+  };
+}
+
+/** The canonical plan restricted to one shard's owned work, carrying the identity its result must report. */
+export function createFullRegressionShardPlan(plan, shard) {
+  if (!FULL_REGRESSION_SHARDS.includes(shard)) throw new Error(`unknown complete-regression shard: ${shard}`);
+  const partition = partitionFullRegressionPlan(plan);
+  const assigned = partition.shards[shard];
+  return {
+    ...plan,
+    consumesPackage: assigned.commands.includes("candidate-pack"),
+    exactPackagePreparation: assigned.preparation.length > 0 ? plan.exactPackagePreparation : null,
+    commands: plan.commands.filter(command => partition.prerequisites.includes(command.id) || assigned.commands.includes(command.id)),
+    vitest: { mode: "full-shard", invocations: plan.vitest.invocations.filter(invocation => assigned.invocations.includes(invocation.id)) },
+    fullShard: { schema: FULL_REGRESSION_SHARD_SCHEMA, id: shard, planDigest: partition.planDigest, prerequisites: partition.prerequisites, assigned },
   };
 }
 
