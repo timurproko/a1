@@ -16,7 +16,7 @@ The manual merge accepts these scenarios:
   "archive": "openspec/changes/archive/2026-09-29-fix-nightly-regression-2026-09-29/",
   "acceptanceManifest": "openspec/changes/archive/2026-09-29-fix-nightly-regression-2026-09-29/acceptance.md",
   "finalizedDate": "2026-09-29",
-  "specBaseSha": "fadd03c2f2f4d2ae9ce1987d78d87b165a2666dd",
+  "specBaseSha": "91b3b19e7cbe1fab48d3b41c97af030f6e367022",
   "acceptanceScenarios": [
     "The queued chip wrapping test asserts the exact dequeue hint rows for each platform, including the wrapped Option+Up hint on macOS.",
     "Every width and rail appearance of the scrollbar gutter selection replay runs as its own case with its original deadline and combinations.",
