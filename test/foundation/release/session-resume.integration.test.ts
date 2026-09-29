@@ -49,6 +49,10 @@ beforeAll(async () => {
   });
   await writeFile(resolve(agent, "auth.json"), JSON.stringify({ openai: { type: "api_key", key: "offline-fixture-never-sent" } }));
   await writeFile(resolve(agent, "settings.json"), JSON.stringify({ enabledModels: [], defaultProvider: "openai", defaultModel: "gpt-5" }));
+  // Rationale: a candidate with a current release note opens the full-screen What's New route on first launch.
+  const releaseNotes = resolve(environment.A1_CONFIG_DIR!, "release-notes");
+  await mkdir(releaseNotes, { recursive: true });
+  await writeFile(resolve(releaseNotes, "a1.json"), JSON.stringify({ version: 1, acknowledged: candidate.manifest.version }));
   vi.stubEnv("PI_CODING_AGENT_DIR", agent);
   vi.stubEnv("PI_CODING_AGENT_SESSION_DIR", undefined);
   store = SessionManager.create(cwd).getSessionDir();
