@@ -43,6 +43,7 @@ The queued component's refresh path will regenerate both the displayed text and 
 - [ANSI styling could obscure chip matching or restoration] → Apply the existing source-text transform at the presenter boundary and assert exact stripped labels plus width bounds.
 - [An authored sentinel could collide with the reversible transform] → Reuse the helper's collision-avoidance behavior rather than introducing queue-specific markers.
 - [Comparison output could drift] → Gate protection on `custom-viewport` and retain pinned component assertions.
+- [The eager presenter has no startup-byte headroom] → Re-pin only the exact measured source-byte increase while keeping the reachable file count and Pi artifact limits unchanged.
 
 ## Migration Plan
 

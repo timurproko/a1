@@ -5,8 +5,10 @@ import {
   type Component,
   type TUI,
 } from "@earendil-works/pi-tui";
-import type {
-  OwnedUiSessionViewModel,
+import {
+  protectPromptChipWrapping,
+  type OwnedUiSessionViewModel,
+  type PromptChipWrapProtection,
 } from "../../../contracts/owned-ui/index.js";
 import { SessionFooter } from "./upstream/components/session-footer.js";
 import { KeybindingsManager, type KeybindingsConfig } from "./upstream/adjacent/core/keybindings.js";
@@ -177,18 +179,20 @@ export function createPiQueuedInputStatus(
   getKeybindings?: () => KeybindingsConfig,
 ): PiShellQueuedInputPort {
   let renderedText = queuedInputText(submissions, presentation, getKeybindings?.());
-  const text = new Text(renderedText, 1, 0);
+  let chipWrapping = queuedInputChipWrapping(renderedText, presentation);
+  const text = new Text(chipWrapping.text, 1, 0);
   const refresh = () => {
     const next = queuedInputText(submissions, presentation, getKeybindings?.());
     if (next === renderedText) return;
     renderedText = next;
-    text.setText(next);
+    chipWrapping = queuedInputChipWrapping(next, presentation);
+    text.setText(chipWrapping.text);
   };
   return {
     render(width) {
       if (submissions.length === 0) return [];
       refresh();
-      return text.render(width);
+      return text.render(width).map(row => chipWrapping.restore(row));
     },
     invalidate: () => text.invalidate(),
     update(next) {
@@ -274,6 +278,15 @@ function statusSignature(
 ): string {
   const message = withMessage ? `${workingOverride ?? ""}\u0000${view.status.workingMessage ?? ""}\u0000${view.status.workingProgress ?? ""}` : "";
   return `${placement}\u0000${outputPad}\u0000${view.lifecycle}\u0000${progressPresentation}\u0000${message}\u0000${view.status.diagnostics.at(-1) ?? ""}`;
+}
+
+function queuedInputChipWrapping(
+  text: string,
+  presentation: "pinned" | "custom-viewport",
+): PromptChipWrapProtection {
+  return presentation === "custom-viewport"
+    ? protectPromptChipWrapping(text)
+    : { text, restore: value => value };
 }
 
 function queuedInputText(

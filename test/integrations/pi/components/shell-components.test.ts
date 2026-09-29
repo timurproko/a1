@@ -84,6 +84,59 @@ describe("Pi shell public component adapters", () => {
     expect(rows.at(-1)).toBe(" ↳ Ctrl+R to edit all queued messages");
   });
 
+  it.each([
+    "[paste #1 1001 chars]",
+    "[📷 screenshot-0123456789]",
+    "[📁 C:/workspace/folder]",
+    "[📄 C:/workspace/file.txt]",
+    "[🖼  converted-image.png]",
+    "[🔗 https://example.com/resource]",
+  ])("moves a fitting queued chip intact to its next custom-viewport row: %s", marker => {
+    const queued = createPiQueuedInputStatus([`${"x".repeat(20)} ${marker}`], "custom-viewport");
+    const rows = queued.render(40).map(row => stripTerminalSequences(row).trimEnd());
+    expect(rows.filter(row => row.includes(marker))).toHaveLength(1);
+    expect(rows.every(row => visibleWidth(row) <= 40)).toBe(true);
+  });
+
+  it("keeps adjacent queued chips individually atomic and refreshes wrapping with current queue text", () => {
+    const first = "[📷 screenshot-0123456789]";
+    const second = "[📄 C:/workspace/file.txt]";
+    let dequeueBinding = "alt+up";
+    const queued = createPiQueuedInputStatus(
+      [`${"x".repeat(20)} ${first}${second}${first}`],
+      "custom-viewport",
+      () => ({ "app.message.dequeue": dequeueBinding as "alt+up" | "ctrl+r" }),
+    );
+    let rows = queued.render(40).map(row => stripTerminalSequences(row).trimEnd());
+    expect(rows.filter(row => row.includes(first))).toHaveLength(2);
+    expect(rows.filter(row => row.includes(second))).toHaveLength(1);
+    expect(rows.some(row => row.includes("Alt+Up to edit all queued messages"))).toBe(true);
+
+    dequeueBinding = "ctrl+r";
+    queued.update([`updated ${second}`, "[ordinary bracketed text]"]);
+    rows = queued.render(40).map(row => stripTerminalSequences(row).trimEnd());
+    expect(rows.join("\n")).not.toContain("screenshot-0123456789");
+    expect(rows.filter(row => row.includes(second))).toHaveLength(1);
+    expect(rows.join("\n")).toContain("[ordinary bracketed text]");
+    expect(rows.some(row => row.includes("Ctrl+R to edit all queued messages"))).toBe(true);
+  });
+
+  it("keeps oversized queued chips width-safe and leaves pinned queue wrapping unchanged", () => {
+    const marker = "[📷 screenshot-👩‍💻-0123456789]";
+    const custom = createPiQueuedInputStatus([marker], "custom-viewport");
+    const customRows = custom.render(14).map(row => stripTerminalSequences(row).trimEnd());
+    const joinedCustom = customRows.map(row => row.startsWith(" ") ? row.slice(1) : row).join("");
+    expect(customRows.every(row => visibleWidth(row) <= 14)).toBe(true);
+    expect(joinedCustom).toContain(marker);
+
+    const fitting = `[📷 screenshot-0123456789]`;
+    const pinned = createPiQueuedInputStatus([`${"x".repeat(20)} ${fitting}`], "pinned");
+    const pinnedRows = pinned.render(40).map(row => stripTerminalSequences(row).trimEnd());
+    expect(pinnedRows.some(row => row.includes(fitting))).toBe(false);
+    expect(pinnedRows.some(row => row.includes("[📷"))).toBe(true);
+    expect(pinnedRows.some(row => row.includes("screenshot-0123456789]"))).toBe(true);
+  });
+
   it("adapts editor input and focus through owned contracts", () => {
     const submit = vi.fn();
     const editor = createPiShellEditor({

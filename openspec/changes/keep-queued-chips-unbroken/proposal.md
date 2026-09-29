@@ -21,4 +21,4 @@ None.
 
 ## Impact
 
-The implementation is limited to the existing queued-input presenter, shared canonical chip-wrap protection, and focused component/shell coverage. It does not change chip storage or expansion, attachment delivery, queue semantics, persisted/model-facing content, submitted-prompt behavior, or installed Pi code.
+The implementation is limited to the existing queued-input presenter, shared canonical chip-wrap protection, focused component/shell coverage, and the exact derived startup-graph byte ceiling. Startup file reachability remains unchanged. The change does not affect chip storage or expansion, attachment delivery, queue semantics, persisted/model-facing content, submitted-prompt behavior, or installed Pi code.

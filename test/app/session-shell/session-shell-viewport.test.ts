@@ -330,6 +330,42 @@ describe("OwnedUiSessionShell viewport and streaming", () => {
     }
   });
 
+  it("moves a fitting queued screenshot chip intact through the transient viewport tail", async () => {
+    const messages = Array.from({ length: 18 }, (_, index) => ({
+      role: "assistant",
+      content: [{ type: "text", text: `chip-transcript-${index}` }],
+      timestamp: Date.now() + index,
+    }));
+    const { engine, terminal, shell } = await fixture(messages, [], true);
+    const marker = "[📷 screenshot-0123456789]";
+    try {
+      terminal.resize(50, 18);
+      engine.session.emit({ type: "agent_start" });
+      engine.session.emit({ type: "queue_update", steering: [`${"x".repeat(30)} ${marker}`, "second"], followUp: [] });
+      await shell.backend.flushEvents();
+
+      let rows = shell.root.render(50).map(row => stripTerminalSequences(row));
+      const chipRows = rows.filter(row => row.includes("[📷") || row.includes("screenshot-0123456789]"));
+      expect(chipRows).toHaveLength(1);
+      expect(chipRows[0]).toContain(marker);
+      const chip = rows.findIndex(row => row.includes(marker));
+      const second = rows.findIndex(row => row.includes("Steering: second"));
+      const hint = rows.findIndex(row => row.includes(DEQUEUE_HINT));
+      const working = rows.findIndex(row => row.includes("Working"));
+      expect(second).toBeGreaterThan(chip);
+      expect(hint).toBeGreaterThan(second);
+      expect(working).toBeGreaterThan(hint);
+
+      for (let index = 0; index < 6; index += 1) terminal.input("\u001b[<64;25;1M");
+      rows = shell.root.render(50).map(row => stripTerminalSequences(row));
+      expect(rows.some(row => row.includes("screenshot-0123456789]"))).toBe(false);
+      expect(rows.some(row => row.includes("Steering: second"))).toBe(false);
+      expect(rows.some(row => row.includes(DEQUEUE_HINT))).toBe(false);
+    } finally {
+      await shell.dispose();
+    }
+  });
+
   it("bottom-aligns steering above Working while fitting and keeps true dock rows stable at overflow", async () => {
     const { engine, terminal, shell } = await fixture([
       { role: "assistant", content: [{ type: "text", text: "fitting transcript" }], timestamp: 1 },
