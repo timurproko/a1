@@ -119,7 +119,7 @@ describe("release preparation with real temporary Git and fake external services
     const before = f.logs.length;
     expect(await main(["patch"], f.runtime)).toBe(0);
     expect(f.drafts).toHaveLength(1);
-    expect(f.drafts[0]).toMatchObject({ id: draft.id, target_commitish: tip, draft: true, prerelease: false });
+    expect(f.drafts[0]).toMatchObject({ id: draft.id, tag_name: "v0.1.8", name: "v0.1.8", target_commitish: tip, draft: true, prerelease: false });
     expect(f.drafts[0]!.body).not.toContain("Edit for the superseded source.");
     expect(f.events.filter(event => event.startsWith("draft-create:"))).toHaveLength(1);
     expect(f.events.filter(event => event.startsWith("draft-update:"))).toHaveLength(1);
