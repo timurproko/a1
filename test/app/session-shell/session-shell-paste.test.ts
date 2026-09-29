@@ -900,10 +900,11 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
         expect(frame).toContain("limit in /settings.");
         expect(frame).not.toContain("Error:");
       });
-      expect(shell.root.editor.getText()).toMatch(/\[📷 not sent-/u);
-      expect(shell.root.render(80).join("\n")).toMatch(/\u001b\[2m\[📷 not sent-/u);
+      const rejected = imageTags().at(-1)!;
+      expect(rejected).toMatch(/^\[📷 screenshot-/u);
+      expect(shell.root.render(80).join("\n")).toContain(`\u001b[2m${rejected}`);
 
-      shell.root.editor.setText(shell.root.editor.getText().replace(/\[📷 not sent-[^\]]+\]/u, ""));
+      shell.root.editor.setText(shell.root.editor.getText().replace(rejected, ""));
       await vi.waitFor(() => expect(stripTerminalSequences(shell.root.render(80).join("\n"))).not.toContain(countMessage));
 
       notifyLimit(3);
@@ -931,8 +932,9 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
       await vi.waitFor(() => expect(shell.root.editor.getText()).toMatch(/\[📷 screenshot-/u));
       const ready = shell.root.editor.getText();
       terminal.input("\u0016");
-      await vi.waitFor(() => expect(shell.root.editor.getText()).toMatch(/\[📷 not sent-/u));
+      await vi.waitFor(() => expect(shell.root.editor.getText().match(/\[📷 screenshot-[^\]]+\]/gu))).toHaveLength(2));
       await vi.waitFor(() => expect(shell.root.hasPendingPastes(shell.root.editor.getText())).toBe(false));
+      const rejected = shell.root.editor.getText().match(/\[📷 screenshot-[^\]]+\]/gu)!.find(tag => tag !== ready)!;
       const draft = `describe ${shell.root.editor.getText()}`;
       shell.root.editor.setText(draft);
       let release!: () => void;
@@ -945,11 +947,15 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
 
       const submission = shell.submit(draft);
       await vi.waitFor(() => expect(stripTerminalSequences(shell.root.render(80).join("\n"))).toContain("Sending…"));
+      engine.session.emit({ type: "agent_start" });
+      await shell.backend.flushEvents();
+      const acceptedFrame = stripTerminalSequences(shell.root.render(80).join("\n"));
+      expect(acceptedFrame).toContain("Working…");
+      expect(acceptedFrame).not.toContain("Sending…");
       release();
       expect((await submission).outcome).toBe("completed");
-      expect(stripTerminalSequences(shell.root.render(80).join("\n"))).not.toContain("Sending…");
       expect(engine.session.calls).toContain(`prompt:describe ${ready}`);
-      expect(engine.session.calls.join("\n")).not.toContain("not sent");
+      expect(engine.session.calls.join("\n")).not.toContain(rejected);
       expect(engine.session.promptOptions.at(-1)).toMatchObject({
         images: [{ type: "image", data, mimeType: "image/png" }],
       });
@@ -967,10 +973,12 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
     try {
       terminal.input("\u0016");
       await vi.waitFor(() => expect(shell.root.editor.getText()).toMatch(/\[📷 screenshot-/u));
+      const ready = shell.root.editor.getText();
       terminal.input("\u0016");
       await vi.waitFor(() => expect(stripTerminalSequences(shell.root.render(80).join("\n"))).toContain("A prompt is limited to 1 image"));
+      const rejected = shell.root.editor.getText().match(/\[📷 screenshot-[^\]]+\]/gu)!.find(tag => tag !== ready)!;
       shell.root.appendWorkflowResult({ command: "debug", outcome: "failed", message: "newer unrelated error" });
-      shell.root.editor.setText(shell.root.editor.getText().replace(/\[📷 not sent-[^\]]+\]/u, ""));
+      shell.root.editor.setText(shell.root.editor.getText().replace(rejected, ""));
       await nextImmediate();
       expect(stripTerminalSequences(shell.root.render(80).join("\n"))).toContain("newer unrelated error");
     } finally { await shell.dispose(); }

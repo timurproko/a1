@@ -16,5 +16,5 @@
 - [x] 3.2 Clear only the still-current count notice once the draft is compliant and contains no referenced count-rejected marker; preserve unrelated notices and never retry rejected images.
 - [x] 3.3 Add focused component and session-shell regressions for overflow, removal, replacement notices, limit changes, and queued submission paths; record evidence and any known gap without weakening assertions.
 - [x] 3.4 Present count rejection as a corrective warning with `/settings` guidance and no error or recovery label.
-- [x] 3.5 Render count-rejected overflow attachments as dimmed `not sent` chips and allow submission/history to omit them while preserving every accepted attachment.
-- [x] 3.6 Show `Sending…` in the live spinner while image-bearing prompt dispatch is unsettled, then restore the applicable working status on every settlement path.
+- [x] 3.5 Keep count-rejected overflow attachments' normal screenshot labels, render their chips dimmed, and allow submission/history to omit them while preserving every accepted attachment.
+- [x] 3.6 Show `Sending…` in the live spinner until the engine accepts an image-bearing prompt, then restore `Working…` or the applicable extension status while retaining settlement cleanup for rejection and failure.

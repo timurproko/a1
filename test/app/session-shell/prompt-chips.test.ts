@@ -82,23 +82,24 @@ describe("PromptChipStore", () => {
     const ready = store.transformPastedContent({ kind: "image", data, mimeType: "image/png" });
     try {
       const overflow = store.beginPaste(ready, read, error => errors.push(error));
-      const unsent = await overflow.result;
-      expect(unsent).toMatch(/^\[📷 not sent-[a-f0-9]+\]$/u);
-      expect(store.unsentRanges(unsent)).toEqual([{ start: 0, end: unsent.length }]);
-      expect(store.atomicRanges(unsent)).toEqual([{ start: 0, end: unsent.length }]);
-      expect(store.imageLimitState(ready + unsent)).toEqual({ count: 1, limit: 1, corrected: false });
-      expect(store.omitUnsentImages(ready + unsent)).toBe(ready);
-      expect(store.prepareHistoryText(ready + unsent)).toBe(ready);
-      expect(store.prepareSubmission(ready + unsent)).toEqual({
+      const rejected = await overflow.result;
+      expect(rejected).toMatch(/^\[📷 screenshot-[a-f0-9]+\]$/u);
+      expect(rejected).not.toBe(ready);
+      expect(store.unsentRanges(rejected)).toEqual([{ start: 0, end: rejected.length }]);
+      expect(store.atomicRanges(rejected)).toEqual([{ start: 0, end: rejected.length }]);
+      expect(store.imageLimitState(ready + rejected)).toEqual({ count: 1, limit: 1, corrected: false });
+      expect(store.omitUnsentImages(ready + rejected)).toBe(ready);
+      expect(store.prepareHistoryText(ready + rejected)).toBe(ready);
+      expect(store.prepareSubmission(ready + rejected)).toEqual({
         text: ready,
         images: [{ type: "image", data, mimeType: "image/png" }],
       });
       expect(errors.at(-1)).toMatchObject({ code: "image-count" });
 
       store.reconcileDraft("");
-      expect(store.unsentRanges(unsent)).toEqual([{ start: 0, end: unsent.length }]);
-      expect(store.prepareSubmission(ready + unsent).images).toHaveLength(1);
-      const replacement = store.beginPaste(unsent, read, error => errors.push(error));
+      expect(store.unsentRanges(rejected)).toEqual([{ start: 0, end: rejected.length }]);
+      expect(store.prepareSubmission(ready + rejected).images).toHaveLength(1);
+      const replacement = store.beginPaste(rejected, read, error => errors.push(error));
       expect(await replacement.result).toBe(replacement.marker);
     } finally { await store.dispose(); }
   });
@@ -136,11 +137,11 @@ describe("PromptChipStore", () => {
       await Promise.all(pastes.map(paste => paste.result));
       expect(store.prepareSubmission(draft).images).toHaveLength(8);
       const ninth = store.beginPaste(draft, read, error => errors.push(error));
-      const unsent = await ninth.result;
-      expect(unsent).toMatch(/^\[📷 not sent-/u);
+      const rejected = await ninth.result;
+      expect(rejected).toMatch(/^\[📷 screenshot-/u);
       expect(errors.at(-1)).toMatchObject({ code: "image-count" });
       expect(store.prepareSubmission(draft + ninth.marker).images).toHaveLength(8);
-      expect(store.prepareSubmission(draft + unsent).images).toHaveLength(8);
+      expect(store.prepareSubmission(draft + rejected).images).toHaveLength(8);
     } finally { store.dispose(); }
   });
 

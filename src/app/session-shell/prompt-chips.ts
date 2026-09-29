@@ -50,7 +50,6 @@ interface PendingPaste {
 
 const URL_SUBSTRING_PATTERN = /https?:\/\/[^\s\u0000-\u001f\u007f\]]+/giu;
 const IMAGE_CHIP_IDENTIFIER_PATTERN = /^\[📷 screenshot-([a-f0-9]+)(?:-resized)?\]$/u;
-const UNSENT_IMAGE_MARKER_PATTERN = /^\[📷 not sent-[a-f0-9]{10}\]$/u;
 const URL_DISPLAY_LENGTH = 40;
 
 function imageChipIdentifier(tag: string): string | null {
@@ -59,9 +58,7 @@ function imageChipIdentifier(tag: string): string | null {
 }
 
 function rejectedImageMarker(marker: string, error: ImageAttachmentError): string {
-  return error.code === "image-count"
-    ? marker.replace("screenshot-", "not sent-")
-    : marker.replace("screenshot-", "failed-");
+  return error.code === "image-count" ? marker : marker.replace("screenshot-", "failed-");
 }
 
 function referencesPasteMarker(text: string, entry: PendingPaste): boolean {
@@ -75,6 +72,8 @@ export class PromptChipStore {
   // Invariant: clearing the editor never recycles a recoverable text chip's identity.
   #textCounter = 0;
   readonly #pending = new Map<string, PendingPaste>();
+  // Count-rejected images keep the standard chip label, so retain their identities after draft cleanup.
+  readonly #countRejectedImages = new Set<string>();
   #preparation = new ImagePreparationClient();
   readonly #stopping = new Set<Promise<void>>();
   readonly #isolated: PastePreparationClient | undefined;
@@ -130,6 +129,7 @@ export class PromptChipStore {
       return rejectedImageMarker(marker, entry.error);
     }).then(replacement => {
       entry.replacement = replacement;
+      if (entry.error?.code === "image-count") this.#countRejectedImages.add(replacement);
       return replacement;
     }) };
     this.#pending.set(marker, entry);
@@ -161,7 +161,11 @@ export class PromptChipStore {
       if (entry.kind === "unknown" && entry.error.code.startsWith("image-") && entry.error.code !== "image-canceled") entry.kind = "image";
       if (entry.error.code !== "image-canceled" && entry.references === 0) onError(entry.error);
       return entry.kind === "image" ? rejectedImageMarker(marker, entry.error) : "";
-    }).then(replacement => { entry.replacement = replacement; return replacement; }) };
+    }).then(replacement => {
+      entry.replacement = replacement;
+      if (entry.error?.code === "image-count") this.#countRejectedImages.add(replacement);
+      return replacement;
+    }) };
     entry.onComplete = () => {
       this.#finishChipOwnership(owner, job.isCurrent() && entry.error === undefined);
       job.complete();
@@ -235,13 +239,14 @@ export class PromptChipStore {
     await Promise.all([this.#preparation.dispose(), this.#isolated?.dispose(), ...this.#stopping]);
     this.#chips.clear();
     this.#pending.clear();
+    this.#countRejectedImages.clear();
     this.#provisionalOwners.clear();
     this.#ownedChipTags.clear();
   }
 
   imageLimitState(text: string): { readonly count: number; readonly limit: number; readonly corrected: boolean } {
     const limit = this.#imageLimit();
-    const rejectedCountMarker = canonicalPromptChipMatches(text).some(match => UNSENT_IMAGE_MARKER_PATTERN.test(match.text))
+    const rejectedCountMarker = canonicalPromptChipMatches(text).some(match => this.#countRejectedImages.has(match.text))
       || [...this.#pending.values()].some(entry => entry.error?.code === "image-count" && referencesPasteMarker(text, entry));
     const count = this.#imageCount(text);
     return { count, limit, corrected: count <= limit && !rejectedCountMarker };
@@ -326,12 +331,12 @@ export class PromptChipStore {
 
   unsentRanges(line: string): readonly PiShellEditorTextRange[] {
     return canonicalPromptChipMatches(line)
-      .filter(match => UNSENT_IMAGE_MARKER_PATTERN.test(match.text))
+      .filter(match => this.#countRejectedImages.has(match.text))
       .map(match => ({ start: match.start, end: match.end }));
   }
 
   omitUnsentImages(text: string): string {
-    return replaceCanonicalPromptChips(text, match => UNSENT_IMAGE_MARKER_PATTERN.test(match.text)
+    return replaceCanonicalPromptChips(text, match => this.#countRejectedImages.has(match.text)
       || this.#pendingEntry(match.text)?.error?.code === "image-count" ? "" : match.text);
   }
 
@@ -480,7 +485,7 @@ export class PromptChipStore {
     // Invariant: scan only draft tokens (and resolved reservation tokens), never emitted payloads.
     const expanded = replaceCanonicalPromptChips(text, match => {
       const tag = match.text;
-      if (UNSENT_IMAGE_MARKER_PATTERN.test(tag)) return "";
+      if (this.#countRejectedImages.has(tag)) return "";
       const entry = this.#pendingEntry(tag);
       if (entry === undefined) return resolveChip(tag);
       if (entry.error?.code === "image-count") return "";

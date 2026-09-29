@@ -691,7 +691,12 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       || view.diagnostics.some((diagnostic, index) => diagnostic.sequence !== this.#view.diagnostics[index]?.sequence)) {
       this.#documentLayouts.clear();
     }
+    const promptAccepted = this.#view.lifecycle !== "busy" && view.lifecycle === "busy";
     this.#view = view;
+    if (promptAccepted && this.#imageSubmissionsSending > 0) {
+      this.#imageSubmissionsSending = 0;
+      this.#syncWorkingOverride();
+    }
     this.#status.update(view);
     this.#footer.update(this.#viewWithExtensionStatuses(view));
     this.#queued.update(view.editor.queuedSubmissions);
