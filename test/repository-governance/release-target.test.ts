@@ -20,13 +20,11 @@ describe("explicit prerelease-aware release targets", () => {
     ["0.1.8", "0.1.8", "0.1.8", "0.1.9-dev"],
     ["0.1.8-dev+build.1", "patch", "0.1.8", "0.1.9-dev"],
   ])("resolves %s with %s to %s, then %s", (current, target, version, opening) => {
-    expect(resolveReleasePlan(current, [target])).toEqual({ current, version, opening, approve: false });
+    expect(resolveReleasePlan(current, [target])).toEqual({ current, version, opening });
   });
 
-  it("accepts explicit draft approval without changing target resolution", () => {
-    expect(parseReleaseArguments(["patch", "--approve"])).toEqual({ target: "patch", approve: true });
-    expect(resolveReleasePlan("0.1.8-dev", ["patch", "--approve"]))
-      .toEqual({ current: "0.1.8-dev", version: "0.1.8", opening: "0.1.9-dev", approve: true });
+  it("rejects retired local approval authority", () => {
+    expect(() => parseReleaseArguments(["patch", "--approve"])).toThrow(/Approve stable release workflow in GitHub Actions/);
   });
 
   it.each([[], [""], ["--patch"], ["prepatch"], ["latest"], ["0.4"], ["v0.4.0"], ["00.4.0"],

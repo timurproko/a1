@@ -19,12 +19,14 @@ async function resource(releases: unknown[]): Promise<URL> {
 describe("packaged A1 release notes", () => {
   it("loads newest-first history and matches only an exact stable package version", async () => {
     const notes = await readPackagedReleaseNotes(await resource([
-      { version: "2.0.0", markdown: "## Features\n\n- newest\n" },
+      { version: "2.0.0", markdown: "## [2.0.0] - 2026-09-28\n\n### New Features\n\n- newest\n" },
       { version: "1.0.0", markdown: "## Fixes\n\n- oldest\n" },
     ]));
     expect(notes.releases.map(note => note.version)).toEqual(["2.0.0", "1.0.0"]);
     expect(notes.completeMarkdown.indexOf("2.0.0")).toBeLessThan(notes.completeMarkdown.indexOf("1.0.0"));
     expect(notes.current("2.0.0")?.markdown).toContain("newest");
+    expect(notes.completeMarkdown).toContain("## [2.0.0] - 2026-09-28");
+    expect(notes.completeMarkdown).not.toContain("# A1 2.0.0");
     expect(notes.current("2.0.0-dev")).toBeNull();
     expect(notes.current("3.0.0")).toBeNull();
   });
@@ -34,6 +36,8 @@ describe("packaged A1 release notes", () => {
     [{ version: "1.0.0", markdown: "- [bad](javascript:run)\n" }],
     [{ version: "1.0.0", markdown: "<div>bad</div>\n" }],
     [{ version: "1.0.0", markdown: "\n" }],
+    [{ version: "1.0.0", markdown: "## [2.0.0] - 2026-09-28\n\n### Fixed\n\n- wrong version\n" }],
+    [{ version: "1.0.0", markdown: "## [1.0.0] - 2026-02-30\n\n### Fixed\n\n- wrong date\n" }],
   ])("rejects a malformed packaged entry", async entry => {
     await expect(readPackagedReleaseNotes(await resource([entry]))).rejects.toThrow(/invalid/i);
   });

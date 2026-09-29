@@ -70,5 +70,10 @@ npm run release -- patch               # 0.1.8-dev -> 0.1.8
 npm run release -- minor               # 0.1.8-dev -> 0.2.0
 npm run release -- major               # 0.1.8-dev -> 1.0.0
 npm run release -- 0.4.0               # prepare an exact stable version
-npm run release -- patch --approve     # approve the edited draft Release and publish
 ```
+
+Preparation creates the editable draft and prints its link plus the **Approve stable
+release** Actions link. Review and save the Pi-style `## [version] - YYYY-MM-DD`
+changelog, then run that workflow with only the stable version. Until final success,
+the Release remains draft and its tag remains absent; publishing the approved Release
+creates the tag automatically. Do not use GitHub's native **Publish release** button.
