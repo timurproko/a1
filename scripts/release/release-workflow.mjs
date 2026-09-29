@@ -203,7 +203,9 @@ async function prepareDraftRelease(r, repository, source, version, local) {
   assertAuthoritative(r, source, local.manifest.version, local.manifest.name);
   if (existing !== null) {
     const updated = JSON.parse(r.gh([
+      // Compatibility: GitHub resets an omitted tag_name on a draft to untagged-*, so the identity is resent.
       "api", "-X", "PATCH", `repos/${repository}/releases/${existing.id}`,
+      "-f", `tag_name=v${version}`, "-f", `name=v${version}`,
       "-f", `target_commitish=${source}`, "-f", `body=${markdown}`,
     ]));
     r.log(`Refreshed the v${version} draft from ${String(existing.target_commitish).slice(0, 12)} to ${source.slice(0, 12)}; its release notes were regenerated.`);
