@@ -24,9 +24,9 @@ The manual merge accepts these scenarios:
     "Correcting an over-limit draft retires only its active image-count notice and never retries failed overflow images.",
     "Settings-free and `a1 pi` comparison sessions retain the fixed eight-image behavior."
   ],
-  "archiveDigest": "1fac12c595f2b8f71a84e47309852c1e3121e053d06ebb40c1b1fbad5f107b79",
-  "specDigest": "8fc646dcbe91589546352f91c7bc9c9efb68353c1590b9830772671b7c153c08",
-  "tasksDigest": "748711afd89932f1b9f0ee1c5ddc1f577efa3560507786bd88bcad406f7e83c9",
+  "archiveDigest": "372cde98bd1816e66fa4cf43e45e6664f4c391292e447b048556734697b3b99d",
+  "specDigest": "4bbb2a74af42ae47764e80bd600f5ed56ba146ad1e3c01f5e9a0bad927fbcb87",
+  "tasksDigest": "f8a9c4804d19d25d625235950ebf9f6d471d5609d3cb8e431794285ce150cfdb",
   "evidenceDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
   "knownGaps": []
 }
