@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   compareRepositoryGovernance,
   inspectLocalWorkflows,
+  inspectWorkflowSource,
   validateRepositoryGovernanceDefinition,
   type RepositoryGovernanceDefinition,
 } from "../../scripts/governance/github-repository-governance.mjs";
@@ -87,12 +88,12 @@ describe("declarative GitHub repository governance", () => {
     expect(inspected.find(workflow => workflow.name === "Nightly regression triage")).toMatchObject({
       triggers: ["workflow_dispatch", "workflow_run"], trustedSource: "default-branch", permissions: ["actions: read", "contents: write", "pull-requests: write"], authority: ["nightly-regression-triage"], artifactRetentionDays: [30],
     });
-    expect(inspected.find(workflow => workflow.name === "Stage stable release")).toMatchObject({
-      triggers: ["repository_dispatch"], trustedSource: "default-branch", authority: ["stable-release-staging"],
+    expect(inspected.find(workflow => workflow.name === "Stable candidate validation")).toMatchObject({
+      triggers: ["workflow_dispatch"], trustedSource: "default-branch", authority: ["stable-release-candidate-validation"],
     });
-    expect(inspected.find(workflow => workflow.name === "Finalize stable release")).toMatchObject({
-      triggers: ["release:published"], trustedSource: "default-branch",
-      authority: ["github-release-verification", "release-reopening-proposal"], artifactRetentionDays: [30],
+    expect(inspected.find(workflow => workflow.name === "Publish stable release")).toMatchObject({
+      triggers: ["release:published"], trustedSource: "published-release-tag",
+      authority: ["release-reopening-proposal", "stable-release-publication", "unconsumed-release-tag-rollback"], artifactRetentionDays: [],
     });
     expect(inspected.find(workflow => workflow.name === "Development publication")).toMatchObject({
       triggers: ["workflow_dispatch"], trustedSource: "default-branch", authority: ["npm-next"],
@@ -101,6 +102,14 @@ describe("declarative GitHub repository governance", () => {
       triggers: ["schedule", "workflow_call"], trustedSource: "authoritative-develop", environments: ["npm-publish"], artifactRetentionDays: [1, 30],
       authority: expect.arrayContaining(["master-fast-forward", "npm-latest"]),
     });
+  });
+
+  it("recognizes tag rollback only through a contents-scoped App token", async () => {
+    const source = await readFile(".github/workflows/finalize-release.yml", "utf8");
+    expect(inspectWorkflowSource(".github/workflows/finalize-release.yml", source).authority).toContain("unconsumed-release-tag-rollback");
+    const unscoped = inspectWorkflowSource(".github/workflows/finalize-release.yml", source.replace(/^\s+permission-contents: write\n/m, ""));
+    expect(unscoped.authority).toContain("unscoped-release-tag-rollback");
+    expect(unscoped.authority).not.toContain("unconsumed-release-tag-rollback");
   });
 
   it("requires every third-party action reference to use an immutable commit", async () => {

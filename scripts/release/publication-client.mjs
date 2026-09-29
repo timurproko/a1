@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { setTimeout as sleep } from "node:timers/promises";
+import { matchesStableValidationRun, STABLE_VALIDATION_WORKFLOW } from "./release-approval.mjs";
 
 const POLL_INTERVAL_MS = 5_000;
 const RUN_APPEAR_TIMEOUT_MS = 5 * 60_000;
@@ -93,7 +94,7 @@ export function describePublicationFailure(runId, options = {}) {
 
 export async function dispatchPublication(channel, source, version, options = {}) {
   const execute = options.run ?? run;
-  if (channel !== "develop") throw new Error("stable publication is staged only after the release command observes Save draft");
+  if (channel !== "develop") throw new Error("stable publication starts only when an authorized human publishes the prepared draft Release");
   const write = options.write ?? (text => process.stdout.write(text));
   const wait = options.sleep ?? sleep;
   execute("gh", ["auth", "status"], { stdio: "inherit" });
@@ -127,58 +128,46 @@ export async function dispatchPublication(channel, source, version, options = {}
   return runId;
 }
 
-/** Dispatches reviewed stable staging without making selectors into authority. */
-export async function dispatchStableStaging(candidate, options = {}) {
-  const { repository, releaseId, source, version, reviewedUpdatedAt } = candidate ?? {};
-  if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u.test(repository ?? "")
-    || !Number.isSafeInteger(releaseId) || releaseId < 1 || !/^[a-f0-9]{40}$/u.test(source ?? "")
-    || !/^\d+\.\d+\.\d+$/u.test(version ?? "") || Number.isNaN(Date.parse(reviewedUpdatedAt ?? ""))) {
-    throw new Error("stable staging candidate identity is invalid");
+/**
+ * Starts, or reuses, candidate validation of a prepared stable source and returns without
+ * waiting: the maintainer edits the draft meanwhile, and publication requires the run's success.
+ */
+export async function dispatchStableValidation(candidate, options = {}) {
+  const { repository, source, version } = candidate ?? {};
+  if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u.test(repository ?? "") || !/^[a-f0-9]{40}$/u.test(source ?? "")
+    || !/^\d+\.\d+\.\d+$/u.test(version ?? "")) {
+    throw new Error("stable validation candidate identity is invalid");
   }
   const execute = options.run ?? run;
-  const write = options.write ?? (text => process.stdout.write(text));
   const wait = options.sleep ?? sleep;
-  const requestId = options.requestId ?? randomUUID();
+  const workflow = STABLE_VALIDATION_WORKFLOW.split("/").at(-1);
+  const listRuns = () => JSON.parse(execute("gh", [
+    "api", `repos/${repository}/actions/workflows/${workflow}/runs?event=workflow_dispatch&head_sha=${source}&per_page=100`,
+  ])).workflow_runs;
   execute("gh", ["auth", "status"], { stdio: "inherit" });
-  const actor = execute("gh", ["api", "user", "--jq", ".login"]);
-  if (!/^[A-Za-z0-9-]+$/u.test(actor)) throw new Error("authenticated GitHub user identity is invalid");
-  execute("gh", [
-    "api", "-X", "POST", `repos/${repository}/dispatches`,
-    "-f", "event_type=a1-stable-release-reviewed",
-    "-f", `client_payload[request_id]=${requestId}`,
-    "-F", `client_payload[release_id]=${releaseId}`,
-    "-f", `client_payload[source]=${source}`,
-    "-f", `client_payload[reviewed_updated_at]=${reviewedUpdatedAt}`,
-  ]);
+  // Rationale: a running or successful validation of the same source and version already proves
+  // what another run would, so a repeated command reuses it instead of paying for the suite twice.
+  const reusable = listRuns().find(entry => matchesStableValidationRun(entry, source, version)
+    && (entry.status !== "completed" || entry.conclusion === "success"));
+  if (reusable) return { runId: reusable.id, url: reusable.html_url, reused: true };
 
+  const requestId = options.requestId ?? randomUUID();
+  execute("gh", [
+    "workflow", "run", workflow, "--ref", "develop",
+    "-f", `source_sha=${source}`, "-f", `version=${version}`, "-f", `request_id=${requestId}`,
+  ], { stdio: "inherit" });
   const deadline = Date.now() + RUN_APPEAR_TIMEOUT_MS;
-  let runId;
   while (Date.now() < deadline) {
-    const runs = JSON.parse(execute("gh", [
-      "run", "list", "--workflow", "approve-release.yml", "--event", "repository_dispatch",
-      "--json", "databaseId,displayTitle", "--limit", "50",
-    ]));
-    runId = runs.find(entry => entry.displayTitle === `Stage stable release ${requestId}`)?.databaseId;
-    if (runId !== undefined) break;
+    const started = listRuns().find(entry => entry.display_title === `Stable candidate v${version} ${requestId}`);
+    if (started) {
+      if (!matchesStableValidationRun(started, source, version) || typeof started.html_url !== "string" || !started.html_url.startsWith("https://")) {
+        throw new Error(`stable validation run ${started.id} does not match the default-branch request for ${source}`);
+      }
+      return { runId: started.id, url: started.html_url, reused: false };
+    }
     await wait(POLL_INTERVAL_MS);
   }
-  if (runId === undefined) throw new Error(`stable staging request ${requestId} did not appear in GitHub Actions within 5 minutes`);
-
-  const workflowRun = JSON.parse(execute("gh", ["api", `repos/${repository}/actions/runs/${runId}`]));
-  if (workflowRun.id !== runId || workflowRun.event !== "repository_dispatch"
-    || workflowRun.path !== ".github/workflows/approve-release.yml" || workflowRun.head_branch !== "develop"
-    || workflowRun.head_sha !== source || workflowRun.actor?.login !== actor) {
-    throw new Error(`stable staging run ${runId} does not match the authenticated default-branch request`);
-  }
-  const url = workflowRun.html_url;
-  if (typeof url !== "string" || !url.startsWith("https://")) throw new Error(`stable staging run ${runId} has no valid URL`);
-  write(`[release] trusted staging run ${runId} is responsible for ${version}\n[release] ${url}\n`);
-  try {
-    execute("gh", ["run", "watch", String(runId), "--exit-status"], { stdio: "inherit" });
-  } catch {
-    throw new Error(describePublicationFailure(runId, { run: execute, repository }));
-  }
-  return runId;
+  throw new Error(`stable validation request ${requestId} did not appear in GitHub Actions within 5 minutes`);
 }
 
 export async function localPackageIdentity() {

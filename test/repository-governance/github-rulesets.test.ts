@@ -11,7 +11,8 @@ describe("reviewable GitHub rulesets", () => {
     const value = validateRulesetDefinition(await definition());
     expect(value.rulesets.map(ruleset => ruleset.conditions.ref_name.include[0])).toEqual(["refs/heads/develop", "refs/heads/master", "refs/tags/v*"]);
     expect(value.rulesets.map(ruleset => ruleset.target)).toEqual(["branch", "branch", "tag"]);
-    expect(value.rulesets.map(ruleset => ruleset.bypass_actors)).toEqual([[], [], []]);
+    // Security: only the release-automation App may delete an unconsumed tag after a failed publication.
+    expect(value.rulesets.map(ruleset => ruleset.bypass_actors)).toEqual([[], [], [{ actor_id: 4942462, actor_type: "Integration", bypass_mode: "always" }]]);
     for (const ruleset of value.rulesets) {
       expect(ruleset.rules.map(rule => rule.type)).toEqual(expect.arrayContaining(["deletion", "non_fast_forward"]));
     }
@@ -39,6 +40,21 @@ describe("reviewable GitHub rulesets", () => {
     const branchOnly = await definition();
     branchOnly.rulesets = [branchOnly.rulesets[0]!, branchOnly.rulesets[1]!, structuredClone(branchOnly.rulesets[0]!)];
     expect(() => validateRulesetDefinition(branchOnly)).toThrow(/unique|two branch rulesets and one tag ruleset/);
+
+    const bypassedBranch = await definition();
+    bypassedBranch.rulesets[1]!.bypass_actors = structuredClone(bypassedBranch.rulesets[2]!.bypass_actors);
+    expect(() => validateRulesetDefinition(bypassedBranch)).toThrow(/bypass actors/);
+
+    for (const actors of [
+      [],
+      [{ actor_id: 1, actor_type: "RepositoryRole", bypass_mode: "always" }],
+      [{ actor_id: 4942462, actor_type: "Integration", bypass_mode: "pull_request" }],
+      [{ actor_id: 4942462, actor_type: "Integration", bypass_mode: "always" }, { actor_id: 2, actor_type: "Integration", bypass_mode: "always" }],
+    ]) {
+      const widenedTag = await definition();
+      widenedTag.rulesets[2]!.bypass_actors = actors;
+      expect(() => validateRulesetDefinition(widenedTag)).toThrow(/bypass actors/);
+    }
 
     const unprotectedTag = await definition();
     unprotectedTag.rulesets[2]!.rules = unprotectedTag.rulesets[2]!.rules.filter(rule => rule.type !== "deletion");

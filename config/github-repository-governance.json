@@ -106,7 +106,9 @@
       "name": "a1-protect-release-tags",
       "target": "tag",
       "enforcement": "active",
-      "bypass_actors": [],
+      "bypass_actors": [
+        { "actor_id": 4942462, "actor_type": "Integration", "bypass_mode": "always" }
+      ],
       "conditions": {
         "ref_name": {
           "include": ["refs/tags/v*"],
@@ -128,13 +130,13 @@
   ],
   "workflows": [
     {
-      "name": "Stage stable release",
-      "path": ".github/workflows/approve-release.yml",
+      "name": "Stable candidate validation",
+      "path": ".github/workflows/release-candidate.yml",
       "state": "active",
-      "triggers": ["repository_dispatch"],
+      "triggers": ["workflow_dispatch"],
       "permissions": ["actions: read", "contents: write", "id-token: write"],
       "trustedSource": "default-branch",
-      "authority": ["stable-release-staging"],
+      "authority": ["stable-release-candidate-validation"],
       "concurrency": "",
       "environments": [],
       "artifactRetentionDays": []
@@ -176,16 +178,16 @@
       "artifactRetentionDays": []
     },
     {
-      "name": "Finalize stable release",
+      "name": "Publish stable release",
       "path": ".github/workflows/finalize-release.yml",
       "state": "active",
       "triggers": ["release:published"],
-      "permissions": ["actions: read", "contents: read", "contents: write", "pull-requests: write"],
-      "trustedSource": "default-branch",
-      "authority": ["github-release-verification", "release-reopening-proposal"],
+      "permissions": ["actions: read", "contents: write", "id-token: write", "pull-requests: write"],
+      "trustedSource": "published-release-tag",
+      "authority": ["release-reopening-proposal", "stable-release-publication", "unconsumed-release-tag-rollback"],
       "concurrency": "",
       "environments": [],
-      "artifactRetentionDays": [30]
+      "artifactRetentionDays": []
     },
     {
       "name": "Full regression",

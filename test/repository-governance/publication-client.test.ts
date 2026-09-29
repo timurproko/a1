@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
-import { describePublicationFailure, dispatchPublication, dispatchStableStaging } from "../../scripts/release/publication-client.mjs";
+import { describePublicationFailure, dispatchPublication, dispatchStableValidation } from "../../scripts/release/publication-client.mjs";
 
 type Call = { executable: string; args: string[] };
 
@@ -92,45 +92,57 @@ describe("publication failure reporting", () => {
 
   it("refuses stable publication through the development dispatcher", async () => {
     await expect(dispatchPublication("stable" as never, "a".repeat(40), "0.1.8", { run: () => "" }))
-      .rejects.toThrow(/staged only after.*Save draft/i);
+      .rejects.toThrow(/publishes the prepared draft Release/i);
   });
 
-  it("dispatches and follows one authenticated stable staging request", async () => {
-    const source = "a".repeat(40);
-    const { run, calls } = fakeRunner(({ args }) => {
+  const source = "a".repeat(40);
+  const validationRun = (id: number, requestId: string, change: Record<string, unknown> = {}) => ({
+    id, path: ".github/workflows/release-candidate.yml", event: "workflow_dispatch", head_branch: "develop", head_sha: source,
+    display_title: `Stable candidate v0.1.8 ${requestId}`, status: "in_progress", conclusion: null,
+    html_url: `https://github.com/owner/app/actions/runs/${id}`, ...change,
+  });
+  const validationRunner = (existing: unknown[], started: unknown) => {
+    let dispatched = false;
+    return fakeRunner(({ args }) => {
       if (args[0] === "auth") return "";
-      if (args[0] === "api" && args[1] === "user") return "maintainer";
-      if (args[0] === "api" && args[1] === "-X") return "";
-      if (args[0] === "run" && args[1] === "list") return JSON.stringify([{ databaseId: 51, displayTitle: "Stage stable release fixture-request" }]);
-      if (args[0] === "api" && args[1] === "repos/owner/app/actions/runs/51") return JSON.stringify({
-        id: 51, event: "repository_dispatch", path: ".github/workflows/approve-release.yml", head_branch: "develop",
-        head_sha: source, actor: { login: "maintainer" }, html_url: "https://github.com/owner/app/actions/runs/51",
-      });
-      if (args[0] === "run" && args[1] === "watch") return "";
+      if (args[0] === "api" && String(args[1]).startsWith("repos/owner/app/actions/workflows/release-candidate.yml/runs?")) {
+        return JSON.stringify({ workflow_runs: dispatched ? [...existing, started] : existing });
+      }
+      if (args[0] === "workflow" && args[1] === "run") { dispatched = true; return ""; }
       throw new Error(`unexpected call ${args.join(" ")}`);
     });
-    await expect(dispatchStableStaging({
-      repository: "owner/app", releaseId: 17, source, version: "0.1.8", reviewedUpdatedAt: "2026-09-29T00:00:01Z",
-    }, { run, requestId: "fixture-request", write: () => {}, sleep: async () => {} })).resolves.toBe(51);
-    const dispatch = calls.find(call => call.args[0] === "api" && call.args[1] === "-X")!;
-    expect(dispatch.args).toContain("event_type=a1-stable-release-reviewed");
-    expect(dispatch.args).toContain("client_payload[release_id]=17");
-    expect(dispatch.args).not.toContain("client_payload[version]=0.1.8");
+  };
+
+  it("starts candidate validation of the prepared source and returns without watching it", async () => {
+    const { run, calls } = validationRunner([], validationRun(51, "fixture-request"));
+    await expect(dispatchStableValidation({ repository: "owner/app", source, version: "0.1.8" }, { run, requestId: "fixture-request", sleep: async () => {} }))
+      .resolves.toEqual({ runId: 51, url: "https://github.com/owner/app/actions/runs/51", reused: false });
+    const dispatch = calls.find(call => call.args[0] === "workflow" && call.args[1] === "run")!;
+    expect(dispatch.args).toEqual(["workflow", "run", "release-candidate.yml", "--ref", "develop",
+      "-f", `source_sha=${source}`, "-f", "version=0.1.8", "-f", "request_id=fixture-request"]);
+    expect(calls.some(call => call.args[0] === "run" && call.args[1] === "watch")).toBe(false);
   });
 
-  it("rejects a correlated run with a different actor or source", async () => {
-    const source = "a".repeat(40);
-    const { run } = fakeRunner(({ args }) => {
-      if (args[0] === "auth" || (args[0] === "api" && args[1] === "-X")) return "";
-      if (args[0] === "api" && args[1] === "user") return "maintainer";
-      if (args[0] === "run") return JSON.stringify([{ databaseId: 52, displayTitle: "Stage stable release fixture-request" }]);
-      if (args[0] === "api") return JSON.stringify({ id: 52, event: "repository_dispatch", path: ".github/workflows/approve-release.yml",
-        head_branch: "develop", head_sha: "b".repeat(40), actor: { login: "other" }, html_url: "https://example.test" });
-      throw new Error(`unexpected call ${args.join(" ")}`);
-    });
-    await expect(dispatchStableStaging({
-      repository: "owner/app", releaseId: 17, source, version: "0.1.8", reviewedUpdatedAt: "2026-09-29T00:00:01Z",
-    }, { run, requestId: "fixture-request", write: () => {}, sleep: async () => {} })).rejects.toThrow(/does not match/);
+  it.each([
+    ["running", {}],
+    ["successful", { status: "completed", conclusion: "success" }],
+  ])("reuses a %s validation of the same source and version", async (_name, change) => {
+    const { run, calls } = validationRunner([validationRun(50, "earlier", change)], null);
+    await expect(dispatchStableValidation({ repository: "owner/app", source, version: "0.1.8" }, { run, sleep: async () => {} }))
+      .resolves.toEqual({ runId: 50, url: "https://github.com/owner/app/actions/runs/50", reused: true });
+    expect(calls.some(call => call.args[0] === "workflow")).toBe(false);
+  });
+
+  it("starts a new validation when the previous one failed", async () => {
+    const { run } = validationRunner([validationRun(50, "earlier", { status: "completed", conclusion: "failure" })], validationRun(51, "fixture-request"));
+    await expect(dispatchStableValidation({ repository: "owner/app", source, version: "0.1.8" }, { run, requestId: "fixture-request", sleep: async () => {} }))
+      .resolves.toMatchObject({ runId: 51, reused: false });
+  });
+
+  it("rejects a correlated run that validates another source or branch", async () => {
+    const { run } = validationRunner([], validationRun(52, "fixture-request", { head_branch: "feature" }));
+    await expect(dispatchStableValidation({ repository: "owner/app", source, version: "0.1.8" }, { run, requestId: "fixture-request", sleep: async () => {} }))
+      .rejects.toThrow(/does not match/);
   });
 
   it("returns the run identifier unchanged when the watch succeeds", async () => {
@@ -164,7 +176,7 @@ describe("publication failure reporting", () => {
     expect(summary.run).toContain("budgetViolations");
     expect(require.if).toBeUndefined();
     expect(require.run).toContain('test "$VALIDATE" = success');
-    expect(require.run).toContain('if [ "$BUILD" = true ] || [ "$INSTALLER_BUILD" = true ]; then');
+    expect(require.run).toContain('if [ "$MODE" != candidate ] && { [ "$BUILD" = true ] || [ "$INSTALLER_BUILD" = true ]; }; then');
     expect(require.run).toContain('test "$PUBLISH" = success');
     expect(require.run).toContain('test "$POST_PUBLISH" = success');
     expect(require.run).toContain('test "$COMPLETE" = success');

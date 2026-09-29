@@ -24,7 +24,7 @@ describe("explicit prerelease-aware release targets", () => {
   });
 
   it("rejects retired local approval authority", () => {
-    expect(() => parseReleaseArguments(["patch", "--approve"])).toThrow(/waits for Save draft/);
+    expect(() => parseReleaseArguments(["patch", "--approve"])).toThrow(/choosing Publish release on that draft publishes npm/);
   });
 
   it.each([[], [""], ["--patch"], ["prepatch"], ["latest"], ["0.4"], ["v0.4.0"], ["00.4.0"],
@@ -70,6 +70,12 @@ describe("explicit prerelease-aware release targets", () => {
       "docs/ci-release-runbook.md: missing manual reopening merge guidance",
       "docs/ci-release-runbook.md: missing immutable publication recovery guidance",
     ]));
+    const unsafe = releaseDocumentationFindings(readme, runbook
+      .replaceAll("returns the Release to draft", "keeps the Release published")
+      .replaceAll("Release returns to draft", "Release stays published"));
+    expect(unsafe).toContain("docs/ci-release-runbook.md: missing native-publication release guidance");
+    expect(releaseDocumentationFindings(`${readme}\nWait for \`npm ready\` before publishing.\n`, runbook))
+      .toContain("release documentation: retired Save-draft staging handoff remains");
   });
 
   it("selects semantic release checks only for the two release documents", async () => {
