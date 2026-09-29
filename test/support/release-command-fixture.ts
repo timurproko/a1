@@ -116,6 +116,15 @@ export async function releaseFixture(version = "0.1.8-dev", trace?: NativeRegres
           drafts.push(draft); events.push(`draft-create:${draft.tag_name}`);
           return JSON.stringify(draft);
         }
+        const update = args.includes("PATCH") ? args.find(arg => arg.startsWith("repos/fixture/a1/releases/")) : undefined;
+        if (update !== undefined) {
+          const draft = drafts.find(candidate => `repos/fixture/a1/releases/${candidate.id}` === update);
+          if (!draft) throw new Error(`fixture has no release ${update}`);
+          const fields = Object.fromEntries(args.flatMap((arg, index) => arg === "-f"
+            ? [String(args[index + 1]).split(/=(.*)/su).slice(0, 2)] : []));
+          Object.assign(draft, fields, { updated_at: "2026-09-30T00:00:00Z" }); events.push(`draft-update:${draft.tag_name}`);
+          return JSON.stringify(draft);
+        }
       }
       throw new Error(`unexpected GitHub operation: ${args.join(" ")}`);
     },
