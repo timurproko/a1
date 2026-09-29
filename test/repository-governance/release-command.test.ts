@@ -93,6 +93,40 @@ describe("release preparation with real temporary Git and fake external services
     expect(output).toContain("Following existing validation");
   }, INTEGRATION_TIMEOUT);
 
+  it("refreshes a draft bound to an older develop in place instead of requiring its deletion", async () => {
+    const f = await fixture();
+    const draft = await prepare(f);
+    draft.body = "## Fixes\n\n- Edit for the superseded source.\n";
+    const tree = f.git(["rev-parse", `${f.initialHead}^{tree}`], f.remote);
+    const tip = f.git(["commit-tree", tree, "-p", f.initialHead, "-m", "fix after failed validation"], f.remote);
+    f.git(["update-ref", "refs/heads/develop", tip, f.initialHead], f.remote);
+    f.git(["pull", "-q", "--ff-only", "origin", "develop"]);
+    const before = f.logs.length;
+    expect(await main(["patch"], f.runtime)).toBe(0);
+    expect(f.drafts).toHaveLength(1);
+    expect(f.drafts[0]).toMatchObject({ id: draft.id, target_commitish: tip, draft: true, prerelease: false });
+    expect(f.drafts[0]!.body).not.toContain("Edit for the superseded source.");
+    expect(f.events.filter(event => event.startsWith("draft-create:"))).toHaveLength(1);
+    expect(f.events.filter(event => event.startsWith("draft-update:"))).toHaveLength(1);
+    const output = f.logs.slice(before).join("\n");
+    expect(output).toContain(`Refreshed the v0.1.8 draft from ${f.initialHead.slice(0, 12)} to ${tip.slice(0, 12)}`);
+    expect(count(output, editUrl(draft))).toBe(1);
+  }, INTEGRATION_TIMEOUT);
+
+  it("refuses to refresh a stale Release that is not a stable draft", async () => {
+    const f = await fixture();
+    const draft = await prepare(f);
+    draft.draft = false;
+    const tree = f.git(["rev-parse", `${f.initialHead}^{tree}`], f.remote);
+    const tip = f.git(["commit-tree", tree, "-p", f.initialHead, "-m", "advance"], f.remote);
+    f.git(["update-ref", "refs/heads/develop", tip, f.initialHead], f.remote);
+    f.git(["pull", "-q", "--ff-only", "origin", "develop"]);
+    expect(await main(["patch"], f.runtime)).toBe(1);
+    expect(f.drafts[0]!.target_commitish).toBe(f.initialHead);
+    expect(f.events.some(event => event.startsWith("draft-update:"))).toBe(false);
+    expect(f.errors.join("\n")).toContain("is not a replaceable stable draft");
+  }, INTEGRATION_TIMEOUT);
+
   it("reports a validation dispatch failure after keeping the prepared draft", async () => {
     const f = await fixture();
     f.setDispatchValidation(() => { throw new Error("dispatch unavailable"); });

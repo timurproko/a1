@@ -77,7 +77,7 @@ export async function runRelease(args, runtime) {
       await r.waitForValidation({ repository, runId: validation.runId });
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
-      throw new Error(`${detail}\nThe draft was not published. Fix develop, delete the draft, and run the release command again.`, { cause: error });
+      throw new Error(`${detail}\nThe draft was not published. Fix develop and run the release command again; it refreshes the draft for the new source.`, { cause: error });
     }
     r.log(`Validation passed. Edit the changelog, then choose Publish release:\n${draft.url}`);
     return { ...plan, source, draft, validationRunId: validation.runId };
@@ -165,6 +165,13 @@ function assertDraftRelease(value, source, version) {
   const url = value.html_url.replace("/releases/tag/", "/releases/edit/");
   return Object.freeze({ id: value.id, url, version, source, markdown: note.markdown, updatedAt: value.updated_at });
 }
+function assertReplaceableDraft(value, version) {
+  if (!value || !Number.isSafeInteger(value.id) || value.id < 1 || value.tag_name !== `v${version}`
+    || value.name !== `v${version}` || value.draft !== true || value.prerelease !== false
+    || typeof value.target_commitish !== "string" || !SHA.test(value.target_commitish)) {
+    throw new Error(`v${version} GitHub Release is not a replaceable stable draft; stable preparation only refreshes its own drafts`);
+  }
+}
 async function normalBaseline(r, source) {
   r.git(["fetch", "-q", "origin", "--tags"]);
   const tag = r.git(["describe", "--first-parent", "--tags", "--abbrev=0", "--match", "v[0-9]*", source]);
@@ -181,14 +188,26 @@ async function prepareDraftRelease(r, repository, source, version, local) {
   if (matches.length > 1) throw new Error(`ambiguous GitHub Releases for v${version}`);
   const tag = remoteTagCommit(r, version);
   if (tag !== null) throw new Error(`v${version} already exists at ${tag}; stable preparation never deletes, moves, or reuses a release tag`);
-  if (matches.length === 1) {
+  const existing = matches[0] ?? null;
+  if (existing !== null && existing.target_commitish === source) {
     assertAuthoritative(r, source, local.manifest.version, local.manifest.name);
-    return assertDraftRelease(matches[0], source, version);
+    return assertDraftRelease(existing, source, version);
   }
+  // Rationale: a draft bound to an older develop is replaced in place, so a fix merged after a failed
+  // validation reruns the release command without a manual draft deletion.
+  if (existing !== null) assertReplaceableDraft(existing, version);
 
   const previous = await normalBaseline(r, source);
   const markdown = parseReleaseNote(renderReleaseNoteDraft(version, await r.releaseChanges(previous, source), r.releaseDate), version).markdown;
   assertAuthoritative(r, source, local.manifest.version, local.manifest.name);
+  if (existing !== null) {
+    const updated = JSON.parse(r.gh([
+      "api", "-X", "PATCH", `repos/${repository}/releases/${existing.id}`,
+      "-f", `target_commitish=${source}`, "-f", `body=${markdown}`,
+    ]));
+    r.log(`Refreshed the v${version} draft from ${String(existing.target_commitish).slice(0, 12)} to ${source.slice(0, 12)}; its release notes were regenerated.`);
+    return assertDraftRelease(updated, source, version);
+  }
   const created = JSON.parse(r.gh([
     "api", "-X", "POST", `repos/${repository}/releases`,
     "-f", `tag_name=v${version}`, "-f", `target_commitish=${source}`,
