@@ -4,9 +4,15 @@ Opened by the nightly regression triage from the failed run's evidence artifacts
 
 ## Decisions
 
-- To be written by the maintainer once the cause is known: what failed, why, and the smallest change that fixes it without reducing validation.
+- The run had two independent failures; the recorded log excerpt shows only the passing neighbours of the second. Every lane failed `pinned-pi-public-api.test.ts` because #621 added `truncateToWidth` consumers without refreshing `config/baselines/pinned-pi-public-api.json`. `f9100403` (merged with #624 at `dade587`) already refreshed that baseline, so merging current `develop` resolves it without a change here.
+- Only macOS also failed `shell-components.test.ts › keeps adjacent queued chips individually atomic…`, introduced by #621. The test fixed the dequeue binding to `alt+up` and asserted `Alt+Up` on one 40-column row, but Pi labels Alt as `Option` on macOS, and ` ↳ Option+Up to edit all queued messages` exceeds the 38-column content width and wraps. Product rendering is correct and platform-specific labelling is already asserted by the live-binding test above it.
+- Use a platform-neutral `ctrl+up` binding in the chip-wrapping test, so every platform asserts the same one-row hint. The chip-count, refresh, and rebinding assertions are unchanged; no product code, budget, or timeout changes.
 
 ## Evidence
+
+- Rendering the queued status at 40 columns with `process.platform` set to `darwin` reproduced the failure: `alt+up` produced `[" ↳ Option+Up to edit all queued", " messages"]`, while `ctrl+up` produced the one-row ` ↳ Ctrl+Up to edit all queued messages`.
+- `pinned-pi-public-api.test.ts` passes on the merged `develop` head; it failed only before `f9100403`.
+- `shell-components.test.ts` (43 tests), `tsgo -p tsconfig.json --noEmit`, and `check-code-documentation --mode full` pass locally on Windows/Node 24.
 
 - Run [Full regression #44](https://github.com/timurproko/a1/actions/runs/36546666153) (attempt 1, schedule) on `f11d40d` at 2026-09-29T09:03:25Z:
   - `vitest-full-without-isolated` (`architecture`, `dependency-policy`, `dist-integration`, `documentation-full`, `fast-remainder`, `fast-resource-sensitive`, `history-compatibility`, `image-compatibility`, `launch-integration`, `naming-full`, `package-contracts`, `package-smoke`, `package-startup`, `pi-engine-conformance`, `release-update`, `rendering-stability`, `typecheck`, `unix-containment`, `update-performance`, `update-predecessor`) failed on macos-15-node24, ubuntu-24.04-node24, windows-2025-node22, windows-2025-node24 with exit 1.
