@@ -36,6 +36,17 @@ repository topic ref whose live object still equals the merged pull request head
 An absent ref is success; fork, unmerged, advanced, protected, default, release-owned,
 or malformed refs are preserved and reported.
 
+`.github/workflows/ready-pull-request-refresh.yml` keeps ready pull requests current
+after `develop` advances. It runs trusted default-branch policy after a merged close
+event and after every Documentation auto-merge completion, because merges authored with
+`GITHUB_TOKEN` emit no close event. One serialized, non-cancelling pass re-reads each
+open pull request targeting `develop` and the current target, then calls GitHub's
+update-branch operation with the exact head it just compared. It uses a short-lived
+App token scoped to contents and pull requests so the new head emits `synchronize` and
+ordinary finalization and CI run; it never falls back to `GITHUB_TOKEN`. Drafts, forks,
+other bases, and current heads are skipped; a moved head is deferred and a conflict is
+reported for manual repair. It never merges, arms auto-merge, or dispatches checks.
+
 `config/github-repository-governance.json` is the reviewed policy for repository
 settings, Actions defaults, security capabilities, environments, complete rulesets,
 protected refs, and workflow authority. Inspection is read-only by default:
@@ -323,6 +334,11 @@ Rules that do not bend:
   and never broaden the allowlist to make one pull request pass.
 - **Merged-branch cleanup fails:** inspect the bounded PR/ref/SHA disposition. Never
   delete an advanced or protected ref merely because its name matches an old PR.
+- **Ready pull-request refresh fails:** read the per-PR disposition in the run summary.
+  A `blocked` PR needs its conflict with `develop` resolved by hand; a `deferred` PR is
+  re-evaluated on the next pass. A credential or permission failure means the App
+  secrets are missing or underprivileged; restore them rather than updating branches
+  with another token.
 - **Repository governance drifts:** run the read-only checker, review every reported
   path, and use the confirmed apply mode only for an accepted mutable policy change.
 - **A Pi upgrade proposal needs a re-run:** the sync never force-pushes over `chore/pi-<version>` once it carries a commit the bot did not author; a scheduled re-run posts its fresh verdicts as a comment headed with the version and date and rewrites only the report between the `<!-- pi-upgrade-report -->` markers of the description. To re-run the derived steps and gates on the reviewer's head, dispatch the workflow with `refresh` and the `version`; it checks out the proposal branch, skips bump, evaluation, install, and merge, and reports without pushing. A branch whose commits are all the bot's is recreated from `develop` as before.

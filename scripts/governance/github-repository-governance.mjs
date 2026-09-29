@@ -84,6 +84,13 @@ export function inspectWorkflowSource(path, source) {
   if (source.includes("manage-documentation-auto-merge.mjs")) authority.push("documentation-auto-merge", "matching-merged-head-delete", "archive-protected-integration");
   if (source.includes('VALIDATION_SELECTION_JSON: \'["full-release"]\'') || source.includes("uses: ./.github/workflows/full-regression-shared.yml")) authority.push("complete-regression");
   if (source.includes("reconcile-merged-branch.mjs")) authority.push("matching-merged-head-delete");
+  if (source.includes("refresh-ready-pull-requests.mjs")) {
+    // Security: branch refresh is recognized only through a scoped App token; any other credential shape drifts from the inventory.
+    const scopedAppToken = source.includes("actions/create-github-app-token@") && source.includes("BRANCH_REFRESH_TOKEN: ${{ steps.app.outputs.token }}")
+      && /^\s+permission-contents: write\s*$/m.test(source) && /^\s+permission-pull-requests: write\s*$/m.test(source)
+      && !/^\s+permission-(?!contents:|pull-requests:)[a-z-]+:/m.test(source);
+    authority.push(scopedAppToken ? "ready-pull-request-branch-refresh" : "unscoped-branch-refresh");
+  }
   if (source.includes("reconcile-openspec-archive.mjs")) {
     if (source.includes("OPENSPEC_ARCHIVE_APP_PRIVATE_KEY")) {
       authority.push("openspec-archive-app-publication", "archive-read-only-audit");
