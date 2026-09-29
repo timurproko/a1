@@ -26,18 +26,23 @@ export function replaceCanonicalPromptChips(text: string, replacement: (match: P
   }));
 }
 
-/** Protects fitting chip labels for Markdown wrapping and restores their exact visible source text. */
-export function protectPromptChipWrapping(text: string): PromptChipWrapProtection {
+/** Protects chip labels for wrapping, optionally presents a derived label, and removes all sentinels. */
+export function protectPromptChipWrapping(
+  text: string,
+  present: (chip: string) => string = identity,
+): PromptChipWrapProtection {
   const matches = canonicalPromptChipMatches(text);
   if (matches.length === 0) return { text, restore: identity };
   const spaceMarker = unusedPrivateMarker(text);
   const boundaryMarker = unusedZeroWidthMarker(text);
+  const boundary = `${boundaryMarker} `;
   let protectedText = "", cursor = 0;
   for (const match of matches) {
     protectedText += text.slice(cursor, match.start);
-    // Rationale: adjacent chips need a temporary break opportunity or Markdown treats the complete run as one word.
-    if (match.start === cursor && cursor > 0) protectedText += `${boundaryMarker} `;
-    protectedText += match.text.replaceAll(" ", spaceMarker);
+    // Rationale: temporary break opportunities keep each chip independent from adjacent chips or prose.
+    if (match.start > 0 && match.start !== cursor && !/\s/u.test(text[match.start - 1]!)) protectedText += boundary;
+    protectedText += present(match.text).replaceAll(" ", spaceMarker);
+    if (match.end < text.length && !/\s/u.test(text[match.end]!)) protectedText += boundary;
     cursor = match.end;
   }
   protectedText += text.slice(cursor);

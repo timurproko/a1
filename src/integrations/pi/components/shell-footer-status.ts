@@ -7,10 +7,12 @@ import {
 } from "@earendil-works/pi-tui";
 import type {
   OwnedUiSessionViewModel,
+  PromptChipWrapProtection,
 } from "../../../contracts/owned-ui/index.js";
 import { SessionFooter } from "./upstream/components/session-footer.js";
 import { KeybindingsManager, type KeybindingsConfig } from "./upstream/adjacent/core/keybindings.js";
 import { StatusIndicator, WorkingStatusIndicator } from "./upstream/components/status-indicator.js";
+import { protectPiPromptChipPresentation } from "./prompt-chip-presentation.js";
 import {
   PINNED_PI_LAYOUT,
   piTheme,
@@ -177,18 +179,26 @@ export function createPiQueuedInputStatus(
   getKeybindings?: () => KeybindingsConfig,
 ): PiShellQueuedInputPort {
   let renderedText = queuedInputText(submissions, presentation, getKeybindings?.());
+  let chipWrapping: PromptChipWrapProtection = { text: renderedText, restore: value => value };
+  let protectedWidth: number | undefined;
   const text = new Text(renderedText, 1, 0);
   const refresh = () => {
     const next = queuedInputText(submissions, presentation, getKeybindings?.());
     if (next === renderedText) return;
     renderedText = next;
-    text.setText(next);
+    protectedWidth = undefined;
   };
   return {
     render(width) {
       if (submissions.length === 0) return [];
       refresh();
-      return text.render(width);
+      const contentWidth = queuedTextContentWidth(width);
+      if (contentWidth !== protectedWidth) {
+        chipWrapping = queuedInputChipWrapping(renderedText, presentation, contentWidth);
+        text.setText(chipWrapping.text);
+        protectedWidth = contentWidth;
+      }
+      return text.render(width).map(row => chipWrapping.restore(row));
     },
     invalidate: () => text.invalidate(),
     update(next) {
@@ -274,6 +284,21 @@ function statusSignature(
 ): string {
   const message = withMessage ? `${workingOverride ?? ""}\u0000${view.status.workingMessage ?? ""}\u0000${view.status.workingProgress ?? ""}` : "";
   return `${placement}\u0000${outputPad}\u0000${view.lifecycle}\u0000${progressPresentation}\u0000${message}\u0000${view.status.diagnostics.at(-1) ?? ""}`;
+}
+
+function queuedInputChipWrapping(
+  text: string,
+  presentation: "pinned" | "custom-viewport",
+  width: number,
+): PromptChipWrapProtection {
+  return presentation === "custom-viewport"
+    ? protectPiPromptChipPresentation(text, width)
+    : { text, restore: value => value };
+}
+
+function queuedTextContentWidth(width: number): number {
+  const padding = Math.min(1, Math.max(0, Math.floor((width - 1) / 2)));
+  return Math.max(1, width - padding * 2);
 }
 
 function queuedInputText(
