@@ -31,11 +31,17 @@ jobs:
           RELEASE_ID: ${{ github.event.release.id }}
         run: |
           set -euo pipefail
-          if [[ ! "$TAG_NAME" =~ ^v((0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*))$ ]] || [[ ! "$RELEASE_ID" =~ ^[1-9][0-9]*$ ]]; then
+          # Invariant: BASH_REMATCH belongs to the last =~ test, so the version is captured before the id is checked.
+          if [[ ! "$TAG_NAME" =~ ^v((0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*))$ ]]; then
             echo "::error::published Release $RELEASE_ID tag '$TAG_NAME' is not a stable vX.Y.Z tag" >&2
             exit 1
           fi
-          printf 'version=%s\nrelease_id=%s\n' "${BASH_REMATCH[1]}" "$RELEASE_ID" >> "$GITHUB_OUTPUT"
+          version="${BASH_REMATCH[1]}"
+          if [[ ! "$RELEASE_ID" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::published Release id '$RELEASE_ID' is invalid" >&2
+            exit 1
+          fi
+          printf 'version=%s\nrelease_id=%s\n' "$version" "$RELEASE_ID" >> "$GITHUB_OUTPUT"
 
   publish:
     name: Publish the exact stable release
