@@ -52,12 +52,16 @@ describe("release preparation with real temporary Git and fake external services
     expect(f.logs[0]).toBe(`source ${current}; stable target ${stable}; next development ${opening}; mode prepare`);
     const output = f.logs.join("\n");
     expect(count(output, editUrl(draft))).toBe(1);
-    expect(count(output, "https://github.com/fixture/a1/actions/workflows/approve-release.yml")).toBe(1);
+    expect(output).toContain("choose Save draft");
+    expect(output).toContain("npm staging succeeded in run 42");
+    expect(output).toContain("choose Publish release");
+    expect(output).not.toContain("/actions/workflows/");
     expect(output).not.toContain("--approve");
+    expect(f.events).toContain(`stable-dispatch:1:${stable}`);
     expect(f.ghCalls.some(args => args[0] === "pr")).toBe(false);
   }, INTEGRATION_TIMEOUT);
 
-  it("reuses an edited draft without overwriting it and prints both links once per invocation", async () => {
+  it("reuses an edited draft without overwriting it and requires another fresh save", async () => {
     const f = await fixture();
     const draft = await prepare(f);
     draft.body = "## Fixes\n\n- Reviewed edit.\n";
@@ -67,7 +71,20 @@ describe("release preparation with real temporary Git and fake external services
     expect(f.drafts[0]!.body).toBe("## Fixes\n\n- Reviewed edit.\n");
     const output = f.logs.slice(before).join("\n");
     expect(count(output, editUrl(draft))).toBe(1);
-    expect(count(output, "actions/workflows/approve-release.yml")).toBe(1);
+    expect(output).toContain("choose Save draft");
+    expect(output).not.toContain("actions/workflows");
+  }, INTEGRATION_TIMEOUT);
+
+  it("recognizes exact successful staging without dispatching or republishing", async () => {
+    const f = await fixture();
+    const draft = await prepare(f);
+    f.recordCompletedStaging(73);
+    f.setDispatchStable(() => { throw new Error("must not dispatch"); });
+    const before = f.logs.length;
+    expect(await main(["patch"], f.runtime)).toBe(0);
+    expect(f.drafts).toHaveLength(1);
+    expect(f.logs.slice(before).join("\n")).toContain("npm staging was already verified in run 73");
+    expect(f.logs.slice(before).join("\n")).toContain(editUrl(draft));
   }, INTEGRATION_TIMEOUT);
 
   it("rejects the retired local approval form before GitHub or registry mutation", async () => {
@@ -75,7 +92,7 @@ describe("release preparation with real temporary Git and fake external services
     expect(await main(["patch", "--approve"], f.runtime)).toBe(2);
     expect(f.drafts).toEqual([]);
     expect(f.events).toEqual([]);
-    expect(f.errors.join("\n")).toContain("Approve stable release workflow in GitHub Actions");
+    expect(f.errors.join("\n")).toContain("waits for Save draft");
   }, INTEGRATION_TIMEOUT);
 
   it.each(["not-semver"])("rejects invalid current version %s", async version => {
@@ -101,7 +118,7 @@ describe("release preparation with real temporary Git and fake external services
     f.setRegistry(() => present === "both" ? { version: "0.1.8" } : null);
     expect(await main(["patch"], f.runtime)).toBe(1);
     expect(f.drafts).toEqual([]);
-    expect(f.errors.join("\n")).toContain("stable versions are never republished");
+    expect(f.errors.join("\n")).toContain("without one exact staged draft Release");
   }, INTEGRATION_TIMEOUT);
 
   it.each(["dirty", "branch", "behind"])("checks preflight before draft mutation: %s", async failure => {
@@ -115,6 +132,33 @@ describe("release preparation with real temporary Git and fake external services
     }
     expect(await main(["patch"], f.runtime)).toBe(1);
     expect(f.drafts).toEqual([]);
+  }, INTEGRATION_TIMEOUT);
+
+  it("cancels a waiting review without dispatching or changing the draft", async () => {
+    const f = await fixture();
+    const controller = new AbortController();
+    Object.defineProperty(f.runtime, "signal", { value: controller.signal });
+    f.setAutoSave(false);
+    f.runtime.wait = async () => { controller.abort(); };
+    f.setDispatchStable(() => { throw new Error("must not dispatch"); });
+    expect(await main(["patch"], f.runtime)).toBe(130);
+    expect(f.drafts).toHaveLength(1);
+    expect(f.drafts[0]).toMatchObject({ draft: true, body: expect.stringContaining("## [0.1.8]") });
+  }, INTEGRATION_TIMEOUT);
+
+  it("refuses dispatch when develop advances while the draft is being reviewed", async () => {
+    const f = await fixture();
+    let advanced = false;
+    f.runtime.wait = async () => {
+      if (advanced) return;
+      advanced = true;
+      const tree = f.git(["rev-parse", `${f.initialHead}^{tree}`], f.remote);
+      const tip = f.git(["commit-tree", tree, "-p", f.initialHead, "-m", "advance during review"], f.remote);
+      f.git(["update-ref", "refs/heads/develop", tip, f.initialHead], f.remote);
+    };
+    f.setDispatchStable(() => { throw new Error("must not dispatch"); });
+    expect(await main(["patch"], f.runtime)).toBe(1);
+    expect(f.errors.join("\n")).toContain("refusing to substitute another commit");
   }, INTEGRATION_TIMEOUT);
 
   it("rechecks authoritative source after asynchronous registry lookups", async () => {

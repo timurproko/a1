@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
-import { describePublicationFailure, dispatchPublication } from "../../scripts/release/publication-client.mjs";
+import { describePublicationFailure, dispatchPublication, dispatchStableStaging } from "../../scripts/release/publication-client.mjs";
 
 type Call = { executable: string; args: string[] };
 
@@ -90,9 +90,47 @@ describe("publication failure reporting", () => {
     ]);
   });
 
-  it("refuses every local stable dispatch", async () => {
+  it("refuses stable publication through the development dispatcher", async () => {
     await expect(dispatchPublication("stable" as never, "a".repeat(40), "0.1.8", { run: () => "" }))
-      .rejects.toThrow(/only.*Approve stable release.*GitHub Actions/i);
+      .rejects.toThrow(/staged only after.*Save draft/i);
+  });
+
+  it("dispatches and follows one authenticated stable staging request", async () => {
+    const source = "a".repeat(40);
+    const { run, calls } = fakeRunner(({ args }) => {
+      if (args[0] === "auth") return "";
+      if (args[0] === "api" && args[1] === "user") return "maintainer";
+      if (args[0] === "api" && args[1] === "-X") return "";
+      if (args[0] === "run" && args[1] === "list") return JSON.stringify([{ databaseId: 51, displayTitle: "Stage stable release fixture-request" }]);
+      if (args[0] === "api" && args[1] === "repos/owner/app/actions/runs/51") return JSON.stringify({
+        id: 51, event: "repository_dispatch", path: ".github/workflows/approve-release.yml", head_branch: "develop",
+        head_sha: source, actor: { login: "maintainer" }, html_url: "https://github.com/owner/app/actions/runs/51",
+      });
+      if (args[0] === "run" && args[1] === "watch") return "";
+      throw new Error(`unexpected call ${args.join(" ")}`);
+    });
+    await expect(dispatchStableStaging({
+      repository: "owner/app", releaseId: 17, source, version: "0.1.8", reviewedUpdatedAt: "2026-09-29T00:00:01Z",
+    }, { run, requestId: "fixture-request", write: () => {}, sleep: async () => {} })).resolves.toBe(51);
+    const dispatch = calls.find(call => call.args[0] === "api" && call.args[1] === "-X")!;
+    expect(dispatch.args).toContain("event_type=a1-stable-release-reviewed");
+    expect(dispatch.args).toContain("client_payload[release_id]=17");
+    expect(dispatch.args).not.toContain("client_payload[version]=0.1.8");
+  });
+
+  it("rejects a correlated run with a different actor or source", async () => {
+    const source = "a".repeat(40);
+    const { run } = fakeRunner(({ args }) => {
+      if (args[0] === "auth" || (args[0] === "api" && args[1] === "-X")) return "";
+      if (args[0] === "api" && args[1] === "user") return "maintainer";
+      if (args[0] === "run") return JSON.stringify([{ databaseId: 52, displayTitle: "Stage stable release fixture-request" }]);
+      if (args[0] === "api") return JSON.stringify({ id: 52, event: "repository_dispatch", path: ".github/workflows/approve-release.yml",
+        head_branch: "develop", head_sha: "b".repeat(40), actor: { login: "other" }, html_url: "https://example.test" });
+      throw new Error(`unexpected call ${args.join(" ")}`);
+    });
+    await expect(dispatchStableStaging({
+      repository: "owner/app", releaseId: 17, source, version: "0.1.8", reviewedUpdatedAt: "2026-09-29T00:00:01Z",
+    }, { run, requestId: "fixture-request", write: () => {}, sleep: async () => {} })).rejects.toThrow(/does not match/);
   });
 
   it("returns the run identifier unchanged when the watch succeeds", async () => {
@@ -130,6 +168,6 @@ describe("publication failure reporting", () => {
     expect(require.run).toContain('test "$PUBLISH" = success');
     expect(require.run).toContain('test "$POST_PUBLISH" = success');
     expect(require.run).toContain('test "$COMPLETE" = success');
-    expect(require.run).toContain('if [ "$MODE" = stable ]; then test "$REOPEN" = success; fi');
+    expect(require.run).not.toContain("REOPEN");
   });
 });

@@ -19,7 +19,8 @@ describe("deliberate publication pipeline", () => {
     expect(source).toContain('cron: "17 3 * * *"');
     expect(source).not.toMatch(/^\s*push:/m);
     expect(await readFile(".github/workflows/develop.yml", "utf8")).toContain("workflow_dispatch:");
-    expect(await readFile(".github/workflows/approve-release.yml", "utf8")).toContain("workflow_dispatch:");
+    expect(await readFile(".github/workflows/approve-release.yml", "utf8")).toContain("repository_dispatch:");
+    expect(await readFile(".github/workflows/finalize-release.yml", "utf8")).toContain("types: [published]");
   });
 
   it("selects current develop once and resolves its merged pull request through GitHub", async () => {
@@ -51,7 +52,7 @@ describe("deliberate publication pipeline", () => {
     const postPublish = source.slice(source.indexOf("\n  post_publish:"), source.indexOf("\n  complete:"));
     expect(postPublish.match(/^    if: (.+)$/m)?.[1]).toBe("always() && needs.plan.result == 'success' && needs.plan.outputs.work == 'true' && (needs.plan.outputs.build == 'true' || needs.plan.outputs.installer_build == 'true') && needs.package.result == 'success' && needs.publish.result == 'success'");
 
-    const complete = source.slice(source.indexOf("\n  complete:"), source.indexOf("\n  reopen:"));
+    const complete = source.slice(source.indexOf("\n  complete:"), source.indexOf("\n  result:"));
     expect(complete.match(/^    if: (.+)$/m)?.[1]).toBe("always() && needs.plan.result == 'success' && needs.plan.outputs.work == 'true' && (needs.plan.outputs.build == 'true' || needs.plan.outputs.installer_build == 'true') && needs.package.result == 'success' && needs.publish.result == 'success' && needs.post_publish.result == 'success'");
 
     const result = source.slice(source.indexOf("\n  result:"));
@@ -113,7 +114,7 @@ describe("deliberate publication pipeline", () => {
     expect(source).toContain("--provenance");
     const publish = source.slice(source.indexOf("\n  publish:"));
     expect(publish.slice(0, publish.indexOf("\n  post_publish:"))).not.toMatch(/npm ci|npm run build|prepare-validation-package/);
-    expect(source.indexOf("Exercise the exact published pair")).toBeLessThan(source.indexOf("Publish the approved draft GitHub Release"));
+    expect(source.indexOf("Exercise the exact published pair")).toBeLessThan(source.indexOf("Attach the immutable staging receipt"));
   });
 
   it("packs native process guardians with host-independent executability", async () => {
@@ -135,24 +136,27 @@ describe("deliberate publication pipeline", () => {
       readFile(".github/workflows/approve-release.yml", "utf8"),
       readFile("scripts/release/publication-client.mjs", "utf8"),
     ]);
-    expect(source).toContain("description: Stable version selected by the human approval workflow");
-    expect(source).toContain("stable approval derives source and identity inside trusted workflow code");
+    expect(source).toContain("description: Stable version derived by the reviewed-draft staging wrapper");
+    expect(source).toContain("stable staging derives source inside trusted workflow code");
     expect(source).toContain("const base = /^(\\d+\\.\\d+\\.\\d+)-dev$/.exec(declared)?.[1];");
     expect(source).toContain("version = process.env.REQUESTED_VERSION;");
     expect(source).toContain("is below the open development version");
     const stamp = source.slice(source.indexOf("- name: Stamp the published version on the open development source"), source.indexOf("- name: Record verified candidate build"));
     expect(stamp).toContain("if: needs.plan.outputs.build == 'true'");
     expect(stamp).toContain('npm version "$RELEASE_VERSION" --no-git-tag-version --allow-same-version');
-    expect(approval.match(/^      [a-z_]+:\r?$/gm)).toEqual(["      version:"]);
+    expect(approval).toContain("repository_dispatch:");
+    expect(approval).toContain("a1-stable-release-reviewed");
     expect(approval).toContain("uses: timurproko/a1/.github/workflows/publish.yml@develop");
     expect(approval).toContain("channel: stable");
-    expect(source).toContain("stable approval must originate from the trusted default-branch Approve stable release workflow");
+    expect(source).toContain("stable staging must originate from the trusted default-branch saved-draft workflow");
     expect(source).toContain("approval never deletes, moves, or reuses a release tag");
     expect(source).not.toContain("orphan-tag recovery");
-    expect(approval).not.toMatch(/source_sha:|release_id:|release_notes_sha256:/);
+    expect(approval).not.toMatch(/source_sha:|release_notes_sha256:/);
     expect(client).toContain('"workflow", "run", "develop.yml"');
-    expect(client).toContain("stable publication is approved only from the Approve stable release workflow");
-    expect(client).not.toContain('`release_id=');
+    expect(client).toContain("event_type=a1-stable-release-reviewed");
+    expect(client).toContain("stable publication is staged only after the release command observes Save draft");
+    expect(client).toContain("client_payload[release_id]");
+    expect(client).not.toContain("client_payload[version]");
   });
 
   it("binds stable publication and GitHub Release text to an authorized draft snapshot", async () => {
@@ -169,13 +173,12 @@ describe("deliberate publication pipeline", () => {
     expect(source).toContain("approved GitHub Release was published or changed before npm publication");
     expect(source).toContain("Require the approved Release to remain unpublished and untagged");
     expect(source).toContain("approved GitHub Release was published or changed before stable completion");
-    expect(source).toContain("Publish the approved draft GitHub Release");
-    expect(source).toContain('gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID"');
-    expect(source).toContain("GitHub did not publish the approved draft with the expected identity and exact body");
-    expect(source).toContain("release.body !== body");
-    expect(source.indexOf('gh release upload "v${RELEASE_VERSION}"')).toBeLessThan(source.indexOf('git/refs/heads/master'));
-    expect(source.indexOf('git/refs/heads/master')).toBeLessThan(source.indexOf('gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID"'));
-    expect(source).toContain("published Release tag identity");
+    expect(source).toContain("Attach the immutable staging receipt");
+    expect(source).toContain('schema: "a1-stable-staging-v1"');
+    expect(source).not.toContain('gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID"');
+    expect(source.indexOf('gh release upload "v${RELEASE_VERSION}" "$release_tarball"')).toBeLessThan(source.indexOf('git/refs/heads/master'));
+    expect(source.indexOf('git/refs/heads/master')).toBeLessThan(source.indexOf("Attach the immutable staging receipt"));
+    expect(source).toContain("appeared before native Release publication");
     expect(source).not.toContain("Tag the published commit");
     expect(source).not.toContain('-f "ref=refs/tags/${tag}"');
     expect(source).toContain("ref: ${{ needs.plan.outputs.source }}");
@@ -192,7 +195,11 @@ describe("deliberate publication pipeline", () => {
     expect(source).toContain("needs.plan.outputs.channel == 'latest'");
     expect(source).toContain("git/refs/heads/master");
     expect(source).toContain("-F force=false");
-    expect(source).toContain('draft: false');
+    expect(source).not.toContain('draft: false');
+    const finalizer = await readFile(".github/workflows/finalize-release.yml", "utf8");
+    expect(finalizer).toContain("release:");
+    expect(finalizer).toContain("validateStableStagingReceipt");
+    expect(finalizer).not.toContain("npm publish");
   });
 });
 
@@ -213,21 +220,25 @@ describe("maintainer publication commands", () => {
     expect(script).not.toMatch(/npm publish|npm pack/);
   });
 
-  it("prepares a draft locally but leaves approval and reopening to trusted Actions", async () => {
+  it("waits for draft saving, stages npm, and leaves native publication plus reopening to trusted workflows", async () => {
     const entry = await readFile("scripts/release/release.mjs", "utf8");
     const script = await readFile("scripts/release/release-workflow.mjs", "utf8");
     const publication = await workflow();
     expect(entry).toContain("./release-workflow.mjs");
     expect(script).toContain("const draft = await prepareDraftRelease");
     expect(script).toContain("OPEN_DEVELOPMENT.test(plan.current)");
-    expect(script).toContain("Approve stable release after review:");
+    expect(script).toContain("waitForDraftSave");
+    expect(script).toContain("dispatchStable");
+    expect(script).toContain("choose Save draft");
+    expect(script).not.toContain("/actions/workflows/");
     expect(script).not.toContain("approvedSnapshot");
-    expect(script).not.toContain("dispatchPublication");
     expect(script).not.toContain("prepareVersion");
     expect(script).not.toMatch(/npm publish|npm pack/);
-    expect(publication).toContain("node scripts/release/prepare-reopening.mjs");
-    expect(publication).toContain("actions/create-github-app-token@");
-    expect(publication).not.toContain('["pr", "merge"');
+    expect(publication).not.toContain("node scripts/release/prepare-reopening.mjs");
+    const finalizer = await readFile(".github/workflows/finalize-release.yml", "utf8");
+    expect(finalizer).toContain("node scripts/release/prepare-reopening.mjs");
+    expect(finalizer).toContain("actions/create-github-app-token@");
+    expect(finalizer).not.toContain('["pr", "merge"');
   });
 
   it("moves synchronized package versions with the exact approved note in one manual reopening PR", async () => {
