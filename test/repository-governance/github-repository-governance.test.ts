@@ -83,8 +83,19 @@ describe("declarative GitHub repository governance", () => {
     expect(inspected.find(workflow => workflow.name === "Nightly regression triage")).toMatchObject({
       triggers: ["workflow_dispatch", "workflow_run"], trustedSource: "default-branch", permissions: ["actions: read", "contents: write", "pull-requests: write"], authority: ["nightly-regression-triage"], artifactRetentionDays: [30],
     });
+    expect(inspected.find(workflow => workflow.name === "Stage stable release")).toMatchObject({
+      triggers: ["repository_dispatch"], trustedSource: "default-branch", authority: ["stable-release-staging"],
+    });
+    expect(inspected.find(workflow => workflow.name === "Finalize stable release")).toMatchObject({
+      triggers: ["release:published"], trustedSource: "default-branch",
+      authority: ["github-release-verification", "release-reopening-proposal"], artifactRetentionDays: [30],
+    });
+    expect(inspected.find(workflow => workflow.name === "Development publication")).toMatchObject({
+      triggers: ["workflow_dispatch"], trustedSource: "default-branch", authority: ["npm-next"],
+    });
     expect(inspected.find(workflow => workflow.name === "Publish")).toMatchObject({
-      triggers: ["schedule", "workflow_dispatch"], trustedSource: "authoritative-develop", environments: ["npm-publish"], artifactRetentionDays: [1, 30],
+      triggers: ["schedule", "workflow_call"], trustedSource: "authoritative-develop", environments: ["npm-publish"], artifactRetentionDays: [1, 30],
+      authority: expect.arrayContaining(["master-fast-forward", "npm-latest"]),
     });
   });
 
@@ -93,7 +104,8 @@ describe("declarative GitHub repository governance", () => {
       const source = await readFile(`.github/workflows/${name}`, "utf8");
       for (const match of source.matchAll(/^\s*uses:\s*([^\s#]+)(?:\s+#.*)?$/gm)) {
         const reference = match[1]!;
-        if (reference.startsWith("./") || reference.startsWith("docker://")) continue;
+        if (reference.startsWith("./") || reference.startsWith("docker://")
+          || reference === "timurproko/a1/.github/workflows/publish.yml@develop") continue;
         expect(reference, `${name}: ${reference}`).toMatch(/@[0-9a-f]{40}$/);
       }
     }

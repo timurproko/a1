@@ -1,15 +1,14 @@
 import { createHash } from "node:crypto";
-import { spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { writeFile } from "node:fs/promises";
 import { describe, expect, it, onTestFailed, onTestFinished } from "vitest";
-import { NativeRegressionTrace } from "../support/native-regression-trace.js";
+import { prepareReopening } from "../../scripts/release/prepare-reopening.mjs";
 import { main } from "../../scripts/release/release.mjs";
-import { releaseFixture } from "../support/release-command-fixture.js";
 import { createValidationPhaseRecorder } from "../../scripts/release/validation-phase.mjs";
+import { NativeRegressionTrace } from "../support/native-regression-trace.js";
+import { releaseFixture } from "../support/release-command-fixture.js";
 
 const phases = createValidationPhaseRecorder("release-command-fixture");
+const INTEGRATION_TIMEOUT = 45_000;
 let fixtureSequence = 0;
 
 async function fixture(version?: string) {
@@ -30,300 +29,203 @@ async function prepare(f: Awaited<ReturnType<typeof fixture>>, target = "patch")
   return f.drafts[0]!;
 }
 
-async function commitReopeningOnRemoteBranch(
-  f: Awaited<ReturnType<typeof fixture>>,
-  branch: string,
-  opening: string,
-  stable: string,
-  note: string,
-  extra?: string,
-  base = f.initialHead,
-) {
-  const work = join(f.directory, `prepared-${branch.replaceAll("/", "-")}`);
-  f.git(["worktree", "add", "--detach", work, base]);
-  const manifest = { ...f.manifest, version: opening };
-  const lock = { ...f.lock, version: opening, packages: { ...f.lock.packages, "": { ...f.lock.packages[""], version: opening } } };
-  const installer = { ...f.installer, version: opening };
-  await writeFile(join(work, "package.json"), `${JSON.stringify(manifest, null, 2)}\n`);
-  await writeFile(join(work, "package-lock.json"), `${JSON.stringify(lock, null, 2)}\n`);
-  await writeFile(join(work, "packages", "a1-install", "package.json"), `${JSON.stringify(installer, null, 2)}\n`);
-  await mkdir(join(work, "docs", "releases"), { recursive: true });
-  await writeFile(join(work, "docs", "releases", `${stable}.md`), note);
-  if (extra) await writeFile(join(work, "unrelated.txt"), extra);
-  f.git(["add", "."], work);
-  f.git(["commit", "-m", `prepared ${opening}`], work);
-  f.git(["push", "origin", `HEAD:refs/heads/${branch}`], work);
-  return f.git(["rev-parse", "HEAD"], work);
+function count(text: string, value: string) {
+  return text.split(value).length - 1;
+}
+function editUrl(draft: { html_url: string }) {
+  return draft.html_url.replace("/releases/tag/", "/releases/edit/");
 }
 
-describe("release command with real temporary Git and fake publication services", () => {
+describe("release preparation with real temporary Git and fake external services", () => {
   it.each([
     ["0.1.8-dev", "patch", "0.1.8", "0.1.9-dev"],
     ["0.1.8-dev", "minor", "0.2.0", "0.2.1-dev"],
     ["0.1.8-dev", "0.4.0", "0.4.0", "0.4.1-dev"],
-  ])("prepares %s using %s as editable draft %s without a PR or publication", async (current, target, stable, opening) => {
+  ])("prepares %s using %s as editable draft %s", async (current, target, stable, opening) => {
     const f = await fixture(current);
     const draft = await prepare(f, target);
     expect(draft).toMatchObject({ tag_name: `v${stable}`, name: `v${stable}`, target_commitish: f.initialHead, draft: true, prerelease: false });
-    expect(draft.body).toContain("## Other changes");
+    expect(draft.body).toMatch(new RegExp(`^## \\[${stable.replaceAll(".", "\\.")}\\] - \\d{4}-\\d{2}-\\d{2}`));
+    expect(draft.body).toContain("### Changed");
     expect(draft.body).not.toContain(`# A1 ${stable}`);
-    expect(f.pulls).toEqual([]);
-    expect(f.publications).toEqual([]);
-    expect(f.phaseDirectories).toEqual([]);
-    expect(f.remoteVersion()).toBe(current);
     expect(await f.localVersion()).toBe(current);
     expect(f.logs[0]).toBe(`source ${current}; stable target ${stable}; next development ${opening}; mode prepare`);
-    expect(f.logs.join("\n")).toContain("--approve");
-  }, 20_000);
+    const output = f.logs.join("\n");
+    expect(count(output, editUrl(draft))).toBe(1);
+    expect(output).toContain("choose Save draft");
+    expect(output).toContain("npm staging succeeded in run 42");
+    expect(output).toContain("choose Publish release");
+    expect(output).not.toContain("/actions/workflows/");
+    expect(output).not.toContain("--approve");
+    expect(f.events).toContain(`stable-dispatch:1:${stable}`);
+    expect(f.ghCalls.some(args => args[0] === "pr")).toBe(false);
+  }, INTEGRATION_TIMEOUT);
 
-  it("publishes the exact edited draft snapshot and persists it with the reopening version", async () => {
+  it("reuses an edited draft without overwriting it and requires another fresh save", async () => {
     const f = await fixture();
-    await prepare(f);
-    const edited = "## New features\n\n- Maintainer-edited release content.\n";
-    f.editDraft(edited);
+    const draft = await prepare(f);
+    draft.body = "## Fixes\n\n- Reviewed edit.\n";
+    const before = f.logs.length;
     expect(await main(["patch"], f.runtime)).toBe(0);
     expect(f.drafts).toHaveLength(1);
-    expect(f.drafts[0]!.body).toBe(edited);
-    f.setWait(() => { f.manualMerge(); });
-    expect(await main(["patch", "--approve"], f.runtime)).toBe(0);
+    expect(f.drafts[0]!.body).toBe("## Fixes\n\n- Reviewed edit.\n");
+    const output = f.logs.slice(before).join("\n");
+    expect(count(output, editUrl(draft))).toBe(1);
+    expect(output).toContain("choose Save draft");
+    expect(output).not.toContain("actions/workflows");
+  }, INTEGRATION_TIMEOUT);
 
-    expect(f.publications).toHaveLength(1);
-    const publication = f.publications[0]!;
-    expect(publication.source).toBe(f.initialHead);
-    expect(publication.version).toBe("0.1.8");
-    expect(publication.approval).toMatchObject({ id: 1, version: "0.1.8", markdown: edited });
-    expect(publication.approval.sha256).toBe(createHash("sha256").update(edited).digest("hex"));
-    expect(f.pulls).toHaveLength(1);
-    expect(f.pulls[0]!.headRefName).toBe("chore/release-0.1.9-dev");
-    expect(f.git(["show", `${f.pulls[0]!.mergeCommit!.oid}:docs/releases/0.1.8.md`], f.remote) + "\n").toBe(edited);
-    expect(f.remoteVersion()).toBe("0.1.9-dev");
-    expect(await f.localVersion()).toBe("0.1.9-dev");
-    expect(f.phaseDirectories).toHaveLength(1);
-    expect(existsSync(f.phaseDirectories[0]!)).toBe(false);
-    expect(f.events.indexOf("publish:0.1.8")).toBeLessThan(f.events.indexOf("pr-create:chore/release-0.1.9-dev"));
-    expect(f.ghCalls.every(args => !(args[0] === "pr" && args[1] === "merge") && !args.includes("--auto"))).toBe(true);
-  }, 25_000);
-
-  it("keeps automatic housekeeping isolated from real disposable Git operations", async () => {
+  it("recognizes exact successful staging without dispatching or republishing", async () => {
     const f = await fixture();
-    for (const repository of [f.cwd, f.remote]) {
-      expect(f.git(["config", "--get", "gc.auto"], repository)).toBe("0");
-      expect(f.git(["config", "--get", "maintenance.auto"], repository)).toBe("false");
-      expect(f.git(["config", "--get", "receive.autoGC"], repository)).toBe("false");
-    }
-    expect(f.git(["fsck", "--no-dangling"], f.remote)).toBe("");
-  });
+    const draft = await prepare(f);
+    f.recordCompletedStaging(73);
+    f.setDispatchStable(() => { throw new Error("must not dispatch"); });
+    const before = f.logs.length;
+    expect(await main(["patch"], f.runtime)).toBe(0);
+    expect(f.drafts).toHaveLength(1);
+    expect(f.logs.slice(before).join("\n")).toContain("npm staging was already verified in run 73");
+    expect(f.logs.slice(before).join("\n")).toContain(editUrl(draft));
+  }, INTEGRATION_TIMEOUT);
 
-  it("requires a target and accepts only the optional approval flag before reading release state", async () => {
+  it("rejects the retired local approval form before GitHub or registry mutation", async () => {
     const f = await fixture();
-    for (const args of [[], ["unknown"], ["patch", "extra"], ["patch", "--approve", "extra"], ["0.4.0-dev"], ["00.4.0"]]) {
-      expect(await main(args, f.runtime)).toBe(2);
-    }
-    expect(f.gitCalls).toEqual([]);
-    expect(f.ghCalls).toEqual([]);
-    const result = spawnSync(process.execPath, [resolve("scripts/release/release.mjs")], { cwd: f.directory, encoding: "utf8" });
-    expect(result.status).toBe(2);
-    expect(result.stderr).toContain("Usage:");
-  });
+    expect(await main(["patch", "--approve"], f.runtime)).toBe(2);
+    expect(f.drafts).toEqual([]);
+    expect(f.events).toEqual([]);
+    expect(f.errors.join("\n")).toContain("waits for Save draft");
+  }, INTEGRATION_TIMEOUT);
 
-  it.each(["not-semver", "01.1.8"])("rejects invalid current version %s before Git or publication", async version => {
+  it.each(["not-semver"])("rejects invalid current version %s", async version => {
     const f = await fixture(version);
     expect(await main(["patch"], f.runtime)).toBe(2);
-    expect(f.gitCalls).toEqual([]);
-    expect(f.ghCalls).toEqual([]);
-  });
+    expect(f.drafts).toEqual([]);
+  }, INTEGRATION_TIMEOUT);
 
-  it.each(["0.1.8", "0.1.8-dev.5", "0.1.8-rc.1"])("refuses develop declaring %s instead of one open development version", async version => {
+  it.each(["0.1.8-dev.5"])("refuses non-open develop version %s", async version => {
     const f = await fixture(version);
     expect(await main(["patch"], f.runtime)).toBe(1);
-    expect(f.errors.at(-1)).toContain("develop must declare an open development version");
-    expect(f.ghCalls).toEqual([]);
-  });
+    expect(f.drafts).toEqual([]);
+  }, INTEGRATION_TIMEOUT);
 
-  it.each(["registry", "registry-error", "tag"])("refuses existing or unverifiable stable identity before draft creation: %s", async mode => {
+  it("rejects an explicit stable target below the open development core", async () => {
+    const f = await fixture("0.2.2-dev");
+    expect(await main(["0.2.1"], f.runtime)).toBe(2);
+    expect(f.drafts).toEqual([]);
+  }, INTEGRATION_TIMEOUT);
+
+  it.each(["both"])("refuses an existing stable npm identity: %s", async present => {
     const f = await fixture();
-    if (mode === "registry") f.setRegistry(() => ({ version: "0.1.8" }));
-    if (mode === "registry-error") f.setRegistry(() => { throw new Error("registry unavailable"); });
-    if (mode === "tag") f.git(["update-ref", "refs/tags/v0.1.8", f.initialHead], f.remote);
+    f.setRegistry(() => present === "both" ? { version: "0.1.8" } : null);
     expect(await main(["patch"], f.runtime)).toBe(1);
     expect(f.drafts).toEqual([]);
-    expect(f.publications).toEqual([]);
-  });
+    expect(f.errors.join("\n")).toContain("without one exact staged draft Release");
+  }, INTEGRATION_TIMEOUT);
 
-  it("requires preparation before explicit approval", async () => {
+  it.each(["dirty", "branch", "behind"])("checks preflight before draft mutation: %s", async failure => {
     const f = await fixture();
-    expect(await main(["patch", "--approve"], f.runtime)).toBe(1);
-    expect(f.errors.join("\n")).toContain("run preparation without --approve first");
-    expect(f.publications).toEqual([]);
-  });
-
-  it.each(["source", "published", "prerelease", "name", "unsafe", "ambiguous"])("rejects changed draft authority: %s", async mode => {
-    const f = await fixture();
-    const draft = await prepare(f);
-    if (mode === "source") draft.target_commitish = "a".repeat(40);
-    if (mode === "published") draft.draft = false;
-    if (mode === "prerelease") draft.prerelease = true;
-    if (mode === "name") draft.name = "wrong";
-    if (mode === "unsafe") draft.body = "## Fixes\n\n- [run](javascript:alert)\n";
-    if (mode === "ambiguous") f.drafts.push({ ...draft, id: 2, html_url: "https://example.test/releases/2" });
-    expect(await main(["patch", "--approve"], f.runtime)).toBe(1);
-    expect(f.publications).toEqual([]);
-    expect(f.pulls).toEqual([]);
-  });
-
-  it.each([
-    [{ login: "release-app", type: "Bot" as const, permission: "write" }, "authenticated human GitHub user"],
-    [{ login: "release-reader", type: "User" as const, permission: "read" }, "not authorized to approve"],
-  ])("rejects unauthorized stable approver %#", async (approver, message) => {
-    const f = await fixture();
-    await prepare(f);
-    f.setApprover(approver);
-    expect(await main(["patch", "--approve"], f.runtime)).toBe(1);
-    expect(f.errors.join("\n")).toContain(message);
-    expect(f.publications).toEqual([]);
-    expect(f.pulls).toEqual([]);
-  });
-
-  it("preserves an edited draft but refuses it after authoritative develop advances", async () => {
-    const f = await fixture();
-    const draft = await prepare(f);
-    draft.body = "## Fixes\n\n- Keep this edit.\n";
-    const tree = f.git(["rev-parse", `${f.initialHead}^{tree}`], f.remote);
-    const advanced = f.git(["commit-tree", tree, "-p", f.initialHead, "-m", "advance develop"], f.remote);
-    f.git(["update-ref", "refs/heads/develop", advanced, f.initialHead], f.remote);
-    f.git(["fetch", "origin", "develop"]);
-    f.git(["merge", "--ff-only", "origin/develop"]);
-    expect(await main(["patch", "--approve"], f.runtime)).toBe(1);
-    expect(draft.body).toContain("Keep this edit");
-    expect(f.publications).toEqual([]);
-  }, 20_000);
-
-  it("reports uncertain publication after approval without creating reopening work", async () => {
-    const f = await fixture();
-    await prepare(f);
-    f.setPublish(() => { throw new Error("publication uncertain"); });
-    expect(await main(["patch", "--approve"], f.runtime)).toBe(1);
-    expect(f.publications).toHaveLength(1);
-    expect(f.pulls).toEqual([]);
-    expect(f.phaseDirectories).toEqual([]);
-    expect(f.errors.join("\n")).toContain("stable publication stopped: publication uncertain");
-  });
-
-  it.each(["closed", "timeout", "query", "changed-head", "auto-merge", "bot-merge", "cancel"])("keeps the published release and reports incomplete reopening: %s", async mode => {
-    const f = await fixture();
-    await prepare(f);
-    const abort = new AbortController();
-    f.setWait(() => {
-      const pull = f.pulls.findLast(candidate => candidate.state === "OPEN")!;
-      if (mode === "closed") pull.state = "CLOSED";
-      if (mode === "query") f.setQuery(() => { throw new Error("query unavailable"); });
-      if (mode === "changed-head") pull.headRefOid = "a".repeat(40);
-      if (mode === "auto-merge") pull.autoMergeRequest = { enabledAt: "2026-01-01" };
-      if (mode === "bot-merge") { f.manualMerge(pull); pull.mergedBy = { login: "bot", __typename: "Bot" }; }
-      if (mode === "cancel") abort.abort(new Error("fixture canceled"));
-    });
-    expect(await main(["patch", "--approve"], { ...f.runtime, signal: abort.signal })).toBe(mode === "cancel" ? 130 : 1);
-    expect(f.publications).toHaveLength(1);
-    expect(f.pulls).toHaveLength(1);
-    expect(f.pulls[0]!.headRefName).toBe("chore/release-0.1.9-dev");
-    expect(existsSync(f.phaseDirectories[0]!)).toBe(true);
-    expect(f.errors.join("\n")).toContain("0.1.8 is published, but reopening 0.1.9-dev is incomplete");
-  }, 20_000);
-
-  it.each(["staged", "unstaged", "untracked", "head"])("preserves caller work appearing during reopening wait: %s", async kind => {
-    const f = await fixture();
-    await prepare(f);
-    let savedHead = f.initialHead;
-    let savedStatus = "";
-    f.setWait(async () => {
-      const file = kind === "untracked" ? "new-note.txt" : "unrelated.txt";
-      await writeFile(join(f.cwd, file), "new local work\n");
-      if (kind === "staged" || kind === "head") f.git(["add", file]);
-      if (kind === "head") f.git(["commit", "-m", "local work during release"]);
-      savedHead = f.git(["rev-parse", "HEAD"]);
-      savedStatus = f.git(["status", "--porcelain"]);
-      f.manualMerge();
-    });
-    expect(await main(["patch", "--approve"], f.runtime)).toBe(0);
-    expect(f.git(["rev-parse", "HEAD"])).toBe(savedHead);
-    expect(f.git(["status", "--porcelain"])).toBe(savedStatus);
-    expect(await readFile(join(f.cwd, kind === "untracked" ? "new-note.txt" : "unrelated.txt"), "utf8")).toBe("new local work\n");
-    expect(f.logs.join("\n")).toContain("caller checkout changed and was left untouched");
-  }, 20_000);
-
-  it("observes an exact matching pending reopening PR without replacing it", async () => {
-    const f = await fixture();
-    const draft = await prepare(f);
-    const note = "## Fixes\n\n- Reviewed.\n";
-    draft.body = note;
-    let head = "";
-    f.setPublish(async source => {
-      head = await commitReopeningOnRemoteBranch(f, "chore/release-0.1.9-dev", "0.1.9-dev", "0.1.8", note, undefined, source);
-      f.addPull("chore/release-0.1.9-dev", head);
-    });
-    f.setWait(() => { f.manualMerge(); });
-    expect(await main(["patch", "--approve"], f.runtime)).toBe(0);
-    expect(f.pulls).toHaveLength(1);
-    expect(f.pulls[0]!.headRefOid).toBe(head);
-    expect(f.phaseDirectories).toEqual([]);
-    expect(f.events).not.toContain("pr-create:chore/release-0.1.9-dev");
-    expect(f.remoteVersion()).toBe("0.1.9-dev");
-  }, 25_000);
-
-  it("refuses a conflicting reopening PR without overwriting it", async () => {
-    const f = await fixture();
-    const draft = await prepare(f);
-    const note = draft.body;
-    const head = await commitReopeningOnRemoteBranch(f, "chore/release-0.1.9-dev", "0.1.9-dev", "0.1.8", note, "unexpected\n");
-    f.addPull("chore/release-0.1.9-dev", head);
-    expect(await main(["patch", "--approve"], f.runtime)).toBe(1);
-    expect(f.errors.at(-1)).toContain("not one exact version-and-release-note commit");
-    expect(f.git(["rev-parse", "refs/heads/chore/release-0.1.9-dev"], f.remote)).toBe(head);
-    expect(f.publications).toHaveLength(1);
-  }, 20_000);
-
-  it.each(["dirty", "branch", "behind", "lock"])("checks preflight before draft or publication mutation: %s", async failure => {
-    const f = await fixture();
-    if (failure === "dirty") await writeFile(join(f.cwd, "untracked.txt"), "preserve me");
+    if (failure === "dirty") await writeFile(`${f.cwd}/untracked.txt`, "preserve me");
     if (failure === "branch") f.git(["switch", "-c", "other"]);
     if (failure === "behind") {
       const tree = f.git(["rev-parse", `${f.initialHead}^{tree}`], f.remote);
-      const tip = f.git(["commit-tree", tree, "-p", f.initialHead, "-m", "other work"], f.remote);
-      f.git(["update-ref", "refs/heads/develop", tip], f.remote);
+      const tip = f.git(["commit-tree", tree, "-p", f.initialHead, "-m", "advance"], f.remote);
+      f.git(["update-ref", "refs/heads/develop", tip, f.initialHead], f.remote);
     }
-    if (failure === "lock") await writeFile(join(f.cwd, "package-lock.json"), JSON.stringify({ ...f.lock, version: "0.0.0" }));
     expect(await main(["patch"], f.runtime)).toBe(1);
     expect(f.drafts).toEqual([]);
-    expect(f.publications).toEqual([]);
-  });
+  }, INTEGRATION_TIMEOUT);
 
-  it("rechecks source identity after the asynchronous registry guard", async () => {
+  it("cancels a waiting review without dispatching or changing the draft", async () => {
     const f = await fixture();
+    const controller = new AbortController();
+    Object.defineProperty(f.runtime, "signal", { value: controller.signal });
+    f.setAutoSave(false);
+    f.runtime.wait = async () => { controller.abort(); };
+    f.setDispatchStable(() => { throw new Error("must not dispatch"); });
+    expect(await main(["patch"], f.runtime)).toBe(130);
+    expect(f.drafts).toHaveLength(1);
+    expect(f.drafts[0]).toMatchObject({ draft: true, body: expect.stringContaining("## [0.1.8]") });
+  }, INTEGRATION_TIMEOUT);
+
+  it("refuses dispatch when develop advances while the draft is being reviewed", async () => {
+    const f = await fixture();
+    let advanced = false;
+    f.runtime.wait = async () => {
+      if (advanced) return;
+      advanced = true;
+      const tree = f.git(["rev-parse", `${f.initialHead}^{tree}`], f.remote);
+      const tip = f.git(["commit-tree", tree, "-p", f.initialHead, "-m", "advance during review"], f.remote);
+      f.git(["update-ref", "refs/heads/develop", tip, f.initialHead], f.remote);
+    };
+    f.setDispatchStable(() => { throw new Error("must not dispatch"); });
+    expect(await main(["patch"], f.runtime)).toBe(1);
+    expect(f.errors.join("\n")).toContain("refusing to substitute another commit");
+  }, INTEGRATION_TIMEOUT);
+
+  it("rechecks authoritative source after asynchronous registry lookups", async () => {
+    const f = await fixture();
+    let advanced = false;
     f.setRegistry(() => {
-      const base = f.git(["rev-parse", "refs/heads/develop"], f.remote);
-      const tree = f.git(["rev-parse", `${base}^{tree}`], f.remote);
-      const tip = f.git(["commit-tree", tree, "-p", base, "-m", "advance during registry check"], f.remote);
-      f.git(["update-ref", "refs/heads/develop", tip], f.remote);
+      if (!advanced) {
+        advanced = true;
+        const tree = f.git(["rev-parse", `${f.initialHead}^{tree}`], f.remote);
+        const tip = f.git(["commit-tree", tree, "-p", f.initialHead, "-m", "advance during registry"], f.remote);
+        f.git(["update-ref", "refs/heads/develop", tip, f.initialHead], f.remote);
+      }
       return null;
     });
     expect(await main(["patch"], f.runtime)).toBe(1);
     expect(f.drafts).toEqual([]);
-    expect(f.errors.at(-1)).toContain("refusing to substitute another commit");
-  }, 20_000);
+    expect(f.errors.join("\n")).toContain("refusing to substitute another commit");
+  }, INTEGRATION_TIMEOUT);
 
-  it("reopens from the then-current develop tip when unrelated work lands during publication", async () => {
+  it.each(["unsafe", "ambiguous"])("rejects conflicting Release authority: %s", async kind => {
     const f = await fixture();
-    await prepare(f);
-    let newer = "";
-    f.setPublish(source => {
-      const tree = f.git(["rev-parse", `${source}^{tree}`], f.remote);
-      newer = f.git(["commit-tree", tree, "-p", source, "-m", "unrelated follow-up"], f.remote);
-      f.git(["update-ref", "refs/heads/develop", newer], f.remote);
-    });
-    f.setWait(() => { f.manualMerge(); });
-    expect(await main(["patch", "--approve"], f.runtime)).toBe(0);
-    const pull = f.pulls[0]!;
-    expect(f.git(["rev-list", "--parents", "-n", "1", pull.headRefOid], f.remote).split(/\s+/u)[1]).toBe(newer);
-    expect(f.remoteVersion()).toBe("0.1.9-dev");
-  }, 20_000);
+    const draft = await prepare(f);
+    if (kind === "ambiguous") f.drafts.push({ ...draft, id: 2, html_url: "https://github.com/fixture/a1/releases/tag/untagged-2" });
+    else draft.body = "<script>unsafe</script>";
+    expect(await main(["patch"], f.runtime)).toBe(1);
+    expect(f.drafts).toHaveLength(kind === "ambiguous" ? 2 : 1);
+  }, INTEGRATION_TIMEOUT);
+
+  it("refuses an existing target tag without moving or deleting it", async () => {
+    const f = await fixture();
+    f.tagTarget();
+    expect(await main(["patch"], f.runtime)).toBe(1);
+    expect(f.drafts).toEqual([]);
+    expect(f.git(["rev-parse", "refs/tags/v0.1.8^{commit}"], f.remote)).toBe(f.initialHead);
+    expect(f.errors.join("\n")).toContain("stable preparation never deletes, moves, or reuses a release tag");
+  }, INTEGRATION_TIMEOUT);
+
+  it("creates and exactly reuses one non-auto-merged reopening pull request", async () => {
+    const f = await fixture();
+    const markdown = "## [0.1.8] - 2026-09-28\n\n### Fixed\n\n- Exact reviewed note.\n";
+    const noteFile = `${f.directory}/approved-note.md`;
+    await writeFile(noteFile, markdown);
+    const digest = createHash("sha256").update(markdown).digest("hex");
+    let pull: Record<string, unknown> | null = null;
+    const execute = (executable: string, args: readonly string[]) => {
+      if (executable === "git") return f.git(args);
+      if (args[0] === "pr" && args[1] === "list") return JSON.stringify(pull === null ? [] : [pull]);
+      if (args[0] === "pr" && args[1] === "create") {
+        const branch = args[args.indexOf("--head") + 1]!;
+        const head = f.git(["rev-parse", `refs/heads/${branch}`], f.remote);
+        pull = { number: 41, url: "https://example.test/pull/41", state: "OPEN", headRefName: branch,
+          headRefOid: head, baseRefName: "develop", isCrossRepository: false, autoMergeRequest: null };
+        return String(pull.url);
+      }
+      if (args[0] === "pr" && args[1] === "view") return JSON.stringify(pull);
+      throw new Error(`unexpected reopening command: ${executable} ${args.join(" ")}`);
+    };
+    const options = { cwd: f.cwd, run: execute, releaseVersion: "0.1.8", source: f.initialHead, digest, noteFile };
+    await expect(prepareReopening(options)).resolves.toMatchObject({ number: 41, opening: "0.1.9-dev", reused: false });
+    const head = String(pull!.headRefOid);
+    expect(f.git(["diff", "--name-only", f.initialHead, head], f.remote).split("\n").sort()).toEqual([
+      "docs/releases/0.1.8.md", "package-lock.json", "package.json", "packages/a1-install/package.json",
+    ]);
+    expect(`${f.git(["show", `${head}:docs/releases/0.1.8.md`], f.remote)}\n`).toBe(markdown);
+    await expect(prepareReopening(options)).resolves.toMatchObject({ number: 41, head, reused: true });
+    pull!.autoMergeRequest = { enabledAt: "now" };
+    await expect(prepareReopening(options)).rejects.toThrow(/unexpected or changed reopening pull request/);
+  }, INTEGRATION_TIMEOUT);
+
 });

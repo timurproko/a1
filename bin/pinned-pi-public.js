@@ -2,16 +2,23 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, posix, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
+/** @type {string | undefined} */
+let configuredRoot;
+
 /**
  * Bind the generated facade to the package reached through Pi's public entry.
  * @param {string | URL} entryUrl
  */
 export function configurePinnedPiPublicPackageEntry(entryUrl) {
-  const root = dirname(dirname(fileURLToPath(entryUrl)));
+  const root = resolve(dirname(dirname(fileURLToPath(entryUrl))));
   const manifest = JSON.parse(readFileSync(resolve(root, "package.json"), "utf8"));
   if (manifest.name !== "@earendil-works/pi-coding-agent" || typeof manifest.version !== "string") {
     throw new Error("pinned Pi public package identity is invalid");
   }
+  if (configuredRoot !== undefined && configuredRoot !== root) {
+    throw new Error("pinned Pi public package identity cannot change after configuration");
+  }
+  configuredRoot = root;
   process.env.PI_PACKAGE_DIR = root;
   return { root, version: manifest.version };
 }
@@ -55,9 +62,9 @@ export function resolvePinnedPiImport(specifier) {
 }
 
 function pinnedRoot() {
-  const root = process.env.PI_PACKAGE_DIR;
-  if (!root || !existsSync(resolve(root, "package.json"))) throw new Error("pinned Pi public package directory is not configured");
-  return resolve(root);
+  if (configuredRoot === undefined) throw new Error("pinned Pi public package directory is not configured");
+  if (!existsSync(resolve(configuredRoot, "package.json"))) throw new Error("pinned Pi public package directory is unavailable");
+  return configuredRoot;
 }
 
 /**

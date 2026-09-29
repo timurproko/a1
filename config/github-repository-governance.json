@@ -128,6 +128,30 @@
   ],
   "workflows": [
     {
+      "name": "Stage stable release",
+      "path": ".github/workflows/approve-release.yml",
+      "state": "active",
+      "triggers": ["repository_dispatch"],
+      "permissions": ["actions: read", "contents: write", "id-token: write"],
+      "trustedSource": "default-branch",
+      "authority": ["stable-release-staging"],
+      "concurrency": "",
+      "environments": [],
+      "artifactRetentionDays": []
+    },
+    {
+      "name": "Development publication",
+      "path": ".github/workflows/develop.yml",
+      "state": "active",
+      "triggers": ["workflow_dispatch"],
+      "permissions": ["actions: read", "contents: read", "id-token: write"],
+      "trustedSource": "default-branch",
+      "authority": ["npm-next"],
+      "concurrency": "",
+      "environments": [],
+      "artifactRetentionDays": []
+    },
+    {
       "name": "Development validation",
       "path": ".github/workflows/ci.yml",
       "state": "active",
@@ -150,6 +174,18 @@
       "concurrency": "documentation-auto-merge-",
       "environments": [],
       "artifactRetentionDays": []
+    },
+    {
+      "name": "Finalize stable release",
+      "path": ".github/workflows/finalize-release.yml",
+      "state": "active",
+      "triggers": ["release:published"],
+      "permissions": ["actions: read", "contents: read", "contents: write", "pull-requests: write"],
+      "trustedSource": "default-branch",
+      "authority": ["github-release-verification", "release-reopening-proposal"],
+      "concurrency": "",
+      "environments": [],
+      "artifactRetentionDays": [30]
     },
     {
       "name": "Full regression",
@@ -239,10 +275,10 @@
       "name": "Publish",
       "path": ".github/workflows/publish.yml",
       "state": "active",
-      "triggers": ["schedule", "workflow_dispatch"],
-      "permissions": ["contents: read", "contents: write", "id-token: write"],
+      "triggers": ["schedule", "workflow_call"],
+      "permissions": ["actions: read", "contents: read", "contents: write", "id-token: write"],
       "trustedSource": "authoritative-develop",
-      "authority": ["npm-next", "npm-latest", "release-tag", "github-release", "master-fast-forward"],
+      "authority": ["npm-next", "npm-latest", "master-fast-forward"],
       "concurrency": "a1-registry-publication",
       "environments": ["npm-publish"],
       "artifactRetentionDays": [1, 30]

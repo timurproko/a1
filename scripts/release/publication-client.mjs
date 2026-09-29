@@ -93,33 +93,22 @@ export function describePublicationFailure(runId, options = {}) {
 
 export async function dispatchPublication(channel, source, version, options = {}) {
   const execute = options.run ?? run;
-  if (channel === "stable" && (!Number.isSafeInteger(options.draftReleaseId) || options.draftReleaseId < 1
-    || !/^[a-f0-9]{64}$/u.test(options.releaseNoteSha256 ?? ""))) {
-    throw new Error("stable publication requires an approved draft Release identity and note digest");
-  }
+  if (channel !== "develop") throw new Error("stable publication is staged only after the release command observes Save draft");
   const write = options.write ?? (text => process.stdout.write(text));
   const wait = options.sleep ?? sleep;
   execute("gh", ["auth", "status"], { stdio: "inherit" });
   const requestId = options.requestId ?? randomUUID();
-  // Rationale: a development preview derives its number in the workflow; only a stable
-  // publication names the version it stamps on the open development source.
   execute("gh", [
-    "workflow", "run", "publish.yml", "--ref", "develop",
-    "-f", `channel=${channel}`,
+    "workflow", "run", "develop.yml", "--ref", "develop",
     "-f", `source_sha=${source}`,
     "-f", `request_id=${requestId}`,
-    ...(channel === "stable" ? [
-      "-f", `version=${version}`,
-      "-f", `release_id=${options.draftReleaseId}`,
-      "-f", `release_notes_sha256=${options.releaseNoteSha256}`,
-    ] : []),
   ], { stdio: "inherit" });
 
   const deadline = Date.now() + RUN_APPEAR_TIMEOUT_MS;
   let runId;
   while (Date.now() < deadline) {
     const runs = JSON.parse(execute("gh", [
-      "run", "list", "--workflow", "publish.yml", "--event", "workflow_dispatch",
+      "run", "list", "--workflow", "develop.yml", "--event", "workflow_dispatch",
       "--json", "databaseId,displayTitle", "--limit", "50",
     ]));
     runId = runs.find(entry => entry.displayTitle?.includes(requestId))?.databaseId;
@@ -134,6 +123,60 @@ export async function dispatchPublication(channel, source, version, options = {}
     execute("gh", ["run", "watch", String(runId), "--exit-status"], { stdio: "inherit" });
   } catch {
     throw new Error(describePublicationFailure(runId, { run: execute, repository: options.repository }));
+  }
+  return runId;
+}
+
+/** Dispatches reviewed stable staging without making selectors into authority. */
+export async function dispatchStableStaging(candidate, options = {}) {
+  const { repository, releaseId, source, version, reviewedUpdatedAt } = candidate ?? {};
+  if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u.test(repository ?? "")
+    || !Number.isSafeInteger(releaseId) || releaseId < 1 || !/^[a-f0-9]{40}$/u.test(source ?? "")
+    || !/^\d+\.\d+\.\d+$/u.test(version ?? "") || Number.isNaN(Date.parse(reviewedUpdatedAt ?? ""))) {
+    throw new Error("stable staging candidate identity is invalid");
+  }
+  const execute = options.run ?? run;
+  const write = options.write ?? (text => process.stdout.write(text));
+  const wait = options.sleep ?? sleep;
+  const requestId = options.requestId ?? randomUUID();
+  execute("gh", ["auth", "status"], { stdio: "inherit" });
+  const actor = execute("gh", ["api", "user", "--jq", ".login"]);
+  if (!/^[A-Za-z0-9-]+$/u.test(actor)) throw new Error("authenticated GitHub user identity is invalid");
+  execute("gh", [
+    "api", "-X", "POST", `repos/${repository}/dispatches`,
+    "-f", "event_type=a1-stable-release-reviewed",
+    "-f", `client_payload[request_id]=${requestId}`,
+    "-F", `client_payload[release_id]=${releaseId}`,
+    "-f", `client_payload[source]=${source}`,
+    "-f", `client_payload[reviewed_updated_at]=${reviewedUpdatedAt}`,
+  ]);
+
+  const deadline = Date.now() + RUN_APPEAR_TIMEOUT_MS;
+  let runId;
+  while (Date.now() < deadline) {
+    const runs = JSON.parse(execute("gh", [
+      "run", "list", "--workflow", "approve-release.yml", "--event", "repository_dispatch",
+      "--json", "databaseId,displayTitle", "--limit", "50",
+    ]));
+    runId = runs.find(entry => entry.displayTitle === `Stage stable release ${requestId}`)?.databaseId;
+    if (runId !== undefined) break;
+    await wait(POLL_INTERVAL_MS);
+  }
+  if (runId === undefined) throw new Error(`stable staging request ${requestId} did not appear in GitHub Actions within 5 minutes`);
+
+  const workflowRun = JSON.parse(execute("gh", ["api", `repos/${repository}/actions/runs/${runId}`]));
+  if (workflowRun.id !== runId || workflowRun.event !== "repository_dispatch"
+    || workflowRun.path !== ".github/workflows/approve-release.yml" || workflowRun.head_branch !== "develop"
+    || workflowRun.head_sha !== source || workflowRun.actor?.login !== actor) {
+    throw new Error(`stable staging run ${runId} does not match the authenticated default-branch request`);
+  }
+  const url = workflowRun.html_url;
+  if (typeof url !== "string" || !url.startsWith("https://")) throw new Error(`stable staging run ${runId} has no valid URL`);
+  write(`[release] trusted staging run ${runId} is responsible for ${version}\n[release] ${url}\n`);
+  try {
+    execute("gh", ["run", "watch", String(runId), "--exit-status"], { stdio: "inherit" });
+  } catch {
+    throw new Error(describePublicationFailure(runId, { run: execute, repository }));
   }
   return runId;
 }

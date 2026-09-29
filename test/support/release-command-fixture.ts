@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -14,19 +15,8 @@ export interface FakeDraftRelease {
   body: string;
   draft: boolean;
   prerelease: boolean;
-}
-
-export interface FakeReleasePull {
-  number: number;
-  url: string;
-  state: "OPEN" | "CLOSED" | "MERGED";
-  headRefName: string;
-  headRefOid: string;
-  baseRefName: string;
-  isCrossRepository: boolean;
-  mergeCommit: { oid: string } | null;
-  mergedBy: { login: string; __typename: "User" | "Bot" } | null;
-  autoMergeRequest: unknown;
+  updated_at: string;
+  assets?: Array<{ id: number; name: string }>;
 }
 
 /** Uses real disposable Git repositories, but no real GitHub, registry, or publication service. */
@@ -42,7 +32,6 @@ export async function releaseFixture(version = "0.1.8-dev", trace?: NativeRegres
   const hooks = join(directory, "empty-hooks");
   await mkdir(cwd); await mkdir(hooks);
   const fixtureConfig = join(directory, "fixture-gitconfig");
-  // Performance: tiny disposable repositories need no automatic housekeeping; apply this only through their private Git environment.
   await writeFile(fixtureConfig, "[gc]\n\tauto = 0\n[maintenance]\n\tauto = false\n[receive]\n\tautoGC = false\n");
   const env = { ...Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith("GIT_"))),
     GIT_CONFIG_NOSYSTEM: "1", GIT_CONFIG_GLOBAL: fixtureConfig };
@@ -61,128 +50,123 @@ export async function releaseFixture(version = "0.1.8-dev", trace?: NativeRegres
   git(["init", "--bare", remote], directory);
   git(["init", "-b", "develop"]);
   git(["remote", "add", "origin", remote]);
-  const manifest = { name: "@fixture/release-command", version, dependencies: { unchanged: version } };
-  const lock = { name: manifest.name, version, lockfileVersion: 3, packages: {
-    "": { name: manifest.name, version, dependencies: { unchanged: version } },
-    "node_modules/unchanged": { version, integrity: "fixture-only" },
-  } };
-  const installer = { name: "@fixture/bootstrap", version, bin: { bootstrap: "bin/bootstrap.js" } };
-  await mkdir(join(cwd, "packages", "a1-install"), { recursive: true });
-  await writeFile(join(cwd, "package.json"), `${JSON.stringify(manifest, null, 2)}\n`);
-  await writeFile(join(cwd, "package-lock.json"), `${JSON.stringify(lock, null, 2)}\n`);
-  await writeFile(join(cwd, "packages", "a1-install", "package.json"), `${JSON.stringify(installer, null, 2)}\n`);
+  const baselineVersion = "0.1.7";
+  const writeVersions = async (next: string) => {
+    const manifest = { name: "@fixture/release-command", version: next, dependencies: { unchanged: baselineVersion } };
+    const lock = { name: manifest.name, version: next, lockfileVersion: 3, packages: {
+      "": { name: manifest.name, version: next, dependencies: { unchanged: baselineVersion } },
+      "node_modules/unchanged": { version: baselineVersion, integrity: "fixture-only" },
+    } };
+    const installer = { name: "@fixture/a1-install", version: next, bin: { bootstrap: "bin/bootstrap.js" } };
+    await mkdir(join(cwd, "packages", "a1-install"), { recursive: true });
+    await writeFile(join(cwd, "package.json"), `${JSON.stringify(manifest, null, 2)}\n`);
+    await writeFile(join(cwd, "package-lock.json"), `${JSON.stringify(lock, null, 2)}\n`);
+    await writeFile(join(cwd, "packages", "a1-install", "package.json"), `${JSON.stringify(installer, null, 2)}\n`);
+    return { manifest, lock, installer };
+  };
+  await writeVersions(baselineVersion);
   await writeFile(join(cwd, ".gitignore"), ".worktrees/\n");
   await writeFile(join(cwd, "unrelated.txt"), "keep this\n");
-  git(["add", "."]); git(["commit", "-m", "fixture initial"]); git(["push", "-u", "origin", "develop"]);
+  git(["add", "."]); git(["commit", "-m", "fixture stable baseline"]);
+  const baselineHead = git(["rev-parse", "HEAD"]);
+  git(["tag", `v${baselineVersion}`, baselineHead]);
+  git(["branch", "master", baselineHead]);
+  const { manifest, lock, installer } = await writeVersions(version);
+  git(["add", "package.json", "package-lock.json", "packages/a1-install/package.json"]);
+  git(["commit", "-m", "open fixture development"]);
+  git(["push", "-u", "origin", "develop", "master", `refs/tags/v${baselineVersion}`]);
   const initialHead = git(["rev-parse", "HEAD"]);
-  git(["tag", "v0.1.7", initialHead]);
-  git(["push", "origin", "refs/tags/v0.1.7"]);
   role = "assertion";
+
   const logs: string[] = [];
   const errors: string[] = [];
   const events: string[] = [];
   const gitCalls: Array<{ args: readonly string[]; directory: string }> = [];
   const ghCalls: string[][] = [];
-  const pulls: FakeReleasePull[] = [];
   const drafts: FakeDraftRelease[] = [];
-  const phaseDirectories: string[] = [];
-  const publications: Array<{ source: string; version: string; approval: { id: number; version: string; markdown: string; sha256: string } }> = [];
-  let clock = 0;
+  const releaseAssets = new Map<number, string>();
+  const workflowRuns = new Map<number, Record<string, unknown>>();
   let releaseChanges: (base: string, source: string) => Promise<readonly { number: number; title: string; url: string }[]> = async () => [];
-  let registry: (name: string, version: string) => unknown | Promise<unknown> = () => null;
-  let publish: (source: string, version: string, approval: { id: number; version: string; markdown: string; sha256: string }) => unknown | Promise<unknown> = () => undefined;
-  let approver: { login: string; type: "User" | "Bot"; permission: string } = { login: "release-fixture", type: "User", permission: "write" };
-  let wait: () => void | Promise<void> = () => { manualMerge(); };
-  let onCreate: (pull: FakeReleasePull) => void = () => {};
-  let onQuery: (pull: FakeReleasePull) => void = () => {};
+  let registry: (name: string, requested: string) => unknown | Promise<unknown> = () => null;
+  let autoSave = true;
+  let dispatchStable: (candidate: { repository: string; releaseId: number; source: string; version: string; reviewedUpdatedAt: string }) => number | Promise<number>
+    = candidate => { events.push(`stable-dispatch:${candidate.releaseId}:${candidate.version}`); return 42; };
 
-  function manualMerge(pull = pulls.findLast(candidate => candidate.state === "OPEN")) {
-    if (!pull) throw new Error("fixture has no open PR");
-    return withRole("manual", () => {
-    const base = git(["rev-parse", "refs/heads/develop"], remote);
-    const tree = git(["rev-parse", `${pull.headRefOid}^{tree}`], remote);
-    const sha = git(["commit-tree", tree, "-p", base, "-m", `Manual fixture merge ${pull.number}`], remote);
-    git(["update-ref", "refs/heads/develop", sha, base], remote);
-    pull.state = "MERGED";
-    pull.mergeCommit = { oid: sha };
-    pull.mergedBy = { login: "release-fixture", __typename: "User" };
-    events.push(`manual-merge:${pull.headRefName}`);
-    return sha;
-    });
-  }
   const runtime = createReleaseRuntime({
     cwd,
     git: (args, where = cwd) => {
-      gitCalls.push({ args: [...args], directory: where });
-      if (args[0] === "worktree" && args[1] === "add") phaseDirectories.push(args[3]!);
-      events.push(`git:${args[0]}`);
+      gitCalls.push({ args: [...args], directory: where }); events.push(`git:${args[0]}`);
       return withRole("workflow", () => git(args, where));
     },
     gh: args => {
       ghCalls.push([...args]);
       if (args[0] === "repo" && args[1] === "view") return "fixture/a1";
       if (args[0] === "api") {
-        if (args[1] === "user") return JSON.stringify({ login: approver.login, type: approver.type });
-        if (args[1] === `repos/fixture/a1/collaborators/${approver.login}/permission`) return JSON.stringify({ permission: approver.permission });
         if (args[1] === "repos/fixture/a1/releases?per_page=100") return JSON.stringify(drafts);
+        if (args[1] === "repos/fixture/a1/git/ref/heads/master") return JSON.stringify({ object: { sha: git(["rev-parse", "refs/heads/master"], remote) } });
+        const asset = /^repos\/fixture\/a1\/releases\/assets\/(\d+)$/u.exec(args.at(-1) ?? "");
+        if (asset && releaseAssets.has(Number(asset[1]))) return releaseAssets.get(Number(asset[1]))!;
+        const workflowRun = /^repos\/fixture\/a1\/actions\/runs\/(\d+)$/u.exec(args[1] ?? "");
+        if (workflowRun && workflowRuns.has(Number(workflowRun[1]))) return JSON.stringify(workflowRuns.get(Number(workflowRun[1])));
+        const detail = /^repos\/fixture\/a1\/releases\/(\d+)$/u.exec(args[1] ?? "");
+        if (detail) {
+          const draft = drafts.find(item => item.id === Number(detail[1]));
+          if (!draft) throw new Error(`missing fixture draft ${detail[1]}`);
+          if (autoSave) draft.updated_at = new Date(Date.parse(draft.updated_at) + 1_000).toISOString();
+          return JSON.stringify(draft);
+        }
         if (args.includes("POST") && args.includes("repos/fixture/a1/releases")) {
           const fields = Object.fromEntries(args.flatMap((arg, index) => (arg === "-f" || arg === "-F")
             ? [String(args[index + 1]).split(/=(.*)/su).slice(0, 2)] : []));
           const draft: FakeDraftRelease = {
             id: drafts.length + 1,
-            html_url: `https://example.test/releases/${drafts.length + 1}`,
+            html_url: `https://github.com/fixture/a1/releases/tag/untagged-${drafts.length + 1}`,
             tag_name: fields.tag_name!, target_commitish: fields.target_commitish!, name: fields.name!, body: fields.body!,
-            draft: fields.draft === "true", prerelease: fields.prerelease === "true",
+            draft: fields.draft === "true", prerelease: fields.prerelease === "true", updated_at: "2026-09-29T00:00:00Z",
           };
           drafts.push(draft); events.push(`draft-create:${draft.tag_name}`);
           return JSON.stringify(draft);
         }
-        throw new Error(`unexpected GitHub API operation: ${args.join(" ")}`);
       }
-      if (args[0] !== "pr") throw new Error(`unexpected GitHub operation: ${args.join(" ")}`);
-      if (args[1] === "list") return JSON.stringify(pulls.filter(pull => pull.headRefName === args[args.indexOf("--head") + 1]));
-      if (args[1] === "create") {
-        const branch = args[args.indexOf("--head") + 1]!;
-        const pull: FakeReleasePull = { number: pulls.length + 1, url: `https://example.test/pull/${pulls.length + 1}`,
-          state: "OPEN", headRefName: branch, headRefOid: git(["rev-parse", `refs/heads/${branch}`], remote),
-          baseRefName: "develop", isCrossRepository: false, mergeCommit: null, mergedBy: null, autoMergeRequest: null };
-        pulls.push(pull); events.push(`pr-create:${branch}`); onCreate(pull);
-        return pull.url;
-      }
-      if (args[1] === "view") {
-        const pull = pulls.find(candidate => String(candidate.number) === args[2]);
-        if (!pull) throw new Error("unknown fixture PR");
-        onQuery(pull);
-        return JSON.stringify(pull);
-      }
-      throw new Error(`forbidden GitHub operation: ${args.join(" ")}`);
+      throw new Error(`unexpected GitHub operation: ${args.join(" ")}`);
     },
     releaseChanges: (base, source) => releaseChanges(base, source),
-    registry: async (name, requested) => { events.push(`registry:${requested}`); return registry(name, requested); },
-    publish: async (source, requested, approval) => {
-      events.push(`publish:${requested}`); publications.push({ source, version: requested, approval });
-      return publish(source, requested, approval);
-    },
-    log: text => { logs.push(text); events.push("log"); }, error: text => { errors.push(text); },
-    sleep: async ms => { events.push("wait"); clock += ms; await wait(); }, now: () => clock,
-    pollMs: 1, waitMs: 3,
+    registry: async (name, requested) => { events.push(`registry:${name}:${requested}`); return registry(name, requested); },
+    wait: async () => {},
+    reviewPollIntervalMs: 0,
+    dispatchStable: async candidate => await dispatchStable(candidate),
+    log: text => { logs.push(text); events.push("log"); },
+    error: text => { errors.push(text); },
   });
   return {
-    directory, cwd, remote, git, runtime, initialHead, manifest, lock, installer, logs, errors, events, gitCalls, ghCalls,
-    pulls, drafts, publications, phaseDirectories, manualMerge,
+    directory, cwd, remote, git, runtime, initialHead, baselineHead, baselineVersion, manifest, lock, installer,
+    logs, errors, events, gitCalls, ghCalls, drafts,
     setReleaseChanges(fn: typeof releaseChanges) { releaseChanges = fn; },
-    setRegistry(fn: typeof registry) { registry = fn; }, setPublish(fn: typeof publish) { publish = fn; },
-    setApprover(value: typeof approver) { approver = value; },
+    setRegistry(fn: typeof registry) { registry = fn; },
+    setAutoSave(value: boolean) { autoSave = value; },
+    setDispatchStable(fn: typeof dispatchStable) { dispatchStable = fn; },
+    recordCompletedStaging(runId = 42) {
+      const draft = drafts.at(-1); if (!draft) throw new Error("fixture has no draft");
+      const applicationIntegrity = "sha512-application";
+      const installerIntegrity = "sha512-installer";
+      registry = name => ({ version: draft.tag_name.slice(1), dist: { integrity: name === manifest.name ? applicationIntegrity : installerIntegrity } });
+      git(["update-ref", "refs/heads/master", initialHead], remote);
+      draft.assets = [{ id: 71, name: "a1-stable-staging-v1.json" }, { id: 72, name: "fixture-release-command-0.1.8.tgz" }];
+      releaseAssets.set(71, JSON.stringify({ schema: "a1-stable-staging-v1", repository: "fixture/a1",
+        workflowPath: ".github/workflows/approve-release.yml", runId, runAttempt: 1, actor: "maintainer",
+        requestId: "12345678-1234-4123-8123-123456789abc", releaseId: draft.id, version: draft.tag_name.slice(1),
+        source: initialHead, releaseNotesSha256: createHash("sha256").update(`${draft.body.replaceAll("\r\n", "\n").trimEnd()}\n`).digest("hex"),
+        application: { name: manifest.name, integrity: applicationIntegrity }, installer: { name: installer.name, integrity: installerIntegrity },
+        asset: { name: "fixture-release-command-0.1.8.tgz", sha256: "a".repeat(64) }, master: initialHead }));
+      workflowRuns.set(runId, { id: runId, path: ".github/workflows/approve-release.yml", event: "repository_dispatch",
+        head_sha: initialHead, conclusion: "success" });
+    },
     editDraft(markdown: string) { const draft = drafts.at(-1); if (!draft) throw new Error("fixture has no draft"); draft.body = markdown; },
-    setWait(fn: typeof wait) { wait = fn; }, setCreate(fn: typeof onCreate) { onCreate = fn; }, setQuery(fn: typeof onQuery) { onQuery = fn; },
-    addPull(branch: string, head: string): FakeReleasePull {
-      const pull: FakeReleasePull = { number: pulls.length + 1, url: `https://example.test/pull/${pulls.length + 1}`,
-        state: "OPEN", headRefName: branch, headRefOid: head, baseRefName: "develop", isCrossRepository: false, mergeCommit: null, mergedBy: null, autoMergeRequest: null };
-      pulls.push(pull);
-      return pull;
+    tagTarget(targetVersion = version.replace(/-dev$/u, "")) {
+      git(["tag", `v${targetVersion}`, initialHead]);
+      git(["push", "origin", `refs/tags/v${targetVersion}`]);
     },
     async localVersion() { return (JSON.parse(await readFile(join(cwd, "package.json"), "utf8")) as { version: string }).version; },
-    remoteVersion() { return (JSON.parse(git(["show", "refs/heads/develop:package.json"], remote)) as { version: string }).version; },
     dispose,
   };
 }
