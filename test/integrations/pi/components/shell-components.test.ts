@@ -101,18 +101,20 @@ describe("Pi shell public component adapters", () => {
   it("keeps adjacent queued chips individually atomic and refreshes wrapping with current queue text", () => {
     const first = "[📷 screenshot-0123456789]";
     const second = "[📄 C:/workspace/file.txt]";
-    // Rationale: a platform-neutral binding keeps the hint on one 40-column row; Pi's
-    // macOS Option label is covered by the live-binding test above.
-    let dequeueBinding = "ctrl+up";
+    let dequeueBinding = "alt+up";
     const queued = createPiQueuedInputStatus(
       [`${"x".repeat(70)}${first}${second}${first}${"y".repeat(70)}`],
       "custom-viewport",
-      () => ({ "app.message.dequeue": dequeueBinding as "ctrl+up" | "ctrl+r" }),
+      () => ({ "app.message.dequeue": dequeueBinding as "alt+up" | "ctrl+r" }),
     );
     let rows = queued.render(40).map(row => stripTerminalSequences(row).trimEnd());
     expect(rows.filter(row => row.includes(first))).toHaveLength(2);
     expect(rows.filter(row => row.includes(second))).toHaveLength(1);
-    expect(rows.some(row => row.includes("Ctrl+Up to edit all queued messages"))).toBe(true);
+    // Platform: macOS names Alt "Option", so the same hint exceeds the 38-column content
+    // width and wraps at a word boundary like any other Pi text row.
+    expect(rows.slice(process.platform === "darwin" ? -2 : -1)).toEqual(process.platform === "darwin"
+      ? [" ↳ Option+Up to edit all queued", " messages"]
+      : [" ↳ Alt+Up to edit all queued messages"]);
 
     dequeueBinding = "ctrl+r";
     queued.update([`updated${second}tail`, "[ordinary bracketed text]"]);
