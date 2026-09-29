@@ -3,10 +3,10 @@
 ## Install
 
 ```sh
-npx -y @timurproko/a1-install                           # release
-npx -y @timurproko/a1-install --develop                 # develop
-npx -y @timurproko/a1-install --develop 107             # preview number
-npx -y @timurproko/a1-install --develop 0.1.8-dev.107   # exact preview
+npm x -y -- @timurproko/a1-install                           # release
+npm x -y -- @timurproko/a1-install --develop                 # develop
+npm x -y -- @timurproko/a1-install --develop 107             # preview number
+npm x -y -- @timurproko/a1-install --develop 0.1.8-dev.107   # exact preview
 ```
 
 ## Use
