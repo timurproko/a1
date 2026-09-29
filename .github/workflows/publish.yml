@@ -41,12 +41,10 @@ jobs:
     timeout-minutes: 5
     outputs:
       sha: ${{ steps.source.outputs.sha }}
-      authoritative_sha: ${{ steps.source.outputs.authoritative_sha }}
       mode: ${{ steps.source.outputs.mode }}
       requested_version: ${{ steps.source.outputs.requested_version }}
-      recovery: ${{ steps.source.outputs.recovery }}
     steps:
-      - name: Resolve current develop and immutable recovery source
+      - name: Resolve current develop source
         id: source
         shell: bash
         env:
@@ -60,7 +58,6 @@ jobs:
           set -euo pipefail
           authoritative="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/develop" --jq .object.sha)"
           requested_version=""
-          recovery=false
           if [ "$EVENT_NAME" = "schedule" ]; then
             mode=nightly
             source="$authoritative"
@@ -82,21 +79,6 @@ jobs:
                 echo "::error::stable approval derives source and identity inside trusted workflow code" >&2
                 exit 1
               fi
-              tag="v${requested_version}"
-              if object="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/${tag}" --jq '.object.type + " " + .object.sha' 2>/dev/null)"; then
-                read -r object_type object_sha <<< "$object"
-                for _depth in 1 2 3 4; do
-                  if [ "$object_type" != tag ]; then break; fi
-                  object="$(gh api "repos/$GITHUB_REPOSITORY/git/tags/${object_sha}" --jq '.object.type + " " + .object.sha')"
-                  read -r object_type object_sha <<< "$object"
-                done
-                if [ "$object_type" != commit ] || [[ ! "$object_sha" =~ ^[0-9a-f]{40}$ ]]; then
-                  echo "::error::${tag} does not resolve to one bounded commit" >&2
-                  exit 1
-                fi
-                source="$object_sha"
-                recovery=true
-              fi
             elif [ "$mode" = "develop" ]; then
               expected_workflow="$GITHUB_REPOSITORY/.github/workflows/develop.yml@refs/heads/develop"
               if [ "$EVENT_NAME" != "workflow_call" ] || [ "$GITHUB_REF" != "refs/heads/develop" ] || [ "$GITHUB_WORKFLOW_REF" != "$expected_workflow" ]; then
@@ -117,7 +99,7 @@ jobs:
             echo "::error::source is not a full commit: $source" >&2
             exit 1
           fi
-          printf 'sha=%s\nauthoritative_sha=%s\nmode=%s\nrequested_version=%s\nrecovery=%s\n' "$source" "$authoritative" "$mode" "$requested_version" "$recovery" >> "$GITHUB_OUTPUT"
+          printf 'sha=%s\nmode=%s\nrequested_version=%s\n' "$source" "$mode" "$requested_version" >> "$GITHUB_OUTPUT"
 
   approval:
     name: Snapshot approved draft Release
@@ -128,11 +110,10 @@ jobs:
     outputs:
       release_id: ${{ steps.approval.outputs.release_id }}
       release_notes_sha256: ${{ steps.approval.outputs.release_notes_sha256 }}
-      recovery: ${{ steps.approval.outputs.recovery }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
-          ref: ${{ needs.source.outputs.authoritative_sha }}
+          ref: ${{ needs.source.outputs.sha }}
           fetch-depth: 0
           persist-credentials: false
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
@@ -148,25 +129,20 @@ jobs:
           ACTOR: ${{ github.actor }}
           RELEASE_VERSION: ${{ needs.source.outputs.requested_version }}
           SOURCE_SHA: ${{ needs.source.outputs.sha }}
-          AUTHORITATIVE_SHA: ${{ needs.source.outputs.authoritative_sha }}
-          EXPECTED_RECOVERY: ${{ needs.source.outputs.recovery }}
         run: |
           set -euo pipefail
           git fetch origin develop
-          test "$(git rev-parse origin/develop)" = "$AUTHORITATIVE_SHA"
+          test "$(git rev-parse origin/develop)" = "$SOURCE_SHA"
           mkdir -p .artifacts/release-note
           node --input-type=module <<'NODE' >> "$GITHUB_OUTPUT"
           import { execFileSync } from "node:child_process";
           import { readFile, writeFile } from "node:fs/promises";
-          import semver from "semver";
           import { assertAuthorizedApprovalActor, validateStableApproval } from "./scripts/release/release-approval.mjs";
           const token = process.env.GH_TOKEN;
           const repository = process.env.GITHUB_REPOSITORY;
           const actorName = process.env.ACTOR;
           const version = process.env.RELEASE_VERSION;
           const source = process.env.SOURCE_SHA;
-          const authoritativeSource = process.env.AUTHORITATIVE_SHA;
-          const expectedRecovery = process.env.EXPECTED_RECOVERY === "true";
           const headers = { accept: "application/vnd.github+json", authorization: `Bearer ${token}`, "x-github-api-version": "2022-11-28" };
           const api = async (path, allowMissing = false) => {
             const response = await fetch(`https://api.github.com/${path}`, { headers });
@@ -180,64 +156,32 @@ jobs:
             if (!response.ok) throw new Error(`npm registry ${name}@${specifier} returned HTTP ${response.status}`);
             return await response.json();
           };
-          const dereference = async object => {
-            let current = object;
-            for (let depth = 0; depth < 4 && current?.type === "tag"; depth++) {
-              const tag = await api(`repos/${repository}/git/tags/${current.sha}`);
-              current = tag.object;
-            }
-            if (current?.type !== "commit" || !/^[a-f0-9]{40}$/.test(current.sha ?? "")) throw new Error("release tag does not resolve to one bounded commit");
-            return current.sha;
-          };
-          const [actor, permission, releases, tagRef, master] = await Promise.all([
+          const [actor, permission, releases, tagRef] = await Promise.all([
             api(`users/${actorName}`),
             api(`repos/${repository}/collaborators/${actorName}/permission`),
             api(`repos/${repository}/releases?per_page=100`),
             api(`repos/${repository}/git/ref/tags/v${version}`, true),
-            api(`repos/${repository}/git/ref/heads/master`),
           ]);
           assertAuthorizedApprovalActor(actor, permission, actorName);
+          if (tagRef !== null) throw new Error(`v${version} already exists; approval never deletes, moves, or reuses a release tag`);
           const readAt = (commit, path) => JSON.parse(execFileSync("git", ["show", `${commit}:${path}`], { encoding: "utf8" }));
           const application = readAt(source, "package.json");
           const lock = readAt(source, "package-lock.json");
           const installer = readAt(source, "packages/a1-install/package.json");
-          const authoritativeApplication = readAt(authoritativeSource, "package.json");
-          const authoritativeLock = readAt(authoritativeSource, "package-lock.json");
-          const authoritativeInstaller = readAt(authoritativeSource, "packages/a1-install/package.json");
           const [existingApplication, existingInstaller] = await Promise.all([
             npm(application.name, version, true), npm(installer.name, version, true),
           ]);
-          const recovery = tagRef !== null;
-          if (recovery !== expectedRecovery) throw new Error("orphan-tag recovery identity changed after source selection");
-          if (recovery) {
-            const tagCommit = await dereference(tagRef.object);
-            if (tagCommit !== source) throw new Error(`existing v${version} tag does not name the selected recovery source`);
-            execFileSync("git", ["merge-base", "--is-ancestor", source, authoritativeSource], { stdio: "ignore" });
-            const [latestApplication, latestInstaller] = await Promise.all([npm(application.name, "latest"), npm(installer.name, "latest")]);
-            const baselineVersion = latestApplication.version;
-            if (semver.valid(baselineVersion) !== baselineVersion || semver.prerelease(baselineVersion) !== null
-              || latestInstaller.version !== baselineVersion || !semver.lt(baselineVersion, version)) {
-              throw new Error("orphan-tag recovery requires both npm latest packages to agree on one earlier stable version");
-            }
-            const baselineRef = await api(`repos/${repository}/git/ref/tags/v${baselineVersion}`);
-            const baseline = await dereference(baselineRef.object);
-            if (baseline !== master.object?.sha) throw new Error("orphan-tag recovery baseline, master, and npm latest disagree");
-            execFileSync("git", ["merge-base", "--is-ancestor", baseline, source], { stdio: "ignore" });
-          }
           const { release, note, sha256 } = validateStableApproval({
-            version, source, authoritativeSource, recovery, releases, application, lock, installer,
-            authoritativeApplication, authoritativeLock, authoritativeInstaller,
-            existingApplication, existingInstaller,
+            version, source, releases, application, lock, installer, existingApplication, existingInstaller,
           });
           await writeFile(".artifacts/release-note/draft.json", `${JSON.stringify(release, null, 2)}\n`, "utf8");
           await writeFile(".artifacts/release-note/approved-note.md", note.markdown, "utf8");
           await writeFile(".artifacts/release-note/approval.json", `${JSON.stringify({
             schema: "a1-approved-release-note-v2", releaseId: release.id, version, source, sha256,
-            actor: actor.login, releaseUpdatedAt: release.updated_at, recovery,
+            actor: actor.login, releaseUpdatedAt: release.updated_at,
           }, null, 2)}\n`, "utf8");
           console.log(`release_id=${release.id}`);
           console.log(`release_notes_sha256=${sha256}`);
-          console.log(`recovery=${recovery}`);
           NODE
       - name: Preserve the immutable approved snapshot
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
@@ -272,7 +216,6 @@ jobs:
       installer_registry_tarball: ${{ steps.plan.outputs.installer_registry_tarball }}
       release_id: ${{ needs.approval.outputs.release_id }}
       release_notes_sha256: ${{ needs.approval.outputs.release_notes_sha256 }}
-      recovery: ${{ needs.approval.outputs.recovery }}
       validate_matrix: ${{ steps.lanes.outputs.validate_matrix }}
     steps:
       - name: Check out the selected source
@@ -1015,7 +958,7 @@ jobs:
         with:
           name: approved-release-note-${{ github.run_id }}
           path: .artifacts/release-note
-      - name: Require the approved Release to remain unpublished
+      - name: Require the approved Release to remain unpublished and untagged
         if: needs.plan.outputs.channel == 'latest'
         shell: bash
         env:
@@ -1026,6 +969,10 @@ jobs:
           SOURCE_SHA: ${{ needs.plan.outputs.source }}
         run: |
           set -euo pipefail
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v${RELEASE_VERSION}" >/dev/null 2>&1; then
+            echo "::error::v${RELEASE_VERSION} already exists; failed publication must remain untagged" >&2
+            exit 1
+          fi
           gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" > .artifacts/release-note/pre-completion.json
           node --input-type=module <<'NODE'
           import { createHash } from "node:crypto";
@@ -1043,36 +990,13 @@ jobs:
         if: needs.plan.outputs.channel == 'latest'
         shell: bash
         run: echo "release_tarball=$(find package -type f -name '*.tgz' -print -quit)" >> "$GITHUB_ENV"
-      - name: Tag the published commit
+      - name: Upload the exact asset to the approved draft
         if: needs.plan.outputs.channel == 'latest'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          RECOVERY: ${{ needs.plan.outputs.recovery }}
           RELEASE_VERSION: ${{ needs.plan.outputs.version }}
-          SOURCE_SHA: ${{ needs.plan.outputs.source }}
-        run: |
-          set -euo pipefail
-          tag="v${RELEASE_VERSION}"
-          existing=""
-          if object="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/${tag}" --jq '.object.type + " " + .object.sha' 2>/dev/null)"; then
-            read -r object_type object_sha <<< "$object"
-            for _depth in 1 2 3 4; do
-              if [ "$object_type" != tag ]; then break; fi
-              object="$(gh api "repos/$GITHUB_REPOSITORY/git/tags/${object_sha}" --jq '.object.type + " " + .object.sha')"
-              read -r object_type object_sha <<< "$object"
-            done
-            if [ "$object_type" != commit ] || [[ ! "$object_sha" =~ ^[0-9a-f]{40}$ ]]; then echo "::error::${tag} does not resolve to one bounded commit" >&2; exit 1; fi
-            existing="$object_sha"
-          fi
-          if [ -n "$existing" ]; then
-            if [ "$existing" != "$SOURCE_SHA" ]; then echo "::error::${tag} already names ${existing}, not ${SOURCE_SHA}. A release tag is never moved." >&2; exit 1; fi
-          else
-            if [ "$RECOVERY" = true ]; then echo "::error::orphan recovery tag ${tag} disappeared and must not be recreated" >&2; exit 1; fi
-            if ! response="$(gh api -X POST "repos/$GITHUB_REPOSITORY/git/refs" -f "ref=refs/tags/${tag}" -f "sha=$SOURCE_SHA" 2>&1)"; then
-              echo "::error::could not create ${tag} at ${SOURCE_SHA}: ${response}" >&2; exit 1
-            fi
-          fi
+        run: gh release upload "v${RELEASE_VERSION}" "$release_tarball" --repo "$GITHUB_REPOSITORY" --clobber
       - name: Move master to the published release
         if: needs.plan.outputs.channel == 'latest'
         shell: bash
@@ -1110,8 +1034,12 @@ jobs:
             make_latest: "true",
           }));
           NODE
-          gh release upload "v${RELEASE_VERSION}" "$release_tarball" --repo "$GITHUB_REPOSITORY" --clobber
           gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" --input .artifacts/release-note/publish.json > .artifacts/release-note/published.json
+          tag_identity="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v${RELEASE_VERSION}" --jq '.object.type + " " + .object.sha')"
+          if [ "$tag_identity" != "commit $SOURCE_SHA" ]; then
+            echo "::error::published Release tag identity is '$tag_identity', expected 'commit $SOURCE_SHA'" >&2
+            exit 1
+          fi
           node --input-type=module <<'NODE'
           import { createHash } from "node:crypto";
           import { readFile } from "node:fs/promises";

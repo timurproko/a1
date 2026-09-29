@@ -83,8 +83,6 @@ export async function releaseFixture(version = "0.1.8-dev", trace?: NativeRegres
   const drafts: FakeDraftRelease[] = [];
   let releaseChanges: (base: string, source: string) => Promise<readonly { number: number; title: string; url: string }[]> = async () => [];
   let registry: (name: string, requested: string) => unknown | Promise<unknown> = () => null;
-  let registryTag: (name: string, requested: string) => { version?: string } | null | Promise<{ version?: string } | null> = (_name, requested) => requested === "latest" ? { version: baselineVersion } : null;
-  let master = baselineHead;
 
   const runtime = createReleaseRuntime({
     cwd,
@@ -97,7 +95,6 @@ export async function releaseFixture(version = "0.1.8-dev", trace?: NativeRegres
       if (args[0] === "repo" && args[1] === "view") return "fixture/a1";
       if (args[0] === "api") {
         if (args[1] === "repos/fixture/a1/releases?per_page=100") return JSON.stringify(drafts);
-        if (args[1] === "repos/fixture/a1/git/ref/heads/master") return master;
         if (args.includes("POST") && args.includes("repos/fixture/a1/releases")) {
           const fields = Object.fromEntries(args.flatMap((arg, index) => (arg === "-f" || arg === "-F")
             ? [String(args[index + 1]).split(/=(.*)/su).slice(0, 2)] : []));
@@ -115,7 +112,6 @@ export async function releaseFixture(version = "0.1.8-dev", trace?: NativeRegres
     },
     releaseChanges: (base, source) => releaseChanges(base, source),
     registry: async (name, requested) => { events.push(`registry:${name}:${requested}`); return registry(name, requested); },
-    registryTag: async (name, requested) => { events.push(`registry-tag:${name}:${requested}`); return registryTag(name, requested); },
     log: text => { logs.push(text); events.push("log"); },
     error: text => { errors.push(text); },
   });
@@ -124,18 +120,10 @@ export async function releaseFixture(version = "0.1.8-dev", trace?: NativeRegres
     logs, errors, events, gitCalls, ghCalls, drafts,
     setReleaseChanges(fn: typeof releaseChanges) { releaseChanges = fn; },
     setRegistry(fn: typeof registry) { registry = fn; },
-    setRegistryTag(fn: typeof registryTag) { registryTag = fn; },
-    setMaster(sha: string) { master = sha; },
     editDraft(markdown: string) { const draft = drafts.at(-1); if (!draft) throw new Error("fixture has no draft"); draft.body = markdown; },
     tagTarget(targetVersion = version.replace(/-dev$/u, "")) {
       git(["tag", `v${targetVersion}`, initialHead]);
       git(["push", "origin", `refs/tags/v${targetVersion}`]);
-    },
-    async advanceDevelop() {
-      await writeFile(join(cwd, "later-documentation.md"), "belongs to the next development cycle\n");
-      git(["add", "later-documentation.md"]); git(["commit", "-m", "docs: advance after orphan tag"]);
-      git(["push", "origin", "develop"]);
-      return git(["rev-parse", "HEAD"]);
     },
     async localVersion() { return (JSON.parse(await readFile(join(cwd, "package.json"), "utf8")) as { version: string }).version; },
     dispose,

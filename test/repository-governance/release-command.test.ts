@@ -143,23 +143,13 @@ describe("release preparation with real temporary Git and fake external services
     expect(f.drafts).toHaveLength(kind === "ambiguous" ? 2 : 1);
   }, INTEGRATION_TIMEOUT);
 
-  it("creates a fresh recovery draft from an ancestor orphan tag without moving it", async () => {
+  it("refuses an existing target tag without moving or deleting it", async () => {
     const f = await fixture();
     f.tagTarget();
-    const currentDevelop = await f.advanceDevelop();
-    let selectedBase = "";
-    f.setReleaseChanges(async (base, source) => {
-      selectedBase = base;
-      expect(source).toBe(f.initialHead);
-      return [{ number: 17, title: "fix: recovered notes", url: "https://example.test/pull/17" }];
-    });
-    const draft = await prepare(f);
-    expect(selectedBase).toBe(f.baselineHead);
-    expect(draft.target_commitish).toBe(f.initialHead);
-    expect(draft.body).toContain("recovered notes");
-    expect(f.git(["rev-parse", "refs/heads/develop"], f.remote)).toBe(currentDevelop);
+    expect(await main(["patch"], f.runtime)).toBe(1);
+    expect(f.drafts).toEqual([]);
     expect(f.git(["rev-parse", "refs/tags/v0.1.8^{commit}"], f.remote)).toBe(f.initialHead);
-    expect(f.logs.join("\n")).toContain("Draft release ready for editing");
+    expect(f.errors.join("\n")).toContain("stable preparation never deletes, moves, or reuses a release tag");
   }, INTEGRATION_TIMEOUT);
 
   it("creates and exactly reuses one non-auto-merged reopening pull request", async () => {
@@ -194,17 +184,4 @@ describe("release preparation with real temporary Git and fake external services
     await expect(prepareReopening(options)).rejects.toThrow(/unexpected or changed reopening pull request/);
   }, INTEGRATION_TIMEOUT);
 
-  it.each(["latest-mismatch", "master-mismatch", "tag-mismatch"])("refuses ambiguous orphan-tag recovery: %s", async kind => {
-    const f = await fixture();
-    if (kind === "tag-mismatch") {
-      f.git(["tag", "v0.1.8", f.baselineHead]);
-      f.git(["push", "origin", "refs/tags/v0.1.8"]);
-    } else {
-      f.tagTarget();
-      if (kind === "latest-mismatch") f.setRegistryTag(name => ({ version: name === f.manifest.name ? "0.1.7" : "0.1.6" }));
-      if (kind === "master-mismatch") f.setMaster("a".repeat(40));
-    }
-    expect(await main(["patch"], f.runtime)).toBe(1);
-    expect(f.drafts).toEqual([]);
-  }, INTEGRATION_TIMEOUT);
 });

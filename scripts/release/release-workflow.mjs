@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import semver from "semver";
-import { registryManifest, registryVersion, run } from "./publication-client.mjs";
+import { registryVersion, run } from "./publication-client.mjs";
 import { parseReleaseArguments, resolveReleasePlan } from "./release-target.mjs";
 import { parseReleaseNote, renderReleaseNoteDraft } from "./release-notes.mjs";
 
@@ -24,7 +24,6 @@ export function createReleaseRuntime(options = {}) {
     gh,
     releaseChanges: (base, source) => collectReleaseChanges(git, gh, base, source),
     registry: (name, version) => registryVersion(name, version, (url, init) => fetch(url, { ...init, signal: options.signal })),
-    registryTag: (name, tag) => registryManifest(name, tag, (url, init) => fetch(url, { ...init, signal: options.signal })),
     log: message => process.stdout.write(`[release] ${message}\n`),
     ...options,
     cwd,
@@ -134,7 +133,7 @@ function remoteTagCommit(r, version) {
   if (!SHA.test(commit)) throw new Error(`v${version} does not resolve to a commit`);
   return commit;
 }
-function assertDraftRelease(value, source, version, recovery) {
+function assertDraftRelease(value, source, version) {
   if (!value || !Number.isSafeInteger(value.id) || value.id < 1 || value.tag_name !== `v${version}`
     || value.target_commitish !== source || value.name !== `v${version}` || value.draft !== true
     || value.prerelease !== false || typeof value.body !== "string" || typeof value.html_url !== "string"
@@ -143,7 +142,7 @@ function assertDraftRelease(value, source, version, recovery) {
   }
   const note = parseReleaseNote(value.body, version);
   const url = value.html_url.replace("/releases/tag/", "/releases/edit/");
-  return Object.freeze({ id: value.id, url, version, source, markdown: note.markdown, recovery });
+  return Object.freeze({ id: value.id, url, version, source, markdown: note.markdown });
 }
 async function normalBaseline(r, source) {
   r.git(["fetch", "origin", "--tags"]);
@@ -154,54 +153,28 @@ async function normalBaseline(r, source) {
   r.git(["merge-base", "--is-ancestor", commit, source]);
   return commit;
 }
-async function recoveryBaseline(r, repository, source, target, local) {
-  const [application, installer] = await Promise.all([
-    r.registryTag(local.manifest.name, "latest"),
-    r.registryTag(local.installer.name, "latest"),
-  ]);
-  const version = application?.version;
-  if (semver.valid(version) !== version || semver.prerelease(version) !== null || installer?.version !== version || !semver.lt(version, target)) {
-    throw new Error("orphan-tag recovery requires both npm latest packages to agree on one earlier stable version");
-  }
-  const baseline = remoteTagCommit(r, version);
-  const master = r.gh(["api", `repos/${repository}/git/ref/heads/master`, "--jq", ".object.sha"]);
-  if (baseline === null || baseline !== master || baseline === source) {
-    throw new Error(`orphan-tag recovery baseline v${version}, master, and source do not identify an earlier complete release`);
-  }
-  r.git(["merge-base", "--is-ancestor", baseline, source]);
-  return baseline;
-}
-async function prepareDraftRelease(r, repository, authoritative, version, local) {
+async function prepareDraftRelease(r, repository, source, version, local) {
   checkCanceled(r);
-  assertAuthoritative(r, authoritative, local.manifest.version, local.manifest.name);
+  assertAuthoritative(r, source, local.manifest.version, local.manifest.name);
   const matches = listVersionReleases(r, repository, version);
   if (matches.length > 1) throw new Error(`ambiguous GitHub Releases for v${version}`);
   const tag = remoteTagCommit(r, version);
-  const recovery = tag !== null;
-  const source = tag ?? authoritative;
-  if (recovery) {
-    try { r.git(["merge-base", "--is-ancestor", source, authoritative]); }
-    catch { throw new Error(`orphan v${version} tag ${source} is not an ancestor of authoritative develop ${authoritative}`); }
-    assertVersions(readVersionsAt(r, source), local.manifest.version, local.manifest.name);
-  }
+  if (tag !== null) throw new Error(`v${version} already exists at ${tag}; stable preparation never deletes, moves, or reuses a release tag`);
   if (matches.length === 1) {
-    if (recovery) await recoveryBaseline(r, repository, source, version, local);
-    assertAuthoritative(r, authoritative, local.manifest.version, local.manifest.name);
-    return assertDraftRelease(matches[0], source, version, recovery);
+    assertAuthoritative(r, source, local.manifest.version, local.manifest.name);
+    return assertDraftRelease(matches[0], source, version);
   }
 
-  const previous = recovery
-    ? await recoveryBaseline(r, repository, source, version, local)
-    : await normalBaseline(r, source);
+  const previous = await normalBaseline(r, source);
   const markdown = parseReleaseNote(renderReleaseNoteDraft(version, await r.releaseChanges(previous, source), r.releaseDate), version).markdown;
-  assertAuthoritative(r, authoritative, local.manifest.version, local.manifest.name);
+  assertAuthoritative(r, source, local.manifest.version, local.manifest.name);
   const created = JSON.parse(r.gh([
     "api", "-X", "POST", `repos/${repository}/releases`,
     "-f", `tag_name=v${version}`, "-f", `target_commitish=${source}`,
     "-f", `name=v${version}`, "-f", `body=${markdown}`,
     "-F", "draft=true", "-F", "prerelease=false",
   ]));
-  return assertDraftRelease(created, source, version, recovery);
+  return assertDraftRelease(created, source, version);
 }
 
 export async function collectReleaseChanges(git, gh, base, source) {

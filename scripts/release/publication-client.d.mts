@@ -10,7 +10,6 @@ export function resolveDevelopPreview(source: string, options?: {
   repository?: string;
   pullsText?: string;
 }): Promise<{ source: string; pullRequest: number; version: string; packageName: string }>;
-export function registryManifest(packageName: string, specifier: string, fetchImpl?: typeof fetch): Promise<Record<string, unknown> | null>;
 export function registryVersion(packageName: string, version: string, fetchImpl?: typeof fetch): Promise<Record<string, unknown> | null>;
 export function describePublicationFailure(runId: number | string, options?: { run?: PublicationRunner; repository?: string }): string;
 export function dispatchPublication(channel: "develop", source: string, version: string, options?: {

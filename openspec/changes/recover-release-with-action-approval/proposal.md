@@ -1,15 +1,15 @@
 ## Why
 
-The first live draft-Release attempt exposed an operator trap: GitHub's native **Publish release** button looks like approval but bypasses A1's npm workflow, leaving a public `v0.2.2` Release and tag with no packages. Stable approval should be one obvious GitHub Actions button, preparation should print each useful link once, and the exact partial record must be recoverable without deleting or moving its tag.
+The first live draft-Release attempt exposed an operator trap: GitHub's native **Publish release** button looked like approval but bypassed A1's npm workflow, briefly creating a public `v0.2.2` Release and tag with no packages. Stable approval must be one obvious GitHub Actions button, failed workflow publication must remain both draft and untagged, and successful Release publication must create the tag without manual tag management.
 
 ## What Changes
 
-- **BREAKING**: replace the local stable `--approve` operation with an **Approve stable release** GitHub Actions dispatch that asks only for the stable version, derives all source/draft/digest authority inside trusted workflow code, keeps the Release as a draft through every package gate or failure, and publishes that same draft only after complete success.
-- Make stable preparation generate a Pi-style `## [version] - YYYY-MM-DD` changelog with categorized `###` sections and print the editable draft URL exactly once plus the Actions approval URL exactly once, without duplicate created/ready messages or an instruction to run `--approve`.
-- Move post-publication reopening into trusted automation so button-driven publication creates one manually merged next-development-and-note PR without requiring a waiting local release process.
-- Add an explicit, authorized recovery path for the orphaned `v0.2.2` tag left after the premature Release was deleted: validate its immutable tagged source as an ancestor of current open `develop`, require the absent npm pair and last registry-backed stable baseline, recreate only an editable draft for that tagged source, and publish the reviewed exact packages without deleting, moving, or reinterpreting the tag.
-- Retain npm-first ordering for normal drafts, exact snapshot/package/Release equality, authorized-human dispatch, immutable registry and tag guards, preview separation, startup notes, bare A1's newest-first `/changelog`, and `a1 pi`'s pinned oldest-first in-feed changelog with the latest release nearest the bottom.
-- Make the disposable-Git release fixtures reliable under ordinary parallel local load while retaining bounded hang detection and all caller-work/reopening assertions.
+- **BREAKING**: replace local stable `--approve` with an **Approve stable release** GitHub Actions dispatch that asks only for the stable version and derives actor, source, Release, body, and digest authority in trusted code.
+- Generate Pi-style editable release Markdown and print the draft-editing URL exactly once plus the Actions approval URL exactly once.
+- Keep the Release draft and target tag absent through validation, package, npm, asset, and `master` failures; publishing the approved draft is the final mutation and lets GitHub create the tag at the bound source.
+- Move reopening into trusted automation that creates one exact, non-auto-merged next-development-and-note PR for manual merge.
+- Preserve exact snapshot/package/Release equality, immutable registry guards, preview separation, startup notes, bare A1's newest-first `/changelog`, and `a1 pi`'s oldest-first in-feed changelog.
+- Stabilize disposable-Git release fixtures with a finite Windows-appropriate hang budget without weakening assertions.
 
 ## Capabilities
 
@@ -19,8 +19,8 @@ None.
 
 ### Modified Capabilities
 
-- `continuous-integration`: Replace local stable approval with a minimal trusted Actions dispatch, automate reopening, define bounded recovery of a prematurely public exact release, and make the operator-facing preparation output unambiguous.
+- `continuous-integration`: Replace local stable approval with a minimal trusted Actions dispatch, couple tag creation to final Release publication, automate reopening, and make preparation output unambiguous.
 
 ## Impact
 
-This affects stable release command syntax/output, GitHub Actions entry points and permissions, publication/recovery policy, post-publication PR creation, repository governance declarations, release fixtures and timeout budgets, and release documentation. The premature public Release database ID `398871347` was deleted during planning, but immutable tag `v0.2.2` remains at former authoritative source `694c8846ba1d96cb7048bde6eba84141d110e523`; documentation PR #620 first advanced `develop` to descendant `7c25be1f9549bbd66461fd687a5ee9f42888f893`, and UI PR #621 later advanced it to descendant `f11d40df1ab428d54fd8a0acbb0e374fd584ca23`, without changing the open `0.2.2-dev` version or package identities. npm `latest`, `master`, and `v0.2.1` remain `0.2.1` at `51e8492c2aac79f120c157bb8db36a29819a136e`, and both `0.2.2` package versions are absent. The corrective path must publish only the immutable tagged source, preserve the orphan tag without any deletion or movement command, and obtain a fresh reviewed draft body rather than infer authority from the deleted Release.
+This changes stable release command output, GitHub Actions permissions and entry points, completion ordering, reopening automation, repository governance declarations, release fixtures, and release documentation. At the maintainer's explicit direction, the orphan `v0.2.2` tag formerly at `694c8846ba1d96cb7048bde6eba84141d110e523` was deleted on 2026-09-29 after temporarily disabling only the release-tag ruleset; that ruleset was immediately restored to active enforcement. No `v0.2.2` Release or npm package exists, `master` and npm `latest` remain on `0.2.1`, and current `develop` at `f11d40df1ab428d54fd8a0acbb0e374fd584ca23` still consistently declares `0.2.2-dev`. The next `0.2.2` attempt therefore follows the ordinary current-`develop` draft path.

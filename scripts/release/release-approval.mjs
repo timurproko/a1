@@ -15,17 +15,10 @@ export function assertAuthorizedApprovalActor(actor, permission, expectedLogin) 
 
 export function validateStableApproval(input) {
   const {
-    version, source, authoritativeSource = source, recovery = false, releases,
-    application, lock, installer,
-    authoritativeApplication = application, authoritativeLock = lock, authoritativeInstaller = installer,
-    existingApplication, existingInstaller,
+    version, source, releases, application, lock, installer, existingApplication, existingInstaller,
   } = input ?? {};
-  if (typeof version !== "string" || !STABLE.test(version) || semver.valid(version) !== version
-    || !SHA.test(source ?? "") || !SHA.test(authoritativeSource ?? "") || typeof recovery !== "boolean") {
+  if (typeof version !== "string" || !STABLE.test(version) || semver.valid(version) !== version || !SHA.test(source ?? "")) {
     throw new Error("stable approval version or source identity is invalid");
-  }
-  if ((!recovery && source !== authoritativeSource) || (recovery && semver.valid(authoritativeApplication?.version) !== authoritativeApplication.version)) {
-    throw new Error("stable approval source does not match its normal or orphan-tag authority");
   }
   if (!Array.isArray(releases) || releases.length >= 100) throw new Error("GitHub release response is invalid or exceeds its bounded page");
   const matches = releases.filter(item => item?.tag_name === `v${version}`);
@@ -39,11 +32,8 @@ export function validateStableApproval(input) {
   if (!openCore || semver.valid(application.version) !== application.version || application.version !== installer?.version
     || lock?.version !== application.version || lock?.packages?.[""]?.version !== application.version
     || typeof application.name !== "string" || typeof installer?.name !== "string" || !installer.name.endsWith("/a1-install")
-    || authoritativeApplication?.name !== application.name || authoritativeApplication.version !== application.version
-    || authoritativeLock?.version !== application.version || authoritativeLock?.packages?.[""]?.version !== application.version
-    || authoritativeInstaller?.name !== installer.name || authoritativeInstaller.version !== application.version
     || semver.lt(version, openCore)) {
-    throw new Error("tagged and authoritative sources must declare one compatible open development version before stable approval");
+    throw new Error("authoritative source must declare one compatible open development version before stable approval");
   }
   if (existingApplication || existingInstaller) throw new Error("stable approval refuses an existing or partial npm package pair");
   const note = parseReleaseNote(release.body, version);

@@ -5,7 +5,6 @@ export interface ReleaseRuntime {
   gh(args: readonly string[]): string;
   releaseChanges(base: string, source: string): Promise<readonly { number: number; title: string; url: string }[]>;
   registry(name: string, version: string): Promise<unknown | null>;
-  registryTag(name: string, tag: string): Promise<{ version?: string } | null>;
   log(message: string): void;
   error(message: string): void;
   readonly signal?: AbortSignal;
@@ -17,7 +16,6 @@ export interface DraftReleaseNote {
   readonly version: string;
   readonly source: string;
   readonly markdown: string;
-  readonly recovery: boolean;
 }
 export interface ReleaseResult extends ReleasePlan {
   readonly source: string;

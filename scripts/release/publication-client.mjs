@@ -43,18 +43,13 @@ export async function resolveDevelopPreview(source, options = {}) {
   return { source, pullRequest: number, version: `${base}-dev.${number}`, packageName: manifest.name };
 }
 
-export async function registryManifest(packageName, specifier, fetchImpl = fetch) {
-  const response = await fetchImpl(`https://registry.npmjs.org/${encodeURIComponent(packageName)}/${specifier}`, {
+export async function registryVersion(packageName, version, fetchImpl = fetch) {
+  const response = await fetchImpl(`https://registry.npmjs.org/${encodeURIComponent(packageName)}/${version}`, {
     headers: { accept: "application/json", "cache-control": "no-cache" },
   });
   if (response.status === 404) return null;
-  if (!response.ok) throw new Error(`npm registry returned HTTP ${response.status} for ${packageName}@${specifier}`);
-  return await response.json();
-}
-
-export async function registryVersion(packageName, version, fetchImpl = fetch) {
-  const manifest = await registryManifest(packageName, version, fetchImpl);
-  if (manifest === null) return null;
+  if (!response.ok) throw new Error(`npm registry returned HTTP ${response.status} for ${packageName}@${version}`);
+  const manifest = await response.json();
   if (manifest.version !== version) throw new Error(`npm returned ${manifest.version ?? "no version"} for ${packageName}@${version}`);
   return manifest;
 }

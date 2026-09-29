@@ -2,111 +2,74 @@
 
 ## Context
 
-The draft-Release protocol merged through PR #617 correctly kept ordinary stable publication behind an explicit authorized-human snapshot. Its first operator exercise exposed two usability and recovery problems rather than a package-validation defect:
+The draft-Release protocol merged through PR #617 correctly kept npm publication behind an authorized-human snapshot, but its first operator exercise exposed an unsafe interaction. Preparation printed duplicate draft guidance and directed the operator back to local `--approve`, while GitHub's nearby native **Publish release** control looked like the natural next step. Native publication created Release database ID `398871347` and `v0.2.2` without publishing either npm package or advancing `master`. The Release was deleted.
 
-- `npm run release -- patch` printed the same draft URL in both a creation/reuse message and a readiness message, then told the operator to return to a terminal for `--approve`. GitHub's nearby native **Publish release** control looked like the natural continuation.
-- Native publication does not trigger `.github/workflows/publish.yml`. It immediately made Release database ID `398871347` and tag `v0.2.2` public at authoritative source `694c8846ba1d96cb7048bde6eba84141d110e523`, while both npm package versions remained absent and `master` remained unchanged. The operator then deleted the Release; the tag remains, so recovery now has an orphan immutable identity but no review body.
+The maintainer subsequently chose to delete the orphan tag and publish `0.2.2` through the ordinary current-`develop` path. The release-tag ruleset was disabled only for that deletion and immediately restored. The desired interaction is now: prepare and edit a draft, open **Approve stable release**, enter only the version, and let trusted automation validate npm and completion. No target tag exists while the Release is a draft; successful final publication creates it.
 
-The desired interaction is now explicit: preparation prints one editing link and one GitHub Actions link; the maintainer edits and saves the draft, opens **Approve stable release**, enters the stable version, and clicks **Run workflow**. The Release stays draft through all package work and becomes public only after success. GitHub's native Release publication event remains non-authoritative and starts nothing.
-
-Five disposable-Git fixtures also exceeded their explicit 20-second per-test limit when run alongside other files on the maintainer's Windows host. They failed only by timeout; the same assertions passed in isolated exact-head CI and an isolated local run. The corrective change must retain a finite hang detector while making the fixture budget and execution shape realistic under ordinary local contention.
+Five disposable-Git fixtures also exceeded their former 20-second per-test limit under ordinary Windows contention despite passing in isolation. Their hang detector needs a realistic finite budget without weakened assertions.
 
 ## Goals / Non-Goals
 
 **Goals:**
 
-- Provide one version-only **Approve stable release** Actions button backed exclusively by trusted default-branch workflow code.
-- Keep a normally approved Release draft through every package/registry/record gate or failure and publish that same Release only after complete stable success.
-- Print the draft URL once and the approval-workflow URL once during preparation.
-- Preserve exact source/body/package/tag identity and authorized-human approval without requiring local approval credentials or a waiting local process.
-- Create the manually merged reopening PR from trusted automation after stable completion.
-- Recover the orphan `v0.2.2` tag from its immutable former-`develop` source, while current `develop` may be a compatible descendant, by creating a fresh editable draft from the last registry-backed stable baseline without deleting or moving the tag or treating native publication as approval.
-- Preserve bounded, meaningful release fixtures on slower Windows filesystems.
+- Provide one version-only **Approve stable release** button backed by trusted default-branch code.
+- Keep an approved Release draft and its target tag absent through every pre-publication failure.
+- Let final publication of the source-bound Release create the immutable tag, removing manual failed-tag cleanup.
+- Print the draft-editing and approval-workflow URLs exactly once.
+- Preserve exact source, body, package, asset, `master`, and authorized-human identity.
+- Create one exact manually merged reopening PR from trusted automation.
+- Preserve bounded release fixtures on slower Windows filesystems.
 
 **Non-Goals:**
 
-- Making GitHub's native **Publish release** button or `release.published` event an npm publication authority.
-- Deleting, moving, or recreating `v0.2.2` to make the failed attempt look as though it never happened.
-- Republishing an npm version, accepting a stale source, or weakening exact-package and Defender-enabled stable validation.
-- Auto-merging the reopening PR.
-- Changing startup acknowledgement, preview suppression, bare A1's newest-first `/changelog`, or `a1 pi`'s pinned oldest-first in-feed changelog with the latest release nearest the bottom.
+- Giving GitHub's native **Publish release** button or `release.published` event npm authority.
+- Recovering or recreating the deleted orphan tag.
+- Republishing an npm version, accepting a stale source, weakening exact-package validation, or auto-merging reopening.
+- Changing startup acknowledgement, preview suppression, bare A1 ordering, or `a1 pi` ordering.
 
 ## Decisions
 
-### 1. Stable approval becomes a minimal trusted Actions dispatch
+### 1. Stable approval is a minimal trusted Actions dispatch
 
-Add a dedicated workflow named **Approve stable release** with one required `version` input. Its `workflow_dispatch` actor is the approval actor. Trusted code validates that the actor is a GitHub `User` with `write`, `maintain`, or `admin` permission, parses an exact stable version, reads current `develop`, verifies one open `x.y.z-dev` declaration, and derives the matching Release through the API.
+`.github/workflows/approve-release.yml` accepts only an exact stable version. Trusted code verifies that `github.actor` resolves to a GitHub `User` with `write`, `maintain`, or `admin`, reads current `develop`, verifies one consistent open `x.y.z-dev` package identity, and locates exactly one unpublished source-bound draft. It rejects an existing target tag or either existing npm package version before package work.
 
-For the normal path, the Release must be one unpublished non-prerelease draft whose tag/name and target commit match the requested version and authoritative source. For orphan recovery, trusted code derives the source from the immutable tag, proves it is an open-version-compatible ancestor of current authoritative `develop`, and requires the draft to target that tagged commit. The workflow parses and normalizes the bounded body, computes its SHA-256, and produces the same immutable approval artifact used by package and completion jobs. The operator does not enter a source SHA, Release ID, or digest; removing those editable inputs reduces both mistakes and spoofable authority.
+The workflow normalizes and bounds the reviewed body, computes its SHA-256, and uploads one immutable approval artifact. The operator cannot provide source SHA, Release ID, body digest, or recovery mode. Local `--approve`, tag pushes, native publication, Apps, bots, and direct technical-input dispatch provide no stable authority.
 
-The publication core remains callable by nightly/development entry points and the stable approval workflow without granting a second stable authority. Whether implemented as a reusable workflow or shared trusted script, the initiating human identity and exact snapshot must remain independently verifiable in the publication run. `release.published`, tag pushes, and native Release controls are not triggers.
+### 2. Release publication owns tag creation
 
-The local `--approve` form is removed from documented and accepted grammar so there is one stable approval path. A use of the retired flag fails with concise usage pointing to the Actions URL; it does not dispatch a second route.
+Preparation refuses an existing target tag and creates or exactly reuses only a draft Release bound to current authoritative `develop`. Approval and completion recheck that the target tag is still absent. Package assembly overlays the approved note on committed history, validates exact bytes, publishes both npm packages, verifies propagation and the installed pair, uploads the validated asset to the still-draft Release, and fast-forwards `master`.
 
-### 2. A normal Release remains draft until stable completion succeeds
+There is no standalone tag-creation API call. The final PATCH publishes the approved draft with its existing `tag_name` and `target_commitish`; GitHub creates the lightweight tag at that source as part of publication. The workflow then verifies the public Release, exact body, and resulting tag identity. Therefore any failure before final publication leaves the Release draft and the target tag absent. Existing tags are never deleted, moved, or reused by release automation.
 
-The approval run snapshots the reviewed body but does not modify the draft. Package assembly overlays the snapshot on committed history, validates exact bytes across required platforms, provenance-publishes both packages, verifies registry propagation and the published pair, and only then starts stable record completion.
+### 3. Preparation prints two links exactly once
 
-Completion rechecks the same Release identity, approved digest, and draft state. It creates or verifies the immutable tag, uploads the exact validated application artifact, and fast-forwards `master`. Publishing the Release with the exact approved body remains the final completion mutation. Therefore package failure, validation failure, registry uncertainty, tag/asset/master failure, cancellation, or an early job exit leaves the Release draft. Before npm mutation, a fresh Actions approval may revalidate the unchanged state; after either package may exist, only the failed jobs of the same snapshotted run may resume its exact artifacts. Mutable edits never alter an already running snapshot.
+`npm run release -- <target>` creates or safely reuses an exact draft without overwriting edits. Generated Markdown begins `## [version] - YYYY-MM-DD` and uses applicable Pi-style `### Breaking Changes`, `### New Features`, `### Added`, `### Changed`, and `### Fixed` sections. Successful output contains one direct draft-editing URL and one **Approve stable release** Actions URL; it never recommends local `--approve`.
 
-If native publication occurs during a normal run, the next draft-state gate fails. It is never silently accepted as workflow success.
+Bare A1 keeps semantic-version-descending packaged history so the newest release is at the top. `a1 pi` retains Pi's oldest-first feed ordering so the newest entry remains nearest the transcript bottom.
 
-### 3. Preparation prints two actionable links exactly once
+### 4. Trusted automation prepares reopening
 
-`npm run release -- <target>` still creates or safely reuses the exact draft and never overwrites edited content. A new generated body follows Pi's changelog presentation: `## [version] - YYYY-MM-DD`, then the applicable `### Breaking Changes`, `### New Features`, `### Added`, `### Changed`, and `### Fixed` groups. Human editing remains authoritative; retained version/date headings are identity- and calendar-validated. Creation/reuse becomes an internal disposition rather than a second user-facing URL line. Successful output contains one line for the draft editing URL and one line for the repository's **Approve stable release** Actions page. It does not recommend `--approve`.
+After stable completion, App-authenticated automation fetches then-current `develop`, verifies the expected open version and absent note, and creates one commit on `chore/release-<next>-dev`. The commit changes only the application manifest, root lockfile, installer version, and exact approved `docs/releases/<stable>.md`.
 
-Fixtures count URL occurrences and cover both creation and exact reuse, so future logging changes cannot restore duplicate links. Documentation uses the same two-step wording and distinguishes **Save draft** from both the Actions button and GitHub's native **Publish release** control.
+An empty-ref lease and strict PR validation prevent overwriting unrelated branches. Existing work is reused only when base, head, paths, versions, note digest, repository, open state, and absence of auto-merge all match. Required CI must pass before an authorized human merges it manually.
 
-The packaged bare-A1 history remains semantic-version-descending so opening the full-screen route at its top shows the latest release first and the oldest at the bottom. This does not reuse or alter the comparison profile's changelog formatter: `a1 pi` retains Pi's oldest-first agent-feed output, where the latest release is nearest the bottom and therefore nearest the user's current view.
+### 5. Fixture timing stays bounded
 
-### 4. Trusted automation creates the reopening PR
-
-A button-driven release has no local process available to call `prepareVersion` or wait for a merge. After stable completion, trusted automation fetches then-current `develop`, verifies it still declares the expected open version and lacks the released note, and creates one exact `chore/release-<next>-dev` commit containing only the three version declarations and `docs/releases/<stable>.md` from the approval artifact.
-
-The push uses an empty expected-ref lease, and PR creation/reuse validates branch, base, head, paths, versions, note digest, and absence of auto-merge. The workflow reports the PR URL and finishes with a distinct `reopening-pending` success summary. An authorized human manually merges it after CI. Reopening failure does not republish the completed stable version; recovery creates or verifies only that exact PR.
-
-If unrelated work lands during publication, reopening starts from the then-current authoritative tip only when its open version remains compatible. It never resets the maintainer's checkout because no local checkout participates.
-
-### 5. An orphan premature tag requires a fresh reviewed draft
-
-The deleted `v0.2.2` Release cannot be treated as review evidence and must not be reconstructed from conversational logs or guessed edits. Its immutable tag remains at former authoritative source `694c8846ba1d96cb7048bde6eba84141d110e523`. During final review, documentation-only PR #620 first advanced `develop` to descendant `7c25be1f9549bbd66461fd687a5ee9f42888f893`, and UI PR #621 later advanced it to descendant `f11d40df1ab428d54fd8a0acbb0e374fd584ca23`; both preserved the open `0.2.2-dev` version and package identities. npm `latest`, `master`, and the last complete stable tag all identify `0.2.1` at `51e8492c2aac79f120c157bb8db36a29819a136e`; both `0.2.2` npm package versions are absent.
-
-Stable preparation enters orphan-tag recovery only if all of these hold:
-
-- exactly one immutable `v<version>` tag exists at a source that is the current `develop` tip or its ancestor, with no GitHub Release for that tag;
-- both the tagged source and current authoritative `develop` consistently declare the matching open development core and package identities;
-- both npm package versions are absent;
-- npm `latest`, `master`, and a prior stable tag agree on one complete baseline ancestor;
-- no contradictory asset, duplicate Release, stale source, or other completion evidence exists.
-
-Instead of using the orphan tag as the changelog baseline, preparation generates the body from the verified prior complete baseline through the tagged source and creates a new unpublished draft Release referring to that immutable source. Commits after the tag remain part of the next development cycle and are not silently added to `0.2.2`. Preparation prints the draft and Actions links once. The maintainer edits and saves this fresh draft, supplying new review authority.
-
-When **Approve stable release** is run, trusted code recognizes the pre-existing exact tag as the recovery disposition, snapshots the newly reviewed draft, builds and validates from that exact source/body, publishes and verifies the package pair, preserves the existing tag, uploads only the validated asset, advances `master`, and publishes the replacement draft only after all completion gates succeed. Any mismatch fails before package construction and leaves the draft and tag inspectable.
-
-This recovery is authorized by the Actions dispatch and fresh draft review, not by the earlier native click or deleted Release. Once `0.2.2` is complete, existing-version guards make the recovery path unavailable.
-
-### 6. Fixture timing remains bounded but reflects real work
-
-The real-Git fixture tests remain process-isolated and keep all caller-work, concurrency, reopening, and failure assertions. Shared helpers will avoid redundant fetch/setup operations where possible. Tests that intentionally perform preparation, approval, remote branch creation, merge, and cleanup receive one named integration timeout budget based on observed Windows execution rather than scattered 20-second literals. The budget remains finite and is not used to hide assertion failures.
-
-Focused evidence records isolated and ordinary multi-file execution durations. CI retains exact behavior assertions; a timeout increase alone is insufficient if fixture work can be removed safely.
+Real-Git fixtures retain caller-work, current-source race, conflicting draft, existing-tag refusal, reopening identity, and failure assertions. One named 45-second per-test integration budget acts as a hang detector under Windows load. Assertion failures remain immediate and are never retried into success.
 
 ## Risks / Trade-offs
 
-- **Actions has no custom button inside the Releases editor.** The preparation output links directly to the workflow page; the native Release button remains visually present and explicitly unsupported.
-- **Workflow refactoring could create two authorities.** Stable jobs must accept approval only from the dedicated human-dispatched entry and one immutable snapshot artifact; policy tests reject direct technical-input stable dispatch.
-- **Automated reopening needs write permissions.** Scope them to the reopening job and validate every branch/PR field; never enable auto-merge or merge it.
-- **The premature Release was public and then deleted.** Recovery cannot undo that visibility or preserve the deleted database identity. It records the orphan-tag disposition, requires a fresh reviewed draft, and never presents the replacement as proof that early publication did not happen.
-- **The orphan tag may change or disappear.** Stop rather than recreate or reinterpret it. Re-read live state before implementation and refine the plan if any tag/source/package/baseline fact changed.
-- **Longer test budgets can mask hangs.** Keep phase evidence and a single bounded integration budget, optimize redundant operations, and fail on non-timeout assertions exactly as before.
+- GitHub's native button remains visible; documentation must distinguish **Save draft** and the Actions approval button.
+- Publishing a Release is an external mutation. All fallible package, asset, and `master` gates run first, and post-publication checks verify rather than establish authority.
+- `master` advances before the final Release PATCH so a failed final API call can leave `master` advanced while the Release remains draft and untagged. Retrying the same immutable run is safe because the fast-forward and exact-source checks are idempotent.
+- Automated reopening needs scoped contents and pull-request write permission but never merge permission.
+- Longer fixture budgets could hide hangs; phase evidence and unchanged assertions keep the bound diagnostic.
 
 ## Rollout and Recovery
 
-1. Preserve the orphan `v0.2.2` tag at `694c8846ba1d96cb7048bde6eba84141d110e523`; no procedure or implementation command may delete, move, force-update, or recreate it, and no release approval or package publication runs while this corrective change is reviewed.
-2. Merge the corrective implementation only after exact-head validation and authorized manual acceptance.
-3. Run `npm run release -- patch` once. It must select orphan-tag recovery, derive notes from complete `v0.2.1`, create a replacement draft without moving the tag, and print the draft and Actions links once.
-4. Edit and save that draft, then run **Approve stable release** for `0.2.2`. The workflow must select the orphan-tag recovery disposition and either complete exact npm/records/reopening or leave the draft and tag inspectable.
-5. Manually merge the generated `0.2.3-dev` reopening PR after CI and verify its note equals the published Release body and packaged changelog.
-6. Exercise the normal draft path on the next stable release: preparation prints each link once; failed validation leaves the Release draft; successful completion publishes it; startup shows the note once and `/changelog` retains it.
-
-If the orphan tag, its ancestry, open-version compatibility, package state, or complete baseline changes before implementation, do not synthesize missing authority or silently switch versions. Re-plan from the observed state. Ordinary descendant movement of `develop` is safe only through the explicit ancestor recovery checks above; it never retargets the `0.2.2` package away from its tag.
+1. Merge only after exact-head PR CI and manual review.
+2. From clean current `develop`, run `npm run release -- patch`; verify it creates one `0.2.2` draft and no tag.
+3. Edit and save the draft, then run **Approve stable release** with version `0.2.2`.
+4. On any pre-publication failure, verify the Release remains draft and `v0.2.2` remains absent; rerun the same immutable failed jobs when npm may already contain either package.
+5. On success, verify the exact npm pair, public Release/body/asset, `master`, and GitHub-created `v0.2.2` all identify current approved source.
+6. Let required CI pass on the generated `0.2.3-dev` reopening PR, then merge it manually and verify startup plus both changelog orderings.

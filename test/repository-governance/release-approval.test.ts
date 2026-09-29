@@ -10,8 +10,7 @@ const application = { name: "@fixture/a1", version: "1.2.3-dev" };
 const lock = { version: "1.2.3-dev", packages: { "": { version: "1.2.3-dev" } } };
 const installer = { name: "@fixture/a1-install", version: "1.2.3-dev" };
 const valid = () => ({
-  version, source, authoritativeSource: source, recovery: false, releases: [release], application, lock, installer,
-  authoritativeApplication: application, authoritativeLock: lock, authoritativeInstaller: installer,
+  version, source, releases: [release], application, lock, installer,
   existingApplication: null, existingInstaller: null,
 });
 
@@ -35,11 +34,6 @@ describe("trusted stable approval validation", () => {
     expect(approval.sha256).toBe(createHash("sha256").update(body).digest("hex"));
   });
 
-  it("accepts an ancestor orphan-tag source while current develop preserves the open version", () => {
-    const authoritativeSource = "b".repeat(40);
-    expect(validateStableApproval({ ...valid(), authoritativeSource, recovery: true }).release).toBe(release);
-  });
-
   it.each([
     ["missing", { releases: [] }],
     ["duplicate", { releases: [release, { ...release, id: 18 }] }],
@@ -49,9 +43,6 @@ describe("trusted stable approval validation", () => {
     ["bad package versions", { installer: { ...installer, version: "1.2.2-dev" } }],
     ["existing application", { existingApplication: { version } }],
     ["existing installer", { existingInstaller: { version } }],
-    ["normal source behind develop", { authoritativeSource: "b".repeat(40) }],
-    ["recovery develop version changed", { authoritativeSource: "b".repeat(40), recovery: true,
-      authoritativeApplication: { ...application, version: "1.2.4-dev" } }],
   ])("rejects %s approval authority", (_name, change) => {
     expect(() => validateStableApproval({ ...valid(), ...change })).toThrow();
   });

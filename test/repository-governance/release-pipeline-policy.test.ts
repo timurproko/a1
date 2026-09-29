@@ -113,7 +113,7 @@ describe("deliberate publication pipeline", () => {
     expect(source).toContain("--provenance");
     const publish = source.slice(source.indexOf("\n  publish:"));
     expect(publish.slice(0, publish.indexOf("\n  post_publish:"))).not.toMatch(/npm ci|npm run build|prepare-validation-package/);
-    expect(source.indexOf("Exercise the exact published pair")).toBeLessThan(source.indexOf("Tag the published commit"));
+    expect(source.indexOf("Exercise the exact published pair")).toBeLessThan(source.indexOf("Publish the approved draft GitHub Release"));
   });
 
   it("packs native process guardians with host-independent executability", async () => {
@@ -147,8 +147,8 @@ describe("deliberate publication pipeline", () => {
     expect(approval).toContain("uses: timurproko/a1/.github/workflows/publish.yml@develop");
     expect(approval).toContain("channel: stable");
     expect(source).toContain("stable approval must originate from the trusted default-branch Approve stable release workflow");
-    expect(source).toContain('["merge-base", "--is-ancestor", source, authoritativeSource]');
-    expect(source).toContain("orphan-tag recovery identity changed after source selection");
+    expect(source).toContain("approval never deletes, moves, or reuses a release tag");
+    expect(source).not.toContain("orphan-tag recovery");
     expect(approval).not.toMatch(/source_sha:|release_id:|release_notes_sha256:/);
     expect(client).toContain('"workflow", "run", "develop.yml"');
     expect(client).toContain("stable publication is approved only from the Approve stable release workflow");
@@ -167,14 +167,17 @@ describe("deliberate publication pipeline", () => {
     expect(source).toContain("Assemble the approved note with committed history");
     expect(source).toContain("Require the approved Release to remain a draft");
     expect(source).toContain("approved GitHub Release was published or changed before npm publication");
-    expect(source).toContain("Require the approved Release to remain unpublished");
+    expect(source).toContain("Require the approved Release to remain unpublished and untagged");
     expect(source).toContain("approved GitHub Release was published or changed before stable completion");
     expect(source).toContain("Publish the approved draft GitHub Release");
     expect(source).toContain('gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID"');
     expect(source).toContain("GitHub did not publish the approved draft with the expected identity and exact body");
     expect(source).toContain("release.body !== body");
-    expect(source.indexOf('gh release upload "v${RELEASE_VERSION}"')).toBeLessThan(source.indexOf('gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID"'));
+    expect(source.indexOf('gh release upload "v${RELEASE_VERSION}"')).toBeLessThan(source.indexOf('git/refs/heads/master'));
     expect(source.indexOf('git/refs/heads/master')).toBeLessThan(source.indexOf('gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID"'));
+    expect(source).toContain("published Release tag identity");
+    expect(source).not.toContain("Tag the published commit");
+    expect(source).not.toContain('-f "ref=refs/tags/${tag}"');
     expect(source).toContain("ref: ${{ needs.plan.outputs.source }}");
     expect(source).not.toContain("release-review PR");
     expect(source).not.toContain('--notes-file "docs/releases/${RELEASE_VERSION}.md"');

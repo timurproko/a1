@@ -244,16 +244,17 @@ form is a mutation-free usage error that points to Actions.
 3. Open the separately printed Actions URL, choose **Run workflow**, enter only the
    stable version (for example `0.1.8`), and run **Approve stable release**. Trusted
    default-branch code derives the dispatch actor, authoritative source, Release
-   database ID/state/body, digest, and normal-or-recovery disposition. Only an
-   authenticated GitHub `User` with `write`, `maintain`, or `admin` permission can
+   database ID/state/body and digest, and independently requires the target tag to
+   remain absent. Only an authenticated GitHub `User` with `write`, `maintain`, or `admin` permission can
    approve. Apps, bots, tags, native publication, and CI success cannot approve.
 4. The workflow snapshots the normalized body, places it over committed history,
    stamps the stable version, packs both packages once, and runs all stable gates.
-   The Release remains a draft through validation, npm, published-pair, tag, asset,
-   and `master` failures. Only after npm serves both exact artifacts does completion
-   create or verify the immutable tag, upload the validated asset, fast-forward
-   `master`, and publish the same draft with the exact approved body as its final
-   mutation.
+   The Release remains a draft and the target tag remains absent through validation,
+   npm, published-pair, asset, and `master` failures. Only after npm serves both exact
+   artifacts does completion upload the validated asset, fast-forward `master`, and
+   publish the same source-bound draft with the exact approved body as its final
+   mutation. GitHub creates the immutable tag as part of that publication, so a failed
+   pre-publication run needs no manual tag removal.
 5. After publication, App-authenticated trusted automation creates or exactly reuses
    `chore/release-0.1.9-dev`. Its single commit changes only the application
    manifest, root lockfile, installer version, and exact
@@ -281,9 +282,10 @@ the version, packs each package once, runs the complete suite and installer pack
 check against those exact bytes on Windows, Linux, and macOS, publishes both to npm
 `latest` with provenance from the `npm-publish` environment, and exercises the exact
 published installer/application pair in isolated prefixes on every release lane.
-Only after those post-publication checks pass does it write `vx.y.z` on the source commit, record
-the GitHub Release, and fast-forward `master`. A push of the stable version does
-not publish it, and no automation ever pushes one.
+Only after those post-publication checks pass does it upload the Release asset and
+fast-forward `master`; publishing the source-bound draft is the final mutation and
+creates `vx.y.z` at that source. A pushed tag does not publish npm packages, and
+release automation never creates, deletes, or moves a tag independently.
 
 The installer package does not yet exist on npm, so its first publication needs a
 one-time granular token in the `npm-publish` environment secret
@@ -294,15 +296,11 @@ trusted publisher, delete the bootstrap secret, and let npm 11 authenticate futu
 publications through GitHub OIDC. Both packages must name the current
 `publish.yml` path in their trusted-publisher settings.
 
-The one-time orphan-tag recovery is narrower. If the target tag names the current
-open-development source or an ancestor whose package identities and open version
-still match current authoritative `develop`, while both target packages and its
-GitHub Release are absent, preparation requires npm `latest`, its stable tag, and
-`master` to agree on one earlier complete ancestor. It generates a fresh draft from
-that baseline through the tagged source; later `develop` commits remain for the next
-version. The procedure contains no command to delete, move, force-update, or recreate
-the orphan tag. Fresh draft review and the same Actions approval are mandatory. Any
-disagreement refuses recovery.
+The premature orphan `v0.2.2` tag was explicitly deleted before this protocol was
+merged, while both npm packages and the GitHub Release were absent. `0.2.2` therefore
+uses the ordinary current-`develop` path. Preparation and approval refuse any target
+tag that appears before final publication; they never recover, delete, move, or reuse
+one.
 
 Rules that do not bend:
 
@@ -329,7 +327,7 @@ Rules that do not bend:
 - **Development publication fails:** inspect both package versions and digests, fix the cause, and rerun `npm run develop`; an npm version that already exists is verified and never overwritten.
 - **Registry verification times out:** a `has not propagated` failure after a successful `npm publish` means npm is still ingesting the upload; it warns that a provenance-signed package "may take a few minutes" and the publisher polls for ten minutes. Confirm the version and its shasum on `https://registry.npmjs.org/<name>/<version>`, then rerun the failed jobs: the final registry check finds the exact bytes, skips `npm publish`, and verification passes. A digest or tag mismatch is not a timeout and is never repaired by rerunning.
 - **Draft preparation or approval stops:** inspect the reported draft Release. Preparation may safely reuse an exact source-bound draft without overwriting edits. If `develop` advanced, do not approve the stale draft; retire it explicitly and prepare a new one from synchronized `develop`. Never use the native Publish release button.
-- **Stable publication fails or is uncertain:** no reopening PR was prepared and `develop` still declares the open `-dev` version. Inspect the Actions run, npm, draft/public Release, and `v<version>` tag. If neither package exists, a fresh **Approve stable release** run may revalidate the unchanged authoritative source and reviewed draft. If either package may exist, do not start a new approval: rerun the failed jobs of the same snapshotted Actions run so its retained candidate and digest verify exact registry bytes before finishing the tag, asset, `master`, and draft. Do not use native publication or a technical-input dispatch. Registry and tag guards refuse contradictory bytes.
+- **Stable publication fails or is uncertain:** no reopening PR was prepared and `develop` still declares the open `-dev` version. Before final Release publication, the draft remains private and `v<version>` must be absent; no manual tag cleanup is needed. Inspect the Actions run, npm, draft state, asset, and `master`. If neither package exists, a fresh **Approve stable release** run may revalidate the unchanged source and draft. If either package may exist, rerun the failed jobs of the same snapshotted run so its retained candidate and digest verify exact registry bytes before final publication creates the tag. Do not use native publication or a technical-input dispatch.
 - **Stable is published but reopening stopped:** inspect the failed reopening job. Any recovered PR must contain only both next `-dev` version declarations and the exact approved `docs/releases/<released>.md`; merge it by hand after CI, or reconstruct it from the published Release through a separately validated manual PR. Never republish immutable bytes, and never rerun publication for the published version.
 
 ## Safe release-command validation

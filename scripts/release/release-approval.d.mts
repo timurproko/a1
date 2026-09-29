@@ -8,15 +8,10 @@ export function assertAuthorizedApprovalActor(
 export function validateStableApproval(input: {
   version: string;
   source: string;
-  authoritativeSource?: string;
-  recovery?: boolean;
   releases: readonly unknown[];
   application: JsonObject;
   lock: JsonObject;
   installer: JsonObject;
-  authoritativeApplication?: JsonObject;
-  authoritativeLock?: JsonObject;
-  authoritativeInstaller?: JsonObject;
   existingApplication: unknown | null;
   existingInstaller: unknown | null;
 }): { readonly release: JsonObject; readonly note: ReleaseNote; readonly sha256: string };
