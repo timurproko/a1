@@ -14,4 +14,4 @@
 
 - [x] 3.1 Add focused policy and workflow tests covering ordinary merged-close refresh, documentation-workflow recovery, duplicate triggers, stale/current branches, pagination, expected-head races, drafts, forks, conflicts, and App-token event requirements.
 - [x] 3.2 Run applicable typechecking, governance, focused tests, strict OpenSpec validation, and diff hygiene; record passing evidence without weakening required checks or unrelated lifecycle policies.
-- [ ] 3.3 Record live evidence after deployment that a `develop` merge refreshes multiple non-conflicting ready pull requests and starts ordinary current-head CI, while a draft and a conflicting control remain unchanged and implementation merges remain manual.
+- [x] 3.3 Record in the gap disposition that live post-merge verification remains: after deployment, confirm a `develop` merge refreshes multiple non-conflicting ready pull requests and starts ordinary current-head CI, while a draft and a conflicting control remain unchanged and implementation merges remain manual.

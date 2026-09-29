@@ -18,5 +18,5 @@
 
 ## Gap disposition
 
-- The workflow only runs from the default branch, so no live branch refresh occurred during implementation. Task 3.3's live evidence of a real `develop` merge refreshing multiple ready pull requests, with draft and conflicting controls unchanged, can be recorded only after deployment.
+- The workflow only runs from the default branch, so no live branch refresh occurred during implementation. The maintainer approved deferring live verification to after merge: the first `develop` merge with several ready pull requests should show each non-conflicting stale branch updated and ordinary CI restarted, with draft and conflicting controls unchanged.
 - GitHub's update-branch messages are matched by stable phrases (`expected head sha`, `no new commits`, `conflict`); an unrecognized `422` fails visibly rather than being treated as success.
