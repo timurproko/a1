@@ -185,32 +185,32 @@ describe("publication failure reporting", () => {
 });
 
 describe("stable candidate validation waiting", () => {
-  const statuses = (...values: Array<[string, string | null]>) => {
-    let index = 0;
-    return fakeRunner(({ args }) => {
-      if (args[0] === "api" && args[1] === "repos/owner/app/actions/runs/51") {
-        const [status, conclusion] = values[Math.min(index++, values.length - 1)]!;
-        return JSON.stringify({ id: 51, status, conclusion });
-      }
-      if (args[0] === "api" && String(args[1]).includes("/jobs")) return JSON.stringify([{ id: 7, name: "Validate linux-node24", conclusion: "failure" }]);
-      if (args[0] === "api" && String(args[1]).includes("/annotations")) return JSON.stringify(["expected 1 to be 2"]);
-      throw new Error(`unexpected call ${args.join(" ")}`);
-    });
-  };
+  const watched = (watch: "success" | Error, status: string, conclusion: string | null) => fakeRunner(({ args }) => {
+    if (args[0] === "run" && args[1] === "watch") return watch === "success" ? "" : watch;
+    if (args[0] === "api" && args[1] === "repos/owner/app/actions/runs/51") return JSON.stringify({ id: 51, status, conclusion });
+    if (args[0] === "api" && String(args[1]).includes("/jobs")) return JSON.stringify([{ id: 7, name: "Validate linux-node24", conclusion: "failure" }]);
+    if (args[0] === "api" && String(args[1]).includes("/annotations")) return JSON.stringify(["expected 1 to be 2"]);
+    throw new Error(`unexpected call ${args.join(" ")}`);
+  });
 
-  it("polls until the run succeeds and reports long waits sparingly", async () => {
-    const { run } = statuses(["queued", null], ["in_progress", null], ["in_progress", null], ["completed", "success"]);
-    let clock = 0;
-    const output: string[] = [];
-    await expect(waitForStableValidation({ repository: "owner/app", runId: 51 }, {
-      run, sleep: async () => { clock += 3 * 60_000; }, now: () => clock, write: text => { output.push(text); },
-    })).resolves.toMatchObject({ conclusion: "success" });
-    expect(output).toEqual(["[release] validation still in progress after 6 min\n"]);
+  it("shows the live job list through gh run watch, like npm run develop, and returns the successful run", async () => {
+    const { run, calls } = watched("success", "completed", "success");
+    await expect(waitForStableValidation({ repository: "owner/app", runId: 51 }, { run })).resolves.toMatchObject({ conclusion: "success" });
+    expect(calls[0]).toEqual({
+      executable: "gh",
+      args: ["run", "watch", "51", "--repo", "owner/app", "--exit-status", "--interval", "10"],
+    });
   });
 
   it("throws the failed jobs and reasons when validation fails", async () => {
-    const { run } = statuses(["completed", "failure"]);
-    await expect(waitForStableValidation({ repository: "owner/app", runId: 51 }, { run, sleep: async () => {} }))
+    const { run } = watched(new Error("exit status 1"), "completed", "failure");
+    await expect(waitForStableValidation({ repository: "owner/app", runId: 51 }, { run }))
       .rejects.toThrow(/Validate linux-node24: expected 1 to be 2/);
+  });
+
+  it("reports that validation keeps running when watching stops early", async () => {
+    const { run } = watched(new Error("interrupted"), "in_progress", null);
+    await expect(waitForStableValidation({ repository: "owner/app", runId: 51 }, { run }))
+      .rejects.toThrow(/stopped watching validation run 51 while it is in progress; it keeps running/);
   });
 });
