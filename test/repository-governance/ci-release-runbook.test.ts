@@ -90,7 +90,7 @@ describe("CI and release operations runbook", () => {
     expect(runbook).toContain("draft GitHub Release");
     expect(runbook).toContain("## [version] - YYYY-MM-DD");
     expect(runbook).toContain("A pushed tag does not publish npm packages");
-    expect(runbook).toContain("failed pre-publication run needs no manual tag removal");
+    expect(runbook).toMatch(/failed\s+pre-publication run needs no manual tag removal/u);
     expect(runbook).toContain("the stable version is never committed to `develop`");
   });
 
