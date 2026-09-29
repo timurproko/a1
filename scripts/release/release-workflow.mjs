@@ -34,6 +34,7 @@ export function createReleaseRuntime(options = {}) {
       write: text => process.stdout.write(text),
     }),
     log: message => process.stdout.write(`[release] ${message}\n`),
+    error: message => process.stderr.write(`[release] ${message}\n`),
     ...options,
     cwd,
   };
