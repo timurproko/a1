@@ -28,10 +28,13 @@ Budgets are minimum defaults, not promises of capacity. An implementation may lo
 
 Every asynchronous consumer must implement a finite queue or window. Backpressure must isolate the offending agent/pane and must not block unrelated identities.
 
-Stable release-note approval normalizes and bounds the editable draft GitHub Release
-body before hashing it. Publication jobs consume only that immutable snapshot; later
-draft edits cannot expand or replace the package candidate. The same per-note and
-total catalog limits apply when the snapshot is combined with committed history.
+Stable release-note preparation generates Pi-style Markdown with a
+`## [version] - YYYY-MM-DD` heading and applicable categorized `###` sections. Human
+editing remains allowed. Approval normalizes and bounds the editable draft GitHub
+Release body before hashing it; if that version/date heading remains, its version and
+calendar date must be valid. Publication jobs consume only that immutable snapshot;
+later draft edits cannot expand or replace the package candidate. The same per-note
+and total catalog limits apply when the snapshot is combined with committed history.
 
 ## Data classification
 

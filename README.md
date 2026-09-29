@@ -70,5 +70,11 @@ npm run release -- patch               # 0.1.8-dev -> 0.1.8
 npm run release -- minor               # 0.1.8-dev -> 0.2.0
 npm run release -- major               # 0.1.8-dev -> 1.0.0
 npm run release -- 0.4.0               # prepare an exact stable version
-npm run release -- patch --approve     # approve the edited draft Release and publish
 ```
+
+The command creates the editable draft and prints its link once. Review the Pi-style
+`## [version] - YYYY-MM-DD` changelog and choose **Save draft**; the waiting command
+then stages and verifies npm automatically without opening Actions or asking for the
+version again. Wait for `npm ready`, refresh the same Release page without editing the
+body, then use GitHub's native **Publish release** button to create the public Release
+and tag. Using that button before `npm ready` is unsafe and never triggers npm.

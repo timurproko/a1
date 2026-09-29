@@ -4,7 +4,6 @@ export interface ReleasePlan {
   readonly current: string;
   readonly version: string;
   readonly opening: string;
-  readonly approve: boolean;
 }
-export function parseReleaseArguments(args: readonly string[]): { readonly target: string; readonly approve: boolean };
+export function parseReleaseArguments(args: readonly string[]): { readonly target: string };
 export function resolveReleasePlan(current: unknown, args: readonly string[]): ReleasePlan;

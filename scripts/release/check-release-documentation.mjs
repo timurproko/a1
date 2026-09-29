@@ -39,14 +39,21 @@ export function releaseDocumentationFindings(readme, runbook) {
 
   if (!/[Aa] target is required/u.test(runbook)) findings.push("docs/ci-release-runbook.md: missing target-required guidance");
   if (!runbook.includes("0.1.9-dev")) findings.push("docs/ci-release-runbook.md: missing next-development reopening example");
-  if (!/After publication[\s\S]{0,500}0\.1\.9-dev/u.test(runbook)) findings.push("docs/ci-release-runbook.md: missing publication-before-reopening guidance");
+  if (!runbook.includes("release.published") || !runbook.includes("chore/release-0.1.9-dev")) findings.push("docs/ci-release-runbook.md: missing publication-before-reopening guidance");
   if (!/merge (?:it )?manually/u.test(runbook)) findings.push("docs/ci-release-runbook.md: missing manual reopening merge guidance");
   if (/self-merging|merge themselves/u.test(runbook)) findings.push("docs/ci-release-runbook.md: version pull requests cannot self-merge");
-  if (!runbook.includes("npm run release -- patch --approve")) findings.push("docs/ci-release-runbook.md: missing explicit draft approval command");
-  if (!/draft GitHub Release/u.test(runbook) || !/native \*\*Publish release\*\* button/u.test(runbook)) {
+  if (readme.includes("--approve") || runbook.includes("npm run release -- patch --approve")) findings.push("release documentation: retired local --approve command remains");
+  if (!runbook.includes("Save draft") || !runbook.includes("never opens Actions or re-enters the version")
+    || !runbook.includes("reports npm ready") || !runbook.includes("native **Publish release**")) {
+    findings.push("docs/ci-release-runbook.md: missing release-page staging handoff guidance");
+  }
+  if (!readme.includes("## [version] - YYYY-MM-DD") || !runbook.includes("## [version] - YYYY-MM-DD")) {
+    findings.push("release documentation: missing Pi-style generated changelog format");
+  }
+  if (!/draft GitHub Release/u.test(runbook) || !/native\s+\*\*Publish release\*\*(?:\s+button)?/u.test(runbook)) {
     findings.push("docs/ci-release-runbook.md: missing draft Release safety guidance");
   }
-  if (!/Never republish immutable bytes/u.test(runbook) || !/never rerun publication for the published version|do not repeat stable publication/u.test(runbook)) {
+  if (!/never republish immutable bytes/ui.test(runbook) || !/never rerun publication for the published version|do not repeat stable publication|never repeat stable publication/ui.test(runbook)) {
     findings.push("docs/ci-release-runbook.md: missing immutable publication recovery guidance");
   }
   return findings;
