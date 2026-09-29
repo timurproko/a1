@@ -61,6 +61,24 @@ describe("CI and release operations runbook", () => {
     expect(runbook).toContain("until both npm package settings name `publish.yml`");
   });
 
+  it("keeps preferred installer guidance on npm x with an explicit argument boundary", async () => {
+    const [readme, installerReadme, runbook] = await Promise.all([
+      readFile("README.md", "utf8"),
+      readFile("packages/a1-install/README.md", "utf8"),
+      readFile("docs/ci-release-runbook.md", "utf8"),
+    ]);
+    const sources = [readme, installerReadme, runbook];
+    for (const source of sources) {
+      expect(source).not.toMatch(/\bnpx\b[^\n`]*@timurproko\/a1-install/u);
+      expect(source).toContain("npm x -y -- @timurproko/a1-install --develop");
+      expect(source).toContain("npm x -y -- @timurproko/a1-install --develop 107");
+      expect(source).toContain("npm x -y -- @timurproko/a1-install --develop 0.1.8-dev.107");
+    }
+    for (const source of [readme, installerReadme]) {
+      expect(source).toContain("npm x -y -- @timurproko/a1-install");
+    }
+  });
+
   it("says how each channel is published", async () => {
     const runbook = await readFile("docs/ci-release-runbook.md", "utf8");
     expect(runbook).toContain("npm run develop");
