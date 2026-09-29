@@ -5,8 +5,10 @@ Verdict: accepted only when the containing exact pull-request head is manually m
 The manual merge accepts these scenarios:
 - The Agent settings screen persists a live prompt image limit from 1 through 16 and defaults existing profiles to 8.
 - Paste admission and ordinary or queued submission preparation enforce the current limit, while the command contract rejects more than 16 attachments.
+- Count-rejected attachments remain visible as dimmed `not sent` chips but are omitted from provider input and reusable history while accepted content sends normally.
+- Image-bearing prompt dispatch shows `Sending…` with the live spinner until settlement and restores the applicable engine or extension status afterward.
 - Count feedback names the effective image limit, directs users to `/settings`, and renders as a warning rather than an error.
-- Correcting an over-limit draft retires only its active image-count warning and never retries failed overflow images.
+- Correcting an over-limit draft retires only its active image-count warning and never retries rejected overflow images.
 - Settings-free and `a1 pi` comparison sessions retain the fixed eight-image behavior.
 
 ```openspec-delivery
@@ -22,8 +24,10 @@ The manual merge accepts these scenarios:
   "acceptanceScenarios": [
     "The Agent settings screen persists a live prompt image limit from 1 through 16 and defaults existing profiles to 8.",
     "Paste admission and ordinary or queued submission preparation enforce the current limit, while the command contract rejects more than 16 attachments.",
+    "Count-rejected attachments remain visible as dimmed `not sent` chips but are omitted from provider input and reusable history while accepted content sends normally.",
+    "Image-bearing prompt dispatch shows `Sending…` with the live spinner until settlement and restores the applicable engine or extension status afterward.",
     "Count feedback names the effective image limit, directs users to `/settings`, and renders as a warning rather than an error.",
-    "Correcting an over-limit draft retires only its active image-count warning and never retries failed overflow images.",
+    "Correcting an over-limit draft retires only its active image-count warning and never retries rejected overflow images.",
     "Settings-free and `a1 pi` comparison sessions retain the fixed eight-image behavior."
   ],
   "archiveDigest": "ddc9800b1b2aef736c41ea840c28bc064d1b0d372b8c52a92b4d4e5f4c55f9df",
