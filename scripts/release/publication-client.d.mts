@@ -30,9 +30,5 @@ export function dispatchStableValidation(candidate: {
 }): Promise<{ runId: number; url: string; reused: boolean }>;
 export function waitForStableValidation(validation: { repository: string; runId: number }, options?: {
   run?: PublicationRunner;
-  sleep?: (ms: number) => Promise<unknown>;
-  write?: (text: string) => void;
-  now?: () => number;
-  pollIntervalMs?: number;
 }): Promise<Record<string, unknown>>;
 export function localPackageIdentity(): Promise<{ name: string; version: string }>;
