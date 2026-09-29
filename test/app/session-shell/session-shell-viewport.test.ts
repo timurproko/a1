@@ -341,7 +341,7 @@ describe("OwnedUiSessionShell viewport and streaming", () => {
     try {
       terminal.resize(50, 18);
       engine.session.emit({ type: "agent_start" });
-      engine.session.emit({ type: "queue_update", steering: [`${"x".repeat(30)} ${marker}`, "second"], followUp: [] });
+      engine.session.emit({ type: "queue_update", steering: [`${"x".repeat(120)}${marker}`, "second"], followUp: [] });
       await shell.backend.flushEvents();
 
       let rows = shell.root.render(50).map(row => stripTerminalSequences(row));

@@ -92,7 +92,7 @@ describe("Pi shell public component adapters", () => {
     "[🖼  converted-image.png]",
     "[🔗 https://example.com/resource]",
   ])("moves a fitting queued chip intact to its next custom-viewport row: %s", marker => {
-    const queued = createPiQueuedInputStatus([`${"x".repeat(20)} ${marker}`], "custom-viewport");
+    const queued = createPiQueuedInputStatus([`${"x".repeat(70)}${marker}`], "custom-viewport");
     const rows = queued.render(40).map(row => stripTerminalSequences(row).trimEnd());
     expect(rows.filter(row => row.includes(marker))).toHaveLength(1);
     expect(rows.every(row => visibleWidth(row) <= 40)).toBe(true);
@@ -103,7 +103,7 @@ describe("Pi shell public component adapters", () => {
     const second = "[📄 C:/workspace/file.txt]";
     let dequeueBinding = "alt+up";
     const queued = createPiQueuedInputStatus(
-      [`${"x".repeat(20)} ${first}${second}${first}`],
+      [`${"x".repeat(70)}${first}${second}${first}${"y".repeat(70)}`],
       "custom-viewport",
       () => ({ "app.message.dequeue": dequeueBinding as "alt+up" | "ctrl+r" }),
     );
@@ -113,7 +113,7 @@ describe("Pi shell public component adapters", () => {
     expect(rows.some(row => row.includes("Alt+Up to edit all queued messages"))).toBe(true);
 
     dequeueBinding = "ctrl+r";
-    queued.update([`updated ${second}`, "[ordinary bracketed text]"]);
+    queued.update([`updated${second}tail`, "[ordinary bracketed text]"]);
     rows = queued.render(40).map(row => stripTerminalSequences(row).trimEnd());
     expect(rows.join("\n")).not.toContain("screenshot-0123456789");
     expect(rows.filter(row => row.includes(second))).toHaveLength(1);
@@ -121,16 +121,18 @@ describe("Pi shell public component adapters", () => {
     expect(rows.some(row => row.includes("Ctrl+R to edit all queued messages"))).toBe(true);
   });
 
-  it("keeps oversized queued chips width-safe and leaves pinned queue wrapping unchanged", () => {
+  it("ellipsizes an oversized queued chip on one row and leaves pinned queue wrapping unchanged", () => {
     const marker = "[📷 screenshot-👩‍💻-0123456789]";
     const custom = createPiQueuedInputStatus([marker], "custom-viewport");
     const customRows = custom.render(14).map(row => stripTerminalSequences(row).trimEnd());
-    const joinedCustom = customRows.map(row => row.startsWith(" ") ? row.slice(1) : row).join("");
     expect(customRows.every(row => visibleWidth(row) <= 14)).toBe(true);
-    expect(joinedCustom).toContain(marker);
+    expect(customRows.filter(row => row.includes("…"))).toHaveLength(1);
+    expect(customRows.join("\n")).not.toContain("0123456789");
+    expect(custom.render(80).map(stripTerminalSequences).some(row => row.includes(marker))).toBe(true);
+    expect(custom.render(14).map(stripTerminalSequences).filter(row => row.includes("…"))).toHaveLength(1);
 
     const fitting = `[📷 screenshot-0123456789]`;
-    const pinned = createPiQueuedInputStatus([`${"x".repeat(20)} ${fitting}`], "pinned");
+    const pinned = createPiQueuedInputStatus([`${"x".repeat(70)}${fitting}`], "pinned");
     const pinnedRows = pinned.render(40).map(row => stripTerminalSequences(row).trimEnd());
     expect(pinnedRows.some(row => row.includes(fitting))).toBe(false);
     expect(pinnedRows.some(row => row.includes("[📷"))).toBe(true);
@@ -570,15 +572,15 @@ describe("Pi shell public component adapters", () => {
       "[🔗 https://x.dev]",
     ];
     for (const chip of chips) {
-      const source = block("user", `${prefix} ${chip}`);
+      const source = block("user", `${prefix.repeat(5)}${chip}suffix`);
       const component = createPiShellTranscriptComponent(source, process.cwd(), undefined, composer,
         1, false, "off", false, 40, { resolve: () => null });
       const rawRows = component.render(40);
       const rows = rawRows.map(row => stripTerminalSequences(row).trimEnd());
       expect(rows.filter(row => row.includes(chip)), chip).toHaveLength(1);
-      expect(rows.find(row => row.includes(chip)), chip).toBe(`  ${chip}`);
+      expect(rows.find(row => row.includes(chip)), chip).toContain(chip);
       expect(rawRows.every(row => visibleWidth(row) <= 40), chip).toBe(true);
-      expect(source.text).toBe(`${prefix} ${chip}`);
+      expect(source.text).toBe(`${prefix.repeat(5)}${chip}suffix`);
     }
   });
 
@@ -615,14 +617,19 @@ describe("Pi shell public component adapters", () => {
     expect(ordinaryRows.some(row => row.includes(ordinary))).toBe(false);
   });
 
-  it("keeps oversized chips complete in source while every fallback row remains width-bounded", () => {
+  it("ellipsizes an oversized submitted chip on one row while keeping its complete source", () => {
     const composer = { layout: submittedPromptLayout, compose: composeSubmittedPromptRows };
     const chip = "[📷 screenshot-0123456789-extra-long-label]";
     const source = block("user", chip);
-    const rows = createPiShellTranscriptComponent(source, process.cwd(), undefined, composer,
-      1, false, "off", false, 14, { resolve: () => null }).render(14);
-    expect(rows.length).toBeGreaterThan(1);
+    const component = createPiShellTranscriptComponent(source, process.cwd(), undefined, composer,
+      1, false, "off", false, 14, { resolve: () => null });
+    const rows = component.render(14);
+    const visible = rows.map(row => stripTerminalSequences(row).trimEnd());
+    expect(visible.filter(row => row.includes("…"))).toHaveLength(1);
+    expect(visible.join("\n")).not.toContain("0123456789");
     expect(rows.every(row => visibleWidth(row) <= 14)).toBe(true);
+    expect(component.render(80).map(stripTerminalSequences).some(row => row.includes(chip))).toBe(true);
+    expect(component.render(14).map(stripTerminalSequences).filter(row => row.includes("…"))).toHaveLength(1);
     expect(source.text).toBe(chip);
   });
 

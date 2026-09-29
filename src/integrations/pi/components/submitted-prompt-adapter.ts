@@ -1,6 +1,7 @@
 import { getMarkdownTheme } from "../startup-public.js";
 import { Box, Markdown, Text, type Component } from "@earendil-works/pi-tui";
-import { protectPromptChipWrapping, type OwnedUiTranscriptBlock } from "../../../contracts/owned-ui/index.js";
+import type { OwnedUiTranscriptBlock, PromptChipWrapProtection } from "../../../contracts/owned-ui/index.js";
+import { protectPiPromptChipPresentation } from "./prompt-chip-presentation.js";
 import { piTheme } from "./theme.js";
 
 export interface PiShellSubmittedPromptComposer {
@@ -39,20 +40,29 @@ export function createPiSubmittedPromptComponent(
   const timestamp = numericTimestamp(block);
   // Invariant: presentation-only chrome stays outside the summary's Markdown parser and stored text.
   const header = heading === undefined ? undefined : new Text(heading, 0, 0);
-  const chipWrapping = block.kind === "user" ? protectPromptChipWrapping(block.text) : undefined;
+  let chipWrapping: PromptChipWrapProtection | undefined;
   const markdown = new Markdown(
-    chipWrapping?.text ?? block.text,
+    block.text,
     0,
     0,
     getMarkdownTheme(),
     { color: content => piTheme().fg("userMessageText", content) },
-    { preserveOrderedListMarkers: true, preserveBackslashEscapes: true },
+    {
+      preserveOrderedListMarkers: true,
+      preserveBackslashEscapes: true,
+      ...(block.kind === "user" ? { transform: (text: string, width: number) => {
+        const wrapping = protectPiPromptChipPresentation(text, width);
+        chipWrapping = wrapping;
+        return wrapping.text;
+      } } : {}),
+    },
   );
   const content: Component = {
     render(width: number): string[] {
       const layout = composer.layout(width, timestamp);
       const renderedBodyRows = markdown.render(layout.contentWidth);
-      const bodyRows = chipWrapping === undefined ? renderedBodyRows : renderedBodyRows.map(row => chipWrapping.restore(row));
+      const wrapping = chipWrapping;
+      const bodyRows = wrapping === undefined ? renderedBodyRows : renderedBodyRows.map(row => wrapping.restore(row));
       const rows = header === undefined ? bodyRows : [
         ...header.render(layout.contentWidth).map(row => piTheme().fg("userMessageText", row)),
         ...(bodyRows.length === 0 ? [] : ["", ...bodyRows]),

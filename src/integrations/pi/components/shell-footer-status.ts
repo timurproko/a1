@@ -5,14 +5,14 @@ import {
   type Component,
   type TUI,
 } from "@earendil-works/pi-tui";
-import {
-  protectPromptChipWrapping,
-  type OwnedUiSessionViewModel,
-  type PromptChipWrapProtection,
+import type {
+  OwnedUiSessionViewModel,
+  PromptChipWrapProtection,
 } from "../../../contracts/owned-ui/index.js";
 import { SessionFooter } from "./upstream/components/session-footer.js";
 import { KeybindingsManager, type KeybindingsConfig } from "./upstream/adjacent/core/keybindings.js";
 import { StatusIndicator, WorkingStatusIndicator } from "./upstream/components/status-indicator.js";
+import { protectPiPromptChipPresentation } from "./prompt-chip-presentation.js";
 import {
   PINNED_PI_LAYOUT,
   piTheme,
@@ -179,19 +179,25 @@ export function createPiQueuedInputStatus(
   getKeybindings?: () => KeybindingsConfig,
 ): PiShellQueuedInputPort {
   let renderedText = queuedInputText(submissions, presentation, getKeybindings?.());
-  let chipWrapping = queuedInputChipWrapping(renderedText, presentation);
-  const text = new Text(chipWrapping.text, 1, 0);
+  let chipWrapping: PromptChipWrapProtection = { text: renderedText, restore: value => value };
+  let protectedWidth: number | undefined;
+  const text = new Text(renderedText, 1, 0);
   const refresh = () => {
     const next = queuedInputText(submissions, presentation, getKeybindings?.());
     if (next === renderedText) return;
     renderedText = next;
-    chipWrapping = queuedInputChipWrapping(next, presentation);
-    text.setText(chipWrapping.text);
+    protectedWidth = undefined;
   };
   return {
     render(width) {
       if (submissions.length === 0) return [];
       refresh();
+      const contentWidth = queuedTextContentWidth(width);
+      if (contentWidth !== protectedWidth) {
+        chipWrapping = queuedInputChipWrapping(renderedText, presentation, contentWidth);
+        text.setText(chipWrapping.text);
+        protectedWidth = contentWidth;
+      }
       return text.render(width).map(row => chipWrapping.restore(row));
     },
     invalidate: () => text.invalidate(),
@@ -283,10 +289,16 @@ function statusSignature(
 function queuedInputChipWrapping(
   text: string,
   presentation: "pinned" | "custom-viewport",
+  width: number,
 ): PromptChipWrapProtection {
   return presentation === "custom-viewport"
-    ? protectPromptChipWrapping(text)
+    ? protectPiPromptChipPresentation(text, width)
     : { text, restore: value => value };
+}
+
+function queuedTextContentWidth(width: number): number {
+  const padding = Math.min(1, Math.max(0, Math.floor((width - 1) / 2)));
+  return Math.max(1, width - padding * 2);
 }
 
 function queuedInputText(

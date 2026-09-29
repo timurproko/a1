@@ -471,14 +471,14 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
     }
   });
 
-  it("moves a fitting screenshot chip whole to the next submitted-prompt row", async () => {
+  it("keeps a fitting screenshot chip whole beside uninterrupted submitted-prompt text", async () => {
     const { engine, adapter, shell, terminal } = await fixture([], [], true);
     const marker = "[📷 screenshot-0123456789]";
     try {
       terminal.resize(50, 20);
       engine.session.emit({ type: "message_start", message: {
         role: "user",
-        content: [{ type: "text", text: `${"1".repeat(30)} ${marker}` }],
+        content: [{ type: "text", text: `${"1".repeat(120)}${marker}${"2".repeat(40)}` }],
         timestamp: 1_000,
       } });
       await adapter.flushEvents();
@@ -486,6 +486,7 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
       const chipRows = rows.filter(row => row.includes("[📷") || row.includes("screenshot-0123456789"));
       expect(chipRows).toHaveLength(1);
       expect(chipRows[0]).toContain(marker);
+      expect(rows.join("").replace(/\s/gu, "")).toContain("2".repeat(40));
     } finally { await shell.dispose(); }
   });
 
