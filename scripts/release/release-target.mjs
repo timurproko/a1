@@ -1,6 +1,6 @@
 import semver from "semver";
 
-export const RELEASE_USAGE = "Usage: npm run release -- <patch|minor|major|x.y.z>\nA target is required. Patch: 0.1.8-dev -> 0.1.8. The command prepares a draft Release and starts its validation; choosing Publish release on that draft publishes npm.";
+export const RELEASE_USAGE = "Usage: npm run release -- <patch|minor|major|x.y.z>\nA target is required. Patch: 0.1.8-dev -> 0.1.8. The command prepares a draft Release, waits for its validation, then shows the draft; choosing Publish release on that draft publishes npm.";
 const BUMPS = new Set(["patch", "minor", "major"]);
 const STABLE = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/u;
 
