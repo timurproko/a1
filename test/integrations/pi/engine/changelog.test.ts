@@ -37,6 +37,9 @@ describe("published changelog command data", () => {
       for (const since of [undefined, "3.1.0", "3.2.1", "2.0.0", "", "invalid"]) {
         expect(formatPinnedCommandChangelog(text, since), String(since)).toBe(expected(entries, since));
       }
+      const complete = formatPinnedCommandChangelog(text);
+      expect(complete.indexOf("oldest release")).toBeLessThan(complete.indexOf("older release"));
+      expect(complete.indexOf("older release")).toBeLessThan(complete.indexOf("synthetic release"));
       expect(formatPinnedCommandChangelog("# No releases")).toBe("No changelog entries found.");
       expect(formatPinnedCommandChangelog("# No releases", "1.0.0")).toBe("");
     } finally { await rm(directory, { recursive: true, force: true }); }
