@@ -1,8 +1,10 @@
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
+import { setTimeout as sleep } from "node:timers/promises";
 import { isDeepStrictEqual } from "node:util";
 import semver from "semver";
-import { registryVersion, run } from "./publication-client.mjs";
+import { dispatchStableStaging, registryVersion, run } from "./publication-client.mjs";
 import { parseReleaseArguments, resolveReleasePlan } from "./release-target.mjs";
 import { parseReleaseNote, renderReleaseNoteDraft } from "./release-notes.mjs";
 
@@ -24,13 +26,19 @@ export function createReleaseRuntime(options = {}) {
     gh,
     releaseChanges: (base, source) => collectReleaseChanges(git, gh, base, source),
     registry: (name, version) => registryVersion(name, version, (url, init) => fetch(url, { ...init, signal: options.signal })),
+    wait: milliseconds => sleep(milliseconds, undefined, { signal: options.signal }),
+    reviewPollIntervalMs: 3_000,
+    now: () => Date.now(),
+    dispatchStable: candidate => dispatchStableStaging(candidate, {
+      run: (executable, args, commandOptions = {}) => run(executable, args, { cwd, ...commandOptions }),
+    }),
     log: message => process.stdout.write(`[release] ${message}\n`),
     ...options,
     cwd,
   };
 }
 
-/** Prepares one source-bound draft; stable approval belongs exclusively to GitHub Actions. */
+/** Prepares one source-bound draft, waits for Save draft, and follows trusted npm staging. */
 export async function runRelease(args, runtime) {
   parseReleaseArguments(args);
   const r = runtime;
@@ -52,16 +60,28 @@ export async function runRelease(args, runtime) {
   assertSameSnapshot(readVersionsAt(r, source), local, "caller manifest differs from authoritative develop");
 
   try {
-    await assertPackagePairAbsent(r, local.manifest.name, local.installer.name, plan.version);
+    const packages = await readPackagePair(r, local.manifest.name, local.installer.name, plan.version);
     assertAuthoritative(r, source, plan.current, local.manifest.name);
     const repository = repositoryName(r);
+    if (packages.application !== null || packages.installer !== null) {
+      const staged = readCompletedStaging(r, repository, source, plan.version, local, packages);
+      r.log(`npm staging was already verified in run ${staged.stagingRunId}. Refresh ${staged.draft.url}, do not edit the body, then choose Publish release.`);
+      return { ...plan, source, draft: staged.draft, stagingRunId: staged.stagingRunId, reopened: null };
+    }
     const draft = await prepareDraftRelease(r, repository, source, plan.version, local);
+    await armReviewSaveWindow(r, draft);
     r.log(`Draft release ready for editing: ${draft.url}`);
-    r.log(`Approve stable release after review: https://github.com/${repository}/actions/workflows/approve-release.yml`);
-    return { ...plan, source: draft.source, draft, reopened: null };
+    r.log("Review the changelog and choose Save draft. Waiting for that fresh save before npm staging.");
+    const reviewed = await waitForDraftSave(r, repository, draft, local);
+    assertAuthoritative(r, source, plan.current, local.manifest.name);
+    const stagingRunId = await r.dispatchStable({
+      repository, releaseId: reviewed.id, source, version: plan.version, reviewedUpdatedAt: reviewed.updatedAt,
+    });
+    r.log(`npm staging succeeded in run ${stagingRunId}. Refresh the same Release page, do not edit the body, then choose Publish release.`);
+    return { ...plan, source: reviewed.source, draft: reviewed, stagingRunId, reopened: null };
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
-    throw new Error(`draft release preparation stopped: ${detail}\nPublication of ${plan.version} was not dispatched. Inspect the draft, registry and tag state before retrying.`, { cause: error });
+    throw new Error(`stable release staging stopped: ${detail}\nIf package upload may have started, resume the same immutable Actions run; never move or recreate the tag.`, { cause: error });
   }
 }
 
@@ -104,12 +124,36 @@ function assertAuthoritative(r, source, version, name) {
   if (fetchDevelop(r) !== source) throw new Error(`authoritative develop no longer matches selected source ${source}; refusing to substitute another commit`);
   assertVersions(readVersionsAt(r, source), version, name);
 }
-async function assertPackagePairAbsent(r, application, installer, version) {
+async function readPackagePair(r, application, installer, version) {
   checkCanceled(r);
   const [app, install] = await Promise.all([r.registry(application, version), r.registry(installer, version)]);
-  if (app !== null || install !== null) {
-    throw new Error(`${version} already exists for ${[app && application, install && installer].filter(Boolean).join(" and ")}; stable versions are never republished`);
+  return { application: app, installer: install };
+}
+function readCompletedStaging(r, repository, source, version, local, packages) {
+  if (packages.application === null || packages.installer === null) {
+    throw new Error(`${version} exists for only one package; rerun the failed jobs of the same immutable staging run`);
   }
+  const matches = listVersionReleases(r, repository, version);
+  if (matches.length !== 1) throw new Error(`${version} already exists without one exact staged draft Release`);
+  const draft = assertDraftRelease(matches[0], source, version);
+  const receipts = Array.isArray(matches[0]?.assets) ? matches[0].assets.filter(asset => asset?.name === "a1-stable-staging-v1.json") : [];
+  if (receipts.length !== 1 || !Number.isSafeInteger(receipts[0]?.id)) throw new Error(`${version} already exists without one exact staging receipt`);
+  const receipt = JSON.parse(r.gh(["api", "-H", "Accept: application/octet-stream", `repos/${repository}/releases/assets/${receipts[0].id}`]));
+  const noteDigest = createHash("sha256").update(draft.markdown, "utf8").digest("hex");
+  const workflowRun = JSON.parse(r.gh(["api", `repos/${repository}/actions/runs/${receipt.runId}`]));
+  const master = JSON.parse(r.gh(["api", `repos/${repository}/git/ref/heads/master`]));
+  const assets = Array.isArray(matches[0].assets) ? matches[0].assets : [];
+  if (receipt?.schema !== "a1-stable-staging-v1" || receipt.repository !== repository
+    || receipt.releaseId !== draft.id || receipt.version !== version || receipt.source !== source || receipt.master !== source
+    || receipt.releaseNotesSha256 !== noteDigest || receipt.application?.name !== local.manifest.name
+    || receipt.application?.integrity !== packages.application?.dist?.integrity || receipt.installer?.name !== local.installer.name
+    || receipt.installer?.integrity !== packages.installer?.dist?.integrity || master?.object?.sha !== source
+    || workflowRun?.id !== receipt.runId || workflowRun?.path !== ".github/workflows/approve-release.yml"
+    || workflowRun?.event !== "repository_dispatch" || workflowRun?.head_sha !== source || workflowRun?.conclusion !== "success"
+    || assets.filter(asset => asset?.name === receipt.asset?.name).length !== 1 || remoteTagCommit(r, version) !== null) {
+    throw new Error(`${version} registry bytes do not match exact successful draft staging evidence`);
+  }
+  return { draft, stagingRunId: receipt.runId };
 }
 function repositoryName(r) {
   const repository = r.gh(["repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"]);
@@ -137,12 +181,32 @@ function assertDraftRelease(value, source, version) {
   if (!value || !Number.isSafeInteger(value.id) || value.id < 1 || value.tag_name !== `v${version}`
     || value.target_commitish !== source || value.name !== `v${version}` || value.draft !== true
     || value.prerelease !== false || typeof value.body !== "string" || typeof value.html_url !== "string"
-    || !value.html_url.startsWith("https://") || !value.html_url.includes("/releases/tag/")) {
+    || !value.html_url.startsWith("https://") || !value.html_url.includes("/releases/tag/")
+    || typeof value.updated_at !== "string" || Number.isNaN(Date.parse(value.updated_at))) {
     throw new Error(`v${version} GitHub Release is not the expected editable draft for source ${source}`);
   }
   const note = parseReleaseNote(value.body, version);
   const url = value.html_url.replace("/releases/tag/", "/releases/edit/");
-  return Object.freeze({ id: value.id, url, version, source, markdown: note.markdown });
+  return Object.freeze({ id: value.id, url, version, source, markdown: note.markdown, updatedAt: value.updated_at });
+}
+async function armReviewSaveWindow(r, draft) {
+  // GitHub Release timestamps have one-second precision. Do not expose the editing URL
+  // until a subsequent unchanged-body save can be distinguished from preparation.
+  const remaining = Date.parse(draft.updatedAt) + 1_001 - r.now();
+  if (remaining > 0) await r.wait(remaining);
+}
+async function waitForDraftSave(r, repository, baseline, local) {
+  const baselineTime = Date.parse(baseline.updatedAt);
+  for (;;) {
+    checkCanceled(r);
+    await r.wait(r.reviewPollIntervalMs);
+    const current = assertDraftRelease(JSON.parse(r.gh(["api", `repos/${repository}/releases/${baseline.id}`])), baseline.source, baseline.version);
+    if (current.id !== baseline.id) throw new Error("reviewed draft database identity changed");
+    if (Date.parse(current.updatedAt) > baselineTime) {
+      assertAuthoritative(r, baseline.source, local.manifest.version, local.manifest.name);
+      return current;
+    }
+  }
 }
 async function normalBaseline(r, source) {
   r.git(["fetch", "origin", "--tags"]);

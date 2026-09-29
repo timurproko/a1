@@ -15,11 +15,15 @@ on:
         required: false
         type: string
       request_id:
-        description: Caller correlation identifier for development publication
+        description: Caller correlation identifier; never publication authority
         required: false
         type: string
       version:
-        description: Stable version selected by the human approval workflow
+        description: Stable version derived by the reviewed-draft staging wrapper
+        required: false
+        type: string
+      release_id:
+        description: Draft Release selector derived by the reviewed-draft staging wrapper
         required: false
         type: string
 
@@ -53,6 +57,7 @@ jobs:
           REQUESTED_CHANNEL: ${{ inputs.channel }}
           REQUESTED_SHA: ${{ inputs.source_sha }}
           REQUESTED_VERSION: ${{ inputs.version }}
+          REQUESTED_RELEASE_ID: ${{ inputs.release_id }}
           REQUEST_ID: ${{ inputs.request_id }}
         run: |
           set -euo pipefail
@@ -66,17 +71,19 @@ jobs:
             if [ "$mode" = "stable" ]; then
               expected_workflow="$GITHUB_REPOSITORY/.github/workflows/approve-release.yml@refs/heads/develop"
               if [ "$EVENT_NAME" != "workflow_call" ] || [ "$GITHUB_REF" != "refs/heads/develop" ] || [ "$GITHUB_WORKFLOW_REF" != "$expected_workflow" ]; then
-                echo "::error::stable approval must originate from the trusted default-branch Approve stable release workflow" >&2
+                echo "::error::stable staging must originate from the trusted default-branch saved-draft workflow" >&2
                 exit 1
               fi
               source="$authoritative"
               requested_version="$REQUESTED_VERSION"
-              if [[ ! "$requested_version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
-                echo "::error::stable publication requires an explicit final version, not '$requested_version'" >&2
+              if [[ ! "$requested_version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] \
+                || [[ ! "$REQUESTED_RELEASE_ID" =~ ^[1-9][0-9]*$ ]] \
+                || [[ ! "$REQUEST_ID" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$ ]]; then
+                echo "::error::stable staging requires trusted derived version, Release and correlation selectors" >&2
                 exit 1
               fi
-              if [ -n "$REQUESTED_SHA" ] || [ -n "$REQUEST_ID" ]; then
-                echo "::error::stable approval derives source and identity inside trusted workflow code" >&2
+              if [ -n "$REQUESTED_SHA" ]; then
+                echo "::error::stable staging derives source inside trusted workflow code" >&2
                 exit 1
               fi
             elif [ "$mode" = "develop" ]; then
@@ -86,7 +93,7 @@ jobs:
                 exit 1
               fi
               source="$REQUESTED_SHA"
-              if [ "$source" != "$authoritative" ] || [ -z "$REQUEST_ID" ] || [ -n "$REQUESTED_VERSION" ]; then
+              if [ "$source" != "$authoritative" ] || [ -z "$REQUEST_ID" ] || [ -n "$REQUESTED_VERSION" ] || [ -n "$REQUESTED_RELEASE_ID" ]; then
                 echo "::error::development publication requires its exact current source and request identity only" >&2
                 exit 1
               fi
@@ -128,6 +135,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           ACTOR: ${{ github.actor }}
           RELEASE_VERSION: ${{ needs.source.outputs.requested_version }}
+          EXPECTED_RELEASE_ID: ${{ inputs.release_id }}
           SOURCE_SHA: ${{ needs.source.outputs.sha }}
         run: |
           set -euo pipefail
@@ -143,6 +151,7 @@ jobs:
           const actorName = process.env.ACTOR;
           const version = process.env.RELEASE_VERSION;
           const source = process.env.SOURCE_SHA;
+          const expectedReleaseId = Number(process.env.EXPECTED_RELEASE_ID);
           const headers = { accept: "application/vnd.github+json", authorization: `Bearer ${token}`, "x-github-api-version": "2022-11-28" };
           const api = async (path, allowMissing = false) => {
             const response = await fetch(`https://api.github.com/${path}`, { headers });
@@ -172,7 +181,7 @@ jobs:
             npm(application.name, version, true), npm(installer.name, version, true),
           ]);
           const { release, note, sha256 } = validateStableApproval({
-            version, source, releases, application, lock, installer, existingApplication, existingInstaller,
+            version, source, releases, expectedReleaseId, application, lock, installer, existingApplication, existingInstaller,
           });
           await writeFile(".artifacts/release-note/draft.json", `${JSON.stringify(release, null, 2)}\n`, "utf8");
           await writeFile(".artifacts/release-note/approved-note.md", note.markdown, "utf8");
@@ -932,7 +941,7 @@ jobs:
           retention-days: 30
 
   complete:
-    name: Complete release records
+    name: Complete stable staging records
     needs: [plan, package, publish, post_publish]
     if: always() && needs.plan.result == 'success' && needs.plan.outputs.work == 'true' && (needs.plan.outputs.build == 'true' || needs.plan.outputs.installer_build == 'true') && needs.package.result == 'success' && needs.publish.result == 'success' && needs.post_publish.result == 'success'
     runs-on: ubuntu-24.04
@@ -997,7 +1006,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RELEASE_VERSION: ${{ needs.plan.outputs.version }}
         run: gh release upload "v${RELEASE_VERSION}" "$release_tarball" --repo "$GITHUB_REPOSITORY" --clobber
-      - name: Move master to the published release
+      - name: Move master to the npm-staged release
         if: needs.plan.outputs.channel == 'latest'
         shell: bash
         env:
@@ -1007,119 +1016,103 @@ jobs:
           if ! response="$(gh api -X PATCH "repos/$GITHUB_REPOSITORY/git/refs/heads/master" -f "sha=$SOURCE_SHA" -F force=false 2>&1)"; then
             echo "::error::could not fast-forward master to ${SOURCE_SHA}: ${response}" >&2; exit 1
           fi
-      - name: Publish the approved draft GitHub Release
+      - name: Require the approved draft to remain unchanged after staging
         if: needs.plan.outputs.channel == 'latest'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_ID: ${{ needs.plan.outputs.release_id }}
+          RELEASE_VERSION: ${{ needs.plan.outputs.version }}
+          RELEASE_NOTES_SHA256: ${{ needs.plan.outputs.release_notes_sha256 }}
+          SOURCE_SHA: ${{ needs.plan.outputs.source }}
+        run: |
+          set -euo pipefail
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v${RELEASE_VERSION}" >/dev/null 2>&1; then
+            echo "::error::v${RELEASE_VERSION} appeared before native Release publication" >&2
+            exit 1
+          fi
+          gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" > .artifacts/release-note/post-staging.json
+          node --input-type=module <<'NODE'
+          import { createHash } from "node:crypto";
+          import { readFile } from "node:fs/promises";
+          const release = JSON.parse(await readFile(".artifacts/release-note/post-staging.json", "utf8"));
+          const normalized = typeof release.body === "string" ? `${release.body.replaceAll("\r\n", "\n").trimEnd()}\n` : "";
+          const digest = createHash("sha256").update(normalized, "utf8").digest("hex");
+          if (release.id !== Number(process.env.RELEASE_ID) || release.tag_name !== `v${process.env.RELEASE_VERSION}`
+            || release.name !== `v${process.env.RELEASE_VERSION}` || release.target_commitish !== process.env.SOURCE_SHA
+            || release.draft !== true || release.prerelease !== false || digest !== process.env.RELEASE_NOTES_SHA256) {
+            throw new Error("approved GitHub Release changed before staging receipt publication");
+          }
+          NODE
+      - name: Write exact stable staging receipt
+        if: needs.plan.outputs.channel == 'latest'
+        shell: bash
+        env:
+          RELEASE_ID: ${{ needs.plan.outputs.release_id }}
           RELEASE_NOTES_SHA256: ${{ needs.plan.outputs.release_notes_sha256 }}
           RELEASE_VERSION: ${{ needs.plan.outputs.version }}
           SOURCE_SHA: ${{ needs.plan.outputs.source }}
+          REQUEST_ID: ${{ inputs.request_id }}
+          APPLICATION_INTEGRITY: ${{ needs.package.outputs.integrity }}
+          INSTALLER_INTEGRITY: ${{ needs.package.outputs.installer_integrity }}
         run: |
           set -euo pipefail
           node --input-type=module <<'NODE'
           import { createHash } from "node:crypto";
+          import { basename } from "node:path";
           import { readFile, writeFile } from "node:fs/promises";
-          const body = await readFile(".artifacts/release-note/approved-note.md", "utf8");
-          const sha256 = createHash("sha256").update(body, "utf8").digest("hex");
-          if (sha256 !== process.env.RELEASE_NOTES_SHA256) throw new Error("approved release-note artifact digest changed");
-          await writeFile(".artifacts/release-note/publish.json", JSON.stringify({
-            tag_name: `v${process.env.RELEASE_VERSION}`,
-            target_commitish: process.env.SOURCE_SHA,
-            name: `v${process.env.RELEASE_VERSION}`,
-            body,
-            draft: false,
-            prerelease: false,
-            make_latest: "true",
-          }));
+          const application = JSON.parse(await readFile("package.json", "utf8"));
+          const installer = JSON.parse(await readFile("packages/a1-install/package.json", "utf8"));
+          const tarball = process.env.release_tarball;
+          const asset = await readFile(tarball);
+          const receipt = {
+            schema: "a1-stable-staging-v1",
+            repository: process.env.GITHUB_REPOSITORY,
+            workflowPath: ".github/workflows/approve-release.yml",
+            runId: Number(process.env.GITHUB_RUN_ID),
+            runAttempt: Number(process.env.GITHUB_RUN_ATTEMPT),
+            actor: process.env.GITHUB_ACTOR,
+            requestId: process.env.REQUEST_ID,
+            releaseId: Number(process.env.RELEASE_ID),
+            version: process.env.RELEASE_VERSION,
+            source: process.env.SOURCE_SHA,
+            releaseNotesSha256: process.env.RELEASE_NOTES_SHA256,
+            application: { name: application.name, integrity: process.env.APPLICATION_INTEGRITY },
+            installer: { name: installer.name, integrity: process.env.INSTALLER_INTEGRITY },
+            asset: { name: basename(tarball), sha256: createHash("sha256").update(asset).digest("hex") },
+            master: process.env.SOURCE_SHA,
+          };
+          await writeFile(".artifacts/release-note/a1-stable-staging-v1.json", `${JSON.stringify(receipt, null, 2)}\n`, "utf8");
           NODE
-          gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" --input .artifacts/release-note/publish.json > .artifacts/release-note/published.json
-          tag_identity="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v${RELEASE_VERSION}" --jq '.object.type + " " + .object.sha')"
-          if [ "$tag_identity" != "commit $SOURCE_SHA" ]; then
-            echo "::error::published Release tag identity is '$tag_identity', expected 'commit $SOURCE_SHA'" >&2
-            exit 1
-          fi
-          node --input-type=module <<'NODE'
-          import { createHash } from "node:crypto";
-          import { readFile } from "node:fs/promises";
-          const release = JSON.parse(await readFile(".artifacts/release-note/published.json", "utf8"));
-          const body = await readFile(".artifacts/release-note/approved-note.md", "utf8");
-          const sha256 = typeof release.body === "string"
-            ? createHash("sha256").update(release.body, "utf8").digest("hex") : "";
-          if (release.id !== Number(process.env.RELEASE_ID) || release.draft !== false || release.prerelease !== false
-            || release.name !== `v${process.env.RELEASE_VERSION}` || release.tag_name !== `v${process.env.RELEASE_VERSION}`
-            || release.target_commitish !== process.env.SOURCE_SHA || release.body !== body
-            || sha256 !== process.env.RELEASE_NOTES_SHA256) {
-            throw new Error("GitHub did not publish the approved draft with the expected identity and exact body");
-          }
-          NODE
-
-  reopen:
-    name: Prepare manual development reopening
-    needs: [plan, complete]
-    if: always() && needs.plan.outputs.mode == 'stable' && needs.complete.result == 'success'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    permissions:
-      contents: write
-      pull-requests: write
-    steps:
-      - name: Mint the proposal identity
-        id: proposal-token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
-        with:
-          app-id: ${{ secrets.OPENSPEC_ARCHIVE_APP_ID }}
-          private-key: ${{ secrets.OPENSPEC_ARCHIVE_APP_PRIVATE_KEY }}
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
-        with:
-          ref: develop
-          fetch-depth: 0
-          persist-credentials: true
-          token: ${{ steps.proposal-token.outputs.token }}
-      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
-        with:
-          node-version: 24
-          cache: npm
-      - run: npm ci --ignore-scripts
-      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
-        with:
-          name: approved-release-note-${{ github.run_id }}
-          path: .artifacts/release-note
-      - name: Create or verify the exact reopening pull request
-        id: reopen
+      - name: Attach the immutable staging receipt
+        if: needs.plan.outputs.channel == 'latest'
         shell: bash
         env:
-          GH_TOKEN: ${{ steps.proposal-token.outputs.token }}
+          GH_TOKEN: ${{ github.token }}
           RELEASE_VERSION: ${{ needs.plan.outputs.version }}
-          SOURCE_SHA: ${{ needs.plan.outputs.source }}
-          RELEASE_NOTES_SHA256: ${{ needs.plan.outputs.release_notes_sha256 }}
-          APPROVED_NOTE_PATH: .artifacts/release-note/approved-note.md
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          node scripts/release/prepare-reopening.mjs
-      - name: Report manual reopening requirement
+        run: gh release upload "v${RELEASE_VERSION}" .artifacts/release-note/a1-stable-staging-v1.json --repo "$GITHUB_REPOSITORY" --clobber
+      - name: Report native publication handoff
+        if: needs.plan.outputs.channel == 'latest'
         shell: bash
         env:
-          PR_URL: ${{ steps.reopen.outputs.url }}
-        run: echo "Stable publication is complete. Required CI must pass on $PR_URL, then an authorized human must merge it manually." >> "$GITHUB_STEP_SUMMARY"
+          RELEASE_ID: ${{ needs.plan.outputs.release_id }}
+        run: echo "npm staging is complete for draft Release ${RELEASE_ID}. Refresh the Release page, do not edit the body, then choose Publish release." >> "$GITHUB_STEP_SUMMARY"
 
   result:
     name: Publication result
     if: always()
-    needs: [plan, guardians, package, validate, publish, post_publish, complete, reopen]
+    needs: [plan, guardians, package, validate, publish, post_publish, complete]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - name: Download validation evidence for the failure summary
-        if: always() && needs.plan.outputs.work == 'true' && (needs.package.result != 'success' || needs.validate.result != 'success' || ((needs.plan.outputs.build == 'true' || needs.plan.outputs.installer_build == 'true') && (needs.publish.result != 'success' || needs.post_publish.result != 'success' || needs.complete.result != 'success' || (needs.plan.outputs.mode == 'stable' && needs.reopen.result != 'success'))))
+        if: always() && needs.plan.outputs.work == 'true' && (needs.package.result != 'success' || needs.validate.result != 'success' || ((needs.plan.outputs.build == 'true' || needs.plan.outputs.installer_build == 'true') && (needs.publish.result != 'success' || needs.post_publish.result != 'success' || needs.complete.result != 'success')))
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           pattern: release-validation-${{ needs.plan.outputs.version }}-*
           path: .artifacts/lanes
       - name: Summarize the failed outcome
-        if: always() && needs.plan.outputs.work == 'true' && (needs.package.result != 'success' || needs.validate.result != 'success' || ((needs.plan.outputs.build == 'true' || needs.plan.outputs.installer_build == 'true') && (needs.publish.result != 'success' || needs.post_publish.result != 'success' || needs.complete.result != 'success' || (needs.plan.outputs.mode == 'stable' && needs.reopen.result != 'success'))))
+        if: always() && needs.plan.outputs.work == 'true' && (needs.package.result != 'success' || needs.validate.result != 'success' || ((needs.plan.outputs.build == 'true' || needs.plan.outputs.installer_build == 'true') && (needs.publish.result != 'success' || needs.post_publish.result != 'success' || needs.complete.result != 'success')))
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -1159,7 +1152,6 @@ jobs:
           PUBLISH: ${{ needs.publish.result }}
           POST_PUBLISH: ${{ needs.post_publish.result }}
           COMPLETE: ${{ needs.complete.result }}
-          REOPEN: ${{ needs.reopen.result }}
           MODE: ${{ needs.plan.outputs.mode }}
           VERSION: ${{ needs.plan.outputs.version }}
         run: |
@@ -1174,7 +1166,10 @@ jobs:
               test "$PUBLISH" = success
               test "$POST_PUBLISH" = success
               test "$COMPLETE" = success
-              if [ "$MODE" = stable ]; then test "$REOPEN" = success; fi
             fi
-            echo "$VERSION completed its required verification and publication outcome." >> "$GITHUB_STEP_SUMMARY"
+            if [ "$MODE" = stable ]; then
+              echo "$VERSION completed exact npm staging; native Release publication is still required." >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "$VERSION completed its required verification and publication outcome." >> "$GITHUB_STEP_SUMMARY"
+            fi
           fi

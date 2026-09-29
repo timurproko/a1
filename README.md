@@ -72,8 +72,9 @@ npm run release -- major               # 0.1.8-dev -> 1.0.0
 npm run release -- 0.4.0               # prepare an exact stable version
 ```
 
-Preparation creates the editable draft and prints its link plus the **Approve stable
-release** Actions link. Review and save the Pi-style `## [version] - YYYY-MM-DD`
-changelog, then run that workflow with only the stable version. Until final success,
-the Release remains draft and its tag remains absent; publishing the approved Release
-creates the tag automatically. Do not use GitHub's native **Publish release** button.
+The command creates the editable draft and prints its link once. Review the Pi-style
+`## [version] - YYYY-MM-DD` changelog and choose **Save draft**; the waiting command
+then stages and verifies npm automatically without opening Actions or asking for the
+version again. Wait for `npm ready`, refresh the same Release page without editing the
+body, then use GitHub's native **Publish release** button to create the public Release
+and tag. Using that button before `npm ready` is unsafe and never triggers npm.

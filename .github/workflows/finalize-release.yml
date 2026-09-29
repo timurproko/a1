@@ -1,0 +1,149 @@
+name: Finalize stable release
+run-name: Verify native publication ${{ github.event.release.tag_name }}
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  verify:
+    name: Verify exact staged publication
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      version: ${{ steps.verify.outputs.version }}
+      source: ${{ steps.verify.outputs.source }}
+      release_notes_sha256: ${{ steps.verify.outputs.release_notes_sha256 }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: develop
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Verify publication against immutable staging evidence
+        id: verify
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PUBLISHER: ${{ github.actor }}
+          EVENT_RELEASE_ID: ${{ github.event.release.id }}
+        run: |
+          set -euo pipefail
+          mkdir -p .artifacts/release-finalization
+          node --input-type=module <<'NODE' >> "$GITHUB_OUTPUT"
+          import { createHash } from "node:crypto";
+          import { writeFile } from "node:fs/promises";
+          import { assertAuthorizedApprovalActor } from "./scripts/release/release-approval.mjs";
+          import { RECEIPT_ASSET, validateStableStagingReceipt } from "./scripts/release/staging-receipt.mjs";
+          const token = process.env.GH_TOKEN;
+          const repository = process.env.GITHUB_REPOSITORY;
+          const releaseId = Number(process.env.EVENT_RELEASE_ID);
+          const headers = { accept: "application/vnd.github+json", authorization: `Bearer ${token}`, "x-github-api-version": "2022-11-28" };
+          const response = async (url, init = {}) => {
+            const result = await fetch(url, { ...init, headers: { ...headers, ...(init.headers ?? {}) } });
+            if (!result.ok) throw new Error(`${url} returned HTTP ${result.status}`);
+            return result;
+          };
+          const api = async path => await (await response(`https://api.github.com/${path}`)).json();
+          const npm = async (name, specifier) => {
+            const result = await fetch(`https://registry.npmjs.org/${encodeURIComponent(name)}/${specifier}`, {
+              headers: { accept: "application/json", "cache-control": "no-cache" },
+            });
+            if (!result.ok) throw new Error(`npm registry ${name}@${specifier} returned HTTP ${result.status}`);
+            return await result.json();
+          };
+          const [publisher, publisherPermission, release] = await Promise.all([
+            api(`users/${process.env.PUBLISHER}`), api(`repos/${repository}/collaborators/${process.env.PUBLISHER}/permission`),
+            api(`repos/${repository}/releases/${releaseId}`),
+          ]);
+          assertAuthorizedApprovalActor(publisher, publisherPermission, process.env.PUBLISHER);
+          const receiptAssets = Array.isArray(release.assets) ? release.assets.filter(asset => asset?.name === RECEIPT_ASSET) : [];
+          if (receiptAssets.length !== 1 || !Number.isSafeInteger(receiptAssets[0]?.id)) throw new Error("published Release has no unique staging receipt");
+          const receipt = await (await response(`https://api.github.com/repos/${repository}/releases/assets/${receiptAssets[0].id}`, {
+            headers: { accept: "application/octet-stream" },
+          })).json();
+          const stageActorName = receipt.actor;
+          const [stageActor, stagePermission, workflowRun, tag, master, application, installer, applicationLatest, installerLatest] = await Promise.all([
+            api(`users/${stageActorName}`), api(`repos/${repository}/collaborators/${stageActorName}/permission`),
+            api(`repos/${repository}/actions/runs/${receipt.runId}`), api(`repos/${repository}/git/ref/tags/v${receipt.version}`),
+            api(`repos/${repository}/git/ref/heads/master`), npm(receipt.application?.name, receipt.version),
+            npm(receipt.installer?.name, receipt.version), npm(receipt.application?.name, "latest"), npm(receipt.installer?.name, "latest"),
+          ]);
+          assertAuthorizedApprovalActor(stageActor, stagePermission, stageActorName);
+          const applicationAssets = Array.isArray(release.assets) ? release.assets.filter(asset => asset?.name === receipt.asset?.name) : [];
+          if (applicationAssets.length !== 1 || !Number.isSafeInteger(applicationAssets[0]?.id)) throw new Error("published Release has no unique staged package asset");
+          const assetBytes = new Uint8Array(await (await response(`https://api.github.com/repos/${repository}/releases/assets/${applicationAssets[0].id}`, {
+            headers: { accept: "application/octet-stream" },
+          })).arrayBuffer());
+          const verified = validateStableStagingReceipt({ receipt, release, workflowRun, tag, master, application, installer,
+            applicationLatest, installerLatest, assetSha256: createHash("sha256").update(assetBytes).digest("hex") });
+          await writeFile(".artifacts/release-finalization/approved-note.md", verified.note, "utf8");
+          console.log(`version=${verified.version}`);
+          console.log(`source=${verified.source}`);
+          console.log(`release_notes_sha256=${verified.releaseNotesSha256}`);
+          NODE
+      - name: Preserve verified publication note
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: verified-release-note-${{ github.run_id }}
+          path: .artifacts/release-finalization/approved-note.md
+          if-no-files-found: error
+          retention-days: 30
+
+  reopen:
+    name: Prepare manual development reopening
+    needs: verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Mint the proposal identity
+        id: proposal-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.OPENSPEC_ARCHIVE_APP_ID }}
+          private-key: ${{ secrets.OPENSPEC_ARCHIVE_APP_PRIVATE_KEY }}
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: develop
+          fetch-depth: 0
+          persist-credentials: true
+          token: ${{ steps.proposal-token.outputs.token }}
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: verified-release-note-${{ github.run_id }}
+          path: .artifacts/release-finalization
+      - name: Create or verify the exact reopening pull request
+        id: reopen
+        shell: bash
+        env:
+          GH_TOKEN: ${{ steps.proposal-token.outputs.token }}
+          RELEASE_VERSION: ${{ needs.verify.outputs.version }}
+          SOURCE_SHA: ${{ needs.verify.outputs.source }}
+          RELEASE_NOTES_SHA256: ${{ needs.verify.outputs.release_notes_sha256 }}
+          APPROVED_NOTE_PATH: .artifacts/release-finalization/approved-note.md
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          node scripts/release/prepare-reopening.mjs
+      - name: Report manual reopening requirement
+        shell: bash
+        env:
+          PR_URL: ${{ steps.reopen.outputs.url }}
+        run: echo "Native publication is verified. Required CI must pass on $PR_URL, then an authorized human must merge it manually." >> "$GITHUB_STEP_SUMMARY"

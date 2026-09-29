@@ -1,9 +1,9 @@
 /**
  * Cut an explicitly selected stable release from the open development source.
  * npm run release -- patch promotes 0.1.8-dev to 0.1.8 without committing that version.
- * Preparation creates an editable draft GitHub Release and links the trusted
- * Actions approval workflow. This entry never approves, publishes, creates a tag,
- * or mutates the post-publication development branch.
+ * Preparation creates an editable draft GitHub Release, waits for a fresh Save
+ * draft, then dispatches and follows trusted npm staging. This entry never publishes
+ * the GitHub Release, creates a tag, or mutates the reopening development branch.
  */
 import { pathToFileURL } from "node:url";
 import { ReleaseUsageError } from "./release-target.mjs";

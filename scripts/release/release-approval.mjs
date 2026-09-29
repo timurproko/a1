@@ -15,7 +15,7 @@ export function assertAuthorizedApprovalActor(actor, permission, expectedLogin) 
 
 export function validateStableApproval(input) {
   const {
-    version, source, releases, application, lock, installer, existingApplication, existingInstaller,
+    version, source, releases, expectedReleaseId, application, lock, installer, existingApplication, existingInstaller,
   } = input ?? {};
   if (typeof version !== "string" || !STABLE.test(version) || semver.valid(version) !== version || !SHA.test(source ?? "")) {
     throw new Error("stable approval version or source identity is invalid");
@@ -24,7 +24,8 @@ export function validateStableApproval(input) {
   const matches = releases.filter(item => item?.tag_name === `v${version}`);
   if (matches.length !== 1) throw new Error(`stable approval found ${matches.length} Releases for v${version}; expected exactly one draft`);
   const release = matches[0];
-  if (!Number.isSafeInteger(release.id) || release.id < 1 || release.name !== `v${version}`
+  if (!Number.isSafeInteger(release.id) || release.id < 1
+    || (expectedReleaseId !== undefined && release.id !== expectedReleaseId) || release.name !== `v${version}`
     || release.target_commitish !== source || release.draft !== true || release.prerelease !== false || typeof release.body !== "string") {
     throw new Error("stable approval does not identify the expected source-bound draft Release");
   }
