@@ -24,9 +24,9 @@ async function notesDirectory(): Promise<string> {
 
 describe("reviewed release-note documents", () => {
   it("parses one exact stable identity and normalizes bounded Markdown", () => {
-    expect(parseReleaseNote("## Fixes\r\n\r\n- Fixed it\r\n", "1.2.3")).toEqual({
+    expect(parseReleaseNote("## [1.2.3] - 2026-09-28\r\n\r\n### Fixed\r\n\r\n- Fixed it\r\n", "1.2.3")).toEqual({
       version: "1.2.3",
-      markdown: "## Fixes\n\n- Fixed it\n",
+      markdown: "## [1.2.3] - 2026-09-28\n\n### Fixed\n\n- Fixed it\n",
     });
     expect(releaseNotePath("1.2.3")).toBe("docs/releases/1.2.3.md");
   });
@@ -39,6 +39,8 @@ describe("reviewed release-note documents", () => {
     ["path escape", "- [file](../secret)\n"],
     ["HTML", "<script>alert(1)</script>\n"],
     ["control byte", "- bad\u0007value\n"],
+    ["wrong changelog identity", "## [1.2.4] - 2026-09-28\n\n### Fixed\n\n- bad\n"],
+    ["invalid changelog date", "## [1.2.3] - 2026-02-30\n\n### Fixed\n\n- bad\n"],
   ])("rejects %s", (_name, markdown) => {
     expect(() => parseReleaseNote(markdown, "1.2.3")).toThrow();
   });
@@ -56,23 +58,30 @@ describe("reviewed release-note documents", () => {
       { number: 11, title: "fix(parser): avoid a crash", url: "https://github.com/acme/a1/pull/11" },
       { number: 10, title: "feat!: replace old mode", url: "https://github.com/acme/a1/pull/10" },
       { number: 12, title: "feat(ui): add the route", url: "https://github.com/acme/a1/pull/12" },
+      { number: 15, title: "add(cli): support aliases", url: "https://github.com/acme/a1/pull/15" },
       { number: 13, title: "chore(release): open 2.0.1-dev", url: "https://github.com/acme/a1/pull/13" },
-    ]);
-    expect(markdown).toBe(`## Breaking changes
+    ], "2026-09-28");
+    expect(markdown).toBe(`## [2.0.0] - 2026-09-28
+
+### Breaking Changes
 
 - replace old mode ([#10](https://github.com/acme/a1/pull/10))
 
-## New features
+### New Features
 
 - add the route ([#12](https://github.com/acme/a1/pull/12))
 
-## Fixes
+### Added
 
-- avoid a crash ([#11](https://github.com/acme/a1/pull/11))
+- support aliases ([#15](https://github.com/acme/a1/pull/15))
 
-## Other changes
+### Changed
 
 - explain \\*advanced\\* \\[mode\\] ([#14](https://github.com/acme/a1/pull/14))
+
+### Fixed
+
+- avoid a crash ([#11](https://github.com/acme/a1/pull/11))
 `);
     expect(() => renderReleaseNoteDraft("2.0.0", [
       { number: 1, title: "feat: one", url: "https://github.com/acme/a1/pull/1" },
@@ -107,7 +116,7 @@ describe("reviewed release-note documents", () => {
     expect(resource.releases.map(release => release.version)).toEqual(["2.0.0", "1.2.3"]);
     expect(validateReleaseNotesResource(resource)).toEqual(resource);
     await writeFile(join(directory, "3.0.0.md"), "# A1 3.0.0\n\n- redundant identity\n");
-    await expect(buildReleaseNotesResource(directory)).rejects.toThrow(/must not repeat/i);
+    await expect(buildReleaseNotesResource(directory)).rejects.toThrow(/redundant A1 release heading/i);
   });
 });
 

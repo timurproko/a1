@@ -42,7 +42,13 @@ export function releaseDocumentationFindings(readme, runbook) {
   if (!/After publication[\s\S]{0,500}0\.1\.9-dev/u.test(runbook)) findings.push("docs/ci-release-runbook.md: missing publication-before-reopening guidance");
   if (!/merge (?:it )?manually/u.test(runbook)) findings.push("docs/ci-release-runbook.md: missing manual reopening merge guidance");
   if (/self-merging|merge themselves/u.test(runbook)) findings.push("docs/ci-release-runbook.md: version pull requests cannot self-merge");
-  if (!runbook.includes("npm run release -- patch --approve")) findings.push("docs/ci-release-runbook.md: missing explicit draft approval command");
+  if (readme.includes("--approve") || runbook.includes("npm run release -- patch --approve")) findings.push("release documentation: retired local --approve command remains");
+  if (!runbook.includes("Approve stable release") || !runbook.includes("Run workflow") || !/enter only the\s+stable version/u.test(runbook)) {
+    findings.push("docs/ci-release-runbook.md: missing version-only Actions approval guidance");
+  }
+  if (!readme.includes("## [version] - YYYY-MM-DD") || !runbook.includes("## [version] - YYYY-MM-DD")) {
+    findings.push("release documentation: missing Pi-style generated changelog format");
+  }
   if (!/draft GitHub Release/u.test(runbook) || !/native \*\*Publish release\*\* button/u.test(runbook)) {
     findings.push("docs/ci-release-runbook.md: missing draft Release safety guidance");
   }
