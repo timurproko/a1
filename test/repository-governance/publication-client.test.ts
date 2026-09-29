@@ -75,22 +75,29 @@ describe("publication failure reporting", () => {
   });
 
   it.each([
-    ["develop", "0.1.8-dev.10", []],
-    ["stable", "0.1.8", ["-f", "version=0.1.8"]],
-  ] as const)("names the version to the workflow only for a %s publication", async (channel, version, extra) => {
+    ["develop", "0.1.8-dev.10", {}, []],
+    ["stable", "0.1.8", { draftReleaseId: 17, releaseNoteSha256: "b".repeat(64) }, [
+      "-f", "version=0.1.8", "-f", "release_id=17", "-f", `release_notes_sha256=${"b".repeat(64)}`,
+    ]],
+  ] as const)("names approved draft evidence to the workflow only for a %s publication", async (channel, version, approval, extra) => {
     const { run, calls } = fakeRunner(({ args }) => {
       if (args[0] === "run" && args[1] === "list") return JSON.stringify([{ databaseId: 44, displayTitle: `${channel} publication fixture-request` }]);
       if (args[0] === "run" && args[1] === "view") return "https://github.com/owner/app/actions/runs/44";
       return "";
     });
     await expect(dispatchPublication(channel, "a".repeat(40), version, {
-      run, repository: "owner/app", requestId: "fixture-request", write: () => {}, sleep: async () => {},
+      run, repository: "owner/app", requestId: "fixture-request", write: () => {}, sleep: async () => {}, ...approval,
     })).resolves.toBe(44);
     const dispatch = calls.find(call => call.args[0] === "workflow" && call.args[1] === "run")!;
     expect(dispatch.args).toEqual([
       "workflow", "run", "publish.yml", "--ref", "develop",
       "-f", `channel=${channel}`, "-f", `source_sha=${"a".repeat(40)}`, "-f", "request_id=fixture-request", ...extra,
     ]);
+  });
+
+  it("refuses stable dispatch without an approved draft identity", async () => {
+    await expect(dispatchPublication("stable", "a".repeat(40), "0.1.8", { run: () => "" }))
+      .rejects.toThrow(/approved draft Release identity/i);
   });
 
   it("returns the run identifier unchanged when the watch succeeds", async () => {

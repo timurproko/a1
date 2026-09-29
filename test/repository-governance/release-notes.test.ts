@@ -24,28 +24,27 @@ async function notesDirectory(): Promise<string> {
 
 describe("reviewed release-note documents", () => {
   it("parses one exact stable identity and normalizes bounded Markdown", () => {
-    expect(parseReleaseNote("# A1 1.2.3\r\n\r\n## Fixes\r\n\r\n- Fixed it\r\n", "1.2.3")).toEqual({
+    expect(parseReleaseNote("## Fixes\r\n\r\n- Fixed it\r\n", "1.2.3")).toEqual({
       version: "1.2.3",
-      markdown: "# A1 1.2.3\n\n## Fixes\n\n- Fixed it\n",
+      markdown: "## Fixes\n\n- Fixed it\n",
     });
     expect(releaseNotePath("1.2.3")).toBe("docs/releases/1.2.3.md");
   });
 
   it.each([
-    ["wrong identity", "# A1 1.2.4\n\n- note\n"],
-    ["duplicate identity", "# A1 1.2.3\n\n# A1 1.2.3\n"],
-    ["empty body", "# A1 1.2.3\n\n"],
-    ["unsafe scheme", "# A1 1.2.3\n\n- [run](javascript:alert)\n"],
-    ["absolute path", "# A1 1.2.3\n\n- [file](/etc/passwd)\n"],
-    ["path escape", "# A1 1.2.3\n\n- [file](../secret)\n"],
-    ["HTML", "# A1 1.2.3\n\n<script>alert(1)</script>\n"],
-    ["control byte", "# A1 1.2.3\n\n- bad\u0007value\n"],
+    ["redundant identity", "# A1 1.2.3\n\n- note\n"],
+    ["empty body", "\n"],
+    ["unsafe scheme", "- [run](javascript:alert)\n"],
+    ["absolute path", "- [file](/etc/passwd)\n"],
+    ["path escape", "- [file](../secret)\n"],
+    ["HTML", "<script>alert(1)</script>\n"],
+    ["control byte", "- bad\u0007value\n"],
   ])("rejects %s", (_name, markdown) => {
     expect(() => parseReleaseNote(markdown, "1.2.3")).toThrow();
   });
 
   it("rejects an oversized note and invalid path versions", () => {
-    expect(() => parseReleaseNote(`# A1 1.2.3\n\n${"x".repeat(MAX_RELEASE_NOTE_BYTES)}`, "1.2.3")).toThrow(/bounded|size/i);
+    expect(() => parseReleaseNote(`${"x".repeat(MAX_RELEASE_NOTE_BYTES + 1)}`, "1.2.3")).toThrow(/bounded|size/i);
     for (const version of ["1.2.3-dev", "01.2.3", "../1.2.3", "v1.2.3"]) {
       expect(() => releaseNotePath(version)).toThrow(/stable release-note version/i);
     }
@@ -59,9 +58,7 @@ describe("reviewed release-note documents", () => {
       { number: 12, title: "feat(ui): add the route", url: "https://github.com/acme/a1/pull/12" },
       { number: 13, title: "chore(release): open 2.0.1-dev", url: "https://github.com/acme/a1/pull/13" },
     ]);
-    expect(markdown).toBe(`# A1 2.0.0
-
-## Breaking changes
+    expect(markdown).toBe(`## Breaking changes
 
 - replace old mode ([#10](https://github.com/acme/a1/pull/10))
 
@@ -93,20 +90,24 @@ describe("reviewed release-note documents", () => {
     expect(spawnSync(process.execPath, [script], { cwd: directory, encoding: "utf8" }).status).toBe(1);
     await writeFile(resourcePath, JSON.stringify({
       schema: "a1-release-notes-v1",
-      releases: [{ version: "1.2.3", markdown: "# A1 1.2.3\n\n- reviewed\n" }],
+      releases: [{ version: "1.2.3", markdown: "## Fixes\n\n- reviewed\n" }],
     }));
+    await mkdir(join(directory, "docs", "releases"), { recursive: true });
+    await writeFile(join(directory, "docs", "releases", "1.2.3.md"), "## Fixes\n\n- different\n");
+    expect(spawnSync(process.execPath, [script], { cwd: directory, encoding: "utf8" }).status).toBe(1);
+    await writeFile(join(directory, "docs", "releases", "1.2.3.md"), "## Fixes\n\n- reviewed\n");
     expect(spawnSync(process.execPath, [script], { cwd: directory, encoding: "utf8" }).status).toBe(0);
   });
 
   it("builds newest-first resources and rejects malformed file identities", async () => {
     const directory = await notesDirectory();
-    await writeFile(join(directory, "1.2.3.md"), "# A1 1.2.3\n\n- older\n");
-    await writeFile(join(directory, "2.0.0.md"), "# A1 2.0.0\n\n- newer\n");
+    await writeFile(join(directory, "1.2.3.md"), "## Fixes\n\n- older\n");
+    await writeFile(join(directory, "2.0.0.md"), "## Features\n\n- newer\n");
     const resource = await buildReleaseNotesResource(directory);
     expect(resource.releases.map(release => release.version)).toEqual(["2.0.0", "1.2.3"]);
     expect(validateReleaseNotesResource(resource)).toEqual(resource);
-    await writeFile(join(directory, "3.0.0.md"), "# A1 3.0.1\n\n- mismatch\n");
-    await expect(buildReleaseNotesResource(directory)).rejects.toThrow(/expected 3.0.0/);
+    await writeFile(join(directory, "3.0.0.md"), "# A1 3.0.0\n\n- redundant identity\n");
+    await expect(buildReleaseNotesResource(directory)).rejects.toThrow(/must not repeat/i);
   });
 });
 

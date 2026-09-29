@@ -38,6 +38,7 @@ describe("documentation auto-merge path policy", () => {
     ["scripts", ["scripts/example.mjs"]],
     ["configuration", ["config/validation-suites.json"]],
     ["workflow", [".github/workflows/ci.yml"]],
+    ["release history", ["docs/releases/0.2.2.md"]],
     ["generated baseline", ["config/baselines/example.json"]],
     ["mixed docs and code", ["docs/architecture/example.md", "src/index.ts"]],
     ["mixed spec and code", ["openspec/changes/example/proposal.md", "src/index.ts"]],
@@ -69,6 +70,11 @@ describe("documentation auto-merge path policy", () => {
       previous_filename: "docs/architecture/old.md",
       status: "renamed",
     }]).eligible).toBe(true);
+    expect(classifyDocumentationAutoMerge([{
+      filename: "docs/architecture/former-release.md",
+      previous_filename: "docs/releases/0.2.2.md",
+      status: "renamed",
+    }])).toMatchObject({ eligible: false, disallowedPaths: ["docs/releases/0.2.2.md"] });
   });
 });
 

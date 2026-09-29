@@ -30,7 +30,7 @@ export async function readPackagedReleaseNotes(
   const releases = (value as { releases: unknown[] }).releases.map((item): PackagedReleaseNote => {
     const release = item as { version?: unknown; markdown?: unknown };
     if (typeof release.version !== "string" || !STABLE.test(release.version) || semver.valid(release.version) !== release.version
-      || typeof release.markdown !== "string" || !validMarkdown(release.markdown, release.version)) {
+      || typeof release.markdown !== "string" || !validMarkdown(release.markdown)) {
       throw new Error("A1 release note entry is invalid");
     }
     if (seen.has(release.version) || (previous !== null && semver.gte(release.version, previous))) {
@@ -42,16 +42,17 @@ export async function readPackagedReleaseNotes(
   const frozen = Object.freeze(releases);
   return Object.freeze({
     releases: frozen,
-    completeMarkdown: frozen.length === 0 ? "No A1 release notes found." : frozen.map(release => release.markdown).join("\n\n"),
+    completeMarkdown: frozen.length === 0 ? "No A1 release notes found."
+      : frozen.map(release => `# A1 ${release.version}\n\n${release.markdown}`).join("\n\n"),
     current: (version: string) => STABLE.test(version) ? frozen.find(release => release.version === version) ?? null : null,
   });
 }
 
-function validMarkdown(markdown: string, version: string): boolean {
-  if (Buffer.byteLength(markdown, "utf8") > MAX_NOTE_BYTES || !markdown.startsWith(`# A1 ${version}\n`)
+function validMarkdown(markdown: string): boolean {
+  if (Buffer.byteLength(markdown, "utf8") > MAX_NOTE_BYTES
     || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u.test(markdown)
-    || [...markdown.matchAll(/^# A1 \d+\.\d+\.\d+$/gmu)].length !== 1
-    || markdown.split("\n").slice(1).every(line => line.trim() === "")
+    || [...markdown.matchAll(/^# A1 \d+\.\d+\.\d+$/gmu)].length !== 0
+    || markdown.trim() === ""
     || /<\/?[A-Za-z][A-Za-z0-9-]*(?:\s[^>]*)?\/?>|\b(?:href|src)\s*=/iu.test(markdown)) return false;
   const links = [
     ...[...markdown.matchAll(/\[[^\]]*\]\(([^)\s]+)(?:\s+[^)]*)?\)/gu)].map(match => match[1] ?? ""),

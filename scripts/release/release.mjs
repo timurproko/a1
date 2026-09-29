@@ -1,8 +1,9 @@
 /**
  * Cut an explicitly selected stable release from the open development source.
  * npm run release -- patch promotes 0.1.8-dev to 0.1.8 without committing that version.
- * Verified publication precedes the one next-patch development PR. This entry never
- * merges a PR, creates a tag, or uploads package bytes from the workstation.
+ * Preparation creates an editable draft GitHub Release; --approve snapshots it.
+ * Verified publication precedes the one next-patch development-and-note PR. This
+ * entry never merges a PR, creates a tag, or uploads package bytes locally.
  */
 import { pathToFileURL } from "node:url";
 import { ReleaseUsageError } from "./release-target.mjs";

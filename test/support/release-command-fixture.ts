@@ -5,6 +5,17 @@ import { join } from "node:path";
 import { createReleaseRuntime } from "../../scripts/release/release-workflow.mjs";
 import type { NativeRegressionTrace } from "./native-regression-trace.js";
 
+export interface FakeDraftRelease {
+  id: number;
+  html_url: string;
+  tag_name: string;
+  target_commitish: string;
+  name: string;
+  body: string;
+  draft: boolean;
+  prerelease: boolean;
+}
+
 export interface FakeReleasePull {
   number: number;
   url: string;
@@ -73,12 +84,14 @@ export async function releaseFixture(version = "0.1.8-dev", trace?: NativeRegres
   const gitCalls: Array<{ args: readonly string[]; directory: string }> = [];
   const ghCalls: string[][] = [];
   const pulls: FakeReleasePull[] = [];
+  const drafts: FakeDraftRelease[] = [];
   const phaseDirectories: string[] = [];
-  const publications: Array<{ source: string; version: string }> = [];
+  const publications: Array<{ source: string; version: string; approval: { id: number; version: string; markdown: string; sha256: string } }> = [];
   let clock = 0;
   let releaseChanges: (base: string, source: string) => Promise<readonly { number: number; title: string; url: string }[]> = async () => [];
   let registry: (name: string, version: string) => unknown | Promise<unknown> = () => null;
-  let publish: (source: string, version: string) => unknown | Promise<unknown> = () => undefined;
+  let publish: (source: string, version: string, approval: { id: number; version: string; markdown: string; sha256: string }) => unknown | Promise<unknown> = () => undefined;
+  let approver: { login: string; type: "User" | "Bot"; permission: string } = { login: "release-fixture", type: "User", permission: "write" };
   let wait: () => void | Promise<void> = () => { manualMerge(); };
   let onCreate: (pull: FakeReleasePull) => void = () => {};
   let onQuery: (pull: FakeReleasePull) => void = () => {};
@@ -107,6 +120,25 @@ export async function releaseFixture(version = "0.1.8-dev", trace?: NativeRegres
     },
     gh: args => {
       ghCalls.push([...args]);
+      if (args[0] === "repo" && args[1] === "view") return "fixture/a1";
+      if (args[0] === "api") {
+        if (args[1] === "user") return JSON.stringify({ login: approver.login, type: approver.type });
+        if (args[1] === `repos/fixture/a1/collaborators/${approver.login}/permission`) return JSON.stringify({ permission: approver.permission });
+        if (args[1] === "repos/fixture/a1/releases?per_page=100") return JSON.stringify(drafts);
+        if (args.includes("POST") && args.includes("repos/fixture/a1/releases")) {
+          const fields = Object.fromEntries(args.flatMap((arg, index) => (arg === "-f" || arg === "-F")
+            ? [String(args[index + 1]).split(/=(.*)/su).slice(0, 2)] : []));
+          const draft: FakeDraftRelease = {
+            id: drafts.length + 1,
+            html_url: `https://example.test/releases/${drafts.length + 1}`,
+            tag_name: fields.tag_name!, target_commitish: fields.target_commitish!, name: fields.name!, body: fields.body!,
+            draft: fields.draft === "true", prerelease: fields.prerelease === "true",
+          };
+          drafts.push(draft); events.push(`draft-create:${draft.tag_name}`);
+          return JSON.stringify(draft);
+        }
+        throw new Error(`unexpected GitHub API operation: ${args.join(" ")}`);
+      }
       if (args[0] !== "pr") throw new Error(`unexpected GitHub operation: ${args.join(" ")}`);
       if (args[1] === "list") return JSON.stringify(pulls.filter(pull => pull.headRefName === args[args.indexOf("--head") + 1]));
       if (args[1] === "create") {
@@ -127,9 +159,9 @@ export async function releaseFixture(version = "0.1.8-dev", trace?: NativeRegres
     },
     releaseChanges: (base, source) => releaseChanges(base, source),
     registry: async (name, requested) => { events.push(`registry:${requested}`); return registry(name, requested); },
-    publish: async (source, requested) => {
-      events.push(`publish:${requested}`); publications.push({ source, version: requested });
-      return publish(source, requested);
+    publish: async (source, requested, approval) => {
+      events.push(`publish:${requested}`); publications.push({ source, version: requested, approval });
+      return publish(source, requested, approval);
     },
     log: text => { logs.push(text); events.push("log"); }, error: text => { errors.push(text); },
     sleep: async ms => { events.push("wait"); clock += ms; await wait(); }, now: () => clock,
@@ -137,9 +169,11 @@ export async function releaseFixture(version = "0.1.8-dev", trace?: NativeRegres
   });
   return {
     directory, cwd, remote, git, runtime, initialHead, manifest, lock, installer, logs, errors, events, gitCalls, ghCalls,
-    pulls, publications, phaseDirectories, manualMerge,
+    pulls, drafts, publications, phaseDirectories, manualMerge,
     setReleaseChanges(fn: typeof releaseChanges) { releaseChanges = fn; },
     setRegistry(fn: typeof registry) { registry = fn; }, setPublish(fn: typeof publish) { publish = fn; },
+    setApprover(value: typeof approver) { approver = value; },
+    editDraft(markdown: string) { const draft = drafts.at(-1); if (!draft) throw new Error("fixture has no draft"); draft.body = markdown; },
     setWait(fn: typeof wait) { wait = fn; }, setCreate(fn: typeof onCreate) { onCreate = fn; }, setQuery(fn: typeof onQuery) { onQuery = fn; },
     addPull(branch: string, head: string): FakeReleasePull {
       const pull: FakeReleasePull = { number: pulls.length + 1, url: `https://example.test/pull/${pulls.length + 1}`,

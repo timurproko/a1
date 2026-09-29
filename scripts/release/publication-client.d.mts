@@ -18,5 +18,7 @@ export function dispatchPublication(channel: "develop" | "stable", source: strin
   requestId?: string;
   write?: (text: string) => void;
   sleep?: (ms: number) => Promise<unknown>;
+  draftReleaseId?: number;
+  releaseNoteSha256?: string;
 }): Promise<number>;
 export function localPackageIdentity(): Promise<{ name: string; version: string }>;

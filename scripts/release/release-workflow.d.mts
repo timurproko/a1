@@ -5,7 +5,7 @@ export interface ReleaseRuntime {
   gh(args: readonly string[]): string;
   releaseChanges(base: string, source: string): Promise<readonly { number: number; title: string; url: string }[]>;
   registry(name: string, version: string): Promise<unknown | null>;
-  publish(source: string, version: string): Promise<unknown>;
+  publish(source: string, version: string, approval: ApprovedReleaseNote): Promise<unknown>;
   sleep(ms: number): Promise<unknown>;
   now(): number;
   readonly pollMs: number;
@@ -14,9 +14,18 @@ export interface ReleaseRuntime {
   error(message: string): void;
   readonly signal?: AbortSignal;
 }
+export interface DraftReleaseNote {
+  readonly id: number;
+  readonly url: string;
+  readonly version: string;
+  readonly source: string;
+  readonly markdown: string;
+}
+export interface ApprovedReleaseNote extends DraftReleaseNote { readonly sha256: string }
 export interface ReleaseResult extends ReleasePlan {
   readonly source: string;
-  readonly reopened: string;
+  readonly draft: DraftReleaseNote;
+  readonly reopened: string | null;
 }
 export function collectReleaseChanges(
   git: (args: readonly string[]) => string,

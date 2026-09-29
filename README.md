@@ -69,5 +69,12 @@ npm run develop                         # request the preview publish
 npm run release -- patch               # 0.1.8-dev -> 0.1.8
 npm run release -- minor               # 0.1.8-dev -> 0.2.0
 npm run release -- major               # 0.1.8-dev -> 1.0.0
-npm run release -- 0.4.0               # an exact stable version
+npm run release -- 0.4.0               # prepare an exact stable version
+npm run release -- patch --approve     # approve the edited draft Release and publish
 ```
+
+Release preparation creates an editable draft under GitHub Releases and publishes
+nothing. Edit its body there, then use the explicit `--approve` form to snapshot and
+publish those exact notes. After publication, the manually merged reopening PR stores
+the same note with the next development version. Stable installs show it once and
+retain it in bare A1 through `/changelog`; `a1 pi` keeps Pi's changelog.
