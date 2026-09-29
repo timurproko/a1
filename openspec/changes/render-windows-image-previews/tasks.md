@@ -12,18 +12,18 @@
 
 ## 3. Verify terminal and comparison behavior
 
-- [ ] 3.1 Prove known Windows hosts contain one bounded Sixel image after its reserved rows, unknown hosts contain bounded ordinary cells, and neither path contains Kitty image transmission/placement, iTerm2 image, or base64 payload while preserving surrounding transcript content.
+- [x] 3.1 Prove known Windows hosts contain one bounded Sixel image after its reserved rows, unknown hosts contain bounded ordinary cells, and neither path contains Kitty image transmission/placement, iTerm2 image, or base64 payload while preserving surrounding transcript content.
 - [x] 3.2 Preserve native non-Windows rendering, hidden/unavailable text, tool-result rendering, and independent `a1 pi` output with focused regressions.
 - [ ] 3.3 Record focused evidence and any known gap, then build and physically review initial paint, later updates, scroll-away/return, resize, visibility changes, and input responsiveness in Windows WezTerm and Windows Terminal.
 
 ## 4. Repair preview fidelity after physical review
 
-- [ ] 4.1 Add a bundled in-process Sixel encoder path for declared Windows Terminal and WezTerm hosts, bounded by pixel dimensions, rows, encoded bytes, deadline, and worker lifetime.
-- [ ] 4.2 Compose validated Sixel on the final reserved row so fullscreen row clearing completes before image transmission, while retaining high-density cells for unknown Windows hosts.
-- [ ] 4.3 Cover Sixel host selection, framing, bounds, row ordering, later paints, resize/remount, protocol isolation, package inventory, and byte-identical attachment delivery.
+- [x] 4.1 Add a bundled in-process Sixel encoder path for declared Windows Terminal and WezTerm hosts, bounded by pixel dimensions, rows, encoded bytes, deadline, and worker lifetime.
+- [x] 4.2 Compose validated Sixel on the final reserved row so fullscreen row clearing completes before image transmission, while retaining high-density cells for unknown Windows hosts.
+- [x] 4.3 Cover Sixel host selection, framing, bounds, row ordering, later paints, resize/remount, protocol isolation, package inventory, and byte-identical attachment delivery.
 
 ## Evidence
 
-- Automated on Windows: 229 related tests passed after the packaged-worker fixture was updated; focused worker, presenter, terminal-composition, attachment, viewport, native-path, tool-image, and pinned-path suites are included.
+- Automated on Windows: 234 related tests passed; focused worker, bundled-package, presenter, terminal-composition, clipping safety, attachment, viewport, native-path, tool-image, and pinned-path suites are included.
 - `npm run build`, `npm run typecheck`, `npm run check:architecture`, changed-code documentation governance, strict OpenSpec validation, and `git diff --check` pass.
-- Manual Windows Terminal review rejected the initial 1×2 half-block preview as too coarse for text-heavy screenshots. The revised plan keeps higher-density quadrants only as an unknown-host fallback and requires bundled Sixel for the accepted Windows Terminal and WezTerm paths; tasks 3.1, 3.3, and 4.1–4.3 remain open.
+- Manual Windows Terminal review rejected the initial 1×2 half-block preview as too coarse for text-heavy screenshots. Bundled Sixel now replaces it on Windows Terminal and WezTerm; renewed physical review remains pending, so task 3.3 stays open.

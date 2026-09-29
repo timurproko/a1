@@ -30,6 +30,7 @@ import {
   renderPiShellTranscriptBlock,
   WorkingStatusIndicator,
 } from "../../../../src/integrations/pi/components/index.js";
+import type { PiShellImagePreview } from "../../../../src/integrations/pi/components/shell-shared-facade.js";
 import { PINNED_PI_WORKFLOW_COMMAND_NAMES } from "../../../../src/integrations/pi/engine/index.js";
 import { composeSubmittedPromptRows, progressStatusFrame, progressStatusText, submittedPromptLayout } from "../../../../src/ui/components/index.js";
 
@@ -653,10 +654,10 @@ describe("Pi shell public component adapters", () => {
       imageReferences: [{ assetId: "image-1", mimeType: "image/png", byteLength: 3, source: "user" as const }],
     };
     const image = { type: "image" as const, mimeType: "image/png", data: "AQID" };
-    const jobs: Array<{ resolve: (rows: readonly string[]) => void; cancel: ReturnType<typeof vi.fn> }> = [];
+    const jobs: Array<{ resolve: (result: PiShellImagePreview) => void; cancel: ReturnType<typeof vi.fn> }> = [];
     const preview = vi.fn(() => {
-      let resolve!: (rows: readonly string[]) => void;
-      const result = new Promise<readonly string[]>(done => { resolve = done; });
+      let resolve!: (result: PiShellImagePreview) => void;
+      const result = new Promise<PiShellImagePreview>(done => { resolve = done; });
       const cancel = vi.fn();
       jobs.push({ resolve, cancel });
       return { result, cancel };
@@ -669,7 +670,7 @@ describe("Pi shell public component adapters", () => {
     expect(stripTerminalSequences(component.render(80).join("\n"))).toContain("Image preparing preview: image/png");
     await Promise.resolve();
     expect(preview).toHaveBeenCalledWith("image-1", image, 60, { widthPx: 9, heightPx: 18 });
-    jobs[0]!.resolve(["\u001b[38;2;255;0;0;48;2;0;0;255m▀\u001b[39;49m"]);
+    jobs[0]!.resolve({ kind: "cells", rows: ["\u001b[38;2;255;0;0;48;2;0;0;255m▀\u001b[39;49m"] });
     await vi.waitFor(() => expect(stripTerminalSequences(component.render(80).join("\n"))).toContain("▀"));
     expect(component.render(80).join("\n")).not.toMatch(/\u001b_G|\u001b\]1337;File=|\u001bPq|AQID/u);
 

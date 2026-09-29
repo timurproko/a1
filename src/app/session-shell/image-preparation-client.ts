@@ -17,8 +17,16 @@ export interface ImagePasteJob {
 
 const IMAGE_CELL_PREVIEW_MS = 5_000;
 
-export function shouldUseImageCellPreview(platform: NodeJS.Platform = process.platform): boolean {
-  return platform === "win32";
+export type WindowsSubmittedImagePreviewFormat = "sixel" | "cells";
+
+export function windowsSubmittedImagePreviewFormat(
+  platform: NodeJS.Platform = process.platform,
+  environment: NodeJS.ProcessEnv = process.env,
+): WindowsSubmittedImagePreviewFormat | null {
+  if (platform !== "win32") return null;
+  const termProgram = environment.TERM_PROGRAM?.toLowerCase();
+  return environment.WT_SESSION !== undefined || environment.WEZTERM_PANE !== undefined || termProgram === "wezterm"
+    ? "sixel" : "cells";
 }
 
 export function startImageCellPreview(
@@ -26,14 +34,18 @@ export function startImageCellPreview(
   columns: number,
   background: readonly [number, number, number],
   cell: { readonly widthPx: number; readonly heightPx: number },
+  format: WindowsSubmittedImagePreviewFormat = "cells",
 ): PiShellImagePreviewJob {
   const controller = new AbortController();
   const deadline = setTimeout(() => controller.abort(new ImageAttachmentError("image-timeout")), IMAGE_CELL_PREVIEW_MS);
   const result = runImageWorker<ImageCellPreview>({
     kind: "preview",
     source,
-    options: { columns, cellWidthPx: cell.widthPx, cellHeightPx: cell.heightPx, background },
-  }, controller.signal).then(value => value.rows).finally(() => clearTimeout(deadline));
+    options: { format, columns, cellWidthPx: cell.widthPx, cellHeightPx: cell.heightPx, background },
+  }, controller.signal).then(value => value.kind === "cells"
+    ? { kind: "cells" as const, rows: value.rows }
+    : { kind: "sixel" as const, sequence: value.sequence, rows: value.cellRows })
+    .finally(() => clearTimeout(deadline));
   void result.catch(() => {});
   return {
     result,

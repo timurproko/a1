@@ -150,8 +150,12 @@ export interface PiShellLoadedResourcesPort extends PiShellComponentPort {
   setExpanded(expanded: boolean): void;
 }
 
+export type PiShellImagePreview =
+  | { readonly kind: "cells"; readonly rows: readonly string[] }
+  | { readonly kind: "sixel"; readonly sequence: string; readonly rows: number };
+
 export interface PiShellImagePreviewJob {
-  readonly result: Promise<readonly string[]>;
+  readonly result: Promise<PiShellImagePreview>;
   cancel(): void;
 }
 
