@@ -870,6 +870,65 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
     } finally { await shell.dispose(); }
   });
 
+  it("applies the live image limit and retires only a corrected count notice", async () => {
+    let limit = 2;
+    const listeners = new Set<() => void>();
+    const data = screenshotPng(4, 4).toString("base64");
+    const { shell, terminal } = await fixture(
+      [], [], true, undefined,
+      { readText: async () => null, readImage: async () => ({ data, mimeType: "image/png" }) },
+      undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+      { limit: () => limit, onChange: listener => { listeners.add(listener); return () => listeners.delete(listener); } },
+    );
+    expect(listeners.size).toBe(1);
+    const imageTags = () => shell.root.editor.getText().match(/\[📷 screenshot-[^\]]+\]/gu) ?? [];
+    const pasteReady = async (count: number) => {
+      terminal.input("\u0016");
+      await vi.waitFor(() => expect(imageTags()).toHaveLength(count));
+    };
+    const notifyLimit = (next: number) => { limit = next; for (const listener of listeners) listener(); };
+    try {
+      await pasteReady(1);
+      await pasteReady(2);
+      terminal.input("\u0016");
+      await vi.waitFor(() => expect(stripTerminalSequences(shell.root.render(80).join("\n"))).toContain("at most 2 images"));
+      expect(shell.root.editor.getText()).toMatch(/\[📷 failed-/u);
+
+      shell.root.editor.setText(shell.root.editor.getText().replace(/\[📷 failed-[^\]]+\]/u, ""));
+      await vi.waitFor(() => expect(stripTerminalSequences(shell.root.render(80).join("\n"))).not.toContain("at most 2 images"));
+
+      notifyLimit(3);
+      await pasteReady(3);
+      const overLimitDraft = shell.root.editor.getText();
+      notifyLimit(2);
+      expect((await shell.submit(overLimitDraft)).outcome).toBe("rejected");
+      expect(stripTerminalSequences(shell.root.render(80).join("\n"))).toContain("at most 2 images");
+      notifyLimit(3);
+      await vi.waitFor(() => expect(stripTerminalSequences(shell.root.render(80).join("\n"))).not.toContain("at most 2 images"));
+
+    } finally { await shell.dispose(); }
+  });
+
+  it("preserves a newer unrelated notice when a corrected image-count marker is removed", async () => {
+    const data = screenshotPng(4, 4).toString("base64");
+    const { shell, terminal } = await fixture(
+      [], [], true, undefined,
+      { readText: async () => null, readImage: async () => ({ data, mimeType: "image/png" }) },
+      undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+      { limit: () => 1, onChange: () => () => {} },
+    );
+    try {
+      terminal.input("\u0016");
+      await vi.waitFor(() => expect(shell.root.editor.getText()).toMatch(/\[📷 screenshot-/u));
+      terminal.input("\u0016");
+      await vi.waitFor(() => expect(stripTerminalSequences(shell.root.render(80).join("\n"))).toContain("at most 1 image"));
+      shell.root.appendWorkflowResult({ command: "debug", outcome: "failed", message: "newer unrelated error" });
+      shell.root.editor.setText(shell.root.editor.getText().replace(/\[📷 failed-[^\]]+\]/u, ""));
+      await nextImmediate();
+      expect(stripTerminalSequences(shell.root.render(80).join("\n"))).toContain("newer unrelated error");
+    } finally { await shell.dispose(); }
+  });
+
   it("pastes URLs and clipboard images as atomic chips and expands them for copy and submission", async () => {
     let clipboardText = "https://example.com/a/very/useful/resource";
     let clipboardImage: { readonly data: string; readonly mimeType: string } | null = null;

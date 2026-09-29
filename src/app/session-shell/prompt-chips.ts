@@ -9,6 +9,7 @@ import {
   assertImageEncodedSize,
   assertPromptImages,
   canonicalPromptChipMatches,
+  DEFAULT_PROMPT_IMAGE_LIMIT,
   ImageAttachmentError,
   replaceCanonicalPromptChips,
 } from "../../contracts/owned-ui/index.js";
@@ -67,8 +68,15 @@ export class PromptChipStore {
   readonly #isolated: PastePreparationClient | undefined;
   readonly #provisionalOwners = new Map<string, Set<symbol>>();
   readonly #ownedChipTags = new Map<symbol, Set<string>>();
+  readonly #imageLimit: () => number;
 
-  constructor(options: { readonly isolated?: boolean; readonly onEvent?: (event: PasteEvent) => void; readonly preparation?: Omit<PastePreparationClientOptions, "onEvent"> } = {}) {
+  constructor(options: {
+    readonly isolated?: boolean;
+    readonly onEvent?: (event: PasteEvent) => void;
+    readonly preparation?: Omit<PastePreparationClientOptions, "onEvent">;
+    readonly imageLimit?: () => number;
+  } = {}) {
+    this.#imageLimit = options.imageLimit ?? (() => DEFAULT_PROMPT_IMAGE_LIMIT);
     this.#isolated = options.isolated
       ? new PastePreparationClient({ ...options.preparation, ...(options.onEvent === undefined ? {} : { onEvent: options.onEvent }) })
       : undefined;
@@ -93,7 +101,8 @@ export class PromptChipStore {
       entry.kind = content?.kind === "image" ? "image" : "text";
       if (content?.kind === "image") {
         onImage();
-        if (this.#imageCount(currentText) >= 8) throw new ImageAttachmentError("image-count");
+        const imageLimit = this.#imageLimit();
+        if (this.#imageCount(currentText) >= imageLimit) throw new ImageAttachmentError("image-count", imageLimit);
       }
       return content;
     });
@@ -130,7 +139,8 @@ export class PromptChipStore {
     }, () => {
       entry.kind = "image";
       onImage();
-      if (this.#imageCount(currentText) >= 8) throw new ImageAttachmentError("image-count");
+      const imageLimit = this.#imageLimit();
+      if (this.#imageCount(currentText) >= imageLimit) throw new ImageAttachmentError("image-count", imageLimit);
     }, () => { entry.kind = "text"; });
     entry = { marker, job, references: 0, kind: "unknown", completion: job.result.catch(error => {
       this.#finishChipOwnership(owner, false);
@@ -217,6 +227,14 @@ export class PromptChipStore {
     this.#ownedChipTags.clear();
   }
 
+  imageLimitState(text: string): { readonly count: number; readonly limit: number; readonly corrected: boolean } {
+    const limit = this.#imageLimit();
+    const failedCountMarker = [...this.#pending.values()].some(entry => entry.error?.code === "image-count"
+      && (text.includes(entry.marker) || text.includes(entry.marker.replace("screenshot-", "failed-"))));
+    const count = this.#imageCount(text);
+    return { count, limit, corrected: count <= limit && !failedCountMarker };
+  }
+
   #imageCount(text: string): number {
     const tags = new Set([...this.#chips.values()].filter(chip => chip.kind === "image" && text.includes(chip.tag)).map(chip => chip.tag));
     for (const entry of this.#pending.values()) {
@@ -242,7 +260,7 @@ export class PromptChipStore {
       assertImageEncodedSize(content.data);
       const image = canonicalizeClipboardImage(content);
       if (image === null) return "";
-      assertPromptImages([...this.prepareSubmission(currentText).images, { type: "image", ...image }]);
+      assertPromptImages([...this.prepareSubmission(currentText).images, { type: "image", ...image }], this.#imageLimit());
       const id = randomBytes(5).toString("hex");
       const tag = `[📷 screenshot-${id}]`;
       this.#chips.set(tag, {
@@ -416,6 +434,7 @@ export class PromptChipStore {
 
   prepareSubmission(text: string): PreparedPrompt {
     const expanded = this.#replaceResolvable(text, true);
+    assertPromptImages(expanded.images, this.#imageLimit());
     return { text: expanded.text, images: expanded.images };
   }
 

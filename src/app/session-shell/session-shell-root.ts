@@ -1,4 +1,4 @@
-import { acceptsTranscriptUpdate } from "../../contracts/owned-ui/index.js";
+import { acceptsTranscriptUpdate, ImageAttachmentError } from "../../contracts/owned-ui/index.js";
 import type {
   OwnedUiCommand,
   OwnedUiDialog,
@@ -247,6 +247,12 @@ export interface OwnedUiShellDiagnosticOptions {
   readonly pastePreparation?: Omit<PastePreparationClientOptions, "onEvent" | "spareIdleMs">;
 }
 
+/** Live prompt-image admission policy supplied only by the bare-A1 profile. */
+export interface OwnedUiShellPromptImagesOptions {
+  readonly limit: () => number;
+  readonly onChange: (listener: () => void) => () => void;
+}
+
 /** The skills presentation choice: collapse the per-skill commands into one skills command or expand them. */
 export interface OwnedUiShellSkillsOptions {
   readonly presentation: () => "collapse" | "expand";
@@ -259,6 +265,8 @@ export interface OwnedUiSessionShellOptions {
   readonly presentation?: OwnedUiShellPresentationOptions;
   readonly history?: OwnedUiShellHistoryOptions;
   readonly suggestions?: OwnedUiShellSuggestionOptions;
+  /** Supplied only to bare A1; absent retains the fixed eight-image comparison policy. */
+  readonly promptImages?: OwnedUiShellPromptImagesOptions;
   /** Supplied only to the bare-A1 composition; absent keeps the pinned per-skill command list. */
   readonly skills?: OwnedUiShellSkillsOptions;
   readonly diagnostics?: OwnedUiShellDiagnosticOptions;
@@ -310,7 +318,11 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   readonly #workflowStatusMessages = new Map<string, string>();
   #lastWorkflowStatusId: string | undefined;
   // Invariant: the notice is dock chrome, never transcript content; the custom viewport alone uses it.
-  #dockNotice: { readonly kind: "status" | "warning" | "error"; readonly message: string } | undefined;
+  #dockNotice: {
+    readonly kind: "status" | "warning" | "error";
+    readonly message: string;
+    readonly errorCode?: ImageAttachmentError["code"];
+  } | undefined;
   #copyAcknowledgement: string | undefined;
   #copyAcknowledgementTimer: ReturnType<typeof setTimeout> | undefined;
   #inputSurface: PiShellComponentPort;
@@ -373,6 +385,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       readonly captureClipboardPaste?: () => PasteSource;
       readonly pasteDiagnostics?: (event: PasteEvent) => void;
       readonly pastePreparation?: Omit<PastePreparationClientOptions, "onEvent">;
+      readonly promptImageLimit?: () => number;
       readonly skillsPresentation?: () => "collapse" | "expand";
     },
     startup: PiShellHeaderOptions = {},
@@ -388,7 +401,8 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.#customViewport = sessionLayout === "custom-viewport";
     this.#promptChips = new PromptChipStore({ isolated: this.#customViewport,
       ...(handlers.pasteDiagnostics === undefined ? {} : { onEvent: handlers.pasteDiagnostics }),
-      ...(handlers.pastePreparation === undefined ? {} : { preparation: handlers.pastePreparation }) });
+      ...(handlers.pastePreparation === undefined ? {} : { preparation: handlers.pastePreparation }),
+      ...(handlers.promptImageLimit === undefined ? {} : { imageLimit: handlers.promptImageLimit }) });
     this.#submittedPromptComposer = this.#customViewport
       ? {
           layout: submittedPromptLayout,
@@ -609,6 +623,12 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
 
   preparePromptSubmission(text: string): PreparedPrompt {
     return this.#promptChips.prepareSubmission(text);
+  }
+
+  reconcilePromptImageLimitNotice(text: string = this.editor.getText()): boolean {
+    if (this.#dockNotice?.errorCode !== "image-count" || !this.#promptChips.imageLimitState(text).corrected) return false;
+    this.#dismissDockNotice();
+    return true;
   }
 
   hasPendingPastes(text: string): boolean { return this.#promptChips.hasPending(text); }
@@ -1205,13 +1225,13 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.#lastWorkflowStatusId = id;
   }
 
-  appendWorkflowMessage(message: PiWorkflowMessage): void {
+  appendWorkflowMessage(message: PiWorkflowMessage, errorCode?: ImageAttachmentError["code"]): void {
     if (message.kind === "status") {
       this.appendWorkflowStatus(message.message);
       return;
     }
     if (this.#customViewport && (message.kind === "warning" || message.kind === "error")) {
-      this.#dockNotice = { kind: message.kind, message: message.message };
+      this.#dockNotice = { kind: message.kind, message: message.message, ...(errorCode === undefined ? {} : { errorCode }) };
       this.#invalidateChrome();
       return;
     }
@@ -1220,9 +1240,9 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.#appendAnchoredWorkflowComponent(width => renderPiShellCommandMessage(presentation, width, this.#outputPad));
   }
 
-  appendWorkflowResult(result: PiWorkflowResult): void {
+  appendWorkflowResult(result: PiWorkflowResult, errorCode?: ImageAttachmentError["code"]): void {
     if (result.messages !== undefined) {
-      for (const message of result.messages) this.appendWorkflowMessage(message);
+      for (const message of result.messages) this.appendWorkflowMessage(message, errorCode);
       return;
     }
     if (result.messageKind === "silent" || (result.outcome === "cancelled" && result.messageKind === undefined)) return;
@@ -1253,7 +1273,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       this.appendWorkflowMessage({
         kind: result.messageKind === "warning" ? "warning" : "error",
         message: result.message,
-      });
+      }, errorCode);
       return;
     }
     if (result.outcome === "completed" && (result.command === "quit" || result.command === "compact")) return;

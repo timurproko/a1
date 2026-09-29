@@ -1,6 +1,8 @@
 import type { OwnedUiImageAttachment } from "./model.js";
 
-export const MAX_PROMPT_IMAGES = 8;
+export const DEFAULT_PROMPT_IMAGE_LIMIT = 8;
+/** Absolute command boundary; the bare-A1 editor may choose a lower live limit. */
+export const MAX_PROMPT_IMAGES = 16;
 /** Owned clipboard text is bounded before transfer, normalization, or editor insertion. */
 export const MAX_CLIPBOARD_TEXT_BYTES = 16 * 1024 * 1024;
 /** Limit applies to canonical ASCII base64, not decoded image bytes. */
@@ -13,7 +15,7 @@ const MESSAGES = {
   "paste-busy": "Clipboard preparation is full (8 pending pastes).",
   "paste-write-failed": "Paste skipped because the preceding copy failed.",
   "image-size": "Image exceeds the 8 MiB encoded base64 limit. Reduce the image size and paste it again.",
-  "image-count": "A prompt supports at most 8 images. Remove an attachment before adding another.",
+  "image-count": "A prompt has too many images.",
   "image-data": "Image data is invalid. Paste a valid image again.",
   "image-mime": "Image MIME type is invalid. Paste a supported image again.",
   "image-source-size": "Source image exceeds 20 MiB. Reduce the source size and paste it again.",
@@ -30,9 +32,14 @@ const MESSAGES = {
 /** Trusted, payload-free diagnostics for user-correctable attachment failures. */
 export class ImageAttachmentError extends TypeError {
   readonly code: keyof typeof MESSAGES;
-  constructor(code: keyof typeof MESSAGES) {
-    super(MESSAGES[code]);
+  readonly imageLimit: number | null;
+  constructor(code: keyof typeof MESSAGES, imageLimit: number = DEFAULT_PROMPT_IMAGE_LIMIT) {
+    assertPromptImageLimit(imageLimit);
+    super(code === "image-count"
+      ? `A prompt supports at most ${imageLimit} ${imageLimit === 1 ? "image" : "images"}. Remove an attachment before adding another.`
+      : MESSAGES[code]);
     this.code = code;
+    this.imageLimit = code === "image-count" ? imageLimit : null;
     this.name = "ImageAttachmentError";
   }
 }
@@ -47,8 +54,12 @@ const VALIDATED_IMAGES = new WeakSet<object>();
 const BASE64_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
 /** Final command admission also covers restored and deferred non-clipboard inputs. */
-export function assertPromptImages(images: readonly OwnedUiImageAttachment[]): void {
-  if (!Array.isArray(images) || images.length > MAX_PROMPT_IMAGES) throw new ImageAttachmentError("image-count");
+export function assertPromptImages(
+  images: readonly OwnedUiImageAttachment[],
+  imageLimit: number = MAX_PROMPT_IMAGES,
+): void {
+  assertPromptImageLimit(imageLimit);
+  if (!Array.isArray(images) || images.length > imageLimit) throw new ImageAttachmentError("image-count", imageLimit);
   for (const image of images) {
     if (!image || image.type !== "image") throw new ImageAttachmentError("image-data");
     if (VALIDATED_IMAGES.has(image)) continue;
@@ -65,5 +76,11 @@ export function assertPromptImages(images: readonly OwnedUiImageAttachment[]): v
     if (Object.isFrozen(image) && (["type", "data", "mimeType"] as const).every(key => Object.getOwnPropertyDescriptor(image, key)?.value === image[key])) {
       VALIDATED_IMAGES.add(image);
     }
+  }
+}
+
+function assertPromptImageLimit(imageLimit: number): void {
+  if (!Number.isSafeInteger(imageLimit) || imageLimit < 1 || imageLimit > MAX_PROMPT_IMAGES) {
+    throw new RangeError(`Prompt image limit must be an integer from 1 through ${MAX_PROMPT_IMAGES}`);
   }
 }

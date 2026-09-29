@@ -132,7 +132,10 @@ export function startPasteExecutor(content: PiShellClipboardContent | undefined,
       failure = candidate.message ? candidate : new ImageAttachmentError("paste-unavailable");
       cancel();
     } else fail();
-    } catch (error) { fail(error instanceof ImageAttachmentError ? error.code : "paste-unavailable"); }
+    } catch (error) {
+      if (error instanceof ImageAttachmentError) { failure = error; cancel(); }
+      else fail("paste-unavailable");
+    }
   });
   child.once("error", () => fail());
   const cleanup = () => {
