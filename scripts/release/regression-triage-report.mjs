@@ -270,7 +270,8 @@ export function renderTriageChange({ workflow, run, date, summary, lastGreen, co
   const orchestration = summary.orchestration.map(item => `lane ${item.lane} in job \`${item.job}\``);
   return {
     // Rationale: strict validation and finalization both need a delta or an explicit skip; the fixer drops the skip when a delta is added.
-    [`openspec/changes/${id}/.openspec.yaml`]: `schema: spec-driven\ncreated: ${date}\nskip_specs: true\n`,
+    // OpenSpec requires `created` to be a calendar date, so a same-day candidate stamp drops its `-N` suffix.
+    [`openspec/changes/${id}/.openspec.yaml`]: `schema: spec-driven\ncreated: ${date.slice(0, 10)}\nskip_specs: true\n`,
     [`openspec/changes/${id}/${TRIAGE_PROVENANCE_FILE}`]: renderTriageProvenance({ workflow, run, date }),
     [`openspec/changes/${id}/proposal.md`]: [
       "## Why",
