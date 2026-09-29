@@ -83,7 +83,7 @@ jobs:
           const assetBytes = new Uint8Array(await (await response(`https://api.github.com/repos/${repository}/releases/assets/${applicationAssets[0].id}`, {
             headers: { accept: "application/octet-stream" },
           })).arrayBuffer());
-          const verified = validateStableStagingReceipt({ receipt, release, workflowRun, tag, master, application, installer,
+          const verified = validateStableStagingReceipt({ repository, receipt, release, workflowRun, tag, master, application, installer,
             applicationLatest, installerLatest, assetSha256: createHash("sha256").update(assetBytes).digest("hex") });
           await writeFile(".artifacts/release-finalization/approved-note.md", verified.note, "utf8");
           console.log(`version=${verified.version}`);

@@ -1,6 +1,7 @@
 type JsonObject = Record<string, unknown>;
 export const RECEIPT_ASSET: "a1-stable-staging-v1.json";
 export function validateStableStagingReceipt(input: {
+  repository: string;
   receipt: JsonObject;
   release: JsonObject;
   workflowRun: JsonObject;

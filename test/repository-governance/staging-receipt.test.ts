@@ -15,6 +15,7 @@ const receipt = {
   asset: { name: "owner-app-1.2.3.tgz", sha256: assetDigest }, master: source,
 };
 const valid = () => ({
+  repository: "owner/app",
   receipt,
   release: { id: 17, tag_name: "v1.2.3", name: "v1.2.3", target_commitish: source, body: note,
     draft: false, prerelease: false, assets: [{ name: "a1-stable-staging-v1.json" }, { name: "owner-app-1.2.3.tgz" }] },
@@ -35,6 +36,7 @@ describe("stable staging receipt verification", () => {
   it.each([
     ["failed run", { workflowRun: { ...valid().workflowRun, conclusion: "failure" } }],
     ["wrong actor", { workflowRun: { ...valid().workflowRun, actor: { login: "other" } } }],
+    ["wrong repository", { repository: "other/app" }],
     ["wrong workflow", { workflowRun: { ...valid().workflowRun, path: ".github/workflows/other.yml" } }],
     ["wrong run attempt", { workflowRun: { ...valid().workflowRun, run_attempt: 2 } }],
     ["changed body", { release: { ...valid().release, body: note.replace("Reviewed", "Changed") } }],

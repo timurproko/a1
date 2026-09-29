@@ -7,9 +7,9 @@ const STABLE = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/u;
 const RECEIPT_ASSET = "a1-stable-staging-v1.json";
 
 export function validateStableStagingReceipt(input) {
-  const { receipt, release, workflowRun, tag, master, application, installer, applicationLatest, installerLatest, assetSha256 } = input ?? {};
-  if (!receipt || receipt.schema !== "a1-stable-staging-v1" || typeof receipt.repository !== "string"
-    || receipt.workflowPath !== ".github/workflows/approve-release.yml" || !Number.isSafeInteger(receipt.runId) || receipt.runId < 1
+  const { repository, receipt, release, workflowRun, tag, master, application, installer, applicationLatest, installerLatest, assetSha256 } = input ?? {};
+  if (!receipt || receipt.schema !== "a1-stable-staging-v1" || !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u.test(repository ?? "")
+    || receipt.repository !== repository || receipt.workflowPath !== ".github/workflows/approve-release.yml" || !Number.isSafeInteger(receipt.runId) || receipt.runId < 1
     || !Number.isSafeInteger(receipt.runAttempt) || receipt.runAttempt < 1 || typeof receipt.actor !== "string"
     || !/^[A-Za-z0-9-]+$/u.test(receipt.actor) || typeof receipt.requestId !== "string"
     || !/^[0-9a-f-]{36}$/u.test(receipt.requestId) || !Number.isSafeInteger(receipt.releaseId) || receipt.releaseId < 1
