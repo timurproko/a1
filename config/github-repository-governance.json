@@ -282,6 +282,18 @@
       "concurrency": "a1-registry-publication",
       "environments": ["npm-publish"],
       "artifactRetentionDays": [1, 30]
+    },
+    {
+      "name": "Ready pull-request refresh",
+      "path": ".github/workflows/ready-pull-request-refresh.yml",
+      "state": "active",
+      "triggers": ["pull_request_target:closed", "workflow_run"],
+      "permissions": ["contents: read"],
+      "trustedSource": "default-branch",
+      "authority": ["ready-pull-request-branch-refresh"],
+      "concurrency": "ready-pull-request-refresh",
+      "environments": [],
+      "artifactRetentionDays": []
     }
   ]
 }
