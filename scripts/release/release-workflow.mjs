@@ -70,7 +70,7 @@ export async function runRelease(args, runtime) {
     const draft = await prepareDraftRelease(r, repository, source, plan.version, local);
     assertAuthoritative(r, source, plan.current, local.manifest.name);
     const validation = await r.dispatchValidation({ repository, source, version: plan.version });
-    // Links stand on their own lines so a terminal selection copies exactly the URL.
+    // Rationale: links stand on their own lines so a terminal selection copies exactly the URL.
     r.log(`${validation.reused ? "Following existing" : "Started"} validation of ${source.slice(0, 12)} as ${plan.version}. Progress:\n${validation.url}`);
     r.log("Waiting for validation to pass. Ctrl+C is safe: validation keeps running and rerunning this command resumes waiting.");
     try {

@@ -59,7 +59,7 @@ describe("release preparation with real temporary Git and fake external services
     expect(f.events).toContain(`validation-dispatch:${f.initialHead}:${stable}`);
     expect(f.events.indexOf(`draft-create:v${stable}`)).toBeLessThan(f.events.indexOf(`validation-dispatch:${f.initialHead}:${stable}`));
     expect(f.ghCalls.some(args => args[0] === "pr")).toBe(false);
-    // The progress link comes first and the edit link only after validation passed; each stands alone on its line.
+    // Invariant: the progress link comes first and the edit link only after validation passed; each stands alone on its line.
     const lines = output.split("\n");
     expect(lines).toContain("https://github.com/fixture/a1/actions/runs/42");
     expect(lines).toContain(editUrl(draft));
