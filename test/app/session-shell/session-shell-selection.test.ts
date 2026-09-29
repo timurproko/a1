@@ -967,64 +967,76 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
       timestamp: Date.now() + index,
     }));
     const { terminal, shell } = await fixture(messages, [], true);
-    terminal.resize(60, 12);
-    const firstVisible = (): number => {
-      const indexes = shell.root.render(60)
-        .map(row => /selection-scroll-(\d+)/.exec(stripTerminalSequences(row))?.[1])
-        .filter((value): value is string => value !== undefined)
-        .map(Number);
-      return Math.min(...indexes);
-    };
-    shell.root.render(60);
-    terminal.input("\u001b[<0;5;3M");
-    terminal.input("\u001b[<32;5;1M");
-    const afterMotion = firstVisible();
+    // Invariant: tick counts, not runner load, decide the compared distances. Only the
+    // edge-scroll windows use fake time; terminal replay and disposal keep real timers.
+    const fakeTime = () => vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    fakeTime();
+    try {
+      terminal.resize(60, 12);
+      const firstVisible = (): number => {
+        const indexes = shell.root.render(60)
+          .map(row => /selection-scroll-(\d+)/.exec(stripTerminalSequences(row))?.[1])
+          .filter((value): value is string => value !== undefined)
+          .map(Number);
+        return Math.min(...indexes);
+      };
+      shell.root.render(60);
+      terminal.input("\u001b[<0;5;3M");
+      terminal.input("\u001b[<32;5;1M");
+      const afterMotion = firstVisible();
 
-    await new Promise(resolve => setTimeout(resolve, 150));
-    const whileHeld = firstVisible();
-    expect(whileHeld).toBeLessThan(afterMotion);
-    const normalDistance = afterMotion - whileHeld;
-    terminal.input("\u001b[<0;5;1m");
-    shell.runtime.renderNow();
-    const transcript = shell.root.viewportFrameDescriptor()!.transcript!;
-    const heldCells = await replayTerminalBackgroundCells(
-      terminal.writes.map((data, atMs) => ({ data, atMs })),
-      { columns: 60, rows: 12 },
-    );
-    expect(heldCells.filter(cell => cell.mode === "rgb" && cell.color === 0x264f78)
-      .every(cell => cell.row >= transcript.rowStart && cell.row <= transcript.rowEnd)).toBe(true);
+      await vi.advanceTimersByTimeAsync(150);
+      const whileHeld = firstVisible();
+      expect(whileHeld).toBeLessThan(afterMotion);
+      const normalDistance = afterMotion - whileHeld;
+      terminal.input("\u001b[<0;5;1m");
+      shell.runtime.renderNow();
+      const transcript = shell.root.viewportFrameDescriptor()!.transcript!;
+      vi.useRealTimers();
+      const heldCells = await replayTerminalBackgroundCells(
+        terminal.writes.map((data, atMs) => ({ data, atMs })),
+        { columns: 60, rows: 12 },
+      );
+      fakeTime();
+      expect(heldCells.filter(cell => cell.mode === "rgb" && cell.color === 0x264f78)
+        .every(cell => cell.row >= transcript.rowStart && cell.row <= transcript.rowEnd)).toBe(true);
 
-    await new Promise(resolve => setTimeout(resolve, 130));
-    expect(firstVisible()).toBe(whileHeld);
-    terminal.input("\u0003");
-    await nextImmediate();
-    await nextImmediate();
-    shell.root.resetWorkflowPresentation();
+      await vi.advanceTimersByTimeAsync(130);
+      expect(firstVisible()).toBe(whileHeld);
+      terminal.input("\u0003");
+      await nextImmediate();
+      await nextImmediate();
+      shell.root.resetWorkflowPresentation();
 
-    // Rationale: leave enough room below for the faster direction to demonstrate its
-    // greater distance rather than immediately hitting the document end.
-    terminal.input("\u001b[<64;30;3M");
-    terminal.input("\u001b[<64;30;3M");
-    terminal.input("\u001b[<64;30;3M");
-    shell.root.setViewportConfig({ scrollbarAppearance: "always", scrollbarStyle: "thin", scrollbarSpeed: "fast" });
-    shell.runtime.renderNow();
-    terminal.input("\u001b[<0;5;3M");
-    terminal.input("\u001b[<32;5;12M");
-    const afterDownMotion = firstVisible();
-    await new Promise(resolve => setTimeout(resolve, 150));
-    const fastDistance = firstVisible() - afterDownMotion;
-    expect(fastDistance).toBeGreaterThan(normalDistance);
-    terminal.input("\u001b[<0;5;12m");
+      // Rationale: leave enough room below for the faster direction to demonstrate its
+      // greater distance rather than immediately hitting the document end.
+      terminal.input("\u001b[<64;30;3M");
+      terminal.input("\u001b[<64;30;3M");
+      terminal.input("\u001b[<64;30;3M");
+      shell.root.setViewportConfig({ scrollbarAppearance: "always", scrollbarStyle: "thin", scrollbarSpeed: "fast" });
+      shell.runtime.renderNow();
+      // Invariant: a press on the first gesture's cell inside the multi-click window starts a
+      // word selection, not a drag; the fast gesture starts on another row.
+      terminal.input("\u001b[<0;5;4M");
+      terminal.input("\u001b[<32;5;12M");
+      const afterDownMotion = firstVisible();
+      await vi.advanceTimersByTimeAsync(150);
+      const fastDistance = firstVisible() - afterDownMotion;
+      expect(fastDistance).toBeGreaterThan(normalDistance);
+      terminal.input("\u001b[<0;5;12m");
 
-    shell.root.setViewportConfig({ scrollbarAppearance: "always", scrollbarStyle: "thin", scrollbarSpeed: "high" });
-    terminal.input("\u001b[<0;5;3M");
-    terminal.input("\u001b[<32;5;1M");
-    const beforeHigh = firstVisible();
-    await new Promise(resolve => setTimeout(resolve, 150));
-    const highDistance = beforeHigh - firstVisible();
-    expect(highDistance).toBeGreaterThanOrEqual(fastDistance);
-    terminal.input("\u001b[<0;5;1m");
-    await shell.dispose();
+      shell.root.setViewportConfig({ scrollbarAppearance: "always", scrollbarStyle: "thin", scrollbarSpeed: "high" });
+      terminal.input("\u001b[<0;5;3M");
+      terminal.input("\u001b[<32;5;1M");
+      const beforeHigh = firstVisible();
+      await vi.advanceTimersByTimeAsync(150);
+      const highDistance = beforeHigh - firstVisible();
+      expect(highDistance).toBeGreaterThanOrEqual(fastDistance);
+      terminal.input("\u001b[<0;5;1m");
+    } finally {
+      vi.useRealTimers();
+      await shell.dispose();
+    }
   });
 
   it("keeps transcript-originated selection above the dock while preserving dock-origin crossing", async () => {
