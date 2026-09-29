@@ -43,13 +43,18 @@ export async function resolveDevelopPreview(source, options = {}) {
   return { source, pullRequest: number, version: `${base}-dev.${number}`, packageName: manifest.name };
 }
 
-export async function registryVersion(packageName, version, fetchImpl = fetch) {
-  const response = await fetchImpl(`https://registry.npmjs.org/${encodeURIComponent(packageName)}/${version}`, {
+export async function registryManifest(packageName, specifier, fetchImpl = fetch) {
+  const response = await fetchImpl(`https://registry.npmjs.org/${encodeURIComponent(packageName)}/${specifier}`, {
     headers: { accept: "application/json", "cache-control": "no-cache" },
   });
   if (response.status === 404) return null;
-  if (!response.ok) throw new Error(`npm registry returned HTTP ${response.status} for ${packageName}@${version}`);
-  const manifest = await response.json();
+  if (!response.ok) throw new Error(`npm registry returned HTTP ${response.status} for ${packageName}@${specifier}`);
+  return await response.json();
+}
+
+export async function registryVersion(packageName, version, fetchImpl = fetch) {
+  const manifest = await registryManifest(packageName, version, fetchImpl);
+  if (manifest === null) return null;
   if (manifest.version !== version) throw new Error(`npm returned ${manifest.version ?? "no version"} for ${packageName}@${version}`);
   return manifest;
 }
@@ -93,33 +98,22 @@ export function describePublicationFailure(runId, options = {}) {
 
 export async function dispatchPublication(channel, source, version, options = {}) {
   const execute = options.run ?? run;
-  if (channel === "stable" && (!Number.isSafeInteger(options.draftReleaseId) || options.draftReleaseId < 1
-    || !/^[a-f0-9]{64}$/u.test(options.releaseNoteSha256 ?? ""))) {
-    throw new Error("stable publication requires an approved draft Release identity and note digest");
-  }
+  if (channel !== "develop") throw new Error("stable publication is approved only from the Approve stable release workflow in GitHub Actions");
   const write = options.write ?? (text => process.stdout.write(text));
   const wait = options.sleep ?? sleep;
   execute("gh", ["auth", "status"], { stdio: "inherit" });
   const requestId = options.requestId ?? randomUUID();
-  // Rationale: a development preview derives its number in the workflow; only a stable
-  // publication names the version it stamps on the open development source.
   execute("gh", [
-    "workflow", "run", "publish.yml", "--ref", "develop",
-    "-f", `channel=${channel}`,
+    "workflow", "run", "develop.yml", "--ref", "develop",
     "-f", `source_sha=${source}`,
     "-f", `request_id=${requestId}`,
-    ...(channel === "stable" ? [
-      "-f", `version=${version}`,
-      "-f", `release_id=${options.draftReleaseId}`,
-      "-f", `release_notes_sha256=${options.releaseNoteSha256}`,
-    ] : []),
   ], { stdio: "inherit" });
 
   const deadline = Date.now() + RUN_APPEAR_TIMEOUT_MS;
   let runId;
   while (Date.now() < deadline) {
     const runs = JSON.parse(execute("gh", [
-      "run", "list", "--workflow", "publish.yml", "--event", "workflow_dispatch",
+      "run", "list", "--workflow", "develop.yml", "--event", "workflow_dispatch",
       "--json", "databaseId,displayTitle", "--limit", "50",
     ]));
     runId = runs.find(entry => entry.displayTitle?.includes(requestId))?.databaseId;

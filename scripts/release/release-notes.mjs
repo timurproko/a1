@@ -8,6 +8,7 @@ export const MAX_RELEASE_NOTES_RESOURCE_BYTES = 1024 * 1024;
 const MAX_TITLE_LENGTH = 240;
 const STABLE = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/u;
 const RELEASE_HEADING = /^# A1 \d+\.\d+\.\d+$/gmu;
+const CHANGELOG_HEADING = /^## \[((?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*))\] - (\d{4}-\d{2}-\d{2})$/gmu;
 
 export function releaseNotePath(version) {
   assertStableVersion(version);
@@ -22,7 +23,11 @@ export function parseReleaseNote(markdown, expectedVersion) {
   const version = expectedVersion;
   const normalized = markdown.replaceAll("\r\n", "\n").trimEnd() + "\n";
   if (/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u.test(normalized)) throw new Error("release note contains unsafe control characters");
-  if ([...normalized.matchAll(RELEASE_HEADING)].length !== 0) throw new Error("release note body must not repeat its release identity");
+  if ([...normalized.matchAll(RELEASE_HEADING)].length !== 0) throw new Error("release note body must not use the redundant A1 release heading");
+  const headings = [...normalized.matchAll(CHANGELOG_HEADING)];
+  if (headings.length > 1 || (headings.length === 1 && (headings[0][1] !== expectedVersion || !isCalendarDate(headings[0][2])))) {
+    throw new Error(`release note changelog heading must identify ${expectedVersion} with a valid date`);
+  }
   if (normalized.trim() === "") throw new Error("release note has no content");
   for (const link of normalized.matchAll(/\[[^\]]*\]\(([^)\s]+)(?:\s+[^)]*)?\)/gu)) validateLink(link[1] ?? "");
   for (const link of normalized.matchAll(/<([^>\s]+:[^>]*)>/gu)) validateLink(link[1] ?? "");
@@ -32,14 +37,16 @@ export function parseReleaseNote(markdown, expectedVersion) {
   return Object.freeze({ version, markdown: normalized });
 }
 
-export function renderReleaseNoteDraft(version, changes) {
+export function renderReleaseNoteDraft(version, changes, date = new Date().toISOString().slice(0, 10)) {
   assertStableVersion(version);
   if (!Array.isArray(changes)) throw new TypeError("release changes must be an array");
+  if (!isCalendarDate(date)) throw new TypeError("release-note date must be an exact UTC calendar date");
   const groups = new Map([
-    ["Breaking changes", []],
-    ["New features", []],
-    ["Fixes", []],
-    ["Other changes", []],
+    ["Breaking Changes", []],
+    ["New Features", []],
+    ["Added", []],
+    ["Changed", []],
+    ["Fixed", []],
   ]);
   const seen = new Set();
   for (const change of [...changes].sort((left, right) => left.number - right.number)) {
@@ -53,16 +60,17 @@ export function renderReleaseNoteDraft(version, changes) {
     if (!title) continue;
     if (title.length > MAX_TITLE_LENGTH) throw new Error(`release pull request #${change.number} title is too long`);
     validateLink(change.url);
-    const group = /BREAKING CHANGE|^[a-z]+(?:\([^)]*\))?!:/iu.test(change.title) ? "Breaking changes"
-      : /^feat(?:\([^)]*\))?:/iu.test(change.title) ? "New features"
-      : /^fix(?:\([^)]*\))?:/iu.test(change.title) ? "Fixes"
-      : "Other changes";
+    const group = /BREAKING CHANGE|^[a-z]+(?:\([^)]*\))?!:/iu.test(change.title) ? "Breaking Changes"
+      : /^feat(?:\([^)]*\))?:/iu.test(change.title) ? "New Features"
+      : /^add(?:\([^)]*\))?:/iu.test(change.title) ? "Added"
+      : /^fix(?:\([^)]*\))?:/iu.test(change.title) ? "Fixed"
+      : "Changed";
     groups.get(group).push(`- ${escapeMarkdown(title)} ([#${change.number}](${change.url}))`);
   }
   const sections = [];
-  for (const [heading, entries] of groups) if (entries.length > 0) sections.push(`## ${heading}\n\n${entries.join("\n")}`);
-  if (sections.length === 0) sections.push("## Other changes\n\n- Maintenance and release readiness updates.");
-  return `${sections.join("\n\n")}\n`;
+  for (const [heading, entries] of groups) if (entries.length > 0) sections.push(`### ${heading}\n\n${entries.join("\n")}`);
+  if (sections.length === 0) sections.push("### Changed\n\n- Maintenance and release readiness updates.");
+  return `## [${version}] - ${date}\n\n${sections.join("\n\n")}\n`;
 }
 
 export async function buildReleaseNotesResource(directory) {
@@ -97,6 +105,12 @@ export function validateReleaseNotesResource(value) {
     return parsed;
   });
   return Object.freeze({ schema: RELEASE_NOTES_SCHEMA, releases: Object.freeze(releases) });
+}
+
+function isCalendarDate(value) {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/u.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(parsed.valueOf()) && parsed.toISOString().slice(0, 10) === value;
 }
 
 function assertStableVersion(version) {

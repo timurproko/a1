@@ -4,6 +4,7 @@ import {
   releaseDocumentationChanged,
   releaseDocumentationFindings,
 } from "../../scripts/release/check-release-documentation.mjs";
+import { registryManifest } from "../../scripts/release/publication-client.mjs";
 import { parseReleaseArguments, RELEASE_USAGE, ReleaseUsageError, resolveReleasePlan } from "../../scripts/release/release-target.mjs";
 
 describe("explicit prerelease-aware release targets", () => {
@@ -20,13 +21,11 @@ describe("explicit prerelease-aware release targets", () => {
     ["0.1.8", "0.1.8", "0.1.8", "0.1.9-dev"],
     ["0.1.8-dev+build.1", "patch", "0.1.8", "0.1.9-dev"],
   ])("resolves %s with %s to %s, then %s", (current, target, version, opening) => {
-    expect(resolveReleasePlan(current, [target])).toEqual({ current, version, opening, approve: false });
+    expect(resolveReleasePlan(current, [target])).toEqual({ current, version, opening });
   });
 
-  it("accepts explicit draft approval without changing target resolution", () => {
-    expect(parseReleaseArguments(["patch", "--approve"])).toEqual({ target: "patch", approve: true });
-    expect(resolveReleasePlan("0.1.8-dev", ["patch", "--approve"]))
-      .toEqual({ current: "0.1.8-dev", version: "0.1.8", opening: "0.1.9-dev", approve: true });
+  it("rejects retired local approval authority", () => {
+    expect(() => parseReleaseArguments(["patch", "--approve"])).toThrow(/Approve stable release workflow in GitHub Actions/);
   });
 
   it.each([[], [""], ["--patch"], ["prepatch"], ["latest"], ["0.4"], ["v0.4.0"], ["00.4.0"],
@@ -36,6 +35,13 @@ describe("explicit prerelease-aware release targets", () => {
 
   it.each([undefined, null, "", "broken", "v0.1.8", "01.1.8", "0.1", " 0.1.8", "0.1.8 ", "0.1.8-dev.01"])("rejects malformed current version %j", current => {
     expect(() => resolveReleasePlan(current, ["patch"])).toThrow(ReleaseUsageError);
+  });
+
+  it("reads registry tag manifests for trusted recovery validation", async () => {
+    const response = (value: unknown) => ({ status: 200, ok: true, json: async () => value }) as Response;
+    await expect(registryManifest("@scope/pkg", "latest", async () => response({ version: "1.2.3" })))
+      .resolves.toEqual({ version: "1.2.3" });
+    await expect(registryManifest("@scope/pkg", "latest", async () => response({ version: 3 }))).resolves.toEqual({ version: 3 });
   });
 
   it("rejects an exact stable target below the open development core", () => {

@@ -1,8 +1,10 @@
 ## MODIFIED Requirements
 
 ### Requirement: Publication follows from what was pushed
-Publication SHALL use trusted workflows whose source is the exact current
-`origin/develop` commit. It SHALL start nightly, by explicit development dispatch,
+Publication SHALL use trusted workflows whose normal source is the exact current
+`origin/develop` commit; the one explicit orphan-tag recovery below MAY instead use
+that immutable tagged ancestor while independently validating current `develop`. It
+SHALL start nightly, by explicit development dispatch,
 or by an explicit stable approval dispatch from the **Approve stable release** GitHub
 Actions workflow; a push, pull-request merge, tag, draft Release creation, draft edit,
 or native GitHub Release publication alone SHALL NOT publish npm packages. A manual
@@ -41,6 +43,11 @@ tag themselves grant no package authority.
 #### Scenario: Prepare a stable draft
 - **WHEN** the maintainer selects stable `0.1.8` from current authoritative `develop` declaring `0.1.8-dev`
 - **THEN** the command SHALL create or reuse an unpublished draft GitHub Release bound to that source and target, print its editing URL exactly once, print the stable approval Actions URL exactly once, and stop without a release-note pull request, package publication, tag, public Release, or `master` movement
+
+#### Scenario: Generate a Pi-style changelog draft
+- **WHEN** preparation creates a new draft for stable `0.1.8`
+- **THEN** its body SHALL begin with `## [0.1.8] - YYYY-MM-DD` and group applicable entries under level-three Breaking Changes, New Features, Added, Changed, and Fixed headings
+- **AND** a retained version/date heading SHALL identify the expected stable version and a valid calendar date while the reviewed body remains human-editable
 
 #### Scenario: A stable version is requested
 - **WHEN** an authorized human runs **Approve stable release** for `0.1.8` while the exact source-bound draft remains valid
@@ -144,12 +151,14 @@ validated package or a channel tag that names another version SHALL still fail t
 verification immediately, whatever the remaining window.
 
 Recovery preparation MAY handle one orphan stable tag only when trusted code proves
-that the immutable tag names the exact current open-development source, no GitHub
-Release exists for it, neither npm package version exists, npm `latest`, `master`, and
-a prior complete stable tag agree on one ancestor baseline, and no contradictory
-record claims completion. It SHALL generate notes from that complete baseline rather
-than from the orphan tag and SHALL create a new unpublished draft referring to the
-existing tag/source without moving or recreating the tag.
+that the immutable tagged source is the current open-development source or its
+ancestor, both tagged and current sources preserve the same compatible open version
+and package identities, no GitHub Release exists for it, neither npm package version
+exists, npm `latest`, `master`, and a prior complete stable tag agree on one ancestor
+baseline, and no contradictory record claims completion. It SHALL generate notes from
+that complete baseline through the tagged source, exclude later development commits,
+and create a new unpublished draft referring to the existing tag/source without
+moving, deleting, force-updating, or recreating the tag.
 
 Recovery approval SHALL require an authorized human's Actions dispatch after that
 fresh draft has been reviewed and saved. It SHALL snapshot the bounded draft body,
@@ -176,9 +185,9 @@ Release retains the deleted database identity.
 - **THEN** the publication SHALL fail, no new stable record SHALL be written, and a rerun of the failed jobs SHALL verify the earlier upload without publishing a second time
 
 #### Scenario: Orphan tag receives a replacement draft
-- **WHEN** stable preparation selects an exact orphan tag satisfying every recovery precondition
-- **THEN** it SHALL generate the draft from the prior complete stable baseline, create one unpublished replacement Release for the existing tag/source, and require fresh human review
-- **AND** it SHALL NOT move, delete, recreate, or use the orphan tag itself as changelog approval
+- **WHEN** stable preparation selects an exact orphan tag satisfying every recovery precondition while current `develop` is the same source or a compatible descendant
+- **THEN** it SHALL generate the draft from the prior complete stable baseline through the tagged source, exclude later commits, create one unpublished replacement Release for the existing tag/source, and require fresh human review
+- **AND** it SHALL contain no command that moves, deletes, force-updates, or recreates the orphan tag and SHALL NOT use the tag itself as changelog approval
 
 #### Scenario: Exact orphan tag is explicitly recovered
 - **WHEN** an authorized human runs **Approve stable release** after reviewing the replacement draft while both npm packages remain absent
@@ -186,5 +195,5 @@ Release retains the deleted database identity.
 - **AND** any failure before final Release publication SHALL leave the replacement Release as a draft
 
 #### Scenario: Premature record recovery is ambiguous
-- **WHEN** the approved replacement draft is missing, the tag or source differs, either package exists unexpectedly, the prior complete baseline disagrees across npm, `master`, and Git, the body is unsafe, completion records contradict recovery, or the source is no longer authoritative
+- **WHEN** the approved replacement draft is missing, the tag moved or is not an ancestor of current `develop`, tagged or current package identities/open versions differ, either package exists unexpectedly, the prior complete baseline disagrees across npm, `master`, and Git, the body is unsafe, or completion records contradict recovery
 - **THEN** recovery SHALL fail before package construction and SHALL preserve all existing records for inspection

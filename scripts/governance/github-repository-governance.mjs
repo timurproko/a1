@@ -67,7 +67,8 @@ export function inspectWorkflowSource(path, source) {
   const concurrency = /^\s+group:\s*([^\n$]+?)(?:\$\{\{|\s*$)/m.exec(source)?.[1]?.trim() ?? "";
 
   let trustedSource = "unknown";
-  if (source.includes("ref: ${{ github.event.repository.default_branch }}")) trustedSource = "default-branch";
+  if (source.includes("ref: ${{ github.event.repository.default_branch }}")
+    || (["approve-release.yml", "develop.yml"].some(name => path.endsWith(name)) && source.includes("uses: timurproko/a1/.github/workflows/publish.yml@develop"))) trustedSource = "default-branch";
   else if (path.endsWith("ci.yml") && source.includes("github.event.pull_request.head.sha") && permissions.every(value => value.endsWith("read"))) trustedSource = "pull-request-head-read-only";
   else if (path.endsWith("full-regression.yml") && source.includes("source: ${{ github.sha }}") && source.includes("uses: ./.github/workflows/full-regression-shared.yml")) trustedSource = "dispatch-commit";
   else if (path.endsWith("full-regression-shared.yml") && source.includes("ref: ${{ inputs.source }}") && permissions.every(value => value.endsWith("read"))) trustedSource = "explicit-source-read-only";
@@ -91,12 +92,14 @@ export function inspectWorkflowSource(path, source) {
     }
   }
   if (source.includes("publish-openspec-finalization.mjs") && source.includes("OPENSPEC_ARCHIVE_APP_PRIVATE_KEY")) authority.push("single-pr-finalization-publication");
-  if (source.includes('channel = "next"')) authority.push("npm-next");
+  if (path.endsWith("approve-release.yml") && source.includes("channel: stable")) authority.push("stable-release-approval");
+  if ((source.includes('channel = "next"')) || (path.endsWith("develop.yml") && source.includes("channel: develop"))) authority.push("npm-next");
   if (source.includes('channel = "latest"')) authority.push("npm-latest");
   if (source.includes("ref=refs/tags/")) authority.push("release-tag");
   if (source.includes("gh release create")
     || (source.includes('releases/$RELEASE_ID') && source.includes("draft: false"))) authority.push("github-release");
   if (source.includes("git/refs/heads/master")) authority.push("master-fast-forward");
+  if (source.includes("prepare-reopening.mjs")) authority.push("release-reopening-proposal");
   if (source.includes("propose-pi-upgrade.mjs") && source.includes("--draft")) authority.push("pi-upgrade-proposal");
   if (source.includes("propose-regression-fix.mjs")) authority.push("nightly-regression-triage");
 

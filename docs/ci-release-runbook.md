@@ -9,8 +9,9 @@ GitHub Actions is the only automation platform. Three refs are protected:
 | `refs/tags/v*` | cannot be deleted or moved | stable publication |
 
 `.github/workflows/publish.yml` is the only publisher. A push publishes neither
-channel. The workflow starts at `03:17 UTC` for nightly development verification,
-or by explicit dispatch from `npm run develop` or `npm run release`.
+channel. It starts at `03:17 UTC` for nightly development verification or as a
+trusted reusable workflow: `npm run develop` dispatches `develop.yml`, while a human
+uses the version-only **Approve stable release** workflow after reviewing a draft.
 
 npm trusted publishing binds authorization to the exact workflow filename. When
 this workflow path changes, merge with enough time before the next schedule, then
@@ -57,7 +58,8 @@ effect of stable publication, not a trigger.
 | Pull request into `develop` | Bounded PR-cadence validation; changed/new source documentation is checked once, rendering runs as `none`, `smoke`, or `full`, exhaustive owners are reported as deferred, and only a trusted-CI-created failed-Full-regression repair adds PR-attached complete regression |
 | `npm run develop` | Preview package gates on Windows, Linux, and macOS; an existing numbered preview is an early successful no-op |
 | Nightly at `03:17 UTC` | One full documentation review plus the complete non-physical suite on Windows, Linux, and macOS, every night |
-| `npm run release -- ...` | Creates an editable source-bound draft GitHub Release and publishes nothing; the explicit `--approve` form snapshots its exact body and runs the complete stable gates before one manually merged reopening-and-note PR |
+| `npm run release -- ...` | Creates an editable source-bound draft GitHub Release, prints the draft and Actions links once, and publishes nothing |
+| **Approve stable release** Actions dispatch | Accepts only the stable version, derives and snapshots the authorized draft, runs complete stable gates, publishes the Release last, and proposes one manually merged reopening-and-note PR |
 | `.github/workflows/full-regression.yml` | Additional on-demand complete regression without publication authority |
 | `.github/workflows/pi-upstream-sync.yml` | Nightly at `03:23 UTC`: when npm publishes a newer Pi than the pin that no closed proposal skipped, proposes the upgrade as a draft pull request with the vendored copies that follow upstream merged, the kept copies reported with their upstream delta, the ledger, headers, inventories, public API and feature baselines, startup graph, and parity evidence regenerated, and every gate verdict (passed, failed, or blocked by conflict markers) and review item in the body; never merges and never replaces a proposal a human has continued |
 | `.github/workflows/nightly-regression-triage.yml` | After every completed `Full regression` run on `develop` or scheduled `Publish` validation: judges the startup budget across the three most recent runs and, after a failure or a persistent overrun, opens `fix/nightly-regression-<date>` as a draft pull request carrying the failed commands per lane, their tests, a bounded log excerpt, the `develop` commits since the last green run, and an OpenSpec fix scaffold, or refreshes the open candidate with the same failed scope set; re-runs nothing, never writes `develop`, never merges |
@@ -216,61 +218,63 @@ npm run release -- patch     # 0.1.8-dev -> 0.1.8
 npm run release -- minor     # 0.1.8-dev -> 0.2.0
 npm run release -- major     # 0.1.8-dev -> 1.0.0
 npm run release -- 0.4.0     # prepare an exact stable target
-npm run release -- patch --approve  # snapshot the edited draft and publish
 ```
 
 A target is required: `npm run release` alone is a mutation-free usage error.
 `patch` promotes the open prerelease, `0.1.8-dev -> 0.1.8`. `develop` must declare
 exactly one open `x.y.z-dev` version; a stable or numbered version there is refused,
 and the stable version is never committed to `develop`. The preparation command
-reports its source, stable target, and prospective reopening,
-creates or reuses an unpublished draft GitHub Release, prints its URL, and exits. It
-creates no pull request, package, tag, public Release, or `master` movement.
+reports its source, stable target, and prospective reopening, creates or reuses an
+unpublished draft GitHub Release, prints the draft editing URL exactly once and the
+**Approve stable release** Actions URL exactly once, and exits. It creates no pull
+request, package, tag, public Release, or `master` movement. The retired `--approve`
+form is a mutation-free usage error that points to Actions.
 
-1. Preparation checks that the registry and `v<version>` tag do not already hold
-   the target, resolves the latest stable tag ancestor, and maps every first-parent
-   commit through a unique merged GitHub pull request. It groups user-facing changes
-   into deterministic draft Markdown and creates one source-bound **draft GitHub
-   Release**. Ambiguous history, a stale source, or conflicting Release identity
-   stops without package mutation.
-2. Open the printed Releases URL and edit the draft body directly. Do not use
-   GitHub's native **Publish release** button: that would expose a tag before npm
-   validation and is rejected by the workflow. Preparation can safely show the same
-   exact draft again without overwriting edits.
-3. From the same clean synchronized `develop`, run `npm run release -- patch
-   --approve` (or the same minor/major/exact target used for preparation). The helper
-   revalidates the draft, computes its normalized SHA-256, and dispatches under the
-   authenticated GitHub user. The workflow independently requires an authorized
-   human actor and exact draft database ID, source, target, state, body, and digest.
-   It snapshots those bytes; later draft edits are not part of that candidate.
-4. The workflow places the approved snapshot over committed prior history, stamps
-   the requested version (`npm version <x.y.z> --no-git-tag-version`), and packs both
-   application and installer once. Only after npm serves both verified artifacts does
-   it create `v0.1.8`, attach the immutable tarball, move `master`, and finally publish
-   the existing draft with that exact body. Keeping draft publication last makes the
-   preceding completion operations safely retryable.
-5. After publication the helper creates `chore/release-0.1.9-dev` in an owned
-   detached worktree. That single PR changes the application manifest, root lockfile,
-   installer version, and adds exact `docs/releases/0.1.8.md`. Let CI pass and
-   **merge it manually**. The helper never merges or enables auto-merge and reports
-   development reopening as incomplete until the remote versions and note verify.
+1. Preparation checks npm and the target tag, resolves the latest complete stable
+   baseline, and maps every first-parent commit through one merged GitHub pull
+   request. It generates Pi-style Markdown beginning `## [version] - YYYY-MM-DD`,
+   followed by applicable `### Breaking Changes`, `### New Features`, `### Added`,
+   `### Changed`, and `### Fixed` sections. It then creates one source-bound **draft
+   GitHub Release**. Ambiguous history, stale source, or conflicting identity stops
+   without package mutation.
+2. Open the printed Releases URL, edit the draft body directly, and choose **Save
+   draft**. Preparation can safely show the same exact draft again without
+   overwriting edits. Do not use GitHub's native **Publish release** button: it is not
+   approval authority and would expose a public record without npm.
+3. Open the separately printed Actions URL, choose **Run workflow**, enter only the
+   stable version (for example `0.1.8`), and run **Approve stable release**. Trusted
+   default-branch code derives the dispatch actor, authoritative source, Release
+   database ID/state/body, digest, and normal-or-recovery disposition. Only an
+   authenticated GitHub `User` with `write`, `maintain`, or `admin` permission can
+   approve. Apps, bots, tags, native publication, and CI success cannot approve.
+4. The workflow snapshots the normalized body, places it over committed history,
+   stamps the stable version, packs both packages once, and runs all stable gates.
+   The Release remains a draft through validation, npm, published-pair, tag, asset,
+   and `master` failures. Only after npm serves both exact artifacts does completion
+   create or verify the immutable tag, upload the validated asset, fast-forward
+   `master`, and publish the same draft with the exact approved body as its final
+   mutation.
+5. After publication, App-authenticated trusted automation creates or exactly reuses
+   `chore/release-0.1.9-dev`. Its single commit changes only the application
+   manifest, root lockfile, installer version, and exact
+   `docs/releases/0.1.8.md`. Let required CI pass and **merge it manually**. The
+   automation never merges or enables auto-merge.
 
 On first interactive launch of the matching stable package, bare A1 opens the
 reviewed note once in its full-screen `What's New` route after higher-priority
 startup prompts. Closing a successfully rendered screen acknowledges it per profile;
 previews, downgrades, load/render failures, and exits before close do not. The full
-packaged history remains available with `/changelog`. Installation and `a1 update`
-remain non-interactive, and `a1 pi` retains Pi's pinned changelog and settings.
+packaged history remains available with `/changelog`, latest A1 release at the top
+and oldest at the bottom. Installation and `a1 update` remain non-interactive.
+`a1 pi` retains Pi's pinned oldest-first in-feed changelog so the latest release is
+nearest the bottom, along with Pi's settings.
 
 Conflicting or stale draft Releases are not overwritten; retire one explicitly before
-preparing a replacement for an advanced source. Closed reopening PRs, timeout,
-cancellation, and query failures retain identifiable phase work for inspection, and a
-matching pending reopening PR is observed rather than replaced. Worktrees retained
-by an earlier attempt are not removed by a later invocation. Cleanup removes only
-clean, owned, confirmed-merged phase worktrees and unchanged remote phase branches.
-The caller is never hard-reset: a final fast-forward is attempted only when its
-branch, original HEAD, and cleanliness remain unchanged. Otherwise preserve local
-work and synchronize manually with the reported remote state.
+preparing a replacement for an advanced source. Reopening automation reuses only one
+exact open same-repository PR on current `develop`; closed, advanced, auto-merge-enabled,
+extra-path, wrong-body, or ambiguous work is refused. An existing reopening branch
+without that exact PR is preserved rather than overwritten. The local preparation
+checkout is never committed, reset, or used to publish package bytes.
 
 Stable publication builds the process guardian on all supported platforms, stamps
 the version, packs each package once, runs the complete suite and installer package
@@ -289,6 +293,16 @@ with provenance. Immediately after that first successful publication, configure
 trusted publisher, delete the bootstrap secret, and let npm 11 authenticate future
 publications through GitHub OIDC. Both packages must name the current
 `publish.yml` path in their trusted-publisher settings.
+
+The one-time orphan-tag recovery is narrower. If the target tag names the current
+open-development source or an ancestor whose package identities and open version
+still match current authoritative `develop`, while both target packages and its
+GitHub Release are absent, preparation requires npm `latest`, its stable tag, and
+`master` to agree on one earlier complete ancestor. It generates a fresh draft from
+that baseline through the tagged source; later `develop` commits remain for the next
+version. The procedure contains no command to delete, move, force-update, or recreate
+the orphan tag. Fresh draft review and the same Actions approval are mandatory. Any
+disagreement refuses recovery.
 
 Rules that do not bend:
 
@@ -315,8 +329,8 @@ Rules that do not bend:
 - **Development publication fails:** inspect both package versions and digests, fix the cause, and rerun `npm run develop`; an npm version that already exists is verified and never overwritten.
 - **Registry verification times out:** a `has not propagated` failure after a successful `npm publish` means npm is still ingesting the upload; it warns that a provenance-signed package "may take a few minutes" and the publisher polls for ten minutes. Confirm the version and its shasum on `https://registry.npmjs.org/<name>/<version>`, then rerun the failed jobs: the final registry check finds the exact bytes, skips `npm publish`, and verification passes. A digest or tag mismatch is not a timeout and is never repaired by rerunning.
 - **Draft preparation or approval stops:** inspect the reported draft Release. Preparation may safely reuse an exact source-bound draft without overwriting edits. If `develop` advanced, do not approve the stale draft; retire it explicitly and prepare a new one from synchronized `develop`. Never use the native Publish release button.
-- **Stable publication fails or is uncertain:** no reopening PR was prepared and `develop` still declares the open `-dev` version. Inspect the workflow run, npm, draft/public Release, and `v<version>` tag. When nothing was published, rerun the exact `--approve` operation only after confirming the same source, draft ID, and body digest. If npm already serves the exact packages while the approved Release remains a draft, rerun the failed workflow jobs so idempotent completion finishes the exact tag, asset, `master`, and draft; do not dispatch another publication. Registry and tag guards refuse a version that already exists.
-- **Stable is published but reopening stopped:** the helper reports the reopening PR or retained worktree. That PR must contain both the next `-dev` versions and the exact approved `docs/releases/<released>.md`; merge it by hand after CI, or reconstruct it from the published Release through a separately validated manual PR. Never republish immutable bytes, and never rerun publication for the published version.
+- **Stable publication fails or is uncertain:** no reopening PR was prepared and `develop` still declares the open `-dev` version. Inspect the Actions run, npm, draft/public Release, and `v<version>` tag. If neither package exists, a fresh **Approve stable release** run may revalidate the unchanged authoritative source and reviewed draft. If either package may exist, do not start a new approval: rerun the failed jobs of the same snapshotted Actions run so its retained candidate and digest verify exact registry bytes before finishing the tag, asset, `master`, and draft. Do not use native publication or a technical-input dispatch. Registry and tag guards refuse contradictory bytes.
+- **Stable is published but reopening stopped:** inspect the failed reopening job. Any recovered PR must contain only both next `-dev` version declarations and the exact approved `docs/releases/<released>.md`; merge it by hand after CI, or reconstruct it from the published Release through a separately validated manual PR. Never republish immutable bytes, and never rerun publication for the published version.
 
 ## Safe release-command validation
 
@@ -327,8 +341,12 @@ npm exec --no -- vitest run test/repository-governance/release-target.test.ts te
 ```
 
 It uses disposable local Git repositories and fake GitHub, registry, and publication
-services. It does not publish a package or create production version PRs. A real
-release remains a separate deliberate operation.
+services. All release-command integration bodies share one finite 45-second hang
+bound; assertions are never retried or converted to success. Ordinary Windows setup
+observations remain in validation-phase evidence so Git process or Defender variance
+can be diagnosed without scattered undersized per-case limits. It does not publish a
+package or create production version PRs. A real release remains a separate deliberate
+operation.
 
 ## Branch protection rationale
 

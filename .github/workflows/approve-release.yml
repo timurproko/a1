@@ -1,0 +1,25 @@
+name: Approve stable release
+run-name: Approve stable release v${{ inputs.version }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Reviewed draft version, for example 0.2.2
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: write
+  id-token: write
+  pull-requests: write
+
+jobs:
+  publish:
+    name: Validate, publish, and prepare reopening
+    uses: timurproko/a1/.github/workflows/publish.yml@develop
+    with:
+      channel: stable
+      version: ${{ inputs.version }}
+    secrets: inherit

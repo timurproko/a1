@@ -10,15 +10,14 @@ export function resolveDevelopPreview(source: string, options?: {
   repository?: string;
   pullsText?: string;
 }): Promise<{ source: string; pullRequest: number; version: string; packageName: string }>;
+export function registryManifest(packageName: string, specifier: string, fetchImpl?: typeof fetch): Promise<Record<string, unknown> | null>;
 export function registryVersion(packageName: string, version: string, fetchImpl?: typeof fetch): Promise<Record<string, unknown> | null>;
 export function describePublicationFailure(runId: number | string, options?: { run?: PublicationRunner; repository?: string }): string;
-export function dispatchPublication(channel: "develop" | "stable", source: string, version: string, options?: {
+export function dispatchPublication(channel: "develop", source: string, version: string, options?: {
   run?: PublicationRunner;
   repository?: string;
   requestId?: string;
   write?: (text: string) => void;
   sleep?: (ms: number) => Promise<unknown>;
-  draftReleaseId?: number;
-  releaseNoteSha256?: string;
 }): Promise<number>;
 export function localPackageIdentity(): Promise<{ name: string; version: string }>;

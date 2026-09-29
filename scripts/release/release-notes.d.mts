@@ -10,6 +10,6 @@ export const MAX_RELEASE_NOTE_BYTES: number;
 export const MAX_RELEASE_NOTES_RESOURCE_BYTES: number;
 export function releaseNotePath(version: string): string;
 export function parseReleaseNote(markdown: string, expectedVersion: string): ReleaseNote;
-export function renderReleaseNoteDraft(version: string, changes: readonly ReleaseChange[]): string;
+export function renderReleaseNoteDraft(version: string, changes: readonly ReleaseChange[], date?: string): string;
 export function buildReleaseNotesResource(directory: string): Promise<ReleaseNotesResource>;
 export function validateReleaseNotesResource(value: unknown): ReleaseNotesResource;
