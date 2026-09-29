@@ -6,6 +6,8 @@ export const TRIAGE_PROVENANCE_SCHEMA: string;
 export const TRIAGE_PROVENANCE_FILE: string;
 export const EXCERPT_LINE_LIMIT: number;
 export const EXCERPT_BYTE_LIMIT: number;
+export const FULL_SHARDS: readonly string[];
+export function shardOf(name: string): string | null;
 
 export interface TriageRun {
   readonly id: number | string;
@@ -24,13 +26,14 @@ export interface TriageWorkflow { readonly name: string; readonly file: string; 
 
 export interface TriageLane {
   readonly id: string;
+  readonly shard?: string;
   readonly job: string;
   readonly conclusion: string;
   readonly result: unknown;
   readonly excerpt?: readonly string[];
 }
 
-export interface TriageFailureLane { readonly id: string; readonly exitCode: number; readonly durationMs: number; readonly excerpt: readonly string[] }
+export interface TriageFailureLane { readonly id: string; readonly shard?: string; readonly exitCode: number; readonly durationMs: number; readonly excerpt: readonly string[] }
 
 export interface TriageFailure {
   readonly id: string;
@@ -43,7 +46,7 @@ export interface TriageFailure {
 
 export interface TriageSummary {
   readonly failures: readonly TriageFailure[];
-  readonly orchestration: readonly { readonly lane: string; readonly job: string; readonly excerpt: readonly string[] }[];
+  readonly orchestration: readonly { readonly lane: string; readonly shard?: string; readonly job: string; readonly excerpt: readonly string[] }[];
 }
 
 export interface TriageCommit { readonly sha: string; readonly subject: string; readonly pr: number | null }
