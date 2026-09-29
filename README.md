@@ -72,7 +72,8 @@ npm run release -- major               # 0.1.8-dev -> 1.0.0
 npm run release -- 0.4.0               # prepare an exact stable version
 ```
 
-The command creates the editable draft, starts validation of its source, prints both
-links, and exits. Edit the Pi-style `## [version] - YYYY-MM-DD` changelog, then choose
+The command creates the draft, starts validation of its source, prints the progress
+link, and waits. When validation passes it prints the draft link: edit the Pi-style
+`## [version] - YYYY-MM-DD` changelog, then choose
 GitHub's native **Publish release** button: that publishes both packages to npm. If
 publication fails before npm, the Release returns to draft so you can publish it again.

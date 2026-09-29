@@ -72,7 +72,7 @@ effect of stable publication, not a trigger.
 | Pull request into `develop` | Bounded PR-cadence validation; changed/new source documentation is checked once, rendering runs as `none`, `smoke`, or `full`, exhaustive owners are reported as deferred, and only a trusted-CI-created failed-Full-regression repair adds PR-attached complete regression |
 | `npm run develop` | Preview package gates on Windows, Linux, and macOS; an existing numbered preview is an early successful no-op |
 | Nightly at `03:17 UTC` | One full documentation review plus the complete non-physical suite on Windows, Linux, and macOS, every night |
-| `npm run release -- ...` | Creates an editable source-bound draft, starts the complete stable suite on that source in `.github/workflows/release-candidate.yml`, prints both links, and exits |
+| `npm run release -- ...` | Creates an editable source-bound draft, starts the complete stable suite on that source in `.github/workflows/release-candidate.yml`, prints its run link, waits, and prints the draft edit link only after validation passes |
 | Native **Publish release** on the prepared draft | GitHub creates the source-bound tag; `.github/workflows/finalize-release.yml` requires the successful candidate run, repacks with the published note, reruns the exact-package gates, publishes both packages to npm `latest`, and proposes one manually merged reopening-and-note PR; a failure before npm returns the Release to draft |
 | `.github/workflows/full-regression.yml` | Additional on-demand complete regression without publication authority |
 | `.github/workflows/pi-upstream-sync.yml` | Nightly at `03:23 UTC`: when npm publishes a newer Pi than the pin that no closed proposal skipped, proposes the upgrade as a draft pull request with the vendored copies that follow upstream merged, the kept copies reported with their upstream delta, the ledger, headers, inventories, public API and feature baselines, startup graph, and parity evidence regenerated, and every gate verdict (passed, failed, or blocked by conflict markers) and review item in the body; never merges and never replaces a proposal a human has continued |
@@ -239,10 +239,12 @@ A target is required: `npm run release` alone is a mutation-free usage error.
 exactly one open `x.y.z-dev` version; a stable or numbered version there is refused,
 and the stable version is never committed to `develop`. The command reports its
 source, stable target, and prospective reopening, creates or reuses an unpublished
-draft GitHub Release, starts validation of its source, prints the draft editing URL
-exactly once plus the validation run link, and exits. Nothing needs a terminal to stay
-open, and the maintainer never re-enters the version. The retired `--approve` form
-remains a mutation-free usage error.
+draft GitHub Release, starts validation of its source, prints the validation run link,
+and waits. Only after validation succeeds does it print the draft editing URL, exactly
+once; after a failure it prints the failed jobs and their reasons instead. Each link
+stands on its own line. Interrupting the wait is safe: validation keeps running, and
+rerunning the command resumes waiting on the same run. The maintainer never re-enters
+the version. The retired `--approve` form remains a mutation-free usage error.
 
 1. **Prepare.** The command checks npm and the target tag, resolves the latest
    complete stable baseline, and maps every first-parent commit through one merged
@@ -255,8 +257,8 @@ remains a mutation-free usage error.
    without publishing. A running or successful validation of the same source and
    version is reused. Ambiguous history, stale source, an existing tag, or existing
    npm versions stop without mutation.
-2. **Edit.** Open the printed Releases URL and edit the changelog while validation
-   runs. **Save draft** is optional and starts nothing.
+2. **Edit.** When validation passes, open the printed Releases URL and edit the
+   changelog. **Save draft** is optional and starts nothing.
 3. **Publish.** Choose native **Publish release**. GitHub creates the tag at the bound
    source, and its `release.published` event starts `finalize-release.yml`. Trusted default-branch code requires the
    publisher to be a GitHub `User` with `write`, `maintain`, or `admin` permission,

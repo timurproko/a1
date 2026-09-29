@@ -59,6 +59,24 @@ describe("release preparation with real temporary Git and fake external services
     expect(f.events).toContain(`validation-dispatch:${f.initialHead}:${stable}`);
     expect(f.events.indexOf(`draft-create:v${stable}`)).toBeLessThan(f.events.indexOf(`validation-dispatch:${f.initialHead}:${stable}`));
     expect(f.ghCalls.some(args => args[0] === "pr")).toBe(false);
+    // The progress link comes first and the edit link only after validation passed; each stands alone on its line.
+    const lines = output.split("\n");
+    expect(lines).toContain("https://github.com/fixture/a1/actions/runs/42");
+    expect(lines).toContain(editUrl(draft));
+    expect(output.indexOf("actions/runs/42")).toBeLessThan(output.indexOf(editUrl(draft)));
+    expect(f.events.indexOf("validation-wait:42")).toBeLessThan(f.events.lastIndexOf("log"));
+  }, INTEGRATION_TIMEOUT);
+
+  it("withholds the edit link when validation fails", async () => {
+    const f = await fixture();
+    f.setWaitForValidation(() => { throw new Error("publication run 42 failed in Validate linux-node24"); });
+    expect(await main(["patch"], f.runtime)).toBe(1);
+    expect(f.drafts).toHaveLength(1);
+    const draft = f.drafts[0]!;
+    expect(f.logs.join("\n")).toContain("https://github.com/fixture/a1/actions/runs/42");
+    expect(f.logs.join("\n")).not.toContain(editUrl(draft));
+    expect(f.errors.join("\n")).toContain("failed in Validate linux-node24");
+    expect(f.errors.join("\n")).toContain("The draft was not published");
   }, INTEGRATION_TIMEOUT);
 
   it("reuses an edited draft without overwriting it and reports the reused validation", async () => {
@@ -72,7 +90,7 @@ describe("release preparation with real temporary Git and fake external services
     expect(f.drafts[0]!.body).toBe("## Fixes\n\n- Reviewed edit.\n");
     const output = f.logs.slice(before).join("\n");
     expect(count(output, editUrl(draft))).toBe(1);
-    expect(output).toContain("Reusing validation");
+    expect(output).toContain("Following existing validation");
   }, INTEGRATION_TIMEOUT);
 
   it("reports a validation dispatch failure after keeping the prepared draft", async () => {

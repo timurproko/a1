@@ -128,10 +128,7 @@ export async function dispatchPublication(channel, source, version, options = {}
   return runId;
 }
 
-/**
- * Starts, or reuses, candidate validation of a prepared stable source and returns without
- * waiting: the maintainer edits the draft meanwhile, and publication requires the run's success.
- */
+/** Starts, or reuses, candidate validation of a prepared stable source and returns its run. */
 export async function dispatchStableValidation(candidate, options = {}) {
   const { repository, source, version } = candidate ?? {};
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u.test(repository ?? "") || !/^[a-f0-9]{40}$/u.test(source ?? "")
@@ -144,7 +141,7 @@ export async function dispatchStableValidation(candidate, options = {}) {
   const listRuns = () => JSON.parse(execute("gh", [
     "api", `repos/${repository}/actions/workflows/${workflow}/runs?event=workflow_dispatch&head_sha=${source}&per_page=100`,
   ])).workflow_runs;
-  execute("gh", ["auth", "status"], { stdio: "inherit" });
+  execute("gh", ["auth", "status"], { stdio: ["ignore", "ignore", "pipe"] });
   // Rationale: a running or successful validation of the same source and version already proves
   // what another run would, so a repeated command reuses it instead of paying for the suite twice.
   const reusable = listRuns().find(entry => matchesStableValidationRun(entry, source, version)
@@ -155,7 +152,7 @@ export async function dispatchStableValidation(candidate, options = {}) {
   execute("gh", [
     "workflow", "run", workflow, "--ref", "develop",
     "-f", `source_sha=${source}`, "-f", `version=${version}`, "-f", `request_id=${requestId}`,
-  ], { stdio: "inherit" });
+  ], { stdio: ["ignore", "ignore", "pipe"] });
   const deadline = Date.now() + RUN_APPEAR_TIMEOUT_MS;
   while (Date.now() < deadline) {
     const started = listRuns().find(entry => entry.display_title === `Stable candidate v${version} ${requestId}`);
@@ -168,6 +165,35 @@ export async function dispatchStableValidation(candidate, options = {}) {
     await wait(POLL_INTERVAL_MS);
   }
   throw new Error(`stable validation request ${requestId} did not appear in GitHub Actions within 5 minutes`);
+}
+
+const VALIDATION_POLL_INTERVAL_MS = 30_000;
+const VALIDATION_PROGRESS_INTERVAL_MS = 5 * 60_000;
+
+/**
+ * Waits for a candidate validation run to finish, reporting progress sparingly, and throws the
+ * failed jobs and their reasons unless it succeeded. Interrupting it leaves the run going.
+ */
+export async function waitForStableValidation(validation, options = {}) {
+  const { repository, runId } = validation ?? {};
+  const execute = options.run ?? run;
+  const wait = options.sleep ?? sleep;
+  const write = options.write ?? (text => process.stdout.write(text));
+  const now = options.now ?? Date.now;
+  const started = now();
+  let reported = started;
+  for (;;) {
+    const current = JSON.parse(execute("gh", ["api", `repos/${repository}/actions/runs/${runId}`]));
+    if (current.status === "completed") {
+      if (current.conclusion === "success") return current;
+      throw new Error(describePublicationFailure(runId, { run: execute, repository }));
+    }
+    if (now() - reported >= VALIDATION_PROGRESS_INTERVAL_MS) {
+      reported = now();
+      write(`[release] validation still ${String(current.status).replace("_", " ")} after ${Math.round((reported - started) / 60_000)} min\n`);
+    }
+    await wait(options.pollIntervalMs ?? VALIDATION_POLL_INTERVAL_MS);
+  }
 }
 
 export async function localPackageIdentity() {
