@@ -167,33 +167,29 @@ export async function dispatchStableValidation(candidate, options = {}) {
   throw new Error(`stable validation request ${requestId} did not appear in GitHub Actions within 5 minutes`);
 }
 
-const VALIDATION_POLL_INTERVAL_MS = 30_000;
-const VALIDATION_PROGRESS_INTERVAL_MS = 5 * 60_000;
+const VALIDATION_WATCH_INTERVAL_SECONDS = 10;
 
 /**
- * Waits for a candidate validation run to finish, reporting progress sparingly, and throws the
- * failed jobs and their reasons unless it succeeded. Interrupting it leaves the run going.
+ * Waits for a candidate validation run to finish, showing its live job list like `npm run develop`,
+ * and throws the failed jobs and their reasons unless it succeeded. Interrupting it leaves the run going.
  */
 export async function waitForStableValidation(validation, options = {}) {
   const { repository, runId } = validation ?? {};
   const execute = options.run ?? run;
-  const wait = options.sleep ?? sleep;
-  const write = options.write ?? (text => process.stdout.write(text));
-  const now = options.now ?? Date.now;
-  const started = now();
-  let reported = started;
-  for (;;) {
+  try {
+    execute("gh", [
+      "run", "watch", String(runId), "--repo", repository,
+      "--exit-status", "--interval", String(VALIDATION_WATCH_INTERVAL_SECONDS),
+    ], { stdio: "inherit" });
+  } catch (error) {
     const current = JSON.parse(execute("gh", ["api", `repos/${repository}/actions/runs/${runId}`]));
-    if (current.status === "completed") {
-      if (current.conclusion === "success") return current;
-      throw new Error(describePublicationFailure(runId, { run: execute, repository }));
+    if (current.status !== "completed") {
+      throw new Error(`stopped watching validation run ${runId} while it is ${String(current.status).replace("_", " ")}; it keeps running, and rerunning the release command resumes waiting`, { cause: error });
     }
-    if (now() - reported >= VALIDATION_PROGRESS_INTERVAL_MS) {
-      reported = now();
-      write(`[release] validation still ${String(current.status).replace("_", " ")} after ${Math.round((reported - started) / 60_000)} min\n`);
-    }
-    await wait(options.pollIntervalMs ?? VALIDATION_POLL_INTERVAL_MS);
+    if (current.conclusion !== "success") throw new Error(describePublicationFailure(runId, { run: execute, repository }));
+    return current;
   }
+  return JSON.parse(execute("gh", ["api", `repos/${repository}/actions/runs/${runId}`]));
 }
 
 export async function localPackageIdentity() {

@@ -2,7 +2,6 @@ import { readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import semver from "semver";
-import { setTimeout as sleep } from "node:timers/promises";
 import { dispatchStableValidation, registryVersion, run, waitForStableValidation } from "./publication-client.mjs";
 import { parseReleaseArguments, resolveReleasePlan } from "./release-target.mjs";
 import { parseReleaseNote, renderReleaseNoteDraft } from "./release-notes.mjs";
@@ -30,8 +29,6 @@ export function createReleaseRuntime(options = {}) {
     }),
     waitForValidation: validation => waitForStableValidation(validation, {
       run: (executable, args, commandOptions = {}) => run(executable, args, { cwd, ...commandOptions }),
-      sleep: milliseconds => sleep(milliseconds, undefined, { signal: options.signal }),
-      write: text => process.stdout.write(text),
     }),
     log: message => process.stdout.write(`[release] ${message}\n`),
     error: message => process.stderr.write(`[release] ${message}\n`),
