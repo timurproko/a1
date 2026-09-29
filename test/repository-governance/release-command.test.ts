@@ -3,6 +3,7 @@ import { writeFile } from "node:fs/promises";
 import { describe, expect, it, onTestFailed, onTestFinished } from "vitest";
 import { prepareReopening } from "../../scripts/release/prepare-reopening.mjs";
 import { main } from "../../scripts/release/release.mjs";
+import { createReleaseRuntime } from "../../scripts/release/release-workflow.mjs";
 import { createValidationPhaseRecorder } from "../../scripts/release/validation-phase.mjs";
 import { NativeRegressionTrace } from "../support/native-regression-trace.js";
 import { releaseFixture } from "../support/release-command-fixture.js";
@@ -22,6 +23,20 @@ async function fixture(version?: string) {
     });
   })));
 }
+
+describe("default release runtime", () => {
+  it("reports a failed preparation instead of crashing on the error writer", async () => {
+    const written: string[] = [];
+    const stderr = process.stderr.write;
+    process.stderr.write = ((text: string) => { written.push(text); return true; }) as typeof process.stderr.write;
+    try {
+      expect(await main(["patch", "--approve"], createReleaseRuntime())).toBe(2);
+    } finally {
+      process.stderr.write = stderr;
+    }
+    expect(written.join("")).toMatch(/^\[release\] Usage: /u);
+  });
+});
 
 async function prepare(f: Awaited<ReturnType<typeof fixture>>, target = "patch") {
   expect(await main([target], f.runtime)).toBe(0);
