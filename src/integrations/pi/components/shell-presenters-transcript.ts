@@ -12,6 +12,7 @@ import { ToolExecutionComponent } from "./upstream/components/tool-execution.js"
 import { SkillInvocationMessageComponent } from "./upstream/components/skill-invocation-message.js";
 import { piToolArguments as toolArguments, updatePiToolResult as updateToolResult } from "./tool-result-adapter.js";
 import { createTranscriptImageResolver } from "./transcript-image-resolver.js";
+import { SubmittedImagePresentation, withTranscriptImagePresentation } from "./submitted-image-presentation.js";
 import { createMermaidMarkdownTransformer, type MermaidRenderingMode } from "./upstream/components/mermaid.js";
 import {
   Container,
@@ -71,6 +72,11 @@ export function createPiShellTranscriptComponent(
   let dirty = false;
   let presentationRevision = 0;
   let mountedTool: ToolExecutionComponent | undefined;
+  let mountedImages: SubmittedImagePresentation[] = [];
+  const disposeMountedImages = () => {
+    for (const image of mountedImages) image.dispose();
+    mountedImages = [];
+  };
   const mutate = <T>(action: () => T): T => {
     const previous = updating;
     updating = true;
@@ -78,6 +84,7 @@ export function createPiShellTranscriptComponent(
   };
   const rebuild = (): Component => {
     mountedTool?.dispose();
+    disposeMountedImages();
     const token = ++mount;
     const requestRender = () => {
       if (disposed || updating || token !== mount || dirty) return;
@@ -93,7 +100,8 @@ export function createPiShellTranscriptComponent(
         getRows: presentation?.getRows ?? (() => 24), requestRender }),
       );
       mountedTool = next instanceof ToolExecutionComponent ? next : undefined;
-      return withTranscriptImages(next, block, retainedImages, showImages, imageWidthCells);
+      return mountedTool ?? withTranscriptImagePresentation(next, block, retainedImages, showImages, imageWidthCells,
+        submittedPrompt !== undefined, requestRender, mountedImages);
     });
   };
   let component = rebuild();
@@ -108,7 +116,7 @@ export function createPiShellTranscriptComponent(
       return warning === undefined ? rows : [...rows, ...new Text(piTheme().fg("warning", warning), outputPad, 0).render(width)];
     },
     invalidate: () => mutate(() => component.invalidate()),
-    dispose: () => { disposed = true; mount++; mountedTool?.dispose(); retainedImages.dispose(); },
+    dispose: () => { disposed = true; mount++; mountedTool?.dispose(); disposeMountedImages(); retainedImages.dispose(); },
     update(next) {
       if (next.id !== block.id) throw new TypeError("Pi transcript component identity cannot change");
       const previous = block;
@@ -149,35 +157,6 @@ export function createPiShellTranscriptComponent(
       } else component = rebuild();
     },
   };
-}
-
-function withTranscriptImages(
-  component: Component,
-  block: OwnedUiTranscriptBlock,
-  assets: PiShellImageAssetResolver | undefined,
-  showImages: boolean,
-  imageWidthCells: number,
-): Component {
-  // Compatibility: Pi owns tool images and renderer state, including references introduced after the call header.
-  if (component instanceof ToolExecutionComponent) return component;
-  const references = block.imageReferences ?? [];
-  if (references.length === 0) return component;
-  const container = new Container();
-  container.addChild(component);
-  for (const reference of references) {
-    container.addChild(new Spacer(1));
-    const asset = assets?.resolve(reference.assetId) ?? null;
-    if (!showImages) {
-      container.addChild(new Text(piTheme().fg("muted", `[Image hidden: ${reference.mimeType}, ${reference.byteLength} bytes]`), 1, 0));
-    } else if (asset === null) {
-      container.addChild(new Text(piTheme().fg("warning", `[Image unavailable: ${reference.mimeType}]`), 1, 0));
-    } else {
-      container.addChild(new Image(asset.data, asset.mimeType, {
-        fallbackColor: text => piTheme().fg("muted", text),
-      }, { maxWidthCells: imageWidthCells, filename: reference.assetId }));
-    }
-  }
-  return container;
 }
 
 function renderWithOutputPad(

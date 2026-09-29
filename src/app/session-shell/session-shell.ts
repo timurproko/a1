@@ -92,7 +92,7 @@ import {
   renderPiShellStartupDiagnostic,
   renderPiShellTranscriptBlock,
 } from "../../integrations/pi/components/shell-presenters-transcript.js";
-import { onPiThemeChange, piTheme } from "../../integrations/pi/components/upstream/theme/theme.js";
+import { detectPiTerminalBackgroundFromEnv, onPiThemeChange, piTheme } from "../../integrations/pi/components/upstream/theme/theme.js";
 import type {
   PiShellComponentPort,
   PiShellClipboardContent,
@@ -120,7 +120,7 @@ import type {
 } from "../../integrations/pi/tui-runtime/contracts.js";
 
 
-import { runImageWorker } from "./image-preparation-client.js";
+import { runImageWorker, shouldUseImageCellPreview, startImageCellPreview } from "./image-preparation-client.js";
 import type { ClipboardImageData } from "./clipboard-image.js";
 import {
   STREAM_PRESENTATION_INTERVAL_MS,
@@ -340,6 +340,14 @@ export class OwnedUiSessionShell {
       getShortcuts: bindings => this.backend.pinnedShortcutDescriptions(bindings),
     }, sessionLayout, {
       resolve: assetId => this.backend.resolveTranscriptImage(assetId),
+      ...(this.#customViewport && shouldUseImageCellPreview() ? {
+        preview: (_assetId: string, image: OwnedUiImageAttachment, columns: number,
+          cell: { readonly widthPx: number; readonly heightPx: number }) => {
+          const background = detectPiTerminalBackgroundFromEnv().theme === "light"
+            ? [255, 255, 255] as const : [0, 0, 0] as const;
+          return startImageCellPreview(image, columns, background, cell);
+        },
+      } : {}),
     });
     // Invariant: bare A1 owns a bounded viewport and therefore always runs on the alternate
     // fullscreen surface. The pinned comparison profiles still honor Pi's mode.

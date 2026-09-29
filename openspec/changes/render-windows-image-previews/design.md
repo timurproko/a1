@@ -56,7 +56,7 @@ The fallback is presentation-only. It does not claim a new attachment was create
 
 ### 5. Prove both semantic output and terminal behavior
 
-Focused worker tests will cover aspect preservation, color pairing, transparency, malformed input, width/height/output limits, cancellation, and payload-free failures. Presenter tests will cover policy selection, pending/ready/unavailable/hidden states, width changes, stale completion, disposal, and original-attachment identity. Terminal evidence will assert Windows fallback frames contain bounded ordinary cell rows and no Kitty APC, iTerm OSC 1337, Sixel DCS, or base64 payload, while reliable native and `a1 pi` fixtures remain unchanged.
+Focused worker tests will cover aspect preservation, color pairing, transparency, malformed input, width/height/output limits, cancellation, and payload-free failures. Presenter tests will cover policy selection, pending/ready/unavailable/hidden states, width changes, stale completion, disposal, and original-attachment identity. Terminal evidence will assert Windows fallback frames contain bounded ordinary cell rows and no Kitty image transmission/placement, iTerm OSC 1337 image, Sixel DCS, or base64 payload, while allowing the fullscreen renderer's capability-level Kitty placement cleanup and preserving reliable native and `a1 pi` fixtures unchanged.
 
 Automated evidence cannot establish actual host colors or readability. Acceptance therefore includes the exact built candidate in current Windows WezTerm and Windows Terminal, checking initial paint, later status/assistant updates, scrolling away/back, resize, hidden-image mode, and continued input responsiveness.
 
@@ -64,6 +64,7 @@ Automated evidence cannot establish actual host colors or readability. Acceptanc
 
 - **[ANSI previews have lower fidelity than native pixels]** → Preserve aspect ratio, use truecolor paired samples, honor the configured image width, and limit the fallback to Windows bare A1 where the current result is blank or metadata-only.
 - **[Large screenshots can consume CPU or terminal bytes]** → Decode in the existing bounded worker infrastructure and cap input, decoded pixels, cells, rows, output bytes, concurrency, and deadline.
+- **[The synchronous mounted lifecycle adds startup code]** → Accept one small adapter module in the startup graph while keeping codecs and conversion logic worker-only.
 - **[Theme or transparency can make content unreadable]** → Define deterministic transparent-pixel handling and regenerate theme-dependent rows when required.
 - **[Late conversion can repaint stale content]** → Bind completion to mount, asset, width, and session identities and discard superseded results.
 - **[A future Pi/WezTerm release repairs native Windows placement]** → Keep protocol selection isolated so a later evidence-backed change can restore native rendering without changing attachment projection.

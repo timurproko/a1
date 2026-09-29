@@ -16,7 +16,7 @@ describe("packaged image worker", () => {
     await cp(resolve("dist/contracts"), join(root, "dist/contracts"), { recursive: true });
     const relative = "dist/app/session-shell";
     await mkdir(join(root, relative), { recursive: true });
-    for (const name of ["image-worker", "image-preparation-client", "image-preparation", "image-source", "clipboard-image", "system-clipboard"]) {
+    for (const name of ["image-worker", "image-preparation-client", "image-preparation", "image-cell-preview", "image-source", "clipboard-image", "system-clipboard"]) {
       await cp(resolve(relative, `${name}.js`), join(root, relative, `${name}.js`));
     }
     const inventory = JSON.parse(await readFile("dist/runtime-payload-inventory.json", "utf8")) as { paths: string[]; declaredAssets: string[] };

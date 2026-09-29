@@ -647,6 +647,49 @@ describe("Pi shell public component adapters", () => {
     expect(stripTerminalSequences(component.render(80).join("\n"))).toContain("Image unavailable: image/png");
   });
 
+  it("renders submitted user images through the bounded cell-preview port and cancels hidden work", async () => {
+    const imageBlock = {
+      ...block("user", "inspect [📷 screenshot-0123456789]"),
+      imageReferences: [{ assetId: "image-1", mimeType: "image/png", byteLength: 3, source: "user" as const }],
+    };
+    const image = { type: "image" as const, mimeType: "image/png", data: "AQID" };
+    const jobs: Array<{ resolve: (rows: readonly string[]) => void; cancel: ReturnType<typeof vi.fn> }> = [];
+    const preview = vi.fn(() => {
+      let resolve!: (rows: readonly string[]) => void;
+      const result = new Promise<readonly string[]>(done => { resolve = done; });
+      const cancel = vi.fn();
+      jobs.push({ resolve, cancel });
+      return { result, cancel };
+    });
+    const composer = { layout: submittedPromptLayout, compose: composeSubmittedPromptRows };
+    const component = createPiShellTranscriptComponent(
+      imageBlock, process.cwd(), undefined, composer, 1, false, "off", true, 60,
+      { resolve: () => image, preview },
+    );
+    expect(stripTerminalSequences(component.render(80).join("\n"))).toContain("Image preparing preview: image/png");
+    await Promise.resolve();
+    expect(preview).toHaveBeenCalledWith("image-1", image, 60, { widthPx: 9, heightPx: 18 });
+    jobs[0]!.resolve(["\u001b[38;2;255;0;0;48;2;0;0;255m▀\u001b[39;49m"]);
+    await vi.waitFor(() => expect(stripTerminalSequences(component.render(80).join("\n"))).toContain("▀"));
+    expect(component.render(80).join("\n")).not.toMatch(/\u001b_G|\u001b\]1337;File=|\u001bPq|AQID/u);
+
+    component.setImagePresentation(true, 20);
+    component.render(80);
+    await Promise.resolve();
+    expect(preview).toHaveBeenLastCalledWith("image-1", image, 20, { widthPx: 9, heightPx: 18 });
+    component.setImagePresentation(false, 20);
+    expect(jobs[1]!.cancel).toHaveBeenCalledOnce();
+    expect(stripTerminalSequences(component.render(80).join("\n"))).toContain("Image hidden: image/png");
+
+    const pinned = createPiShellTranscriptComponent(imageBlock, process.cwd(), undefined, undefined,
+      1, false, "off", true, 60, { resolve: () => image, preview });
+    pinned.render(80);
+    await Promise.resolve();
+    expect(preview).toHaveBeenCalledTimes(2);
+    pinned.dispose?.();
+    component.dispose?.();
+  });
+
   it("rebuilds finalized and streaming assistant presentation for thinking and Mermaid modes", () => {
     const mixed = createPiShellTranscriptComponent(block("assistant", "fallback", {
       content: [{ type: "thinking", thinking: "private chain" }, { type: "text", text: "public answer" }],

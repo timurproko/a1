@@ -150,8 +150,15 @@ export interface PiShellLoadedResourcesPort extends PiShellComponentPort {
   setExpanded(expanded: boolean): void;
 }
 
+export interface PiShellImagePreviewJob {
+  readonly result: Promise<readonly string[]>;
+  cancel(): void;
+}
+
 export interface PiShellImageAssetResolver {
   resolve(assetId: string): OwnedUiImageAttachment | null;
+  preview?(assetId: string, image: OwnedUiImageAttachment, columns: number,
+    cell: { readonly widthPx: number; readonly heightPx: number }): PiShellImagePreviewJob;
 }
 
 export interface PiShellExtensionRendererResolver {
