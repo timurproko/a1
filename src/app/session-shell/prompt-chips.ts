@@ -50,11 +50,23 @@ interface PendingPaste {
 
 const URL_SUBSTRING_PATTERN = /https?:\/\/[^\s\u0000-\u001f\u007f\]]+/giu;
 const IMAGE_CHIP_IDENTIFIER_PATTERN = /^\[📷 screenshot-([a-f0-9]+)(?:-resized)?\]$/u;
+const UNSENT_IMAGE_MARKER_PATTERN = /^\[📷 not sent-[a-f0-9]{10}\]$/u;
 const URL_DISPLAY_LENGTH = 40;
 
 function imageChipIdentifier(tag: string): string | null {
   const match = IMAGE_CHIP_IDENTIFIER_PATTERN.exec(tag);
   return match === null ? null : match[1] ?? null;
+}
+
+function rejectedImageMarker(marker: string, error: ImageAttachmentError): string {
+  return error.code === "image-count"
+    ? marker.replace("screenshot-", "not sent-")
+    : marker.replace("screenshot-", "failed-");
+}
+
+function referencesPasteMarker(text: string, entry: PendingPaste): boolean {
+  return text.includes(entry.marker)
+    || (entry.error !== undefined && entry.replacement !== undefined && text.includes(entry.replacement));
 }
 
 /** Owns semantic chips and bounded pending paste references; cancels background work on reset or disposal. */
@@ -115,7 +127,7 @@ export class PromptChipStore {
     }).catch(error => {
       entry.error = error instanceof ImageAttachmentError ? error : new ImageAttachmentError("image-codec");
       if (entry.error.code !== "image-canceled" && entry.references === 0) onError(entry.error);
-      return marker.replace("screenshot-", "failed-");
+      return rejectedImageMarker(marker, entry.error);
     }).then(replacement => {
       entry.replacement = replacement;
       return replacement;
@@ -148,7 +160,7 @@ export class PromptChipStore {
       // Compatibility: typed image validation can fail before transfer identifies the payload to this store.
       if (entry.kind === "unknown" && entry.error.code.startsWith("image-") && entry.error.code !== "image-canceled") entry.kind = "image";
       if (entry.error.code !== "image-canceled" && entry.references === 0) onError(entry.error);
-      return entry.kind === "image" ? marker.replace("screenshot-", "failed-") : "";
+      return entry.kind === "image" ? rejectedImageMarker(marker, entry.error) : "";
     }).then(replacement => { entry.replacement = replacement; return replacement; }) };
     entry.onComplete = () => {
       this.#finishChipOwnership(owner, job.isCurrent() && entry.error === undefined);
@@ -197,7 +209,7 @@ export class PromptChipStore {
 
   reconcileDraft(text: string): void {
     for (const entry of this.#pending.values()) {
-      if (entry.references === 0 && !text.includes(entry.marker) && !text.includes(entry.marker.replace("screenshot-", "failed-"))) {
+      if (entry.references === 0 && !referencesPasteMarker(text, entry)) {
         entry.job.cancel();
         if (entry.replacement !== undefined) {
           entry.onComplete?.();
@@ -229,16 +241,16 @@ export class PromptChipStore {
 
   imageLimitState(text: string): { readonly count: number; readonly limit: number; readonly corrected: boolean } {
     const limit = this.#imageLimit();
-    const failedCountMarker = [...this.#pending.values()].some(entry => entry.error?.code === "image-count"
-      && (text.includes(entry.marker) || text.includes(entry.marker.replace("screenshot-", "failed-"))));
+    const rejectedCountMarker = canonicalPromptChipMatches(text).some(match => UNSENT_IMAGE_MARKER_PATTERN.test(match.text))
+      || [...this.#pending.values()].some(entry => entry.error?.code === "image-count" && referencesPasteMarker(text, entry));
     const count = this.#imageCount(text);
-    return { count, limit, corrected: count <= limit && !failedCountMarker };
+    return { count, limit, corrected: count <= limit && !rejectedCountMarker };
   }
 
   #imageCount(text: string): number {
     const tags = new Set([...this.#chips.values()].filter(chip => chip.kind === "image" && text.includes(chip.tag)).map(chip => chip.tag));
     for (const entry of this.#pending.values()) {
-      if (entry.kind !== "text" && (text.includes(entry.marker) || text.includes(entry.marker.replace("screenshot-", "failed-")))) {
+      if (entry.kind !== "text" && entry.error?.code !== "image-count" && referencesPasteMarker(text, entry)) {
         // Invariant: a ready screenshot can retain its pending label but still occupies only one slot.
         tags.add(entry.replacement ?? entry.marker);
       }
@@ -312,6 +324,17 @@ export class PromptChipStore {
       .map(match => ({ start: match.start, end: match.end }));
   }
 
+  unsentRanges(line: string): readonly PiShellEditorTextRange[] {
+    return canonicalPromptChipMatches(line)
+      .filter(match => UNSENT_IMAGE_MARKER_PATTERN.test(match.text))
+      .map(match => ({ start: match.start, end: match.end }));
+  }
+
+  omitUnsentImages(text: string): string {
+    return replaceCanonicalPromptChips(text, match => UNSENT_IMAGE_MARKER_PATTERN.test(match.text)
+      || this.#pendingEntry(match.text)?.error?.code === "image-count" ? "" : match.text);
+  }
+
   hyperlinkRanges(text: string): readonly { start: number; end: number; target: string }[] {
     const ranges: { start: number; end: number; target: string }[] = [];
     for (const chip of this.#chips.values()) {
@@ -341,7 +364,7 @@ export class PromptChipStore {
    * chips carrying the original attachment bytes.
    */
   prepareHistoryText(text: string): string {
-    return this.#replaceResolvable(text, false, false).text.trim();
+    return this.#replaceResolvable(this.omitUnsentImages(text), false, false).text.trim();
   }
 
   /**
@@ -457,13 +480,19 @@ export class PromptChipStore {
     // Invariant: scan only draft tokens (and resolved reservation tokens), never emitted payloads.
     const expanded = replaceCanonicalPromptChips(text, match => {
       const tag = match.text;
-      const entry = this.#pending.get(tag) ?? this.#pending.get(tag.replace("failed-", "screenshot-"));
+      if (UNSENT_IMAGE_MARKER_PATTERN.test(tag)) return "";
+      const entry = this.#pendingEntry(tag);
       if (entry === undefined) return resolveChip(tag);
+      if (entry.error?.code === "image-count") return "";
       if (includeImages && entry.error !== undefined) throw entry.error;
       if (includeImages && entry.replacement === undefined) throw new ImageAttachmentError("image-pending");
       return entry.replacement === undefined ? tag : replaceCanonicalPromptChips(entry.replacement, replacement => resolveChip(replacement.text));
     });
     return { text: expanded, images };
+  }
+
+  #pendingEntry(tag: string): PendingPaste | undefined {
+    return this.#pending.get(tag) ?? [...this.#pending.values()].find(entry => entry.error !== undefined && entry.replacement === tag);
   }
 
   #claimChip(tag: string, owner: symbol | undefined, created: boolean): void {

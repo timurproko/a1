@@ -352,6 +352,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   readonly #extensionStatuses = new Map<string, string>();
   #extensionWorkingMessage: string | undefined;
   #extensionWorkingVisible = true;
+  #imageSubmissionsSending = 0;
 
   constructor(
     view: OwnedUiSessionViewModel,
@@ -473,14 +474,22 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       decorateEditorRow: (row, width, rowIndex) => {
         if (rowIndex === 0) this.#editorHyperlinks.reset();
         const plain = stripAnsi(row);
+        const dimmed = this.#promptChips.unsentRanges(plain).reduce((result, range) => backgroundSgrSpan(
+          result,
+          piShellVisibleWidth(plain.slice(0, range.start)),
+          piShellVisibleWidth(plain.slice(0, range.end)),
+          "\u001b[2m",
+          "\u001b[22m",
+          piShellVisibleWidth,
+        ), row);
         const ranges = this.#promptChips.hyperlinkRanges(plain);
-        if (ranges.length === 0 || !this.#editorHyperlinks.takeCleanup()) return row;
-        const linkResetAndTail = `\u001b]8;;\u001b\\\u001b[24m${" ".repeat(Math.max(0, width - piShellVisibleWidth(row)))}`;
+        if (ranges.length === 0 || !this.#editorHyperlinks.takeCleanup()) return dimmed;
+        const linkResetAndTail = `\u001b]8;;\u001b\\\u001b[24m${" ".repeat(Math.max(0, width - piShellVisibleWidth(dimmed)))}`;
         // Platform: VS15 is zero-column and default-ignorable. It breaks Windows Terminal's
         // plain-text URL detector only in the held-button paint; semantic text stays exact.
         const paintRow = this.#viewportController.editorPointerSelecting
-          ? row.replaceAll("https://", "https:\uFE0E//").replaceAll("http://", "http:\uFE0E//")
-          : row;
+          ? dimmed.replaceAll("https://", "https:\uFE0E//").replaceAll("http://", "http:\uFE0E//")
+          : dimmed;
         const decorated = this.#viewportController.editorPointerSelecting
           ? ranges.reduce((result, range) => backgroundSgrSpan(
               result,
@@ -496,7 +505,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
               piShellVisibleWidth(plain.slice(0, range.end)),
               range.target,
               piShellVisibleWidth,
-            ), row);
+            ), dimmed);
         // Platform: Windows Terminal can retain stale native dotted-link cells when a mutable
         // prompt replaces a longer URL. Explicit non-link spaces overwrite that tail.
         return `${decorated}${linkResetAndTail}`;
@@ -611,6 +620,10 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
 
   prepareHistoryText(text: string): string {
     return this.#promptChips.prepareHistoryText(text);
+  }
+
+  omitUnsentPromptImages(text: string): string {
+    return this.#promptChips.omitUnsentImages(text);
   }
 
   rehydrateHistoryText(text: string, resolveImage: (id: string) => import("../../contracts/owned-ui/index.js").PromptHistoryImageSidecarAttachment | null): string {
@@ -1355,8 +1368,29 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   setExtensionWorking(message: string | undefined, visible = this.#extensionWorkingVisible): void {
     this.#extensionWorkingMessage = message;
     this.#extensionWorkingVisible = visible;
-    this.#status.setWorkingOverride(visible ? message : undefined);
+    this.#syncWorkingOverride();
     this.invalidate();
+  }
+
+  beginImageSubmissionStatus(): () => void {
+    this.#imageSubmissionsSending++;
+    this.#syncWorkingOverride();
+    this.invalidate();
+    let active = true;
+    return () => {
+      if (!active) return;
+      active = false;
+      this.#imageSubmissionsSending = Math.max(0, this.#imageSubmissionsSending - 1);
+      this.#syncWorkingOverride();
+      this.invalidate();
+    };
+  }
+
+  #syncWorkingOverride(): void {
+    const sending = this.#imageSubmissionsSending > 0;
+    this.#status.setWorkingOverride(sending
+      ? "Sending…"
+      : this.#extensionWorkingVisible ? this.#extensionWorkingMessage : undefined, sending);
   }
 
   hotkeysPresentation(): PiShellHotkeysPresentation {
@@ -1391,7 +1425,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.#extensionWidgets.clear();
     this.#extensionStatuses.clear();
     this.#extensionWorkingMessage = undefined;
-    this.#status.setWorkingOverride(undefined);
+    this.#syncWorkingOverride();
     this.#footer.update(this.#viewWithExtensionStatuses(this.#view));
     // Invariant: an extension renderer may have drawn transcript blocks that are now unrendered by it.
     this.#renderedRows.clear();

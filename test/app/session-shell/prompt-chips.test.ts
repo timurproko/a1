@@ -74,6 +74,35 @@ describe("PromptChipStore", () => {
     } finally { await store.dispose(); }
   });
 
+  it("dims and skips count-rejected images without blocking the accepted prompt", async () => {
+    const store = new PromptChipStore({ imageLimit: () => 1 });
+    const data = screenshotPng(4, 4).toString("base64");
+    const read = async () => ({ kind: "image" as const, data, mimeType: "image/png" });
+    const errors: unknown[] = [];
+    const ready = store.transformPastedContent({ kind: "image", data, mimeType: "image/png" });
+    try {
+      const overflow = store.beginPaste(ready, read, error => errors.push(error));
+      const unsent = await overflow.result;
+      expect(unsent).toMatch(/^\[📷 not sent-[a-f0-9]+\]$/u);
+      expect(store.unsentRanges(unsent)).toEqual([{ start: 0, end: unsent.length }]);
+      expect(store.atomicRanges(unsent)).toEqual([{ start: 0, end: unsent.length }]);
+      expect(store.imageLimitState(ready + unsent)).toEqual({ count: 1, limit: 1, corrected: false });
+      expect(store.omitUnsentImages(ready + unsent)).toBe(ready);
+      expect(store.prepareHistoryText(ready + unsent)).toBe(ready);
+      expect(store.prepareSubmission(ready + unsent)).toEqual({
+        text: ready,
+        images: [{ type: "image", data, mimeType: "image/png" }],
+      });
+      expect(errors.at(-1)).toMatchObject({ code: "image-count" });
+
+      store.reconcileDraft("");
+      expect(store.unsentRanges(unsent)).toEqual([{ start: 0, end: unsent.length }]);
+      expect(store.prepareSubmission(ready + unsent).images).toHaveLength(1);
+      const replacement = store.beginPaste(unsent, read, error => errors.push(error));
+      expect(await replacement.result).toBe(replacement.marker);
+    } finally { await store.dispose(); }
+  });
+
   it("preserves authored image chip tags in reusable history text and still expands other chips", async () => {
     const store = new PromptChipStore();
     try {
@@ -107,10 +136,11 @@ describe("PromptChipStore", () => {
       await Promise.all(pastes.map(paste => paste.result));
       expect(store.prepareSubmission(draft).images).toHaveLength(8);
       const ninth = store.beginPaste(draft, read, error => errors.push(error));
-      await ninth.result;
+      const unsent = await ninth.result;
+      expect(unsent).toMatch(/^\[📷 not sent-/u);
       expect(errors.at(-1)).toMatchObject({ code: "image-count" });
-      expect(() => store.prepareSubmission(draft + ninth.marker)).toThrow("limited to 8 images");
-      expect(store.prepareSubmission(draft).images).toHaveLength(8);
+      expect(store.prepareSubmission(draft + ninth.marker).images).toHaveLength(8);
+      expect(store.prepareSubmission(draft + unsent).images).toHaveLength(8);
     } finally { store.dispose(); }
   });
 

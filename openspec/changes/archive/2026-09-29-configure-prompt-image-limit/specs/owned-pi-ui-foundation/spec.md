@@ -2,15 +2,21 @@
 
 ### Requirement: Corrected attachment-count feedback retires with its cause
 
-When bare A1 presents an attachment-count warning for the current prompt, it SHALL associate that prompt-adjacent notice with the typed count failure. The warning SHALL explain that the prompt is limited to the effective image count and direct the user to remove an attachment or change the limit in `/settings`; it SHALL NOT present the count rejection as an error. The notice SHALL be reconciled after editor changes and live prompt-image-limit changes. It SHALL clear without requiring submission when the current draft is within the effective limit and references no failed image-count marker. Reconciliation SHALL NOT clear a newer or unrelated status, warning, or error and SHALL NOT retry, revive, promote, or silently remove a failed image.
+When bare A1 presents an attachment-count warning for the current prompt, it SHALL associate that prompt-adjacent notice with the typed count rejection. The warning SHALL explain that the prompt is limited to the effective image count and direct the user to remove an attachment or change the limit in `/settings`; it SHALL NOT present the count rejection as an error. An overflow attachment rejected specifically by the count policy SHALL remain visible as an atomic, dimmed `not sent` chip rather than a failed chip so its exclusion is explicit. The notice SHALL be reconciled after editor changes and live prompt-image-limit changes. It SHALL clear without requiring submission when the current draft is within the effective limit and references no count-rejected marker. Reconciliation SHALL NOT clear a newer or unrelated status, warning, or error and SHALL NOT retry, revive, promote, silently submit, or silently remove a rejected image.
 
 #### Scenario: Present count rejection as a corrective warning
 - **WHEN** paste or submission exceeds the effective prompt-image limit
 - **THEN** bare A1 SHALL present `A prompt is limited to <limit> image(s). Remove an attachment or change the limit in /settings.` with correct singular/plural grammar as warning feedback
 - **AND** it SHALL NOT label that feedback as an error or append an unrelated recovery instruction
 
+#### Scenario: Present an excluded overflow attachment
+- **WHEN** an image paste is rejected for exceeding the effective prompt-image limit
+- **THEN** its atomic editor chip SHALL say `not sent` and use a dimmed presentation rather than a failed label
+- **AND** submission SHALL proceed with the remaining prompt and ready attachments without including, retrying, or promoting the rejected attachment
+- **AND** submitted-prompt presentation and reusable history SHALL omit the `not sent` marker
+
 #### Scenario: Remove the rejected overflow image
-- **WHEN** an image paste is rejected for exceeding the effective prompt-image limit and the user removes its failed overflow marker from an otherwise compliant draft
+- **WHEN** the user removes the count-rejected `not sent` marker from an otherwise compliant draft
 - **THEN** the attachment-count notice SHALL disappear on the next rendered editor state without requiring submission
 - **AND** the remaining ready image attachments SHALL stay unchanged
 
@@ -18,9 +24,9 @@ When bare A1 presents an attachment-count warning for the current prompt, it SHA
 - **WHEN** a draft contains more ready image attachments than a newly lowered live limit and the user removes attachments until the draft satisfies that limit
 - **THEN** the active attachment-count notice SHALL disappear as soon as the corrected draft is compliant
 
-#### Scenario: Keep an unresolved failed marker
-- **WHEN** the draft count is no greater than the effective limit but still references a failed marker produced by an attachment-count rejection
-- **THEN** A1 SHALL retain actionable failure feedback and SHALL NOT treat or submit that marker as a ready image
+#### Scenario: Keep an unresolved unsent marker
+- **WHEN** the draft count is no greater than the effective limit but still references a `not sent` marker produced by an attachment-count rejection
+- **THEN** A1 SHALL retain actionable warning feedback and SHALL allow submission of the remaining valid prompt without treating or submitting that marker as a ready image
 
 #### Scenario: Preserve a replacement notice
 - **WHEN** another status, warning, or error replaces the attachment-count notice before the user edits the draft
@@ -29,7 +35,7 @@ When bare A1 presents an attachment-count warning for the current prompt, it SHA
 #### Scenario: Increase the live limit
 - **WHEN** the user increases the limit so every ready attachment in the current draft is permitted
 - **THEN** an active count notice for those ready attachments SHALL clear without restart
-- **AND** any failed overflow marker SHALL remain failed until the user removes and pastes it again
+- **AND** any count-rejected overflow marker SHALL remain dimmed and unsent until the user removes and pastes it again
 
 ## MODIFIED Requirements
 
@@ -57,8 +63,14 @@ The owned UI SHALL retain 8 MiB (8,388,608 bytes) of canonical base64 text per f
 
 #### Scenario: Too many attachments including pending images
 - **WHEN** the current draft already occupies every effective image slot, including pending and failed image chips, and the user attempts to add another image
-- **THEN** A1 SHALL reject the additional image with a diagnostic naming the effective limit
-- **AND** it SHALL allow correction without exiting, silently sending a subset, or starting unbounded background work
+- **THEN** A1 SHALL reject the additional image with a diagnostic naming the effective limit and show it as an explicit dimmed `not sent` chip
+- **AND** it SHALL allow correction or submission of the visibly accepted subset without exiting or starting unbounded background work
+
+#### Scenario: Show image submission activity
+- **WHEN** bare A1 dispatches a prompt containing one or more accepted image attachments
+- **THEN** the live working spinner SHALL show `Sending…` while dispatch remains unsettled
+- **AND** settlement by success, rejection, or failure SHALL restore the applicable engine or extension-owned working presentation
+- **AND** A1 SHALL NOT fabricate per-image upload progress that the transport does not report
 
 #### Scenario: Raise the bare-A1 limit
 - **WHEN** bare A1's effective `promptImageLimit` is greater than 8 and no more than 16

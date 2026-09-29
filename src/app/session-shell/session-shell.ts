@@ -807,15 +807,20 @@ export class OwnedUiSessionShell {
     // Compatibility: match interactive Pi: input during compaction is queued steering; the engine
     // shows it in the pending rows and delivers it when compaction ends.
     const type = this.view().lifecycle === "busy" ? "steer" as const : "prompt" as const;
-    this.#rememberInput(displayInput, type);
+    this.#rememberInput(this.root.omitUnsentPromptImages(displayInput).trim(), type);
     this.root.resumeViewportFollowing();
-    return this.#execute({
-      type,
-      correlationId: this.#correlation(type),
-      sessionId: this.backend.sessionId,
-      text: input,
-      ...(prepared.images.length === 0 ? {} : { images: prepared.images }),
-    }, displayInput);
+    const finishSending = prepared.images.length === 0 ? () => {} : this.root.beginImageSubmissionStatus();
+    try {
+      return await this.#execute({
+        type,
+        correlationId: this.#correlation(type),
+        sessionId: this.backend.sessionId,
+        text: input,
+        ...(prepared.images.length === 0 ? {} : { images: prepared.images }),
+      }, displayInput);
+    } finally {
+      finishSending();
+    }
   }
 
   async clearOrExit(now = Date.now()): Promise<AdapterCommandResult> {

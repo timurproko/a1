@@ -37,28 +37,37 @@ The setting therefore controls interactive prompt policy while the contract rema
 
 ### 3. Use one parameterized count assertion across admission and submission
 
-Replace literal count checks with one bounded helper that accepts the effective limit, validates it against the absolute ceiling, and emits a typed `image-count` rejection whose message names that limit. Present that rejection in bare A1 as a corrective warning—`A prompt is limited to <limit> image(s). Remove an attachment or change the limit in /settings.`—rather than as an error, while retaining the typed failure for admission control and notice ownership. Use it for synchronous paste transformation, asynchronous image identification before preparation work starts, ordinary prompt submission, steering, follow-up, compaction-queued submission, and restored/deferred shell drafts. Keep unique attachment semantics: repeated references to one live image chip remain one attachment, while pending and failed image chips continue occupying draft slots.
+Replace literal count checks with one bounded helper that accepts the effective limit, validates it against the absolute ceiling, and emits a typed `image-count` rejection whose message names that limit. Present that rejection in bare A1 as a corrective warning—`A prompt is limited to <limit> image(s). Remove an attachment or change the limit in /settings.`—rather than as an error, while retaining the typed failure for admission control and notice ownership. Use it for synchronous paste transformation, asynchronous image identification before preparation work starts, ordinary prompt submission, steering, follow-up, compaction-queued submission, and restored/deferred shell drafts. Keep unique attachment semantics: repeated references to one live image chip remain one attachment, pending and non-count failed image chips continue occupying draft slots, and count-rejected markers remain visible without consuming another sendable slot.
 
 Changing only the paste checks was rejected because final command validation would still reject a configured value above eight. Raising only the command constant was rejected because the settings value would not govern early work admission or provide consistent diagnostics.
 
 ### 4. Track attachment-count feedback as an owned, correctable notice
 
-Associate the prompt-adjacent warning produced by `image-count` with that typed failure rather than relying on message text. On editor changes and live limit changes, inspect the current draft through the prompt-chip store. Clear that notice only when the draft is within the effective limit and no referenced failed image-count marker remains. Removing the rejected overflow marker from an otherwise full valid draft therefore clears the notice immediately; removing ready images from a draft that became over-limit after lowering the setting also clears it when compliant.
+Associate the prompt-adjacent warning produced by `image-count` with that typed failure rather than relying on message text. On editor changes and live limit changes, inspect the current draft through the prompt-chip store. Clear that notice only when the draft is within the effective limit and no referenced count-rejected marker remains. Removing the rejected overflow marker from an otherwise full valid draft therefore clears the notice immediately; removing ready images from a draft that became over-limit after lowering the setting also clears it when compliant.
 
-Do not clear a newer status, warning, or error that replaced the count notice, and do not clear size, codec, pending, or delivery-uncertain failures merely because image count changed. Failed overflow chips remain failed and are never promoted or retried when the limit increases; users remove and paste them again if desired.
+Do not clear a newer status, warning, or error that replaced the count notice, and do not clear size, codec, pending, or delivery-uncertain failures merely because image count changed. Give an attachment rejected specifically for `image-count` its own atomic `not sent` marker and dim that marker in the editor; other preparation failures retain their failed marker. Count-rejected markers do not consume another sendable slot, remain unsendable, and are never promoted or retried when the limit increases. Submission omits those explicitly marked attachments and proceeds with the remaining text and ready images, while history and submitted-prompt presentation also omit the rejected markers.
+
+A dimmed generic `failed` marker was rejected because it still frames expected policy enforcement as a preparation failure. Rejecting the entire prompt while a clearly marked `not sent` chip remains was rejected because the explicit inactive treatment gives the user enough information to proceed with the accepted subset.
 
 Clearing every dock notice on any editor edit was rejected because command and submission diagnostics intentionally survive unrelated typing. Matching display strings was rejected because wrapped/localized wording is presentation, not identity.
 
-### 5. Verify settings, count boundaries, and correction lifecycle independently
+### 5. Show truthful image-submission activity
 
-Settings tests will cover default resolution, version migration, Agent-section order, persistence, and live change delivery. Prompt-chip/contract tests will cover configured values below, at, and above 8; the absolute 16/17 boundary; pending, failed, duplicate, restored, and sequential image cases; and dynamic error wording. Session-shell tests will exercise ordinary and queued paths plus a real draft edit that removes overflow and clears only the matching dock notice. Comparison coverage will confirm `a1 pi` remains fixed at eight and receives no owned setting.
+While an image-bearing prompt command is awaiting engine dispatch settlement, temporarily override the ordinary live working label with `Sending…` and retain the existing spinner. Clear only that shell-owned override in a `finally` path so success, rejection, and failure all restore the current extension/engine status. Do not display synthetic per-image progress: the engine submits all accepted attachments in one request and exposes no truthful per-image upload callback.
+
+A fabricated `Sending (1/8)` counter was rejected because it would imply transport progress the provider API does not report.
+
+### 6. Verify settings, count boundaries, and correction lifecycle independently
+
+Settings tests will cover default resolution, version migration, Agent-section order, persistence, and live change delivery. Prompt-chip/contract tests will cover configured values below, at, and above 8; the absolute 16/17 boundary; pending, failed, duplicate, restored, and sequential image cases; and dynamic error wording. Session-shell tests will exercise ordinary and queued paths, sendable subsets with omitted count-rejected markers, the image-submission spinner, and a real draft edit that removes overflow and clears only the matching dock notice. Comparison coverage will confirm `a1 pi` remains fixed at eight and receives no owned setting.
 
 ## Risks / Trade-offs
 
 - **[Sixteen large final attachments can increase request memory substantially]** → Keep the existing 8 MiB per-attachment cap, retain 16 as a hard ceiling, reject before dispatch, and make no provider-acceptance claim.
 - **[Live setting and asynchronous paste completion can race]** → Resolve the limit at the admission/validation point, not when paste intent is first created; the current effective value owns that decision.
 - **[A stale count warning could clear a newer notice]** → Carry typed notice identity and clear only the still-current `image-count` notice.
-- **[A failed overflow marker looks count-compliant after another image is deleted]** → Treat referenced failed count markers as unresolved until removed; never silently convert them into ready attachments.
+- **[An unsent overflow marker looks count-compliant after another image is deleted]** → Treat referenced count-rejected markers as unresolved until removed; never silently convert them into ready attachments.
+- **[Concurrent extension status could be lost after image dispatch]** → Give shell-owned sending state precedence only while active, then recompute the extension override instead of clearing the shared status directly.
 - **[Comparison behavior could drift]** → Supply the setting port only in bare A1 and assert the settings-free fallback remains eight.
 
 ## Migration Plan

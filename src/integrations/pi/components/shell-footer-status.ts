@@ -107,14 +107,15 @@ export function createPiShellStatus(
   ensureTheme();
   const statusUi = createTuiFacade(runtime ?? { getColumns: () => 80, getRows: () => 24, requestRender() {} });
   let workingOverride: string | undefined;
+  let workingOverrideActive = false;
   let outputPad: 0 | 1 = PINNED_PI_LAYOUT.outputPad;
   let progressPresentation: PiShellProgressPresentationMode = "pinned";
-  let placement: PiShellStatusPlacement = statusPlacement(view, workingOverride);
+  let placement: PiShellStatusPlacement = statusPlacement(view, workingOverride, workingOverrideActive);
   const liveStatusText = () => progressStatus.text(liveWorkingText(view, workingOverride, progressPresentation), progressPresentation);
   let component = statusComponent(view, statusUi, outputPad, liveStatusText, placement, progressPresentation, progressStatus);
   let signature = statusSignature(view, workingOverride, outputPad, placement, progressPresentation);
   const rebuild = () => {
-    const nextPlacement = statusPlacement(view, workingOverride);
+    const nextPlacement = statusPlacement(view, workingOverride, workingOverrideActive);
     const nextSignature = statusSignature(view, workingOverride, outputPad, nextPlacement, progressPresentation);
     if (nextSignature === signature) return;
     // Performance: progress ticks change only the live message; the spinner keeps its frame and timer.
@@ -143,8 +144,9 @@ export function createPiShellStatus(
       view = next;
       rebuild();
     },
-    setWorkingOverride(message) {
+    setWorkingOverride(message, active = false) {
       workingOverride = message;
+      workingOverrideActive = active && message !== undefined;
       rebuild();
     },
     setOutputPad(padding) {
@@ -209,10 +211,14 @@ export function createPiQueuedInputStatus(
 }
 
 
-function statusPlacement(view: OwnedUiSessionViewModel, workingOverride: string | undefined): PiShellStatusPlacement {
-  // Invariant: live spinner placement follows semantic lifecycle, not text. An extension
-  // override is visible only when its lifecycle is busy, so a stale override cannot spin
-  // after completion or make an idle informational status scrollable.
+function statusPlacement(
+  view: OwnedUiSessionViewModel,
+  workingOverride: string | undefined,
+  workingOverrideActive: boolean,
+): PiShellStatusPlacement {
+  // Invariant: extension text alone cannot create a live spinner. A shell-owned operation may
+  // explicitly own the brief interval before the engine lifecycle itself becomes busy.
+  if (workingOverrideActive && workingOverride !== undefined) return "live";
   if (view.lifecycle === "busy") return "live";
   if (view.lifecycle === "failed") return "dock";
   return view.status.workingMessage === null ? "hidden" : "dock";
