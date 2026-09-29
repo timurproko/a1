@@ -279,7 +279,11 @@ jobs:
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: full-regression-${{ inputs.source }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.os }}-node${{ matrix.node }}
-          path: .artifacts/validation/full-lanes/*.json
+          # Invariant: upload-artifact roots the archive at the paths' common ancestor, so a lone
+          # full-lanes glob would drop the full-lanes/ directory the required job collects from.
+          path: |
+            .artifacts/validation/full-lanes/*.json
+            .artifacts/validation/full-shards/*.json
           if-no-files-found: warn
           retention-days: 30
 

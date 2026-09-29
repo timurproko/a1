@@ -68,6 +68,18 @@ describe("complete regression automation", () => {
     expect(bind).toBeGreaterThan(merge);
     expect(lane.steps[merge].if).toBeUndefined();
     expect(lane.steps[bind].if).toBeUndefined();
+    // Invariant: upload-artifact roots each archive at its paths' common ancestor, and the required job
+    // collects only `*/full-lanes/*.json`, so every lane-bearing upload must keep that directory.
+    for (const job of Object.values(workflow.jobs) as { steps?: { uses?: string; with?: { path?: string } }[] }[]) {
+      for (const step of job.steps ?? []) {
+        if (!step.uses?.startsWith("actions/upload-artifact") || !step.with?.path?.includes("full-lanes/")) continue;
+        const paths = step.with.path.split("\n").map(path => path.trim()).filter(Boolean);
+        const segments = paths.map(path => path.split("/").slice(0, -1));
+        const common = segments[0]!.findIndex((segment, index) => segments.some(other => other[index] !== segment));
+        const root = segments[0]!.slice(0, common === -1 ? undefined : common).join("/");
+        expect(`${root}/`, step.with.path).not.toMatch(/full-lanes\/$/);
+      }
+    }
     expect(workflow.jobs["full-regression"].strategy.matrix.include).toEqual([{ os: "ubuntu-24.04", node: 24 }, { os: "macos-15", node: 24 }]);
     expect(workflow.jobs.required.needs).toEqual(["documentation", "windows-shard", "windows-lane", "full-regression"]);
     const requireStep = workflow.jobs.required.steps.find((step: { name?: string }) => step.name === "Require every exact-run native lane");
