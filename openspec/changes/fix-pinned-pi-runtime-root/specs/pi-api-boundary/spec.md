@@ -6,11 +6,11 @@ When A1 configures its generated public Pi startup context, it SHALL validate an
 
 Configuration of the same package root SHALL be idempotent. An attempt to configure a different package root after the context is active SHALL fail before changing the retained identity. Resolution without successful configuration, or after the retained package becomes unavailable, SHALL fail with a bounded diagnostic rather than falling back to another installed or ambient Pi package.
 
-#### Scenario: Environment state changes after startup
+#### Scenario: Submit a screenshot after environment state changes
 
-- **WHEN** the generated startup context has validated its pinned Pi package and later in-process code deletes, clears, or replaces `PI_PACKAGE_DIR`
-- **THEN** a rewritten lazy Pi module import and documented dependency export SHALL still resolve from the originally validated package root
-- **AND** the running context SHALL NOT adopt the replacement environment path
+- **WHEN** the generated startup context has validated its pinned Pi package, later in-process code deletes, clears, or replaces `PI_PACKAGE_DIR`, and the user submits a screenshot attachment
+- **THEN** the lazy Pi image modules and documented dependency exports SHALL still resolve from the originally validated package root
+- **AND** attachment submission SHALL NOT adopt the replacement environment path or fail because that path is unconfigured
 
 #### Scenario: The same package is configured again
 

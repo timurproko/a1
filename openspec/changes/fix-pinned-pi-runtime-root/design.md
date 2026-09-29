@@ -2,7 +2,7 @@
 
 The generated startup facade configures the exact `@earendil-works/pi-coding-agent` package through `configurePinnedPiPublicPackageEntry()`. That function validates the package and writes its root to `process.env.PI_PACKAGE_DIR`. Rewritten lazy imports later call `pinnedPiModuleUrl()` or `resolvePinnedPiImport()`, whose `pinnedRoot()` currently rereads only that environment variable.
 
-This makes a successful startup provisional: any in-process code that deletes, clears, or replaces the environment value can break a later lazy import. The failure is delayed until a path such as edit-result diff rendering first needs that module, producing `pinned Pi public package directory is not configured` inside an otherwise healthy session. The package itself can still be installed and readable.
+This makes a successful startup provisional: any in-process code that deletes, clears, or replaces the environment value can break a later lazy import. The reported reproduction occurs when submitting a screenshot attachment: text-only submission succeeds, while the attachment activates Pi's lazy `utils/photon.js` and `utils/image-resize.js` paths and produces `pinned Pi public package directory is not configured` inside an otherwise healthy session. The package itself can still be installed and readable.
 
 ## Goals / Non-Goals
 
@@ -32,7 +32,7 @@ The retained root is authoritative but not assumed immortal. Resolution will sti
 
 ### 3. Test the delayed lazy-resolution boundary directly
 
-Focused tests will configure the public entry, then delete and replace `PI_PACKAGE_DIR` before invoking both lazy-resolution helpers. They will prove URLs still resolve beneath the originally validated package and that a conflicting reconfiguration cannot redirect an active process. Existing traversal and unavailable-export rejection remains intact.
+Focused tests will configure the public entry, then delete, clear, and replace `PI_PACKAGE_DIR` before resolving the lazy image-module URLs used by attachment processing and a documented dependency export. They will prove those URLs still resolve beneath the originally validated package and that a conflicting reconfiguration cannot redirect an active process. Existing traversal and unavailable-export rejection remains intact.
 
 The test stays at the shipped helper boundary because that is the exact state transition used by every rewritten lazy import; no private Pi import or fragile UI timing fixture is needed.
 
@@ -46,4 +46,4 @@ The test stays at the shipped helper boundary because that is the exact state tr
 
 - Focused helper tests cover deleted, empty, and redirected environment values after successful configuration.
 - Existing path traversal, dependency export, exact pinned-version, build, typecheck, and architecture checks remain applicable.
-- Manual verification runs a built A1 session through an `edit` tool result and confirms no pinned-package error appears.
+- Manual verification submits a screenshot attachment from a built A1 session and confirms the prompt starts without the pinned-package configuration error; text-only submission remains unchanged.

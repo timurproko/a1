@@ -6,6 +6,6 @@
 
 ## 2. Regression evidence
 
-- [x] 2.1 Extend focused helper tests to prove environment mutation after configuration cannot break or redirect lazy Pi module and dependency resolution.
+- [x] 2.1 Extend focused helper tests to prove environment mutation after configuration cannot break or redirect the lazy Pi image modules used by screenshot attachments or documented dependency resolution.
 - [x] 2.2 Verify focused tests, typechecking, architecture checks, and the startup-public build path against the retained-root implementation.
-- [ ] 2.3 Build and manually exercise an A1 session through an edit-result rendering path; confirm the lazy renderer completes without the pinned-package configuration error and record the result.
+- [ ] 2.3 Build and manually submit a screenshot attachment from an A1 session; confirm the prompt starts without the pinned-package configuration error, verify text-only submission remains available, and record the result.

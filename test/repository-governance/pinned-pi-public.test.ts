@@ -33,22 +33,25 @@ describe("generated startup artifact public Pi context", () => {
     expect(resolvePinnedPiImport("@earendil-works/pi-tui")).toMatch(/pi-tui\/dist\/index\.js$/);
   });
 
-  it("retains the validated root when the environment is deleted or redirected", () => {
+  it("retains attachment image modules when the environment is deleted, cleared, or redirected", () => {
     const configured = configurePinnedPiPublicPackageEntry(publicEntry);
-    const moduleUrl = pinnedPiModuleUrl("config.js");
+    const photonUrl = pinnedPiModuleUrl("utils/photon.js");
+    const resizeUrl = pinnedPiModuleUrl("utils/image-resize.js");
     const dependencyUrl = resolvePinnedPiImport("@earendil-works/pi-ai/compat");
+    const expectAttachmentContext = () => {
+      expect(pinnedPiModuleUrl("utils/photon.js")).toBe(photonUrl);
+      expect(pinnedPiModuleUrl("utils/image-resize.js")).toBe(resizeUrl);
+      expect(resolvePinnedPiImport("@earendil-works/pi-ai/compat")).toBe(dependencyUrl);
+    };
 
     delete process.env.PI_PACKAGE_DIR;
-    expect(pinnedPiModuleUrl("config.js")).toBe(moduleUrl);
-    expect(resolvePinnedPiImport("@earendil-works/pi-ai/compat")).toBe(dependencyUrl);
+    expectAttachmentContext();
 
     process.env.PI_PACKAGE_DIR = "";
-    expect(pinnedPiModuleUrl("config.js")).toBe(moduleUrl);
-    expect(resolvePinnedPiImport("@earendil-works/pi-ai/compat")).toBe(dependencyUrl);
+    expectAttachmentContext();
 
     process.env.PI_PACKAGE_DIR = resolve("missing-pi-package");
-    expect(pinnedPiModuleUrl("config.js")).toBe(moduleUrl);
-    expect(resolvePinnedPiImport("@earendil-works/pi-ai/compat")).toBe(dependencyUrl);
+    expectAttachmentContext();
     expect(configurePinnedPiPublicPackageEntry(publicEntry)).toEqual(configured);
     expect(process.env.PI_PACKAGE_DIR).toBe(configured.root);
   });
