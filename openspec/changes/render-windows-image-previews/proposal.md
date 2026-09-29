@@ -5,7 +5,8 @@ Bare A1 retains a submitted screenshot and reserves its transcript rows, but Win
 ## What Changes
 
 - Add a bounded visual fallback for submitted user-image transcript attachments when bare A1 runs on Windows, where native inline-image transport is unavailable or unreliable.
-- Render the fallback from the retained attachment off the interactive thread, preserve aspect ratio, and cap its rows, columns, payload, concurrency, and lifetime.
+- Use an in-process, bundled Sixel encoder for high-fidelity previews in current Windows Terminal and WezTerm, with bounded high-density terminal cells only when Sixel support is not known.
+- Render the preview from the retained attachment off the interactive thread, preserve aspect ratio, and cap its rows, columns, payload, concurrency, and lifetime.
 - Keep native inline images on established reliable paths and preserve the existing hidden-image and unavailable-image text states.
 - Keep original attachment bytes, prompt text/chips, model delivery, history, tool-result rendering, and the explicit `a1 pi` comparison route unchanged.
 - Add deterministic component/terminal evidence and require physical review in Windows WezTerm and Windows Terminal.
@@ -22,6 +23,6 @@ None.
 
 ## Impact
 
-Implementation will affect the bare-A1 transcript image presenter, an off-thread preview conversion boundary, presentation lifetime/caching, and focused rendering evidence. It will not install `pi-imgcat`, require its optional PowerShell Sixel module, change provider payloads, alter source-image preparation, modify installed Pi packages, or change `a1 pi`.
+Implementation will affect the bare-A1 transcript image presenter, an off-thread preview conversion boundary, presentation lifetime/caching, fullscreen image-row composition, one bundled JavaScript Sixel encoder dependency, and focused rendering evidence. It will not install `pi-imgcat`, require PowerShell or a machine-installed Sixel module, change provider payloads, alter source-image preparation, modify installed Pi packages, or change `a1 pi`.
 
 This change contains planning artifacts only, not implementation.

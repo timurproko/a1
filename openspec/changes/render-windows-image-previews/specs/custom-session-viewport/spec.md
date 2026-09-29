@@ -12,14 +12,21 @@ This fallback SHALL apply only to the bare-A1 submitted-user-image surface on Wi
 
 - **WHEN** a user submits an available screenshot in bare A1 running through Windows WezTerm and Pi reports native image capability
 - **THEN** the transcript SHALL show a recognizable bounded visual preview beneath the submitted prompt instead of a blank reserved region
+- **AND** the preview SHALL use A1's bounded bundled Sixel path instead of the unreliable Kitty placement
 - **AND** later status, assistant, scrollbar, or dock row paints SHALL NOT erase that preview into an empty reservation
 - **AND** the original screenshot attachment SHALL reach storage and model delivery unchanged
 
 #### Scenario: Submit a screenshot in Windows Terminal
 
 - **WHEN** a user submits an available screenshot in bare A1 running through Windows Terminal where Pi reports no native image protocol
-- **THEN** the transcript SHALL show a bounded visual preview rather than only `[Image: …]` metadata
-- **AND** the preview SHALL use ordinary bounded terminal cells without requiring an external renderer or machine-installed conversion module
+- **THEN** the transcript SHALL show a bounded high-fidelity Sixel preview rather than only `[Image: …]` metadata
+- **AND** Sixel encoding SHALL run in A1's bounded worker without requiring an external renderer, PowerShell, or machine-installed conversion module
+
+#### Scenario: Fall back on an unknown Windows host
+
+- **WHEN** bare A1 runs on Windows without a declared Sixel-capable Windows Terminal or WezTerm host
+- **THEN** the transcript SHALL use bounded ordinary high-density terminal cells without emitting an unverified image protocol
+- **AND** it SHALL require no external renderer or machine-installed conversion module
 
 #### Scenario: Prepare the preview while interaction continues
 
