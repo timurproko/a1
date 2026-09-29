@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
-import { describePublicationFailure, dispatchPublication, dispatchStableValidation } from "../../scripts/release/publication-client.mjs";
+import { describePublicationFailure, dispatchPublication, dispatchStableValidation, waitForStableValidation } from "../../scripts/release/publication-client.mjs";
 
 type Call = { executable: string; args: string[] };
 
@@ -181,5 +181,36 @@ describe("publication failure reporting", () => {
     expect(require.run).toContain('test "$POST_PUBLISH" = success');
     expect(require.run).toContain('test "$COMPLETE" = success');
     expect(require.run).not.toContain("REOPEN");
+  });
+});
+
+describe("stable candidate validation waiting", () => {
+  const statuses = (...values: Array<[string, string | null]>) => {
+    let index = 0;
+    return fakeRunner(({ args }) => {
+      if (args[0] === "api" && args[1] === "repos/owner/app/actions/runs/51") {
+        const [status, conclusion] = values[Math.min(index++, values.length - 1)]!;
+        return JSON.stringify({ id: 51, status, conclusion });
+      }
+      if (args[0] === "api" && String(args[1]).includes("/jobs")) return JSON.stringify([{ id: 7, name: "Validate linux-node24", conclusion: "failure" }]);
+      if (args[0] === "api" && String(args[1]).includes("/annotations")) return JSON.stringify(["expected 1 to be 2"]);
+      throw new Error(`unexpected call ${args.join(" ")}`);
+    });
+  };
+
+  it("polls until the run succeeds and reports long waits sparingly", async () => {
+    const { run } = statuses(["queued", null], ["in_progress", null], ["in_progress", null], ["completed", "success"]);
+    let clock = 0;
+    const output: string[] = [];
+    await expect(waitForStableValidation({ repository: "owner/app", runId: 51 }, {
+      run, sleep: async () => { clock += 3 * 60_000; }, now: () => clock, write: text => { output.push(text); },
+    })).resolves.toMatchObject({ conclusion: "success" });
+    expect(output).toEqual(["[release] validation still in progress after 6 min\n"]);
+  });
+
+  it("throws the failed jobs and reasons when validation fails", async () => {
+    const { run } = statuses(["completed", "failure"]);
+    await expect(waitForStableValidation({ repository: "owner/app", runId: 51 }, { run, sleep: async () => {} }))
+      .rejects.toThrow(/Validate linux-node24: expected 1 to be 2/);
   });
 });

@@ -105,8 +105,9 @@ jobs:
                 exit 1
               fi
             elif [ "$mode" = "candidate" ]; then
+              # A called workflow reports its caller's event, so the dispatch wrapper's identity is the authority.
               expected_workflow="$GITHUB_REPOSITORY/.github/workflows/release-candidate.yml@refs/heads/develop"
-              if [ "$EVENT_NAME" != "workflow_call" ] || [ "$GITHUB_REF" != "refs/heads/develop" ] || [ "$GITHUB_WORKFLOW_REF" != "$expected_workflow" ]; then
+              if [ "$EVENT_NAME" != "workflow_dispatch" ] || [ "$GITHUB_REF" != "refs/heads/develop" ] || [ "$GITHUB_WORKFLOW_REF" != "$expected_workflow" ]; then
                 echo "::error::stable candidate validation must originate from its trusted default-branch wrapper" >&2
                 exit 1
               fi
@@ -118,7 +119,7 @@ jobs:
               fi
             elif [ "$mode" = "develop" ]; then
               expected_workflow="$GITHUB_REPOSITORY/.github/workflows/develop.yml@refs/heads/develop"
-              if [ "$EVENT_NAME" != "workflow_call" ] || [ "$GITHUB_REF" != "refs/heads/develop" ] || [ "$GITHUB_WORKFLOW_REF" != "$expected_workflow" ]; then
+              if [ "$EVENT_NAME" != "workflow_dispatch" ] || [ "$GITHUB_REF" != "refs/heads/develop" ] || [ "$GITHUB_WORKFLOW_REF" != "$expected_workflow" ]; then
                 echo "::error::development publication must originate from its trusted default-branch wrapper" >&2
                 exit 1
               fi

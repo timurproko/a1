@@ -90,6 +90,8 @@ export async function releaseFixture(version = "0.1.8-dev", trace?: NativeRegres
       events.push(`validation-dispatch:${candidate.source}:${candidate.version}`);
       return { runId: 42, url: "https://github.com/fixture/a1/actions/runs/42", reused: false };
     };
+  let waitForValidation: (validation: { repository: string; runId: number }) => unknown | Promise<unknown>
+    = validation => { events.push(`validation-wait:${validation.runId}`); return { conclusion: "success" }; };
 
   const runtime = createReleaseRuntime({
     cwd,
@@ -120,6 +122,7 @@ export async function releaseFixture(version = "0.1.8-dev", trace?: NativeRegres
     releaseChanges: (base, source) => releaseChanges(base, source),
     registry: async (name, requested) => { events.push(`registry:${name}:${requested}`); return registry(name, requested); },
     dispatchValidation: async candidate => await dispatchValidation(candidate),
+    waitForValidation: async validation => await waitForValidation(validation),
     log: text => { logs.push(text); events.push("log"); },
     error: text => { errors.push(text); },
   });
@@ -129,6 +132,7 @@ export async function releaseFixture(version = "0.1.8-dev", trace?: NativeRegres
     setReleaseChanges(fn: typeof releaseChanges) { releaseChanges = fn; },
     setRegistry(fn: typeof registry) { registry = fn; },
     setDispatchValidation(fn: typeof dispatchValidation) { dispatchValidation = fn; },
+    setWaitForValidation(fn: typeof waitForValidation) { waitForValidation = fn; },
     editDraft(markdown: string) { const draft = drafts.at(-1); if (!draft) throw new Error("fixture has no draft"); draft.body = markdown; },
     tagTarget(targetVersion = version.replace(/-dev$/u, "")) {
       git(["tag", `v${targetVersion}`, initialHead]);

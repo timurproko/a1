@@ -256,8 +256,17 @@ source's open `x.y.z-dev` core, SHALL refuse an existing target tag or existing
 target package version, and SHALL create or exactly reuse one unpublished draft bound
 to the current authoritative `origin/develop` commit. It SHALL then start, or reuse a
 running or successful, trusted default-branch candidate validation of that exact
-source and stable version, report the draft and validation URLs, and exit without
-waiting.
+source and stable version, and print the validation run URL. It SHALL then wait for
+that run to complete. Only after the run succeeds SHALL it print the draft editing URL
+and direct the maintainer to edit the changelog and choose **Publish release**; after
+a failure it SHALL report the failed jobs and their reasons and SHALL NOT print the
+editing URL. Each printed URL SHALL stand alone on its own output line. Interrupting
+the wait SHALL leave the run going, and repeating the command SHALL resume waiting on
+the same run.
+
+The trusted publisher SHALL accept a dispatch wrapper by its default-branch workflow
+identity and the caller's `workflow_dispatch` event, because a reusable workflow
+observes its caller's event rather than `workflow_call`.
 
 Candidate validation SHALL stamp the stable version on the bound source, pack both
 packages with the draft's then-current note over committed history, and run the
@@ -283,8 +292,17 @@ authority. Existing release tags SHALL never be moved or reused.
 
 #### Scenario: Prepare a stable draft
 - **WHEN** the maintainer selects stable `0.1.8` from authoritative `develop` declaring `0.1.8-dev`
-- **THEN** preparation SHALL create or reuse an unpublished source-bound draft, start candidate validation of that source as `0.1.8`, print the draft editing URL exactly once and the validation URL, and exit without package publication, tag, public Release, pull request, or `master` movement
+- **THEN** preparation SHALL create or reuse an unpublished source-bound draft, start candidate validation of that source as `0.1.8`, print the validation URL on its own line, and wait without package publication, tag, public Release, pull request, or `master` movement
+- **AND** after validation succeeds it SHALL print the draft editing URL exactly once on its own line
 - **AND** it SHALL NOT wait for a draft save or ask the maintainer to enter `0.1.8` again
+
+#### Scenario: Candidate validation fails while the command waits
+- **WHEN** the candidate validation run completes without success
+- **THEN** the command SHALL fail with the failed jobs and their reasons, SHALL NOT print the draft editing URL, and SHALL leave the draft unpublished
+
+#### Scenario: A dispatch wrapper calls the publisher
+- **WHEN** `release-candidate.yml` or `develop.yml` is dispatched on `develop` and calls the reusable publisher
+- **THEN** the publisher SHALL accept the caller's `workflow_dispatch` event together with that wrapper's default-branch workflow identity and SHALL reject any other workflow identity or ref
 
 #### Scenario: Generate a Pi-style changelog draft
 - **WHEN** preparation creates a new draft for stable `0.1.8`
@@ -293,7 +311,7 @@ authority. Existing release tags SHALL never be moved or reused.
 
 #### Scenario: Preparation repeats while validation runs
 - **WHEN** the command runs again for the same source and version while a candidate validation is running or has succeeded
-- **THEN** it SHALL reuse that validation and the existing draft without overwriting the draft body
+- **THEN** it SHALL reuse that validation and the existing draft without overwriting the draft body, and SHALL resume waiting on that run
 
 #### Scenario: A stable version is requested
 - **WHEN** an authorized human chooses **Publish release** on the prepared draft after its candidate validation succeeded

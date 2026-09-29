@@ -2,7 +2,8 @@ import { readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import semver from "semver";
-import { dispatchStableValidation, registryVersion, run } from "./publication-client.mjs";
+import { setTimeout as sleep } from "node:timers/promises";
+import { dispatchStableValidation, registryVersion, run, waitForStableValidation } from "./publication-client.mjs";
 import { parseReleaseArguments, resolveReleasePlan } from "./release-target.mjs";
 import { parseReleaseNote, renderReleaseNoteDraft } from "./release-notes.mjs";
 
@@ -27,13 +28,18 @@ export function createReleaseRuntime(options = {}) {
     dispatchValidation: candidate => dispatchStableValidation(candidate, {
       run: (executable, args, commandOptions = {}) => run(executable, args, { cwd, ...commandOptions }),
     }),
+    waitForValidation: validation => waitForStableValidation(validation, {
+      run: (executable, args, commandOptions = {}) => run(executable, args, { cwd, ...commandOptions }),
+      sleep: milliseconds => sleep(milliseconds, undefined, { signal: options.signal }),
+      write: text => process.stdout.write(text),
+    }),
     log: message => process.stdout.write(`[release] ${message}\n`),
     ...options,
     cwd,
   };
 }
 
-/** Prepares one source-bound draft, starts validation of its source, and exits; native Publish release publishes. */
+/** Prepares one source-bound draft, waits for validation of its source, then hands the draft to native Publish release. */
 export async function runRelease(args, runtime) {
   parseReleaseArguments(args);
   const r = runtime;
@@ -64,9 +70,16 @@ export async function runRelease(args, runtime) {
     const draft = await prepareDraftRelease(r, repository, source, plan.version, local);
     assertAuthoritative(r, source, plan.current, local.manifest.name);
     const validation = await r.dispatchValidation({ repository, source, version: plan.version });
-    r.log(`Draft release ready for editing: ${draft.url}`);
-    r.log(`${validation.reused ? "Reusing" : "Started"} validation of ${source.slice(0, 12)} as ${plan.version}: ${validation.url}`);
-    r.log("Edit the changelog, then choose Publish release. Publication requires this validation to succeed and returns the Release to draft if it fails before npm.");
+    // Rationale: links stand on their own lines so a terminal selection copies exactly the URL.
+    r.log(`${validation.reused ? "Following existing" : "Started"} validation of ${source.slice(0, 12)} as ${plan.version}. Progress:\n${validation.url}`);
+    r.log("Waiting for validation to pass. Ctrl+C is safe: validation keeps running and rerunning this command resumes waiting.");
+    try {
+      await r.waitForValidation({ repository, runId: validation.runId });
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      throw new Error(`${detail}\nThe draft was not published. Fix develop, delete the draft, and run the release command again.`, { cause: error });
+    }
+    r.log(`Validation passed. Edit the changelog, then choose Publish release:\n${draft.url}`);
     return { ...plan, source, draft, validationRunId: validation.runId };
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
@@ -78,7 +91,7 @@ function checkCanceled(r) { r.signal?.throwIfAborted(); }
 function isClean(r, directory) { return r.git(["status", "--porcelain=v1", "--untracked-files=all"], directory) === ""; }
 function fetchDevelop(r) {
   checkCanceled(r);
-  r.git(["fetch", "origin", "develop"]);
+  r.git(["fetch", "-q", "origin", "develop"]);
   const source = r.git(["rev-parse", "origin/develop"]);
   if (!SHA.test(source)) throw new Error("origin/develop did not resolve to a commit");
   return source;
@@ -135,7 +148,7 @@ function remoteTagCommit(r, version) {
   if (lines.length !== 1 || lines[0].split(/\s+/u)[1] !== ref || !SHA.test(lines[0].split(/\s+/u)[0] ?? "")) {
     throw new Error(`v${version} remote tag identity is ambiguous`);
   }
-  r.git(["fetch", "origin", ref]);
+  r.git(["fetch", "-q", "origin", ref]);
   const commit = r.git(["rev-parse", "FETCH_HEAD^{commit}"]);
   if (!SHA.test(commit)) throw new Error(`v${version} does not resolve to a commit`);
   return commit;
@@ -153,7 +166,7 @@ function assertDraftRelease(value, source, version) {
   return Object.freeze({ id: value.id, url, version, source, markdown: note.markdown, updatedAt: value.updated_at });
 }
 async function normalBaseline(r, source) {
-  r.git(["fetch", "origin", "--tags"]);
+  r.git(["fetch", "-q", "origin", "--tags"]);
   const tag = r.git(["describe", "--first-parent", "--tags", "--abbrev=0", "--match", "v[0-9]*", source]);
   const version = tag.startsWith("v") ? tag.slice(1) : "";
   if (semver.valid(version) !== version || semver.prerelease(version) !== null) throw new Error(`latest release baseline ${tag} is not an exact stable tag`);

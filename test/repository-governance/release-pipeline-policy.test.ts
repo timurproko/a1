@@ -193,6 +193,17 @@ describe("deliberate publication pipeline", () => {
     expect(reopen).not.toContain("always()");
   });
 
+  it("authorizes dispatch wrappers by their caller event and default-branch workflow identity", async () => {
+    // Rationale: a reusable workflow sees its caller's event, so a dispatched wrapper arrives as workflow_dispatch.
+    const source = await workflow();
+    for (const wrapper of ["release-candidate.yml", "develop.yml"]) {
+      const branch = source.slice(source.indexOf(`.github/workflows/${wrapper}@refs/heads/develop`));
+      expect(branch.slice(0, 300)).toContain('if [ "$EVENT_NAME" != "workflow_dispatch" ] || [ "$GITHUB_REF" != "refs/heads/develop" ]');
+      expect(await readFile(`.github/workflows/${wrapper}`, "utf8")).toMatch(/^  workflow_dispatch:/mu);
+    }
+    expect(source).not.toContain('"$EVENT_NAME" != "workflow_call"');
+  });
+
   it("keeps preview and stable registry effects separate", async () => {
     const source = await workflow();
     expect(source).toContain('channel = "next"');

@@ -6,6 +6,7 @@ export interface ReleaseRuntime {
   releaseChanges(base: string, source: string): Promise<readonly { number: number; title: string; url: string }[]>;
   registry(name: string, version: string): Promise<unknown | null>;
   dispatchValidation(candidate: { repository: string; source: string; version: string }): Promise<{ runId: number; url: string; reused: boolean }>;
+  waitForValidation(validation: { repository: string; runId: number }): Promise<unknown>;
   log(message: string): void;
   error(message: string): void;
   readonly signal?: AbortSignal;
