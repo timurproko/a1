@@ -116,6 +116,14 @@ export async function releaseFixture(version = "0.1.8-dev", trace?: NativeRegres
           drafts.push(draft); events.push(`draft-create:${draft.tag_name}`);
           return JSON.stringify(draft);
         }
+        const removal = args.includes("DELETE") ? args.find(arg => arg.startsWith("repos/fixture/a1/releases/")) : undefined;
+        if (removal !== undefined) {
+          const index = drafts.findIndex(candidate => `repos/fixture/a1/releases/${candidate.id}` === removal);
+          if (index < 0) throw new Error(`fixture has no release ${removal}`);
+          events.push(`draft-delete:${drafts[index]!.tag_name}`);
+          drafts.splice(index, 1);
+          return "";
+        }
         const update = args.includes("PATCH") ? args.find(arg => arg.startsWith("repos/fixture/a1/releases/")) : undefined;
         if (update !== undefined) {
           const draft = drafts.find(candidate => `repos/fixture/a1/releases/${candidate.id}` === update);
