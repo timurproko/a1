@@ -266,7 +266,7 @@
       "triggers": ["schedule", "workflow_call"],
       "permissions": ["actions: read", "contents: read", "contents: write", "id-token: write", "pull-requests: write"],
       "trustedSource": "authoritative-develop",
-      "authority": ["npm-next", "npm-latest", "release-tag", "github-release", "master-fast-forward", "release-reopening-proposal"],
+      "authority": ["npm-next", "npm-latest", "github-release", "master-fast-forward", "release-reopening-proposal"],
       "concurrency": "a1-registry-publication",
       "environments": ["npm-publish"],
       "artifactRetentionDays": [1, 30]
