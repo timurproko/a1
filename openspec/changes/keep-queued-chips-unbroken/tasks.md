@@ -14,4 +14,4 @@
 ## 3. Validation and acceptance
 
 - [x] 3.1 Run focused component and shell tests, typecheck, build, architecture governance, strict OpenSpec validation, and diff hygiene; record passing evidence without weakening unrelated assertions, including the exact 158-file / 1,525,486-byte startup-graph re-pin.
-- [ ] 3.2 Build and launch with `./scripts/dev`, queue uninterrupted text touching an image chip, and physically verify the fitting chip never splits in either `Steering:` or submitted content while an oversized chip is ellipsized on one row.
+- [x] 3.2 Build and launch with `./scripts/dev`, queue uninterrupted text touching an image chip, and physically verify the fitting chip never splits in either `Steering:` or submitted content while an oversized chip is ellipsized on one row.
