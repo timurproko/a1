@@ -63,13 +63,31 @@ describe("deliberate publication pipeline", () => {
     expect(result).toContain('test "$COMPLETE" = success');
   });
 
+  it("runs every job below plan after a skipped approval and packs a build only with every guardian", async () => {
+    const source = await workflow();
+    const jobs = [...source.matchAll(/^  ([a-z_]+):\n    name: /gm)].map(match => match[1]!);
+    expect(jobs.slice(0, 3)).toEqual(["source", "approval", "plan"]);
+    // Rationale: approval skips outside stable and candidate modes, and GitHub's implicit success()
+    // then skipped guardians and documentation, so nightly packed only the Windows guardian.
+    for (const [index, name] of jobs.entries()) {
+      if (index < 2) continue;
+      const body = source.slice(source.indexOf(`\n  ${name}:\n`), index + 1 < jobs.length ? source.indexOf(`\n  ${jobs[index + 1]}:\n`) : undefined);
+      expect(body.match(/^    if: (.+)$/m)?.[1], name).toMatch(/^always\(\)/);
+    }
+    const job = (name: string, next: string) => source.slice(source.indexOf(`\n  ${name}:`), source.indexOf(`\n  ${next}:`));
+    expect(job("documentation", "guardians").match(/^    if: (.+)$/m)?.[1]).toBe("always() && needs.plan.result == 'success' && (needs.plan.outputs.mode == 'nightly' || needs.plan.outputs.mode == 'candidate')");
+    const pkg = job("package", "validate").match(/^    if: (.+)$/m)?.[1];
+    expect(pkg).toContain("(needs.guardians.result == 'success' || (needs.guardians.result == 'skipped' && (needs.plan.outputs.build != 'true' || needs.plan.outputs.mode == 'stable')))");
+    expect(pkg).toContain("(needs.documentation.result == 'success' || (needs.documentation.result == 'skipped' && needs.plan.outputs.mode != 'nightly' && needs.plan.outputs.mode != 'candidate'))");
+  });
+
   it("publishes stable releases from the candidate-validated package without rebuilding or revalidating", async () => {
     const source = await workflow();
     const job = (name: string, next: string) => source.slice(source.indexOf(`\n  ${name}:`), source.indexOf(`\n  ${next}:`));
     expect(job("approval", "plan")).toContain("validation_run_id: ${{ steps.approval.outputs.validation_run_id }}");
     expect(job("approval", "plan")).toContain("console.log(`validation_run_id=${validationRunId ?? \"\"}`);");
     expect(job("plan", "documentation")).toContain("validation_run_id: ${{ needs.approval.outputs.validation_run_id }}");
-    expect(job("guardians", "package").match(/^    if: (.+)$/m)?.[1]).toBe("needs.plan.outputs.build == 'true' && needs.plan.outputs.mode != 'stable'");
+    expect(job("guardians", "package").match(/^    if: (.+)$/m)?.[1]).toBe("always() && needs.plan.result == 'success' && needs.plan.outputs.build == 'true' && needs.plan.outputs.mode != 'stable'");
     expect(job("validate", "publish").match(/^    if: (.+)$/m)?.[1]).toContain("needs.plan.outputs.mode != 'stable'");
     expect(job("validate", "publish")).not.toContain('[ "$MODE" = "stable" ]');
 
