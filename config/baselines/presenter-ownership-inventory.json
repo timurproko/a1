@@ -3,8 +3,8 @@
   "change": "build-owned-pi-ui-foundation",
   "task": "7.23",
   "pinned": {
-    "version": "0.87.1",
-    "commit": "f07218c4d4bbc12bef056a7058c3dd49dfe41abe",
+    "version": "0.99.1",
+    "commit": "d86654abb8862e201933517d6f1fce9f88dd117f",
     "source": "packages/coding-agent/src/modes/interactive/interactive-mode.ts",
     "packageArtifact": "node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/interactive-mode.js"
   },
@@ -145,7 +145,8 @@
         "this.lastStatusText.setText"
       ],
       "destination": "src/app/session-shell/session-shell.ts",
-      "implementationStatus": "known-divergence"
+      "implementationStatus": "known-divergence",
+      "status": "orphaned"
     },
     {
       "id": "document.error-warning",

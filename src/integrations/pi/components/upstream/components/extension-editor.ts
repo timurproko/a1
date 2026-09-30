@@ -1,5 +1,5 @@
 /**
- * Provenance: @earendil-works/pi-coding-agent 0.87.1 (MIT), commit f07218c4d4bbc12bef056a7058c3dd49dfe41abe,
+ * Provenance: @earendil-works/pi-coding-agent 0.99.1 (MIT), commit d86654abb8862e201933517d6f1fce9f88dd117f,
  * packages/coding-agent/src/modes/interactive/components/extension-editor.ts.
  * Modifications: Mechanical port: remap pi-tui to the root public singleton, use owned
  * keybindings/theme and external-editor seams, preserve editor layout, hints, focus, submission,

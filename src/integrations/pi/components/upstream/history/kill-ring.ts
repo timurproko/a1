@@ -1,5 +1,5 @@
 /**
- * Provenance: @earendil-works/pi-tui 0.87.1 (MIT), commit f07218c4d4bbc12bef056a7058c3dd49dfe41abe,
+ * Provenance: @earendil-works/pi-tui 0.99.1 (MIT), commit d86654abb8862e201933517d6f1fce9f88dd117f,
  * packages/tui/src/kill-ring.ts.
  * Modifications: Owned editor core or minimal editor-local helper subset; public imports, strict
  * types, typed persistent-history hooks, and semantic border state. Public terminal runtime/exports
