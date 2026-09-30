@@ -396,7 +396,9 @@ jobs:
   documentation:
     name: Full documentation review
     needs: plan
-    if: needs.plan.result == 'success' && (needs.plan.outputs.mode == 'nightly' || needs.plan.outputs.mode == 'candidate')
+    # Invariant: plan still runs after approval is skipped, but GitHub's implicit success() skips
+    # every job that inherits that skip, so each job below plan restates always().
+    if: always() && needs.plan.result == 'success' && (needs.plan.outputs.mode == 'nightly' || needs.plan.outputs.mode == 'candidate')
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -427,7 +429,7 @@ jobs:
     name: Build process guardian (${{ matrix.os }})
     needs: plan
     # Rationale: stable publication adopts the candidate-validated package, so nothing is rebuilt.
-    if: needs.plan.outputs.build == 'true' && needs.plan.outputs.mode != 'stable'
+    if: always() && needs.plan.result == 'success' && needs.plan.outputs.build == 'true' && needs.plan.outputs.mode != 'stable'
     strategy:
       fail-fast: false
       matrix:
@@ -466,7 +468,8 @@ jobs:
   package:
     name: Obtain exact package ${{ needs.plan.outputs.version }}
     needs: [plan, guardians, documentation]
-    if: always() && needs.plan.result == 'success' && needs.plan.outputs.work == 'true' && (needs.guardians.result == 'success' || needs.guardians.result == 'skipped') && (needs.documentation.result == 'success' || needs.documentation.result == 'skipped')
+    # Invariant: a skip is accepted only where the job is not required, so a build never packs without every guardian.
+    if: always() && needs.plan.result == 'success' && needs.plan.outputs.work == 'true' && (needs.guardians.result == 'success' || (needs.guardians.result == 'skipped' && (needs.plan.outputs.build != 'true' || needs.plan.outputs.mode == 'stable'))) && (needs.documentation.result == 'success' || (needs.documentation.result == 'skipped' && needs.plan.outputs.mode != 'nightly' && needs.plan.outputs.mode != 'candidate'))
     runs-on: windows-2025
     timeout-minutes: 30
     outputs:
