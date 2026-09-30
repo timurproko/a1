@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import semver from "semver";
-import { registryVersion, run } from "./publication-client.mjs";
+import { dispatchStableValidation, registryVersion, run, waitForStableValidation } from "./publication-client.mjs";
 import { parseReleaseArguments, resolveReleasePlan } from "./release-target.mjs";
 import { parseReleaseNote, renderReleaseNoteDraft } from "./release-notes.mjs";
 
@@ -24,13 +24,20 @@ export function createReleaseRuntime(options = {}) {
     gh,
     releaseChanges: (base, source) => collectReleaseChanges(git, gh, base, source),
     registry: (name, version) => registryVersion(name, version, (url, init) => fetch(url, { ...init, signal: options.signal })),
+    dispatchValidation: candidate => dispatchStableValidation(candidate, {
+      run: (executable, args, commandOptions = {}) => run(executable, args, { cwd, ...commandOptions }),
+    }),
+    waitForValidation: validation => waitForStableValidation(validation, {
+      run: (executable, args, commandOptions = {}) => run(executable, args, { cwd, ...commandOptions }),
+    }),
     log: message => process.stdout.write(`[release] ${message}\n`),
+    error: message => process.stderr.write(`[release] ${message}\n`),
     ...options,
     cwd,
   };
 }
 
-/** Prepares one source-bound draft; stable approval belongs exclusively to GitHub Actions. */
+/** Prepares one source-bound draft, waits for validation of its source, then hands the draft to native Publish release. */
 export async function runRelease(args, runtime) {
   parseReleaseArguments(args);
   const r = runtime;
@@ -52,16 +59,29 @@ export async function runRelease(args, runtime) {
   assertSameSnapshot(readVersionsAt(r, source), local, "caller manifest differs from authoritative develop");
 
   try {
-    await assertPackagePairAbsent(r, local.manifest.name, local.installer.name, plan.version);
+    const packages = await readPackagePair(r, local.manifest.name, local.installer.name, plan.version);
+    if (packages.application !== null || packages.installer !== null) {
+      throw new Error(`${plan.version} already exists on npm; stable versions are never republished. If its publication run failed after npm, rerun that run's failed jobs`);
+    }
     assertAuthoritative(r, source, plan.current, local.manifest.name);
     const repository = repositoryName(r);
     const draft = await prepareDraftRelease(r, repository, source, plan.version, local);
-    r.log(`Draft release ready for editing: ${draft.url}`);
-    r.log(`Approve stable release after review: https://github.com/${repository}/actions/workflows/approve-release.yml`);
-    return { ...plan, source: draft.source, draft, reopened: null };
+    assertAuthoritative(r, source, plan.current, local.manifest.name);
+    const validation = await r.dispatchValidation({ repository, source, version: plan.version });
+    // Rationale: links stand on their own lines so a terminal selection copies exactly the URL.
+    r.log(`${validation.reused ? "Following existing" : "Started"} validation of ${source.slice(0, 12)} as ${plan.version}. Progress:\n${validation.url}`);
+    r.log("Waiting for validation to pass. Ctrl+C is safe: validation keeps running and rerunning this command resumes waiting.");
+    try {
+      await r.waitForValidation({ repository, runId: validation.runId });
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      throw new Error(`${detail}\nThe draft was not published. Fix develop and run the release command again; it refreshes the draft for the new source.`, { cause: error });
+    }
+    r.log(`Validation passed. Edit the changelog, then choose Publish release:\n${draft.url}`);
+    return { ...plan, source, draft, validationRunId: validation.runId };
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
-    throw new Error(`draft release preparation stopped: ${detail}\nPublication of ${plan.version} was not dispatched. Inspect the draft, registry and tag state before retrying.`, { cause: error });
+    throw new Error(`stable release preparation stopped: ${detail}`, { cause: error });
   }
 }
 
@@ -69,7 +89,7 @@ function checkCanceled(r) { r.signal?.throwIfAborted(); }
 function isClean(r, directory) { return r.git(["status", "--porcelain=v1", "--untracked-files=all"], directory) === ""; }
 function fetchDevelop(r) {
   checkCanceled(r);
-  r.git(["fetch", "origin", "develop"]);
+  r.git(["fetch", "-q", "origin", "develop"]);
   const source = r.git(["rev-parse", "origin/develop"]);
   if (!SHA.test(source)) throw new Error("origin/develop did not resolve to a commit");
   return source;
@@ -104,12 +124,10 @@ function assertAuthoritative(r, source, version, name) {
   if (fetchDevelop(r) !== source) throw new Error(`authoritative develop no longer matches selected source ${source}; refusing to substitute another commit`);
   assertVersions(readVersionsAt(r, source), version, name);
 }
-async function assertPackagePairAbsent(r, application, installer, version) {
+async function readPackagePair(r, application, installer, version) {
   checkCanceled(r);
   const [app, install] = await Promise.all([r.registry(application, version), r.registry(installer, version)]);
-  if (app !== null || install !== null) {
-    throw new Error(`${version} already exists for ${[app && application, install && installer].filter(Boolean).join(" and ")}; stable versions are never republished`);
-  }
+  return { application: app, installer: install };
 }
 function repositoryName(r) {
   const repository = r.gh(["repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"]);
@@ -119,7 +137,7 @@ function repositoryName(r) {
 function listVersionReleases(r, repository, version) {
   const releases = JSON.parse(r.gh(["api", `repos/${repository}/releases?per_page=100`]));
   if (!Array.isArray(releases) || releases.length >= 100) throw new Error("GitHub release response is invalid or exceeds its bounded page");
-  return releases.filter(release => release?.tag_name === `v${version}`);
+  return releases.filter(release => release?.tag_name === `v${version}` || (release?.draft === true && release?.name === `v${version}`));
 }
 function remoteTagCommit(r, version) {
   const ref = `refs/tags/v${version}`;
@@ -128,7 +146,7 @@ function remoteTagCommit(r, version) {
   if (lines.length !== 1 || lines[0].split(/\s+/u)[1] !== ref || !SHA.test(lines[0].split(/\s+/u)[0] ?? "")) {
     throw new Error(`v${version} remote tag identity is ambiguous`);
   }
-  r.git(["fetch", "origin", ref]);
+  r.git(["fetch", "-q", "origin", ref]);
   const commit = r.git(["rev-parse", "FETCH_HEAD^{commit}"]);
   if (!SHA.test(commit)) throw new Error(`v${version} does not resolve to a commit`);
   return commit;
@@ -137,15 +155,36 @@ function assertDraftRelease(value, source, version) {
   if (!value || !Number.isSafeInteger(value.id) || value.id < 1 || value.tag_name !== `v${version}`
     || value.target_commitish !== source || value.name !== `v${version}` || value.draft !== true
     || value.prerelease !== false || typeof value.body !== "string" || typeof value.html_url !== "string"
-    || !value.html_url.startsWith("https://") || !value.html_url.includes("/releases/tag/")) {
+    || !value.html_url.startsWith("https://") || !value.html_url.includes("/releases/tag/")
+    || typeof value.updated_at !== "string" || Number.isNaN(Date.parse(value.updated_at))) {
     throw new Error(`v${version} GitHub Release is not the expected editable draft for source ${source}`);
   }
   const note = parseReleaseNote(value.body, version);
   const url = value.html_url.replace("/releases/tag/", "/releases/edit/");
-  return Object.freeze({ id: value.id, url, version, source, markdown: note.markdown });
+  return Object.freeze({ id: value.id, url, version, source, markdown: note.markdown, updatedAt: value.updated_at });
+}
+function assertReplaceableDraft(value, version) {
+  if (!value || !Number.isSafeInteger(value.id) || value.id < 1
+    || (value.tag_name !== `v${version}` && !/^untagged-[a-f0-9]+$/u.test(String(value.tag_name)))
+    || value.name !== `v${version}` || value.draft !== true || value.prerelease !== false
+    || typeof value.target_commitish !== "string" || !SHA.test(value.target_commitish)) {
+    throw new Error(`v${version} GitHub Release is not a replaceable stable draft; stable preparation only refreshes its own drafts`);
+  }
+}
+/** Keeps the draft already bound to this source, then any correctly tagged draft, then the most recently updated. */
+function preferredDraft(drafts, source, version) {
+  const rank = draft => (draft.tag_name === `v${version}` ? 2 : 0) + (draft.target_commitish === source ? 1 : 0);
+  return [...drafts].sort((left, right) => rank(right) - rank(left)
+    || String(right.updated_at).localeCompare(String(left.updated_at)) || right.id - left.id)[0] ?? null;
+}
+function removeDuplicateDrafts(r, repository, version, duplicates) {
+  for (const duplicate of duplicates) {
+    r.gh(["api", "-X", "DELETE", `repos/${repository}/releases/${duplicate.id}`]);
+    r.log(`Removed a duplicate v${version} draft (${duplicate.tag_name}, ${String(duplicate.target_commitish).slice(0, 12)}).`);
+  }
 }
 async function normalBaseline(r, source) {
-  r.git(["fetch", "origin", "--tags"]);
+  r.git(["fetch", "-q", "origin", "--tags"]);
   const tag = r.git(["describe", "--first-parent", "--tags", "--abbrev=0", "--match", "v[0-9]*", source]);
   const version = tag.startsWith("v") ? tag.slice(1) : "";
   if (semver.valid(version) !== version || semver.prerelease(version) !== null) throw new Error(`latest release baseline ${tag} is not an exact stable tag`);
@@ -157,17 +196,35 @@ async function prepareDraftRelease(r, repository, source, version, local) {
   checkCanceled(r);
   assertAuthoritative(r, source, local.manifest.version, local.manifest.name);
   const matches = listVersionReleases(r, repository, version);
-  if (matches.length > 1) throw new Error(`ambiguous GitHub Releases for v${version}`);
   const tag = remoteTagCommit(r, version);
   if (tag !== null) throw new Error(`v${version} already exists at ${tag}; stable preparation never deletes, moves, or reuses a release tag`);
-  if (matches.length === 1) {
+  // Rationale: one draft per version. A draft bound to an older develop is replaced in place, and
+  // duplicates (for example a draft GitHub left untagged) are removed instead of accumulating.
+  for (const match of matches) assertReplaceableDraft(match, version);
+  const existing = preferredDraft(matches, source, version);
+  const duplicates = matches.filter(match => match !== existing);
+  if (existing !== null && existing.tag_name === `v${version}` && existing.target_commitish === source) {
     assertAuthoritative(r, source, local.manifest.version, local.manifest.name);
-    return assertDraftRelease(matches[0], source, version);
+    const draft = assertDraftRelease(existing, source, version);
+    removeDuplicateDrafts(r, repository, version, duplicates);
+    return draft;
   }
 
   const previous = await normalBaseline(r, source);
   const markdown = parseReleaseNote(renderReleaseNoteDraft(version, await r.releaseChanges(previous, source), r.releaseDate), version).markdown;
   assertAuthoritative(r, source, local.manifest.version, local.manifest.name);
+  if (existing !== null) {
+    const updated = JSON.parse(r.gh([
+      // Compatibility: GitHub resets an omitted tag_name on a draft to untagged-*, so the identity is resent.
+      "api", "-X", "PATCH", `repos/${repository}/releases/${existing.id}`,
+      "-f", `tag_name=v${version}`, "-f", `name=v${version}`,
+      "-f", `target_commitish=${source}`, "-f", `body=${markdown}`,
+    ]));
+    const draft = assertDraftRelease(updated, source, version);
+    r.log(`Refreshed the v${version} draft from ${String(existing.target_commitish).slice(0, 12)} to ${source.slice(0, 12)}; its release notes were regenerated.`);
+    removeDuplicateDrafts(r, repository, version, duplicates);
+    return draft;
+  }
   const created = JSON.parse(r.gh([
     "api", "-X", "POST", `repos/${repository}/releases`,
     "-f", `tag_name=v${version}`, "-f", `target_commitish=${source}`,

@@ -14,6 +14,7 @@ export interface FakeDraftRelease {
   body: string;
   draft: boolean;
   prerelease: boolean;
+  updated_at: string;
 }
 
 /** Uses real disposable Git repositories, but no real GitHub, registry, or publication service. */
@@ -83,6 +84,14 @@ export async function releaseFixture(version = "0.1.8-dev", trace?: NativeRegres
   const drafts: FakeDraftRelease[] = [];
   let releaseChanges: (base: string, source: string) => Promise<readonly { number: number; title: string; url: string }[]> = async () => [];
   let registry: (name: string, requested: string) => unknown | Promise<unknown> = () => null;
+  let dispatchValidation: (candidate: { repository: string; source: string; version: string }) =>
+    { runId: number; url: string; reused: boolean } | Promise<{ runId: number; url: string; reused: boolean }>
+    = candidate => {
+      events.push(`validation-dispatch:${candidate.source}:${candidate.version}`);
+      return { runId: 42, url: "https://github.com/fixture/a1/actions/runs/42", reused: false };
+    };
+  let waitForValidation: (validation: { repository: string; runId: number }) => unknown | Promise<unknown>
+    = validation => { events.push(`validation-wait:${validation.runId}`); return { conclusion: "success" }; };
 
   const runtime = createReleaseRuntime({
     cwd,
@@ -102,9 +111,28 @@ export async function releaseFixture(version = "0.1.8-dev", trace?: NativeRegres
             id: drafts.length + 1,
             html_url: `https://github.com/fixture/a1/releases/tag/untagged-${drafts.length + 1}`,
             tag_name: fields.tag_name!, target_commitish: fields.target_commitish!, name: fields.name!, body: fields.body!,
-            draft: fields.draft === "true", prerelease: fields.prerelease === "true",
+            draft: fields.draft === "true", prerelease: fields.prerelease === "true", updated_at: "2026-09-29T00:00:00Z",
           };
           drafts.push(draft); events.push(`draft-create:${draft.tag_name}`);
+          return JSON.stringify(draft);
+        }
+        const removal = args.includes("DELETE") ? args.find(arg => arg.startsWith("repos/fixture/a1/releases/")) : undefined;
+        if (removal !== undefined) {
+          const index = drafts.findIndex(candidate => `repos/fixture/a1/releases/${candidate.id}` === removal);
+          if (index < 0) throw new Error(`fixture has no release ${removal}`);
+          events.push(`draft-delete:${drafts[index]!.tag_name}`);
+          drafts.splice(index, 1);
+          return "";
+        }
+        const update = args.includes("PATCH") ? args.find(arg => arg.startsWith("repos/fixture/a1/releases/")) : undefined;
+        if (update !== undefined) {
+          const draft = drafts.find(candidate => `repos/fixture/a1/releases/${candidate.id}` === update);
+          if (!draft) throw new Error(`fixture has no release ${update}`);
+          const fields = Object.fromEntries(args.flatMap((arg, index) => arg === "-f"
+            ? [String(args[index + 1]).split(/=(.*)/su).slice(0, 2)] : []));
+          // Compatibility: like GitHub, an update that omits tag_name leaves the draft untagged.
+          Object.assign(draft, { tag_name: `untagged-${draft.id}` }, fields, { updated_at: "2026-09-30T00:00:00Z" });
+          events.push(`draft-update:${draft.tag_name}`);
           return JSON.stringify(draft);
         }
       }
@@ -112,6 +140,8 @@ export async function releaseFixture(version = "0.1.8-dev", trace?: NativeRegres
     },
     releaseChanges: (base, source) => releaseChanges(base, source),
     registry: async (name, requested) => { events.push(`registry:${name}:${requested}`); return registry(name, requested); },
+    dispatchValidation: async candidate => await dispatchValidation(candidate),
+    waitForValidation: async validation => await waitForValidation(validation),
     log: text => { logs.push(text); events.push("log"); },
     error: text => { errors.push(text); },
   });
@@ -120,6 +150,8 @@ export async function releaseFixture(version = "0.1.8-dev", trace?: NativeRegres
     logs, errors, events, gitCalls, ghCalls, drafts,
     setReleaseChanges(fn: typeof releaseChanges) { releaseChanges = fn; },
     setRegistry(fn: typeof registry) { registry = fn; },
+    setDispatchValidation(fn: typeof dispatchValidation) { dispatchValidation = fn; },
+    setWaitForValidation(fn: typeof waitForValidation) { waitForValidation = fn; },
     editDraft(markdown: string) { const draft = drafts.at(-1); if (!draft) throw new Error("fixture has no draft"); draft.body = markdown; },
     tagTarget(targetVersion = version.replace(/-dev$/u, "")) {
       git(["tag", `v${targetVersion}`, initialHead]);

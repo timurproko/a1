@@ -84,13 +84,17 @@ describe("CI and release operations runbook", () => {
     expect(runbook).toContain("npm run develop");
     expect(runbook).toContain("03:17 UTC");
     expect(runbook).toContain("npm run release --");
-    expect(runbook).toContain("Approve stable release");
-    expect(runbook).toMatch(/enter only the\s+stable version/u);
+    expect(runbook).toContain("never opens Actions or re-enters the version");
+    expect(runbook).toContain("native **Publish release**");
+    expect(runbook).not.toContain("reports npm ready");
+    expect(runbook).not.toContain("approve-release.yml");
     expect(runbook).not.toContain("npm run release -- patch --approve");
     expect(runbook).toContain("draft GitHub Release");
     expect(runbook).toContain("## [version] - YYYY-MM-DD");
-    expect(runbook).toContain("A pushed tag does not publish npm packages");
-    expect(runbook).toMatch(/failed\s+pre-publication run needs no manual tag removal/u);
+    expect(runbook).toContain("A pushed tag does not publish npm packages; only native publication of the\nprepared draft does.");
+    expect(runbook).toContain("Publishing before validation finishes is safe");
+    expect(runbook).toContain("no manual tag cleanup is needed");
+    expect(runbook).toContain("Rerun the failed jobs of that same run");
     expect(runbook).toContain("the stable version is never committed to `develop`");
   });
 
@@ -100,7 +104,7 @@ describe("CI and release operations runbook", () => {
       readFile(".github/workflows/full-regression-shared.yml", "utf8"),
       readFile(".github/workflows/ci.yml", "utf8"),
     ]);
-    expect(release).toContain("STARTUP_BUDGET_ENFORCEMENT: ${{ needs.plan.outputs.mode == 'stable' && 'fail' || 'record' }}");
+    expect(release).toContain("STARTUP_BUDGET_ENFORCEMENT: ${{ needs.plan.outputs.channel == 'latest' && 'fail' || 'record' }}");
     expect(release).toContain("STARTUP_PERFORMANCE_RESULT: .artifacts/validation/startup-${{ matrix.platform }}.json");
     expect(release).toContain("Summarize first-attempt startup measurements");
     expect(regression).toContain("STARTUP_BUDGET_ENFORCEMENT: record");

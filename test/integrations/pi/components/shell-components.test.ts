@@ -110,7 +110,11 @@ describe("Pi shell public component adapters", () => {
     let rows = queued.render(40).map(row => stripTerminalSequences(row).trimEnd());
     expect(rows.filter(row => row.includes(first))).toHaveLength(2);
     expect(rows.filter(row => row.includes(second))).toHaveLength(1);
-    expect(rows.some(row => row.includes("Alt+Up to edit all queued messages"))).toBe(true);
+    // Platform: macOS names Alt "Option", so the same hint exceeds the 38-column content
+    // width and wraps at a word boundary like any other Pi text row.
+    expect(rows.slice(process.platform === "darwin" ? -2 : -1)).toEqual(process.platform === "darwin"
+      ? [" ↳ Option+Up to edit all queued", " messages"]
+      : [" ↳ Alt+Up to edit all queued messages"]);
 
     dequeueBinding = "ctrl+r";
     queued.update([`updated${second}tail`, "[ordinary bracketed text]"]);

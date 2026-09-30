@@ -137,15 +137,24 @@ Rendering selection SHALL have exactly three outcomes: `none`, `smoke`, and `ful
 - **THEN** they SHALL evaluate one captured result rather than launching an equivalent matrix again
 
 ### Requirement: Validation selection and timing are auditable
-Every modular development gate SHALL emit its selected scopes, classification tier, changed inputs, bounded reasons, fallback decisions, elapsed time, and result in machine-readable evidence and a concise workflow summary. The required aggregate SHALL bind those outcomes to the current pull-request head and SHALL reject a missing, stale, unsuccessful, or unexpectedly skipped required scope.
+
+Every modular development gate and complete-regression shard SHALL emit its selected scopes or assigned canonical work, classification or shard identity, exact source context, bounded reasons or plan digest, elapsed time, and result in machine-readable evidence and a concise workflow summary. The required aggregate SHALL bind those outcomes to the current pull-request head or standalone source and SHALL reject a missing, stale, unsuccessful, duplicated, or unexpectedly skipped required scope or shard.
 
 #### Scenario: Maintainer inspects a rendering selection
+
 - **WHEN** a pull request selects `smoke` or `full` rendering evidence
 - **THEN** the workflow summary SHALL identify the changed input and classification reason that selected it
 
 #### Scenario: Required modular result is stale
+
 - **WHEN** a modular job result belongs to an older pull-request head or a different classifier result
 - **THEN** the aggregate required check SHALL fail
+
+#### Scenario: Maintainer inspects Windows Full regression
+
+- **WHEN** Windows complete coverage executes in parallel shards
+- **THEN** the workflow and merged evidence SHALL report each shard's assigned owners, elapsed time, result, and overlap context
+- **AND** a failed owner SHALL remain attributable to its canonical Windows runtime and shard job
 
 ### Requirement: Development merges are gated by one required check
 GitHub SHALL require the development validation check for pull requests into
@@ -175,7 +184,7 @@ change.
 ### Requirement: Preview and stable artifacts are published from verified bytes
 Every npm artifact required by a release, including `@timurproko/a1` and `@timurproko/a1-install`, SHALL be packed once for its final version, validated in that exact form, and uploaded without rebuilding. The publisher SHALL independently verify each package digest before upload and SHALL verify that registry bytes are the bytes validated for that package identity.
 
-The installer artifact SHALL be built from the same authoritative source and selected version as the corresponding application publication but SHALL retain its distinct package identity and minimal package surface. Development publication SHALL place matching installer builds under `next`; stable publication SHALL place the stable installer under `latest`. Stable release tags, GitHub Releases, and `master` movement SHALL wait until every required artifact has been registry-verified.
+The installer artifact SHALL be built from the same authoritative source and selected version as the corresponding application publication but SHALL retain its distinct package identity and minimal package surface. Development publication SHALL place matching installer builds under `next`; stable publication SHALL place the stable installer under `latest`. The stable Release asset and `master` movement SHALL wait until every required artifact has been registry-verified and the published pair has been exercised.
 
 #### Scenario: Published input differs
 - **WHEN** either tarball offered for publication differs by digest from its validated artifact
@@ -189,53 +198,93 @@ The installer artifact SHALL be built from the same authoritative source and sel
 #### Scenario: A stable pair is published
 - **WHEN** stable application and installer artifacts have passed exact-byte validation
 - **THEN** each SHALL be provenance-published and registry-verified under its own package identity
-- **AND** stable release records SHALL be written only after both required registry results succeed
+- **AND** the Release asset and `master` SHALL be written only after both required registry results succeed
 
 #### Scenario: Installer publication fails after an application artifact exists
 - **WHEN** one immutable package upload succeeds but the required pair is not completely verified
-- **THEN** the workflow SHALL fail without writing a stable tag, GitHub Release, or `master` movement
-- **AND** a retry SHALL verify existing immutable bytes rather than republish or rebuild them
+- **THEN** the workflow SHALL fail without uploading the Release asset or moving `master`, and SHALL keep the published Release and tag
+- **AND** a rerun of the failed jobs SHALL verify existing immutable bytes rather than republish or rebuild them
 
 ### Requirement: The complete suite remains available on demand
+
 The complete non-physical automated suite SHALL remain runnable locally (`npm run test:full`) and through manual workflow dispatch, so a maintainer can widen validation when a change feels risky, and SHALL run on a nightly schedule against the current `develop` tip so exhaustive owners and enforced budgets are exercised every day independent of publication. Routine development SHALL NOT require it.
+
+Standalone and selected PR-attached Full regression SHALL execute the complete Windows Node 22 and Node 24 coverage through reviewed parallel hosted-runner shards. Each Windows runtime SHALL have `core`, `resource`, `rendering`, and `package` shard evidence derived from one canonical complete plan. Every canonical command and test invocation SHALL belong to exactly one shard, and one successful Windows lane result SHALL be reconstructed only from all four exact-source, exact-run, exact-attempt, exact-runtime shard results. Missing, duplicate, stale, malformed, failed, cancelled, or unexpected shard evidence SHALL fail the applicable lane and required aggregate. Linux, macOS, local full validation, and publication validation MAY retain one sequential complete plan.
 
 A scope that the complete-regression lanes cannot run MAY be excluded from the `full-release` plan only through an explicit `fullReleaseExclusion` reason on its definition in `config/validation-suites.json`. The only permitted exclusion is the Windows-only `terminal-host` scope, whose pull-request owner validates every change to its paths. Adding another exclusion SHALL require a reviewed change to this requirement.
 
 #### Scenario: Maintainer requests full validation
+
 - **WHEN** the maintainer dispatches the full-regression workflow or runs the full tier locally
 - **THEN** every non-physical scope without a declared `fullReleaseExclusion` SHALL execute and report per-scope timing and outcomes
+- **AND** workflow-dispatched Windows coverage SHALL reconstruct each runtime lane from all four required shards while local validation MAY remain sequential
 
 #### Scenario: Nightly schedule fires
+
 - **WHEN** the scheduled Full regression runs
 - **THEN** it SHALL validate the current `develop` tip with every pull-request and exhaustive owner whose scopes are not declared `fullReleaseExclusion`, and with enforced startup budgets
 - **AND** its failure SHALL be visible as a workflow failure without changing publication authority
 
+#### Scenario: Windows shard evidence is complete
+
+- **WHEN** all four Windows shards for one runtime belong to the same exact source, canonical plan, workflow run, and attempt and every assigned outcome succeeds
+- **THEN** validation SHALL reconstruct one complete result in canonical outcome order and bind it to the existing Windows runtime lane
+- **AND** the protected complete-regression aggregate SHALL continue to require that lane alongside the other three platform/runtime lanes
+
+#### Scenario: Windows shard evidence is incomplete
+
+- **WHEN** a required shard is missing, duplicated, stale, malformed, cancelled, failed, belongs to another runtime or plan, or omits or duplicates assigned work
+- **THEN** no successful Windows lane envelope SHALL be produced
+- **AND** the final complete-regression aggregate SHALL fail closed with available shard failure evidence
+
 #### Scenario: A scope is excluded from complete regression
+
 - **WHEN** a scope definition declares `fullReleaseExclusion`
 - **THEN** it SHALL carry a non-empty reason, SHALL NOT be included by `full-release`, and SHALL be `terminal-host`
 
 ### Requirement: Publication follows from what was pushed
-Publication SHALL use trusted workflows whose stable source is the exact current
-`origin/develop` commit. It SHALL start nightly, by explicit development dispatch,
-or by an explicit stable approval dispatch from **Approve stable release**; a push,
-pull-request merge, tag, draft creation or edit, and native GitHub Release publication
-alone SHALL NOT publish npm packages. Stable approval SHALL ask only for an exact final
-version. Trusted code SHALL derive and bind the authorized human actor, authoritative
-source, Release database identity, draft state, bounded normalized body, and digest.
+Publication SHALL use trusted workflows. It SHALL start nightly, by explicit
+development dispatch, or, for stable npm publication, only when an authorized human
+publishes the prepared source-bound draft Release through GitHub's native **Publish
+release** control. A push, pull-request merge, pushed tag, draft creation, draft
+edit or save, candidate validation success, unrelated CI success, and dispatch
+payloads SHALL NOT publish stable npm packages. The maintainer SHALL NOT navigate to
+Actions or re-enter the stable version.
 
-Stable preparation SHALL require an explicit `x.y.z` not below the source's open
-`x.y.z-dev` core and SHALL create or exactly reuse one unpublished draft bound to the
-current source. Approval SHALL require a GitHub `User` with `write`, `maintain`, or
-`admin` permission, one matching draft, absent target package versions, and an absent
-target tag. Apps, bots, local `--approve`, technical-input dispatch, native publication,
-tag pushes, and CI success SHALL grant no approval authority.
+Stable preparation SHALL require an explicit target bump or `x.y.z` not below the
+source's open `x.y.z-dev` core, SHALL refuse an existing target tag or existing
+target package version, and SHALL create or exactly reuse one unpublished draft bound
+to the current authoritative `origin/develop` commit. It SHALL then start, or reuse a
+running or successful, trusted default-branch candidate validation of that exact
+source and stable version, and print the validation run URL. It SHALL then wait for
+that run to complete. Only after the run succeeds SHALL it print the draft editing URL
+and direct the maintainer to edit the changelog and choose **Publish release**; after
+a failure it SHALL report the failed jobs and their reasons and SHALL NOT print the
+editing URL. Each printed URL SHALL stand alone on its own output line. Interrupting
+the wait SHALL leave the run going, and repeating the command SHALL resume waiting on
+the same run.
 
-After exact npm publication and published-pair verification, completion SHALL upload
-the validated asset and fast-forward `master` while the Release remains draft and the
-target tag remains absent. Release automation SHALL NOT create the tag independently.
-Publishing the approved draft with its bound `tag_name` and `target_commitish` SHALL be
-the final mutation and SHALL cause GitHub to create the immutable tag at that source.
-Existing release tags SHALL never be deleted, moved, or reused by automation.
+The trusted publisher SHALL accept a dispatch wrapper by its default-branch workflow
+identity and the caller's `workflow_dispatch` event, because a reusable workflow
+observes its caller's event rather than `workflow_call`.
+
+Candidate validation SHALL stamp the stable version on the bound source, pack both
+packages with the draft's then-current note over committed history, and run the
+complete stable suite on the exact bytes without publishing npm, uploading a Release
+asset, or moving `master`.
+
+On `release.published` for a stable, non-prerelease Release, trusted code SHALL
+derive the version from the tag and SHALL require the tag to be a lightweight tag at
+the Release's bound source, that source to be in `develop` history, the publishing
+actor to be a GitHub `User` with `write`, `maintain`, or `admin` permission, both
+target package versions to be absent, and a successful candidate validation of that
+exact source and version. It SHALL snapshot the bounded normalized published body,
+repack both packages with it, rerun the exact-package gates on the final bytes,
+require the Release to remain published with the snapshotted body immediately before
+npm, publish both packages to npm `latest` with provenance, verify and exercise the
+published pair, upload the validated asset, fast-forward `master`, and prepare
+reopening. Apps, bots, pushed tags, and dispatch payloads SHALL grant no npm
+authority. Existing release tags SHALL never be moved or reused.
 
 #### Scenario: Work lands on develop
 - **WHEN** a commit declaring a prerelease version is pushed to `develop`
@@ -243,76 +292,104 @@ Existing release tags SHALL never be deleted, moved, or reused by automation.
 
 #### Scenario: Prepare a stable draft
 - **WHEN** the maintainer selects stable `0.1.8` from authoritative `develop` declaring `0.1.8-dev`
-- **THEN** preparation SHALL create or reuse an unpublished source-bound draft, print its editing URL exactly once, print the approval Actions URL exactly once, and stop without package publication, tag, public Release, pull request, or `master` movement
+- **THEN** preparation SHALL create or reuse an unpublished source-bound draft, start candidate validation of that source as `0.1.8`, print the validation URL on its own line, and wait without package publication, tag, public Release, pull request, or `master` movement
+- **AND** after validation succeeds it SHALL print the draft editing URL exactly once on its own line
+- **AND** it SHALL NOT wait for a draft save or ask the maintainer to enter `0.1.8` again
+
+#### Scenario: Candidate validation fails while the command waits
+- **WHEN** the candidate validation run completes without success
+- **THEN** the command SHALL fail with the failed jobs and their reasons, SHALL NOT print the draft editing URL, and SHALL leave the draft unpublished
+
+#### Scenario: A dispatch wrapper calls the publisher
+- **WHEN** `release-candidate.yml` or `develop.yml` is dispatched on `develop` and calls the reusable publisher
+- **THEN** the publisher SHALL accept the caller's `workflow_dispatch` event together with that wrapper's default-branch workflow identity and SHALL reject any other workflow identity or ref
 
 #### Scenario: Generate a Pi-style changelog draft
 - **WHEN** preparation creates a new draft for stable `0.1.8`
 - **THEN** its body SHALL begin with `## [0.1.8] - YYYY-MM-DD` and group applicable entries under level-three Breaking Changes, New Features, Added, Changed, and Fixed headings
 - **AND** a retained version/date heading SHALL identify the expected version and a valid calendar date while the body remains human-editable
 
+#### Scenario: Preparation repeats while validation runs
+- **WHEN** the command runs again for the same source and version while a candidate validation is running or has succeeded
+- **THEN** it SHALL reuse that validation and the existing draft without overwriting the draft body, and SHALL resume waiting on that run
+
 #### Scenario: A stable version is requested
-- **WHEN** an authorized human runs **Approve stable release** while the exact source-bound draft remains valid and untagged
-- **THEN** trusted code SHALL snapshot its body, stamp the version at pack time, validate exact packages, publish to npm `latest`, upload the exact asset, and fast-forward `master`
-- **AND** the Release SHALL remain draft and the tag SHALL remain absent until final Release publication
-- **AND** publishing that draft with the exact approved body SHALL be the final mutation and SHALL create the tag at the approved source
-
-#### Scenario: Approved publication fails before final publication
-- **WHEN** validation, packaging, npm, registry propagation, published-pair, asset, `master`, cancellation, or another pre-publication step fails
-- **THEN** the GitHub Release SHALL remain draft and the target tag SHALL remain absent
-- **AND** uncertain npm state SHALL require retrying the same immutable run rather than creating or moving a tag manually
-
-#### Scenario: A draft exists without approval
-- **WHEN** a draft is created, edited, viewed, or passes unrelated CI without the explicit authorized Actions dispatch
-- **THEN** stable publication SHALL remain forbidden
-
-#### Scenario: A release-review PR is manually merged
-- **WHEN** a release-note pull request from the retired protocol is manually or automatically merged
-- **THEN** that merge SHALL grant no stable publication authority
+- **WHEN** an authorized human chooses **Publish release** on the prepared draft after its candidate validation succeeded
+- **THEN** GitHub SHALL create the tag at the bound source and trusted code SHALL publish both exact packages to npm `latest`, upload the asset, fast-forward `master`, and prepare the reopening pull request without another version entry
 
 #### Scenario: A draft is published through GitHub prematurely
-- **WHEN** an operator uses GitHub's native **Publish release** control
-- **THEN** that event SHALL NOT dispatch npm publication or count as approval
+- **WHEN** the draft is published while its candidate validation is running, failed, or absent
+- **THEN** publication SHALL fail before npm and the Release SHALL return to draft
+
+#### Scenario: A draft exists without approval
+- **WHEN** a draft is created, edited, saved, viewed, or passes candidate validation or unrelated CI but is not published
+- **THEN** stable npm publication SHALL remain forbidden
 
 #### Scenario: A stable request lacks reviewed notes
-- **WHEN** approval names a missing, duplicate, published, stale, unsafe, mismatched, or differently digested Release, or an App, bot, or unauthorized actor
+- **WHEN** the published Release is a prerelease, retargeted, ambiguous, unsafe, or not at its tag's commit, its tag is annotated or elsewhere, its source is outside `develop` history, or its publisher is an App, bot, or unauthorized user
 - **THEN** the workflow SHALL fail before package construction
 
+#### Scenario: Approved publication fails before final publication
+- **WHEN** candidate-run gating, packaging, exact-package validation, or cancellation stops publication before either npm upload starts
+- **THEN** the Release SHALL return to draft and its unconsumed tag SHALL be deleted
+- **AND** uncertain npm state SHALL keep the Release and tag and require rerunning the same run rather than creating or moving a tag manually
+
+#### Scenario: A release-review PR is manually merged
+- **WHEN** a release-note pull request from a retired protocol is manually or automatically merged
+- **THEN** that merge SHALL grant no stable publication authority
+
+#### Scenario: The published body changes before npm
+- **WHEN** the published Release is edited or returned to draft after its body was snapshotted and before npm upload
+- **THEN** publication SHALL fail before npm and the Release SHALL be returned to draft
+
 #### Scenario: A stable request names an unacceptable version
-- **WHEN** approval omits the version, names a prerelease, or names a version below the open development core
-- **THEN** the workflow SHALL fail before package construction
+- **WHEN** the draft or tag omits a valid version, names a prerelease, or names a version below the open development core
+- **THEN** preparation or the workflow SHALL fail before package construction
 
 #### Scenario: A source declares a stable version
 - **WHEN** selected `develop` declares `0.1.8` instead of one open `0.1.8-dev` identity across package files
 - **THEN** every publication channel SHALL refuse the source before release mutation
 
 #### Scenario: Develop advances after draft preparation
-- **WHEN** authoritative `develop` no longer equals the source bound to the edited draft
-- **THEN** approval SHALL fail without silently retargeting, overwriting, or publishing that draft
-
-#### Scenario: A release tag is pushed
-- **WHEN** a `v*` tag is pushed before final Release publication
-- **THEN** no npm publication SHALL start from the push and stable approval SHALL refuse the existing tag without deleting, moving, or reusing it
+- **WHEN** authoritative `develop` gains commits after the draft was bound to its source
+- **THEN** publication SHALL publish the bound source rather than silently retargeting to the newer tip
+- **AND** reopening SHALL use the then-current compatible `develop`
 
 #### Scenario: A tag disagrees with its commit
-- **WHEN** a target tag already exists at the approved source or any other commit before workflow publication
-- **THEN** stable preparation and approval SHALL refuse it without deleting, moving, or reinterpreting it
+- **WHEN** the target tag points at a commit other than the Release's bound source, or is annotated
+- **THEN** preparation, publication, and rollback SHALL refuse it without deleting, moving, or reinterpreting it
+
+#### Scenario: Stable staging succeeds
+- **WHEN** candidate validation of the bound source and version succeeds
+- **THEN** no npm publication SHALL start until an authorized human publishes the draft
+- **AND** that success SHALL be the only candidate evidence publication accepts for that source and version
+
+#### Scenario: Native final publication succeeds
+- **WHEN** publication of the exact published draft completes
+- **THEN** the tag SHALL point at the bound source, npm SHALL serve both exact packages under `latest`, the Release SHALL carry the validated asset, `master` SHALL equal the source, and one reopening PR SHALL be prepared
+
+#### Scenario: A release tag is pushed
+- **WHEN** a `v*` tag is pushed without publishing the prepared draft
+- **THEN** no npm publication SHALL start from the push and stable preparation SHALL refuse the existing tag without moving or reusing it
 
 #### Scenario: A version is already published
-- **WHEN** either target package version already exists on npm
-- **THEN** stable approval SHALL fail without republishing it
+- **WHEN** either target package version already exists
+- **THEN** preparation and a new publication SHALL fail without republishing it
+- **AND** a rerun of the failed jobs of the same publication run MAY verify and skip identical immutable bytes
 
 ### Requirement: Preview versions cost no commits
 A preview version SHALL be derived at publish time from the open base version and the
 unique merged pull-request number associated with the exact selected `develop` commit.
-A stable version SHALL be named by its Actions approval and stamped only while packing.
-Neither version SHALL be committed before publication. Between releases the repository
-SHALL declare one open prerelease version.
+A stable version SHALL be derived from the tag of the published source-bound Release
+and stamped only while packing. Neither version SHALL be committed before
+publication. Between releases the repository SHALL declare one open prerelease
+version.
 
-After stable completion, trusted automation SHALL create one reopening pull request
-whose single commit persists the exact approved note and consistently declares the
-next prerelease in the application manifest, root lockfile, and installer manifest.
-It SHALL use then-current compatible `develop`, change no other paths, keep auto-merge
-disabled, and never merge the pull request.
+After verified stable publication, trusted automation SHALL create one reopening
+pull request whose single commit persists the exact published note and consistently
+declares the next prerelease in the application manifest, root lockfile, and installer
+manifest. It SHALL use then-current compatible `develop`, change no other paths, keep
+auto-merge disabled, and never merge the pull request.
 
 #### Scenario: Several commits land in a row
 - **WHEN** several commits are pushed to `develop`
@@ -327,8 +404,8 @@ disabled, and never merge the pull request.
 - **THEN** development and stable publication SHALL refuse it until a reviewed PR restores one open prerelease identity
 
 #### Scenario: A release reopens development
-- **WHEN** stable `0.1.8` completes from approved source declaring `0.1.8-dev`
-- **THEN** trusted automation SHALL prepare one PR declaring `0.1.9-dev` and adding the exact approved `docs/releases/0.1.8.md`
+- **WHEN** stable `0.1.8` is published to npm from approved source declaring `0.1.8-dev`
+- **THEN** trusted automation SHALL prepare one PR declaring `0.1.9-dev` and adding the exact published `docs/releases/0.1.8.md`
 - **AND** development SHALL be reported reopened only after an authorized human manually merges that PR following required CI
 
 #### Scenario: Develop advances during publication
@@ -340,46 +417,6 @@ disabled, and never merge the pull request.
 - **WHEN** the expected reopening branch or PR already exists
 - **THEN** automation SHALL reuse it only if repository, state, base, head, single-parent commit, exact changed paths, versions, approved-note digest, and absence of auto-merge all match
 - **AND** conflicting work SHALL be preserved and refused rather than overwritten
-
-### Requirement: A stable release is not visible until npm has it
-Before normal stable publication, no target tag or public GitHub Release SHALL exist
-for a version the registry does not serve. The Release SHALL remain draft and untagged
-while npm ingestion is polled for at least ten minutes and while published-pair, asset,
-and `master` gates run. Publishing the source-bound draft SHALL create the tag and
-public Release together only after those gates succeed.
-
-Registry verification SHALL compare exact integrity and shasum for both packages and
-verify the requested dist-tag. An existing identical package found while retrying the
-same immutable run MAY be verified and skipped; contradictory bytes SHALL fail.
-
-#### Scenario: npm rejects the upload
-- **WHEN** npm rejects stable publication before exact registry verification completes
-- **THEN** no target tag or public Release SHALL be created and the draft SHALL remain inspectable
-
-#### Scenario: npm accepts the upload
-- **WHEN** npm serves both exact package versions under the requested channel tag
-- **THEN** asset, `master`, and final Release publication MAY proceed while the target tag remains absent until that final publication
-
-#### Scenario: npm is still processing the upload
-- **WHEN** `npm publish` returned but metadata does not yet list the version
-- **THEN** verification SHALL keep polling for at least ten minutes, report unsuccessful attempts, and succeed only when both exact packages and requested dist-tag are visible
-
-#### Scenario: The registry never serves the version within the window
-- **WHEN** the bounded propagation window expires without both exact packages appearing
-- **THEN** publication SHALL fail while the Release remains draft and the target tag remains absent
-
-#### Scenario: npm and completion gates succeed
-- **WHEN** the registry serves both exact packages, published-pair checks pass, the asset is attached, and `master` reaches the approved source
-- **THEN** final publication SHALL make the approved Release public and create its tag at that source
-
-#### Scenario: Final publication API fails
-- **WHEN** the final draft-publication request does not succeed
-- **THEN** the Release SHALL remain draft and GitHub SHALL not create the target tag
-- **AND** the same immutable run MAY retry final publication without manual tag cleanup
-
-#### Scenario: Published identity is verified
-- **WHEN** the final publication request succeeds
-- **THEN** the workflow SHALL verify the exact Release identity, body digest, asset, and tag-to-source identity and SHALL never repair disagreement by moving the tag
 
 ### Requirement: A failing pull request is the next piece of work
 The result of a pull request's validation SHALL be read before any further work
@@ -696,12 +733,11 @@ conflicting draft, branch, or PR.
 - **THEN** those changes SHALL be preserved and any unsafe local synchronization SHALL be declined with authoritative remote state reported
 
 ### Requirement: Development reopens only after verified stable publication
-The command SHALL prepare the next patch development version only after successful
-publication of the selected stable version is confirmed through the existing
-exact-source publication authority. It SHALL verify that the published source,
-approved note digest, tag, GitHub Release body, and registry package correspond to the
-same release before preparing reopening, and SHALL fail rather than silently
-substitute a newer source SHA or regenerated note.
+Trusted automation SHALL prepare the next patch development version only after the
+publication run has verified both exact npm packages, exercised the published pair,
+uploaded the asset, and fast-forwarded `master` for the published source. It SHALL
+use the version, source, and note digest that publication bound, and SHALL fail
+rather than silently substitute a newer source SHA or regenerated note.
 
 For released `x.y.z`, the reopening target SHALL be `x.y.(z+1)-dev`. Reopening SHALL
 be reported complete only after its separate PR containing the next version and exact
@@ -711,50 +747,52 @@ incomplete reopening SHALL be reported as two distinct outcomes without republis
 or altering immutable release records.
 
 #### Scenario: Finish the current release cycle
-- **WHEN** exact-source publication of stable `0.1.8` and its approved snapshot is confirmed successful
-- **THEN** the command SHALL prepare a separate PR for `0.1.9-dev` plus `docs/releases/0.1.8.md`
-- **AND** it SHALL report development reopened only after that PR is manually merged and verified
+- **WHEN** publication of stable `0.1.8` and its published note completes
+- **THEN** trusted automation SHALL prepare a separate PR for `0.1.9-dev` plus `docs/releases/0.1.8.md`
+- **AND** development SHALL be reported reopened only after that PR is manually merged and verified
 
 #### Scenario: Publication fails or remains uncertain
-- **WHEN** stable publication fails, times out, or cannot be confirmed
-- **THEN** no next-development PR SHALL be created by that attempt and the command SHALL provide inspection guidance without claiming release success
+- **WHEN** stable publication fails, is cancelled, or cannot be confirmed
+- **THEN** no next-development PR SHALL be created by that run and the run summary SHALL provide recovery guidance without claiming release success
 
 #### Scenario: The publication source becomes stale
-- **WHEN** authoritative develop no longer matches the source bound to the approved draft before dispatch
-- **THEN** the command SHALL stop with the mismatch and SHALL not publish a newly selected SHA without a fresh deliberate preparation and approval
+- **WHEN** the published tag does not point at the source bound to the prepared draft
+- **THEN** publication SHALL stop with the mismatch and SHALL not publish a newly selected SHA without a fresh deliberate preparation
 
 #### Scenario: Reopening is incomplete after publication
 - **WHEN** `0.1.8` is confirmed published but the `0.1.9-dev` and note PR fails or is not merged
-- **THEN** the command SHALL distinguish published `0.1.8` from pending development reopening and SHALL not republish, move its tag, or falsely report develop at `0.1.9-dev`
+- **THEN** the outcome SHALL distinguish published `0.1.8` from pending development reopening and SHALL not republish, move its tag, or falsely report develop at `0.1.9-dev`
 
 ### Requirement: Maintainer release documentation matches the command
 The root README release section SHALL present concise, accurate `npm run release --
 patch`, `minor`, `major`, and exact-version preparation examples and SHALL NOT be
 required to duplicate internal publication lifecycle or recovery prose. The release
 runbook and applicable command help SHALL explain the target-required rule,
-prerelease promotion, draft Release editing, explicit `--approve` operation,
-publication-before-reopening order, next-development version, manual reopening-PR
-gate, and safe recovery. They SHALL NOT advertise a no-argument release mode, the
-native GitHub Publish action, a pre-publication notes PR, or self-merging reopening.
+prerelease promotion, draft Release editing, candidate validation, native **Publish
+release** as the only stable npm trigger, automatic return to draft before npm,
+rerunning failed jobs after npm, publication-before-reopening order, next-development
+version, and the manual reopening-PR gate. They SHALL NOT advertise a no-argument
+release mode, the retired `--approve` form, a Save-draft handoff, waiting for npm
+readiness, a pre-publication notes PR, or self-merging reopening.
 
 A dependency-free semantic governance check SHALL validate the applicable contract
 whenever the root README or release runbook changes, including documentation-only
 pull requests eligible for automatic integration. It SHALL reject malformed or
-resolver-inaccurate command examples and missing operator safety gates before stable
-publication. Unrelated documentation changes SHALL not gain product builds or broad
-product tests solely for this contract.
+resolver-inaccurate command examples, missing operator safety gates, and retired
+handoff instructions. Unrelated documentation changes SHALL not gain product builds
+or broad product tests solely for this contract.
 
 #### Scenario: Follow the README example
 - **WHEN** a maintainer reads the root release section
-- **THEN** `patch`, `minor`, `major`, and exact-version examples SHALL resolve to the documented stable targets and explain that preparation alone does not publish
+- **THEN** `patch`, `minor`, `major`, and exact-version examples SHALL resolve to the documented stable targets and explain that choosing **Publish release** on the prepared draft publishes npm
 
 #### Scenario: Read recovery guidance
-- **WHEN** a maintainer needs preparation, approval, publication, reopening, or recovery behavior
-- **THEN** the runbook SHALL distinguish draft editing from explicit approval, forbid native early publication, and state that reopening follows confirmed publication and requires manual merge
+- **WHEN** a maintainer needs preparation, validation, publication, reopening, or recovery behavior
+- **THEN** the runbook SHALL state that a failure before npm returns the Release to draft, that a failure after npm is recovered by rerunning the same run's failed jobs, and that reopening follows confirmed publication and requires manual merge
 
 #### Scenario: Documentation-only release commands drift
 - **WHEN** a documentation-only pull request changes root release examples or the release runbook
-- **THEN** lightweight semantic governance SHALL validate the changed contract before automatic integration and inaccurate examples or missing safety gates SHALL fail without broad product tests
+- **THEN** lightweight semantic governance SHALL validate the changed contract before automatic integration and inaccurate examples, missing safety gates, or retired handoff instructions SHALL fail without broad product tests
 
 ### Requirement: Independent development partitions do not serialize feedback
 Development validation SHALL schedule the mandatory PR core and each selected integration partition independently after its actual prerequisites. Resource-sensitive files selected by ownership SHALL remain non-file-parallel on an isolated runner, with the same authoritative membership and the same explicit hang bound used by complete validation. No selected test SHALL be duplicated between partitions on the same platform/runtime merely because job boundaries changed. Cross-platform and cross-runtime executions SHALL remain distinct evidence where selected.
@@ -1337,46 +1375,87 @@ requests in that range, and deterministically generate one bounded user-facing b
 for the selected stable target. It SHALL render escaped linked pull-request titles in
 stable order under feature, fix, other-change, and breaking-change groups as
 applicable while excluding release housekeeping. Version identity SHALL come from the
-source-bound draft Release and target metadata rather than a redundant heading in the
-body. Missing, ambiguous, stale, or non-ancestral evidence SHALL stop before draft or
-publication mutation.
+source-bound draft Release and target metadata rather than a redundant level-one
+heading in the body. Missing, ambiguous, stale, or non-ancestral evidence SHALL stop
+before draft or publication mutation.
 
 The command SHALL create or safely reuse one unpublished draft GitHub Release bound
 to the exact repository, target version, and authoritative source. A maintainer may
-edit its body directly in the Releases UI. Preparation SHALL preserve edits and grant
-no authority. A distinct explicit approval SHALL require an authorized human GitHub
-user and SHALL bind the draft database identity, source, version, normalized body,
-and digest. Trusted publication SHALL independently verify and snapshot those values;
-subsequent mutable draft edits SHALL not change the approved package candidate or
-final Release body.
+edit its body directly in the Releases UI. Native publication of that draft by an
+authorized human SHALL be the acceptance of its body: trusted code SHALL snapshot the
+published normalized body and digest and pack exactly that note.
 
 Committed `docs/releases/*.md` files SHALL represent completed release history. The
-stable package SHALL combine prior committed history with the current approved
-snapshot. After successful publication, the manually merged reopening PR SHALL add
-the snapshot at `docs/releases/<target>.md` with the next-development version. The
-native GitHub Publish action, draft creation, CI success, automatic integration, or a
-body-only edit SHALL NOT authorize publication.
+stable package SHALL combine prior committed history with the published snapshot.
+Publication SHALL require the package and the published Release to contain the same
+body immediately before npm, and the manually merged reopening PR SHALL persist that
+snapshot at `docs/releases/<target>.md` with the next-development version. Draft
+creation, draft edits or saves, candidate validation, CI success, or automatic
+integration SHALL NOT authorize npm publication.
 
 #### Scenario: Prepare a stable release
 - **WHEN** the maintainer selects stable `0.1.8` from current reviewed history after the previous stable ancestor
-- **THEN** the command SHALL open an editable source-bound draft GitHub Release and SHALL stop at the explicit approval gate without creating a notes PR
+- **THEN** the command SHALL open an editable source-bound draft GitHub Release and start its validation without creating a notes PR
 
 #### Scenario: Edit generated wording
-- **WHEN** the maintainer changes headings or prose in the valid draft body before approval
-- **THEN** explicit approval SHALL validate and snapshot the edited Markdown for both package and final GitHub Release content
+- **WHEN** the maintainer changes headings or prose in the valid draft body and then publishes the draft
+- **THEN** trusted publication SHALL validate and snapshot the edited Markdown for both package and GitHub Release content
+- **AND** publishing unchanged generated wording SHALL also be accepted
 
 #### Scenario: CI succeeds without manual merge
-- **WHEN** the draft exists and is valid but no authorized human approval dispatch identifies its exact body digest
-- **THEN** stable publication SHALL remain forbidden and no package, tag, public Release, or `master` movement SHALL occur
+- **WHEN** the draft exists, is valid, and its candidate validation succeeded, but it has not been published
+- **THEN** stable npm publication SHALL remain forbidden and no package, tag, public Release, or `master` movement SHALL occur
 
 #### Scenario: The candidate changes outside release-note paths
-- **WHEN** the draft points at another source or target, is already published, is ambiguous, exceeds bounds, contains unsafe content, or differs from the approved digest
-- **THEN** the command or trusted workflow SHALL reject it without overwriting maintainer text or dispatching package work
+- **WHEN** the published Release points at another source or target, is ambiguous, exceeds bounds, contains unsafe content, or differs from the snapshotted digest before npm
+- **THEN** trusted publication SHALL reject it before npm without overwriting maintainer text and SHALL return the Release to draft
 
 #### Scenario: Develop advances after review
-- **WHEN** another change becomes authoritative `develop` before approval dispatch
-- **THEN** the command SHALL refuse to publish the newer source under the prior draft and SHALL require explicit preparation of a source-bound replacement
+- **WHEN** another change becomes authoritative `develop` after the draft was bound and before it is published
+- **THEN** publication SHALL publish the bound source and its snapshot rather than retarget the draft to the newer tip
 
 #### Scenario: Publication succeeds
-- **WHEN** the exact approved source and snapshot complete stable publication
+- **WHEN** the exact approved source and published snapshot complete npm publication
 - **THEN** the package and published GitHub Release SHALL contain the same approved body, and the reopening PR SHALL persist that body with the next-development version
+
+### Requirement: A failed stable publication returns to draft before npm
+When stable publication started by native Release publication fails or is cancelled,
+a trusted recovery job SHALL run from default-branch code. It SHALL re-read both
+target package versions from the registry and every attempt's npm upload steps. Only
+when both packages are absent, no upload step started, and the complete job listing
+was read SHALL it return the Release to draft and then delete the target tag, and
+only when that tag is a lightweight tag at the Release's bound source. Tag deletion
+SHALL use a contents-scoped token of the single release-automation App permitted to
+bypass the tag ruleset. Otherwise it SHALL keep the published Release and tag, and
+recovery SHALL rerun the failed jobs of the same run, whose final registry check makes
+an already-published package an exact-byte no-op. Automation SHALL never move a tag,
+delete a tag at another commit, or delete a tag once npm may have been reached.
+
+Registry verification SHALL compare exact integrity and shasum for both packages,
+verify the requested dist-tag, and keep polling for at least ten minutes before
+failing an upload npm is still ingesting.
+
+#### Scenario: Validation fails after the click
+- **WHEN** an exact-package gate fails before either package upload starts
+- **THEN** the Release SHALL return to draft and its unconsumed tag SHALL be deleted
+- **AND** publishing the draft again SHALL start a new publication
+
+#### Scenario: Publication is cancelled before npm
+- **WHEN** the publication run is cancelled before either upload step starts
+- **THEN** the recovery job SHALL return the Release to draft and delete its unconsumed tag
+
+#### Scenario: An upload started but npm does not yet serve it
+- **WHEN** an npm upload step ran and registry verification timed out while npm is still ingesting
+- **THEN** the recovery job SHALL keep the Release and tag and direct the maintainer to confirm the registry and rerun the failed jobs
+
+#### Scenario: One package reached npm
+- **WHEN** either target package version exists on npm after a failure
+- **THEN** the Release and tag SHALL stay and a rerun of the same run's failed jobs SHALL verify existing bytes and publish only what is missing
+
+#### Scenario: The tag does not match the bound source
+- **WHEN** the target tag points at another commit or is annotated
+- **THEN** the recovery job SHALL fail without deleting or moving it
+
+#### Scenario: Recovery runs again
+- **WHEN** the recovery job reruns after it already returned the Release to draft and deleted the tag
+- **THEN** it SHALL succeed without further mutation

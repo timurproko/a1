@@ -127,3 +127,27 @@ export function runTierPlan(plan: ValidationPlan, options?: {
   exactPackagePreparation: Record<string, unknown> | null;
   outcomes: ValidationExecutionOutcome[];
 }>;
+export type FullRegressionShard = "core" | "resource" | "rendering" | "package";
+/** Stable Windows complete-regression shard identities, in canonical merge order. */
+export const FULL_REGRESSION_SHARDS: readonly FullRegressionShard[];
+export const FULL_REGRESSION_SHARD_SCHEMA: "a1-full-regression-shard-v1";
+export interface FullRegressionShardWork { commands: string[]; preparation: string[]; invocations: string[] }
+export interface FullRegressionShardIdentity {
+  schema: "a1-full-regression-shard-v1";
+  id: FullRegressionShard;
+  planDigest: string;
+  prerequisites: string[];
+  assigned: FullRegressionShardWork;
+}
+export interface FullRegressionPartition {
+  schema: "a1-full-regression-partition-v1";
+  planDigest: string;
+  selected: string[];
+  structuralEvidence: Record<string, unknown>;
+  prerequisites: string[];
+  order: string[];
+  shards: Record<FullRegressionShard, FullRegressionShardWork>;
+}
+export function fullRegressionPlanDigest(plan: ValidationPlan): string;
+export function partitionFullRegressionPlan(plan: ValidationPlan): FullRegressionPartition;
+export function createFullRegressionShardPlan(plan: ValidationPlan, shard: string): ValidationPlan & { fullShard: FullRegressionShardIdentity };

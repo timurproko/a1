@@ -56,8 +56,11 @@ describe("truthful selection beside the scrollbar gutter", () => {
     expect(viewport.selectedText()).toBe([plain, plain, plain].join("\n"));
   });
 
-  it.each([4, 12, 192])("keeps content and gutter cells truthful at width %i", async width => {
-    for (const appearance of ["auto", "always", "hidden"] as const) {
+  // Rationale: one case per width and rail appearance keeps each exhaustive terminal replay
+  // within its own deadline on loaded Windows runners without dropping a combination.
+  it.each([4, 12, 192].flatMap(width => (["auto", "always", "hidden"] as const).map(appearance => [width, appearance] as const)))(
+    "keeps content and gutter cells truthful at width %i with %s rails",
+    async (width, appearance) => {
       for (const style of ["thin", "thick"] as const) {
         for (const suffix of ["Z", "e\u0301", "界"]) {
           for (const included of [false, true]) {
@@ -121,8 +124,9 @@ describe("truthful selection beside the scrollbar gutter", () => {
           }
         }
       }
-    }
-  }, 30_000);
+    },
+    30_000,
+  );
 
   it.each([false, true])("extends only boundary-reaching selection beneath the rail (included=%s)", async included => {
     const { viewport, compose, contentWidth } = fixture(12, "always", "thin");

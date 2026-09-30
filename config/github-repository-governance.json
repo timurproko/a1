@@ -106,7 +106,9 @@
       "name": "a1-protect-release-tags",
       "target": "tag",
       "enforcement": "active",
-      "bypass_actors": [],
+      "bypass_actors": [
+        { "actor_id": 4942462, "actor_type": "Integration", "bypass_mode": "always" }
+      ],
       "conditions": {
         "ref_name": {
           "include": ["refs/tags/v*"],
@@ -128,13 +130,13 @@
   ],
   "workflows": [
     {
-      "name": "Approve stable release",
-      "path": ".github/workflows/approve-release.yml",
+      "name": "Stable candidate validation",
+      "path": ".github/workflows/release-candidate.yml",
       "state": "active",
       "triggers": ["workflow_dispatch"],
-      "permissions": ["actions: read", "contents: write", "id-token: write", "pull-requests: write"],
+      "permissions": ["actions: read", "contents: write", "id-token: write"],
       "trustedSource": "default-branch",
-      "authority": ["stable-release-approval"],
+      "authority": ["stable-release-candidate-validation"],
       "concurrency": "",
       "environments": [],
       "artifactRetentionDays": []
@@ -172,6 +174,18 @@
       "trustedSource": "default-branch",
       "authority": ["documentation-auto-merge", "matching-merged-head-delete", "archive-protected-integration"],
       "concurrency": "documentation-auto-merge-",
+      "environments": [],
+      "artifactRetentionDays": []
+    },
+    {
+      "name": "Publish stable release",
+      "path": ".github/workflows/finalize-release.yml",
+      "state": "active",
+      "triggers": ["release:published"],
+      "permissions": ["actions: read", "contents: write", "id-token: write", "pull-requests: write"],
+      "trustedSource": "published-release-tag",
+      "authority": ["release-reopening-proposal", "stable-release-publication", "unconsumed-release-tag-rollback"],
+      "concurrency": "",
       "environments": [],
       "artifactRetentionDays": []
     },
@@ -264,12 +278,24 @@
       "path": ".github/workflows/publish.yml",
       "state": "active",
       "triggers": ["schedule", "workflow_call"],
-      "permissions": ["actions: read", "contents: read", "contents: write", "id-token: write", "pull-requests: write"],
+      "permissions": ["actions: read", "contents: read", "contents: write", "id-token: write"],
       "trustedSource": "authoritative-develop",
-      "authority": ["npm-next", "npm-latest", "github-release", "master-fast-forward", "release-reopening-proposal"],
+      "authority": ["npm-next", "npm-latest", "master-fast-forward"],
       "concurrency": "a1-registry-publication",
       "environments": ["npm-publish"],
       "artifactRetentionDays": [1, 30]
+    },
+    {
+      "name": "Ready pull-request refresh",
+      "path": ".github/workflows/ready-pull-request-refresh.yml",
+      "state": "active",
+      "triggers": ["pull_request_target:closed", "workflow_run"],
+      "permissions": ["contents: read"],
+      "trustedSource": "default-branch",
+      "authority": ["ready-pull-request-branch-refresh"],
+      "concurrency": "ready-pull-request-refresh",
+      "environments": [],
+      "artifactRetentionDays": []
     }
   ]
 }

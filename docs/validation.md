@@ -34,6 +34,16 @@ node scripts/release/generate-validation-ownership-ledger.mjs --output .artifact
 
 The `terminal-host` owner is CI-only. A change under `native/terminal-host/` or to its run scripts selects the Windows x64 **Native terminal host (Windows)** job, which builds the crate with pinned Rust and Zig 0.15.2, runs `npm run test:terminal-host`, and uploads the debug executable. Local Windows builds fail in `build.rs` unless `TERMINAL_HOST_LOCAL_BUILD=1` is set, because Zig's package fetch unpacks test data that workstation antivirus quarantines along with the installed process guardian. See [`native/terminal-host/README.md`](../native/terminal-host/README.md).
 
+## Windows Full regression shards
+
+Standalone and PR-attached Full regression run each Windows runtime (Node 22 and Node 24) as four hosted-runner shards derived from the one canonical `full-release` plan: `core` (command gates and the bounded-parallel ordinary remainder), `resource` (the serial resource-sensitive invocation with its unchanged explicit bound), `rendering` (the serial isolated rendering invocation), and `package` (packing, the shared exact-package installation, Defender-backed first-attempt startup before package contracts, package smoke, update timing, and the exhaustive published-predecessor invocation). Each shard checks out, installs, builds, and records its own build receipt; only the package shard packs and installs the candidate. Linux, macOS, local `npm run test:full`, and publication validation keep one sequential complete plan.
+
+```
+node scripts/release/run-validation-tier.mjs --full-shard <core|resource|rendering|package> --result <path>
+```
+
+`partitionFullRegressionPlan` assigns every canonical command and Vitest invocation to exactly one shard and rejects unknown or duplicate work; the build is the only per-shard prerequisite. Each shard result carries its shard identity, assigned work, and the canonical-plan digest. A per-runtime collector job reconstructs one ordinary `a1-validation-outcomes-v1` result only when all four current-run shards for the exact source, runtime, run, attempt, and plan passed and each reported exactly its assigned work; the reconstructed result then binds the unchanged `windows-2025-node22` or `windows-2025-node24` lane, and the required aggregate still demands exactly four lanes. The collector's summary reports each shard's time and the elapsed span across overlapping shards. Nightly triage maps a failed shard's owners to the canonical Windows lane and names the shard job, and it rejects more than one startup evidence file for a lane.
+
 ## Failed-job reruns and attempt evidence
 
 Every modular outcome, content-free job envelope, and uploaded artifact name is qualified by `github.run_attempt`. Authority remains bound to the workflow run ID, exact head, complete selection identity, logical job, and platform/runtime target.

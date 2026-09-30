@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { setTimeout as sleep } from "node:timers/promises";
+import { matchesStableValidationRun, STABLE_VALIDATION_WORKFLOW } from "./release-approval.mjs";
 
 const POLL_INTERVAL_MS = 5_000;
 const RUN_APPEAR_TIMEOUT_MS = 5 * 60_000;
@@ -93,7 +94,7 @@ export function describePublicationFailure(runId, options = {}) {
 
 export async function dispatchPublication(channel, source, version, options = {}) {
   const execute = options.run ?? run;
-  if (channel !== "develop") throw new Error("stable publication is approved only from the Approve stable release workflow in GitHub Actions");
+  if (channel !== "develop") throw new Error("stable publication starts only when an authorized human publishes the prepared draft Release");
   const write = options.write ?? (text => process.stdout.write(text));
   const wait = options.sleep ?? sleep;
   execute("gh", ["auth", "status"], { stdio: "inherit" });
@@ -125,6 +126,70 @@ export async function dispatchPublication(channel, source, version, options = {}
     throw new Error(describePublicationFailure(runId, { run: execute, repository: options.repository }));
   }
   return runId;
+}
+
+/** Starts, or reuses, candidate validation of a prepared stable source and returns its run. */
+export async function dispatchStableValidation(candidate, options = {}) {
+  const { repository, source, version } = candidate ?? {};
+  if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u.test(repository ?? "") || !/^[a-f0-9]{40}$/u.test(source ?? "")
+    || !/^\d+\.\d+\.\d+$/u.test(version ?? "")) {
+    throw new Error("stable validation candidate identity is invalid");
+  }
+  const execute = options.run ?? run;
+  const wait = options.sleep ?? sleep;
+  const workflow = STABLE_VALIDATION_WORKFLOW.split("/").at(-1);
+  const listRuns = () => JSON.parse(execute("gh", [
+    "api", `repos/${repository}/actions/workflows/${workflow}/runs?event=workflow_dispatch&head_sha=${source}&per_page=100`,
+  ])).workflow_runs;
+  execute("gh", ["auth", "status"], { stdio: ["ignore", "ignore", "pipe"] });
+  // Rationale: a running or successful validation of the same source and version already proves
+  // what another run would, so a repeated command reuses it instead of paying for the suite twice.
+  const reusable = listRuns().find(entry => matchesStableValidationRun(entry, source, version)
+    && (entry.status !== "completed" || entry.conclusion === "success"));
+  if (reusable) return { runId: reusable.id, url: reusable.html_url, reused: true };
+
+  const requestId = options.requestId ?? randomUUID();
+  execute("gh", [
+    "workflow", "run", workflow, "--ref", "develop",
+    "-f", `source_sha=${source}`, "-f", `version=${version}`, "-f", `request_id=${requestId}`,
+  ], { stdio: ["ignore", "ignore", "pipe"] });
+  const deadline = Date.now() + RUN_APPEAR_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    const started = listRuns().find(entry => entry.display_title === `Stable candidate v${version} ${requestId}`);
+    if (started) {
+      if (!matchesStableValidationRun(started, source, version) || typeof started.html_url !== "string" || !started.html_url.startsWith("https://")) {
+        throw new Error(`stable validation run ${started.id} does not match the default-branch request for ${source}`);
+      }
+      return { runId: started.id, url: started.html_url, reused: false };
+    }
+    await wait(POLL_INTERVAL_MS);
+  }
+  throw new Error(`stable validation request ${requestId} did not appear in GitHub Actions within 5 minutes`);
+}
+
+const VALIDATION_WATCH_INTERVAL_SECONDS = 10;
+
+/**
+ * Waits for a candidate validation run to finish, showing its live job list like `npm run develop`,
+ * and throws the failed jobs and their reasons unless it succeeded. Interrupting it leaves the run going.
+ */
+export async function waitForStableValidation(validation, options = {}) {
+  const { repository, runId } = validation ?? {};
+  const execute = options.run ?? run;
+  try {
+    execute("gh", [
+      "run", "watch", String(runId), "--repo", repository,
+      "--exit-status", "--interval", String(VALIDATION_WATCH_INTERVAL_SECONDS),
+    ], { stdio: "inherit" });
+  } catch (error) {
+    const current = JSON.parse(execute("gh", ["api", `repos/${repository}/actions/runs/${runId}`]));
+    if (current.status !== "completed") {
+      throw new Error(`stopped watching validation run ${runId} while it is ${String(current.status).replace("_", " ")}; it keeps running, and rerunning the release command resumes waiting`, { cause: error });
+    }
+    if (current.conclusion !== "success") throw new Error(describePublicationFailure(runId, { run: execute, repository }));
+    return current;
+  }
+  return JSON.parse(execute("gh", ["api", `repos/${repository}/actions/runs/${runId}`]));
 }
 
 export async function localPackageIdentity() {

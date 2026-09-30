@@ -1,13 +1,13 @@
 import semver from "semver";
 
-export const RELEASE_USAGE = "Usage: npm run release -- <patch|minor|major|x.y.z>\nA target is required. Patch: 0.1.8-dev -> 0.1.8. Preparation creates an editable draft; approve it from the Approve stable release workflow in GitHub Actions.";
+export const RELEASE_USAGE = "Usage: npm run release -- <patch|minor|major|x.y.z>\nA target is required. Patch: 0.1.8-dev -> 0.1.8. The command prepares a draft Release, waits for its validation, then shows the draft; choosing Publish release on that draft publishes npm.";
 const BUMPS = new Set(["patch", "minor", "major"]);
 const STABLE = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/u;
 
 /** Distinguishes mutation-free command usage failures from operational release failures. */
 export class ReleaseUsageError extends Error {}
 
-/** Accepts one explicit preparation target; GitHub Actions owns stable approval. */
+/** Accepts one explicit preparation target; publishing the prepared draft owns stable npm approval. */
 export function parseReleaseArguments(args) {
   if (args.length !== 1 || typeof args[0] !== "string"
     || (!BUMPS.has(args[0]) && !(STABLE.test(args[0]) && semver.valid(args[0]) === args[0]))) {

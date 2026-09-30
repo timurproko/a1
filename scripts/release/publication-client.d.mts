@@ -19,4 +19,16 @@ export function dispatchPublication(channel: "develop", source: string, version:
   write?: (text: string) => void;
   sleep?: (ms: number) => Promise<unknown>;
 }): Promise<number>;
+export function dispatchStableValidation(candidate: {
+  repository: string;
+  source: string;
+  version: string;
+}, options?: {
+  run?: PublicationRunner;
+  requestId?: string;
+  sleep?: (ms: number) => Promise<unknown>;
+}): Promise<{ runId: number; url: string; reused: boolean }>;
+export function waitForStableValidation(validation: { repository: string; runId: number }, options?: {
+  run?: PublicationRunner;
+}): Promise<Record<string, unknown>>;
 export function localPackageIdentity(): Promise<{ name: string; version: string }>;

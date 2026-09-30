@@ -23,6 +23,8 @@ export const TRIAGE_PROVENANCE_FILE = "regression-provenance.json";
 /** Bounds of one failure's log excerpt in the body; the run link carries the rest. */
 export const EXCERPT_LINE_LIMIT = 40;
 export const EXCERPT_BYTE_LIMIT = 2048;
+/** Windows complete-regression shard identities; kept free of the planner's dependencies for the triage job. */
+export const FULL_SHARDS = Object.freeze(["core", "resource", "rendering", "package"]);
 
 const RESULT_SCHEMA = "a1-validation-outcomes-v1";
 // Rationale: Vitest's default reporter, Node's assertion output, npm, and the repository gates name
@@ -99,6 +101,12 @@ export function startupBudgetFailure(trend, tableLines) {
   return { id: STARTUP_BUDGET_FAILURE.id, command: `persistent startup-budget overrun across ${trend.window} consecutive develop runs`, scopes: [STARTUP_BUDGET_FAILURE.scope], tests: [STARTUP_BUDGET_FAILURE.test], lanes, preparation: null };
 }
 
+/** The Windows shard an artifact (`...-node24-core`) or job (`(windows-2025, node 24, core)`) names, or null for an unsharded lane. */
+export function shardOf(name) {
+  const match = /(?:,\s*|-)([a-z]+)\)?\s*$/u.exec(String(name ?? ""));
+  return match && FULL_SHARDS.includes(match[1]) ? match[1] : null;
+}
+
 /** True when the JSON is a tier result written by `run-validation-tier.mjs --result`. */
 export function isTierResult(value) {
   return value !== null && typeof value === "object" && value.schema === RESULT_SCHEMA && Array.isArray(value.outcomes);
@@ -124,13 +132,13 @@ export function summarizeLanes(lanes) {
   const orchestration = [];
   for (const lane of lanes) {
     if (!isTierResult(lane.result)) {
-      if (lane.conclusion === "failure") orchestration.push({ lane: lane.id, job: lane.job, excerpt: lane.excerpt ?? [] });
+      if (lane.conclusion === "failure") orchestration.push({ lane: lane.id, ...(lane.shard ? { shard: lane.shard } : {}), job: lane.job, excerpt: lane.excerpt ?? [] });
       continue;
     }
     for (const outcome of lane.result.outcomes) {
       if (outcome.exitCode === 0 || outcome.skipped) continue;
       const failure = byId.get(outcome.id) ?? { id: outcome.id, command: outcome.command, scopes: [...new Set(outcome.scopes ?? [])].sort(), tests: commandTests(outcome.command), lanes: [], preparation: outcome.preparation ?? null };
-      failure.lanes.push({ id: lane.id, exitCode: outcome.exitCode, durationMs: outcome.durationMs, excerpt: lane.excerpt ?? [] });
+      failure.lanes.push({ id: lane.id, ...(lane.shard ? { shard: lane.shard } : {}), exitCode: outcome.exitCode, durationMs: outcome.durationMs, excerpt: lane.excerpt ?? [] });
       byId.set(outcome.id, failure);
     }
   }
@@ -186,8 +194,12 @@ function bound(lines, lineLimit, byteLimit) {
   return kept;
 }
 
+function laneLabel(lane) {
+  return lane.shard ? `${lane.id} (${lane.shard} shard)` : lane.id;
+}
+
 function laneList(lanes) {
-  return lanes.map(lane => lane.id).join(", ");
+  return lanes.map(laneLabel).join(", ");
 }
 
 function excerptBlock(lines, indent = "  ") {
@@ -209,7 +221,7 @@ export function renderRunEvidence({ workflow, run, summary, lastGreen, commits }
     lines.push(...excerptBlock(excerpt, "    "));
   }
   for (const item of summary.orchestration) {
-    lines.push(`  - Lane ${item.lane} failed in job \`${item.job}\` before producing owner outcomes (orchestration failure).`);
+    lines.push(`  - Lane ${laneLabel({ id: item.lane, shard: item.shard })} failed in job \`${item.job}\` before producing owner outcomes (orchestration failure).`);
     lines.push(...excerptBlock(item.excerpt, "    "));
   }
   if (lastGreen) {
@@ -267,10 +279,11 @@ export function appendRunToBody(body, evidence) {
 export function renderTriageChange({ workflow, run, date, summary, lastGreen, commits }) {
   const id = changeId(date);
   const failed = summary.failures.map(failure => `\`${failure.id}\` (${failure.scopes.join(", ") || "no declared scope"}) on ${laneList(failure.lanes)}`);
-  const orchestration = summary.orchestration.map(item => `lane ${item.lane} in job \`${item.job}\``);
+  const orchestration = summary.orchestration.map(item => `lane ${laneLabel({ id: item.lane, shard: item.shard })} in job \`${item.job}\``);
   return {
     // Rationale: strict validation and finalization both need a delta or an explicit skip; the fixer drops the skip when a delta is added.
-    [`openspec/changes/${id}/.openspec.yaml`]: `schema: spec-driven\ncreated: ${date}\nskip_specs: true\n`,
+    // OpenSpec requires `created` to be a calendar date, so a same-day candidate stamp drops its `-N` suffix.
+    [`openspec/changes/${id}/.openspec.yaml`]: `schema: spec-driven\ncreated: ${date.slice(0, 10)}\nskip_specs: true\n`,
     [`openspec/changes/${id}/${TRIAGE_PROVENANCE_FILE}`]: renderTriageProvenance({ workflow, run, date }),
     [`openspec/changes/${id}/proposal.md`]: [
       "## Why",

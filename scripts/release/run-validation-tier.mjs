@@ -1,17 +1,21 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
-import { createTierPlan, prepareSharedExactPackage, runTierPlan } from "./validation-tier.mjs";
+import { createFullRegressionShardPlan, createTierPlan, prepareSharedExactPackage, runTierPlan } from "./validation-tier.mjs";
 import { validationOutcomeAuthority } from "./validation-outcome.mjs";
 
 const requested = selectionFromEnvironment() ?? positionalArguments();
 if (requested.length === 0) throw new Error("usage: node scripts/release/run-validation-tier.mjs <tier-or-scope> [...] or set VALIDATION_SELECTION_JSON");
 const additionalTests = testsFromEnvironment();
-const plan = await createTierPlan(requested, process.cwd(), { additionalTests });
+const canonicalPlan = await createTierPlan(requested, process.cwd(), { additionalTests });
+const shard = valueAfter("--full-shard");
+// Invariant: a shard runs only its partition of the canonical full plan; shared exact-package preparation
+// still prepares the canonical consumers so the package shard's handoff matches the unsharded plan.
+const plan = shard === undefined ? canonicalPlan : createFullRegressionShardPlan(canonicalPlan, shard);
 
 if (process.argv.includes("--prepare-exact-package")) {
   const handoffPath = valueAfter("--handoff");
   if (!handoffPath) throw new Error("usage: node scripts/release/run-validation-tier.mjs --prepare-exact-package --handoff <path>");
-  const handoff = await prepareSharedExactPackage(plan);
+  const handoff = await prepareSharedExactPackage(canonicalPlan);
   await mkdir(dirname(resolve(handoffPath)), { recursive: true });
   await writeFile(resolve(handoffPath), `${JSON.stringify(handoff, null, 2)}\n`, { mode: 0o600 });
   process.stdout.write(`${JSON.stringify({ prepared: 1, consumers: handoff.consumers, durationMs: handoff.durationMs, phases: handoff.receipt.preparation.phases }, null, 2)}\n`);
@@ -24,7 +28,7 @@ if (process.argv.includes("--prepare-exact-package")) {
   if (resultPath) {
     await mkdir(dirname(resolve(resultPath)), { recursive: true });
     const authority = validationOutcomeAuthority(process.env, requested, plan.selected);
-    await writeFile(resolve(resultPath), `${JSON.stringify({ ...result, requested, selected: plan.selected, structuralEvidence: plan.structuralEvidence, authority }, null, 2)}\n`);
+    await writeFile(resolve(resultPath), `${JSON.stringify({ ...result, requested, selected: plan.selected, structuralEvidence: plan.structuralEvidence, authority, ...(plan.fullShard ? { fullShard: plan.fullShard } : {}) }, null, 2)}\n`);
   }
   process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
   process.exitCode = result.passed ? 0 : 1;
@@ -45,7 +49,7 @@ function testsFromEnvironment() {
 }
 
 function positionalArguments() {
-  const valued = new Set(["--result", "--handoff", "--exact-package-handoff"]);
+  const valued = new Set(["--result", "--handoff", "--exact-package-handoff", "--full-shard"]);
   const values = [];
   for (let index = 2; index < process.argv.length; index += 1) {
     const value = process.argv[index];

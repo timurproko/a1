@@ -1,0 +1,36 @@
+name: Stable candidate validation
+run-name: Stable candidate v${{ inputs.version }} ${{ inputs.request_id }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Exact current origin/develop commit bound to the draft Release
+        required: true
+        type: string
+      version:
+        description: Stable version named by the prepared draft Release
+        required: true
+        type: string
+      request_id:
+        description: Caller correlation identifier
+        required: true
+        type: string
+
+# The reusable publisher declares npm and Release permissions for its stable jobs; this
+# wrapper grants them so the call is valid, and candidate mode skips every such job.
+permissions:
+  actions: read
+  contents: write
+  id-token: write
+
+jobs:
+  validate:
+    name: Validate the prepared stable candidate
+    uses: timurproko/a1/.github/workflows/publish.yml@develop
+    with:
+      channel: candidate
+      source_sha: ${{ inputs.source_sha }}
+      version: ${{ inputs.version }}
+      request_id: ${{ inputs.request_id }}
+    secrets: inherit
