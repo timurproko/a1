@@ -1,0 +1,22 @@
+{
+  "schema": "a1-regression-triage-provenance-v1",
+  "candidate": {
+    "branch": "fix/nightly-regression-2026-09-30-2",
+    "change": "fix-nightly-regression-2026-09-30-2"
+  },
+  "sources": [
+    {
+      "workflowName": "Publish",
+      "workflowFile": "publish.yml",
+      "runId": 36698444509,
+      "runNumber": 2,
+      "attempt": 1,
+      "event": "schedule",
+      "conclusion": "failure",
+      "headBranch": "develop",
+      "headSha": "38530ce62d936f89153d8af0173971bf05d2d57a",
+      "url": "https://github.com/timurproko/a1/actions/runs/36698444509",
+      "createdAt": "2026-09-30T09:48:21Z"
+    }
+  ]
+}
