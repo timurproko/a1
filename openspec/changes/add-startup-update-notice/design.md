@@ -36,7 +36,7 @@ The startup check uses `fetch` against `<registry>/-/package/@timurproko/a1/dist
 *Alternative:* spawn `npm view` in the background. Rejected for startup: spawning npm costs hundreds of milliseconds of CPU on Windows during the budgeted launch window and can prompt on misconfigured auth. The trade-off is that `.npmrc`-only registry overrides and proxies are not honoured by the notice; a missed notice is harmless because the check fails silent.
 
 ### D3. Shared release-lookup module
-`src/foundation/release/latest-release.ts` owns: channel selection, dist-tag parsing, `isNewerRelease(candidate, current)` via `semver.gt` on valid versions (invalid → not newer), and the cache. `version-stats.ts` imports the parser/fetcher instead of its private copies. The module has no UI dependency.
+`src/foundation/release/latest-release.ts` owns: channel selection, dist-tag parsing, `isNewerRelease(candidate, current)` via `semver.gt` on valid versions (invalid → not newer), and the cache. `update.ts` uses the comparison for its guard. The module has no UI dependency. `version-stats.ts` keeps its private dist-tag parsing: `bin/cli.js` loads it as a dependency-light leaf, and the `cli` owner may reach `release` only through its public entry, which would load the whole update machinery for `a1 version`. The composition root loads the module with a dynamic import so the startup graph does not grow.
 
 ### D4. User-level throttle cache
 Cache file `<configDir>/update-check.json`: `{ "version": 1, "channel", "latest", "checkedAt" }`. It is user-level rather than profile-local because release availability does not vary by profile. At launch:
@@ -49,7 +49,7 @@ Cache file `<configDir>/update-check.json`: `{ "version": 1, "channel", "latest"
 A cached newer version is shown immediately on the next launch even if the user updated in between: the comparison is always against the *running* version, so after updating the stale cache simply compares as not newer.
 
 ### D5. Opt-outs
-The check is skipped entirely when any of the following hold: `PI_OFFLINE` is truthy or `--offline` was passed (A1 already maps the flag to the env), `A1_SKIP_VERSION_CHECK` is truthy, `CI` is truthy, stdout is not a TTY, the bare-A1 `updateCheck` setting is `false`, or the running version is not a published version shape. Published versions are `X.Y.Z` (stable) or `X.Y.Z-dev.N` (development); a bare `X.Y.Z-dev` only ever comes from a source checkout (`./scripts/dev`, `npm link`), which has nothing to update to. `a1 pi` honours the environment opt-outs only, because A1 settings do not apply to the comparison profile.
+The check is skipped entirely when any of the following hold: `PI_OFFLINE` is truthy (A1 has no `--offline` flag of its own), `A1_SKIP_VERSION_CHECK` is truthy, `CI` is truthy, stdout is not a TTY, the bare-A1 `updateCheck` setting is `false`, or the running version is not a published version shape. Published versions are `X.Y.Z` (stable) or `X.Y.Z-dev.N` (development); a bare `X.Y.Z-dev` only ever comes from a source checkout (`./scripts/dev`, `npm link`), which has nothing to update to. `a1 pi` honours the environment opt-outs only, because A1 settings do not apply to the comparison profile.
 
 ### D6. Notice shape and placement
 The notice reuses the extension-package banner path: after the banner and loaded resources, warning-coloured `DynamicBorder`s, bold warning `Update Available`, muted `New version <latest> is available. Run ` + accent command, and for stable releases muted `Changelog: ` + accent hyperlink `https://github.com/timurproko/a1/releases/tag/v<latest>` (OSC 8 when the terminal supports hyperlinks). Development releases omit the link because they have no GitHub Release. The command is `a1 update` for stable, `a1 update --develop` for development. If the background result arrives after the first frame, the notice is appended to the transcript and a render is requested, as Pi does; it is never modal and takes no input.
@@ -64,12 +64,14 @@ A stable build prints `Current: <installed>` followed by `Release: <latest>`. Th
 ### D8. Newer-than guard in `a1 update`
 When `a1 update` / `a1 update --develop` resolve a channel head that is not newer than the running version (`isNewerRelease` false) and the target is not already the active release, the command reports it is current and exits 0 without installing. Explicit named previews (`--develop N`, `--develop x.y.z-dev.N`) keep their current behaviour, since naming an older preview is deliberate.
 
+The guard applies only when the running version is on the requested channel. A development build running `a1 update` is moving to the stable channel on purpose, so a stable release that sorts below it is still installed.
+
 ## Risks / Trade-offs
 
 - [Registry overrides in `.npmrc` only are ignored by the notice] → silent failure; `a1 update` still resolves correctly. Documented in the setting description.
 - [Startup work during budget window] → the fetch is started after the first frame is scheduled and awaited nowhere on the startup path; the cache read is a single small async file read. Startup measurement tests cover it.
 - [Notice nags on every launch until updated] → acceptable for option A parity with Pi; `updateCheck: false` and `A1_SKIP_VERSION_CHECK` exist. "Skip this version" is deferred.
-- [Privacy] → one anonymous GET of public dist-tags per day, no telemetry; `--offline` disables it.
+- [Privacy] → one anonymous GET of public dist-tags per day, no telemetry; `PI_OFFLINE` disables it.
 - [Concurrent launches writing the cache] → atomic rename; last writer wins, both values are valid.
 
 ## Migration Plan

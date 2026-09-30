@@ -6,7 +6,7 @@ When an interactive profile (`a1` or `a1 pi`) starts from a published build, A1 
 
 A1 SHALL query the registry at most once per 24 hours per user. It SHALL keep the last successful result, its channel, and its time in a user-level cache file under the A1 configuration directory, written atomically, and SHALL answer from a fresh cache for the same channel without network access. A missing, unreadable, malformed, stale, or other-channel cache SHALL cause a background query instead of an error.
 
-The check SHALL be skipped when `PI_OFFLINE` is truthy or `--offline` was passed, when `A1_SKIP_VERSION_CHECK` is truthy, when `CI` is truthy, when standard output is not a terminal, when the running version is a source-checkout version without a numeric development suffix, or, for bare `a1`, when the `updateCheck` setting is `false`.
+The check SHALL be skipped when `PI_OFFLINE` is truthy, when `A1_SKIP_VERSION_CHECK` is truthy, when `CI` is truthy, when standard output is not a terminal, when the running version is a source-checkout version without a numeric development suffix, or, for bare `a1`, when the `updateCheck` setting is `false`.
 
 #### Scenario: A newer stable release exists
 - **WHEN** a stable `0.3.0` build starts interactively and the `latest` dist-tag is `0.3.1`
@@ -35,7 +35,7 @@ The check SHALL be skipped when `PI_OFFLINE` is truthy or `--offline` was passed
 
 ### Requirement: Channel-head update never downgrades
 
-When `a1 update` or `a1 update --develop` without a named preview resolves a channel head that is not newer than the running version, A1 SHALL report that it is already current and exit successfully without replacing the installation. An explicitly named development preview SHALL keep its existing resolution and installation behavior.
+When `a1 update` or `a1 update --develop` without a named preview resolves a channel head that is lower than the running version on the same channel, A1 SHALL report that it is already current and exit successfully without replacing the installation. An explicitly named development preview, and a move from a development build to the stable channel, SHALL keep their existing resolution and installation behavior.
 
 #### Scenario: The registry tag is lower than the running release
 - **WHEN** the running stable release is `0.3.1` and npm reports `latest` as `0.3.0`
