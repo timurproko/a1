@@ -72,7 +72,7 @@ export class PromptChipStore {
   // Invariant: clearing the editor never recycles a recoverable text chip's identity.
   #textCounter = 0;
   readonly #pending = new Map<string, PendingPaste>();
-  // Count-rejected images keep the standard chip label, so retain their identities after draft cleanup.
+  // Invariant: count-rejected images keep the standard chip label, so retain their identities after draft cleanup.
   readonly #countRejectedImages = new Set<string>();
   #preparation = new ImagePreparationClient();
   readonly #stopping = new Set<Promise<void>>();

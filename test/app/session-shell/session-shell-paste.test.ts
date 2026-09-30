@@ -932,7 +932,7 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
       await vi.waitFor(() => expect(shell.root.editor.getText()).toMatch(/\[📷 screenshot-/u));
       const ready = shell.root.editor.getText();
       terminal.input("\u0016");
-      await vi.waitFor(() => expect(shell.root.editor.getText().match(/\[📷 screenshot-[^\]]+\]/gu))).toHaveLength(2));
+      await vi.waitFor(() => expect(shell.root.editor.getText().match(/\[📷 screenshot-[^\]]+\]/gu)).toHaveLength(2));
       await vi.waitFor(() => expect(shell.root.hasPendingPastes(shell.root.editor.getText())).toBe(false));
       const rejected = shell.root.editor.getText().match(/\[📷 screenshot-[^\]]+\]/gu)!.find(tag => tag !== ready)!;
       const draft = `describe ${shell.root.editor.getText()}`;
