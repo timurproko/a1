@@ -1,4 +1,4 @@
-export const OWNED_UI_SETTINGS_VERSION = 9;
+export const OWNED_UI_SETTINGS_VERSION = 10;
 
 export type OwnedUiSettingValue = string | number | boolean;
 
@@ -35,6 +35,15 @@ export const OWNED_SETTING_DECLARATIONS = Object.freeze({
     section: GENERIC_SECTION,
     description: "Play the fall effect over the last screen when the session quits. Off returns to the terminal immediately.",
     application: "live",
+    defaultValue: true,
+    allowedValues: Object.freeze([true, false] as const),
+  }),
+  updateCheck: Object.freeze({
+    id: "updateCheck",
+    label: "Update check",
+    section: GENERIC_SECTION,
+    description: "Check once a day at startup whether a newer A1 release exists on this channel and show a notice. Uses the public npm registry; applies on next start.",
+    application: "restart",
     defaultValue: true,
     allowedValues: Object.freeze([true, false] as const),
   }),

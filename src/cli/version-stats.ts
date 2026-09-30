@@ -35,15 +35,11 @@ export async function runVersionStats(options: VersionStatsOptions): Promise<num
     return 1;
   }
 
-  // Compatibility: match Pi's release behavior: stable builds print only their installed version.
-  // Development builds retain channel visibility for preview comparison and updates.
-  if (prerelease(installed) === null) {
-    output.stdout(`${installed}\n`);
-    return 0;
-  }
-
+  // Rationale: unlike Pi, stable builds also show the release channel head so users can see they are
+  // behind without starting a session. Only development builds show the preview channel.
   const remote = await queryDistTags(runner, options.fetcher ?? defaultRegistryFetcher);
-  output.stdout(`Current: ${installed}\nDevelop: ${remote.develop ?? "unavailable"}\nRelease: ${remote.release ?? "unavailable"}\n`);
+  const develop = prerelease(installed) === null ? "" : `Develop: ${remote.develop ?? "unavailable"}\n`;
+  output.stdout(`Current: ${installed}\n${develop}Release: ${remote.release ?? "unavailable"}\n`);
   if (remote.error) output.stderr(`${PRODUCT_TEXT.diagnostic(`could not resolve npm dist-tags: ${remote.error}`)}\n`);
   return 0;
 }

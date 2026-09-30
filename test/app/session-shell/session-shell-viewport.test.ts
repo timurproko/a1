@@ -249,6 +249,64 @@ describe("OwnedUiSessionShell viewport and streaming", () => {
     } finally { await shell.dispose(); }
   });
 
+  it("docks the release notice above Working and dismisses it for the session from its close control", async () => {
+    const messages = Array.from({ length: 4 }, (_, index) => ({
+      role: index % 2 === 0 ? "user" : "assistant",
+      content: [{ type: "text", text: `Release transcript ${index}` }],
+      timestamp: Date.now() + index,
+    }));
+    const { adapter, engine, terminal, shell } = await fixture(messages, [], true);
+    try {
+      terminal.resize(80, 30);
+      adapter.announceReleaseUpdate({ version: "0.2.1", command: "a1 update", changelogUrl: "https://github.com/timurproko/a1/releases/tag/v0.2.1" });
+      await shell.backend.flushEvents();
+      const idleRows = shell.root.render(80).map(row => stripTerminalSequences(row));
+      const idleEditorBorderRow = idleRows.findIndex((row, index) => index > 0 && /^─+$/.test(row.trim()));
+      const idleBannerEnd = idleRows.findIndex(row => row.includes("Changelog:")) + 1;
+      engine.session.emit({ type: "agent_start" });
+      await shell.backend.flushEvents();
+      const rows = shell.root.render(80).map(row => stripTerminalSequences(row));
+      const titleRow = rows.findIndex(row => row.includes("Update Available"));
+      const workingRow = rows.findIndex(row => row.includes("Working"));
+      const lastTranscriptRow = rows.findLastIndex(row => row.includes("Release transcript 3"));
+      const editorBorderRow = rows.findIndex((row, index) => index > workingRow && /^─+$/.test(row.trim()));
+      expect(lastTranscriptRow).toBeGreaterThanOrEqual(0);
+      expect(titleRow).toBeGreaterThan(lastTranscriptRow);
+      expect(workingRow).toBeGreaterThan(titleRow);
+      expect(editorBorderRow).toBeGreaterThan(workingRow);
+      // Invariant: idle, the banner's last row sits on the line Working occupies while a turn runs.
+      expect(editorBorderRow - workingRow).toBe(idleEditorBorderRow - idleBannerEnd);
+      expect(rows.join("\n")).toContain("New version 0.2.1 is available. Run a1 update");
+      // Invariant: the notice is chrome, not transcript content, so the transcript keeps its rows.
+      expect(rows.filter(row => row.includes("Release transcript"))).toHaveLength(4);
+      const closeColumn = rows[titleRow]!.indexOf("✕") + 1;
+      expect(closeColumn).toBeGreaterThan(rows[titleRow]!.indexOf("Update Available") + 1);
+      expect(rows[titleRow]!.slice(closeColumn - 2, closeColumn + 1)).toBe(" ✕ ");
+      expect(closeColumn).toBe(rows[titleRow]!.trimEnd().length);
+
+      const idleTitle = shell.root.render(80)[titleRow];
+      // Invariant: nearby cells outside the control neither highlight it nor close the notice.
+      shell.root.handleViewportPreInput(`\u001b[<35;${closeColumn};${titleRow}M`);
+      expect(shell.root.render(80)[titleRow]).toBe(idleTitle);
+      shell.root.handleViewportPreInput(`\u001b[<35;${closeColumn - 2};${titleRow + 1}M`);
+      expect(shell.root.render(80)[titleRow]).toBe(idleTitle);
+      shell.root.handleViewportPreInput(`\u001b[<35;${closeColumn - 1};${titleRow + 1}M`);
+      const hoveredTitle = shell.root.render(80)[titleRow];
+      expect(stripTerminalSequences(hoveredTitle ?? "")).toBe(stripTerminalSequences(idleTitle ?? ""));
+      expect(hoveredTitle).not.toBe(idleTitle);
+      // Invariant: the highlighted cells are the clickable ones: the glyph and one cell either side.
+      shell.root.handleViewportPreInput(`\u001b[<0;${closeColumn + 1};${titleRow + 1}M`);
+      shell.root.handleViewportPreInput(`\u001b[<0;${closeColumn + 1};${titleRow + 1}m`);
+
+      const dismissed = shell.root.render(80).map(row => stripTerminalSequences(row)).join("\n");
+      expect(dismissed).not.toContain("Update Available");
+      expect(dismissed).toContain("Working");
+      expect(shell.root.viewportFrameDescriptor()?.transcript).not.toBeNull();
+    } finally {
+      await shell.dispose();
+    }
+  });
+
   it("keeps an overflowing Working status in the scrollable tail while transcript text scrolls", async () => {
     const messages = Array.from({ length: 18 }, (_, index) => ({
       role: index % 2 === 0 ? "user" : "assistant",
