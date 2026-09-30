@@ -62,6 +62,8 @@ export class SessionViewportController {
   #pendingEditorClick: { readonly column: number; readonly row: number } | undefined;
   // Invariant: pointer routing uses the most recently composed editor rows.
   #editorPointerFrame: { readonly rowStart: number; readonly rowEnd: number } | undefined;
+  // Invariant: one clickable cell in the viewport tail, located by the most recent composition.
+  #tailControl: { readonly row: number; readonly column: number; readonly activate: () => void } | undefined;
   #selectionAutoScrollTimer: ReturnType<typeof setTimeout> | undefined;
   #selectionAutoScrollPointer: { readonly column: number; readonly row: number; readonly direction: -1 | 1 } | undefined;
   #pointerPosition: { readonly column: number; readonly row: number } | undefined;
@@ -123,6 +125,17 @@ export class SessionViewportController {
 
   setEditorPointerFrame(frame: { readonly rowStart: number; readonly rowEnd: number } | undefined): void {
     this.#editorPointerFrame = frame;
+  }
+
+  /** The visible close control of a viewport-tail notice, or undefined when none is on screen. */
+  setTailControl(control: { readonly row: number; readonly column: number; readonly activate: () => void } | undefined): void {
+    this.#tailControl = control;
+  }
+
+  /** Whether the pointer currently rests on the tail control; drives its hover paint. */
+  tailControlHovered(target: { readonly row: number; readonly column: number } | undefined): boolean {
+    const pointer = this.#pointerPosition;
+    return target !== undefined && pointer !== undefined && pointer.row === target.row && pointer.column === target.column;
   }
 
   /** Replacement input changed before its new bounds have been painted. */
@@ -385,6 +398,9 @@ export class SessionViewportController {
       const overSticky = overModal === undefined && hits.sticky !== null && event.row === hits.sticky.row && event.column <= hits.sticky.width;
       const overBottom = overModal === undefined && hits.bottom !== null && event.row === hits.bottom.row
         && event.column >= hits.bottom.columnStart && event.column <= hits.bottom.columnEnd;
+      const tailControl = this.#tailControl;
+      const overTailControl = overModal === undefined && tailControl !== undefined
+        && event.row === tailControl.row && event.column === tailControl.column;
 
       const previousPointer = this.#pointerPosition;
       const wasOverBottom = hits.bottom !== null && previousPointer !== undefined
@@ -394,6 +410,9 @@ export class SessionViewportController {
       // Keep this location while the control is hidden; composition resolves its next hit region.
       this.#pointerPosition = { column: event.column, row: event.row };
       repaint ||= wasOverBottom !== overBottom;
+      const wasOverTailControl = tailControl !== undefined && previousPointer !== undefined
+        && previousPointer.row === tailControl.row && previousPointer.column === tailControl.column;
+      repaint ||= wasOverTailControl !== overTailControl;
       if (!this.#viewport.selectionActive && !this.#editorPointerSelecting) {
         const nextHyperlink = this.#hyperlinkKeyAt(frame, event.column, event.row);
         if (this.#hoveredHyperlinkKey !== undefined && nextHyperlink !== this.#hoveredHyperlinkKey) {
@@ -434,7 +453,7 @@ export class SessionViewportController {
           activity = true;
           return true;
         }
-        return overRail || overSticky || overBottom;
+        return overRail || overSticky || overBottom || overTailControl;
       }
       if (event.kind === "wheel-up" || event.kind === "wheel-down") {
         if (!allowWheel || event.row < 1 || event.row > hits.viewportHeight) return false;
@@ -463,6 +482,13 @@ export class SessionViewportController {
         this.#pendingEditorClick = undefined;
         this.#stopSelectionAutoScroll();
         if (this.#viewport.clearSelection()) repaint = true;
+        if (overTailControl) {
+          this.#tailControl = undefined;
+          tailControl.activate();
+          this.#tailPointerSuppressed = true;
+          repaint = true;
+          return true;
+        }
         if (overBottom) {
           this.#viewport.scrollToEnd(now);
           this.#tailPointerSuppressed = true;

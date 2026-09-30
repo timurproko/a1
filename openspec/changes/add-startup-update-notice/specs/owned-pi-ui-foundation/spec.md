@@ -2,7 +2,7 @@
 
 ### Requirement: The owned shell announces an available A1 release in pinned Pi's style
 
-When the startup release check reports a newer A1 release, the owned UI of both interactive profiles SHALL render pinned Pi's update notification shape: a spacer, a warning-coloured dynamic border, the bold warning title `Update Available`, the muted line `New version <version> is available. Run ` followed by the accent command, and a closing warning-coloured dynamic border. The command SHALL be `a1 update` for a stable release and `a1 update --develop` for a development release. A stable release notice SHALL add a muted `Changelog: ` line with an accent link to that version's GitHub Release, emitted as a terminal hyperlink when the terminal supports hyperlinks; a development release notice SHALL omit it. The notice SHALL render after the banner and loaded resources and before the extension-package update notice. When the result arrives after the first frame, the notice SHALL be appended to the transcript and a render requested. The notice SHALL be informational only: it SHALL take no input, block no interaction, and never start an update.
+When the startup release check reports a newer A1 release, `a1 pi` SHALL render pinned Pi's update notification shape in the transcript: a spacer, a warning-coloured dynamic border, the bold warning title `Update Available`, the muted line `New version <version> is available. Run ` followed by the accent command, and a closing warning-coloured dynamic border. The command SHALL be `a1 update` for a stable release and `a1 update --develop` for a development release. A stable release notice SHALL add a muted `Changelog: ` line with an accent link to that version's GitHub Release, emitted as a terminal hyperlink when the terminal supports hyperlinks; a development release notice SHALL omit it. In `a1 pi` the notice SHALL render after the banner and loaded resources and before the extension-package update notice, and a result that arrives after the first frame SHALL be appended to the transcript with a render requested. Bare `a1` SHALL instead dock the notice in the bottom-aligned viewport tail directly above the live `Working` status (directly above the editor when idle), so it never displaces transcript content: the same title, instruction, and changelog wording on the prompt band background spanning the full content width, without borders, and with a close control `✕` at the right end of the title row. Clicking the close control SHALL hide the notice for the rest of the session; the next launch SHALL show it again while the release is still newer. The notice SHALL be informational only: it SHALL take no input, block no interaction, and never start an update.
 
 #### Scenario: Announce a stable release
 - **WHEN** the startup check reports stable release `0.3.1`
@@ -16,8 +16,13 @@ When the startup release check reports a newer A1 release, the owned UI of both 
 - **WHEN** the background registry query completes after the owned UI is already interactive
 - **THEN** the notice SHALL appear in the transcript without clearing the editor, moving focus, or interrupting a running turn
 
+#### Scenario: Dock and dismiss in bare A1
+- **WHEN** bare `a1` receives a newer release while a turn is running
+- **THEN** the notice SHALL appear below the transcript and above `Working` without moving transcript rows
+- **AND** clicking its `✕` SHALL remove it until the next launch
+
 #### Scenario: Both update notices apply
-- **WHEN** an A1 release and extension-package updates are both available
+- **WHEN** an A1 release and extension-package updates are both available in `a1 pi`
 - **THEN** the A1 notice SHALL render before the `Package Updates Available` notice
 
 #### Scenario: No newer release

@@ -870,7 +870,6 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
 
   it.each([
     ["pinned", undefined],
-    ["custom viewport", "custom-viewport"],
   ] as const)("renders the A1 release notice before the package notice in the %s layout", async (_label, sessionLayout) => {
     const adapter = await createPiEngineAdapter({
       cwd: "D:/work",

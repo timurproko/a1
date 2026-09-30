@@ -89,8 +89,10 @@ import {
   createPiShellSessionInfo,
   renderPiShellCommandMessage,
   renderPiShellPackageUpdateNotice,
+  renderPiShellReleaseUpdateBanner,
   renderPiShellReleaseUpdateNotice,
   renderPiShellStatusText,
+  type PiShellReleaseUpdateBanner,
   type PiShellHotkeysPresentation,
 } from "../../integrations/pi/components/shell-presenters-info.js";
 import {
@@ -324,6 +326,9 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     readonly message: string;
     readonly errorCode?: ImageAttachmentError["code"];
   } | undefined;
+  // Invariant: bare A1 docks the release notice above the live status; closing it lasts for this session only.
+  #releaseNoticeDismissed = false;
+  #releaseCloseTarget: { readonly row: number; readonly column: number } | undefined;
   #copyAcknowledgement: string | undefined;
   #copyAcknowledgementTimer: ReturnType<typeof setTimeout> | undefined;
   #inputSurface: PiShellComponentPort;
@@ -770,7 +775,14 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       : Math.max(1, width - 1);
     const document = this.#renderDocumentLayout(documentWidth);
     const steeringRows = this.#renderQueued(documentWidth);
-    const statusRows = this.#renderStatus(documentWidth);
+    const releaseBanner = this.#renderReleaseBanner(documentWidth);
+    // Rationale: the release notice rides the bottom-aligned tail directly above Working, so it
+    // never displaces transcript content and scrolls away with the live status.
+    const liveStatusRows = this.#renderStatus(documentWidth);
+    // Invariant: an idle session keeps one blank row between the banner and the editor border,
+    // matching the gap the live status opens with.
+    const statusRows = releaseBanner === undefined ? liveStatusRows
+      : [...releaseBanner.rows, ...liveStatusRows.length === 0 ? [""] : [], ...liveStatusRows];
     const transientSignature = transientRowsSignature(steeringRows, statusRows);
     const snapshot = this.#visibleViewportSnapshot;
     // Invariant: paint-only feedback may cover either viewport or dock cells, so
@@ -843,6 +855,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       });
       this.#fullViewportCompositions += 1;
     } else this.#dockOnlyViewportCompositions += 1;
+    this.#locateReleaseClose(frame, releaseBanner, document.rows.length + steeringRows.length + statusRows.length, statusRows.length);
     this.#visibleViewportSnapshot = {
       width,
       height,
@@ -1001,6 +1014,37 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     if (requestRender) this.#componentRuntime.requestRender();
   }
 
+  #renderReleaseBanner(width: number): PiShellReleaseUpdateBanner | undefined {
+    if (this.#releaseNoticeDismissed) return undefined;
+    const diagnostic = this.#view.diagnostics.findLast(item => item.code === "release-update");
+    const release = diagnostic === undefined ? null : parseReleaseUpdateDiagnostic(diagnostic.message);
+    if (release === null) return undefined;
+    return renderPiShellReleaseUpdateBanner(release, width, this.#viewportController.tailControlHovered(this.#releaseCloseTarget));
+  }
+
+  #locateReleaseClose(
+    frame: TranscriptViewportFrame,
+    banner: PiShellReleaseUpdateBanner | undefined,
+    tailEnd: number,
+    tailLength: number,
+  ): void {
+    // Invariant: the tail is the document suffix, so the control's document row is fixed relative to its
+    // end; alignment gap rows precede it and the viewport scroll decides whether it is on screen.
+    const documentRow = banner === undefined ? undefined
+      : tailEnd + frame.descriptor.transientAlignmentGapRows - tailLength + banner.closeRow;
+    const row = documentRow === undefined ? 0 : documentRow - frame.scrollTop + 1;
+    this.#releaseCloseTarget = banner !== undefined && row >= 1 && row <= frame.hits.viewportHeight
+      ? { row, column: banner.closeColumn }
+      : undefined;
+    this.#viewportController.setTailControl(this.#releaseCloseTarget === undefined ? undefined : {
+      ...this.#releaseCloseTarget,
+      activate: () => {
+        this.#releaseNoticeDismissed = true;
+        this.#releaseCloseTarget = undefined;
+      },
+    });
+  }
+
   #renderDockNotice(width: number): readonly string[] {
     const notice = this.#dockNotice;
     if (notice === undefined) return [];
@@ -1136,8 +1180,9 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       }
     }
     // Invariant: the A1 release notice precedes the extension-package notice, matching pinned Pi's order.
+    // Bare A1 docks it in the viewport tail instead of the document.
     rows.push(...diagnostics
-      .filter(diagnostic => diagnostic.code === "release-update")
+      .filter(diagnostic => !this.#customViewport && diagnostic.code === "release-update")
       .flatMap(diagnostic => {
         const release = parseReleaseUpdateDiagnostic(diagnostic.message);
         return release === null ? [] : renderPiShellReleaseUpdateNotice(release, width);

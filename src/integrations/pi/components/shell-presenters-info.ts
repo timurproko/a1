@@ -1,5 +1,5 @@
 import { DynamicBorder, getMarkdownTheme } from "../startup-public.js";
-import { Container, getCapabilities, hyperlink, Markdown, Spacer, Text, type KeybindingsConfig } from "@earendil-works/pi-tui";
+import { Container, getCapabilities, hyperlink, Markdown, Spacer, Text, visibleWidth, type KeybindingsConfig } from "@earendil-works/pi-tui";
 import { PRODUCT_TEXT } from "../../../product-identity.js";
 import { KeybindingsManager } from "./upstream/adjacent/core/keybindings.js";
 import { PINNED_PI_LAYOUT, piTheme } from "./theme.js";
@@ -285,4 +285,43 @@ export function renderPiShellReleaseUpdateNotice(
   }
   container.addChild(new DynamicBorder(text => theme.fg("warning", text)));
   return container.render(width);
+}
+
+export interface PiShellReleaseUpdateBanner {
+  readonly rows: readonly string[];
+  /** Zero-based row within `rows` that carries the close control. */
+  readonly closeRow: number;
+  /** One-based terminal column of the close control. */
+  readonly closeColumn: number;
+}
+
+/**
+ * Bare A1's docked variant of the release notice: Pi's notice wording and colours on the prompt
+ * band's background instead of borders, so it spans the same width as the editor rules, with a
+ * close control at the right end of the title row.
+ */
+export function renderPiShellReleaseUpdateBanner(
+  release: { readonly version: string; readonly command: string; readonly changelogUrl: string | null },
+  width: number,
+  closeHovered: boolean,
+): PiShellReleaseUpdateBanner {
+  ensureTheme();
+  const theme = piTheme();
+  const title = theme.bold(theme.fg("warning", "Update Available"));
+  const close = closeHovered ? theme.bold(theme.fg("warning", "✕")) : theme.fg("muted", "✕");
+  // Invariant: one cell of horizontal padding on each side; the close control ends the content row.
+  const gap = Math.max(1, width - 2 - visibleWidth(title) - 1);
+  const lines = [
+    `${title}${" ".repeat(gap)}${close}`,
+    `${theme.fg("muted", `New version ${release.version} is available. Run `)}${theme.fg("accent", release.command)}`,
+  ];
+  if (release.changelogUrl !== null) {
+    const link = getCapabilities().hyperlinks
+      ? hyperlink(theme.fg("accent", release.changelogUrl), release.changelogUrl)
+      : theme.fg("accent", release.changelogUrl);
+    lines.push(`${theme.fg("muted", "Changelog: ")}${link}`);
+  }
+  const band = new Text(lines.join("\n"), 1, 1, text => theme.bg("userMessageBg", text)).render(width);
+  // Invariant: a leading spacer, then the band's top padding row, then the title row.
+  return { rows: ["", ...band], closeRow: 2, closeColumn: 1 + visibleWidth(title) + gap + 1 };
 }

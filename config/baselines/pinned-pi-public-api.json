@@ -3942,6 +3942,7 @@
             "src/integrations/pi/components/owned-editor-ux.ts",
             "src/integrations/pi/components/prompt-chip-presentation.ts",
             "src/integrations/pi/components/shell-editor-autocomplete.ts",
+            "src/integrations/pi/components/shell-presenters-info.ts",
             "src/integrations/pi/components/shell-shared-facade.ts",
             "src/integrations/pi/components/upstream/components/owned-editor.ts",
             "src/integrations/pi/components/upstream/components/session-footer.ts",

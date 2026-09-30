@@ -249,6 +249,50 @@ describe("OwnedUiSessionShell viewport and streaming", () => {
     } finally { await shell.dispose(); }
   });
 
+  it("docks the release notice above Working and dismisses it for the session from its close control", async () => {
+    const messages = Array.from({ length: 4 }, (_, index) => ({
+      role: index % 2 === 0 ? "user" : "assistant",
+      content: [{ type: "text", text: `Release transcript ${index}` }],
+      timestamp: Date.now() + index,
+    }));
+    const { adapter, engine, terminal, shell } = await fixture(messages, [], true);
+    try {
+      terminal.resize(80, 30);
+      adapter.announceReleaseUpdate({ version: "0.2.1", command: "a1 update", changelogUrl: "https://github.com/timurproko/a1/releases/tag/v0.2.1" });
+      engine.session.emit({ type: "agent_start" });
+      await shell.backend.flushEvents();
+      const rows = shell.root.render(80).map(row => stripTerminalSequences(row));
+      const titleRow = rows.findIndex(row => row.includes("Update Available"));
+      const workingRow = rows.findIndex(row => row.includes("Working"));
+      const lastTranscriptRow = rows.findLastIndex(row => row.includes("Release transcript 3"));
+      const editorBorderRow = rows.findIndex((row, index) => index > workingRow && /^─+$/.test(row.trim()));
+      expect(lastTranscriptRow).toBeGreaterThanOrEqual(0);
+      expect(titleRow).toBeGreaterThan(lastTranscriptRow);
+      expect(workingRow).toBeGreaterThan(titleRow);
+      expect(editorBorderRow).toBeGreaterThan(workingRow);
+      expect(rows.join("\n")).toContain("New version 0.2.1 is available. Run a1 update");
+      // Invariant: the notice is chrome, not transcript content, so the transcript keeps its rows.
+      expect(rows.filter(row => row.includes("Release transcript"))).toHaveLength(4);
+      const closeColumn = rows[titleRow]!.indexOf("✕") + 1;
+      expect(closeColumn).toBeGreaterThan(rows[titleRow]!.indexOf("Update Available") + 1);
+
+      const idleTitle = shell.root.render(80)[titleRow];
+      shell.root.handleViewportPreInput(`\u001b[<35;${closeColumn};${titleRow + 1}M`);
+      const hoveredTitle = shell.root.render(80)[titleRow];
+      expect(stripTerminalSequences(hoveredTitle ?? "")).toBe(stripTerminalSequences(idleTitle ?? ""));
+      expect(hoveredTitle).not.toBe(idleTitle);
+      shell.root.handleViewportPreInput(`\u001b[<0;${closeColumn};${titleRow + 1}M`);
+      shell.root.handleViewportPreInput(`\u001b[<0;${closeColumn};${titleRow + 1}m`);
+
+      const dismissed = shell.root.render(80).map(row => stripTerminalSequences(row)).join("\n");
+      expect(dismissed).not.toContain("Update Available");
+      expect(dismissed).toContain("Working");
+      expect(shell.root.viewportFrameDescriptor()?.transcript).not.toBeNull();
+    } finally {
+      await shell.dispose();
+    }
+  });
+
   it("keeps an overflowing Working status in the scrollable tail while transcript text scrolls", async () => {
     const messages = Array.from({ length: 18 }, (_, index) => ({
       role: index % 2 === 0 ? "user" : "assistant",

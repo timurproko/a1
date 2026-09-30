@@ -56,6 +56,8 @@ The notice reuses the extension-package banner path: after the banner and loaded
 
 When the extension-package notice is also present, the A1 notice renders first.
 
+Bare A1 docks the notice instead: it joins the bottom-aligned viewport tail directly above `Working`, drawn on the `userMessageBg` band at full content width rather than between borders, with a `✕` at the right of the title row. The viewport controller treats the `✕` as a tail control located from the composed frame; clicking it hides the notice for the session only, with no persisted state, so the next launch shows it again. `a1 pi` keeps the transcript placement for Pi parity.
+
 ### D7. Stable `a1 version` shows the release comparison
 A stable build prints `Current: <installed>` followed by `Release: <latest>`. This is the stable-channel subset of the development output (`Current`, `Develop`, `Release`). It uses the same `npm view` lookup with the registry fallback. On failure it prints `Release: unavailable` with one `A1` diagnostic and exits 0. The `Develop` line is omitted so stable users are not pointed at previews. `a1 version` is an explicit request, so the startup throttle, cache, and opt-outs (D4, D5) do not apply to it.
 
