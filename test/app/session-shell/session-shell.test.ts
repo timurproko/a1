@@ -867,4 +867,64 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
     expect(rows[updateTitleRow - 1]).toMatch(/─/);
     await shell.dispose();
   });
+
+  it.each([
+    ["pinned", undefined],
+    ["custom viewport", "custom-viewport"],
+  ] as const)("renders the A1 release notice before the package notice in the %s layout", async (_label, sessionLayout) => {
+    const adapter = await createPiEngineAdapter({
+      cwd: "D:/work",
+      sessionId: "owned-shell",
+      createRuntime: async () => new Runtime() as unknown as AgentSessionRuntime,
+      checkPackageUpdates: async () => ["pi-mcp-adapter"],
+    });
+    await vi.waitFor(() => {
+      expect(adapter.view().diagnostics.some(diagnostic => diagnostic.code === "package-updates")).toBe(true);
+    });
+    adapter.announceReleaseUpdate({ version: "0.3.1", command: "a1 update", changelogUrl: "https://github.com/timurproko/a1/releases/tag/v0.3.1" });
+    const terminal = new TestPresentationTerminal();
+    const shell = new OwnedUiSessionShell({
+      engine: { backend: adapter, cwd: "D:/work", ...(sessionLayout === undefined ? {} : { sessionLayout }) },
+      presentation: { terminal },
+    });
+    shell.start();
+    shell.runtime.renderNow();
+
+    const rows = shell.root.render(100).map(row => stripTerminalSequences(row));
+    const frame = rows.join("\n");
+    const releaseTitleRow = rows.findIndex(row => row.includes("Update Available") && !row.includes("Package"));
+    const packageTitleRow = rows.findIndex(row => row.includes("Package Updates Available"));
+    expect(releaseTitleRow).toBeGreaterThanOrEqual(0);
+    expect(releaseTitleRow).toBeLessThan(packageTitleRow);
+    expect(rows[releaseTitleRow - 1]).toMatch(/─/);
+    expect(frame).toContain("New version 0.3.1 is available. Run a1 update");
+    expect(frame).toContain("Changelog: https://github.com/timurproko/a1/releases/tag/v0.3.1");
+    expect(frame).not.toContain("release-update");
+    await shell.dispose();
+  });
+
+  it("appends a late development release notice without a changelog or disturbing the editor", async () => {
+    const adapter = await createPiEngineAdapter({
+      cwd: "D:/work",
+      sessionId: "owned-shell",
+      createRuntime: async () => new Runtime() as unknown as AgentSessionRuntime,
+    });
+    const terminal = new TestPresentationTerminal();
+    const shell = new OwnedUiSessionShell({ engine: { backend: adapter, cwd: "D:/work" }, presentation: { terminal } });
+    shell.start();
+    shell.runtime.renderNow();
+    terminal.input("draft prompt");
+    expect(shell.root.render(100).join("\n")).not.toContain("Update Available");
+
+    adapter.announceReleaseUpdate({ version: "0.3.1-dev.652", command: "a1 update --develop", changelogUrl: null });
+    await vi.waitFor(() => {
+      expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("New version 0.3.1-dev.652 is available. Run a1 update --develop");
+    });
+
+    const frame = stripTerminalSequences(shell.root.render(100).join("\n"));
+    expect(frame).toContain("Update Available");
+    expect(frame).not.toContain("Changelog:");
+    expect(shell.root.editor.getText()).toBe("draft prompt");
+    await shell.dispose();
+  });
 });

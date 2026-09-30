@@ -83,12 +83,12 @@ import {
   createPiShellChangelog,
   createPiShellHotkeys,
   createPiShellSessionInfo,
+  renderPiShellPackageUpdateNotice,
   renderPiShellStatusText,
   type PiShellHotkeysPresentation,
 } from "../../integrations/pi/components/shell-presenters-info.js";
 import {
   createPiShellTranscriptComponent,
-  renderPiShellPackageUpdateNotice,
   renderPiShellStartupDiagnostic,
   renderPiShellTranscriptBlock,
 } from "../../integrations/pi/components/shell-presenters-transcript.js";

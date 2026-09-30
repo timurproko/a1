@@ -36,6 +36,7 @@ describe("owned UI setting declarations", () => {
   it("declares the grouped live viewport appearance, style, and speed controls", () => {
     expect(OWNED_UI_SETTING_DECLARATIONS.map(setting => setting.id)).toEqual([
       "quitAnimation",
+      "updateCheck",
       "scrollbarAppearance",
       "scrollbarStyle",
       "scrollbarSpeed",
@@ -169,7 +170,7 @@ describe("owned UI settings migrations", () => {
   });
 
   it("migrates the former speed and appearance names", () => {
-    expect(OWNED_UI_SETTINGS_MIGRATIONS).toHaveLength(8);
+    expect(OWNED_UI_SETTINGS_MIGRATIONS).toHaveLength(9);
     expect(OWNED_UI_SETTINGS_MIGRATIONS[0]?.migrate({ scrollbarSpeed: "high", future: true }))
       .toEqual({ scrollbarSpeed: "fast", future: true });
     expect(OWNED_UI_SETTINGS_MIGRATIONS[1]?.migrate({ scrollbarAppearance: "hover", future: true }))
@@ -193,7 +194,7 @@ describe("owned UI settings migrations", () => {
       declarations: OWNED_UI_SETTING_DECLARATIONS, migrations: OWNED_UI_SETTINGS_MIGRATIONS,
       document: { version: 5, values: { quitEffect: "off" } },
     });
-    expect(resolved).toMatchObject({ version: 9, migrated: true, notices: [] });
+    expect(resolved).toMatchObject({ version: 10, migrated: true, notices: [] });
     expect(resolved.settings.find(setting => setting.declaration.id === "quitAnimation")).toMatchObject({ value: false, source: "stored" });
     expect(resolved.settings.some(setting => setting.declaration.id === "quitEffect")).toBe(false);
   });
@@ -207,7 +208,7 @@ describe("owned UI settings migrations", () => {
       declarations: OWNED_UI_SETTING_DECLARATIONS, migrations: OWNED_UI_SETTINGS_MIGRATIONS,
       document: { version: 6, values: { quitEffect: "dissolve", quitEffectDurationMs: 1200 } },
     });
-    expect(resolved).toMatchObject({ version: 9, migrated: true, notices: [] });
+    expect(resolved).toMatchObject({ version: 10, migrated: true, notices: [] });
     expect(resolved.preserved).toEqual({});
     expect(resolved.settings.find(setting => setting.declaration.id === "quitAnimation")).toMatchObject({ value: true, source: "default" });
   });
@@ -220,7 +221,7 @@ describe("owned UI settings migrations", () => {
       declarations: OWNED_UI_SETTING_DECLARATIONS, migrations: OWNED_UI_SETTINGS_MIGRATIONS,
       document: { version: 7, values: { promptSuggestions: false, quitAnimation: false } },
     });
-    expect(resolved).toMatchObject({ version: 9, migrated: true, notices: [] });
+    expect(resolved).toMatchObject({ version: 10, migrated: true, notices: [] });
     expect(resolved.settings.find(setting => setting.declaration.id === "skillsPresentation")).toMatchObject({ value: "collapse", source: "default" });
     expect(resolved.settings.find(setting => setting.declaration.id === "promptSuggestions")).toMatchObject({ value: false, source: "stored" });
     expect(resolved.settings.find(setting => setting.declaration.id === "quitAnimation")).toMatchObject({ value: false, source: "stored" });
@@ -240,7 +241,7 @@ describe("owned UI settings migrations", () => {
       declarations: OWNED_UI_SETTING_DECLARATIONS, migrations: OWNED_UI_SETTINGS_MIGRATIONS,
       document: { version: 8, values: { skillsPresentation: "expand", future: true } },
     });
-    expect(resolved).toMatchObject({ version: 9, migrated: true, notices: [] });
+    expect(resolved).toMatchObject({ version: 10, migrated: true, notices: [] });
     expect(resolved.settings.find(setting => setting.declaration.id === "promptImageLimit")).toMatchObject({ value: 8, source: "default" });
     expect(resolved.settings.find(setting => setting.declaration.id === "skillsPresentation")).toMatchObject({ value: "expand", source: "stored" });
     expect(resolved.preserved).toEqual({ future: true });
@@ -250,6 +251,34 @@ describe("owned UI settings migrations", () => {
       document: { version: 9, values: { promptImageLimit: 17 } },
     });
     expect(invalid.settings.find(setting => setting.declaration.id === "promptImageLimit")).toMatchObject({ value: 8, source: "default" });
+    expect(invalid.notices.length).toBeGreaterThan(0);
+  });
+
+  it("introduces the enabled startup update check without rewriting stored values", () => {
+    expect(OWNED_UI_SETTINGS_MIGRATIONS[8]).toMatchObject({ to: 10 });
+    expect(OWNED_UI_SETTINGS_MIGRATIONS[8]?.migrate({ quitAnimation: false, future: true }))
+      .toEqual({ quitAnimation: false, future: true });
+    expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "updateCheck")).toMatchObject({
+      label: "Update check",
+      section: { id: "generic", title: "Generic" },
+      application: "restart",
+      defaultValue: true,
+      allowedValues: [true, false],
+    });
+    const resolved = resolveOwnedUiSettings({
+      declarations: OWNED_UI_SETTING_DECLARATIONS, migrations: OWNED_UI_SETTINGS_MIGRATIONS,
+      document: { version: 9, values: { quitAnimation: false, future: true } },
+    });
+    expect(resolved).toMatchObject({ version: 10, migrated: true, notices: [] });
+    expect(resolved.settings.find(setting => setting.declaration.id === "updateCheck")).toMatchObject({ value: true, source: "default" });
+    expect(resolved.settings.find(setting => setting.declaration.id === "quitAnimation")).toMatchObject({ value: false, source: "stored" });
+    expect(resolved.preserved).toEqual({ future: true });
+
+    const invalid = resolveOwnedUiSettings({
+      declarations: OWNED_UI_SETTING_DECLARATIONS, migrations: OWNED_UI_SETTINGS_MIGRATIONS,
+      document: { version: 10, values: { updateCheck: "sometimes" } },
+    });
+    expect(invalid.settings.find(setting => setting.declaration.id === "updateCheck")).toMatchObject({ value: true, source: "default" });
     expect(invalid.notices.length).toBeGreaterThan(0);
   });
 

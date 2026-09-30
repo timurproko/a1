@@ -210,7 +210,7 @@
         "Package Updates Available"
       ],
       "destination": "src/app/session-shell/session-shell.ts",
-      "implementationStatus": "requires-revalidation"
+      "implementationStatus": "implemented"
     },
     {
       "id": "document.session-info",

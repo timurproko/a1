@@ -6,6 +6,7 @@ import crossSpawn from "cross-spawn";
 import { valid as validSemver } from "semver";
 import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../../product-identity.js";
 import type { UpdateChannel } from "./types.js";
+import { isNewerRelease, releaseChannelOf } from "./latest-release.js";
 import {
   certifyMaterializedRelease,
   ensureSupervisor,
@@ -645,6 +646,14 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
     : await resolveRequestedPreview(runner, requested, output));
   if (resolved.version === null) return resolved.exitCode;
   const targetVersion = resolved.version;
+  // Invariant: a channel head below the running release on the same channel is never installed, so a
+  // lagging or rolled-back dist-tag cannot downgrade. Switching channels and named previews stay deliberate.
+  const sameChannel = releaseChannelOf(runningVersion) === (channel === "stable" ? "stable" : "development");
+  if ((requested === undefined || requested.length === 0) && sameChannel
+    && targetVersion !== runningVersion && !isNewerRelease(targetVersion, runningVersion)) {
+    output.stdout(`${PRODUCT_TEXT.commandName} is up to date — no update needed.\n`);
+    return 0;
+  }
   // Rationale: no full stop after a version: it already ends in a dot-separated identifier,
   // and a trailing one reads as part of the version rather than as punctuation.
   output.stdout(`${PRODUCT_TEXT.commandName} update: ${runningVersion} → ${targetVersion}\n`);

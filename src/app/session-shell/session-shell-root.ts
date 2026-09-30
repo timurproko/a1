@@ -88,6 +88,8 @@ import {
   createPiShellHotkeys,
   createPiShellSessionInfo,
   renderPiShellCommandMessage,
+  renderPiShellPackageUpdateNotice,
+  renderPiShellReleaseUpdateNotice,
   renderPiShellStatusText,
   type PiShellHotkeysPresentation,
 } from "../../integrations/pi/components/shell-presenters-info.js";
@@ -95,7 +97,6 @@ import {
   createPiShellTranscriptComponent,
   isPiPromptStyleCompaction,
   paintPiSubmittedPromptTimestamp,
-  renderPiShellPackageUpdateNotice,
   renderPiShellStartupDiagnostic,
   renderPiShellTranscriptBlock,
   type PiShellSubmittedPromptComposer,
@@ -1134,6 +1135,13 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
         });
       }
     }
+    // Invariant: the A1 release notice precedes the extension-package notice, matching pinned Pi's order.
+    rows.push(...diagnostics
+      .filter(diagnostic => diagnostic.code === "release-update")
+      .flatMap(diagnostic => {
+        const release = parseReleaseUpdateDiagnostic(diagnostic.message);
+        return release === null ? [] : renderPiShellReleaseUpdateNotice(release, width);
+      }));
     rows.push(...diagnostics
       .filter(diagnostic => diagnostic.code === "package-updates")
       .flatMap(diagnostic => renderPiShellPackageUpdateNotice(
@@ -1151,6 +1159,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
           : createPiShellChangelog(diagnostic.message).render(width)));
     rows.push(...diagnostics
       .filter(diagnostic => diagnostic.code !== "engine-startup" && diagnostic.code !== "project-trust"
+        && diagnostic.code !== "release-update"
         && diagnostic.code !== "package-updates" && diagnostic.code !== "changelog-collapsed"
         && diagnostic.code !== "changelog-expanded")
       .slice(-3)
@@ -1887,6 +1896,15 @@ function transientRowsSignature(
   statusRows: readonly string[],
 ): string {
   return `${steeringRows.length}\u0000${steeringRows.join("\u0000")}\u0001${statusRows.length}\u0000${statusRows.join("\u0000")}`;
+}
+
+/** The release, command, and optional changelog carried by the adapter's `release-update` diagnostic. */
+function parseReleaseUpdateDiagnostic(message: string): { version: string; command: string; changelogUrl: string | null } | null {
+  const [instruction, changelog] = message.split("\n");
+  const match = /^New version (\S+) is available\. Run (.+)$/.exec(instruction ?? "");
+  if (match === null) return null;
+  const url = changelog === undefined ? null : /^Changelog: (\S+)$/.exec(changelog)?.[1] ?? null;
+  return { version: match[1]!, command: match[2]!, changelogUrl: url };
 }
 
 /** "Share URL: <url>" with the URL made clickable; other share wordings pass through unchanged. */

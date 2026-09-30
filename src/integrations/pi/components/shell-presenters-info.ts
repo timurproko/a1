@@ -1,5 +1,6 @@
 import { DynamicBorder, getMarkdownTheme } from "../startup-public.js";
-import { Container, Markdown, Spacer, Text, type KeybindingsConfig } from "@earendil-works/pi-tui";
+import { Container, getCapabilities, hyperlink, Markdown, Spacer, Text, type KeybindingsConfig } from "@earendil-works/pi-tui";
+import { PRODUCT_TEXT } from "../../../product-identity.js";
 import { KeybindingsManager } from "./upstream/adjacent/core/keybindings.js";
 import { PINNED_PI_LAYOUT, piTheme } from "./theme.js";
 import { componentPort, ensureTheme, formatSessionTokens, type PiShellComponentPort, type PiShellExtensionRendererResolver } from "./shell-shared-facade.js";
@@ -233,4 +234,55 @@ export function hotkeysMarkdown(
     markdown += shortcuts.map(shortcut => `| \`${shortcutDisplay(shortcut.key)}\` | ${shortcut.description} |`).join("\n");
   }
   return markdown;
+}
+
+/**
+ * Pinned Pi's `showPackageUpdateNotification` banner: warning-coloured dynamic
+ * borders around a bold warning title, the muted update instruction with the
+ * accent command, and the package list.
+ */
+export function renderPiShellPackageUpdateNotice(packages: readonly string[], width: number): readonly string[] {
+  ensureTheme();
+  const theme = piTheme();
+  const container = new Container();
+  container.addChild(new Spacer(1));
+  container.addChild(new DynamicBorder(text => theme.fg("warning", text)));
+  container.addChild(new Text(
+    `${theme.bold(theme.fg("warning", "Package Updates Available"))}\n`
+    + `${theme.fg("muted", "Package updates are available. Run ")}${theme.fg("accent", `${PRODUCT_TEXT.commandName} pi update --extensions`)}\n`
+    + `${theme.fg("muted", "Packages:")}\n`
+    + packages.map(name => `- ${name}`).join("\n"),
+    1, 0,
+  ));
+  container.addChild(new DynamicBorder(text => theme.fg("warning", text)));
+  return container.render(width);
+}
+
+/**
+ * Pinned Pi's `showNewVersionNotification` banner, naming A1's update command: warning-coloured
+ * dynamic borders around a bold warning title, the muted instruction with the accent command, and
+ * for stable releases the muted changelog label with an accent hyperlink.
+ */
+export function renderPiShellReleaseUpdateNotice(
+  release: { readonly version: string; readonly command: string; readonly changelogUrl: string | null },
+  width: number,
+): readonly string[] {
+  ensureTheme();
+  const theme = piTheme();
+  const container = new Container();
+  container.addChild(new Spacer(1));
+  container.addChild(new DynamicBorder(text => theme.fg("warning", text)));
+  container.addChild(new Text(
+    `${theme.bold(theme.fg("warning", "Update Available"))}\n`
+    + `${theme.fg("muted", `New version ${release.version} is available. Run `)}${theme.fg("accent", release.command)}`,
+    1, 0,
+  ));
+  if (release.changelogUrl !== null) {
+    const link = getCapabilities().hyperlinks
+      ? hyperlink(theme.fg("accent", release.changelogUrl), release.changelogUrl)
+      : theme.fg("accent", release.changelogUrl);
+    container.addChild(new Text(`${theme.fg("muted", "Changelog: ")}${link}`, 1, 0));
+  }
+  container.addChild(new DynamicBorder(text => theme.fg("warning", text)));
+  return container.render(width);
 }
