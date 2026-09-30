@@ -8,7 +8,7 @@ A1 differs in ways that shape this design:
 - The owned shell never runs Pi's `InteractiveMode.run()`, so Pi's check is unreachable; the owned runtime already re-implements Pi's extension-package probe (`session-runtime.ts` `announcePackageUpdates`) and its banner (`session-shell-root.ts`).
 - `a1 update` replaces the running package and shuts down owners, so it must not run inside the interactive runtime (`cli-self-update`: update is isolated from the interactive runtime).
 - Startup is budgeted (`a1-shell`: 5 s cold / 3 s warm to first usable frame).
-- `a1 version` already reads dist-tags (`npm view … dist-tags --json`, falling back to a registry fetch) but only for prerelease builds and without reusable exports.
+- `a1 version` already reads dist-tags (`npm view … dist-tags --json`, falling back to a registry fetch) but only for prerelease builds and without reusable exports; stable builds print only their installed version, following Pi.
 
 ## Goals / Non-Goals
 
@@ -56,7 +56,12 @@ The notice reuses the extension-package banner path: after the banner and loaded
 
 When the extension-package notice is also present, the A1 notice renders first.
 
-### D7. Newer-than guard in `a1 update`
+### D7. Stable `a1 version` shows the release comparison
+A stable build prints `Current: <installed>` followed by `Release: <latest>`. This is the stable-channel subset of the development output (`Current`, `Develop`, `Release`). It uses the same `npm view` lookup with the registry fallback. On failure it prints `Release: unavailable` with one `A1` diagnostic and exits 0. The `Develop` line is omitted so stable users are not pointed at previews. `a1 version` is an explicit request, so the startup throttle, cache, and opt-outs (D4, D5) do not apply to it.
+
+*Alternative:* keep Pi's bare-version output for stable builds. Rejected: stable users would then have no command that shows whether they are behind without starting an interactive session.
+
+### D8. Newer-than guard in `a1 update`
 When `a1 update` / `a1 update --develop` resolve a channel head that is not newer than the running version (`isNewerRelease` false) and the target is not already the active release, the command reports it is current and exits 0 without installing. Explicit named previews (`--develop N`, `--develop x.y.z-dev.N`) keep their current behaviour, since naming an older preview is deliberate.
 
 ## Risks / Trade-offs

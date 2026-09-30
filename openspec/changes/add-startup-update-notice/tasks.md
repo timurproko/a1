@@ -2,8 +2,10 @@
 
 - [ ] 1.1 Add `src/foundation/release/latest-release.ts` with channel selection from the running version, dist-tag parsing, a registry fetcher honouring `npm_config_registry` with a 3 s timeout, and a semver `isNewerRelease` that treats invalid versions as not newer.
 - [ ] 1.2 Add the user-level `<configDir>/update-check.json` cache with atomic writes, 24 h freshness per channel, and tolerant reads of missing, corrupt, or other-channel content.
-- [ ] 1.3 Make `src/cli/version-stats.ts` reuse the shared parser and fetcher without changing `a1 version` output.
+- [ ] 1.3 Make `src/cli/version-stats.ts` reuse the shared parser and fetcher without changing development-build `a1 version` output.
 - [ ] 1.4 Cover channel selection, comparison, cache freshness/corruption/channel mismatch, and fetch failure/timeout with unit tests.
+- [ ] 1.5 Make stable `a1 version` query dist-tags and print `Current: <installed>` then `Release: <latest>` without a `Develop` line; on discovery failure print `Release: unavailable` with one `A1` diagnostic and exit 0.
+- [ ] 1.6 Replace the stable no-query case in `test/cli/version-stats.test.ts` with stable success and failure cases, and update the stable-release rationale comment in `src/cli/version-stats.ts`.
 
 ## 2. Startup check wiring
 
