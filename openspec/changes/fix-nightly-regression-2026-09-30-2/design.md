@@ -12,7 +12,7 @@ Opened by the nightly regression triage from the failed run's evidence artifacts
 ## Evidence
 
 - The `release-package-0.2.2-dev.644` artifact of the failed run holds 629 entries whose only native payload is `dist/native/win32-x64/{manifest.json,process-guardian.exe}`; the job list shows `Build process guardian` and `Full documentation review` skipped. [Publish #1](https://github.com/timurproko/a1/actions/runs/36552387091) on `dade587` failed the same Linux and macOS lanes with the same two jobs skipped, so every nightly since #617 was affected; `0.2.2-dev.644` never reached the registry.
-- Against the unfixed `publish.yml`, the new policy test fails on `documentation: expected 'needs.plan.result == …' to match /^always()/` and the guardians condition; with the fix, `release-pipeline-policy.test.ts` (21 tests) passes on Windows/Node 24. Publish runs only on schedule or `workflow_call`, so the next nightly is the end-to-end proof.
+- Against the unfixed `publish.yml`, the new policy test fails on `documentation: expected 'needs.plan.result == …' to match /^always()/` and the guardians condition; with the fix, `release-pipeline-policy.test.ts` (21 tests) passes on Windows/Node 24, as do `tsgo -p tsconfig.json --noEmit` and the `documentation-changed` tier. Publish runs only on schedule or `workflow_call`, so the next nightly is the end-to-end proof.
 
 - Run [Publish #2](https://github.com/timurproko/a1/actions/runs/36698444509) (attempt 1, schedule) on `38530ce` at 2026-09-30T09:48:21Z:
   - `vitest-package-smoke-1` (`package-smoke`) failed on darwin-node24, linux-node24 with exit 1.
