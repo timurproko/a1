@@ -73,4 +73,4 @@ Additive. The A1 settings document version advances with a forward migration tha
 
 ## Open Questions
 
-- Should the throttle interval be shorter (e.g. 4 h) for the development channel, where `next` moves nightly? Default proposal: same 24 h for both.
+_None._ The maintainer confirmed one 24 h throttle interval for both the stable and development channels, even though `next` moves nightly.
