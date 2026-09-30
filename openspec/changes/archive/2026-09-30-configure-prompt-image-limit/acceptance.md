@@ -26,8 +26,8 @@ The manual merge accepts these scenarios:
     "Removing the overflow or raising the limit clears only the image-count warning while unrelated notices stay visible.",
     "An image prompt shows Sending… until the engine accepts it, then Working… or the extension status, while a1 pi keeps its fixed eight-image behaviour."
   ],
-  "archiveDigest": "621270ec9a0b8bc8fa35b588b5ef60f4e8e5365e1231e2a9b9f939c7a3707143",
-  "specDigest": "535897615aba85d1b92e1208f28095934968b29940935dd7dd4c95959cf25334",
+  "archiveDigest": "5de195dc54e08f2f30c738647c76d489c3f9e44b6f60b79fd4c96b87fb974746",
+  "specDigest": "449210694e576da45d64628b9cd130948248141bc4f41e49766ce87291229095",
   "tasksDigest": "69df99b36a91acbc94df33af693fc954121263394c69c982d4e9149bc6cbae75",
   "evidenceDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
   "knownGaps": []
