@@ -150,8 +150,19 @@ export interface PiShellLoadedResourcesPort extends PiShellComponentPort {
   setExpanded(expanded: boolean): void;
 }
 
+export type PiShellImagePreview =
+  | { readonly kind: "cells"; readonly rows: readonly string[] }
+  | { readonly kind: "sixel"; readonly sequence: string; readonly rows: number };
+
+export interface PiShellImagePreviewJob {
+  readonly result: Promise<PiShellImagePreview>;
+  cancel(): void;
+}
+
 export interface PiShellImageAssetResolver {
   resolve(assetId: string): OwnedUiImageAttachment | null;
+  preview?(assetId: string, image: OwnedUiImageAttachment, columns: number,
+    cell: { readonly widthPx: number; readonly heightPx: number }): PiShellImagePreviewJob;
 }
 
 export interface PiShellExtensionRendererResolver {

@@ -16,27 +16,36 @@ describe("packaged image worker", () => {
     await cp(resolve("dist/contracts"), join(root, "dist/contracts"), { recursive: true });
     const relative = "dist/app/session-shell";
     await mkdir(join(root, relative), { recursive: true });
-    for (const name of ["image-worker", "image-preparation-client", "image-preparation", "image-source", "clipboard-image", "system-clipboard"]) {
+    for (const name of ["image-worker", "image-preparation-client", "image-preparation", "image-cell-preview", "image-source", "clipboard-image", "system-clipboard"]) {
       await cp(resolve(relative, `${name}.js`), join(root, relative, `${name}.js`));
     }
     const inventory = JSON.parse(await readFile("dist/runtime-payload-inventory.json", "utf8")) as { paths: string[]; declaredAssets: string[] };
     const wasm = "node_modules/@silvia-odwyer/photon-node/photon_rs_bg.wasm";
     expect(inventory.declaredAssets).toContain(wasm);
-    for (const file of inventory.paths.filter(file => file.startsWith("node_modules/@silvia-odwyer/photon-node/"))) {
+    expect(inventory.paths).toContain("node_modules/sixel/lib/SixelEncoder.js");
+    for (const file of inventory.paths.filter(file => file.startsWith("node_modules/@silvia-odwyer/photon-node/")
+      || file.startsWith("node_modules/sixel/"))) {
       await mkdir(dirname(join(root, file)), { recursive: true });
       await cp(resolve(file), join(root, file));
     }
     await writeFile(join(root, "source.png"), screenshotPng());
     await writeFile(join(root, "probe.mjs"), `
       import { readFile } from 'node:fs/promises';
-      import { ImagePreparationClient } from './dist/app/session-shell/image-preparation-client.js';
-      const client = new ImagePreparationClient();
-      try {
-        const data = (await readFile(new URL('./source.png', import.meta.url))).toString('base64');
-        const result = await client.start(async () => ({kind:'image',data,mimeType:'image/png'})).result;
-        console.log(JSON.stringify({kind:result.kind,length:result.data.length,width:result.width,transformed:result.transformed}));
-      } catch (error) { console.log(JSON.stringify({code:error.code})); }
-      finally { client.dispose(); }
+      import { ImagePreparationClient, runImageWorker } from './dist/app/session-shell/image-preparation-client.js';
+      const data = (await readFile(new URL('./source.png', import.meta.url))).toString('base64');
+      if (process.argv[2] === 'sixel') {
+        try {
+          const result = await runImageWorker({kind:'preview',source:{data,mimeType:'image/png'},options:{format:'sixel',columns:60,cellWidthPx:9,cellHeightPx:18,background:[0,0,0]}}, AbortSignal.timeout(15000));
+          console.log(JSON.stringify({kind:result.kind,framed:/^\\x1bP[0-9;]*q/u.test(result.sequence),suffix:result.sequence.slice(-2),width:result.pixelWidth,rows:result.cellRows}));
+        } catch (error) { console.log(JSON.stringify({code:error.code})); }
+      } else {
+        const client = new ImagePreparationClient();
+        try {
+          const result = await client.start(async () => ({kind:'image',data,mimeType:'image/png'})).result;
+          console.log(JSON.stringify({kind:result.kind,length:result.data.length,width:result.width,transformed:result.transformed}));
+        } catch (error) { console.log(JSON.stringify({code:error.code})); }
+        finally { client.dispose(); }
+      }
     `);
   }, 20_000);
   afterAll(async () => { if (root !== undefined) await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); });
@@ -48,6 +57,14 @@ describe("packaged image worker", () => {
     expect(result).toMatchObject({ kind: "image", transformed: true });
     expect(result.width).toBeLessThanOrEqual(2000);
     expect(result.length).toBeLessThan(4.5 * 1024 * 1024);
+  }, 25_000);
+
+  it("encodes Sixel with the inventoried internal npm dependency", async () => {
+    const { stdout, stderr } = await execute(process.execPath, [join(root, "probe.mjs"), "sixel"], {
+      cwd: root, timeout: 20_000, env: { ...process.env, NODE_PATH: "" },
+    });
+    expect(stderr).toBe("");
+    expect(JSON.parse(stdout)).toMatchObject({ kind: "sixel", framed: true, suffix: "\u001b\\" });
   }, 25_000);
 
   it("reports a missing WASM asset recoverably instead of passing oversized bytes through", async () => {

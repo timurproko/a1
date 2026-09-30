@@ -100,6 +100,7 @@ import {
   renderPiShellTranscriptBlock,
   type PiShellSubmittedPromptComposer,
 } from "../../integrations/pi/components/shell-presenters-transcript.js";
+import { suppressClippedSixelRows } from "../../integrations/pi/components/submitted-image-presentation.js";
 import { onPiThemeChange, PINNED_PI_LAYOUT, piTheme } from "../../integrations/pi/components/upstream/theme/theme.js";
 import {
   piShellHyperlink,
@@ -818,8 +819,10 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       selectionRevision: frame.descriptor.selectionRevision,
       pointerPosition,
     };
-    this.#onViewportFrame?.(frame);
-    return frame.rows;
+    const safeRows = suppressClippedSixelRows(frame.rows);
+    const presentedFrame = safeRows === frame.rows ? frame : { ...frame, rows: safeRows };
+    this.#onViewportFrame?.(presentedFrame);
+    return safeRows;
   }
 
   viewportFrameDescriptor(): TranscriptViewportFrameDescriptor | null {

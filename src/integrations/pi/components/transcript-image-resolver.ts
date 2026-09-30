@@ -15,6 +15,7 @@ export function createTranscriptImageResolver(source: PiShellImageAssetResolver 
   update(initial);
   return {
     resolve: (id: string) => images.get(id) ?? null,
+    ...(source?.preview === undefined ? {} : { preview: source.preview.bind(source) }),
     update,
     dispose: () => images.clear(),
   };
