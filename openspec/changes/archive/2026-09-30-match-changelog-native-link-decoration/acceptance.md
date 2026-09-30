@@ -15,7 +15,7 @@ The manual merge accepts these scenarios:
   "archive": "openspec/changes/archive/2026-09-30-match-changelog-native-link-decoration/",
   "acceptanceManifest": "openspec/changes/archive/2026-09-30-match-changelog-native-link-decoration/acceptance.md",
   "finalizedDate": "2026-09-30",
-  "specBaseSha": "622e2153997061a3248f94784893ea1a6758c286",
+  "specBaseSha": "e0724f640dff08f9ea9696c29d5575cdfdbae049",
   "acceptanceScenarios": [
     "Complete and startup changelog links retain their labels, colors, and exact OSC 8 targets without a renderer-owned solid underline.",
     "Terminal-native dotted idle and solid hover decoration matches agent-content links while hotkeys and `a1 pi` remain unchanged."
