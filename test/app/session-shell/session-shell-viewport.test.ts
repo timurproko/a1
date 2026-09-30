@@ -282,6 +282,7 @@ describe("OwnedUiSessionShell viewport and streaming", () => {
       const closeColumn = rows[titleRow]!.indexOf("✕") + 1;
       expect(closeColumn).toBeGreaterThan(rows[titleRow]!.indexOf("Update Available") + 1);
       expect(rows[titleRow]!.slice(closeColumn - 2, closeColumn + 1)).toBe(" ✕ ");
+      expect(closeColumn).toBe(rows[titleRow]!.trimEnd().length);
 
       const idleTitle = shell.root.render(80)[titleRow];
       shell.root.handleViewportPreInput(`\u001b[<35;${closeColumn};${titleRow + 1}M`);
