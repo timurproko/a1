@@ -3,7 +3,7 @@ import { writeFile } from "node:fs/promises";
 import { describe, expect, it, onTestFailed, onTestFinished } from "vitest";
 import { prepareReopening } from "../../scripts/release/prepare-reopening.mjs";
 import { main } from "../../scripts/release/release.mjs";
-import { createReleaseRuntime } from "../../scripts/release/release-workflow.mjs";
+import { collectReleaseChanges, createReleaseRuntime } from "../../scripts/release/release-workflow.mjs";
 import { createValidationPhaseRecorder } from "../../scripts/release/validation-phase.mjs";
 import { NativeRegressionTrace } from "../support/native-regression-trace.js";
 import { releaseFixture } from "../support/release-command-fixture.js";
@@ -305,4 +305,79 @@ describe("release preparation with real temporary Git and fake external services
     await expect(prepareReopening(options)).rejects.toThrow(/unexpected or changed reopening pull request/);
   }, INTEGRATION_TIMEOUT);
 
+});
+
+describe("changelog baseline from the published Release", () => {
+  function advanceDevelop(f: Awaited<ReturnType<typeof fixture>>, parents: readonly string[], message: string) {
+    const tree = f.git(["rev-parse", `${f.initialHead}^{tree}`], f.remote);
+    return f.git(["commit-tree", tree, ...parents.flatMap(parent => ["-p", parent]), "-m", message], f.remote);
+  }
+  function publishDevelop(f: Awaited<ReturnType<typeof fixture>>, tip: string) {
+    f.git(["update-ref", "refs/heads/develop", tip], f.remote);
+    f.git(["pull", "-q", "--ff-only", "origin", "develop"]);
+  }
+
+  it("ignores local tags, drafts, prereleases, deleted remote tags, and tags off the first-parent history", async () => {
+    const f = await fixture();
+    const side = advanceDevelop(f, [f.baselineHead], "side work");
+    const merge = advanceDevelop(f, [f.initialHead, side], "merge side work");
+    publishDevelop(f, merge);
+    for (const [tag, commit] of [["v0.1.8", f.initialHead], ["v0.1.9", side], ["v0.1.11", merge], ["v0.1.12", merge]] as const) {
+      f.git(["tag", tag, commit], f.remote);
+    }
+    // Invariant: v0.1.10 exists only locally, like a tag GitHub deleted with its Release; v0.2.0 is the stale target.
+    f.git(["tag", "v0.1.10", merge]);
+    f.git(["tag", "v0.2.0", merge]);
+    f.published.push(
+      { tag_name: "v0.1.8", draft: false, prerelease: false },
+      { tag_name: "v0.1.9", draft: false, prerelease: false },
+      { tag_name: "v0.1.10", draft: false, prerelease: false },
+      { tag_name: "v0.1.11", draft: false, prerelease: true },
+      { tag_name: "v0.1.12", draft: true, prerelease: false },
+      { tag_name: "v0.2.1", draft: false, prerelease: false },
+    );
+    const ranges: string[] = [];
+    f.setReleaseChanges(async (base, source) => { ranges.push(`${base}..${source}`); return []; });
+    expect(await main(["minor"], f.runtime)).toBe(0);
+    expect(ranges).toEqual([`${f.initialHead}..${merge}`]);
+    expect(f.logs.join("\n")).toContain(`Changelog covers pull requests merged after v0.1.8 (${f.initialHead.slice(0, 12)}).`);
+  }, INTEGRATION_TIMEOUT);
+
+  it("fails before creating a draft when no published stable Release is a baseline", async () => {
+    const f = await fixture();
+    f.published.splice(0);
+    expect(await main(["patch"], f.runtime)).toBe(1);
+    expect(f.drafts).toEqual([]);
+    expect(f.errors.join("\n")).toContain("the changelog baseline is missing");
+  }, INTEGRATION_TIMEOUT);
+
+  it("lists all 30 pull requests after the last Release despite a stale local target tag", async () => {
+    const f = await fixture();
+    const merges = [f.initialHead];
+    let tip = f.initialHead;
+    for (let index = 2; index <= 30; index++) {
+      const work = advanceDevelop(f, [tip], `work ${index}`);
+      tip = advanceDevelop(f, [tip, work], `Merge pull request #${index}`);
+      merges.push(tip);
+    }
+    publishDevelop(f, tip);
+    // Rationale: the first v0.1.8 publication attempt tagged a commit near the tip; GitHub deleted it, the clone kept it.
+    f.git(["tag", "v0.1.8", merges[25]!]);
+    const gh = (args: readonly string[]) => {
+      if (args[0] === "repo") return "fixture/a1";
+      const commit = /commits\/([a-f0-9]+)\/pulls$/u.exec(args.at(-1) ?? "")?.[1] ?? "";
+      const number = merges.indexOf(commit) + 1;
+      if (number < 1) throw new Error(`unexpected GitHub operation: ${args.join(" ")}`);
+      return JSON.stringify([{ number, title: `Change ${number}`, html_url: `https://github.com/fixture/a1/pull/${number}`,
+        merged_at: "2026-09-29T00:00:00Z", base: { ref: "develop" }, merge_commit_sha: commit }]);
+    };
+    const listed: number[] = [];
+    f.setReleaseChanges(async (base, source) => {
+      const changes = await collectReleaseChanges((args: readonly string[]) => f.git(args), gh, base, source);
+      listed.push(...changes.map(change => change.number));
+      return changes;
+    });
+    expect(await main(["patch"], f.runtime)).toBe(0);
+    expect(listed).toEqual(Array.from({ length: 30 }, (_, index) => index + 1));
+  }, INTEGRATION_TIMEOUT);
 });

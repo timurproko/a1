@@ -82,6 +82,10 @@ export async function releaseFixture(version = "0.1.8-dev", trace?: NativeRegres
   const gitCalls: Array<{ args: readonly string[]; directory: string }> = [];
   const ghCalls: string[][] = [];
   const drafts: FakeDraftRelease[] = [];
+  // Rationale: published Releases stay apart from drafts so assertions about drafts are unaffected.
+  const published: Array<Pick<FakeDraftRelease, "tag_name" | "draft" | "prerelease">> = [
+    { tag_name: `v${baselineVersion}`, draft: false, prerelease: false },
+  ];
   let releaseChanges: (base: string, source: string) => Promise<readonly { number: number; title: string; url: string }[]> = async () => [];
   let registry: (name: string, requested: string) => unknown | Promise<unknown> = () => null;
   let dispatchValidation: (candidate: { repository: string; source: string; version: string }) =>
@@ -103,7 +107,7 @@ export async function releaseFixture(version = "0.1.8-dev", trace?: NativeRegres
       ghCalls.push([...args]);
       if (args[0] === "repo" && args[1] === "view") return "fixture/a1";
       if (args[0] === "api") {
-        if (args[1] === "repos/fixture/a1/releases?per_page=100") return JSON.stringify(drafts);
+        if (args[1] === "repos/fixture/a1/releases?per_page=100") return JSON.stringify([...drafts, ...published]);
         if (args.includes("POST") && args.includes("repos/fixture/a1/releases")) {
           const fields = Object.fromEntries(args.flatMap((arg, index) => (arg === "-f" || arg === "-F")
             ? [String(args[index + 1]).split(/=(.*)/su).slice(0, 2)] : []));
@@ -147,7 +151,7 @@ export async function releaseFixture(version = "0.1.8-dev", trace?: NativeRegres
   });
   return {
     directory, cwd, remote, git, runtime, initialHead, baselineHead, baselineVersion, manifest, lock, installer,
-    logs, errors, events, gitCalls, ghCalls, drafts,
+    logs, errors, events, gitCalls, ghCalls, drafts, published,
     setReleaseChanges(fn: typeof releaseChanges) { releaseChanges = fn; },
     setRegistry(fn: typeof registry) { registry = fn; },
     setDispatchValidation(fn: typeof dispatchValidation) { dispatchValidation = fn; },

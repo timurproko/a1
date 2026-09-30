@@ -152,6 +152,7 @@ jobs:
     outputs:
       release_id: ${{ steps.approval.outputs.release_id }}
       release_notes_sha256: ${{ steps.approval.outputs.release_notes_sha256 }}
+      validation_run_id: ${{ steps.approval.outputs.validation_run_id }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
@@ -235,6 +236,7 @@ jobs:
           }, null, 2)}\n`, "utf8");
           console.log(`release_id=${release.id}`);
           console.log(`release_notes_sha256=${sha256}`);
+          console.log(`validation_run_id=${validationRunId ?? ""}`);
           NODE
       - name: Preserve the immutable approved snapshot
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
@@ -269,6 +271,7 @@ jobs:
       installer_registry_tarball: ${{ steps.plan.outputs.installer_registry_tarball }}
       release_id: ${{ needs.approval.outputs.release_id }}
       release_notes_sha256: ${{ needs.approval.outputs.release_notes_sha256 }}
+      validation_run_id: ${{ needs.approval.outputs.validation_run_id }}
       validate_matrix: ${{ steps.lanes.outputs.validate_matrix }}
     steps:
       - name: Check out the selected source
@@ -423,7 +426,8 @@ jobs:
   guardians:
     name: Build process guardian (${{ matrix.os }})
     needs: plan
-    if: needs.plan.outputs.build == 'true'
+    # Rationale: stable publication adopts the candidate-validated package, so nothing is rebuilt.
+    if: needs.plan.outputs.build == 'true' && needs.plan.outputs.mode != 'stable'
     strategy:
       fail-fast: false
       matrix:
@@ -503,21 +507,55 @@ jobs:
           actual="$(node --input-type=module -e 'import { createHash } from "node:crypto"; import { readFileSync } from "node:fs"; process.stdout.write(createHash("sha256").update(readFileSync(process.argv[1])).digest("hex"))' "docs/releases/${RELEASE_VERSION}.md")"
           test "$actual" = "$RELEASE_NOTES_SHA256"
 
+      - name: Install adoption tooling without building the application
+        if: needs.plan.outputs.mode == 'stable'
+        run: npm ci --ignore-scripts
+
+      - name: Download the candidate-validated package pair
+        id: candidate
+        if: needs.plan.outputs.mode == 'stable'
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: release-package-${{ needs.plan.outputs.version }}
+          path: .artifacts/candidate
+          run-id: ${{ needs.plan.outputs.validation_run_id }}
+          repository: ${{ github.repository }}
+          github-token: ${{ github.token }}
+
+      - name: Explain an unavailable candidate package
+        if: failure() && steps.candidate.outcome == 'failure'
+        shell: bash
+        env:
+          VALIDATION_RUN_ID: ${{ needs.plan.outputs.validation_run_id }}
+        run: |
+          echo "::error::candidate validation run $VALIDATION_RUN_ID no longer provides its validated package (missing or expired); rerun candidate validation of this source and version, then publish the draft again" >&2
+          exit 1
+
+      - name: Adopt the candidate-validated package pair
+        if: needs.plan.outputs.mode == 'stable'
+        env:
+          CANDIDATE_DIRECTORY: .artifacts/candidate
+          OUTPUT_DIRECTORY: .artifacts/validation/package
+          APPROVED_NOTE_PATH: .artifacts/release-note/approved-note.md
+          SOURCE_SHA: ${{ needs.plan.outputs.source }}
+          RELEASE_VERSION: ${{ needs.plan.outputs.version }}
+        run: node scripts/release/adopt-validated-candidate.mjs
+
       - name: Prepare Rust toolchain
-        if: needs.plan.outputs.build == 'true'
+        if: needs.plan.outputs.build == 'true' && needs.plan.outputs.mode != 'stable'
         shell: bash
         run: bash scripts/development/prepare-ci-rust.sh
 
       - name: Install dependencies and build source once
-        if: needs.plan.outputs.build == 'true'
+        if: needs.plan.outputs.build == 'true' && needs.plan.outputs.mode != 'stable'
         run: npm ci
 
       - name: Install package tooling without building the application
-        if: needs.plan.outputs.build != 'true' && needs.plan.outputs.installer_build == 'true'
+        if: needs.plan.outputs.build != 'true' && needs.plan.outputs.installer_build == 'true' && needs.plan.outputs.mode != 'stable'
         run: npm ci --ignore-scripts
 
       - name: Assemble all platform process guardians
-        if: needs.plan.outputs.build == 'true'
+        if: needs.plan.outputs.build == 'true' && needs.plan.outputs.mode != 'stable'
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           pattern: release-process-guardian-*
@@ -525,18 +563,18 @@ jobs:
           merge-multiple: true
 
       - name: Stamp the published version on the open development source
-        if: needs.plan.outputs.build == 'true'
+        if: needs.plan.outputs.build == 'true' && needs.plan.outputs.mode != 'stable'
         shell: bash
         env:
           RELEASE_VERSION: ${{ needs.plan.outputs.version }}
         run: npm version "$RELEASE_VERSION" --no-git-tag-version --allow-same-version
 
       - name: Record verified candidate build
-        if: needs.plan.outputs.build == 'true'
+        if: needs.plan.outputs.build == 'true' && needs.plan.outputs.mode != 'stable'
         run: node scripts/release/record-validation-prerequisite.mjs build
 
       - name: Pack the candidate exactly once
-        if: needs.plan.outputs.build == 'true'
+        if: needs.plan.outputs.build == 'true' && needs.plan.outputs.mode != 'stable'
         env:
           VALIDATION_BUILD_RECEIPT: ${{ github.workspace }}/.artifacts/validation/receipts/build.json
         run: node scripts/release/prepare-validation-package.mjs
@@ -557,7 +595,7 @@ jobs:
           NODE
 
       - name: Pack the installer candidate exactly once
-        if: needs.plan.outputs.installer_build == 'true'
+        if: needs.plan.outputs.installer_build == 'true' && needs.plan.outputs.mode != 'stable'
         env:
           RELEASE_VERSION: ${{ needs.plan.outputs.version }}
         run: node scripts/release/prepare-installer-package.mjs
@@ -663,7 +701,8 @@ jobs:
   validate:
     name: Validate ${{ matrix.platform }}
     needs: [plan, package, documentation]
-    if: always() && needs.plan.result == 'success' && needs.package.result == 'success' && (needs.documentation.result == 'success' || needs.documentation.result == 'skipped')
+    # Rationale: the successful candidate run already validated the adopted stable bytes on every lane.
+    if: always() && needs.plan.result == 'success' && needs.plan.outputs.mode != 'stable' && needs.package.result == 'success' && (needs.documentation.result == 'success' || needs.documentation.result == 'skipped')
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.plan.outputs.validate_matrix) }}
@@ -714,10 +753,6 @@ jobs:
         run: |
           if [ "$MODE" = "develop" ]; then
             selected='["package-smoke","package-install"]'
-          elif [ "$MODE" = "stable" ]; then
-            # Rationale: the successful candidate run already validated this source with the full suite;
-            # only the published note changed, so the repacked bytes rerun the exact-package gates.
-            selected='["package-contracts","package-smoke","package-startup","package-install"]'
           else
             selected='["full-release"]'
           fi
@@ -762,7 +797,7 @@ jobs:
           A1_CONFIG_DIR: ${{ runner.temp }}/a1-release-config
           A1_DATA_DIR: ${{ runner.temp }}/a1-release-data
           A1_RUNTIME_DIR: ${{ runner.temp }}/a1-release-runtime
-          # Rationale: stable candidate validation and publication enforce the first attempt; every
+          # Rationale: stable candidate validation enforces the first attempt; every
           # scheduled or preview channel records, and the nightly triage judges a persistent overrun.
           STARTUP_BUDGET_ENFORCEMENT: ${{ needs.plan.outputs.channel == 'latest' && 'fail' || 'record' }}
           STARTUP_PERFORMANCE_RESULT: .artifacts/validation/startup-${{ matrix.platform }}.json
@@ -809,7 +844,7 @@ jobs:
   publish:
     name: Publish ${{ needs.plan.outputs.version }} to npm ${{ needs.plan.outputs.channel }}
     needs: [plan, package, documentation, validate]
-    if: always() && needs.plan.outputs.mode != 'candidate' && (needs.plan.outputs.build == 'true' || needs.plan.outputs.installer_build == 'true') && needs.package.result == 'success' && (needs.documentation.result == 'success' || needs.documentation.result == 'skipped') && needs.validate.result == 'success'
+    if: always() && needs.plan.outputs.mode != 'candidate' && (needs.plan.outputs.build == 'true' || needs.plan.outputs.installer_build == 'true') && needs.package.result == 'success' && (needs.documentation.result == 'success' || needs.documentation.result == 'skipped') && (needs.validate.result == 'success' || (needs.plan.outputs.mode == 'stable' && needs.validate.result == 'skipped'))
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     environment: npm-publish
@@ -888,13 +923,14 @@ jobs:
           await check(installer.name, process.env.EXPECTED_INSTALLER_INTEGRITY, process.env.EXPECTED_INSTALLER_SHASUM, "publish_installer");
           NODE
 
+      # Rationale: npm otherwise refuses an untrusted caller only at an upload, possibly after the
+      # other package was published; this proves both before either upload step starts.
+      - name: Prove npm trusted publishing for both packages
+        if: steps.final.outputs.publish == 'true' || steps.final.outputs.publish_installer == 'true'
+        run: node scripts/release/npm-trust-preflight.mjs
+
       - name: Publish the exact validated installer package
         if: steps.final.outputs.publish_installer == 'true'
-        env:
-          # One-time bootstrap: npm cannot attach a trusted publisher before a package exists.
-          # After the first publication, configure this workflow as the package's trusted
-          # publisher, delete NPM_BOOTSTRAP_TOKEN, and npm 11 uses GitHub OIDC directly.
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_BOOTSTRAP_TOKEN }}
         run: npm publish "$installer_tarball" --tag "${{ needs.plan.outputs.channel }}" --access public --ignore-scripts --provenance --registry https://registry.npmjs.org/
 
       - name: Publish the exact validated application package
@@ -1036,13 +1072,13 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Download validation evidence for the failure summary
-        if: always() && needs.plan.outputs.work == 'true' && (needs.package.result != 'success' || needs.validate.result != 'success' || (needs.plan.outputs.mode != 'candidate' && (needs.plan.outputs.build == 'true' || needs.plan.outputs.installer_build == 'true') && (needs.publish.result != 'success' || needs.post_publish.result != 'success' || needs.complete.result != 'success')))
+        if: always() && needs.plan.outputs.work == 'true' && (needs.package.result != 'success' || (needs.validate.result != 'success' && !(needs.plan.outputs.mode == 'stable' && needs.validate.result == 'skipped')) || (needs.plan.outputs.mode != 'candidate' && (needs.plan.outputs.build == 'true' || needs.plan.outputs.installer_build == 'true') && (needs.publish.result != 'success' || needs.post_publish.result != 'success' || needs.complete.result != 'success')))
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           pattern: release-validation-${{ needs.plan.outputs.version }}-*
           path: .artifacts/lanes
       - name: Summarize the failed outcome
-        if: always() && needs.plan.outputs.work == 'true' && (needs.package.result != 'success' || needs.validate.result != 'success' || (needs.plan.outputs.mode != 'candidate' && (needs.plan.outputs.build == 'true' || needs.plan.outputs.installer_build == 'true') && (needs.publish.result != 'success' || needs.post_publish.result != 'success' || needs.complete.result != 'success')))
+        if: always() && needs.plan.outputs.work == 'true' && (needs.package.result != 'success' || (needs.validate.result != 'success' && !(needs.plan.outputs.mode == 'stable' && needs.validate.result == 'skipped')) || (needs.plan.outputs.mode != 'candidate' && (needs.plan.outputs.build == 'true' || needs.plan.outputs.installer_build == 'true') && (needs.publish.result != 'success' || needs.post_publish.result != 'success' || needs.complete.result != 'success')))
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -1091,7 +1127,8 @@ jobs:
             echo "$VERSION already exists; successful no-op." >> "$GITHUB_STEP_SUMMARY"
           else
             test "$PACKAGE" = success
-            test "$VALIDATE" = success
+            # Invariant: only stable publication skips validation, because it adopts candidate-validated bytes.
+            if [ "$MODE" = stable ]; then test "$VALIDATE" = skipped; else test "$VALIDATE" = success; fi
             if [ "$MODE" != candidate ] && { [ "$BUILD" = true ] || [ "$INSTALLER_BUILD" = true ]; }; then
               test "$PUBLISH" = success
               test "$POST_PUBLISH" = success
