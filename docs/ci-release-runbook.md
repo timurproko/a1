@@ -16,13 +16,22 @@ without publishing, and native **Publish release** on the prepared draft runs
 `finalize-release.yml`, which publishes.
 The maintainer never opens Actions or re-enters the version.
 
-npm trusted publishing binds authorization to the exact workflow filename. When
-this workflow path changes, merge with enough time before the next schedule, then
-update the trusted-publisher workflow setting for both `@timurproko/a1` and
-`@timurproko/a1-install` while preserving this repository and the `npm-publish`
-environment. For the `release.yml` to `publish.yml` migration, do not dispatch a
-development or stable publication and do not allow the nightly publication to start
-until both npm package settings name `publish.yml`.
+npm trusted publishing binds authorization to the exact workflow filename of the
+*calling* workflow, not the reusable `publish.yml` it calls. Both `@timurproko/a1` and
+`@timurproko/a1-install` must therefore list each caller as a trusted publisher on
+npmjs.com, with repository `timurproko/a1` and environment `npm-publish`:
+
+| Trusted publisher workflow | Publishes |
+| --- | --- |
+| `finalize-release.yml` | stable `latest` after native **Publish release** |
+| `develop.yml` | numbered previews from `npm run develop` |
+| `publish.yml` | nightly `next` from its own schedule |
+
+The retired `release.yml` entry grants nothing and should be removed. No npm token is
+used: before either upload, the publish job requires npm >= 11.5.1 and completes the
+trusted-publishing token exchange for both packages. A refusal fails there, before
+anything is uploaded, and names the workflow and environment to register. When a
+caller's path changes, update both packages before the next publication through it.
 
 `.github/workflows/documentation-auto-merge.yml` is the only pull-request
 auto-merge authority. It runs trusted policy from `develop`; it never checks out or
@@ -73,7 +82,7 @@ effect of stable publication, not a trigger.
 | `npm run develop` | Preview package gates on Windows, Linux, and macOS; an existing numbered preview is an early successful no-op |
 | Nightly at `03:17 UTC` | One full documentation review plus the complete non-physical suite on Windows, Linux, and macOS, every night |
 | `npm run release -- ...` | Creates an editable source-bound draft (or refreshes the existing draft of that version bound to an older `develop`, regenerating its notes and removing duplicate drafts of that version), starts the complete stable suite on that source in `.github/workflows/release-candidate.yml`, prints its run link, waits, and prints the draft edit link only after validation passes |
-| Native **Publish release** on the prepared draft | GitHub creates the source-bound tag; `.github/workflows/finalize-release.yml` requires the successful candidate run, repacks with the published note, reruns the exact-package gates, publishes both packages to npm `latest`, and proposes one manually merged reopening-and-note PR; a failure before npm returns the Release to draft |
+| Native **Publish release** on the prepared draft | GitHub creates the source-bound tag; `.github/workflows/finalize-release.yml` requires the successful candidate run, adopts the package pair it validated (replacing only the packaged release-note resource when the note was edited), proves npm trust, publishes both packages to npm `latest`, and proposes one manually merged reopening-and-note PR; a failure before npm returns the Release to draft |
 | `.github/workflows/release-tag-cleanup.yml` | When a stable Release is deleted, or on dispatch with a version (`gh workflow run release-tag-cleanup.yml -f version=X.Y.Z`): the release-automation App deletes the leftover `vX.Y.Z` tag only while no Release uses it and npm serves neither package; a published version's tag is permanent |
 | `.github/workflows/full-regression.yml` | Additional on-demand complete regression without publication authority |
 | `.github/workflows/pi-upstream-sync.yml` | Nightly at `03:23 UTC`: when npm publishes a newer Pi than the pin that no closed proposal skipped, proposes the upgrade as a draft pull request with the vendored copies that follow upstream merged, the kept copies reported with their upstream delta, the ledger, headers, inventories, public API and feature baselines, startup graph, and parity evidence regenerated, and every gate verdict (passed, failed, or blocked by conflict markers) and review item in the body; never merges and never replaces a proposal a human has continued |
@@ -135,12 +144,12 @@ node scripts/release/report-resource-sensitive-validation.mjs --repeats 3 --outp
 
 For applicable code changes, it requires the dedicated Defender-enabled exact-package startup lane on Windows Node 22. Development validation (including manual dispatch) does not schedule a Windows Node 24 startup lane. The Node 22 lane retains the complete package-install, image preparation/package, and durable-history checks plus startup evidence artifacts. A missing, cancelled, failed, or unexpectedly skipped required startup result still blocks the aggregate; documentation-only, version-only, and draft exemptions are unchanged.
 
-| Startup runtime | Development validation (PR or manual) | Development preview (`npm run develop`) | Nightly and stable publication | Manual Full regression |
+| Startup runtime | Development validation (PR or manual) | Development preview (`npm run develop`) | Nightly publication and stable candidate validation | Manual Full regression |
 | --- | --- | --- | --- | --- |
 | Windows Node 22 | Required for applicable changes | Not scheduled | Retained | Retained |
 | Windows Node 24 | Not scheduled | Retained | Retained | Retained |
 
-Each selected startup lane runs the package-install scenarios once: a failed budget remains failed and is never retried to obtain a warmed result. The budgets are the ones the `a1-shell` capability declares (2 seconds after an update and on a warm launch, 2.5 seconds with no live supervisor); development validation, development previews, nightly publication, and Full regression record an overrun as a warning and are judged by the three-run persistent-overrun verdict, while stable publication fails on it (see `STARTUP_BUDGET_ENFORCEMENT` in [validation](validation.md)). The publication lane set comes from `scripts/release/publication-validation-matrix.mjs`: a numbered preview validates on the Windows, Linux, and macOS Node 24 lanes, and nightly covers the same head on Windows Node 22 within a day. Node 24 runtime support, other PR jobs, Defender, and publication gates are unchanged. Full validation retains every deferred startup, image, and history test through its existing suite owners.
+Each selected startup lane runs the package-install scenarios once: a failed budget remains failed and is never retried to obtain a warmed result. The budgets are the ones the `a1-shell` capability declares (2 seconds after an update and on a warm launch, 2.5 seconds with no live supervisor); development validation, development previews, nightly publication, and Full regression record an overrun as a warning and are judged by the three-run persistent-overrun verdict, while stable candidate validation fails on it (see `STARTUP_BUDGET_ENFORCEMENT` in [validation](validation.md)). The publication lane set comes from `scripts/release/publication-validation-matrix.mjs`: a numbered preview validates on the Windows, Linux, and macOS Node 24 lanes, and nightly covers the same head on Windows Node 22 within a day. Node 24 runtime support, other PR jobs, Defender, and publication gates are unchanged. Full validation retains every deferred startup, image, and history test through its existing suite owners.
 
 The trade-off is delayed detection: a Node-24-specific regression can reach `develop` before nightly catches it, and the same is true for a real published-predecessor regression. A green bounded PR check does not certify Node 24 or real historical predecessor execution, and nightly failure still blocks its publication. For an unselected candidate or diagnosis, explicitly request the non-publishing standalone Full regression workflow for the desired branch or tag:
 
@@ -247,8 +256,11 @@ stands on its own line. Interrupting the wait is safe: validation keeps running,
 rerunning the command resumes waiting on the same run. The maintainer never re-enters
 the version. The retired `--approve` form remains a mutation-free usage error.
 
-1. **Prepare.** The command checks npm and the target tag, resolves the latest
-   complete stable baseline, and maps every first-parent commit through one merged
+1. **Prepare.** The command checks npm and the target tag, takes as its baseline the
+   highest published, non-prerelease GitHub Release below the target whose tag on
+   `origin` is in the source's first-parent history (local tags are ignored, so a tag
+   left behind by a deleted Release cannot shorten the changelog; no such Release
+   stops preparation), and maps every later first-parent commit through one merged
    GitHub pull request. It generates Pi-style Markdown beginning
    `## [version] - YYYY-MM-DD`, followed by applicable `### Breaking Changes`,
    `### New Features`, `### Added`, `### Changed`, and `### Fixed` sections, and
@@ -266,10 +278,14 @@ the version. The retired `--approve` form remains a mutation-free usage error.
    the Release and tag to match the bound source, both npm versions to be absent, and
    the candidate validation of that exact source and version to have succeeded. Apps,
    bots, pushed tags, and dispatch payloads grant no npm authority. It snapshots the
-   published body, repacks both packages over committed history, reruns the
-   exact-package gates (package contracts, smoke, startup, installer pair) on those
-   final bytes, publishes both to npm `latest` with provenance, verifies the published
-   pair, uploads the asset, fast-forwards `master`, and creates or exactly reuses
+   published body and downloads the package pair that candidate run retained,
+   requiring it to bind the same source commit, tree, version, and recorded
+   integrity. An unchanged note publishes the validated bytes as they are; an edited
+   note replaces only the packaged release-note resource, and every other entry, entry
+   mode, and the installer are proven byte-identical. Nothing is rebuilt or
+   revalidated. It then proves npm trusted publishing for both packages, publishes
+   both to npm `latest` with provenance, verifies and exercises the published pair,
+   uploads the asset, fast-forwards `master`, and creates or exactly reuses
    `chore/release-0.1.9-dev`. That PR's single commit changes only the application
    manifest, root lockfile, installer version, and exact `docs/releases/0.1.8.md`.
    Let required CI pass and **merge it manually**. Automation never merges or
@@ -294,10 +310,12 @@ extra-path, wrong-body, or ambiguous work is refused. An existing reopening bran
 without that exact PR is preserved rather than overwritten. The local preparation
 checkout is never committed, reset, or used to publish package bytes.
 
-Stable publication builds the process guardian on all supported platforms, stamps
-the version, packs each package once, runs the exact-package gates against those
-bytes on Windows, Linux, and macOS, publishes both to npm `latest` with provenance
-from the `npm-publish` environment, and exercises the exact published
+Candidate validation builds the process guardian on all supported platforms, stamps
+the version, packs each package once, runs the complete stable suite against those
+bytes on Windows, Linux, and macOS, and retains the pair for 30 days as
+`release-package-<version>`. Stable publication skips the guardian builds and
+validation lanes, adopts that retained pair, publishes both to npm `latest` with
+provenance from the `npm-publish` environment, and exercises the exact published
 installer/application pair in isolated prefixes on every release lane. Only after
 those post-publication checks pass does it upload the Release asset and fast-forward
 `master`. A pushed tag does not publish npm packages; only native publication of the
@@ -313,15 +331,6 @@ moves a tag, never deletes a tag at any other commit, and keeps both the Release
 tag once npm may have been reached. The `a1-protect-release-tags` ruleset must list
 that App (`openspec-ci`) as its single bypass actor.
 
-The installer package does not yet exist on npm, so its first publication needs a
-one-time granular token in the `npm-publish` environment secret
-`NPM_BOOTSTRAP_TOKEN`; the workflow still publishes the exact validated tarball
-with provenance. Immediately after that first successful publication, configure
-`.github/workflows/publish.yml` and environment `npm-publish` as the package's npm
-trusted publisher, delete the bootstrap secret, and let npm 11 authenticate future
-publications through GitHub OIDC. Both packages must name the current
-`publish.yml` path in their trusted-publisher settings.
-
 Preparation refuses any target tag that already exists; publish the draft instead of
 pushing a tag.
 
@@ -334,7 +343,7 @@ Rules that do not bend:
 ## When something fails
 
 - **PR validation fails:** fix the code and push; do not mark a failed PR-cadence tier optional. If real predecessor history is needed, run Full regression rather than changing the exhaustive result into PR success.
-- **Nightly startup budget overruns:** a single overrun on Full regression or nightly publication is a warning in the run summary, not a failure; the triage judges the key across the three most recent `develop` runs and opens a `package-startup` candidate only when all three overran. Stable publication still fails on one overrun; rerun it with the measured phases in hand.
+- **Nightly startup budget overruns:** a single overrun on Full regression or nightly publication is a warning in the run summary, not a failure; the triage judges the key across the three most recent `develop` runs and opens a `package-startup` candidate only when all three overran. Stable candidate validation still fails on one overrun; rerun it with the measured phases in hand.
 - **Nightly regression fails:** the triage workflow opens or refreshes a draft `fix/nightly-regression-<date>` pull request whose body and change carry the evidence and whose `regression-provenance.json` binds the source run; start the fix there. A failed Full regression source created by `openspec-ci` selects PR-attached Full regression, while a Publish-only failure or successful-run persistent overrun retains ordinary PR validation. Reproduce from the listed tests or commands on the failed lane and fix without weakening assertions, budgets, timeouts, or coverage. Record focused implementation evidence and pre-finalization observations in the change, then require `Development validation required` and, when selected, PR-attached Full regression on the finalized exact head. Put final run/head/selection in Actions and handoff rather than making another evidence-recording commit. Standalone dispatch remains diagnostic; numbered-package nightly recovery is independent. A day whose failed scope set differs from every open candidate opens a new one. A Full regression dispatched on a candidate's own branch is that candidate's proof but never selected PR authority; its failures never open another candidate. A failure with no candidate means the triage workflow itself failed; read its run summary and dispatch it with the failed run id and `dry_run` off.
 - **Nightly exhaustive predecessor validation fails:** treat the focused PR result as insufficient, keep publication blocked, and repair the incompatibility without reducing predecessor count, timeouts, or exact-package isolation.
 - **Documentation auto-merge fails:** leave the pull request open, inspect its exact
@@ -356,7 +365,7 @@ Rules that do not bend:
 - **Registry verification times out:** a `has not propagated` failure after a successful `npm publish` means npm is still ingesting the upload; it warns that a provenance-signed package "may take a few minutes" and the publisher polls for ten minutes. Confirm the version and its shasum on `https://registry.npmjs.org/<name>/<version>`, then rerun the failed jobs: the final registry check finds the exact bytes, skips `npm publish`, and verification passes. A digest or tag mismatch is not a timeout and is never repaired by rerunning.
 - **Draft preparation stops:** inspect the reported draft Release. Preparation may safely reuse an exact source-bound draft without overwriting edits, and reuses a running or successful validation of the same source and version. If `develop` advanced, retire the stale draft explicitly and prepare a new one from synchronized `develop`.
 - **Candidate validation fails:** do not publish the draft. Fix the failure on `develop`, retire the draft, and prepare again; the new draft binds the new source. Publishing anyway fails before npm and returns the Release to draft.
-- **Publication fails before npm:** the rollback job returns the Release to draft and deletes the unconsumed tag, so no manual tag cleanup is needed. Read the failed `Publish stable release` run, fix the cause (for example, wait for validation or undo a body edit made after publishing), and choose **Publish release** again. If the rollback job itself failed, rerun it; never delete or move a tag by hand.
+- **Publication fails before npm:** the rollback job returns the Release to draft and deletes the unconsumed tag, so no manual tag cleanup is needed. Read the failed `Publish stable release` run, fix the cause (for example, wait for validation, undo a body edit made after publishing, rerun candidate validation when its retained package is missing or older than 30 days, or register the trusted publisher the npm preflight names), and choose **Publish release** again. If the rollback job itself failed, rerun it; never delete or move a tag by hand.
 - **Publication fails after npm:** the Release and tag stay. Rerun the failed jobs of that same run: its retained candidate and digests make the final registry check an exact-byte no-op for any package already published. Any recovered reopening PR must contain only both next `-dev` version declarations and the exact approved `docs/releases/<released>.md`; merge it by hand after CI. Never republish immutable bytes. Never repeat stable publication for a published version.
 
 ## Safe release-command validation

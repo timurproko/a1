@@ -183,14 +183,40 @@ function removeDuplicateDrafts(r, repository, version, duplicates) {
     r.log(`Removed a duplicate v${version} draft (${duplicate.tag_name}, ${String(duplicate.target_commitish).slice(0, 12)}).`);
   }
 }
-async function normalBaseline(r, source) {
-  r.git(["fetch", "-q", "origin", "--tags"]);
-  const tag = r.git(["describe", "--first-parent", "--tags", "--abbrev=0", "--match", "v[0-9]*", source]);
-  const version = tag.startsWith("v") ? tag.slice(1) : "";
-  if (semver.valid(version) !== version || semver.prerelease(version) !== null) throw new Error(`latest release baseline ${tag} is not an exact stable tag`);
-  const commit = r.git(["rev-parse", `${tag}^{commit}`]);
-  r.git(["merge-base", "--is-ancestor", commit, source]);
-  return commit;
+/**
+ * Selects the changelog baseline from authoritative remote state: the highest published, non-prerelease
+ * Release below the target whose tag, as resolved on origin, is in the source's first-parent history.
+ * Rationale: local tags are never consulted, because a tag GitHub deleted with its Release survives
+ * `git fetch --tags` and would silently shorten the range.
+ */
+function publishedBaseline(r, repository, source, version) {
+  const releases = JSON.parse(r.gh(["api", `repos/${repository}/releases?per_page=100`]));
+  if (!Array.isArray(releases) || releases.length >= 100) throw new Error("GitHub release response is invalid or exceeds its bounded page");
+  const versions = [...new Set(releases.flatMap(release => {
+    const tag = typeof release?.tag_name === "string" ? release.tag_name : "";
+    const candidate = tag.startsWith("v") ? tag.slice(1) : "";
+    return release?.draft === false && release?.prerelease === false && semver.valid(candidate) === candidate
+      && semver.prerelease(candidate) === null && semver.lt(candidate, version) ? [candidate] : [];
+  }))].sort(semver.rcompare);
+  const remoteTags = remoteTagCommits(r);
+  const history = new Set(r.git(["rev-list", "--first-parent", source]).split("\n").filter(Boolean));
+  for (const candidate of versions) {
+    const commit = remoteTags.get(`v${candidate}`);
+    if (commit !== undefined && history.has(commit)) return { version: candidate, commit };
+  }
+  throw new Error(`no published stable Release below v${version} has a tag on origin in the first-parent history of ${source}; `
+    + "the changelog baseline is missing");
+}
+/** Maps each remote tag to its commit, preferring the peeled entry that annotated tags add. */
+function remoteTagCommits(r) {
+  const commits = new Map();
+  for (const line of r.git(["ls-remote", "--tags", "origin"]).split("\n").filter(Boolean)) {
+    const [object, ref] = line.split(/\s+/u);
+    const match = /^refs\/tags\/(.+?)(\^\{\})?$/u.exec(ref ?? "");
+    if (!SHA.test(object ?? "") || match === null) throw new Error("origin tag listing is invalid");
+    if (match[2] !== undefined || !commits.has(match[1])) commits.set(match[1], object);
+  }
+  return commits;
 }
 async function prepareDraftRelease(r, repository, source, version, local) {
   checkCanceled(r);
@@ -213,8 +239,9 @@ async function prepareDraftRelease(r, repository, source, version, local) {
     return draft;
   }
 
-  const previous = await normalBaseline(r, source);
-  const markdown = parseReleaseNote(renderReleaseNoteDraft(version, await r.releaseChanges(previous, source), r.releaseDate), version).markdown;
+  const previous = publishedBaseline(r, repository, source, version);
+  r.log(`Changelog covers pull requests merged after v${previous.version} (${previous.commit.slice(0, 12)}).`);
+  const markdown = parseReleaseNote(renderReleaseNoteDraft(version, await r.releaseChanges(previous.commit, source), r.releaseDate), version).markdown;
   assertAuthoritative(r, source, local.manifest.version, local.manifest.name);
   if (existing !== null) {
     const updated = JSON.parse(r.gh([
