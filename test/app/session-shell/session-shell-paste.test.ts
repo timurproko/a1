@@ -897,7 +897,7 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
         const frame = stripTerminalSequences(shell.root.render(80).join("\n"));
         expect(frame).toContain("Warning:");
         expect(frame).toContain(countMessage);
-        expect(frame).toContain("limit in /settings.");
+        expect(frame).toContain("limit /settings.");
         expect(frame).not.toContain("Error:");
       });
       const rejected = imageTags().at(-1)!;

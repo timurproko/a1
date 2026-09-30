@@ -36,7 +36,7 @@ export class ImageAttachmentError extends TypeError {
   constructor(code: keyof typeof MESSAGES, imageLimit: number = DEFAULT_PROMPT_IMAGE_LIMIT) {
     assertPromptImageLimit(imageLimit);
     super(code === "image-count"
-      ? `A prompt is limited to ${imageLimit} ${imageLimit === 1 ? "image" : "images"}. Remove an attachment or change the limit in /settings.`
+      ? `A prompt is limited to ${imageLimit} ${imageLimit === 1 ? "image" : "images"}. To change the limit /settings.`
       : MESSAGES[code]);
     this.code = code;
     this.imageLimit = code === "image-count" ? imageLimit : null;

@@ -54,9 +54,9 @@ describe("image admission policy", () => {
     let limit = 3;
     const store = new PromptChipStore({ imageLimit: () => limit });
     expect(new ImageAttachmentError("image-count", 1).message)
-      .toBe("A prompt is limited to 1 image. Remove an attachment or change the limit in /settings.");
+      .toBe("A prompt is limited to 1 image. To change the limit /settings.");
     expect(new ImageAttachmentError("image-count", 8).message)
-      .toBe("A prompt is limited to 8 images. Remove an attachment or change the limit in /settings.");
+      .toBe("A prompt is limited to 8 images. To change the limit /settings.");
     let draft = "";
     for (let count = 0; count < limit; count++) {
       draft += store.transformPastedContent({ kind: "image", data: "aA==", mimeType: "image/png" }, draft);

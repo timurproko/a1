@@ -6,7 +6,7 @@
 - Prompt-chip paste admission and final preparation use the current effective limit, while the owned command boundary remains fail-closed at 16 attachments and count diagnostics name the applicable limit.
 - Image-count notices carry typed ownership and retire when a setting increase, ready-image removal, or rejected overflow-chip removal makes the draft compliant. Count-rejected attachments retain their normal atomic screenshot labels while rendering dimmed, do not consume a sendable slot, and are omitted from successful submission and reusable history without retry or promotion.
 - Image-bearing prompt dispatch uses the live `Sending…` spinner until the engine accepts the prompt, then restores engine-owned `Working…` or extension presentation while processing continues; rejection and failure still restore status on settlement, and no per-image transport progress is fabricated.
-- The reviewed startup baseline is 158 reachable files / 1,533,531 source bytes and 2,044 Pi-public files / 9,581,110 evaluated bytes.
+- The reviewed startup baseline is 158 reachable files / 1,533,507 source bytes and 2,044 Pi-public files / 9,581,110 evaluated bytes.
 
 ## Validation
 
