@@ -58,6 +58,7 @@ export function inspectWorkflowSource(path, source) {
   if (line(/^  workflow_run:\s*$/m)) triggers.push("workflow_run");
   if (line(/^  repository_dispatch:\s*$/m)) triggers.push("repository_dispatch");
   if (line(/^  release:\s*$/m) && line(/^\s+types: \[[^\]\n]*\bpublished\b[^\]\n]*\]/m)) triggers.push("release:published");
+  if (line(/^  release:\s*$/m) && line(/^\s+types: \[[^\]\n]*\bdeleted\b[^\]\n]*\]/m)) triggers.push("release:deleted");
   if (line(/^  workflow_dispatch:\s*/m)) triggers.push("workflow_dispatch");
   if (line(/^  workflow_call:\s*/m)) triggers.push("workflow_call");
   if (line(/^  schedule:\s*$/m)) triggers.push("schedule");
@@ -111,6 +112,11 @@ export function inspectWorkflowSource(path, source) {
     // Security: only the release-automation App bypasses tag deletion, through a contents-scoped token.
     const scopedTagToken = source.includes("TAG_TOKEN: ${{ steps.app.outputs.token }}") && /^\s+permission-contents: write\s*$/m.test(source);
     authority.push(scopedTagToken ? "unconsumed-release-tag-rollback" : "unscoped-release-tag-rollback");
+  }
+  if (source.includes("delete-orphan-tag.mjs")) {
+    // Security: the same contents-scoped App token is the only identity that may delete a release tag.
+    const scopedTagToken = source.includes("TAG_TOKEN: ${{ steps.app.outputs.token }}") && /^\s+permission-contents: write\s*$/m.test(source);
+    authority.push(scopedTagToken ? "unconsumed-release-tag-cleanup" : "unscoped-release-tag-cleanup");
   }
   if ((source.includes('channel = "next"')) || (path.endsWith("develop.yml") && source.includes("channel: develop"))) authority.push("npm-next");
   if (source.includes('channel = "latest"')) authority.push("npm-latest");

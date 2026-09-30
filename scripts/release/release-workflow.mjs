@@ -197,7 +197,10 @@ async function prepareDraftRelease(r, repository, source, version, local) {
   assertAuthoritative(r, source, local.manifest.version, local.manifest.name);
   const matches = listVersionReleases(r, repository, version);
   const tag = remoteTagCommit(r, version);
-  if (tag !== null) throw new Error(`v${version} already exists at ${tag}; stable preparation never deletes, moves, or reuses a release tag`);
+  if (tag !== null) {
+    throw new Error(`v${version} already exists at ${tag}; stable preparation never deletes, moves, or reuses a release tag. `
+      + `If its Release was deleted before npm publication, remove the tag with: gh workflow run release-tag-cleanup.yml -f version=${version}`);
+  }
   // Rationale: one draft per version. A draft bound to an older develop is replaced in place, and
   // duplicates (for example a draft GitHub left untagged) are removed instead of accumulating.
   for (const match of matches) assertReplaceableDraft(match, version);
