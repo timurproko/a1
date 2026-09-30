@@ -289,16 +289,16 @@ export function renderPiShellReleaseUpdateNotice(
 
 export interface PiShellReleaseUpdateBanner {
   readonly rows: readonly string[];
-  /** Zero-based row within `rows` that carries the close control. */
-  readonly closeRow: number;
-  /** One-based terminal column of the close control. */
-  readonly closeColumn: number;
+  /** Clickable close area: zero-based rows within `rows`, one-based inclusive columns. */
+  readonly close: { readonly rowStart: number; readonly rowEnd: number; readonly columnStart: number; readonly columnEnd: number };
 }
+
+const CLOSE_BUTTON = " ✕ ";
 
 /**
  * Bare A1's docked variant of the release notice: Pi's notice wording and colours on the prompt
  * band's background instead of borders, so it spans the same width as the editor rules, with a
- * close control at the right end of the title row.
+ * close button at the right end of the title row.
  */
 export function renderPiShellReleaseUpdateBanner(
   release: { readonly version: string; readonly command: string; readonly changelogUrl: string | null },
@@ -307,12 +307,17 @@ export function renderPiShellReleaseUpdateBanner(
 ): PiShellReleaseUpdateBanner {
   ensureTheme();
   const theme = piTheme();
+  const bandBg = (text: string) => theme.bg("userMessageBg", text);
+  // Invariant: the button closes its own background, so the band's is reopened for the right padding.
+  const reopenBand = bandBg("\u0000").split("\u0000")[0] ?? "";
   const title = theme.bold(theme.fg("warning", "Update Available"));
-  const close = closeHovered ? theme.bold(theme.fg("warning", "✕")) : theme.fg("muted", "✕");
-  // Invariant: one cell of horizontal padding on each side; the close control ends the content row.
-  const gap = Math.max(1, width - 2 - visibleWidth(title) - 1);
+  const button = theme.bg("selectedBg", closeHovered
+    ? theme.bold(theme.fg("warning", CLOSE_BUTTON))
+    : theme.fg("text", CLOSE_BUTTON)) + reopenBand;
+  // Invariant: one cell of horizontal padding on each side; the button ends the title row's content.
+  const gap = Math.max(1, width - 2 - visibleWidth(title) - CLOSE_BUTTON.length);
   const lines = [
-    `${title}${" ".repeat(gap)}${close}`,
+    `${title}${" ".repeat(gap)}${button}`,
     `${theme.fg("muted", `New version ${release.version} is available. Run `)}${theme.fg("accent", release.command)}`,
   ];
   if (release.changelogUrl !== null) {
@@ -321,7 +326,12 @@ export function renderPiShellReleaseUpdateBanner(
       : theme.fg("accent", release.changelogUrl);
     lines.push(`${theme.fg("muted", "Changelog: ")}${link}`);
   }
-  const band = new Text(lines.join("\n"), 1, 1, text => theme.bg("userMessageBg", text)).render(width);
-  // Invariant: a leading spacer, then the band's top padding row, then the title row.
-  return { rows: ["", ...band], closeRow: 2, closeColumn: 1 + visibleWidth(title) + gap + 1 };
+  const band = new Text(lines.join("\n"), 1, 1, bandBg).render(width);
+  const buttonStart = 2 + visibleWidth(title) + gap;
+  // Invariant: rows are a leading spacer, the band's top padding, then the title row. The click area
+  // is wider than the glyph: the whole top-right corner from the padding row to the row below the title.
+  return {
+    rows: ["", ...band],
+    close: { rowStart: 1, rowEnd: 3, columnStart: Math.max(1, buttonStart - 1), columnEnd: width },
+  };
 }

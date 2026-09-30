@@ -138,7 +138,7 @@ import type {
 import { PromptChipStore, type PreparedPrompt } from "./prompt-chips.js";
 import type { PastePreparationClientOptions } from "./paste-preparation-client.js";
 import { EditorHyperlinkBudget } from "./editor-hyperlink-budget.js";
-import { SessionViewportController, type SessionViewportInputResult } from "./session-viewport-controller.js";
+import { SessionViewportController, type SessionViewportInputResult, type TailControlRegion } from "./session-viewport-controller.js";
 import type { ResponseCopyExecutor } from "./response-copy-transport.js";
 import type { ResponseCopyEvent } from "./response-copy-protocol.js";
 import type { PasteEvent, PasteSource } from "./paste-protocol.js";
@@ -328,7 +328,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   } | undefined;
   // Invariant: bare A1 docks the release notice above the live status; closing it lasts for this session only.
   #releaseNoticeDismissed = false;
-  #releaseCloseTarget: { readonly row: number; readonly column: number } | undefined;
+  #releaseCloseTarget: TailControlRegion | undefined;
   #copyAcknowledgement: string | undefined;
   #copyAcknowledgementTimer: ReturnType<typeof setTimeout> | undefined;
   #inputSurface: PiShellComponentPort;
@@ -778,11 +778,8 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     const releaseBanner = this.#renderReleaseBanner(documentWidth);
     // Rationale: the release notice rides the bottom-aligned tail directly above Working, so it
     // never displaces transcript content and scrolls away with the live status.
-    const liveStatusRows = this.#renderStatus(documentWidth);
-    // Invariant: an idle session keeps one blank row between the banner and the editor border,
-    // matching the gap the live status opens with.
-    const statusRows = releaseBanner === undefined ? liveStatusRows
-      : [...releaseBanner.rows, ...liveStatusRows.length === 0 ? [""] : [], ...liveStatusRows];
+    // Invariant: when idle the banner's last row sits on the line Working would occupy.
+    const statusRows = [...releaseBanner?.rows ?? [], ...this.#renderStatus(documentWidth)];
     const transientSignature = transientRowsSignature(steeringRows, statusRows);
     const snapshot = this.#visibleViewportSnapshot;
     // Invariant: paint-only feedback may cover either viewport or dock cells, so
@@ -1030,11 +1027,11 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   ): void {
     // Invariant: the tail is the document suffix, so the control's document row is fixed relative to its
     // end; alignment gap rows precede it and the viewport scroll decides whether it is on screen.
-    const documentRow = banner === undefined ? undefined
-      : tailEnd + frame.descriptor.transientAlignmentGapRows - tailLength + banner.closeRow;
-    const row = documentRow === undefined ? 0 : documentRow - frame.scrollTop + 1;
-    this.#releaseCloseTarget = banner !== undefined && row >= 1 && row <= frame.hits.viewportHeight
-      ? { row, column: banner.closeColumn }
+    const bannerStart = tailEnd + frame.descriptor.transientAlignmentGapRows - tailLength - frame.scrollTop + 1;
+    const rowStart = banner === undefined ? 0 : Math.max(1, bannerStart + banner.close.rowStart);
+    const rowEnd = banner === undefined ? 0 : Math.min(frame.hits.viewportHeight, bannerStart + banner.close.rowEnd);
+    this.#releaseCloseTarget = banner !== undefined && rowStart <= rowEnd
+      ? { rowStart, rowEnd, columnStart: banner.close.columnStart, columnEnd: banner.close.columnEnd }
       : undefined;
     this.#viewportController.setTailControl(this.#releaseCloseTarget === undefined ? undefined : {
       ...this.#releaseCloseTarget,

@@ -259,6 +259,10 @@ describe("OwnedUiSessionShell viewport and streaming", () => {
     try {
       terminal.resize(80, 30);
       adapter.announceReleaseUpdate({ version: "0.2.1", command: "a1 update", changelogUrl: "https://github.com/timurproko/a1/releases/tag/v0.2.1" });
+      await shell.backend.flushEvents();
+      const idleRows = shell.root.render(80).map(row => stripTerminalSequences(row));
+      const idleEditorBorderRow = idleRows.findIndex((row, index) => index > 0 && /^─+$/.test(row.trim()));
+      const idleBannerEnd = idleRows.findIndex(row => row.includes("Changelog:")) + 1;
       engine.session.emit({ type: "agent_start" });
       await shell.backend.flushEvents();
       const rows = shell.root.render(80).map(row => stripTerminalSequences(row));
@@ -270,19 +274,23 @@ describe("OwnedUiSessionShell viewport and streaming", () => {
       expect(titleRow).toBeGreaterThan(lastTranscriptRow);
       expect(workingRow).toBeGreaterThan(titleRow);
       expect(editorBorderRow).toBeGreaterThan(workingRow);
+      // Invariant: idle, the banner's last row sits on the line Working occupies while a turn runs.
+      expect(editorBorderRow - workingRow).toBe(idleEditorBorderRow - idleBannerEnd);
       expect(rows.join("\n")).toContain("New version 0.2.1 is available. Run a1 update");
       // Invariant: the notice is chrome, not transcript content, so the transcript keeps its rows.
       expect(rows.filter(row => row.includes("Release transcript"))).toHaveLength(4);
       const closeColumn = rows[titleRow]!.indexOf("✕") + 1;
       expect(closeColumn).toBeGreaterThan(rows[titleRow]!.indexOf("Update Available") + 1);
+      expect(rows[titleRow]!.slice(closeColumn - 2, closeColumn + 1)).toBe(" ✕ ");
 
       const idleTitle = shell.root.render(80)[titleRow];
       shell.root.handleViewportPreInput(`\u001b[<35;${closeColumn};${titleRow + 1}M`);
       const hoveredTitle = shell.root.render(80)[titleRow];
       expect(stripTerminalSequences(hoveredTitle ?? "")).toBe(stripTerminalSequences(idleTitle ?? ""));
       expect(hoveredTitle).not.toBe(idleTitle);
-      shell.root.handleViewportPreInput(`\u001b[<0;${closeColumn};${titleRow + 1}M`);
-      shell.root.handleViewportPreInput(`\u001b[<0;${closeColumn};${titleRow + 1}m`);
+      // Invariant: the click area is larger than the glyph: here the padding row above it, one cell right.
+      shell.root.handleViewportPreInput(`\u001b[<0;${closeColumn + 1};${titleRow}M`);
+      shell.root.handleViewportPreInput(`\u001b[<0;${closeColumn + 1};${titleRow}m`);
 
       const dismissed = shell.root.render(80).map(row => stripTerminalSequences(row)).join("\n");
       expect(dismissed).not.toContain("Update Available");

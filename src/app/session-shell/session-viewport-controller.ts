@@ -21,6 +21,18 @@ export interface SessionViewportControllerOptions {
   readonly nextPasteDiagnosticRequest?: () => number;
 }
 
+/** One-based, inclusive terminal cells of a clickable viewport-tail control. */
+export interface TailControlRegion {
+  readonly rowStart: number;
+  readonly rowEnd: number;
+  readonly columnStart: number;
+  readonly columnEnd: number;
+}
+
+function withinTailControl(region: TailControlRegion, column: number, row: number): boolean {
+  return row >= region.rowStart && row <= region.rowEnd && column >= region.columnStart && column <= region.columnEnd;
+}
+
 export interface SessionViewportInputResult {
   readonly data: string;
   readonly consumed: boolean;
@@ -62,8 +74,8 @@ export class SessionViewportController {
   #pendingEditorClick: { readonly column: number; readonly row: number } | undefined;
   // Invariant: pointer routing uses the most recently composed editor rows.
   #editorPointerFrame: { readonly rowStart: number; readonly rowEnd: number } | undefined;
-  // Invariant: one clickable cell in the viewport tail, located by the most recent composition.
-  #tailControl: { readonly row: number; readonly column: number; readonly activate: () => void } | undefined;
+  // Invariant: one clickable region in the viewport tail, located by the most recent composition.
+  #tailControl: (TailControlRegion & { readonly activate: () => void }) | undefined;
   #selectionAutoScrollTimer: ReturnType<typeof setTimeout> | undefined;
   #selectionAutoScrollPointer: { readonly column: number; readonly row: number; readonly direction: -1 | 1 } | undefined;
   #pointerPosition: { readonly column: number; readonly row: number } | undefined;
@@ -128,14 +140,14 @@ export class SessionViewportController {
   }
 
   /** The visible close control of a viewport-tail notice, or undefined when none is on screen. */
-  setTailControl(control: { readonly row: number; readonly column: number; readonly activate: () => void } | undefined): void {
+  setTailControl(control: (TailControlRegion & { readonly activate: () => void }) | undefined): void {
     this.#tailControl = control;
   }
 
   /** Whether the pointer currently rests on the tail control; drives its hover paint. */
-  tailControlHovered(target: { readonly row: number; readonly column: number } | undefined): boolean {
+  tailControlHovered(target: TailControlRegion | undefined): boolean {
     const pointer = this.#pointerPosition;
-    return target !== undefined && pointer !== undefined && pointer.row === target.row && pointer.column === target.column;
+    return target !== undefined && pointer !== undefined && withinTailControl(target, pointer.column, pointer.row);
   }
 
   /** Replacement input changed before its new bounds have been painted. */
@@ -400,7 +412,7 @@ export class SessionViewportController {
         && event.column >= hits.bottom.columnStart && event.column <= hits.bottom.columnEnd;
       const tailControl = this.#tailControl;
       const overTailControl = overModal === undefined && tailControl !== undefined
-        && event.row === tailControl.row && event.column === tailControl.column;
+        && withinTailControl(tailControl, event.column, event.row);
 
       const previousPointer = this.#pointerPosition;
       const wasOverBottom = hits.bottom !== null && previousPointer !== undefined
@@ -411,7 +423,7 @@ export class SessionViewportController {
       this.#pointerPosition = { column: event.column, row: event.row };
       repaint ||= wasOverBottom !== overBottom;
       const wasOverTailControl = tailControl !== undefined && previousPointer !== undefined
-        && previousPointer.row === tailControl.row && previousPointer.column === tailControl.column;
+        && withinTailControl(tailControl, previousPointer.column, previousPointer.row);
       repaint ||= wasOverTailControl !== overTailControl;
       if (!this.#viewport.selectionActive && !this.#editorPointerSelecting) {
         const nextHyperlink = this.#hyperlinkKeyAt(frame, event.column, event.row);
