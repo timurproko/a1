@@ -285,13 +285,18 @@ describe("OwnedUiSessionShell viewport and streaming", () => {
       expect(closeColumn).toBe(rows[titleRow]!.trimEnd().length);
 
       const idleTitle = shell.root.render(80)[titleRow];
-      shell.root.handleViewportPreInput(`\u001b[<35;${closeColumn};${titleRow + 1}M`);
+      // Invariant: nearby cells outside the control neither highlight it nor close the notice.
+      shell.root.handleViewportPreInput(`\u001b[<35;${closeColumn};${titleRow}M`);
+      expect(shell.root.render(80)[titleRow]).toBe(idleTitle);
+      shell.root.handleViewportPreInput(`\u001b[<35;${closeColumn - 2};${titleRow + 1}M`);
+      expect(shell.root.render(80)[titleRow]).toBe(idleTitle);
+      shell.root.handleViewportPreInput(`\u001b[<35;${closeColumn - 1};${titleRow + 1}M`);
       const hoveredTitle = shell.root.render(80)[titleRow];
       expect(stripTerminalSequences(hoveredTitle ?? "")).toBe(stripTerminalSequences(idleTitle ?? ""));
       expect(hoveredTitle).not.toBe(idleTitle);
-      // Invariant: the click area is larger than the glyph: here the padding row above it, one cell right.
-      shell.root.handleViewportPreInput(`\u001b[<0;${closeColumn + 1};${titleRow}M`);
-      shell.root.handleViewportPreInput(`\u001b[<0;${closeColumn + 1};${titleRow}m`);
+      // Invariant: the highlighted cells are the clickable ones: the glyph and one cell either side.
+      shell.root.handleViewportPreInput(`\u001b[<0;${closeColumn + 1};${titleRow + 1}M`);
+      shell.root.handleViewportPreInput(`\u001b[<0;${closeColumn + 1};${titleRow + 1}m`);
 
       const dismissed = shell.root.render(80).map(row => stripTerminalSequences(row)).join("\n");
       expect(dismissed).not.toContain("Update Available");

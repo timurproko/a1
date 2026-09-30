@@ -309,7 +309,8 @@ export function renderPiShellReleaseUpdateBanner(
   const theme = piTheme();
   const bandBg = (text: string) => theme.bg("userMessageBg", text);
   const title = theme.bold(theme.fg("warning", "Update Available"));
-  const close = closeHovered ? theme.bold(theme.fg("warning", "✕")) : theme.fg("muted", "✕");
+  // Compatibility: paints like the settings stepper controls: dim at rest, plain text under the pointer.
+  const close = closeHovered ? "✕" : theme.fg("dim", "✕");
   // Rationale: a glyph looks inset by its own side bearing, so one trailing cell after it reads the same
   // as the text's two leading cells.
   const gap = Math.max(1, width - BANNER_PADDING_X - visibleWidth(title) - 2);
@@ -325,11 +326,10 @@ export function renderPiShellReleaseUpdateBanner(
     body.push(`${theme.fg("muted", "Changelog: ")}${link}`);
   }
   const padding = bandBg(" ".repeat(width));
-  // Invariant: rows are a leading spacer, the band's top padding, then the title row. The glyph stays
-  // one cell, but the click area covers the top-right corner around it, from the padding row to the
-  // row below the title.
+  // Invariant: rows are a leading spacer, the band's top padding, then the title row. Hover and click
+  // share one area, the glyph and one cell either side, so what lights up is exactly what closes.
   return {
     rows: ["", padding, titleRow, ...new Text(body.join("\n"), BANNER_PADDING_X, 0, bandBg).render(width), padding],
-    close: { rowStart: 1, rowEnd: 3, columnStart: Math.max(1, closeColumn - 2), columnEnd: width },
+    close: { rowStart: 2, rowEnd: 2, columnStart: closeColumn - 1, columnEnd: Math.min(width, closeColumn + 1) },
   };
 }
