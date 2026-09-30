@@ -23,6 +23,7 @@ import type { OwnedUiQuitOutroSettings, OwnedUiViewportSettings, OwnedUiViewport
 import { createOwnedRouteHost, type OwnedReferenceProviders } from "./settings-route-host.js";
 import { renderPiShellChangelogLines } from "../integrations/pi/components/shell-presenters-info.js";
 import type { ReleaseNoteCatalog } from "../features/owned-ui/release-notes.js";
+import { nativeHyperlinkStyle } from "../ui/components/spans.js";
 
 export interface OwnedUiCompositionOptions {
   readonly cwd?: string;
@@ -113,13 +114,12 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
   // comparison profile keeps Pi's configured theme behavior and settings surface.
   applyConfiguredPiTheme(ownedSurfaces ? "dark" : adapter.configuredTheme());
 
-  // Rationale: the reference screens read the shell the composition is about to construct; a route
-  // cannot open before the shell exists, so the closure is settled by the time it runs.
+  // Rationale: Routes open only after shell construction.
   const references: OwnedReferenceProviders = {
     changelog: async input => {
       if (input?.document === undefined && releaseNotesFailure !== undefined) throw releaseNotesFailure;
       const markdown = input?.document ?? releaseNotes?.completeMarkdown ?? "No A1 release notes found.";
-      return { rows: width => renderPiShellChangelogLines(markdown, width) };
+      return { rows: width => renderPiShellChangelogLines(markdown, width).map(row => nativeHyperlinkStyle(row)) };
     },
     hotkeys: async () => {
       const presentation = shell.hotkeysPresentation();
