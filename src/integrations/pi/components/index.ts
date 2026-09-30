@@ -54,6 +54,8 @@ export {
   renderPiShellCommandMessage,
   renderPiShellHotkeysLines,
   renderPiShellPackageUpdateNotice,
+  renderPiShellReleaseUpdateBanner,
+  renderPiShellReleaseUpdateNotice,
   renderPiShellStartupDiagnostic,
   renderPiShellStatusText,
   renderPiShellTranscriptBlock,
