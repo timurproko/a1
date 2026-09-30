@@ -138,6 +138,10 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     enabled: () => settings.value("promptSuggestions"),
     onChange: (listener: (enabled: boolean) => void) => settings.onChange(() => listener(settings.value("promptSuggestions"))),
   };
+  const promptImages = settings === null || !ownedSurfaces ? null : {
+    limit: () => settings.value("promptImageLimit"),
+    onChange: (listener: () => void) => settings.onChange(listener),
+  };
   const skills = settings === null || !ownedSurfaces ? null : {
     presentation: () => settings.value("skillsPresentation"),
     // Rationale: one listener covers both the A1 presentation choice and the engine skill-command toggle.
@@ -192,6 +196,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
         paste: event => clipboardDiagnostics.paste(event),
       } }),
       ...(promptSuggestions === null ? {} : { suggestions: promptSuggestions }),
+      ...(promptImages === null ? {} : { promptImages }),
       ...(skills === null ? {} : { skills }),
       ...(promptHistory === null ? {} : { history: {
         ...promptHistory,

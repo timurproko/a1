@@ -135,6 +135,7 @@ import {
   type OwnedUiBackendPort,
   type OwnedUiSessionShellOptions,
   type OwnedUiShellPresentationOptions,
+  type OwnedUiShellPromptImagesOptions,
   type OwnedUiShellSkillsOptions,
   type OwnedUiTerminalPort,
 } from "./session-shell-root.js";
@@ -145,6 +146,7 @@ export {
   type OwnedUiShellEngineOptions,
   type OwnedUiShellHistoryOptions,
   type OwnedUiShellPresentationOptions,
+  type OwnedUiShellPromptImagesOptions,
   type OwnedUiShellSkillsOptions,
   type OwnedUiShellSuggestionOptions,
 } from "./session-shell-root.js";
@@ -159,7 +161,9 @@ export class OwnedUiSessionShell {
   readonly #unsubscribe: () => void;
   readonly #unsubscribePromptSuggestions: () => void;
   readonly #promptSuggestions: ContextualPromptSuggestionController | null;
+  readonly #promptImages: OwnedUiShellPromptImagesOptions | null;
   readonly #skills: OwnedUiShellSkillsOptions | null;
+  readonly #unsubscribePromptImages: () => void;
   readonly #unsubscribeSkills: () => void;
   #installedCommandSignature = "";
   #promptHistory: PromptHistoryController | null = null;
@@ -230,7 +234,8 @@ export class OwnedUiSessionShell {
     let streamPresentation: StreamPresentationCoalescer | undefined;
     let pendingClipboardWrite: Promise<void> = Promise.resolve();
     let promptSuggestionController: ContextualPromptSuggestionController | null = null;
-    // Invariant: the collapsed skills presentation is a bare-A1 replacement; comparison profiles keep the pinned list.
+    // Invariant: owned prompt limits and collapsed skills are bare-A1 replacements; comparison profiles keep pinned behavior.
+    this.#promptImages = this.#customViewport ? options.promptImages ?? null : null;
     this.#skills = this.#customViewport ? options.skills ?? null : null;
     const terminalCopy = terminal !== undefined || hasAsyncClipboardOutput();
     this.#responseCopy = this.#customViewport ? new ResponseCopyCoordinator({
@@ -299,7 +304,11 @@ export class OwnedUiSessionShell {
       onMessageCopy: () => { void this.runWorkflow({ command: "copy", argument: "" }); },
       onFollowUp: () => { void this.queueFollowUp().catch(() => this.#reportSubmissionError()); },
       onDequeue: () => this.restoreQueuedInput(),
-      onEditorChange: () => { this.#editorRevision++; promptSuggestionController?.abortPending(); },
+      onEditorChange: text => {
+        this.#editorRevision++;
+        promptSuggestionController?.abortPending();
+        this.root.reconcilePromptImageLimitNotice(text);
+      },
       onPromptSuggestionAccepted: () => promptSuggestionController?.accept(),
       onInputSurfaceChanged: () => {
         promptSuggestionController?.invalidate();
@@ -330,6 +339,7 @@ export class OwnedUiSessionShell {
       },
       ...(pasteDiagnostics === undefined ? {} : { pasteDiagnostics: pasteDiagnostics }),
       ...(pastePreparation === undefined ? {} : { pastePreparation }),
+      ...(this.#promptImages === null ? {} : { promptImageLimit: this.#promptImages.limit }),
       skillsPresentation: () => this.#skills?.presentation() ?? "expand",
     }, {
       ...startup,
@@ -421,6 +431,9 @@ export class OwnedUiSessionShell {
     this.#unsubscribePromptSuggestions = promptSuggestionOptions === undefined
       ? () => {}
       : promptSuggestionOptions.onChange(enabled => this.#promptSuggestions?.setEnabled(enabled));
+    this.#unsubscribePromptImages = this.#promptImages === null ? () => {} : this.#promptImages.onChange(() => {
+      if (!this.#disposed && this.root.reconcilePromptImageLimitNotice()) this.runtime.requestRender();
+    });
     // Rationale: the same listener refreshes the menu for the A1 presentation choice and for the engine's
     // skill-command registration, both of which the owned settings manager reports through one change.
     this.#unsubscribeSkills = this.#skills === null ? () => {} : this.#skills.onChange(() => {
@@ -794,15 +807,20 @@ export class OwnedUiSessionShell {
     // Compatibility: match interactive Pi: input during compaction is queued steering; the engine
     // shows it in the pending rows and delivers it when compaction ends.
     const type = this.view().lifecycle === "busy" ? "steer" as const : "prompt" as const;
-    this.#rememberInput(displayInput, type);
+    this.#rememberInput(this.root.omitUnsentPromptImages(displayInput).trim(), type);
     this.root.resumeViewportFollowing();
-    return this.#execute({
-      type,
-      correlationId: this.#correlation(type),
-      sessionId: this.backend.sessionId,
-      text: input,
-      ...(prepared.images.length === 0 ? {} : { images: prepared.images }),
-    }, displayInput);
+    const finishSending = prepared.images.length === 0 ? () => {} : this.root.beginImageSubmissionStatus();
+    try {
+      return await this.#execute({
+        type,
+        correlationId: this.#correlation(type),
+        sessionId: this.backend.sessionId,
+        text: input,
+        ...(prepared.images.length === 0 ? {} : { images: prepared.images }),
+      }, displayInput);
+    } finally {
+      finishSending();
+    }
   }
 
   async clearOrExit(now = Date.now()): Promise<AdapterCommandResult> {
@@ -1684,6 +1702,7 @@ export class OwnedUiSessionShell {
     });
     attempt(() => this.#promptSuggestions?.dispose());
     attempt(() => this.#unsubscribePromptSuggestions());
+    attempt(() => this.#unsubscribePromptImages());
     attempt(() => this.#unsubscribeSkills());
     attempt(() => this.#unsubscribeSettings());
     let fullscreenExitText = "";
@@ -2199,7 +2218,9 @@ export class OwnedUiSessionShell {
     // Concurrency: never overwrite input typed (even typed and cleared) after this submission.
     if (revision === this.#editorRevision && this.root.editor.getText().length === 0) this.root.editor.setText(draft);
     const message = error instanceof ImageAttachmentError ? error.message : "Submission rejected. Check the prompt and attachments.";
-    this.#reportSubmissionError(error, `${message} Press Up to recover the draft.`);
+    this.#reportSubmissionError(error, error instanceof ImageAttachmentError && error.code === "image-count"
+      ? message
+      : `${message} Press Up to recover the draft.`);
     return rejected(message);
   }
 
@@ -2207,7 +2228,8 @@ export class OwnedUiSessionShell {
     // Security: arbitrary provider/extension error messages can contain the entire request.
     try {
       this.root.appendWorkflowResult({ command: "debug", outcome: "failed", message: message
-        ?? (error instanceof ImageAttachmentError ? error.message : "Submission failed. Check the prompt and try again.") });
+        ?? (error instanceof ImageAttachmentError ? error.message : "Submission failed. Check the prompt and try again.") },
+      error instanceof ImageAttachmentError ? error.code : undefined);
       this.runtime.requestRender();
     } catch { /* Security: error presentation cannot create another rejected submission callback. */ }
   }

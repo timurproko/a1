@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { assertOwnedUiCommand, assertPromptImages, MAX_IMAGE_DATA_BYTES, ImageAttachmentError } from "../../../src/contracts/owned-ui/index.js";
+import {
+  assertOwnedUiCommand,
+  assertPromptImages,
+  DEFAULT_PROMPT_IMAGE_LIMIT,
+  MAX_IMAGE_DATA_BYTES,
+  MAX_PROMPT_IMAGES,
+  ImageAttachmentError,
+} from "../../../src/contracts/owned-ui/index.js";
 import { PromptChipStore } from "../../../src/app/session-shell/prompt-chips.js";
 
 const image = (data = "aGk=") => ({ type: "image" as const, data, mimeType: "image/png" });
@@ -35,9 +42,39 @@ describe("image admission policy", () => {
     let draft = "";
     for (let count = 0; count < 8; count++) draft += store.transformPastedContent({ kind: "image", data: "aA==", mimeType: "image/png" }, draft);
     expect(() => assertPromptImages(store.prepareSubmission(draft).images)).not.toThrow();
-    expect(() => store.transformPastedContent({ kind: "image", data: "aA==", mimeType: "image/png" }, draft)).toThrow("at most 8");
-    expect(() => assertPromptImages(Array.from({ length: 9 }, () => image()))).toThrow("at most 8");
+    expect(() => store.transformPastedContent({ kind: "image", data: "aA==", mimeType: "image/png" }, draft)).toThrow("limited to 8");
+    expect(() => assertPromptImages(Array.from({ length: 9 }, () => image()))).not.toThrow();
+    expect(() => assertPromptImages(Array.from({ length: MAX_PROMPT_IMAGES + 1 }, () => image())))
+      .toThrow(`limited to ${MAX_PROMPT_IMAGES}`);
     expect(store.transformPastedContent({ kind: "image", data: "aA==", mimeType: "image/png" }, "new draft")).toContain("screenshot");
     expect(() => assertOwnedUiCommand({ type: "prompt", correlationId: "test", sessionId: "session", text: "text only" })).not.toThrow();
+  });
+
+  it("applies a live editor limit below and above the eight-image default", () => {
+    let limit = 3;
+    const store = new PromptChipStore({ imageLimit: () => limit });
+    expect(new ImageAttachmentError("image-count", 1).message)
+      .toBe("A prompt is limited to 1 image. To change the limit /settings.");
+    expect(new ImageAttachmentError("image-count", 8).message)
+      .toBe("A prompt is limited to 8 images. To change the limit /settings.");
+    let draft = "";
+    for (let count = 0; count < limit; count++) {
+      draft += store.transformPastedContent({ kind: "image", data: "aA==", mimeType: "image/png" }, draft);
+    }
+    expect(() => store.transformPastedContent({ kind: "image", data: "aA==", mimeType: "image/png" }, draft))
+      .toThrow("limited to 3 images");
+
+    limit = 10;
+    for (let count = 3; count < limit; count++) {
+      draft += store.transformPastedContent({ kind: "image", data: "aA==", mimeType: "image/png" }, draft);
+    }
+    expect(store.prepareSubmission(draft).images).toHaveLength(10);
+    expect(() => store.transformPastedContent({ kind: "image", data: "aA==", mimeType: "image/png" }, draft))
+      .toThrow("limited to 10 images");
+    limit = 9;
+    expect(store.imageLimitState(draft)).toMatchObject({ count: 10, limit: 9, corrected: false });
+    const corrected = draft.replace(/\[📷 screenshot-[^\]]+\]/u, "");
+    expect(store.imageLimitState(corrected)).toMatchObject({ count: 9, limit: 9, corrected: true });
+    expect(DEFAULT_PROMPT_IMAGE_LIMIT).toBe(8);
   });
 });

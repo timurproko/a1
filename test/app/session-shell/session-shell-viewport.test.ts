@@ -458,6 +458,10 @@ describe("OwnedUiSessionShell viewport and streaming", () => {
       shell.runtime.renderNow();
       expect(plainRows().some(row => row.includes("Indexing sources…"))).toBe(true);
       expect(plainRows().some(row => row.includes("Working…"))).toBe(false);
+      const finishSending = shell.root.beginImageSubmissionStatus();
+      expect(plainRows().some(row => row.includes("Sending…"))).toBe(true);
+      finishSending();
+      expect(plainRows().some(row => row.includes("Indexing sources…"))).toBe(true);
 
       terminal.input("\u001b[<64;30;1M");
       shell.runtime.renderNow();

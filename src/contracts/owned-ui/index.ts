@@ -93,6 +93,7 @@ export type {
 } from "./model.js";
 export { acceptsTranscriptUpdate, transcriptToolState } from "./transcript-lifecycle.js";
 export {
+  DEFAULT_PROMPT_IMAGE_LIMIT,
   ImageAttachmentError,
   MAX_CLIPBOARD_TEXT_BYTES,
   MAX_IMAGE_DATA_BYTES,

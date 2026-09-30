@@ -870,6 +870,120 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
     } finally { await shell.dispose(); }
   });
 
+  it("applies the live image limit and retires only a corrected count notice", async () => {
+    let limit = 2;
+    const listeners = new Set<() => void>();
+    const data = screenshotPng(4, 4).toString("base64");
+    const { shell, terminal } = await fixture(
+      [], [], true, undefined,
+      { readText: async () => null, readImage: async () => ({ data, mimeType: "image/png" }) },
+      undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+      { limit: () => limit, onChange: listener => { listeners.add(listener); return () => listeners.delete(listener); } },
+    );
+    expect(listeners.size).toBe(1);
+    const imageTags = () => shell.root.editor.getText().match(/\[📷 screenshot-[^\]]+\]/gu) ?? [];
+    const pasteReady = async (count: number) => {
+      terminal.input("\u0016");
+      await vi.waitFor(() => expect(imageTags()).toHaveLength(count));
+      await vi.waitFor(() => expect(shell.root.hasPendingPastes(shell.root.editor.getText())).toBe(false));
+    };
+    const notifyLimit = (next: number) => { limit = next; for (const listener of listeners) listener(); };
+    const countMessage = "A prompt is limited to 2 images.";
+    try {
+      await pasteReady(1);
+      await pasteReady(2);
+      terminal.input("\u0016");
+      await vi.waitFor(() => {
+        const frame = stripTerminalSequences(shell.root.render(80).join("\n"));
+        expect(frame).toContain("Warning:");
+        expect(frame).toContain(countMessage);
+        expect(frame).toContain("limit /settings.");
+        expect(frame).not.toContain("Error:");
+      });
+      const rejected = imageTags().at(-1)!;
+      expect(rejected).toMatch(/^\[📷 screenshot-/u);
+      expect(shell.root.render(80).join("\n")).toContain(`\u001b[2m${rejected}`);
+
+      shell.root.editor.setText(shell.root.editor.getText().replace(rejected, ""));
+      await vi.waitFor(() => expect(stripTerminalSequences(shell.root.render(80).join("\n"))).not.toContain(countMessage));
+
+      notifyLimit(3);
+      await pasteReady(3);
+      const overLimitDraft = shell.root.editor.getText();
+      notifyLimit(2);
+      expect((await shell.submit(overLimitDraft)).outcome).toBe("rejected");
+      expect(stripTerminalSequences(shell.root.render(80).join("\n"))).toContain(countMessage);
+      expect(stripTerminalSequences(shell.root.render(80).join("\n"))).not.toContain("Press Up to recover the draft.");
+      notifyLimit(3);
+      await vi.waitFor(() => expect(stripTerminalSequences(shell.root.render(80).join("\n"))).not.toContain(countMessage));
+    } finally { await shell.dispose(); }
+  });
+
+  it("submits accepted images while omitting a dimmed count-rejected attachment", async () => {
+    const data = screenshotPng(4, 4).toString("base64");
+    const { engine, shell, terminal } = await fixture(
+      [], [], true, undefined,
+      { readText: async () => null, readImage: async () => ({ data, mimeType: "image/png" }) },
+      undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+      { limit: () => 1, onChange: () => () => {} },
+    );
+    try {
+      terminal.input("\u0016");
+      await vi.waitFor(() => expect(shell.root.editor.getText()).toMatch(/\[📷 screenshot-/u));
+      const ready = shell.root.editor.getText();
+      terminal.input("\u0016");
+      await vi.waitFor(() => expect(shell.root.editor.getText().match(/\[📷 screenshot-[^\]]+\]/gu)).toHaveLength(2));
+      await vi.waitFor(() => expect(shell.root.hasPendingPastes(shell.root.editor.getText())).toBe(false));
+      const rejected = shell.root.editor.getText().match(/\[📷 screenshot-[^\]]+\]/gu)!.find(tag => tag !== ready)!;
+      const draft = `describe ${shell.root.editor.getText()}`;
+      shell.root.editor.setText(draft);
+      let release!: () => void;
+      const dispatched = new Promise<void>(resolve => { release = resolve; });
+      vi.spyOn(engine.session, "prompt").mockImplementation(async (text, options) => {
+        engine.session.calls.push(`prompt:${text}`);
+        engine.session.promptOptions.push(options);
+        await dispatched;
+      });
+
+      const submission = shell.submit(draft);
+      await vi.waitFor(() => expect(stripTerminalSequences(shell.root.render(80).join("\n"))).toContain("Sending…"));
+      engine.session.emit({ type: "agent_start" });
+      await shell.backend.flushEvents();
+      const acceptedFrame = stripTerminalSequences(shell.root.render(80).join("\n"));
+      expect(acceptedFrame).toContain("Working…");
+      expect(acceptedFrame).not.toContain("Sending…");
+      release();
+      expect((await submission).outcome).toBe("completed");
+      expect(engine.session.calls).toContain(`prompt:describe ${ready}`);
+      expect(engine.session.calls.join("\n")).not.toContain(rejected);
+      expect(engine.session.promptOptions.at(-1)).toMatchObject({
+        images: [{ type: "image", data, mimeType: "image/png" }],
+      });
+    } finally { await shell.dispose(); }
+  });
+
+  it("preserves a newer unrelated notice when a corrected image-count marker is removed", async () => {
+    const data = screenshotPng(4, 4).toString("base64");
+    const { shell, terminal } = await fixture(
+      [], [], true, undefined,
+      { readText: async () => null, readImage: async () => ({ data, mimeType: "image/png" }) },
+      undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+      { limit: () => 1, onChange: () => () => {} },
+    );
+    try {
+      terminal.input("\u0016");
+      await vi.waitFor(() => expect(shell.root.editor.getText()).toMatch(/\[📷 screenshot-/u));
+      const ready = shell.root.editor.getText();
+      terminal.input("\u0016");
+      await vi.waitFor(() => expect(stripTerminalSequences(shell.root.render(80).join("\n"))).toContain("A prompt is limited to 1 image"));
+      const rejected = shell.root.editor.getText().match(/\[📷 screenshot-[^\]]+\]/gu)!.find(tag => tag !== ready)!;
+      shell.root.appendWorkflowResult({ command: "debug", outcome: "failed", message: "newer unrelated error" });
+      shell.root.editor.setText(shell.root.editor.getText().replace(rejected, ""));
+      await nextImmediate();
+      expect(stripTerminalSequences(shell.root.render(80).join("\n"))).toContain("newer unrelated error");
+    } finally { await shell.dispose(); }
+  });
+
   it("pastes URLs and clipboard images as atomic chips and expands them for copy and submission", async () => {
     let clipboardText = "https://example.com/a/very/useful/resource";
     let clipboardImage: { readonly data: string; readonly mimeType: string } | null = null;

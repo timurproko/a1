@@ -8,6 +8,7 @@ export type {
   OwnedUiShellEngineOptions,
   OwnedUiShellHistoryOptions,
   OwnedUiShellPresentationOptions,
+  OwnedUiShellPromptImagesOptions,
   OwnedUiShellSkillsOptions,
   OwnedUiShellSuggestionOptions,
   SessionResumeCommandMetadata,

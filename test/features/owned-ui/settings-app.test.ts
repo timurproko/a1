@@ -301,7 +301,7 @@ describe("the settings screen", () => {
     target.onInput?.(ENTER, HOST);
     await session.load();
     expect(session.value("promptSuggestions")).toBe(false);
-    // Rationale: the second owned Agent row overflows the 24-row frame by one, so the rail follows each row.
+    // Rationale: the owned Agent rows overflow the 24-row frame, so the rail follows each row.
     expect(find(target, "Prompt suggestions").trimStart()).toMatch(/^→.*no\s*│?$/);
     expect(find(target, "Skills").trimStart()).toMatch(/^\s*Skills\s+collapse\s*│?$/);
     expect(writes).toEqual([]);
@@ -343,6 +343,18 @@ describe("the settings screen", () => {
     expect(session.value("skillsPresentation")).toBe("expand");
     expect(find(target, "Skills").trimStart()).toMatch(/^→.*expand/);
     expect(screen(target).filter(line => line.includes("Skills"))).toHaveLength(1);
+
+    target.onInput?.("/", HOST);
+    for (const letter of "Prompt image limit") target.onInput?.(letter, HOST);
+    expect(find(target, "Prompt image limit").trimStart()).toMatch(/^→.*8/);
+    target.onInput?.(ESC, HOST);
+    target.onInput?.(DOWN, HOST);
+    target.onInput?.(ENTER, HOST);
+    await session.load();
+    expect(session.value("promptImageLimit")).toBe(9);
+    target.onInput?.("/", HOST);
+    for (const letter of "Prompt image limit") target.onInput?.(letter, HOST);
+    expect(find(target, "Prompt image limit").trimStart()).toMatch(/^→.*9/);
     expect(writes).toEqual([]);
   });
 
@@ -508,7 +520,7 @@ describe("the settings screen", () => {
     let lines = render();
     const visited = new Set<string>();
     for (let step = 0; step < 20; step++) {
-      for (const label of ["Persistent history", "History limit", "Thinking level", "Output padding", "Prompt suggestions", "Skills"]) {
+      for (const label of ["Persistent history", "History limit", "Thinking level", "Output padding", "Prompt suggestions", "Skills", "Prompt image limit"]) {
         if (lines.some(line => line.includes(label))) visited.add(label);
       }
       // Rationale: the search input still belongs to its results for wheel navigation.
@@ -520,9 +532,11 @@ describe("the settings screen", () => {
     }
     const searchRow = lines.findIndex(line => line.includes("search settings"));
     expect(searchRow).toBeGreaterThanOrEqual(2);
-    expect(lines[searchRow - 2]).toContain("Skills");
+    expect(lines[searchRow - 2]).toContain("Prompt image limit");
     expect(lines[searchRow - 2]?.endsWith("┃")).toBe(true);
-    expect([...visited].sort()).toEqual(["History limit", "Output padding", "Persistent history", "Prompt suggestions", "Skills", "Thinking level"]);
+    expect([...visited].sort()).toEqual([
+      "History limit", "Output padding", "Persistent history", "Prompt image limit", "Prompt suggestions", "Skills", "Thinking level",
+    ]);
   });
 
   it("reaches the actual final setting by wheeling over the bottom of an open search", async () => {
@@ -563,9 +577,9 @@ describe("the settings screen", () => {
     const lines = target.render({ width: 80, height: 10 }, HOST).map(line => line.replace(STYLE, "").trimEnd());
     const searchRow = lines.findIndex(line => line.includes("search settings"));
     expect(searchRow, JSON.stringify(lines)).toBeGreaterThanOrEqual(0);
-    expect(lines.find(line => line.includes("Skills"))?.trimStart()).toMatch(/^→/);
+    expect(lines.find(line => line.includes("Prompt image limit"))?.trimStart()).toMatch(/^→/);
     // Invariant: no trailing spacer separates the final result from the ruled input's top line.
-    expect(lines[searchRow - 2]).toContain("Skills");
+    expect(lines[searchRow - 2]).toContain("Prompt image limit");
   });
 
   it("restores the previous bottom position when an untouched search closes", async () => {

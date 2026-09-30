@@ -1,4 +1,4 @@
-export const OWNED_UI_SETTINGS_VERSION = 8;
+export const OWNED_UI_SETTINGS_VERSION = 9;
 
 export type OwnedUiSettingValue = string | number | boolean;
 
@@ -100,6 +100,15 @@ export const OWNED_SETTING_DECLARATIONS = Object.freeze({
     application: "live",
     defaultValue: "collapse",
     allowedValues: Object.freeze(["collapse", "expand"] as const),
+  }),
+  promptImageLimit: Object.freeze({
+    id: "promptImageLimit",
+    label: "Prompt image limit",
+    section: AGENT_SECTION,
+    description: "Maximum image attachments in one prompt. Providers may enforce a lower limit.",
+    application: "live",
+    defaultValue: 8,
+    allowedValues: Object.freeze([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16] as const),
   }),
 } as const satisfies Readonly<Record<string, OwnedUiSettingDeclaration>>);
 

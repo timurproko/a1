@@ -32,6 +32,7 @@ import {
   type OwnedUiShellDiagnosticOptions,
   type OwnedUiShellHistoryOptions,
   type OwnedUiShellPresentationOptions,
+  type OwnedUiShellPromptImagesOptions,
   type OwnedUiShellSkillsOptions,
   type OwnedUiShellSuggestionOptions,
 } from "../../../src/app/session-shell/index.js";
@@ -284,6 +285,7 @@ export async function fixture(
   reloadPresentation?: OwnedUiShellPresentationOptions["reload"],
   pastePreparation: OwnedUiShellDiagnosticOptions["pastePreparation"] | "forked" = { execute: inProcessPasteExecutor },
   skills?: OwnedUiShellSkillsOptions,
+  promptImages?: OwnedUiShellPromptImagesOptions,
 ) {
   const engine = new Runtime(messages);
   configureEngine?.(engine);
@@ -321,6 +323,7 @@ export async function fixture(
     },
     ...(promptSuggestions === undefined ? {} : { suggestions: promptSuggestions }),
     ...(promptHistory === undefined ? {} : { history: { ...promptHistory, editor: await loadHistoryEditor() } }),
+    ...(promptImages === undefined ? {} : { promptImages }),
     ...(skills === undefined ? {} : { skills }),
   });
   shell.start();
