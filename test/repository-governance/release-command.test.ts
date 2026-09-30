@@ -270,6 +270,7 @@ describe("release preparation with real temporary Git and fake external services
     expect(f.drafts).toEqual([]);
     expect(f.git(["rev-parse", "refs/tags/v0.1.8^{commit}"], f.remote)).toBe(f.initialHead);
     expect(f.errors.join("\n")).toContain("stable preparation never deletes, moves, or reuses a release tag");
+    expect(f.errors.join("\n")).toContain("gh workflow run release-tag-cleanup.yml -f version=0.1.8");
   }, INTEGRATION_TIMEOUT);
 
   it("creates and exactly reuses one non-auto-merged reopening pull request", async () => {

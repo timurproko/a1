@@ -190,6 +190,18 @@
       "artifactRetentionDays": []
     },
     {
+      "name": "Release tag cleanup",
+      "path": ".github/workflows/release-tag-cleanup.yml",
+      "state": "active",
+      "triggers": ["release:deleted", "workflow_dispatch"],
+      "permissions": ["contents: read"],
+      "trustedSource": "default-branch",
+      "authority": ["unconsumed-release-tag-cleanup"],
+      "concurrency": "release-tag-cleanup",
+      "environments": [],
+      "artifactRetentionDays": []
+    },
+    {
       "name": "Full regression",
       "path": ".github/workflows/full-regression.yml",
       "state": "active",
