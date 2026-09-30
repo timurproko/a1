@@ -15,11 +15,30 @@ The npm provenance of `@timurproko/a1` and `@timurproko/a1-install` at 0.2.1 and
 
 ## Goals / Non-Goals
 
-**Goals:** stable publication publishes the bytes that passed the complete suite, changing only the release-note resource when the maintainer edited the note. It fails before any upload when npm will refuse the run.
+**Goals:** the changelog draft lists every pull request since the last published stable Release; stable publication publishes the bytes that passed the complete suite, changing only the release-note resource when the maintainer edited the note. It fails before any upload when npm will refuse the run.
 
 **Non-Goals:** changing candidate, develop, or nightly validation depth, the approval and actor checks, the post-publish smoke, rollback, or reopening. Registering npm trusted publishers is a maintainer action on npmjs.com; the repository only proves it and documents it.
 
 ## Decisions
+
+### Changelog baseline from the published Release, not local tags
+
+`normalBaseline` runs `git fetch --tags` and then `git describe --first-parent --tags --match v[0-9]*` against the local clone. Evidence from preparing v0.2.2 at `7c7572ac`:
+
+- Local tags `v0.2.0`, `v0.2.1`, and a stale `v0.2.2` at `0316160f`. GitHub created that tag when the first attempt was published; it was later deleted remotely but never pruned locally.
+- `git ls-remote --tags origin` shows only `v0.2.0` and `v0.2.1`.
+- `describe` returned `v0.2.2`, so the draft covered only #637, #638, #639, #640, and #622. `v0.2.1..7c7572ac` has 30 first-parent merges.
+
+The replacement selects the baseline from authoritative remote state:
+
+1. Read published Releases (`draft == false`, `prerelease == false`) whose tag is an exact stable `vX.Y.Z` strictly below the target version.
+2. Resolve each tag's commit with `git ls-remote --tags origin` (peeled), not a local ref.
+3. Keep those whose commit is in the source's first-parent history, and choose the highest version.
+4. Fetch that commit if it is absent locally. No such Release is an error naming the missing baseline.
+
+The range remains `baseline..source` first-parent, so entries still come from exactly one merged pull request per commit.
+
+Alternatives considered: `git fetch --prune-tags` would fix today's case but would still trust any tag on `origin`, including the target version's own tag during a retry. Using `--no-first-parent` describe is unrelated to the failure.
 
 ### Adopt the candidate artifact by run identity
 
@@ -66,7 +85,7 @@ The publish job's first npm step requests the job's OIDC token with audience `np
 
 1. Maintainer: on npmjs.com, add trusted publishers `finalize-release.yml`, `develop.yml`, and `publish.yml` (repository `timurproko/a1`, environment `npm-publish`) to both packages, and remove `release.yml`.
 2. Merge this change.
-3. Prepare v0.2.2 again with `npm run release`, then publish its draft. Run 36685504701's rollback kept the Release because an npm upload step had started. The Release was then deleted and `release-tag-cleanup` removed `v0.2.2`, so no draft or tag remains. Preparation reuses successful candidate run 36681721327 while `develop` is still `7c7572ac`; otherwise it validates the new tip.
+3. Until the baseline fix is merged, delete the stale local tag (`git tag -d v0.2.2`) before preparing, or the draft is again partial. Prepare v0.2.2 again with `npm run release`, then publish its draft. Run 36685504701's rollback kept the Release because an npm upload step had started. The Release was then deleted and `release-tag-cleanup` removed `v0.2.2`, so no draft or tag remains. Preparation reuses successful candidate run 36681721327 while `develop` is still `7c7572ac`; otherwise it validates the new tip.
 
 The preflight also makes this failure class conclusive: a refused trust exchange happens before any upload step starts. Rollback can therefore return the Release to draft instead of keeping it as uncertain npm state.
 

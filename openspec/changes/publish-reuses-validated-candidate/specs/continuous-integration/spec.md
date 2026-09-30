@@ -12,7 +12,11 @@ Actions or re-enter the stable version.
 Stable preparation SHALL require an explicit target bump or `x.y.z` not below the
 source's open `x.y.z-dev` core, SHALL refuse an existing target tag or existing
 target package version, and SHALL create or exactly reuse one unpublished draft bound
-to the current authoritative `origin/develop` commit. It SHALL then start, or reuse a
+to the current authoritative `origin/develop` commit. A generated draft body SHALL
+list every pull request merged on the first-parent history after the baseline: the
+highest published, non-prerelease GitHub Release below the target version whose tag,
+as resolved on `origin`, points at a commit in that history. Local tags SHALL NOT
+select the baseline, and preparation SHALL fail when no such Release exists. It SHALL then start, or reuse a
 running or successful, trusted default-branch candidate validation of that exact
 source and stable version, and print the validation run URL. It SHALL then wait for
 that run to complete. Only after the run succeeds SHALL it print the draft editing URL
@@ -80,6 +84,10 @@ environment that npm must trust.
 - **WHEN** preparation creates a new draft for stable `0.1.8`
 - **THEN** its body SHALL begin with `## [0.1.8] - YYYY-MM-DD` and group applicable entries under level-three Breaking Changes, New Features, Added, Changed, and Fixed headings
 - **AND** a retained version/date heading SHALL identify the expected version and a valid calendar date while the body remains human-editable
+
+#### Scenario: A stale local tag survives a deleted Release
+- **WHEN** the local clone still holds a `v0.2.2` tag that GitHub deleted with its Release, and v0.2.1 is the latest published stable Release
+- **THEN** the v0.2.2 draft SHALL list every pull request merged after v0.2.1 on the source's first-parent history, not only those after the stale tag
 
 #### Scenario: Preparation repeats while validation runs
 - **WHEN** the command runs again for the same source and version while a candidate validation is running or has succeeded
