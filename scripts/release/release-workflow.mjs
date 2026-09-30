@@ -137,7 +137,7 @@ function repositoryName(r) {
 function listVersionReleases(r, repository, version) {
   const releases = JSON.parse(r.gh(["api", `repos/${repository}/releases?per_page=100`]));
   if (!Array.isArray(releases) || releases.length >= 100) throw new Error("GitHub release response is invalid or exceeds its bounded page");
-  return releases.filter(release => release?.tag_name === `v${version}`);
+  return releases.filter(release => release?.tag_name === `v${version}` || (release?.draft === true && release?.name === `v${version}`));
 }
 function remoteTagCommit(r, version) {
   const ref = `refs/tags/v${version}`;
@@ -164,10 +164,23 @@ function assertDraftRelease(value, source, version) {
   return Object.freeze({ id: value.id, url, version, source, markdown: note.markdown, updatedAt: value.updated_at });
 }
 function assertReplaceableDraft(value, version) {
-  if (!value || !Number.isSafeInteger(value.id) || value.id < 1 || value.tag_name !== `v${version}`
+  if (!value || !Number.isSafeInteger(value.id) || value.id < 1
+    || (value.tag_name !== `v${version}` && !/^untagged-[a-f0-9]+$/u.test(String(value.tag_name)))
     || value.name !== `v${version}` || value.draft !== true || value.prerelease !== false
     || typeof value.target_commitish !== "string" || !SHA.test(value.target_commitish)) {
     throw new Error(`v${version} GitHub Release is not a replaceable stable draft; stable preparation only refreshes its own drafts`);
+  }
+}
+/** Keeps the draft already bound to this source, then any correctly tagged draft, then the most recently updated. */
+function preferredDraft(drafts, source, version) {
+  const rank = draft => (draft.tag_name === `v${version}` ? 2 : 0) + (draft.target_commitish === source ? 1 : 0);
+  return [...drafts].sort((left, right) => rank(right) - rank(left)
+    || String(right.updated_at).localeCompare(String(left.updated_at)) || right.id - left.id)[0] ?? null;
+}
+function removeDuplicateDrafts(r, repository, version, duplicates) {
+  for (const duplicate of duplicates) {
+    r.gh(["api", "-X", "DELETE", `repos/${repository}/releases/${duplicate.id}`]);
+    r.log(`Removed a duplicate v${version} draft (${duplicate.tag_name}, ${String(duplicate.target_commitish).slice(0, 12)}).`);
   }
 }
 async function normalBaseline(r, source) {
@@ -183,17 +196,19 @@ async function prepareDraftRelease(r, repository, source, version, local) {
   checkCanceled(r);
   assertAuthoritative(r, source, local.manifest.version, local.manifest.name);
   const matches = listVersionReleases(r, repository, version);
-  if (matches.length > 1) throw new Error(`ambiguous GitHub Releases for v${version}`);
   const tag = remoteTagCommit(r, version);
   if (tag !== null) throw new Error(`v${version} already exists at ${tag}; stable preparation never deletes, moves, or reuses a release tag`);
-  const existing = matches[0] ?? null;
-  if (existing !== null && existing.target_commitish === source) {
+  // Rationale: one draft per version. A draft bound to an older develop is replaced in place, and
+  // duplicates (for example a draft GitHub left untagged) are removed instead of accumulating.
+  for (const match of matches) assertReplaceableDraft(match, version);
+  const existing = preferredDraft(matches, source, version);
+  const duplicates = matches.filter(match => match !== existing);
+  if (existing !== null && existing.tag_name === `v${version}` && existing.target_commitish === source) {
     assertAuthoritative(r, source, local.manifest.version, local.manifest.name);
-    return assertDraftRelease(existing, source, version);
+    const draft = assertDraftRelease(existing, source, version);
+    removeDuplicateDrafts(r, repository, version, duplicates);
+    return draft;
   }
-  // Rationale: a draft bound to an older develop is replaced in place, so a fix merged after a failed
-  // validation reruns the release command without a manual draft deletion.
-  if (existing !== null) assertReplaceableDraft(existing, version);
 
   const previous = await normalBaseline(r, source);
   const markdown = parseReleaseNote(renderReleaseNoteDraft(version, await r.releaseChanges(previous, source), r.releaseDate), version).markdown;
@@ -205,8 +220,10 @@ async function prepareDraftRelease(r, repository, source, version, local) {
       "-f", `tag_name=v${version}`, "-f", `name=v${version}`,
       "-f", `target_commitish=${source}`, "-f", `body=${markdown}`,
     ]));
+    const draft = assertDraftRelease(updated, source, version);
     r.log(`Refreshed the v${version} draft from ${String(existing.target_commitish).slice(0, 12)} to ${source.slice(0, 12)}; its release notes were regenerated.`);
-    return assertDraftRelease(updated, source, version);
+    removeDuplicateDrafts(r, repository, version, duplicates);
+    return draft;
   }
   const created = JSON.parse(r.gh([
     "api", "-X", "POST", `repos/${repository}/releases`,

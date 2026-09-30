@@ -228,13 +228,39 @@ describe("release preparation with real temporary Git and fake external services
     expect(f.errors.join("\n")).toContain("refusing to substitute another commit");
   }, INTEGRATION_TIMEOUT);
 
-  it.each(["unsafe", "ambiguous"])("rejects conflicting Release authority: %s", async kind => {
+  it("rejects a draft whose notes are unsafe", async () => {
     const f = await fixture();
     const draft = await prepare(f);
-    if (kind === "ambiguous") f.drafts.push({ ...draft, id: 2, html_url: "https://github.com/fixture/a1/releases/tag/untagged-2" });
-    else draft.body = "<script>unsafe</script>";
+    draft.body = "<script>unsafe</script>";
     expect(await main(["patch"], f.runtime)).toBe(1);
-    expect(f.drafts).toHaveLength(kind === "ambiguous" ? 2 : 1);
+    expect(f.drafts).toHaveLength(1);
+  }, INTEGRATION_TIMEOUT);
+
+  it("keeps the edited draft for this source and removes duplicate drafts of the same version", async () => {
+    const f = await fixture();
+    const draft = await prepare(f);
+    draft.body = "## Fixes\n\n- Reviewed edit.\n";
+    draft.updated_at = "2026-09-29T01:00:00Z";
+    f.drafts.push(
+      { ...draft, id: 2, body: "## Fixes\n\n- Older copy.\n", updated_at: "2026-09-28T00:00:00Z", html_url: "https://github.com/fixture/a1/releases/tag/untagged-2" },
+      { ...draft, id: 3, tag_name: "untagged-87582e96", target_commitish: "a".repeat(40), html_url: "https://github.com/fixture/a1/releases/tag/untagged-87582e96" },
+    );
+    expect(await main(["patch"], f.runtime)).toBe(0);
+    expect(f.drafts).toHaveLength(1);
+    expect(f.drafts[0]).toMatchObject({ id: draft.id, tag_name: "v0.1.8", body: "## Fixes\n\n- Reviewed edit.\n" });
+    expect(f.events.filter(event => event.startsWith("draft-delete:"))).toEqual(["draft-delete:v0.1.8", "draft-delete:untagged-87582e96"]);
+    expect(f.logs.join("\n")).toContain("Removed a duplicate v0.1.8 draft (untagged-87582e96, aaaaaaaaaaaa)");
+  }, INTEGRATION_TIMEOUT);
+
+  it("adopts an untagged draft of the same version instead of creating another", async () => {
+    const f = await fixture();
+    const draft = await prepare(f);
+    Object.assign(draft, { tag_name: "untagged-87582e96", target_commitish: "b".repeat(40) });
+    const before = f.events.filter(event => event.startsWith("draft-create:")).length;
+    expect(await main(["patch"], f.runtime)).toBe(0);
+    expect(f.drafts).toHaveLength(1);
+    expect(f.drafts[0]).toMatchObject({ id: draft.id, tag_name: "v0.1.8", name: "v0.1.8", target_commitish: f.initialHead });
+    expect(f.events.filter(event => event.startsWith("draft-create:"))).toHaveLength(before);
   }, INTEGRATION_TIMEOUT);
 
   it("refuses an existing target tag without moving or deleting it", async () => {
