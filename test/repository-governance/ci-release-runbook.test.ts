@@ -52,13 +52,23 @@ describe("CI and release operations runbook", () => {
     expect(runbook).toContain("Never move a release tag");
   });
 
-  it("requires both npm trusted publishers to follow the workflow rename before publication", async () => {
+  it("lists every calling workflow both packages must trust and uses no npm token", async () => {
     const runbook = await readFile("docs/ci-release-runbook.md", "utf8");
-    expect(runbook).toContain("npm trusted publishing binds authorization to the exact workflow filename");
+    expect(runbook).toContain("npm trusted publishing binds authorization to the exact workflow filename of the\n*calling* workflow");
     expect(runbook).toContain("`@timurproko/a1`");
     expect(runbook).toContain("`@timurproko/a1-install`");
-    expect(runbook).toContain("do not dispatch a");
-    expect(runbook).toContain("until both npm package settings name `publish.yml`");
+    for (const caller of ["finalize-release.yml", "develop.yml", "publish.yml"]) expect(runbook).toContain(`| \`${caller}\` |`);
+    expect(runbook).toContain("environment `npm-publish`");
+    expect(runbook).toContain("requires npm >= 11.5.1");
+    expect(runbook).not.toContain("NPM_BOOTSTRAP_TOKEN");
+  });
+
+  it("describes stable publication as adoption of the candidate-validated package", async () => {
+    const runbook = await readFile("docs/ci-release-runbook.md", "utf8");
+    expect(runbook).toContain("highest published, non-prerelease GitHub Release below the target");
+    expect(runbook).toContain("replaces only the packaged release-note resource");
+    expect(runbook).toContain("Nothing is rebuilt or\n   revalidated.");
+    expect(runbook).not.toContain("repacks both packages over committed history");
   });
 
   it("keeps preferred installer guidance on npm x with an explicit argument boundary", async () => {

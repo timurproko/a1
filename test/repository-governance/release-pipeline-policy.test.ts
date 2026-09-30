@@ -42,13 +42,13 @@ describe("deliberate publication pipeline", () => {
     expect(source).toContain('selected=\'["package-smoke","package-install"]\'');
     expect(source).toContain('selected=\'["full-release"]\'');
     const validate = source.slice(source.indexOf("\n  validate:"), source.indexOf("\n  publish:"));
-    expect(validate).toContain("if: always() && needs.plan.result == 'success' && needs.package.result == 'success'");
+    expect(validate).toContain("if: always() && needs.plan.result == 'success' && needs.plan.outputs.mode != 'stable' && needs.package.result == 'success'");
   });
 
   it("evaluates publication after an allowed prerequisite skip without weakening required outcomes", async () => {
     const source = await workflow();
     const publish = source.slice(source.indexOf("\n  publish:"), source.indexOf("\n  post_publish:"));
-    expect(publish.match(/^    if: (.+)$/m)?.[1]).toBe("always() && needs.plan.outputs.mode != 'candidate' && (needs.plan.outputs.build == 'true' || needs.plan.outputs.installer_build == 'true') && needs.package.result == 'success' && (needs.documentation.result == 'success' || needs.documentation.result == 'skipped') && needs.validate.result == 'success'");
+    expect(publish.match(/^    if: (.+)$/m)?.[1]).toBe("always() && needs.plan.outputs.mode != 'candidate' && (needs.plan.outputs.build == 'true' || needs.plan.outputs.installer_build == 'true') && needs.package.result == 'success' && (needs.documentation.result == 'success' || needs.documentation.result == 'skipped') && (needs.validate.result == 'success' || (needs.plan.outputs.mode == 'stable' && needs.validate.result == 'skipped'))");
 
     const postPublish = source.slice(source.indexOf("\n  post_publish:"), source.indexOf("\n  complete:"));
     expect(postPublish.match(/^    if: (.+)$/m)?.[1]).toBe("always() && needs.plan.result == 'success' && needs.plan.outputs.work == 'true' && (needs.plan.outputs.build == 'true' || needs.plan.outputs.installer_build == 'true') && needs.package.result == 'success' && needs.publish.result == 'success'");
@@ -61,6 +61,53 @@ describe("deliberate publication pipeline", () => {
     expect(result).toContain('test "$PUBLISH" = success');
     expect(result).toContain('test "$POST_PUBLISH" = success');
     expect(result).toContain('test "$COMPLETE" = success');
+  });
+
+  it("publishes stable releases from the candidate-validated package without rebuilding or revalidating", async () => {
+    const source = await workflow();
+    const job = (name: string, next: string) => source.slice(source.indexOf(`\n  ${name}:`), source.indexOf(`\n  ${next}:`));
+    expect(job("approval", "plan")).toContain("validation_run_id: ${{ steps.approval.outputs.validation_run_id }}");
+    expect(job("approval", "plan")).toContain("console.log(`validation_run_id=${validationRunId ?? \"\"}`);");
+    expect(job("plan", "documentation")).toContain("validation_run_id: ${{ needs.approval.outputs.validation_run_id }}");
+    expect(job("guardians", "package").match(/^    if: (.+)$/m)?.[1]).toBe("needs.plan.outputs.build == 'true' && needs.plan.outputs.mode != 'stable'");
+    expect(job("validate", "publish").match(/^    if: (.+)$/m)?.[1]).toContain("needs.plan.outputs.mode != 'stable'");
+    expect(job("validate", "publish")).not.toContain('[ "$MODE" = "stable" ]');
+
+    const pkg = job("package", "validate");
+    const download = pkg.slice(pkg.indexOf("- name: Download the candidate-validated package pair"), pkg.indexOf("- name: Explain an unavailable candidate package"));
+    expect(download).toContain("if: needs.plan.outputs.mode == 'stable'");
+    expect(download).toContain("name: release-package-${{ needs.plan.outputs.version }}");
+    expect(download).toContain("run-id: ${{ needs.plan.outputs.validation_run_id }}");
+    expect(download).toContain("github-token: ${{ github.token }}");
+    expect(pkg).toContain("rerun candidate validation of this source and version");
+    expect(pkg.indexOf("node scripts/release/adopt-validated-candidate.mjs")).toBeLessThan(pkg.indexOf("- name: Bind packed source and identity"));
+    // Invariant: every build and pack step is closed to stable mode, so stable bytes come only from adoption.
+    for (const step of ["Prepare Rust toolchain", "Install dependencies and build source once", "Install package tooling without building the application",
+      "Assemble all platform process guardians", "Stamp the published version on the open development source", "Record verified candidate build",
+      "Pack the candidate exactly once", "Pack the installer candidate exactly once"]) {
+      const body = pkg.slice(pkg.indexOf(`- name: ${step}`));
+      expect(body.match(/^        if: (.+)$/m)?.[1], step).toContain("needs.plan.outputs.mode != 'stable'");
+    }
+
+    const result = source.slice(source.indexOf("\n  result:"));
+    expect(result).toContain('if [ "$MODE" = stable ]; then test "$VALIDATE" = skipped; else test "$VALIDATE" = success; fi');
+    expect(result).toContain("!(needs.plan.outputs.mode == 'stable' && needs.validate.result == 'skipped')");
+  });
+
+  it("proves npm trusted publishing for both packages before either upload and uses no npm token", async () => {
+    const source = await workflow();
+    const publish = source.slice(source.indexOf("\n  publish:"), source.indexOf("\n  post_publish:"));
+    const preflight = publish.indexOf("- name: Prove npm trusted publishing for both packages");
+    expect(preflight).toBeGreaterThan(publish.indexOf("- name: Serialize the final registry check"));
+    expect(preflight).toBeLessThan(publish.indexOf("- name: Publish the exact validated installer package"));
+    expect(preflight).toBeLessThan(publish.indexOf("- name: Publish the exact validated application package"));
+    expect(publish).toContain("run: node scripts/release/npm-trust-preflight.mjs");
+    expect(publish).toContain("environment: npm-publish");
+    expect(publish).toContain("id-token: write");
+    const workflows = await Promise.all((await readdir(".github/workflows")).map(name => readFile(`.github/workflows/${name}`, "utf8")));
+    expect(workflows.join("\n")).not.toMatch(/NPM_BOOTSTRAP_TOKEN|NODE_AUTH_TOKEN:/u);
+    const rollback = await readFile("scripts/release/rollback-publication.mjs", "utf8");
+    expect(rollback).not.toContain("Prove npm trusted publishing");
   });
 
   it("uses one established immutable checkout pin throughout the publication workflow", async () => {

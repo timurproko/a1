@@ -92,3 +92,13 @@ The preflight also makes this failure class conclusive: a refused trust exchange
 ## Open Questions
 
 None.
+
+## Evidence
+
+- `release-command.test.ts` (29 tests) passes against real temporary Git repositories. It covers a baseline that ignores a local-only tag, a stale local target tag, draft and prerelease Releases, and a tag off the first-parent history. It covers failure when no published Release qualifies. It also rebuilds the v0.2.2 shape: 30 pull requests after the last Release with a stale local tag near the tip, and the draft lists all 30.
+- `adopt-validated-candidate.test.ts` passes. An identical note returns the validated tarball object unchanged. An edited note changes only the resource entry, with every other entry's content, mode, type, and mtime preserved. Another source, tree, version, integrity, or extra entry fails, as do an oversized resource and a candidate that does not package this version's note.
+- `npm-trust-preflight.test.ts` passes. It covers the npm >= 11.5.1 gate, naming the calling workflow, the exchange for both packages before any upload, a refusal that names `finalize-release.yml` and `npm-publish`, and a job without an OIDC identity.
+- `repair-native-executable-modes.test.ts` passes unchanged against the shared `packed-tar.mjs` helper.
+- `release-pipeline-policy.test.ts` pins the stable job graph: guardians, validation, and every build or pack step are closed to stable mode, and the candidate artifact is downloaded by `validation_run_id`. The preflight comes after the final registry check and before both uploads, and no workflow names `NPM_BOOTSTRAP_TOKEN` or `NODE_AUTH_TOKEN`. `ci-release-runbook.test.ts` and the other governance suites that read `publish.yml` also pass (179 tests).
+- `npm run typecheck`, `check-code-documentation.mjs --mode full`, and `check-release-documentation.mjs` pass.
+- Not exercised locally: the cross-run artifact download and npm's token-exchange endpoint. Both first run live on the next stable publication, after the maintainer registers the trusted publishers. The endpoint and escaped package name follow the npm CLI's own exchange.

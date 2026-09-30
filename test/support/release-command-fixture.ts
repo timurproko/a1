@@ -82,7 +82,7 @@ export async function releaseFixture(version = "0.1.8-dev", trace?: NativeRegres
   const gitCalls: Array<{ args: readonly string[]; directory: string }> = [];
   const ghCalls: string[][] = [];
   const drafts: FakeDraftRelease[] = [];
-  // Published Releases stay apart from drafts so assertions about drafts are unaffected.
+  // Rationale: published Releases stay apart from drafts so assertions about drafts are unaffected.
   const published: Array<Pick<FakeDraftRelease, "tag_name" | "draft" | "prerelease">> = [
     { tag_name: `v${baselineVersion}`, draft: false, prerelease: false },
   ];
