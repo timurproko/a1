@@ -307,27 +307,29 @@ export function renderPiShellReleaseUpdateBanner(
 ): PiShellReleaseUpdateBanner {
   ensureTheme();
   const theme = piTheme();
+  const bandBg = (text: string) => theme.bg("userMessageBg", text);
   const title = theme.bold(theme.fg("warning", "Update Available"));
   const close = closeHovered ? theme.bold(theme.fg("warning", "✕")) : theme.fg("muted", "✕");
-  // Invariant: two cells of horizontal padding on each side; the close glyph ends the title row's content.
-  const gap = Math.max(1, width - 2 * BANNER_PADDING_X - visibleWidth(title) - 1);
-  const lines = [
-    `${title}${" ".repeat(gap)}${close}`,
+  // Rationale: a glyph looks inset by its own side bearing, so one trailing cell after it reads the same
+  // as the text's two leading cells.
+  const gap = Math.max(1, width - BANNER_PADDING_X - visibleWidth(title) - 2);
+  const closeColumn = BANNER_PADDING_X + visibleWidth(title) + gap + 1;
+  const titleRow = bandBg(`${" ".repeat(BANNER_PADDING_X)}${title}${" ".repeat(gap)}${close} `);
+  const body = [
     `${theme.fg("muted", `New version ${release.version} is available. Run `)}${theme.fg("accent", release.command)}`,
   ];
   if (release.changelogUrl !== null) {
     const link = getCapabilities().hyperlinks
       ? hyperlink(theme.fg("accent", release.changelogUrl), release.changelogUrl)
       : theme.fg("accent", release.changelogUrl);
-    lines.push(`${theme.fg("muted", "Changelog: ")}${link}`);
+    body.push(`${theme.fg("muted", "Changelog: ")}${link}`);
   }
-  const band = new Text(lines.join("\n"), BANNER_PADDING_X, 1, text => theme.bg("userMessageBg", text)).render(width);
-  const closeColumn = BANNER_PADDING_X + visibleWidth(title) + gap + 1;
+  const padding = bandBg(" ".repeat(width));
   // Invariant: rows are a leading spacer, the band's top padding, then the title row. The glyph stays
   // one cell, but the click area covers the top-right corner around it, from the padding row to the
   // row below the title.
   return {
-    rows: ["", ...band],
+    rows: ["", padding, titleRow, ...new Text(body.join("\n"), BANNER_PADDING_X, 0, bandBg).render(width), padding],
     close: { rowStart: 1, rowEnd: 3, columnStart: Math.max(1, closeColumn - 2), columnEnd: width },
   };
 }
