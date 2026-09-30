@@ -114,7 +114,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
   // comparison profile keeps Pi's configured theme behavior and settings surface.
   applyConfiguredPiTheme(ownedSurfaces ? "dark" : adapter.configuredTheme());
 
-  // Reference routes cannot open before shell construction settles this closure.
+  // Rationale: Routes open only after shell construction.
   const references: OwnedReferenceProviders = {
     changelog: async input => {
       if (input?.document === undefined && releaseNotesFailure !== undefined) throw releaseNotesFailure;
