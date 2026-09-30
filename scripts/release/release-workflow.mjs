@@ -185,7 +185,10 @@ async function prepareDraftRelease(r, repository, source, version, local) {
   const matches = listVersionReleases(r, repository, version);
   if (matches.length > 1) throw new Error(`ambiguous GitHub Releases for v${version}`);
   const tag = remoteTagCommit(r, version);
-  if (tag !== null) throw new Error(`v${version} already exists at ${tag}; stable preparation never deletes, moves, or reuses a release tag`);
+  if (tag !== null) {
+    throw new Error(`v${version} already exists at ${tag}; stable preparation never deletes, moves, or reuses a release tag. `
+      + `If its Release was deleted before npm publication, remove the tag with: gh workflow run release-tag-cleanup.yml -f version=${version}`);
+  }
   const existing = matches[0] ?? null;
   if (existing !== null && existing.target_commitish === source) {
     assertAuthoritative(r, source, local.manifest.version, local.manifest.name);
