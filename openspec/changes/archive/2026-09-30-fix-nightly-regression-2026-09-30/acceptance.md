@@ -15,7 +15,7 @@ The manual merge accepts these scenarios:
   "archive": "openspec/changes/archive/2026-09-30-fix-nightly-regression-2026-09-30/",
   "acceptanceManifest": "openspec/changes/archive/2026-09-30-fix-nightly-regression-2026-09-30/acceptance.md",
   "finalizedDate": "2026-09-30",
-  "specBaseSha": "88279a91c830da74fbbe999b88fb945645b281ba",
+  "specBaseSha": "14c450b8f9155a0327a99e65d2b9e2d39728ad9c",
   "acceptanceScenarios": [
     "The packaged session-resume afterAll records its launch close, supervisor stop, and candidate removal as separate validation phases.",
     "The session-resume teardown bound covers the idle-owner release and removal retry worst cases while every per-test deadline and assertion is unchanged."
